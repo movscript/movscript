@@ -264,13 +264,15 @@ test('findUnpackedResourceDirs discovers platform-specific Electron resources', 
     const macResources = join(dir, 'mac-arm64/Movscript.app/Contents/Resources')
     const winResources = join(dir, 'win-unpacked/resources')
     const linuxResources = join(dir, 'linux-unpacked/resources')
+    const linuxArm64Resources = join(dir, 'linux-arm64-unpacked/resources')
     await mkdir(macResources, { recursive: true })
     await mkdir(winResources, { recursive: true })
     await mkdir(linuxResources, { recursive: true })
+    await mkdir(linuxArm64Resources, { recursive: true })
 
     assert.deepEqual(findUnpackedResourceDirs(dir, 'darwin'), [macResources])
     assert.deepEqual(findUnpackedResourceDirs(dir, 'win32'), [winResources])
-    assert.deepEqual(findUnpackedResourceDirs(dir, 'linux'), [linuxResources])
+    assert.deepEqual(findUnpackedResourceDirs(dir, 'linux'), [linuxArm64Resources, linuxResources])
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

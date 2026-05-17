@@ -358,7 +358,7 @@ export default function ProductionPage() {
                   <div className="p-4">
                     <p className="text-sm font-medium text-foreground">{selected.preview.title}</p>
                     <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      预览挂在制作下面，用于追踪编排段、预览画面、素材和内容准备情况。
+                      预览挂在制作下面，用于追踪编排段、预览画面、素材和制作项准备情况。
                     </p>
                     <Progress value={selected.preview.progress} className="mt-4 h-2" />
                     <div className="mt-4 space-y-1 text-xs text-muted-foreground">
@@ -367,7 +367,7 @@ export default function ProductionPage() {
                     </div>
                     <div className="mt-4">
                       <Button variant="outline" size="sm" className="gap-2" asChild>
-                        <Link to={productionPlaybackHref(selected)}>
+                        <Link to={productionContentWorkbenchHref(selected)}>
                           <Play size={14} />
                           内容编排
                         </Link>
@@ -383,7 +383,7 @@ export default function ProductionPage() {
                     <ScrollText size={15} className="text-muted-foreground" />
                     <h2 className="text-sm font-semibold text-foreground">制作项</h2>
                   </div>
-                  <p className="text-xs text-muted-foreground">可从预览生成，也可以直接维护制作下的内容结构</p>
+                  <p className="text-xs text-muted-foreground">可从预览生成，也可以直接维护制作下的制作项结构</p>
                 </div>
                 <div className="divide-y divide-border">
                   {selected.units.map((unit) => (
@@ -940,8 +940,8 @@ function contentUnitStatus(status: unknown, blocked: boolean): UnitStatus {
 
 function nextActionsForProduction(input: { blockedUnits: number; units: number; deliveryVersions: number; keyframes: number }) {
   if (input.units === 0) return ['创建或导入制作项。', '为制作项补充素材需求。', '建立预览时间线或直接开始制作项生成。']
-  if (input.blockedUnits > 0) return ['先补齐阻塞制作项的素材需求。', '锁定关键设定资料和素材资源。', '再进入内容候选生成与选片。']
-  if (input.deliveryVersions === 0) return ['生成正式内容候选。', '选择可进入成片时间线的版本。', '创建第一版成片并进入交付检查。']
+  if (input.blockedUnits > 0) return ['先补齐阻塞制作项的素材需求。', '锁定关键设定资料和素材资源。', '再进入生成候选与选片。']
+  if (input.deliveryVersions === 0) return ['生成正式候选。', '选择可进入成片时间线的版本。', '创建第一版成片并进入交付检查。']
   return ['复核成片版本。', '归档生成记录和审核意见。', '准备导出或交付。']
 }
 
@@ -971,7 +971,7 @@ function deliveryWorkbenchHref(production: ProductionRecord) {
   return withRouteParams(ROUTES.project.deliveryWorkbench, { productionId: production.dbId })
 }
 
-function productionPlaybackHref(production: ProductionRecord) {
+function productionContentWorkbenchHref(production: ProductionRecord) {
   return withRouteParams(ROUTES.project.contentUnitWorkbench, { productionId: production.dbId })
 }
 

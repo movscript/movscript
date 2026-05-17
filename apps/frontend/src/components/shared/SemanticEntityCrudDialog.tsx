@@ -350,7 +350,7 @@ const advancedFieldsByKind: Partial<Record<SemanticEntityConfig['kind'], string[
 }
 
 function dialogDescription(kind: SemanticEntityConfig['kind'], fallback: string) {
-  if (kind === 'productions') return '创建一个制作主体。可以先不绑定剧本、brief 或预演，后续再把内容、素材和成片挂载到这个制作下。'
+  if (kind === 'productions') return '创建一个制作主体。可以先不绑定剧本、brief 或预览，后续再把制作项、素材和成片挂载到这个制作下。'
   if (kind === 'contentUnits') return '描述这项内容要生成什么。情景、编排段、排序和 JSON 可在高级选项中维护。'
   if (kind === 'assetSlots') return '描述生产还缺什么素材。归属关系、锁定素材需求和 JSON 可在高级选项中维护。'
   return fallback

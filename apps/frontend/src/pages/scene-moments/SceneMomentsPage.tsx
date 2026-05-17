@@ -387,7 +387,7 @@ export default function SceneMomentsPage() {
           ]}
           chips={[
             selectedMomentId ? { id: 'moment', label: `情景 #${selectedMomentId}`, onRemove: () => setFilter({ scene_moment_id: null }) } : null,
-            contentUnitFilterId ? { id: 'content', label: `内容 #${contentUnitFilterId}`, onRemove: () => setFilter({ content_unit_id: null }) } : null,
+            contentUnitFilterId ? { id: 'content', label: `制作项 #${contentUnitFilterId}`, onRemove: () => setFilter({ content_unit_id: null }) } : null,
             referenceFilterId ? { id: 'reference', label: `设定资料 #${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) } : null,
             assetSlotFilterId ? { id: 'asset', label: `素材需求 #${assetSlotFilterId}`, onRemove: () => setFilter({ asset_slot_id: null }) } : null,
           ].filter(Boolean) as Array<{ id: string; label: string; onRemove: () => void }>}
@@ -416,7 +416,7 @@ export default function SceneMomentsPage() {
             </Panel>
         )}
         preview={(
-          <Panel title="内容设计" icon={Boxes}>
+          <Panel title="制作项设计" icon={Boxes}>
             <RelatedList
               records={selected?.contentUnits ?? []}
               scriptBlocksById={scriptBlocksById}
@@ -431,7 +431,7 @@ export default function SceneMomentsPage() {
               <div className="flex justify-end">
                 <Button size="sm" variant="outline" className="gap-2" onClick={() => setPreviewOpen(true)}>
                   <Clapperboard size={14} />
-                  预演
+                  预览
                 </Button>
               </div>
             )}

@@ -2892,7 +2892,7 @@ function buildProposalSemanticDiff(segments: ProposalSegmentNode[]): ProposalSem
         children.push({
           key: unitKey,
           acceptKeys: [segmentKey, momentKey, unitKey],
-          title: unit.title || `内容单元 ${unitIndex + 1}`,
+          title: unit.title || `制作项 ${unitIndex + 1}`,
           detail: compactParts([unit.kind, unit.shot_size, unit.camera_angle, unit.duration_sec ? `${unit.duration_sec}s` : '', unit.description]),
           action: proposalSnapshotAction(unit),
           kind: 'content',
@@ -3165,7 +3165,7 @@ function buildProposalApplyPreview(segments: ProposalSegmentNode[], decisions: P
         const unitFallback = `${momentFallback}-content-${unitIndex}`
         const unitKey = proposalNodeDecisionKey('content_unit', unit, unitFallback)
         const unitDecision = decisions[unitKey]
-        const unitTitle = unit.title || `内容单元 ${unitIndex + 1}`
+        const unitTitle = unit.title || `制作项 ${unitIndex + 1}`
         const unitBlocked = unitDecision === 'accepted' && (segmentDecision !== 'accepted' || momentDecision !== 'accepted')
         pushByDecision({
           key: unitKey,
@@ -4168,7 +4168,7 @@ function formatOwnerLabel(ownerType?: string, ownerId?: number, lookup?: Orchest
   const key = ownerKey(ownerType, ownerId)
   if (ownerType === 'segment') return lookup.segmentById.get(ownerId) ? `编排段 · ${titleOfRecord(lookup.segmentById.get(ownerId))}` : `编排段 #${ownerId}`
   if (ownerType === 'scene_moment') return lookup.sceneMomentById.get(ownerId) ? `情景 · ${titleOfRecord(lookup.sceneMomentById.get(ownerId))}` : `情景 #${ownerId}`
-  if (ownerType === 'content_unit') return lookup.contentUnitById.get(ownerId) ? `下游内容 · ${titleOfRecord(lookup.contentUnitById.get(ownerId))}` : `下游内容 #${ownerId}`
+  if (ownerType === 'content_unit') return lookup.contentUnitById.get(ownerId) ? `下游制作项 · ${titleOfRecord(lookup.contentUnitById.get(ownerId))}` : `下游制作项 #${ownerId}`
   if (ownerType === 'creative_reference') return lookup.creativeReferenceById.get(ownerId) ? `设定资料 · ${titleOfRecord(lookup.creativeReferenceById.get(ownerId))}` : `设定资料 #${ownerId}`
   return `${ownerType} #${ownerId}`
 }
@@ -4279,7 +4279,7 @@ function getAnalysisText(target: AnalysisTarget, input: {
       segment.summary ? `摘要：${segment.summary}` : '',
       segment.content ? `剧本正文：\n${segment.content}` : '',
       moments.length > 0 ? `情景：\n${moments.map(serializeSceneMoment).join('\n\n')}` : '',
-      units.length > 0 ? `下游内容：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
+      units.length > 0 ? `下游制作项：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
       refs.length > 0 ? `相关设定资料：\n${refs.map(serializeCreativeReference).join('\n\n')}` : '',
       slots.length > 0 ? `相关素材需求：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')
@@ -4303,7 +4303,7 @@ function getAnalysisText(target: AnalysisTarget, input: {
       moment.action_text ? `动作：${moment.action_text}` : '',
       moment.mood ? `情绪：${moment.mood}` : '',
       segmentRecord ? `所属编排段：${titleOfRecord(segmentRecord)}` : '',
-      units.length > 0 ? `下游内容：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
+      units.length > 0 ? `下游制作项：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
       refs.length > 0 ? `相关设定资料：\n${refs.map(serializeCreativeReference).join('\n\n')}` : '',
       slots.length > 0 ? `相关素材需求：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')
@@ -4369,7 +4369,7 @@ function getAnalysisText(target: AnalysisTarget, input: {
     const refs = collectReferencesFromUnitsAndMoments(input.creativeReferences, input.assetSlots, moment ? [moment] : [], [unit])
     const slots = input.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && slot.owner_id === unit.ID)
     return [
-      `下游内容：${titleOfRecord(unit)}`,
+      `下游制作项：${titleOfRecord(unit)}`,
       unit.kind ? `类型：${unit.kind}` : '',
       unit.description ? `描述：${unit.description}` : '',
       unit.prompt ? `提示：${unit.prompt}` : '',

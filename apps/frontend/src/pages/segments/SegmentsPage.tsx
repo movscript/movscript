@@ -415,7 +415,7 @@ export default function SegmentsPage() {
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">编排段</h1>
             <p className="mt-1 max-w-4xl text-sm leading-relaxed text-muted-foreground">
-              编排段定义本集内部的情绪、节奏和戏剧功能；一个编排段持有多个情景，并汇总制作项、设定资料、素材需求和预演画面。
+              编排段定义本集内部的情绪、节奏和戏剧功能；一个编排段持有多个情景，并汇总制作项、设定资料、素材需求和预览画面。
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -446,7 +446,7 @@ export default function SegmentsPage() {
           <ContentFilterBar
             query={query}
             onQueryChange={(value) => setFilter({ q: value })}
-            queryPlaceholder="搜索编排段、情景、内容或素材需求"
+            queryPlaceholder="搜索编排段、情景、制作项或素材需求"
             filters={[{
               id: 'status',
               label: '状态',
@@ -462,7 +462,7 @@ export default function SegmentsPage() {
             chips={[
               selectedSegmentId ? { id: 'segment', label: `编排段 #${selectedSegmentId}`, onRemove: () => setFilter({ segment_id: null }) } : null,
               selectedSceneMomentId ? { id: 'scene', label: `情景 #${selectedSceneMomentId}`, onRemove: () => setFilter({ scene_moment_id: null }) } : null,
-              selectedContentUnitId ? { id: 'content', label: `内容 #${selectedContentUnitId}`, onRemove: () => setFilter({ content_unit_id: null }) } : null,
+              selectedContentUnitId ? { id: 'content', label: `制作项 #${selectedContentUnitId}`, onRemove: () => setFilter({ content_unit_id: null }) } : null,
               referenceFilterId ? { id: 'reference', label: `设定资料 #${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) } : null,
               assetSlotFilterId ? { id: 'asset', label: `素材需求 #${assetSlotFilterId}`, onRemove: () => setFilter({ asset_slot_id: null }) } : null,
             ].filter(Boolean) as Array<{ id: string; label: string; onRemove: () => void }>}
@@ -507,14 +507,14 @@ export default function SegmentsPage() {
             <section className="rounded-lg border border-border bg-card">
               <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">情景与内容设计</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">选择编排段后，在这里查看它持有的多个情景，以及每个情景关联的内容设计。</p>
+                  <p className="text-sm font-semibold text-foreground">情景与制作项设计</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">选择编排段后，在这里查看它持有的多个情景，以及每个情景关联的制作项设计。</p>
                 </div>
-                <Badge variant="outline" className="text-[10px]">{selectedSegment ? `${selectedSegment.sceneMoments.length} 情景 / ${selectedSegment.contentUnits.length} 内容` : '-'}</Badge>
+                <Badge variant="outline" className="text-[10px]">{selectedSegment ? `${selectedSegment.sceneMoments.length} 情景 / ${selectedSegment.contentUnits.length} 制作项` : '-'}</Badge>
               </div>
 
               {!selectedSegment ? (
-                <EmptyState title="未选择编排段" detail="从编排段清单选择一个编排段查看内容设计" />
+                <EmptyState title="未选择编排段" detail="从编排段清单选择一个编排段查看制作项设计" />
               ) : (
                 <div className="grid grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] gap-4 p-4">
                   <div className="space-y-3">
@@ -536,9 +536,9 @@ export default function SegmentsPage() {
                   </div>
 
                   <div className="space-y-3">
-                    <SectionTitle icon={Boxes} title="内容设计" count={selectedSegment.contentUnits.length} />
+                    <SectionTitle icon={Boxes} title="制作项设计" count={selectedSegment.contentUnits.length} />
                     {selectedSegment.contentUnits.length === 0 ? (
-                      <EmptyState title="暂无内容设计" detail="确认情景后可生成镜头、字幕卡、旁白或转场内容" compact />
+                      <EmptyState title="暂无制作项设计" detail="确认情景后可生成镜头、字幕卡、旁白或转场制作项" compact />
                     ) : (
                       selectedSegment.contentUnits.map((item) => (
                         <ContentUnitRow
@@ -813,7 +813,7 @@ function SegmentDetailCard({
               <div className="flex items-center gap-2">
                 <Button type="button" size="sm" variant="outline" className="gap-2 bg-background/80" onClick={() => setPreviewOpen(true)}>
                   <Clapperboard size={14} />
-                  预演
+                  预览
                 </Button>
                 <Button type="button" size="sm" variant="outline" className="gap-2 bg-background/80" onClick={() => setIsEditing(true)} disabled={deleteMutation.isPending}>
                   <Pencil size={14} />
@@ -873,7 +873,7 @@ function SegmentDetailCard({
         {item ? (
           <div className="grid grid-cols-5 gap-3 p-4">
             <HeroStat icon={Film} label="情景" value={item.sceneMoments.length} />
-            <HeroStat icon={Boxes} label="内容设计" value={item.contentUnits.length} />
+            <HeroStat icon={Boxes} label="制作项设计" value={item.contentUnits.length} />
             <HeroStat icon={Sparkles} label="设定资料引用" value={item.references.length} />
             <HeroStat icon={PackageCheck} label="素材需求缺口" value={item.assetSlots.filter(isAssetGap).length} tone={item.assetSlots.some(isAssetGap) ? 'text-amber-600' : 'text-emerald-600'} />
             <HeroStat icon={Clock3} label="估算时长" value={formatDuration(item.totalDuration)} />
@@ -956,7 +956,7 @@ function SceneMomentRow({
         <InfoChip icon={MapPin} label={sceneMoment.location_text || '地点未定'} />
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
-        <Badge variant="outline" className="text-[10px]">内容 {contentCount}</Badge>
+        <Badge variant="outline" className="text-[10px]">制作项 {contentCount}</Badge>
         {sceneMoment.mood ? <Badge variant="outline" className="text-[10px]">{sceneMoment.mood}</Badge> : null}
         {assetGapCount > 0 ? <Badge variant="warning" className="text-[10px]">缺口 {assetGapCount}</Badge> : null}
       </div>
@@ -993,7 +993,7 @@ function ContentUnitRow({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">{titleOf(item)}</p>
-          <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.description || item.prompt || '暂无内容描述或提示词'}</p>
+          <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.description || item.prompt || '暂无制作项描述或提示词'}</p>
         </div>
         <StatusBadge status={item.status ?? 'draft'} />
       </div>
@@ -1051,7 +1051,7 @@ function ContentUnitDetail({ contentUnit, sceneMoment, scriptBlock }: { contentU
       <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
         <div className="flex items-center gap-2">
           <Boxes size={14} className="text-muted-foreground" />
-          <p className="text-sm font-semibold text-foreground">当前内容设计</p>
+          <p className="text-sm font-semibold text-foreground">当前制作项设计</p>
         </div>
         <StatusBadge status={contentUnit.status ?? 'draft'} />
       </div>

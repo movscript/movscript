@@ -311,7 +311,7 @@ export async function previewProductionProposalApply(
 
 function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
   return [
-    cfg('scriptVersions', 'script-versions', '剧本版本', '导入剧本、brief 或修订文本后的稳定版本，是编排段和预演的源头。', 'text-sky-600', ['title', 'source_type', 'status', 'summary'], [
+    cfg('scriptVersions', 'script-versions', '剧本版本', '导入剧本、brief 或修订文本后的稳定版本，是编排段和预览的源头。', 'text-sky-600', ['title', 'source_type', 'status', 'summary'], [
       num('script_id', 'Script ID', true, true, '关联旧 Script 记录'),
       textCreateOnly('title', '标题', true, '创建后不可修改；如需调整请创建新版本'),
       selectCreateOnly('source_type', '来源类型', ['raw', 'adapted', 'revised', 'ai'], false, '创建后不可修改；如需调整请创建新版本'),
@@ -320,7 +320,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       areaCreateOnly('summary', '摘要', '创建后不可修改；如需调整请创建新版本'),
       selectCreateOnly('status', '状态', ['draft', 'active', 'archived'], false, '创建后不可修改；版本保留为历史快照'),
     ], '需要先在旧版剧本页创建 Script，创建版本即形成稳定快照；后续修改请创建新版本。'),
-    cfg('scriptBlocks', 'script-blocks', '剧本块', '绑定到某个剧本版本的可引用文本块，用于让情节和内容单元稳定引用具体行。', 'text-sky-700', ['kind', 'speaker', 'start_line', 'end_line', 'content'], [
+    cfg('scriptBlocks', 'script-blocks', '剧本块', '绑定到某个剧本版本的可引用文本块，用于让情节和制作项稳定引用具体行。', 'text-sky-700', ['kind', 'speaker', 'start_line', 'end_line', 'content'], [
       num('script_id', 'Script ID', true, true, '关联旧 Script 记录'),
       num('script_version_id', 'ScriptVersion ID', true, true, '绑定到稳定剧本版本'),
       num('parent_block_id', '父剧本块 ID'),
@@ -400,7 +400,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       ]),
       area('metadata_json', '元数据 JSON'),
     ], '情景可以继续修改标题、动作、台词等内容；已有下游生产结构后，父编排段和剧本块来源会被锁定。'),
-    cfg('productions', 'productions', '制作', '一次完整制作主体，可从剧本、brief、预演创建，也可以直接裸创建。', 'text-orange-600', ['name', 'source_type', 'status', 'description'], [
+    cfg('productions', 'productions', '制作', '一次完整制作主体，可从剧本、brief、预览创建，也可以直接裸创建。', 'text-orange-600', ['name', 'source_type', 'status', 'description'], [
       text('name', '制作名称', true),
       area('description', '制作说明'),
       select('source_type', '来源类型', ['direct', 'script', 'brief', 'preview', 'import'], false, '已有制作文本、编排段、制作项或关键帧后，后端会锁定来源'),
@@ -408,7 +408,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       text('owner_label', '负责人'),
       num('progress', '进度'),
       num('script_version_id', 'ScriptVersion ID', false, false, '从稳定剧本版本创建制作时填写；已有下游生产结构后不可改'),
-      num('preview_timeline_id', 'PreviewTimeline ID', false, false, '从预演时间线创建制作时填写；已有下游生产结构后不可改'),
+      num('preview_timeline_id', 'PreviewTimeline ID', false, false, '从预览时间线创建制作时填写；已有下游生产结构后不可改'),
       area('metadata_json', '元数据 JSON'),
     ], '可以先创建空制作；一旦产生制作文本、编排段、制作项或关键帧，来源引用会被锁定。'),
     cfg('storyboardScripts', 'storyboard-scripts', '分镜脚本', '结构化分镜脚本，是情景到制作项之间的正式语义对象。', 'text-blue-600', ['name', 'status', 'is_primary', 'description'], [
@@ -428,7 +428,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       areaCreateOnly('snapshot_json', '快照 JSON', '创建后不可修改；内容生产应引用稳定版本'),
       areaCreateOnly('metadata_json', '元数据 JSON', '创建后不可修改；如需调整请创建新版本'),
     ], '创建时需要填写 storyboard_script_id；创建后不可修改或删除。'),
-    cfg('contentUnits', 'content-units', '制作项', '预演与生产的最小颗粒，镜头只是其中一种类型。', 'text-indigo-600', ['title', 'kind', 'duration_sec', 'status'], [
+    cfg('contentUnits', 'content-units', '制作项', '预览与生产的最小颗粒，镜头只是其中一种类型。', 'text-indigo-600', ['title', 'kind', 'duration_sec', 'status'], [
       num('production_id', 'Production ID', false, false, '已有关键帧或素材需求后不可改'),
       num('segment_id', '所属编排段 ID', false, false, '已有关键帧或素材需求后不可改'),
       num('scene_moment_id', '所属情景 ID', false, false, '已有关键帧或素材需求后不可改'),
@@ -528,7 +528,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       ]),
       area('metadata_json', '元数据 JSON'),
     ], '制作项的镜头描述、prompt 和机位参数可持续迭代；一旦生成关键帧或素材需求，来源引用会被锁定。'),
-    cfg('keyframes', 'keyframes', '画面锚点', '情节预演画面或镜头关键帧，用于驱动预演时间线和生产画面约束。', 'text-rose-600', ['title', 'status', 'description', 'prompt'], [
+    cfg('keyframes', 'keyframes', '画面锚点', '情节预览画面或镜头关键帧，用于驱动预览时间线和生产画面约束。', 'text-rose-600', ['title', 'status', 'description', 'prompt'], [
       num('production_id', 'Production ID'),
       num('scene_moment_id', 'SceneMoment ID'),
       num('content_unit_id', 'ContentUnit ID'),
@@ -541,7 +541,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       select('status', '状态', ['generated', 'candidate', 'attached', 'accepted', 'rejected']),
       area('metadata_json', '元数据 JSON'),
     ]),
-    cfg('previewTimelines', 'preview-timelines', '预演时间线', '按制作项排列的可播放预演版本。', 'text-emerald-600', ['name', 'status', 'duration_sec', 'is_primary'], [
+    cfg('previewTimelines', 'preview-timelines', '预览时间线', '按制作项排列的可播放预览版本。', 'text-emerald-600', ['name', 'status', 'duration_sec', 'is_primary'], [
       num('production_id', 'Production ID'),
       num('script_version_id', 'ScriptVersion ID'),
       text('name', '名称', true),
@@ -550,7 +550,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       select('status', '状态', ['draft', 'playable', 'confirmed', 'archived']),
       area('metadata_json', '元数据 JSON'),
     ]),
-    cfg('previewTimelineItems', 'preview-timeline-items', '预演时间线项', '预演时间线上的预演画面、制作项、缺口或备注项。', 'text-emerald-600', ['label', 'kind', 'order', 'status'], timelineFields('preview_timeline_id', 'PreviewTimeline ID'), '创建时需要填写 preview_timeline_id。'),
+    cfg('previewTimelineItems', 'preview-timeline-items', '预览时间线项', '预览时间线上的预览画面、制作项、缺口或备注项。', 'text-emerald-600', ['label', 'kind', 'order', 'status'], timelineFields('preview_timeline_id', 'PreviewTimeline ID'), '创建时需要填写 preview_timeline_id。'),
     cfg('creativeReferences', 'creative-references', '设定资料', '人物、地点、道具、产品、风格和规则等项目设定资料。', 'text-violet-600', ['name', 'kind', 'importance', 'status'], [
       selectOptions('kind', '类型', [
         { value: 'person', label: '人物' },

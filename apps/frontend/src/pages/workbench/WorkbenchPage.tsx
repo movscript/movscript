@@ -2900,7 +2900,7 @@ function UnitProductionTrack({
               type="button"
               onClick={() => onSelectUnit(Number(item.id))}
               className={cn(
-                'w-[188px] shrink-0 rounded-md border px-2.5 py-2 text-left transition-colors',
+                'w-[164px] shrink-0 rounded-md border px-2 py-1.5 text-left transition-colors',
                 item.selected
                   ? 'border-primary/60 bg-primary/5'
                   : item.tone === 'blocked'
@@ -2908,24 +2908,15 @@ function UnitProductionTrack({
                     : 'border-border bg-card hover:border-primary/50 hover:bg-primary/5',
               )}
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-[11px] text-muted-foreground">#{String(index + 1).padStart(2, '0')} · {item.kind}</p>
-                  <p className="mt-1 truncate text-sm font-medium text-foreground">{item.title}</p>
-                </div>
-                <Badge variant={item.tone === 'blocked' ? 'warning' : item.tone === 'ready' ? 'success' : item.tone === 'running' ? 'secondary' : 'outline'} className="shrink-0 text-[10px]">
-                  {item.readiness}%
-                </Badge>
+              <div className="flex items-center gap-1.5">
+                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
+                <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{item.title}</p>
               </div>
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {item.labels.map((label) => (
-                  <Badge key={label} variant="outline" className="text-[10px]">{label}</Badge>
-                ))}
-              </div>
+              <p className="mt-1 truncate text-[11px] text-muted-foreground">{item.kind || '制作项'} · {item.labels.slice(0, 2).join(' · ') || '待补输入'}</p>
               {item.blockers.length > 0 ? (
-                <p className="mt-1.5 truncate text-[11px] text-amber-700 dark:text-amber-300">{item.blockers.join(' / ')}</p>
+                <p className="mt-1 truncate text-[11px] text-amber-700 dark:text-amber-300">{item.blockers[0]}{item.blockers.length > 1 ? ` · 另 ${item.blockers.length - 1}` : ''}</p>
               ) : (
-                <p className="mt-1.5 truncate text-[11px] text-emerald-700 dark:text-emerald-300">基础输入可用</p>
+                <p className="mt-1 truncate text-[11px] text-emerald-700 dark:text-emerald-300">基础输入可用</p>
               )}
             </button>
           ))}
@@ -4548,7 +4539,7 @@ function ContentGenerationWorkbench() {
                         <div className="-mx-1 overflow-x-auto px-1 pb-1">
                           <div className="flex min-w-max gap-2">
                             {selectedUnitKeyframes.map((keyframe, index) => (
-                              <div key={keyframe.ID} className="w-[168px] shrink-0 overflow-hidden rounded-md border border-border bg-card">
+                              <div key={keyframe.ID} className="w-[148px] shrink-0 overflow-hidden rounded-md border border-border bg-card">
                                 <div className="relative aspect-video bg-muted">
                                   {keyframe.resource_id ? (
                                     <AuthedImage
@@ -4593,7 +4584,7 @@ function ContentGenerationWorkbench() {
                                     </Button>
                                   </div>
                                 </div>
-                                <div className="px-2 py-2">
+                                <div className="px-2 py-1.5">
                                   <p className="truncate text-xs font-medium text-foreground">{titleOfRecord(keyframe)}</p>
                                   <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{firstText(keyframe.prompt, keyframe.description, '暂无画面描述')}</p>
                                 </div>
@@ -4602,7 +4593,7 @@ function ContentGenerationWorkbench() {
                             <button
                               type="button"
                               onClick={openCreateKeyframe}
-                              className="flex w-[132px] shrink-0 flex-col items-center justify-center rounded-md border border-dashed border-border bg-card px-3 text-center text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-foreground"
+                              className="flex w-[112px] shrink-0 flex-col items-center justify-center rounded-md border border-dashed border-border bg-card px-2 text-center text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-foreground"
                             >
                               <Plus size={16} />
                               <span className="mt-2 font-medium">添加关键帧</span>
@@ -4739,25 +4730,34 @@ function ContentGenerationWorkbench() {
                       generationCanvasPending={openUnitCanvas.isPending}
                     />
                   </div>
-                </WorkbenchPanel>
 
-                <WorkbenchPanel title="执行与交付" icon={PackageCheck}>
-                  <div className="space-y-2.5">
-                    {selectedProduction ? (
-                      <div ref={previewMountSectionRef}>
-                        <PreviewMountCard
-                          productionTitle={titleOfRecord(selectedProduction)}
-                          segments={selectedPreviewPlanSegments}
-                          timelineUnits={selectedPreviewTimelineUnits}
-                          gaps={selectedPreviewMissingAssets}
-                          previewTimelineCount={selectedPreviewTimelines.length}
-                          previewItemCount={selectedPreviewItemCount}
-                        />
-                      </div>
-                    ) : null}
-                    <DeliveryBriefCard brief={deliveryBrief} />
-                    <ActivityFeedCard feed={activityFeed} />
-                  </div>
+                  <details open className="mt-2 rounded-md border border-border bg-background" data-testid="content-workbench-execution-section">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 text-sm font-medium text-foreground marker:text-muted-foreground">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <PackageCheck size={15} className="text-muted-foreground" />
+                        <span className="truncate">生成结果</span>
+                      </span>
+                      <Badge variant={deliveryBrief.tone === 'ready' ? 'success' : deliveryBrief.tone === 'blocked' ? 'warning' : 'outline'}>
+                        {deliveryBrief.progress}%
+                      </Badge>
+                    </summary>
+                    <div className="space-y-2.5 border-t border-border p-2.5">
+                      {selectedProduction ? (
+                        <div ref={previewMountSectionRef}>
+                          <PreviewMountCard
+                            productionTitle={titleOfRecord(selectedProduction)}
+                            segments={selectedPreviewPlanSegments}
+                            timelineUnits={selectedPreviewTimelineUnits}
+                            gaps={selectedPreviewMissingAssets}
+                            previewTimelineCount={selectedPreviewTimelines.length}
+                            previewItemCount={selectedPreviewItemCount}
+                          />
+                        </div>
+                      ) : null}
+                      <DeliveryBriefCard brief={deliveryBrief} />
+                      <ActivityFeedCard feed={activityFeed} />
+                    </div>
+                  </details>
                 </WorkbenchPanel>
               </div>
             </div>

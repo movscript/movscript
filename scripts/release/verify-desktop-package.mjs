@@ -179,8 +179,7 @@ export function findUnpackedResourceDirs(releaseDir, platform = process.platform
       result.push(current)
       continue
     }
-    const unpackedDir = platform === 'win32' ? 'win-unpacked' : 'linux-unpacked'
-    if (platform !== 'darwin' && basename(current) === 'resources' && basename(dirname(current)) === unpackedDir) {
+    if (platform !== 'darwin' && basename(current) === 'resources' && isUnpackedResourceParent(platform, basename(dirname(current)))) {
       result.push(current)
       continue
     }
@@ -190,6 +189,11 @@ export function findUnpackedResourceDirs(releaseDir, platform = process.platform
     }
   }
   return result.sort()
+}
+
+function isUnpackedResourceParent(platform, dirName) {
+  const prefix = platform === 'win32' ? 'win' : 'linux'
+  return dirName === `${prefix}-unpacked` || (dirName.startsWith(`${prefix}-`) && dirName.endsWith('-unpacked'))
 }
 
 export function verifyDesktopFFmpegMetadata(path, expected = {}) {

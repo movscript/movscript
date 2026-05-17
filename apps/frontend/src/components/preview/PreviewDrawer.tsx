@@ -95,7 +95,7 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
               <span className="truncate text-sm font-semibold text-foreground">{entityTitle || data?.entity.title || '内容预览'}</span>
             </div>
             <p className="mt-0.5 truncate text-xs text-muted-foreground">
-              {data?.context.scene_moment_title || data?.context.segment_title || data?.entity.description || '编排段结构驱动预演，画面流承接真实剧情。'}
+              {data?.context.scene_moment_title || data?.context.segment_title || data?.entity.description || '编排段结构驱动预览，画面流承接真实剧情。'}
             </p>
           </div>
           <button
@@ -124,7 +124,7 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
               ) : isError ? (
                 <ErrorBlock />
               ) : storyNodes.length === 0 ? (
-                <EmptyBlock title="暂无预演结构" detail="需要先补充制作项或情节预演画面，预演才能形成可观看的剧情树。" />
+                <EmptyBlock title="暂无预览结构" detail="需要先补充制作项或情节预览画面，预览才能形成可观看的剧情树。" />
               ) : (
                 <div className="space-y-2">
                   <button
@@ -137,7 +137,7 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
                   >
                     <div className="flex items-center gap-2">
                       <Film size={14} className="text-muted-foreground" />
-                      <span className="text-sm font-semibold text-foreground">整集预演画面</span>
+                      <span className="text-sm font-semibold text-foreground">整集预览画面</span>
                     </div>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">从上到下查看全部真实剧情画面。</p>
                   </button>
@@ -364,10 +364,10 @@ function StoryFrame({ keyframe, index, frameContext }: { keyframe: PreviewKeyfra
               ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
               : 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
           )}>
-            {keyframe.has_asset ? '可预演' : '待补素材资源'}
+            {keyframe.has_asset ? '可预览' : '待补素材资源'}
           </span>
         </div>
-        <h3 className="text-sm font-semibold leading-5 text-foreground">{keyframe.title || '未命名预演画面'}</h3>
+        <h3 className="text-sm font-semibold leading-5 text-foreground">{keyframe.title || '未命名预览画面'}</h3>
         {keyframe.description && (
           <p className="mt-2 text-xs leading-5 text-muted-foreground">{keyframe.description}</p>
         )}
@@ -385,7 +385,7 @@ function frameContextFor(nodes: PreviewStoryNode[], keyframe: PreviewKeyframe, f
     return {
       localIndex: fallbackIndex,
       total: 1,
-      scopeLabel: '情节预演画面',
+      scopeLabel: '情节预览画面',
     }
   }
   const localIndex = Math.max(0, node.keyframes.findIndex((item) => item.id === keyframe.id))
@@ -439,7 +439,7 @@ function MobileTree({ data, nodes }: { data: PreviewGenerateResponse; nodes: Pre
       </div>
       <div className="space-y-2">
         {nodes.length === 0 ? (
-          <EmptyBlock title="暂无预演结构" detail="需要先补充制作项或预演画面。" />
+          <EmptyBlock title="暂无预览结构" detail="需要先补充制作项或预览画面。" />
         ) : nodes.map((node, index) => (
           <div key={node.unit.id} className="rounded-md border border-border bg-background p-3">
             <div className="flex items-center gap-2">
@@ -459,8 +459,8 @@ function EmptyStoryFlow() {
   return (
     <div className="flex min-h-60 flex-col items-center justify-center gap-2 p-8 text-center">
       <Image size={24} className="text-muted-foreground" />
-      <p className="text-sm font-medium text-foreground">暂无预演画面</p>
-      <p className="max-w-sm text-xs leading-5 text-muted-foreground">补充情节预演画面或镜头关键帧后，这里会按从上到下的顺序呈现真实剧情。</p>
+      <p className="text-sm font-medium text-foreground">暂无预览画面</p>
+      <p className="max-w-sm text-xs leading-5 text-muted-foreground">补充情节预览画面或镜头关键帧后，这里会按从上到下的顺序呈现真实剧情。</p>
     </div>
   )
 }

@@ -548,7 +548,7 @@ function domainLinks(kind: CanvasDomainEntityKind, semanticValues?: EntitySemant
   if (kind === 'content_unit') {
     return [
       { label: '上游情景', value: idLabel(values.scene_moment_id), inputPortId: 'scene_moment_id', outputPortId: 'scene_moment_id' },
-      { label: '生产落点', value: values.timeline_label ? String(values.timeline_label) : '预演时间线', tone: 'ready', outputPortId: 'result' },
+      { label: '生产落点', value: values.timeline_label ? String(values.timeline_label) : '预览时间线', tone: 'ready', outputPortId: 'result' },
     ]
   }
   return [

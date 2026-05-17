@@ -166,7 +166,7 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
   },
   content_unit_proposal: {
     kind: 'content_unit_proposal',
-    title: 'Content unit proposal',
+    title: 'Production item proposal',
     targetEntityType: 'scene_moment',
     contentSchemaId: 'movscript.content_unit_proposal.v1',
     seed: {

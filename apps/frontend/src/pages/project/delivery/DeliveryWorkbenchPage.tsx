@@ -478,7 +478,7 @@ export default function DeliveryWorkbenchPage() {
                   <StatusPill status={selectedVersion.status ?? 'draft'} />
                   {selectedVersion.is_primary && <span className="rounded bg-primary/10 px-2 py-1 text-xs text-primary">主版本</span>}
                   {selectedVersion.production_id && <span className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">制作 #{selectedVersion.production_id}</span>}
-                  {selectedVersion.preview_timeline_id && <span className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">预演 #{selectedVersion.preview_timeline_id}</span>}
+                  {selectedVersion.preview_timeline_id && <span className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">预览 #{selectedVersion.preview_timeline_id}</span>}
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <h2 className="text-sm font-semibold">版本详情</h2>
@@ -520,7 +520,7 @@ export default function DeliveryWorkbenchPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="关联预演时间线">
+                <Field label="关联预览时间线">
                   <select
                     className="ms-input h-9 w-full"
                     value={selectedVersion.preview_timeline_id ?? ''}
@@ -899,7 +899,7 @@ function TimelineRow({
       <div className="min-w-0">
         <p className="truncate font-medium">{item.label || contentUnit?.title || `片段 ${item.ID}`}</p>
         <p className="mt-0.5 truncate text-xs text-muted-foreground">
-          {contentUnit ? `${contentUnit.kind} · CU#${contentUnit.ID}` : item.content_unit_id ? `CU#${item.content_unit_id}` : '未绑定制作项'}
+          {contentUnit ? `${contentUnit.kind} · 制作项 #${contentUnit.ID}` : item.content_unit_id ? `制作项 #${item.content_unit_id}` : '未绑定制作项'}
         </p>
       </div>
       <span className="text-xs text-muted-foreground">{item.kind}</span>
@@ -942,7 +942,7 @@ function ItemEditor({
       <Field label="制作项">
         <select disabled={!editing} className="ms-input h-9 w-full" value={item.content_unit_id ?? ''} onChange={(event) => onChange({ content_unit_id: numberOrNull(event.target.value) })}>
           <option value="">未绑定</option>
-          {contentUnits.map((unit) => <option key={unit.ID} value={unit.ID}>{unit.title || `ContentUnit #${unit.ID}`}</option>)}
+          {contentUnits.map((unit) => <option key={unit.ID} value={unit.ID}>{unit.title || `制作项 #${unit.ID}`}</option>)}
         </select>
       </Field>
       <div className="grid grid-cols-2 gap-2">

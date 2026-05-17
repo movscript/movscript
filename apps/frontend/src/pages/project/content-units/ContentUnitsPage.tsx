@@ -529,7 +529,7 @@ export default function ContentUnitsPage() {
             chips={[
               segmentFilterId ? { id: 'segment', label: `编排段 #${segmentFilterId}`, onRemove: () => setFilter({ segment_id: null }) } : null,
               sceneMomentFilterId ? { id: 'scene', label: `情景 #${sceneMomentFilterId}`, onRemove: () => setFilter({ scene_moment_id: null }) } : null,
-              selectedId ? { id: 'content', label: `内容 #${selectedId}`, onRemove: () => setFilter({ content_unit_id: null, selected: null }) } : null,
+              selectedId ? { id: 'content', label: `制作项 #${selectedId}`, onRemove: () => setFilter({ content_unit_id: null, selected: null }) } : null,
               referenceFilterId ? { id: 'reference', label: `设定资料 #${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) } : null,
               assetSlotFilterId ? { id: 'asset', label: `素材需求 #${assetSlotFilterId}`, onRemove: () => setFilter({ asset_slot_id: null }) } : null,
               productionFilterId ? { id: 'production', label: `制作 #${productionFilterId}`, onRemove: () => setFilter({ production_id: null }) } : null,
@@ -588,7 +588,7 @@ export default function ContentUnitsPage() {
                 icon: <Boxes size={19} />,
                 eyebrow: selected?.sceneMoment ? titleOf(selected.sceneMoment) : '未绑定情景',
                 title: creatingContentUnit ? '新建制作项' : selected ? titleOf(selected.unit) : '新建制作项',
-                subtitle: creatingContentUnit ? '制作项' : selected ? `${kindLabel(selected.unit.kind)} · 内容 #${selected.unit.ID}` : '制作项',
+                subtitle: creatingContentUnit ? '制作项' : selected ? `${kindLabel(selected.unit.kind)} · 制作项 #${selected.unit.ID}` : '制作项',
                 summary: creatingContentUnit ? '创建后可继续补充生成提示、运镜参数，并收拢关键帧、画面、语音和字幕候选。' : selected?.unit.description || selected?.unit.prompt || '暂无内容描述或生成提示词。',
                 accentClassName: 'from-indigo-500/15 via-sky-500/10 to-cyan-500/10',
                 status: <StatusBadge status={creatingContentUnit ? 'draft' : selected?.unit.status ?? 'draft'} />,
