@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { assertDesktopArch, assertDesktopPlatform, desktopArchs, desktopFFmpegBinaryName } from './desktop-targets.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
-const FFMPEG_VERSION_TIMEOUT_MS = 5000
+const FFMPEG_VERSION_TIMEOUT_MS = 30000
 
 if (isDirectRun()) {
   runVerifyDesktopPackageCli(repoRoot, process.argv.slice(2))
@@ -25,6 +25,8 @@ export function runVerifyDesktopPackageCli(root = repoRoot, args = [], options =
     verifyPackage(root, {
       platform: parseDesktopPlatform(args, currentPlatform),
       arch: parseDesktopArch(args, currentArch),
+      currentPlatform,
+      currentArch,
     })
   } catch (error) {
     logError(error instanceof Error ? error.message : String(error))
@@ -33,7 +35,12 @@ export function runVerifyDesktopPackageCli(root = repoRoot, args = [], options =
 }
 
 export function verifyDesktopPackage(root = repoRoot, options = {}) {
-  const { platform = process.platform, arch = process.arch } = options
+  const {
+    platform = process.platform,
+    arch = process.arch,
+    currentPlatform = process.platform,
+    currentArch = process.arch,
+  } = options
   const releaseDir = resolve(root, 'apps/frontend/release')
   const backendBinDir = resolve(root, 'apps/backend/bin')
   const agentDir = resolve(root, 'apps/frontend/movscript-agent')
@@ -55,7 +62,10 @@ export function verifyDesktopPackage(root = repoRoot, options = {}) {
     process.exit(1)
   }
 
-  const ffmpegError = verifyDesktopFFmpeg(ffmpegPath, root, spawnSync, FFMPEG_VERSION_TIMEOUT_MS, { arch })
+  const ffmpegError = verifyDesktopFFmpeg(ffmpegPath, root, spawnSync, FFMPEG_VERSION_TIMEOUT_MS, {
+    arch,
+    runCheck: platform === currentPlatform && arch === currentArch,
+  })
   if (ffmpegError) {
     console.error(ffmpegError)
     process.exit(1)
@@ -100,6 +110,7 @@ export function verifyDesktopFFmpeg(path, cwd = process.cwd(), spawn = spawnSync
   }
   const metadataError = verifyDesktopFFmpegMetadata(path, expected)
   if (metadataError) return metadataError
+  if (expected.runCheck === false) return ''
   const result = spawn(path, ['-version'], {
     cwd,
     encoding: 'utf8',

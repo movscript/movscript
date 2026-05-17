@@ -138,9 +138,9 @@ test('content workbench moves completed generation into preview before delivery'
     previewItemCount: 0,
     deliveryVersionCount: 0,
   }), [{
-    key: 'open_preview_workspace',
-    title: '检查预演挂载',
-    detail: '已有生成记录，下一步在当前画面编排工作台核对预演挂载和连续性。',
+    key: 'inspect_preview_mount',
+    title: '检查预览挂载',
+    detail: '已有生成记录，下一步在内容编排工作台核对预览挂载和连续性。',
     tone: 'success',
   }])
 })

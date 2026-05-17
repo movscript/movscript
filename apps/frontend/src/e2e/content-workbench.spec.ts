@@ -6,7 +6,7 @@ import { mockGenerationAppShell } from './generationAppShell'
 
 const PROJECT_ID = 123
 
-test('content workbench renders the production command center and inspector', async ({ page }, testInfo) => {
+test('content workbench renders the production command center and generation checks', async ({ page }, testInfo) => {
   await openContentWorkbenchPage(page, testInfo)
 
   await expect(page.getByTestId('content-workbench-command-center')).toBeVisible()
@@ -171,6 +171,19 @@ test('content workbench reuses an existing generation canvas for the selected un
   expect(controls.canvasCreateRequests()).toBe(0)
 })
 
+test('content workbench inspect preview mount action expands the embedded preview section', async ({ page }, testInfo) => {
+  await openContentWorkbenchPage(page, testInfo, { previewMountReady: true })
+
+  const previewMount = page.getByTestId('content-workbench-preview-mount')
+  await expect(previewMount).toBeVisible()
+  await expect.poll(() => previewMount.evaluate((node) => (node as HTMLDetailsElement).open)).toBe(false)
+
+  await page.getByTestId('content-workbench-next-actions').getByRole('button', { name: /检查预览挂载/ }).click()
+
+  await expect.poll(() => previewMount.evaluate((node) => (node as HTMLDetailsElement).open)).toBe(true)
+  await expect(page.getByTestId('content-workbench-preview-metrics')).toBeVisible()
+})
+
 test('content workbench focuses a candidate after confirmation', async ({ page }, testInfo) => {
   const controls = await openContentWorkbenchPage(page, testInfo)
 
@@ -193,7 +206,7 @@ test('content workbench returns to a usable unit after ignoring the focused cand
   expect(controls.ignoredUnitIds()).toEqual([802])
 })
 
-async function openContentWorkbenchPage(page: Page, testInfo: TestInfo) {
+async function openContentWorkbenchPage(page: Page, testInfo: TestInfo, options: { previewMountReady?: boolean } = {}) {
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('content workbench E2E requires a baseURL')
 
@@ -206,12 +219,13 @@ async function openContentWorkbenchPage(page: Page, testInfo: TestInfo) {
   })
 
   await mockGenerationAppShell(page)
-  const controls = await mockContentWorkbenchData(page)
+  const controls = await mockContentWorkbenchData(page, options)
   await page.goto('/project/content-units/workbench?scene_moment_id=402&content_unit_id=801')
   return controls
 }
 
-async function mockContentWorkbenchData(page: Page) {
+async function mockContentWorkbenchData(page: Page, options: { previewMountReady?: boolean } = {}) {
+  const previewMountReady = Boolean(options.previewMountReady)
   let draftRejected = false
   let draftReviewed = false
   let canvasCreateRequests = 0
@@ -288,7 +302,14 @@ async function mockContentWorkbenchData(page: Page) {
         usage: { ID: 701, owner_type: 'scene_moment', owner_id: 402 },
         reference: { ID: 501, name: '破损旧伞' },
       }],
-      asset_slots: [{
+      asset_slots: previewMountReady ? [{
+        ID: 601,
+        name: '旧伞特写参考',
+        owner_type: 'content_unit',
+        owner_id: 801,
+        status: 'locked',
+        resource_id: 9100,
+      }] : [{
         ID: 601,
         name: '旧伞特写参考',
         owner_type: 'content_unit',
@@ -418,9 +439,10 @@ async function mockContentWorkbenchData(page: Page) {
         project_id: PROJECT_ID,
         name: '旧伞特写参考',
         kind: 'image',
-        status: 'missing',
+        status: previewMountReady ? 'locked' : 'missing',
         owner_type: 'content_unit',
         owner_id: 801,
+        resource_id: previewMountReady ? 9100 : undefined,
         description: '需要可看清伞骨夹缝的旧伞参考。',
       }, {
         ID: 602,
@@ -450,7 +472,14 @@ async function mockContentWorkbenchData(page: Page) {
   })
 
   await page.route('**/api/v1/jobs**', async (route) => {
-    await fulfillJSON(route, [])
+    await fulfillJSON(route, previewMountReady ? [{
+      ID: 7701,
+      title: '纸条特写生成',
+      job_type: 'video',
+      status: 'succeeded',
+      output_resource_id: 9201,
+      extra_params: JSON.stringify({ contentUnitId: 801 }),
+    }] : [])
   })
 
   await page.route('http://127.0.0.1:28765/drafts**', async (route) => {
@@ -459,7 +488,7 @@ async function mockContentWorkbenchData(page: Page) {
       const requestedStatuses = url.searchParams.getAll('status')
       const includeDraft = requestedStatuses.length === 0 || requestedStatuses.includes('draft')
       await fulfillJSON(route, {
-        drafts: draftRejected || draftReviewed || !includeDraft ? [] : [{
+        drafts: previewMountReady || draftRejected || draftReviewed || !includeDraft ? [] : [{
           id: 'content-draft-e2e',
           projectId: PROJECT_ID,
           kind: 'content_unit_proposal',

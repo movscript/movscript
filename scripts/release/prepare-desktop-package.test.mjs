@@ -116,6 +116,8 @@ test('prepareDesktopPackage runs prerequisite build steps after ffmpeg validatio
 
   prepareDesktopPackage(root, {
     platform: 'darwin',
+    currentPlatform: 'darwin',
+    currentArch: 'arm64',
     arch: 'arm64',
     nodeVersion: 'v99.0.0',
     resolveFFmpeg: (repoRoot, platform, arch) => resolve(repoRoot, 'apps/frontend/vendor/ffmpeg', platform, arch, 'ffmpeg'),
@@ -137,6 +139,30 @@ test('prepareDesktopPackage runs prerequisite build steps after ffmpeg validatio
   assert.equal(calls[2][3].env.GOOS, 'darwin')
   assert.equal(calls[2][3].env.GOARCH, 'arm64')
   assert.deepEqual(calls[3], ['Copy admin assets into backend bundle', 'node', ['scripts/release/copy-admin-assets.mjs'], { cwd: root }])
+})
+
+test('prepareDesktopPackage skips ffmpeg run checks for cross-architecture targets', () => {
+  const root = resolve('/repo')
+  const verifyCalls = []
+  const stepCalls = []
+
+  prepareDesktopPackage(root, {
+    platform: 'linux',
+    currentPlatform: 'linux',
+    currentArch: 'x64',
+    arch: 'arm64',
+    nodeVersion: 'v99.0.0',
+    resolveFFmpeg: (repoRoot, platform, arch) => resolve(repoRoot, 'apps/frontend/vendor/ffmpeg', platform, arch, 'ffmpeg'),
+    verifyFFmpeg: (...args) => {
+      verifyCalls.push(args)
+      return ''
+    },
+    runStep: (...args) => stepCalls.push(args),
+    exit: () => {},
+  })
+
+  assert.equal(stepCalls.length, 4)
+  assert.deepEqual(verifyCalls[0][4], { arch: 'arm64', runCheck: false })
 })
 
 test('parseDesktopPlatform supports current and explicit desktop targets', () => {

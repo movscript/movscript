@@ -109,7 +109,7 @@ type ProductionData = {
 
 const statusMeta: Record<ProductionStatus, { label: string; badge: string; dot: string }> = {
   planning: { label: '筹备中', badge: 'bg-slate-500/10 text-slate-700 dark:text-slate-300', dot: 'bg-slate-500' },
-  previewing: { label: '预演中', badge: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300', dot: 'bg-cyan-500' },
+  previewing: { label: '预览中', badge: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300', dot: 'bg-cyan-500' },
   materializing: { label: '资料推演', badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' },
   producing: { label: '制作中', badge: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300', dot: 'bg-indigo-500' },
   reviewing: { label: '审片中', badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' },
@@ -240,7 +240,7 @@ export default function ProductionPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <ListChecks size={16} className="text-muted-foreground" />
-                      <h2 className="text-sm font-semibold text-foreground">当前预演挂载</h2>
+                      <h2 className="text-sm font-semibold text-foreground">当前预览挂载</h2>
                     </div>
                     <p className="mt-2 truncate text-sm font-medium text-foreground">{selected?.name ?? '暂无制作'}</p>
                     <p className="mt-1 truncate text-xs text-muted-foreground">{selected?.source ?? '直接创建或从创作编排生成制作后开始统计'}</p>
@@ -257,7 +257,7 @@ export default function ProductionPage() {
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
                   <div className="rounded-md border border-border bg-background p-2">
-                    <p className="text-muted-foreground">预演</p>
+                    <p className="text-muted-foreground">预览</p>
                     <p className="mt-1 font-medium text-foreground">{selected ? unitMeta[selected.preview.status].label : '待处理'}</p>
                   </div>
                   <div className="rounded-md border border-border bg-background p-2">
@@ -351,14 +351,14 @@ export default function ProductionPage() {
                   <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                     <div className="flex items-center gap-2">
                       <ListChecks size={15} className="text-muted-foreground" />
-                      <h2 className="text-sm font-semibold text-foreground">挂载预演</h2>
+                      <h2 className="text-sm font-semibold text-foreground">预览挂载</h2>
                     </div>
                     <UnitStatusBadge status={selected.preview.status} />
                   </div>
                   <div className="p-4">
                     <p className="text-sm font-medium text-foreground">{selected.preview.title}</p>
                     <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      预演挂在制作下面，用于追踪编排段、预演画面、素材和内容准备情况。
+                      预览挂在制作下面，用于追踪编排段、预览画面、素材和内容准备情况。
                     </p>
                     <Progress value={selected.preview.progress} className="mt-4 h-2" />
                     <div className="mt-4 space-y-1 text-xs text-muted-foreground">
@@ -369,7 +369,7 @@ export default function ProductionPage() {
                       <Button variant="outline" size="sm" className="gap-2" asChild>
                         <Link to={productionPlaybackHref(selected)}>
                           <Play size={14} />
-                          项目预演
+                          内容编排
                         </Link>
                       </Button>
                     </div>
@@ -383,7 +383,7 @@ export default function ProductionPage() {
                     <ScrollText size={15} className="text-muted-foreground" />
                     <h2 className="text-sm font-semibold text-foreground">制作项</h2>
                   </div>
-                  <p className="text-xs text-muted-foreground">可从预演生成，也可以直接维护制作下的内容结构</p>
+                  <p className="text-xs text-muted-foreground">可从预览生成，也可以直接维护制作下的内容结构</p>
                 </div>
                 <div className="divide-y divide-border">
                   {selected.units.map((unit) => (
@@ -424,7 +424,7 @@ export default function ProductionPage() {
               </div>
               <div className="space-y-3 p-4">
                 {[
-                  ['预演', selected.preview.status === 'done' ? '已有确认记录，可作为制作输入。' : '可继续挂载或更新预演记录。'],
+                  ['预览', selected.preview.status === 'done' ? '已有确认记录，可作为制作输入。' : '可继续挂载或更新预览记录。'],
                   ['编排段', `${selected.stats.segments} 个编排段已挂在制作下。`],
                   ['素材', `${selected.stats.assets} 个素材需求等待候选或锁定。`],
                   ['成片', selected.stats.finals > 0 ? '已有成片版本进入交付检查。' : '尚未生成成片版本。'],
@@ -661,9 +661,9 @@ function buildProductionRecords(data?: ProductionData): ProductionRecord[] {
       owner: production.owner_label || '导演组',
       progress: clampProgress(progress),
       updatedAt: production.UpdatedAt ? formatShortDate(production.UpdatedAt) : '',
-      description: production.description || '直接创建的制作。可以继续挂载预演、制作项、素材需求和成片版本。',
+      description: production.description || '直接创建的制作。可以继续挂载预览、制作项、素材需求和成片版本。',
       preview: {
-        title: previewTimelines[0]?.name as string || '未挂载预演',
+        title: previewTimelines[0]?.name as string || '未挂载预览',
         status: previewConfirmed ? 'done' : previewTimelines.length > 0 ? 'active' : 'waiting',
         progress: previewProgress,
         savedAt: String(previewTimelines[0]?.UpdatedAt ?? ''),
@@ -925,7 +925,7 @@ function normalizeProductionStatus(status: unknown, previewConfirmed: boolean, d
 function sourceLabel(production: ProductionBackendRecord) {
   if (production.source_type === 'script' && production.script_version_id) return `剧本版本 #${production.script_version_id}`
   if (production.source_type === 'brief') return '简介创建'
-  if (production.source_type === 'preview' && production.preview_timeline_id) return `预演 #${production.preview_timeline_id}`
+  if (production.source_type === 'preview' && production.preview_timeline_id) return `预览 #${production.preview_timeline_id}`
   if (production.source_type === 'import') return '导入创建'
   return '直接创建'
 }
@@ -939,7 +939,7 @@ function contentUnitStatus(status: unknown, blocked: boolean): UnitStatus {
 }
 
 function nextActionsForProduction(input: { blockedUnits: number; units: number; deliveryVersions: number; keyframes: number }) {
-  if (input.units === 0) return ['创建或导入制作项。', '为制作项补充素材需求。', '建立预演时间线或直接开始制作项生成。']
+  if (input.units === 0) return ['创建或导入制作项。', '为制作项补充素材需求。', '建立预览时间线或直接开始制作项生成。']
   if (input.blockedUnits > 0) return ['先补齐阻塞制作项的素材需求。', '锁定关键设定资料和素材资源。', '再进入内容候选生成与选片。']
   if (input.deliveryVersions === 0) return ['生成正式内容候选。', '选择可进入成片时间线的版本。', '创建第一版成片并进入交付检查。']
   return ['复核成片版本。', '归档生成记录和审核意见。', '准备导出或交付。']
@@ -948,7 +948,7 @@ function nextActionsForProduction(input: { blockedUnits: number; units: number; 
 function productionNextActionHref(action: string, production: ProductionRecord) {
   const lower = action.toLowerCase()
   if (action.includes('素材') || action.includes('资料')) return withRouteParams(ROUTES.project.preProduction, { tab: 'assets', production_id: production.dbId })
-  if (action.includes('预演') || action.includes('时间线')) return ROUTES.project.segments
+  if (action.includes('预览') || action.includes('时间线')) return ROUTES.project.segments
   if (action.includes('内容') || action.includes('候选') || action.includes('选片')) return withRouteParams(ROUTES.project.contentUnits, { production_id: production.dbId })
   if (action.includes('成片') || action.includes('交付') || action.includes('导出') || action.includes('审核')) return deliveryHref(production)
   if (lower.includes('archive') || action.includes('归档')) return deliveryHref(production)
@@ -972,7 +972,7 @@ function deliveryWorkbenchHref(production: ProductionRecord) {
 }
 
 function productionPlaybackHref(production: ProductionRecord) {
-  return withRouteParams(ROUTES.project.contentUnitWorkbench, { productionId: production.dbId, focus: 'preview' })
+  return withRouteParams(ROUTES.project.contentUnitWorkbench, { productionId: production.dbId })
 }
 
 function formatShortDate(value: string) {

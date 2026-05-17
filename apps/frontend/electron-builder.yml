@@ -38,6 +38,11 @@ mac:
     - zip
   category: public.app-category.productivity
 
+linux:
+  target:
+    - AppImage
+  category: Utility
+
 win:
   target:
     - nsis

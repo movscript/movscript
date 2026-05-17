@@ -551,7 +551,7 @@ export default function ContentUnitsPage() {
                 {isLoading ? (
                   <EmptyState title="正在加载制作项" detail="读取内容、情景和生成输入关系" />
                 ) : filteredUnits.length === 0 ? (
-                  <EmptyState title="暂无制作项" detail="可先在画面编排工作台确认分镜和预演挂载，再生成制作项骨架" />
+                  <EmptyState title="暂无制作项" detail="可先在内容编排工作台确认分镜和预览挂载，再生成制作项骨架" />
                 ) : (
                 <div className="grid grid-cols-1 gap-3 p-4">
                   {filteredUnits.map((item) => (

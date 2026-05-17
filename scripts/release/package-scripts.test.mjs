@@ -39,6 +39,18 @@ test('frontend desktop dist scripts expose explicit target architectures', () =>
   assert.match(frontendPackageJson.scripts['dist:linux:arm64'], /electron-builder --linux --arm64/)
   assert.match(frontendPackageJson.scripts['dist:win'], /electron-builder --win --x64/)
   assert.match(frontendPackageJson.scripts['dist:win:arm64'], /electron-builder --win --arm64/)
+  for (const script of [
+    'dist',
+    'dist:mac',
+    'dist:mac:x64',
+    'dist:mac:arm64',
+    'dist:linux:x64',
+    'dist:linux:arm64',
+    'dist:win',
+    'dist:win:arm64',
+  ]) {
+    assert.match(frontendPackageJson.scripts[script], /--publish never/)
+  }
 })
 
 test('release scripts include ffmpeg staging and audit entry points', () => {
@@ -66,6 +78,13 @@ test('electron-builder bundles staged ffmpeg vendor resources', () => {
   assert.match(electronBuilderConfig, /"\*\*\/ffmpeg\.exe"/)
   assert.match(electronBuilderConfig, /"\*\*\/METADATA\.json"/)
   assert.doesNotMatch(electronBuilderConfig, /"\*\*\/\*"/)
+})
+
+test('electron-builder linux config avoids snap store publishing defaults', () => {
+  assert.match(electronBuilderConfig, /linux:/)
+  assert.match(electronBuilderConfig, /target:\s*\n\s+- AppImage/)
+  assert.match(electronBuilderConfig, /category:\s+Utility/)
+  assert.doesNotMatch(electronBuilderConfig, /snapStore/)
 })
 
 test('ffmpeg release docs describe audit remediation commands', () => {

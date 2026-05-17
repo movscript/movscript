@@ -1,14 +1,12 @@
-import type { ContentWorkbenchNextActionView } from './contentWorkbenchNextActions'
 import type { ContentWorkbenchReadinessSummary } from './contentWorkbenchReadiness'
 
-export type ContentWorkbenchCommandBriefKey = 'focus' | 'blocker' | 'next_action'
+export type ContentWorkbenchCommandBriefKey = 'focus' | 'blocker'
 
 export interface ContentWorkbenchCommandBriefInput {
   selectedMomentTitle?: string
   selectedUnitTitle?: string
   selectedUnitDetail?: string
   readiness: ContentWorkbenchReadinessSummary
-  nextActions: ContentWorkbenchNextActionView[]
 }
 
 export interface ContentWorkbenchCommandBriefRow {
@@ -20,7 +18,6 @@ export interface ContentWorkbenchCommandBriefRow {
 }
 
 export function buildContentWorkbenchCommandBrief(input: ContentWorkbenchCommandBriefInput): ContentWorkbenchCommandBriefRow[] {
-  const primaryAction = input.nextActions[0]
   return [
     {
       key: 'focus',
@@ -35,13 +32,6 @@ export function buildContentWorkbenchCommandBrief(input: ContentWorkbenchCommand
       value: input.readiness.tone === 'ready' ? '生成准备完成' : firstText(input.readiness.primaryBlocker, input.readiness.title),
       detail: input.readiness.detail,
       tone: input.readiness.tone === 'ready' ? 'default' : 'warning',
-    },
-    {
-      key: 'next_action',
-      label: '下一步',
-      value: primaryAction?.title ?? '等待数据',
-      detail: primaryAction?.detail ?? '加载工作台状态后给出建议。',
-      tone: primaryAction?.tone === 'warning' ? 'warning' : 'default',
     },
   ]
 }

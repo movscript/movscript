@@ -48,7 +48,7 @@ test('verifyRunnableFFmpeg reports timed out -version checks clearly', () => {
     stderr: '',
   }))
   assert.match(message, /not runnable/)
-  assert.match(message, /timed out after 5s/)
+  assert.match(message, /timed out after 30s/)
 })
 
 test('readFFmpegVersion returns the first version line', () => {

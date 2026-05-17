@@ -102,7 +102,7 @@ const contentSurfaceLinks = [
   { title: '设定资料', detail: '人物、地点、道具和规则', href: mergeSearch(ROUTES.project.preProduction, '', { tab: 'settings' }), icon: Sparkles },
   { title: '素材需求', detail: '缺口、候选和锁定素材', href: mergeSearch(ROUTES.project.preProduction, '', { tab: 'assets' }), icon: PackageCheck },
   { title: '关系网络', detail: '设定资料关系和一致性约束', href: ROUTES.project.referenceRelations, icon: GitBranch },
-  { title: '制作项', detail: '预演与生产的最小颗粒', href: ROUTES.project.contentUnits, icon: Boxes },
+  { title: '制作项', detail: '预览与生产的最小颗粒', href: ROUTES.project.contentUnits, icon: Boxes },
   { title: '交付中心', detail: '交付包、成片版本和导出记录', href: ROUTES.project.delivery, icon: Video },
 ]
 
@@ -453,13 +453,13 @@ export default function ProjectOverviewPage() {
         key: 'production',
         title: '创作编排',
         description: '项目现在以“制作”为主轴，承载从剧本到成片的一次完整生产单元。',
-        primaryLabel: '制作/分镜/预演',
+        primaryLabel: '制作/分镜/预览',
         primaryValue: planTotal,
-        secondary: `${counts.activeProductions} 个制作进行中，${data.previewTimelines.length} 条预演时间线`,
+        secondary: `${counts.activeProductions} 个制作进行中，${data.previewTimelines.length} 条预览时间线`,
         progress: planProgress,
         state: data.productions.length === 0 ? (scriptTotal > 0 ? 'blocked' : 'empty') : planProgress >= 70 ? 'ready' : 'active',
         href: ROUTES.project.production,
-        workbenchHref: mergeSearch(ROUTES.project.contentUnitWorkbench, '', { focus: 'preview' }),
+        workbenchHref: ROUTES.project.contentUnitWorkbench,
         icon: Route,
       },
       {
@@ -571,7 +571,7 @@ export default function ProjectOverviewPage() {
         area: '制作项',
         href: ROUTES.project.contentUnits,
         priority: 'medium',
-        detail: '制作创建后，需要把预演拆成可执行的生产颗粒',
+        detail: '制作创建后，需要把预览结构拆成可执行的生产颗粒',
       })
     }
 
@@ -579,9 +579,9 @@ export default function ProjectOverviewPage() {
     return [
       {
         key: 'preview',
-        title: '检查预演挂载',
-        area: '画面编排',
-        href: mergeSearch(ROUTES.project.contentUnitWorkbench, '', { focus: 'preview' }),
+        title: '检查预览挂载',
+        area: '内容编排',
+        href: ROUTES.project.contentUnitWorkbench,
         priority: 'low',
         detail: '没有明显阻塞时，优先确认下一批可执行内容',
       },

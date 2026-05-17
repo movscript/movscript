@@ -56,7 +56,12 @@ test('runVerifyDesktopPackageCli passes parsed platforms to verification', () =>
     verifyPackage: (...args) => calls.push(args),
   })
 
-  assert.deepEqual(calls, [['/repo', { platform: 'win32', arch: 'x64' }]])
+  assert.deepEqual(calls, [['/repo', {
+    platform: 'win32',
+    arch: 'x64',
+    currentPlatform: 'darwin',
+    currentArch: 'arm64',
+  }]])
 })
 
 test('parseDesktopArch supports current and explicit desktop targets', () => {
@@ -84,6 +89,24 @@ test('verifyDesktopFFmpeg runs -version against existing binaries', async () => 
     })
     assert.equal(message, '')
     assert.deepEqual(calls, [[fakeFFmpeg, ['-version']]])
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('verifyDesktopFFmpeg can skip -version for cross-target binaries', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'movscript-verify-ffmpeg-'))
+  const fakeFFmpeg = join(dir, 'ffmpeg')
+  await writeFile(fakeFFmpeg, 'fake ffmpeg', 'utf8')
+  await writeMetadata(dir, { arch: 'arm64' })
+  try {
+    const calls = []
+    const message = verifyDesktopFFmpeg(fakeFFmpeg, dir, (...args) => {
+      calls.push(args)
+      return { status: 1, stdout: '', stderr: 'should not run' }
+    }, undefined, { arch: 'arm64', runCheck: false })
+    assert.equal(message, '')
+    assert.deepEqual(calls, [])
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
@@ -137,7 +160,7 @@ test('verifyDesktopFFmpeg reports timed out -version checks clearly', async () =
       stderr: '',
     }))
     assert.match(message, /not runnable/)
-    assert.match(message, /timed out after 5s/)
+    assert.match(message, /timed out after 30s/)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

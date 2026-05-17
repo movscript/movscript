@@ -9,7 +9,7 @@ export type ContentWorkbenchNextActionKey =
   | 'resolve_generation_context'
   | 'review_ai_drafts'
   | 'open_generation_canvas'
-  | 'open_preview_workspace'
+  | 'inspect_preview_mount'
   | 'open_delivery_workspace'
 
 export interface ContentWorkbenchNextActionView {
@@ -117,9 +117,9 @@ export function buildContentWorkbenchNextActions(input: ContentWorkbenchNextActi
   if (input.completedJobCount && input.completedJobCount > 0) {
     if (!input.previewItemCount || input.previewItemCount === 0) {
       return [{
-        key: 'open_preview_workspace',
-        title: '检查预演挂载',
-        detail: '已有生成记录，下一步在当前画面编排工作台核对预演挂载和连续性。',
+        key: 'inspect_preview_mount',
+        title: '检查预览挂载',
+        detail: '已有生成记录，下一步在内容编排工作台核对预览挂载和连续性。',
         tone: 'success',
       }]
     }

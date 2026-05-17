@@ -57,9 +57,10 @@ export function prepareDesktopPackage(root = repoRoot, options = {}) {
   console.log(`[prepare-desktop] Repository root: ${root}`)
 
   const ffmpegPath = resolveFFmpeg(root, platform, arch)
-  const ffmpegError = verifyFFmpeg(ffmpegPath, root, undefined, undefined, { arch })
+  const runnableOnCurrentMachine = platform === currentPlatform && arch === currentArch
+  const ffmpegError = verifyFFmpeg(ffmpegPath, root, undefined, undefined, { arch, runCheck: runnableOnCurrentMachine })
   if (ffmpegError) {
-    const crossTarget = platform !== currentPlatform || arch !== currentArch
+    const crossTarget = !runnableOnCurrentMachine
     const ffmpegBinary = desktopFFmpegBinaryName(platform)
     console.error('[prepare-desktop] Missing desktop ffmpeg prerequisite.')
     console.error(ffmpegError)

@@ -1613,7 +1613,7 @@ function ContentGenerationReviewPanel({
     >
       <div
         className={cn(
-          'mb-4 rounded-md border px-3 py-3',
+          'mb-3 rounded-md border px-2.5 py-2.5',
           queueSummary.tone === 'warning'
             ? 'border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20'
             : queueSummary.tone === 'success'
@@ -1642,11 +1642,14 @@ function ContentGenerationReviewPanel({
           </Button>
         </div>
         {queueSummary.total > 0 ? (
-          <div className="mt-3 grid gap-2 sm:grid-cols-4">
-            <QueueMiniMetric label="待审" value={queueSummary.pending} tone={queueSummary.pending > 0 ? 'warning' : 'default'} />
-            <QueueMiniMetric label="新增" value={queueSummary.addedCount} />
-            <QueueMiniMetric label="变更" value={queueSummary.changedCount} tone={queueSummary.changedCount > 0 ? 'warning' : 'default'} />
-            <QueueMiniMetric label="风险" value={queueSummary.warningCount} tone={queueSummary.warningCount > 0 ? 'warning' : 'default'} />
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground" data-testid="content-workbench-review-metrics">
+            <span className={queueSummary.pending > 0 ? 'font-medium text-amber-700 dark:text-amber-300' : undefined}>{queueSummary.pending} 待审</span>
+            <span className="text-border">/</span>
+            <span>{queueSummary.addedCount} 新增</span>
+            <span className="text-border">/</span>
+            <span className={queueSummary.changedCount > 0 ? 'font-medium text-amber-700 dark:text-amber-300' : undefined}>{queueSummary.changedCount} 变更</span>
+            <span className="text-border">/</span>
+            <span className={queueSummary.warningCount > 0 ? 'font-medium text-amber-700 dark:text-amber-300' : undefined}>{queueSummary.warningCount} 风险</span>
           </div>
         ) : null}
       </div>
@@ -1656,7 +1659,7 @@ function ContentGenerationReviewPanel({
           还没有制作项草案。先通过 AI 助手生成 snapshot 草案，审阅区会显示当前快照和草案快照的对比。
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="grid gap-3 lg:grid-cols-[240px_minmax(0,1fr)]">
           <div className="space-y-2">
             {drafts.map((draft) => {
               const active = selectedDraft?.id === draft.id
@@ -1666,7 +1669,7 @@ function ContentGenerationReviewPanel({
                   type="button"
                   onClick={() => onSelectDraft(draft.id)}
                   className={cn(
-                    'w-full rounded-md border px-3 py-3 text-left transition-colors',
+                    'w-full rounded-md border px-2.5 py-2 text-left transition-colors',
                     active ? 'border-primary/60 bg-primary/5' : 'border-border bg-background hover:bg-muted/30',
                   )}
                 >
@@ -1684,11 +1687,11 @@ function ContentGenerationReviewPanel({
             })}
           </div>
 
-          <div className="min-w-0 rounded-md border border-border bg-background p-4">
+          <div className="min-w-0 rounded-md border border-border bg-background p-2.5">
             {!selectedDraft || !reviewModel ? (
               <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择一个草案后查看快照对比。</p>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -1745,7 +1748,7 @@ function ContentGenerationReviewPanel({
 
                 <div className="space-y-2">
                   {reviewModel.diffs.map((change) => (
-                    <div key={change.key} className="rounded-md border border-border bg-muted/10 px-3 py-3">
+                    <div key={change.key} className="rounded-md border border-border bg-muted/10 px-2.5 py-2">
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -2511,6 +2514,15 @@ function UnitHealthCard({ health }: { health: ContentWorkbenchUnitHealth }) {
     : health.tone === 'blocked' || health.tone === 'warning'
       ? 'warning'
       : 'outline'
+  const statusLabel = health.tone === 'done'
+    ? '已闭环'
+    : health.tone === 'ready'
+      ? '可执行'
+      : health.tone === 'blocked'
+        ? '阻塞'
+        : health.tone === 'warning'
+          ? '待推进'
+          : '未选择'
   return (
     <div
       className={cn(
@@ -2532,7 +2544,7 @@ function UnitHealthCard({ health }: { health: ContentWorkbenchUnitHealth }) {
           <p className="truncate text-xs text-muted-foreground">{health.detail}</p>
         </div>
       </div>
-      <Badge variant={badgeVariant} className="shrink-0">{health.score}%</Badge>
+      <Badge variant={badgeVariant} className="shrink-0" data-testid="content-workbench-unit-health-status">{statusLabel}</Badge>
     </div>
   )
 }
@@ -2609,9 +2621,10 @@ function PreviewMountCard({
   const blockedUnits = timelineUnits.filter((unit) => unit.status === 'blocked').length
   const readyUnits = timelineUnits.filter((unit) => unit.status === 'ready').length
   const firstGap = gaps[0]
+  const hasPreviewBlocker = gaps.length > 0 || blockedUnits > 0
   return (
-    <div className="rounded-md border border-border bg-background p-2.5" data-testid="content-workbench-preview-mount">
-      <div className="flex flex-wrap items-start justify-between gap-2">
+    <details className="rounded-md border border-border bg-background" data-testid="content-workbench-preview-mount" open={hasPreviewBlocker}>
+      <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-2 px-2.5 py-2 marker:text-muted-foreground">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <Film size={15} className="text-muted-foreground" />
@@ -2624,29 +2637,31 @@ function PreviewMountCard({
         <Badge variant={gaps.length > 0 || blockedUnits > 0 ? 'warning' : previewItemCount > 0 ? 'success' : 'outline'}>
           {gaps.length > 0 ? `${gaps.length} 缺口` : previewItemCount > 0 ? '已挂载' : '待挂载'}
         </Badge>
-      </div>
-      <div className="mt-2 flex flex-wrap overflow-hidden rounded-md border border-border bg-card" data-testid="content-workbench-preview-metrics">
-        {[
-          { label: '入口', value: segments.length },
-          { label: '可看', value: readyUnits },
-          { label: '阻塞', value: blockedUnits + gaps.length, tone: blockedUnits + gaps.length > 0 ? 'warning' : 'default' },
-          { label: '时间线', value: previewTimelineCount },
-        ].map((metric) => (
-          <div key={metric.label} className="min-w-[64px] flex-1 border-b border-border/70 px-2 py-1.5 text-center last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
-            <span className="text-[10px] text-muted-foreground">{metric.label}</span>
-            <span className={cn('ml-1.5 text-sm font-semibold tabular-nums', metric.tone === 'warning' ? 'text-amber-700 dark:text-amber-300' : 'text-foreground')}>{metric.value}</span>
-          </div>
-        ))}
-      </div>
-      {firstGap ? (
-        <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50/80 px-2 py-1.5 dark:border-amber-900/60 dark:bg-amber-950/20">
-          <p className="min-w-0 truncate text-xs text-amber-900 dark:text-amber-100">
-            优先缺口：{firstGap.name} · {firstGap.owner}{gaps.length > 1 ? ` · 另 ${gaps.length - 1} 项` : ''}
-          </p>
-          <Badge variant={firstGap.priority === '高' ? 'danger' : firstGap.priority === '中' ? 'warning' : 'outline'}>{firstGap.priority}</Badge>
+      </summary>
+      <div className="border-t border-border p-2">
+        <div className="flex flex-wrap overflow-hidden rounded-md border border-border bg-card" data-testid="content-workbench-preview-metrics">
+          {[
+            { label: '入口', value: segments.length },
+            { label: '可看', value: readyUnits },
+            { label: '阻塞', value: blockedUnits + gaps.length, tone: blockedUnits + gaps.length > 0 ? 'warning' : 'default' },
+            { label: '时间线', value: previewTimelineCount },
+          ].map((metric) => (
+            <div key={metric.label} className="min-w-[64px] flex-1 border-b border-border/70 px-2 py-1.5 text-center last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
+              <span className="text-[10px] text-muted-foreground">{metric.label}</span>
+              <span className={cn('ml-1.5 text-sm font-semibold tabular-nums', metric.tone === 'warning' ? 'text-amber-700 dark:text-amber-300' : 'text-foreground')}>{metric.value}</span>
+            </div>
+          ))}
         </div>
-      ) : null}
-    </div>
+        {firstGap ? (
+          <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50/80 px-2 py-1.5 dark:border-amber-900/60 dark:bg-amber-950/20">
+            <p className="min-w-0 truncate text-xs text-amber-900 dark:text-amber-100">
+              优先缺口：{firstGap.name} · {firstGap.owner}{gaps.length > 1 ? ` · 另 ${gaps.length - 1} 项` : ''}
+            </p>
+            <Badge variant={firstGap.priority === '高' ? 'danger' : firstGap.priority === '中' ? 'warning' : 'outline'}>{firstGap.priority}</Badge>
+          </div>
+        ) : null}
+      </div>
+    </details>
   )
 }
 
@@ -3446,6 +3461,7 @@ function ContentGenerationWorkbench() {
   const [searchParams, setSearchParams] = useSearchParams()
   const uploadInputRef = useRef<HTMLInputElement>(null)
   const keyframeUploadInputRef = useRef<HTMLInputElement>(null)
+  const previewMountSectionRef = useRef<HTMLDivElement>(null)
   const { data, isLoading, isError } = useQuery({
     queryKey: ['workbench', 'production', projectId],
     queryFn: () => loadProductionWorkbenchData(projectId!),
@@ -3777,7 +3793,6 @@ function ContentGenerationWorkbench() {
   const baseStandards = generationContextQuery.data
     ? buildGenerationContextStandards(generationContextQuery.data)
     : buildMomentStandards(selected, data?.jobs ?? [])
-  const contextRows = buildMomentContext(selected)
   const generationContextRows = buildGenerationContextRows(generationContextQuery.data)
   const selectedUnitKeyframes = selected && selectedUnit
     ? selected.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === selectedUnit.ID).slice().sort(byOrder)
@@ -4112,6 +4127,12 @@ function ContentGenerationWorkbench() {
     selectReviewDraft(draft.id)
   }
 
+  function inspectPreviewMount() {
+    const previewMount = previewMountSectionRef.current?.querySelector<HTMLDetailsElement>('[data-testid="content-workbench-preview-mount"]')
+    if (previewMount) previewMount.open = true
+    previewMountSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
   function openEditSelectedUnit(unitId?: number) {
     const targetUnit = unitId && selected?.units.some((unit) => unit.ID === unitId)
       ? selected.units.find((unit) => unit.ID === unitId) ?? null
@@ -4184,7 +4205,7 @@ function ContentGenerationWorkbench() {
     resolve_generation_context: AlertTriangle,
     review_ai_drafts: ClipboardCheck,
     open_generation_canvas: Play,
-    open_preview_workspace: Film,
+    inspect_preview_mount: Film,
     open_delivery_workspace: PackageCheck,
   }
   const nextActionHandlers: Partial<Record<ContentWorkbenchNextActionKey, () => void>> = {
@@ -4198,7 +4219,7 @@ function ContentGenerationWorkbench() {
     resolve_generation_context: () => openEditSelectedUnit(),
     review_ai_drafts: openReviewQueue,
     open_generation_canvas: selectedUnit ? openSelectedUnitCanvas : undefined,
-    open_preview_workspace: () => navigate(withRouteParams(ROUTES.project.contentUnitWorkbench, { productionId: selectedProduction?.ID, focus: 'preview' })),
+    inspect_preview_mount: inspectPreviewMount,
     open_delivery_workspace: () => navigate(withRouteParams(ROUTES.project.deliveryWorkbench, { productionId: selectedProduction?.ID })),
   }
   const deliveryBrief = buildContentWorkbenchDeliveryBrief({
@@ -4254,12 +4275,10 @@ function ContentGenerationWorkbench() {
     selectedUnitTitle: selectedUnit ? titleOfRecord(selectedUnit) : undefined,
     selectedUnitDetail: selectedUnit ? firstText(selectedUnit.prompt, selectedUnit.description, '暂无生成提示') : undefined,
     readiness: readinessSummary,
-    nextActions,
   })
   const commandBriefIcons: Record<ContentWorkbenchCommandBriefKey, LucideIcon> = {
     focus: Target,
     blocker: ShieldCheck,
-    next_action: nextActionIcons[nextActions[0]?.key ?? 'select_scene_moment'],
   }
   const showReviewPanel = reviewMode || reviewDraftsQuery.isLoading || (reviewDrafts.length > 0 && !reviewPanelCollapsed)
 
@@ -4611,41 +4630,31 @@ function ContentGenerationWorkbench() {
                     </div>
                   ) : <Badge variant="warning">未选择制作项</Badge>}
                 >
-                  {selected ? (
-                    <details className="mb-2.5 rounded-md border border-border bg-background">
-                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 text-sm font-medium text-foreground marker:text-muted-foreground">
-                        <span className="flex min-w-0 items-center gap-2">
-                          <Layers size={15} className="text-muted-foreground" />
-                          <span className="truncate">当前上下文</span>
-                        </span>
-                        <Badge variant="outline">{selected.units.length} 制作项</Badge>
-                      </summary>
-                      <div className="border-t border-border p-2.5">
-                        <ContextStack
-                          rows={[
-                            { label: '制作', value: selectedProduction ? titleOfRecord(selectedProduction) : '未绑定制作', icon: Clapperboard },
-                            { label: '情绪段', value: selected.segment ? titleOfRecord(selected.segment) : '未绑定情绪段', icon: GitBranch },
-                            ...contextRows,
-                          ]}
-                          className="production-context-stack"
-                        />
-                      </div>
-                    </details>
-                  ) : null}
                   {selectedUnit ? (
                     <div className="mb-2.5 space-y-2" data-testid="content-workbench-current-unit-panel">
-                      <div className="border-b border-border pb-2">
-                        <p className="text-xs text-muted-foreground">生成目标</p>
-                        <h3 className="mt-1 line-clamp-2 text-sm font-semibold leading-5 text-foreground">{titleOfRecord(selectedUnit)}</h3>
-                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{firstText(selectedUnit.prompt, selectedUnit.description, '暂无描述或生成提示')}</p>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          <Badge variant="outline">时长 {formatDuration(selectedUnit.duration_sec)}</Badge>
-                          <Badge variant="outline">{selectedUnit.kind || 'shot'}</Badge>
-                          {selectedUnit.shot_size ? <Badge variant="outline">景别 {selectedUnit.shot_size}</Badge> : null}
-                          {selectedUnit.camera_angle ? <Badge variant="outline">机位 {selectedUnit.camera_angle}</Badge> : null}
-                          {selectedUnit.camera_motion ? <Badge variant="outline">运动 {selectedUnit.camera_motion}</Badge> : null}
+                      <details className="rounded-md border border-border bg-background" data-testid="content-workbench-generation-target">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 marker:text-muted-foreground">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <Target size={15} className="shrink-0 text-muted-foreground" />
+                            <span className="min-w-0">
+                              <span className="block text-[11px] font-medium text-muted-foreground">生成目标</span>
+                              <span className="block truncate text-sm font-semibold text-foreground">{titleOfRecord(selectedUnit)}</span>
+                            </span>
+                          </span>
+                          <span className="flex shrink-0 items-center gap-1.5">
+                            <Badge variant="outline">{selectedUnit.kind || 'shot'}</Badge>
+                            <Badge variant="outline">{formatDuration(selectedUnit.duration_sec)}</Badge>
+                          </span>
+                        </summary>
+                        <div className="border-t border-border px-2.5 py-2">
+                          <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">{firstText(selectedUnit.prompt, selectedUnit.description, '暂无描述或生成提示')}</p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {selectedUnit.shot_size ? <Badge variant="outline">景别 {selectedUnit.shot_size}</Badge> : null}
+                            {selectedUnit.camera_angle ? <Badge variant="outline">机位 {selectedUnit.camera_angle}</Badge> : null}
+                            {selectedUnit.camera_motion ? <Badge variant="outline">运动 {selectedUnit.camera_motion}</Badge> : null}
+                          </div>
                         </div>
-                      </div>
+                      </details>
                       <UnitHealthCard health={currentUnitHealth} />
                     </div>
                   ) : (
@@ -4735,14 +4744,16 @@ function ContentGenerationWorkbench() {
                 <WorkbenchPanel title="执行与交付" icon={PackageCheck}>
                   <div className="space-y-2.5">
                     {selectedProduction ? (
-                      <PreviewMountCard
-                        productionTitle={titleOfRecord(selectedProduction)}
-                        segments={selectedPreviewPlanSegments}
-                        timelineUnits={selectedPreviewTimelineUnits}
-                        gaps={selectedPreviewMissingAssets}
-                        previewTimelineCount={selectedPreviewTimelines.length}
-                        previewItemCount={selectedPreviewItemCount}
-                      />
+                      <div ref={previewMountSectionRef}>
+                        <PreviewMountCard
+                          productionTitle={titleOfRecord(selectedProduction)}
+                          segments={selectedPreviewPlanSegments}
+                          timelineUnits={selectedPreviewTimelineUnits}
+                          gaps={selectedPreviewMissingAssets}
+                          previewTimelineCount={selectedPreviewTimelines.length}
+                          previewItemCount={selectedPreviewItemCount}
+                        />
+                      </div>
                     ) : null}
                     <DeliveryBriefCard brief={deliveryBrief} />
                     <ActivityFeedCard feed={activityFeed} />
@@ -6629,7 +6640,7 @@ function ScriptSplitWorkbench() {
                 </div>
                 <p className="mt-2 text-xs leading-5 text-foreground">进入内容编排工作台，继续检查制作项、预览挂载、素材缺口和生成记录。</p>
               </div>
-              <Button size="sm" className="mt-3 w-full gap-1.5" onClick={() => navigate(mergeSearch(ROUTES.project.contentUnitWorkbench, '', { focus: 'preview' }))}>
+              <Button size="sm" className="mt-3 w-full gap-1.5" onClick={() => navigate(ROUTES.project.contentUnitWorkbench)}>
                 <Play size={13} />
                 进入内容编排
               </Button>

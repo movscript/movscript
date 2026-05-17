@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { assertDesktopArch, assertDesktopPlatform, desktopFFmpegBinaryName } from './desktop-targets.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
-const FFMPEG_VERSION_TIMEOUT_MS = 5000
+const FFMPEG_VERSION_TIMEOUT_MS = 30000
 
 if (isDirectRun()) {
   runStageFFmpegCli(repoRoot, process.env, process.argv.slice(2))
