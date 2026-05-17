@@ -28,7 +28,7 @@ test('electron renderer smoke reaches production orchestration with project-leve
 
     await page.goto(`${baseURL}/project/production/orchestration?productionId=301`)
 
-    await expect(page.getByRole('heading', { name: '制作编排树' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '创作蓝图' })).toBeVisible()
     await expect(page.getByRole('button', { name: '结构' })).toBeVisible()
     await expect(page.getByRole('button', { name: '审阅' })).toBeVisible()
     await expect(page.getByText('设定与素材资源池', { exact: true })).toBeVisible()

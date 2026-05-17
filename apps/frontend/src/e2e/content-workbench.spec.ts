@@ -11,7 +11,7 @@ test('content workbench renders the production command center and inspector', as
 
   await expect(page.getByTestId('content-workbench-command-center')).toBeVisible()
   await expect(page.getByTestId('content-workbench-production-pipeline')).toContainText('生成上下文')
-  await expect(page.getByText('AI 内容生产指挥台', { exact: true })).toBeVisible()
+  await expect(page.getByText('AI 画面创作指挥台', { exact: true })).toBeVisible()
   await expect(page.getByText('旧伞纸条滑落', { exact: true })).toBeVisible()
   await expect(page.getByTestId('content-workbench-unit-track')).toBeVisible()
   await expect(page.getByText('制作轨道存在阻塞', { exact: true })).toBeVisible()

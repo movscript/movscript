@@ -4331,13 +4331,13 @@ function ContentGenerationWorkbench() {
                   </div>
                 </div>
 
-                <div className="rounded-md border border-border bg-background p-3">
+                <div className="space-y-2">
                   <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                     <Settings2 size={14} />
                     筛选与定位
                   </div>
                   <Select value={productionFilter} onValueChange={selectProductionFilter}>
-                    <SelectTrigger className="mt-3 h-9">
+                    <SelectTrigger className="h-9">
                       <SelectValue placeholder="选择制作" />
                     </SelectTrigger>
                     <SelectContent>
@@ -4349,7 +4349,7 @@ function ContentGenerationWorkbench() {
                     </SelectContent>
                   </Select>
                   <Select value={segmentFilter} onValueChange={selectSegmentFilter}>
-                    <SelectTrigger className="mt-2 h-9">
+                    <SelectTrigger className="h-9">
                       <SelectValue placeholder="选择情绪段" />
                     </SelectTrigger>
                     <SelectContent>
@@ -4361,7 +4361,7 @@ function ContentGenerationWorkbench() {
                     </SelectContent>
                   </Select>
                   <Select value={selected?.id ?? ''} onValueChange={selectSceneMoment} disabled={sceneMomentFilterOptions.length === 0}>
-                    <SelectTrigger className="mt-2 h-9">
+                    <SelectTrigger className="h-9">
                       <SelectValue placeholder="选择情节" />
                     </SelectTrigger>
                     <SelectContent>
@@ -4373,7 +4373,7 @@ function ContentGenerationWorkbench() {
                     </SelectContent>
                   </Select>
                   {filteredRows.length === 0 ? (
-                    <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
+                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
                       <p>当前项目还没有情节入口，先完成创作编排后再进入画面生成。</p>
                       <Button size="sm" variant="outline" className="mt-2 h-8 gap-1.5" onClick={() => navigate(ROUTES.project.productionOrchestration)}>
                         <Route size={13} />
