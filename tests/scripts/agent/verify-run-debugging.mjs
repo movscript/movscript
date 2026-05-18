@@ -906,6 +906,7 @@ function verifyAgentSettingsDebugDocs() {
   assertIncludes(errors, source.settingsDebugDoc, 'Settings snapshots: export, import, dry-run, selective section apply, impact', 'English boundary doc includes Settings snapshot dry-run and selective import ownership')
   assertIncludes(errors, source.settingsDebugDoc, 'named import presets', 'English boundary doc includes Settings snapshot import preset ownership')
   assertIncludes(errors, source.settingsDebugDoc, 'granular quick-fix audit categories', 'English boundary doc includes granular quick-fix audit ownership')
+  assertIncludes(errors, source.settingsDebugDoc, 'Read-only remediation plan', 'English boundary doc includes Debug remediation ownership')
   assertIncludes(errors, source.settingsDebugDoc, 'Debug must not save models, edit Skills, edit Profiles, edit tool policy, or', 'English boundary doc prohibits Debug persistent writes')
   assertNotIncludes(errors, source.settingsDebugDoc, 'Publish Debug Bundle and Settings Snapshot schema URLs, then include them in', 'English boundary doc must not claim schema CI coverage is still missing')
   assertIncludes(errors, source.settingsDebugDoc, 'Publish the existing schema reference pages', 'English boundary doc points hosting gap to schema reference pages')
@@ -936,6 +937,7 @@ function verifyAgentSettingsDebugDocs() {
   assertIncludes(errors, source.settingsDebugDocZh, '设置快照：导入、导出、dry-run、选择性应用配置段、影响预览', 'Chinese boundary doc includes Settings snapshot dry-run and selective import ownership')
   assertIncludes(errors, source.settingsDebugDocZh, '命名导入预设', 'Chinese boundary doc includes Settings snapshot import preset ownership')
   assertIncludes(errors, source.settingsDebugDocZh, '细分的 quick fix 审计分类', 'Chinese boundary doc includes granular quick-fix audit ownership')
+  assertIncludes(errors, source.settingsDebugDocZh, '只读修复建议', 'Chinese boundary doc includes Debug remediation ownership')
   assertIncludes(errors, source.settingsDebugDocZh, '调试页不应该保存模型、修改 Skills、修改 Profile、修改工具策略或写入运行模板', 'Chinese boundary doc prohibits Debug persistent writes')
   assertNotIncludes(errors, source.settingsDebugDocZh, '发布 Debug Bundle 和 Settings Snapshot schema URL，并纳入 CI 兼容性测试', 'Chinese boundary doc must not claim schema CI coverage is still missing')
   assertIncludes(errors, source.settingsDebugDocZh, '发布现有 schema reference 页面', 'Chinese boundary doc points hosting gap to schema reference pages')
@@ -959,6 +961,7 @@ function verifyAgentSchemaReferenceDoc(doc, input) {
   assertIncludes(errors, doc, 'https://movscript.dev/schemas/agent-settings-snapshot-v1.schema.json', `${input.language} schema reference documents Settings Snapshot schema URL`)
   assertIncludes(errors, doc, input.redactionText, `${input.language} schema reference documents Debug Bundle redaction`)
   assertIncludes(errors, doc, input.importText, `${input.language} schema reference documents Settings Snapshot preflight import`)
+  assertIncludes(errors, doc, 'remediationPlan', `${input.language} schema reference documents Debug Bundle remediation plan`)
 }
 
 function readText(file) {

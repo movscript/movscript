@@ -99,7 +99,7 @@ Plugin-related code lives in `apps/movcli`, `packages/plugin-sdk`, and `plugins/
 
 Script ownership and lifecycle policy is documented in [Script Management](./script-management.md). Update `scripts/script-manifest.json` whenever a repository automation script is added, moved, or deleted.
 
-AI-generated media enters review through candidate sets, not direct binding. The candidate rules for asset slots, keyframes, and future visual anchors are documented in [Candidate Workflow](./candidate-workflow.md).
+AI-generated media enters review through candidate sets, not direct binding. The candidate rules and release acceptance checklist for asset slots, keyframes, and future visual anchors are documented in [Candidate Workflow](./candidate-workflow.md).
 
 The responsibility boundary between Agent Settings, Agent Debug, and conversation details is documented in [Agent Settings And Debug Boundaries](./agent-settings-debug.md).
 Stable Agent Debug Bundle and Agent Settings Snapshot schemas are documented in [Agent Schema Reference](./agent-schema-reference.md).

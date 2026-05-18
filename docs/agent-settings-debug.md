@@ -90,7 +90,9 @@ diagnostics.
 ## Remaining Maturity Gaps
 
 - Restore complete dependency installation so TS/TSX contract tests and
-  typecheck can run.
+  typecheck can run. If offline install fails with
+  `ERR_PNPM_NO_OFFLINE_TARBALL`, hydrate the reported pnpm store package
+  and rerun `pnpm install --offline --ignore-scripts`.
 - Add cryptographic Skill signature verification once signed Skill bundles are
   available from Runtime.
 - Add run preset sharing templates for teams once workspace-level settings are

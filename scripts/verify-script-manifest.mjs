@@ -8,7 +8,7 @@ const repoRoot = repoRootFromMeta(import.meta.url)
 const manifestPath = resolve(repoRoot, 'scripts/script-manifest.json')
 const scriptSurfacesPath = resolve(repoRoot, 'scripts/script-surfaces.json')
 const scriptRoots = ['scripts', 'apps/agent/scripts', 'apps/backend/scripts', 'apps/frontend/scripts']
-const scriptExtensions = new Set(['.mjs', '.py'])
+const scriptExtensions = new Set(['.mjs', '.py', '.sh'])
 const allowedCategories = new Set(['build', 'contract', 'dev', 'release', 'test'])
 const allowedLifecycles = new Set(['maintained'])
 const errors = []
@@ -363,6 +363,12 @@ function validateScriptGovernanceDocs() {
   }
   if (!scriptManagementDoc.includes('maxMaintainedScriptFiles')) {
     errors.push('docs/script-management.md must document the maintained script file budget')
+  }
+  if (!scriptReadme.includes('Contract source assets stay under `contracts/`')) {
+    errors.push('scripts/README.md must distinguish contract source assets from contract verifier scripts')
+  }
+  if (!scriptManagementDoc.includes('Contract source assets stay under `contracts/`')) {
+    errors.push('docs/script-management.md must distinguish contract source assets from contract verifier scripts')
   }
   for (const text of [scriptReadme, scriptManagementDoc]) {
     if (text.includes('may live in `scripts/agent/`') || text.includes('Add `scripts/agent/` files only')) {

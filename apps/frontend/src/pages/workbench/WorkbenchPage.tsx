@@ -89,7 +89,7 @@ import { buildContentWorkbenchReadinessSummary } from '@/lib/contentWorkbenchRea
 import { buildContentWorkbenchReviewQueueSummary, type ContentWorkbenchReviewQueueSummary } from '@/lib/contentWorkbenchReviewQueue'
 import { buildContentWorkbenchRouteSearch, pickContentWorkbenchRowIdForDeepLink } from '@/lib/contentWorkbenchRoute'
 import { buildContentWorkbenchUnitHealth, type ContentWorkbenchUnitHealth } from '@/lib/contentWorkbenchUnitHealth'
-import { buildContentWorkbenchUnitTrack } from '@/lib/contentWorkbenchUnitTrack'
+import { buildContentWorkbenchUnitTrack, contentWorkbenchUnitRequiresKeyframe } from '@/lib/contentWorkbenchUnitTrack'
 import { pickContentWorkbenchUploadTarget } from '@/lib/contentWorkbenchUploadTarget'
 import { cn } from '@/lib/utils'
 import { useAgentStore } from '@/store/agentStore'
@@ -498,6 +498,10 @@ type WorkbenchRecord = SemanticEntityRecord & {
   segment_id?: number
   scene_moment_id?: number
   content_unit_id?: number
+  script_block_id?: number
+  speaker?: string
+  start_line?: number
+  end_line?: number
   owner_type?: string
   owner_id?: number
   creative_reference_id?: number
@@ -537,6 +541,7 @@ interface ProductionWorkbenchData {
   contentUnits: WorkbenchRecord[]
   assetSlots: WorkbenchRecord[]
   keyframes: WorkbenchRecord[]
+  scriptBlocks: WorkbenchRecord[]
   previewTimelines: WorkbenchRecord[]
   previewTimelineItems: WorkbenchRecord[]
   deliveryVersions: WorkbenchRecord[]
@@ -591,6 +596,7 @@ interface ContentGenerationViewRow {
   assetSlots: WorkbenchRecord[]
   missingSlots: WorkbenchRecord[]
   keyframes: WorkbenchRecord[]
+  scriptBlocks: WorkbenchRecord[]
 }
 
 interface ContentGenerationMomentRow {
@@ -2873,6 +2879,9 @@ function UnitProductionTrack({
       kind: unit.kind,
       durationSec: numberOf(unit.duration_sec),
       status: unit.status,
+      summary: firstText(unit.description, unit.prompt),
+      keyframeTitles: keyframes.map(titleOfRecord),
+      missingAssetTitles: missingSlots.map(titleOfRecord),
       hasPrompt: Boolean(firstText(unit.prompt, unit.description)),
       assetSlotCount: unitSlots.length,
       missingSlotCount: missingSlots.length,
@@ -2931,7 +2940,7 @@ function UnitProductionTrack({
                 <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
                 <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{item.title}</p>
               </div>
-              <p className="mt-1 truncate text-[11px] text-muted-foreground">{item.kind || '制作项'} · {item.labels.slice(0, 2).join(' · ') || '待补输入'}</p>
+              <p className="mt-1 truncate text-[11px] text-muted-foreground">{trackKindLabel(item.kind)} · {item.labels.slice(0, 2).join(' · ') || '待补输入'}</p>
               {item.blockers.length > 0 ? (
                 <p className="mt-1 truncate text-[11px] text-amber-700 dark:text-amber-300">{item.blockers[0]}{item.blockers.length > 1 ? ` · 另 ${item.blockers.length - 1}` : ''}</p>
               ) : (
@@ -2941,8 +2950,93 @@ function UnitProductionTrack({
           ))}
         </div>
       </div>
+
+      <div className="mt-3 overflow-hidden rounded-md border border-border bg-card" data-testid="content-workbench-unit-schedule">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-2.5 py-2">
+          <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+            <Clock3 size={15} className="shrink-0 text-muted-foreground" />
+            <span className="truncate">制作项时间表</span>
+          </div>
+          <Badge variant="outline">{formatTrackDuration(summary.durationSec)}</Badge>
+        </div>
+        <div className="overflow-x-auto">
+          <div className="min-w-[760px]">
+            <div className="grid grid-cols-[64px_88px_112px_minmax(0,1fr)_136px_104px] gap-2 border-b border-border bg-muted/30 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground">
+              <span>顺序</span>
+              <span>时间</span>
+              <span>类型</span>
+              <span>内容</span>
+              <span>关键帧 / 缺口</span>
+              <span className="text-right">状态</span>
+            </div>
+            {summary.items.map((item) => (
+              <button
+                key={`schedule-${item.id}`}
+                type="button"
+                onClick={() => onSelectUnit(Number(item.id))}
+                className={cn(
+                  'grid w-full grid-cols-[64px_88px_112px_minmax(0,1fr)_136px_104px] gap-2 border-b border-border/70 px-2.5 py-2 text-left text-xs transition-colors last:border-b-0 hover:bg-primary/5',
+                  item.selected ? 'bg-primary/5' : 'bg-background',
+                )}
+              >
+                <span className="tabular-nums text-muted-foreground">{String(item.order).padStart(2, '0')}</span>
+                <span className="tabular-nums text-muted-foreground">{formatTrackTimeRange(item.startSec, item.endSec, item.durationSec)}</span>
+                <span className="truncate text-foreground">{trackKindLabel(item.kind)}</span>
+                <span className="min-w-0">
+                  <span className="block truncate font-medium text-foreground">{item.title}</span>
+                  <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{item.summary || '暂无描述或创作提示'}</span>
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-foreground">{item.keyframeTitles.length > 0 ? item.keyframeTitles.slice(0, 2).join('、') : '无关键帧'}</span>
+                  <span className={cn('mt-0.5 block truncate text-[11px]', item.missingAssetTitles.length > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>
+                    {item.missingAssetTitles.length > 0 ? item.missingAssetTitles.slice(0, 2).join('、') : '无素材缺口'}
+                  </span>
+                </span>
+                <span className="flex justify-end">
+                  <Badge variant={item.tone === 'blocked' ? 'warning' : item.tone === 'ready' ? 'success' : item.tone === 'running' ? 'secondary' : 'outline'} className="text-[10px]">
+                    {item.blockers.length > 0 ? item.blockers[0] : item.tone === 'ready' ? '可执行' : item.tone === 'running' ? '生产中' : '待确认'}
+                  </Badge>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   )
+}
+
+function formatTrackTimeRange(startSec: number, endSec: number, durationSec: number) {
+  if (!Number.isFinite(durationSec) || durationSec <= 0) return '未设'
+  return `${formatTrackClock(startSec)}-${formatTrackClock(endSec)}`
+}
+
+function formatTrackClock(seconds: number) {
+  const rounded = Math.max(0, Math.round(Number(seconds) || 0))
+  const minutes = Math.floor(rounded / 60)
+  const rest = rounded % 60
+  return `${minutes}:${String(rest).padStart(2, '0')}`
+}
+
+function trackKindLabel(kind: string) {
+  switch (kind) {
+    case 'shot':
+      return '镜头'
+    case 'visual_segment':
+      return '视觉段'
+    case 'product_showcase':
+      return '产品展示'
+    case 'caption_card':
+      return '字幕卡'
+    case 'narration':
+      return '旁白'
+    case 'transition':
+      return '转场'
+    case 'music_beat':
+      return '节拍'
+    default:
+      return kind || '制作项'
+  }
 }
 
 function SettingPreparationWorkbench() {
@@ -4733,6 +4827,32 @@ function ContentGenerationWorkbench() {
                         </div>
                         <p className="mt-1 truncate text-[11px] text-muted-foreground">{currentUnitHealth.detail}</p>
                       </div>
+                      <details open className="mt-2 overflow-hidden rounded-md border border-border bg-background" data-testid="content-workbench-unit-inspector">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 text-sm font-medium text-foreground marker:text-muted-foreground">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <Pencil size={15} className="text-muted-foreground" />
+                            <span className="truncate">制作项编辑卡片</span>
+                          </span>
+                          <Badge variant="outline">{trackKindLabel(String(selectedUnit.kind ?? 'shot'))}</Badge>
+                        </summary>
+                        <div className="border-t border-border p-2.5">
+                          <SemanticEntityInlineEditor
+                            projectId={projectId}
+                            config={contentUnitConfig}
+                            record={selectedUnit}
+                            queryKey={productionWorkbenchQueryKey}
+                            idScope={`content-workbench-unit-inspector-${selectedUnit.ID}`}
+                            editKey={selectedUnit.ID}
+                            title="编辑制作项"
+                            description="维护制作类型、提示词、时长、状态和上下游引用。"
+                            className="border-border bg-card"
+                            onSaved={(record) => {
+                              selectContentUnit(record.ID)
+                              setOptimisticSelectedUnit(record)
+                            }}
+                          />
+                        </div>
+                      </details>
                     </div>
                   ) : (
                     <p className="mb-2.5 rounded-md border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">从制作项轨道选择一个制作项后查看生成目标、健康度和检查状态。</p>

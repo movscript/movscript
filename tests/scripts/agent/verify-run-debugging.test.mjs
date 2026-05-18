@@ -626,14 +626,16 @@ test('AgentRun debugging static verifier rejects Agent Debug bundle schema drift
   const root = await mkdtemp(path.join(os.tmpdir(), 'agent-debug-bundle-schema-drift-'))
   try {
     const schema = JSON.parse(await readFile(agentDebugBundleSchemaPath, 'utf8'))
-    schema.required = schema.required.filter((field) => field !== 'schemaUrl')
+    schema.properties.remediationPlan.items.$ref = '#/$defs/legacyItem'
+    delete schema.$defs.remediationItem
     const overridePath = path.join(root, 'agent-debug-bundle.schema.json')
     await writeJSON(overridePath, schema)
 
     await assert.rejects(
       runVerifier(undefined, { AGENT_RUN_DEBUG_AGENT_DEBUG_BUNDLE_SCHEMA_PATH: overridePath }),
       (error) => {
-        assert.match(String(error.stderr), /Agent Debug bundle required fields missing schemaUrl/)
+        const stderr = String(error.stderr)
+        assert.match(stderr, /Agent Debug bundle schema must define remediation items/)
         return true
       },
     )
@@ -1016,6 +1018,8 @@ test('AgentRun debugging static verifier rejects Agent Settings and Debug page b
     const settingsOverridePath = path.join(root, 'AIAgentSettingsPage.tsx')
     await writeFile(debugOverridePath, debugSource
       .replace('agents.debug.scope.noPersistentWrites', 'agents.debug.scope.persistentWrites')
+      .replaceAll('buildDebugRemediationPlan', 'buildDebugLegacyPlan')
+      .replaceAll('data-testid="agent-debug-remediation-plan"', 'data-testid="agent-debug-legacy-remediation-plan"')
       .replace('localAgentClient.getModelConfig()', 'localAgentClient.getModelConfig()\n        localAgentClient.saveModelConfig({ model: \'bad\' })')
       .replace('              <TabsTrigger value="manifest">{t(\'agents.debug.tabs.manifest\')}</TabsTrigger>', '              <TabsTrigger value="manifest">{t(\'agents.debug.tabs.manifest\')}</TabsTrigger>\n              <TabsTrigger value="skills">{t(\'agents.debug.tabs.skills\')}</TabsTrigger>'))
     await writeFile(settingsOverridePath, `${settingsSource}\nbuildDebugBundle\n`)
@@ -1028,6 +1032,8 @@ test('AgentRun debugging static verifier rejects Agent Settings and Debug page b
       (error) => {
         const stderr = String(error.stderr)
         assert.match(stderr, /Agent Debug page states it has no persistent writes must include agents\.debug\.scope\.noPersistentWrites/)
+        assert.match(stderr, /Agent Debug page owns read-only remediation routing/)
+        assert.match(stderr, /Agent Debug page exposes read-only remediation routing/)
         assert.match(stderr, /Agent Debug page must not save model config must not include localAgentClient\.saveModelConfig/)
         assert.match(stderr, /Agent Debug page must not reintroduce a skills management tab must not include <TabsTrigger value="skills"/)
         assert.match(stderr, /Agent Settings page must not build Agent Debug bundles must not include buildDebugBundle/)
@@ -1073,6 +1079,7 @@ test('AgentRun debugging static verifier rejects Agent Settings and Debug bounda
       .replace('Publish the existing schema reference pages', 'Publish missing schema docs. Publish Debug Bundle and Settings Snapshot schema URLs, then include them in')
       .replace('named import presets', 'manual import scopes only')
       .replace('granular quick-fix audit categories', 'generic quick-fix audit')
+      .replace('Read-only remediation plan', 'Configuration remediation controls')
       .replace('Debug must not save models, edit Skills, edit Profiles, edit tool policy, or', 'Debug may save models and edit Skills, Profiles, tool policy, or')
       .concat('\nPublish Debug Bundle and Settings Snapshot schema URLs, then include them in CI compatibility tests.\n'))
     await writeFile(zhOverridePath, zhDoc
@@ -1089,15 +1096,18 @@ test('AgentRun debugging static verifier rejects Agent Settings and Debug bounda
       .replace('发布现有 schema reference 页面', '发布缺失 schema 文档。发布 Debug Bundle 和 Settings Snapshot schema URL，并纳入 CI 兼容性测试')
       .replace('命名导入预设', '手动选择配置段')
       .replace('细分的 quick fix 审计分类', '通用 quick fix 审计')
+      .replace('只读修复建议', '配置修复控件')
       .replace('调试页不应该保存模型、修改 Skills、修改 Profile、修改工具策略或写入运行模板', '调试页可以保存模型、修改 Skills、修改 Profile、修改工具策略或写入运行模板')
       .concat('\n发布 Debug Bundle 和 Settings Snapshot schema URL，并纳入 CI 兼容性测试。\n'))
     await writeFile(schemaOverridePath, schemaDoc
       .replace('Agent Debug Bundle v1', 'Agent Debug Bundle old')
+      .replace('remediationPlan', 'legacyPlan')
       .replace('contracts/agent/agent-debug-bundle-v1.fixture.json', 'contracts/agent/old-debug.fixture.json')
       .replace('Bundles are always redacted', 'Bundles may include secrets')
       .replace('Import must run preflight validation', 'Import may write immediately'))
     await writeFile(schemaZhOverridePath, schemaDocZh
       .replace('Agent Settings Snapshot v1', 'Agent Settings Snapshot old')
+      .replace('remediationPlan', 'legacyPlan')
       .replace('contracts/agent/agent-settings-snapshot-v1.fixture.json', 'contracts/agent/old-settings.fixture.json')
       .replace('复制或下载前必须脱敏', '可以包含密钥')
       .replace('导入必须先通过 preflight 校验', '导入可以直接写入'))
@@ -1129,6 +1139,7 @@ test('AgentRun debugging static verifier rejects Agent Settings and Debug bounda
         assert.match(stderr, /English boundary doc links Settings Snapshot schema/)
         assert.match(stderr, /English boundary doc includes Settings snapshot import preset ownership/)
         assert.match(stderr, /English boundary doc includes granular quick-fix audit ownership/)
+        assert.match(stderr, /English boundary doc includes Debug remediation ownership/)
         assert.match(stderr, /English boundary doc prohibits Debug persistent writes/)
         assert.match(stderr, /English boundary doc must not claim schema CI coverage is still missing/)
         assert.match(stderr, /English boundary doc points hosting gap to schema reference pages/)
@@ -1136,6 +1147,7 @@ test('AgentRun debugging static verifier rejects Agent Settings and Debug bounda
         assert.match(stderr, /English schema reference links Debug Bundle fixture/)
         assert.match(stderr, /English schema reference documents Debug Bundle redaction/)
         assert.match(stderr, /English schema reference documents Settings Snapshot preflight import/)
+        assert.match(stderr, /English schema reference documents Debug Bundle remediation plan/)
         assert.match(stderr, /Chinese boundary doc documents machine-readable contracts/)
         assert.match(stderr, /Chinese boundary doc includes call mode migration guidance ownership/)
         assert.match(stderr, /Chinese boundary doc includes provider compatibility probe ownership/)
@@ -1148,6 +1160,7 @@ test('AgentRun debugging static verifier rejects Agent Settings and Debug bounda
         assert.match(stderr, /Chinese boundary doc links Debug Bundle schema/)
         assert.match(stderr, /Chinese boundary doc includes Settings snapshot import preset ownership/)
         assert.match(stderr, /Chinese boundary doc includes granular quick-fix audit ownership/)
+        assert.match(stderr, /Chinese boundary doc includes Debug remediation ownership/)
         assert.match(stderr, /Chinese boundary doc prohibits Debug persistent writes/)
         assert.match(stderr, /Chinese boundary doc must not claim schema CI coverage is still missing/)
         assert.match(stderr, /Chinese boundary doc points hosting gap to schema reference pages/)
@@ -1155,6 +1168,7 @@ test('AgentRun debugging static verifier rejects Agent Settings and Debug bounda
         assert.match(stderr, /Chinese schema reference links Settings Snapshot fixture/)
         assert.match(stderr, /Chinese schema reference documents Debug Bundle redaction/)
         assert.match(stderr, /Chinese schema reference documents Settings Snapshot preflight import/)
+        assert.match(stderr, /Chinese schema reference documents Debug Bundle remediation plan/)
         return true
       },
     )

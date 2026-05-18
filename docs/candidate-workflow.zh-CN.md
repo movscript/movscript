@@ -43,7 +43,7 @@ Keyframe / 画面锚点候选：
 - Workbench 从资源库选择或上传关键帧图片时，会加入 keyframe / 画面锚点候选，不会直接 patch 正式关键帧资源。
 - Canvas 输出推送会加入素材需求候选，不会直接 patch 或锁定目标素材需求。
 - 通用资源绑定不会回填 `asset_slot.resource_id`；正式采纳只由显式候选采纳 / 锁定流程负责。
-- 通用语义编辑不再展示素材需求和 keyframe 的直接 `resource_id` 字段。后端 patch API 会拒绝直接采纳素材需求资源 / 锁定和直接采纳 keyframe 资源；候选采纳 / 锁定流程通过内部 repository 路径写入正式资源。
+- 通用语义编辑不再展示素材需求和 keyframe 的直接 `resource_id` 字段。后端 create / patch API 会拒绝直接采纳素材需求资源 / 锁定和直接采纳 keyframe 资源；候选采纳 / 锁定流程通过内部 repository 路径写入正式资源。
 - 批量写入部分成功后，重试只提交失败或尚未写入的附件，避免重复创建已成功候选。
 - 写入成功后，任务、Workbench、预制作、概览和制作相关候选消费者都会失效刷新。
 
@@ -65,6 +65,7 @@ Keyframe / 画面锚点候选：
 # 从仓库根目录开始。
 cd apps/frontend
 node --experimental-strip-types --test \
+  src/api/semanticEntities.test.ts \
   electron/mcp/candidateParams.test.ts \
   electron/mcp/generation.test.ts \
   electron/mcp/serverCandidateContract.test.ts \
@@ -77,7 +78,8 @@ node --experimental-strip-types --test \
   src/lib/tasksCandidateSelectionContract.test.ts \
   src/lib/contentWorkbenchUiContract.test.ts \
   src/lib/agentCatalogCandidateContract.test.ts \
-  src/lib/preProductionCandidateLockContract.test.ts
+  src/lib/preProductionCandidateLockContract.test.ts \
+  src/lib/canvasCandidatePushContract.test.ts
 ```
 
 ```bash
@@ -90,15 +92,39 @@ GOCACHE=/private/tmp/movscript-go-build-cache go test ./...
 cd ../..
 node tests/scripts/agent/candidate-feature-source.test.mjs
 pnpm run test:scripts
+pnpm --filter movscript-frontend test:generation-contract
+pnpm run typecheck
 node --test tests/scripts/agent/verify-compact-contract.test.mjs
 node scripts/verify-script-manifest.mjs
 ```
 
 依赖不完整的 workspace 中仍有已知验证阻塞：
 
-- `pnpm --filter movscript-frontend test:generation-contract` 需要 workspace 安装 `tsx`。
-- 完整前端 typecheck 和 TSX 测试需要先安装前端依赖。
+- `pnpm --filter movscript-frontend test:generation-contract`、根级 `pnpm run typecheck`、完整前端 typecheck 和 TSX 测试都需要先安装前端依赖。
+- 运行 install 前，优先用 `CI=true pnpm fetch --offline --frozen-lockfile` 做非破坏性离线 store 预检；它会报告缺失 tarball，但不会重建 `node_modules`。
 - `pnpm install --offline --frozen-lockfile` 可能因本地 store 缺少 `@radix-ui/react-toast` 等包而失败，错误为 `ERR_PNPM_NO_OFFLINE_TARBALL`。
 - 网络受限沙箱中运行 `pnpm install --frozen-lockfile` 可能失败在 `ENOTFOUND registry.npmjs.org`。
+- 失败的 `pnpm install` 可能让 `node_modules` 处于不完整状态；依赖型 typecheck 或 E2E gate 需要先重新完成依赖安装。
 - 插件 build 命令复用 `apps/movcli` 工具链，因此真实插件打包需要先安装 movcli workspace 依赖。
 - Browser / Electron E2E 需要能监听本地端口并启动浏览器运行时的沙箱环境。
+
+2026-05-18 当前本地快照：
+
+- 已通过：候选专项测试、后端 `go test ./...`、`pnpm --filter movscript-frontend test:generation-contract`、根级 `pnpm run typecheck`、`pnpm run test:scripts`、`node tests/scripts/agent/candidate-feature-source.test.mjs` 和 `git diff --check`。
+- 依赖预检后受阻：离线 store 缺少 `@radix-ui/react-toast-1.2.15.tgz`；失败的 offline install 已让 `node_modules` 不完整，因此依赖型 gate 需要在恢复依赖后重新运行。
+- 尚未完成：browser / Electron E2E，以及下面的人工发布验收清单。
+
+## 发布验收清单
+
+前端依赖恢复、桌面工作流可启动后，执行以下检查：
+
+- 在 AI 助手里生成多张图片，把所有可用输出加入同一个素材需求，确认有多条候选记录，且显式锁定前 `asset_slot.resource_id` 仍未写入。
+- 生成多个 keyframe 输出，加入原始 keyframe / 画面锚点，确认 work-item 采纳前它们不会出现在正式 keyframe 列表中。
+- 确认 placeholder 或无资源结果仍可见，但加入候选和复制动作禁用。
+- 模拟批量写入部分失败后重试，确认只重新提交失败或未写入的输出。
+- 从 Canvas 推送输出到素材需求，确认只创建候选，不锁定目标。
+- 在 Workbench 从资源库选择 keyframe 资源并上传 keyframe 图片，确认都创建 keyframe 候选，不直接 patch 正式资源。
+- 在任务 / 预制作界面采纳和拒绝素材需求候选，确认兄弟候选被拒绝，缺失资源会报错。
+- 在任务 / Workbench 界面采纳和拒绝 keyframe 候选，确认兄弟候选被拒绝，且要求 generated-candidate 标记。
+- 用非法 ID、冲突别名、generated candidate 目标调用 `movscript_attach_asset_slot_candidate` 和 `movscript_attach_keyframe_candidate`，确认写入前失败。
+- 通过通用语义 create / patch 和 Agent draft apply 尝试写正式资源字段，确认会被拒绝或剥离。

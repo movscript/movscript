@@ -13,6 +13,7 @@ export interface ContentWorkbenchDeliveryBriefInput {
   assetSlotCount: number
   missingSlotCount: number
   keyframeCount: number
+  requiresKeyframe?: boolean
   generationContextReady: boolean
   generationContextLoading: boolean
   generationContextError: boolean
@@ -52,6 +53,7 @@ export function buildContentWorkbenchDeliveryBrief(input: ContentWorkbenchDelive
   const missingSlotCount = positiveInteger(input.missingSlotCount)
   const assetSlotCount = positiveInteger(input.assetSlotCount)
   const keyframeCount = positiveInteger(input.keyframeCount)
+  const requiresKeyframe = input.requiresKeyframe ?? true
   const pendingReviewDraftCount = positiveInteger(input.pendingReviewDraftCount)
   const completedJobCount = positiveInteger(input.completedJobCount)
   const previewItemCount = positiveInteger(input.previewItemCount)
@@ -60,7 +62,7 @@ export function buildContentWorkbenchDeliveryBrief(input: ContentWorkbenchDelive
   const preGenerationBlockers = [
     input.hasPrompt ? '' : '补齐制作项描述或 prompt',
     missingSlotCount > 0 ? `补齐 ${missingSlotCount} 个素材需求` : '',
-    keyframeCount > 0 ? '' : '添加至少一张画面锚点',
+    requiresKeyframe && keyframeCount === 0 ? '添加至少一张画面锚点' : '',
     input.generationContextError ? '修复生成上下文检查失败' : input.generationContextLoading ? '等待生成上下文检查完成' : contextDone ? '' : '补齐生成上下文检查',
     pendingReviewDraftCount > 0 ? `处理 ${pendingReviewDraftCount} 个 AI 草案` : '',
   ].filter(Boolean)

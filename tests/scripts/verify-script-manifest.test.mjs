@@ -238,6 +238,27 @@ test('verify-script-manifest rejects unmanaged script files outside governed roo
   }
 })
 
+test('verify-script-manifest rejects unmanaged shell scripts outside governed roots', async () => {
+  const root = await createFixtureRepo()
+  try {
+    await writeText(join(root, 'tools/random-task.sh'), [
+      '#!/usr/bin/env sh',
+      'echo manual task',
+      '',
+    ].join('\n'))
+
+    await assert.rejects(
+      runVerifier(root),
+      (error) => {
+        assert.match(String(error.stderr), /tools\/random-task\.sh is an unmanaged script file/)
+        return true
+      },
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('verify-script-manifest rejects frontend deploy preparation under scripts agent', async () => {
   const root = await createFixtureRepo()
   try {
@@ -288,6 +309,29 @@ test('verify-script-manifest rejects docs that reopen scripts agent as an expans
       (error) => {
         assert.match(String(error.stderr), /scripts\/README\.md must state that scripts\/agent\/ is not a supported script surface/)
         assert.match(String(error.stderr), /script governance docs must not describe scripts\/agent\/ as an allowed expansion point/)
+        return true
+      },
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('verify-script-manifest rejects docs that blur contract assets with verifier scripts', async () => {
+  const root = await createFixtureRepo()
+  try {
+    await writeText(join(root, 'docs/script-management.md'), [
+      '# Script Management',
+      '',
+      'Do not add `scripts/agent/` files; durable agent automation belongs in `apps/agent/scripts/`.',
+      '`maxMaintainedScriptFiles` records the explicit maintained script file budget.',
+      '',
+    ].join('\n'))
+
+    await assert.rejects(
+      runVerifier(root),
+      (error) => {
+        assert.match(String(error.stderr), /docs\/script-management\.md must distinguish contract source assets from contract verifier scripts/)
         return true
       },
     )
@@ -1557,6 +1601,7 @@ function fixtureScriptsReadme() {
     '# Scripts',
     '',
     'Do not add `scripts/agent/` files. Agent-owned callable automation belongs in `apps/agent/scripts/`; test-only agent contract gates live under `tests/scripts/agent/`.',
+    'Contract source assets stay under `contracts/`: `*.schema.json` files define the contract, and `*.fixture.json` files are examples used by tests.',
     '',
   ].join('\n')
 }
@@ -1567,6 +1612,7 @@ function fixtureScriptManagementDoc() {
     '',
     'Do not add `scripts/agent/` files; durable agent automation belongs in `apps/agent/scripts/`.',
     '`maxMaintainedScriptFiles` records the explicit maintained script file budget.',
+    'Contract source assets stay under `contracts/`: `*.schema.json` files define the contract, and `*.fixture.json` files are examples used by tests.',
     '',
   ].join('\n')
 }

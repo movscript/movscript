@@ -235,6 +235,7 @@ function tsxMissingMessage() {
     lines.push(`pnpm store candidates: ${pnpmCandidates.join(", ")}`);
   }
 
+  lines.push(...nodeInstallDiagnostics("tsx", pnpmCandidates));
   lines.push("Run the workspace install step, then rerun this command.");
   return lines.join("\n");
 }
@@ -271,6 +272,35 @@ function pnpmPackageCandidates(packageName) {
   } catch {
     return [];
   }
+}
+
+function nodeInstallDiagnostics(packageName, pnpmCandidates) {
+  const root = workspaceRoot();
+  if (!root) return [];
+  const lines = [];
+  const rootNodeModules = resolve(root, "node_modules");
+  const commandShimDir = resolve(rootNodeModules, ".bin");
+  const packageLink = resolve(rootNodeModules, packageName);
+
+  if (!existsSync(rootNodeModules)) {
+    lines.push(`workspace node_modules is missing at ${rootNodeModules}.`);
+  } else {
+    if (!existsSync(commandShimDir)) {
+      lines.push(`workspace command shims are missing at ${commandShimDir}; install did not finish linking binaries.`);
+    }
+    if (!existsSync(packageLink)) {
+      lines.push(`workspace package link is missing at ${packageLink}.`);
+    }
+  }
+
+  for (const candidate of pnpmCandidates) {
+    if (!candidate.includes("(missing package directory)")) continue;
+    const entry = candidate.replace(" (missing package directory)", "");
+    lines.push(`pnpm store entry ${entry} is incomplete; expected ${resolve(rootNodeModules, ".pnpm", entry, "node_modules", packageName)}.`);
+  }
+
+  lines.push("If offline install fails with ERR_PNPM_NO_OFFLINE_TARBALL, hydrate the pnpm store or rerun install with registry access.");
+  return lines;
 }
 
 function workspaceRoot() {

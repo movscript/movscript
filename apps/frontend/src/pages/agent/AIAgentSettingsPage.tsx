@@ -2511,7 +2511,7 @@ function buildModelCompatibilityProbes(input: {
         : credentialStatus?.required
           ? 'agents.settings.modelCompatibilityDetails.credentialsReady'
           : 'agents.settings.modelCompatibilityDetails.credentialsUnchecked',
-    detailValues: { env: credentialStatus?.env ?? 'MOVSCRIPT_AGENT_MODEL_API_KEY' },
+    detailValues: { env: credentialStatus?.acceptedEnv.join(', ') || 'MOVSCRIPT_AGENT_MODEL_API_KEY' },
   })
 
   const hasCustomBaseURL = Boolean(input.baseURL)

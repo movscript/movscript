@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildContentWorkbenchUnitTrack } from './contentWorkbenchUnitTrack'
+import { buildContentWorkbenchUnitTrack } from './contentWorkbenchUnitTrack.ts'
 
 test('content workbench unit track explains empty production track', () => {
   const summary = buildContentWorkbenchUnitTrack([])
@@ -18,6 +18,9 @@ test('content workbench unit track surfaces blockers across units', () => {
       kind: 'shot',
       durationSec: 4,
       status: 'draft',
+      summary: '雨夜巷口建立空间',
+      keyframeTitles: ['雨夜全景'],
+      missingAssetTitles: ['雨夜窄巷'],
       hasPrompt: true,
       assetSlotCount: 2,
       missingSlotCount: 1,
@@ -30,6 +33,7 @@ test('content workbench unit track surfaces blockers across units', () => {
       kind: 'narration',
       durationSec: 6,
       status: 'confirmed',
+      summary: '交代人物心境',
       hasPrompt: false,
       assetSlotCount: 0,
       missingSlotCount: 0,
@@ -45,6 +49,15 @@ test('content workbench unit track surfaces blockers across units', () => {
   assert.equal(summary.missingAssetCount, 1)
   assert.equal(summary.keyframeCount, 1)
   assert.equal(summary.selectedId, '1')
+  assert.equal(summary.items[0].order, 1)
+  assert.equal(summary.items[0].startSec, 0)
+  assert.equal(summary.items[0].endSec, 4)
+  assert.equal(summary.items[0].summary, '雨夜巷口建立空间')
+  assert.deepEqual(summary.items[0].keyframeTitles, ['雨夜全景'])
+  assert.deepEqual(summary.items[0].missingAssetTitles, ['雨夜窄巷'])
+  assert.equal(summary.items[1].order, 2)
+  assert.equal(summary.items[1].startSec, 4)
+  assert.equal(summary.items[1].endSec, 10)
   assert.deepEqual(summary.items[0].blockers, ['缺素材', '缺关键帧'])
   assert.deepEqual(summary.items[1].blockers, ['缺提示'])
 })

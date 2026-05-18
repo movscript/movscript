@@ -157,6 +157,46 @@ test('run-node-tests reports declared but unresolved tsx dependency', async () =
   }
 })
 
+test('run-node-tests diagnoses incomplete pnpm workspace links for unresolved tsx', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'movscript-node-suite-incomplete-pnpm-'))
+  try {
+    await writePackageJson(root, {
+      devDependencies: {
+        tsx: '^4.0.0',
+      },
+      testSuites: {
+        ts: ['tests/typescript.test.ts'],
+      },
+    })
+    await writeFile(path.join(root, 'pnpm-workspace.yaml'), 'packages: []\n')
+    await mkdir(path.join(root, 'node_modules/.pnpm/tsx@4.0.0/node_modules'), { recursive: true })
+    await mkdir(path.join(root, 'tests'), { recursive: true })
+    await writeFile(path.join(root, 'tests/typescript.test.ts'), [
+      "import test from 'node:test'",
+      "test('typescript test', () => {})",
+      '',
+    ].join('\n'))
+
+    await assert.rejects(
+      execFileAsync(process.execPath, [runnerPath, '--suite', 'ts'], {
+        cwd: root,
+        env: childProcessEnv(),
+      }),
+      (error) => {
+        const stderr = String(error.stderr)
+        assert.match(stderr, /pnpm store candidates: tsx@4\.0\.0 \(missing package directory\)/)
+        assert.match(stderr, /workspace command shims are missing/)
+        assert.match(stderr, /workspace package link is missing/)
+        assert.match(stderr, /pnpm store entry tsx@4\.0\.0 is incomplete/)
+        assert.match(stderr, /hydrate the pnpm store/)
+        return true
+      },
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 async function writePackageJson(root, value) {
   await writeFile(path.join(root, 'package.json'), `${JSON.stringify({ type: 'module', ...value }, null, 2)}\n`)
 }

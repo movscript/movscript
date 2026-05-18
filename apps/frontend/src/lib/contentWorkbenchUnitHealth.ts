@@ -8,6 +8,7 @@ export interface ContentWorkbenchUnitHealthInput {
   assetSlotCount: number
   missingSlotCount: number
   keyframeCount: number
+  requiresKeyframe?: boolean
   generationContextReady: boolean
   generationContextLoading: boolean
   generationContextError: boolean
@@ -49,6 +50,7 @@ export function buildContentWorkbenchUnitHealth(input: ContentWorkbenchUnitHealt
   const assetSlotCount = positiveInteger(input.assetSlotCount)
   const missingSlotCount = positiveInteger(input.missingSlotCount)
   const keyframeCount = positiveInteger(input.keyframeCount)
+  const requiresKeyframe = input.requiresKeyframe ?? true
   const pendingReviewDraftCount = positiveInteger(input.pendingReviewDraftCount)
   const runningJobCount = positiveInteger(input.runningJobCount)
   const completedJobCount = positiveInteger(input.completedJobCount)
@@ -76,9 +78,9 @@ export function buildContentWorkbenchUnitHealth(input: ContentWorkbenchUnitHealt
     {
       key: 'keyframes',
       label: '画面锚点',
-      value: keyframeCount > 0 ? `${keyframeCount} 帧` : '待补',
-      tone: keyframeCount > 0 ? 'ready' : 'blocked',
-      done: keyframeCount > 0,
+      value: requiresKeyframe ? (keyframeCount > 0 ? `${keyframeCount} 帧` : '待补') : '非画面项',
+      tone: requiresKeyframe && keyframeCount === 0 ? 'blocked' : 'ready',
+      done: !requiresKeyframe || keyframeCount > 0,
       weight: 20,
     },
     {

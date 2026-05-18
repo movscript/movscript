@@ -26,6 +26,7 @@ export interface ContentWorkbenchNextActionInput {
   hasUnitPrompt: boolean
   missingSlotCount: number
   keyframeCount: number
+  requiresKeyframe?: boolean
   pendingReviewDraftCount?: number
   missingGenerationContext?: Array<{ label: string; detail: string }>
   completedJobCount?: number
@@ -87,7 +88,7 @@ export function buildContentWorkbenchNextActions(input: ContentWorkbenchNextActi
     }]
   }
 
-  if (input.keyframeCount === 0) {
+  if ((input.requiresKeyframe ?? true) && input.keyframeCount === 0) {
     return [{
       key: 'add_first_keyframe',
       title: '添加第一张关键帧',

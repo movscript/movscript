@@ -44,7 +44,7 @@ Keyframe / visual anchor candidates:
 - Workbench keyframe resource-library picks and uploads add a keyframe / visual-anchor candidate; they do not patch the official keyframe resource directly.
 - Canvas output push actions add an asset-slot candidate; they do not patch or lock the target asset slot directly.
 - Generic resource bindings do not backfill `asset_slot.resource_id`. Official adoption is owned by explicit candidate accept / lock flows.
-- Generic semantic editing hides direct asset-slot and keyframe `resource_id` fields. Backend patch APIs reject direct asset-slot resource / lock adoption and direct keyframe resource adoption; candidate accept / lock flows use internal repository paths to apply official resources.
+- Generic semantic editing hides direct asset-slot and keyframe `resource_id` fields. Backend create / patch APIs reject direct asset-slot resource / lock adoption and direct keyframe resource adoption; candidate accept / lock flows use internal repository paths to apply official resources.
 - If bulk writing partially succeeds, retry only submits failed / unwritten attachments so successful candidates are not duplicated.
 - After a successful write, candidate consumers are invalidated across task, workbench, pre-production, overview, and production surfaces.
 
@@ -66,6 +66,7 @@ Focused checks that cover this contract:
 # From the repository root.
 cd apps/frontend
 node --experimental-strip-types --test \
+  src/api/semanticEntities.test.ts \
   electron/mcp/candidateParams.test.ts \
   electron/mcp/generation.test.ts \
   electron/mcp/serverCandidateContract.test.ts \
@@ -78,7 +79,8 @@ node --experimental-strip-types --test \
   src/lib/tasksCandidateSelectionContract.test.ts \
   src/lib/contentWorkbenchUiContract.test.ts \
   src/lib/agentCatalogCandidateContract.test.ts \
-  src/lib/preProductionCandidateLockContract.test.ts
+  src/lib/preProductionCandidateLockContract.test.ts \
+  src/lib/canvasCandidatePushContract.test.ts
 ```
 
 ```bash
@@ -91,15 +93,39 @@ GOCACHE=/private/tmp/movscript-go-build-cache go test ./...
 cd ../..
 node tests/scripts/agent/candidate-feature-source.test.mjs
 pnpm run test:scripts
+pnpm --filter movscript-frontend test:generation-contract
+pnpm run typecheck
 node --test tests/scripts/agent/verify-compact-contract.test.mjs
 node scripts/verify-script-manifest.mjs
 ```
 
 Known verification blockers in a dependency-incomplete workspace:
 
-- `pnpm --filter movscript-frontend test:generation-contract` requires workspace `tsx`.
-- Full frontend typecheck and TSX tests require frontend dependencies to be installed.
+- `pnpm --filter movscript-frontend test:generation-contract`, root `pnpm run typecheck`, full frontend typecheck, and TSX tests require frontend dependencies to be installed.
+- Use `CI=true pnpm fetch --offline --frozen-lockfile` as a non-destructive offline store preflight before running install; it reports missing tarballs without rebuilding `node_modules`.
 - `pnpm install --offline --frozen-lockfile` can fail with `ERR_PNPM_NO_OFFLINE_TARBALL` when the local store is missing packages such as `@radix-ui/react-toast`.
 - `pnpm install --frozen-lockfile` can fail with `ENOTFOUND registry.npmjs.org` in a network-restricted sandbox.
+- A failed `pnpm install` attempt can leave `node_modules` incomplete; rerun dependency installation before relying on dependency-based typecheck or E2E gates.
 - Plugin build commands reuse the `apps/movcli` toolchain, so real plugin packaging requires the movcli workspace dependencies to be installed.
 - Browser / Electron E2E requires a sandbox that can listen on local ports and launch the browser runtime.
+
+Current local snapshot on 2026-05-18:
+
+- Passed: focused candidate tests, backend `go test ./...`, `pnpm --filter movscript-frontend test:generation-contract`, root `pnpm run typecheck`, `pnpm run test:scripts`, `node tests/scripts/agent/candidate-feature-source.test.mjs`, and `git diff --check`.
+- Blocked after dependency preflight: offline store is missing `@radix-ui/react-toast-1.2.15.tgz`; the failed offline install left `node_modules` incomplete, so dependency-based gates must be rerun after dependencies are restored.
+- Not yet completed: browser / Electron E2E and the manual release acceptance checklist below.
+
+## Release Acceptance Checklist
+
+Run these checks after frontend dependencies are restored and the desktop workflow can start:
+
+- Generate multiple image outputs in the AI assistant, add all usable outputs to one asset slot, and confirm multiple candidate rows exist while `asset_slot.resource_id` stays unset until explicit lock.
+- Generate multiple keyframe outputs, add them to the original keyframe / visual anchor, and confirm generated candidates do not appear as official keyframes until work-item acceptance.
+- Confirm a placeholder or no-resource result remains visible with candidate and copy actions disabled.
+- Force a partial bulk write failure, retry, and confirm only failed / unwritten outputs are submitted again.
+- Push a canvas output to an asset slot and confirm it creates a candidate without locking the target.
+- Pick a keyframe resource from the Workbench library and upload a keyframe image; confirm both create keyframe candidates without direct official resource patches.
+- Accept and reject asset-slot candidates from task / pre-production surfaces; confirm sibling rejection and missing-resource errors.
+- Accept and reject keyframe candidates from task / workbench surfaces; confirm sibling rejection and generated-candidate marker requirements.
+- Call `movscript_attach_asset_slot_candidate` and `movscript_attach_keyframe_candidate` with invalid IDs, conflicting aliases, and a generated candidate target; confirm they fail before write.
+- Try generic semantic create / patch and Agent draft apply paths with official resource fields; confirm they are rejected or stripped.

@@ -4,7 +4,7 @@ This repository treats scripts as maintained automation, not as an informal dump
 
 ## Inventory
 
-The canonical inventory is `scripts/script-manifest.json`. Every `.mjs` and `.py` script under the governed script roots must have an entry. Governed roots currently include `scripts/`, `apps/agent/scripts/`, `apps/backend/scripts/`, and `apps/frontend/scripts/`.
+The canonical inventory is `scripts/script-manifest.json`. Every `.mjs`, `.py`, and `.sh` script under the governed script roots must have an entry. Governed roots currently include `scripts/`, `apps/agent/scripts/`, `apps/backend/scripts/`, and `apps/frontend/scripts/`.
 
 - `category`: `build`, `contract`, `dev`, `release`, or `test`
 - `lifecycle`: `maintained`
@@ -13,6 +13,8 @@ The canonical inventory is `scripts/script-manifest.json`. Every `.mjs` and `.py
 - `entrypoint`: the preferred command or import mode
 - `invokedBy`: package scripts, source files, CI, docs, or other maintained workflows that call it
 - `tests`: the verifier or command that covers behavior
+
+The `contract` category is for automation that verifies a contract. Contract source assets stay under `contracts/`: `*.schema.json` files define the contract, and `*.fixture.json` files are examples used by tests. These files are not script files or standalone test cases.
 
 Run the inventory gate with:
 

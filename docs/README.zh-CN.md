@@ -99,7 +99,7 @@ pnpm run verify:scripts
 
 脚本归属和生命周期规则见 [Script Management](./script-management.md)。新增、移动、废弃或删除仓库自动化脚本时，必须同步更新 `scripts/script-manifest.json`。
 
-AI 生成素材进入审核链路时使用候选集语义，而不是直接绑定；素材需求、画面锚点和未来视觉锚点的候选规则见 [候选集工作流](./candidate-workflow.zh-CN.md)。
+AI 生成素材进入审核链路时使用候选集语义，而不是直接绑定；素材需求、画面锚点和未来视觉锚点的候选规则与发布验收清单见 [候选集工作流](./candidate-workflow.zh-CN.md)。
 
 Agent 设置、Agent 调试和对话详情的职责边界见 [Agent 设置与调试边界](./agent-settings-debug.zh-CN.md)。
 稳定的 Agent Debug Bundle 和 Agent Settings Snapshot schema 见 [Agent Schema 参考](./agent-schema-reference.zh-CN.md)。

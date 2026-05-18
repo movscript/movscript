@@ -109,6 +109,10 @@
       "type": "string",
       "enum": ["ready", "warning", "action"]
     },
+    "severity": {
+      "type": "string",
+      "enum": ["action", "warning", "info"]
+    },
     "observationItem": {
       "type": "object",
       "additionalProperties": true,
@@ -127,7 +131,7 @@
       "required": ["id", "severity", "titleKey", "detailKey"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
-        "severity": { "$ref": "#/$defs/status" },
+        "severity": { "$ref": "#/$defs/severity" },
         "titleKey": { "type": "string", "minLength": 1 },
         "detailKey": { "type": "string", "minLength": 1 },
         "runId": { "type": "string" }
@@ -139,7 +143,7 @@
       "required": ["id", "severity", "target", "titleKey", "detailKey", "actionKey"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
-        "severity": { "$ref": "#/$defs/status" },
+        "severity": { "$ref": "#/$defs/severity" },
         "target": {
           "type": "string",
           "enum": ["settings", "run-details", "preview", "observe"]

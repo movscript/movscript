@@ -32,6 +32,7 @@ interface SemanticEntityInlineEditorProps {
   emptyDescription?: string
   className?: string
   hero?: SemanticEntityInlineEditorHero
+  idScope?: string
   editKey?: string | number | null
   onSaved?: (record: SemanticEntityRecord) => void
   onDeleted?: (record: SemanticEntityRecord) => void
@@ -61,6 +62,7 @@ export function SemanticEntityInlineEditor({
   emptyDescription = '从左侧列表选择一个对象后，可直接在卡片内编辑。',
   className,
   hero,
+  idScope,
   editKey,
   onSaved,
   onDeleted,
@@ -76,6 +78,8 @@ export function SemanticEntityInlineEditor({
   const canDeleteRecord = !isDeleteProtectedKind(config.kind)
   const isImmutableRecord = Boolean(record && isImmutableKind(config.kind))
   const sourceLockEnabled = Boolean(projectId && record?.ID && sourceLockSupportedKind(config.kind))
+  const editorDomScope = idScope ?? `${config.kind}-${record?.ID ?? 'new'}`
+  const formId = `inline-${editorDomScope}`
 
   const { data: creativeReferences = [] } = useQuery({
     queryKey: ['semantic-inline-editor', projectId, 'creative-references'],
@@ -260,7 +264,7 @@ export function SemanticEntityInlineEditor({
                     </Button>
                   ) : null}
                   <Button
-                    form={`inline-${config.kind}-${record?.ID ?? 'new'}`}
+                    form={formId}
                     size="sm"
                     className="shrink-0 gap-2"
                     loading={saveMutation.isPending}
@@ -287,13 +291,14 @@ export function SemanticEntityInlineEditor({
           </div>
         ) : null}
 
-	        <form id={`inline-${config.kind}-${record?.ID ?? 'new'}`} onSubmit={submit} className="space-y-4 border-t border-border p-4">
+	        <form id={formId} onSubmit={submit} className="space-y-4 border-t border-border p-4">
 	          {sourceLock?.locked ? <SourceLockNotice fields={fields} sourceLock={sourceLock} reason={sourceLockReason} /> : null}
 	          <div className="grid gap-3 md:grid-cols-2">
 	            {basicFields.map((field) => (
 	              <FieldControl
                 key={field.key}
                 configKind={config.kind}
+                idScope={idScope}
                 field={field}
 	                value={form[field.key]}
 	                optionsOverride={lookupOptions[field.key]}
@@ -312,6 +317,7 @@ export function SemanticEntityInlineEditor({
                   <FieldControl
                     key={field.key}
                     configKind={config.kind}
+                    idScope={idScope}
                     field={field}
                     advanced
 	                    value={form[field.key]}
@@ -373,7 +379,7 @@ export function SemanticEntityInlineEditor({
               </Button>
             ) : null}
             <Button
-              form={`inline-${config.kind}-${record?.ID ?? 'new'}`}
+              form={formId}
               size="sm"
               className="shrink-0 gap-2"
               loading={saveMutation.isPending}
@@ -385,13 +391,14 @@ export function SemanticEntityInlineEditor({
           </div>
         )}
       </div>
-	      <form id={`inline-${config.kind}-${record?.ID ?? 'new'}`} onSubmit={submit} className="space-y-4 p-4">
+	      <form id={formId} onSubmit={submit} className="space-y-4 p-4">
 	        {sourceLock?.locked ? <SourceLockNotice fields={fields} sourceLock={sourceLock} reason={sourceLockReason} /> : null}
 	        <div className="grid gap-3">
 	          {basicFields.map((field) => (
 	            <FieldControl
               key={field.key}
               configKind={config.kind}
+              idScope={idScope}
               field={field}
 	              value={form[field.key]}
 	              optionsOverride={lookupOptions[field.key]}
@@ -410,6 +417,7 @@ export function SemanticEntityInlineEditor({
                 <FieldControl
                   key={field.key}
                   configKind={config.kind}
+                  idScope={idScope}
                   field={field}
                   advanced
 	                  value={form[field.key]}
@@ -430,6 +438,7 @@ export function SemanticEntityInlineEditor({
 
 function FieldControl({
   configKind,
+  idScope,
   field,
   value,
   optionsOverride,
@@ -440,6 +449,7 @@ function FieldControl({
   onChange,
 }: {
   configKind: SemanticEntityConfig['kind']
+  idScope?: string
   field: SemanticEntityConfig['fields'][number]
   value: string | boolean
   optionsOverride?: Array<{ value: string; label: string }>
@@ -449,7 +459,7 @@ function FieldControl({
   lockReason?: string
   onChange: (value: string | boolean) => void
 }) {
-  const id = `semantic-inline-${configKind}-${field.key}`
+  const id = `semantic-inline-${idScope ?? configKind}-${field.key}`
   return (
     <div>
       <Label htmlFor={id} required={field.required}>{field.label}</Label>
