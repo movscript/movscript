@@ -885,10 +885,12 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
     input.skillDiscovery = refreshed.skillDiscovery
     input.registry = refreshed.registry
     warnings.push(...refreshed.warnings)
+    const manifestSnapshot = buildCatalogRefreshManifestSnapshot(refreshed.manifest)
+    const capabilitySnapshot = buildCatalogRefreshCapabilitySnapshot(refreshed.capabilities)
     input.onTrace({
       kind: 'tool_catalog',
       title: 'Agent catalog refreshed',
-      summary: `${refreshed.capabilities.available.length} available tool(s) after catalog change.`,
+      summary: buildCatalogRefreshSummary(manifestSnapshot, capabilitySnapshot, refreshed.capabilities.available.length),
       status: 'completed',
       roundIndex: currentRoundIndex,
       roundLabel,
@@ -896,6 +898,8 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
       data: {
         skillIds: refreshed.skills.map((skill) => skill.id),
         availableToolNames: refreshed.capabilities.available.map((tool) => tool.name),
+        manifest: manifestSnapshot,
+        capabilitySnapshot,
         warningCount: refreshed.warnings.length,
       },
     })
@@ -1051,6 +1055,80 @@ function isCatalogMutationTool(toolName: string): boolean {
     || toolName === 'movscript_update_active_skills'
 }
 
+function buildCatalogRefreshManifestSnapshot(manifest: AgentManifest): Record<string, JSONValue> {
+  return {
+    id: manifest.id,
+    version: manifest.version,
+    name: manifest.name,
+    ...(typeof manifest.metadata?.profileId === 'string' ? { profileId: manifest.metadata.profileId } : {}),
+    ...(typeof manifest.metadata?.profileVersion === 'string' ? { profileVersion: manifest.metadata.profileVersion } : {}),
+    toolCount: manifest.tools.length,
+    tools: manifest.tools.map((grant) => ({
+      name: grant.name,
+      mode: grant.mode,
+      ...(grant.approval ? { approval: grant.approval } : {}),
+    })),
+  }
+}
+
+function buildCatalogRefreshCapabilitySnapshot(capabilities: ResolvedToolCatalog): Record<string, JSONValue> {
+  const keyToolNames = [
+    'movscript_update_active_skills',
+    'movscript_inspect_agent_catalog',
+    'movscript_read_project_scripts',
+    'movscript_get_focus',
+    'movscript_request_user_input',
+  ]
+  return {
+    availableToolNames: capabilities.available.map((tool) => tool.name),
+    blockedTools: capabilities.blocked.map((tool) => ({
+      name: tool.name,
+      granted: tool.granted,
+      available: tool.available,
+      ...(tool.unavailableReason ? { unavailableReason: tool.unavailableReason } : {}),
+    })),
+    keyTools: keyToolNames.flatMap((name) => {
+      const tool = capabilities.byName[name]
+      if (!tool) return []
+      return [{
+        name: tool.name,
+        granted: tool.granted,
+        available: tool.available,
+        approval: tool.approval,
+        ...(tool.unavailableReason ? { unavailableReason: tool.unavailableReason } : {}),
+      }]
+    }),
+  }
+}
+
+function buildCatalogRefreshSummary(
+  manifest: Record<string, JSONValue>,
+  capabilitySnapshot: Record<string, JSONValue>,
+  availableCount: number,
+): string {
+  const tools = Array.isArray(manifest.tools) ? manifest.tools : []
+  const grantPreview = tools
+    .slice(0, 8)
+    .flatMap((tool) => isJSONRecord(tool) && typeof tool.name === 'string' && typeof tool.mode === 'string' ? [`${tool.name}:${tool.mode}`] : [])
+    .join(', ')
+  const keyTools = Array.isArray(capabilitySnapshot.keyTools) ? capabilitySnapshot.keyTools : []
+  const readScriptsStatus = keyTools
+    .flatMap((tool) => {
+      if (!isJSONRecord(tool) || tool.name !== 'movscript_read_project_scripts') return []
+      const available = tool.available === true ? 'available' : 'blocked'
+      const granted = tool.granted === true ? 'granted' : 'not_granted'
+      const reason = typeof tool.unavailableReason === 'string' ? `/${tool.unavailableReason}` : ''
+      return [`movscript_read_project_scripts=${available}/${granted}${reason}`]
+    })[0]
+  return [
+    `${availableCount} available tool(s) after catalog change`,
+    `manifest=${String(manifest.id ?? '-')}`,
+    `tools=${String(manifest.toolCount ?? tools.length)}`,
+    grantPreview ? `grants=${grantPreview}${tools.length > 8 ? ', ...' : ''}` : undefined,
+    readScriptsStatus,
+  ].filter(Boolean).join('; ') + '.'
+}
+
 function normalizeToolCall(call: ToolCall): ToolCall {
   return {
     id: call.id ?? makeId('call'),
@@ -1099,6 +1177,8 @@ function summarizeResult(value: JSONValue | undefined): string {
   if (Array.isArray(value)) return `${value.length} item(s)`
   const skillSummary = summarizeSkillStateResult(value)
   if (skillSummary) return skillSummary
+  const catalogSummary = summarizeCatalogInspectResult(value)
+  if (catalogSummary) return catalogSummary
   const keys = Object.keys(value)
   const status = typeof value.status === 'string' ? `${value.status}; ` : ''
   return `${status}${keys.length} key(s): ${keys.slice(0, 6).join(', ')}`
@@ -1123,6 +1203,59 @@ function stringArray(value: JSONValue | undefined): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : []
 }
 
+function summarizeCatalogInspectResult(value: Record<string, JSONValue>): string | undefined {
+  if (value.status !== 'ok' || typeof value.view !== 'string') return undefined
+  if (value.view === 'summary') {
+    const activeSkillIds = stringArray(value.activeSkillIds)
+    const availableSkillIds = stringArray(value.availableSkillIds)
+    const enabledPackIds = stringArray(value.enabledPackIds)
+    const counts = isJSONRecord(value.counts) ? value.counts : undefined
+    const tools = typeof counts?.tools === 'number' ? `tools=${counts.tools}` : undefined
+    const skills = typeof counts?.skills === 'number' ? `skills=${counts.skills}` : undefined
+    return [
+      'ok; catalog summary',
+      activeSkillIds.length > 0 ? `active=${activeSkillIds.join(', ')}` : 'active=none',
+      availableSkillIds.length > 0 ? `available=${availableSkillIds.slice(0, 6).join(', ')}` : 'available=none',
+      enabledPackIds.length > 0 ? `packs=${enabledPackIds.slice(0, 4).join(', ')}` : undefined,
+      [tools, skills].filter(Boolean).join(', ') || undefined,
+    ].filter(Boolean).join('; ')
+  }
+  if (value.view === 'skill' && isJSONRecord(value.skill)) {
+    const skill = value.skill
+    const id = stringField(skill.id) ?? 'unknown'
+    const active = value.active === true ? 'active=true' : 'active=false'
+    const covered = value.coveredByEnabledPack === true ? 'coveredByPack=true' : 'coveredByPack=false'
+    const toolRefs = stringArray(skill.toolRefs)
+    const loadMode = stringField(skill.loadMode)
+    return [
+      `ok; catalog skill ${id}`,
+      active,
+      covered,
+      loadMode ? `load=${loadMode}` : undefined,
+      toolRefs.length > 0 ? `tools=${toolRefs.map(stripToolRef).join(', ')}` : undefined,
+    ].filter(Boolean).join('; ')
+  }
+  if (value.view === 'tool' && isJSONRecord(value.tool)) {
+    const tool = value.tool
+    const name = stringField(tool.name) ?? 'unknown'
+    const grant = isJSONRecord(value.grant) ? stringField(grantMode(value.grant)) : undefined
+    return [
+      `ok; catalog tool ${name}`,
+      value.enabledByPack === true ? 'enabledByPack=true' : 'enabledByPack=false',
+      grant ? `grant=${grant}` : 'grant=none',
+    ].join('; ')
+  }
+  return undefined
+}
+
+function stripToolRef(value: string): string {
+  return value.startsWith('tool://') ? value.slice('tool://'.length) : value
+}
+
+function grantMode(value: Record<string, JSONValue>): JSONValue | undefined {
+  return value.mode
+}
+
 function buildRollbackRecord(call: ToolCall, result: JSONValue | undefined, sandboxed?: boolean): ToolCallOutcome['rollback'] {
   if (sandboxed || result === undefined) {
     return {
@@ -1144,6 +1277,12 @@ function buildRollbackRecord(call: ToolCall, result: JSONValue | undefined, sand
       artifactType: 'draft',
       artifactUri: `agent-draft:${draftId}`,
       metadata: { draftId },
+    }
+  }
+  if (isRuntimeStateTool(call.name)) {
+    return {
+      policy: 'not_applicable',
+      reason: 'Runtime state/catalog tools do not perform backend product writes.',
     }
   }
   const backendWritePerformed = metadata && (
@@ -1173,6 +1312,19 @@ function isBackendWriteTool(name: string): boolean {
     || name.includes('_create_')
     || name.includes('_update_')
     || name.includes('_delete_')
+}
+
+function isRuntimeStateTool(name: string): boolean {
+  return name === 'movscript_update_active_skills'
+    || name === 'movscript_inspect_agent_catalog'
+    || name === 'movscript_reload_agent_catalog'
+    || name === 'movscript_create_plan'
+    || name === 'movscript_get_plan'
+    || name === 'movscript_replan'
+    || name === 'movscript_spawn_subagent'
+    || name === 'movscript_list_subagents'
+    || name === 'movscript_wait_subagent'
+    || name === 'movscript_cancel_subagent'
 }
 
 function booleanField(value: unknown): boolean {

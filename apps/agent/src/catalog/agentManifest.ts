@@ -44,7 +44,6 @@ export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
     { name: 'movscript_create_memory', mode: 'allow', approval: 'never' },
     { name: 'movscript_delete_memory', mode: 'allow', approval: 'never' },
     { name: 'movscript_inspect_agent_catalog', mode: 'allow', approval: 'never' },
-    { name: 'movscript_reload_agent_catalog', mode: 'allow', approval: 'always' },
     { name: 'movscript_create_plan', mode: 'allow', approval: 'never' },
     { name: 'movscript_get_plan', mode: 'allow', approval: 'never' },
     { name: 'movscript_replan', mode: 'allow', approval: 'never' },

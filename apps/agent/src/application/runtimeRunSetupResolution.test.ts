@@ -345,6 +345,112 @@ test('resolveRuntimeRunSetup applies default tool policy overrides without chang
   assert.deepEqual(result.layers?.ctx.profile.toolGrants, result.activeManifest.tools)
 })
 
+test('resolveRuntimeRunSetup adds active skill tool grants to custom manifests', async () => {
+  const readScriptsTool = {
+    name: 'movscript_read_project_scripts',
+    description: 'Read project scripts',
+    inputSchema: { type: 'object' },
+    permission: 'project.script.read',
+    risk: 'read' as const,
+    projectScoped: true,
+    defaults: { grant: 'allow' as const, approval: 'never' as const },
+    source: 'runtime' as const,
+  }
+  const layeredRegistry = buildLayeredCatalogRegistry({
+    manifest: DEFAULT_AGENT_MANIFEST,
+    tools: [],
+    layeredTools: [readScriptsTool],
+    layeredSkills: [{
+      id: 'movscript.workflow.script-reading',
+      kind: 'workflow',
+      version: '1.0.0',
+      name: 'Script Reading',
+      description: 'Read project scripts',
+      priority: 80,
+      enabled: true,
+      instructionTemplate: 'Read scripts.',
+      loadMode: 'manual',
+      triggers: [{ kind: 'keyword', any: ['剧本'] }],
+      toolRefs: ['tool://movscript_read_project_scripts'],
+    }],
+    profiles: [{
+      schema: 'movscript.agent.profile.v1',
+      id: 'movscript.profile.default',
+      version: '1.0.0',
+      name: 'Default Profile',
+      persona: null,
+      enabledPacks: [],
+      enabledPolicies: [],
+      enabledWorkflows: [],
+      toolGrants: [{ name: 'unrelated_profile_tool', mode: 'allow', approval: 'never' }],
+    }],
+  })
+  const explicitManifest: AgentManifest = {
+    schema: 'movscript.agent.current',
+    id: 'explicit_manifest',
+    version: '1.0.0',
+    name: 'Explicit Manifest',
+    tools: [
+      { name: 'movscript_update_active_skills', mode: 'allow', approval: 'never' },
+      { name: 'movscript_read_project_scripts', mode: 'deny', approval: 'never' },
+    ],
+  }
+  const run = makeRun({
+    agentManifest: explicitManifest,
+    metadata: {
+      manifestSource: 'custom',
+      skillState: {
+        loadedSkillIds: ['movscript.workflow.script-reading'],
+        unloadedSkillIds: [],
+      },
+    },
+  })
+
+  const result = await resolveRuntimeRunSetup({
+    run,
+    store: emptyStore(),
+    catalogSnapshot: buildRuntimeCatalogSnapshot({
+      id: 'snapshot_custom_skill',
+      defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+      toolRegistry: new StaticToolRegistry([
+        tool('movscript_update_active_skills'),
+        {
+          name: 'movscript_read_project_scripts',
+          description: 'Read project scripts',
+          permission: 'project.script.read',
+          risk: 'read',
+          source: 'runtime',
+          projectScoped: true,
+          requiresApprovalByDefault: false,
+        },
+      ]),
+      layeredRegistry,
+    }),
+    contractResolver: { find: () => undefined },
+    mcpClient: new FakeCapabilityClient(),
+    contextResult: { snapshot: { route: { pathname: '/project/scripts' }, project: { id: 5, name: '好运甜妻' } } },
+    context: { currentProjectId: 5 },
+    contextDurationMs: 5,
+    contextStartedAt: 1000,
+    contextCompletedAt: 1005,
+    memories: [],
+    command,
+    userMessage: '查看剧本',
+    history: [],
+    setupRound,
+    timestampMs: monotonicClock(1100, 1100),
+    now: () => '2026-01-01T00:00:01.100Z',
+    recordTrace: () => {},
+  })
+
+  assert.equal(result.activeManifest.id, 'explicit_manifest')
+  assert.deepEqual(result.skills.map((skill) => skill.id), ['movscript.workflow.script-reading'])
+  assert.ok(result.activeManifest.tools.some((grant) => grant.name === 'movscript_update_active_skills'))
+  assert.equal(result.activeManifest.tools.find((grant) => grant.name === 'movscript_read_project_scripts')?.mode, 'allow')
+  assert.equal(result.activeManifest.tools.some((grant) => grant.name === 'unrelated_profile_tool'), false)
+  assert.equal(result.capabilities.resolvedTools.byName.movscript_read_project_scripts?.available, true)
+})
+
 function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   return {
     id: 'run_1',

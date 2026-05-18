@@ -1632,7 +1632,7 @@ function runStatusVariant(status: string): 'secondary' | 'success' | 'warning' |
 
 const STOPPABLE_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
 const TERMINAL_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['completed', 'completed_with_warnings', 'failed', 'cancelled'])
-const AGENT_CATALOG_TOOL_NAMES = new Set(['movscript_enable_agent_bundle', 'movscript_reload_agent_catalog'])
+const AGENT_CATALOG_TOOL_NAMES = new Set(['movscript_enable_agent_bundle'])
 const CONTEXT_PANE_DEFAULT_HEIGHT = 220
 const CONTEXT_PANE_MIN_HEIGHT = 96
 const CONTEXT_PANE_MAX_HEIGHT = 620

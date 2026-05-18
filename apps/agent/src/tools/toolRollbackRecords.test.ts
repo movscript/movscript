@@ -23,6 +23,15 @@ test('buildRollbackMetadata omits empty metadata and serializes rollback records
   })
 })
 
+test('buildToolRollbackRecords dedupes repeated rollback entries for the same tool call', () => {
+  const duplicate = outcome('tool.write', { policy: 'manual_compensation', reason: 'External write' })
+
+  assert.deepEqual(buildToolRollbackRecords([duplicate, duplicate]), [{
+    call: { id: 'call_tool.write', name: 'tool.write', args: {} },
+    rollback: { policy: 'manual_compensation', reason: 'External write' },
+  }])
+})
+
 function outcome(toolName: string, rollback?: ToolCallOutcome['rollback']): ToolCallOutcome {
   return {
     call: { id: `call_${toolName}`, name: toolName, args: {} },

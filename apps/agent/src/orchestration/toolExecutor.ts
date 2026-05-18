@@ -41,7 +41,6 @@ export interface ToolExecutorOptions {
 export interface AgentCatalogToolManager {
   inspectAgentCatalog(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   updateActiveSkills(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
-  reloadAgentCatalog(): JSONValue
   createAgentPlan(run: AgentRun, input?: Record<string, JSONValue>): Promise<JSONValue> | JSONValue
   getAgentPlan(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   replanAgentPlan(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
@@ -221,11 +220,6 @@ async function callRuntimeTool(
   if (toolName === 'movscript_update_active_skills') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
     return catalogManager.updateActiveSkills(run, args)
-  }
-
-  if (toolName === 'movscript_reload_agent_catalog') {
-    if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.reloadAgentCatalog()
   }
 
   if (toolName === 'movscript_create_plan') {

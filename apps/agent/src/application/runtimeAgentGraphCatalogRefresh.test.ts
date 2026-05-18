@@ -36,7 +36,11 @@ test('refreshRuntimeAgentGraphCatalog captures current snapshot and refreshes de
   const result = await refreshRuntimeAgentGraphCatalog({
     run,
     catalogSnapshots,
-    mcpClient: new FakeCapabilityClient(),
+    mcpClient: new FakeCapabilityClient([{
+      name: 'movscript_read_project_scripts',
+      description: 'Read project scripts',
+      inputSchema: { type: 'object' },
+    }]),
     currentProjectId: 42,
     userMessage: 'hello',
     debugContext: debugContext(),
@@ -72,7 +76,11 @@ test('refreshRuntimeAgentGraphCatalog preserves explicit run manifest across cat
   const result = await refreshRuntimeAgentGraphCatalog({
     run,
     catalogSnapshots,
-    mcpClient: new FakeCapabilityClient(),
+    mcpClient: new FakeCapabilityClient([{
+      name: 'movscript_read_project_scripts',
+      description: 'Read project scripts',
+      inputSchema: { type: 'object' },
+    }]),
     userMessage: 'hello',
     debugContext: debugContext(),
     history: [],
@@ -118,7 +126,11 @@ test('refreshRuntimeAgentGraphCatalog resolves layered default profile when avai
   const result = await refreshRuntimeAgentGraphCatalog({
     run,
     catalogSnapshots,
-    mcpClient: new FakeCapabilityClient(),
+    mcpClient: new FakeCapabilityClient([{
+      name: 'movscript_read_project_scripts',
+      description: 'Read project scripts',
+      inputSchema: { type: 'object' },
+    }]),
     userMessage: 'hello',
     debugContext: debugContext(),
     history: [],
@@ -186,6 +198,119 @@ test('refreshRuntimeAgentGraphCatalog loads requested active skill state', async
   assert.equal(result.skills[0]?.metadata?.loadMode, 'on_demand')
 })
 
+test('refreshRuntimeAgentGraphCatalog merges requested skill grants into explicit run manifest', async () => {
+  const layeredRegistry = buildLayeredCatalogRegistry({
+    manifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      tools: [
+        { name: 'movscript_update_active_skills', mode: 'allow', approval: 'never' },
+      ],
+    },
+    tools: [{
+      name: 'movscript_read_project_scripts',
+      description: 'Read project scripts',
+      permission: 'project.script.read',
+      risk: 'read',
+      source: 'mcp',
+      projectScoped: true,
+      requiresApprovalByDefault: false,
+    }],
+    layeredTools: [{
+      name: 'movscript_read_project_scripts',
+      description: 'Read project scripts',
+      inputSchema: { type: 'object' },
+      permission: 'project.script.read',
+      risk: 'read',
+      projectScoped: true,
+      defaults: { grant: 'allow', approval: 'never' },
+      source: 'mcp',
+    }],
+    layeredSkills: [{
+      id: 'movscript.workflow.script-reading',
+      kind: 'workflow',
+      version: '1.0.0',
+      name: 'Script Reading',
+      description: 'Read project scripts',
+      priority: 80,
+      enabled: true,
+      instructionTemplate: 'Read scripts.',
+      loadMode: 'manual',
+      triggers: [{ kind: 'keyword', any: ['剧本'] }],
+      toolRefs: ['tool://movscript_read_project_scripts'],
+    }],
+    profiles: [{
+      schema: 'movscript.agent.profile.v1',
+      id: 'movscript.profile.default',
+      version: '1.0.0',
+      name: 'Layered Profile',
+      persona: null,
+      enabledPacks: [],
+      enabledPolicies: [],
+      enabledWorkflows: ['movscript.workflow.script-reading'],
+      toolGrants: [
+        { name: 'movscript_update_active_skills', mode: 'allow', approval: 'never' },
+      ],
+    }],
+  })
+  const explicitManifest: AgentManifest = {
+    schema: 'movscript.agent.current',
+    id: 'explicit_manifest',
+    version: '1.0.0',
+    name: 'Explicit Manifest',
+    tools: [
+      { name: 'movscript_update_active_skills', mode: 'allow', approval: 'never' },
+    ],
+  }
+  const catalogSnapshots = new RuntimeCatalogSnapshotRegistry(buildRuntimeCatalogSnapshot({
+    id: 'snapshot_1',
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: new StaticToolRegistry([{
+      name: 'movscript_read_project_scripts',
+      description: 'Read project scripts',
+      permission: 'project.script.read',
+      risk: 'read',
+      source: 'mcp',
+      projectScoped: true,
+      requiresApprovalByDefault: false,
+    }]),
+    layeredRegistry,
+  }))
+  const run = makeRun({
+    agentManifest: explicitManifest,
+    metadata: {
+      manifestSource: 'custom',
+      skillState: {
+        loadedSkillIds: ['movscript.workflow.script-reading'],
+        unloadedSkillIds: [],
+      },
+    },
+  })
+
+  const result = await refreshRuntimeAgentGraphCatalog({
+    run,
+    catalogSnapshots,
+    mcpClient: new FakeCapabilityClient([{
+      name: 'movscript_read_project_scripts',
+      description: 'Read project scripts',
+      inputSchema: { type: 'object' },
+    }]),
+    currentProjectId: 5,
+    userMessage: '查看剧本',
+    debugContext: debugContext(),
+    history: [],
+  })
+
+  assert.equal(result.manifest.id, 'explicit_manifest')
+  assert.deepEqual(result.skills.map((skill) => skill.id), ['movscript.workflow.script-reading'])
+  assert.ok(result.manifest.tools.some((grant) => grant.name === 'movscript_update_active_skills'))
+  assert.ok(result.manifest.tools.some((grant) => grant.name === 'movscript_read_project_scripts'))
+  assert.equal(
+    result.capabilities.byName.movscript_read_project_scripts?.available,
+    true,
+    JSON.stringify(result.capabilities.byName.movscript_read_project_scripts),
+  )
+})
+
 function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   return {
     id: 'run_1',
@@ -218,10 +343,12 @@ function debugContext() {
 }
 
 class FakeCapabilityClient implements CapabilityMCPClient {
+  constructor(private readonly tools: MCPTool[] = []) {}
+
   async initialize(): Promise<void> {}
 
   async listTools(): Promise<MCPTool[]> {
-    return []
+    return this.tools
   }
 
   async listResources(): Promise<MCPResource[]> {

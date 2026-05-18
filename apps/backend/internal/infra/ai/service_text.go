@@ -110,6 +110,56 @@ func (s *AIService) CallTextWithUsage(ctx context.Context, userID, modelConfigID
 	return TextResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, CapabilityText)
 }
 
+func (s *AIService) CallResponsesWithUsage(ctx context.Context, userID, modelConfigID uint, req ResponsesRequest, usage UsageContext) (TextResponse, error) {
+	candidates, err := s.runtimeModelCandidates(modelConfigID, CapabilityText)
+	if err != nil {
+		return TextResponse{}, err
+	}
+	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, CapabilityText), candidates)
+	var lastErr error
+	for _, attempt := range attempts {
+		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, CapabilityText)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		attemptReq := req
+		attemptReq.Text.Model = resolveModelID(cfg, def)
+		attachTextPromptDebug(ctx, attemptReq.Text)
+		if usage.ReservationID == nil {
+			estimate := estimateUsageCost(cfg, def, "text", estimateTextInputTokens(attemptReq.Text), maxPositive(attemptReq.Text.MaxTokens, 1024), 0, 1)
+			reservation, err := s.ReserveUsage(ctx, userID, attempt.cfg.ID, estimate, usage)
+			if err != nil {
+				return TextResponse{}, err
+			}
+			usage.ReservationID = &reservation.ID
+		}
+		finishAttempt := beginRuntimeProviderAttempt(attempt.cfg.ID)
+		responder, ok := provider.(ResponsesProvider)
+		var resp TextResponse
+		if ok {
+			resp, err = responder.ResponsesGenerate(ctx, attemptReq)
+		} else {
+			resp, err = provider.TextGenerate(ctx, attemptReq.Text)
+		}
+		finishAttempt(err)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		estimate := estimateUsageCost(cfg, def, "text", resp.Usage.InputTokens, resp.Usage.OutputTokens, 0, 1)
+		if err := s.settleUsage(ctx, userID, attempt.cfg.ID, estimate, usage); err != nil {
+			return TextResponse{}, err
+		}
+		return resp, nil
+	}
+	if lastErr != nil {
+		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), lastErr.Error())
+		return TextResponse{}, lastErr
+	}
+	return TextResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, CapabilityText)
+}
+
 // CallTextStream calls a text model through a provider streaming API.
 // Usage is logged after the provider closes the stream. If the provider does
 // not report usage in the stream, the gateway still emits chunks but records

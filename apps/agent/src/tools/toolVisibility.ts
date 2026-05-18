@@ -5,7 +5,6 @@ export const BASE_RETRIEVAL_TOOLS = new Set([
   'movscript_request_user_input',
   'movscript_inspect_agent_catalog',
   'movscript_update_active_skills',
-  'movscript_reload_agent_catalog',
 ])
 
 export const COMMAND_REQUIRED_TOOLS = new Set([

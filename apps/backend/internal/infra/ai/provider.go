@@ -39,6 +39,14 @@ type TextResponse struct {
 	Debug        *DebugCallResult
 }
 
+type ResponsesRequest struct {
+	Text         TextRequest
+	Input        json.RawMessage
+	Instructions string
+	Tools        json.RawMessage
+	ToolChoice   json.RawMessage
+}
+
 type ToolCall struct {
 	ID       string       `json:"id"`
 	Type     string       `json:"type"`
@@ -210,6 +218,10 @@ type Provider interface {
 
 type TextStreamProvider interface {
 	TextStream(ctx context.Context, req TextRequest) (<-chan TextStreamEvent, error)
+}
+
+type ResponsesProvider interface {
+	ResponsesGenerate(ctx context.Context, req ResponsesRequest) (TextResponse, error)
 }
 
 // VideoTaskProvider exposes platforms whose video APIs are inherently async.

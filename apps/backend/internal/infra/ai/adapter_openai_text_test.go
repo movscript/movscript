@@ -1,7 +1,11 @@
 package ai
 
 import (
+	"context"
 	"encoding/json"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -95,5 +99,96 @@ func TestBuildOpenAIChatBodyJSONModeDoesNotDuplicateExistingJSONInstruction(t *t
 	}
 	if messages[0]["content"] != "Return only valid JSON." {
 		t.Fatalf("first message content = %#v", messages[0]["content"])
+	}
+}
+
+func TestBuildOpenAIResponsesBodyUsesResponsesShape(t *testing.T) {
+	body, err := buildOpenAIResponsesBody(ResponsesRequest{
+		Text: TextRequest{
+			Model:       "gpt-5.5",
+			MaxTokens:   64,
+			Temperature: 0,
+			JSONMode:    true,
+			Messages: []Message{
+				{Role: "user", Content: "find scenes"},
+			},
+		},
+		Input:        json.RawMessage(`[{"role":"user","content":[{"type":"input_text","text":"find scenes"}]}]`),
+		Instructions: "Be concise.",
+		Tools:        json.RawMessage(`[{"type":"function","function":{"name":"movscript_search","description":"Search","parameters":{"type":"object"}}}]`),
+		ToolChoice:   json.RawMessage(`{"type":"function","name":"movscript_search"}`),
+	})
+	if err != nil {
+		t.Fatalf("buildOpenAIResponsesBody() error = %v", err)
+	}
+	if _, ok := body["messages"]; ok {
+		t.Fatalf("responses body must not include chat messages: %#v", body)
+	}
+	if body["model"] != "gpt-5.5" || body["instructions"] != "Be concise." || body["max_output_tokens"] != 64 {
+		t.Fatalf("unexpected basic body fields: %#v", body)
+	}
+	if _, ok := body["input"].([]any); !ok {
+		t.Fatalf("input not decoded from raw responses input: %#v", body["input"])
+	}
+	text := body["text"].(map[string]any)
+	format := text["format"].(map[string]any)
+	if format["type"] != "json_object" {
+		t.Fatalf("text format = %#v, want json_object", format)
+	}
+	tools := body["tools"].([]map[string]any)
+	if _, ok := tools[0]["function"]; ok {
+		t.Fatalf("responses tools should be flattened, got %#v", tools[0])
+	}
+	if tools[0]["name"] != "movscript_search" {
+		t.Fatalf("tool name = %#v, want movscript_search", tools[0]["name"])
+	}
+}
+
+func TestOpenAIResponsesGeneratePostsResponsesEndpoint(t *testing.T) {
+	var gotPath string
+	var gotBody map[string]any
+	adapter := NewOpenAIAdapter("https://model.example/v1", "test-key")
+	adapter.rawHTTP = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		gotPath = r.URL.Path
+		if r.Header.Get("Authorization") != "Bearer test-key" {
+			t.Fatalf("authorization = %q, want bearer key", r.Header.Get("Authorization"))
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		body := `{
+			"id":"resp_test",
+			"object":"response",
+			"status":"completed",
+			"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"connection ok"}]}],
+			"usage":{"input_tokens":7,"output_tokens":2,"total_tokens":9}
+		}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    r,
+		}, nil
+	})}
+
+	resp, err := adapter.ResponsesGenerate(context.Background(), ResponsesRequest{
+		Text: TextRequest{
+			Model:    "gpt-5.5",
+			Messages: []Message{{Role: "user", Content: "hello"}},
+		},
+		Input: json.RawMessage(`"hello"`),
+	})
+	if err != nil {
+		t.Fatalf("ResponsesGenerate() error = %v", err)
+	}
+	if gotPath != "/v1/responses" {
+		t.Fatalf("path = %q, want /v1/responses", gotPath)
+	}
+	if _, ok := gotBody["messages"]; ok {
+		t.Fatalf("request body used chat messages: %#v", gotBody)
+	}
+	if resp.Content != "connection ok" || resp.Usage.InputTokens != 7 || resp.Usage.OutputTokens != 2 {
+		t.Fatalf("response = %#v, want parsed content and usage", resp)
 	}
 }

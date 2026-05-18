@@ -57,6 +57,30 @@ test('buildModelToolResultContext leaves small tool results intact', () => {
   })
 })
 
+test('buildModelToolResultContext keeps script bodies up to the inline limit in summarized results', () => {
+  const result = buildModelToolResultContext({
+    run: {
+      ...testRun(),
+      metadata: { limits: { maxRetrievedContextChars: 24000 } },
+    },
+    call: { name: 'movscript_read_project_scripts', args: { projectId: 42 } },
+    result: {
+      projectId: 42,
+      scripts: [{
+        id: 3,
+        title: '好运甜妻',
+        content: '甜'.repeat(20000),
+        extra: 'x'.repeat(12000),
+      }],
+    },
+  })
+
+  assert.equal(result.dropped, true)
+  const payload = JSON.parse(result.content)
+  assert.equal(payload.result.scripts.sample[0].content, '甜'.repeat(20000))
+  assert.equal(payload.result.scripts.sample[0].extra.type, 'omitted_text_body')
+})
+
 test('buildModelToolResultContext does not parse embedded JSON with non-finite numbers', () => {
   const result = buildModelToolResultContext({
     run: {

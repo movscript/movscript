@@ -176,13 +176,19 @@ func (h *ModelGatewayHandler) Responses(c *gin.Context) {
 		Tools:       normalizeResponsesTools(req.Tools),
 		ToolChoice:  normalizeResponsesToolChoice(req.ToolChoice),
 	}
-	input := modelgatewayapp.ChatInput{
+	input := modelgatewayapp.ResponsesInput{
 		Principal: modelgatewayapp.Principal{UserID: principal.UserID, Key: principal.Key},
 		Model:     req.Model,
 		Text:      textReq,
+		Responses: ai.ResponsesRequest{
+			Input:        req.Input,
+			Instructions: strings.TrimSpace(req.Instructions),
+			Tools:        req.Tools,
+			ToolChoice:   req.ToolChoice,
+		},
 		ProjectID: req.ProjectID,
 	}
-	result, err := h.service.CallChat(c.Request.Context(), input)
+	result, err := h.service.CallResponses(c.Request.Context(), input)
 	if err != nil {
 		writeGatewayChatError(c, err, "")
 		return

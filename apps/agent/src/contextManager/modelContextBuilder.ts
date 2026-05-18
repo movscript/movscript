@@ -256,7 +256,6 @@ function resolveOpenAIToolParameters(
   if (tool.name === 'movscript_update_draft') return UPDATE_DRAFT_TOOL_SCHEMA
   if (tool.name === 'movscript_inspect_agent_catalog') return INSPECT_AGENT_CATALOG_TOOL_SCHEMA
   if (tool.name === 'movscript_update_active_skills') return UPDATE_ACTIVE_SKILLS_TOOL_SCHEMA
-  if (tool.name === 'movscript_reload_agent_catalog') return EMPTY_OBJECT_TOOL_SCHEMA
   if (tool.name === 'movscript_create_plan') return CREATE_PLAN_TOOL_SCHEMA
   if (tool.name === 'movscript_get_plan') return GET_PLAN_TOOL_SCHEMA
   if (tool.name === 'movscript_replan') return REPLAN_TOOL_SCHEMA
@@ -450,12 +449,6 @@ function truncateForPrompt(value: string, limit: number): string {
   if (text.length <= limit) return text
   return `${text.slice(0, Math.max(0, limit - 1))}...`
 }
-
-const EMPTY_OBJECT_TOOL_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {},
-} satisfies Record<string, unknown>
 
 const PLAN_TASK_INPUT_SCHEMA = {
   type: 'object',

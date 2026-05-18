@@ -8,7 +8,7 @@
 
 | 产品层 | 拥有 | 示例 |
 | --- | --- | --- |
-| Agent Core | Agent 拥有的 memory、用户输入、catalog reload 和 planner subagents | `movscript.pack.agent-core`, `tools/agent-core/`, `skills/agent-core/` |
+| Agent Core | Agent 拥有的 memory、用户输入、catalog inspection 和 planner subagents | `movscript.pack.agent-core`, `tools/agent-core/`, `skills/agent-core/` |
 | Drafts | 本地审阅 draft CRUD、校验和 preview 工具 | `movscript.pack.drafts`, `tools/drafts/` |
 | MovScript | 当前任务 focus、项目读取、可审阅 proposal workflows 和视觉生成任务 | `movscript.pack.movscript`, `tools/movscript/`, `skills/movscript/` |
 

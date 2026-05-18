@@ -57,6 +57,47 @@ test('agentTraceView translates prompt composition into readable Chinese summary
   assert.deepEqual(view.promptDetail?.tools, ['movscript_get_focus'])
 })
 
+test('agentTraceView shows refreshed manifest after active skill updates', () => {
+  const view = agentTraceView(traceEvent({
+    kind: 'tool_catalog',
+    title: 'Agent catalog refreshed',
+    summary: '2 available tool(s) after catalog change; manifest=test.core-only; tools=2; movscript_read_project_scripts=available/granted.',
+    data: {
+      skillIds: ['movscript.workflow.script-reading'],
+      availableToolNames: ['movscript_update_active_skills', 'movscript_read_project_scripts'],
+      manifest: {
+        id: 'test.core-only',
+        version: '0.1.0',
+        name: 'Core only',
+        profileId: 'movscript.profile.default',
+        profileVersion: '1.0.0',
+        toolCount: 2,
+        tools: [
+          { name: 'movscript_update_active_skills', mode: 'allow', approval: 'never' },
+          { name: 'movscript_read_project_scripts', mode: 'allow', approval: 'never' },
+        ],
+      },
+      capabilitySnapshot: {
+        keyTools: [
+          { name: 'movscript_update_active_skills', available: true, granted: true, approval: 'never' },
+          { name: 'movscript_read_project_scripts', available: true, granted: true, approval: 'never' },
+        ],
+        availableToolNames: ['movscript_update_active_skills', 'movscript_read_project_scripts'],
+        blockedTools: [],
+      },
+      warningCount: 0,
+    },
+  }))
+
+  const manifestGroup = view.contextGroups.find((group) => group.label === '刷新后的 manifest')
+  const keyToolsGroup = view.contextGroups.find((group) => group.label === '关键工具状态')
+  assert.ok(manifestGroup)
+  assert.ok(keyToolsGroup)
+  assert.equal(manifestGroup.items.find((item) => item.label === 'Manifest ID')?.value, 'test.core-only')
+  assert.match(manifestGroup.items.find((item) => item.label === '工具授权')?.value ?? '', /movscript_read_project_scripts:allow\/never/)
+  assert.equal(keyToolsGroup.items.find((item) => item.label === 'movscript_read_project_scripts')?.value, 'available / granted / approval=never')
+})
+
 test('buildSkillTraceSummary summarizes dynamic skill state events', () => {
   const summary = buildSkillTraceSummary([
     traceEvent({
@@ -92,6 +133,34 @@ test('buildSkillTraceSummary summarizes dynamic skill state events', () => {
   assert.deepEqual(summary.currentActiveSkillIds, ['core.policy', 'director.jiangwen'])
   assert.deepEqual(summary.currentLoadedSkillIds, ['director.jiangwen'])
   assert.deepEqual(summary.currentUnloadedSkillIds, ['director.marvel'])
+})
+
+test('buildSkillTraceSummary reads skill state from update active skills tool result', () => {
+  const summary = buildSkillTraceSummary([
+    traceEvent({
+      id: 'skill_tool_1',
+      kind: 'tool_call',
+      title: 'Tool completed: movscript_update_active_skills',
+      toolName: 'movscript_update_active_skills',
+      createdAt: '2026-05-15T00:01:00.000Z',
+      data: {
+        source: 'runtime',
+        result: {
+          status: 'updated',
+          eventType: 'skill.state_requested',
+          activeSkillIds: ['movscript.policy.agent-core', 'movscript.workflow.script-reading'],
+          loadedSkillIds: ['movscript.workflow.script-reading'],
+          unloadedSkillIds: [],
+          missingSkillIds: [],
+        },
+      },
+    }),
+  ])
+
+  assert.equal(summary.timeline.length, 1)
+  assert.equal(summary.timeline[0]?.title, '技能状态变更请求')
+  assert.deepEqual(summary.currentActiveSkillIds, ['movscript.policy.agent-core', 'movscript.workflow.script-reading'])
+  assert.deepEqual(summary.currentLoadedSkillIds, ['movscript.workflow.script-reading'])
 })
 
 test('agentTraceView separates model HTTP request and impact', () => {

@@ -3079,7 +3079,11 @@ function UnitProductionTrack({
 
   const timelineMemberItems = summary.items.filter((item) => item.timeSource === 'preview')
   const timelineOriginSec = contentWorkbenchTimelineOriginSec(timelineMemberItems)
-  const timelineDurationSec = Math.max(1, summary.items.reduce((max, item) => Math.max(max, item.endSec - timelineOriginSec), 0))
+  const timelineContentDurationSec = Math.max(1, summary.items.reduce((max, item) => Math.max(max, item.endSec - timelineOriginSec), 0))
+  const timelineDurationSec = contentWorkbenchVisibleTimelineDurationSec(
+    timelineContentDurationSec,
+    summary.items.reduce((max, item) => Math.max(max, item.durationSec), 0),
+  )
   const timelineTicks = buildTrackTimeTicks(timelineDurationSec)
   const selectedTimelineItem = timelineMemberItems.find((item) => item.selected) ?? timelineMemberItems[0] ?? null
   const selectedTimelineItemStartSec = selectedTimelineItem ? contentWorkbenchLocalTimelineSec(selectedTimelineItem.startSec, timelineOriginSec) : 0
@@ -3296,7 +3300,7 @@ function UnitProductionTrack({
             {focusedTimeline ? (
               <Badge variant="outline" data-testid="content-workbench-timeline-focus-label">关注段 0:00 = 全局 {formatTrackClock(timelineOriginSec)}</Badge>
             ) : null}
-            <Badge variant="outline">{formatTrackDuration(timelineDurationSec)}</Badge>
+            <Badge variant="outline">{formatTrackDuration(timelineContentDurationSec)}</Badge>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -3499,6 +3503,18 @@ function contentWorkbenchTimelineOriginSec(items: Array<{ startSec: number }>) {
 
 function contentWorkbenchLocalTimelineSec(seconds: number, originSec: number) {
   return Math.max(0, Math.round(((Number(seconds) || 0) - originSec) * 10) / 10)
+}
+
+function contentWorkbenchVisibleTimelineDurationSec(contentDurationSec: number, longestItemDurationSec: number) {
+  const contentDuration = Math.max(1, Number(contentDurationSec) || 1)
+  const longestItemDuration = Math.max(1, Number(longestItemDurationSec) || 1)
+  const proportionalBuffer = contentDuration <= 30
+    ? contentDuration
+    : contentDuration <= 120
+      ? contentDuration * 0.5
+      : contentDuration * 0.25
+  const futureBuffer = Math.max(5, longestItemDuration, proportionalBuffer)
+  return Math.round((contentDuration + futureBuffer) * 10) / 10
 }
 
 function snapContentWorkbenchTimelineStartSec(rawStartSec: number, totalDurationSec: number, itemDurationSec: number, items: Array<{ id: string; startSec: number; endSec: number }>, sourceUnitId: number) {

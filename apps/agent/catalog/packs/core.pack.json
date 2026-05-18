@@ -2,7 +2,7 @@
   "id": "movscript.pack.agent-core",
   "version": "1.0.0",
   "name": "Agent Core",
-  "description": "Agent 对自身能力的核心认知层：memory、用户输入、catalog reload 和 planner subagents。",
+  "description": "Agent 对自身能力的核心认知层：memory、用户输入、catalog inspection 和 planner subagents。",
   "source": "builtin",
   "resources": {
     "skills": [
@@ -23,7 +23,6 @@
     "movscript_delete_memory",
     "movscript_inspect_agent_catalog",
     "movscript_update_active_skills",
-    "movscript_reload_agent_catalog",
     "movscript_create_plan",
     "movscript_get_plan",
     "movscript_replan",

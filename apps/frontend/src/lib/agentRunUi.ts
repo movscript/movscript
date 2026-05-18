@@ -299,12 +299,13 @@ export function buildTraceEventLink(input: {
 export function buildSkillTraceSummary(events: AgentTraceEvent[]): AgentSkillTraceSummary {
   const timeline = events.flatMap((event): AgentSkillTraceEntry[] => {
     const data = recordValue(event.data)
-    const eventType = stringValue(data?.skillEventType) ?? stringValue(data?.eventType)
+    const skillData = skillTraceData(event, data)
+    const eventType = stringValue(skillData?.skillEventType) ?? stringValue(skillData?.eventType)
     if (event.kind !== 'skill' && !eventType?.startsWith('skill.')) return []
-    const activeSkillIds = stringList(data?.activeSkillIds)
-    const loadedSkillIds = stringList(data?.loadedSkillIds)
-    const unloadedSkillIds = stringList(data?.unloadedSkillIds)
-    const availableSkillIds = stringList(data?.availableSkillIds)
+    const activeSkillIds = stringList(skillData?.activeSkillIds)
+    const loadedSkillIds = stringList(skillData?.loadedSkillIds)
+    const unloadedSkillIds = stringList(skillData?.unloadedSkillIds)
+    const availableSkillIds = stringList(skillData?.availableSkillIds)
     return [{
       eventId: event.id,
       createdAt: event.createdAt,
@@ -326,6 +327,14 @@ export function buildSkillTraceSummary(events: AgentTraceEvent[]): AgentSkillTra
     currentUnloadedSkillIds: latest?.unloadedSkillIds ?? [],
     currentAvailableSkillIds: latest?.availableSkillIds ?? [],
   }
+}
+
+function skillTraceData(event: AgentTraceEvent, data: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  const directEventType = stringValue(data?.skillEventType) ?? stringValue(data?.eventType)
+  if (directEventType?.startsWith('skill.')) return data
+  if (event.toolName !== 'movscript_update_active_skills') return data
+  const result = recordValue(data?.result)
+  return stringValue(result?.eventType)?.startsWith('skill.') ? result : data
 }
 
 export function canCancelWorkerRun(run: Pick<AgentRun, 'role' | 'status'> | undefined): boolean {
@@ -489,7 +498,6 @@ export function approvalImpactLabel(approval: Pick<AgentApprovalRequest, 'toolNa
     case 'movscript_cancel_generation_job': return '批准后会取消生成任务，未完成的输出可能不再产生。'
     case 'movscript_create_project': return '批准后会创建项目数据。'
     case 'movscript_delete_memory': return '批准后会删除记忆，后续运行将无法再引用它。'
-    case 'movscript_reload_agent_catalog': return '批准后会重新加载 Agent 工具和技能目录。'
     case 'movscript_spawn_subagent': return '批准后会启动子代理执行分配任务。'
     case 'movscript_cancel_subagent': return '批准后会取消子代理及其后续执行。'
     default: break
@@ -1236,6 +1244,28 @@ function traceContextGroups(event: AgentTraceEvent, data: Record<string, unknown
     }
   }
 
+  if (event.kind === 'tool_catalog') {
+    const manifest = recordValue(data.manifest)
+    const manifestTools = arrayValue(manifest?.tools)
+    groups.push(group('刷新后的 manifest', [
+      item('Manifest ID', stringValue(manifest?.id)),
+      item('名称', stringValue(manifest?.name)),
+      item('版本', stringValue(manifest?.version)),
+      item('Profile', stringValue(manifest?.profileId)),
+      item('Profile 版本', stringValue(manifest?.profileVersion)),
+      item('工具授权数', numberValue(manifest?.toolCount) ?? manifestTools?.length),
+      item('工具授权', formatManifestToolGrants(manifestTools)),
+    ]))
+    const capabilitySnapshot = recordValue(data.capabilitySnapshot)
+    groups.push(group('关键工具状态', formatCatalogKeyTools(arrayValue(capabilitySnapshot?.keyTools))))
+    groups.push(group('可用和阻塞工具', [
+      item('可用工具', arrayValue(capabilitySnapshot?.availableToolNames)?.join(', ') ?? arrayValue(data.availableToolNames)?.join(', ')),
+      item('阻塞工具', formatCatalogBlockedTools(arrayValue(capabilitySnapshot?.blockedTools))),
+      item('激活技能', arrayValue(data.skillIds)?.join(', ')),
+      item('警告数', numberValue(data.warningCount)),
+    ]))
+  }
+
   if (eventType === 'context.run_built') {
     groups.push(group('本轮输入', [
       item('运行', stringValue(data.runId)),
@@ -1331,6 +1361,45 @@ function traceContextGroups(event: AgentTraceEvent, data: Record<string, unknown
   }
 
   return groups.filter((entry) => entry.items.length > 0)
+}
+
+function formatManifestToolGrants(value: unknown[] | undefined): string | undefined {
+  const grants = value?.flatMap((entry) => {
+    const grant = recordValue(entry)
+    const name = stringValue(grant?.name)
+    const mode = stringValue(grant?.mode)
+    if (!name || !mode) return []
+    const approval = stringValue(grant?.approval)
+    return [`${name}:${mode}${approval ? `/${approval}` : ''}`]
+  }) ?? []
+  if (grants.length === 0) return undefined
+  return grants.length > 20 ? `${grants.slice(0, 20).join(', ')} ... (+${grants.length - 20})` : grants.join(', ')
+}
+
+function formatCatalogKeyTools(value: unknown[] | undefined): Array<{ label: string; value?: string }> {
+  return value?.flatMap((entry) => {
+    const tool = recordValue(entry)
+    const name = stringValue(tool?.name)
+    if (!name) return []
+    const status = tool?.available === true ? 'available' : 'blocked'
+    const granted = tool?.granted === true ? 'granted' : 'not_granted'
+    const reason = stringValue(tool?.unavailableReason)
+    const approval = stringValue(tool?.approval)
+    return item(name, [status, granted, reason, approval ? `approval=${approval}` : undefined].filter(Boolean).join(' / '))
+  }) ?? []
+}
+
+function formatCatalogBlockedTools(value: unknown[] | undefined): string | undefined {
+  const tools = value?.flatMap((entry) => {
+    const tool = recordValue(entry)
+    const name = stringValue(tool?.name)
+    if (!name) return []
+    const reason = stringValue(tool?.unavailableReason)
+    const granted = tool?.granted === true ? 'granted' : 'not_granted'
+    return [`${name}${reason ? `:${reason}` : ''}/${granted}`]
+  }) ?? []
+  if (tools.length === 0) return undefined
+  return tools.length > 20 ? `${tools.slice(0, 20).join(', ')} ... (+${tools.length - 20})` : tools.join(', ')
 }
 
 function traceModelDetail(event: AgentTraceEvent, data: Record<string, unknown> | undefined): AgentTraceModelDetail | undefined {

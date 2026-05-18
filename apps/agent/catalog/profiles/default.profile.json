@@ -19,7 +19,7 @@
     "maxActiveWorkflows": 2,
     "systemPromptCharLimit": 32000,
     "contextWindowCharLimit": 96000,
-    "maxRetrievedContextChars": 12000,
+    "maxRetrievedContextChars": 24000,
     "maxKnowledgeCharsPerRun": 8000,
     "maxKnowledgeChunksPerRun": 3,
     "maxHistoryMessages": 6,

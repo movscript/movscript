@@ -4,7 +4,7 @@ import type { AgentManifest } from '../catalog/agentManifest.js'
 import type { SkillDiscoverySummary } from '../contextManager/modelContextBuilder.js'
 import type { ToolRegistry } from '../tools/toolRegistry.js'
 import { resolveAgentCapabilities, type CapabilityMCPClient } from '../tools/capabilityResolver.js'
-import { resolveRuntimeLayers } from '../skills/runtimeLayerResolver.js'
+import { addSkillToolGrantsToManifest, resolveRuntimeLayers } from '../skills/runtimeLayerResolver.js'
 import { activeSkillStateFromRun } from '../skills/activeSkillState.js'
 import type { RuntimeCatalogSnapshotRegistry } from './runtimeCatalogSnapshot.js'
 
@@ -34,7 +34,9 @@ export async function refreshRuntimeAgentGraphCatalog(input: {
     ? catalogSnapshot.defaultAgentManifest
     : input.run.agentManifest ?? catalogSnapshot.defaultAgentManifest
   const activeSkillState = activeSkillStateFromRun(input.run)
-  const refreshedLayers = input.run.metadata?.manifestSource === 'default' && catalogSnapshot.layeredRegistry.profiles.size > 0
+  const shouldResolveLayers = catalogSnapshot.layeredRegistry.profiles.size > 0
+    && (input.run.metadata?.manifestSource === 'default' || activeSkillState.loadedSkillIds.length > 0 || activeSkillState.unloadedSkillIds.length > 0)
+  const refreshedLayers = shouldResolveLayers
     ? resolveRuntimeLayers({
       registry: catalogSnapshot.layeredRegistry,
       baseManifest: refreshedBaseManifest,
@@ -46,7 +48,11 @@ export async function refreshRuntimeAgentGraphCatalog(input: {
       unloadedSkillIds: activeSkillState.unloadedSkillIds,
     })
     : undefined
-  const refreshedManifest = refreshedLayers?.manifest ?? refreshedBaseManifest
+  const refreshedManifest = refreshedLayers?.manifest
+    ? input.run.metadata?.manifestSource === 'default'
+      ? refreshedLayers.manifest
+      : mergeSkillToolGrantsIntoManifest(refreshedBaseManifest, refreshedLayers.manifest, refreshedLayers.skills, catalogSnapshot.layeredRegistry)
+    : refreshedBaseManifest
   input.run.agentManifest = refreshedManifest
   const refreshedSkills = refreshedLayers?.skills ?? []
   const refreshedCapabilities = await resolveAgentCapabilities({
@@ -69,4 +75,24 @@ export async function refreshRuntimeAgentGraphCatalog(input: {
     registry: catalogSnapshot.toolRegistry,
     warnings: refreshedCapabilities.warnings,
   }
+}
+
+function mergeSkillToolGrantsIntoManifest(
+  base: AgentManifest,
+  layered: AgentManifest,
+  skills: ResolvedAgentSkill[],
+  registry: Parameters<typeof addSkillToolGrantsToManifest>[1]['registry'],
+): AgentManifest {
+  return addSkillToolGrantsToManifest({
+    ...base,
+    metadata: {
+      ...(base.metadata ?? {}),
+      ...(layered.metadata?.resolvedFrom ? { resolvedFrom: layered.metadata.resolvedFrom } : {}),
+      ...(layered.metadata?.profileId ? { profileId: layered.metadata.profileId } : {}),
+      ...(layered.metadata?.profileVersion ? { profileVersion: layered.metadata.profileVersion } : {}),
+    },
+  }, {
+    registry,
+    skillIds: skills.map((skill) => skill.id),
+  })
 }

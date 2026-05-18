@@ -261,11 +261,13 @@ export default function AIAgentSettingsPage() {
   })
 
   const textModels = modelsQuery.data ?? []
+  const baseURLValue = baseURL.trim()
+  const usesBackendCompatibleBaseURL = isBackendCompatibleBaseURL(baseURLValue)
+  const usesModelCatalog = !baseURLValue || usesBackendCompatibleBaseURL
+  const usesManualModelId = !usesModelCatalog
   const selectedModel = useMemo(() => {
     return textModels.find((model) => publicModelId(model) === selectedModelId) ?? null
   }, [selectedModelId, textModels])
-  const usesModelCatalog = selectedApiKind === 'openai_chat_completions'
-  const usesManualModelId = !usesModelCatalog
   const directModelIdValue = directModelId.trim()
   const directModelIdHasSecret = usesManualModelId && hasSensitiveTextSecret(directModelIdValue)
   const draftModelValue = usesModelCatalog ? (selectedModel ? publicModelId(selectedModel) : '') : directModelIdValue
@@ -407,19 +409,18 @@ export default function AIAgentSettingsPage() {
   const hasUnsavedChanges = effectiveConfig?.configured
     ? draftModelValue !== effectiveModelValue ||
       selectedApiKind !== (effectiveConfig.apiKind ?? DEFAULT_API_KIND) ||
-      baseURL.trim() !== (effectiveConfig.baseURL ?? '') ||
+      baseURLValue !== (effectiveConfig.baseURL ?? '') ||
       Boolean(modelApiKey.trim()) ||
       useForChat !== effectiveConfig.useForChat ||
       useForPlanner !== effectiveConfig.useForPlanner
     : canSaveModelConfig
-  const modelBaseURLHasSecret = hasSensitiveURLSecret(baseURL.trim())
-  const usesBackendCompatibleBaseURL = isBackendCompatibleBaseURL(baseURL)
+  const modelBaseURLHasSecret = hasSensitiveURLSecret(baseURLValue)
   const modelApiKeyProvided = Boolean(modelApiKey.trim())
   const modelRouteIssues = useMemo(() => buildModelRouteIssues({ useForChat, useForPlanner }), [useForChat, useForPlanner])
   const modelCompatibilityProbes = useMemo(() => buildModelCompatibilityProbes({
     selectedApiKind,
     modelValue: draftModelValue,
-    baseURL: baseURL.trim(),
+    baseURL: baseURLValue,
     apiKeyProvided: modelApiKeyProvided,
     usesBackendCompatibleBaseURL,
     modelBaseURLHasSecret,
@@ -427,7 +428,7 @@ export default function AIAgentSettingsPage() {
     useForChat,
     useForPlanner,
     effectiveConfig,
-  }), [baseURL, directModelIdHasSecret, draftModelValue, effectiveConfig, modelApiKeyProvided, modelBaseURLHasSecret, selectedApiKind, useForChat, useForPlanner, usesBackendCompatibleBaseURL])
+  }), [baseURLValue, directModelIdHasSecret, draftModelValue, effectiveConfig, modelApiKeyProvided, modelBaseURLHasSecret, selectedApiKind, useForChat, useForPlanner, usesBackendCompatibleBaseURL])
   const apiModeSwitchPlan = useMemo(() => buildApiModeSwitchPlan({
     selectedApiKind,
     probes: modelCompatibilityProbes,
@@ -557,7 +558,7 @@ export default function AIAgentSettingsPage() {
     if (!runtimeQuery.data) return
     if (runtimeQuery.data.configured) {
       const apiKind = runtimeQuery.data.apiKind ?? DEFAULT_API_KIND
-      setSelectedModelId(apiKind === 'openai_chat_completions' ? runtimeModelValue(textModels, runtimeQuery.data) : NO_MODEL_VALUE)
+      setSelectedModelId(runtimeConfigUsesModelCatalog(runtimeQuery.data) ? runtimeModelValue(textModels, runtimeQuery.data) : NO_MODEL_VALUE)
       setDirectModelId(runtimeQuery.data.model ?? '')
       setSelectedApiKind(runtimeQuery.data.apiKind ?? DEFAULT_API_KIND)
       setBaseURL(runtimeQuery.data.baseURL ?? '')
@@ -637,7 +638,7 @@ export default function AIAgentSettingsPage() {
         ...(usesModelCatalog && selectedModel ? { modelConfigId: selectedModel.id } : {}),
         model: draftModelValue,
         apiKind: selectedApiKind,
-        ...(baseURL.trim() ? { baseURL: baseURL.trim() } : {}),
+        ...(baseURLValue ? { baseURL: baseURLValue } : {}),
         ...(modelApiKey.trim() ? { apiKey: modelApiKey.trim() } : {}),
         useForChat,
         useForPlanner,
@@ -688,13 +689,22 @@ export default function AIAgentSettingsPage() {
         ...(usesModelCatalog && selectedModel ? { modelConfigId: selectedModel.id } : {}),
         model: draftModelValue,
         apiKind: selectedApiKind,
-        ...(baseURL.trim() ? { baseURL: baseURL.trim() } : {}),
+        ...(baseURLValue ? { baseURL: baseURLValue } : {}),
         ...(modelApiKey.trim() ? { apiKey: modelApiKey.trim() } : {}),
         useForChat,
         useForPlanner,
       })
       updateAgentSettings({ modelId: usesModelCatalog && selectedModel ? selectedModel.id : null })
-      const result = await localAgentClient.testModelConfig({ message: testMessage.trim() || t('agents.settings.testMessageDefault') })
+      const result = await localAgentClient.testModelConfig({
+        message: testMessage.trim() || t('agents.settings.testMessageDefault'),
+        ...(usesModelCatalog && selectedModel ? { modelConfigId: selectedModel.id } : {}),
+        model: draftModelValue,
+        apiKind: selectedApiKind,
+        ...(baseURLValue ? { baseURL: baseURLValue } : {}),
+        ...(modelApiKey.trim() ? { apiKey: modelApiKey.trim() } : {}),
+        useForChat,
+        useForPlanner,
+      })
       setTestResult(result)
       await runtimeQuery.refetch()
       recordSettingsAudit({
@@ -1124,7 +1134,7 @@ export default function AIAgentSettingsPage() {
     if (quickFix === 'reset-model-draft') {
       if (!effectiveConfig?.configured) return
       const apiKind = effectiveConfig.apiKind ?? DEFAULT_API_KIND
-      setSelectedModelId(apiKind === 'openai_chat_completions' ? runtimeModelValue(textModels, effectiveConfig) : NO_MODEL_VALUE)
+      setSelectedModelId(runtimeConfigUsesModelCatalog(effectiveConfig) ? runtimeModelValue(textModels, effectiveConfig) : NO_MODEL_VALUE)
       setDirectModelId(effectiveConfig.model ?? '')
       setSelectedApiKind(apiKind)
       setBaseURL(effectiveConfig.baseURL ?? '')
@@ -1570,7 +1580,7 @@ export default function AIAgentSettingsPage() {
                           </Button>
                         </div>
                       )}
-                      {usesManualModelId && baseURL.trim() && !usesBackendCompatibleBaseURL && (
+                      {usesManualModelId && baseURLValue && !usesBackendCompatibleBaseURL && (
                         <div className="mt-3">
                           <label className="mb-1.5 block text-xs font-medium text-foreground">{t('agents.settings.providerApiKeyLabel')}</label>
                           <Input
@@ -2496,10 +2506,10 @@ function buildModelCompatibilityProbes(input: {
   if (model && input.directModelIdHasSecret) {
     modelStatus = 'action'
     modelDetailKey = 'agents.settings.modelCompatibilityDetails.modelIdSecret'
-  } else if (model && input.selectedApiKind === 'anthropic_messages' && /^(gpt|o\d|text-|davinci)/i.test(model)) {
+  } else if (model && !input.usesBackendCompatibleBaseURL && input.selectedApiKind === 'anthropic_messages' && /^(gpt|o\d|text-|davinci)/i.test(model)) {
     modelStatus = 'warning'
     modelDetailKey = 'agents.settings.modelCompatibilityDetails.modelIdProviderMismatch'
-  } else if (model && (input.selectedApiKind === 'openai_responses' || input.selectedApiKind === 'openai_chat_completions') && /^claude/i.test(model)) {
+  } else if (model && !input.usesBackendCompatibleBaseURL && (input.selectedApiKind === 'openai_responses' || input.selectedApiKind === 'openai_chat_completions') && /^claude/i.test(model)) {
     modelStatus = 'warning'
     modelDetailKey = 'agents.settings.modelCompatibilityDetails.modelIdProviderMismatch'
   }
@@ -3329,6 +3339,11 @@ function modelDisplayName(models: PublicModel[], config: RuntimeModelConfigPubli
   const value = runtimeModelValue(models, config)
   const model = models.find((item) => publicModelId(item) === value)
   return model ? publicModelLabel(model, true) : config.model
+}
+
+function runtimeConfigUsesModelCatalog(config: RuntimeModelConfigPublic): boolean {
+  const baseURL = config.baseURL?.trim() ?? ''
+  return !baseURL || isBackendCompatibleBaseURL(baseURL)
 }
 
 function apiKindBaseURLPlaceholder(apiKind: RuntimeModelAPIKind): string {

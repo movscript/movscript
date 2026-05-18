@@ -100,6 +100,7 @@ export interface RuntimeModelTestResult {
   ok: boolean
   provider: string
   model: string
+  apiKind: RuntimeModelAPIKind
   modelConfigId?: number
   latencyMs: number
   content: string
@@ -252,6 +253,44 @@ export class RuntimeModelConfigStore {
 
   save(input: RuntimeModelConfigInput): RuntimeModelConfigPublic {
     const existing = this.readFileConfig()
+    const config = this.buildConfigFromInput(input, existing, new Date().toISOString())
+    atomicWriteJSON(this.filePath, config)
+    return this.getPublicConfig()
+  }
+
+  clear(): RuntimeModelConfigPublic {
+    if (existsSync(this.filePath)) unlinkSync(this.filePath)
+    return this.getPublicConfig()
+  }
+
+  async test(input: RuntimeModelConfigInput & { message?: unknown } = {}, auth: RuntimeModelAuthContext = {}): Promise<RuntimeModelTestResult> {
+    const existing = this.getEffectiveConfig()
+    const config = hasRuntimeModelConfigInputFields(input)
+      ? this.buildConfigFromInput(input, existing, existing?.updatedAt ?? new Date().toISOString())
+      : existing
+    if (!config?.model?.trim()) throw new Error('backend model_id is not configured')
+    const messages = buildTestMessages(normalizeNonEmptyString(input.message) ?? 'Reply with one short sentence confirming the MovScript runtime model connection works.')
+    const started = Date.now()
+    const { callModel } = await import('./modelClient.js')
+    const result = await callModel({
+      messages,
+      config,
+      auth,
+      retry: { maxAttempts: 1 },
+    })
+    return {
+      ok: true,
+      provider: config.provider,
+      model: config.model,
+      apiKind: config.apiKind ?? DEFAULT_RUNTIME_MODEL_API_KIND,
+      ...(config.modelConfigId ? { modelConfigId: config.modelConfigId } : {}),
+      latencyMs: Date.now() - started,
+      content: result.content ?? '',
+      request: result.trace.request,
+    }
+  }
+
+  private buildConfigFromInput(input: RuntimeModelConfigInput, existing: RuntimeModelConfig | undefined, updatedAt: string): RuntimeModelConfig {
     const inputModel = parseOptionalSaveString(input.model, 'model')
     const modelConfigId = parseOptionalSavePositiveInteger(input.modelConfigId, 'modelConfigId') ?? (input.model === undefined ? existing?.modelConfigId : undefined)
     const model = inputModel ?? existing?.model ?? (modelConfigId ? backendModelID(modelConfigId) : undefined)
@@ -273,7 +312,7 @@ export class RuntimeModelConfigStore {
     const useForChat = parseOptionalSaveBoolean(input.useForChat, 'useForChat') ?? existing?.useForChat ?? true
     const useForPlanner = parseOptionalSaveBoolean(input.useForPlanner, 'useForPlanner') ?? existing?.useForPlanner ?? true
     if (!useForChat && !useForPlanner) throw new RuntimeModelConfigInputError('runtime model config must enable at least one route')
-    const config: RuntimeModelConfig = {
+    return {
       provider: 'backend-model-config',
       ...(modelConfigId ? { modelConfigId } : {}),
       model,
@@ -282,37 +321,7 @@ export class RuntimeModelConfigStore {
       ...(apiKey ? { apiKey } : {}),
       useForChat,
       useForPlanner,
-      updatedAt: new Date().toISOString(),
-    }
-    atomicWriteJSON(this.filePath, config)
-    return this.getPublicConfig()
-  }
-
-  clear(): RuntimeModelConfigPublic {
-    if (existsSync(this.filePath)) unlinkSync(this.filePath)
-    return this.getPublicConfig()
-  }
-
-  async test(input: { message?: unknown } = {}, auth: RuntimeModelAuthContext = {}): Promise<RuntimeModelTestResult> {
-    const config = this.getEffectiveConfig()
-    if (!config?.model?.trim()) throw new Error('backend model_id is not configured')
-    const messages = buildTestMessages(normalizeNonEmptyString(input.message) ?? 'Reply with one short sentence confirming the MovScript runtime model connection works.')
-    const started = Date.now()
-    const { callModel } = await import('./modelClient.js')
-    const result = await callModel({
-      messages,
-      config,
-      auth,
-      retry: { maxAttempts: 1 },
-    })
-    return {
-      ok: true,
-      provider: config.provider,
-      model: config.model,
-      ...(config.modelConfigId ? { modelConfigId: config.modelConfigId } : {}),
-      latencyMs: Date.now() - started,
-      content: result.content ?? '',
-      request: result.trace.request,
+      updatedAt,
     }
   }
 
@@ -442,6 +451,16 @@ function parseOptionalSaveBaseURL(value: unknown): string | undefined {
 function parseOptionalSaveAPIKey(value: unknown): string | undefined {
   if (value === null) return undefined
   return parseOptionalSaveString(value, 'apiKey')
+}
+
+function hasRuntimeModelConfigInputFields(input: RuntimeModelConfigInput): boolean {
+  return input.modelConfigId !== undefined
+    || input.model !== undefined
+    || input.apiKind !== undefined
+    || input.baseURL !== undefined
+    || input.apiKey !== undefined
+    || input.useForChat !== undefined
+    || input.useForPlanner !== undefined
 }
 
 function buildTestMessages(message: string): RuntimeModelChatMessage[] {

@@ -87,6 +87,14 @@ type ChatInput struct {
 	RequireChat bool
 }
 
+type ResponsesInput struct {
+	Principal Principal
+	Model     string
+	Text      ai.TextRequest
+	Responses ai.ResponsesRequest
+	ProjectID *uint
+}
+
 type ChatResult struct {
 	ModelConfigID uint
 	ResponseModel string
@@ -218,6 +226,25 @@ func (s *Service) CallChat(ctx context.Context, input ChatInput) (ChatResult, er
 		return ChatResult{}, err
 	}
 	resp, err := s.ai.CallTextWithUsage(ctx, input.Principal.UserID, modelConfigID, textReq, UsageContext(input.Principal.Key, input.ProjectID))
+	if err != nil {
+		return ChatResult{}, err
+	}
+	return ChatResult{ModelConfigID: modelConfigID, ResponseModel: responseModel, Response: resp}, nil
+}
+
+func (s *Service) CallResponses(ctx context.Context, input ResponsesInput) (ChatResult, error) {
+	modelConfigID, responseModel, textReq, err := s.prepareChat(ctx, ChatInput{
+		Principal: input.Principal,
+		Model:     input.Model,
+		Text:      input.Text,
+		ProjectID: input.ProjectID,
+	})
+	if err != nil {
+		return ChatResult{}, err
+	}
+	responsesReq := input.Responses
+	responsesReq.Text = textReq
+	resp, err := s.ai.CallResponsesWithUsage(ctx, input.Principal.UserID, modelConfigID, responsesReq, UsageContext(input.Principal.Key, input.ProjectID))
 	if err != nil {
 		return ChatResult{}, err
 	}

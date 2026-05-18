@@ -450,6 +450,47 @@ test('runtime model config normalizes explicit backend /api/v1 base URL to OpenA
   }
 })
 
+test('runtime model config test honors apiKind draft override instead of stale saved mode', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
+  const originalFetch = globalThis.fetch
+  try {
+    const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
+    store.save({
+      model: 'gpt-5.5',
+      apiKind: 'openai_responses',
+      baseURL: 'https://api.openai.com/v1',
+      apiKey: 'direct-provider-key',
+    })
+
+    globalThis.fetch = (async (url, init) => {
+      assert.equal(String(url), 'http://localhost:8765/v1/chat/completions')
+      assert.equal(headerValue(init?.headers, 'authorization'), 'Bearer user-token')
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: 'chat connection ok' } }],
+      }), { status: 200 })
+    }) as typeof fetch
+
+    const result = await store.test({
+      message: 'hello',
+      model: 'model_config:9',
+      modelConfigId: 9,
+      apiKind: 'openai_chat_completions',
+      useForChat: true,
+      useForPlanner: true,
+    }, {
+      backendAuthToken: 'user-token',
+      backendAPIBaseURL: 'http://localhost:8765/api/v1',
+    })
+
+    assert.equal(result.apiKind, 'openai_chat_completions')
+    assert.equal(result.content, 'chat connection ok')
+    assert.equal(result.request.url, 'http://localhost:8765/v1/chat/completions')
+  } finally {
+    globalThis.fetch = originalFetch
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('runtime model config explicit provider test does not treat backend auth as provider API key', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
   try {

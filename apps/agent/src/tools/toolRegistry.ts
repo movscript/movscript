@@ -97,15 +97,6 @@ export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
     requiresApprovalByDefault: false,
   },
   {
-    name: 'movscript_reload_agent_catalog',
-    description: 'Reload local agent skills, tools, packs, and profiles from configured catalog directories.',
-    permission: 'agent.catalog.write',
-    risk: 'write',
-    source: 'runtime',
-    projectScoped: false,
-    requiresApprovalByDefault: true,
-  },
-  {
     name: 'movscript_create_plan',
     description: 'Planner-only tool. Create or attach the single plan for the current thread, and optionally define initial tasks.',
     permission: 'agent.plan.write',

@@ -110,13 +110,268 @@ test('runAgentGraph uses frozen run input instead of later thread user messages'
   if (result.status === 'completed') assert.equal(result.finalContent, 'seen:frozen request')
 })
 
+test('runAgentGraph summarizes catalog skill inspection with active state and tools', async () => {
+  const run: AgentRun = {
+    id: 'run_catalog_summary',
+    threadId: 'thread_1',
+    status: 'queued',
+    policy,
+    createdAt: '2026-05-16T00:00:00.000Z',
+    updatedAt: '2026-05-16T00:00:00.000Z',
+    steps: [],
+    input: {
+      schema: 'movscript.agent.run-input.v1',
+      userMessage: '检查剧本读取 skill',
+      sourceMessageId: 'msg_1',
+      executionMode: 'chat',
+      createdAt: '2026-05-16T00:00:00.000Z',
+    },
+  }
+  let modelCallCount = 0
+  const router: RuntimeModelRouter = {
+    resolve: () => ({
+      capability: 'reasoning',
+      provider: 'backend-model-config',
+      config: { provider: 'backend-model-config', model: 'test-model', modelConfigId: 1 } as any,
+      source: 'configured',
+    }),
+    describe: () => [],
+    analyzeMultimodal: async () => ({
+      summary: '',
+      observations: [],
+      confidence: 0,
+      route: { capability: 'multimodal', configured: true, source: 'configured' },
+    }),
+    call: async () => {
+      modelCallCount += 1
+      if (modelCallCount === 1) {
+        return {
+          content: null,
+          tool_calls: [{
+            id: 'call_inspect_skill',
+            type: 'function',
+            function: {
+              name: 'movscript_inspect_agent_catalog',
+              arguments: JSON.stringify({ view: 'skill', id: 'movscript.workflow.script-reading' }),
+            },
+          }],
+          finish_reason: 'tool_calls',
+          rawAssistantMessage: { role: 'assistant', content: null },
+          trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
+        }
+      }
+      return {
+        content: 'done',
+        tool_calls: [],
+        finish_reason: 'stop',
+        rawAssistantMessage: { role: 'assistant', content: 'done' },
+        trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
+      }
+    },
+  }
+  const traceSummaries: string[] = []
+
+  const result = await runAgentGraph({
+    run,
+    threadMessages: [
+      { id: 'msg_1', threadId: 'thread_1', role: 'user', content: '检查剧本读取 skill', createdAt: '2026-05-16T00:00:00.000Z' },
+    ],
+    manifest: DEFAULT_AGENT_MANIFEST,
+    capabilities: emptyTools,
+    skills: [],
+    context: {
+      route: { pathname: '/' },
+      projects: [],
+      recentResources: [],
+      attachments: [],
+      memories: [],
+      labels: [],
+    },
+    memories: [],
+    warnings: [],
+    userMessage: run.input?.userMessage,
+    rootUserMessageId: run.input?.sourceMessageId,
+    config: { provider: 'backend-model-config', model: 'test-model', modelConfigId: 1 } as any,
+    modelRouter: router,
+    auth: {},
+    policy,
+    mcpClient: {
+      initialize: async () => null,
+      callTool: async () => ({}),
+    },
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    registry: DEFAULT_TOOL_REGISTRY,
+    catalogManager: {
+      inspectAgentCatalog: () => ({
+        status: 'ok',
+        catalogSnapshot: { id: 'snapshot_1', version: 'catalog_v1' },
+        view: 'skill',
+        skill: {
+          id: 'movscript.workflow.script-reading',
+          kind: 'workflow',
+          name: 'Script Reading',
+          loadMode: 'manual',
+          toolRefs: ['tool://movscript_read_project_scripts', 'tool://movscript_request_user_input'],
+        },
+        active: true,
+        coveredByEnabledPack: true,
+      }),
+      updateActiveSkills: () => ({}),
+      createAgentPlan: () => ({}),
+      getAgentPlan: () => ({}),
+      replanAgentPlan: () => ({}),
+      spawnSubagent: () => ({}),
+      listSubagents: () => ({}),
+      waitSubagent: () => ({}),
+      cancelSubagent: () => ({}),
+    },
+    onTrace: (trace) => {
+      if (trace.kind === 'tool_call' && trace.toolName === 'movscript_inspect_agent_catalog' && trace.summary) traceSummaries.push(trace.summary)
+    },
+    onStepCreate: () => 'step_1',
+    onStepComplete: () => undefined,
+  })
+
+  assert.equal(result.status, 'completed')
+  assert.match(traceSummaries.join('\n'), /catalog skill movscript\.workflow\.script-reading/)
+  assert.match(traceSummaries.join('\n'), /active=true/)
+  assert.match(traceSummaries.join('\n'), /tools=movscript_read_project_scripts, movscript_request_user_input/)
+})
+
+test('runAgentGraph summarizes catalog summary inspection with skill and pack state', async () => {
+  const run: AgentRun = {
+    id: 'run_catalog_summary_view',
+    threadId: 'thread_1',
+    status: 'queued',
+    policy,
+    createdAt: '2026-05-16T00:00:00.000Z',
+    updatedAt: '2026-05-16T00:00:00.000Z',
+    steps: [],
+    input: {
+      schema: 'movscript.agent.run-input.v1',
+      userMessage: '检查 catalog',
+      sourceMessageId: 'msg_1',
+      executionMode: 'chat',
+      createdAt: '2026-05-16T00:00:00.000Z',
+    },
+  }
+  let modelCallCount = 0
+  const router: RuntimeModelRouter = {
+    resolve: () => ({
+      capability: 'reasoning',
+      provider: 'backend-model-config',
+      config: { provider: 'backend-model-config', model: 'test-model', modelConfigId: 1 } as any,
+      source: 'configured',
+    }),
+    describe: () => [],
+    analyzeMultimodal: async () => ({
+      summary: '',
+      observations: [],
+      confidence: 0,
+      route: { capability: 'multimodal', configured: true, source: 'configured' },
+    }),
+    call: async () => {
+      modelCallCount += 1
+      if (modelCallCount === 1) {
+        return {
+          content: null,
+          tool_calls: [{
+            id: 'call_inspect_summary',
+            type: 'function',
+            function: {
+              name: 'movscript_inspect_agent_catalog',
+              arguments: JSON.stringify({ view: 'summary' }),
+            },
+          }],
+          finish_reason: 'tool_calls',
+          rawAssistantMessage: { role: 'assistant', content: null },
+          trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
+        }
+      }
+      return {
+        content: 'done',
+        tool_calls: [],
+        finish_reason: 'stop',
+        rawAssistantMessage: { role: 'assistant', content: 'done' },
+        trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
+      }
+    },
+  }
+  const traceSummaries: string[] = []
+
+  const result = await runAgentGraph({
+    run,
+    threadMessages: [
+      { id: 'msg_1', threadId: 'thread_1', role: 'user', content: '检查 catalog', createdAt: '2026-05-16T00:00:00.000Z' },
+    ],
+    manifest: DEFAULT_AGENT_MANIFEST,
+    capabilities: emptyTools,
+    skills: [],
+    context: {
+      route: { pathname: '/' },
+      projects: [],
+      recentResources: [],
+      attachments: [],
+      memories: [],
+      labels: [],
+    },
+    memories: [],
+    warnings: [],
+    userMessage: run.input?.userMessage,
+    rootUserMessageId: run.input?.sourceMessageId,
+    config: { provider: 'backend-model-config', model: 'test-model', modelConfigId: 1 } as any,
+    modelRouter: router,
+    auth: {},
+    policy,
+    mcpClient: {
+      initialize: async () => null,
+      callTool: async () => ({}),
+    },
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    registry: DEFAULT_TOOL_REGISTRY,
+    catalogManager: {
+      inspectAgentCatalog: () => ({
+        status: 'ok',
+        catalogSnapshot: { id: 'snapshot_1', version: 'catalog_v1' },
+        view: 'summary',
+        counts: { packs: 2, enabledPacks: 1, skills: 12, tools: 8, knowledge: 0, profiles: 1 },
+        enabledPackIds: ['movscript.pack.default'],
+        activeSkillIds: ['movscript.policy.agent-core', 'movscript.workflow.script-reading'],
+        availableSkillIds: ['movscript.workflow.script-reading', 'movscript.workflow.asset-proposal'],
+      }),
+      updateActiveSkills: () => ({}),
+      createAgentPlan: () => ({}),
+      getAgentPlan: () => ({}),
+      replanAgentPlan: () => ({}),
+      spawnSubagent: () => ({}),
+      listSubagents: () => ({}),
+      waitSubagent: () => ({}),
+      cancelSubagent: () => ({}),
+    },
+    onTrace: (trace) => {
+      if (trace.kind === 'tool_call' && trace.toolName === 'movscript_inspect_agent_catalog' && trace.summary) traceSummaries.push(trace.summary)
+    },
+    onStepCreate: () => 'step_1',
+    onStepComplete: () => undefined,
+  })
+
+  assert.equal(result.status, 'completed')
+  assert.match(traceSummaries.join('\n'), /catalog summary/)
+  assert.match(traceSummaries.join('\n'), /active=movscript\.policy\.agent-core, movscript\.workflow\.script-reading/)
+  assert.match(traceSummaries.join('\n'), /available=movscript\.workflow\.script-reading, movscript\.workflow\.asset-proposal/)
+  assert.match(traceSummaries.join('\n'), /packs=movscript\.pack\.default/)
+  assert.match(traceSummaries.join('\n'), /tools=8, skills=12/)
+})
+
 test('runAgentGraph loads script reading skill when model calls project script tool before it is active', async () => {
   const run: AgentRun = {
     id: 'run_script_repair',
     threadId: 'thread_1',
     status: 'queued',
     policy,
-    role: 'chat',
+    role: 'planner',
     createdAt: '2026-05-16T00:00:00.000Z',
     updatedAt: '2026-05-16T00:00:00.000Z',
     steps: [],
@@ -201,6 +456,8 @@ test('runAgentGraph loads script reading skill when model calls project script t
   ])
   const updateInputs: unknown[] = []
   const traceSummaries: string[] = []
+  const catalogRefreshSummaries: string[] = []
+  const catalogRefreshData: unknown[] = []
   let modelCallCount = 0
   const router: RuntimeModelRouter = {
     resolve: () => ({
@@ -288,7 +545,6 @@ test('runAgentGraph loads script reading skill when model calls project script t
           activeSkillIds: ['movscript.workflow.script-reading'],
         }
       },
-      reloadAgentCatalog: () => ({}),
       createAgentPlan: () => ({}),
       getAgentPlan: () => ({}),
       replanAgentPlan: () => ({}),
@@ -298,7 +554,13 @@ test('runAgentGraph loads script reading skill when model calls project script t
       cancelSubagent: () => ({}),
     },
     onCatalogRefresh: async () => ({
-      manifest,
+      manifest: {
+        ...manifest,
+        tools: [
+          ...manifest.tools,
+          { name: 'movscript_read_project_scripts', mode: 'allow', approval: 'never' },
+        ],
+      },
       capabilities: {
         discovered: [updateActiveSkillsTool, activeReadScriptsTool],
         available: [updateActiveSkillsTool, activeReadScriptsTool],
@@ -324,6 +586,10 @@ test('runAgentGraph loads script reading skill when model calls project script t
     }),
     onTrace: (trace) => {
       if (trace.kind === 'tool_call' && trace.toolName === 'movscript_update_active_skills' && trace.summary) traceSummaries.push(trace.summary)
+      if (trace.kind === 'tool_catalog' && trace.title === 'Agent catalog refreshed') {
+        if (trace.summary) catalogRefreshSummaries.push(trace.summary)
+        catalogRefreshData.push(trace.data)
+      }
     },
     onStepCreate: () => 'step_1',
     onStepComplete: () => undefined,
@@ -335,5 +601,9 @@ test('runAgentGraph loads script reading skill when model calls project script t
     reason: '读取项目剧本需要加载剧本读取 workflow。',
   }])
   assert.match(traceSummaries.join('\n'), /loaded=movscript\.workflow\.script-reading/)
+  assert.match(catalogRefreshSummaries.join('\n'), /manifest=test\.core-only/)
+  assert.match(catalogRefreshSummaries.join('\n'), /movscript_read_project_scripts=available\/granted/)
+  assert.equal((catalogRefreshData[0] as any)?.manifest?.tools?.some((grant: any) => grant.name === 'movscript_read_project_scripts'), true)
+  assert.equal((catalogRefreshData[0] as any)?.capabilitySnapshot?.keyTools?.some((tool: any) => tool.name === 'movscript_read_project_scripts' && tool.available === true && tool.granted === true), true)
   if (result.status === 'completed') assert.equal(result.finalContent, 'skill loaded')
 })

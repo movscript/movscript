@@ -6,7 +6,7 @@ import { isValidAgentEntityId, type AgentContext } from '../context/runtimeConte
 import { buildDebugContext } from '../context/debugContext.js'
 import type { AgentRuntimeContract, AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
 import type { AgentMemory } from '../memory/types.js'
-import { resolveRuntimeLayers, type RuntimeLayerResolution } from '../skills/runtimeLayerResolver.js'
+import { addSkillToolGrantsToManifest, resolveRuntimeLayers, type RuntimeLayerResolution } from '../skills/runtimeLayerResolver.js'
 import { activeSkillStateFromRun } from '../skills/activeSkillState.js'
 import type { AgentStore } from '../state/store.js'
 import type {
@@ -80,9 +80,9 @@ export async function resolveRuntimeRunSetup(input: {
     baseDebugContext.productionId = input.context.currentProductionId
   }
 
-  const shouldUseLayeredRuntime = input.run.metadata?.manifestSource === 'default'
-    && input.catalogSnapshot.layeredRegistry.profiles.size > 0
   const activeSkillState = activeSkillStateFromRun(input.run)
+  const shouldUseLayeredRuntime = input.catalogSnapshot.layeredRegistry.profiles.size > 0
+    && (input.run.metadata?.manifestSource === 'default' || activeSkillState.loadedSkillIds.length > 0 || activeSkillState.unloadedSkillIds.length > 0)
   const layers = shouldUseLayeredRuntime
     ? resolveRuntimeLayers({
       registry: input.catalogSnapshot.layeredRegistry,
@@ -96,7 +96,22 @@ export async function resolveRuntimeRunSetup(input: {
     })
     : undefined
 
-  const activeManifest = layers?.manifest ?? agentManifest
+  const activeManifest = layers?.manifest
+    ? input.run.metadata?.manifestSource === 'default'
+      ? layers.manifest
+      : addSkillToolGrantsToManifest({
+        ...agentManifest,
+        metadata: {
+          ...(agentManifest.metadata ?? {}),
+          ...(layers.manifest.metadata?.resolvedFrom ? { resolvedFrom: layers.manifest.metadata.resolvedFrom } : {}),
+          ...(layers.manifest.metadata?.profileId ? { profileId: layers.manifest.metadata.profileId } : {}),
+          ...(layers.manifest.metadata?.profileVersion ? { profileVersion: layers.manifest.metadata.profileVersion } : {}),
+        },
+      }, {
+        registry: input.catalogSnapshot.layeredRegistry,
+        skillIds: layers.skills.map((skill) => skill.id),
+      })
+    : agentManifest
   input.run.agentManifest = activeManifest
   const runtimeContract = input.contractResolver.find(activeManifest)
   const skills = layers?.skills ?? []

@@ -615,6 +615,7 @@ export interface RuntimeModelTestResult {
   ok: boolean
   provider: string
   model: string
+  apiKind?: 'openai_chat_completions' | 'openai_responses' | 'anthropic_messages'
   modelConfigId?: number
   latencyMs: number
   content: string
@@ -989,7 +990,16 @@ export class LocalAgentClient {
     return withRuntimeModelConfigError(this.deleteJSON('/model-config'))
   }
 
-  testModelConfig(input: { message?: string } = {}): Promise<RuntimeModelTestResult> {
+  testModelConfig(input: {
+    message?: string
+    modelConfigId?: number
+    model?: string
+    apiKind?: 'openai_chat_completions' | 'openai_responses' | 'anthropic_messages'
+    baseURL?: string
+    apiKey?: string
+    useForChat?: boolean
+    useForPlanner?: boolean
+  } = {}): Promise<RuntimeModelTestResult> {
     return withRuntimeModelConfigError(this.postJSON('/model-config/test', input))
   }
 

@@ -587,6 +587,68 @@ test('manual script reading skill is discovered before it exposes script tools',
   assert.equal(loadedTools.byName.movscript_read_project_scripts?.available, true)
 })
 
+test('manual script reading skill overrides tool-policy deny for its script tool', () => {
+  const catalog = loadAgentPluginCatalog()
+  const message = '请查看 projectId=5 的总剧本'
+  const debugContext = {
+    route: { pathname: '/project/scripts' },
+    projects: [{ id: 5, name: '好运甜妻' }],
+    project: { id: 5, name: '好运甜妻' },
+    selection: null,
+    recentResources: [],
+    attachments: [],
+    memories: [],
+    labels: [],
+  }
+  const defaultToolGrants = catalog.manifest.tools.map((grant) => ({
+    ...grant,
+    mode: grant.name === 'movscript_read_project_scripts' ? 'deny' as const : grant.mode,
+  }))
+
+  const coreOnly = resolveRuntimeLayers({
+    registry: catalog.layeredRegistry,
+    baseManifest: {
+      ...catalog.manifest,
+      metadata: {
+        ...(catalog.manifest.metadata ?? {}),
+        profileId: 'movscript.profile.default.tool-policy',
+        defaultToolGrants,
+      },
+    },
+    message,
+    debugContext,
+  })
+  const coreTools = resolveToolCatalog({
+    mcpTools: [],
+    registry: catalog.registry,
+    manifest: coreOnly.manifest,
+    currentProjectId: 5,
+    activeSkills: coreOnly.skills,
+    userMessage: message,
+  })
+  assert.equal(coreTools.byName.movscript_read_project_scripts?.available, false)
+  assert.equal(coreTools.byName.movscript_read_project_scripts?.unavailableReason, 'denied')
+
+  const loaded = resolveRuntimeLayers({
+    registry: catalog.layeredRegistry,
+    baseManifest: coreOnly.manifest,
+    message,
+    debugContext,
+    requestedSkillIds: ['movscript.workflow.script-reading'],
+  })
+  assert.equal(loaded.manifest.tools.find((grant) => grant.name === 'movscript_read_project_scripts')?.mode, 'allow')
+  const loadedTools = resolveToolCatalog({
+    mcpTools: [],
+    registry: catalog.registry,
+    manifest: loaded.manifest,
+    currentProjectId: 5,
+    activeSkills: loaded.skills,
+    userMessage: message,
+  })
+  assert.equal(loadedTools.byName.movscript_read_project_scripts?.available, true)
+  assert.equal(loadedTools.byName.movscript_read_project_scripts?.granted, true)
+})
+
 test('visual generation prompt exposes backend generation validation error codes', () => {
   const catalog = loadAgentPluginCatalog()
   const visualGeneration = catalog.layeredRegistry.skills.get('movscript.workflow.visual-generation')

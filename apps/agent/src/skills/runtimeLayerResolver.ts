@@ -1,4 +1,4 @@
-import type { AgentManifest } from '../catalog/agentManifest.js'
+import type { AgentManifest, AgentToolApprovalMode, AgentToolGrant } from '../catalog/agentManifest.js'
 import type { AgentProfile, CatalogRegistry, ExpertiseSkill, RuntimeContext, SkillDefinition, ToolGrant, WorkflowSkill } from '../catalog/types.js'
 import type { NormalizedClientInput } from '../context/normalizeClientInput.js'
 import type { SkillDiscoveryItem, SkillDiscoverySummary } from '../contextManager/modelContextBuilder.js'
@@ -105,7 +105,13 @@ export function resolveRuntimeLayers(input: {
     workflowTriggers: selected.trace,
   })
 
-  const manifest = manifestFromProfile(input.baseManifest, resolvedProfile.profile)
+  const manifest = addSkillToolGrantsToManifest(
+    manifestFromProfile(input.baseManifest, resolvedProfile.profile),
+    {
+      registry: input.registry,
+      skillIds: skills.map((skill) => skill.id),
+    },
+  )
   return {
     manifest,
     ctx,
@@ -122,6 +128,18 @@ export function resolveRuntimeLayers(input: {
       intentSignals: intentResolution.signals,
       workflowTriggers: selected.trace,
     },
+  }
+}
+
+export function addSkillToolGrantsToManifest(inputManifest: AgentManifest, input: {
+  registry: CatalogRegistry
+  skillIds: string[]
+}): AgentManifest {
+  const skillGrants = skillToolGrants(input.registry, input.skillIds)
+  if (skillGrants.length === 0) return inputManifest
+  return {
+    ...inputManifest,
+    tools: mergeAgentToolGrants(inputManifest.tools, skillGrants),
   }
 }
 
@@ -162,6 +180,59 @@ function mergeSkills<T extends SkillDefinition>(base: T[], extra: T[]): T[] {
   for (const skill of base) byId.set(skill.id, skill)
   for (const skill of extra) byId.set(skill.id, skill)
   return Array.from(byId.values())
+}
+
+function skillToolGrants(registry: CatalogRegistry, skillIds: string[]): AgentToolGrant[] {
+  const grants: AgentToolGrant[] = []
+  const seen = new Set<string>()
+  for (const id of skillIds) {
+    const skill = registry.skills.get(id)
+    if (!skill || !('toolRefs' in skill)) continue
+    for (const ref of skill.toolRefs ?? []) {
+      const name = normalizeToolRef(ref)
+      if (seen.has(name)) continue
+      const tool = registry.tools.get(name)
+      if (!tool || tool.defaults.grant !== 'allow') continue
+      grants.push({
+        name,
+        mode: 'allow',
+        approval: tool.defaults.approval,
+      })
+      seen.add(name)
+    }
+  }
+  return grants
+}
+
+function mergeAgentToolGrants(base: AgentToolGrant[], extra: AgentToolGrant[]): AgentToolGrant[] {
+  const byName = new Map<string, AgentToolGrant>()
+  for (const grant of base) byName.set(grant.name, grant)
+  for (const grant of extra) {
+    const existing = byName.get(grant.name)
+    byName.set(grant.name, {
+      ...existing,
+      ...grant,
+      mode: 'allow',
+      ...(existing?.approval || grant.approval ? { approval: stricterAgentApproval(existing?.approval, grant.approval) } : {}),
+    })
+  }
+  return Array.from(byName.values())
+}
+
+function normalizeToolRef(value: string): string {
+  return value.startsWith('tool://') ? value.slice('tool://'.length) : value
+}
+
+function stricterAgentApproval(left?: AgentToolApprovalMode, right?: AgentToolApprovalMode): AgentToolApprovalMode | undefined {
+  if (!left) return right
+  if (!right) return left
+  return agentApprovalRank(right) > agentApprovalRank(left) ? right : left
+}
+
+function agentApprovalRank(value?: AgentToolApprovalMode): number {
+  if (value === 'always') return 2
+  if (value === 'on_write') return 1
+  return 0
 }
 
 function manifestFromProfile(baseManifest: AgentManifest, profile: RuntimeContext['profile']): AgentManifest {

@@ -224,9 +224,7 @@ const DYNAMIC_CATALOG_BASE_MANIFEST = {
   ...DEFAULT_AGENT_MANIFEST,
   id: 'movscript.test.dynamic-catalog-agent',
   name: 'Dynamic Catalog Test Agent',
-  tools: [
-    { name: 'movscript_reload_agent_catalog', mode: 'allow' as const, approval: 'never' as const },
-  ],
+  tools: [],
 }
 
 function toolResultForCall(toolMessages: Array<{ role: string; content: string | null }>, toolName: string): Record<string, unknown> | undefined {
@@ -3225,142 +3223,28 @@ test('in-flight runs keep their catalog snapshot across external reloads', async
   assert.equal(availableToolNames.includes('studio_snapshot_new'), false)
 })
 
-test('agent loop refreshes target-state tools after catalog reload in the same run', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-same-run-catalog-'))
-  const toolsDir = join(dir, 'tools')
-  const skillsDir = join(dir, 'skills')
-  const packsDir = join(dir, 'packs')
-  const profilesDir = join(dir, 'profiles')
-  const catalogStateStore = new InMemoryAgentCatalogStateStore()
+test('agent run tool catalog does not expose runtime catalog reload tool', async () => {
+  const runtime = createTestRuntime({ mcpClient: new FakeMCPClient() })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: 'can you reload the agent catalog?' }] })
   const originalFetch = globalThis.fetch
   try {
-    let exposeTool = false
-    const loader = () => {
-      if (exposeTool) {
-        writeJSONFile(toolsDir, 'dynamic.tool.json', {
-          name: 'studio_same_run_echo',
-          description: 'Echo after same-run catalog refresh.',
-          permission: 'project.read',
-          risk: 'read',
-          source: 'plugin',
-          pluginId: 'test.same-run',
-          inputSchema: {},
-          projectScoped: false,
-          defaults: { grant: 'allow', approval: 'never' },
-        })
-        writeJSONFile(skillsDir, 'dynamic.workflow.json', {
-          id: 'studio.workflow.same-run',
-          kind: 'workflow',
-          name: 'Same Run Echo',
-          description: 'Expose the same-run echo tool after catalog reload.',
-          triggers: [{ kind: 'always' }],
-          toolRefs: ['tool://studio_same_run_echo'],
-          instructionTemplate: 'Use the same-run echo tool after catalog reload.',
-        })
-        writeJSONFile(packsDir, 'dynamic.pack.json', {
-          id: 'studio.pack.same-run',
-          name: 'Same Run Test Pack',
-          source: 'plugin',
-          resources: {
-            skills: ['dynamic.workflow.json'],
-            tools: ['dynamic.tool.json'],
-          },
-          schemas: [],
-          tools: ['studio_same_run_echo'],
-          skills: ['studio.workflow.same-run'],
-        })
-        writeJSONFile(profilesDir, 'default.profile.json', {
-          schema: 'movscript.agent.profile.v1',
-          id: 'movscript.profile.default',
-          version: '1.0.0',
-          name: 'Same Run Test Profile',
-          enabledPacks: ['studio.pack.same-run'],
-          persona: null,
-          enabledWorkflows: [],
-          enabledPolicies: [],
-          toolGrants: [],
-        })
-      }
-      return loadAgentPluginCatalog({
-        skillsDir,
-        toolsDir,
-        packsDir,
-        profilesDir,
-        builtinSkillsDir: skillsDir,
-        builtinToolsDir: toolsDir,
-        builtinPacksDir: packsDir,
-        builtinProfilesDir: profilesDir,
-        baseManifest: DYNAMIC_CATALOG_BASE_MANIFEST,
-      })
-    }
-    const client = new FakeMCPClient()
-    client.projectId = 42
-    client.extraTools.push({ name: 'studio_same_run_echo', description: 'Echo after same-run catalog refresh.', inputSchema: {} })
-    client.toolResults.set('studio_same_run_echo', { ok: true, sameRun: true })
-    const runtime = createTestRuntime({
-      mcpClient: client,
-      catalogStateStore,
-      pluginCatalogLoader: loader,
-    })
-    let turn = 0
     globalThis.fetch = (async (_url, init) => {
       const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, any>
       const messages = (body.messages as Array<{ role: string; content: string | null }>) ?? []
       if (isThreadTitleRequest(messages)) {
-        return new Response(JSON.stringify({ choices: [{ message: { content: '动态目录加载' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+        return new Response(JSON.stringify({ choices: [{ message: { content: '目录重载不可由运行调用' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
       }
-      turn += 1
       const toolNames = new Set(((body.tools as any[]) ?? []).map((tool) => tool.function.name))
-      if (turn === 1) {
-        assert.equal(toolNames.has('movscript_reload_agent_catalog'), true)
-        assert.equal(toolNames.has('studio_same_run_echo'), false)
-        exposeTool = true
-        return new Response(JSON.stringify({
-          choices: [{
-            message: {
-              content: null,
-              tool_calls: [{
-                id: 'call_reload_catalog',
-                type: 'function',
-                function: { name: 'movscript_reload_agent_catalog', arguments: JSON.stringify({}) },
-              }],
-            },
-            finish_reason: 'tool_calls',
-          }],
-        }), { status: 200, headers: { 'content-type': 'application/json' } })
-      }
-      if (turn === 2) {
-        assert.equal(toolNames.has('studio_same_run_echo'), true)
-        return new Response(JSON.stringify({
-          choices: [{
-            message: {
-              content: null,
-              tool_calls: [{
-                id: 'call_same_run_echo',
-                type: 'function',
-                function: { name: 'studio_same_run_echo', arguments: JSON.stringify({ input: 'same run' }) },
-              }],
-            },
-            finish_reason: 'tool_calls',
-          }],
-        }), { status: 200, headers: { 'content-type': 'application/json' } })
-      }
-      return new Response(JSON.stringify({ choices: [{ message: { content: 'same-run catalog done' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      assert.equal(toolNames.has('movscript_reload_agent_catalog'), false)
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'catalog reload is not a run tool' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
     }) as typeof fetch
 
-    const thread = runtime.createThread({ messages: [{ role: 'user', content: 'same run catalog load please' }] })
-    const run = await createAndWaitForRun(runtime, thread.id, {
-      approvedToolNames: ['movscript_reload_agent_catalog'],
-    })
+    const run = await createAndWaitForRun(runtime, thread.id)
 
-    assert.equal(run.warnings?.join('\n') ?? '', '')
-    assert.equal(client.calls.some((call) => call.name === 'studio_same_run_echo'), true)
-    assert.equal(run.steps.some((step) => step.toolName === 'movscript_reload_agent_catalog'), true)
-    assert.equal(run.steps.some((step) => step.toolName === 'studio_same_run_echo'), true)
-    assert.equal(runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER }).some((event) => event.title === 'Agent catalog refreshed'), true)
+    assert.equal(run.status, 'completed')
+    assert.equal(run.steps.some((step) => step.toolName === 'movscript_reload_agent_catalog'), false)
   } finally {
     globalThis.fetch = originalFetch
-    rmSync(dir, { recursive: true, force: true })
   }
 })
 
