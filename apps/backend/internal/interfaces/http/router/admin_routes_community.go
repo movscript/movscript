@@ -95,6 +95,12 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	// debug
 	admin.POST("/debug/raw-call", h.debug.RawCall)
 	admin.POST("/debug/provider-call", h.debug.ProviderCall)
+	admin.GET("/debug/llm-calls", h.debug.ListLLMCallLogs)
+	admin.GET("/debug/llm-calls/summary", h.debug.LLMCallLogSummary)
+	admin.GET("/debug/llm-calls/settings", h.debug.GetLLMCallLogSettings)
+	admin.PUT("/debug/llm-calls/settings", h.debug.UpdateLLMCallLogSettings)
+	admin.POST("/debug/llm-calls/purge-expired", h.debug.PurgeExpiredLLMCallLogs)
+	admin.PATCH("/debug/llm-calls/:id/expiration", h.debug.UpdateLLMCallLogExpiration)
 	admin.GET("/debug/jobs", h.debug.ListJobs)
 	admin.GET("/debug/job-stats", h.debug.JobStats)
 	admin.GET("/debug/health", h.debug.SystemHealth)

@@ -70,7 +70,7 @@ test('buildModelToolResultContext keeps script bodies up to the inline limit in 
         id: 3,
         title: '好运甜妻',
         content: '甜'.repeat(20000),
-        extra: 'x'.repeat(12000),
+        extra: 'x'.repeat(21000),
       }],
     },
   })

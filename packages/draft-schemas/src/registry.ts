@@ -81,7 +81,9 @@ export const projectProposalSchema = {
   title: 'Project Proposal',
   version: '1.0.0',
   status: 'active',
-  jsonSchema: objectSchema(['proposal'], {
+  jsonSchema: objectSchema(['schema', 'scope', 'proposal'], {
+    schema: { const: 'movscript.project_proposal.v1' },
+    scope: { const: 'project_proposal' },
     mode: proposalModeSchema,
     snapshot_base: { type: 'object' },
     proposal: objectSchema([], {
@@ -108,7 +110,7 @@ export const projectProposalSchema = {
     '# movscript.project_proposal.v1',
     '',
     'Content shape:',
-    '{ mode: "snapshot", proposal: { project_style: { aspect_ratio?, shot_size_system?, camera_language?, visual_style?, lighting_style?, color_palette?, pacing_rules?, negative_rules?, custom_rules?: Array<{ id?, key, label, category?, value, prompt_role?, enabled?, required?, order? }> } }, snapshot_base?, impact_notes?, summary? }',
+    '{ schema: "movscript.project_proposal.v1", scope: "project_proposal", mode: "snapshot", proposal: { project_style: { aspect_ratio?, shot_size_system?, camera_language?, visual_style?, lighting_style?, color_palette?, pacing_rules?, negative_rules?, custom_rules?: Array<{ id?, key, label, category?, value, prompt_role?, enabled?, required?, order? }> } }, snapshot_base?, impact_notes?: string[], summary? }',
     '',
     'Rules:',
     '- Project proposal owns project-wide production standards: shot sizes, aspect ratio, camera language, style, lighting, color, pacing, and negative rules.',
@@ -120,6 +122,9 @@ export const projectProposalSchema = {
   examples: [{
     name: 'basic',
     content: {
+      schema: 'movscript.project_proposal.v1',
+      scope: 'project_proposal',
+      mode: 'snapshot',
       proposal: {
         project_style: {
           aspect_ratio: '9:16',
@@ -151,7 +156,9 @@ export const settingProposalSchema = {
   title: 'Setting Proposal',
   version: '1.0.0',
   status: 'active',
-  jsonSchema: objectSchema(['proposal'], {
+  jsonSchema: objectSchema(['schema', 'scope', 'proposal'], {
+    schema: { const: 'movscript.setting_proposal.v1' },
+    scope: { const: 'setting_proposal' },
     mode: proposalModeSchema,
     snapshot_base: { type: 'object' },
     proposal: objectSchema([], {
@@ -169,7 +176,7 @@ export const settingProposalSchema = {
     '# movscript.setting_proposal.v1',
     '',
     'Content shape:',
-    '{ mode: "snapshot", proposal: { creative_references?: Array<{ id?, client_id?, name, kind?, description?, status?, merge_candidates? }>, asset_slots?: [] }, snapshot_base?, impact_notes?, summary? }',
+    '{ schema: "movscript.setting_proposal.v1", scope: "setting_proposal", mode: "snapshot", proposal: { creative_references?: Array<{ id?, client_id?, name, kind?, description?, status?, merge_candidates? }>, asset_slots?: [] }, snapshot_base?, impact_notes?: string, summary? }',
     '',
     'Rules:',
     '- Setting proposals only create, update, merge, or retire creative_references.',
@@ -179,6 +186,9 @@ export const settingProposalSchema = {
   examples: [{
     name: 'basic',
     content: {
+      schema: 'movscript.setting_proposal.v1',
+      scope: 'setting_proposal',
+      mode: 'snapshot',
       proposal: {
         creative_references: [{
           client_id: 'ref-hero',
@@ -200,7 +210,8 @@ export const productionProposalSchema = {
   title: 'Production Proposal',
   version: '1.0.0',
   status: 'active',
-  jsonSchema: objectSchema(['mode', 'productionId', 'proposalScope', 'proposal'], {
+  jsonSchema: objectSchema(['schema', 'mode', 'productionId', 'proposalScope', 'proposal'], {
+    schema: { const: 'movscript.production_proposal.v1' },
     mode: { const: 'snapshot' },
     snapshot_base: { type: 'object' },
     productionId: { type: 'number' },
@@ -303,7 +314,7 @@ export const productionProposalSchema = {
     '# movscript.production_proposal.v1',
     '',
     'Content shape:',
-    '{ mode: "snapshot", productionId: number, proposalScope: "production", proposal: { segments: Array<{ id?, client_id?, title, kind?, summary?, order?, status?, script_block_id?, scene_moments: Array<{ id?, client_id?, title, time_text?, location_text?, action_text?, mood?, description?, order?, status?, script_block_id?, content_units?: Array<{ id?, client_id?, title, kind, description?, keyframes? }>, keyframes?: Array<{ id?, client_id?, title, description?, prompt? }>, creative_references?: Array<{ id, role? }>, asset_slots?: Array<{ id?, client_id?, name, kind, description?, priority? }> }> }> }, snapshot_base?, impact_notes?, summary? }',
+    '{ schema: "movscript.production_proposal.v1", mode: "snapshot", productionId: number, proposalScope: "production", proposal: { segments: Array<{ id?, client_id?, title, kind?, summary?, order?, status?, script_block_id?, scene_moments: Array<{ id?, client_id?, title, time_text?, location_text?, action_text?, mood?, description?, order?, status?, script_block_id?, content_units?: Array<{ id?, client_id?, title, kind, description?, keyframes? }>, keyframes?: Array<{ id?, client_id?, title, description?, prompt? }>, creative_references?: Array<{ id, role? }>, asset_slots?: Array<{ id?, client_id?, name, kind, description?, priority? }> }> }> }, snapshot_base?, impact_notes?: string, summary? }',
     '',
     'Rules:',
     '- productionId is required and must match the selected production.',
@@ -317,6 +328,7 @@ export const productionProposalSchema = {
   examples: [{
     name: 'basic',
     content: {
+      schema: 'movscript.production_proposal.v1',
       mode: 'snapshot',
       productionId: 1,
       proposalScope: 'production',
@@ -420,7 +432,9 @@ export const assetProposalSchema = {
   title: 'Asset Proposal',
   version: '1.0.0',
   status: 'active',
-  jsonSchema: objectSchema(['proposal'], {
+  jsonSchema: objectSchema(['schema', 'scope', 'proposal'], {
+    schema: { const: 'movscript.asset_proposal.v1' },
+    scope: { const: 'asset_proposal' },
     mode: proposalModeSchema,
     snapshot_base: { type: 'object' },
     projectId: { type: 'number' },
@@ -459,7 +473,7 @@ export const assetProposalSchema = {
     '# movscript.asset_proposal.v1',
     '',
     'Content shape:',
-    '{ mode: "snapshot", proposal: { creative_references?: [], asset_slots?: Array<{ id?, client_id?, owner?: { type, id? }, name, kind, description?, priority?, status? }>, candidate_plans?: Array<{ output_kind, prompt, input_resource_ids?, acceptance_criteria?, risks? }> }, assetSlotId?, slot?, context?, snapshot_base?, impact_notes?, summary?, next_actions? }',
+    '{ schema: "movscript.asset_proposal.v1", scope: "asset_proposal", mode: "snapshot", proposal: { creative_references?: [], asset_slots?: Array<{ id?, client_id?, owner?: { type, id? }, name, kind, description?, priority?, status? }>, candidate_plans?: Array<{ output_kind, prompt, input_resource_ids?, acceptance_criteria?, risks? }> }, assetSlotId?, slot?, context?, snapshot_base?, impact_notes?: string, summary?, next_actions? }',
     '',
     'Rules:',
     '- Asset proposal is the single draft kind for project asset slots and per-slot candidate planning.',
@@ -472,6 +486,9 @@ export const assetProposalSchema = {
   examples: [{
     name: 'asset-slot-requirement',
     content: {
+      schema: 'movscript.asset_proposal.v1',
+      scope: 'asset_proposal',
+      mode: 'snapshot',
       proposal: {
         creative_references: [],
         asset_slots: [{
@@ -487,6 +504,9 @@ export const assetProposalSchema = {
   }, {
     name: 'candidate-plan',
     content: {
+      schema: 'movscript.asset_proposal.v1',
+      scope: 'asset_proposal',
+      mode: 'snapshot',
       assetSlotId: 1,
       slot: { id: 1, name: 'Hero portrait', kind: 'image' },
       proposal: {

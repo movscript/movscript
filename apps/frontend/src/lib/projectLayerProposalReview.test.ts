@@ -127,3 +127,35 @@ test('buildProjectLayerDraftContentForEntries keeps unselected backend rows in s
   assert.equal(payload.proposal.creative_references.find((item: any) => item.id === 7)?.description, '新的角色说明')
   assert.equal(payload.proposal.creative_references.find((item: any) => item.id === 8)?.description, '保留不动')
 })
+
+test('buildProjectLayerDraftContentForEntries scopes asset proposal payload to asset slots', () => {
+  const sourceDraft = draft({
+    id: 'asset-draft',
+    kind: 'asset_proposal',
+    content: JSON.stringify({
+      schema: 'movscript.asset_proposal.v1',
+      scope: 'asset_proposal',
+      mode: 'snapshot',
+      proposal: {
+        creative_references: [{ id: 7, name: '草稿内设定' }],
+        asset_slots: [
+          { name: '角色头像', kind: 'image', owner: { type: 'creative_reference', client_id: 'hero_ref' } },
+        ],
+      },
+    }),
+  })
+  const data = {
+    creativeReferences: [
+      { ID: 7, name: '已入库角色', description: '当前设定' },
+    ],
+    assetSlots: [
+      { ID: 12, name: '旧头像', kind: 'image', creative_reference_id: 7 },
+    ],
+  }
+  const view = parseProjectLayerProposalDraft(sourceDraft, data, { includeCreativeReferences: false })
+  const payload = JSON.parse(buildProjectLayerDraftContentForEntries(sourceDraft, [view!.assetSlots[0]!], data)) as Record<string, any>
+
+  assert.equal(payload.mode, 'snapshot')
+  assert.deepEqual(payload.proposal.creative_references, [])
+  assert.deepEqual(payload.proposal.asset_slots.map((item: any) => item.name).sort(), ['旧头像', '角色头像'])
+})

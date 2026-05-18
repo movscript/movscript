@@ -844,6 +844,7 @@ export interface RunMessageOptions {
   onStreamEvent?: (event: AgentRunStreamEvent) => void
   onAssistantDelta?: (event: Extract<AgentRunStreamEvent, { type: 'assistant_delta' }>) => void
   timeoutMs?: number
+  streamRequestTimeoutMs?: number
   pollMs?: number
   agentManifest?: AgentManifest
   runPolicy?: AgentRunPolicyOverride
@@ -851,6 +852,7 @@ export interface RunMessageOptions {
 }
 
 const DEFAULT_LOCAL_AGENT_BASE_URL = 'http://127.0.0.1:28765'
+const DEFAULT_RUN_STREAM_HTTP_TIMEOUT_MS = 60_000
 const TERMINAL_RUN_STATUSES = new Set<AgentRunStatus>([
   'completed',
   'completed_with_warnings',
@@ -1116,108 +1118,143 @@ export class LocalAgentClient {
   }
 
   async streamRun(runId: string, options: RunMessageOptions = {}): Promise<AgentRun> {
-    const controller = new AbortController()
-    let timedOut = false
+    const overallStartedAt = Date.now()
+    const overallTimeoutMs = normalizePositiveTimeoutMs(options.timeoutMs)
+    const streamRequestTimeoutMs = normalizePositiveTimeoutMs(options.streamRequestTimeoutMs) ?? DEFAULT_RUN_STREAM_HTTP_TIMEOUT_MS
     let lastKnownRun: AgentRun | undefined
     const timeoutMs = options.timeoutMs ?? 30_000
     const externalSignal = options.signal
-    const abortFromExternal = () => {
-      if (!controller.signal.aborted) controller.abort(externalSignal?.reason)
-    }
-    if (externalSignal?.aborted) abortFromExternal()
-    else externalSignal?.addEventListener('abort', abortFromExternal, { once: true })
     const fullRunOrLatest = async (run: AgentRun): Promise<AgentRun> => {
       if (run.streamPartial) {
-        const fullRun = await this.getRun(run.id, controller.signal).catch(() => undefined)
+        const fullRun = await this.getRun(run.id, externalSignal).catch(() => undefined)
         if (fullRun) return fullRun
       }
       return run
     }
-    const timeout = options.timeoutMs
-      ? globalThis.setTimeout(() => {
-        timedOut = true
-        controller.abort()
-      }, timeoutMs)
-      : undefined
-    try {
-      const res = await fetch(`${this.baseURL}/runs/${encodeURIComponent(runId)}/stream`, {
-        headers: this.authHeaders({ Accept: 'text/event-stream' }),
-        signal: controller.signal,
-      })
-      if (!res.ok) throw await localAgentResponseError(res)
-      if (!res.body) return await this.waitForRun(runId, { ...options, signal: controller.signal })
 
-      let latestRun = await this.getRun(runId, controller.signal)
-      lastKnownRun = latestRun
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      const processBlock = (block: string): AgentRun | undefined => {
-        const parsed = parseSSEBlock(block)
-        if (!parsed) return undefined
-        let event: AgentRunStreamEvent
-        try {
-          event = JSON.parse(parsed.data) as AgentRunStreamEvent
-        } catch {
-          return undefined
+    let streamRequestCount = 0
+    while (true) {
+      if (externalSignal?.aborted) throw externalSignal.reason ?? createLocalAgentAbortError()
+      const remainingOverallMs = overallTimeoutMs === undefined
+        ? undefined
+        : overallTimeoutMs - (Date.now() - overallStartedAt)
+      if (remainingOverallMs !== undefined && remainingOverallMs <= 0) {
+        const latestRun = await this.getRun(runId, externalSignal).catch(() => undefined)
+        if (latestRun) {
+          lastKnownRun = latestRun
+          options.onRunUpdate?.(latestRun)
+          if (TERMINAL_RUN_STATUSES.has(latestRun.status)) return await fullRunOrLatest(latestRun)
         }
-        options.onStreamEvent?.(event)
-        if ('run' in event && event.run) {
-          latestRun = event.run
-          lastKnownRun = event.run
+        throw new Error(`local runtime stream for run ${runId} timed out after ${timeoutMs}ms across ${streamRequestCount} HTTP request${streamRequestCount === 1 ? '' : 's'}`)
+      }
+
+      const controller = new AbortController()
+      let streamRequestTimedOut = false
+      const abortFromExternal = () => {
+        if (!controller.signal.aborted) controller.abort(externalSignal?.reason)
+      }
+      if (externalSignal?.aborted) abortFromExternal()
+      else externalSignal?.addEventListener('abort', abortFromExternal, { once: true })
+
+      const requestTimeoutMs = Math.max(1, Math.min(streamRequestTimeoutMs, remainingOverallMs ?? streamRequestTimeoutMs))
+      const requestTimeout = globalThis.setTimeout(() => {
+        streamRequestTimedOut = true
+        controller.abort(createLocalAgentAbortError())
+      }, requestTimeoutMs)
+
+      try {
+        streamRequestCount += 1
+        const attempt = await this.readRunStreamAttempt(runId, options, controller.signal)
+        lastKnownRun = attempt.run
+        if (TERMINAL_RUN_STATUSES.has(attempt.run.status)) return await fullRunOrLatest(attempt.run)
+        options.onRunUpdate?.(attempt.run)
+      } catch (error) {
+        if (externalSignal?.aborted) throw externalSignal.reason ?? createLocalAgentAbortError()
+
+        const latestRun = await this.getRun(runId, externalSignal).catch(() => undefined)
+        if (latestRun) {
+          lastKnownRun = latestRun
+          options.onRunUpdate?.(latestRun)
+          if (TERMINAL_RUN_STATUSES.has(latestRun.status)) return await fullRunOrLatest(latestRun)
         }
-        if ((event.type === 'run' || event.type === 'done' || event.type === 'assistant_message') && event.run) {
-          options.onRunUpdate?.(event.run)
+
+        if (streamRequestTimedOut || (latestRun && isRetryableRunStreamError(error))) {
+          continue
         }
-        if (event.type === 'assistant_delta') {
-          options.onAssistantDelta?.(event)
-        }
-        if (TERMINAL_RUN_STATUSES.has(latestRun.status)) return latestRun
+
+        const fallbackRun = lastKnownRun ?? latestRun
+        if (fallbackRun && TERMINAL_RUN_STATUSES.has(fallbackRun.status)) return await fullRunOrLatest(fallbackRun)
+        throw error
+      } finally {
+        globalThis.clearTimeout(requestTimeout)
+        externalSignal?.removeEventListener('abort', abortFromExternal)
+      }
+    }
+  }
+
+  private async readRunStreamAttempt(runId: string, options: RunMessageOptions, signal: AbortSignal): Promise<{ run: AgentRun }> {
+    const res = await fetch(`${this.baseURL}/runs/${encodeURIComponent(runId)}/stream`, {
+      headers: this.authHeaders({ Accept: 'text/event-stream' }),
+      signal,
+    })
+    if (!res.ok) throw await localAgentResponseError(res)
+    if (!res.body) return { run: await this.waitForRun(runId, { ...options, signal }) }
+
+    let latestRun = await this.getRun(runId, signal)
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    const processBlock = (block: string): AgentRun | undefined => {
+      const parsed = parseSSEBlock(block)
+      if (!parsed) return undefined
+      let event: AgentRunStreamEvent
+      try {
+        event = JSON.parse(parsed.data) as AgentRunStreamEvent
+      } catch {
         return undefined
       }
-      const finishFromStream = async (run: AgentRun): Promise<AgentRun> => {
-        await reader.cancel().catch(() => undefined)
-        return fullRunOrLatest(run)
+      options.onStreamEvent?.(event)
+      if ('run' in event && event.run) {
+        latestRun = event.run
       }
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        let normalized = buffer.replace(/\r\n/g, '\n')
-        let separatorIndex = normalized.indexOf('\n\n')
-        while (separatorIndex >= 0) {
-          const terminalRun = processBlock(normalized.slice(0, separatorIndex))
-          if (terminalRun) return await finishFromStream(terminalRun)
-          normalized = normalized.slice(separatorIndex + 2)
-          separatorIndex = normalized.indexOf('\n\n')
-        }
-        buffer = normalized
+      if ((event.type === 'run' || event.type === 'done' || event.type === 'assistant_message') && event.run) {
+        options.onRunUpdate?.(event.run)
       }
-      const tail = decoder.decode()
-      if (tail) buffer += tail
-      if (buffer.trim()) {
-        const terminalRun = processBlock(buffer)
-        if (terminalRun) return await finishFromStream(terminalRun)
+      if (event.type === 'assistant_delta') {
+        options.onAssistantDelta?.(event)
       }
-      if (latestRun.streamPartial && TERMINAL_RUN_STATUSES.has(latestRun.status)) {
-        return await finishFromStream(latestRun)
-      }
-      return latestRun
-    } catch (error) {
-      if (timedOut) {
-        const latestRun = await this.getRun(runId, controller.signal).catch(() => undefined)
-        if (latestRun && TERMINAL_RUN_STATUSES.has(latestRun.status)) return latestRun
-        if (latestRun) options.onRunUpdate?.(latestRun)
-        throw new Error(`local runtime stream for run ${runId} timed out after ${timeoutMs}ms`)
-      }
-      const latestRun = lastKnownRun ?? await this.getRun(runId, controller.signal).catch(() => undefined)
-      if (latestRun && TERMINAL_RUN_STATUSES.has(latestRun.status)) return await fullRunOrLatest(latestRun)
-      throw error
-    } finally {
-      if (timeout !== undefined) globalThis.clearTimeout(timeout)
-      externalSignal?.removeEventListener('abort', abortFromExternal)
+      if (TERMINAL_RUN_STATUSES.has(latestRun.status)) return latestRun
+      return undefined
     }
+    const finishFromStream = async (run: AgentRun): Promise<{ run: AgentRun }> => {
+      await reader.cancel().catch(() => undefined)
+      return { run }
+    }
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      let normalized = buffer.replace(/\r\n/g, '\n')
+      let separatorIndex = normalized.indexOf('\n\n')
+      while (separatorIndex >= 0) {
+        const terminalRun = processBlock(normalized.slice(0, separatorIndex))
+        if (terminalRun) return await finishFromStream(terminalRun)
+        normalized = normalized.slice(separatorIndex + 2)
+        separatorIndex = normalized.indexOf('\n\n')
+      }
+      buffer = normalized
+    }
+    const tail = decoder.decode()
+    if (tail) buffer += tail
+    if (buffer.trim()) {
+      const terminalRun = processBlock(buffer)
+      if (terminalRun) return await finishFromStream(terminalRun)
+    }
+    if (latestRun.streamPartial && TERMINAL_RUN_STATUSES.has(latestRun.status)) {
+      return await finishFromStream(latestRun)
+    }
+    return { run: latestRun }
   }
 
   getThread(threadId: string, signal?: AbortSignal): Promise<AgentThread> {
@@ -1463,6 +1500,19 @@ function localAgentErrorMessage(text: string): string {
 
 function isLocalAgentErrorRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function normalizePositiveTimeoutMs(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
+}
+
+function isRetryableRunStreamError(error: unknown): boolean {
+  if (error instanceof LocalAgentHTTPError) return false
+  if (typeof DOMException !== 'undefined' && error instanceof DOMException && error.name === 'AbortError') return true
+  if (error instanceof Error) {
+    return error.name === 'AbortError' || error.name === 'TypeError'
+  }
+  return false
 }
 
 async function withRuntimeModelConfigError<T>(promise: Promise<T>): Promise<T> {

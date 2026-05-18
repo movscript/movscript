@@ -9,9 +9,9 @@ export type JobMonitorFilters = {
   modelConfigId: string
 }
 
-export type DebugTab = 'system' | 'provider-sandbox' | 'raw-call' | 'jobs' | 'connectivity'
+export type DebugTab = 'system' | 'llm-calls' | 'provider-sandbox' | 'raw-call' | 'jobs' | 'connectivity'
 
-export const DEBUG_TABS: DebugTab[] = ['system', 'provider-sandbox', 'raw-call', 'jobs', 'connectivity']
+export const DEBUG_TABS: DebugTab[] = ['system', 'llm-calls', 'provider-sandbox', 'raw-call', 'jobs', 'connectivity']
 
 export const emptyJobMonitorFilters: JobMonitorFilters = {
   jobId: '',

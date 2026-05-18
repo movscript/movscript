@@ -2130,6 +2130,7 @@
           "superseded": "Replaced"
         },
         "kinds": {
+          "setting_proposal": "Setting proposal",
           "script": "Script draft",
           "creative_reference": "Creative reference suggestion",
           "asset_slot": "Asset need",

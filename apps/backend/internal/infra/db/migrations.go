@@ -244,6 +244,20 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&persistencemodel.AIModelConfig{})
 			},
 		},
+		{
+			Version: "000025",
+			Name:    "add_llm_call_logs",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.LLMCallLog{})
+			},
+		},
+		{
+			Version: "000026",
+			Name:    "add_creative_reference_proposal_client_id",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.CreativeReference{})
+			},
+		},
 	}
 	return core
 }
@@ -724,6 +738,7 @@ func allModels() []any {
 		&persistencemodel.AIModelConfig{},
 		&persistencemodel.UsageReservation{},
 		&persistencemodel.UsageLog{},
+		&persistencemodel.LLMCallLog{},
 		&persistencemodel.ResourceFolder{},
 		&persistencemodel.ResourceFolderPermission{},
 		&persistencemodel.RawResource{},
@@ -794,6 +809,7 @@ func currentSchemaBackfillModels() []any {
 		&persistencemodel.AIModelConfig{},
 		&persistencemodel.UsageReservation{},
 		&persistencemodel.UsageLog{},
+		&persistencemodel.LLMCallLog{},
 		&persistencemodel.ResourceFolder{},
 		&persistencemodel.ResourceFolderPermission{},
 		&persistencemodel.RawResource{},

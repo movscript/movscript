@@ -1660,9 +1660,9 @@ async function hydrateDraftSeedInclude(kind: AgentDraftKind, projectId: number, 
     case 'project':
       return summarizeSeedValue(await backendGet(`/projects/${projectId}`))
     case 'creative_references':
-      return summarizeSeedValue(await backendList(`/projects/${projectId}/entities/creative-references`))
+      return summarizeSeedValue(activeDraftSeedCreativeReferences(await backendList(`/projects/${projectId}/entities/creative-references`)))
     case 'asset_slot_ownership':
-      return summarizeAssetSlotOwnership(await backendList(`/projects/${projectId}/entities/asset-slots`))
+      return summarizeAssetSlotOwnership(activeDraftSeedAssetSlots(await backendList(`/projects/${projectId}/entities/asset-slots`)))
     case 'production': {
       if (!productionId) return undefined
       const productions = await backendList(`/projects/${projectId}/entities/productions`)
@@ -1711,7 +1711,7 @@ async function hydrateDraftSeedInclude(kind: AgentDraftKind, projectId: number, 
         ? await backendList(`/projects/${projectId}/resources?ref_type=content_unit&ref_id=${encodeURIComponent(String(contentUnitId))}`)
         : await backendList(`/projects/${projectId}/resources`))
     case 'asset_slots': {
-      const slots = await backendList(`/projects/${projectId}/entities/asset-slots`)
+      const slots = activeDraftSeedAssetSlots(await backendList(`/projects/${projectId}/entities/asset-slots`))
       return summarizeSeedValue(contentUnitId
         ? slots.filter((slot) => slot.owner_type === 'content_unit' && numericValue(slot.owner_id) === contentUnitId)
         : sceneMomentId
@@ -1721,12 +1721,12 @@ async function hydrateDraftSeedInclude(kind: AgentDraftKind, projectId: number, 
             : slots)
     }
     case 'asset_slot_usages':
-      return summarizeAssetSlotOwnership(await backendList(`/projects/${projectId}/entities/asset-slots`))
+      return summarizeAssetSlotOwnership(activeDraftSeedAssetSlots(await backendList(`/projects/${projectId}/entities/asset-slots`)))
     case 'creative_reference_usages':
       return summarizeSeedValue(await backendList(`/projects/${projectId}/entities/creative-reference-usages`))
     case 'asset_slot': {
       if (!entityId) return undefined
-      const slots = await backendList(`/projects/${projectId}/entities/asset-slots`)
+      const slots = activeDraftSeedAssetSlots(await backendList(`/projects/${projectId}/entities/asset-slots`))
       return summarizeSeedValue(slots.find((slot) => numericValue(slot?.ID ?? slot?.id) === entityId) ?? null)
     }
     case 'asset_need':
@@ -1834,6 +1834,25 @@ function summarizeAssetSlotOwnership(slots: unknown[]): unknown[] {
       production_id: slot.production_id,
       UpdatedAt: slot.UpdatedAt ?? slot.updatedAt,
     }]
+  })
+}
+
+const inactiveDraftSeedCreativeReferenceStatuses = new Set(['ignored', 'merged'])
+const inactiveDraftSeedAssetSlotStatuses = new Set(['ignored', 'waived', 'merged'])
+
+function activeDraftSeedCreativeReferences(references: any[]): any[] {
+  return references.filter((reference) => {
+    if (!isRecord(reference)) return false
+    const status = normalizedStringField(reference, 'status')
+    return !status || !inactiveDraftSeedCreativeReferenceStatuses.has(status)
+  })
+}
+
+function activeDraftSeedAssetSlots(slots: any[]): any[] {
+  return slots.filter((slot) => {
+    if (!isRecord(slot)) return false
+    const status = normalizedStringField(slot, 'status')
+    return !status || !inactiveDraftSeedAssetSlotStatuses.has(status)
   })
 }
 

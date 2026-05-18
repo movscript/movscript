@@ -164,6 +164,46 @@ test('runMessageStream reports thread resolution on the streaming path', async (
   })
 })
 
+test('streamRun reconnects after a per-request stream timeout', async () => {
+  const requests: string[] = []
+  let streamRequests = 0
+  await withFetch(async (input, init) => {
+    const url = new URL(String(input))
+    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
+    if (url.pathname === '/runs/run_reconnect') {
+      const status = streamRequests >= 2 ? 'completed' : 'in_progress'
+      return jsonResponse(runFixture('run_reconnect', 'thread_stream', status))
+    }
+    if (url.pathname === '/runs/run_reconnect/stream') {
+      streamRequests += 1
+      if (streamRequests === 1) {
+        return await new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(createAbortError()), { once: true })
+        })
+      }
+      const run = runFixture('run_reconnect', 'thread_stream', 'completed')
+      return new Response(`data: ${JSON.stringify({ type: 'done', run })}\n\n`, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    }
+    return new Response('not found', { status: 404 })
+  }, async () => {
+    const result = await new LocalAgentClient('http://local.test').streamRun('run_reconnect', {
+      timeoutMs: 100,
+      streamRequestTimeoutMs: 1,
+      pollMs: 1,
+    })
+
+    assert.equal(result.status, 'completed')
+    assert.equal(streamRequests, 2)
+    assert.deepEqual(requests.filter((request) => request === 'GET /runs/run_reconnect/stream'), [
+      'GET /runs/run_reconnect/stream',
+      'GET /runs/run_reconnect/stream',
+    ])
+  })
+})
+
 test('trace reads preserve pagination and kind filters', async () => {
   const requests: string[] = []
   await withFetch(async (input) => {
@@ -253,6 +293,16 @@ function jsonResponse(value: unknown): Response {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   })
+}
+
+function createAbortError(): Error {
+  try {
+    return new DOMException('Aborted', 'AbortError')
+  } catch {
+    const error = new Error('Aborted')
+    error.name = 'AbortError'
+    return error
+  }
 }
 
 async function withFetch(fetchImpl: typeof fetch, fn: () => Promise<void>): Promise<void> {

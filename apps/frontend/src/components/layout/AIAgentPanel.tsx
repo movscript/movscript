@@ -4528,6 +4528,7 @@ function ChatView({
   }, [liveTraceEvents, pendingHttpEvents])
   const hasStreamingAssistantContent = !!streamingAssistantMessageId || !!streamingAssistantText.trim()
   const thinkingState = pendingAssistantState ?? getThinkingBubbleState(activeLocalRun, visibleActivityEvents)
+  const hasNonTerminalLocalRun = !!activeLocalRun && !isTerminalAgentRun(activeLocalRun)
   const generationTraceEvents = visibleActivityEvents.length > 0 ? visibleActivityEvents : (activeLocalRun?.traceEvents ?? [])
   const generationProgressState = generationProgressFromEvents(generationTraceEvents)
   const showGenerationProgressBubble = !!generationProgressState
@@ -4540,7 +4541,7 @@ function ChatView({
     && !showGenerationProgressBubble
   const showLiveRunActivityBubble = !pendingSendDraft
     && !hasStreamingAssistantContent
-    && (loading || buildingSendDraft || visibleActivityEvents.length > 0)
+    && (loading || buildingSendDraft || hasNonTerminalLocalRun)
     && !showGenerationProgressBubble
     && (visibleActivityEvents.length > 0 || !!activeLocalRun)
   const approvingLocalRun = conversationRuntime?.approving ?? false

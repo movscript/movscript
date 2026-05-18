@@ -755,8 +755,17 @@ test('draft model MCP tool hydrates asset proposal seed from allowed backend inc
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
     '/projects/42': { id: 42, name: 'Seed Project', UpdatedAt: '2026-05-13T00:00:00.000Z' },
-    '/projects/42/entities/creative-references': [{ ID: 7, name: 'Hero', UpdatedAt: '2026-05-13T00:00:01.000Z' }],
-    '/projects/42/entities/asset-slots': [{ ID: 9, name: 'Hero portrait', owner_type: 'creative_reference', owner_id: 7, UpdatedAt: '2026-05-13T00:00:02.000Z' }],
+    '/projects/42/entities/creative-references': [
+      { ID: 7, name: 'Hero', status: 'confirmed', UpdatedAt: '2026-05-13T00:00:01.000Z' },
+      { ID: 8, name: 'Old Hero', status: 'ignored', UpdatedAt: '2026-05-13T00:00:01.000Z' },
+      { ID: 10, name: 'Merged Hero', status: 'merged', UpdatedAt: '2026-05-13T00:00:01.000Z' },
+    ],
+    '/projects/42/entities/asset-slots': [
+      { ID: 9, name: 'Hero portrait', status: 'missing', owner_type: 'creative_reference', owner_id: 7, UpdatedAt: '2026-05-13T00:00:02.000Z' },
+      { ID: 12, name: 'Waived portrait', status: 'waived', owner_type: 'creative_reference', owner_id: 7, UpdatedAt: '2026-05-13T00:00:02.000Z' },
+      { ID: 13, name: 'Merged portrait', status: 'merged', owner_type: 'creative_reference', owner_id: 7, UpdatedAt: '2026-05-13T00:00:02.000Z' },
+      { ID: 14, name: 'Ignored portrait', status: 'ignored', owner_type: 'creative_reference', owner_id: 7, UpdatedAt: '2026-05-13T00:00:02.000Z' },
+    ],
   }) as typeof fetch
   const previousBaseURL = 'http://localhost:8765'
   setMCPAPIBaseURL('http://mock.backend')
@@ -770,7 +779,10 @@ test('draft model MCP tool hydrates asset proposal seed from allowed backend inc
     assert.equal(result.seed.hydrated, true)
     assert.equal(result.seed.data.project.name, 'Seed Project')
     assert.equal(result.seed.data.creative_references[0].name, 'Hero')
+    assert.deepEqual(result.seed.data.creative_references.map((item: any) => item.ID), [7])
     assert.equal(result.seed.data.asset_slots[0].owner_type, 'creative_reference')
+    assert.deepEqual(result.seed.data.asset_slots.map((item: any) => item.ID), [9])
+    assert.deepEqual(result.seed.data.asset_slot_ownership.map((item: any) => item.id), [9])
     assert.deepEqual(result.seed.sourceVersions.project, { id: 42, updatedAt: '2026-05-13T00:00:00.000Z' })
   } finally {
     setMCPAPIBaseURL(previousBaseURL)

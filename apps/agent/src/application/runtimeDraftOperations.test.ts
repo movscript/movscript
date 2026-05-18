@@ -353,6 +353,57 @@ test('applyRuntimeDraftFromUI rewrites creative_reference_id on top-level slot f
   assert.equal(referenceID, 42)
 })
 
+test('applyRuntimeDraftFromUI prefers mapped owner client_id over stale owner id', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  draftStore.createDraft({
+    kind: 'setting_proposal',
+    title: 'Setting proposal',
+    projectId: 7,
+    content: JSON.stringify({
+      proposal: {
+        creative_references: [{ client_id: 'hero_ref', name: 'Hero', kind: 'person' }],
+      },
+    }),
+    target: { entityType: 'project', entityId: 7 },
+    metadata: { creativeReferenceClientIDMap: { hero_ref: 42 } },
+  })
+  const assetDraft = draftStore.createDraft({
+    kind: 'asset_proposal',
+    title: 'Asset proposal',
+    projectId: 7,
+    content: JSON.stringify({
+      proposal: {
+        asset_slots: [{
+          name: 'Hero portrait',
+          kind: 'image',
+          owner: {
+            type: 'creative_reference',
+            id: 999,
+            client_id: 'hero_ref',
+          },
+        }],
+      },
+    }),
+    target: { entityType: 'project', entityId: 7 },
+  })
+  const backend = fakeBackendApplyClient({
+    applyResult: { performed: true, method: 'POST', url: 'http://backend/projects/7/entities/project-proposals/apply' },
+  })
+
+  await applyRuntimeDraftFromUI({
+    draftStore,
+    backendApplyClient: backend,
+    applyInput: { draftId: assetDraft.id },
+    now: () => '2026-01-01T00:00:00.000Z',
+  })
+
+  const proposed = backend.lastApplyReview?.proposedValue
+  const reviewProposal = isRecord(proposed) ? proposed.proposal : undefined
+  const assetSlots = isRecord(reviewProposal) && Array.isArray(reviewProposal.asset_slots) ? reviewProposal.asset_slots : []
+  const owner = isRecord(assetSlots[0]) && isRecord(assetSlots[0].owner) ? assetSlots[0].owner : undefined
+  assert.equal(owner?.id, 42)
+})
+
 test('applyRuntimeDraftFromUI applies backend results and records backend failures', async () => {
   const draftStore = new InMemoryAgentDraftStore()
   const draft = draftStore.createDraft({

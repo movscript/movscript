@@ -132,14 +132,20 @@ export function buildProjectLayerDraftContentForEntries(
 ) {
   const content = JSON.parse(draft.content) as Record<string, unknown>
   const proposal = isRecord(content.proposal) ? { ...content.proposal } : {}
-  const creativeReferences = applyProjectLayerEntriesToSnapshot(
-    data.creativeReferences.map(projectLayerCreativeReferenceSnapshot),
-    entries.filter((entry) => entry.kind === 'creative_references'),
-  )
-  const assetSlots = applyProjectLayerEntriesToSnapshot(
-    data.assetSlots.map(projectLayerAssetSlotSnapshot),
-    entries.filter((entry) => entry.kind === 'asset_slots'),
-  )
+  const ownsCreativeReferences = draft.kind === 'setting_proposal'
+  const ownsAssetSlots = draft.kind === 'asset_proposal'
+  const creativeReferences = ownsCreativeReferences
+    ? applyProjectLayerEntriesToSnapshot(
+      data.creativeReferences.map(projectLayerCreativeReferenceSnapshot),
+      entries.filter((entry) => entry.kind === 'creative_references'),
+    )
+    : []
+  const assetSlots = ownsAssetSlots
+    ? applyProjectLayerEntriesToSnapshot(
+      data.assetSlots.map(projectLayerAssetSlotSnapshot),
+      entries.filter((entry) => entry.kind === 'asset_slots'),
+    )
+    : []
 
   return JSON.stringify({
     ...content,

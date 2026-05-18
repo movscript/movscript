@@ -240,13 +240,13 @@ function buildRuntimeProjectProposalReviewForBackend(review: ApplyDraftReview, d
     const owner = isRecord(slot.owner) ? slot.owner : undefined
     const hasCreativeOwnerType = readText(owner?.type) === 'creative_reference' || readText(slot.owner_type) === 'creative_reference'
     const ownerID = readPositiveInt(owner?.id) ?? readPositiveInt(slot.owner_id)
-    if (ownerID !== undefined) return slot
     const creativeReferenceClientID = firstMatchingClientID([
       owner?.client_id,
-      owner?.id,
+      ownerID === undefined ? owner?.id : undefined,
       hasCreativeOwnerType ? slot.creative_reference_id : undefined,
       hasCreativeOwnerType ? slot.owner_id : undefined,
     ], ownerIDByClientID)
+    if (ownerID !== undefined && !creativeReferenceClientID) return slot
     if (!creativeReferenceClientID) return slot
     const resolved = ownerIDByClientID[creativeReferenceClientID]
     if (!resolved) return slot

@@ -247,6 +247,36 @@ export interface UsageLog {
   UpdatedAt: string
 }
 
+export interface LLMCallLog {
+  ID: number
+  request_id?: string
+  user_id: number
+  user?: User
+  org_id?: number
+  project_id?: number
+  gateway_api_key_id?: number
+  ai_model_config_id: number
+  ai_model_config?: UsageLogModelConfig
+  credential_id: number
+  operation_type: string
+  prompt_name?: string
+  provider?: string
+  request_model?: string
+  response_model?: string
+  status: 'success' | 'error' | string
+  error?: string
+  latency_ms: number
+  input_tokens: number
+  output_tokens: number
+  request_json?: string
+  response_json?: string
+  payload_truncated?: boolean
+  expires_at?: string
+  retention_days: number
+  CreatedAt: string
+  UpdatedAt: string
+}
+
 export interface GatewayAPIKey {
   ID: number
   name: string

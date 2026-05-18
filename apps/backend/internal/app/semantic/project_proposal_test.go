@@ -179,6 +179,9 @@ func TestApplyProjectProposalMergesPartialReferencesAndAssets(t *testing.T) {
 	if reference.Kind != "person" || reference.Status != "confirmed" {
 		t.Fatalf("unexpected creative reference: %+v", reference)
 	}
+	if reference.ProposalClientID != "cr_lin_xia" {
+		t.Fatalf("proposal client id = %q, want cr_lin_xia", reference.ProposalClientID)
+	}
 
 	var slot model.AssetSlot
 	if err := db.Where("project_id = ? AND name = ?", 1, "Lin Xia portrait").First(&slot).Error; err != nil {
@@ -192,6 +195,121 @@ func TestApplyProjectProposalMergesPartialReferencesAndAssets(t *testing.T) {
 	}
 	if slot.OwnerType != "creative_reference" || slot.OwnerID == nil || *slot.OwnerID != reference.ID {
 		t.Fatalf("asset slot owner = %s/%v, want creative_reference/%d", slot.OwnerType, slot.OwnerID, reference.ID)
+	}
+}
+
+func TestApplyProjectProposalResolvesPersistedCreativeReferenceClientID(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+
+	if _, err := service.ApplyProjectProposal(context.Background(), 1, ApplyProjectProposalRequest{
+		Scope: "setting_proposal",
+		Mode:  "snapshot",
+		Proposal: &ProjectProposalTree{
+			CreativeReferences: []ProjectProposalCreativeReferencePatch{{
+				ClientID: "char_001",
+				Name:     "Su Wan",
+				Kind:     "character",
+				Status:   "confirmed",
+			}},
+		},
+	}); err != nil {
+		t.Fatalf("apply setting proposal: %v", err)
+	}
+
+	resp, err := service.ApplyProjectProposal(context.Background(), 1, ApplyProjectProposalRequest{
+		Scope: "asset_proposal",
+		Mode:  "snapshot",
+		Proposal: &ProjectProposalTree{
+			AssetSlots: []ProjectProposalAssetSlotPatch{{
+				ClientID: "slot_001",
+				Owner:    &ProjectProposalOwnerRef{Type: "creative_reference", ClientID: "char_001"},
+				Name:     "Su Wan portrait",
+				Kind:     "image",
+				Status:   "pending",
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("apply asset proposal: %v", err)
+	}
+	if resp.Counts.AssetSlotsCreated != 1 {
+		t.Fatalf("asset slot create count = %d, want 1", resp.Counts.AssetSlotsCreated)
+	}
+
+	var reference model.CreativeReference
+	if err := db.Where("project_id = ? AND proposal_client_id = ?", 1, "char_001").First(&reference).Error; err != nil {
+		t.Fatalf("load creative reference by proposal client id: %v", err)
+	}
+	var slot model.AssetSlot
+	if err := db.Where("project_id = ? AND name = ?", 1, "Su Wan portrait").First(&slot).Error; err != nil {
+		t.Fatalf("load asset slot: %v", err)
+	}
+	if slot.CreativeReferenceID == nil || *slot.CreativeReferenceID != reference.ID {
+		t.Fatalf("slot creative_reference_id = %v, want %d", slot.CreativeReferenceID, reference.ID)
+	}
+	if slot.OwnerType != "creative_reference" || slot.OwnerID == nil || *slot.OwnerID != reference.ID {
+		t.Fatalf("slot owner = %s/%v, want creative_reference/%d", slot.OwnerType, slot.OwnerID, reference.ID)
+	}
+}
+
+func TestApplyProjectProposalPrefersPersistedClientIDOverStaleOwnerID(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+
+	reference := model.CreativeReference{
+		ProjectID:        1,
+		ProposalClientID: "char_001",
+		Name:             "Su Wan",
+		Kind:             "character",
+		Status:           "confirmed",
+		Importance:       "main",
+	}
+	staleReference := model.CreativeReference{
+		ProjectID:        2,
+		ProposalClientID: "char_001",
+		Name:             "Other project Su Wan",
+		Kind:             "character",
+		Status:           "confirmed",
+		Importance:       "main",
+	}
+	if err := db.Create(&reference).Error; err != nil {
+		t.Fatalf("create reference: %v", err)
+	}
+	if err := db.Create(&staleReference).Error; err != nil {
+		t.Fatalf("create stale reference: %v", err)
+	}
+
+	_, err := service.ApplyProjectProposal(context.Background(), 1, ApplyProjectProposalRequest{
+		Scope: "asset_proposal",
+		Mode:  "snapshot",
+		Proposal: &ProjectProposalTree{
+			AssetSlots: []ProjectProposalAssetSlotPatch{{
+				ClientID: "slot_001",
+				Owner: &ProjectProposalOwnerRef{
+					Type:     "creative_reference",
+					ID:       &staleReference.ID,
+					ClientID: "char_001",
+				},
+				Name:   "Su Wan portrait",
+				Kind:   "image",
+				Status: "pending",
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("apply asset proposal: %v", err)
+	}
+
+	var slot model.AssetSlot
+	if err := db.Where("project_id = ? AND name = ?", 1, "Su Wan portrait").First(&slot).Error; err != nil {
+		t.Fatalf("load asset slot: %v", err)
+	}
+	if slot.CreativeReferenceID == nil || *slot.CreativeReferenceID != reference.ID {
+		t.Fatalf("slot creative_reference_id = %v, want %d", slot.CreativeReferenceID, reference.ID)
+	}
+	if slot.OwnerID == nil || *slot.OwnerID != reference.ID {
+		t.Fatalf("slot owner_id = %v, want %d", slot.OwnerID, reference.ID)
 	}
 }
 

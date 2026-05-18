@@ -715,6 +715,7 @@ func CreativeReferenceFromModel(ref persistencemodel.CreativeReference) Creative
 	return CreativeReference{
 		ID:               ref.ID,
 		ProjectID:        ref.ProjectID,
+		ProposalClientID: ref.ProposalClientID,
 		SourceScriptID:   ref.SourceScriptID,
 		SourceAnalysisID: ref.SourceAnalysisID,
 		Kind:             ref.Kind,
@@ -740,6 +741,7 @@ func (ref CreativeReference) ToModel() persistencemodel.CreativeReference {
 func (ref CreativeReference) ApplyToModel(target *persistencemodel.CreativeReference) {
 	target.Model.ID = ref.ID
 	target.ProjectID = ref.ProjectID
+	target.ProposalClientID = ref.ProposalClientID
 	target.SourceScriptID = ref.SourceScriptID
 	target.SourceAnalysisID = ref.SourceAnalysisID
 	target.Kind = ref.Kind

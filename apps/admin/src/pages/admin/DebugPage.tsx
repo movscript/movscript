@@ -1,15 +1,16 @@
-import { useState, useEffect, useRef, type MouseEvent } from 'react'
+import { useState, useEffect, useRef, useMemo, type MouseEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { translateAPIRequestError, translateApiError } from '@/lib/apiError'
-import type { AICredential, DebugCallResult, DebugHTTPExchange, JobDetail, JobStateTraceEntry, RawCallResult, AdapterDef, ParamDef } from '@/types'
+import type { AICredential, DebugCallResult, DebugHTTPExchange, JobDetail, JobStateTraceEntry, RawCallResult, AdapterDef, ParamDef, LLMCallLog, PaginatedResponse } from '@/types'
 import { Bug, RefreshCw, ChevronDown, ChevronRight, Send, Copy, Check, Zap, CheckCircle2, XCircle, PlayCircle, Trash2, Activity, AlertTriangle, Clock3, Server, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@movscript/ui'
+import { PaginationControls } from '@/components/admin/PaginationControls'
 import { useTranslation } from 'react-i18next'
 import {
   DEBUG_TABS,
@@ -145,6 +146,367 @@ function formatDateTime(value?: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+function toRFC3339(value: string, endOfMinute = false): string | undefined {
+  if (!value) return undefined
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return undefined
+  if (endOfMinute) {
+    date.setSeconds(59)
+    date.setMilliseconds(999)
+  }
+  return date.toISOString()
+}
+
+function modelConfigLabel(cfg: LLMCallLog['ai_model_config'], fallbackId: number): string {
+  if (!cfg) return `#${fallbackId}`
+  return cfg.short_name || cfg.custom_display_name || cfg.model_id_override || cfg.model_def_id || `#${cfg.ID}`
+}
+
+function formatLLMJSON(raw?: string): string {
+  if (!raw) return ''
+  return tryFormatJSON(raw)
+}
+
+const LLM_CALL_PAGE_SIZE = 50
+
+type LLMCallSummary = {
+  total: number
+  success: number
+  errors: number
+  error_rate: number
+  avg_latency_ms: number
+  input_tokens: number
+  output_tokens: number
+  recent_errors: LLMCallLog[]
+}
+
+type LLMCallSettings = {
+  retention_days: number
+}
+
+type LLMCallFilters = {
+  status: string
+  operationType: string
+  provider: string
+  promptName: string
+  modelConfigId: string
+  credentialId: string
+  userId: string
+  orgId: string
+  projectId: string
+  gatewayApiKeyId: string
+  since: string
+  until: string
+  includeExpired: boolean
+  expiredOnly: boolean
+}
+
+const emptyLLMCallFilters: LLMCallFilters = {
+  status: '',
+  operationType: '',
+  provider: '',
+  promptName: '',
+  modelConfigId: '',
+  credentialId: '',
+  userId: '',
+  orgId: '',
+  projectId: '',
+  gatewayApiKeyId: '',
+  since: '',
+  until: '',
+  includeExpired: false,
+  expiredOnly: false,
+}
+
+function LLMCallLogsSection() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [page, setPage] = useState(1)
+  const [filters, setFilters] = useState<LLMCallFilters>(emptyLLMCallFilters)
+  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [retentionDays, setRetentionDays] = useState('14')
+
+  const queryParams = useMemo(() => ({
+    page,
+    page_size: LLM_CALL_PAGE_SIZE,
+    status: filters.status || undefined,
+    operation_type: filters.operationType || undefined,
+    provider: filters.provider || undefined,
+    prompt_name: filters.promptName.trim() || undefined,
+    model_config_id: filters.modelConfigId.trim() || undefined,
+    credential_id: filters.credentialId.trim() || undefined,
+    user_id: filters.userId.trim() || undefined,
+    org_id: filters.orgId.trim() || undefined,
+    project_id: filters.projectId.trim() || undefined,
+    gateway_api_key_id: filters.gatewayApiKeyId.trim() || undefined,
+    since: toRFC3339(filters.since),
+    until: toRFC3339(filters.until, true),
+    include_expired: filters.includeExpired ? 'true' : undefined,
+    expired_only: filters.expiredOnly ? 'true' : undefined,
+  }), [filters, page])
+
+  const summaryParams = useMemo(() => ({ ...queryParams, page: undefined, page_size: undefined }), [queryParams])
+
+  const logsQuery = useQuery<PaginatedResponse<LLMCallLog>>({
+    queryKey: ['admin', 'debug', 'llm-calls', queryParams],
+    queryFn: () => api.get('/admin/debug/llm-calls', { params: queryParams }).then((r) => r.data),
+    refetchInterval: 15000,
+  })
+  const summaryQuery = useQuery<LLMCallSummary>({
+    queryKey: ['admin', 'debug', 'llm-calls', 'summary', summaryParams],
+    queryFn: () => api.get('/admin/debug/llm-calls/summary', { params: summaryParams }).then((r) => r.data),
+    refetchInterval: 15000,
+  })
+  const settingsQuery = useQuery<LLMCallSettings>({
+    queryKey: ['admin', 'debug', 'llm-calls', 'settings'],
+    queryFn: () => api.get('/admin/debug/llm-calls/settings').then((r) => r.data),
+  })
+  const settingsMutation = useMutation({
+    mutationFn: (payload: LLMCallSettings) => api.put('/admin/debug/llm-calls/settings', payload).then((r) => r.data as LLMCallSettings),
+    onSuccess: (settings) => {
+      setRetentionDays(String(settings.retention_days))
+      qc.invalidateQueries({ queryKey: ['admin', 'debug', 'llm-calls', 'settings'] })
+    },
+  })
+  const purgeMutation = useMutation({
+    mutationFn: () => api.post('/admin/debug/llm-calls/purge-expired').then((r) => r.data as { deleted: number }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'debug', 'llm-calls'] })
+    },
+  })
+  const expirationMutation = useMutation({
+    mutationFn: ({ id, expiresAt }: { id: number; expiresAt: string }) =>
+      api.patch(`/admin/debug/llm-calls/${id}/expiration`, { expires_at: expiresAt }).then((r) => r.data as LLMCallLog),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'debug', 'llm-calls'] })
+    },
+  })
+
+  useEffect(() => {
+    if (settingsQuery.data && !settingsMutation.isPending) {
+      setRetentionDays(String(settingsQuery.data.retention_days))
+    }
+  }, [settingsQuery.data, settingsMutation.isPending])
+
+  const items = logsQuery.data?.items ?? []
+  const total = logsQuery.data?.total ?? 0
+  const pageSize = logsQuery.data?.page_size ?? LLM_CALL_PAGE_SIZE
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const summary = summaryQuery.data
+  const queryError = logsQuery.error || summaryQuery.error || settingsQuery.error
+  const isFetching = logsQuery.isFetching || summaryQuery.isFetching
+
+  useEffect(() => {
+    if (logsQuery.data && page > pageCount) setPage(pageCount)
+  }, [logsQuery.data, page, pageCount])
+
+  function updateFilter<K extends keyof LLMCallFilters>(key: K, value: LLMCallFilters[K]) {
+    setFilters((current) => {
+      const next = { ...current, [key]: value }
+      if (key === 'expiredOnly' && value === true) next.includeExpired = true
+      return next
+    })
+    setPage(1)
+  }
+
+  function refresh() {
+    logsQuery.refetch()
+    summaryQuery.refetch()
+  }
+
+  function saveRetention() {
+    settingsMutation.mutate({ retention_days: Number(retentionDays) })
+  }
+
+  function updateExpiration(id: number, daysFromNow: number) {
+    const next = new Date()
+    next.setDate(next.getDate() + daysFromNow)
+    expirationMutation.mutate({ id, expiresAt: next.toISOString() })
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-sm font-medium text-foreground">{t('admin.debug.llmCalls.title', { defaultValue: 'LLM 调用日志' })}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t('admin.debug.llmCalls.description', { defaultValue: '记录每一次文本模型调用，用于排查请求、响应、耗时和错误率。' })}</p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="block">
+            <span className="mb-1 block text-xs text-muted-foreground">{t('admin.debug.llmCalls.retentionDays', { defaultValue: '默认保留天数' })}</span>
+            <Input value={retentionDays} onChange={(event) => setRetentionDays(event.target.value)} className="h-8 w-24 text-xs" />
+          </label>
+          <Button type="button" size="sm" onClick={saveRetention} disabled={settingsMutation.isPending}>
+            {settingsMutation.isPending ? t('common.saving') : t('common.save')}
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => purgeMutation.mutate()} disabled={purgeMutation.isPending}>
+            <Trash2 size={13} className="mr-2" />
+            {purgeMutation.isPending ? t('common.loadingShort') : t('admin.debug.llmCalls.purgeExpired', { defaultValue: '清理过期' })}
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={refresh} disabled={isFetching}>
+            <RefreshCw size={13} className={cn('mr-2', isFetching && 'animate-spin')} />
+            {t('admin.debug.system.refresh')}
+          </Button>
+        </div>
+      </div>
+
+      {queryError && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {translateAPIRequestError(queryError)}
+        </div>
+      )}
+      {settingsMutation.error && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {translateAPIRequestError(settingsMutation.error)}
+        </div>
+      )}
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <MetricCard icon={Activity} label={t('admin.debug.llmCalls.total', { defaultValue: '调用数' })} value={formatCompactNumber(summary?.total)} detail={t('admin.debug.llmCalls.totalDetail', { defaultValue: '当前筛选范围' })} />
+        <MetricCard icon={XCircle} label={t('admin.debug.llmCalls.errors', { defaultValue: '错误率' })} value={`${(summary?.error_rate ?? 0).toFixed(1)}%`} detail={`${formatCompactNumber(summary?.errors)} errors`} />
+        <MetricCard icon={Clock3} label={t('admin.debug.llmCalls.latency', { defaultValue: '平均耗时' })} value={`${Math.round(summary?.avg_latency_ms ?? 0)}ms`} detail={t('admin.debug.llmCalls.latencyDetail', { defaultValue: 'Provider 调用耗时' })} />
+        <MetricCard icon={Zap} label={t('common.tokens')} value={`${formatCompactNumber(summary?.input_tokens)} / ${formatCompactNumber(summary?.output_tokens)}`} detail="input / output" />
+        <MetricCard icon={CheckCircle2} label={t('admin.debug.llmCalls.success', { defaultValue: '成功' })} value={formatCompactNumber(summary?.success)} detail={t('admin.debug.llmCalls.successDetail', { defaultValue: '成功完成的调用' })} />
+      </div>
+
+      <div className="rounded-lg border border-border bg-card p-3">
+        <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+          <FilterInput label={t('admin.debug.llmCalls.status', { defaultValue: '状态' })} value={filters.status} onChange={(value) => updateFilter('status', value)} placeholder="success/error" />
+          <FilterInput label={t('admin.debug.llmCalls.operation', { defaultValue: '类型' })} value={filters.operationType} onChange={(value) => updateFilter('operationType', value)} placeholder="text/responses" />
+          <FilterInput label="Provider" value={filters.provider} onChange={(value) => updateFilter('provider', value)} placeholder="openai_compat" />
+          <FilterInput label="Prompt" value={filters.promptName} onChange={(value) => updateFilter('promptName', value)} />
+          <FilterInput label={t('admin.debug.jobs.filters.modelConfigId')} value={filters.modelConfigId} onChange={(value) => updateFilter('modelConfigId', value)} />
+          <FilterInput label={t('admin.debug.llmCalls.credentialId', { defaultValue: '凭据 ID' })} value={filters.credentialId} onChange={(value) => updateFilter('credentialId', value)} />
+          <FilterInput label={t('admin.debug.jobs.filters.userId')} value={filters.userId} onChange={(value) => updateFilter('userId', value)} />
+          <FilterInput label={t('admin.debug.jobs.filters.orgId')} value={filters.orgId} onChange={(value) => updateFilter('orgId', value)} />
+          <FilterInput label={t('admin.debug.jobs.filters.projectId')} value={filters.projectId} onChange={(value) => updateFilter('projectId', value)} />
+          <FilterInput label="Gateway Key" value={filters.gatewayApiKeyId} onChange={(value) => updateFilter('gatewayApiKeyId', value)} />
+          <FilterInput label={t('admin.logs.since', { defaultValue: '开始时间' })} value={filters.since} onChange={(value) => updateFilter('since', value)} type="datetime-local" />
+          <FilterInput label={t('admin.logs.until', { defaultValue: '结束时间' })} value={filters.until} onChange={(value) => updateFilter('until', value)} type="datetime-local" />
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+          <label className="inline-flex items-center gap-2">
+            <input type="checkbox" checked={filters.includeExpired} onChange={(event) => updateFilter('includeExpired', event.target.checked)} />
+            {t('admin.debug.llmCalls.includeExpired', { defaultValue: '包含过期' })}
+          </label>
+          <label className="inline-flex items-center gap-2">
+            <input type="checkbox" checked={filters.expiredOnly} onChange={(event) => updateFilter('expiredOnly', event.target.checked)} />
+            {t('admin.debug.llmCalls.expiredOnly', { defaultValue: '只看过期' })}
+          </label>
+          <button type="button" onClick={() => { setFilters(emptyLLMCallFilters); setPage(1) }} className="text-primary hover:underline">
+            {t('admin.logs.clearFilters', { defaultValue: '清空筛选' })}
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-border bg-card">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] text-left text-xs">
+            <thead className="border-b border-border bg-muted/40 text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 font-medium">{t('admin.debug.llmCalls.time', { defaultValue: '时间' })}</th>
+                <th className="px-3 py-2 font-medium">{t('admin.debug.llmCalls.model', { defaultValue: '模型' })}</th>
+                <th className="px-3 py-2 font-medium">Prompt</th>
+                <th className="px-3 py-2 font-medium">{t('admin.debug.llmCalls.status', { defaultValue: '状态' })}</th>
+                <th className="px-3 py-2 font-medium">{t('common.tokens')}</th>
+                <th className="px-3 py-2 font-medium">{t('admin.debug.llmCalls.latency', { defaultValue: '耗时' })}</th>
+                <th className="px-3 py-2 font-medium">{t('admin.debug.llmCalls.expiresAt', { defaultValue: '过期时间' })}</th>
+                <th className="px-3 py-2 font-medium"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {items.map((item) => {
+                const expanded = expandedId === item.ID
+                return (
+                  <tr key={item.ID} className="align-top">
+                    <td className="px-3 py-2 text-muted-foreground">{formatDateTime(item.CreatedAt)}</td>
+                    <td className="px-3 py-2">
+                      <div className="font-medium text-foreground">{modelConfigLabel(item.ai_model_config, item.ai_model_config_id)}</div>
+                      <div className="mt-0.5 text-muted-foreground">{item.provider || '-'} · #{item.ai_model_config_id}</div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="max-w-[180px] truncate text-foreground">{item.prompt_name || '-'}</div>
+                      <div className="text-muted-foreground">{item.operation_type}</div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className={cn('rounded-full px-2 py-0.5 font-medium', item.status === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300')}>
+                        {item.status}
+                      </span>
+                      {item.error && <div className="mt-1 max-w-[220px] truncate text-destructive">{item.error}</div>}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">{item.input_tokens.toLocaleString()} / {item.output_tokens.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{item.latency_ms}ms</td>
+                    <td className="px-3 py-2 text-muted-foreground">{formatDateTime(item.expires_at)}</td>
+                    <td className="px-3 py-2 text-right">
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedId(expanded ? null : item.ID)}>
+                        {expanded ? t('common.collapse') : t('common.details')}
+                      </Button>
+                    </td>
+                  </tr>
+                )
+              })}
+              {!logsQuery.isLoading && items.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
+                    {t('admin.debug.llmCalls.empty', { defaultValue: '暂无模型调用日志' })}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {expandedId && (
+          <div className="border-t border-border bg-muted/20 p-3">
+            {items.filter((item) => item.ID === expandedId).map((item) => (
+              <div key={item.ID} className="grid gap-3 lg:grid-cols-2">
+                <DebugJSONPanel title={t('admin.debug.llmCalls.request', { defaultValue: '请求' })} raw={formatLLMJSON(item.request_json)} />
+                <div className="space-y-3">
+                  <DebugJSONPanel title={t('admin.debug.llmCalls.response', { defaultValue: '响应 / 错误' })} raw={item.error || formatLLMJSON(item.response_json)} />
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+                    <span>{t('admin.debug.llmCalls.expirationActions', { defaultValue: '过期管理' })}</span>
+                    <Button type="button" variant="outline" size="sm" onClick={() => updateExpiration(item.ID, 7)} disabled={expirationMutation.isPending}>
+                      {t('admin.debug.llmCalls.extendSevenDays', { defaultValue: '延长 7 天' })}
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => updateExpiration(item.ID, 30)} disabled={expirationMutation.isPending}>
+                      {t('admin.debug.llmCalls.extendThirtyDays', { defaultValue: '延长 30 天' })}
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => updateExpiration(item.ID, 0)} disabled={expirationMutation.isPending}>
+                      {t('admin.debug.llmCalls.expireNow', { defaultValue: '立即过期' })}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <PaginationControls page={page} pageCount={pageCount} total={total} pageSize={pageSize} onPageChange={setPage} />
+    </div>
+  )
+}
+
+function FilterInput({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; type?: string }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs text-muted-foreground">{label}</span>
+      <Input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-8 text-xs" />
+    </label>
+  )
+}
+
+function DebugJSONPanel({ title, raw }: { title: string; raw: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-border bg-background">
+      <div className="flex items-center justify-between border-b border-border px-3 py-2">
+        <p className="text-xs font-medium text-foreground">{title}</p>
+        {raw && <CopyButton text={raw} />}
+      </div>
+      <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words p-3 text-xs text-muted-foreground">{raw || '-'}</pre>
+    </div>
+  )
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -1911,6 +2273,7 @@ export function DebugPage() {
       <Tabs value={activeTab} onValueChange={updateTab}>
         <TabsList>
           <TabsTrigger value="system">{t('admin.debug.tabs.system')}</TabsTrigger>
+          <TabsTrigger value="llm-calls">{t('admin.debug.tabs.llmCalls', { defaultValue: 'LLM 调用' })}</TabsTrigger>
           <TabsTrigger value="provider-sandbox">{t('admin.debug.tabs.providerSandbox')}</TabsTrigger>
           <TabsTrigger value="raw-call">{t('admin.debug.tabs.rawCall')}</TabsTrigger>
           <TabsTrigger value="jobs">{t('admin.debug.tabs.jobs')}</TabsTrigger>
@@ -1919,6 +2282,10 @@ export function DebugPage() {
 
         <TabsContent value="system" className="mt-4">
           <SystemOverviewSection />
+        </TabsContent>
+
+        <TabsContent value="llm-calls" className="mt-4">
+          <LLMCallLogsSection />
         </TabsContent>
 
         <TabsContent value="provider-sandbox" className="mt-4">

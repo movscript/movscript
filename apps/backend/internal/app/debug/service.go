@@ -21,6 +21,7 @@ import (
 )
 
 var ErrNotFound = errors.New("debug item not found")
+var ErrInvalidLLMCallLogSettings = errors.New("invalid llm call log settings")
 
 type Service struct {
 	repo          repository
@@ -60,6 +61,93 @@ type JobStats struct {
 	Total        int64            `json:"total"`
 	ByStatus     []JobStatusCount `json:"by_status"`
 	RecentFailed []JobDetail      `json:"recent_failed"`
+}
+
+type LLMCallLogSettings struct {
+	RetentionDays int `json:"retention_days"`
+}
+
+type LLMCallLogFilter struct {
+	UserID          string
+	OrgID           string
+	ProjectID       string
+	ModelConfigID   string
+	CredentialID    string
+	GatewayAPIKeyID string
+	OperationType   string
+	Status          string
+	Provider        string
+	PromptName      string
+	Since           *time.Time
+	Until           *time.Time
+	IncludeExpired  bool
+	ExpiredOnly     bool
+	Page            int
+	PageSize        int
+}
+
+type LLMCallLogPage struct {
+	Items    []LLMCallLog `json:"items"`
+	Total    int64        `json:"total"`
+	Page     int          `json:"page"`
+	PageSize int          `json:"page_size"`
+}
+
+type LLMCallLogSummary struct {
+	Total        int64        `json:"total"`
+	Success      int64        `json:"success"`
+	Errors       int64        `json:"errors"`
+	ErrorRate    float64      `json:"error_rate"`
+	AvgLatencyMs float64      `json:"avg_latency_ms"`
+	InputTokens  int64        `json:"input_tokens"`
+	OutputTokens int64        `json:"output_tokens"`
+	RecentErrors []LLMCallLog `json:"recent_errors"`
+	GeneratedAt  time.Time    `json:"generated_at"`
+}
+
+type LLMCallLogUserRef struct {
+	ID         uint   `json:"ID"`
+	Username   string `json:"username"`
+	SystemRole string `json:"system_role"`
+}
+
+type LLMCallLogModelConfigRef struct {
+	ID                uint   `json:"ID"`
+	CredentialID      uint   `json:"credential_id"`
+	ModelDefID        string `json:"model_def_id"`
+	ModelIDOverride   string `json:"model_id_override"`
+	CustomDisplayName string `json:"custom_display_name"`
+	ShortName         string `json:"short_name"`
+}
+
+type LLMCallLog struct {
+	ID               uint                      `json:"ID"`
+	RequestID        string                    `json:"request_id,omitempty"`
+	UserID           uint                      `json:"user_id"`
+	User             *LLMCallLogUserRef        `json:"user,omitempty"`
+	OrgID            *uint                     `json:"org_id,omitempty"`
+	ProjectID        *uint                     `json:"project_id,omitempty"`
+	GatewayAPIKeyID  *uint                     `json:"gateway_api_key_id,omitempty"`
+	AIModelConfigID  uint                      `json:"ai_model_config_id"`
+	AIModelConfig    *LLMCallLogModelConfigRef `json:"ai_model_config,omitempty"`
+	CredentialID     uint                      `json:"credential_id"`
+	OperationType    string                    `json:"operation_type"`
+	PromptName       string                    `json:"prompt_name,omitempty"`
+	Provider         string                    `json:"provider,omitempty"`
+	RequestModel     string                    `json:"request_model,omitempty"`
+	ResponseModel    string                    `json:"response_model,omitempty"`
+	Status           string                    `json:"status"`
+	Error            string                    `json:"error,omitempty"`
+	LatencyMs        int64                     `json:"latency_ms"`
+	InputTokens      int                       `json:"input_tokens"`
+	OutputTokens     int                       `json:"output_tokens"`
+	RequestJSON      string                    `json:"request_json,omitempty"`
+	ResponseJSON     string                    `json:"response_json,omitempty"`
+	PayloadTruncated bool                      `json:"payload_truncated"`
+	ExpiresAt        *time.Time                `json:"expires_at,omitempty"`
+	RetentionDays    int                       `json:"retention_days"`
+	CreatedAt        time.Time                 `json:"CreatedAt"`
+	UpdatedAt        time.Time                 `json:"UpdatedAt"`
 }
 
 type RawCallInput struct {
@@ -270,6 +358,70 @@ func (s *Service) ProviderCall(ctx context.Context, input ProviderCallInput) ai.
 		Params:      input.Params,
 		DryRun:      input.DryRun,
 	})
+}
+
+func (s *Service) ListLLMCallLogs(ctx context.Context, filter LLMCallLogFilter) (LLMCallLogPage, error) {
+	return s.repo.ListLLMCallLogs(ctx, filter)
+}
+
+func (s *Service) LLMCallLogSummary(ctx context.Context, filter LLMCallLogFilter) (LLMCallLogSummary, error) {
+	summary, err := s.repo.LLMCallLogSummary(ctx, filter)
+	if err != nil {
+		return LLMCallLogSummary{}, err
+	}
+	summary.GeneratedAt = time.Now().UTC()
+	return summary, nil
+}
+
+func (s *Service) LLMCallLogSettings(ctx context.Context) (LLMCallLogSettings, error) {
+	settings := defaultLLMCallLogSettings()
+	record, err := s.repo.GetAdminSetting(ctx, llmCallLogSettingsKey)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return settings, nil
+		}
+		return settings, err
+	}
+	if err := json.Unmarshal([]byte(record), &settings); err != nil {
+		return defaultLLMCallLogSettings(), nil
+	}
+	return normalizeLLMCallLogSettings(settings), nil
+}
+
+func (s *Service) UpdateLLMCallLogSettings(ctx context.Context, settings LLMCallLogSettings) (LLMCallLogSettings, error) {
+	settings = normalizeLLMCallLogSettings(settings)
+	if settings.RetentionDays <= 0 || settings.RetentionDays > 365 {
+		return settings, ErrInvalidLLMCallLogSettings
+	}
+	raw, err := json.Marshal(settings)
+	if err != nil {
+		return settings, err
+	}
+	if err := s.repo.SaveAdminSetting(ctx, llmCallLogSettingsKey, string(raw)); err != nil {
+		return settings, err
+	}
+	return settings, nil
+}
+
+func (s *Service) PurgeExpiredLLMCallLogs(ctx context.Context, now time.Time) (int64, error) {
+	return s.repo.PurgeExpiredLLMCallLogs(ctx, now)
+}
+
+func (s *Service) UpdateLLMCallLogExpiration(ctx context.Context, id uint, expiresAt *time.Time) (LLMCallLog, error) {
+	return s.repo.UpdateLLMCallLogExpiration(ctx, id, expiresAt)
+}
+
+const llmCallLogSettingsKey = "llm_call_log_settings"
+
+func defaultLLMCallLogSettings() LLMCallLogSettings {
+	return LLMCallLogSettings{RetentionDays: 14}
+}
+
+func normalizeLLMCallLogSettings(settings LLMCallLogSettings) LLMCallLogSettings {
+	if settings.RetentionDays == 0 {
+		settings.RetentionDays = defaultLLMCallLogSettings().RetentionDays
+	}
+	return settings
 }
 
 func (s *Service) ListJobs(ctx context.Context, filters JobFilters, limit, offset int) (JobPage, error) {

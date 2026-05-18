@@ -155,6 +155,145 @@ func (h *DebugHandler) JobStats(c *gin.Context) {
 	c.JSON(http.StatusOK, stats)
 }
 
+func (h *DebugHandler) ListLLMCallLogs(c *gin.Context) {
+	filter, ok := h.llmCallLogFilter(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.ListLLMCallLogs(c.Request.Context(), filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("查询模型调用日志失败"))
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *DebugHandler) LLMCallLogSummary(c *gin.Context) {
+	filter, ok := h.llmCallLogFilter(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.LLMCallLogSummary(c.Request.Context(), filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("查询模型调用统计失败"))
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *DebugHandler) GetLLMCallLogSettings(c *gin.Context) {
+	settings, err := h.service.LLMCallLogSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("读取模型调用日志设置失败"))
+		return
+	}
+	c.JSON(http.StatusOK, settings)
+}
+
+func (h *DebugHandler) UpdateLLMCallLogSettings(c *gin.Context) {
+	var req debugapp.LLMCallLogSettings
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
+		return
+	}
+	settings, err := h.service.UpdateLLMCallLogSettings(c.Request.Context(), req)
+	if err != nil {
+		if errors.Is(err, debugapp.ErrInvalidLLMCallLogSettings) {
+			c.JSON(http.StatusBadRequest, api.InvalidInput("保留天数必须在 1 到 365 之间"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.Internal("保存模型调用日志设置失败"))
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "debug.llm_call_logs.settings_updated",
+		TargetType: "llm_call_log_settings",
+		TargetID:   "llm_call_log_settings",
+		Metadata: map[string]any{
+			"retention_days": settings.RetentionDays,
+		},
+	})
+	c.JSON(http.StatusOK, settings)
+}
+
+func (h *DebugHandler) PurgeExpiredLLMCallLogs(c *gin.Context) {
+	deleted, err := h.service.PurgeExpiredLLMCallLogs(c.Request.Context(), time.Now().UTC())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("清理过期模型调用日志失败"))
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "debug.llm_call_logs.purged_expired",
+		TargetType: "llm_call_log",
+		Metadata: map[string]any{
+			"deleted": deleted,
+		},
+	})
+	c.JSON(http.StatusOK, gin.H{"deleted": deleted})
+}
+
+func (h *DebugHandler) UpdateLLMCallLogExpiration(c *gin.Context) {
+	id64, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || id64 == 0 {
+		c.JSON(http.StatusBadRequest, api.InvalidInput("日志 ID 无效"))
+		return
+	}
+	var req struct {
+		ExpiresAt *time.Time `json:"expires_at"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
+		return
+	}
+	item, err := h.service.UpdateLLMCallLogExpiration(c.Request.Context(), uint(id64), req.ExpiresAt)
+	if err != nil {
+		if errors.Is(err, debugapp.ErrNotFound) {
+			c.JSON(http.StatusNotFound, api.NotFound("模型调用日志不存在"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, api.Internal("更新模型调用日志过期时间失败"))
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "debug.llm_call_logs.expiration_updated",
+		TargetType: "llm_call_log",
+		TargetID:   strconv.FormatUint(id64, 10),
+		Metadata: map[string]any{
+			"expires_at": req.ExpiresAt,
+		},
+	})
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *DebugHandler) llmCallLogFilter(c *gin.Context) (debugapp.LLMCallLogFilter, bool) {
+	since, ok := parseOptionalRFC3339(c, "since")
+	if !ok {
+		return debugapp.LLMCallLogFilter{}, false
+	}
+	until, ok := parseOptionalRFC3339(c, "until")
+	if !ok {
+		return debugapp.LLMCallLogFilter{}, false
+	}
+	return debugapp.LLMCallLogFilter{
+		UserID:          c.Query("user_id"),
+		OrgID:           c.Query("org_id"),
+		ProjectID:       c.Query("project_id"),
+		ModelConfigID:   c.Query("model_config_id"),
+		CredentialID:    c.Query("credential_id"),
+		GatewayAPIKeyID: c.Query("gateway_api_key_id"),
+		OperationType:   c.Query("operation_type"),
+		Status:          c.Query("status"),
+		Provider:        c.Query("provider"),
+		PromptName:      c.Query("prompt_name"),
+		Since:           since,
+		Until:           until,
+		IncludeExpired:  c.Query("include_expired") == "true",
+		ExpiredOnly:     c.Query("expired_only") == "true",
+		Page:            parsePositiveInt(c.Query("page"), 1),
+		PageSize:        parsePositiveInt(c.Query("page_size"), 50),
+	}, true
+}
+
 func (h *DebugHandler) SystemHealth(c *gin.Context) {
 	stats, err := h.service.JobStats(c.Request.Context(), 10)
 	if err != nil {

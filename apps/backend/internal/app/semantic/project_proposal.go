@@ -184,6 +184,9 @@ func (s *Service) applyProjectProposalInTx(ctx context.Context, projectID uint, 
 
 	err := s.repo.WithTx(ctx, func(txRepo repository) error {
 		txSvc := s.withRepository(txRepo)
+		if err := txSvc.loadPersistedProjectProposalClientIDs(ctx, projectID, &state); err != nil {
+			return err
+		}
 		if req.Proposal.ProjectStyle != nil && req.Proposal.ProjectStyle.hasChanges() {
 			if _, err := txRepo.PatchProjectStyle(ctx, projectID, *req.Proposal.ProjectStyle); err != nil {
 				return err
@@ -804,6 +807,24 @@ func rememberProjectProposalCreativeReferenceID(state *projectProposalApplyState
 	}
 }
 
+func (s *Service) loadPersistedProjectProposalClientIDs(ctx context.Context, projectID uint, state *projectProposalApplyState) error {
+	if state == nil {
+		return nil
+	}
+	references, err := s.repo.ListCreativeReferences(ctx, CreativeReferenceFilter{ProjectID: projectID})
+	if err != nil {
+		return err
+	}
+	for _, reference := range references {
+		clientID := strings.TrimSpace(reference.ProposalClientID)
+		if clientID == "" || reference.ID == 0 {
+			continue
+		}
+		state.creativeReferenceIDByClientID[clientID] = reference.ID
+	}
+	return nil
+}
+
 func rememberProjectProposalCreativeReferenceKeep(state *projectProposalApplyState, id uint) {
 	if state == nil || id == 0 {
 		return
@@ -827,6 +848,15 @@ func resolveProjectProposalAssetSlotFields(fields map[string]any, owner *Project
 		ownerType := normalizeProjectProposalOwnerType(owner.Type)
 		if strings.TrimSpace(owner.Type) != "" {
 			next["owner_type"] = ownerType
+		}
+		clientID := strings.TrimSpace(owner.ClientID)
+		if clientID != "" && state != nil {
+			if resolvedID, ok := state.creativeReferenceIDByClientID[clientID]; ok && resolvedID > 0 {
+				next["creative_reference_id"] = resolvedID
+				next["owner_type"] = "creative_reference"
+				next["owner_id"] = resolvedID
+				return next, nil
+			}
 		}
 		if owner.ID != nil && *owner.ID > 0 {
 			next["owner_id"] = *owner.ID
@@ -865,6 +895,9 @@ func normalizeProjectProposalOwnerType(value string) string {
 
 func (patch ProjectProposalCreativeReferencePatch) fields() map[string]any {
 	fields := make(map[string]any)
+	if strings.TrimSpace(patch.ClientID) != "" {
+		fields["proposal_client_id"] = patch.ClientID
+	}
 	if patch.SourceScriptID != nil {
 		fields["source_script_id"] = *patch.SourceScriptID
 	}
@@ -947,6 +980,7 @@ func (patch ProjectProposalAssetSlotPatch) fields() map[string]any {
 
 func creativeReferenceInputFromProposalFields(fields map[string]any) (CreativeReferenceInput, error) {
 	return CreativeReferenceInput{
+		ProposalClientID: fieldString(fields, "proposal_client_id"),
 		SourceScriptID:   fieldUint(fields, "source_script_id"),
 		SourceAnalysisID: fieldUint(fields, "source_analysis_id"),
 		Kind:             fieldString(fields, "kind"),

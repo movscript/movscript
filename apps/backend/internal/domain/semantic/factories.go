@@ -902,6 +902,7 @@ func NewStoryboardVersion(spec StoryboardVersionSpec) StoryboardVersion {
 
 type CreativeReferenceSpec struct {
 	ProjectID        uint
+	ProposalClientID string
 	SourceScriptID   *uint
 	SourceAnalysisID *uint
 	Kind             string
@@ -918,6 +919,7 @@ type CreativeReferenceSpec struct {
 type CreativeReference struct {
 	ID               uint      `json:"ID"`
 	ProjectID        uint      `json:"project_id"`
+	ProposalClientID string    `json:"proposal_client_id"`
 	SourceScriptID   *uint     `json:"source_script_id,omitempty"`
 	SourceAnalysisID *uint     `json:"source_analysis_id,omitempty"`
 	Kind             string    `json:"kind"`
@@ -934,6 +936,7 @@ type CreativeReference struct {
 }
 
 type CreativeReferencePatch struct {
+	ProposalClientID string
 	SourceScriptID   *uint
 	SourceAnalysisID *uint
 	Kind             string
@@ -950,6 +953,7 @@ type CreativeReferencePatch struct {
 func NewCreativeReference(spec CreativeReferenceSpec) CreativeReference {
 	return CreativeReference{
 		ProjectID:        spec.ProjectID,
+		ProposalClientID: spec.ProposalClientID,
 		SourceScriptID:   spec.SourceScriptID,
 		SourceAnalysisID: spec.SourceAnalysisID,
 		Kind:             FallbackString(spec.Kind, "character"),

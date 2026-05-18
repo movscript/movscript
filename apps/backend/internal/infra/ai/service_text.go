@@ -3,6 +3,9 @@ package ai
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
+
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
@@ -91,8 +94,23 @@ func (s *AIService) CallTextWithUsage(ctx context.Context, userID, modelConfigID
 			usage.ReservationID = &reservation.ID
 		}
 		finishAttempt := beginRuntimeProviderAttempt(attempt.cfg.ID)
+		start := time.Now()
 		resp, err := provider.TextGenerate(ctx, attemptReq)
 		finishAttempt(err)
+		s.logLLMCall(context.WithoutCancel(ctx), llmCallLogInput{
+			UserID:         userID,
+			Usage:          usage,
+			Config:         cfg,
+			Provider:       attempt.adapterType,
+			OperationType:  "text",
+			PromptName:     attemptReq.PromptName,
+			RequestModel:   attemptReq.Model,
+			ResponseModel:  attemptReq.Model,
+			RequestPayload: attemptReq,
+			Response:       &resp,
+			Start:          start,
+			Err:            err,
+		})
 		if err != nil {
 			lastErr = err
 			continue
@@ -137,12 +155,27 @@ func (s *AIService) CallResponsesWithUsage(ctx context.Context, userID, modelCon
 		finishAttempt := beginRuntimeProviderAttempt(attempt.cfg.ID)
 		responder, ok := provider.(ResponsesProvider)
 		var resp TextResponse
+		start := time.Now()
 		if ok {
 			resp, err = responder.ResponsesGenerate(ctx, attemptReq)
 		} else {
 			resp, err = provider.TextGenerate(ctx, attemptReq.Text)
 		}
 		finishAttempt(err)
+		s.logLLMCall(context.WithoutCancel(ctx), llmCallLogInput{
+			UserID:         userID,
+			Usage:          usage,
+			Config:         cfg,
+			Provider:       attempt.adapterType,
+			OperationType:  "responses",
+			PromptName:     attemptReq.Text.PromptName,
+			RequestModel:   attemptReq.Text.Model,
+			ResponseModel:  attemptReq.Text.Model,
+			RequestPayload: attemptReq,
+			Response:       &resp,
+			Start:          start,
+			Err:            err,
+		})
 		if err != nil {
 			lastErr = err
 			continue
@@ -175,12 +208,14 @@ func (s *AIService) CallTextStreamWithUsage(ctx context.Context, userID, modelCo
 	}
 	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, CapabilityText), candidates)
 	var (
-		upstream      <-chan TextStreamEvent
-		attemptConfig persistencemodel.AIModelConfig
-		attemptDef    *ModelDef
-		attemptFinish func(error)
-		attemptReq    TextRequest
-		lastErr       error
+		upstream        <-chan TextStreamEvent
+		attemptConfig   persistencemodel.AIModelConfig
+		attemptDef      *ModelDef
+		attemptFinish   func(error)
+		attemptReq      TextRequest
+		attemptStart    time.Time
+		attemptProvider string
+		lastErr         error
 	)
 	for _, attempt := range attempts {
 		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, CapabilityText)
@@ -205,15 +240,31 @@ func (s *AIService) CallTextStreamWithUsage(ctx context.Context, userID, modelCo
 			usage.ReservationID = &reservation.ID
 		}
 		finishAttempt := beginRuntimeProviderAttempt(attempt.cfg.ID)
+		start := time.Now()
 		upstream, err = streamer.TextStream(ctx, attemptReq)
 		if err != nil {
 			finishAttempt(err)
+			s.logLLMCall(context.WithoutCancel(ctx), llmCallLogInput{
+				UserID:         userID,
+				Usage:          usage,
+				Config:         cfg,
+				Provider:       attempt.adapterType,
+				OperationType:  "text_stream",
+				PromptName:     attemptReq.PromptName,
+				RequestModel:   attemptReq.Model,
+				ResponseModel:  attemptReq.Model,
+				RequestPayload: attemptReq,
+				Start:          start,
+				Err:            err,
+			})
 			lastErr = err
 			continue
 		}
 		attemptConfig = cfg
 		attemptDef = def
 		attemptFinish = finishAttempt
+		attemptStart = start
+		attemptProvider = attempt.adapterType
 		break
 	}
 	if upstream == nil {
@@ -229,6 +280,8 @@ func (s *AIService) CallTextStreamWithUsage(ctx context.Context, userID, modelCo
 		defer close(out)
 		var tokenUsage TokenUsage
 		var streamErr error
+		var content strings.Builder
+		finishReason := ""
 		for event := range upstream {
 			if event.Usage.InputTokens > 0 || event.Usage.OutputTokens > 0 {
 				tokenUsage = event.Usage
@@ -236,9 +289,30 @@ func (s *AIService) CallTextStreamWithUsage(ctx context.Context, userID, modelCo
 			if event.Error != "" {
 				streamErr = fmt.Errorf("%s", event.Error)
 			}
+			if event.ContentDelta != "" {
+				content.WriteString(event.ContentDelta)
+			}
+			if event.FinishReason != "" {
+				finishReason = event.FinishReason
+			}
 			out <- event
 		}
 		attemptFinish(streamErr)
+		resp := TextResponse{Content: content.String(), FinishReason: finishReason, Usage: tokenUsage}
+		s.logLLMCall(context.WithoutCancel(ctx), llmCallLogInput{
+			UserID:         userID,
+			Usage:          usage,
+			Config:         attemptConfig,
+			Provider:       attemptProvider,
+			OperationType:  "text_stream",
+			PromptName:     attemptReq.PromptName,
+			RequestModel:   attemptReq.Model,
+			ResponseModel:  attemptReq.Model,
+			RequestPayload: attemptReq,
+			Response:       &resp,
+			Start:          attemptStart,
+			Err:            streamErr,
+		})
 		estimate := estimateUsageCost(attemptConfig, attemptDef, "text", tokenUsage.InputTokens, tokenUsage.OutputTokens, 0, 1)
 		_ = s.settleUsage(context.Background(), userID, attemptConfig.ID, estimate, usage)
 	}()

@@ -199,6 +199,23 @@ function ResourceThumb({ resource, className }: { resource?: RawResource; classN
   )
 }
 
+async function loadPreProductionReviewDrafts(
+  projectId: number,
+  kind: Extract<AgentDraft['kind'], 'setting_proposal' | 'asset_proposal'>,
+  draftIds: string[],
+): Promise<AgentDraft[]> {
+  const ids = Array.from(new Set(draftIds.map((id) => id.trim()).filter(Boolean)))
+  if (ids.length === 0) return []
+  const drafts = await Promise.all(ids.map(async (draftId) => {
+    try {
+      return await localAgentClient.getDraft(draftId)
+    } catch {
+      return null
+    }
+  }))
+  return drafts.filter((draft): draft is AgentDraft => Boolean(draft && draft.projectId === projectId && draft.kind === kind))
+}
+
 export function PreProductionAssetWorkspace() {
   const projectId = useProjectStore((s) => s.current?.ID)
   return <PreProductionWorkspaceShell projectId={projectId} compact />
@@ -224,6 +241,9 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   const selectedReferenceParam = readNumberParam(searchParams, 'reference_id')
   const kindParam = readStringParam(searchParams, 'kind')
   const workspaceView = searchParams.get('view') === 'review' ? 'review' : 'main'
+  const openedDraftId = searchParams.get('draftId')?.trim() || ''
+  const openedSettingDraftId = searchParams.get('settingDraftId')?.trim() || ''
+  const openedAssetProposalDraftId = searchParams.get('assetProposalDraftId')?.trim() || ''
   const kindFilter: AssetKind = kindParam ? normalizeAssetKind(kindParam) : 'all'
   const slotConfig = semanticEntityConfig('assetSlots')
   const candidateConfig = semanticEntityConfig('assetSlotCandidates')
@@ -248,21 +268,15 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   })
 
   const assetProposalDraftsQuery = useQuery<AgentDraft[]>({
-    queryKey: ['asset-proposal-drafts', projectId],
-    queryFn: async () => {
-      const { drafts } = await localAgentClient.listDrafts({ projectId, kind: 'asset_proposal', limit: 20 })
-      return drafts
-    },
-    enabled: !!projectId && workspaceView === 'review',
+    queryKey: ['asset-proposal-drafts', projectId, openedAssetProposalDraftId, openedDraftId],
+    queryFn: () => loadPreProductionReviewDrafts(projectId!, 'asset_proposal', [openedAssetProposalDraftId, openedDraftId]),
+    enabled: !!projectId && workspaceView === 'review' && Boolean(openedAssetProposalDraftId || openedDraftId),
     refetchInterval: workspaceView === 'review' ? 1500 : false,
   })
   const settingProposalDraftsQuery = useQuery<AgentDraft[]>({
-    queryKey: ['setting-proposal-drafts', projectId],
-    queryFn: async () => {
-      const { drafts } = await localAgentClient.listDrafts({ projectId, kind: 'setting_proposal', limit: 20 })
-      return drafts
-    },
-    enabled: !!projectId && workspaceView === 'review',
+    queryKey: ['setting-proposal-drafts', projectId, openedSettingDraftId, openedDraftId],
+    queryFn: () => loadPreProductionReviewDrafts(projectId!, 'setting_proposal', [openedSettingDraftId, openedDraftId]),
+    enabled: !!projectId && workspaceView === 'review' && Boolean(openedSettingDraftId || openedDraftId),
     refetchInterval: workspaceView === 'review' ? 1500 : false,
   })
 

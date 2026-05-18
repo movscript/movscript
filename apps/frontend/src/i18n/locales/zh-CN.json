@@ -2130,6 +2130,7 @@
           "superseded": "已替换"
         },
         "kinds": {
+          "setting_proposal": "设定资料提案",
           "script": "剧本草稿",
           "creative_reference": "设定资料建议",
           "asset_slot": "素材需求",

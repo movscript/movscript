@@ -7,6 +7,7 @@ import "gorm.io/gorm"
 type CreativeReference struct {
 	gorm.Model
 	ProjectID        uint   `gorm:"not null;index" json:"project_id"`
+	ProposalClientID string `gorm:"index" json:"proposal_client_id"`
 	SourceScriptID   *uint  `gorm:"index" json:"source_script_id,omitempty"`
 	SourceAnalysisID *uint  `gorm:"index" json:"source_analysis_id,omitempty"`
 	Kind             string `gorm:"not null;index" json:"kind"` // person|animal|place|prop|product|brand|style|world_rule|time_period|restriction

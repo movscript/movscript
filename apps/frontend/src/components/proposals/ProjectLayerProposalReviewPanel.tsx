@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowRight, CheckCircle2, FileText, GitBranch, Trash2 } from 'lucide-react'
+import { ArrowRight, CheckCircle2, GitBranch, Trash2 } from 'lucide-react'
 import { Badge, Button } from '@movscript/ui'
 
 import { localAgentClient, type AgentDraft, type AgentDraftKind } from '@/lib/localAgentClient'
@@ -49,6 +49,7 @@ export function ProjectLayerProposalReviewPanel({
   const [applyingDraftId, setApplyingDraftId] = useState<string | null>(null)
   const includeCreativeReferences = kind === 'setting_proposal'
   const includeAssetSlots = kind === 'asset_proposal'
+  const reviewableDrafts = useMemo(() => drafts.filter((draft) => !isHelperDraft(draft)), [drafts])
   const referenceLabels = useMemo(() => new Map(data.creativeReferences.map((reference) => [String(reference.ID), reference.name || reference.title || `设定 #${reference.ID}`])), [data.creativeReferences])
 
   function markDecision(key: string, decision: EntryDecision) {
@@ -177,13 +178,13 @@ export function ProjectLayerProposalReviewPanel({
           <h2 className="mt-1 text-sm font-semibold text-foreground">{title}</h2>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">{description}</p>
         </div>
-        <Badge variant="secondary" className="shrink-0">{drafts.length} drafts</Badge>
+        <Badge variant="secondary" className="shrink-0">{reviewableDrafts.length} 项</Badge>
       </div>
 
       <div className="mt-3 grid min-w-0 gap-3">
         {loading ? <p className="rounded-md border border-border bg-background px-3 py-3 text-xs text-muted-foreground">读取审阅草稿...</p> : null}
-        {!loading && drafts.length === 0 ? <p className="rounded-md border border-dashed border-border bg-background px-3 py-3 text-xs text-muted-foreground">{emptyMessage}</p> : null}
-        {drafts.filter((draft) => !isHelperDraft(draft)).map((draft) => {
+        {!loading && reviewableDrafts.length === 0 ? <p className="rounded-md border border-dashed border-border bg-background px-3 py-3 text-xs text-muted-foreground">{emptyMessage}</p> : null}
+        {reviewableDrafts.map((draft) => {
           const view = parseProjectLayerProposalDraft(draft, data, { includeCreativeReferences, includeAssetSlots })
           const entries = view ? [...view.creativeReferences, ...view.assetSlots] : []
           const pendingEntries = entries.filter((entry) => decisions[entry.key] !== 'rejected' && !entry.applied && entry.changeType !== 'unchanged')
@@ -349,14 +350,6 @@ export function ProjectLayerProposalReviewPanel({
           )
         })}
 
-        {drafts.length > 0 ? (
-          <Button asChild size="sm" variant="outline" className="h-7 w-fit gap-1.5 px-2 text-xs">
-            <a href="/agent/drafts">
-              <FileText size={12} />
-              查看全部 AI 草稿
-            </a>
-          </Button>
-        ) : null}
       </div>
     </section>
   )
