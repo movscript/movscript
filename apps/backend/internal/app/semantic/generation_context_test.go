@@ -193,6 +193,34 @@ func TestBuildGenerationContextForContentUnit(t *testing.T) {
 		t.Fatalf("create keyframe: %v", err)
 	}
 	syncGenerationContextRelations(t, db, &keyframe)
+	keyframeCandidate := model.Keyframe{
+		ProjectID:     projectID,
+		ProductionID:  &production.ID,
+		SceneMomentID: &sceneMoment.ID,
+		ContentUnitID: &contentUnit.ID,
+		ResourceID:    &resource.ID,
+		Title:         "AI 候选首帧",
+		Status:        "candidate",
+		MetadataJSON:  `{"source":"ai_generated_keyframe_candidate","target_keyframe_id":999}`,
+	}
+	if err := db.Create(&keyframeCandidate).Error; err != nil {
+		t.Fatalf("create keyframe candidate: %v", err)
+	}
+	syncGenerationContextRelations(t, db, &keyframeCandidate)
+	legacyKeyframeCandidate := model.Keyframe{
+		ProjectID:     projectID,
+		ProductionID:  &production.ID,
+		SceneMomentID: &sceneMoment.ID,
+		ContentUnitID: &contentUnit.ID,
+		ResourceID:    &resource.ID,
+		Title:         "旧候选首帧",
+		Status:        "candidate",
+		MetadataJSON:  `{"target_keyframe_id":999}`,
+	}
+	if err := db.Create(&legacyKeyframeCandidate).Error; err != nil {
+		t.Fatalf("create legacy keyframe candidate: %v", err)
+	}
+	syncGenerationContextRelations(t, db, &legacyKeyframeCandidate)
 
 	got, err := NewService(db).BuildGenerationContext(context.Background(), projectID, GenerationContextRequest{
 		TargetType: "content_unit",

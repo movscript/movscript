@@ -28,21 +28,20 @@ export interface MCPResource {
   mimeType?: string
 }
 
+export interface MCPObjectSchema {
+  type: 'object'
+  properties: Record<string, MCPJSONValue>
+  required?: string[]
+  anyOf?: Array<{ required: string[] }>
+  allOf?: Array<{ anyOf: Array<{ required: string[] }> }>
+  additionalProperties?: boolean
+}
+
 export interface MCPTool {
   name: string
   description: string
-  inputSchema: {
-    type: 'object'
-    properties: Record<string, MCPJSONValue>
-    required?: string[]
-    additionalProperties?: boolean
-  }
-  outputSchema?: {
-    type: 'object'
-    properties: Record<string, MCPJSONValue>
-    required?: string[]
-    additionalProperties?: boolean
-  }
+  inputSchema: MCPObjectSchema
+  outputSchema?: MCPObjectSchema
 }
 
 export interface MCPContextSnapshot {

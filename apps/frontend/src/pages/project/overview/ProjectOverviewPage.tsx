@@ -24,6 +24,7 @@ import {
 import { Badge, Button, Card, Progress } from '@movscript/ui'
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityKind, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
 import { useProjectStore } from '@/store/projectStore'
 import { workbenchSurfaces } from '@/pages/project/projectSurfaces'
 import { ROUTES, mergeSearch } from '@/routes/projectRoutes'
@@ -236,7 +237,7 @@ async function loadProjectHomeData(projectId: number): Promise<ProjectHomeData> 
     assetSlots,
     assetSlotCandidates,
     contentUnits,
-    keyframes,
+    keyframes: keyframes.filter((keyframe) => !isGeneratedKeyframeCandidateRecord(keyframe)),
     deliveryVersions,
     workItems,
   } as ProjectHomeData
@@ -399,7 +400,8 @@ export default function ProjectOverviewPage() {
     const confirmedReferences = statusCount(data.creativeReferences, ['confirmed', 'locked', 'merged'])
     const confirmedRelationships = statusCount(data.creativeRelationships, ['confirmed', 'corrected'])
     const missingAssets = statusCount(data.assetSlots, ['missing'])
-    const candidateAssets = statusCount(data.assetSlots, ['candidate']) + data.assetSlotCandidates.length
+    const activeAssetSlotCandidates = data.assetSlotCandidates.filter(assetSlotCandidateIsActive)
+    const candidateAssets = statusCount(data.assetSlots, ['candidate']) + activeAssetSlotCandidates.length
     const lockedAssets = statusCount(data.assetSlots, ['locked', 'waived'])
     const confirmedContents = statusCount(data.contentUnits, ['confirmed', 'in_production', 'locked'])
     const lockedContents = statusCount(data.contentUnits, ['locked'])
@@ -774,6 +776,11 @@ export default function ProjectOverviewPage() {
       </div>
     </div>
   )
+}
+
+function assetSlotCandidateIsActive(candidate: HomeRecord) {
+  const status = String(candidate.status ?? 'candidate')
+  return status !== 'rejected' && status !== 'selected'
 }
 
 function itemStatusText(status: unknown) {

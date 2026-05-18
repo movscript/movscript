@@ -626,6 +626,30 @@ func (w *Writer) writeKeyframe(ctx context.Context, item persistencemodel.Keyfra
 	if err := w.expire(ctx, relationapp.EdgeFilter{ProjectID: item.ProjectID, Category: domainrelation.CategoryAsset, Type: domainrelation.TypeUsesResource, Source: ref("keyframe", item.ID)}); err != nil {
 		return err
 	}
+	if err := w.expire(ctx, relationapp.EdgeFilter{ProjectID: item.ProjectID, Category: domainrelation.CategoryWorkflow, Type: domainrelation.TypeCandidateFor, Source: ref("keyframe", item.ID)}); err != nil {
+		return err
+	}
+	if targetID := generatedKeyframeCandidateTargetID(item.MetadataJSON); targetID > 0 {
+		for _, input := range []relationapp.EdgeInput{
+			optionalCategoryEdge(item.ProjectID, "keyframe", &item.ID, "raw_resource", ptrValue(item.ResourceID), domainrelation.CategoryAsset, domainrelation.TypeUsesResource, item.Order, item.Status),
+			optionalCategoryEdge(item.ProjectID, "keyframe", &item.ID, "keyframe", targetID, domainrelation.CategoryWorkflow, domainrelation.TypeCandidateFor, item.Order, item.Status),
+		} {
+			if input.Source.ID == 0 || input.Target.ID == 0 {
+				continue
+			}
+			if input.Type == domainrelation.TypeCandidateFor {
+				input.Metadata = metadata(map[string]any{
+					"keyframe_candidate_id": item.ID,
+					"source":                "ai_generated_keyframe_candidate",
+					"target_keyframe_id":    targetID,
+				})
+			}
+			if err := w.upsert(ctx, input); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	for _, input := range []relationapp.EdgeInput{
 		optionalEdge(item.ProjectID, "production", item.ProductionID, "keyframe", item.ID, domainrelation.TypeHasKeyframe, item.Order, item.Status),
 		optionalEdge(item.ProjectID, "scene_moment", item.SceneMomentID, "keyframe", item.ID, domainrelation.TypeHasKeyframe, item.Order, item.Status),
@@ -640,6 +664,20 @@ func (w *Writer) writeKeyframe(ctx context.Context, item persistencemodel.Keyfra
 		}
 	}
 	return nil
+}
+
+func generatedKeyframeCandidateTargetID(metadataJSON string) uint {
+	var payload struct {
+		Source           string `json:"source"`
+		TargetKeyframeID uint   `json:"target_keyframe_id"`
+	}
+	if err := json.Unmarshal([]byte(metadataJSON), &payload); err != nil {
+		return 0
+	}
+	if payload.Source != "ai_generated_keyframe_candidate" {
+		return 0
+	}
+	return payload.TargetKeyframeID
 }
 
 func (w *Writer) writePreviewTimeline(ctx context.Context, item persistencemodel.PreviewTimeline) error {

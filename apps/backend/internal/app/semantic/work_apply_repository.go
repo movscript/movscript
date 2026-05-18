@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	domainrelation "github.com/movscript/movscript/internal/domain/relation"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
@@ -21,6 +22,8 @@ func applyWorkItemResult(tx *gorm.DB, projectID uint, item domainsemantic.WorkIt
 		return applyWorkItemTargetStatus(tx, projectID, item, application.TargetType, application.TargetStatus, actorID, appliedAt)
 	case domainsemantic.WorkItemResultApplicationLockAssetSlotCandidate:
 		return applyWorkItemAssetCandidate(tx, projectID, item, application, actorID, appliedAt)
+	case domainsemantic.WorkItemResultApplicationAcceptKeyframeCandidate:
+		return applyWorkItemKeyframeCandidate(tx, projectID, item, application, actorID, appliedAt)
 	default:
 		return nil
 	}
@@ -37,6 +40,9 @@ func applyWorkItemAssetCandidate(tx *gorm.DB, projectID uint, item domainsemanti
 	if candidate.AssetSlotID != item.TargetID {
 		return errors.New("素材候选不属于当前任务目标素材位")
 	}
+	if candidate.Status == domainsemantic.AssetSlotCandidateStatusRejected {
+		return errors.New("素材候选已被拒绝")
+	}
 	var candidateSlot persistencemodel.AssetSlot
 	if err := tx.Where("project_id = ?", projectID).First(&candidateSlot, candidate.CandidateAssetSlotID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -46,6 +52,12 @@ func applyWorkItemAssetCandidate(tx *gorm.DB, projectID uint, item domainsemanti
 	}
 	if candidateSlot.ID == 0 {
 		return errors.New("素材候选缺少候选素材位")
+	}
+	if candidateSlot.ResourceID == nil || *candidateSlot.ResourceID == 0 {
+		return errors.New("素材候选缺少资源")
+	}
+	if err := ensureCandidateRawResourceExists(tx, *candidateSlot.ResourceID, "素材候选资源不存在"); err != nil {
+		return err
 	}
 	var targetSlot persistencemodel.AssetSlot
 	if err := tx.Where("project_id = ? AND id = ?", projectID, item.TargetID).First(&targetSlot).Error; err != nil {
@@ -127,6 +139,139 @@ func loadRejectedAssetSlotCandidates(tx *gorm.DB, projectID uint, targetAssetSlo
 		rejected = append(rejected, candidate)
 	}
 	return rejected, nil
+}
+
+func applyWorkItemKeyframeCandidate(tx *gorm.DB, projectID uint, item domainsemantic.WorkItem, application domainsemantic.WorkItemResultApplication, actorID *uint, appliedAt string) error {
+	if item.TargetType != domainsemantic.WorkItemTargetTypeKeyframe {
+		return errors.New("accept_keyframe 只能应用到 keyframe 任务")
+	}
+	var candidate persistencemodel.Keyframe
+	if err := tx.Where("project_id = ?", projectID).First(&candidate, application.KeyframeCandidateID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("关键帧候选不存在")
+		}
+		return err
+	}
+	if !isGeneratedKeyframeCandidateMetadata(candidate.MetadataJSON) {
+		return errors.New("关键帧候选不是 AI 生成候选")
+	}
+	if candidate.Status == "rejected" {
+		return errors.New("关键帧候选已被拒绝")
+	}
+	if candidate.ResourceID == nil || *candidate.ResourceID == 0 {
+		return errors.New("关键帧候选缺少资源")
+	}
+	if err := ensureCandidateRawResourceExists(tx, *candidate.ResourceID, "关键帧候选资源不存在"); err != nil {
+		return err
+	}
+	if keyframeCandidateTargetID(candidate.MetadataJSON) != item.TargetID {
+		return errors.New("关键帧候选不属于当前任务目标画面锚点")
+	}
+	var target persistencemodel.Keyframe
+	if err := tx.Where("project_id = ? AND id = ?", projectID, item.TargetID).First(&target).Error; err != nil {
+		return err
+	}
+	target.ResourceID = candidate.ResourceID
+	target.CanvasID = candidate.CanvasID
+	if strings.TrimSpace(candidate.Description) != "" {
+		target.Description = candidate.Description
+	}
+	if strings.TrimSpace(candidate.Prompt) != "" {
+		target.Prompt = candidate.Prompt
+	}
+	target.Status = domainsemantic.KeyframeStatusAccepted
+	if err := saveCoreEntityAndWriteGraph(tx, &target); err != nil {
+		return err
+	}
+	candidate.Status = domainsemantic.KeyframeStatusAccepted
+	if err := saveCoreEntityAndWriteGraph(tx, &candidate); err != nil {
+		return err
+	}
+	rejected, err := loadRejectedKeyframeCandidates(tx, projectID, item.TargetID, candidate.ID)
+	if err != nil {
+		return err
+	}
+	for i := range rejected {
+		rejected[i].Status = "rejected"
+		if err := saveCoreEntityAndWriteGraph(tx, &rejected[i]); err != nil {
+			return err
+		}
+	}
+	targetID := item.TargetID
+	candidateID := candidate.ID
+	decision := domainsemantic.NewCandidateDecision(domainsemantic.CandidateDecisionSpec{
+		ProjectID:     projectID,
+		CandidateType: domainsemantic.WorkItemTargetTypeKeyframe,
+		CandidateID:   &candidateID,
+		TargetType:    domainsemantic.WorkItemTargetTypeKeyframe,
+		TargetID:      &targetID,
+		Decision:      domainsemantic.CandidateDecisionAccept,
+		Status:        domainsemantic.CandidateDecisionStatusApplied,
+		Source:        domainsemantic.CandidateDecisionSourceManual,
+		DecidedByID:   actorID,
+		AppliedAt:     appliedAt,
+		MetadataJSON:  keyframeCandidateApplyMetadata(item.ID, candidate.ID, appliedAt),
+	}).ToModel()
+	if err := createCoreEntityAndWriteGraph(tx, &decision); err != nil {
+		return err
+	}
+	return createWorkItemAppliedReviewEvent(tx, projectID, item, actorID, appliedAt)
+}
+
+func ensureCandidateRawResourceExists(tx *gorm.DB, resourceID uint, message string) error {
+	var resource persistencemodel.RawResource
+	if err := tx.Select("id").First(&resource, resourceID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New(message)
+		}
+		return err
+	}
+	return nil
+}
+
+func loadRejectedKeyframeCandidates(tx *gorm.DB, projectID uint, targetKeyframeID uint, selectedCandidateID uint) ([]persistencemodel.Keyframe, error) {
+	items := make([]persistencemodel.Keyframe, 0)
+	if err := tx.Where("project_id = ? AND id <> ? AND status <> ?", projectID, selectedCandidateID, "rejected").Find(&items).Error; err != nil {
+		return nil, err
+	}
+	rejected := make([]persistencemodel.Keyframe, 0, len(items))
+	for _, item := range items {
+		if keyframeCandidateTargetID(item.MetadataJSON) == targetKeyframeID {
+			rejected = append(rejected, item)
+		}
+	}
+	return rejected, nil
+}
+
+func keyframeCandidateTargetID(metadata string) uint {
+	var payload struct {
+		TargetKeyframeID uint `json:"target_keyframe_id"`
+	}
+	if err := json.Unmarshal([]byte(metadata), &payload); err != nil {
+		return 0
+	}
+	return payload.TargetKeyframeID
+}
+
+func isGeneratedKeyframeCandidateMetadata(metadata string) bool {
+	var payload struct {
+		Source string `json:"source"`
+	}
+	if err := json.Unmarshal([]byte(metadata), &payload); err != nil {
+		return false
+	}
+	return payload.Source == "ai_generated_keyframe_candidate"
+}
+
+func isKeyframeCandidateMetadata(metadata string) bool {
+	var payload struct {
+		Source           string `json:"source"`
+		TargetKeyframeID uint   `json:"target_keyframe_id"`
+	}
+	if err := json.Unmarshal([]byte(metadata), &payload); err != nil {
+		return false
+	}
+	return payload.Source == "ai_generated_keyframe_candidate" || payload.TargetKeyframeID > 0
 }
 
 func applyWorkItemTargetStatus(tx *gorm.DB, projectID uint, item domainsemantic.WorkItem, targetType string, status string, actorID *uint, appliedAt string) error {
@@ -242,5 +387,15 @@ func syncCoreEntityRelations(tx *gorm.DB, item any) error {
 
 func workItemApplyMetadata(workItemID uint) string {
 	data, _ := json.Marshal(map[string]any{"work_item_id": workItemID})
+	return string(data)
+}
+
+func keyframeCandidateApplyMetadata(workItemID uint, keyframeCandidateID uint, appliedAt string) string {
+	data, _ := json.Marshal(map[string]any{
+		"work_item_id":          workItemID,
+		"keyframe_candidate_id": keyframeCandidateID,
+		"applied_at":            appliedAt,
+		"source":                "work_item_keyframe_candidate_selection",
+	})
 	return string(data)
 }

@@ -63,7 +63,7 @@ function semanticPreviewFields(kind?: CanvasDomainEntityKind) {
     return ['name', 'kind', 'alias', 'description', 'content', 'importance', 'status', 'profile_json', 'tags_json']
   }
   if (kind === 'asset_slot') {
-    return ['name', 'kind', 'status', 'priority', 'description', 'slot_key', 'prompt_hint', 'candidates', 'resource_id', 'locked_asset_slot_id', 'creative_reference_id', 'image', 'video', 'audio', 'reference']
+    return ['name', 'kind', 'status', 'priority', 'description', 'slot_key', 'prompt_hint', 'candidates', 'creative_reference_id', 'image', 'video', 'audio', 'reference']
   }
   if (kind === 'content_unit') {
     return ['title', 'kind', 'status', 'segment_id', 'scene_moment_id', 'order', 'duration_sec', 'description', 'prompt', 'generated_media', 'result', 'image', 'video', 'audio']
@@ -658,7 +658,7 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
         ]}
         outputs={toolOutputSlots(type, data, t)}
         primaryAction={data.onRun ? { id: 'run', label: isRunning ? '运行中' : '运行', icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
-        secondaryAction={data.onPush && status === 'done' ? { id: 'push', label: '推送', icon: Share2, onClick: data.onPush } : { id: 'variant', label: '变体', icon: ImagePlus, disabled: true }}
+        secondaryAction={data.onPush && status === 'done' ? { id: 'push', label: '加入候选', icon: Share2, onClick: data.onPush } : { id: 'variant', label: '变体', icon: ImagePlus, disabled: true }}
         footer={data.error ? <p className="line-clamp-2 text-[10px] text-destructive">{data.error}</p> : undefined}
         renderPortHandle={(handle) => <CanvasCardPortHandle {...handle} />}
       />
@@ -910,7 +910,7 @@ export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHa
         ]}
         outputs={outputSlots}
         primaryAction={data.onRun ? { id: 'run', label: isRunning ? '运行中' : '运行', icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
-        secondaryAction={data.onPush && status === 'done' ? { id: 'push', label: '推送', icon: Share2, onClick: data.onPush } : { id: 'variant', label: '类型', icon: ImagePlus, disabled: true }}
+        secondaryAction={data.onPush && status === 'done' ? { id: 'push', label: '加入候选', icon: Share2, onClick: data.onPush } : { id: 'variant', label: '类型', icon: ImagePlus, disabled: true }}
         footer={data.error ? <p className="line-clamp-2 text-[10px] text-destructive">{data.error}</p> : undefined}
         renderPortHandle={(handle) => <CanvasCardPortHandle {...handle} />}
       />

@@ -40,7 +40,7 @@ test('resolveRuntimeMemoryContext loads prompt-safe memory refs and emits a trac
   assert.deepEqual((traces[0]?.data as any)?.kinds, ['fact', 'preference'])
 })
 
-test('resolveRuntimeMemoryContext records an empty completed trace when no project memories are available', () => {
+test('resolveRuntimeMemoryContext does not emit trace noise when no project memories are available', () => {
   const run = makeRun()
   const traces: RuntimeMemoryContextTraceInput[] = []
   const result = resolveRuntimeMemoryContext({
@@ -56,11 +56,34 @@ test('resolveRuntimeMemoryContext records an empty completed trace when no proje
 
   assert.deepEqual(result.memories, [])
   assert.equal(result.memoryDurationMs, 0)
-  assert.equal(traces[0]?.summary, '0 memory item(s) matched this run. (0ms)')
-  assert.deepEqual((traces[0]?.data as any)?.memoryIds, [])
+  assert.deepEqual(traces, [])
 })
 
-test('resolveRuntimeMemoryContext ignores invalid project scopes', () => {
+test('resolveRuntimeMemoryContext can skip loading entirely', () => {
+  let loaded = false
+  const result = resolveRuntimeMemoryContext({
+    run: makeRun(),
+    memoryManager: {
+      loadRelevantMemories: () => {
+        loaded = true
+        return []
+      },
+    },
+    projectId: 42,
+    query: 'hello',
+    setupRound,
+    timestampMs: makeClock(2500),
+    recordTrace: () => {},
+    enabled: false,
+  })
+
+  assert.equal(loaded, false)
+  assert.deepEqual(result.memories, [])
+  assert.equal(result.skipped, true)
+  assert.equal(result.memoryDurationMs, 0)
+})
+
+test('resolveRuntimeMemoryContext ignores invalid project scopes when loading is enabled', () => {
   const loadedQueries: Array<{ projectId?: number; query?: string }> = []
   resolveRuntimeMemoryContext({
     run: makeRun(),

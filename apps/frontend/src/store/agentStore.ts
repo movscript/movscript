@@ -35,9 +35,48 @@ export interface AgentSettings {
   planMaxWorkers: number
   planMaxTaskAttempts: number
   planWorkerTimeoutMs: number
+  activeRunPresetId: string
+  runPresets: AgentRunPreset[]
+  toolPolicyFilterPresets: AgentToolPolicyFilterPreset[]
+  auditTrail: AgentSettingsAuditEntry[]
+  lastImportBackup: AgentSettingsImportBackup | null
 }
 
 export type AgentPermissionMode = 'ask' | 'suggest' | 'auto'
+export type AgentToolPolicyFilterPresetFilter = 'all' | 'available' | 'blocked' | 'profile_granted' | 'requires_approval' | 'write_risk'
+
+export interface AgentToolPolicyFilterPreset {
+  id: string
+  name: string
+  search: string
+  filter: AgentToolPolicyFilterPresetFilter
+}
+
+export interface AgentSettingsAuditEntry {
+  id: string
+  action: string
+  target: 'model' | 'profile' | 'skills' | 'tools' | 'run_preset' | 'snapshot'
+  summary: string
+  createdAt: string
+}
+
+export interface AgentSettingsImportBackup {
+  text: string
+  createdAt: string
+}
+
+export interface AgentRunPreset {
+  id: string
+  name: string
+  description: string
+  permissionMode: AgentPermissionMode
+  autoPlan: boolean
+  maxToolCalls: number
+  maxIterations: number
+  planMaxWorkers: number
+  planMaxTaskAttempts: number
+  planWorkerTimeoutMs: number
+}
 
 export interface AgentAttachment {
   id: string
@@ -82,8 +121,18 @@ export interface ChatContextDiagnostic {
   debugParts: Array<{ id: string; kind: string; title: string; content: string }>
   promptStats?: {
     totalChars: number
+    systemChars?: number
+    conversationChars?: number
+    budget?: {
+      limitChars: number
+      usedChars: number
+      remainingChars: number
+      usageRatio: number
+      status: string
+    }
     parts: Array<{ id: string; title: string; kind: string; layer: string; chars: number }>
     byLayer: Record<string, number>
+    byContextLayer?: Record<string, number>
   }
   tools: {
     available: ChatContextDiagnosticTool[]
@@ -130,6 +179,7 @@ export interface ChatGenerationJob {
   progress?: number
   terminal: boolean
   outputResourceId?: number
+  outputResourceIds?: number[]
   message?: string
   firstSeenAt?: string
   updatedAt?: string
@@ -258,6 +308,8 @@ interface AgentStore {
   // Legacy model fallback
   settings: AgentSettings
   updateSettings: (s: Partial<AgentSettings>) => void
+  recordSettingsAudit: (entry: Omit<AgentSettingsAuditEntry, 'id' | 'createdAt'> & { createdAt?: string }) => void
+  clearSettingsAudit: () => void
 
   // Conversations keyed by userId (string). Use '' for unauthenticated.
   convsByUser: Record<string, UserConvState>
@@ -306,7 +358,15 @@ const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   planMaxWorkers: 2,
   planMaxTaskAttempts: 2,
   planWorkerTimeoutMs: 15 * 60_000,
+  activeRunPresetId: 'balanced',
+  runPresets: defaultRunPresets(),
+  toolPolicyFilterPresets: [],
+  auditTrail: [],
+  lastImportBackup: null,
 }
+
+const MAX_AGENT_SETTINGS_IMPORT_BACKUP_BYTES = 1024 * 1024
+const MAX_AGENT_TOOL_POLICY_FILTER_PRESETS = 12
 
 const EMPTY_CONVERSATION_DRAFT: ConversationDraft = {
   input: '',
@@ -332,6 +392,21 @@ export const useAgentStore = create<AgentStore>()(
       convsByUser: {},
 
       updateSettings: (s) => set((state) => ({ settings: normalizeAgentSettings({ ...state.settings, ...s }) })),
+      recordSettingsAudit: (entry) => set((state) => ({
+        settings: normalizeAgentSettings({
+          ...state.settings,
+          auditTrail: appendSettingsAuditEntry(state.settings.auditTrail, {
+            id: genId(),
+            action: entry.action,
+            target: entry.target,
+            summary: entry.summary,
+            createdAt: entry.createdAt ?? new Date().toISOString(),
+          }),
+        }),
+      })),
+      clearSettingsAudit: () => set((state) => ({
+        settings: normalizeAgentSettings({ ...state.settings, auditTrail: [] }),
+      })),
 
     getConversations: (userId) => getUserState(get(), userId).conversations,
     getActiveConversationId: (userId) => getUserState(get(), userId).activeConversationId,
@@ -659,8 +734,23 @@ export function normalizeAgentSettings(settings?: Partial<AgentSettings> | null)
   const workerOptions = [1, 2, 3, 4]
   const attemptOptions = [1, 2, 3]
   const timeoutOptions = [5 * 60_000, 15 * 60_000, 30 * 60_000, 60 * 60_000]
+  const runPresets = normalizeRunPresets(merged.runPresets)
+  const activeRunPresetId = runPresets.some((preset) => preset.id === merged.activeRunPresetId)
+    ? String(merged.activeRunPresetId)
+    : runPresets[0]?.id ?? DEFAULT_AGENT_SETTINGS.activeRunPresetId
+  const activeRunPreset = runPresets.find((preset) => preset.id === activeRunPresetId) ?? runPresets[0]
   return {
     ...merged,
+    modelId: normalizePersistedModelId(merged.modelId),
+    includeProjectContext: typeof merged.includeProjectContext === 'boolean' ? merged.includeProjectContext : DEFAULT_AGENT_SETTINGS.includeProjectContext,
+    includeRecentResources: typeof merged.includeRecentResources === 'boolean' ? merged.includeRecentResources : DEFAULT_AGENT_SETTINGS.includeRecentResources,
+    autoPlan: typeof merged.autoPlan === 'boolean' ? merged.autoPlan : activeRunPreset?.autoPlan ?? DEFAULT_AGENT_SETTINGS.autoPlan,
+    permissionMode: normalizePermissionMode(merged.permissionMode) ?? activeRunPreset?.permissionMode ?? DEFAULT_AGENT_SETTINGS.permissionMode,
+    activeRunPresetId,
+    runPresets,
+    toolPolicyFilterPresets: normalizeToolPolicyFilterPresets(merged.toolPolicyFilterPresets),
+    auditTrail: normalizeSettingsAuditTrail(merged.auditTrail),
+    lastImportBackup: normalizeSettingsImportBackup(merged.lastImportBackup),
     planMaxWorkers: workerOptions.includes(Number(merged.planMaxWorkers))
       ? Number(merged.planMaxWorkers)
       : DEFAULT_AGENT_SETTINGS.planMaxWorkers,
@@ -671,4 +761,201 @@ export function normalizeAgentSettings(settings?: Partial<AgentSettings> | null)
       ? Number(merged.planWorkerTimeoutMs)
       : DEFAULT_AGENT_SETTINGS.planWorkerTimeoutMs,
   }
+}
+
+function normalizeToolPolicyFilterPresets(value: unknown): AgentToolPolicyFilterPreset[] {
+  if (!Array.isArray(value)) return []
+  const seen = new Set<string>()
+  const presets: AgentToolPolicyFilterPreset[] = []
+  for (const item of value) {
+    if (!isRecord(item)) continue
+    const id = typeof item.id === 'string' && item.id.trim() ? item.id.trim() : ''
+    if (!id || seen.has(id)) continue
+    const filter = normalizeToolPolicyFilterPresetFilter(item.filter)
+    if (!filter) continue
+    const name = typeof item.name === 'string' && item.name.trim() ? item.name.trim().slice(0, 80) : ''
+    const search = typeof item.search === 'string' ? item.search.trim().slice(0, 120) : ''
+    presets.push({
+      id,
+      name: name || filter,
+      search,
+      filter,
+    })
+    seen.add(id)
+    if (presets.length >= MAX_AGENT_TOOL_POLICY_FILTER_PRESETS) break
+  }
+  return presets
+}
+
+function normalizeToolPolicyFilterPresetFilter(value: unknown): AgentToolPolicyFilterPresetFilter | null {
+  if (
+    value === 'all'
+    || value === 'available'
+    || value === 'blocked'
+    || value === 'profile_granted'
+    || value === 'requires_approval'
+    || value === 'write_risk'
+  ) {
+    return value
+  }
+  return null
+}
+
+function normalizeSettingsImportBackup(value: unknown): AgentSettingsImportBackup | null {
+  if (!isRecord(value)) return null
+  const text = typeof value.text === 'string' ? value.text : ''
+  if (!text.trim() || settingsBackupByteLength(text) > MAX_AGENT_SETTINGS_IMPORT_BACKUP_BYTES) return null
+  return {
+    text,
+    createdAt: parseAuditTimestamp(value.createdAt),
+  }
+}
+
+function settingsBackupByteLength(value: string): number {
+  return new Blob([value]).size
+}
+
+function normalizeSettingsAuditTrail(value: unknown): AgentSettingsAuditEntry[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter(isRecord)
+    .map((entry) => ({
+      id: typeof entry.id === 'string' && entry.id ? entry.id : genId(),
+      action: typeof entry.action === 'string' && entry.action.trim() ? entry.action.trim() : 'settings_changed',
+      target: normalizeSettingsAuditTarget(entry.target),
+      summary: typeof entry.summary === 'string' ? entry.summary.slice(0, 240) : '',
+      createdAt: parseAuditTimestamp(entry.createdAt),
+    }))
+    .filter((entry) => entry.summary.trim())
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    .slice(0, 25)
+}
+
+function normalizeSettingsAuditTarget(value: unknown): AgentSettingsAuditEntry['target'] {
+  if (value === 'model' || value === 'profile' || value === 'skills' || value === 'tools' || value === 'run_preset' || value === 'snapshot') return value
+  return 'snapshot'
+}
+
+function parseAuditTimestamp(value: unknown): string {
+  if (typeof value === 'string' && !Number.isNaN(Date.parse(value))) return new Date(value).toISOString()
+  return new Date().toISOString()
+}
+
+export function appendSettingsAuditEntry(
+  auditTrail: AgentSettingsAuditEntry[],
+  entry: AgentSettingsAuditEntry,
+): AgentSettingsAuditEntry[] {
+  const normalized = normalizeSettingsAuditTrail([entry])[0]
+  if (!normalized) return normalizeSettingsAuditTrail(auditTrail)
+  const current = normalizeSettingsAuditTrail(auditTrail)
+  const latest = current[0]
+  if (
+    latest &&
+    latest.action === normalized.action &&
+    latest.target === normalized.target &&
+    latest.summary === normalized.summary &&
+    Math.abs(Date.parse(normalized.createdAt) - Date.parse(latest.createdAt)) <= 10_000
+  ) {
+    return [{ ...latest, createdAt: normalized.createdAt }, ...current.slice(1)]
+  }
+  return normalizeSettingsAuditTrail([normalized, ...current])
+}
+
+export function activeRunPresetFromSettings(settings: AgentSettings): AgentRunPreset {
+  return settings.runPresets.find((preset) => preset.id === settings.activeRunPresetId)
+    ?? settings.runPresets[0]
+    ?? defaultRunPresets()[1]!
+}
+
+export function defaultAgentRunPresets(): AgentRunPreset[] {
+  return defaultRunPresets().map((preset) => ({ ...preset }))
+}
+
+function defaultRunPresets(): AgentRunPreset[] {
+  return [
+    {
+      id: 'safe-review',
+      name: 'Safe Review',
+      description: 'Short, approval-first runs for inspection and review.',
+      permissionMode: 'ask',
+      autoPlan: false,
+      maxToolCalls: 8,
+      maxIterations: 6,
+      planMaxWorkers: 1,
+      planMaxTaskAttempts: 1,
+      planWorkerTimeoutMs: 5 * 60_000,
+    },
+    {
+      id: 'balanced',
+      name: 'Balanced',
+      description: 'Default daily work with bounded tools and planning.',
+      permissionMode: 'ask',
+      autoPlan: true,
+      maxToolCalls: 20,
+      maxIterations: 12,
+      planMaxWorkers: 2,
+      planMaxTaskAttempts: 2,
+      planWorkerTimeoutMs: 15 * 60_000,
+    },
+    {
+      id: 'deep-work',
+      name: 'Deep Work',
+      description: 'Longer multi-step runs for broad implementation tasks.',
+      permissionMode: 'suggest',
+      autoPlan: true,
+      maxToolCalls: 50,
+      maxIterations: 24,
+      planMaxWorkers: 3,
+      planMaxTaskAttempts: 2,
+      planWorkerTimeoutMs: 30 * 60_000,
+    },
+  ]
+}
+
+function normalizeRunPresets(input: unknown): AgentRunPreset[] {
+  const source = Array.isArray(input) && input.length > 0 ? input : defaultRunPresets()
+  const seenIds = new Set<string>()
+  const normalized = source
+    .map((preset) => normalizeRunPreset(preset))
+    .filter((preset): preset is AgentRunPreset => {
+      if (!preset || seenIds.has(preset.id)) return false
+      seenIds.add(preset.id)
+      return true
+    })
+  return normalized.length > 0 ? normalized : defaultRunPresets()
+}
+
+function normalizeRunPreset(input: unknown): AgentRunPreset | null {
+  if (!isRecord(input)) return null
+  const id = typeof input.id === 'string' && input.id.trim() ? input.id.trim() : ''
+  if (!id) return null
+  const permissionMode = input.permissionMode === 'suggest' || input.permissionMode === 'auto' ? input.permissionMode : 'ask'
+  return {
+    id,
+    name: typeof input.name === 'string' && input.name.trim() ? input.name.trim() : id,
+    description: typeof input.description === 'string' ? input.description : '',
+    permissionMode,
+    autoPlan: input.autoPlan !== false,
+    maxToolCalls: normalizePresetLimit(input.maxToolCalls, 20),
+    maxIterations: normalizePresetLimit(input.maxIterations, 12),
+    planMaxWorkers: [1, 2, 3, 4].includes(Number(input.planMaxWorkers)) ? Number(input.planMaxWorkers) : 2,
+    planMaxTaskAttempts: [1, 2, 3].includes(Number(input.planMaxTaskAttempts)) ? Number(input.planMaxTaskAttempts) : 2,
+    planWorkerTimeoutMs: [5 * 60_000, 15 * 60_000, 30 * 60_000, 60 * 60_000].includes(Number(input.planWorkerTimeoutMs)) ? Number(input.planWorkerTimeoutMs) : 15 * 60_000,
+  }
+}
+
+function normalizePermissionMode(input: unknown): AgentPermissionMode | undefined {
+  return input === 'ask' || input === 'suggest' || input === 'auto' ? input : undefined
+}
+
+function normalizePersistedModelId(input: unknown): number | null {
+  if (input === null || input === undefined) return null
+  const numeric = Number(input)
+  return Number.isSafeInteger(numeric) && numeric > 0 ? numeric : null
+}
+
+function normalizePresetLimit(value: unknown, fallback: number): number {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return fallback
+  return Math.max(1, Math.min(200, Math.floor(numeric)))
 }

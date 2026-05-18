@@ -2,6 +2,7 @@ package preview
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
@@ -137,6 +138,9 @@ func contentUnitsFromModels(units []persistencemodel.ContentUnit) []contentUnitP
 func keyframesFromModels(keyframes []persistencemodel.Keyframe) []keyframeProjection {
 	out := make([]keyframeProjection, 0, len(keyframes))
 	for _, keyframe := range keyframes {
+		if isGeneratedKeyframeCandidateMetadata(keyframe.MetadataJSON) {
+			continue
+		}
 		out = append(out, keyframeProjection{
 			ID:            keyframe.ID,
 			ContentUnitID: keyframe.ContentUnitID,
@@ -148,6 +152,20 @@ func keyframesFromModels(keyframes []persistencemodel.Keyframe) []keyframeProjec
 		})
 	}
 	return out
+}
+
+func isGeneratedKeyframeCandidateMetadata(raw string) bool {
+	if raw == "" {
+		return false
+	}
+	var metadata struct {
+		Source           string `json:"source"`
+		TargetKeyframeID uint   `json:"target_keyframe_id"`
+	}
+	if err := json.Unmarshal([]byte(raw), &metadata); err != nil {
+		return false
+	}
+	return metadata.Source == "ai_generated_keyframe_candidate" || metadata.TargetKeyframeID > 0
 }
 
 func assetSlotsFromModels(slots []persistencemodel.AssetSlot) []assetSlotProjection {

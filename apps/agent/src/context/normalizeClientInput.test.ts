@@ -60,6 +60,29 @@ test('normalizeClientInput drops invalid ui project and production ids', () => {
   }
 })
 
+test('normalizeClientInput preserves project standards fields from ui snapshot', () => {
+  const normalized = normalizeClientInput({
+    message: 'inspect standards',
+    uiSnapshot: {
+      project: {
+        id: 42,
+        name: 'Demo',
+        aspect_ratio: '9:16',
+        visual_style: '竖屏写实',
+        project_style: '{"custom_rules":[]}',
+      },
+    },
+  })
+
+  assert.deepEqual(normalized?.uiSnapshot?.project, {
+    id: 42,
+    name: 'Demo',
+    aspect_ratio: '9:16',
+    visual_style: '竖屏写实',
+    project_style: '{"custom_rules":[]}',
+  })
+})
+
 test('normalizeClientInput drops invalid numeric entity reference ids', () => {
   const normalized = normalizeClientInput({
     message: 'inspect entity refs',

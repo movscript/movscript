@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import type { AgentRun } from './localAgentClient'
-import { generationParamAuditsFromRun, generationValidationErrorsFromRun, selectLatestGeneratedResource } from './agentGenerationArtifacts'
+import { generationParamAuditsFromRun, generationValidationErrorsFromRun, selectLatestGeneratedResource } from './agentGenerationArtifacts.ts'
 
 function runWithResults(results: unknown[]): AgentRun {
   return {
@@ -38,6 +38,7 @@ test('selectLatestGeneratedResource reads MCP data wrapper output resources', ()
   assert.deepEqual(selectLatestGeneratedResource(run), {
     jobId: 101,
     outputResourceId: 202,
+    outputResourceIds: [202],
   })
 })
 
@@ -50,6 +51,28 @@ test('selectLatestGeneratedResource uses the latest generation result', () => {
   assert.deepEqual(selectLatestGeneratedResource(run), {
     jobId: 102,
     outputResourceId: 202,
+    outputResourceIds: [202],
+  })
+})
+
+test('selectLatestGeneratedResource preserves multiple generation outputs', () => {
+  const run = runWithResults([
+    {
+      data: {
+        jobId: 103,
+        output_resource_ids: [301, 302],
+        output_resources: [
+          { ID: 301 },
+          { id: 302 },
+        ],
+      },
+    },
+  ])
+
+  assert.deepEqual(selectLatestGeneratedResource(run), {
+    jobId: 103,
+    outputResourceId: 301,
+    outputResourceIds: [301, 302],
   })
 })
 

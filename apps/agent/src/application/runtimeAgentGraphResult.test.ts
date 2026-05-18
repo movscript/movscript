@@ -31,6 +31,31 @@ test('applyRuntimeAgentGraphResult pauses runs that require action', () => {
   assert.equal(store.getThread('thread_1')?.status, 'requires_action')
 })
 
+test('applyRuntimeAgentGraphResult does not duplicate graph input pause traces', () => {
+  const store = new InMemoryAgentStore()
+  const run = makeRun()
+  const thread = makeThread()
+  store.createThread(thread)
+  store.createRun(run)
+  const traces: string[] = []
+
+  const result = applyRuntimeAgentGraphResult({
+    ...baseInput(store, run, thread, {
+      status: 'requires_action',
+      pendingApprovals: [],
+      pendingInputRequests: [inputRequest()],
+      messages: [],
+      toolOutcomes: [],
+      warnings: [],
+    }),
+    recordTrace: (_run, trace) => traces.push(`${trace.kind}:${trace.title}`),
+  })
+
+  assert.equal((result as AgentRun).status, 'requires_action')
+  assert.deepEqual(traces, [])
+  assert.equal(store.getRun('run_1')?.pendingInputRequests?.[0]?.status, 'pending')
+})
+
 test('applyRuntimeAgentGraphResult delegates cancelled graph results', () => {
   const store = new InMemoryAgentStore()
   const run = makeRun()
@@ -194,6 +219,21 @@ function approval() {
     toolName: 'tool_a',
     args: {},
     reason: 'Needs approval',
+    status: 'pending' as const,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  }
+}
+
+function inputRequest() {
+  return {
+    id: 'input_1',
+    runId: 'run_1',
+    title: '选择目标内容',
+    question: '请选择目标',
+    inputType: 'choice' as const,
+    choices: [{ id: 'script', label: '剧本' }],
+    allowCustomAnswer: false,
     status: 'pending' as const,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',

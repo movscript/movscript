@@ -20,14 +20,14 @@ Paste the generated value into `ENCRYPTION_KEY` in `apps/backend/.env`.
 Run the main development services:
 
 ```bash
-make dev-backend
-make dev-frontend
+pnpm --filter movscript-backend dev
+pnpm --filter movscript-frontend dev
 ```
 
 Optional local agent:
 
 ```bash
-make dev-agent
+pnpm --filter movscript-agent dev
 ```
 
 ## Before Opening a Pull Request
@@ -35,8 +35,8 @@ make dev-agent
 Run the relevant checks:
 
 ```bash
-make test
-make build
+pnpm run test
+pnpm run build
 ```
 
 For small frontend-only changes, at minimum run:

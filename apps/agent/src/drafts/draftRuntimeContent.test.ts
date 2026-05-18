@@ -26,15 +26,13 @@ test('canonicalizeProjectProposalDraftContent rebases asset proposals onto canon
   })
 })
 
-test('canonicalizeProjectProposalDraftContent preserves project proposal style while clearing planning arrays', () => {
+test('canonicalizeProjectProposalDraftContent preserves project proposal style without planning arrays', () => {
   const content = canonicalizeProjectProposalDraftContent(
-    draft({ kind: 'project_proposal', content: JSON.stringify({ proposal: { project_style: { tone: 'calm' }, asset_slots: [{ id: 'old' }] } }) }),
+    draft({ kind: 'project_proposal', content: JSON.stringify({ proposal: { project_style: { tone: 'calm', custom_rules: [{ key: 'qa', label: 'QA', value: 'Check every output.' }] }, asset_slots: [{ id: 'old' }] } }) }),
     backendApply({ canonical_snapshot: { asset_slots: [{ id: 'slot_1' }] } }),
   )
   assert.deepEqual(JSON.parse(content ?? '').proposal, {
-    project_style: { tone: 'calm' },
-    creative_references: [],
-    asset_slots: [],
+    project_style: { tone: 'calm', custom_rules: [{ key: 'qa', label: 'QA', value: 'Check every output.' }] },
   })
 })
 

@@ -29,13 +29,15 @@ export interface CompactedPromptHistory {
 }
 
 export interface ThreadContextSummary {
-  schema: 'movscript.thread-context-summary.v1'
+  schema: 'movscript.thread-context-summary.v2'
   threadId: string
   updatedAt: string
   userGoal?: string
   stablePreferences: string[]
   acceptedFacts: FactRecord[]
   artifactRefs: ContextRef[]
+  retrievedRefs: ContextRef[]
+  invalidatedRefs: ContextRef[]
   openDecisions: string[]
   recentRunRefs: Array<{
     runId: string
@@ -43,6 +45,21 @@ export interface ThreadContextSummary {
     artifactRefs: ContextRef[]
     retrievedRefs: ContextRef[]
   }>
+  summaryProvenance: {
+    strategy: 'deterministic'
+    runId: string
+    createdAt: string
+    factsRequireEvidence: true
+    summariesAreAdvisory: true
+  }
+  compactStats: {
+    recentRunRefCount: number
+    artifactRefCount: number
+    retrievedRefCount: number
+    acceptedFactCount: number
+    invalidatedRefCount: number
+    maxSummaryChars: number
+  }
 }
 
 export function compactPromptHistory(
@@ -89,40 +106,79 @@ export function buildThreadContextSummary(input: {
   const ledger = normalizeLedger(input.run.metadata?.contextLedger)
   const artifactRefs = mergeContextRefs(previous?.artifactRefs ?? [], ledger.artifactRefs)
   const retrievedRefs = ledger.retrieved.map((record) => record.ref)
+  const allRetrievedRefs = mergeContextRefs(previous?.retrievedRefs ?? [], retrievedRefs)
+  const acceptedFacts = mergeFacts(previous?.acceptedFacts ?? [], ledger.facts)
+  const invalidatedRefs = mergeContextRefs(previous?.invalidatedRefs ?? [], normalizeInvalidatedRefs(input.run.metadata?.invalidatedContextRefs))
   const recentRunRef = {
     runId: input.run.id,
     summary: truncateSummary(assistant?.content ?? input.run.warnings?.join('\n') ?? input.run.status, input.maxSummaryChars ?? MAX_THREAD_SUMMARY_CHARS),
     artifactRefs: ledger.artifactRefs,
     retrievedRefs,
   }
+  const maxSummaryChars = input.maxSummaryChars ?? MAX_THREAD_SUMMARY_CHARS
+  const recentRunRefs = [recentRunRef, ...(previous?.recentRunRefs ?? []).filter((ref) => ref.runId !== input.run.id)].slice(0, input.maxRunRefs ?? 8)
   return {
-    schema: 'movscript.thread-context-summary.v1',
+    schema: 'movscript.thread-context-summary.v2',
     threadId: input.threadId,
     updatedAt: now,
     ...(user?.content ? { userGoal: truncateSummary(user.content, 500) } : previous?.userGoal ? { userGoal: previous.userGoal } : {}),
     stablePreferences: previous?.stablePreferences ?? [],
-    acceptedFacts: previous?.acceptedFacts ?? [],
+    acceptedFacts,
     artifactRefs,
+    retrievedRefs: allRetrievedRefs,
+    invalidatedRefs,
     openDecisions: previous?.openDecisions ?? [],
-    recentRunRefs: [recentRunRef, ...(previous?.recentRunRefs ?? []).filter((ref) => ref.runId !== input.run.id)].slice(0, input.maxRunRefs ?? 8),
+    recentRunRefs,
+    summaryProvenance: {
+      strategy: 'deterministic',
+      runId: input.run.id,
+      createdAt: now,
+      factsRequireEvidence: true,
+      summariesAreAdvisory: true,
+    },
+    compactStats: {
+      recentRunRefCount: recentRunRefs.length,
+      artifactRefCount: artifactRefs.length,
+      retrievedRefCount: allRetrievedRefs.length,
+      acceptedFactCount: acceptedFacts.length,
+      invalidatedRefCount: invalidatedRefs.length,
+      maxSummaryChars,
+    },
   }
 }
 
 export function normalizeThreadContextSummary(value: unknown): ThreadContextSummary | undefined {
-  if (!isRecord(value) || value.schema !== 'movscript.thread-context-summary.v1') return undefined
+  if (!isRecord(value) || value.schema !== 'movscript.thread-context-summary.v2') return undefined
   const threadId = stringField(value.threadId)
   const updatedAt = stringField(value.updatedAt)
   if (!threadId || !updatedAt) return undefined
+  const recentRunRefs = Array.isArray(value.recentRunRefs) ? value.recentRunRefs.flatMap(normalizeRecentRunRef) : []
+  const artifactRefs = Array.isArray(value.artifactRefs) ? value.artifactRefs.flatMap(normalizeContextRef) : []
+  const retrievedRefs = Array.isArray(value.retrievedRefs) ? value.retrievedRefs.flatMap(normalizeContextRef) : []
+  const invalidatedRefs = Array.isArray(value.invalidatedRefs) ? value.invalidatedRefs.flatMap(normalizeContextRef) : []
+  const acceptedFacts = Array.isArray(value.acceptedFacts) ? value.acceptedFacts.flatMap(normalizeFactRecord) : []
+  const provenance = normalizeSummaryProvenance(value.summaryProvenance, recentRunRefs[0]?.runId, updatedAt)
   return {
-    schema: 'movscript.thread-context-summary.v1',
+    schema: 'movscript.thread-context-summary.v2',
     threadId,
     updatedAt,
     ...(stringField(value.userGoal) ? { userGoal: stringField(value.userGoal) } : {}),
     stablePreferences: stringArray(value.stablePreferences),
-    acceptedFacts: [],
-    artifactRefs: Array.isArray(value.artifactRefs) ? value.artifactRefs.flatMap(normalizeContextRef) : [],
+    acceptedFacts,
+    artifactRefs,
+    retrievedRefs,
+    invalidatedRefs,
     openDecisions: stringArray(value.openDecisions),
-    recentRunRefs: Array.isArray(value.recentRunRefs) ? value.recentRunRefs.flatMap(normalizeRecentRunRef) : [],
+    recentRunRefs,
+    summaryProvenance: provenance,
+    compactStats: normalizeCompactStats(value.compactStats, {
+      recentRunRefCount: recentRunRefs.length,
+      artifactRefCount: artifactRefs.length,
+      retrievedRefCount: retrievedRefs.length,
+      acceptedFactCount: acceptedFacts.length,
+      invalidatedRefCount: invalidatedRefs.length,
+      maxSummaryChars: MAX_THREAD_SUMMARY_CHARS,
+    }),
   }
 }
 
@@ -161,9 +217,14 @@ function renderThreadContextSummary(summary: ThreadContextSummary): string {
     'Persisted thread context summary:',
     summary.userGoal ? `- User goal: ${summary.userGoal}` : undefined,
     summary.artifactRefs.length > 0 ? `- Artifact refs: ${summary.artifactRefs.map(formatRef).join(', ')}` : undefined,
+    summary.retrievedRefs.length > 0 ? `- Retrieved refs: ${summary.retrievedRefs.slice(0, 12).map(formatRef).join(', ')}${summary.retrievedRefs.length > 12 ? `; ${summary.retrievedRefs.length - 12} more` : ''}` : undefined,
+    summary.acceptedFacts.length > 0 ? '- Accepted facts:' : undefined,
+    ...summary.acceptedFacts.slice(0, 8).map((fact) => `  - ${fact.claim} (source=${fact.source}; evidence=${fact.evidence}; refs=${fact.refs.map(formatRef).join(', ') || 'none'})`),
+    summary.invalidatedRefs.length > 0 ? `- Invalidated refs: ${summary.invalidatedRefs.map(formatRef).join(', ')}` : undefined,
     summary.openDecisions.length > 0 ? `- Open decisions: ${summary.openDecisions.join('; ')}` : undefined,
     summary.recentRunRefs.length > 0 ? '- Recent runs:' : undefined,
     ...summary.recentRunRefs.slice(0, 4).map((run) => `  - ${run.runId}: ${run.summary}${run.retrievedRefs.length > 0 ? `; refs=${run.retrievedRefs.map(formatRef).join(', ')}` : ''}`),
+    `- Summary provenance: strategy=${summary.summaryProvenance.strategy}; sourceRun=${summary.summaryProvenance.runId}; factsRequireEvidence=${summary.summaryProvenance.factsRequireEvidence}; summariesAreAdvisory=${summary.summaryProvenance.summariesAreAdvisory}.`,
     '- Treat this summary as conversation continuity, not a source of current project facts.',
   ].filter(Boolean)
   return lines.join('\n')
@@ -180,8 +241,8 @@ function truncateSummary(value: string, maxChars: number): string {
   return normalized.length <= limit ? normalized : `${normalized.slice(0, limit - 1)}…`
 }
 
-function normalizeLedger(value: unknown): { retrieved: Array<{ ref: ContextRef }>; artifactRefs: ContextRef[] } {
-  if (!isRecord(value)) return { retrieved: [], artifactRefs: [] }
+function normalizeLedger(value: unknown): { retrieved: Array<{ ref: ContextRef }>; artifactRefs: ContextRef[]; facts: FactRecord[] } {
+  if (!isRecord(value)) return { retrieved: [], artifactRefs: [], facts: [] }
   return {
     retrieved: Array.isArray(value.retrieved)
       ? value.retrieved.flatMap((record) => {
@@ -191,6 +252,7 @@ function normalizeLedger(value: unknown): { retrieved: Array<{ ref: ContextRef }
       })
       : [],
     artifactRefs: Array.isArray(value.artifactRefs) ? value.artifactRefs.flatMap(normalizeContextRef) : [],
+    facts: Array.isArray(value.facts) ? value.facts.flatMap(normalizeFactRecord) : [],
   }
 }
 
@@ -228,6 +290,57 @@ function mergeContextRefs(left: ContextRef[], right: ContextRef[]): ContextRef[]
   return Array.from(byKey.values())
 }
 
+function mergeFacts(left: FactRecord[], right: FactRecord[]): FactRecord[] {
+  const byId = new Map<string, FactRecord>()
+  for (const fact of [...left, ...right]) byId.set(fact.id, fact)
+  return Array.from(byId.values()).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+}
+
+function normalizeInvalidatedRefs(value: unknown): ContextRef[] {
+  return Array.isArray(value) ? value.flatMap(normalizeContextRef) : []
+}
+
+function normalizeFactRecord(value: unknown): FactRecord[] {
+  if (!isRecord(value)) return []
+  const id = stringField(value.id)
+  const claim = stringField(value.claim)
+  const source = normalizeContextSource(value.source)
+  const evidence = normalizeEvidenceLevel(value.evidence)
+  const createdAt = stringField(value.createdAt)
+  if (!id || !claim || !source || !evidence || !createdAt) return []
+  return [{
+    id,
+    claim,
+    source,
+    evidence,
+    refs: Array.isArray(value.refs) ? value.refs.flatMap(normalizeContextRef) : [],
+    createdAt,
+  }]
+}
+
+function normalizeSummaryProvenance(value: unknown, fallbackRunId: string | undefined, fallbackCreatedAt: string): ThreadContextSummary['summaryProvenance'] {
+  const record = isRecord(value) ? value : undefined
+  return {
+    strategy: 'deterministic',
+    runId: stringField(record?.runId) ?? fallbackRunId ?? 'unknown',
+    createdAt: stringField(record?.createdAt) ?? fallbackCreatedAt,
+    factsRequireEvidence: true,
+    summariesAreAdvisory: true,
+  }
+}
+
+function normalizeCompactStats(value: unknown, fallback: ThreadContextSummary['compactStats']): ThreadContextSummary['compactStats'] {
+  const record = isRecord(value) ? value : undefined
+  return {
+    recentRunRefCount: numberField(record?.recentRunRefCount) ?? fallback.recentRunRefCount,
+    artifactRefCount: numberField(record?.artifactRefCount) ?? fallback.artifactRefCount,
+    retrievedRefCount: numberField(record?.retrievedRefCount) ?? fallback.retrievedRefCount,
+    acceptedFactCount: numberField(record?.acceptedFactCount) ?? fallback.acceptedFactCount,
+    invalidatedRefCount: numberField(record?.invalidatedRefCount) ?? fallback.invalidatedRefCount,
+    maxSummaryChars: numberField(record?.maxSummaryChars) ?? fallback.maxSummaryChars,
+  }
+}
+
 function formatRef(ref: ContextRef): string {
   return `${ref.type}#${ref.id}${ref.title ? ` ${ref.title}` : ''}`
 }
@@ -242,6 +355,40 @@ function isContextRefType(value: unknown): value is ContextRef['type'] {
     || value === 'asset_slot'
     || value === 'generation_job'
     || value === 'plan'
+}
+
+function normalizeContextSource(value: unknown): FactRecord['source'] | undefined {
+  return value === 'system'
+    || value === 'catalog'
+    || value === 'profile'
+    || value === 'skill'
+    || value === 'tool_result'
+    || value === 'mcp'
+    || value === 'backend'
+    || value === 'draft'
+    || value === 'memory'
+    || value === 'knowledge'
+    || value === 'user_input'
+    || value === 'assistant_history'
+    || value === 'thread_summary'
+    ? value
+    : undefined
+}
+
+function normalizeEvidenceLevel(value: unknown): FactRecord['evidence'] | undefined {
+  return value === 'verified'
+    || value === 'runtime_state'
+    || value === 'user_claimed'
+    || value === 'draft'
+    || value === 'advisory'
+    || value === 'summary'
+    || value === 'unknown'
+    ? value
+    : undefined
+}
+
+function numberField(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
 function stringField(value: unknown): string | undefined {

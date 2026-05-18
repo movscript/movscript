@@ -23,6 +23,7 @@ import type { AgentRuntimeCatalogSnapshot } from './runtimeCatalogSnapshot.js'
 import { resolvePreviewRunMessageInput } from './runExecutionInput.js'
 import { resolveRuntimeAgentManifest } from './runtimeManifest.js'
 import { requireRuntimeThread } from './runtimeStoreLookup.js'
+import { shouldLoadRuntimeMemories } from './runtimeRunContextPackage.js'
 
 export async function buildRuntimeRunPreview(input: {
   store: Pick<AgentStore, 'getThread'>
@@ -54,10 +55,12 @@ export async function buildRuntimeRunPreview(input: {
   const contextResult = await input.mcpClient.callTool('movscript_get_focus', {})
   const context = extractAgentContext(contextResult)
   const currentProjectId = isValidAgentProjectId(context.currentProjectId) ? context.currentProjectId : undefined
-  const relevantMemories = input.memoryManager.loadRelevantMemories({
-    ...(currentProjectId !== undefined ? { projectId: currentProjectId } : {}),
-    query: message,
-  })
+  const relevantMemories = shouldLoadRuntimeMemories(command, message)
+    ? input.memoryManager.loadRelevantMemories({
+      ...(currentProjectId !== undefined ? { projectId: currentProjectId } : {}),
+      query: message,
+    })
+    : []
   const memories = buildPromptMemoryIndex(relevantMemories)
   const debugContext = buildDebugContext(contextResult, memories, clientInput)
   const layers = hasExplicitAgentManifest

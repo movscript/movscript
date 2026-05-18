@@ -5,11 +5,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node --import tsx ../../apps/movcli/src/index.ts build"
+    "build": "movcli build"
   },
   "devDependencies": {
     "@movscript/plugin-sdk": "workspace:*",
-    "tsx": "^4.0.0",
-    "typescript": "^5.7.0"
+    "movcli": "workspace:*"
   }
 }

@@ -50,14 +50,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Script governance
+        run: pnpm run verify:scripts && pnpm run test:scripts
+
       - name: Typecheck
         run: pnpm run typecheck
 
       - name: Unit tests
         run: pnpm --filter movscript-agent test && pnpm --filter movscript-frontend test && pnpm --filter movscript-admin test
 
-      - name: AgentRun debugging static gate
-        run: pnpm run test:agent-run-debugging
+      - name: Contract gates
+        run: pnpm run test:contracts
 
       - name: Build
-        run: pnpm run build:packages && pnpm run build:agent && pnpm run build:apps && pnpm run build:plugins
+        run: pnpm run build

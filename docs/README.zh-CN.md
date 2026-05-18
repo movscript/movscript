@@ -16,20 +16,21 @@ make dev-frontend-local
 需要拆开调试后端和前端时：
 
 ```bash
-make dev-backend
-make dev-frontend
+pnpm --filter movscript-backend dev
+pnpm --filter movscript-frontend dev
 curl http://localhost:8765/health
 ```
 
 开发 Agent 流程时启动本地 Agent：
 
 ```bash
-make dev-agent
+pnpm --filter movscript-agent dev
 ```
 
 ## 配置
 
 本地桌面模式会设置 `MOVSCRIPT_BACKEND_POLICY=spawn`。外部后端开发默认地址为 `http://localhost:8765`；后端环境变量参考 `apps/backend/.env.example`。
+如果本地桌面模式需要连接外部 Agent 服务，复用同一个入口并运行 `MOVSCRIPT_AGENT_POLICY=external make dev-frontend-local`。
 
 常用本地后端配置：
 
@@ -84,16 +85,24 @@ OpenAPI 和其他机器可读契约放在 `contracts/`，不要放在 `docs/`。
 ```bash
 pnpm install
 make dev-frontend-local
-make dev-backend
-make dev-frontend
-make dev-agent
+pnpm --filter movscript-backend dev
+pnpm --filter movscript-frontend dev
+pnpm --filter movscript-agent dev
 pnpm run typecheck
-pnpm run test:backend
-pnpm run test:agent-run-debugging
-pnpm run test:release-scripts
+pnpm --filter movscript-backend test
+pnpm run test:contracts
+pnpm run test:scripts
+pnpm run verify:scripts
 ```
 
-插件相关代码位于 `apps/movcli`、`packages/plugin-sdk` 和 `plugins/*`。开发插件打包时使用 `make dev-movcli` 和 `pnpm run build:plugins`。
+插件相关代码位于 `apps/movcli`、`packages/plugin-sdk` 和 `plugins/*`。开发插件打包时使用 `pnpm --filter movcli dev` 和 `pnpm --filter "./plugins/*" build`。
+
+脚本归属和生命周期规则见 [Script Management](./script-management.md)。新增、移动、废弃或删除仓库自动化脚本时，必须同步更新 `scripts/script-manifest.json`。
+
+AI 生成素材进入审核链路时使用候选集语义，而不是直接绑定；素材需求、画面锚点和未来视觉锚点的候选规则见 [候选集工作流](./candidate-workflow.zh-CN.md)。
+
+Agent 设置、Agent 调试和对话详情的职责边界见 [Agent 设置与调试边界](./agent-settings-debug.zh-CN.md)。
+稳定的 Agent Debug Bundle 和 Agent Settings Snapshot schema 见 [Agent Schema 参考](./agent-schema-reference.zh-CN.md)。
 
 ## 发布与部署
 
@@ -103,30 +112,28 @@ pnpm run test:release-scripts
 
 ```bash
 pnpm run build
-pnpm run package:desktop
-pnpm run package:desktop:mac:x64
-pnpm run package:desktop:mac:arm64
-pnpm run package:desktop:linux:x64
-pnpm run package:desktop:linux:arm64
-pnpm run package:desktop:win
-pnpm run package:desktop:win:arm64
+pnpm run release -- package-desktop
+pnpm run release -- package-desktop --platform=darwin --arch=arm64
+pnpm run release -- package-desktop --platform=linux --arch=x64
+pnpm run release -- package-desktop --platform=win32 --arch=x64
 ```
 
 发布前至少确认：
 
 - `pnpm run typecheck`
-- `pnpm run test:backend`
-- `pnpm run test:agent-run-debugging`
+- `pnpm --filter movscript-backend test`
+- `pnpm run test:contracts`
 - `pnpm --filter movscript-frontend typecheck`
 - `pnpm --filter movscript-admin typecheck`
-- `pnpm run test:release-scripts`
-- `pnpm run release:audit-ffmpeg:matrix`
+- `pnpm run verify:scripts`
+- `pnpm run test:scripts`
+- `pnpm run release -- audit-ffmpeg --all --all-archs`
 - 管理后台静态资源已构建并复制。
 - 本地桌面模式能启动 `http://localhost:8766`。
 - 管理后台能打开 `http://localhost:8766/admin`。
 - 桌面端视频剪辑使用 `apps/frontend/vendor/ffmpeg` 中已 staged 的可再分发 ffmpeg 二进制。
 
-如果 AgentRun 调试改动确实需要浏览器或截图覆盖，再在能启动 Chromium 的环境中手动运行 `pnpm run test:agent-run-debugging:e2e`。
+如果 AgentRun 调试改动确实需要浏览器或截图覆盖，再在能启动 Chromium 的环境中手动运行 `make test-agent-run-debugging-e2e`。
 
 ## 故障排查
 
@@ -153,4 +160,4 @@ pnpm run package:desktop:win:arm64
 - 本机剪辑只在桌面端可用。
 - 打包应用会查找 `resources/ffmpeg/<platform>/<arch>/<binary>`。
 - 开发环境可以使用 `FFMPEG_PATH`、`MOVSCRIPT_FFMPEG_PATH`，或 `PATH` 中的 `ffmpeg`。
-- 发布包必须用 `pnpm run release:stage-ffmpeg` 或 `pnpm run release:download-ffmpeg-static` 准备可再分发二进制。
+- 发布包必须用 `pnpm run release -- stage-ffmpeg` 或 `pnpm run release -- download-ffmpeg-static` 准备可再分发二进制。

@@ -4,7 +4,7 @@ import { MemoryManager } from './memoryManager.js'
 import { InMemoryAgentMemoryStore } from './memoryStore.js'
 import type { AgentMessage, AgentRun } from '../state/types.js'
 
-test('memory manager ignores non-plain draft result records when writing draft memories', () => {
+test('memory manager only writes explicit memory preferences, not draft side effects', () => {
   class DraftResult {
     id = 'draft_1'
     title = 'Prototype draft'
@@ -13,7 +13,7 @@ test('memory manager ignores non-plain draft result records when writing draft m
   const manager = new MemoryManager(new InMemoryAgentMemoryStore())
   const memories = manager.extractAndWriteMemories({
     run: makeRun(),
-    userMessage: makeUserMessage(),
+    userMessage: { ...makeUserMessage(), content: 'create a draft' },
     projectId: 42,
     toolResults: [{
       call: { name: 'movscript_create_draft', args: { kind: 'note' } },
@@ -22,10 +22,23 @@ test('memory manager ignores non-plain draft result records when writing draft m
     warnings: [],
   })
 
+  assert.deepEqual(memories, [])
+})
+
+test('memory manager writes explicit preference memories', () => {
+  const manager = new MemoryManager(new InMemoryAgentMemoryStore())
+  const memories = manager.extractAndWriteMemories({
+    run: makeRun(),
+    userMessage: { ...makeUserMessage(), content: '以后默认中文回答' },
+    projectId: 42,
+    toolResults: [],
+    warnings: [],
+  })
+
   assert.equal(memories.length, 1)
-  assert.equal(memories[0]?.kind, 'draft')
-  assert.equal(memories[0]?.title, '草稿')
-  assert.equal(memories[0]?.content, 'Created draft.')
+  assert.equal(memories[0]?.kind, 'preference')
+  assert.equal(memories[0]?.title, '偏好：以后默认中文回答')
+  assert.equal(memories[0]?.content, '以后默认中文回答')
 })
 
 test('memory manager ignores invalid project scopes', () => {

@@ -130,6 +130,62 @@ test('refreshRuntimeAgentGraphCatalog resolves layered default profile when avai
   assert.equal(result.capabilities.blocked.some((tool) => tool.name === 'tool_layered' && tool.unavailableReason === 'workflow_scope'), true)
 })
 
+test('refreshRuntimeAgentGraphCatalog loads requested active skill state', async () => {
+  const layeredRegistry = buildLayeredCatalogRegistry({
+    manifest: DEFAULT_AGENT_MANIFEST,
+    tools: [],
+    layeredSkills: [{
+      id: 'studio.expertise.action',
+      kind: 'expertise',
+      version: '1.0.0',
+      name: 'Action Director',
+      description: 'Action direction expertise',
+      priority: 80,
+      enabled: true,
+      instructionTemplate: 'Design readable action beats.',
+      loadMode: 'on_demand',
+    }],
+    profiles: [{
+      schema: 'movscript.agent.profile.v1',
+      id: 'movscript.profile.default',
+      version: '1.0.0',
+      name: 'Layered Profile',
+      persona: null,
+      enabledPacks: [],
+      enabledPolicies: [],
+      enabledWorkflows: [],
+      toolGrants: [],
+    }],
+  })
+  const catalogSnapshots = new RuntimeCatalogSnapshotRegistry(buildRuntimeCatalogSnapshot({
+    id: 'snapshot_1',
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: new StaticToolRegistry([]),
+    layeredRegistry,
+  }))
+  const run = makeRun({
+    metadata: {
+      manifestSource: 'default',
+      skillState: {
+        loadedSkillIds: ['studio.expertise.action'],
+        unloadedSkillIds: [],
+      },
+    },
+  })
+
+  const result = await refreshRuntimeAgentGraphCatalog({
+    run,
+    catalogSnapshots,
+    mcpClient: new FakeCapabilityClient(),
+    userMessage: 'make the fight sharper',
+    debugContext: debugContext(),
+    history: [],
+  })
+
+  assert.deepEqual(result.skills.map((skill) => skill.id), ['studio.expertise.action'])
+  assert.equal(result.skills[0]?.metadata?.loadMode, 'on_demand')
+})
+
 function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   return {
     id: 'run_1',

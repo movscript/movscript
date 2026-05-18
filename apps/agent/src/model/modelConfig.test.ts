@@ -59,6 +59,24 @@ test('runtime model config can be saved with only public model_id', () => {
   }
 })
 
+test('runtime model config can be cleared back to unconfigured state', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
+  try {
+    const filePath = join(dir, 'model-config.json')
+    const store = new RuntimeModelConfigStore(filePath)
+
+    store.save({ model: 'gpt-5.5', useForChat: true, useForPlanner: true })
+    const cleared = store.clear()
+
+    assert.equal(cleared.configured, false)
+    assert.equal(cleared.source, 'none')
+    assert.equal(store.getEffectiveConfig(), undefined)
+    assert.throws(() => readFileSync(filePath, 'utf8'), /ENOENT/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('runtime model config keeps an existing backend model config id when saving usage changes', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
   try {
@@ -74,6 +92,211 @@ test('runtime model config keeps an existing backend model config id when saving
     assert.equal(updated.useForPlanner, false)
     assert.equal(effective?.modelConfigId, 7)
   } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('runtime model config rejects configs with all routes disabled', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
+  try {
+    const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
+
+    assert.throws(
+      () => store.save({
+        model: 'gpt-5.5',
+        useForChat: false,
+        useForPlanner: false,
+      }),
+      /must enable at least one route/,
+    )
+
+    store.save({ model: 'gpt-5.5', useForChat: false, useForPlanner: true })
+    assert.throws(
+      () => store.save({ useForPlanner: false }),
+      /must enable at least one route/,
+    )
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('runtime model config rejects invalid save input field types', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
+  try {
+    const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
+
+    assert.throws(
+      () => store.save({ modelConfigId: '7' }),
+      /modelConfigId must be a positive integer/,
+    )
+    assert.throws(
+      () => store.save({ model: '' }),
+      /model must be a non-empty string/,
+    )
+    assert.throws(
+      () => store.save({ model: 'gpt-5.5', apiKind: 'responses' }),
+      /apiKind is invalid/,
+    )
+    assert.throws(
+      () => store.save({ model: 'gpt-5.5', baseURL: '' }),
+      /baseURL must be a non-empty string/,
+    )
+    assert.throws(
+      () => store.save({ model: 'gpt-5.5', useForChat: 'true' }),
+      /useForChat must be boolean/,
+    )
+    assert.throws(
+      () => store.save({ model: 'gpt-5.5', useForPlanner: 1 }),
+      /useForPlanner must be boolean/,
+    )
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('runtime model config rejects direct provider model ids with embedded secrets', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
+  try {
+    const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
+
+    assert.throws(
+      () => store.save({
+        model: 'sk-proj-exampleSecretValue123456789',
+        apiKind: 'openai_responses',
+      }),
+      /model must not include API keys/,
+    )
+    assert.throws(
+      () => store.save({
+        model: 'authorization: Bearer direct-secret-token',
+        apiKind: 'anthropic_messages',
+      }),
+      /model must not include API keys/,
+    )
+    assert.equal(store.getEffectiveConfig(), undefined)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('runtime model config rejects model base URLs with secret URL credentials', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
+  try {
+    const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
+
+    assert.throws(
+      () => store.save({
+        model: 'gpt-5.5',
+        apiKind: 'openai_responses',
+        baseURL: 'https://user:pass@api.openai.com/v1',
+      }),
+      /baseURL must not include secret URL credentials/,
+    )
+    assert.throws(
+      () => store.save({
+        model: 'gpt-5.5',
+        apiKind: 'openai_responses',
+        baseURL: 'https://api.openai.com/v1?api_key=secret',
+      }),
+      /baseURL must not include secret URL credentials/,
+    )
+    assert.equal(store.getEffectiveConfig(), undefined)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('runtime model config clears base URL when saving a full config without one', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
+  try {
+    const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
+
+    store.save({
+      model: 'gpt-5.5',
+      apiKind: 'openai_responses',
+      baseURL: 'https://api.openai.com/v1',
+    })
+    const clearedByOmission = store.save({
+      model: 'gpt-5.5-mini',
+      apiKind: 'openai_responses',
+    })
+
+    assert.equal(clearedByOmission.baseURL, undefined)
+
+    store.save({
+      model: 'gpt-5.5',
+      apiKind: 'openai_responses',
+      baseURL: 'https://api.openai.com/v1',
+    })
+    const clearedByNull = store.save({
+      model: 'gpt-5.5',
+      apiKind: 'openai_responses',
+      baseURL: null,
+    })
+
+    assert.equal(clearedByNull.baseURL, undefined)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('runtime model config preserves base URL when only route flags change', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
+  try {
+    const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
+
+    store.save({
+      model: 'gpt-5.5',
+      apiKind: 'openai_responses',
+      baseURL: 'https://api.openai.com/v1',
+    })
+    const updated = store.save({ useForPlanner: false })
+
+    assert.equal(updated.baseURL, 'https://api.openai.com/v1')
+    assert.equal(updated.useForPlanner, false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('runtime model config clears backend model config id when switching to a direct model id', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
+  const originalAgentKey = process.env.MOVSCRIPT_AGENT_MODEL_API_KEY
+  const originalGatewayKey = process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
+  try {
+    delete process.env.MOVSCRIPT_AGENT_MODEL_API_KEY
+    delete process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
+    const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
+
+    store.save({ modelConfigId: 7, model: 'model_config:7', useForChat: true })
+    const updated = store.save({
+      model: 'gpt-5.5',
+      apiKind: 'openai_responses',
+      baseURL: 'https://api.openai.com/v1',
+      useForChat: true,
+      useForPlanner: true,
+    })
+    const raw = JSON.parse(readFileSync(join(dir, 'model-config.json'), 'utf8')) as Record<string, unknown>
+
+    assert.equal(updated.configured, true)
+    assert.equal(updated.modelConfigId, undefined)
+    assert.equal(updated.model, 'gpt-5.5')
+    assert.equal(updated.apiKind, 'openai_responses')
+    assert.equal(updated.baseURL, 'https://api.openai.com/v1')
+    assert.equal(updated.credentialStatus.required, true)
+    assert.equal(updated.credentialStatus.configured, false)
+    assert.deepEqual(updated.credentialStatus.acceptedEnv, ['MOVSCRIPT_AGENT_MODEL_API_KEY', 'MOVSCRIPT_MODEL_GATEWAY_API_KEY'])
+    assert.equal(raw.modelConfigId, undefined)
+
+    process.env.MOVSCRIPT_AGENT_MODEL_API_KEY = 'direct-provider-key'
+    const publicConfig = store.getPublicConfig()
+    assert.equal(publicConfig.credentialStatus.configured, true)
+    assert.deepEqual(publicConfig.credentialStatus.sourceEnv, ['MOVSCRIPT_AGENT_MODEL_API_KEY'])
+  } finally {
+    if (originalAgentKey === undefined) delete process.env.MOVSCRIPT_AGENT_MODEL_API_KEY
+    else process.env.MOVSCRIPT_AGENT_MODEL_API_KEY = originalAgentKey
+    if (originalGatewayKey === undefined) delete process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
+    else process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY = originalGatewayKey
     rmSync(dir, { recursive: true, force: true })
   }
 })
@@ -94,10 +317,69 @@ test('runtime model config ignores corrupt or non-object config files', () => {
       useForChat: true,
       useForPlanner: true,
       source: 'none',
+      credentialStatus: {
+        required: false,
+        configured: false,
+        sourceEnv: [],
+        acceptedEnv: ['MOVSCRIPT_AGENT_MODEL_API_KEY', 'MOVSCRIPT_MODEL_GATEWAY_API_KEY'],
+      },
     })
 
     writeFileSync(filePath, '["model_config:7"]', 'utf8')
     assert.equal(store.getEffectiveConfig(), undefined)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('runtime model config ignores persisted configs with all routes disabled', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
+  try {
+    const filePath = join(dir, 'model-config.json')
+    const store = new RuntimeModelConfigStore(filePath)
+
+    writeFileSync(filePath, JSON.stringify({
+      provider: 'backend-model-config',
+      model: 'gpt-5.5',
+      useForChat: false,
+      useForPlanner: false,
+    }), 'utf8')
+
+    assert.equal(store.getEffectiveConfig(), undefined)
+    assert.equal(store.getPublicConfig().configured, false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('runtime model config ignores persisted direct configs with embedded secrets', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
+  try {
+    const filePath = join(dir, 'model-config.json')
+    const store = new RuntimeModelConfigStore(filePath)
+
+    writeFileSync(filePath, JSON.stringify({
+      provider: 'backend-model-config',
+      model: 'sk-proj-exampleSecretValue123456789',
+      apiKind: 'openai_responses',
+      useForChat: true,
+      useForPlanner: true,
+    }), 'utf8')
+
+    assert.equal(store.getEffectiveConfig(), undefined)
+    assert.equal(store.getPublicConfig().configured, false)
+
+    writeFileSync(filePath, JSON.stringify({
+      provider: 'backend-model-config',
+      model: 'gpt-5.5',
+      apiKind: 'openai_responses',
+      baseURL: 'https://api.openai.com/v1?token=secret',
+      useForChat: true,
+      useForPlanner: true,
+    }), 'utf8')
+
+    assert.equal(store.getEffectiveConfig(), undefined)
+    assert.equal(store.getPublicConfig().configured, false)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -143,6 +425,32 @@ test('runtime model config test uses backend gateway and hides auth from the pub
     assert.equal(result.request.body.messages[1]?.content, 'hello')
   } finally {
     globalThis.fetch = originalFetch
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('runtime model config direct OpenAI test does not treat backend auth as provider API key', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
+  const originalAgentKey = process.env.MOVSCRIPT_AGENT_MODEL_API_KEY
+  const originalGatewayKey = process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
+  try {
+    delete process.env.MOVSCRIPT_AGENT_MODEL_API_KEY
+    delete process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
+    const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
+    store.save({
+      model: 'gpt-5.5',
+      apiKind: 'openai_responses',
+    })
+
+    await assert.rejects(
+      () => store.test({ message: 'hello' }, { backendAuthToken: 'backend-user-token' }),
+      /openai_responses requires MOVSCRIPT_AGENT_MODEL_API_KEY or MOVSCRIPT_MODEL_GATEWAY_API_KEY/,
+    )
+  } finally {
+    if (originalAgentKey === undefined) delete process.env.MOVSCRIPT_AGENT_MODEL_API_KEY
+    else process.env.MOVSCRIPT_AGENT_MODEL_API_KEY = originalAgentKey
+    if (originalGatewayKey === undefined) delete process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
+    else process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY = originalGatewayKey
     rmSync(dir, { recursive: true, force: true })
   }
 })

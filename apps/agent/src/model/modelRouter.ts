@@ -2,13 +2,15 @@ import type { ModelCallInput, ModelCallResult } from './modelClient.js'
 import { callModel } from './modelClient.js'
 import type { ConfiguredRuntimeModelConfig } from './modelConfig.js'
 
-export const RUNTIME_MODEL_CAPABILITIES = ['reasoning', 'text', 'multimodal'] as const
+export const RUNTIME_MODEL_CAPABILITIES = ['reasoning', 'text', 'planning', 'multimodal'] as const
 
 export type RuntimeModelCapability = typeof RUNTIME_MODEL_CAPABILITIES[number]
 
 export type RuntimeModelRouteSource =
   | 'configured'
   | 'chat-config-fallback'
+  | 'planner-config'
+  | 'disabled'
   | 'unconfigured'
 
 export interface RuntimeModelCapabilityRoute {
@@ -71,11 +73,12 @@ class DefaultRuntimeModelRouter implements RuntimeModelRouter {
 
   resolve(capability: RuntimeModelCapability): RuntimeModelCapabilityRoute | undefined {
     if (!this.config) return undefined
+    if (!isCapabilityEnabled(this.config, capability)) return undefined
     return {
       capability,
       provider: this.config.provider,
       config: this.config,
-      source: 'chat-config-fallback',
+      source: capability === 'planning' ? 'planner-config' : 'chat-config-fallback',
     }
   }
 
@@ -83,6 +86,16 @@ class DefaultRuntimeModelRouter implements RuntimeModelRouter {
     return RUNTIME_MODEL_CAPABILITIES.map((capability) => {
       const route = this.resolve(capability)
       if (!route) {
+        if (this.config && !isCapabilityEnabled(this.config, capability)) {
+          return {
+            capability,
+            configured: false,
+            provider: this.config.provider,
+            modelConfigId: this.config.modelConfigId,
+            model: this.config.model,
+            source: 'disabled',
+          }
+        }
         return {
           capability,
           configured: false,
@@ -134,4 +147,9 @@ class DefaultRuntimeModelRouter implements RuntimeModelRouter {
       },
     }
   }
+}
+
+function isCapabilityEnabled(config: ConfiguredRuntimeModelConfig, capability: RuntimeModelCapability): boolean {
+  if (capability === 'planning') return config.useForPlanner
+  return config.useForChat
 }

@@ -65,6 +65,22 @@ test('content workbench activity feed records completed generation output', () =
   assert.equal(feed.items.every((item) => item.tone === 'done'), true)
 })
 
+test('content workbench activity feed records multiple generation outputs', () => {
+  const feed = buildContentWorkbenchActivityFeed({
+    hasSelectedUnit: true,
+    selectedUnitTitle: '纸条特写',
+    missingAssetTitles: [],
+    keyframeTitles: [],
+    generationContextReady: true,
+    generationContextLoading: false,
+    generationContextError: false,
+    pendingReviewDraftCount: 0,
+    jobs: [{ id: 10, title: '雨夜组图', type: 'image', status: 'succeeded', outputResourceIds: [88, 89] }],
+  })
+
+  assert.equal(feed.items.some((item) => item.title === '雨夜组图 已完成' && item.detail === '输出资源 #88、#89'), true)
+})
+
 test('content workbench activity feed shows empty activity without repeating gate blockers', () => {
   const feed = buildContentWorkbenchActivityFeed({
     hasSelectedUnit: true,

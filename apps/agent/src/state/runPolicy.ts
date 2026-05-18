@@ -11,7 +11,7 @@ export interface DefaultRunPolicyInput {
 export function defaultRunPolicy(input: DefaultRunPolicyInput = {}): AgentRunPolicy {
   const override = normalizeRunPolicyOverride(input.policy)
   return {
-    approvalMode: input.approvalMode ?? 'interactive',
+    approvalMode: override.approvalMode ?? input.approvalMode ?? 'interactive',
     ...(input.sandboxMode ? { sandboxMode: true } : {}),
     maxToolCalls: override.maxToolCalls ?? 20,
     maxIterations: override.maxIterations ?? 20,
@@ -21,13 +21,18 @@ export function defaultRunPolicy(input: DefaultRunPolicyInput = {}): AgentRunPol
   }
 }
 
-export function normalizeRunPolicyOverride(value: unknown): Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>> {
+export function normalizeRunPolicyOverride(value: unknown): Partial<Pick<AgentRunPolicy, 'approvalMode' | 'maxToolCalls' | 'maxIterations'>> {
   if (!isRecord(value)) return {}
   const record = value
   return {
+    ...(isRunApprovalMode(record.approvalMode) ? { approvalMode: record.approvalMode } : {}),
     ...(isPositiveFiniteNumber(record.maxToolCalls) ? { maxToolCalls: clampPolicyLimit(record.maxToolCalls) } : {}),
     ...(isPositiveFiniteNumber(record.maxIterations) ? { maxIterations: clampPolicyLimit(record.maxIterations) } : {}),
   }
+}
+
+function isRunApprovalMode(value: unknown): value is AgentRunPolicy['approvalMode'] {
+  return value === 'interactive' || value === 'auto_readonly' || value === 'auto'
 }
 
 function isPositiveFiniteNumber(value: unknown): value is number {

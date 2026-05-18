@@ -26,6 +26,7 @@ import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
 import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { makeContentFilterSearch, readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
+import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge, Button, Progress } from '@movscript/ui'
@@ -189,7 +190,10 @@ export default function SceneMomentsPage() {
   const moments = useMemo(() => (sceneMomentsQuery.data ?? []).slice().sort(compareByOrder), [sceneMomentsQuery.data])
   const contentUnits = contentUnitsQuery.data ?? []
   const scriptBlocks = scriptBlocksQuery.data ?? []
-  const keyframes = keyframesQuery.data ?? []
+  const keyframes = useMemo(
+    () => (keyframesQuery.data ?? []).filter((item) => !isGeneratedKeyframeCandidateRecord(item)),
+    [keyframesQuery.data],
+  )
   const references = referencesQuery.data ?? []
   const usages = usagesQuery.data ?? []
   const assetSlots = assetSlotsQuery.data ?? []

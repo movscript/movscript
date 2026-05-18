@@ -84,7 +84,7 @@ func canvasProductionWritePort(kind string, portID string) bool {
 	switch kind {
 	case domainworkflow.EntityKindAssetSlot:
 		switch portID {
-		case "result", "image", "video", "audio", "reference", "resource_id", "locked_asset_slot_id", "candidates", "candidate_item":
+		case "result", "image", "video", "audio", "reference", "candidates", "candidate_item":
 			return true
 		}
 	case domainworkflow.EntityKindContentUnit:

@@ -11,11 +11,14 @@
   ],
   "persona": "movscript.persona.default",
   "enabledWorkflows": [],
-  "enabledPolicies": [],
+  "enabledPolicies": [
+    "movscript.policy.agent-core"
+  ],
   "toolGrants": [],
   "limits": {
     "maxActiveWorkflows": 2,
     "systemPromptCharLimit": 32000,
+    "contextWindowCharLimit": 96000,
     "maxRetrievedContextChars": 12000,
     "maxKnowledgeCharsPerRun": 8000,
     "maxKnowledgeChunksPerRun": 3,

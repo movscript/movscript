@@ -414,7 +414,7 @@ function buildOpenAIResponsesSDKRequest(input: ModelCallInput): RuntimeModelRequ
     ...(typeof input.temperature === 'number' ? { temperature: input.temperature } : {}),
     ...(input.jsonMode ? { text: { format: { type: 'json_object' } } } : {}),
     ...(input.tools && input.tools.length > 0 ? { tools: input.tools.map(toOpenAIResponsesTool) } : {}),
-    ...(input.tools && input.tools.length > 0 && input.toolChoice ? { tool_choice: input.toolChoice } : {}),
+    ...(input.tools && input.tools.length > 0 && input.toolChoice ? { tool_choice: toOpenAIResponsesToolChoice(input.toolChoice) } : {}),
   }
   const body: RuntimeModelRequestSnapshot['body'] = {
     model: modelIdentifier(input.config),
@@ -446,7 +446,7 @@ function buildAnthropicMessagesSDKRequest(input: ModelCallInput): RuntimeModelRe
     sdk_body: sdkBody,
   }
   return {
-    url: `${resolveStandardModelBaseURL(input.config, input.auth)}/messages`,
+    url: `${resolveAnthropicMessagesBaseURL(input.config, input.auth)}/messages`,
     method: 'POST',
     headers: sdkTraceHeaders(input),
     body,
@@ -458,28 +458,48 @@ function sdkRequestBody(request: RuntimeModelRequestSnapshot): unknown {
 }
 
 function sdkTraceHeaders(input: ModelCallInput): Record<string, string> {
+  const apiKey = resolveOptionalModelAPIKey(input)
   return {
-    Authorization: `Bearer ${resolveModelAPIKey(input)}`,
+    ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
     'Content-Type': 'application/json',
   }
 }
 
 function resolveModelAPIKey(input: ModelCallInput): string {
-  const value = input.auth?.backendAuthToken || process.env.MOVSCRIPT_AGENT_MODEL_API_KEY || process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
-  if (!value?.trim()) {
-    throw new Error(`${runtimeModelAPIKind(input.config)} requires a backend auth token or gateway API key`)
+  const apiKind = runtimeModelAPIKind(input.config)
+  const value = resolveOptionalModelAPIKey(input)
+  if (!value) {
+    throw new Error(apiKind === 'backend_chat_completions'
+      ? `${apiKind} requires a backend auth token or gateway API key`
+      : `${apiKind} requires MOVSCRIPT_AGENT_MODEL_API_KEY or MOVSCRIPT_MODEL_GATEWAY_API_KEY`)
   }
-  return value.trim()
+  return value
+}
+
+function resolveOptionalModelAPIKey(input: ModelCallInput): string | undefined {
+  const apiKind = runtimeModelAPIKind(input.config)
+  const value = apiKind === 'backend_chat_completions'
+    ? input.auth?.backendAuthToken || process.env.MOVSCRIPT_AGENT_MODEL_API_KEY || process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
+    : process.env.MOVSCRIPT_AGENT_MODEL_API_KEY || process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
+  return value?.trim() || undefined
 }
 
 function resolveStandardModelBaseURL(config: ConfiguredRuntimeModelConfig, auth?: RuntimeModelAuthContext): string {
   const explicit = config.baseURL || process.env.MOVSCRIPT_AGENT_MODEL_BASE_URL
   if (explicit?.trim()) return explicit.trim().replace(/\/+$/, '')
+  const apiKind = runtimeModelAPIKind(config)
+  if (apiKind === 'openai_chat_completions' || apiKind === 'openai_responses') return 'https://api.openai.com/v1'
+  if (apiKind === 'anthropic_messages') return 'https://api.anthropic.com/v1'
   const raw = auth?.backendAPIBaseURL || process.env.MOVSCRIPT_BACKEND_API_BASE_URL || process.env.MOVSCRIPT_API_BASE_URL || 'http://localhost:8765'
   const normalized = raw.trim().replace(/\/+$/, '')
   if (normalized.endsWith('/v1')) return normalized
   if (normalized.endsWith('/api/v1')) return `${normalized.slice(0, -'/api/v1'.length)}/v1`
   return `${normalized}/v1`
+}
+
+function resolveAnthropicMessagesBaseURL(config: ConfiguredRuntimeModelConfig, auth?: RuntimeModelAuthContext): string {
+  const baseURL = resolveStandardModelBaseURL(config, auth)
+  return baseURL.endsWith('/v1') ? baseURL : `${baseURL}/v1`
 }
 
 async function createOpenAISDKClient(input: ModelCallInput): Promise<any> {
@@ -492,8 +512,13 @@ async function createOpenAISDKClient(input: ModelCallInput): Promise<any> {
 async function createAnthropicSDKClient(input: ModelCallInput): Promise<any> {
   return new Anthropic({
     apiKey: resolveModelAPIKey(input),
-    baseURL: resolveStandardModelBaseURL(input.config, input.auth),
+    baseURL: resolveAnthropicSDKBaseURL(input.config, input.auth),
   })
+}
+
+function resolveAnthropicSDKBaseURL(config: ConfiguredRuntimeModelConfig, auth?: RuntimeModelAuthContext): string {
+  const baseURL = resolveAnthropicMessagesBaseURL(config, auth)
+  return baseURL.endsWith('/v1') ? baseURL.slice(0, -'/v1'.length) : baseURL
 }
 
 function ensureJSONModeMessages(messages: RuntimeModelChatMessage[]): RuntimeModelChatMessage[] {
@@ -547,6 +572,11 @@ function toOpenAIResponsesTool(tool: RuntimeModelChatTool): Record<string, unkno
     ...(tool.function.description ? { description: tool.function.description } : {}),
     ...(tool.function.parameters !== undefined ? { parameters: tool.function.parameters } : {}),
   }
+}
+
+function toOpenAIResponsesToolChoice(choice: RuntimeModelToolChoice): unknown {
+  if (choice === 'auto' || choice === 'required' || choice === 'none') return choice
+  return { type: 'function', name: choice.function.name }
 }
 
 function toAnthropicMessages(messages: RuntimeModelChatMessage[]): { system: string; messages: unknown[] } {

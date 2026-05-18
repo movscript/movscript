@@ -97,7 +97,7 @@ func TestBuildUpdatesRejectsInvalidStatus(t *testing.T) {
 	}
 }
 
-func TestCreateAndDeleteBindingSyncsRelationsWithoutHooks(t *testing.T) {
+func TestCreateAndDeleteBindingSyncsRelationsWithoutAdoptingAssetSlotResource(t *testing.T) {
 	db := newResourceBindingTestDB(t)
 	ctx := context.Background()
 	slot := model.AssetSlot{
@@ -155,8 +155,8 @@ func TestCreateAndDeleteBindingSyncsRelationsWithoutHooks(t *testing.T) {
 	if err := db.First(&updatedSlot, slot.ID).Error; err != nil {
 		t.Fatalf("reload slot: %v", err)
 	}
-	if updatedSlot.ResourceID == nil || *updatedSlot.ResourceID != resource.ID {
-		t.Fatalf("asset slot resource_id was not backfilled: %+v", updatedSlot)
+	if updatedSlot.ResourceID != nil {
+		t.Fatalf("asset slot resource_id was directly backfilled: %+v", updatedSlot)
 	}
 	assertResourceBindingEdgeExists(t, db, "asset_slot", slot.ID, "raw_resource", resource.ID, model.EntityRelationTypeUsesResource)
 
@@ -167,7 +167,7 @@ func TestCreateAndDeleteBindingSyncsRelationsWithoutHooks(t *testing.T) {
 		t.Fatalf("reload slot after delete: %v", err)
 	}
 	if updatedSlot.ResourceID != nil {
-		t.Fatalf("asset slot resource_id was not cleared: %+v", updatedSlot)
+		t.Fatalf("asset slot resource_id changed during binding delete: %+v", updatedSlot)
 	}
 	assertResourceBindingEdgeMissing(t, db, "asset_slot", slot.ID, "raw_resource", resource.ID, model.EntityRelationTypeUsesResource)
 }

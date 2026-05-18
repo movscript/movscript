@@ -32,6 +32,7 @@ type Contributions struct {
 	Cards       []CardContribution       `json:"cards,omitempty"`
 	CanvasNodes []CanvasNodeContribution `json:"canvasNodes,omitempty"`
 	Workflows   []WorkflowContribution   `json:"workflows,omitempty"`
+	AgentSkills []AgentSkillContribution `json:"agentSkills,omitempty"`
 	Commands    []CommandContribution    `json:"commands,omitempty"`
 }
 
@@ -107,6 +108,19 @@ type WorkflowContribution struct {
 	Inputs      []CanvasPortDef `json:"inputs,omitempty"`
 	Outputs     []CanvasPortDef `json:"outputs,omitempty"`
 	Tags        []string        `json:"tags,omitempty"`
+}
+
+type AgentSkillContribution struct {
+	Path         string   `json:"path"`
+	ID           string   `json:"id,omitempty"`
+	Kind         string   `json:"kind,omitempty"`  // persona | workflow | policy | expertise
+	Load         string   `json:"load,omitempty"`  // core | on_demand | manual
+	Scope        string   `json:"scope,omitempty"` // turn | run | thread
+	Tags         []string `json:"tags,omitempty"`
+	Aliases      []string `json:"aliases,omitempty"`
+	UseWhen      []string `json:"useWhen,omitempty"`
+	Dependencies []string `json:"dependencies,omitempty"`
+	Conflicts    []string `json:"conflicts,omitempty"`
 }
 
 type CommandContribution struct {
@@ -209,6 +223,28 @@ func ValidateManifest(m *Manifest) error {
 		}
 		if err := validateCanvasPorts(wf.ID, "workflow output", wf.Outputs); err != nil {
 			return err
+		}
+	}
+	seenAgentSkills := map[string]bool{}
+	for _, skill := range m.Contributes.AgentSkills {
+		if strings.TrimSpace(skill.Path) == "" {
+			return errors.New("agent skill path is required")
+		}
+		if strings.ContainsAny(skill.Path, "\\") || strings.HasPrefix(skill.Path, "/") || strings.Contains(skill.Path, "..") {
+			return fmt.Errorf("agent skill path %q must be a relative package path", skill.Path)
+		}
+		if seenAgentSkills[skill.Path] {
+			return fmt.Errorf("duplicate agent skill path %q", skill.Path)
+		}
+		seenAgentSkills[skill.Path] = true
+		if skill.Kind != "" && skill.Kind != "persona" && skill.Kind != "workflow" && skill.Kind != "policy" && skill.Kind != "expertise" {
+			return fmt.Errorf("agent skill %q has invalid kind %q", skill.Path, skill.Kind)
+		}
+		if skill.Load != "" && skill.Load != "core" && skill.Load != "on_demand" && skill.Load != "manual" {
+			return fmt.Errorf("agent skill %q has invalid load %q", skill.Path, skill.Load)
+		}
+		if skill.Scope != "" && skill.Scope != "turn" && skill.Scope != "run" && skill.Scope != "thread" {
+			return fmt.Errorf("agent skill %q has invalid scope %q", skill.Path, skill.Scope)
 		}
 	}
 	seenNodes := map[string]bool{}

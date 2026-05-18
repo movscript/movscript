@@ -148,6 +148,65 @@ test('applyRuntimeLocalDiagnosticCommand preserves warning completion status and
   assert.equal(Array.isArray(diagnostic?.tools?.modelTools), true)
 })
 
+test('applyRuntimeLocalDiagnosticCommand completes compact command and refreshes thread summary metadata', () => {
+  const store = new InMemoryAgentStore()
+  const thread = makeThread({
+    messages: Array.from({ length: 9 }, (_, index): AgentMessage => ({
+      id: `msg_${index}`,
+      threadId: 'thread_1',
+      role: index % 2 === 0 ? 'user' : 'assistant',
+      content: `message ${index}`,
+      createdAt: `2026-01-01T00:00:0${index}.000Z`,
+    })),
+  })
+  const run = makeRun({ status: 'in_progress' })
+  store.createThread(thread)
+  store.createRun(run)
+  let completedStep: AgentRunStep | undefined
+
+  const assistant = applyRuntimeLocalDiagnosticCommand({
+    store,
+    run,
+    thread,
+    command: parseAgentCommand('/compact'),
+    manifest: DEFAULT_AGENT_MANIFEST,
+    skills: [],
+    context: debugContext(),
+    tools: emptyTools(),
+    policy: run.policy,
+    memories: [],
+    warnings: [],
+    history: thread.messages,
+    userMessage: '/compact',
+    contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
+    now: () => now,
+    recordTrace: () => {},
+    createStep: (targetRun, type) => {
+      const step: AgentRunStep = {
+        id: 'step_1',
+        runId: targetRun.id,
+        type,
+        status: 'in_progress',
+        createdAt: now,
+      }
+      targetRun.steps.push(step)
+      completedStep = step
+      return step
+    },
+    emitAssistantMessage: () => {},
+    emitRunSnapshot: () => {},
+  })
+
+  const diagnostic = (completedStep?.result as any)?.diagnostic
+  assert.equal(run.status, 'completed')
+  assert.equal((completedStep?.result as any)?.localCommand, 'compact')
+  assert.equal(diagnostic?.schema, 'movscript.local_compact_diagnostic.v1')
+  assert.equal(diagnostic?.compact?.historyCompactedCount, 3)
+  assert.equal(thread.messages.at(-1)?.id, assistant.id)
+  assert.equal((thread.metadata?.threadContextSummary as any)?.schema, 'movscript.thread-context-summary.v2')
+  assert.equal((run.metadata?.threadContextSummary as any)?.schema, 'movscript.thread-context-summary.v2')
+})
+
 function makeThread(overrides: Partial<AgentThread> = {}): AgentThread {
   return {
     id: 'thread_1',

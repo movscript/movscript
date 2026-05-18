@@ -48,6 +48,8 @@ import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 import { buildCommandFirstClientInput, buildPageKey } from '@/lib/agentCommandInput'
 import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
 import { selectLatestDraftArtifact } from '@/lib/agentArtifacts'
+import { generatedKeyframeCandidateTargetId, isGeneratedKeyframeCandidateRecord, isUnresolvedCandidateStatus } from '@/lib/agentGeneratedResourceBinding'
+import { invalidateAssetCandidateConsumers } from '@/lib/assetCandidateQueryInvalidation'
 import {
   buildScriptSplitDraftContent,
   getScriptTextLineCount,
@@ -740,7 +742,7 @@ function buildContentGenerationRows(data?: ProductionWorkbenchData): ContentGene
   if (!data) return []
   const contentUnits = data.contentUnits ?? []
   const assetSlotsData = data.assetSlots ?? []
-  const keyframesData = data.keyframes ?? []
+  const keyframesData = (data.keyframes ?? []).filter((keyframe) => !isGeneratedKeyframeCandidateRecord(keyframe))
   const visibleAssetSlots = assetSlotsData.filter((slot) => slot.owner_type !== 'asset_slot')
   return contentUnits
     .map((unit) => {
@@ -776,7 +778,7 @@ function buildContentGenerationMomentRows(data?: ProductionWorkbenchData): Conte
   const sceneMoments = data.sceneMoments ?? []
   const contentUnits = data.contentUnits ?? []
   const assetSlotsData = data.assetSlots ?? []
-  const keyframesData = data.keyframes ?? []
+  const keyframesData = (data.keyframes ?? []).filter((keyframe) => !isGeneratedKeyframeCandidateRecord(keyframe))
   const creativeReferences = data.creativeReferences ?? []
   const creativeReferenceUsages = data.creativeReferenceUsages ?? []
   const visibleAssetSlots = assetSlotsData.filter((slot) => slot.owner_type !== 'asset_slot')
@@ -1213,7 +1215,7 @@ function buildProductionContext(row: ContentGenerationViewRow | null): Workbench
   const unit = row.unit
   return [
     { label: '内容目标', value: firstText(unit.description, unit.prompt, titleOfRecord(unit)), icon: Target },
-    { label: '画面锚点', value: row.keyframes.length > 0 ? `${row.keyframes.length} 个画面锚点：${row.keyframes.slice(0, 2).map(titleOfRecord).join('、')}` : '尚未绑定画面锚点', icon: Image },
+    { label: '画面锚点', value: row.keyframes.length > 0 ? `${row.keyframes.length} 个画面锚点：${row.keyframes.slice(0, 2).map(titleOfRecord).join('、')}` : '尚未配置画面锚点', icon: Image },
     { label: '素材需求输入', value: `${row.assetSlots.length} 个素材需求，${row.missingSlots.length} 个缺口`, icon: PackageCheck },
     { label: '生成设置', value: `${unit.kind || '制作项'} / ${formatDuration(unit.duration_sec)} / ${unit.production_id ? `制作 #${unit.production_id}` : '未绑定制作'}`, icon: Settings2 },
   ]
@@ -1241,7 +1243,7 @@ function buildProductionStandards(row: ContentGenerationViewRow | null, jobs: Jo
   return [
     { label: '创作目标明确', detail: hasTarget ? '已有描述或创作提示' : '需要补充创作目标或用途说明', done: hasTarget, tone: hasTarget ? 'success' : 'warning' },
     { label: '素材需求输入可用', detail: assetsReady ? '没有 missing 素材需求' : `${row.missingSlots.length} 个素材需求缺口阻塞`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
-    { label: '画面锚点具备', detail: hasKeyframe ? `${row.keyframes.length} 个画面锚点可用` : '建议先生成或绑定开头、结尾等画面锚点', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
+    { label: '画面锚点具备', detail: hasKeyframe ? `${row.keyframes.length} 个画面锚点可用` : '建议先创建或采纳开头、结尾等画面锚点', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
     { label: '生成记录可追溯', detail: hasJob ? '已有项目生成任务或内容已锁定' : '还没有当前项目的视频生成任务', done: hasJob, tone: hasJob ? 'success' : 'warning' },
   ]
 }
@@ -1292,7 +1294,7 @@ function buildGenerationContextStandards(context?: GenerationContext): Workbench
     { label: '情景上下文存在', detail: hasStoryContext ? [context.segment ? `编排段：${titleOfRecord(context.segment)}` : null, context.scene_moment ? `情景：${titleOfRecord(context.scene_moment)}` : null].filter(Boolean).join(' / ') : '未绑定情景或编排段，生成会缺少时空、动作和情绪约束', done: hasStoryContext, tone: hasStoryContext ? 'success' : 'warning' },
     { label: '连续性资料可用', detail: hasContinuity ? `${context.creative_references.length} 个设定引用会进入生成上下文` : '未找到人物、地点、风格或道具设定引用', done: hasContinuity, tone: hasContinuity ? 'success' : 'warning' },
     { label: '素材输入可用', detail: context.asset_slots.length === 0 ? '未找到素材需求或参考素材' : `${context.asset_slots.length} 个素材输入，${lockedAssets} 个可用，${missingAssets} 个缺失`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
-    { label: '首帧/画面锚点', detail: hasKeyframe ? `${context.keyframes.length} 个画面锚点可作为视频生成锚点` : '视频生成前建议先生成或绑定开头、结尾等画面锚点', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
+    { label: '首帧/画面锚点', detail: hasKeyframe ? `${context.keyframes.length} 个画面锚点可作为视频生成锚点` : '视频生成前建议先创建或采纳开头、结尾等画面锚点', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
   ]
 }
 
@@ -1859,6 +1861,10 @@ function numberOf(value: unknown) {
   return Number.isFinite(next) ? next : 0
 }
 
+function hasLoadedResource(record?: WorkbenchRecord | null) {
+  return numberOf(record?.resource?.ID) > 0
+}
+
 function formatDuration(value?: number) {
   const next = Number(value)
   if (!Number.isFinite(next) || next <= 0) return '未设时长'
@@ -2059,22 +2065,62 @@ function frameRoleLabel(index: number, total: number) {
   return `中间帧 ${index}`
 }
 
+function keyframeCandidatesForTargets(keyframes: WorkbenchRecord[], targets: WorkbenchRecord[]) {
+  const targetIds = new Set(targets.map((target) => target.ID))
+  return keyframes
+    .filter((keyframe) => {
+      if (!isUnresolvedCandidateStatus(keyframe.status)) return false
+      const targetId = generatedKeyframeCandidateTargetId(keyframe)
+      return targetId !== undefined && targetIds.has(targetId)
+    })
+    .slice()
+    .sort((a, b) => {
+      const aUpdated = new Date(String(a.UpdatedAt ?? a.CreatedAt ?? '')).getTime()
+      const bUpdated = new Date(String(b.UpdatedAt ?? b.CreatedAt ?? '')).getTime()
+      if (Number.isFinite(aUpdated) && Number.isFinite(bUpdated) && aUpdated !== bUpdated) return bUpdated - aUpdated
+      return b.ID - a.ID
+    })
+}
+
 function resourceFileUrl(resourceId?: number | null) {
   return resourceId ? `/api/v1/resources/${resourceId}/file` : ''
 }
 
-function keyframeResourcePatchPayload(keyframe: WorkbenchRecord, resourceId: number): SemanticEntityPayload {
+function keyframeResourceCandidatePayload(keyframe: WorkbenchRecord, resourceId: number, source: 'library' | 'upload'): SemanticEntityPayload {
+  const title = titleOfRecord(keyframe)
   return {
     production_id: nullableNumber(keyframe.production_id),
     scene_moment_id: nullableNumber(keyframe.scene_moment_id),
     content_unit_id: nullableNumber(keyframe.content_unit_id),
     resource_id: resourceId,
     canvas_id: nullableNumber(keyframe.canvas_id),
+    title: `候选：${title}`,
+    description: String(keyframe.description ?? ''),
+    prompt: String(keyframe.prompt ?? ''),
+    order: numberOf(keyframe.order),
+    status: 'candidate',
+    metadata_json: JSON.stringify({
+      source: 'ai_generated_keyframe_candidate',
+      source_origin: source === 'upload' ? 'workbench_upload' : 'workbench_resource_library',
+      target_keyframe_id: keyframe.ID,
+      target_keyframe_title: title,
+      resource_id: resourceId,
+    }),
+  }
+}
+
+function keyframeStatusPatchPayload(keyframe: WorkbenchRecord, status: string): SemanticEntityPayload {
+  return {
+    production_id: nullableNumber(keyframe.production_id),
+    scene_moment_id: nullableNumber(keyframe.scene_moment_id),
+    content_unit_id: nullableNumber(keyframe.content_unit_id),
+    resource_id: nullableNumber(keyframe.resource_id),
+    canvas_id: nullableNumber(keyframe.canvas_id),
     title: String(keyframe.title ?? ''),
     description: String(keyframe.description ?? ''),
     prompt: String(keyframe.prompt ?? ''),
     order: numberOf(keyframe.order),
-    status: firstText(keyframe.status, 'attached') === 'rejected' ? 'attached' : firstText(keyframe.status, 'attached'),
+    status,
     metadata_json: String(keyframe.metadata_json ?? ''),
   }
 }
@@ -3672,11 +3718,9 @@ function ContentGenerationWorkbench() {
     },
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['workbench', 'production', projectId] }),
-        queryClient.invalidateQueries({ queryKey: ['workbench', 'assets', projectId] }),
         queryClient.invalidateQueries({ queryKey: ['resources'] }),
-        queryClient.invalidateQueries({ queryKey: ['semantic-asset-slot-candidates-page', projectId] }),
       ])
+      invalidateAssetCandidateConsumers(queryClient, projectId)
       toast.success('候选已上传')
     },
     onError: (error) => {
@@ -3713,21 +3757,21 @@ function ContentGenerationWorkbench() {
       toast.error(apiErrorMessage(error, '打开生成画布失败'))
     },
   })
-  const bindKeyframeResource = useMutation({
+  const addKeyframeResourceCandidate = useMutation({
     mutationFn: async ({ keyframe, resourceId }: { keyframe: WorkbenchRecord; resourceId: number }) => {
       if (!projectId) throw new Error('请先选择项目')
-      return updateSemanticEntity(projectId, semanticEntityConfig('keyframes'), keyframe.ID, keyframeResourcePatchPayload(keyframe, resourceId))
+      return createSemanticEntity(projectId, semanticEntityConfig('keyframes'), keyframeResourceCandidatePayload(keyframe, resourceId, 'library'))
     },
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['workbench', 'production', projectId] }),
         queryClient.invalidateQueries({ queryKey: ['resources'] }),
       ])
+      invalidateAssetCandidateConsumers(queryClient, projectId)
       setKeyframeLibraryTarget(null)
-      toast.success('关键帧已绑定资源')
+      toast.success('已加入画面锚点候选')
     },
     onError: (error) => {
-      toast.error(apiErrorMessage(error, '绑定关键帧资源失败'))
+      toast.error(apiErrorMessage(error, '加入画面锚点候选失败'))
     },
   })
   const uploadKeyframeResource = useMutation({
@@ -3736,22 +3780,36 @@ function ContentGenerationWorkbench() {
       const fd = new FormData()
       fd.append('file', file)
       const resource = await api.post('/resources/upload', fd).then((r) => r.data as RawResource)
-      await updateSemanticEntity(projectId, semanticEntityConfig('keyframes'), keyframe.ID, keyframeResourcePatchPayload(keyframe, resource.ID))
+      await createSemanticEntity(projectId, semanticEntityConfig('keyframes'), keyframeResourceCandidatePayload(keyframe, resource.ID, 'upload'))
       return resource
     },
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['workbench', 'production', projectId] }),
         queryClient.invalidateQueries({ queryKey: ['resources'] }),
       ])
+      invalidateAssetCandidateConsumers(queryClient, projectId)
       setUploadKeyframeTarget(null)
       if (keyframeUploadInputRef.current) keyframeUploadInputRef.current.value = ''
-      toast.success('关键帧素材已上传并绑定')
+      toast.success('关键帧素材已上传并加入候选')
     },
     onError: (error) => {
-      toast.error(apiErrorMessage(error, '上传关键帧素材失败'))
+      toast.error(apiErrorMessage(error, '上传关键帧候选失败'))
       setUploadKeyframeTarget(null)
       if (keyframeUploadInputRef.current) keyframeUploadInputRef.current.value = ''
+    },
+  })
+  const rejectKeyframeCandidate = useMutation({
+    mutationFn: async (candidate: WorkbenchRecord) => {
+      if (!projectId) throw new Error('请先选择项目')
+      if (!isGeneratedKeyframeCandidateRecord(candidate)) throw new Error('只能拒绝 AI 生成的画面锚点候选')
+      return updateSemanticEntity(projectId, semanticEntityConfig('keyframes'), candidate.ID, keyframeStatusPatchPayload(candidate, 'rejected'))
+    },
+    onSuccess: () => {
+      invalidateAssetCandidateConsumers(queryClient, projectId)
+      toast.success('画面锚点候选已拒绝')
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '拒绝画面锚点候选失败'))
     },
   })
   const baseStandards = generationContextQuery.data
@@ -3761,6 +3819,10 @@ function ContentGenerationWorkbench() {
   const selectedUnitKeyframes = selected && selectedUnit
     ? selected.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === selectedUnit.ID).slice().sort(byOrder)
     : []
+  const selectedUnitKeyframeCandidates = data
+    ? keyframeCandidatesForTargets(data.keyframes, selectedUnitKeyframes)
+    : []
+  const selectedUnitKeyframeCandidateCount = selectedUnitKeyframeCandidates.length
   const selectedUnitAssetSlots = selected && selectedUnit
     ? selected.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && Number(slot.owner_id) === selectedUnit.ID)
     : []
@@ -4230,6 +4292,7 @@ function ContentGenerationWorkbench() {
       type: job.job_type,
       status: job.status,
       outputResourceId: job.output_resource_id,
+      outputResourceIds: Array.isArray(job.output_resource_ids) ? job.output_resource_ids : undefined,
       error: job.error_msg,
     })),
   })
@@ -4457,6 +4520,9 @@ function ContentGenerationWorkbench() {
                           <Badge variant={selectedUnitKeyframes.length > 0 ? 'secondary' : 'warning'}>
                             {selectedUnitKeyframes.length > 0 ? `${selectedUnitKeyframes.length} 帧` : '待补'}
                           </Badge>
+                          {selectedUnitKeyframeCandidateCount > 0 ? (
+                            <Badge variant="outline">{selectedUnitKeyframeCandidateCount} 个候选</Badge>
+                          ) : null}
                         </div>
                       </div>
                       {!selectedUnit ? (
@@ -4476,7 +4542,7 @@ function ContentGenerationWorkbench() {
                         <div className="-mx-1 overflow-x-auto px-1 pb-1">
                           <div className="flex min-w-max gap-2">
                             {selectedUnitKeyframes.map((keyframe, index) => (
-                              <div key={keyframe.ID} className="w-[148px] shrink-0 overflow-hidden rounded-md border border-border bg-card">
+                              <div key={keyframe.ID} className="w-[168px] shrink-0 overflow-hidden rounded-md border border-border bg-card">
                                 <div className="relative aspect-video bg-muted">
                                   {keyframe.resource_id ? (
                                     <AuthedImage
@@ -4504,7 +4570,7 @@ function ContentGenerationWorkbench() {
                                       title="上传关键帧图片"
                                       className="h-7 w-7 bg-background/95 p-0 shadow-sm hover:bg-background"
                                       onClick={() => openKeyframeUpload(keyframe)}
-                                      disabled={uploadKeyframeResource.isPending || bindKeyframeResource.isPending}
+                                      disabled={uploadKeyframeResource.isPending || addKeyframeResourceCandidate.isPending}
                                     >
                                       <Upload size={12} />
                                     </Button>
@@ -4515,7 +4581,7 @@ function ContentGenerationWorkbench() {
                                       title="从资源库选择关键帧素材"
                                       className="h-7 w-7 bg-background/95 p-0 shadow-sm hover:bg-background"
                                       onClick={() => openKeyframeLibrary(keyframe)}
-                                      disabled={uploadKeyframeResource.isPending || bindKeyframeResource.isPending}
+                                      disabled={uploadKeyframeResource.isPending || addKeyframeResourceCandidate.isPending}
                                     >
                                       <Library size={12} />
                                     </Button>
@@ -4524,6 +4590,86 @@ function ContentGenerationWorkbench() {
                                 <div className="px-2 py-1.5">
                                   <p className="truncate text-xs font-medium text-foreground">{titleOfRecord(keyframe)}</p>
                                   <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{firstText(keyframe.prompt, keyframe.description, '暂无画面描述')}</p>
+                                  {(() => {
+                                    const candidates = selectedUnitKeyframeCandidates.filter((candidate) => generatedKeyframeCandidateTargetId(candidate) === keyframe.ID)
+                                    if (candidates.length === 0) return null
+                                    const adoptableCandidates = candidates.filter(hasLoadedResource)
+                                    const previewCandidates = candidates.slice(0, 2)
+                                    return (
+                                      <div className="mt-1.5 border-t border-border pt-1.5" data-testid="content-workbench-keyframe-candidates">
+                                        <div className="mb-1 flex items-center justify-between gap-1.5">
+                                          <span className="truncate text-[10px] font-medium text-muted-foreground">候选 {candidates.length} · 可采纳 {adoptableCandidates.length}</span>
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-5 shrink-0 px-1.5 text-[10px]"
+                                            disabled={adoptableCandidates.length === 0}
+                                            title={adoptableCandidates.length === 0 ? '暂无有资源的候选' : '查看可采纳候选'}
+                                            onClick={() => navigate(mergeSearch(ROUTES.project.tasks, '', {
+                                              create: '1',
+                                              purpose: 'accept_keyframe',
+                                              target_type: 'keyframe',
+                                              target_id: keyframe.ID,
+                                              candidate_id: adoptableCandidates[0]?.ID,
+                                            }))}
+                                          >
+                                            查看
+                                          </Button>
+                                        </div>
+                                        <div className="space-y-1">
+                                          {previewCandidates.map((candidate) => {
+                                            const candidateResourceId = hasLoadedResource(candidate) ? numberOf(candidate.resource?.ID) : 0
+                                            return (
+                                              <div key={candidate.ID} className="flex min-w-0 items-center gap-1.5 rounded border border-border bg-background px-1.5 py-1">
+                                                {candidateResourceId > 0 ? (
+                                                  <AuthedImage
+                                                    src={resourceFileUrl(candidateResourceId)}
+                                                    alt={titleOfRecord(candidate)}
+                                                    className="h-6 w-8 shrink-0 rounded object-cover"
+                                                  />
+                                                ) : (
+                                                  <div className="flex h-6 w-8 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
+                                                    <Image size={11} />
+                                                  </div>
+                                                )}
+                                                <span className="min-w-0 truncate text-[10px] text-foreground">{titleOfRecord(candidate)}</span>
+                                                {candidateResourceId > 0 ? (
+                                                  <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="ml-auto h-5 shrink-0 px-1.5 text-[10px]"
+                                                    onClick={() => navigate(mergeSearch(ROUTES.project.tasks, '', {
+                                                      create: '1',
+                                                      purpose: 'accept_keyframe',
+                                                      target_type: 'keyframe',
+                                                      target_id: keyframe.ID,
+                                                      candidate_id: candidate.ID,
+                                                    }))}
+                                                  >
+                                                    采纳
+                                                  </Button>
+                                                ) : (
+                                                  <span className="ml-auto shrink-0 text-[10px] text-amber-600 dark:text-amber-300">缺资源</span>
+                                                )}
+                                                <Button
+                                                  size="sm"
+                                                  variant="ghost"
+                                                  className="h-5 shrink-0 px-1.5 text-[10px] text-destructive hover:text-destructive"
+                                                  onClick={() => rejectKeyframeCandidate.mutate(candidate)}
+                                                  disabled={rejectKeyframeCandidate.isPending}
+                                                >
+                                                  拒绝
+                                                </Button>
+                                              </div>
+                                            )
+                                          })}
+                                          {candidates.length > previewCandidates.length ? (
+                                            <p className="truncate text-[10px] text-muted-foreground">另 {candidates.length - previewCandidates.length} 个候选</p>
+                                          ) : null}
+                                        </div>
+                                      </div>
+                                    )
+                                  })()}
                                 </div>
                               </div>
                             ))}
@@ -4723,7 +4869,7 @@ function ContentGenerationWorkbench() {
           <DialogHeader className="border-b border-border px-5 py-4">
             <DialogTitle>从资源库选择关键帧素材</DialogTitle>
             <DialogDescription>
-              {keyframeLibraryTarget ? `绑定到：${titleOfRecord(keyframeLibraryTarget)}` : '选择一个图片资源绑定到关键帧。'}
+              {keyframeLibraryTarget ? `加入候选：${titleOfRecord(keyframeLibraryTarget)}` : '选择一个图片资源加入画面锚点候选。'}
             </DialogDescription>
           </DialogHeader>
           <div className="p-5">
@@ -4736,7 +4882,7 @@ function ContentGenerationWorkbench() {
               page={keyframeResourcePage}
               pageCount={keyframeResourcePageCount}
               total={keyframeResourceTotal}
-              isLoading={keyframeResourcesQuery.isLoading || bindKeyframeResource.isPending}
+              isLoading={keyframeResourcesQuery.isLoading || addKeyframeResourceCandidate.isPending}
               onSearch={(value) => {
                 setKeyframeResourceSearch(value)
                 setKeyframeResourcePage(1)
@@ -4745,7 +4891,7 @@ function ContentGenerationWorkbench() {
               onPage={setKeyframeResourcePage}
               onSelect={(resource) => {
                 if (!keyframeLibraryTarget) return
-                bindKeyframeResource.mutate({ keyframe: keyframeLibraryTarget, resourceId: resource.ID })
+                addKeyframeResourceCandidate.mutate({ keyframe: keyframeLibraryTarget, resourceId: resource.ID })
               }}
             />
           </div>
@@ -4988,7 +5134,7 @@ function assetSlotsForWorkbenchProduction(segmentIds: Set<number>, sceneMomentId
 }
 
 function keyframesForWorkbenchProduction(segmentIds: Set<number>, sceneMomentIds: Set<number>, contentUnitIds: Set<number>, record: WorkbenchRecord, data: ProductionWorkbenchData) {
-  return data.keyframes.filter((keyframe) => (
+  return data.keyframes.filter((keyframe) => !isGeneratedKeyframeCandidateRecord(keyframe) && (
     Number(keyframe.production_id) === record.ID ||
     segmentIds.has(Number(keyframe.segment_id)) ||
     sceneMomentIds.has(Number(keyframe.scene_moment_id)) ||
@@ -4998,6 +5144,7 @@ function keyframesForWorkbenchProduction(segmentIds: Set<number>, sceneMomentIds
 
 function buildPreviewPlanSegments(record: WorkbenchRecord, data: ProductionWorkbenchData): PreviewPlanSegment[] {
   const segmentIds = relatedSegmentIdsForWorkbenchProduction(record, data)
+  const keyframesData = data.keyframes.filter((keyframe) => !isGeneratedKeyframeCandidateRecord(keyframe))
   const segments = data.segments
     .filter((segment) => segmentIds.has(segment.ID) || Number(segment.production_id) === record.ID)
     .sort(byOrder)
@@ -5012,7 +5159,7 @@ function buildPreviewPlanSegments(record: WorkbenchRecord, data: ProductionWorkb
         (slot.owner_type === 'scene_moment' && Number(slot.owner_id) === moment.ID) ||
         (slot.owner_type === 'content_unit' && plotUnitIds.has(Number(slot.owner_id)))
       ))
-      const plotKeyframes = data.keyframes.filter((keyframe) => (
+      const plotKeyframes = keyframesData.filter((keyframe) => (
         Number(keyframe.scene_moment_id) === moment.ID ||
         plotUnitIds.has(Number(keyframe.content_unit_id))
       ))
@@ -5067,7 +5214,7 @@ function buildPreviewPlanSegments(record: WorkbenchRecord, data: ProductionWorkb
       const orphanSlots = data.assetSlots.filter((slot) => (
         slot.owner_type === 'content_unit' && orphanUnitIds.has(Number(slot.owner_id))
       ))
-      const orphanKeyframes = data.keyframes.filter((keyframe) => orphanUnitIds.has(Number(keyframe.content_unit_id)))
+      const orphanKeyframes = keyframesData.filter((keyframe) => orphanUnitIds.has(Number(keyframe.content_unit_id)))
       const orphanContentUnitRows = orphanUnits.map((unit) => {
         const unitKeyframes = orphanKeyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID)
         const unitSlots = orphanSlots.filter((slot) => Number(slot.owner_id) === unit.ID)
@@ -5191,7 +5338,7 @@ function buildPreviewAssetGaps(record: WorkbenchRecord, data: ProductionWorkbenc
     }))
 
   for (const unit of units) {
-    const unitKeyframes = data.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID)
+    const unitKeyframes = data.keyframes.filter((keyframe) => !isGeneratedKeyframeCandidateRecord(keyframe) && Number(keyframe.content_unit_id) === unit.ID)
     if (unitKeyframes.length > 0) continue
     gaps.push({
       name: titleOfRecord(unit),

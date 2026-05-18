@@ -5,6 +5,7 @@ import type { SkillDiscoverySummary } from '../contextManager/modelContextBuilde
 import type { ToolRegistry } from '../tools/toolRegistry.js'
 import { resolveAgentCapabilities, type CapabilityMCPClient } from '../tools/capabilityResolver.js'
 import { resolveRuntimeLayers } from '../skills/runtimeLayerResolver.js'
+import { activeSkillStateFromRun } from '../skills/activeSkillState.js'
 import type { RuntimeCatalogSnapshotRegistry } from './runtimeCatalogSnapshot.js'
 
 export interface RuntimeAgentGraphCatalogRefreshResult {
@@ -32,6 +33,7 @@ export async function refreshRuntimeAgentGraphCatalog(input: {
   const refreshedBaseManifest = input.run.metadata?.manifestSource === 'default'
     ? catalogSnapshot.defaultAgentManifest
     : input.run.agentManifest ?? catalogSnapshot.defaultAgentManifest
+  const activeSkillState = activeSkillStateFromRun(input.run)
   const refreshedLayers = input.run.metadata?.manifestSource === 'default' && catalogSnapshot.layeredRegistry.profiles.size > 0
     ? resolveRuntimeLayers({
       registry: catalogSnapshot.layeredRegistry,
@@ -40,6 +42,8 @@ export async function refreshRuntimeAgentGraphCatalog(input: {
       debugContext: input.debugContext,
       ...(input.clientInput ? { clientInput: input.clientInput } : {}),
       history: input.history,
+      requestedSkillIds: activeSkillState.loadedSkillIds,
+      unloadedSkillIds: activeSkillState.unloadedSkillIds,
     })
     : undefined
   const refreshedManifest = refreshedLayers?.manifest ?? refreshedBaseManifest

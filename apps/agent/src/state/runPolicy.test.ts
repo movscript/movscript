@@ -31,12 +31,20 @@ test('defaultRunPolicy preserves explicit approval, sandbox, workflow, and numer
 })
 
 test('normalizeRunPolicyOverride clamps positive numeric limits and ignores invalid values', () => {
-  assert.deepEqual(normalizeRunPolicyOverride({ maxToolCalls: 0, maxIterations: Number.NaN }), {})
-  assert.deepEqual(normalizeRunPolicyOverride({ maxToolCalls: 1.8, maxIterations: 500 }), {
+  assert.deepEqual(normalizeRunPolicyOverride({ approvalMode: 'root', maxToolCalls: 0, maxIterations: Number.NaN }), {})
+  assert.deepEqual(normalizeRunPolicyOverride({ approvalMode: 'auto_readonly', maxToolCalls: 1.8, maxIterations: 500 }), {
+    approvalMode: 'auto_readonly',
     maxToolCalls: 1,
     maxIterations: 200,
   })
   assert.deepEqual(normalizeRunPolicyOverride(null), {})
+})
+
+test('defaultRunPolicy lets policy override approval mode for client settings', () => {
+  assert.equal(defaultRunPolicy({
+    approvalMode: 'interactive',
+    policy: { approvalMode: 'auto_readonly' },
+  }).approvalMode, 'auto_readonly')
 })
 
 test('normalizeRunPolicyOverride ignores non-plain policy override objects', () => {

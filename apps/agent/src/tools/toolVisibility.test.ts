@@ -3,12 +3,17 @@ import test from 'node:test'
 import { isToolVisibleForActiveBehavior } from './toolVisibility.js'
 import type { ResolvedAgentSkill } from '../state/types.js'
 
-test('isToolVisibleForActiveBehavior always exposes base retrieval tools', () => {
+test('isToolVisibleForActiveBehavior exposes only core management tools by default', () => {
+  assert.equal(isToolVisibleForActiveBehavior({
+    toolName: 'movscript_update_active_skills',
+    activeSkills: [],
+    userMessage: 'hello',
+  }), true)
   assert.equal(isToolVisibleForActiveBehavior({
     toolName: 'movscript_get_focus',
     activeSkills: [],
     userMessage: 'hello',
-  }), true)
+  }), false)
 })
 
 test('isToolVisibleForActiveBehavior exposes command required tools only for matching commands', () => {

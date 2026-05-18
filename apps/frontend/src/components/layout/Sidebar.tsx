@@ -40,7 +40,6 @@ import {
   Puzzle,
   Radar,
   Route,
-  Scissors,
   ScanSearch,
   ScrollText,
   Settings,
@@ -309,7 +308,6 @@ export function Sidebar() {
           <NavItem to={ROUTES.tools.motionImitation} icon={Move} label={t('sidebar.items.motionImitation')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.styleTransfer} icon={Palette} label={t('sidebar.items.styleTransfer')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.multiAngle} icon={Shapes} label={t('sidebar.items.multiAngle')} collapsed={collapsed} />
-          <NavItem to={ROUTES.tools.videoEdit} icon={Scissors} label={t('sidebar.items.videoEdit')} collapsed={collapsed} />
           <NavItem to={ROUTES.tools.brainstorm} icon={BrainCircuit} label={t('sidebar.items.brainstorm')} collapsed={collapsed} />
           {installedPlugins.map((plugin, index) => (
             <NavItem key={plugin.id} to={`/tools/plugin/${encodeURIComponent(plugin.id)}`} icon={PLUGIN_NAV_ICONS[index % PLUGIN_NAV_ICONS.length]} label={plugin.name} collapsed={collapsed} />

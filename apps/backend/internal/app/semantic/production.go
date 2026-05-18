@@ -2,9 +2,11 @@ package semantic
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	relationapp "github.com/movscript/movscript/internal/app/relation"
 	domainrelation "github.com/movscript/movscript/internal/domain/relation"
@@ -491,6 +493,36 @@ func (s *Service) CreateKeyframe(ctx context.Context, projectID uint, input Keyf
 	if err := s.validateKeyframeOwners(ctx, projectID, input.ProductionID, input.SceneMomentID, input.ContentUnitID); err != nil {
 		return domainsemantic.Keyframe{}, err
 	}
+	if targetID := generatedKeyframeCandidateInputTargetID(input); targetID > 0 {
+		if !hasGeneratedKeyframeCandidateResource(nil, input.ResourceID) {
+			return domainsemantic.Keyframe{}, ErrInvalidInput{Err: errors.New("generated keyframe candidate requires resource")}
+		}
+		if err := s.validateScopedOwner(ctx, projectID, "resource", input.ResourceID); err != nil {
+			return domainsemantic.Keyframe{}, err
+		}
+		if strings.TrimSpace(input.Status) == domainsemantic.KeyframeStatusAccepted {
+			return domainsemantic.Keyframe{}, ErrInvalidInput{Err: errors.New("generated keyframe candidate must be accepted through a work item")}
+		}
+		if err := s.ensureGeneratedKeyframeCandidateTarget(ctx, projectID, targetID); err != nil {
+			return domainsemantic.Keyframe{}, err
+		}
+		existing, found, err := s.findGeneratedKeyframeCandidateByResource(ctx, projectID, input, targetID)
+		if err != nil {
+			return domainsemantic.Keyframe{}, err
+		}
+		if found {
+			if existing.Status == "rejected" {
+				input.Status = "candidate"
+				return s.PatchKeyframe(ctx, projectID, entityIDString(existing.ID), input)
+			}
+			if err := s.upsertKeyframeRelations(ctx, existing); err != nil {
+				return domainsemantic.Keyframe{}, err
+			}
+			return existing, nil
+		}
+	} else if input.ResourceID != nil {
+		return domainsemantic.Keyframe{}, ErrInvalidInput{Err: errors.New("关键帧资源采纳必须通过候选采纳流程")}
+	}
 	item := domainsemantic.NewKeyframe(domainsemantic.KeyframeSpec{
 		ProjectID:     projectID,
 		ProductionID:  input.ProductionID,
@@ -521,6 +553,48 @@ func (s *Service) CreateKeyframe(ctx context.Context, projectID uint, input Keyf
 	return created, nil
 }
 
+func generatedKeyframeCandidateInputTargetID(input KeyframeInput) uint {
+	return generatedKeyframeCandidateMetadataTargetID(input.MetadataJSON)
+}
+
+func generatedKeyframeCandidateMetadataTargetID(metadata string) uint {
+	if !isGeneratedKeyframeCandidateMetadata(metadata) {
+		return 0
+	}
+	return keyframeCandidateTargetID(metadata)
+}
+
+func (s *Service) ensureGeneratedKeyframeCandidateTarget(ctx context.Context, projectID uint, targetID uint) error {
+	target, err := s.repo.LoadKeyframe(ctx, projectID, entityIDString(targetID))
+	if err != nil {
+		return err
+	}
+	if isGeneratedKeyframeCandidateMetadata(target.MetadataJSON) || keyframeCandidateTargetID(target.MetadataJSON) > 0 {
+		return ErrInvalidInput{Err: errors.New("generated keyframe candidate target must be an original keyframe")}
+	}
+	return nil
+}
+
+func (s *Service) findGeneratedKeyframeCandidateByResource(ctx context.Context, projectID uint, input KeyframeInput, targetID uint) (domainsemantic.Keyframe, bool, error) {
+	if input.ResourceID == nil || *input.ResourceID == 0 || targetID == 0 {
+		return domainsemantic.Keyframe{}, false, nil
+	}
+	items, err := s.repo.ListKeyframes(ctx, KeyframeFilter{ProjectID: projectID})
+	if err != nil {
+		return domainsemantic.Keyframe{}, false, err
+	}
+	for _, item := range items {
+		if item.ResourceID == nil || *item.ResourceID != *input.ResourceID {
+			continue
+		}
+		if !isGeneratedKeyframeCandidateMetadata(item.MetadataJSON) || keyframeCandidateTargetID(item.MetadataJSON) != targetID {
+			continue
+		}
+		return item, true, nil
+	}
+	return domainsemantic.Keyframe{}, false, nil
+}
+
 func (s *Service) PatchKeyframe(ctx context.Context, projectID uint, id string, input KeyframeInput) (domainsemantic.Keyframe, error) {
 	item, err := s.repo.LoadKeyframe(ctx, projectID, id)
 	if err != nil {
@@ -528,6 +602,30 @@ func (s *Service) PatchKeyframe(ctx context.Context, projectID uint, id string, 
 	}
 	if err := s.validateKeyframeOwners(ctx, projectID, input.ProductionID, input.SceneMomentID, input.ContentUnitID); err != nil {
 		return item, err
+	}
+	targetID := generatedKeyframeCandidatePatchTargetID(item, input)
+	if input.ResourceID != nil && targetID == 0 {
+		return item, ErrInvalidInput{Err: errors.New("关键帧资源采纳必须通过候选采纳流程")}
+	}
+	if targetID > 0 {
+		if targetID == item.ID {
+			return item, ErrInvalidInput{Err: errors.New("generated keyframe candidate target cannot be itself")}
+		}
+		if !hasGeneratedKeyframeCandidateResource(item.ResourceID, input.ResourceID) {
+			return item, ErrInvalidInput{Err: errors.New("generated keyframe candidate requires resource")}
+		}
+		if err := s.validateScopedOwner(ctx, projectID, "resource", generatedKeyframeCandidateResourceID(item.ResourceID, input.ResourceID)); err != nil {
+			return item, err
+		}
+		if strings.TrimSpace(input.Status) == domainsemantic.KeyframeStatusAccepted {
+			return item, ErrInvalidInput{Err: errors.New("generated keyframe candidate must be accepted through a work item")}
+		}
+		if err := s.ensureGeneratedKeyframeCandidateTarget(ctx, projectID, targetID); err != nil {
+			return item, err
+		}
+	}
+	if isGeneratedKeyframeCandidateMetadata(item.MetadataJSON) && strings.TrimSpace(input.Status) == domainsemantic.KeyframeStatusAccepted {
+		return item, ErrInvalidInput{Err: errors.New("generated keyframe candidate must be accepted through a work item")}
 	}
 	patch := domainsemantic.KeyframePatch{
 		ProductionID:  input.ProductionID,
@@ -550,12 +648,151 @@ func (s *Service) PatchKeyframe(ctx context.Context, projectID uint, id string, 
 		if err != nil {
 			return err
 		}
-		return txSvc.upsertKeyframeRelations(ctx, patched)
+		if err := txSvc.upsertKeyframeRelations(ctx, patched); err != nil {
+			return err
+		}
+		return txSvc.recordKeyframeCandidateRejectionArtifacts(ctx, patched)
 	})
 	if err != nil {
 		return patched, err
 	}
 	return patched, nil
+}
+
+func hasGeneratedKeyframeCandidateResource(existingResourceID *uint, inputResourceID *uint) bool {
+	if inputResourceID != nil {
+		return *inputResourceID > 0
+	}
+	return existingResourceID != nil && *existingResourceID > 0
+}
+
+func generatedKeyframeCandidatePatchTargetID(item domainsemantic.Keyframe, input KeyframeInput) uint {
+	if targetID := generatedKeyframeCandidateMetadataTargetID(input.MetadataJSON); targetID > 0 {
+		return targetID
+	}
+	if isGeneratedKeyframeCandidateMetadata(item.MetadataJSON) {
+		return keyframeCandidateTargetID(item.MetadataJSON)
+	}
+	return 0
+}
+
+func generatedKeyframeCandidateResourceID(existingResourceID *uint, inputResourceID *uint) *uint {
+	if inputResourceID != nil {
+		return inputResourceID
+	}
+	return existingResourceID
+}
+
+func (s *Service) recordKeyframeCandidateRejectionArtifacts(ctx context.Context, rejected domainsemantic.Keyframe) error {
+	if err := s.recordKeyframeCandidateRejectionDecision(ctx, rejected); err != nil {
+		return err
+	}
+	return s.recordKeyframeCandidateRejectionReviewEvent(ctx, rejected)
+}
+
+func (s *Service) recordKeyframeCandidateRejectionDecision(ctx context.Context, rejected domainsemantic.Keyframe) error {
+	if strings.TrimSpace(rejected.Status) != "rejected" || !isGeneratedKeyframeCandidateMetadata(rejected.MetadataJSON) {
+		return nil
+	}
+	targetID := keyframeCandidateTargetID(rejected.MetadataJSON)
+	if targetID == 0 {
+		return nil
+	}
+	existing, err := s.ListCandidateDecisions(ctx, CandidateDecisionFilter{
+		ProjectID:     rejected.ProjectID,
+		CandidateType: domainsemantic.WorkItemTargetTypeKeyframe,
+		CandidateID:   rejected.ID,
+		Decision:      domainsemantic.CandidateDecisionReject,
+		Status:        domainsemantic.CandidateDecisionStatusApplied,
+	})
+	if err != nil {
+		return err
+	}
+	for _, decision := range existing {
+		if decision.TargetType == domainsemantic.WorkItemTargetTypeKeyframe && decision.TargetID != nil && *decision.TargetID == targetID {
+			return nil
+		}
+	}
+	appliedAt := time.Now().UTC().Format(time.RFC3339)
+	candidateID := rejected.ID
+	decision := domainsemantic.NewCandidateDecision(domainsemantic.CandidateDecisionSpec{
+		ProjectID:     rejected.ProjectID,
+		CandidateType: domainsemantic.WorkItemTargetTypeKeyframe,
+		CandidateID:   &candidateID,
+		TargetType:    domainsemantic.WorkItemTargetTypeKeyframe,
+		TargetID:      &targetID,
+		Decision:      domainsemantic.CandidateDecisionReject,
+		Status:        domainsemantic.CandidateDecisionStatusApplied,
+		Source:        domainsemantic.CandidateDecisionSourceManual,
+		AppliedAt:     appliedAt,
+		MetadataJSON: semanticRelationMetadata(map[string]any{
+			"source":                "direct_keyframe_candidate_rejection",
+			"keyframe_candidate_id": candidateID,
+			"target_keyframe_id":    targetID,
+			"applied_at":            appliedAt,
+		}),
+	})
+	created, err := s.repo.CreateCandidateDecision(ctx, decision)
+	if err != nil {
+		return err
+	}
+	return s.upsertCandidateDecisionRelations(ctx, created)
+}
+
+func (s *Service) recordKeyframeCandidateRejectionReviewEvent(ctx context.Context, rejected domainsemantic.Keyframe) error {
+	if strings.TrimSpace(rejected.Status) != "rejected" || !isGeneratedKeyframeCandidateMetadata(rejected.MetadataJSON) {
+		return nil
+	}
+	targetID := keyframeCandidateTargetID(rejected.MetadataJSON)
+	if targetID == 0 {
+		return nil
+	}
+	existing, err := s.ListReviewEvents(ctx, ReviewEventFilter{
+		ProjectID:   rejected.ProjectID,
+		SubjectType: domainsemantic.WorkItemTargetTypeKeyframe,
+		SubjectID:   targetID,
+		EventType:   domainsemantic.ReviewEventTypeApplied,
+	})
+	if err != nil {
+		return err
+	}
+	for _, event := range existing {
+		if event.ToStatus == domainsemantic.CandidateDecisionReject && metadataKeyframeCandidateID(event.MetadataJSON) == rejected.ID {
+			return nil
+		}
+	}
+	appliedAt := time.Now().UTC().Format(time.RFC3339)
+	candidateID := rejected.ID
+	event := domainsemantic.NewReviewEvent(domainsemantic.ReviewEventSpec{
+		ProjectID:   rejected.ProjectID,
+		SubjectType: domainsemantic.WorkItemTargetTypeKeyframe,
+		SubjectID:   &targetID,
+		EventType:   domainsemantic.ReviewEventTypeApplied,
+		ToStatus:    domainsemantic.CandidateDecisionReject,
+		Comment:     "直接拒绝关键帧候选",
+		Source:      domainsemantic.ReviewEventSourceManual,
+		MetadataJSON: semanticRelationMetadata(map[string]any{
+			"source":                "direct_keyframe_candidate_rejection",
+			"keyframe_candidate_id": candidateID,
+			"target_keyframe_id":    targetID,
+			"applied_at":            appliedAt,
+		}),
+	})
+	created, err := s.repo.CreateReviewEvent(ctx, event)
+	if err != nil {
+		return err
+	}
+	return s.upsertReviewEventRelation(ctx, created)
+}
+
+func metadataKeyframeCandidateID(metadata string) uint {
+	var payload struct {
+		KeyframeCandidateID uint `json:"keyframe_candidate_id"`
+	}
+	if err := json.Unmarshal([]byte(metadata), &payload); err != nil {
+		return 0
+	}
+	return payload.KeyframeCandidateID
 }
 
 func (s *Service) upsertKeyframeRelations(ctx context.Context, item domainsemantic.Keyframe) error {
@@ -574,6 +811,46 @@ func (s *Service) upsertKeyframeRelations(ctx context.Context, item domainsemant
 		Source:    domainrelation.NewEntityRef("keyframe", item.ID),
 	}); err != nil {
 		return err
+	}
+	if isGeneratedKeyframeCandidateMetadata(item.MetadataJSON) {
+		if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+			ProjectID: item.ProjectID,
+			Category:  domainrelation.CategoryWorkflow,
+			Type:      domainrelation.TypeCandidateFor,
+			Source:    domainrelation.NewEntityRef("keyframe", item.ID),
+		}); err != nil {
+			return err
+		}
+		if item.ResourceID != nil {
+			if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+				ProjectID: item.ProjectID,
+				Source:    domainrelation.NewEntityRef("keyframe", item.ID),
+				Target:    domainrelation.NewEntityRef("raw_resource", *item.ResourceID),
+				Category:  domainrelation.CategoryAsset,
+				Type:      domainrelation.TypeUsesResource,
+				Order:     item.Order,
+				Status:    semanticRelationStatus(item.Status),
+			}); err != nil {
+				return err
+			}
+		}
+		if targetID := keyframeCandidateTargetID(item.MetadataJSON); targetID > 0 {
+			return s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+				ProjectID: item.ProjectID,
+				Source:    domainrelation.NewEntityRef("keyframe", item.ID),
+				Target:    domainrelation.NewEntityRef("keyframe", targetID),
+				Category:  domainrelation.CategoryWorkflow,
+				Type:      domainrelation.TypeCandidateFor,
+				Order:     item.Order,
+				Status:    semanticRelationStatus(item.Status),
+				Metadata: semanticRelationMetadata(map[string]any{
+					"keyframe_candidate_id": item.ID,
+					"source":                "ai_generated_keyframe_candidate",
+					"target_keyframe_id":    targetID,
+				}),
+			})
+		}
+		return nil
 	}
 	if item.ProductionID != nil {
 		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{

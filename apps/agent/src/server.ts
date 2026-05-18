@@ -17,6 +17,8 @@ import type { AgentTraceQuery } from './state/store.js'
 import { AGENT_TRACE_EVENT_KINDS, type AgentTraceEventKind } from './state/types.js'
 import { isValidMemoryProjectId } from './memory/types.js'
 import { isValidAgentProjectId, isValidAgentReferenceId } from './context/runtimeContext.js'
+import { installAgentSkillBundle, listAgentSkillBundlePlugins, uninstallAgentSkillBundle, type AgentSkillBundleFile } from './catalog/skillBundleInstaller.js'
+import { RuntimeModelConfigInputError } from './model/modelConfig.js'
 
 interface AgentRequestListenerOptions {
   onShutdownRequest?: () => void | Promise<void>
@@ -94,7 +96,30 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       if (req.method === 'POST' && url.pathname === '/model-config') {
         const body = await readOptionalJSONObject(req, 'model config body')
         const modelConfigStartedAt = Date.now()
-        writeJSON(res, 200, context.modelConfigStore.save(body))
+        const saved = context.modelConfigStore.save(body)
+        writeJSON(res, 200, {
+          ...saved,
+          capabilities: describeRuntimeModelCapabilities(context.modelConfigStore.getEffectiveConfig()),
+        })
+        logSlowRequest(req.method, url.pathname, requestStartedAt, modelConfigStartedAt)
+        return
+      }
+
+      if (req.method === 'DELETE' && url.pathname === '/model-config') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'model config clear is only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'model config clear rejects cross-site browser requests' })
+          return
+        }
+        const modelConfigStartedAt = Date.now()
+        const cleared = context.modelConfigStore.clear()
+        writeJSON(res, 200, {
+          ...cleared,
+          capabilities: describeRuntimeModelCapabilities(context.modelConfigStore.getEffectiveConfig()),
+        })
         logSlowRequest(req.method, url.pathname, requestStartedAt, modelConfigStartedAt)
         return
       }
@@ -119,6 +144,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           tools,
           registeredTools: context.agentRuntime.listRegisteredTools(),
           skills: context.agentRuntime.listSkillCatalog(),
+          profiles: context.agentRuntime.listProfileCatalog(),
           defaultAgentManifest: context.agentRuntime.getDefaultAgentManifest(),
           pluginCatalog: {
             skillsDir: context.pluginCatalog.skillsDir,
@@ -127,6 +153,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
             builtinToolsDir: context.pluginCatalog.builtinToolsDir,
             skillCount: context.pluginCatalog.layeredSkills.length,
             toolCount: context.pluginCatalog.layeredTools.length,
+            skillPlugins: listAgentSkillBundlePlugins(context.pluginCatalog.skillsDir),
             warnings: context.pluginCatalog.warnings,
           },
           updates: context.updates,
@@ -160,8 +187,90 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
+      if (req.method === 'POST' && url.pathname === '/agent-catalog/skills/install-bundle') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'agent skill bundle install is only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'agent skill bundle install rejects cross-site browser requests' })
+          return
+        }
+        const body = await readOptionalJSONObject(req, 'agent skill bundle body')
+        const install = installAgentSkillBundle(normalizeAgentSkillBundleBody(body, context.pluginCatalog.skillsDir))
+        const catalogReload = context.agentRuntime.reloadAgentCatalog()
+        writeJSON(res, 200, {
+          status: 'installed',
+          ...install,
+          catalog: isRecord(catalogReload) ? catalogReload : { status: 'unknown' },
+        })
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/agent-catalog/skills/uninstall-bundle') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'agent skill bundle uninstall is only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'agent skill bundle uninstall rejects cross-site browser requests' })
+          return
+        }
+        const body = await readOptionalJSONObject(req, 'agent skill bundle uninstall body')
+        const uninstall = uninstallAgentSkillBundle(normalizeAgentSkillBundleUninstallBody(body, context.pluginCatalog.skillsDir))
+        const catalogReload = context.agentRuntime.reloadAgentCatalog()
+        writeJSON(res, 200, {
+          status: 'uninstalled',
+          ...uninstall,
+          catalog: isRecord(catalogReload) ? catalogReload : { status: 'unknown' },
+        })
+        return
+      }
+
       if (req.method === 'GET' && url.pathname === '/agent-manifest/default') {
         writeJSON(res, 200, context.agentRuntime.getDefaultAgentManifest())
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/agent-profiles/default') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'default agent profile changes are only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'default agent profile changes reject cross-site browser requests' })
+          return
+        }
+        const body = await readOptionalJSONObject(req, 'default agent profile body')
+        writeJSON(res, 200, context.agentRuntime.setDefaultAgentProfile(body))
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/agent-tools/default-policy') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'default tool policy changes are only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'default tool policy changes reject cross-site browser requests' })
+          return
+        }
+        const body = await readOptionalJSONObject(req, 'default tool policy body')
+        writeJSON(res, 200, context.agentRuntime.setDefaultToolPolicy(body))
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/agent-skills/default-policy') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'default skill policy changes are only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'default skill policy changes reject cross-site browser requests' })
+          return
+        }
+        const body = await readOptionalJSONObject(req, 'default skill policy body')
+        writeJSON(res, 200, { skills: Array.from(context.agentRuntime.setDefaultSkillPolicy(body).skills.values()) })
         return
       }
 
@@ -503,6 +612,10 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         writeJSON(res, error.status, { error: error.message })
         return
       }
+      if (error instanceof RuntimeModelConfigInputError) {
+        writeJSON(res, 400, { error: error.message })
+        return
+      }
       writeJSON(res, 500, { error: error instanceof Error ? error.message : String(error) })
     }
   }
@@ -618,6 +731,25 @@ function normalizeOptionalObject(body: unknown, label: string): Record<string, u
   if (body === undefined || body === null) return {}
   if (!isRecord(body)) throw new AgentHTTPError(400, `${label} must be an object`)
   return body
+}
+
+function normalizeAgentSkillBundleBody(body: Record<string, unknown>, skillsDir: string): Parameters<typeof installAgentSkillBundle>[0] {
+  const pluginId = typeof body.pluginId === 'string' && body.pluginId.trim() ? body.pluginId.trim() : undefined
+  if (!pluginId) throw new AgentHTTPError(400, 'agent skill bundle pluginId is required')
+  if (!Array.isArray(body.files) || body.files.length === 0) throw new AgentHTTPError(400, 'agent skill bundle files are required')
+  const files: AgentSkillBundleFile[] = body.files.map((file, index) => {
+    if (!isRecord(file)) throw new AgentHTTPError(400, `agent skill bundle file ${index + 1} must be an object`)
+    if (typeof file.path !== 'string' || !file.path.trim()) throw new AgentHTTPError(400, `agent skill bundle file ${index + 1} path is required`)
+    if (typeof file.content !== 'string') throw new AgentHTTPError(400, `agent skill bundle file ${index + 1} content must be a string`)
+    return { path: file.path, content: file.content }
+  })
+  return { skillsDir, pluginId, files }
+}
+
+function normalizeAgentSkillBundleUninstallBody(body: Record<string, unknown>, skillsDir: string): Parameters<typeof uninstallAgentSkillBundle>[0] {
+  const pluginId = typeof body.pluginId === 'string' && body.pluginId.trim() ? body.pluginId.trim() : undefined
+  if (!pluginId) throw new AgentHTTPError(400, 'agent skill bundle pluginId is required')
+  return { skillsDir, pluginId }
 }
 
 async function readOptionalJSONObject(req: IncomingMessage, label: string): Promise<Record<string, unknown>> {

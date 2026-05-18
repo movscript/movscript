@@ -3,30 +3,60 @@
   "description": "把已有 raw resource 加入某个 asset slot 的候选集。通常在 movscript_create_generation_job 成功返回 output_resource_id 后调用。该工具只创建/复用 candidate asset slot 和 asset_slot_candidate 关系，不会 accept、select、bind 或 lock 候选。",
   "inputSchema": {
     "type": "object",
-    "additionalProperties": true,
-    "required": [
-      "asset_slot_id",
-      "resource_id"
-    ],
+    "additionalProperties": false,
     "properties": {
       "projectId": {
         "type": "number"
       },
       "asset_slot_id": {
         "type": "number",
+        "minimum": 1,
         "description": "目标素材位 / asset requirement ID。"
+      },
+      "assetSlotId": {
+        "type": "number",
+        "minimum": 1,
+        "description": "asset_slot_id 的别名。"
       },
       "resource_id": {
         "type": "number",
+        "minimum": 1,
         "description": "已有 raw resource ID，通常来自 movscript_create_generation_job.output_resource_id。"
+      },
+      "resourceId": {
+        "type": "number",
+        "minimum": 1,
+        "description": "resource_id 的别名。"
+      },
+      "output_resource_id": {
+        "type": "number",
+        "minimum": 1,
+        "description": "resource_id 的别名，可直接传 movscript_create_generation_job.output_resource_id。"
+      },
+      "outputResourceId": {
+        "type": "number",
+        "minimum": 1,
+        "description": "output_resource_id 的别名。"
       },
       "source_type": {
         "type": "string",
         "description": "可选审计来源类型。默认 agent。"
       },
+      "sourceType": {
+        "type": "string",
+        "description": "source_type 的别名。"
+      },
       "source_id": {
         "type": "number",
         "description": "可选来源实体、生成任务或画布 ID。"
+      },
+      "sourceId": {
+        "type": "number",
+        "description": "source_id 的别名。"
+      },
+      "jobId": {
+        "type": "number",
+        "description": "当来源是生成任务时，source_id 的别名。"
       },
       "score": {
         "type": "number"
@@ -34,11 +64,51 @@
       "note": {
         "type": "string"
       }
-    }
+    },
+    "allOf": [
+      {
+        "anyOf": [
+          {
+            "required": [
+              "asset_slot_id"
+            ]
+          },
+          {
+            "required": [
+              "assetSlotId"
+            ]
+          }
+        ]
+      },
+      {
+        "anyOf": [
+          {
+            "required": [
+              "resource_id"
+            ]
+          },
+          {
+            "required": [
+              "resourceId"
+            ]
+          },
+          {
+            "required": [
+              "output_resource_id"
+            ]
+          },
+          {
+            "required": [
+              "outputResourceId"
+            ]
+          }
+        ]
+      }
+    ]
   },
   "outputSchema": {
     "type": "object",
-    "additionalProperties": true,
+    "additionalProperties": false,
     "required": [
       "status",
       "candidate",

@@ -22,7 +22,7 @@ movscript/
 ├── apps/backend/          Go API server、数据库模型、AI adapters、任务 worker
 ├── apps/frontend/         Electron + Vite + React 桌面应用
 ├── apps/agent/            本地 Agent HTTP 服务与实验
-├── apps/movcli/           插件打包和 Agent 调试 CLI
+├── apps/movcli/           插件脚手架与打包 CLI
 ├── packages/plugin-sdk/   TypeScript 插件 SDK
 ├── packages/tokens/       共享设计 token
 ├── packages/ui/           共享 React UI primitives
@@ -102,14 +102,14 @@ http://localhost:8766/admin
 如果你在开发外部后端，使用两终端模式：
 
 ```bash
-make dev-backend
+pnpm --filter movscript-backend dev
 ```
 
 另开一个终端：
 
 ```bash
 cp apps/frontend/.env.example apps/frontend/.env
-make dev-frontend
+pnpm --filter movscript-frontend dev
 ```
 
 后端健康检查：
@@ -121,12 +121,12 @@ curl http://localhost:8765/health
 ## 常用命令
 
 ```bash
-make dev-backend          # Go API server
-make dev-frontend         # Electron 桌面应用
+pnpm --filter movscript-backend dev          # Go API server
+pnpm --filter movscript-frontend dev         # Electron 桌面应用
 make dev-frontend-local   # 本地桌面一键启动，托管后端、SQLite 和管理后台
-make dev-agent            # 本地 Agent
-make test                 # 后端测试 + workspace typecheck
-make build                # 后端、packages、apps 和 plugins 构建
+pnpm --filter movscript-agent dev            # 本地 Agent
+pnpm run test             # 根 workspace 测试门禁
+pnpm run build            # 后端、packages、apps 和 plugins 构建
 pnpm run typecheck        # 可用包的 TypeScript 类型检查
 ```
 

@@ -1,0 +1,38 @@
+{
+  "schema": "movscript.agent.debug.bundle.v1",
+  "schemaVersion": 1,
+  "schemaUrl": "https://movscript.dev/schemas/agent-debug-bundle-v1.schema.json",
+  "redacted": true,
+  "exportedAt": "2026-05-18T00:00:00.000Z",
+  "baseURL": "http://localhost:3419",
+  "currentProject": {
+    "id": 42,
+    "name": "Demo Project",
+    "status": "draft"
+  },
+  "runtime": null,
+  "modelConfig": null,
+  "modelConfigError": null,
+  "lastUpdated": "2026-05-18T00:00:00.000Z",
+  "observationCoverage": [
+    {
+      "id": "runtime",
+      "status": "ready",
+      "labelKey": "agents.debug.observation.runtime",
+      "detailKey": "agents.debug.observationDetails.runtimeReady"
+    }
+  ],
+  "triageItems": [],
+  "remediationPlan": [],
+  "runSummary": {
+    "total": 0,
+    "active": 0,
+    "waiting": 0,
+    "failed": 0,
+    "issueGroups": []
+  },
+  "runIssueGroups": [],
+  "warnings": [],
+  "warningGroups": [],
+  "preview": null
+}

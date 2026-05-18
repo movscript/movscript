@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
@@ -24,6 +25,8 @@ import {
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { usePermissions } from '@/hooks/usePermissions'
 import { api } from '@/lib/api'
+import { generatedKeyframeCandidateTargetId, isGeneratedKeyframeCandidateRecord, isUnresolvedCandidateStatus } from '@/lib/agentGeneratedResourceBinding'
+import { invalidateAssetCandidateConsumers } from '@/lib/assetCandidateQueryInvalidation'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
@@ -155,6 +158,13 @@ interface TaskCreateDraft {
   resultJSON: string
 }
 
+interface TaskCreateDialogInitialDraft {
+  purpose?: TaskPurpose
+  targetType?: WorkTargetType
+  targetId?: number
+  candidateId?: number
+}
+
 const seededTasks: ProjectTask[] = []
 
 const targetTypeLabels: Record<WorkTargetType, string> = {
@@ -233,7 +243,7 @@ const resultTypeMeta: Record<WorkItemResultType, { label: string; description: s
   none: { label: '只完成任务', description: '不改变生产实体' },
   status_change: { label: '更新目标状态', description: '通过审核后更新目标对象状态' },
   lock_asset_candidate: { label: '锁定素材候选', description: '把素材需求锁定到指定候选' },
-  accept_keyframe: { label: '采纳画面锚点', description: '将画面锚点标记为 accepted' },
+  accept_keyframe: { label: '采纳画面锚点', description: '采纳候选或将当前画面锚点标记为 accepted' },
   approve_delivery_version: { label: '批准交付版本', description: '将交付版本标记为 approved' },
 }
 
@@ -279,7 +289,7 @@ const taskPurposeMeta: Record<TaskPurpose, {
   },
   accept_keyframe: {
     label: '采纳画面锚点',
-    description: '通过后将画面锚点状态变为 accepted',
+    description: '通过后采纳候选画面锚点，或直接将当前画面锚点状态变为 accepted',
     taskType: 'review',
     resultType: 'accept_keyframe',
     targetTypes: ['keyframe'],
@@ -293,6 +303,32 @@ const taskPurposeMeta: Record<TaskPurpose, {
     targetTypes: ['delivery_version'],
     defaultTitle: '批准交付版本',
   },
+}
+
+function isTaskPurpose(value: string | null): value is TaskPurpose {
+  return !!value && Object.prototype.hasOwnProperty.call(taskPurposeMeta, value)
+}
+
+function isWorkTargetType(value: string | null): value is WorkTargetType {
+  return !!value && Object.prototype.hasOwnProperty.call(targetTypeLabels, value)
+}
+
+function positiveSearchParamID(value: string | null) {
+  if (!value) return undefined
+  const n = Number(value.trim())
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined
+}
+
+function taskCreateInitialDraftFromSearch(params: URLSearchParams): TaskCreateDialogInitialDraft | undefined {
+  if (params.get('create') !== '1') return undefined
+  const purpose = params.get('purpose')
+  const targetType = params.get('target_type')
+  return {
+    purpose: isTaskPurpose(purpose) ? purpose : undefined,
+    targetType: isWorkTargetType(targetType) ? targetType : undefined,
+    targetId: positiveSearchParamID(params.get('target_id')),
+    candidateId: positiveSearchParamID(params.get('candidate_id')),
+  }
 }
 
 const workflow = [
@@ -479,6 +515,11 @@ function stringField(record: SemanticEntityRecord, key: string) {
   return typeof value === 'string' ? value : undefined
 }
 
+function recordField(record: SemanticEntityRecord, key: string) {
+  const value = record[key]
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as SemanticEntityRecord : undefined
+}
+
 function targetOption(type: WorkTargetType, record: SemanticEntityRecord, fallback: string): WorkTargetOption {
   const status = stringField(record, 'status')
   const slotKey = stringField(record, 'slot_key')
@@ -500,6 +541,46 @@ function purposeTargetOptions(purpose: TaskPurpose, options: WorkTargetOption[])
   return options.filter((option) => allowed.includes(option.type))
 }
 
+function candidateOptionsForAssetSlot(candidates: SemanticEntityRecord[], assetSlotId?: number) {
+  if (!assetSlotId) return []
+  return candidates.filter((candidate) => (
+    numericField(candidate, 'asset_slot_id') === assetSlotId
+    && numericField(candidate, 'candidate_asset_slot_id')
+    && isUnresolvedCandidateStatus(candidate.status)
+    && assetSlotCandidateHasResource(candidate)
+  ))
+}
+
+function assetSlotCandidateHasResource(candidate: SemanticEntityRecord) {
+  const candidateSlot = recordField(candidate, 'candidate_asset_slot')
+  return candidateSlot ? recordHasLoadedResource(candidateSlot) : recordHasLoadedResource(candidate)
+}
+
+function candidateOptionLabel(candidate: SemanticEntityRecord) {
+  const candidateSlot = recordField(candidate, 'candidate_asset_slot')
+  const slotLabel = candidateSlot ? titleOfRecord(candidateSlot, '候选素材') : `候选素材 #${numericField(candidate, 'candidate_asset_slot_id') ?? candidate.ID}`
+  return `${slotLabel} · ${candidate.status ?? 'candidate'}`
+}
+
+function keyframeCandidateOptionsForTarget(keyframes: SemanticEntityRecord[], targetKeyframeId?: number) {
+  if (!targetKeyframeId) return []
+  return keyframes.filter((keyframe) => (
+    generatedKeyframeCandidateTargetId(keyframe) === targetKeyframeId
+    && isUnresolvedCandidateStatus(keyframe.status)
+    && recordHasLoadedResource(keyframe)
+  ))
+}
+
+function recordHasLoadedResource(record: SemanticEntityRecord) {
+  const resource = recordField(record, 'resource')
+  return resource !== undefined && numericField(resource, 'ID') !== undefined
+}
+
+function keyframeCandidateOptionLabel(candidate: SemanticEntityRecord) {
+  const label = titleOfRecord(candidate, '候选画面锚点')
+  return `${label} · ${candidate.status ?? 'candidate'}`
+}
+
 function defaultResultJSON(purpose: TaskPurpose) {
   const meta = taskPurposeMeta[purpose]
   if (meta.resultType === 'status_change') {
@@ -519,7 +600,15 @@ function resultSummary(resultType: WorkItemResultType, resultJSON: string) {
     }
   }
   if (resultType === 'lock_asset_candidate') return '通过后系统会锁定素材需求到指定候选。'
-  if (resultType === 'accept_keyframe') return '通过后画面锚点状态会变为 accepted。'
+  if (resultType === 'accept_keyframe') {
+    try {
+      const parsed = JSON.parse(resultJSON) as { keyframe_candidate_id?: unknown }
+      if (parsed.keyframe_candidate_id) return '通过后系统会采纳候选画面锚点，并把候选资源同步到目标画面锚点。'
+    } catch {
+      // Fall through to the direct-accept copy below.
+    }
+    return '通过后当前画面锚点状态会变为 accepted。'
+  }
   if (resultType === 'approve_delivery_version') return '通过后交付版本状态会变为 approved。'
   return '通过后应用任务结果。'
 }
@@ -547,17 +636,23 @@ function PriorityPill({ priority }: { priority: TaskPriority }) {
 function TaskCreateDialog({
   open,
   onOpenChange,
+  initialDraft,
   projectName,
   memberOptions,
   targetOptions,
+  assetSlotCandidates,
+  keyframes,
   onSubmit,
   isSubmitting,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  initialDraft?: TaskCreateDialogInitialDraft
   projectName: string
   memberOptions: MemberOption[]
   targetOptions: WorkTargetOption[]
+  assetSlotCandidates: SemanticEntityRecord[]
+  keyframes: SemanticEntityRecord[]
   onSubmit: (draft: TaskCreateDraft) => void
   isSubmitting: boolean
 }) {
@@ -570,18 +665,68 @@ function TaskCreateDialog({
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [targetStatus, setTargetStatus] = useState('confirmed')
   const [candidateID, setCandidateID] = useState('')
+  const initialTargetKey = initialDraft?.targetType && initialDraft.targetId ? `${initialDraft.targetType}:${initialDraft.targetId}` : ''
 
   const availableTargets = useMemo(() => purposeTargetOptions(purpose, targetOptions), [purpose, targetOptions])
   const selectedTarget = availableTargets.find((target) => target.key === targetKey) ?? availableTargets[0]
   const selectedAssignee = memberOptions.find((member) => String(member.id) === assigneeId) ?? memberOptions[0]
   const purposeMeta = taskPurposeMeta[purpose]
   const resultType = purposeMeta.resultType
+  const candidateOptions = useMemo(
+    () => candidateOptionsForAssetSlot(assetSlotCandidates, resultType === 'lock_asset_candidate' ? selectedTarget?.id : undefined),
+    [assetSlotCandidates, resultType, selectedTarget?.id],
+  )
+  const keyframeCandidateOptions = useMemo(
+    () => keyframeCandidateOptionsForTarget(keyframes, resultType === 'accept_keyframe' ? selectedTarget?.id : undefined),
+    [keyframes, resultType, selectedTarget?.id],
+  )
+  const matchedAssetCandidate = candidateOptions.find((candidate) => String(candidate.ID) === candidateID)
+  const requestedAssetCandidateUnavailable = resultType === 'lock_asset_candidate'
+    && initialDraft?.candidateId !== undefined
+    && selectedTarget?.type === 'asset_slot'
+    && selectedTarget.id === initialDraft.targetId
+    && candidateID === String(initialDraft.candidateId)
+    && !candidateOptions.some((candidate) => candidate.ID === initialDraft.candidateId)
+  const selectedCandidate = requestedAssetCandidateUnavailable
+    ? undefined
+    : matchedAssetCandidate ?? candidateOptions[0]
+  const matchedKeyframeCandidate = keyframeCandidateOptions.find((candidate) => String(candidate.ID) === candidateID)
+  const requestedKeyframeCandidateUnavailable = resultType === 'accept_keyframe'
+    && initialDraft?.candidateId !== undefined
+    && selectedTarget?.type === 'keyframe'
+    && selectedTarget.id === initialDraft.targetId
+    && candidateID === String(initialDraft.candidateId)
+    && !keyframeCandidateOptions.some((candidate) => candidate.ID === initialDraft.candidateId)
+  const selectedKeyframeCandidate = requestedKeyframeCandidateUnavailable
+    ? undefined
+    : matchedKeyframeCandidate ?? keyframeCandidateOptions[0]
   const resultJSON = resultType === 'status_change'
     ? JSON.stringify({ status: targetStatus.trim() || purposeMeta.defaultStatus || 'confirmed' })
-    : resultType === 'lock_asset_candidate' && candidateID.trim()
-      ? JSON.stringify({ asset_slot_candidate_id: Number(candidateID.trim()) })
+    : resultType === 'lock_asset_candidate' && selectedCandidate
+      ? JSON.stringify({ asset_slot_candidate_id: selectedCandidate.ID })
+      : resultType === 'accept_keyframe' && selectedKeyframeCandidate
+        ? JSON.stringify({ keyframe_candidate_id: selectedKeyframeCandidate.ID })
       : defaultResultJSON(purpose)
-  const canSubmit = !!selectedTarget && !!selectedAssignee && title.trim() && (resultType !== 'lock_asset_candidate' || optionalPositiveID(candidateID))
+  const canSubmit = !!selectedTarget && !!selectedAssignee && title.trim() && (resultType !== 'lock_asset_candidate' || !!selectedCandidate) && !requestedKeyframeCandidateUnavailable
+    && !requestedAssetCandidateUnavailable
+
+  useEffect(() => {
+    if (!open) return
+    const nextPurpose = initialDraft?.purpose ?? 'general'
+    const nextTargets = purposeTargetOptions(nextPurpose, targetOptions)
+    const nextTargetKey = initialTargetKey && nextTargets.some((target) => target.key === initialTargetKey)
+      ? initialTargetKey
+      : firstOptionKey(nextTargets)
+    setPurpose(nextPurpose)
+    setTitle(taskPurposeMeta[nextPurpose].defaultTitle)
+    setDescription('')
+    setTargetKey(nextTargetKey)
+    setAssigneeId(memberOptions[0]?.id ? String(memberOptions[0].id) : '')
+    setDue('明天 18:00')
+    setPriority('medium')
+    setTargetStatus(taskPurposeMeta[nextPurpose].defaultStatus ?? 'confirmed')
+    setCandidateID(initialDraft?.candidateId ? String(initialDraft.candidateId) : '')
+  }, [initialDraft?.candidateId, initialDraft?.purpose, initialTargetKey, memberOptions, open, targetOptions])
 
   useEffect(() => {
     const options = purposeTargetOptions(purpose, targetOptions)
@@ -591,8 +736,32 @@ function TaskCreateDialog({
     const meta = taskPurposeMeta[purpose]
     setTitle((current) => current.trim() ? current : meta.defaultTitle)
     setTargetStatus(meta.defaultStatus ?? 'confirmed')
-    if (meta.resultType !== 'lock_asset_candidate') setCandidateID('')
+    if (meta.resultType !== 'lock_asset_candidate' && meta.resultType !== 'accept_keyframe') setCandidateID('')
   }, [purpose, targetKey, targetOptions])
+
+  useEffect(() => {
+    if (resultType !== 'lock_asset_candidate') return
+    if (requestedAssetCandidateUnavailable) return
+    if (!candidateOptions.length) {
+      setCandidateID('')
+      return
+    }
+    if (!candidateOptions.some((candidate) => String(candidate.ID) === candidateID)) {
+      setCandidateID(String(candidateOptions[0].ID))
+    }
+  }, [candidateID, candidateOptions, requestedAssetCandidateUnavailable, resultType])
+
+  useEffect(() => {
+    if (resultType !== 'accept_keyframe') return
+    if (requestedKeyframeCandidateUnavailable) return
+    if (!keyframeCandidateOptions.length) {
+      setCandidateID('')
+      return
+    }
+    if (!keyframeCandidateOptions.some((candidate) => String(candidate.ID) === candidateID)) {
+      setCandidateID(String(keyframeCandidateOptions[0].ID))
+    }
+  }, [candidateID, keyframeCandidateOptions, requestedKeyframeCandidateUnavailable, resultType])
 
   useEffect(() => {
     if (!assigneeId && memberOptions[0]) {
@@ -756,14 +925,51 @@ function TaskCreateDialog({
 
               {resultType === 'lock_asset_candidate' && (
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">候选 ID</label>
-                  <input
-                    value={candidateID}
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">候选素材</label>
+                  <select
+                    value={selectedCandidate ? String(selectedCandidate.ID) : ''}
                     onChange={(event) => setCandidateID(event.target.value)}
-                    inputMode="numeric"
-                    placeholder="输入 asset_slot_candidate_id"
+                    disabled={!candidateOptions.length}
                     className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
-                  />
+                  >
+                    {requestedAssetCandidateUnavailable && <option value="">指定候选不可采纳</option>}
+                    {candidateOptions.map((candidate) => (
+                      <option key={candidate.ID} value={candidate.ID}>{candidateOptionLabel(candidate)}</option>
+                    ))}
+                  </select>
+                  {!candidateOptions.length && (
+                    <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">
+                      {requestedAssetCandidateUnavailable ? '指定素材候选缺少资源或已不可采纳，请回预制作或 AI 助手重新加入候选。' : '当前素材需求暂无可采纳候选，请先在预制作或 AI 助手中加入带资源的候选。'}
+                    </p>
+                  )}
+                  {candidateOptions.length > 0 && requestedAssetCandidateUnavailable && (
+                    <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">指定素材候选缺少资源或已不可采纳，请重新选择一个可采纳候选，或回预制作/AI 助手重新加入候选。</p>
+                  )}
+                </div>
+              )}
+
+              {resultType === 'accept_keyframe' && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">候选画面锚点</label>
+                  <select
+                    value={selectedKeyframeCandidate ? String(selectedKeyframeCandidate.ID) : ''}
+                    onChange={(event) => setCandidateID(event.target.value)}
+                    disabled={!keyframeCandidateOptions.length}
+                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+                  >
+                    {requestedKeyframeCandidateUnavailable && <option value="">指定候选不可采纳</option>}
+                    {keyframeCandidateOptions.map((candidate) => (
+                      <option key={candidate.ID} value={candidate.ID}>{keyframeCandidateOptionLabel(candidate)}</option>
+                    ))}
+                  </select>
+                  {!keyframeCandidateOptions.length && (
+                    <p className={cn('mt-2 text-xs', requestedKeyframeCandidateUnavailable ? 'text-rose-600 dark:text-rose-300' : 'text-muted-foreground')}>
+                      {requestedKeyframeCandidateUnavailable ? '指定候选缺少资源或已不可采纳，请回工作台拒绝该候选或重新加入候选。' : '当前画面锚点暂无 AI 候选，通过后会直接采纳当前画面锚点。'}
+                    </p>
+                  )}
+                  {keyframeCandidateOptions.length > 0 && requestedKeyframeCandidateUnavailable && (
+                    <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">指定候选缺少资源或已不可采纳，请重新选择一个可采纳候选，或回工作台拒绝该候选后重新加入候选。</p>
+                  )}
                 </div>
               )}
             </div>
@@ -905,6 +1111,9 @@ export default function TasksPage() {
   const project = useProjectStore((state) => state.current)
   const currentUser = useUserStore((state) => state.currentUser)
   const projectId = project?.ID
+  const [searchParams, setSearchParams] = useSearchParams()
+  const taskCreateSearch = searchParams.toString()
+  const taskCreateInitialDraft = useMemo(() => taskCreateInitialDraftFromSearch(new URLSearchParams(taskCreateSearch)), [taskCreateSearch])
   const [selectedTaskId, setSelectedTaskId] = useState(seededTasks[0]?.id ?? '')
   const [view, setView] = useState<TaskView>('all')
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all')
@@ -968,6 +1177,12 @@ export default function TasksPage() {
     enabled: !!projectId,
   })
 
+  const { data: assetSlotCandidates = [] } = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['work-targets', projectId, 'asset-slot-candidates'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('assetSlotCandidates')) as Promise<SemanticEntityRecord[]>,
+    enabled: !!projectId,
+  })
+
   const { data: keyframes = [] } = useQuery<SemanticEntityRecord[]>({
     queryKey: ['work-targets', projectId, 'keyframes'],
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('keyframes')) as Promise<SemanticEntityRecord[]>,
@@ -988,7 +1203,7 @@ export default function TasksPage() {
       ...segments.map((record) => targetOption('segment', record, '编排段')),
       ...contentUnits.map((record) => targetOption('content_unit', record, '制作项')),
       ...assetSlots.map((record) => targetOption('asset_slot', record, '素材需求')),
-      ...keyframes.map((record) => targetOption('keyframe', record, '画面锚点')),
+      ...keyframes.filter((record) => !isGeneratedKeyframeCandidateRecord(record)).map((record) => targetOption('keyframe', record, '画面锚点')),
       ...deliveryVersions.map((record) => targetOption('delivery_version', record, '交付版本')),
     ]
   }, [assetSlots, contentUnits, deliveryVersions, keyframes, productions, project?.name, projectId, segments])
@@ -1006,6 +1221,7 @@ export default function TasksPage() {
       setSelectedTaskId(`TASK-${item.ID}`)
       setView('all')
       setStatusFilter('all')
+      clearTaskCreateSearch()
       setTaskDialogOpen(false)
     },
   })
@@ -1035,9 +1251,12 @@ export default function TasksPage() {
       }
       return updated
     },
-    onSuccess: () => {
+    onSuccess: (_updated, variables) => {
       void qc.invalidateQueries({ queryKey: ['work-items', projectId] })
       void qc.invalidateQueries({ queryKey: ['work-reviews', projectId] })
+      if (variables.task.resultType === 'lock_asset_candidate' || variables.task.resultType === 'accept_keyframe') {
+        invalidateAssetCandidateConsumers(qc, projectId)
+      }
     },
   })
 
@@ -1081,6 +1300,29 @@ export default function TasksPage() {
     setSubmitCanvasId(selectedTask?.sourceCanvasID ? String(selectedTask.sourceCanvasID) : '')
     setReviewComment('')
   }, [selectedTask?.workItemID])
+
+  useEffect(() => {
+    if (!taskCreateInitialDraft) return
+    if (!canManageWorkItems || memberOptions.length === 0 || workTargetOptions.length === 0) return
+    setTaskDialogOpen(true)
+  }, [canManageWorkItems, memberOptions.length, taskCreateInitialDraft, workTargetOptions.length])
+
+  function clearTaskCreateSearch() {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.delete('create')
+      next.delete('purpose')
+      next.delete('target_type')
+      next.delete('target_id')
+      next.delete('candidate_id')
+      return next
+    }, { replace: true })
+  }
+
+  function changeTaskDialogOpen(nextOpen: boolean) {
+    setTaskDialogOpen(nextOpen)
+    if (!nextOpen && taskCreateInitialDraft) clearTaskCreateSearch()
+  }
 
   function updateTask(task: ProjectTask, patch: Partial<ProjectTask>, review?: { status: WorkReviewStatus; comment: string }) {
     patchWorkItem.mutate({ task, patch, review })
@@ -1165,10 +1407,13 @@ export default function TasksPage() {
 
         <TaskCreateDialog
           open={taskDialogOpen}
-          onOpenChange={setTaskDialogOpen}
+          onOpenChange={changeTaskDialogOpen}
+          initialDraft={taskDialogOpen ? taskCreateInitialDraft : undefined}
           projectName={project?.name ?? '当前项目'}
           memberOptions={memberOptions}
           targetOptions={workTargetOptions}
+          assetSlotCandidates={assetSlotCandidates}
+          keyframes={keyframes}
           onSubmit={createTask}
           isSubmitting={createWorkItem.isPending}
         />

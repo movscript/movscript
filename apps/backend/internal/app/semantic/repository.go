@@ -2506,7 +2506,7 @@ func (r *gormRepository) CreateAssetSlotCandidate(ctx context.Context, item doma
 	if err := r.createItemOnly(ctx, &modelItem); err != nil {
 		return domainsemantic.AssetSlotCandidateFromModel(modelItem), err
 	}
-	return domainsemantic.AssetSlotCandidateFromModel(modelItem), nil
+	return r.assetSlotCandidateFromModel(ctx, modelItem.ProjectID, modelItem)
 }
 
 func (r *gormRepository) LoadAssetSlotCandidate(ctx context.Context, projectID uint, id string) (domainsemantic.AssetSlotCandidate, error) {
@@ -2514,7 +2514,7 @@ func (r *gormRepository) LoadAssetSlotCandidate(ctx context.Context, projectID u
 	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.AssetSlotCandidate{}, err
 	}
-	return domainsemantic.AssetSlotCandidateFromModel(item), nil
+	return r.assetSlotCandidateFromModel(ctx, projectID, item)
 }
 
 func (r *gormRepository) PatchAssetSlotCandidate(ctx context.Context, item domainsemantic.AssetSlotCandidate, patch domainsemantic.AssetSlotCandidatePatch) (domainsemantic.AssetSlotCandidate, error) {

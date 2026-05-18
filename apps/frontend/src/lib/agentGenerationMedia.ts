@@ -1,5 +1,5 @@
 import type { RawResource } from '@/types'
-import { isRecord } from '@/lib/jsonValue'
+import { isRecord } from './jsonValue.ts'
 
 export interface GenerationProgressState {
   jobId?: number
@@ -13,6 +13,7 @@ export interface GenerationProgressState {
   progress?: number
   terminal: boolean
   outputResourceId?: number
+  outputResourceIds?: number[]
   message?: string
   firstSeenAt?: string
   updatedAt?: string
@@ -127,14 +128,11 @@ export function generationMetadataByResourceIdFromEvents(events: GenerationTrace
     const generation = data?.generation && isRecord(data.generation) ? data.generation : undefined
     if (!generation) continue
     const metadata = generationMetadataFromRecord(generation)
-    const outputResourceId = Number(generation.outputResourceId ?? generation.output_resource_id)
-    if (Number.isInteger(outputResourceId) && outputResourceId > 0) {
-      metadataByResourceId.set(outputResourceId, metadata)
-    }
-    const media = rawResourceFromUnknown(generation.media)
-    if (media && (media.type === 'image' || media.type === 'video')) {
-      metadataByResourceId.set(media.ID, metadata)
-    }
+    const resources = new Map<number, RawResource>()
+    const ids = new Set<number>()
+    collectGeneratedMediaHints(generation, resources, ids)
+    for (const id of ids) metadataByResourceId.set(id, metadata)
+    for (const resource of resources.values()) metadataByResourceId.set(resource.ID, metadata)
   }
   return metadataByResourceId
 }
@@ -152,6 +150,8 @@ export function generationProgressListFromEvents(events: GenerationTraceEventLik
     if (!generation) return
     const status = typeof generation.status === 'string' && generation.status.trim() ? generation.status.trim() : 'unknown'
     const jobId = typeof generation.jobId === 'number' ? generation.jobId : undefined
+    const outputResourceIds = outputResourceIdsFromGeneration(generation)
+    const outputResourceId = typeof generation.outputResourceId === 'number' ? generation.outputResourceId : outputResourceIds[0]
     const state: GenerationProgressState = {
       ...(typeof generation.jobId === 'number' ? { jobId: generation.jobId } : {}),
       ...(typeof generation.jobType === 'string' ? { jobType: generation.jobType } : {}),
@@ -163,7 +163,8 @@ export function generationProgressListFromEvents(events: GenerationTraceEventLik
       ...(typeof generation.stage === 'string' ? { stage: generation.stage } : {}),
       ...(typeof generation.progress === 'number' ? { progress: generation.progress } : {}),
       terminal: generation.terminal === true,
-      ...(typeof generation.outputResourceId === 'number' ? { outputResourceId: generation.outputResourceId } : {}),
+      ...(outputResourceId !== undefined ? { outputResourceId } : {}),
+      ...(outputResourceIds.length > 0 ? { outputResourceIds } : {}),
       ...(typeof generation.message === 'string' ? { message: generation.message } : {}),
     }
     const key = jobId !== undefined
@@ -184,6 +185,29 @@ export function generationProgressListFromEvents(events: GenerationTraceEventLik
     statesByKey.set(key, timedState)
   })
   return keys.map((key) => statesByKey.get(key)).filter((state): state is GenerationProgressState => !!state)
+}
+
+function outputResourceIdsFromGeneration(generation: Record<string, unknown>): number[] {
+  const ids = new Set<number>()
+  const explicit = Number(generation.outputResourceId ?? generation.output_resource_id)
+  if (Number.isInteger(explicit) && explicit > 0) ids.add(explicit)
+  const list = generation.outputResourceIds ?? generation.output_resource_ids
+  if (Array.isArray(list)) {
+    for (const id of list) {
+      const numeric = Number(id)
+      if (Number.isInteger(numeric) && numeric > 0) ids.add(numeric)
+    }
+  }
+  const resources = [
+    ...(Array.isArray(generation.outputResources) ? generation.outputResources : []),
+    ...(Array.isArray(generation.output_resources) ? generation.output_resources : []),
+  ]
+  for (const resource of resources) {
+    if (!isRecord(resource)) continue
+    const id = Number(resource.ID ?? resource.id)
+    if (Number.isInteger(id) && id > 0) ids.add(id)
+  }
+  return [...ids]
 }
 
 export function replayGenerationTrace(events: GenerationTraceEventLike[]): GenerationTraceReplay {

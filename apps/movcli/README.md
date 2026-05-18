@@ -38,8 +38,10 @@ pnpm --filter movcli dev -- init my-plugin --webview
 Build a plugin package:
 
 ```bash
-pnpm --filter movcli dev -- build --cwd ./my-plugin --out dist
+pnpm --filter movcli dev -- build --cwd ./my-plugin
 ```
+
+`--out` defaults to `dist` inside the plugin project directory.
 
 List a registry:
 

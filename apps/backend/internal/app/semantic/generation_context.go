@@ -456,6 +456,9 @@ func (s *Service) collectGenerationKeyframes(ctx context.Context, projectID uint
 		if err != nil {
 			return nil, generationContextLoadError(projectID, "load_keyframe", "keyframe", keyframeID, err)
 		}
+		if isKeyframeCandidateMetadata(keyframe.MetadataJSON) {
+			continue
+		}
 		items = append(items, keyframe)
 	}
 	return items, nil

@@ -400,6 +400,9 @@ export interface AgentDebugContextPanel {
     name?: string
     status?: string
     description?: string
+    aspect_ratio?: string
+    visual_style?: string
+    project_style?: string
   }
   productionId?: number
   user?: {
@@ -521,6 +524,9 @@ export interface AgentClientUISnapshot {
     name?: string
     status?: string
     description?: string
+    aspect_ratio?: string
+    visual_style?: string
+    project_style?: string
   }
   productionId?: number
   draftId?: string
@@ -630,6 +636,15 @@ export interface CompiledPromptPreview {
   }>
   promptStats?: {
     totalChars: number
+    systemChars?: number
+    conversationChars?: number
+    budget?: {
+      limitChars: number
+      usedChars: number
+      remainingChars: number
+      usageRatio: number
+      status: string
+    }
     parts: Array<{ id: string; title: string; kind: string; layer: string; chars: number }>
     byLayer: Record<string, number>
     byContextLayer?: Record<string, number>

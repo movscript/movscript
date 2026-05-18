@@ -21,7 +21,6 @@ import RefVideoGenPage from './pages/tools/RefVideoGenPage'
 import MotionImitationPage from './pages/tools/MotionImitationPage'
 import StyleTransferPage from './pages/tools/StyleTransferPage'
 import MultiAnglePage from './pages/tools/MultiAnglePage'
-import VideoEditPage from './pages/tools/VideoEditPage'
 import BrainstormPage from './pages/tools/BrainstormPage'
 import ReferenceRelationsPage from './pages/reference-relations/ReferenceRelationsPage'
 import ProductionPage from './pages/project/production/ProductionPage'
@@ -386,7 +385,7 @@ export default function App() {
               <Route path={ROUTES.tools.motionImitation} element={<MotionImitationPage />} />
               <Route path={ROUTES.tools.styleTransfer} element={<StyleTransferPage />} />
               <Route path={ROUTES.tools.multiAngle} element={<MultiAnglePage />} />
-              <Route path={ROUTES.tools.videoEdit} element={<VideoEditPage />} />
+              <Route path={ROUTES.tools.videoEdit} element={<Navigate to={ROUTES.tools.refVideoGen} replace />} />
               <Route path={ROUTES.tools.brainstorm} element={<BrainstormPage />} />
               <Route path={ROUTES.tools.plugin} element={<PluginToolPage />} />
 

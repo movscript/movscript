@@ -178,8 +178,11 @@ export function AssetSlotListItem({
 
 // ─── ResourcePanel (tool sidebar) ────────────────────────────────────────────
 
+type ResourcePanelInputType = 'image' | 'video' | 'image+video' | 'media'
+type ResourcePanelResourceType = 'all' | 'image' | 'video' | 'audio' | 'text'
+
 interface ResourcePanelProps {
-  inputType: 'image' | 'video' | 'image+video'
+  inputType: ResourcePanelInputType
   selectedIds: number[]
   onSelect: (resource: RawResource) => void
 }
@@ -188,7 +191,7 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
   const { t } = useTranslation()
   const [tab, setTab] = useState<'resources' | 'assetSlots'>('resources')
   const [keyword, setKeyword] = useState('')
-  const [resourceType, setResourceType] = useState<'all' | 'image' | 'video'>('all')
+  const [resourceType, setResourceType] = useState<ResourcePanelResourceType>('all')
   const [slotKind, setSlotKind] = useState<'all' | 'image' | 'video' | 'audio' | 'text' | 'reference'>('all')
   const [resourcePage, setResourcePage] = useState(1)
   const [slotPage, setSlotPage] = useState(1)
@@ -198,8 +201,12 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
 
   const resourceTypeParam = (() => {
     if (inputType === 'image+video') return resourceType === 'all' ? 'image,video' : resourceType
+    if (inputType === 'media') return resourceType === 'all' ? 'image,video,audio,text' : resourceType
     return inputType
   })()
+  const resourceTypeOptions: ResourcePanelResourceType[] = inputType === 'media'
+    ? ['all', 'image', 'video', 'audio', 'text']
+    : ['all', 'image', 'video']
 
   const { data: resourcesPageData } = useQuery<PaginatedResponse<RawResource>>({
     queryKey: ['resources', 'panel', inputType, resourceTypeParam, keyword, resourcePage],
@@ -278,9 +285,9 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
             className="w-full pl-6 pr-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
-        {tab === 'resources' && inputType === 'image+video' && (
+        {tab === 'resources' && (inputType === 'image+video' || inputType === 'media') && (
           <div className="flex rounded-md border border-border overflow-hidden text-[11px]">
-            {(['all', 'image', 'video'] as const).map(type => (
+            {resourceTypeOptions.map(type => (
               <button
                 key={type}
                 onClick={() => { setResourceType(type); setResourcePage(1) }}

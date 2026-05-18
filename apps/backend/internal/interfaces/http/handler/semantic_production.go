@@ -130,7 +130,9 @@ func (h *SemanticEntityHandler) CreateKeyframe(c *gin.Context) {
 		h.writeSemanticAppError(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, item)
+	single := []domainsemantic.Keyframe{item}
+	populateDomainKeyframeResourceURLs(c, single)
+	c.JSON(http.StatusCreated, single[0])
 }
 
 func (h *SemanticEntityHandler) PatchKeyframe(c *gin.Context) {
@@ -144,7 +146,9 @@ func (h *SemanticEntityHandler) PatchKeyframe(c *gin.Context) {
 		h.writeSemanticAppError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, item)
+	single := []domainsemantic.Keyframe{item}
+	populateDomainKeyframeResourceURLs(c, single)
+	c.JSON(http.StatusOK, single[0])
 }
 
 func (h *SemanticEntityHandler) ListPreviewTimelines(c *gin.Context) {

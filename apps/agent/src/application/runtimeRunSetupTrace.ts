@@ -96,7 +96,22 @@ export function recordRuntimeRunSetupTraces(input: {
     round: input.setupRound,
     data: {
       eventType: 'trigger.evaluated',
-      skills: input.skills.map((skill) => ({ id: skill.id, name: skill.name, activationReason: skill.activationReason, priority: skill.resolvedPriority, warnings: skill.warnings })),
+      skillEventType: 'skill.state_resolved',
+      activeSkillIds: input.skills.map((skill) => skill.id),
+      loadedSkillIds: input.skills.map((skill) => skill.id),
+      availableSkillIds: input.layers?.skillDiscovery.availableSkills.map((skill) => skill.id) ?? [],
+      skills: input.skills.map((skill) => ({
+        id: skill.id,
+        name: skill.name,
+        activationReason: skill.activationReason,
+        priority: skill.resolvedPriority,
+        ...(typeof skill.metadata?.loadMode === 'string' ? { loadMode: skill.metadata.loadMode } : {}),
+        ...(typeof skill.metadata?.activationScope === 'string' ? { activationScope: skill.metadata.activationScope } : {}),
+        ...(typeof skill.metadata?.sourcePath === 'string' ? { sourcePath: skill.metadata.sourcePath } : {}),
+        ...(Array.isArray(skill.metadata?.tags) ? { tags: skill.metadata.tags.filter((item): item is string => typeof item === 'string') } : {}),
+        ...(Array.isArray(skill.metadata?.conflicts) ? { conflicts: skill.metadata.conflicts.filter((item): item is string => typeof item === 'string') } : {}),
+        warnings: skill.warnings,
+      })),
     },
   })
   input.recordTrace(input.run, {

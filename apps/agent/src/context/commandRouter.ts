@@ -1,6 +1,8 @@
 export type AgentCommandName =
   | 'chat'
   | 'context'
+  | 'status'
+  | 'compact'
   | 'memory'
   | 'image'
   | 'video'
@@ -40,6 +42,32 @@ export function parseAgentCommand(message: string): AgentCommandRuntime {
         systemContract: [
           'This is a runtime context diagnostic command.',
           'Return only the text context that would be sent to the model gateway. Do not create drafts, search, navigate, write data, or call the model gateway.',
+        ].join('\n'),
+      }
+    case '/status':
+      return {
+        name: 'status',
+        rawName: firstToken,
+        payload,
+        contextProfile: 'minimal',
+        outputMode: 'natural',
+        requiredTools: [],
+        systemContract: [
+          'This is a runtime status diagnostic command.',
+          'Return only local run, skill, tool, and context budget status. Do not create drafts, search, navigate, write data, or call the model gateway.',
+        ].join('\n'),
+      }
+    case '/compact':
+      return {
+        name: 'compact',
+        rawName: firstToken,
+        payload,
+        contextProfile: 'minimal',
+        outputMode: 'natural',
+        requiredTools: [],
+        systemContract: [
+          'This is a deterministic runtime compact command.',
+          'Compact thread history into local continuity metadata and return the compaction result. Do not create drafts, search, navigate, write project data, or call the model gateway.',
         ].join('\n'),
       }
     case '/memory':

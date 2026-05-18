@@ -289,22 +289,9 @@ func (r *gormRepository) ProjectIDForOwner(ctx context.Context, ownerType string
 }
 
 func (r *gormRepository) BackfillAssetSlotResource(ctx context.Context, binding domainbinding.Binding) error {
-	if binding.OwnerType != "asset_slot" || binding.ResourceID == 0 {
-		return nil
-	}
-	db := r.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true})
-	update := db.Model(&persistencemodel.AssetSlot{}).
-		Where("id = ? AND resource_id IS NULL", binding.OwnerID).
-		Update("resource_id", binding.ResourceID)
-	if update.Error != nil {
-		return update.Error
-	}
-	if update.RowsAffected == 0 {
-		return nil
-	}
-	slot := persistencemodel.AssetSlot{}
-	slot.ID = binding.OwnerID
-	return coregraph.NewWriter(db).Write(ctx, &slot)
+	_ = ctx
+	_ = binding
+	return nil
 }
 
 func (r *gormRepository) ClearAssetSlotResourceIfDeleted(ctx context.Context, binding domainbinding.Binding) error {

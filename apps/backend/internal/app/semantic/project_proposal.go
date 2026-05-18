@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
@@ -27,14 +28,27 @@ type ProjectProposalTree struct {
 }
 
 type ProjectStylePatch struct {
-	AspectRatio    *string  `json:"aspect_ratio"`
-	ShotSizeSystem []string `json:"shot_size_system"`
-	CameraLanguage *string  `json:"camera_language"`
-	VisualStyle    *string  `json:"visual_style"`
-	LightingStyle  *string  `json:"lighting_style"`
-	ColorPalette   *string  `json:"color_palette"`
-	PacingRules    *string  `json:"pacing_rules"`
-	NegativeRules  []string `json:"negative_rules"`
+	AspectRatio    *string                        `json:"aspect_ratio"`
+	ShotSizeSystem []string                       `json:"shot_size_system"`
+	CameraLanguage *string                        `json:"camera_language"`
+	VisualStyle    *string                        `json:"visual_style"`
+	LightingStyle  *string                        `json:"lighting_style"`
+	ColorPalette   *string                        `json:"color_palette"`
+	PacingRules    *string                        `json:"pacing_rules"`
+	NegativeRules  []string                       `json:"negative_rules"`
+	CustomRules    *[]ProjectStyleCustomRulePatch `json:"custom_rules"`
+}
+
+type ProjectStyleCustomRulePatch struct {
+	ID         string `json:"id"`
+	Key        string `json:"key"`
+	Label      string `json:"label"`
+	Category   string `json:"category"`
+	Value      string `json:"value"`
+	PromptRole string `json:"prompt_role"`
+	Enabled    *bool  `json:"enabled"`
+	Required   *bool  `json:"required"`
+	Order      *int   `json:"order"`
 }
 
 type ProjectProposalCreativeReferencePatch struct {
@@ -158,6 +172,9 @@ func (s *Service) PreviewProjectProposalApply(ctx context.Context, projectID uin
 }
 
 func (s *Service) applyProjectProposalInTx(ctx context.Context, projectID uint, req ApplyProjectProposalRequest) (*ApplyProjectProposalResponse, error) {
+	if normalizeProjectProposalScope(req.Scope) == "project_proposal" && (len(req.Proposal.CreativeReferences) > 0 || len(req.Proposal.AssetSlots) > 0) {
+		return nil, ErrInvalidInput{Err: errors.New("project_proposal only supports project_style; use setting_proposal or asset_proposal for project-layer lists")}
+	}
 	resp := &ApplyProjectProposalResponse{ProjectID: projectID}
 	state := projectProposalApplyState{
 		creativeReferenceIDByClientID: make(map[string]uint),
@@ -250,8 +267,6 @@ func (s *Service) applyProjectProposalSnapshotOmissions(ctx context.Context, pro
 				PromptHint:               slot.PromptHint,
 				Status:                   "waived",
 				Priority:                 slot.Priority,
-				ResourceID:               slot.ResourceID,
-				LockedAssetSlotID:        slot.LockedAssetSlotID,
 				MetadataJSON:             slot.MetadataJSON,
 			}); err != nil {
 				return err
@@ -263,7 +278,7 @@ func (s *Service) applyProjectProposalSnapshotOmissions(ctx context.Context, pro
 }
 
 func projectProposalSnapshotOwnedLists(scope string) (creativeReferences bool, assetSlots bool) {
-	switch strings.TrimSpace(scope) {
+	switch normalizeProjectProposalScope(scope) {
 	case "project_proposal":
 		return false, false
 	case "setting_proposal":
@@ -275,6 +290,10 @@ func projectProposalSnapshotOwnedLists(scope string) (creativeReferences bool, a
 	}
 }
 
+func normalizeProjectProposalScope(scope string) string {
+	return strings.TrimSpace(scope)
+}
+
 func (patch ProjectStylePatch) hasChanges() bool {
 	return patch.AspectRatio != nil ||
 		len(patch.ShotSizeSystem) > 0 ||
@@ -283,7 +302,8 @@ func (patch ProjectStylePatch) hasChanges() bool {
 		patch.LightingStyle != nil ||
 		patch.ColorPalette != nil ||
 		patch.PacingRules != nil ||
-		len(patch.NegativeRules) > 0
+		len(patch.NegativeRules) > 0 ||
+		patch.CustomRules != nil
 }
 
 func (patch ProjectStylePatch) normalizedMap() map[string]any {
@@ -312,6 +332,9 @@ func (patch ProjectStylePatch) normalizedMap() map[string]any {
 	if len(patch.NegativeRules) > 0 {
 		out["negative_rules"] = normalizedStringSlice(patch.NegativeRules)
 	}
+	if patch.CustomRules != nil {
+		out["custom_rules"] = normalizedProjectStyleCustomRules(*patch.CustomRules)
+	}
 	return out
 }
 
@@ -324,6 +347,84 @@ func normalizedStringSlice(values []string) []string {
 		}
 	}
 	return out
+}
+
+func normalizedProjectStyleCustomRules(values []ProjectStyleCustomRulePatch) []map[string]any {
+	out := make([]map[string]any, 0, len(values))
+	for index, value := range values {
+		key := strings.TrimSpace(value.Key)
+		label := strings.TrimSpace(value.Label)
+		ruleValue := strings.TrimSpace(value.Value)
+		if key == "" && label == "" && ruleValue == "" {
+			continue
+		}
+		ruleID := normalizeProjectStyleRuleID(value.ID, key, label, index)
+		if key == "" {
+			key = ruleID
+		}
+		enabled := true
+		if value.Enabled != nil {
+			enabled = *value.Enabled
+		}
+		order := index + 1
+		if value.Order != nil {
+			order = *value.Order
+		}
+		item := map[string]any{
+			"id":          ruleID,
+			"key":         key,
+			"label":       label,
+			"category":    strings.TrimSpace(value.Category),
+			"value":       ruleValue,
+			"prompt_role": normalizeProjectStylePromptRole(value.PromptRole),
+			"enabled":     enabled,
+			"order":       order,
+		}
+		if value.Required != nil {
+			item["required"] = *value.Required
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func normalizeProjectStyleRuleID(id, key, label string, index int) string {
+	candidate := strings.TrimSpace(id)
+	if candidate == "" {
+		candidate = strings.TrimSpace(key)
+	}
+	if candidate == "" {
+		candidate = strings.TrimSpace(label)
+	}
+	var builder strings.Builder
+	previousSeparator := false
+	for _, char := range strings.ToLower(candidate) {
+		if unicode.IsLetter(char) || unicode.IsDigit(char) {
+			builder.WriteRune(char)
+			previousSeparator = false
+			continue
+		}
+		if char == '_' || char == '-' || char == ' ' || char == '.' {
+			if builder.Len() > 0 && !previousSeparator {
+				builder.WriteByte('_')
+				previousSeparator = true
+			}
+		}
+	}
+	normalized := strings.Trim(builder.String(), "_")
+	if normalized == "" {
+		return fmt.Sprintf("custom_rule_%d", index+1)
+	}
+	return normalized
+}
+
+func normalizeProjectStylePromptRole(value string) string {
+	switch strings.TrimSpace(value) {
+	case "context", "style", "constraint", "negative", "quality_gate":
+		return strings.TrimSpace(value)
+	default:
+		return "constraint"
+	}
 }
 
 func mergeProjectStyleJSON(current string, patch ProjectStylePatch) (string, error) {
@@ -572,11 +673,10 @@ func (s *Service) applyProjectCreativeReferenceMerge(ctx context.Context, projec
 				continue
 			}
 			key := assetSlotMergeKey(slot)
-			if duplicateID, ok := targetSlotSet[key]; ok {
+			if _, ok := targetSlotSet[key]; ok {
 				if _, err := s.PatchAssetSlot(ctx, projectID, fmt.Sprint(slot.ID), PatchAssetSlotInput{
 					CreativeReferenceID:      &targetID,
 					Status:                   "waived",
-					LockedAssetSlotID:        &duplicateID,
 					OwnerType:                slot.OwnerType,
 					OwnerID:                  slot.OwnerID,
 					CreativeReferenceStateID: slot.CreativeReferenceStateID,
@@ -587,7 +687,6 @@ func (s *Service) applyProjectCreativeReferenceMerge(ctx context.Context, projec
 					SlotKey:                  slot.SlotKey,
 					PromptHint:               slot.PromptHint,
 					Priority:                 slot.Priority,
-					ResourceID:               slot.ResourceID,
 					MetadataJSON:             slot.MetadataJSON,
 				}); err != nil {
 					return err
@@ -606,8 +705,6 @@ func (s *Service) applyProjectCreativeReferenceMerge(ctx context.Context, projec
 					PromptHint:               slot.PromptHint,
 					Status:                   slot.Status,
 					Priority:                 slot.Priority,
-					ResourceID:               slot.ResourceID,
-					LockedAssetSlotID:        slot.LockedAssetSlotID,
 					MetadataJSON:             slot.MetadataJSON,
 				}); err != nil {
 					return err
@@ -842,12 +939,6 @@ func (patch ProjectProposalAssetSlotPatch) fields() map[string]any {
 	if strings.TrimSpace(patch.Priority) != "" {
 		fields["priority"] = patch.Priority
 	}
-	if patch.ResourceID != nil {
-		fields["resource_id"] = *patch.ResourceID
-	}
-	if patch.LockedAssetSlotID != nil {
-		fields["locked_asset_slot_id"] = *patch.LockedAssetSlotID
-	}
 	if strings.TrimSpace(patch.MetadataJSON) != "" {
 		fields["metadata_json"] = patch.MetadataJSON
 	}
@@ -884,8 +975,6 @@ func assetSlotInputFromProposalFields(fields map[string]any) (AssetSlotInput, er
 		PromptHint:               fieldString(fields, "prompt_hint"),
 		Status:                   fieldString(fields, "status"),
 		Priority:                 fieldString(fields, "priority"),
-		ResourceID:               fieldUint(fields, "resource_id"),
-		LockedAssetSlotID:        fieldUint(fields, "locked_asset_slot_id"),
 		MetadataJSON:             fieldString(fields, "metadata_json"),
 	}, nil
 }
@@ -904,8 +993,6 @@ func assetSlotPatchInputFromProposalFields(fields map[string]any) (PatchAssetSlo
 		PromptHint:               fieldString(fields, "prompt_hint"),
 		Status:                   fieldString(fields, "status"),
 		Priority:                 fieldString(fields, "priority"),
-		ResourceID:               fieldUint(fields, "resource_id"),
-		LockedAssetSlotID:        fieldUint(fields, "locked_asset_slot_id"),
 		MetadataJSON:             fieldString(fields, "metadata_json"),
 	}, nil
 }

@@ -1,16 +1,23 @@
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
-import { assertDesktopArch, assertDesktopPlatform, desktopArchs, desktopPlatforms, isDesktopReleaseTarget } from './desktop-targets.mjs'
-import { ffmpegStaticBinaryUrl } from './ffmpeg-static-source.mjs'
-import { resolveDesktopFFmpegPath, verifyDesktopFFmpeg, verifyDesktopFFmpegMetadata } from './verify-desktop-package.mjs'
-
-export { desktopArchs, desktopPlatforms } from './desktop-targets.mjs'
+import {
+  desktopArchs,
+  desktopPlatforms,
+  ffmpegStaticBinaryUrl,
+  isDirectRun,
+  isDesktopReleaseTarget,
+  parseDesktopArchArg,
+  parseDesktopArchsArg,
+  parseDesktopPlatformsArg,
+  resolveDesktopFFmpegPath,
+  verifyDesktopFFmpeg,
+  verifyDesktopFFmpegMetadata,
+} from './release-common.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 
-if (isDirectRun()) {
+if (isDirectRun(import.meta.url)) {
   runFFmpegAuditCli(repoRoot, process.argv.slice(2))
 }
 
@@ -26,8 +33,8 @@ export function runFFmpegAuditCli(root = repoRoot, args = [], options = {}) {
   } = options
   try {
     const result = audit(root, {
-      platforms: parsePlatforms(args, currentPlatform),
-      archs: parseDesktopArchs(args, currentArch),
+      platforms: parseDesktopPlatformsArg(args, currentPlatform, 'ffmpeg audit'),
+      archs: parseDesktopArchsArg(args, currentArch, 'ffmpeg audit'),
       currentPlatform,
       currentArch,
     })
@@ -51,67 +58,46 @@ export function auditDesktopFFmpeg(root = repoRoot, options = {}) {
   } = options
 
   const includeOnlyDefaultReleaseTargets = platforms.length > 1 && archs.length > 1
-  const entries = platforms.flatMap((platform) => archs
-    .filter((arch) => !includeOnlyDefaultReleaseTargets || isDesktopReleaseTarget(platform, arch))
-    .map((arch) => {
-    const binaryPath = resolveFFmpeg(root, platform, arch)
-    const errors = []
-    let runnableChecked = false
-    const stagingCommand = buildFFmpegStagingCommand(platform, arch, {
-      currentPlatform,
-      currentArch,
-    })
+  const entries = platforms.flatMap((platform) =>
+    archs
+      .filter((arch) => !includeOnlyDefaultReleaseTargets || isDesktopReleaseTarget(platform, arch))
+      .map((arch) => {
+        const binaryPath = resolveFFmpeg(root, platform, arch)
+        const errors = []
+        let runnableChecked = false
+        const stagingCommand = buildFFmpegStagingCommand(platform, arch, {
+          currentPlatform,
+          currentArch,
+        })
 
-    if (!existsSync(binaryPath)) {
-      errors.push(`missing binary: ${binaryPath}`)
-    } else {
-      const metadataError = verifyMetadata(binaryPath, { arch })
-      if (metadataError) errors.push(metadataError)
-      if (!metadataError && platform === currentPlatform && arch === currentArch) {
-        runnableChecked = true
-        const runnableError = verifyRunnable(binaryPath, root, undefined, undefined, { arch })
-        if (runnableError) errors.push(runnableError)
-      }
-    }
+        if (!existsSync(binaryPath)) {
+          errors.push(`missing binary: ${binaryPath}`)
+        } else {
+          const metadataError = verifyMetadata(binaryPath, { arch })
+          if (metadataError) errors.push(metadataError)
+          if (!metadataError && platform === currentPlatform && arch === currentArch) {
+            runnableChecked = true
+            const runnableError = verifyRunnable(binaryPath, root, undefined, undefined, { arch })
+            if (runnableError) errors.push(runnableError)
+          }
+        }
 
-    return {
-      platform,
-      arch,
-      binaryPath,
-      runnableChecked,
-      ok: errors.length === 0,
-      errors,
-      stagingCommand,
-    }
-    }))
+        return {
+          platform,
+          arch,
+          binaryPath,
+          runnableChecked,
+          ok: errors.length === 0,
+          errors,
+          stagingCommand,
+        }
+      }),
+  )
 
   return {
     ok: entries.every((entry) => entry.ok),
     entries,
   }
-}
-
-export function parsePlatforms(args = [], currentPlatform = process.platform) {
-  if (args.includes('--all')) return desktopPlatforms
-  const platformArg = args.find((arg) => arg.startsWith('--platform='))
-  if (!platformArg) return [currentPlatform]
-  const platform = platformArg.slice('--platform='.length)
-  assertDesktopPlatform(platform, 'ffmpeg audit')
-  return [platform]
-}
-
-export function parseDesktopArchs(args = [], currentArch = process.arch) {
-  if (args.includes('--all-archs') || args.includes('--matrix')) return desktopArchs
-  const arch = parseDesktopArch(args, currentArch)
-  return [arch]
-}
-
-export function parseDesktopArch(args = [], currentArch = process.arch) {
-  const archArg = args.find((arg) => arg.startsWith('--arch='))
-  if (!archArg) return currentArch
-  const arch = archArg.slice('--arch='.length)
-  assertDesktopArch(arch, 'ffmpeg audit')
-  return arch
 }
 
 export function printFFmpegAudit(result, log = console.log, logError = console.error) {
@@ -137,9 +123,5 @@ export function printFFmpegAudit(result, log = console.log, logError = console.e
 export function buildFFmpegStagingCommand(platform, arch, options = {}) {
   void options
   ffmpegStaticBinaryUrl(platform, arch)
-  return `pnpm run release:download-ffmpeg-static -- --platform=${platform} --arch=${arch}`
-}
-
-function isDirectRun() {
-  return process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])
+  return `pnpm run release -- download-ffmpeg-static --platform=${platform} --arch=${arch}`
 }

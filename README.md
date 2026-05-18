@@ -22,7 +22,7 @@ movscript/
 ├── apps/backend/          Go API server, database models, AI adapters, job worker
 ├── apps/frontend/         Electron + Vite + React desktop application
 ├── apps/agent/            Local agent HTTP service and experiments
-├── apps/movcli/           CLI for plugin packaging and agent smoke tests
+├── apps/movcli/           CLI for plugin scaffolding and packaging
 ├── packages/plugin-sdk/   TypeScript plugin SDK
 ├── packages/tokens/       Shared design tokens
 ├── packages/ui/           Shared React UI primitives
@@ -236,14 +236,14 @@ http://localhost:8766/admin
 If you are developing against an external backend, use the two-terminal flow:
 
 ```bash
-make dev-backend
+pnpm --filter movscript-backend dev
 ```
 
 In another terminal:
 
 ```bash
 cp apps/frontend/.env.example apps/frontend/.env
-make dev-frontend
+pnpm --filter movscript-frontend dev
 ```
 
 Backend health check:
@@ -255,12 +255,12 @@ curl http://localhost:8765/health
 ## Common Commands
 
 ```bash
-make dev-backend          # Go API server
-make dev-frontend         # Electron desktop app
+pnpm --filter movscript-backend dev          # Go API server
+pnpm --filter movscript-frontend dev         # Electron desktop app
 make dev-frontend-local   # Local desktop startup with hosted backend, SQLite, and admin UI
-make dev-agent            # Local agent
-make test                 # Backend tests + workspace typechecks
-make build                # Backend, packages, apps, and plugins
+pnpm --filter movscript-agent dev            # Local agent
+pnpm run test             # Root workspace test gate
+pnpm run build            # Backend, packages, apps, and plugins
 pnpm run typecheck        # TypeScript typechecks where available
 ```
 

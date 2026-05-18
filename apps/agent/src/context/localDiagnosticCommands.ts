@@ -21,7 +21,7 @@ import { appendFinalSourceSummary } from '../contextManager/finalSourceSummary.j
 import { contextManager } from '../contextManager/contextManager.js'
 
 export function isLocalDiagnosticCommand(name: string): boolean {
-  return name === 'context' || name === 'memory'
+  return name === 'context' || name === 'status' || name === 'compact' || name === 'memory'
 }
 
 export function buildLocalDiagnosticFallbackContextResult(clientInput: NormalizedClientInput | undefined, error: string): JSONValue {
@@ -146,10 +146,344 @@ export function buildLocalDiagnosticCommand(input: {
       },
     }
   }
+  if (input.command.name === 'status') {
+    const promptHistory = contextManager.compactThreadHistory({
+      messages: input.history,
+      maxMessages: numberField(input.run.metadata?.limits, 'maxHistoryMessages'),
+      threadSummary: input.run.metadata?.threadContextSummary,
+    })
+    const modelTurnContext = contextManager.composeModelTurn({
+      manifest: input.manifest,
+      skills: input.skills,
+      ...(input.skillDiscovery ? { skillDiscovery: input.skillDiscovery } : {}),
+      context: input.context,
+      tools: input.tools,
+      policy: input.policy,
+      memories: input.memories,
+      warnings: input.warnings,
+      history: promptHistory.messages,
+      userMessage: input.userMessage,
+      ...(promptHistory.summary ? { threadSummary: promptHistory.summary } : {}),
+      command: input.command,
+      contractResolver: input.contractResolver,
+    })
+    const { builtContext } = modelTurnContext
+    const status = buildRuntimeStatusDiagnostic({
+      run: input.run,
+      manifest: input.manifest,
+      skills: input.skills,
+      skillDiscovery: input.skillDiscovery,
+      tools: input.tools,
+      memories: input.memories,
+      warnings: builtContext.warnings,
+      promptStats: builtContext.promptStats,
+      messageCount: builtContext.messages.length,
+      systemMessageCount: builtContext.systemMessages.length,
+      historyInputCount: input.history.length,
+      historyRetainedCount: promptHistory.messages.length,
+      historyCompactedCount: promptHistory.compactedCount,
+      hasThreadSummary: Boolean(promptHistory.summary),
+      modelToolCount: modelTurnContext.tools.length,
+      degraded: builtContext.degraded,
+    })
+    return {
+      content: renderRuntimeStatusDiagnostic(status),
+      metadata: status as unknown as Record<string, JSONValue>,
+    }
+  }
+  if (input.command.name === 'compact') {
+    const promptHistory = contextManager.compactThreadHistory({
+      messages: input.history,
+      maxMessages: numberField(input.run.metadata?.limits, 'maxHistoryMessages'),
+      threadSummary: input.run.metadata?.threadContextSummary,
+    })
+    const modelTurnContext = contextManager.composeModelTurn({
+      manifest: input.manifest,
+      skills: input.skills,
+      ...(input.skillDiscovery ? { skillDiscovery: input.skillDiscovery } : {}),
+      context: input.context,
+      tools: input.tools,
+      policy: input.policy,
+      memories: input.memories,
+      warnings: input.warnings,
+      history: promptHistory.messages,
+      userMessage: input.userMessage,
+      ...(promptHistory.summary ? { threadSummary: promptHistory.summary } : {}),
+      command: input.command,
+      contractResolver: input.contractResolver,
+    })
+    const compact = buildRuntimeCompactDiagnostic({
+      run: input.run,
+      promptStats: modelTurnContext.builtContext.promptStats,
+      historyInputCount: input.history.length,
+      historyRetainedCount: promptHistory.messages.length,
+      historyCompactedCount: promptHistory.compactedCount,
+      summary: promptHistory.summary,
+      warnings: modelTurnContext.builtContext.warnings,
+      degraded: modelTurnContext.builtContext.degraded,
+    })
+    return {
+      content: renderRuntimeCompactDiagnostic(compact),
+      metadata: compact as unknown as Record<string, JSONValue>,
+    }
+  }
   if (input.command.name === 'memory') {
     return { content: renderMemoryFilesText(input.memories, input.memoryStorePath) }
   }
   return { content: '' }
+}
+
+interface RuntimeStatusDiagnostic {
+  schema: 'movscript.local_status_diagnostic.v1'
+  modelGatewayCalled: false
+  run: {
+    id: string
+    threadId: string
+    status: AgentRun['status']
+    createdAt: string
+    updatedAt: string
+  }
+  manifest: {
+    id: string
+    version: string
+    name: string
+    model?: JSONValue
+  }
+  contextBudget: {
+    limitChars: number
+    usedChars: number
+    remainingChars: number
+    usageRatio: number
+    usagePercent: number
+    status: string
+    degraded?: string
+  }
+  prompt: {
+    messageCount: number
+    systemMessageCount: number
+    historyInputCount: number
+    historyRetainedCount: number
+    historyCompactedCount: number
+    hasThreadSummary: boolean
+    parts: Array<{ id: string; title: string; kind: string; layer: string; chars: number }>
+    byLayer: Record<string, number>
+    byContextLayer?: Record<string, number>
+  }
+  skills: {
+    activeCount: number
+    availableCount: number
+    active: Array<{ id: string; name: string; category?: string; priority: number }>
+  }
+  tools: {
+    visibleCount: number
+    blockedCount: number
+    discoveredCount: number
+    modelToolCount: number
+  }
+  context: {
+    memoryCount: number
+    retrievedRefCount: number
+    artifactRefCount: number
+    warningCount: number
+  }
+  warnings: string[]
+}
+
+interface RuntimeCompactDiagnostic {
+  schema: 'movscript.local_compact_diagnostic.v1'
+  modelGatewayCalled: false
+  run: {
+    id: string
+    threadId: string
+    status: AgentRun['status']
+  }
+  compact: {
+    historyInputCount: number
+    historyRetainedCount: number
+    historyCompactedCount: number
+    summaryChars: number
+    summaryIncluded: boolean
+  }
+  contextBudget: RuntimeStatusDiagnostic['contextBudget']
+  warnings: string[]
+}
+
+function buildRuntimeCompactDiagnostic(input: {
+  run: AgentRun
+  promptStats: ReturnType<typeof contextManager.composeModelContext>['promptStats']
+  historyInputCount: number
+  historyRetainedCount: number
+  historyCompactedCount: number
+  summary?: string
+  warnings: string[]
+  degraded?: string
+}): RuntimeCompactDiagnostic {
+  const budget = input.promptStats.budget
+  return {
+    schema: 'movscript.local_compact_diagnostic.v1',
+    modelGatewayCalled: false,
+    run: {
+      id: input.run.id,
+      threadId: input.run.threadId,
+      status: input.run.status,
+    },
+    compact: {
+      historyInputCount: input.historyInputCount,
+      historyRetainedCount: input.historyRetainedCount,
+      historyCompactedCount: input.historyCompactedCount,
+      summaryChars: input.summary?.length ?? 0,
+      summaryIncluded: Boolean(input.summary),
+    },
+    contextBudget: {
+      limitChars: budget.limitChars,
+      usedChars: budget.usedChars,
+      remainingChars: budget.remainingChars,
+      usageRatio: budget.usageRatio,
+      usagePercent: Math.round(budget.usageRatio * 1000) / 10,
+      status: budget.status,
+      ...(input.degraded ? { degraded: input.degraded } : {}),
+    },
+    warnings: input.warnings,
+  }
+}
+
+function renderRuntimeCompactDiagnostic(compact: RuntimeCompactDiagnostic): string {
+  const lines = [
+    'Runtime compact:',
+    `- Run: ${compact.run.id} (${compact.run.status})`,
+    `- Thread: ${compact.run.threadId}`,
+    `- History: ${compact.compact.historyRetainedCount}/${compact.compact.historyInputCount} retained, ${compact.compact.historyCompactedCount} compacted`,
+    `- Thread summary: ${compact.compact.summaryIncluded ? `${compact.compact.summaryChars} chars included` : 'not needed'}`,
+    `- Context budget after compact: ${compact.contextBudget.usedChars}/${compact.contextBudget.limitChars} chars (${compact.contextBudget.usagePercent}%), remaining ${compact.contextBudget.remainingChars}, status=${compact.contextBudget.status}${compact.contextBudget.degraded ? `, degraded=${compact.contextBudget.degraded}` : ''}`,
+    '- Model gateway: not called',
+  ]
+  if (compact.warnings.length > 0) {
+    lines.push('', 'Warnings:', ...compact.warnings.map((warning) => `- ${warning}`))
+  }
+  return lines.join('\n')
+}
+
+function buildRuntimeStatusDiagnostic(input: {
+  run: AgentRun
+  manifest: AgentManifest
+  skills: ResolvedAgentSkill[]
+  skillDiscovery?: SkillDiscoverySummary
+  tools: ResolvedToolCatalog
+  memories: AgentMemory[]
+  warnings: string[]
+  promptStats: ReturnType<typeof contextManager.composeModelContext>['promptStats']
+  messageCount: number
+  systemMessageCount: number
+  historyInputCount: number
+  historyRetainedCount: number
+  historyCompactedCount: number
+  hasThreadSummary: boolean
+  modelToolCount: number
+  degraded?: string
+}): RuntimeStatusDiagnostic {
+  const ledger = isRecord(input.run.metadata?.contextLedger) ? input.run.metadata.contextLedger : undefined
+  const retrievedRefCount = Array.isArray(ledger?.retrieved) ? ledger.retrieved.length : 0
+  const artifactRefCount = Array.isArray(ledger?.artifactRefs) ? ledger.artifactRefs.length : 0
+  const budget = input.promptStats.budget
+  return {
+    schema: 'movscript.local_status_diagnostic.v1',
+    modelGatewayCalled: false,
+    run: {
+      id: input.run.id,
+      threadId: input.run.threadId,
+      status: input.run.status,
+      createdAt: input.run.createdAt,
+      updatedAt: input.run.updatedAt,
+    },
+    manifest: {
+      id: input.manifest.id,
+      version: input.manifest.version,
+      name: input.manifest.name,
+      ...(input.manifest.model ? { model: toJSONValue(input.manifest.model) } : {}),
+    },
+    contextBudget: {
+      limitChars: budget.limitChars,
+      usedChars: budget.usedChars,
+      remainingChars: budget.remainingChars,
+      usageRatio: budget.usageRatio,
+      usagePercent: Math.round(budget.usageRatio * 1000) / 10,
+      status: budget.status,
+      ...(input.degraded ? { degraded: input.degraded } : {}),
+    },
+    prompt: {
+      messageCount: input.messageCount,
+      systemMessageCount: input.systemMessageCount,
+      historyInputCount: input.historyInputCount,
+      historyRetainedCount: input.historyRetainedCount,
+      historyCompactedCount: input.historyCompactedCount,
+      hasThreadSummary: input.hasThreadSummary,
+      parts: input.promptStats.parts.map((part) => ({
+        id: part.id,
+        title: part.title,
+        kind: part.kind,
+        layer: part.layer,
+        chars: part.chars,
+      })),
+      byLayer: input.promptStats.byLayer,
+      byContextLayer: input.promptStats.byContextLayer,
+    },
+    skills: {
+      activeCount: input.skills.length,
+      availableCount: input.skillDiscovery?.availableSkills.length ?? input.skills.length,
+      active: input.skills.map((skill) => ({
+        id: skill.id,
+        name: skill.name,
+        ...(skill.category ? { category: skill.category } : {}),
+        priority: skill.resolvedPriority,
+      })),
+    },
+    tools: {
+      visibleCount: input.tools.available.length,
+      blockedCount: input.tools.blocked.length,
+      discoveredCount: input.tools.discovered.length,
+      modelToolCount: input.modelToolCount,
+    },
+    context: {
+      memoryCount: input.memories.length,
+      retrievedRefCount,
+      artifactRefCount,
+      warningCount: input.warnings.length,
+    },
+    warnings: input.warnings,
+  }
+}
+
+function renderRuntimeStatusDiagnostic(status: RuntimeStatusDiagnostic): string {
+  const topParts = status.prompt.parts
+    .slice()
+    .sort((a, b) => b.chars - a.chars || a.id.localeCompare(b.id))
+    .slice(0, 8)
+  const lines = [
+    'Runtime status:',
+    `- Run: ${status.run.id} (${status.run.status})`,
+    `- Thread: ${status.run.threadId}`,
+    `- Profile: ${status.manifest.name} (${status.manifest.id}@${status.manifest.version})`,
+    `- Context budget: ${status.contextBudget.usedChars}/${status.contextBudget.limitChars} chars (${status.contextBudget.usagePercent}%), remaining ${status.contextBudget.remainingChars}, status=${status.contextBudget.status}${status.contextBudget.degraded ? `, degraded=${status.contextBudget.degraded}` : ''}`,
+    `- Messages: ${status.prompt.messageCount} total, ${status.prompt.systemMessageCount} system`,
+    `- History: ${status.prompt.historyRetainedCount}/${status.prompt.historyInputCount} retained, ${status.prompt.historyCompactedCount} compacted${status.prompt.hasThreadSummary ? ', thread summary included' : ''}`,
+    `- Skills: ${status.skills.activeCount} active / ${status.skills.availableCount} available`,
+    `- Tools: ${status.tools.visibleCount} visible, ${status.tools.blockedCount} blocked, ${status.tools.modelToolCount} exposed to model`,
+    `- Context refs: ${status.context.retrievedRefCount} retrieved, ${status.context.artifactRefCount} artifacts, ${status.context.memoryCount} memories`,
+  ]
+  if (topParts.length > 0) {
+    lines.push('', 'Largest prompt parts:')
+    lines.push(...topParts.map((part) => `- ${part.id}: ${part.chars} chars (${part.layer})`))
+  }
+  if (status.warnings.length > 0) {
+    lines.push('', 'Warnings:', ...status.warnings.map((warning) => `- ${warning}`))
+  }
+  return lines.join('\n')
+}
+
+function numberField(value: unknown, key: string): number | undefined {
+  if (!isRecord(value)) return undefined
+  const field = value[key]
+  return typeof field === 'number' && Number.isFinite(field) ? field : undefined
 }
 
 function compactDiagnosticTools(tools: ResolvedToolCatalog['available']): JSONValue {

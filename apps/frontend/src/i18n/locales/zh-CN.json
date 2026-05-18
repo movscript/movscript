@@ -1002,7 +1002,12 @@
     "debug": {
       "shortTitle": "调试",
       "title": "Agent 调试控制台",
-      "description": "展示本地 Agent Runtime 的 skills、tools、manifest、context、prompt 和 dry-run 计划。",
+      "description": "用于观测本地 Agent Runtime 的在线状态、当前上下文、Prompt Preview、最近运行和原始诊断数据；持久配置请在 Agent 设置中管理。",
+      "scope": {
+        "observabilityPlane": "观测面：只读查看 Runtime 状态",
+        "noPersistentWrites": "不修改模型、Skills、Profiles 或工具策略",
+        "runDiagnosticsInDetails": "单次运行诊断从对话详情进入"
+      },
       "defaultPreviewMessage": "帮我检查当前项目下一步应该做什么。",
       "defaultRuntimeManifest": "默认 Runtime Manifest",
       "tabs": {
@@ -1018,8 +1023,15 @@
       "actions": {
         "refresh": "刷新",
         "copied": "已复制",
+        "copyTriage": "复制分诊",
+        "triageCopied": "分诊已复制",
+        "downloaded": "已下载",
         "copyJson": "复制 JSON",
-        "runPreview": "运行 Preview"
+        "downloadJson": "下载 JSON",
+        "viewRun": "查看运行",
+        "openSettings": "打开设置",
+        "runPreview": "运行 Preview",
+        "observeOnly": "只读观察"
       },
       "status": {
         "runtimeOnline": "Runtime 在线",
@@ -1034,10 +1046,16 @@
       },
       "panels": {
         "runtime": "Runtime",
+        "runtimeModelConfig": "Runtime 模型配置",
         "previewInput": "Preview 输入",
         "warnings": "警告",
         "mcpResources": "MCP 资源",
         "latestPreview": "最近 Preview",
+        "triage": "问题分诊",
+        "runAttention": "需关注运行",
+        "observationCoverage": "观测覆盖度",
+        "remediationPlan": "修复建议",
+        "runIssueSummary": "运行问题摘要",
         "effectiveManifest": "生效 Manifest",
         "defaultManifest": "默认 Runtime Manifest",
         "activatedSkills": "已激活技能",
@@ -1048,10 +1066,12 @@
         "contextSummary": "上下文摘要",
         "contextJson": "上下文 JSON",
         "plan": "计划",
-        "approvals": "审批"
+        "approvals": "审批",
+        "debugBundleFieldGuide": "Debug Bundle 字段说明"
       },
       "fields": {
         "baseUrl": "Base URL",
+        "lastUpdated": "刷新时间",
         "skillsDir": "Skills 目录",
         "toolsDir": "Tools 目录",
         "agentManifest": "Agent Manifest",
@@ -1063,11 +1083,27 @@
         "selection": "选择对象",
         "recentResources": "最近资源",
         "attachments": "附件",
-        "memories": "记忆"
+        "memories": "记忆",
+        "modelConfigured": "模型配置",
+        "model": "模型",
+        "apiKind": "调用模式",
+        "modelCredentials": "模型凭证",
+        "modelRoutes": "模型路由",
+        "modelSource": "模型来源"
+      },
+      "modelCredentials": {
+        "configured": "已加载：{{env}}",
+        "missing": "缺失：{{env}}",
+        "notRequired": "当前调用模式不需要直连密钥"
       },
       "metrics": {
         "runtime": "Runtime",
         "mcpTools": "MCP 工具",
+        "resources": "MCP 资源",
+        "runs": "运行",
+        "activeRuns": "活跃运行",
+        "waitingRuns": "等待处理",
+        "failedRuns": "失败运行",
         "registeredTools": "已注册工具",
         "skills": "技能",
         "registry": "注册表",
@@ -1082,6 +1118,118 @@
         "permission": "权限",
         "approval": "审批",
         "status": "状态"
+      },
+      "observationStatuses": {
+        "ready": "已覆盖",
+        "warning": "待补充",
+        "action": "不可用"
+      },
+      "observation": {
+        "runtime": "Runtime 连接",
+        "modelConfig": "Runtime 模型配置",
+        "mcp": "MCP 状态",
+        "context": "项目上下文",
+        "preview": "Prompt Preview",
+        "runs": "运行记录",
+        "warnings": "告警信号"
+      },
+      "observationDetails": {
+        "runtimeReady": "已读取 Runtime health、catalog 和 capabilities。",
+        "runtimeMissing": "Runtime 未连接，无法观测状态。",
+        "modelConfigReady": "Runtime 模型配置已保存为 {{model}}，凭证状态正常。",
+        "modelConfigUnavailable": "Runtime 未连接，无法观测模型配置。",
+        "modelConfigReadFailed": "Runtime 在线，但模型配置读取失败：{{reason}}。",
+        "modelConfigMissing": "尚未保存 Runtime 模型配置。请到 Agent 设置配置默认模型。",
+        "modelCredentialMissing": "Runtime 模型配置已保存，但直连 Provider 凭证缺失：{{env}}。",
+        "mcpReady": "MCP 已连接，可观测资源和工具能力。",
+        "mcpMissing": "MCP 未连接或资源不可用。",
+        "contextReady": "当前项目：{{project}}。",
+        "contextMissing": "未选择项目，只能观测全局 Runtime。",
+        "previewReady": "已生成 Preview，可检查 prompt、context 和计划。",
+        "previewMissing": "尚未运行 Preview。",
+        "runsReady": "已读取 {{count}} 条运行记录。",
+        "runsMissing": "暂无运行记录。",
+        "warningsFound": "发现 {{count}} 条警告。",
+        "warningsClear": "当前没有警告。"
+      },
+      "triageSeverities": {
+        "action": "需处理",
+        "warning": "需关注",
+        "info": "信息"
+      },
+      "triage": {
+        "failedRuns": "{{count}} 个运行失败",
+        "requiresAction": "{{count}} 个运行等待确认",
+        "observationMissing": "观测信号不完整",
+        "warningSignals": "{{count}} 条警告信号",
+        "signal": "信号：{{signal}}"
+      },
+      "triageSummary": {
+        "title": "Agent Debug 分诊摘要"
+      },
+      "remediationSummary": {
+        "title": "建议下一步"
+      },
+      "remediation": {
+        "failedRuns": "查看失败运行详情",
+        "requiresAction": "处理等待确认的运行",
+        "modelConfig": "修复持久模型配置",
+        "preview": "生成 Prompt Preview 证据",
+        "mcp": "检查 MCP 连接信号",
+        "warningSignals": "查看分组警告信号"
+      },
+      "remediationDetails": {
+        "failedRuns": "发现 {{count}} 个失败运行，代表原因：{{reason}}。",
+        "requiresAction": "{{count}} 个运行正在等待确认，代表原因：{{reason}}。",
+        "modelConfig": "Debug 只观测问题；持久模型、凭证和路由修复归 Agent 设置负责。",
+        "preview": "运行 Preview 会生成 prompt、context、plan 和审批证据，不会修改已保存设置。",
+        "mcp": "这里的 MCP 状态是只读信号。根据分组信号判断 Runtime 或连接器配置是否需要处理。",
+        "warningSignals": "{{sources}} 个来源共有 {{count}} 条警告。修改配置前先查看分组警告。"
+      },
+      "redactionNotice": {
+        "title": "Debug Bundle 已脱敏",
+        "detail": "复制或下载的 Bundle 会脱敏密钥、令牌、Cookie 和签名 URL 参数；单次运行的完整诊断仍从对话详情进入。"
+      },
+      "triageDetails": {
+        "failedRuns": "代表原因：{{reason}}。请打开运行详情查看步骤、工具调用和错误上下文。",
+        "requiresAction": "代表原因：{{reason}}。单次运行处理入口仍在对话详情中。",
+        "warningSignals": "来自 {{sources}} 个来源。Debug 只聚合信号；持久化配置修复请回到 Agent Settings。",
+        "observation": {
+          "runtime": "Runtime 未连接时无法读取 health、catalog、capabilities 或运行记录。",
+          "model-config": "Runtime 模型配置缺失或直连 Provider 凭证未加载。请到 Agent Settings 修复持久模型配置。",
+          "mcp": "MCP 未连接或资源不可用，工具/资源观测不完整。",
+          "context": "未选择项目时只能观测全局 Runtime，项目上下文为空。",
+          "preview": "尚未运行 Preview，无法检查本次 prompt、context 和 plan。",
+          "runs": "暂无运行记录，无法做运行态趋势判断。",
+          "warnings": "存在 warning 信号，需要查看来源分组。"
+        }
+      },
+      "warningSources": {
+        "capabilities": "Runtime capabilities",
+        "catalog": "Plugin catalog",
+        "model": "Runtime 模型配置",
+        "preview": "Prompt Preview"
+      },
+      "runIssueGroups": {
+        "requiresAction": "等待确认",
+        "failed": "失败运行",
+        "inProgress": "运行中",
+        "completedWithWarnings": "带警告完成"
+      },
+      "bundleFields": {
+        "schema": "Debug Bundle 的稳定机器可读标识。",
+        "schemaVersion": "Debug Bundle 结构版本，用于自动解析和兼容性判断。",
+        "schemaUrl": "Debug Bundle schema 的公开位置，便于问题上报系统校验。",
+        "triageItems": "按优先级整理的只读问题分诊结果，用于快速判断下一步检查哪里。",
+        "remediationPlan": "只读下一步路由，指向设置、运行详情、Preview 或仅观察检查。",
+        "observationCoverage": "诊断包覆盖了哪些观测信号，以及每项是否缺失。",
+        "runIssueGroups": "按状态聚合的运行问题数量和代表原因。",
+        "warningGroups": "按来源分组的 Runtime、目录和 Preview 警告。",
+        "redacted": "标记该 Debug Bundle 已对密钥、令牌、Cookie 和签名 URL 参数做脱敏处理。",
+        "preview": "最近一次 Preview 的 prompt、context、计划和审批信息，导出时会做脱敏。",
+        "runtime": "Runtime health、catalog、capabilities 和最近运行快照，导出时会做脱敏。",
+        "modelConfig": "生效的 Runtime 模型配置、路由和凭证状态，导出时会做脱敏。",
+        "modelConfigError": "模型配置读取失败时的脱敏错误信息。"
       },
       "empty": {
         "noResources": "未发现资源。",
@@ -1098,7 +1246,12 @@
         "noProject": "未选择项目。",
         "runContextPreviewHint": "运行 preview 后可查看 runtime 上下文。",
         "runPlanPreviewHint": "运行 preview 后可查看计划、工具调用和审批。",
-        "noApprovals": "本次 preview 不需要审批。"
+        "noApprovals": "本次 preview 不需要审批。",
+        "noRunAttention": "暂无需要关注的运行。",
+        "noRunIssues": "当前没有运行问题。",
+        "noTriageItems": "当前没有需要分诊的问题。",
+        "noRemediationItems": "当前没有建议修复步骤。",
+        "modelConfigReadFailed": "模型配置读取失败：{{reason}}"
       },
       "values": {
         "none": "无",
@@ -1111,30 +1264,735 @@
     },
     "settings": {
       "title": "Agent 设置",
-      "description": "配置本地 Agent Runtime 使用的文本模型。该设置会影响 AI 助手对话、规划和调试 Preview。",
+      "description": "管理本地 Agent Runtime 的持久配置，包括模型调用、Skills、Profiles、工具策略、运行模板和配置快照。",
+      "scope": {
+        "controlPlane": "控制面：配置后续默认运行",
+        "futureRuns": "不展示单次运行诊断",
+        "debugReadOnly": "Runtime 观测请到 Agent 调试"
+      },
+      "settingsStatusSummaryTitle": "Agent Settings 状态摘要",
+      "settingsStatusSummaryReadiness": "配置就绪度",
+      "settingsStatusSummaryActionItems": "待处理配置问题",
+      "settingsStatusSummaryAudit": "最近配置变更",
+      "copySettingsStatus": "复制状态",
+      "settingsStatusCopied": "状态已复制",
+      "openDebug": "打开调试",
+      "refresh": "刷新",
       "modelPanel": "模型配置",
       "modelLabel": "Runtime 文本模型",
       "modelHelp": "这里选择的是后端已启用的 text 能力模型，会保存到本地 Agent Runtime 的 model-config。",
+      "providerModelIdLabel": "Provider 模型 ID",
+      "providerModelIdHelp": "直连 OpenAI 或 Anthropic 时直接填写 Provider 的模型 ID；不需要后端模型目录存在对应项。",
+      "providerModelPanel": "直连 Provider 模型",
+      "providerModelPanelHelp": "当前调用模式不会使用右侧后端模型列表；请在模型配置里填写 Provider 模型 ID，并确保 Runtime 环境变量已加载模型密钥。",
+      "modelRequired": "请先选择模型或填写 Provider 模型 ID。",
+      "modelIdSecretsBlocked": "Provider 模型 ID 看起来包含 API key、Bearer token 或带密钥参数的 URL。请只填写模型 ID，并把密钥放在 Runtime 环境变量中。",
+      "providerCredentialNotice": "直连模式需要 Runtime 环境变量提供模型密钥",
+      "providerCredentialHelp": "不要把密钥写入 Base URL；保存后请用“保存并测试”确认 Runtime 已加载凭证。",
+      "apiKindLabel": "调用模式",
+      "selectApiKind": "选择调用模式",
+      "baseUrlLabel": "模型 Base URL",
+      "baseUrlHelp": "留空时使用该调用模式的默认地址；直连 OpenAI/Anthropic 需要在 Agent Runtime 环境中配置模型 API Key。",
+      "baseUrlSecretsBlocked": "Base URL 包含 username/password 或 token、api_key、signature 等敏感字段。请移除 URL 密钥，并改用 Agent Runtime 环境变量保存模型凭证。",
+      "apiKinds": {
+        "backendChatCompletions": "Backend Gateway / Chat Completions",
+        "openaiResponses": "OpenAI / Responses",
+        "openaiChatCompletions": "OpenAI / Chat Completions",
+        "anthropicMessages": "Anthropic / Messages"
+      },
+      "apiKindDescriptions": {
+        "backendChatCompletions": "通过 MovScript 后端模型网关调用，适合复用后台凭证、路由和审计。",
+        "openaiResponses": "直连 OpenAI Responses API，适合新的 agentic、多轮和工具调用工作流。",
+        "openaiChatCompletions": "直连 OpenAI Chat Completions API，适合兼容旧消息格式。",
+        "anthropicMessages": "直连 Anthropic Messages API，适合 Anthropic 模型。"
+      },
+      "apiModeCapabilityPanel": "调用模式能力矩阵",
+      "apiModeCapabilityHelp": "这里决定未来运行使用哪种模型接口；调试页只展示生效结果，不修改调用模式。",
+      "apiModeCapabilityBadges": {
+        "recommended": "推荐新 Agent",
+        "managed": "托管网关",
+        "compatibility": "兼容模式",
+        "providerNative": "Provider 原生"
+      },
+      "apiModeCapabilityItems": {
+        "centralizedCredentials": {
+          "label": "集中凭证",
+          "detail": "沿用后端模型网关凭证，不要求本地 Runtime 直连密钥。"
+        },
+        "backendRouting": {
+          "label": "后端路由",
+          "detail": "复用后台模型目录、开关和路由策略，适合团队统一治理。"
+        },
+        "backendAudit": {
+          "label": "后台审计",
+          "detail": "模型调用仍经过后端审计链路，便于统一排查和成本归因。"
+        },
+        "chatCompatibility": {
+          "label": "Chat 兼容",
+          "detail": "保持 Chat Completions 形态，适合已有网关能力。"
+        },
+        "agenticPrimitive": {
+          "label": "Agentic 原语",
+          "detail": "Responses 是新 Agent 工作流的默认优先模式，适合工具和多轮任务。"
+        },
+        "structuredOutputs": {
+          "label": "结构化输出",
+          "detail": "可承载更清晰的结构化输出和工具调用契约。"
+        },
+        "responseState": {
+          "label": "响应状态",
+          "detail": "更适合演进到带状态的长任务和连续推理。"
+        },
+        "builtInTools": {
+          "label": "内置工具扩展",
+          "detail": "后续可接入 Provider 侧内置工具能力，而不是只走本地函数。"
+        },
+        "legacyCompatibility": {
+          "label": "旧格式兼容",
+          "detail": "保留 message/choice 格式，适合迁移期或旧模型。"
+        },
+        "functionCalling": {
+          "label": "函数调用",
+          "detail": "支持传统 function calling，但新能力优先向 Responses 收敛。"
+        },
+        "simpleMessageShape": {
+          "label": "简单消息形态",
+          "detail": "请求体更接近旧聊天接口，便于和历史代码对齐。"
+        },
+        "migrationPath": {
+          "label": "迁移路径",
+          "detail": "作为兼容选项保留，新增 Agent 能力建议逐步切到 Responses。"
+        },
+        "anthropicNative": {
+          "label": "Anthropic 原生",
+          "detail": "直接使用 Anthropic Messages API，适合 Claude 模型族。"
+        },
+        "toolUse": {
+          "label": "Tool Use",
+          "detail": "保留 Anthropic 的工具调用语义，并统一归一化到本地 Agent trace。"
+        },
+        "directCredential": {
+          "label": "直连凭证",
+          "detail": "需要 Runtime 环境变量提供直连 Provider 密钥。"
+        },
+        "separateModelFamily": {
+          "label": "独立模型族",
+          "detail": "用于 OpenAI 之外的模型评估和路由分流。"
+        }
+      },
+      "modelCompatibilityPanel": "Provider 兼容性探测",
+      "modelCompatibilityHelp": "保存和测试前的本地 Provider 适配检查；不会写入配置，也不会调用模型。",
+      "modelCompatibilityStatuses": {
+        "ready": "就绪",
+        "warning": "需复核",
+        "action": "需处理"
+      },
+      "modelCompatibility": {
+        "apiMode": "API 模式",
+        "modelId": "模型 ID",
+        "credentials": "凭证",
+        "baseURL": "Base URL",
+        "routes": "用途路由"
+      },
+      "modelCompatibilityDetails": {
+        "apiModeReady": "{{apiKind}} 与当前 Provider 路径匹配。",
+        "apiModeChatCompatibility": "Chat Completions 是兼容模式；新的 OpenAI Agent 工作建议优先使用 Responses。",
+        "modelIdReady": "{{model}} 与当前 Provider 路径匹配。",
+        "modelIdMissing": "保存前需要选择或填写模型 ID。",
+        "modelIdSecret": "模型 ID 包含疑似密钥内容；凭证应放在 Runtime 环境变量中。",
+        "modelIdBackendReference": "直连 Provider 模式需要填写 Provider 模型 ID，不能使用 backend model_config 引用。",
+        "modelIdProviderMismatch": "{{model}} 看起来属于另一个 Provider 模型族。",
+        "credentialsBackendManaged": "后端网关凭证由本地 Runtime 直连 Provider 配置之外的链路托管。",
+        "credentialsMissing": "Runtime 尚未载入该 Provider 的 {{env}}。",
+        "credentialsReady": "Runtime 报告该 Provider 的 {{env}} 已配置。",
+        "credentialsUnchecked": "保存当前 Provider 模式并运行测试后，才能确认凭证状态。",
+        "baseURLDefault": "将使用默认 Provider endpoint。",
+        "baseURLCustom": "已配置自定义 endpoint：{{baseURL}}。",
+        "baseURLSecret": "Base URL 包含疑似密钥的 query 或凭证信息。",
+        "baseURLInvalid": "Base URL 必须是有效的 http(s) URL。",
+        "routesReady": "至少一个模型用途路由已启用，可用于后续运行。",
+        "routesMissing": "保存前需要启用对话或规划路由。"
+      },
+      "apiModeMigrationGuide": "调用模式迁移指南",
+      "apiModeMigrationStep": "步骤 {{index}}",
+      "switchToResponses": "切到 Responses",
+      "apiModeMigration": {
+        "backend_chat_completions": {
+          "detail": "后端网关模式适合统一团队凭证、路由和审计；只有当 Runtime 需要承接 Provider 原生行为时，再迁移到直连 Responses。"
+        },
+        "openai_responses": {
+          "detail": "当前已经选择 Responses，这是新增 Agent 能力的推荐路径。"
+        },
+        "openai_chat_completions": {
+          "detail": "Chat Completions 是兼容模式，适合旧流程；新增 Agent 工作流建议迁移到 Responses。"
+        },
+        "anthropic_messages": {
+          "detail": "Anthropic Messages 是 Provider 原生路径，不属于 OpenAI 迁移步骤；适合单独评估 Claude 模型族。"
+        }
+      },
+      "apiModeMigrationSteps": {
+        "centralize": "继续通过后端网关统一团队凭证、路由和审计。",
+        "evaluate": "评估该工作流是否需要 Provider 原生响应状态或内置工具。",
+        "switchWhenReady": "直连凭证和模型 ID 准备好后，再将选定流程切到 Responses。",
+        "recommended": "新增 OpenAI Agent 工作流默认优先使用 Responses。",
+        "stateful": "当后续运行需要响应状态或更长连续推理时，优先使用 Responses。",
+        "futureTools": "为后续接入 Provider 侧内置工具保留空间，同时不改变设置页边界。",
+        "preserveCompatibility": "迁移期只为旧 message/choice 集成保留 Chat Completions。",
+        "verifyModel": "确认直连 Provider 模型 ID 和 Base URL 适用于 Responses API。",
+        "switchResponses": "将草稿调用模式切到 Responses，保存后执行连通性测试。",
+        "providerNative": "评估 Claude 模型族 Provider 原生行为时使用 Anthropic Messages。",
+        "compare": "通过运行结果和只读调试观测对比 OpenAI 模式差异。",
+        "keepSeparate": "不要把 Anthropic Provider 设置混入 OpenAI 迁移路径。"
+      },
       "selectModel": "选择模型",
       "noTextModels": "暂无可用文本模型，请先在模型管理中启用 text 模型。",
       "useForChat": "用于对话",
       "useForChatHelp": "AI 助手普通对话使用该模型。",
       "useForPlanner": "用于规划",
       "useForPlannerHelp": "多步骤计划和子任务拆解使用该模型。",
+      "modelRouteIssues": {
+        "allRoutesDisabled": "至少需要启用“用于对话”或“用于规划”中的一个，否则 Agent 没有可用模型路由。"
+      },
+      "modelCredentialStatus": {
+        "configured": "已加载：{{env}}",
+        "missing": "缺失：{{env}}",
+        "notRequired": "当前调用模式不需要直连密钥"
+      },
       "save": "保存配置",
       "saved": "已保存",
       "test": "保存并测试",
+      "clearModelConfig": "清除配置",
+      "clearModelConfigConfirm": "确认清除",
       "testPanel": "连通性测试",
       "testMessageDefault": "请用一句话回复：Agent Runtime 模型连接正常。",
       "testOk": "测试通过",
       "testFailed": "测试失败",
+      "runPresetsPanel": "运行模板",
+      "activeRunPreset": "默认运行模板",
+      "runPresetsHelp": "普通 Agent 对话会默认使用该模板的工具调用上限、迭代上限和前端计划偏好；单个页面显式传入的运行策略仍优先生效。",
+      "editRunPreset": "编辑当前模板",
+      "effectiveRunPolicy": "生效运行策略",
+      "createRunPreset": "新建模板",
+      "duplicateRunPreset": "复制模板",
+      "deleteRunPreset": "删除自定义",
+      "resetRunPresets": "恢复默认模板",
+      "runPresetNewName": "自定义模板",
+      "runPresetNewDescription": "用于后续 Agent 运行的自定义默认值。",
+      "runPresetCopyName": "{{name}} 的副本",
+      "runPresetCopyDescription": "{{name}} 的副本。",
+      "runPresetFields": {
+        "name": "名称",
+        "description": "描述",
+        "maxToolCalls": "工具上限",
+        "maxIterations": "迭代上限",
+        "permissionMode": "审批模式",
+        "planWorkers": "计划并发",
+        "planAttempts": "任务重试",
+        "planTimeout": "任务超时",
+        "autoPlan": "自动规划"
+      },
+      "runPresetPermissionModes": {
+        "ask": "每次确认",
+        "suggest": "建议优先",
+        "auto": "自动"
+      },
+      "skillsPanel": "Skills 管理",
+      "reloadCatalog": "重载目录",
+      "reloadCatalogDone": "已重载 {{time}}",
+      "installSkillBundle": "安装 Skill Bundle",
+      "installSkillBundleHelp": "粘贴包含 pluginId 和 files 的 JSON；安装后会自动重载 Agent 目录。",
+      "loadSkillBundleFile": "载入 JSON 文件",
+      "skillBundleFileLoaded": "已载入 {{fileName}}，请检查内容后安装。",
+      "skillBundleDraftSummary": "待安装：{{pluginId}}，{{count}} 个文件，{{size}}。",
+      "installSkillBundleAction": "安装",
+      "installSkillBundlePlaceholder": "{\n  \"pluginId\": \"my-agent-skills\",\n  \"files\": [\n    { \"path\": \"SKILL.md\", \"content\": \"---\\nname: ...\\ndescription: ...\\n---\\n...\" }\n  ]\n}",
+      "installSkillBundleDone": "已为 {{pluginId}} 安装 {{count}} 个文件。",
+      "uninstallSkillBundle": "卸载 Skill Bundle",
+      "installedSkillBundles": "已安装的 Skill Bundle",
+      "uninstallSkillBundleHelp": "只会删除该 pluginId 在 Agent Skills 插件目录下拥有的文件；卸载后会自动重载 Agent 目录。",
+      "uninstallSkillBundlePlaceholder": "pluginId，例如 my-agent-skills",
+      "uninstallSkillBundleAction": "卸载",
+      "uninstallSkillBundleConfirm": "确认卸载",
+      "uninstallSkillBundleDone": "已卸载 {{pluginId}}。",
+      "uninstallSkillBundleMissing": "{{pluginId}} 没有已安装的插件目录。",
+      "uninstallSkillBundlePluginIdRequired": "请输入要卸载的 pluginId。",
+      "uninstallSkillBundlePluginIdInvalid": "pluginId 只能包含字母、数字、点、下划线或短横线。",
+      "coreSkills": "核心 Skills",
+      "noSkills": "暂无 Skills",
+      "saveSkillPolicy": "保存 Skill 策略",
+      "skillPolicySaved": "Skill 策略已保存",
+      "resetSkillPolicy": "重置",
+      "skillPolicyEditHelp": "这里只管理 Skill 的默认启用状态；核心 Skill 由系统锁定。",
+      "skillPolicyCoreLocked": "核心 Skill 由系统自动加载，不能在这里停用。",
+      "skillPolicyToggleHelp": "影响后续默认 Agent 运行的 Skill 激活候选。",
+      "skillPolicyIssues": "Skill 策略存在依赖或冲突问题",
+      "skillPolicyIssueDependency": "{{skillId}} 需要启用依赖 {{dependencyId}}。",
+      "skillPolicyIssueConflict": "{{skillId}} 与已启用的 {{conflictId}} 冲突。",
+      "skillGovernancePanel": "Skill 治理",
+      "skillGovernanceHelp": "调整默认 Skill 策略前，先检查版本覆盖、来源和信任状态。",
+      "skillGovernanceFields": {
+        "versioned": "有版本"
+      },
+      "profilesPanel": "Profiles / 工作模式",
+      "noProfiles": "暂无 Profiles",
+      "defaultProfileLabel": "默认工作模式",
+      "defaultProfileHelp": "保存后，后续默认 Agent 运行会使用该 Profile 的 Skills、工具授权和策略。",
+      "selectProfile": "选择 Profile",
+      "saveProfile": "保存 Profile",
+      "profileSaved": "Profile 已保存",
+      "profileDiffTitle": "切换影响预览",
+      "profileDiffAdded": "新增",
+      "profileDiffRemoved": "移除",
+      "profileDiffChanged": "变更",
+      "profileDiffNoChange": "无变化",
+      "profileSwitchResetsToolPolicy": "切换默认 Profile 会使用新 Profile 的工具授权，并清空当前工具策略覆盖；如需收紧权限，请保存 Profile 后再到工具权限策略中调整。",
+      "toolPolicyPanel": "工具权限策略",
+      "noTools": "暂无工具",
+      "saveToolPolicy": "保存工具策略",
+      "toolPolicySaved": "工具策略已保存",
+      "resetToolPolicy": "重置",
+      "toolPolicyEditHelp": "这里只能收紧当前默认 Profile 的工具权限；新增工具授权请调整 Profile 或能力包。",
+      "toolPolicySearchPlaceholder": "按名称、来源、风险或原因搜索工具",
+      "toolPolicyFilterSummary": "显示 {{shown}} / {{total}} 个工具。",
+      "toolPolicyFilters": {
+        "all": "全部工具",
+        "available": "可用",
+        "blocked": "阻止",
+        "profile_granted": "Profile 已授权",
+        "requires_approval": "需审批",
+        "write_risk": "写入风险"
+      },
+      "toolPolicyBulkActions": "批量编辑筛选结果",
+      "toolPolicyBulkHelp": "只会作用于当前筛选后的工具策略行；保存前请先检查 diff。",
+      "toolPolicyBulkAllowAvailable": "允许可用工具",
+      "toolPolicyBulkDeny": "拒绝",
+      "toolPolicyBulkApprovalNever": "无需审批",
+      "toolPolicyBulkApprovalOnWrite": "写入时审批",
+      "toolPolicyBulkApprovalAlways": "总是审批",
+      "toolPolicyFilterPresets": "已保存筛选",
+      "saveToolPolicyFilterPreset": "保存筛选",
+      "deleteToolPolicyFilterPreset": "删除筛选",
+      "toolPolicyFilterPresetsHelp": "保存写入风险、阻止工具等常用工具审查视图。",
+      "toolPolicyFilterPresetsEmpty": "暂无已保存筛选。",
+      "toolPolicyAllowDisabled": "只有当前 Profile 授权且 Runtime 可用的工具才能保存为允许。",
+      "toolPolicyDraftIssues": "工具策略草稿存在不可保存项",
+      "toolPolicyDraftInvalid": "工具策略草稿有 {{count}} 个不可保存项。",
+      "fixToolPolicyDraftIssues": "修复草稿",
+      "toolPolicyDraftIssueDetails": {
+        "notProfileGranted": "不在当前 Profile 授权范围内。",
+        "unavailableAllow": "当前不可用（{{reason}}），不能保存为允许。"
+      },
+      "toolPolicyDiffPreview": "工具策略 Diff",
+      "toolPolicyDiffSummaryTitle": "Agent Settings 工具策略 Diff",
+      "toolPolicyDiffSummary": "新增 {{added}}，移除 {{removed}}，变更 {{changed}}。",
+      "copyToolPolicyDiff": "复制 Diff",
+      "toolPolicyDiffCopied": "Diff 已复制",
+      "toolPolicyDiffChangeTypes": {
+        "added": "新增",
+        "removed": "移除",
+        "changed": "变更"
+      },
+      "toolPolicyDiffValues": {
+        "none": "不存在",
+        "policy": "{{mode}} / {{approval}}"
+      },
       "currentRuntime": "当前 Runtime",
+      "configurationMapPanel": "配置地图",
+      "sectionDescriptions": {
+        "model": "选择调用模式、模型和用途路由。",
+        "runPresets": "沉淀常用运行限制和计划偏好。",
+        "skills": "安装、重载和管理默认 Skill 策略。",
+        "profiles": "选择默认工作模式并预览切换影响。",
+        "tools": "收紧当前 Profile 的工具权限。",
+        "snapshot": "迁移、备份或恢复 Agent 设置。"
+      },
+      "readinessPanel": "配置就绪度",
+      "settingsAuditPanel": "配置变更审计",
+      "settingsAuditEmpty": "暂无配置变更记录。",
+      "settingsAuditHelp": "仅记录设置页的配置动作，不包含单次运行诊断。",
+      "settingsAuditSummaryTitle": "Agent Settings 配置变更审计",
+      "copySettingsAudit": "复制审计",
+      "settingsAuditCopied": "审计已复制",
+      "clearSettingsAudit": "清空",
+      "auditTargets": {
+        "model": "模型",
+        "profile": "Profile",
+        "skills": "Skills",
+        "tools": "工具",
+        "run_preset": "运行模板",
+        "snapshot": "快照"
+      },
+      "auditActions": {
+        "settings_changed": "配置变更",
+        "model_saved": "保存",
+        "model_tested": "测试",
+        "model_cleared": "清除",
+        "profile_saved": "保存",
+        "skill_catalog_reloaded": "重载目录",
+        "skill_policy_saved": "保存策略",
+        "skill_bundle_installed": "安装",
+        "skill_bundle_uninstalled": "卸载",
+        "tool_policy_saved": "保存策略",
+        "run_preset_selected": "选择",
+        "run_preset_updated": "更新",
+        "run_preset_created": "新建",
+        "run_preset_duplicated": "复制",
+        "run_preset_deleted": "删除",
+        "run_presets_reset": "重置",
+        "settings_snapshot_imported": "导入",
+        "settings_backup_cleared": "清理备份",
+        "settings_quick_fix_applied": "快速修复",
+        "settings_quick_fix_draft_reset": "重置草稿",
+        "settings_quick_fix_draft_repair": "修复草稿",
+        "settings_quick_fix_sensitive_cleanup": "清理敏感字段",
+        "settings_quick_fix_risk_downgrade": "风险降级",
+        "settings_quick_fix_mode_migration": "模式迁移",
+        "settings_quick_fix_route_enable": "启用路由",
+        "settings_quick_fix_clear_confirmation": "清除确认",
+        "settings_operation_failed": "操作失败"
+      },
+      "auditSummaries": {
+        "modelSaved": "已保存模型配置：{{model}}（{{apiKind}} / {{routes}}）",
+        "modelTested": "已保存并测试模型配置：{{model}}（{{apiKind}} / {{routes}}）",
+        "modelCleared": "已清除 Runtime 模型配置",
+        "profileSaved": "已保存默认 Profile：{{profileId}}",
+        "skillCatalogReloaded": "已重载 Skill / Tool 目录",
+        "skillPolicySaved": "已保存 Skill 策略：{{count}} 个 Skill 启用",
+        "skillBundleInstalled": "已安装 Skill Bundle：{{pluginId}}（{{count}} 个文件）",
+        "skillBundleUninstalled": "已卸载 Skill Bundle：{{pluginId}}",
+        "toolPolicySaved": "已保存工具权限策略：{{count}} 条规则（允许 {{allow}} / 拒绝 {{deny}} / 审批 {{approvals}}）",
+        "toolPolicyFilterPresetSaved": "已保存工具策略筛选：{{name}}",
+        "toolPolicyFilterPresetDeleted": "已删除工具策略筛选：{{name}}",
+        "runPresetSelected": "已选择默认运行模板：{{preset}}（工具 {{maxToolCalls}} / 迭代 {{maxIterations}} / {{permissionMode}} / {{workers}}x / {{attempts}}r / {{timeout}}）",
+        "runPresetUpdated": "已更新运行模板：{{preset}}（工具 {{maxToolCalls}} / 迭代 {{maxIterations}} / {{permissionMode}} / {{workers}}x / {{attempts}}r / {{timeout}}）",
+        "runPresetCreated": "已新建运行模板：{{preset}}（工具 {{maxToolCalls}} / 迭代 {{maxIterations}} / {{permissionMode}} / {{workers}}x / {{attempts}}r / {{timeout}}）",
+        "runPresetDuplicated": "已复制运行模板：{{preset}}（工具 {{maxToolCalls}} / 迭代 {{maxIterations}} / {{permissionMode}} / {{workers}}x / {{attempts}}r / {{timeout}}）",
+        "runPresetDeleted": "已删除运行模板：{{preset}}；已选择 {{nextPreset}}。",
+        "runPresetsReset": "已恢复默认运行模板：{{count}} 个模板",
+        "settingsSnapshotImported": "已导入配置快照：{{exportedAt}}",
+        "settingsBackupCleared": "已清除导入前备份",
+        "quickFixApplied": "已应用本地快速修复：{{quickFix}}（{{target}}，需保存后才会持久生效）",
+        "quickFixAppliedImmediate": "已应用快速修复：{{quickFix}}（{{target}}，已更新本地默认配置）",
+        "operationFailed": "{{operation}} 操作失败：{{error}}"
+      },
+      "actionItemsPanel": "待处理配置问题",
+      "actionItemsSummaryTitle": "Agent Settings 待处理配置问题",
+      "actionItemsSummarySection": "设置区块：{{section}}",
+      "actionItemsSummaryQuickFix": "可用快速修复：{{quickFix}}",
+      "actionItemsCountSummary": "{{actions}} 个需处理，{{warnings}} 个需确认",
+      "actionItemsEmpty": "当前没有需要处理的配置问题。",
+      "copyActionItems": "复制问题",
+      "actionItemsCopied": "问题已复制",
+      "actionStatuses": {
+        "action": "需处理",
+        "warning": "需确认"
+      },
+      "quickFixes": {
+        "jumpToSection": "定位",
+        "resetDraft": "重置草稿",
+        "confirmClearModelConfig": "准备清除模型配置",
+        "enableChatRoute": "启用对话路由",
+        "switchOpenAIResponses": "切到 Responses",
+        "stripSensitiveBaseURLQuery": "移除敏感参数",
+        "downgradeAutoPermission": "降级为 Suggest",
+        "switchedToResponses": "已将本地草稿切到 OpenAI Responses；保存后才会影响后续默认运行。",
+        "downgradedAutoPermission": "已将当前运行模板的审批模式改为 Suggest；保存后才会影响后续默认运行。",
+        "applied": "本地修复已应用，请检查后保存需要持久化的配置。"
+      },
+      "actionItems": {
+        "modelMissing": "Runtime 模型尚未配置",
+        "modelUnsaved": "模型配置有未保存变更",
+        "modelIdSensitive": "已保存模型 ID 可能包含密钥",
+        "apiModeCompatibility": "调用模式仍是兼容模式",
+        "modelCredentialsMissing": "直连模型凭证未加载",
+        "modelBaseURLSensitive": "模型 Base URL 可能包含密钥",
+        "routesInvalid": "模型路由不可用",
+        "routesMissing": "没有生效模型路由",
+        "profileMissing": "默认 Profile 缺失",
+        "profileUnsaved": "默认 Profile 有未保存变更",
+        "skillPolicyInvalid": "Skill 策略存在冲突",
+        "skillPolicyUnsaved": "Skill 策略有未保存变更",
+        "toolPolicyInvalid": "工具策略草稿不可保存",
+        "toolPolicyUnsaved": "工具策略有未保存变更",
+        "autoPermissionWriteRisk": "Auto 审批模式存在高风险工具",
+        "toolsBlocked": "工具全部不可用"
+      },
+      "actionItemDetails": {
+        "modelMissing": "选择模型、调用模式和用途路由后保存。",
+        "modelUnsaved": "保存或重置当前模型配置，否则后续默认运行仍使用旧配置。",
+        "modelIdSensitive": "已保存的直连 Provider 模型 ID 看起来包含 API key、Bearer token 或带密钥参数的 URL。请清除该配置，并只保存模型 ID；密钥应放在 Runtime 环境变量中。",
+        "apiModeCompatibility": "Chat Completions 可用于兼容旧流程；如果不是迁移期，新 Agent 工作流建议切到 OpenAI Responses。",
+        "modelCredentialsMissing": "Runtime 环境中未检测到 {{env}}；直连 Provider 调用会失败。",
+        "modelBaseURLSensitive": "Base URL 包含 username/password 或 token、api_key、signature 等敏感字段；模型密钥应放在 Agent Runtime 环境变量中。",
+        "routesInvalid": "至少启用对话或规划中的一个用途路由。",
+        "routesMissing": "检查模型配置和用途开关，确保后续运行有可用模型。",
+        "profileMissing": "选择并保存一个默认工作模式。",
+        "profileUnsaved": "保存 Profile 后，后续默认运行才会使用新的工作模式。",
+        "skillPolicyInvalid": "有 {{count}} 个依赖或冲突问题，修复后才能保存 Skill 策略。",
+        "skillPolicyUnsaved": "保存 Skill 策略后，后续默认运行才会使用新的 Skill 启用状态。",
+        "toolPolicyInvalid": "工具策略草稿有 {{count}} 个不可保存项，修复后才能保存工具策略。",
+        "toolPolicyUnsaved": "保存工具策略后，后续默认运行才会使用新的权限收紧结果。",
+        "autoPermissionWriteRisk": "当前运行模板会自动批准执行，但已有 {{count}} 个可用的写入、生成、UI 或破坏性工具。建议改为 Suggest 或收紧工具策略。",
+        "toolsBlocked": "已发现 {{count}} 个工具，但当前策略下没有可用工具。"
+      },
+      "actionItemPersistHints": {
+        "saveOrReset": "这是设置页草稿：保存后影响后续默认运行，重置则放弃本地变更。",
+        "saveAfterQuickFix": "快速修复只改本地草稿；保存后才会影响后续默认运行。",
+        "localDefaultsImmediately": "快速修复会立即更新本地默认配置，后续运行直接使用。",
+        "useRuntimeEnvForSecrets": "不要把密钥写入 URL；请改用 Runtime 环境变量后再保存。"
+      },
+      "actionItemReasons": {
+        "skillDependency": "{{skillId}} 依赖 {{dependencyId}}",
+        "skillConflict": "{{skillId}} 与 {{conflictId}} 冲突",
+        "toolNotProfileGranted": "{{toolName}} 不在当前 Profile 授权范围内",
+        "toolUnavailableAllow": "{{toolName}} 当前不可用（{{reason}}），不能保存为允许",
+        "toolUnavailableReason": "{{reason}}：{{count}} 个工具",
+        "more": "另有 {{count}} 项"
+      },
+      "readiness": {
+        "model": "模型配置",
+        "apiMode": "调用模式",
+        "modelCredentials": "模型凭证",
+        "routes": "模型路由",
+        "runPreset": "运行模板",
+        "profile": "默认 Profile",
+        "skills": "Skills",
+        "tools": "工具策略",
+        "pendingChanges": "未保存变更"
+      },
+      "readinessStatuses": {
+        "ready": "就绪",
+        "warning": "需确认",
+        "action": "需处理"
+      },
+      "readinessSummaryTitle": "Agent Settings 配置就绪度",
+      "copyReadiness": "复制就绪度",
+      "readinessCopied": "就绪度已复制",
+      "readinessDetails": {
+        "modelReady": "当前模型：{{model}}。",
+        "modelMissing": "尚未保存 Runtime 模型配置。",
+        "modelIdSensitive": "已保存模型 ID 看起来包含密钥，导出快照时会跳过该模型配置。",
+        "apiModeResponsesRecommended": "OpenAI Responses 是新 Agent 能力的推荐路径。",
+        "apiModeChatCompatibility": "当前使用 Chat Completions 兼容模式；适合迁移期，但新 Agent 能力建议优先 Responses。",
+        "apiModeBackendManaged": "当前通过后端网关托管调用，适合团队统一凭证、路由和审计。",
+        "apiModeAnthropicProvider": "当前直连 Anthropic Messages，适合 Claude 模型族和 Provider 原生评估。",
+        "modelCredentialsReady": "Runtime 已通过 {{env}} 加载模型凭证。",
+        "modelCredentialsMissing": "Runtime 未检测到 {{env}}。",
+        "modelCredentialsNotRequired": "当前调用模式不需要 Runtime 侧直连模型密钥。",
+        "routesReady": "{{count}} 条模型路由可用。",
+        "routesInvalid": "模型路由配置无效，请先修复用途开关。",
+        "routesMissing": "当前没有可用模型路由。",
+        "runPresetReady": "{{name}}，工具上限 {{maxToolCalls}}，迭代上限 {{maxIterations}}。",
+        "runPresetAutoWriteRisk": "{{name}} 使用 Auto 审批，但当前有 {{count}} 个可用的写入、生成、UI 或破坏性工具。",
+        "profileReady": "当前默认 Profile：{{name}}。",
+        "profileMissing": "没有可用默认 Profile。",
+        "skillsReady": "{{enabled}} / {{installed}} 个 Skills 已启用。",
+        "skillsInvalid": "Skill 策略存在 {{count}} 个依赖或冲突问题。",
+        "skillsMissing": "目录中没有可用 Skills。",
+        "toolsReady": "{{available}} / {{discovered}} 个工具可用。",
+        "toolsInvalid": "工具策略草稿有 {{count}} 个不可保存项。",
+        "toolsMissing": "当前没有可用工具。",
+        "pendingChanges": "{{count}} 组配置有未保存变更。",
+        "noPendingChanges": "当前配置已保存。"
+      },
+      "settingsSnapshotPanel": "配置导入 / 导出",
+      "settingsSnapshotHelp": "导出会包含模型调用配置、默认 Profile、Skill 策略、工具权限策略和运行模板，并会移除 Base URL 中的 URL 密钥凭据；导入只会应用选中的配置段，并按 model、profile、skills、tools、run presets 的顺序执行，且会拒绝包含 URL 密钥凭据的 Base URL。",
+      "settingsSnapshotPlaceholder": "在这里生成或粘贴 Agent Settings Snapshot JSON。",
+      "settingsSnapshotSummary": "快照摘要",
+      "settingsSnapshotFields": {
+        "exportedAt": "导出时间",
+        "model": "模型",
+        "profile": "Profile",
+        "skills": "Skills",
+        "tools": "工具策略",
+        "runPresets": "运行模板",
+        "activeRunPreset": "当前模板"
+      },
+      "settingsSnapshotImpactPreview": "导入影响预览",
+      "settingsSnapshotImpactSummaryTitle": "Agent Settings 快照导入影响",
+      "copySettingsSnapshotImpact": "复制影响",
+      "settingsSnapshotImpactCopied": "影响已复制",
+      "settingsSnapshotImpactScopes": {
+        "runtime": "写入 Runtime",
+        "local": "写入本地",
+        "skipped": "不变更"
+      },
+      "settingsSnapshotImpact": {
+        "model": "模型调用配置",
+        "profile": "默认 Profile",
+        "skills": "Skill 策略",
+        "tools": "工具权限策略",
+        "runPresets": "运行模板"
+      },
+      "settingsSnapshotImpactDetails": {
+        "model": "导入时会保存模型 {{model}}，影响后续 Agent 调用。",
+        "modelSkipped": "快照不包含模型配置，当前 Runtime 模型保持不变。",
+        "profile": "导入时会保存默认 Profile {{profileId}}。",
+        "profileSkipped": "快照不包含默认 Profile，当前工作模式保持不变。",
+        "skills": "导入时会保存 {{count}} 条 Skill 启用策略。",
+        "skillsSkipped": "快照不包含 Skill 策略，当前 Skill 状态保持不变。",
+        "tools": "导入时会保存 {{count}} 条工具权限策略。",
+        "toolsSkipped": "快照不包含工具策略，当前工具权限保持不变。",
+        "runPresets": "导入时会更新 {{count}} 个运行模板，并选择 {{activeRunPresetId}}。",
+        "runPresetsSkipped": "快照不包含运行模板或当前模板，本地运行模板保持不变。"
+      },
+      "settingsSnapshotImportScopes": "导入配置段",
+      "settingsSnapshotImportScopesHelp": "Dry-run 和实际导入只会校验并写入已选中的配置段。",
+      "settingsSnapshotImportPresets": "预设",
+      "settingsSnapshotImportPresetsHelp": "预设只会改变选中的配置段；写入仍由 dry-run 和导入按钮控制。",
+      "settingsSnapshotImportPresetApplied": "已选择导入预设：{{preset}}。",
+      "settingsSnapshotImportPresetNames": {
+        "all": "全部",
+        "model-routing": "仅模型路由",
+        "skills-tools": "Skills + 工具",
+        "run-presets": "仅运行模板"
+      },
+      "settingsSnapshotImportScopeDetails": {
+        "model": "Runtime 模型路由和 Provider API 模式。",
+        "profile": "后续运行使用的默认 Profile。",
+        "skills": "Skill 启用和禁用规则。",
+        "tools": "工具授权和审批规则。",
+        "run-presets": "本地运行模板和当前运行模板。"
+      },
+      "exportSettings": "导出",
+      "loadSettingsSnapshotFile": "载入文件",
+      "copySettings": "复制",
+      "downloadSettings": "下载",
+      "previewSettingsImportDryRun": "仅预览",
+      "importSettings": "导入",
+      "settingsExportReady": "配置快照已生成。",
+      "settingsSnapshotFileLoaded": "已载入 {{fileName}}，请检查内容后导入。",
+      "settingsCopied": "配置快照已复制。",
+      "settingsDownloaded": "配置快照已下载。",
+      "settingsImportBackup": "导入前备份",
+      "settingsImportBackupHelp": "最近一次导入前已在 {{time}} 自动备份当前配置。载入备份后仍会先显示预览，需要再次点击导入才会回滚。",
+      "loadImportBackup": "载入备份",
+      "copyImportBackup": "复制备份",
+      "clearImportBackup": "清除备份",
+      "settingsBackupCopied": "导入前备份已复制。",
+      "settingsBackupLoaded": "导入前备份已载入，请检查预览后再导入。",
+      "settingsBackupCleared": "导入前备份已清除。",
+      "settingsSnapshotInvalid": "快照不可导入：{{error}}",
+      "settingsSnapshotTooLarge": "快照超过 {{size}} 上限。",
+      "settingsSnapshotModelCatalogUnavailable": "快照引用了后端模型配置，但当前模型目录尚不可用。",
+      "settingsSnapshotCatalogUnavailable": "快照引用了 Profile、Skill 或工具策略，但当前目录尚不可用。",
+      "settingsSnapshotCapabilitiesUnavailable": "快照引用了工具策略，但当前 Runtime 能力目录尚不可用。",
+      "settingsSnapshotToolPolicyInvalid": "快照工具策略有 {{count}} 个不可导入项。",
+      "settingsSnapshotImportScopeEmpty": "请至少选择一个可导入的配置段。",
+      "settingsSnapshotDryRunReady": "Dry-run 已通过，{{count}} 个影响项可导入；当前没有写入任何设置。",
+      "settingsImportDone": "配置快照已导入。",
+      "settingsImportDoneWithBackup": "配置快照已导入，并已保留导入前备份。",
+      "modelRoutesPanel": "模型路由",
+      "modelRoutesEmpty": "暂无模型路由元数据。",
+      "modelRouteConfigured": "生效",
+      "modelRouteUnavailable": "不可用",
+      "modelRouteModel": "模型",
+      "modelCapabilities": {
+        "reasoning": "Agent 推理",
+        "text": "文本生成",
+        "planning": "规划",
+        "multimodal": "多模态"
+      },
+      "modelRouteSources": {
+        "configured": "使用显式路由。",
+        "chat-config-fallback": "使用对话模型配置。",
+        "planner-config": "使用规划模型配置。",
+        "disabled": "模型已配置，但该用途被作用域开关禁用。",
+        "unconfigured": "该用途没有可用模型。"
+      },
+      "values": {
+        "enabled": "已启用",
+        "disabled": "已禁用"
+      },
       "availableModels": "可用文本模型",
       "configured": "已配置",
       "notConfigured": "未配置",
+      "skillStatus": {
+        "enabled": "启用",
+        "disabled": "停用"
+      },
+      "skillKinds": {
+        "persona": "角色",
+        "workflow": "流程",
+        "policy": "策略",
+        "expertise": "专家"
+      },
+      "skillLoadModes": {
+        "core": "核心",
+        "onDemand": "按需",
+        "manual": "手动"
+      },
+      "skillSources": {
+        "core": "内置",
+        "plugin": "插件",
+        "local": "本地",
+        "catalog": "目录"
+      },
+      "skillTrustLevels": {
+        "trusted": "可信",
+        "managed": "受管",
+        "review": "需审查"
+      },
+      "skillFields": {
+        "installed": "已安装",
+        "enabled": "已启用",
+        "core": "核心",
+        "onDemand": "按需",
+        "dependencies": "依赖",
+        "conflicts": "冲突"
+      },
+      "profileStatus": {
+        "current": "当前",
+        "selected": "待保存"
+      },
+      "profileFields": {
+        "total": "Profiles",
+        "current": "当前模式",
+        "packs": "能力包",
+        "toolGrants": "工具授权",
+        "workflows": "工作流",
+        "policies": "策略",
+        "tools": "工具"
+      },
+      "toolPolicyStatus": {
+        "available": "可用",
+        "blocked": "阻止",
+        "profileGranted": "Profile 授权"
+      },
+      "toolPolicyValues": {
+        "yes": "是",
+        "no": "否",
+        "none": "无",
+        "unknown": "未知"
+      },
+      "toolPolicyModes": {
+        "allow": "允许",
+        "deny": "拒绝"
+      },
+      "toolPolicyApprovals": {
+        "never": "无需审批",
+        "onWrite": "写入时审批",
+        "always": "总是审批"
+      },
+      "toolPolicyFields": {
+        "discovered": "已发现",
+        "available": "可用",
+        "blocked": "阻止",
+        "requiresApproval": "需审批",
+        "writeRisk": "写入风险",
+        "projectScoped": "项目限定",
+        "profileGrants": "Profile 授权",
+        "registered": "已注册",
+        "granted": "已授权",
+        "mode": "模式",
+        "approval": "审批"
+      },
       "fields": {
         "baseUrl": "Base URL",
         "configuredModel": "当前模型",
+        "apiKind": "调用模式",
+        "modelBaseUrl": "模型地址",
+        "modelCredentials": "模型凭证",
         "source": "来源",
         "updatedAt": "更新时间",
         "modelId": "模型 ID",

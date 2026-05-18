@@ -2,12 +2,12 @@ export function normalizeGenerationJob(rawJob: unknown): Record<string, unknown>
   const job = isRecord(rawJob) ? rawJob : {}
   const jobId = getJobId(job)
   const status = typeof job.status === 'string' ? job.status : 'unknown'
+  const outputResources = getOutputResources(job)
+  const outputResourceIds = getOutputResourceIds(job, outputResources)
   const outputResourceId = typeof job.output_resource_id === 'number'
     ? job.output_resource_id
-    : isRecord(job.output_resource)
-      ? getRawResourceId(job.output_resource)
-      : undefined
-  const outputResource = isRecord(job.output_resource) ? job.output_resource : undefined
+    : outputResourceIds[0]
+  const outputResource = isRecord(job.output_resource) ? job.output_resource : outputResources[0]
   const progress = getGenerationProgress(job)
   const stage = getGenerationStage(job)
   return {
@@ -22,6 +22,8 @@ export function normalizeGenerationJob(rawJob: unknown): Record<string, unknown>
     ...(progress !== undefined ? { progress } : {}),
     ...(stage ? { stage } : {}),
     ...(typeof job.error_msg === 'string' && job.error_msg ? { error: job.error_msg } : {}),
+    ...(outputResourceIds.length > 0 ? { output_resource_ids: outputResourceIds } : {}),
+    ...(outputResources.length > 0 ? { output_resources: outputResources } : {}),
     ...(outputResourceId ? { output_resource_id: outputResourceId } : {}),
     ...(outputResource ? { output_resource: outputResource } : {}),
     ...(outputResource ? { media: generationMediaSummary(outputResource, outputResourceId) } : {}),
@@ -65,6 +67,10 @@ export function isTerminalGenerationStatus(status: string): boolean {
 export function generationJobMessage(jobId: number, normalized: Record<string, unknown>): string {
   const status = stringValue(normalized.status) ?? 'unknown'
   if (status === 'succeeded') {
+    const outputResourceIds = Array.isArray(normalized.output_resource_ids)
+      ? uniquePositiveNumbers(normalized.output_resource_ids)
+      : []
+    if (outputResourceIds.length > 1) return `生成完成，输出资源 ${outputResourceIds.map((id) => `#${id}`).join('、')}。`
     return `生成完成${typeof normalized.output_resource_id === 'number' ? `，输出资源 #${normalized.output_resource_id}` : ''}。`
   }
   if (status === 'failed') {
@@ -89,6 +95,45 @@ export function getJobId(job: unknown): number | undefined {
 export function getRawResourceId(resource: Record<string, unknown>): number | undefined {
   const id = Number(resource.ID ?? resource.id)
   return Number.isFinite(id) && id > 0 ? id : undefined
+}
+
+function getOutputResources(job: Record<string, unknown>): Record<string, unknown>[] {
+  const rawResources = Array.isArray(job.output_resources)
+    ? job.output_resources
+    : Array.isArray(job.outputResources)
+      ? job.outputResources
+      : []
+  const resources = rawResources.filter(isRecord)
+  if (resources.length > 0) return resources
+  return isRecord(job.output_resource) ? [job.output_resource] : []
+}
+
+function getOutputResourceIds(job: Record<string, unknown>, outputResources: Array<Record<string, unknown>>): number[] {
+  const explicitIds = Array.isArray(job.output_resource_ids)
+    ? job.output_resource_ids
+    : Array.isArray(job.outputResourceIds)
+      ? job.outputResourceIds
+      : []
+  if (explicitIds.length > 0) return uniquePositiveNumbers(explicitIds)
+  if (job.output_resource_id !== undefined && outputResources.length <= 1) {
+    return uniquePositiveNumbers([job.output_resource_id])
+  }
+  return uniquePositiveNumbers([
+    job.output_resource_id,
+    ...outputResources.map((resource) => getRawResourceId(resource)),
+  ])
+}
+
+function uniquePositiveNumbers(values: unknown[]): number[] {
+  const seen = new Set<number>()
+  const ids: number[] = []
+  for (const value of values) {
+    const id = Number(value)
+    if (!Number.isFinite(id) || id <= 0 || seen.has(id)) continue
+    seen.add(id)
+    ids.push(id)
+  }
+  return ids
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

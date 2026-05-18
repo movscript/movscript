@@ -2,6 +2,7 @@ package artifact
 
 import (
 	"context"
+	"encoding/json"
 
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
@@ -161,6 +162,9 @@ func keyframesFromModels(items []persistencemodel.Keyframe, resources []domainre
 	resourcesByID := rawResourcesByID(resources)
 	out := make([]keyframeProjection, 0, len(items))
 	for _, item := range items {
+		if isGeneratedKeyframeCandidateMetadata(item.MetadataJSON) {
+			continue
+		}
 		var resource *domainresource.RawResource
 		if item.ResourceID != nil {
 			resource = resourcesByID[*item.ResourceID]
@@ -178,6 +182,19 @@ func keyframesFromModels(items []persistencemodel.Keyframe, resources []domainre
 		})
 	}
 	return out
+}
+
+func isGeneratedKeyframeCandidateMetadata(raw string) bool {
+	if raw == "" {
+		return false
+	}
+	var metadata struct {
+		Source string `json:"source"`
+	}
+	if err := json.Unmarshal([]byte(raw), &metadata); err != nil {
+		return false
+	}
+	return metadata.Source == "ai_generated_keyframe_candidate"
 }
 
 func deliveryVersionsFromModels(items []persistencemodel.DeliveryVersion) []deliveryVersionProjection {

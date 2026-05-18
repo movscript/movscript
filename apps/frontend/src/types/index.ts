@@ -570,6 +570,7 @@ export interface Job {
   input_resource_ids?: string // JSON array e.g. "[1,2]"
   input_resources?: RawResource[]
   output_resource_id?: number
+  output_resource_ids?: number[]
   output_resource?: RawResource
   provider_task_id?: string
   provider_task_kind?: string

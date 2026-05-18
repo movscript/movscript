@@ -10,17 +10,17 @@
 apps/*
 !apps/admin/
 !apps/admin/**
+apps/admin/dist/
 !apps/agent/
 !apps/agent/package.json
 !apps/backend/
 !apps/backend/**
+apps/backend/bin/
 !apps/frontend/
 apps/frontend/*
 !apps/frontend/package.json
 !apps/frontend/src/
 !apps/frontend/src/**
-!apps/frontend/movscript-agent/
-!apps/frontend/movscript-agent/package.json
 !apps/movcli/
 !apps/movcli/package.json
 
@@ -34,6 +34,7 @@ packages/*
 !packages/tokens/**
 !packages/ui/
 !packages/ui/**
+packages/*/dist/
 
 !plugins/
 plugins/*

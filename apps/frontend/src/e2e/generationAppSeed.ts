@@ -60,7 +60,7 @@ export function buildGenerationAppBootstrapScenario(
     ? {
         id: 'message-assistant-generation-e2e',
         role: 'assistant' as const,
-        content: '生成已完成，结果已可绑定到素材位。',
+        content: '生成已完成，结果已可加入素材候选。',
         timestamp: Date.parse('2026-05-09T12:00:25.000Z'),
         attachments: [{
           id: `generated-${media.ID}`,

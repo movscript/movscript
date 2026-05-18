@@ -1,11 +1,6 @@
-import type { JSONValue } from '../types.js'
-import { isRecord } from '../jsonValue.js'
-import { parseToolResult } from '../context/runtimeContext.js'
 import type { AgentRun, AgentMessage, ToolCallOutcome } from '../state/types.js'
 import { isValidMemoryProjectId, type AgentMemory, type AgentMemoryKind, type CreateMemoryInput } from './types.js'
 import type { AgentMemoryStore } from './memoryStore.js'
-import { formatToolNameForDisplay, publicToolName } from '../tools/toolNames.js'
-import { isRuntimeFailureText } from '../context/promptHygiene.js'
 
 export interface RelevantMemoryContext {
   projectId?: number
@@ -109,46 +104,6 @@ export class MemoryManager {
       })
     }
 
-    for (const outcome of input.toolResults) {
-      if (publicToolName(outcome.call.name) === 'movscript_create_draft' && !outcome.error) {
-        const memory = describeDraftMemory(outcome.result)
-        writes.push({
-          projectId: input.projectId,
-          title: memory.title,
-          kind: 'draft',
-          content: memory.content,
-          ...(input.userMessage.threadId ? { sourceThreadId: input.userMessage.threadId } : {}),
-          sourceRunId: input.run.id,
-          sourceMessageId: input.userMessage.id,
-        })
-      }
-
-      if (outcome.error) {
-        writes.push({
-          projectId: input.projectId,
-          title: `警告：${formatToolNameForDisplay(outcome.call.name)}`,
-          kind: 'warning',
-          content: `${formatToolNameForDisplay(outcome.call.name)} failed: ${outcome.error}`,
-          ...(input.userMessage.threadId ? { sourceThreadId: input.userMessage.threadId } : {}),
-          sourceRunId: input.run.id,
-          sourceMessageId: input.userMessage.id,
-        })
-      }
-    }
-
-    for (const warning of input.warnings) {
-      if (isRuntimeFailureText(warning)) continue
-      writes.push({
-        projectId: input.projectId,
-        title: buildMemoryTitle('warning', warning),
-        kind: 'warning',
-        content: warning,
-        ...(input.userMessage.threadId ? { sourceThreadId: input.userMessage.threadId } : {}),
-        sourceRunId: input.run.id,
-        sourceMessageId: input.userMessage.id,
-      })
-    }
-
     return writes
       .filter((memory) => memory.title.trim().length > 0 && memory.content.trim().length > 0)
       .map((memory) => this.store.createMemory(memory))
@@ -203,22 +158,9 @@ function clampLimit(limit: number | undefined): number {
 }
 
 function extractPreference(message: string): string | undefined {
-  if (!/(记住|以后|默认|偏好|不要|总是|remember|default|prefer|always|never)/i.test(message)) return undefined
+  if (!/\b(remember|from now on|always|prefer|preference|default)\b/i.test(message)
+    && !/(记住|以后.{0,12}(默认|都|总是|一直)|默认.{0,8}(用|为|是)|偏好)/.test(message)) return undefined
   return message.trim()
-}
-
-function describeDraftMemory(result: JSONValue | undefined): { title: string; content: string } {
-  const parsed = parseToolResult(result ?? null)
-  if (isRecord(parsed)) {
-    const id = parsed.id ?? parsed.ID
-    const title = parsed.title
-    const displayTitle = typeof title === 'string' && title.trim() ? title.trim() : '草稿'
-    return {
-      title: `草稿：${truncate(displayTitle, 24)}`,
-      content: `Created draft${id ? ` ${String(id)}` : ''}${title ? `: ${String(title)}` : ''}.`,
-    }
-  }
-  return { title: '草稿', content: 'Created draft.' }
 }
 
 function buildMemoryTitle(kind: AgentMemoryKind, content: string): string {

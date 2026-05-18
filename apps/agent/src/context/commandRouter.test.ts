@@ -15,6 +15,18 @@ test('parses explicit agent diagnostic commands', () => {
   assert.equal(memory.outputMode, 'natural')
   assert.equal(memory.requiredTools.length, 0)
 
+  const status = parseAgentCommand('/status')
+  assert.equal(status.name, 'status')
+  assert.equal(status.contextProfile, 'minimal')
+  assert.equal(status.outputMode, 'natural')
+  assert.equal(status.requiredTools.length, 0)
+
+  const compact = parseAgentCommand('/compact')
+  assert.equal(compact.name, 'compact')
+  assert.equal(compact.contextProfile, 'minimal')
+  assert.equal(compact.outputMode, 'natural')
+  assert.equal(compact.requiredTools.length, 0)
+
   const image = parseAgentCommand('/image 一张雨夜便利店概念图')
   assert.equal(image.name, 'image')
   assert.equal(image.contextProfile, 'minimal')

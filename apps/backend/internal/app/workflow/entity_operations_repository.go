@@ -345,21 +345,6 @@ func (r *gormRepository) createEntityResourceBinding(ctx context.Context, bindin
 			return err
 		}
 	}
-	if binding.OwnerType == domainresourcebinding.OwnerTypeAssetSlot && binding.ResourceID != 0 && binding.Role != domainresourcebinding.RoleCandidate {
-		update := db.Model(&persistencemodel.AssetSlot{}).
-			Where("id = ? AND resource_id IS NULL", binding.OwnerID).
-			Update("resource_id", binding.ResourceID)
-		if update.Error != nil {
-			return update.Error
-		}
-		if update.RowsAffected > 0 {
-			slot := persistencemodel.AssetSlot{}
-			slot.ID = binding.OwnerID
-			if err := coregraph.NewWriter(db).Write(ctx, &slot); err != nil {
-				return err
-			}
-		}
-	}
 	return nil
 }
 

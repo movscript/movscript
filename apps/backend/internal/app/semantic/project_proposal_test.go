@@ -55,6 +55,96 @@ func TestApplyProjectProposalUpdatesProjectStyle(t *testing.T) {
 	}
 }
 
+func TestApplyProjectProposalUpdatesCustomRules(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+	project := model.Project{Name: "Rules project", ProjectStyle: `{"visual_style":"keep"}`}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	enabled := true
+	required := false
+	order := 20
+
+	resp, err := service.ApplyProjectProposal(context.Background(), project.ID, ApplyProjectProposalRequest{
+		Scope: "project_proposal",
+		Proposal: &ProjectProposalTree{
+			ProjectStyle: &ProjectStylePatch{
+				CustomRules: &[]ProjectStyleCustomRulePatch{{
+					Key:        "character_consistency",
+					Label:      "角色一致性",
+					Category:   "人物",
+					Value:      "主角发型、年龄感和服装气质必须保持一致。",
+					PromptRole: "constraint",
+					Enabled:    &enabled,
+					Required:   &required,
+					Order:      &order,
+				}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("apply custom rule proposal: %v", err)
+	}
+	if resp.Counts.ProjectStyleUpdated != 1 {
+		t.Fatalf("project_style_updated = %d, want 1", resp.Counts.ProjectStyleUpdated)
+	}
+
+	var updated model.Project
+	if err := db.First(&updated, project.ID).Error; err != nil {
+		t.Fatalf("load updated project: %v", err)
+	}
+	var style map[string]any
+	if err := json.Unmarshal([]byte(updated.ProjectStyle), &style); err != nil {
+		t.Fatalf("parse project style json: %v", err)
+	}
+	if style["visual_style"] != "keep" {
+		t.Fatalf("existing style field was not preserved: %#v", style)
+	}
+	rules, ok := style["custom_rules"].([]any)
+	if !ok || len(rules) != 1 {
+		t.Fatalf("custom_rules = %#v, want one rule", style["custom_rules"])
+	}
+	rule, ok := rules[0].(map[string]any)
+	if !ok || rule["key"] != "character_consistency" || rule["prompt_role"] != "constraint" || rule["enabled"] != true {
+		t.Fatalf("unexpected custom rule: %#v", rules[0])
+	}
+	if rule["id"] != "character_consistency" {
+		t.Fatalf("generated custom rule id = %#v, want character_consistency", rule["id"])
+	}
+}
+
+func TestNormalizeProjectStyleRuleIDKeepsUnicodeKeys(t *testing.T) {
+	if got := normalizeProjectStyleRuleID("", "角色一致性", "", 0); got != "角色一致性" {
+		t.Fatalf("unicode key id = %q, want 角色一致性", got)
+	}
+	if got := normalizeProjectStyleRuleID("", "", "!!!", 1); got != "custom_rule_2" {
+		t.Fatalf("fallback id = %q, want custom_rule_2", got)
+	}
+}
+
+func TestApplyProjectProposalRejectsProjectScopeLists(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+
+	_, err := service.ApplyProjectProposal(context.Background(), 1, ApplyProjectProposalRequest{
+		Scope: "project_proposal",
+		Proposal: &ProjectProposalTree{
+			ProjectStyle: &ProjectStylePatch{},
+			CreativeReferences: []ProjectProposalCreativeReferencePatch{{
+				Name: "Should use setting proposal",
+				Kind: "person",
+			}},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected project proposal list rejection")
+	}
+	if !strings.Contains(err.Error(), "project_proposal only supports project_style") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestApplyProjectProposalMergesPartialReferencesAndAssets(t *testing.T) {
 	db := newProposalTestDB(t)
 	service := NewService(db)

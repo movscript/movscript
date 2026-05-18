@@ -1,0 +1,78 @@
+{
+  "schema": "movscript.thread-context-summary.v2",
+  "threadId": "thread_1",
+  "updatedAt": "2026-05-18T10:00:00.000Z",
+  "userGoal": "检查分镜节奏并生成可审阅方案",
+  "stablePreferences": [
+    "默认使用可审阅 draft，不直接写正式项目数据"
+  ],
+  "acceptedFacts": [
+    {
+      "id": "fact_project_42",
+      "claim": "当前项目为 project#42",
+      "evidence": "verified",
+      "source": "mcp",
+      "refs": [
+        {
+          "type": "project",
+          "id": "42",
+          "title": "Demo Project"
+        }
+      ],
+      "createdAt": "2026-05-18T09:59:00.000Z"
+    }
+  ],
+  "artifactRefs": [
+    {
+      "type": "draft",
+      "id": "draft_storyboard_gap_1",
+      "title": "分镜缺口审阅"
+    }
+  ],
+  "retrievedRefs": [
+    {
+      "type": "knowledge",
+      "id": "storyboard.rhythm.basic",
+      "title": "分镜节奏基础"
+    }
+  ],
+  "invalidatedRefs": [],
+  "openDecisions": [
+    "是否将分镜缺口方案应用到正式 production"
+  ],
+  "recentRunRefs": [
+    {
+      "runId": "run_1",
+      "summary": "已生成分镜节奏审阅摘要。",
+      "artifactRefs": [
+        {
+          "type": "draft",
+          "id": "draft_storyboard_gap_1",
+          "title": "分镜缺口审阅"
+        }
+      ],
+      "retrievedRefs": [
+        {
+          "type": "knowledge",
+          "id": "storyboard.rhythm.basic",
+          "title": "分镜节奏基础"
+        }
+      ]
+    }
+  ],
+  "summaryProvenance": {
+    "strategy": "deterministic",
+    "runId": "run_1",
+    "createdAt": "2026-05-18T10:00:00.000Z",
+    "factsRequireEvidence": true,
+    "summariesAreAdvisory": true
+  },
+  "compactStats": {
+    "recentRunRefCount": 1,
+    "artifactRefCount": 1,
+    "retrievedRefCount": 1,
+    "acceptedFactCount": 1,
+    "invalidatedRefCount": 0,
+    "maxSummaryChars": 4000
+  }
+}

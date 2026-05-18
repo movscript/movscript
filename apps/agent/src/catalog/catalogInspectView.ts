@@ -61,6 +61,7 @@ export function inspectAgentCatalogView(input: {
         ...profile.enabledPolicies,
         ...profile.enabledWorkflows,
       ]) : [],
+      installedSkills: Array.from(registry.skills.values()).map((skill) => summarizeCatalogSkillIndex(skill, input.activeSkillIds, enabledPackIds, registry)),
       toolNames: profile?.toolGrants.map((grant) => grant.name) ?? [],
       knowledgeCollections: summarizeEnabledKnowledgeCollections(enabledPackIds, registry),
       warnings: snapshot.pluginWarnings,
@@ -144,6 +145,26 @@ function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values))
 }
 
+export function summarizeCatalogSkillIndex(
+  skill: SkillDefinition,
+  activeSkillIds: string[] = [],
+  enabledPackIds: string[] = [],
+  registry?: CatalogRegistry,
+): JSONValue {
+  return {
+    id: skill.id,
+    kind: skill.kind,
+    name: skill.name,
+    description: skill.description,
+    active: activeSkillIds.includes(skill.id),
+    ...(registry ? { coveredByEnabledPack: enabledPackIds.some((packId) => registry.packs.get(packId)?.skills.includes(skill.id)) } : {}),
+    ...(skill.loadMode ? { loadMode: skill.loadMode } : {}),
+    ...(skill.tags ? { tags: skill.tags } : {}),
+    ...(skill.aliases ? { aliases: skill.aliases } : {}),
+    ...(skill.useWhen ? { useWhen: skill.useWhen } : {}),
+  }
+}
+
 export function summarizeCatalogProfile(profile: AgentProfile): JSONValue {
   return {
     id: profile.id,
@@ -211,6 +232,15 @@ export function summarizeCatalogSkill(skill: SkillDefinition, includeInstruction
     description: skill.description,
     priority: skill.priority,
     enabled: skill.enabled,
+    ...(skill.loadMode ? { loadMode: skill.loadMode } : {}),
+    ...(skill.sourcePath ? { sourcePath: skill.sourcePath } : {}),
+    ...(skill.tags ? { tags: skill.tags } : {}),
+    ...(skill.aliases ? { aliases: skill.aliases } : {}),
+    ...(skill.useWhen ? { useWhen: skill.useWhen } : {}),
+    ...(skill.dependencies ? { dependencies: skill.dependencies } : {}),
+    ...(skill.conflicts ? { conflicts: skill.conflicts } : {}),
+    ...(skill.tokenEstimate !== undefined ? { tokenEstimate: skill.tokenEstimate } : {}),
+    ...(skill.activationScope ? { activationScope: skill.activationScope } : {}),
     ...(skill.kind === 'workflow' ? {
       triggers: skill.triggers as unknown as JSONValue,
       toolRefs: skill.toolRefs,

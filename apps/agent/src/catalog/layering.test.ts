@@ -23,6 +23,10 @@ function schemaProperties(value: unknown): Record<string, unknown> {
   return isRecord(value) && isRecord(value.properties) ? value.properties : {}
 }
 
+function schemaDescription(value: unknown): string {
+  return isRecord(value) && typeof value.description === 'string' ? value.description : ''
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
@@ -97,6 +101,7 @@ test('target-state pack files and the default profile are loaded as first-class 
   assert.equal(defaultProfile?.limits?.maxKnowledgeCharsPerRun, 8000)
   assert.equal(defaultProfile?.limits?.maxKnowledgeChunksPerRun, 3)
   assert.equal(defaultProfile?.limits?.maxHistoryMessages, 6)
+  assert.equal(defaultProfile?.limits?.contextWindowCharLimit, 96000)
   const corePack = catalog.packs.find((pack) => pack.id === 'movscript.pack.agent-core')
   const draftPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.drafts')
   assert.ok(corePack?.skills.includes('movscript.workflow.planner-subagents'))
@@ -110,6 +115,7 @@ test('target-state pack files and the default profile are loaded as first-class 
   ])
   assert.equal(defaultProfile.persona, 'movscript.persona.default')
   assert.deepEqual(defaultProfile.enabledWorkflows, [
+    'movscript.workflow.memory-access',
     'movscript.workflow.planner-subagents',
     'movscript.workflow.draft-lifecycle',
     'movscript.workflow.project-progress',
@@ -126,8 +132,6 @@ test('target-state pack files and the default profile are loaded as first-class 
   ])
   assert.deepEqual(defaultProfile.enabledPolicies, [
     'movscript.policy.agent-core',
-    'movscript.policy.drafts',
-    'movscript.policy.movscript',
   ])
 
   const resolved = resolveProfile(catalog.layeredRegistry)
@@ -232,16 +236,29 @@ test('asset candidate preparation is separated from generation execution', () =>
   const listModelsTool = catalog.layeredRegistry.tools.get('movscript_list_models')
   const createJobTool = catalog.layeredRegistry.tools.get('movscript_create_generation_job')
   const attachCandidateTool = catalog.layeredRegistry.tools.get('movscript_attach_asset_slot_candidate')
+  const attachKeyframeCandidateTool = catalog.layeredRegistry.tools.get('movscript_attach_keyframe_candidate')
+  const productionContextTool = catalog.layeredRegistry.tools.get('movscript_query_production_context')
   const profile = resolveProfile(catalog.layeredRegistry).profile
 
   assert.ok(assetCandidate?.kind === 'workflow')
   assert.ok(visualGeneration?.kind === 'workflow')
+  assert.match(assetCandidate.outputContract ?? '', /output_resource_id 列表/)
+  assert.match(assetCandidate.outputContract ?? '', /每个 output_resource_id 的候选写入结果/)
+  assert.match(visualGeneration.outputContract ?? '', /输出资源列表/)
+  assert.match(visualGeneration.outputContract ?? '', /每个 output_resource_id 的候选集写入结果/)
   assert.ok(listModelsTool)
   assert.ok(createJobTool)
   assert.ok(attachCandidateTool)
+  assert.ok(attachKeyframeCandidateTool)
+  assert.ok(productionContextTool)
+  assert.match(JSON.stringify(visualGeneration.triggers), /关键帧候选/)
+  assert.match(JSON.stringify(visualGeneration.triggers), /画面锚点候选/)
+  assert.match(JSON.stringify(visualGeneration.triggers), /keyframe candidate/)
+  assert.match(JSON.stringify(visualGeneration.triggers), /visual anchor candidate/)
 
   assert.ok(assetCandidate.toolRefs.includes('tool://movscript_create_generation_job'))
   assert.ok(assetCandidate.toolRefs.includes('tool://movscript_attach_asset_slot_candidate'))
+  assert.equal(assetCandidate.toolRefs.includes('tool://movscript_attach_keyframe_candidate'), false)
   assert.equal(assetCandidate.toolRefs.includes('tool://movscript_cancel_generation_job'), false)
   assert.ok(assetCandidate.toolRefs.includes('tool://movscript_get_focus'))
   assert.ok(assetCandidate.toolRefs.includes('tool://movscript_get_draft_model'))
@@ -250,6 +267,7 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.ok(visualGeneration.toolRefs.includes('tool://movscript_request_user_input'))
   assert.ok(visualGeneration.toolRefs.includes('tool://movscript_create_generation_job'))
   assert.ok(visualGeneration.toolRefs.includes('tool://movscript_attach_asset_slot_candidate'))
+  assert.ok(visualGeneration.toolRefs.includes('tool://movscript_attach_keyframe_candidate'))
   assert.ok(visualGeneration.toolRefs.includes('tool://movscript_cancel_generation_job'))
 
   const ctx = {
@@ -264,17 +282,20 @@ test('asset candidate preparation is separated from generation execution', () =>
   const visualTools = resolveVisibleTools({ registry: catalog.layeredRegistry, ctx, activeWorkflows: [visualGeneration] })
   assert.ok(assetTools.available.some((tool) => tool.name === 'movscript_create_generation_job'))
   assert.ok(assetTools.available.some((tool) => tool.name === 'movscript_attach_asset_slot_candidate'))
+  assert.equal(assetTools.available.some((tool) => tool.name === 'movscript_attach_keyframe_candidate'), false)
   assert.equal(assetTools.available.some((tool) => tool.name === 'movscript_cancel_generation_job'), false)
   assert.ok(assetTools.available.some((tool) => tool.name === 'movscript_get_focus'))
   assert.ok(assetTools.available.some((tool) => tool.name === 'movscript_get_draft_model'))
   assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_create_generation_job'))
   assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_attach_asset_slot_candidate'))
+  assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_attach_keyframe_candidate'))
   assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_cancel_generation_job'))
   assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_request_user_input'))
 
   assert.match(assetCandidate.instructionTemplate, /生成任务创建、监控，以及把成功输出加入目标 asset slot 候选集/)
-  assert.match(assetCandidate.instructionTemplate, /调用 `movscript_attach_asset_slot_candidate` 把资源加入选中 asset slot 的候选集/)
-  assert.match(assetCandidate.instructionTemplate, /除非 `movscript_attach_asset_slot_candidate` 成功返回，否则绝不声称资源已经加入候选集/)
+  assert.match(assetCandidate.instructionTemplate, /调用 `movscript_attach_asset_slot_candidate` 把每个可用资源逐个加入选中 asset slot 的候选集/)
+  assert.match(assetCandidate.instructionTemplate, /如果有多个 output_resource_id，必须逐项写入并逐项报告成功、失败或阻塞/)
+  assert.match(assetCandidate.instructionTemplate, /除非 `movscript_attach_asset_slot_candidate` 对对应 output_resource_id 成功返回，否则绝不声称该资源已经加入候选集/)
   assert.match(assetCandidate.instructionTemplate, /使用模型发现 contracts，而不是 provider 假设/)
   assert.match(assetCandidate.instructionTemplate, /先确认当前设定材料是否已有可复用素材/)
   assert.match(assetCandidate.instructionTemplate, /保留人物一致性、场景一致性和可复用识别点/)
@@ -282,9 +303,13 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.match(visualGeneration.instructionTemplate, /只能通过需要审批的生成工具创建生成任务/)
   assert.match(visualGeneration.instructionTemplate, /优先用 `model_contracts` 做紧凑规划/)
   assert.match(visualGeneration.instructionTemplate, /确认当前设定材料是否已有素材/)
+  assert.match(visualGeneration.instructionTemplate, /include keyframes/)
   assert.match(visualGeneration.instructionTemplate, /已有角色\/场景素材必须优先作为一致性约束/)
   assert.match(visualGeneration.instructionTemplate, /主角、核心反派、重要常驻角色要保持可长期复用的美术价值/)
-  assert.match(visualGeneration.instructionTemplate, /调用 `movscript_attach_asset_slot_candidate` 把该 output_resource_id 加入目标 asset slot 候选集/)
+  assert.match(visualGeneration.instructionTemplate, /调用 `movscript_attach_asset_slot_candidate` 把每个可用 output_resource_id 逐个加入目标 asset slot 候选集/)
+  assert.match(visualGeneration.instructionTemplate, /调用 `movscript_attach_keyframe_candidate` 把每个可用 output_resource_id 逐个加入目标 keyframe 候选集/)
+  assert.match(visualGeneration.instructionTemplate, /每个 output_resource_id 的候选集写入结果/)
+  assert.match(visualGeneration.instructionTemplate, /如果有多个 output_resource_id，必须逐项写入并逐项报告成功、失败或阻塞/)
   assert.match(visualGeneration.instructionTemplate, /除非用户明确要求只预览结果，否则不要停留在让用户手动选择/)
   assert.match(visualGeneration.instructionTemplate, /只提交被选中模型的 `supported_param_keys` \/ `supported_params` 支持的顶层参数和 `extra_params` 值/)
   assert.match(visualGeneration.instructionTemplate, /图片\/视频数量满足 `input_requirements` 的参考资源/)
@@ -296,6 +321,7 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.match(listModelsTool.description, /model_contracts/)
   assert.match(listModelsTool.description, /contract_version 1/)
   assert.match(listModelsTool.description, /supported_param_keys/)
+  assert.match(createJobTool.description, /多个输出会同时返回 output_resources\/output_resource_ids/)
   const listModelsProperties = schemaProperties(listModelsTool.inputSchema)
   assert.ok(listModelsProperties.feature_key)
   assert.ok(listModelsProperties.provider_variants)
@@ -327,7 +353,55 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.equal(attachCandidateTool.risk, 'write')
   const attachCandidateProperties = schemaProperties(attachCandidateTool.inputSchema)
   assert.ok(attachCandidateProperties.asset_slot_id)
+  assert.ok(attachCandidateProperties.assetSlotId)
   assert.ok(attachCandidateProperties.resource_id)
+  assert.ok(attachCandidateProperties.resourceId)
+  assert.ok(attachCandidateProperties.output_resource_id)
+  assert.ok(attachCandidateProperties.outputResourceId)
+  assert.ok(attachCandidateProperties.source_type)
+  assert.ok(attachCandidateProperties.sourceType)
+  assert.ok(attachCandidateProperties.source_id)
+  assert.ok(attachCandidateProperties.sourceId)
+  assert.ok(attachCandidateProperties.jobId)
+  assert.equal((attachCandidateTool.inputSchema as any).additionalProperties, false)
+  assert.equal((attachCandidateTool.outputSchema as any).additionalProperties, false)
+  assert.deepEqual((attachCandidateTool.inputSchema as any).allOf, [
+    { anyOf: [{ required: ['asset_slot_id'] }, { required: ['assetSlotId'] }] },
+    { anyOf: [{ required: ['resource_id'] }, { required: ['resourceId'] }, { required: ['output_resource_id'] }, { required: ['outputResourceId'] }] },
+  ])
+  assert.match(attachKeyframeCandidateTool.description, /加入某个原始 keyframe \/ 画面锚点的候选集/)
+  assert.match(attachKeyframeCandidateTool.description, /不要把已有 generated candidate keyframe 当作目标传入/)
+  assert.match(attachKeyframeCandidateTool.description, /不会 accept、select、bind 或 lock 候选/)
+  assert.equal(attachKeyframeCandidateTool.risk, 'write')
+  const attachKeyframeCandidateProperties = schemaProperties(attachKeyframeCandidateTool.inputSchema)
+  assert.ok(attachKeyframeCandidateProperties.keyframe_id)
+  assert.ok(attachKeyframeCandidateProperties.keyframeId)
+  assert.ok(attachKeyframeCandidateProperties.target_keyframe_id)
+  assert.ok(attachKeyframeCandidateProperties.targetKeyframeId)
+  assert.match(schemaDescription(attachKeyframeCandidateProperties.target_keyframe_id), /原始目标 keyframe \/ 画面锚点 ID 的别名/)
+  assert.match(schemaDescription(attachKeyframeCandidateProperties.target_keyframe_id), /不要传 generated candidate keyframe 自身 ID/)
+  assert.ok(attachKeyframeCandidateProperties.resource_id)
+  assert.ok(attachKeyframeCandidateProperties.resourceId)
+  assert.ok(attachKeyframeCandidateProperties.output_resource_id)
+  assert.ok(attachKeyframeCandidateProperties.outputResourceId)
+  assert.ok(attachKeyframeCandidateProperties.source_type)
+  assert.ok(attachKeyframeCandidateProperties.sourceType)
+  assert.ok(attachKeyframeCandidateProperties.source_id)
+  assert.ok(attachKeyframeCandidateProperties.sourceId)
+  assert.ok(attachKeyframeCandidateProperties.jobId)
+  assert.equal((attachKeyframeCandidateTool.inputSchema as any).additionalProperties, false)
+  assert.equal((attachKeyframeCandidateTool.outputSchema as any).additionalProperties, false)
+  assert.deepEqual((attachKeyframeCandidateTool.inputSchema as any).allOf, [
+    { anyOf: [{ required: ['keyframe_id'] }, { required: ['keyframeId'] }, { required: ['target_keyframe_id'] }, { required: ['targetKeyframeId'] }] },
+    { anyOf: [{ required: ['resource_id'] }, { required: ['resourceId'] }, { required: ['output_resource_id'] }, { required: ['outputResourceId'] }] },
+  ])
+  const productionContextProperties = schemaProperties(productionContextTool.inputSchema)
+  const productionContextInclude = productionContextProperties.include as { items?: { enum?: string[] } }
+  assert.ok(productionContextInclude.items?.enum?.includes('keyframes'))
+  assert.match(productionContextTool.description, /排除 AI 候选画面锚点/)
+  const productionContextCapability = productionContextTool.capability
+  if (typeof productionContextCapability !== 'string') assert.fail('production context tool capability should be a string')
+  assert.match(productionContextCapability, /keyframes 结果不包含 AI 候选画面锚点/)
   assert.ok(attachCandidateProperties.note)
   const attachCandidateOutputProperties = schemaProperties(attachCandidateTool.outputSchema)
   assert.ok(attachCandidateOutputProperties.candidate)
@@ -339,6 +413,8 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.ok(createJobOutputProperties.monitor)
   assert.ok(createJobOutputProperties.output_resource)
   assert.ok(createJobOutputProperties.output_resource_id)
+  assert.ok(createJobOutputProperties.output_resources)
+  assert.ok(createJobOutputProperties.output_resource_ids)
   assert.ok(createJobOutputProperties.param_validation)
   const paramValidation = isRecord(createJobOutputProperties.param_validation)
     ? createJobOutputProperties.param_validation
@@ -460,7 +536,9 @@ test('visual generation prompt exposes backend generation validation error codes
   assert.match(prompt.systemPrompt, /`preflight_errors` 和 `input_preflight_errors` 视为解释性审计数据/)
   assert.match(prompt.systemPrompt, /不要在同一次请求中自动修复 `UNSUPPORTED_OUTPUT_TYPE` 或 `INVALID_INPUT_COUNT`/)
   assert.match(prompt.systemPrompt, /已有角色\/场景素材必须优先作为一致性约束/)
-  assert.match(prompt.systemPrompt, /调用 `movscript_attach_asset_slot_candidate` 把该 output_resource_id 加入目标 asset slot 候选集/)
+  assert.match(prompt.systemPrompt, /调用 `movscript_attach_asset_slot_candidate` 把每个可用 output_resource_id 逐个加入目标 asset slot 候选集/)
+  assert.match(prompt.systemPrompt, /调用 `movscript_attach_keyframe_candidate` 把每个可用 output_resource_id 逐个加入目标 keyframe 候选集/)
+  assert.match(prompt.systemPrompt, /如果有多个 output_resource_id，必须逐项写入并逐项报告成功、失败或阻塞/)
   assert.match(prompt.systemPrompt, /除非用户明确要求只预览结果，否则不要停留在让用户手动选择/)
 })
 

@@ -1,5 +1,5 @@
 目标：
-产出或编辑一个本地 project_proposal draft，作为项目级制作规范的可审阅提案。它只定义镜头大小体系、画幅、摄影语言、视觉风格、灯光色彩、节奏规则和负面约束；不要写入最终项目实体。
+产出或编辑一个本地 project_proposal draft，作为项目级制作规范的可审阅提案。它定义固定项目制作规范，也可以用 custom_rules 追加任意 key/value 形式的项目级提示词规范；不要写入最终项目实体。
 
 Draft schema：{{schema:movscript.project_proposal.v1.id}}
 
@@ -12,10 +12,11 @@ Draft schema：{{schema:movscript.project_proposal.v1.id}}
 
 输入：
 - 当前 focus 中的 project、production 风格需求、用户提出的全局制作规范、镜头语言或风格约束。
-- 用户给出的画幅、镜头大小、运镜、灯光、色彩、质感、节奏、禁用规则和跨 production 复用要求。
+- 用户给出的画幅、镜头大小、运镜、灯光、色彩、质感、节奏、禁用规则、质检口径、命名/文本/素材/交付规则和跨 production 复用要求。
 
 边界：
 - 此 workflow 只维护 project 层制作规范 proposal draft。
+- 固定 8 项制作规范是基础必选项；custom_rules 用于承载额外项目规范，不限制 key。
 - project_proposal 不再负责设定资料清单或素材需求清单。
 - 设定资料创建/合并/修改使用 setting_proposal。
 - 素材需求创建/归属/复用/豁免使用 asset_proposal。
@@ -41,7 +42,7 @@ Draft schema：{{schema:movscript.project_proposal.v1.id}}
 2. 获取 project_proposal 的 draft model 契约；若暂不可用，使用 schema fallback 并在输出中说明。
 3. 查找已有 project_proposal draft；如果不存在，则用 proposal=true 创建一个，source/target 记录 project 锚点，并把 MCP 返回的 seed/modelRef 作为 movscript_create_draft.seed 传入。
 4. 修改现有 draft 前必须先读取内容。
-5. 只 patch proposal.project_style；creative_references 和 asset_slots 在新 draft 中保持空数组，除非用户明确要求迁移旧混合草稿。
+5. 只 patch proposal.project_style；draft 中不得出现 creative_references 或 asset_slots。
 6. Validate draft。当前 applyBoundary 若为 draft_only，不运行正式 preview apply；只报告本地 validation 状态和未决规范。
 
 内容规则：
@@ -51,9 +52,15 @@ Draft schema：{{schema:movscript.project_proposal.v1.id}}
 - project_style.visual_style / lighting_style / color_palette：可执行的视觉规则，避免只写“高级感”“电影感”等空泛词。
 - project_style.pacing_rules：节奏、镜头时长、转场或信息呈现规则。
 - project_style.negative_rules：明确禁止项，例如随机改脸、过暗看不清道具、字幕遮挡主体等。
+- project_style.custom_rules：任意扩展规范数组。每条至少包含 key、label、value；可补充 category、prompt_role、enabled、required、order。
+- custom_rules.key：稳定英文/拼音/蛇形 key，用于后续注入提示词；不要用随机 id。
+- custom_rules.value：可执行的规则正文，避免只写抽象口号。
+- custom_rules.prompt_role：只能是 context、style、constraint、negative、quality_gate。缺省时使用 constraint。
 
 校验：
 - Project proposal 只写 project_style 及必要 impact_notes/summary。
+- custom_rules 必须是数组；每条必须有非空 key、label、value；prompt_role 只能使用允许值。
+- Project proposal 中出现 creative_references 或 asset_slots 视为越界，应改用 setting_proposal 或 asset_proposal。
 - 如果用户要求人物、地点、道具、世界规则等设定，切换到 setting_proposal。
 - 如果用户要求“需要哪些素材”“素材需求归属”“素材复用边界”，切换到 asset_proposal。
 - 如果用户要求“候选图方案”“prompt”“出图方向”，切换到 asset_proposal。

@@ -481,7 +481,9 @@ test('preview activates only triggered layered skills instead of loading every p
 
   const skillIds = preview.skills?.map((skill) => skill.id) ?? []
   assert.ok(skillIds.includes('movscript.persona.default'))
-  assert.ok(skillIds.includes('movscript.policy.drafts'))
+  assert.ok(skillIds.includes('movscript.policy.agent-core'))
+  assert.equal(skillIds.includes('movscript.policy.drafts'), false)
+  assert.equal(skillIds.includes('movscript.policy.movscript'), false)
   assert.equal(skillIds.includes('movscript.workflow.project-proposal'), false)
   assert.equal(skillIds.includes('movscript.workflow.visual-generation'), false)
   assert.deepEqual(preview.debug?.layerTrace?.workflowIds, [])
@@ -896,6 +898,12 @@ test('run can request user input and resume after an answer', async () => {
   assert.equal(run.pendingInputRequests?.[0]?.title, '选择目标内容')
   assert.equal(run.pendingInputRequests?.[0]?.choices[0]?.label, '剧本')
   assert.equal(run.pendingApprovals?.length ?? 0, 0)
+  assert.equal(
+    runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
+      .filter((event) => event.kind === 'input' && event.title === 'User input required')
+      .length,
+    1,
+  )
 
   const answered = runtime.answerRunInputRequest(run.id, {
     requestId: run.pendingInputRequests![0].id,
@@ -1074,9 +1082,8 @@ test('simulateApplyDraft dry-runs backend apply without marking draft applied', 
       schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
       scope: 'project_proposal',
       mode: 'snapshot',
+      summary: 'Project-level style standards.',
       proposal: {
-        creative_references: [],
-        asset_slots: [],
         project_style: {
           aspect_ratio: '9:16',
           shot_size_system: ['wide', 'medium', 'close-up', 'insert'],
@@ -1084,6 +1091,8 @@ test('simulateApplyDraft dry-runs backend apply without marking draft applied', 
           negative_rules: ['No arbitrary character face changes', 'No unreadable dark prop details'],
         },
       },
+      impact_notes: [],
+      createdAt: '2026-05-08T00:00:00.000Z',
     }),
     target: { projectId: 42, entityType: 'project', entityId: 42, field: 'proposal' },
   })
@@ -1148,7 +1157,7 @@ test('persists threads, messages, runs, and steps across runtime rebuilds', asyn
     const store = new FileAgentStore(statePath)
     const runtime = createTestRuntime({ mcpClient: client, store })
     const thread = runtime.createThread({ title: 'Persistent thread' })
-    runtime.addMessage(thread.id, { role: 'user', content: '参考我的默认镜头风格记忆，帮我写一个镜头草稿' })
+    runtime.addMessage(thread.id, { role: 'user', content: '帮我写一个镜头草稿' })
     const run = await createAndWaitForRun(runtime, thread.id)
     store.flush()
 
@@ -1475,8 +1484,8 @@ test('completed runs persist thread context summaries and reuse refs in later pr
     assert.equal(dedupedTrace?.data?.dedupedCount, 1)
     assert.equal((dedupedTrace?.data?.records as any[])?.some((record) => record.type === 'knowledge' && record.id === 'storyboard.rhythm.basic'), true)
 
-    assert.equal(summary?.schema, 'movscript.thread-context-summary.v1')
-    assert.equal(firstRun.metadata?.threadContextSummary && (firstRun.metadata.threadContextSummary as any).schema, 'movscript.thread-context-summary.v1')
+    assert.equal(summary?.schema, 'movscript.thread-context-summary.v2')
+    assert.equal(firstRun.metadata?.threadContextSummary && (firstRun.metadata.threadContextSummary as any).schema, 'movscript.thread-context-summary.v2')
     assert.ok(summary.recentRunRefs?.[0]?.retrievedRefs?.some((ref: any) => ref.type === 'knowledge' && ref.id === 'storyboard.rhythm.basic'))
     assert.match(firstAssistant?.content ?? '', /来源：/)
     assert.match(firstAssistant?.content ?? '', /通用知识建议：.*knowledge#storyboard\.rhythm\.basic《分镜节奏基础》.*（source=knowledge; evidence=advisory）/)
@@ -1680,10 +1689,10 @@ test('records backend model gateway HTTP request and response in run trace', asy
     assert.equal(typeof promptEvent?.data?.systemMessageCount, 'number')
     assert.equal(typeof promptStats?.totalChars, 'number')
     assert.ok(promptStats.byLayer.level0_core > 0)
-    assert.ok(promptStats.byLayer.level1_context > 0)
+    assert.equal(promptStats.byLayer.level1_context, 0)
     assert.ok(promptStats.byLayer.level2_behavior > 0)
     assert.ok(promptStats.byContextLayer.runtime_contract > 0)
-    assert.ok(promptStats.byContextLayer.focus > 0)
+    assert.equal(promptStats.byContextLayer.focus, 0)
     assert.ok(promptStats.byContextLayer.behavior > 0)
     assert.ok(Array.isArray(promptStats.parts))
     assert.equal(run.metadata?.contextLedger && (run.metadata.contextLedger as any).schema, 'movscript.context-ledger.v1')
@@ -2512,6 +2521,42 @@ test('context command returns fallback diagnostics when MCP focus is unavailable
   }
 })
 
+test('status command returns local context budget diagnostics without model gateway calls', async () => {
+  const client = new FakeMCPClient()
+  client.failInitialize = true
+  const runtime = createTestRuntime({ mcpClient: client })
+  const thread = runtime.createThread()
+  runtime.addMessage(thread.id, {
+    role: 'user',
+    content: '/status',
+    clientInput: {
+      message: '/status',
+      uiSnapshot: {
+        route: { pathname: '/agent/debug' },
+        project: { id: 42, name: 'Fallback Project' },
+      },
+    },
+  })
+
+  const run = await createAndWaitForRun(runtime, thread.id)
+  const finalThread = runtime.getThread(thread.id)
+  const assistant = finalThread?.messages.find((message) => message.id === run.assistantMessageId)
+  const messageStep = run.steps.find((step) => step.type === 'message')
+  const diagnostic = (messageStep?.result as any)?.diagnostic
+
+  assert.equal(run.status, 'completed_with_warnings')
+  assert.match(assistant?.content ?? '', /Runtime status:/)
+  assert.match(assistant?.content ?? '', /Context budget:/)
+  assert.equal(diagnostic?.schema, 'movscript.local_status_diagnostic.v1')
+  assert.equal(diagnostic?.modelGatewayCalled, false)
+  assert.equal(typeof diagnostic?.contextBudget?.remainingChars, 'number')
+  assert.equal(diagnostic?.contextBudget?.status === 'ok' || diagnostic?.contextBudget?.status === 'warning' || diagnostic?.contextBudget?.status === 'critical' || diagnostic?.contextBudget?.status === 'exceeded', true)
+  {
+    const traceEvents = runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
+    assert.equal(traceEvents.some((event) => event.kind === 'model_call'), false)
+  }
+})
+
 test('context command run stream emits assistant message and done events', async () => {
   const client = new FakeMCPClient()
   client.failInitialize = true
@@ -2892,6 +2937,290 @@ test('runtime reloads target-state local catalog tools for later runs', async ()
     } finally {
       globalThis.fetch = originalFetch
     }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('runtime persists selected default profile in catalog state', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-profile-state-'))
+  const profilesDir = join(dir, 'profiles')
+  const catalogStateStore = new InMemoryAgentCatalogStateStore()
+  try {
+    writeJSONFile(profilesDir, 'default.profile.json', {
+      schema: 'movscript.agent.profile.v1',
+      id: 'movscript.profile.default',
+      version: '1.0.0',
+      name: 'Default Profile',
+      enabledPacks: [],
+      persona: null,
+      enabledWorkflows: [],
+      enabledPolicies: [],
+      toolGrants: [],
+    })
+    writeJSONFile(profilesDir, 'writer.profile.json', {
+      schema: 'movscript.agent.profile.v1',
+      id: 'profile_writer',
+      version: '2.0.0',
+      name: 'Writer Profile',
+      enabledPacks: [],
+      persona: null,
+      enabledWorkflows: [],
+      enabledPolicies: [],
+      toolGrants: [],
+    })
+    const loadCatalog = () => loadAgentPluginCatalog({
+      profilesDir,
+      builtinProfilesDir: profilesDir,
+      baseManifest: DYNAMIC_CATALOG_BASE_MANIFEST,
+    })
+    const runtime = createTestRuntime({
+      mcpClient: new FakeMCPClient(),
+      pluginCatalog: loadCatalog(),
+      catalogStateStore,
+    })
+    catalogStateStore.save({
+      version: 1,
+      updatedAt: new Date(0).toISOString(),
+      metadata: {
+        defaultToolGrants: [{ name: 'old_profile_tool', mode: 'deny' }],
+      },
+    })
+
+    const saved = runtime.setDefaultAgentProfile({ profileId: 'profile_writer' })
+
+    assert.equal(saved.id, 'profile_writer')
+    assert.equal(saved.name, 'Writer Profile')
+    assert.equal(saved.metadata?.profileId, 'profile_writer')
+    assert.equal(saved.metadata?.profileVersion, '2.0.0')
+    assert.deepEqual(saved.metadata?.defaultToolGrants, [])
+    assert.equal(catalogStateStore.load().metadata?.defaultProfileId, 'profile_writer')
+    assert.deepEqual(catalogStateStore.load().metadata?.defaultToolGrants, [])
+
+    const restarted = createTestRuntime({
+      mcpClient: new FakeMCPClient(),
+      pluginCatalog: loadCatalog(),
+      catalogStateStore,
+    })
+
+    assert.equal(restarted.getDefaultAgentManifest().id, 'profile_writer')
+    assert.equal(restarted.getDefaultAgentManifest().metadata?.profileId, 'profile_writer')
+    assert.equal(restarted.getDefaultAgentManifest().metadata?.profileVersion, '2.0.0')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('runtime persists restrictive tool policy overrides for the default profile', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-tool-policy-state-'))
+  const toolsDir = join(dir, 'tools')
+  const packsDir = join(dir, 'packs')
+  const profilesDir = join(dir, 'profiles')
+  const catalogStateStore = new InMemoryAgentCatalogStateStore()
+  try {
+    writeJSONFile(toolsDir, 'draft.tool.json', {
+      name: 'movscript_update_draft',
+      description: 'Update draft.',
+      permission: 'draft.write',
+      risk: 'write',
+      source: 'plugin',
+      inputSchema: {},
+      projectScoped: false,
+      defaults: { grant: 'allow', approval: 'never' },
+    })
+    writeJSONFile(toolsDir, 'memory.tool.json', {
+      name: 'movscript_delete_memory',
+      description: 'Delete memory.',
+      permission: 'memory.write',
+      risk: 'destructive',
+      source: 'plugin',
+      inputSchema: {},
+      projectScoped: false,
+      defaults: { grant: 'allow', approval: 'on_write' },
+    })
+    writeJSONFile(packsDir, 'policy.pack.json', {
+      id: 'movscript.pack.policy-test',
+      name: 'Policy Test Pack',
+      source: 'plugin',
+      resources: { tools: ['draft.tool.json', 'memory.tool.json'] },
+      schemas: [],
+      tools: ['movscript_update_draft', 'movscript_delete_memory'],
+      skills: [],
+    })
+    writeJSONFile(profilesDir, 'default.profile.json', {
+      schema: 'movscript.agent.profile.v1',
+      id: 'movscript.profile.default',
+      version: '1.0.0',
+      name: 'Default Profile',
+      enabledPacks: ['movscript.pack.policy-test'],
+      persona: null,
+      enabledWorkflows: [],
+      enabledPolicies: [],
+      toolGrants: [
+        { name: 'movscript_update_draft', mode: 'allow', approval: 'never' },
+        { name: 'movscript_delete_memory', mode: 'allow', approval: 'on_write' },
+      ],
+    })
+    const loadCatalog = () => loadAgentPluginCatalog({
+      toolsDir,
+      builtinToolsDir: toolsDir,
+      packsDir,
+      builtinPacksDir: packsDir,
+      profilesDir,
+      builtinProfilesDir: profilesDir,
+      baseManifest: DYNAMIC_CATALOG_BASE_MANIFEST,
+    })
+    const runtime = createTestRuntime({
+      mcpClient: new FakeMCPClient(),
+      pluginCatalog: loadCatalog(),
+      catalogStateStore,
+    })
+
+    const saved = runtime.setDefaultToolPolicy({
+      toolGrants: [
+        { name: 'movscript_update_draft', mode: 'deny' },
+        { name: 'movscript_delete_memory', mode: 'allow', approval: 'always' },
+      ],
+    })
+
+    assert.deepEqual(saved.metadata?.defaultToolGrants, [
+      { name: 'movscript_update_draft', mode: 'deny', approval: 'never' },
+      { name: 'movscript_delete_memory', mode: 'allow', approval: 'always' },
+    ])
+    assert.deepEqual(catalogStateStore.load().metadata?.defaultToolGrants, saved.metadata?.defaultToolGrants)
+    assert.deepEqual(saved.tools, [
+      { name: 'movscript_update_draft', mode: 'deny', approval: 'never' },
+      { name: 'movscript_delete_memory', mode: 'allow', approval: 'always' },
+    ])
+
+    const restarted = createTestRuntime({
+      mcpClient: new FakeMCPClient(),
+      pluginCatalog: loadCatalog(),
+      catalogStateStore,
+    })
+
+    assert.deepEqual(restarted.getDefaultAgentManifest().tools, saved.tools)
+    assert.throws(
+      () => restarted.setDefaultToolPolicy({ toolGrants: [{ name: 'movscript_delete_memory', mode: 'allow', approval: 'never' }] }),
+      /approval cannot be weaker/,
+    )
+    assert.throws(
+      () => restarted.setDefaultToolPolicy({ toolGrants: [{ name: 'movscript_create_project', mode: 'allow', approval: 'always' }] }),
+      /not granted by current default profile/,
+    )
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('runtime persists default skill enabled overrides in catalog state', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-skill-policy-state-'))
+  const skillsDir = join(dir, 'skills')
+  const packsDir = join(dir, 'packs')
+  const profilesDir = join(dir, 'profiles')
+  const catalogStateStore = new InMemoryAgentCatalogStateStore()
+  try {
+    writeJSONFile(skillsDir, 'workflow.workflow.json', {
+      id: 'studio.workflow.policy_test',
+      kind: 'workflow',
+      name: 'Policy Test Workflow',
+      description: 'Workflow toggled by settings.',
+      triggers: [{ kind: 'always' }],
+      toolRefs: [],
+      instructionTemplate: 'Policy test workflow.',
+    })
+    writeJSONFile(skillsDir, 'core.policy.json', {
+      id: 'studio.policy.core_test',
+      kind: 'policy',
+      name: 'Core Test Policy',
+      description: 'Core policy locked by settings.',
+      loadMode: 'core',
+      instructionTemplate: 'Core policy.',
+    })
+    writeJSONFile(skillsDir, 'dependency.policy.json', {
+      id: 'studio.policy.dependency_test',
+      kind: 'policy',
+      name: 'Dependency Test Policy',
+      description: 'Dependency policy.',
+      instructionTemplate: 'Dependency policy.',
+    })
+    writeJSONFile(skillsDir, 'dependent.policy.json', {
+      id: 'studio.policy.dependent_test',
+      kind: 'policy',
+      name: 'Dependent Test Policy',
+      description: 'Policy with dependency.',
+      dependencies: ['studio.policy.dependency_test'],
+      instructionTemplate: 'Dependent policy.',
+    })
+    writeJSONFile(skillsDir, 'conflict.policy.json', {
+      id: 'studio.policy.conflict_test',
+      kind: 'policy',
+      name: 'Conflict Test Policy',
+      description: 'Policy with conflict.',
+      enabled: false,
+      conflicts: ['studio.workflow.policy_test'],
+      instructionTemplate: 'Conflict policy.',
+    })
+    writeJSONFile(packsDir, 'skills.pack.json', {
+      id: 'movscript.pack.skill-policy-test',
+      name: 'Skill Policy Test Pack',
+      source: 'plugin',
+      resources: { skills: ['workflow.workflow.json', 'core.policy.json', 'dependency.policy.json', 'dependent.policy.json', 'conflict.policy.json'] },
+      schemas: [],
+      tools: [],
+      skills: ['studio.workflow.policy_test', 'studio.policy.core_test', 'studio.policy.dependency_test', 'studio.policy.dependent_test', 'studio.policy.conflict_test'],
+    })
+    writeJSONFile(profilesDir, 'default.profile.json', {
+      schema: 'movscript.agent.profile.v1',
+      id: 'movscript.profile.default',
+      version: '1.0.0',
+      name: 'Default Profile',
+      enabledPacks: ['movscript.pack.skill-policy-test'],
+      persona: null,
+      enabledWorkflows: [],
+      enabledPolicies: [],
+      toolGrants: [],
+    })
+    const loadCatalog = () => loadAgentPluginCatalog({
+      skillsDir,
+      builtinSkillsDir: skillsDir,
+      packsDir,
+      builtinPacksDir: packsDir,
+      profilesDir,
+      builtinProfilesDir: profilesDir,
+      baseManifest: DYNAMIC_CATALOG_BASE_MANIFEST,
+    })
+    const runtime = createTestRuntime({
+      mcpClient: new FakeMCPClient(),
+      pluginCatalog: loadCatalog(),
+      catalogStateStore,
+    })
+
+    assert.throws(
+      () => runtime.setDefaultSkillPolicy({ skills: [{ id: 'studio.policy.conflict_test', enabled: true }] }),
+      /skill studio\.policy\.conflict_test conflicts with enabled skill studio\.workflow\.policy_test/,
+    )
+
+    runtime.setDefaultSkillPolicy({ skills: [{ id: 'studio.workflow.policy_test', enabled: false }] })
+
+    assert.equal(runtime.listSkillCatalog().find((skill) => skill.id === 'studio.workflow.policy_test')?.enabled, false)
+    assert.deepEqual(catalogStateStore.load().metadata?.defaultSkillOverrides, [{ id: 'studio.workflow.policy_test', enabled: false }])
+
+    const restarted = createTestRuntime({
+      mcpClient: new FakeMCPClient(),
+      pluginCatalog: loadCatalog(),
+      catalogStateStore,
+    })
+
+    assert.equal(restarted.listSkillCatalog().find((skill) => skill.id === 'studio.workflow.policy_test')?.enabled, false)
+    assert.throws(
+      () => restarted.setDefaultSkillPolicy({ skills: [{ id: 'studio.policy.core_test', enabled: false }] }),
+      /core skill .* cannot be disabled/,
+    )
+    assert.throws(
+      () => restarted.setDefaultSkillPolicy({ skills: [{ id: 'studio.policy.dependency_test', enabled: false }] }),
+      /skill studio\.policy\.dependent_test requires enabled dependency studio\.policy\.dependency_test/,
+    )
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

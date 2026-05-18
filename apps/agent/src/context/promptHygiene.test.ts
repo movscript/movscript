@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { buildPromptMemoryIndex, buildThreadContextSummary, compactPromptHistory, filterPromptHistory, filterPromptMemories, normalizeThreadContextSummary } from './promptHygiene.js'
 
@@ -88,22 +90,28 @@ test('thread context summary keeps refs and prompt compaction renders persisted 
     maxSummaryChars: 80,
   })
 
-  assert.equal(summary.schema, 'movscript.thread-context-summary.v1')
+  assert.equal(summary.schema, 'movscript.thread-context-summary.v2')
   assert.equal(summary.userGoal, '帮我做分镜方案')
   assert.deepEqual(summary.artifactRefs.map((ref) => ref.id), ['storyboard.rhythm.basic'])
+  assert.deepEqual(summary.retrievedRefs.map((ref) => ref.id), ['storyboard.rhythm.basic'])
   assert.deepEqual(summary.recentRunRefs[0]?.retrievedRefs.map((ref) => ref.id), ['storyboard.rhythm.basic'])
+  assert.equal(summary.summaryProvenance.strategy, 'deterministic')
+  assert.equal(summary.summaryProvenance.factsRequireEvidence, true)
+  assert.equal(summary.summaryProvenance.summariesAreAdvisory, true)
+  assert.equal(summary.compactStats.retrievedRefCount, 1)
 
   const restored = normalizeThreadContextSummary(summary)
   const compacted = compactPromptHistory(messages, 1, restored)
   assert.equal(compacted.messages.length, 1)
   assert.match(compacted.summary ?? '', /Persisted thread context summary/)
   assert.match(compacted.summary ?? '', /knowledge#storyboard.rhythm.basic/)
+  assert.match(compacted.summary ?? '', /Summary provenance: strategy=deterministic/)
   assert.equal((compacted.summary ?? '').includes('已参考分镜节奏基础，生成方案摘要。'.repeat(20)), false)
 })
 
 test('thread context summary ignores non-plain persisted and ledger records', () => {
   class ThreadSummary {
-    schema = 'movscript.thread-context-summary.v1'
+    schema = 'movscript.thread-context-summary.v2'
     threadId = 't'
     updatedAt = '2026-01-01T00:00:00.000Z'
   }
@@ -135,4 +143,34 @@ test('thread context summary ignores non-plain persisted and ledger records', ()
   assert.equal(normalizeThreadContextSummary(new ThreadSummary()), undefined)
   assert.deepEqual(summary.artifactRefs, [])
   assert.deepEqual(summary.recentRunRefs[0]?.retrievedRefs, [])
+})
+
+test('thread context summary rejects old schema records instead of migrating them', () => {
+  const oldSummary = {
+    schema: 'movscript.thread-context-summary.v1',
+    threadId: 't',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    recentRunRefs: [{
+      runId: 'run_1',
+      summary: 'old summary',
+      artifactRefs: [],
+      retrievedRefs: [{ type: 'knowledge', id: 'storyboard.rhythm.basic' }],
+    }],
+  }
+
+  assert.equal(normalizeThreadContextSummary(oldSummary), undefined)
+})
+
+test('thread context summary v2 fixture normalizes with provenance and compact stats', () => {
+  const fixturePath = fileURLToPath(new URL('../../../../contracts/agent/thread-context-summary-v2.fixture.json', import.meta.url))
+  const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'))
+  const summary = normalizeThreadContextSummary(fixture)
+
+  assert.equal(summary?.schema, 'movscript.thread-context-summary.v2')
+  assert.equal(summary?.summaryProvenance.strategy, 'deterministic')
+  assert.equal(summary?.summaryProvenance.factsRequireEvidence, true)
+  assert.equal(summary?.summaryProvenance.summariesAreAdvisory, true)
+  assert.equal(summary?.acceptedFacts[0]?.source, 'mcp')
+  assert.equal(summary?.acceptedFacts[0]?.evidence, 'verified')
+  assert.equal(summary?.compactStats.acceptedFactCount, 1)
 })

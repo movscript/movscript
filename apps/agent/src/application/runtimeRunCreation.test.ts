@@ -22,7 +22,7 @@ test('buildRuntimeCreateRun freezes creation input, policy, hierarchy, and catal
       threadId: thread.id,
       approvedToolNames: ['tool_a', 'tool_a', 'tool_b'],
       sandboxMode: true,
-      policy: { maxIterations: 3 },
+      policy: { approvalMode: 'auto_readonly', maxIterations: 3 },
       userMessage: ' Explicit task ',
       role: 'worker',
       parentRunId: 'run_parent',
@@ -57,6 +57,7 @@ test('buildRuntimeCreateRun freezes creation input, policy, hierarchy, and catal
   assert.equal(run.planId, 'plan_1')
   assert.equal(run.taskId, 'task_1')
   assert.equal(run.policy.sandboxMode, true)
+  assert.equal(run.policy.approvalMode, 'auto_readonly')
   assert.equal(run.policy.maxIterations, 3)
   assert.deepEqual(run.metadata?.approvedToolNames, ['tool_a', 'tool_b'])
   assert.equal(run.metadata?.requestId, 'request_1')

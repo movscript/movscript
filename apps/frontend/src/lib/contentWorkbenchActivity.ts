@@ -8,6 +8,7 @@ export interface ContentWorkbenchActivityJobLike {
   type?: string
   status?: string
   outputResourceId?: string | number | null
+  outputResourceIds?: Array<string | number> | null
   error?: string
 }
 
@@ -113,10 +114,31 @@ function summarizeJobs(jobs: ContentWorkbenchActivityJobLike[]): ContentWorkbenc
     return {
       key: `job-${job.id}`,
       title: `${title} 已完成`,
-      detail: job.outputResourceId ? `输出资源 #${job.outputResourceId}` : type,
+      detail: outputResourceDetail(job) || type,
       tone: 'done',
     }
   })
+}
+
+function outputResourceDetail(job: ContentWorkbenchActivityJobLike) {
+  const ids = uniquePositiveNumbers([
+    ...(Array.isArray(job.outputResourceIds) ? job.outputResourceIds : []),
+    job.outputResourceId,
+  ])
+  if (ids.length === 0) return ''
+  return ids.length === 1 ? `输出资源 #${ids[0]}` : `输出资源 ${ids.map((id) => `#${id}`).join('、')}`
+}
+
+function uniquePositiveNumbers(values: unknown[]) {
+  const seen = new Set<number>()
+  const result: number[] = []
+  for (const value of values) {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed) || parsed <= 0 || seen.has(parsed)) continue
+    seen.add(parsed)
+    result.push(parsed)
+  }
+  return result
 }
 
 function positiveInteger(value: unknown) {

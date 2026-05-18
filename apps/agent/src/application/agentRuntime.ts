@@ -77,6 +77,12 @@ import {
   type RuntimeCatalogOperationsBridge,
 } from './runtimeCatalogOperationsBridge.js'
 import {
+  applyCatalogStateToDefaultManifest,
+  applyCatalogStateToLayeredRegistry,
+  createRuntimeCatalogSettingsBridge,
+  type RuntimeCatalogSettingsBridge,
+} from './runtimeCatalogSettingsBridge.js'
+import {
   createRuntimeSubagentToolsBridge,
   type RuntimeSubagentToolsBridge,
 } from './runtimeSubagentToolsBridge.js'
@@ -299,6 +305,7 @@ export class AgentRuntime {
   private readonly catalogSnapshotBridge: RuntimeCatalogSnapshotBridge
   private readonly catalogSnapshots: RuntimeCatalogSnapshotRegistry
   private readonly catalogOperations: RuntimeCatalogOperationsBridge
+  private readonly catalogSettings: RuntimeCatalogSettingsBridge
   private readonly entityReads: RuntimeEntityReadBridge
   private readonly catalogStateStore: AgentCatalogStateStore
   private readonly pluginCatalogLoader?: NonNullable<AgentRuntimeOptions['pluginCatalogLoader']>
@@ -359,9 +366,15 @@ export class AgentRuntime {
       pluginWarnings: options.pluginWarnings,
       loadCatalogSnapshot: loadAgentPluginCatalog,
     })
-    this.defaultAgentManifest = catalogInitialization.defaultAgentManifest
+    this.catalogStateStore = options.catalogStateStore ?? new InMemoryAgentCatalogStateStore()
+    const catalogState = this.catalogStateStore.load()
+    this.layeredRegistry = applyCatalogStateToLayeredRegistry(catalogInitialization.layeredRegistry, catalogState)
+    this.defaultAgentManifest = applyCatalogStateToDefaultManifest(
+      catalogInitialization.defaultAgentManifest,
+      catalogState,
+      this.layeredRegistry,
+    )
     this.toolRegistry = catalogInitialization.toolRegistry
-    this.layeredRegistry = catalogInitialization.layeredRegistry
     this.contractResolver = options.contractResolver ?? EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER
     this.pluginCatalogInfo = catalogInitialization.pluginCatalogInfo
     this.pluginWarnings = catalogInitialization.pluginWarnings
@@ -375,7 +388,6 @@ export class AgentRuntime {
       }),
     })
     this.catalogSnapshots = new RuntimeCatalogSnapshotRegistry(this.catalogSnapshotBridge.createSnapshot())
-    this.catalogStateStore = options.catalogStateStore ?? new InMemoryAgentCatalogStateStore()
     this.pluginCatalogLoader = options.pluginCatalogLoader
     this.updateState = options.updateState
     this.catalogOperations = createRuntimeCatalogOperationsBridge({
@@ -392,12 +404,34 @@ export class AgentRuntime {
         pluginWarnings: this.pluginWarnings,
       }),
       commitReload: (catalog) => {
-        this.defaultAgentManifest = catalog.defaultAgentManifest
+        const catalogState = this.catalogStateStore.load()
+        const layeredRegistry = applyCatalogStateToLayeredRegistry(catalog.layeredRegistry, catalogState)
+        this.defaultAgentManifest = applyCatalogStateToDefaultManifest(
+          catalog.defaultAgentManifest,
+          catalogState,
+          layeredRegistry,
+        )
         this.toolRegistry = catalog.toolRegistry
-        this.layeredRegistry = catalog.layeredRegistry
+        this.layeredRegistry = layeredRegistry
         this.pluginCatalogInfo = catalog.pluginCatalogInfo
         this.pluginWarnings = catalog.pluginWarnings
       },
+    })
+    this.catalogSettings = createRuntimeCatalogSettingsBridge({
+      getState: () => ({
+        defaultAgentManifest: this.defaultAgentManifest,
+        layeredRegistry: this.layeredRegistry,
+      }),
+      setDefaultAgentManifest: (manifest) => {
+        this.defaultAgentManifest = manifest
+      },
+      setLayeredRegistry: (registry) => {
+        this.layeredRegistry = registry
+      },
+      catalogStateStore: this.catalogStateStore,
+      catalogSnapshots: this.catalogSnapshots,
+      catalogSnapshotBridge: this.catalogSnapshotBridge,
+      now: () => isoNow(),
     })
     this.entityReads = createRuntimeEntityReadBridge({ store: this.store })
     this.traceReads = createRuntimeTraceReadBridge({ store: this.store })
@@ -571,6 +605,22 @@ export class AgentRuntime {
     return this.catalogOperations.listSkillCatalog()
   }
 
+  listProfileCatalog(): ReturnType<RuntimeCatalogOperationsBridge['listProfileCatalog']> {
+    return this.catalogOperations.listProfileCatalog()
+  }
+
+  setDefaultAgentProfile(input: { profileId?: unknown } = {}): AgentManifest {
+    return this.catalogSettings.setDefaultAgentProfile(input)
+  }
+
+  setDefaultToolPolicy(input: { toolGrants?: unknown } = {}): AgentManifest {
+    return this.catalogSettings.setDefaultToolPolicy(input)
+  }
+
+  setDefaultSkillPolicy(input: { skills?: unknown } = {}): ReturnType<RuntimeCatalogSettingsBridge['setDefaultSkillPolicy']> {
+    return this.catalogSettings.setDefaultSkillPolicy(input)
+  }
+
   getDefaultAgentManifest(): AgentManifest {
     return this.catalogOperations.getDefaultAgentManifest()
   }
@@ -581,6 +631,10 @@ export class AgentRuntime {
 
   inspectAgentCatalog(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
     return this.catalogOperations.inspectAgentCatalog(run, input)
+  }
+
+  updateActiveSkills(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
+    return this.catalogOperations.updateActiveSkills(run, input)
   }
 
   async createAgentPlan(run: AgentRun, input: Record<string, JSONValue> = {}): Promise<JSONValue> {

@@ -6,12 +6,10 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "build": "tsup src/index.ts --format esm --no-splitting --banner.js \"/* movscript-plugin: scene-summary */\" --outDir dist --clean",
-    "bundle": "node scripts/bundle.mjs"
+    "build": "movcli build"
   },
   "devDependencies": {
     "@movscript/plugin-sdk": "workspace:*",
-    "tsup": "^8.5.0",
-    "typescript": "^5.8.0"
+    "movcli": "workspace:*"
   }
 }

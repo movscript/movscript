@@ -20,30 +20,15 @@ const PROJECT_PROPOSAL_DRAFT = {
     schema: PROJECT_PROPOSAL_DRAFT_SCHEMA,
     scope: 'project_proposal',
     projectId: PROJECT_ID,
-    summary: '整理角色设定和角色主视图素材需求。',
+    summary: '整理项目级制作标准。',
     proposal: {
-      creative_references: [{
-        id: 501,
-        fields: {
-          name: '角色设定',
-          kind: 'person',
-          description: '角色作为本项目的主要视觉基准。',
-        },
-      }],
-      asset_slots: [{
-        id: 701,
-        owner: {
-          type: 'creative_reference',
-          id: 501,
-        },
-        fields: {
-          name: '角色主视图',
-          kind: 'image',
-          description: '用于统一角色正面造型的可复用素材。',
-        },
-      }],
+      project_style: {
+        aspect_ratio: '9:16',
+        visual_style: '竖屏短剧写实，人物表情和关键道具清晰可读。',
+        negative_rules: ['不要随机改脸', '不要压暗关键道具'],
+      },
     },
-    impact_notes: ['素材需求依附于角色设定，不能作为独立设定资料。'],
+    impact_notes: ['后续设定资料和素材需求必须遵守项目标准。'],
     createdAt: NOW,
   }),
   status: 'draft',
@@ -75,14 +60,10 @@ test('electron renderer smoke reaches project workspace with seeded review flow'
 
     await page.goto(`${baseURL}/project/standards`)
 
-    await expect(page.getByRole('heading', { name: '提案审阅' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '项目标准审阅' })).toBeVisible()
     await expect(page.getByText('Electron 项目提案草稿')).toBeVisible()
-    await expect(page.getByText('设定资料审阅', { exact: true })).toBeVisible()
-
-    await page.getByRole('button', { name: '全部接受设定' }).click()
-
-    await expect(page.getByText('素材需求审阅', { exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: /^角色主视图 · image · missing/ })).toBeVisible()
+    await expect(page.getByText('竖屏短剧写实，人物表情和关键道具清晰可读。')).toBeVisible()
+    await expect(page.getByText('不要随机改脸')).toBeVisible()
   } finally {
     await app.close()
   }

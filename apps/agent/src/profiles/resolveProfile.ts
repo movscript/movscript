@@ -8,10 +8,15 @@ export interface ResolveProfileResult {
 
 export function resolveProfile(
   registry: CatalogRegistry,
-  options: { orgProfile?: AgentProfile; userProfile?: AgentProfile } = {},
+  options: { profileId?: string; orgProfile?: AgentProfile; userProfile?: AgentProfile } = {},
 ): ResolveProfileResult {
   const warnings: string[] = []
-  const base = registry.profiles.get('movscript.profile.default') ?? firstProfile(registry)
+  const requestedProfileId = options.profileId?.trim()
+  const requestedProfile = requestedProfileId ? registry.profiles.get(requestedProfileId) : undefined
+  if (requestedProfileId && !requestedProfile) {
+    warnings.push(`Profile ${requestedProfileId} was not found; using default profile.`)
+  }
+  const base = requestedProfile ?? registry.profiles.get('movscript.profile.default') ?? firstProfile(registry)
   const traceLayers: ProfileResolutionTrace['layers'] = [
     { source: 'default' as const, id: base.id, version: base.version },
   ]

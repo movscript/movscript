@@ -1,0 +1,41 @@
+{
+  "schema": "movscript.agent.settings.snapshot.v1",
+  "schemaVersion": 1,
+  "schemaUrl": "https://movscript.dev/schemas/agent-settings-snapshot-v1.schema.json",
+  "exportedAt": "2026-05-18T00:00:00.000Z",
+  "modelConfig": {
+    "model": "gpt-5.4",
+    "apiKind": "openai_responses",
+    "useForChat": true,
+    "useForPlanner": true
+  },
+  "defaultProfileId": "default",
+  "skillPolicy": [
+    {
+      "id": "agent-core.workflow.memory-access",
+      "enabled": true
+    }
+  ],
+  "toolPolicy": [
+    {
+      "name": "movscript_update_active_skills",
+      "mode": "allow",
+      "approval": "never"
+    }
+  ],
+  "activeRunPresetId": "balanced",
+  "runPresets": [
+    {
+      "id": "balanced",
+      "name": "Balanced",
+      "description": "Default balanced preset.",
+      "permissionMode": "suggest",
+      "autoPlan": true,
+      "maxToolCalls": 40,
+      "maxIterations": 20,
+      "planMaxWorkers": 2,
+      "planMaxTaskAttempts": 2,
+      "planWorkerTimeoutMs": 900000
+    }
+  ]
+}

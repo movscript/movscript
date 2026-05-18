@@ -82,29 +82,33 @@ export function applyRuntimePostRunRecords(input: {
     return { writtenMemories: [], rollbackRecordCount: 0 }
   }
 
-  const writtenMemories = input.memoryManager.extractAndWriteMemories({
-    run,
-    userMessage: input.records.userMessage,
-    projectId: input.records.projectId,
-    toolResults: input.records.toolOutcomes,
-    warnings: input.records.warnings,
-  })
-  run.metadata = {
-    ...(run.metadata ?? {}),
-    writtenMemoryIds: writtenMemories.map((memory) => memory.id),
-  }
-  input.recordTrace(run, {
-    kind: 'memory',
-    title: 'Memories written',
-    summary: `${writtenMemories.length} memory item(s) written after the run.`,
-    status: 'completed',
-    round: input.records.round,
-    data: {
-      async: true,
+  const writtenMemories = shouldWritePostRunMemories(input.records.userMessage.content)
+    ? input.memoryManager.extractAndWriteMemories({
+      run,
+      userMessage: input.records.userMessage,
+      projectId: input.records.projectId,
+      toolResults: input.records.toolOutcomes,
+      warnings: input.records.warnings,
+    })
+    : []
+  if (writtenMemories.length > 0) {
+    run.metadata = {
+      ...(run.metadata ?? {}),
       writtenMemoryIds: writtenMemories.map((memory) => memory.id),
-      kinds: Array.from(new Set(writtenMemories.map((memory) => memory.kind))),
-    },
-  })
+    }
+    input.recordTrace(run, {
+      kind: 'memory',
+      title: 'Memories written',
+      summary: `${writtenMemories.length} memory item(s) written after the run.`,
+      status: 'completed',
+      round: input.records.round,
+      data: {
+        async: true,
+        writtenMemoryIds: writtenMemories.map((memory) => memory.id),
+        kinds: Array.from(new Set(writtenMemories.map((memory) => memory.kind))),
+      },
+    })
+  }
   const rollbackRecordCount = recordRuntimeRollbackTrace({
     run,
     toolOutcomes: input.records.toolOutcomes,
@@ -139,4 +143,9 @@ export function recordRuntimeRollbackTrace(input: {
 
 function defaultDefer(callback: () => void): void {
   setTimeout(callback, 0)
+}
+
+export function shouldWritePostRunMemories(message: string): boolean {
+  return /\b(remember|save (?:this|that|it)? ?(?:as )?(?:a )?memory|store (?:this|that|it)? ?(?:as )?(?:a )?memory|from now on|always|prefer|preference|default)\b/i.test(message)
+    || /(记住|保存.{0,6}记忆|存.{0,6}记忆|以后.{0,12}(默认|都|总是|一直)|默认.{0,8}(用|为|是)|偏好)/.test(message)
 }

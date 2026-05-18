@@ -34,7 +34,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testMatch: /(agent-generation|agent-planner|content-workbench|jobs-page|project-workspace|production-orchestrate)\.spec\.ts/,
+      testMatch: /(agent-generation|agent-planner|content-workbench|jobs-page|project-workspace|production-orchestrate|video-edit)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         ...(e2eBrowserChannel ? { channel: e2eBrowserChannel } : {}),

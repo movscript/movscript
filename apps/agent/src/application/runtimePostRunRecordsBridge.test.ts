@@ -24,7 +24,7 @@ test('createRuntimePostRunRecordsBridge defers and flushes post-run records', as
 
   bridge.deferPostRunRecords(run.id, {
     round,
-    userMessage: message(),
+    userMessage: { ...message(), content: 'remember this' },
     projectId: 7,
     toolOutcomes: [],
     warnings: [],

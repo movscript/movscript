@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { AgentClientInput, AgentManifest, AgentRun, AgentRunPolicy, AgentThread } from '@/lib/localAgentClient'
+import type { AgentClientInput, AgentManifest, AgentRun, AgentRunPolicyOverride, AgentThread } from '@/lib/localAgentClient'
 import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
 
 export type AgentPageTaskStatus = 'queued' | 'claimed' | 'running'
@@ -17,7 +17,7 @@ export interface AgentPageTaskPayload {
   projectId?: number
   clientInput?: AgentClientInput
   agentManifest?: AgentManifest
-  runPolicy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>>
+  runPolicy?: AgentRunPolicyOverride
   timeoutMs?: number
   renderMode?: AgentTaskRenderMode
 }

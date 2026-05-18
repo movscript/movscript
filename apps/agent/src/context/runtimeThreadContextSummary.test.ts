@@ -33,8 +33,8 @@ test('applyRuntimeThreadContextSummary writes summary onto thread and run metada
 
   assert.equal(summary.threadId, thread.id)
   assert.equal(summary.recentRunRefs[0]?.runId, run.id)
-  assert.equal((thread.metadata?.threadContextSummary as any)?.schema, 'movscript.thread-context-summary.v1')
-  assert.equal((run.metadata?.threadContextSummary as any)?.schema, 'movscript.thread-context-summary.v1')
+  assert.equal((thread.metadata?.threadContextSummary as any)?.schema, 'movscript.thread-context-summary.v2')
+  assert.equal((run.metadata?.threadContextSummary as any)?.schema, 'movscript.thread-context-summary.v2')
   assert.equal((thread.metadata?.threadContextSummary as any)?.recentRunRefs[0]?.summary, 'Assistant answer')
   assert.equal((run.metadata?.threadContextSummary as any)?.recentRunRefs[0]?.summary, 'Assistant answer')
 })
@@ -82,7 +82,7 @@ test('attachRuntimeThreadContextSummaryToRun copies normalized thread summary in
   const attached = attachRuntimeThreadContextSummaryToRun({ thread, run: nextRun })
   ;((thread.metadata?.threadContextSummary as any)?.recentRunRefs[0] ?? {}).summary = 'Changed after attach'
 
-  assert.equal(attached?.schema, 'movscript.thread-context-summary.v1')
+  assert.equal(attached?.schema, 'movscript.thread-context-summary.v2')
   assert.deepEqual(nextRun.metadata, {
     existing: true,
     threadContextSummary: summary,

@@ -979,6 +979,7 @@ function canExecuteConcurrently(call: ToolCall, registry: ToolRegistry): boolean
 
 function isCatalogMutationTool(toolName: string): boolean {
   return toolName === 'movscript_reload_agent_catalog'
+    || toolName === 'movscript_update_active_skills'
 }
 
 function normalizeToolCall(call: ToolCall): ToolCall {

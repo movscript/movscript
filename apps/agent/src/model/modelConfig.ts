@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { atomicWriteJSON, resolveAgentStatePath } from '../state/fileStore.js'
 import { isRecord } from '../jsonValue.js'
@@ -25,6 +25,7 @@ export interface RuntimeModelConfigPublic {
   useForPlanner: boolean
   updatedAt?: string
   source: 'file' | 'none'
+  credentialStatus: RuntimeModelCredentialStatus
 }
 
 export interface RuntimeModelConfigInput {
@@ -38,10 +39,19 @@ export interface RuntimeModelConfigInput {
 
 export type ConfiguredRuntimeModelConfig = RuntimeModelConfig & { model: string }
 
+export interface RuntimeModelCredentialStatus {
+  required: boolean
+  configured: boolean
+  sourceEnv: string[]
+  acceptedEnv: string[]
+}
+
 export interface RuntimeModelAuthContext {
   backendAuthToken?: string
   backendAPIBaseURL?: string
 }
+
+export class RuntimeModelConfigInputError extends Error {}
 
 export const RUNTIME_MODEL_API_KINDS = [
   'backend_chat_completions',
@@ -165,6 +175,33 @@ export type RuntimeModelTraceCallback = (event: {
 const DEFAULT_BACKEND_API_BASE_URL = 'http://localhost:8765/api/v1'
 const DEFAULT_BACKEND_MODEL = 'movscript-default-chat'
 const DEFAULT_RUNTIME_MODEL_API_KIND: RuntimeModelAPIKind = 'backend_chat_completions'
+const SENSITIVE_RUNTIME_MODEL_URL_PARAM_PATTERN = /^(token|access_token|refresh_token|id_token|api_key|apikey|key|signature|sig|secret)$/i
+const AUTHORIZATION_INLINE_SECRET_PATTERN = /\bauthorization\s*[:=]\s*(?:bearer\s+)?[^\s"',;&]+/i
+const NAMED_INLINE_SECRET_PATTERN = /\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|secret|password)\s*[:=]\s*[^\s"',;&]+/i
+const PROVIDER_API_KEY_SECRET_PATTERN = /\b(?:sk|sk-proj|sk-ant)[-_][A-Za-z0-9_-]{12,}\b/i
+
+function hasSensitiveRuntimeModelText(value: string | undefined): boolean {
+  if (!value) return false
+  return hasSensitiveRuntimeModelURL(value)
+    || AUTHORIZATION_INLINE_SECRET_PATTERN.test(value)
+    || NAMED_INLINE_SECRET_PATTERN.test(value)
+    || PROVIDER_API_KEY_SECRET_PATTERN.test(value)
+}
+
+function hasSensitiveRuntimeModelURL(value: string | undefined): boolean {
+  if (!value) return false
+  try {
+    const url = new URL(value)
+    if (url.username || url.password) return true
+    for (const key of url.searchParams.keys()) {
+      if (SENSITIVE_RUNTIME_MODEL_URL_PARAM_PATTERN.test(key)) return true
+    }
+    return false
+  } catch {
+    return /https?:\/\/[^/\s:@]+:[^@\s]+@/i.test(value)
+      || /\b(?:token|access_token|refresh_token|id_token|api_key|apikey|key|signature|sig|secret)=/i.test(value)
+  }
+}
 
 export class RuntimeModelConfigStore {
   readonly filePath: string
@@ -192,6 +229,7 @@ export class RuntimeModelConfigStore {
         useForChat: true,
         useForPlanner: true,
         source: 'none',
+        credentialStatus: describeRuntimeModelCredentialStatus(undefined),
       }
     }
     return {
@@ -205,27 +243,46 @@ export class RuntimeModelConfigStore {
       useForPlanner: fileConfig.useForPlanner,
       updatedAt: fileConfig.updatedAt,
       source: 'file',
+      credentialStatus: describeRuntimeModelCredentialStatus(fileConfig),
     }
   }
 
   save(input: RuntimeModelConfigInput): RuntimeModelConfigPublic {
     const existing = this.readFileConfig()
-    const modelConfigId = normalizePositiveInteger(input.modelConfigId) ?? existing?.modelConfigId
-    const model = normalizeNonEmptyString(input.model) ?? existing?.model ?? (modelConfigId ? backendModelID(modelConfigId) : undefined)
-    if (!model) throw new Error('backend model_id is required')
-    const apiKind = normalizeRuntimeModelAPIKind(input.apiKind) ?? existing?.apiKind ?? DEFAULT_RUNTIME_MODEL_API_KIND
-    const baseURL = normalizeNonEmptyString(input.baseURL) ?? existing?.baseURL
+    const inputModel = parseOptionalSaveString(input.model, 'model')
+    const modelConfigId = parseOptionalSavePositiveInteger(input.modelConfigId, 'modelConfigId') ?? (input.model === undefined ? existing?.modelConfigId : undefined)
+    const model = inputModel ?? existing?.model ?? (modelConfigId ? backendModelID(modelConfigId) : undefined)
+    if (!model) throw new RuntimeModelConfigInputError('backend model_id is required')
+    const apiKind = parseOptionalSaveAPIKind(input.apiKind) ?? existing?.apiKind ?? DEFAULT_RUNTIME_MODEL_API_KIND
+    const preserveExistingBaseURL = input.model === undefined && input.modelConfigId === undefined && input.apiKind === undefined
+    const baseURL = input.baseURL !== undefined
+      ? parseOptionalSaveBaseURL(input.baseURL)
+      : preserveExistingBaseURL ? existing?.baseURL : undefined
+    if (apiKind !== 'backend_chat_completions' && hasSensitiveRuntimeModelText(model)) {
+      throw new RuntimeModelConfigInputError('model must not include API keys, bearer tokens, or secret URL credentials')
+    }
+    if (hasSensitiveRuntimeModelURL(baseURL)) {
+      throw new RuntimeModelConfigInputError('baseURL must not include secret URL credentials')
+    }
+    const useForChat = parseOptionalSaveBoolean(input.useForChat, 'useForChat') ?? existing?.useForChat ?? true
+    const useForPlanner = parseOptionalSaveBoolean(input.useForPlanner, 'useForPlanner') ?? existing?.useForPlanner ?? true
+    if (!useForChat && !useForPlanner) throw new RuntimeModelConfigInputError('runtime model config must enable at least one route')
     const config: RuntimeModelConfig = {
       provider: 'backend-model-config',
       ...(modelConfigId ? { modelConfigId } : {}),
       model,
       apiKind,
       ...(baseURL ? { baseURL } : {}),
-      useForChat: typeof input.useForChat === 'boolean' ? input.useForChat : existing?.useForChat ?? true,
-      useForPlanner: typeof input.useForPlanner === 'boolean' ? input.useForPlanner : existing?.useForPlanner ?? true,
+      useForChat,
+      useForPlanner,
       updatedAt: new Date().toISOString(),
     }
     atomicWriteJSON(this.filePath, config)
+    return this.getPublicConfig()
+  }
+
+  clear(): RuntimeModelConfigPublic {
+    if (existsSync(this.filePath)) unlinkSync(this.filePath)
     return this.getPublicConfig()
   }
 
@@ -233,17 +290,22 @@ export class RuntimeModelConfigStore {
     const config = this.getEffectiveConfig()
     if (!config?.model?.trim()) throw new Error('backend model_id is not configured')
     const messages = buildTestMessages(normalizeNonEmptyString(input.message) ?? 'Reply with one short sentence confirming the MovScript runtime model connection works.')
-    const request = buildBackendGatewayChatRequest(config, messages, auth)
     const started = Date.now()
-    const content = await callBackendGatewayChat(request)
+    const { callModel } = await import('./modelClient.js')
+    const result = await callModel({
+      messages,
+      config,
+      auth,
+      retry: { maxAttempts: 1 },
+    })
     return {
       ok: true,
       provider: config.provider,
       model: config.model,
       ...(config.modelConfigId ? { modelConfigId: config.modelConfigId } : {}),
       latencyMs: Date.now() - started,
-      content,
-      request: publicRequestSnapshot(request),
+      content: result.content ?? '',
+      request: result.trace.request,
     }
   }
 
@@ -259,14 +321,21 @@ export class RuntimeModelConfigStore {
     const modelConfigId = normalizePositiveInteger(parsed.modelConfigId)
     const model = normalizeNonEmptyString(parsed.model) ?? (modelConfigId ? backendModelID(modelConfigId) : undefined)
     if (!model) return undefined
+    const useForChat = parsed.useForChat !== false
+    const useForPlanner = parsed.useForPlanner !== false
+    if (!useForChat && !useForPlanner) return undefined
+    const apiKind = normalizeRuntimeModelAPIKind(parsed.apiKind) ?? DEFAULT_RUNTIME_MODEL_API_KIND
+    if (apiKind !== 'backend_chat_completions' && hasSensitiveRuntimeModelText(model)) return undefined
+    const baseURL = normalizeNonEmptyString(parsed.baseURL)
+    if (hasSensitiveRuntimeModelURL(baseURL)) return undefined
     return {
       provider: 'backend-model-config',
       ...(modelConfigId ? { modelConfigId } : {}),
       model,
-      apiKind: normalizeRuntimeModelAPIKind(parsed.apiKind) ?? DEFAULT_RUNTIME_MODEL_API_KIND,
-      ...(normalizeNonEmptyString(parsed.baseURL) ? { baseURL: normalizeNonEmptyString(parsed.baseURL) } : {}),
-      useForChat: parsed.useForChat !== false,
-      useForPlanner: parsed.useForPlanner !== false,
+      apiKind,
+      ...(baseURL ? { baseURL } : {}),
+      useForChat,
+      useForPlanner,
       updatedAt: normalizeNonEmptyString(parsed.updatedAt) ?? new Date(0).toISOString(),
     }
   }
@@ -276,6 +345,18 @@ export function resolveRuntimeModelConfigPath(statePath = resolveAgentStatePath(
   if (process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH) return process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
   if (statePath.endsWith('.json')) return statePath.replace(/\.json$/, '.model-config.json')
   return join(statePath, 'model-config.json')
+}
+
+export function describeRuntimeModelCredentialStatus(config: RuntimeModelConfig | undefined): RuntimeModelCredentialStatus {
+  const acceptedEnv = ['MOVSCRIPT_AGENT_MODEL_API_KEY', 'MOVSCRIPT_MODEL_GATEWAY_API_KEY']
+  const sourceEnv = acceptedEnv.filter((name) => Boolean(process.env[name]?.trim()))
+  const apiKind = config?.apiKind ?? DEFAULT_RUNTIME_MODEL_API_KIND
+  return {
+    required: apiKind !== 'backend_chat_completions' && Boolean(config),
+    configured: sourceEnv.length > 0,
+    sourceEnv,
+    acceptedEnv,
+  }
 }
 
 export function resolveRuntimeChatModelConfig(store = new RuntimeModelConfigStore()): ConfiguredRuntimeModelConfig | undefined {
@@ -344,6 +425,36 @@ function normalizeRuntimeModelAPIKind(value: unknown): RuntimeModelAPIKind | und
   return RUNTIME_MODEL_API_KINDS.includes(normalized as RuntimeModelAPIKind)
     ? normalized as RuntimeModelAPIKind
     : undefined
+}
+
+function parseOptionalSaveAPIKind(value: unknown): RuntimeModelAPIKind | undefined {
+  if (value === undefined) return undefined
+  const apiKind = normalizeRuntimeModelAPIKind(value)
+  if (!apiKind) throw new RuntimeModelConfigInputError('apiKind is invalid')
+  return apiKind
+}
+
+function parseOptionalSaveBoolean(value: unknown, label: string): boolean | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'boolean') throw new RuntimeModelConfigInputError(`${label} must be boolean`)
+  return value
+}
+
+function parseOptionalSavePositiveInteger(value: unknown, label: string): number | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) throw new RuntimeModelConfigInputError(`${label} must be a positive integer`)
+  return value
+}
+
+function parseOptionalSaveString(value: unknown, label: string): string | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || !value.trim()) throw new RuntimeModelConfigInputError(`${label} must be a non-empty string`)
+  return value.trim()
+}
+
+function parseOptionalSaveBaseURL(value: unknown): string | undefined {
+  if (value === null) return undefined
+  return parseOptionalSaveString(value, 'baseURL')
 }
 
 export async function callBackendGatewayChat(request: RuntimeModelRequestSnapshot): Promise<string> {

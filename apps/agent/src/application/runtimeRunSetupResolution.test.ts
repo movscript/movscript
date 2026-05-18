@@ -214,6 +214,137 @@ test('resolveRuntimeRunSetup applies layered default profile and stores profile 
   assert.equal((traces[4]?.data as any)?.profileId, 'profile_layered')
 })
 
+test('resolveRuntimeRunSetup honors the default manifest profile id when layered profiles exist', async () => {
+  const layeredRegistry = buildLayeredCatalogRegistry({
+    manifest: DEFAULT_AGENT_MANIFEST,
+    tools: [],
+    profiles: [
+      {
+        schema: 'movscript.agent.profile.v1',
+        id: 'movscript.profile.default',
+        version: '1.0.0',
+        name: 'Default Profile',
+        persona: null,
+        enabledPacks: [],
+        enabledPolicies: [],
+        enabledWorkflows: [],
+        toolGrants: [{ name: 'tool_default', mode: 'allow', approval: 'never' }],
+      },
+      {
+        schema: 'movscript.agent.profile.v1',
+        id: 'profile_writer',
+        version: '1.0.0',
+        name: 'Writer Profile',
+        persona: null,
+        enabledPacks: [],
+        enabledPolicies: [],
+        enabledWorkflows: [],
+        toolGrants: [{ name: 'tool_writer', mode: 'allow', approval: 'never' }],
+      },
+    ],
+  })
+  const defaultManifest: AgentManifest = {
+    ...DEFAULT_AGENT_MANIFEST,
+    metadata: { profileId: 'profile_writer' },
+  }
+  const run = makeRun({ metadata: { manifestSource: 'default' } })
+
+  const result = await resolveRuntimeRunSetup({
+    run,
+    store: emptyStore(),
+    catalogSnapshot: buildRuntimeCatalogSnapshot({
+      id: 'snapshot_profile_writer',
+      defaultAgentManifest: defaultManifest,
+      toolRegistry: new StaticToolRegistry([tool('tool_default'), tool('tool_writer')]),
+      layeredRegistry,
+    }),
+    contractResolver: { find: () => undefined },
+    mcpClient: new FakeCapabilityClient(),
+    contextResult: { snapshot: { route: { pathname: '/agent' } } },
+    context: {},
+    contextDurationMs: 5,
+    contextStartedAt: 1000,
+    contextCompletedAt: 1005,
+    memories: [],
+    command,
+    userMessage: 'hello',
+    history: [],
+    setupRound,
+    timestampMs: monotonicClock(1100, 1100),
+    now: () => '2026-01-01T00:00:01.100Z',
+    recordTrace: () => {},
+  })
+
+  assert.equal(result.activeManifest.id, 'profile_writer')
+  assert.equal(result.layers?.trace.profileId, 'profile_writer')
+  assert.deepEqual(result.activeManifest.tools, [{ name: 'tool_writer', mode: 'allow', approval: 'never' }])
+  assert.equal(run.agentManifest?.metadata?.profileId, 'profile_writer')
+})
+
+test('resolveRuntimeRunSetup applies default tool policy overrides without changing profile catalog', async () => {
+  const layeredRegistry = buildLayeredCatalogRegistry({
+    manifest: DEFAULT_AGENT_MANIFEST,
+    tools: [],
+    profiles: [{
+      schema: 'movscript.agent.profile.v1',
+      id: 'movscript.profile.default',
+      version: '1.0.0',
+      name: 'Default Profile',
+      persona: null,
+      enabledPacks: [],
+      enabledPolicies: [],
+      enabledWorkflows: [],
+      toolGrants: [
+        { name: 'tool_a', mode: 'allow', approval: 'never' },
+        { name: 'tool_b', mode: 'allow', approval: 'on_write' },
+      ],
+    }],
+  })
+  const defaultManifest: AgentManifest = {
+    ...DEFAULT_AGENT_MANIFEST,
+    metadata: {
+      profileId: 'movscript.profile.default',
+      defaultToolGrants: [
+        { name: 'tool_a', mode: 'deny', approval: 'never' },
+        { name: 'tool_b', mode: 'allow', approval: 'always' },
+      ],
+    },
+  }
+  const run = makeRun({ metadata: { manifestSource: 'default' } })
+
+  const result = await resolveRuntimeRunSetup({
+    run,
+    store: emptyStore(),
+    catalogSnapshot: buildRuntimeCatalogSnapshot({
+      id: 'snapshot_tool_policy',
+      defaultAgentManifest: defaultManifest,
+      toolRegistry: new StaticToolRegistry([tool('tool_a'), tool('tool_b')]),
+      layeredRegistry,
+    }),
+    contractResolver: { find: () => undefined },
+    mcpClient: new FakeCapabilityClient(),
+    contextResult: { snapshot: { route: { pathname: '/agent' } } },
+    context: {},
+    contextDurationMs: 5,
+    contextStartedAt: 1000,
+    contextCompletedAt: 1005,
+    memories: [],
+    command,
+    userMessage: 'hello',
+    history: [],
+    setupRound,
+    timestampMs: monotonicClock(1100, 1100),
+    now: () => '2026-01-01T00:00:01.100Z',
+    recordTrace: () => {},
+  })
+
+  assert.deepEqual(result.activeManifest.tools, [
+    { name: 'tool_a', mode: 'deny', approval: 'never' },
+    { name: 'tool_b', mode: 'allow', approval: 'always' },
+  ])
+  assert.deepEqual(result.layers?.ctx.profile.toolGrants, result.activeManifest.tools)
+})
+
 function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   return {
     id: 'run_1',

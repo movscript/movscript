@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { IncomingMessage, ServerResponse } from 'node:http'
+import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import test from 'node:test'
+import { tmpdir } from 'node:os'
 import { createAgentRequestListener, normalizeTraceQuery } from './server.js'
 import type { AgentServerContext } from './bootstrap/agentServerContext.js'
+import { RuntimeModelConfigStore } from './model/modelConfig.js'
 
 test('normalizeTraceQuery accepts bounded pagination and known trace kind', () => {
   const result = normalizeTraceQuery(new URL('http://127.0.0.1/runs/run_1/trace?cursor=trace_1&limit=25&kind=model_call'))
@@ -87,6 +91,53 @@ test('JSON request bodies report client errors instead of internal errors', asyn
   assert.equal(JSON.parse(nonObjectDraft.body).error, 'draft body must be an object')
 })
 
+test('model config endpoint reports invalid config input as client errors', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-model-config-server-'))
+  try {
+    const handler = createAgentRequestListener({
+      modelConfigStore: new RuntimeModelConfigStore(join(dir, 'model-config.json')),
+    } as unknown as AgentServerContext)
+
+    const invalidModel = await dispatch(handler, 'POST', '/model-config', JSON.stringify({ model: '' }))
+    const invalidRoutes = await dispatch(handler, 'POST', '/model-config', JSON.stringify({ model: 'gpt-5.5', useForChat: false, useForPlanner: false }))
+    const sensitiveModel = await dispatch(handler, 'POST', '/model-config', JSON.stringify({ model: 'sk-proj-exampleSecretValue123456789', apiKind: 'openai_responses' }))
+    const sensitiveBaseURL = await dispatch(handler, 'POST', '/model-config', JSON.stringify({ model: 'gpt-5.5', apiKind: 'openai_responses', baseURL: 'https://api.openai.com/v1?api_key=secret' }))
+
+    assert.equal(invalidModel.statusCode, 400)
+    assert.equal(JSON.parse(invalidModel.body).error, 'model must be a non-empty string')
+    assert.equal(invalidRoutes.statusCode, 400)
+    assert.equal(JSON.parse(invalidRoutes.body).error, 'runtime model config must enable at least one route')
+    assert.equal(sensitiveModel.statusCode, 400)
+    assert.equal(JSON.parse(sensitiveModel.body).error, 'model must not include API keys, bearer tokens, or secret URL credentials')
+    assert.equal(sensitiveBaseURL.statusCode, 400)
+    assert.equal(JSON.parse(sensitiveBaseURL.body).error, 'baseURL must not include secret URL credentials')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('model config endpoint can clear saved config', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-model-config-clear-'))
+  try {
+    const filePath = join(dir, 'model-config.json')
+    const modelConfigStore = new RuntimeModelConfigStore(filePath)
+    const handler = createAgentRequestListener({
+      modelConfigStore,
+    } as unknown as AgentServerContext)
+
+    const saved = await dispatch(handler, 'POST', '/model-config', JSON.stringify({ model: 'gpt-5.5' }))
+    const cleared = await dispatch(handler, 'DELETE', '/model-config')
+
+    assert.equal(saved.statusCode, 200)
+    assert.equal(cleared.statusCode, 200)
+    assert.equal(JSON.parse(cleared.body).configured, false)
+    assert.equal(modelConfigStore.getEffectiveConfig(), undefined)
+    assert.equal(existsSync(filePath), false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('write endpoints reject non-object request bodies before touching runtime dependencies', async () => {
   const handler = createAgentRequestListener({} as unknown as AgentServerContext)
   const cases: Array<{ method: string; path: string; label: string }> = [
@@ -102,6 +153,11 @@ test('write endpoints reject non-object request bodies before touching runtime d
     { method: 'POST', path: '/runs', label: 'run body' },
     { method: 'POST', path: '/runs/tool', label: 'tool run body' },
     { method: 'POST', path: '/runs/preview', label: 'run preview body' },
+    { method: 'POST', path: '/agent-profiles/default', label: 'default agent profile body' },
+    { method: 'POST', path: '/agent-tools/default-policy', label: 'default tool policy body' },
+    { method: 'POST', path: '/agent-skills/default-policy', label: 'default skill policy body' },
+    { method: 'POST', path: '/agent-catalog/skills/install-bundle', label: 'agent skill bundle body' },
+    { method: 'POST', path: '/agent-catalog/skills/uninstall-bundle', label: 'agent skill bundle uninstall body' },
     { method: 'POST', path: '/plans', label: 'plan body' },
     { method: 'POST', path: '/plans/plan_1/dispatch', label: 'plan dispatch body' },
     { method: 'PATCH', path: '/tasks/task_1', label: 'task update body' },
@@ -118,6 +174,183 @@ test('write endpoints reject non-object request bodies before touching runtime d
     assert.equal(response.statusCode, 400, entry.path)
     assert.equal(JSON.parse(response.body).error, `${entry.label} must be an object`, entry.path)
   }
+})
+
+test('agent skill bundle install endpoint writes plugin skills and reloads catalog', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-skill-bundle-server-'))
+  const calls: string[] = []
+  try {
+    const handler = createAgentRequestListener({
+      pluginCatalog: { skillsDir: dir },
+      agentRuntime: {
+        reloadAgentCatalog: () => {
+          calls.push('reload')
+          return { status: 'reloaded' }
+        },
+      },
+    } as unknown as AgentServerContext)
+
+    const response = await dispatch(handler, 'POST', '/agent-catalog/skills/install-bundle', JSON.stringify({
+      pluginId: 'studio.example/plugin',
+      files: [{
+        path: 'agent-skills/SKILL.md',
+        content: '---\nname: Example Skill\ndescription: Example skill.\n---\nUse this skill.',
+      }],
+    }))
+    const body = JSON.parse(response.body)
+
+    assert.equal(response.statusCode, 200)
+    assert.equal(body.status, 'installed')
+    assert.equal(body.pluginId, 'studio.example/plugin')
+    assert.deepEqual(body.installedFiles, ['plugins/studio.example_plugin/SKILL.md'])
+    assert.deepEqual(body.catalog, { status: 'reloaded' })
+    assert.deepEqual(calls, ['reload'])
+    assert.match(readFileSync(join(dir, 'plugins', 'studio.example_plugin', 'SKILL.md'), 'utf8'), /Example Skill/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('agent skill bundle uninstall endpoint removes plugin skills and reloads catalog', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-skill-bundle-uninstall-server-'))
+  const calls: string[] = []
+  try {
+    const handler = createAgentRequestListener({
+      pluginCatalog: { skillsDir: dir },
+      agentRuntime: {
+        reloadAgentCatalog: () => {
+          calls.push('reload')
+          return { status: 'reloaded' }
+        },
+      },
+    } as unknown as AgentServerContext)
+
+    await dispatch(handler, 'POST', '/agent-catalog/skills/install-bundle', JSON.stringify({
+      pluginId: 'studio.example/plugin',
+      files: [{
+        path: 'agent-skills/SKILL.md',
+        content: '---\nname: Example Skill\ndescription: Example skill.\n---\nUse this skill.',
+      }],
+    }))
+
+    const response = await dispatch(handler, 'POST', '/agent-catalog/skills/uninstall-bundle', JSON.stringify({
+      pluginId: 'studio.example/plugin',
+    }))
+    const body = JSON.parse(response.body)
+
+    assert.equal(response.statusCode, 200)
+    assert.equal(body.status, 'uninstalled')
+    assert.equal(body.pluginId, 'studio.example/plugin')
+    assert.equal(body.removed, true)
+    assert.deepEqual(body.catalog, { status: 'reloaded' })
+    assert.deepEqual(calls, ['reload', 'reload'])
+    assert.equal(existsSync(join(dir, 'plugins', 'studio.example_plugin', 'SKILL.md')), false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('inspect endpoint lists installed skill bundle plugins', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-skill-bundle-inspect-server-'))
+  try {
+    const handler = createAgentRequestListener({
+      mcpEndpoint: 'mock',
+      client: {
+        initialize: async () => {},
+        listResources: async () => [],
+        listTools: async () => [],
+      },
+      pluginCatalog: {
+        skillsDir: dir,
+        toolsDir: join(dir, 'tools'),
+        layeredSkills: [],
+        layeredTools: [],
+        warnings: [],
+      },
+      agentRuntime: {
+        reloadAgentCatalog: () => ({ status: 'reloaded' }),
+        listRegisteredTools: () => [],
+        listSkillCatalog: () => [],
+        listProfileCatalog: () => [],
+        getDefaultAgentManifest: () => ({ schema: 'movscript.agent.current', id: 'manifest_1', version: '1.0.0', name: 'Manifest', permissions: [], tools: [] }),
+      },
+      updates: {},
+    } as unknown as AgentServerContext)
+
+    await dispatch(handler, 'POST', '/agent-catalog/skills/install-bundle', JSON.stringify({
+      pluginId: 'studio.example/plugin',
+      files: [{
+        path: 'agent-skills/SKILL.md',
+        content: '---\nname: Example Skill\ndescription: Example skill.\n---\nUse this skill.',
+      }],
+    }))
+
+    const response = await dispatch(handler, 'GET', '/inspect')
+    const body = JSON.parse(response.body)
+
+    assert.equal(response.statusCode, 200)
+    assert.deepEqual(body.pluginCatalog.skillPlugins, [
+      { pluginId: 'studio.example_plugin', path: 'plugins/studio.example_plugin' },
+    ])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('default profile endpoint saves requested runtime profile', async () => {
+  const calls: Array<Record<string, unknown>> = []
+  const handler = createAgentRequestListener({
+    agentRuntime: {
+      setDefaultAgentProfile: (input: Record<string, unknown>) => {
+        calls.push(input)
+        return { schema: 'movscript.agent.current', id: 'manifest_1', version: '1.0.0', name: 'Manifest', tools: [], metadata: { profileId: input.profileId } }
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'POST', '/agent-profiles/default', JSON.stringify({ profileId: 'profile_writer' }))
+
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(calls, [{ profileId: 'profile_writer' }])
+  assert.equal(JSON.parse(response.body).metadata.profileId, 'profile_writer')
+})
+
+test('default tool policy endpoint saves requested runtime tool overrides', async () => {
+  const calls: Array<Record<string, unknown>> = []
+  const handler = createAgentRequestListener({
+    agentRuntime: {
+      setDefaultToolPolicy: (input: Record<string, unknown>) => {
+        calls.push(input)
+        return { schema: 'movscript.agent.current', id: 'manifest_1', version: '1.0.0', name: 'Manifest', tools: input.toolGrants, metadata: { defaultToolGrants: input.toolGrants } }
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const toolGrants = [{ name: 'movscript_update_draft', mode: 'deny' }]
+  const response = await dispatch(handler, 'POST', '/agent-tools/default-policy', JSON.stringify({ toolGrants }))
+
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(calls, [{ toolGrants }])
+  assert.deepEqual(JSON.parse(response.body).metadata.defaultToolGrants, toolGrants)
+})
+
+test('default skill policy endpoint saves requested runtime skill overrides', async () => {
+  const calls: Array<Record<string, unknown>> = []
+  const handler = createAgentRequestListener({
+    agentRuntime: {
+      setDefaultSkillPolicy: (input: Record<string, unknown>) => {
+        calls.push(input)
+        return { skills: new Map([['skill_a', { id: 'skill_a', enabled: false }]]) }
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const skills = [{ id: 'skill_a', enabled: false }]
+  const response = await dispatch(handler, 'POST', '/agent-skills/default-policy', JSON.stringify({ skills }))
+
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(calls, [{ skills }])
+  assert.deepEqual(JSON.parse(response.body).skills, [{ id: 'skill_a', enabled: false }])
 })
 
 test('public agent project id boundaries reject invalid project scopes', async () => {

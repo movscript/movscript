@@ -219,6 +219,26 @@ export interface AgentDebugFieldGuideItem {
   description: string
 }
 
+export interface AgentSkillTraceEntry {
+  eventId: string
+  createdAt: string
+  eventType: string
+  title: string
+  summary?: string
+  activeSkillIds: string[]
+  loadedSkillIds: string[]
+  unloadedSkillIds: string[]
+  availableSkillIds: string[]
+}
+
+export interface AgentSkillTraceSummary {
+  timeline: AgentSkillTraceEntry[]
+  currentActiveSkillIds: string[]
+  currentLoadedSkillIds: string[]
+  currentUnloadedSkillIds: string[]
+  currentAvailableSkillIds: string[]
+}
+
 export interface AgentDebugReportInput {
   runId: string
   run?: Pick<AgentRun, 'status' | 'role' | 'createdAt' | 'startedAt' | 'completedAt' | 'failedAt' | 'cancelledAt' | 'error' | 'warnings' | 'pendingApprovals' | 'pendingInputRequests'>
@@ -274,6 +294,38 @@ export function buildTraceEventLink(input: {
   eventId: string
 }): string {
   return `${input.origin}${input.pathname}${input.search ?? ''}#event-${encodeURIComponent(input.eventId)}`
+}
+
+export function buildSkillTraceSummary(events: AgentTraceEvent[]): AgentSkillTraceSummary {
+  const timeline = events.flatMap((event): AgentSkillTraceEntry[] => {
+    const data = recordValue(event.data)
+    const eventType = stringValue(data?.skillEventType) ?? stringValue(data?.eventType)
+    if (event.kind !== 'skill' && !eventType?.startsWith('skill.')) return []
+    const activeSkillIds = stringList(data?.activeSkillIds)
+    const loadedSkillIds = stringList(data?.loadedSkillIds)
+    const unloadedSkillIds = stringList(data?.unloadedSkillIds)
+    const availableSkillIds = stringList(data?.availableSkillIds)
+    return [{
+      eventId: event.id,
+      createdAt: event.createdAt,
+      eventType: eventType ?? 'skill.event',
+      title: skillTraceTitle(eventType, event.title),
+      summary: traceSummary(event),
+      activeSkillIds,
+      loadedSkillIds,
+      unloadedSkillIds,
+      availableSkillIds,
+    }]
+  })
+
+  const latest = timeline.at(-1)
+  return {
+    timeline,
+    currentActiveSkillIds: latest?.activeSkillIds ?? [],
+    currentLoadedSkillIds: latest?.loadedSkillIds ?? [],
+    currentUnloadedSkillIds: latest?.unloadedSkillIds ?? [],
+    currentAvailableSkillIds: latest?.availableSkillIds ?? [],
+  }
 }
 
 export function canCancelWorkerRun(run: Pick<AgentRun, 'role' | 'status'> | undefined): boolean {
@@ -1432,6 +1484,22 @@ function headerEntries(headers: Record<string, unknown> | undefined): Array<{ na
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function stringList(value: unknown): string[] {
+  return arrayValue(value)?.flatMap((item) => {
+    const text = stringValue(item)
+    return text ? [text] : []
+  }) ?? []
+}
+
+function skillTraceTitle(eventType: string | undefined, fallback: string): string {
+  switch (eventType) {
+    case 'skill.state_resolved': return '技能上下文已解析'
+    case 'skill.state_requested': return '技能状态变更请求'
+    case 'trigger.evaluated': return '技能触发已评估'
+    default: return fallback || '技能事件'
+  }
 }
 
 function numberValue(value: unknown): number | undefined {

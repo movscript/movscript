@@ -1,4 +1,4 @@
-import type { GenerationTraceEventLike } from './agentGenerationMedia'
+import type { GenerationTraceEventLike } from './agentGenerationMedia.ts'
 
 export interface GenerationTraceReplayFixture {
   name: string

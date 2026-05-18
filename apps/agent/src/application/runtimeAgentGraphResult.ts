@@ -50,6 +50,8 @@ export function applyRuntimeAgentGraphResult(input: {
   deferPostRunRecords: Parameters<typeof applyRuntimeRunCompletion>[0]['deferPostRunRecords']
 }): AgentRun | AgentMessage {
   if (input.result.status === 'requires_action') {
+    const inputOnly = (input.result.pendingInputRequests?.length ?? 0) > 0
+      && input.result.pendingApprovals.length === 0
     return applyRuntimeRunRequiredActionFlow({
       store: input.store,
       run: input.run,
@@ -58,6 +60,7 @@ export function applyRuntimeAgentGraphResult(input: {
       warnings: input.result.warnings,
       now: input.now,
       projectionNow: input.projectionNow,
+      skipPauseTrace: inputOnly,
       recordTrace: input.recordTrace,
       emitRunSnapshot: input.emitRunSnapshot,
     })

@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://movscript.dev/schemas/agent-debug-bundle-v1.schema.json",
+  "title": "Agent Debug bundle v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "schemaVersion",
+    "schemaUrl",
+    "redacted",
+    "exportedAt",
+    "baseURL",
+    "currentProject",
+    "runtime",
+    "modelConfig",
+    "modelConfigError",
+    "lastUpdated",
+    "observationCoverage",
+    "triageItems",
+    "remediationPlan",
+    "runSummary",
+    "runIssueGroups",
+    "warnings",
+    "warningGroups",
+    "preview"
+  ],
+  "properties": {
+    "schema": {
+      "const": "movscript.agent.debug.bundle.v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "schemaUrl": {
+      "const": "https://movscript.dev/schemas/agent-debug-bundle-v1.schema.json"
+    },
+    "redacted": {
+      "const": true
+    },
+    "exportedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "baseURL": {
+      "type": "string"
+    },
+    "currentProject": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["id", "name"],
+          "properties": {
+            "id": { "type": "number" },
+            "name": { "type": "string" },
+            "status": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "runtime": {
+      "anyOf": [{ "type": "null" }, { "type": "object" }]
+    },
+    "modelConfig": {
+      "anyOf": [{ "type": "null" }, { "type": "object" }]
+    },
+    "modelConfigError": {
+      "anyOf": [{ "type": "null" }, { "type": "string" }]
+    },
+    "lastUpdated": {
+      "anyOf": [{ "type": "null" }, { "type": "string", "format": "date-time" }]
+    },
+    "observationCoverage": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/observationItem" }
+    },
+    "triageItems": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/triageItem" }
+    },
+    "remediationPlan": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/remediationItem" }
+    },
+    "runSummary": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "runIssueGroups": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/runIssueGroup" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "warningGroups": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/warningGroup" }
+    },
+    "preview": {
+      "anyOf": [{ "type": "null" }, { "type": "object" }]
+    }
+  },
+  "$defs": {
+    "status": {
+      "type": "string",
+      "enum": ["ready", "warning", "action"]
+    },
+    "observationItem": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "status", "labelKey", "detailKey"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "status": { "$ref": "#/$defs/status" },
+        "labelKey": { "type": "string", "minLength": 1 },
+        "detailKey": { "type": "string", "minLength": 1 },
+        "detailValues": { "type": "object" }
+      }
+    },
+    "triageItem": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "severity", "titleKey", "detailKey"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "severity": { "$ref": "#/$defs/status" },
+        "titleKey": { "type": "string", "minLength": 1 },
+        "detailKey": { "type": "string", "minLength": 1 },
+        "runId": { "type": "string" }
+      }
+    },
+    "remediationItem": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "severity", "target", "titleKey", "detailKey", "actionKey"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "severity": { "$ref": "#/$defs/status" },
+        "target": {
+          "type": "string",
+          "enum": ["settings", "run-details", "preview", "observe"]
+        },
+        "titleKey": { "type": "string", "minLength": 1 },
+        "detailKey": { "type": "string", "minLength": 1 },
+        "actionKey": { "type": "string", "minLength": 1 },
+        "runId": { "type": "string" }
+      }
+    },
+    "runIssueGroup": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "status", "labelKey", "count"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "minLength": 1 },
+        "labelKey": { "type": "string", "minLength": 1 },
+        "count": { "type": "number" },
+        "sampleRunId": { "type": "string" },
+        "sampleReason": { "type": "string" }
+      }
+    },
+    "warningGroup": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["source", "labelKey", "warnings"],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["capabilities", "catalog", "model", "preview"]
+        },
+        "labelKey": { "type": "string", "minLength": 1 },
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

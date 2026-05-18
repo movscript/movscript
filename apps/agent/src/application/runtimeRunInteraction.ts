@@ -75,6 +75,7 @@ export function applyRuntimeRunRequiredActionFlow(input: {
   warnings?: string[]
   now: string
   projectionNow?: string
+  skipPauseTrace?: boolean
   recordTrace: (run: AgentRun, trace: RuntimeRunInteractionTraceInput) => void
   emitRunSnapshot: (run: AgentRun, options: { done?: boolean }) => void
 }): AgentRun {
@@ -87,15 +88,17 @@ export function applyRuntimeRunRequiredActionFlow(input: {
     now: input.now,
   })
   const inputOnly = requiredAction.pendingInputCount > 0 && input.pendingApprovals.length === 0
-  input.recordTrace(input.run, {
-    kind: inputOnly ? 'input' : 'approval',
-    title: inputOnly ? 'User input required' : 'Approval required',
-    summary: inputOnly
-      ? `${requiredAction.pendingInputCount} user input request(s) paused the run.`
-      : `${input.pendingApprovals.length} tool action(s) paused the run.`,
-    status: 'blocked',
-    data: { approvals: input.pendingApprovals, inputRequests: input.run.pendingInputRequests },
-  })
+  if (input.skipPauseTrace !== true) {
+    input.recordTrace(input.run, {
+      kind: inputOnly ? 'input' : 'approval',
+      title: inputOnly ? 'User input required' : 'Approval required',
+      summary: inputOnly
+        ? `${requiredAction.pendingInputCount} user input request(s) paused the run.`
+        : `${input.pendingApprovals.length} tool action(s) paused the run.`,
+      status: 'blocked',
+      data: { approvals: input.pendingApprovals, inputRequests: input.run.pendingInputRequests },
+    })
+  }
   input.store.updateRun(input.run)
   updateRuntimeThreadRunStatus({
     store: input.store,

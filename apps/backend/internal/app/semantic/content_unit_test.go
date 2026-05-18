@@ -686,6 +686,46 @@ func TestSourceLockStatusReportsContentUnitLockedFields(t *testing.T) {
 	}
 }
 
+func TestSourceLockStatusIgnoresGeneratedKeyframeCandidates(t *testing.T) {
+	db := newContentUnitTestDB(t)
+	service := NewService(db)
+	_, _, block := seedContentUnitScriptSource(t, db, 1)
+	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Unit", Status: "draft"}
+	if err := db.Create(&unit).Error; err != nil {
+		t.Fatalf("create content unit: %v", err)
+	}
+	candidate := model.Keyframe{
+		ProjectID:     1,
+		ContentUnitID: &unit.ID,
+		Title:         "AI candidate keyframe",
+		Status:        "candidate",
+		MetadataJSON:  `{"source":"ai_generated_keyframe_candidate","target_keyframe_id":999}`,
+	}
+	if err := db.Create(&candidate).Error; err != nil {
+		t.Fatalf("create candidate keyframe: %v", err)
+	}
+	syncSemanticTestRelations(t, db, &candidate)
+	legacyCandidate := model.Keyframe{
+		ProjectID:     1,
+		ContentUnitID: &unit.ID,
+		Title:         "Legacy candidate keyframe",
+		Status:        "candidate",
+		MetadataJSON:  `{"target_keyframe_id":999}`,
+	}
+	if err := db.Create(&legacyCandidate).Error; err != nil {
+		t.Fatalf("create legacy candidate keyframe: %v", err)
+	}
+	syncSemanticTestRelations(t, db, &legacyCandidate)
+
+	status, err := service.SourceLockStatus(context.Background(), 1, "content-units", strconv.FormatUint(uint64(unit.ID), 10))
+	if err != nil {
+		t.Fatalf("SourceLockStatus() error = %v", err)
+	}
+	if status.Locked {
+		t.Fatalf("source lock status = %+v, want unlocked for generated keyframe candidate only", status)
+	}
+}
+
 func TestDeleteContentUnitRejectsDownstreamKeyframes(t *testing.T) {
 	db := newContentUnitTestDB(t)
 	service := NewService(db)

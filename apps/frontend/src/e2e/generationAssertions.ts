@@ -1,7 +1,7 @@
 import { expect, type Page } from '@playwright/test'
 
-export async function mockGenerationBindingTargets(page: Page) {
-  await page.route('**/api/v1/projects/123/asset-slots**', async (route) => {
+export async function mockGenerationCandidateTargets(page: Page) {
+  await page.route('**/api/v1/projects/123/entities/asset-slots**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -17,36 +17,189 @@ export async function mockGenerationBindingTargets(page: Page) {
   })
 }
 
-export async function mockGenerationBindingSuccess(page: Page, resourceId = 9101) {
-  await page.route('**/api/v1/projects/123/resource-bindings', async (route) => {
+export async function mockGenerationCandidateAttachSuccess(page: Page, resourceId = 9101) {
+  await page.route('**/api/v1/projects/123/entities/asset-slot-candidates', async (route) => {
     const request = route.request()
     expect(request.method()).toBe('POST')
     const payload = request.postDataJSON() as Record<string, unknown>
+    expect(payload.asset_slot_id).toBe(77)
     expect(payload.resource_id).toBe(resourceId)
-    expect(payload.owner_type).toBe('asset_slot')
-    expect(payload.owner_id).toBe(77)
-    expect(payload.status).toBe('selected')
+    expect(payload.status).toBe('candidate')
     expect(payload.source_type).toBe('job')
     expect(payload.source_id).toBe(2001)
     await route.fulfill({
-      status: 200,
+      status: 201,
       contentType: 'application/json',
       body: JSON.stringify({
-        ID: 501,
+        ID: 601,
         project_id: 123,
-        resource_id: resourceId,
-        owner_type: 'asset_slot',
-        owner_id: 77,
-        role: 'output',
-        slot: 'selected',
-        status: 'selected',
+        asset_slot_id: 77,
+        candidate_asset_slot_id: 701,
+        source_type: 'job',
+        source_id: 2001,
+        status: 'candidate',
+        note: '由 AI 助手生成任务 #2001 加入候选',
       }),
     })
   })
 }
 
-export async function mockGenerationBindingValidationError(page: Page) {
-  await page.route('**/api/v1/projects/123/resource-bindings', async (route) => {
+export async function mockGenerationBulkCandidateAttachSuccess(page: Page, resourceIds = [9101, 9103]) {
+  let requestIndex = 0
+  const attachedResourceIds: number[] = []
+  await page.route('**/api/v1/projects/123/entities/asset-slot-candidates', async (route) => {
+    const request = route.request()
+    expect(request.method()).toBe('POST')
+    const payload = request.postDataJSON() as Record<string, unknown>
+    const resourceId = Number(payload.resource_id)
+    expect(payload.asset_slot_id).toBe(77)
+    expect(payload.status).toBe('candidate')
+    expect(payload.source_type).toBe('job')
+    expect(payload.source_id).toBe(2001)
+    expect(resourceIds).toContain(resourceId)
+    requestIndex += 1
+    attachedResourceIds.push(resourceId)
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ID: 600 + requestIndex,
+        project_id: 123,
+        asset_slot_id: 77,
+        candidate_asset_slot_id: 700 + requestIndex,
+        resource_id: resourceId,
+        source_type: 'job',
+        source_id: 2001,
+        status: 'candidate',
+        note: '由 AI 助手生成任务 #2001 加入候选',
+      }),
+    })
+  })
+  return attachedResourceIds
+}
+
+export async function mockGenerationKeyframeCandidateAttachSuccess(page: Page, resourceId = 9101) {
+  await page.route('**/api/v1/projects/123/entities/keyframes**', async (route) => {
+    const request = route.request()
+    if (request.method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            ID: 88,
+            title: '开场画面锚点',
+            status: 'draft',
+            description: '雨夜街口的首帧画面',
+            prompt: 'rainy neon street opening keyframe',
+            order: 1,
+            production_id: 10,
+            scene_moment_id: 20,
+            content_unit_id: 30,
+          },
+        ]),
+      })
+      return
+    }
+    expect(request.method()).toBe('POST')
+    const payload = request.postDataJSON() as Record<string, unknown>
+    expect(payload.resource_id).toBe(resourceId)
+    expect(payload.status).toBe('candidate')
+    expect(payload.title).toBe('候选：开场画面锚点')
+    expect(payload.description).toBe('雨夜街口的首帧画面')
+    expect(payload.prompt).toBe('rainy neon street opening keyframe')
+    expect(payload.order).toBe(1)
+    expect(payload.production_id).toBe(10)
+    expect(payload.scene_moment_id).toBe(20)
+    expect(payload.content_unit_id).toBe(30)
+    expect(JSON.parse(String(payload.metadata_json))).toEqual({
+      source: 'ai_generated_keyframe_candidate',
+      target_keyframe_id: 88,
+      resource_id: resourceId,
+      source_job_id: 2001,
+    })
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ID: 801,
+        project_id: 123,
+        resource_id: resourceId,
+        status: 'candidate',
+        title: '候选：开场画面锚点',
+        metadata_json: JSON.stringify({
+          source: 'ai_generated_keyframe_candidate',
+          target_keyframe_id: 88,
+          resource_id: resourceId,
+          source_job_id: 2001,
+        }),
+      }),
+    })
+  })
+}
+
+export async function mockGenerationBulkKeyframeCandidateAttachSuccess(page: Page, resourceIds = [9101, 9103]) {
+  let requestIndex = 0
+  const attachedResourceIds: number[] = []
+  await page.route('**/api/v1/projects/123/entities/keyframes**', async (route) => {
+    const request = route.request()
+    if (request.method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            ID: 88,
+            title: '开场画面锚点',
+            status: 'draft',
+            description: '雨夜街口的首帧画面',
+            prompt: 'rainy neon street opening keyframe',
+            order: 1,
+            production_id: 10,
+            scene_moment_id: 20,
+            content_unit_id: 30,
+          },
+        ]),
+      })
+      return
+    }
+    expect(request.method()).toBe('POST')
+    const payload = request.postDataJSON() as Record<string, unknown>
+    const resourceId = Number(payload.resource_id)
+    expect(resourceIds).toContain(resourceId)
+    expect(payload.status).toBe('candidate')
+    expect(payload.title).toBe('候选：开场画面锚点')
+    expect(JSON.parse(String(payload.metadata_json))).toEqual({
+      source: 'ai_generated_keyframe_candidate',
+      target_keyframe_id: 88,
+      resource_id: resourceId,
+      source_job_id: 2001,
+    })
+    requestIndex += 1
+    attachedResourceIds.push(resourceId)
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ID: 800 + requestIndex,
+        project_id: 123,
+        resource_id: resourceId,
+        status: 'candidate',
+        title: '候选：开场画面锚点',
+        metadata_json: JSON.stringify({
+          source: 'ai_generated_keyframe_candidate',
+          target_keyframe_id: 88,
+          resource_id: resourceId,
+          source_job_id: 2001,
+        }),
+      }),
+    })
+  })
+  return attachedResourceIds
+}
+
+export async function mockGenerationCandidateAttachValidationError(page: Page) {
+  await page.route('**/api/v1/projects/123/entities/asset-slot-candidates', async (route) => {
     await route.fulfill({
       status: 422,
       contentType: 'application/json',
@@ -109,10 +262,46 @@ export async function assertGenerationTimeoutLifecycle(page: Page) {
   await expect(page.getByTestId('agent-generated-result-card')).toHaveCount(0)
 }
 
-export async function bindGeneratedResource(page: Page, targetId: string) {
-  const binding = page.getByTestId('agent-generated-resource-binding')
-  await expect(binding).toBeVisible()
-  await binding.getByPlaceholder('ID', { exact: true }).fill(targetId)
-  await binding.getByRole('button', { name: '绑定' }).click()
-  return binding
+export async function attachGeneratedResourceCandidate(page: Page, targetId: string) {
+  const candidateControl = page.getByTestId('agent-generated-resource-candidate')
+  await expect(candidateControl).toBeVisible()
+  await candidateControl.getByPlaceholder('搜索素材需求').fill(targetId)
+  await candidateControl.getByRole('combobox').nth(1).click()
+  await page.getByRole('option', { name: /主视觉素材位/ }).click()
+  await candidateControl.getByRole('button', { name: '加入候选' }).click()
+  return candidateControl
+}
+
+export async function attachAllGeneratedResourceCandidates(page: Page, targetId: string) {
+  const candidateControl = page.getByTestId('agent-generated-bulk-candidate')
+  await expect(candidateControl).toBeVisible()
+  await candidateControl.getByPlaceholder('搜索素材需求').fill(targetId)
+  await candidateControl.getByRole('combobox').nth(1).click()
+  await page.getByRole('option', { name: /主视觉素材位/ }).click()
+  await candidateControl.getByRole('button', { name: '全部加入候选' }).click()
+  return candidateControl
+}
+
+export async function attachAllGeneratedKeyframeCandidates(page: Page, targetId: string) {
+  const candidateControl = page.getByTestId('agent-generated-bulk-candidate')
+  await expect(candidateControl).toBeVisible()
+  await candidateControl.getByRole('combobox').first().click()
+  await page.getByRole('option', { name: '画面锚点' }).click()
+  await candidateControl.getByPlaceholder('搜索画面锚点').fill(targetId)
+  await candidateControl.getByRole('combobox').nth(1).click()
+  await page.getByRole('option', { name: /开场画面锚点/ }).click()
+  await candidateControl.getByRole('button', { name: '全部加入候选' }).click()
+  return candidateControl
+}
+
+export async function attachGeneratedKeyframeCandidate(page: Page, targetId: string) {
+  const candidateControl = page.getByTestId('agent-generated-resource-candidate')
+  await expect(candidateControl).toBeVisible()
+  await candidateControl.getByRole('combobox').first().click()
+  await page.getByRole('option', { name: '画面锚点' }).click()
+  await candidateControl.getByPlaceholder('搜索画面锚点').fill(targetId)
+  await candidateControl.getByRole('combobox').nth(1).click()
+  await page.getByRole('option', { name: /开场画面锚点/ }).click()
+  await candidateControl.getByRole('button', { name: '加入候选' }).click()
+  return candidateControl
 }

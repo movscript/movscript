@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { replayGenerationTrace } from './agentGenerationMedia'
-import { generationTraceReplayFixtures } from './agentGenerationTraceFixtures'
+import { replayGenerationTrace } from './agentGenerationMedia.ts'
+import { generationTraceReplayFixtures } from './agentGenerationTraceFixtures.ts'
 
 for (const fixture of generationTraceReplayFixtures) {
   test(`generation replay fixture: ${fixture.name}`, () => {

@@ -5,7 +5,7 @@ import { ArrowLeft, ChevronDown, ChevronRight, Copy, History, Loader2, RefreshCw
 import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
 import { AgentRunGenerationArtifacts } from '@/components/agent/AgentRunGenerationArtifacts'
 import { agentTaskStatusLabel, buildPlanTaskViews, buildTaskArtifactViews } from '@/lib/agentPlanUi'
-import { AGENT_DEBUG_FIELD_GUIDE, agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, buildDebugAttentionEvents, buildDebugCoverageSummary, buildDebugReadinessChecklist, buildDebugReportText, buildModelCallDebugContext, buildModelCallDebugContexts, buildModelCallSummaries, buildTraceEventLink, canCancelWorkerRun, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runRoleLabel, runStatusLabel, traceCategoryLabel, traceDeepLinkMissing as isTraceDeepLinkMissing, traceEventDurationMs, traceEventIdFromHash, traceEventStatusLabel, traceKindLabel, type AgentDebugAttentionEvent, type AgentDebugCoverageSummary, type AgentDebugReadinessItem, type AgentModelCallSummary, type AgentTraceCategory } from '@/lib/agentRunUi'
+import { AGENT_DEBUG_FIELD_GUIDE, agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, buildDebugAttentionEvents, buildDebugCoverageSummary, buildDebugReadinessChecklist, buildDebugReportText, buildModelCallDebugContext, buildModelCallDebugContexts, buildModelCallSummaries, buildSkillTraceSummary, buildTraceEventLink, canCancelWorkerRun, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runRoleLabel, runStatusLabel, traceCategoryLabel, traceDeepLinkMissing as isTraceDeepLinkMissing, traceEventDurationMs, traceEventIdFromHash, traceEventStatusLabel, traceKindLabel, type AgentDebugAttentionEvent, type AgentDebugCoverageSummary, type AgentDebugReadinessItem, type AgentModelCallSummary, type AgentSkillTraceSummary, type AgentTraceCategory } from '@/lib/agentRunUi'
 import { formatAgentTraceDebugData, redactAgentTraceDebugText } from '@/lib/agentTraceDebugData'
 import { isRecord } from '@/lib/jsonValue'
 import { localAgentClient, type AgentRun, type AgentTraceEvent, type AgentTraceEventKind } from '@/lib/localAgentClient'
@@ -36,6 +36,7 @@ interface LoadedTraceEventsResult {
 export default function AIAgentRunPage() {
   const navigate = useNavigate()
   const { runId = '' } = useParams()
+  const [traceViewMode, setTraceViewMode] = useState<'timeline' | 'skills'>('timeline')
   const [eventKind, setEventKind] = useState<'all' | AgentTraceEventKind>('all')
   const [eventCategory, setEventCategory] = useState<'all' | AgentTraceCategory>('all')
   const [eventSearch, setEventSearch] = useState('')
@@ -110,6 +111,7 @@ export default function AIAgentRunPage() {
     event,
     view: agentTraceView(event),
   })), [visibleEvents])
+  const skillTraceSummary = useMemo(() => buildSkillTraceSummary(events), [events])
   const modelCallSummaries = useMemo(() => buildModelCallSummaries(events), [events])
   const attentionEvents = useMemo(() => buildDebugAttentionEvents(events), [events])
   const latestTraceView = useMemo(
@@ -848,6 +850,24 @@ export default function AIAgentRunPage() {
               ))}
             </div>
             <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
+              <div data-testid="agent-run-trace-view-mode" className="flex h-8 overflow-hidden rounded-md border border-border bg-background text-xs">
+                <button
+                  type="button"
+                  aria-pressed={traceViewMode === 'timeline'}
+                  className={`px-2 ${traceViewMode === 'timeline' ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'}`}
+                  onClick={() => setTraceViewMode('timeline')}
+                >
+                  时间线
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={traceViewMode === 'skills'}
+                  className={`border-l border-border px-2 ${traceViewMode === 'skills' ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'}`}
+                  onClick={() => setTraceViewMode('skills')}
+                >
+                  技能变动
+                </button>
+              </div>
               <input
                 data-testid="agent-run-trace-search"
                 value={eventSearch}
@@ -950,7 +970,10 @@ export default function AIAgentRunPage() {
                 </Button>
               </div>
             )}
-            {events.length > 0 && (
+            {traceViewMode === 'skills' && (
+              <SkillTracePanel summary={skillTraceSummary} onFocusEvent={focusTraceEvent} />
+            )}
+            {traceViewMode === 'timeline' && events.length > 0 && (
               <DebugCoveragePanel
                 summary={debugCoverageSummary}
                 copied={debugReportCopied}
@@ -964,13 +987,13 @@ export default function AIAgentRunPage() {
                 onLoadAll={() => loadEvents('all')}
               />
             )}
-            {attentionEvents.length > 0 && (
+            {traceViewMode === 'timeline' && attentionEvents.length > 0 && (
               <AttentionEventsPanel events={attentionEvents} onFocusEvent={focusTraceEvent} onShowAttentionEvents={showAttentionEvents} />
             )}
-            {modelCallSummaries.length > 0 && (
+            {traceViewMode === 'timeline' && modelCallSummaries.length > 0 && (
               <ModelCallSummaryPanel summaries={modelCallSummaries} events={events} onFocusEvent={focusTraceEvent} />
             )}
-            {visibleTraceViews.map(({ event, view }) => {
+            {traceViewMode === 'timeline' && visibleTraceViews.map(({ event, view }) => {
               const isLinkedEvent = event.id === traceDeepLinkEventId
               const isEventDataExpanded = expandedEventIds.has(event.id)
               const eventDataPanelId = `agent-trace-event-data-${event.id}`
@@ -1126,7 +1149,7 @@ export default function AIAgentRunPage() {
               )
             })}
             {events.length === 0 && <p className="text-xs text-muted-foreground">尚未加载运行事件。</p>}
-            {events.length > 0 && visibleEvents.length === 0 && (
+            {traceViewMode === 'timeline' && events.length > 0 && visibleEvents.length === 0 && (
               <div data-testid="agent-run-trace-empty-state" className="rounded-md border border-border/70 bg-muted/10 px-3 py-2 text-xs">
                 <div className="font-medium text-foreground">没有符合当前筛选条件的事件</div>
                 <p className="mt-1 text-muted-foreground">
@@ -1164,7 +1187,7 @@ export default function AIAgentRunPage() {
                 </div>
               </div>
             )}
-            {hasMore && (
+            {traceViewMode === 'timeline' && hasMore && (
               <Button type="button" size="sm" variant="ghost" aria-label="加载更多运行事件" onClick={() => loadEvents('more')} disabled={loadingEvents}>
                 {loadingEvents ? <Loader2 size={13} className="animate-spin" /> : <History size={13} />}
                 加载更多
@@ -1296,6 +1319,91 @@ function TraceDetailLine({ label, value }: { label: string; value: string }) {
     <div className="rounded border border-border/60 bg-background/80 px-2 py-1">
       <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-0.5 text-[10px] leading-relaxed text-foreground">{value}</div>
+    </div>
+  )
+}
+
+function SkillTracePanel({ summary, onFocusEvent }: { summary: AgentSkillTraceSummary; onFocusEvent: (eventId: string) => void }) {
+  const latest = summary.timeline.at(-1)
+  return (
+    <div data-testid="agent-run-skill-trace-panel" className="space-y-2">
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <SkillTraceMetric label="当前激活" value={summary.currentActiveSkillIds.length} />
+        <SkillTraceMetric label="显式加载" value={summary.currentLoadedSkillIds.length} />
+        <SkillTraceMetric label="显式卸载" value={summary.currentUnloadedSkillIds.length} />
+        <SkillTraceMetric label="目录可用" value={summary.currentAvailableSkillIds.length} />
+      </div>
+      {latest && (
+        <div className="rounded-md border border-border bg-background px-3 py-2 text-xs">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="font-medium text-foreground">最新技能状态</div>
+              <div className="mt-0.5 text-[10px] text-muted-foreground">{formatAgentRunTimestamp(latest.createdAt)}</div>
+            </div>
+            <Button type="button" size="xs" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => onFocusEvent(latest.eventId)}>
+              定位事件
+            </Button>
+          </div>
+          <SkillIdList label="激活技能" ids={latest.activeSkillIds} />
+          <SkillIdList label="显式加载" ids={latest.loadedSkillIds} />
+          <SkillIdList label="显式卸载" ids={latest.unloadedSkillIds} />
+        </div>
+      )}
+      {summary.timeline.length > 0 ? (
+        <div className="space-y-1">
+          {summary.timeline.map((entry) => (
+            <button
+              key={entry.eventId}
+              type="button"
+              data-testid="agent-run-skill-trace-event"
+              className="block w-full rounded-md border border-border bg-background px-3 py-2 text-left text-xs hover:bg-muted/20"
+              onClick={() => onFocusEvent(entry.eventId)}
+            >
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                <span className="font-medium text-foreground">{entry.title}</span>
+                <span className="text-[10px] text-muted-foreground">{formatAgentRunTimestamp(entry.createdAt)}</span>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-1">
+                <Badge variant="outline" className="text-[10px]">激活 {entry.activeSkillIds.length}</Badge>
+                <Badge variant="outline" className="text-[10px]">加载 {entry.loadedSkillIds.length}</Badge>
+                <Badge variant="outline" className="text-[10px]">卸载 {entry.unloadedSkillIds.length}</Badge>
+                <Badge variant="outline" className="text-[10px]">可用 {entry.availableSkillIds.length}</Badge>
+              </div>
+              {entry.summary && <div className="mt-1 break-words text-[10px] text-muted-foreground">{redactAgentTraceDebugText(entry.summary)}</div>}
+              <SkillIdList label="激活" ids={entry.activeSkillIds} compact />
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p data-testid="agent-run-skill-trace-empty" className="rounded-md border border-border/70 bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
+          已加载事件里还没有技能状态事件。
+        </p>
+      )}
+    </div>
+  )
+}
+
+function SkillTraceMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border border-border bg-background px-3 py-2">
+      <div className="text-[10px] text-muted-foreground">{label}</div>
+      <div className="mt-0.5 text-lg font-semibold leading-none text-foreground">{value}</div>
+    </div>
+  )
+}
+
+function SkillIdList({ label, ids, compact = false }: { label: string; ids: string[]; compact?: boolean }) {
+  if (ids.length === 0) return null
+  const visible = compact ? ids.slice(0, 8) : ids
+  return (
+    <div className="mt-2">
+      <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="mt-1 flex flex-wrap gap-1">
+        {visible.map((id) => (
+          <Badge key={id} variant="secondary" className="max-w-full truncate text-[10px]">{id}</Badge>
+        ))}
+        {visible.length < ids.length && <Badge variant="outline" className="text-[10px]">+{ids.length - visible.length}</Badge>}
+      </div>
     </div>
   )
 }

@@ -90,6 +90,7 @@ export async function resolveRuntimeRunContextPackage(input: {
     setupRound: input.setupRound,
     timestampMs: input.timestampMs,
     recordTrace: input.recordTrace,
+    enabled: shouldLoadRuntimeMemories(input.command, input.userMessage),
   })
 
   return {
@@ -101,4 +102,10 @@ export async function resolveRuntimeRunContextPackage(input: {
     memoryDurationMs: memoryContext.memoryDurationMs,
     contextCompletedAt: input.timestampMs(),
   }
+}
+
+export function shouldLoadRuntimeMemories(command: AgentCommandRuntime, userMessage: string): boolean {
+  if (command.name === 'memory') return true
+  return /\b(memory|memories|remember|preference|preferences|default|defaults|previously|before|last time)\b/i.test(userMessage)
+    || /(记忆|记住|偏好|默认|上次|之前|以前|按我.{0,4}习惯)/.test(userMessage)
 }

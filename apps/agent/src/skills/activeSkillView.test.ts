@@ -31,6 +31,18 @@ test('activeSkillIdsFromRun returns an empty list without context events', () =>
   assert.deepEqual(activeSkillIdsFromRun({}), [])
 })
 
+test('activeSkillIdsFromRun falls back to metadata skill state', () => {
+  assert.deepEqual(activeSkillIdsFromRun({
+    metadata: {
+      activeSkillIds: ['policy.core'],
+      skillState: {
+        loadedSkillIds: ['expert.action'],
+        unloadedSkillIds: ['policy.core'],
+      },
+    },
+  }), ['expert.action'])
+})
+
 function contextEvent(id: string, title: string, skillIds: string[]): AgentTraceEvent {
   return {
     id,

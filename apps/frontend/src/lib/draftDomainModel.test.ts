@@ -25,6 +25,7 @@ test('draft domain model separates project standards, settings, and asset slots'
   assert.equal(project?.targetEntityType, 'project')
   assert.equal(project?.contentSchemaId, 'movscript.project_proposal.v1')
   assert.ok(project?.fieldGuide.owns.includes('shot_size_system'))
+  assert.ok(project?.fieldGuide.owns.includes('custom_rules'))
   assert.ok(project?.fieldGuide.forbids.includes('creative_reference_lists'))
   assert.ok(project?.fieldGuide.forbids.includes('asset_requirement_lists'))
   assert.equal(project?.applyBoundary.backendApply, 'project_proposal')

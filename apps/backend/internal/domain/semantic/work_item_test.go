@@ -135,7 +135,7 @@ func TestWorkItemResultApplicationForStatusChange(t *testing.T) {
 }
 
 func TestWorkItemResultApplicationForPresetTargetStatuses(t *testing.T) {
-	keyframeApp, err := WorkItemResultApplicationFor(WorkItem{ResultType: WorkItemResultAcceptKeyframe})
+	keyframeApp, err := WorkItemResultApplicationFor(WorkItem{TargetType: WorkItemTargetTypeKeyframe, ResultType: WorkItemResultAcceptKeyframe})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,6 +152,16 @@ func TestWorkItemResultApplicationForPresetTargetStatuses(t *testing.T) {
 	}
 }
 
+func TestWorkItemResultApplicationForAcceptKeyframeRequiresKeyframeTarget(t *testing.T) {
+	_, err := WorkItemResultApplicationFor(WorkItem{
+		TargetType: WorkItemTargetTypeAssetSlot,
+		ResultType: WorkItemResultAcceptKeyframe,
+	})
+	if err == nil || err.Error() != "accept_keyframe 只能应用到 keyframe 任务" {
+		t.Fatalf("accept_keyframe target error = %v, want keyframe target error", err)
+	}
+}
+
 func TestWorkItemResultApplicationForAssetCandidate(t *testing.T) {
 	app, err := WorkItemResultApplicationFor(WorkItem{
 		TargetType: WorkItemTargetTypeAssetSlot,
@@ -163,6 +173,20 @@ func TestWorkItemResultApplicationForAssetCandidate(t *testing.T) {
 	}
 	if app.Kind != WorkItemResultApplicationLockAssetSlotCandidate || app.AssetSlotCandidateID != 42 {
 		t.Fatalf("unexpected asset candidate application: %+v", app)
+	}
+}
+
+func TestWorkItemResultApplicationForKeyframeCandidate(t *testing.T) {
+	app, err := WorkItemResultApplicationFor(WorkItem{
+		TargetType: WorkItemTargetTypeKeyframe,
+		ResultType: WorkItemResultAcceptKeyframe,
+		ResultJSON: `{"keyframe_candidate_id":42}`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if app.Kind != WorkItemResultApplicationAcceptKeyframeCandidate || app.KeyframeCandidateID != 42 {
+		t.Fatalf("unexpected keyframe candidate application: %+v", app)
 	}
 }
 

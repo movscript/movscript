@@ -1,15 +1,13 @@
 import { spawnSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
-import { copyFileSync, existsSync, chmodSync, mkdirSync, readFileSync, realpathSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, chmodSync, mkdirSync, realpathSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
-import { assertDesktopArch, assertDesktopPlatform, desktopFFmpegBinaryName } from './desktop-targets.mjs'
+import { buildFFmpegMetadata, desktopFFmpegBinaryName, isDirectRun, isFFmpegVersionLine, parseDesktopArchArg, parseDesktopPlatformArg, resolveDesktopFFmpegPath, sha256File, validateFFmpegMetadataInput } from './release-common.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 const FFMPEG_VERSION_TIMEOUT_MS = 30000
 
-if (isDirectRun()) {
+if (isDirectRun(import.meta.url)) {
   runStageFFmpegCli(repoRoot, process.env, process.argv.slice(2))
 }
 
@@ -24,8 +22,8 @@ export function runStageFFmpegCli(root = repoRoot, env = process.env, args = [],
     spawn = spawnSync,
   } = options
   try {
-    const platform = parseDesktopPlatform(args, env.MOVSCRIPT_FFMPEG_PLATFORM || currentPlatform)
-    const arch = parseDesktopArch(args, env.MOVSCRIPT_FFMPEG_ARCH || currentArch)
+    const platform = parseDesktopPlatformArg(args, env.MOVSCRIPT_FFMPEG_PLATFORM || currentPlatform, 'ffmpeg staging')
+    const arch = parseDesktopArchArg(args, env.MOVSCRIPT_FFMPEG_ARCH || currentArch, 'ffmpeg staging')
     if (args.includes('--inspect')) {
       inspectFFmpegSourceFromEnv(root, env, { exit, logError, log, platform, arch, currentPlatform, currentArch, spawn })
       return
@@ -51,8 +49,8 @@ export function inspectFFmpegSourceFromEnv(root = repoRoot, env = process.env, o
     exit = process.exit,
     logError = console.error,
     log = console.log,
-    platform = parseDesktopPlatform([], env.MOVSCRIPT_FFMPEG_PLATFORM?.trim() || process.platform),
-    arch = parseDesktopArch([], env.MOVSCRIPT_FFMPEG_ARCH?.trim() || process.arch),
+    platform = parseDesktopPlatformArg([], env.MOVSCRIPT_FFMPEG_PLATFORM?.trim() || process.platform, 'ffmpeg staging'),
+    arch = parseDesktopArchArg([], env.MOVSCRIPT_FFMPEG_ARCH?.trim() || process.arch, 'ffmpeg staging'),
     currentPlatform = process.platform,
     currentArch = process.arch,
     spawn = spawnSync,
@@ -91,8 +89,8 @@ export function stageFFmpegFromEnv(root = repoRoot, env = process.env, options =
     exit = process.exit,
     logError = console.error,
     log = console.log,
-    platform = parseDesktopPlatform([], env.MOVSCRIPT_FFMPEG_PLATFORM?.trim() || process.platform),
-    arch = parseDesktopArch([], env.MOVSCRIPT_FFMPEG_ARCH?.trim() || process.arch),
+    platform = parseDesktopPlatformArg([], env.MOVSCRIPT_FFMPEG_PLATFORM?.trim() || process.platform, 'ffmpeg staging'),
+    arch = parseDesktopArchArg([], env.MOVSCRIPT_FFMPEG_ARCH?.trim() || process.arch, 'ffmpeg staging'),
     currentPlatform = process.platform,
     currentArch = process.arch,
     stageBinary = stageFFmpegBinary,
@@ -217,25 +215,6 @@ function findFFmpegBinaryCandidates(root, expectedBinary) {
   return candidates
 }
 
-export function resolveDesktopFFmpegPath(root, platform = process.platform, arch = process.arch) {
-  const binary = desktopFFmpegBinaryName(platform)
-  return resolve(root, 'apps/frontend/vendor/ffmpeg', platform, arch, binary)
-}
-
-export function parseDesktopPlatform(args = [], defaultPlatform = process.platform) {
-  const platformArg = args.find((arg) => arg.startsWith('--platform='))
-  const platform = platformArg ? platformArg.slice('--platform='.length) : defaultPlatform
-  assertDesktopPlatform(platform, 'ffmpeg staging')
-  return platform
-}
-
-export function parseDesktopArch(args = [], defaultArch = process.arch) {
-  const archArg = args.find((arg) => arg.startsWith('--arch='))
-  const arch = archArg ? archArg.slice('--arch='.length) : defaultArch
-  assertDesktopArch(arch, 'ffmpeg staging')
-  return arch
-}
-
 export function verifyRunnableFFmpeg(path, cwd = process.cwd(), spawn = spawnSync) {
   return readFFmpegVersion(path, cwd, spawn).error
 }
@@ -263,37 +242,10 @@ export function readFFmpegVersion(path, cwd = process.cwd(), spawn = spawnSync, 
 }
 
 export function writeFFmpegMetadata({ target, source, version, sizeBytes, sha256 = sha256File(target), sourceUrl, license, arch, now = new Date() }) {
-  validateFFmpegMetadataInput({ sourceUrl, license, arch })
   const metadataPath = resolve(dirname(target), 'METADATA.json')
-  const metadata = {
-    arch,
-    binary: basename(target),
-    license,
-    source_basename: basename(source),
-    source_url: sourceUrl,
-    staged_at: now.toISOString(),
-    sha256,
-    size_bytes: sizeBytes,
-    version,
-  }
+  const metadata = buildFFmpegMetadata({ target, source, version, sizeBytes, sha256, sourceUrl, license, arch, now })
   writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, 'utf8')
   return metadataPath
-}
-
-export function validateFFmpegMetadataInput({ sourceUrl, license, arch }) {
-  if (!sourceUrl || !license) {
-    throw new Error('ffmpeg metadata requires sourceUrl and license')
-  }
-  assertDesktopArch(arch, 'ffmpeg metadata')
-  if (!isHttpURL(sourceUrl)) {
-    throw new Error('ffmpeg metadata sourceUrl must be an http(s) URL')
-  }
-  if (isPlaceholderURL(sourceUrl)) {
-    throw new Error('ffmpeg metadata sourceUrl must not use an example placeholder URL')
-  }
-  if (!isSPDXLike(license)) {
-    throw new Error('ffmpeg metadata license must be an SPDX-style expression')
-  }
 }
 
 export function assertRedistributableSourcePath(source) {
@@ -335,46 +287,10 @@ export function assertRedistributableSourcePath(source) {
   }
 }
 
-export function sha256File(path) {
-  return createHash('sha256').update(readFileSync(path)).digest('hex')
-}
-
-function isHttpURL(value) {
-  try {
-    const url = new URL(String(value))
-    return url.protocol === 'http:' || url.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
-function isPlaceholderURL(value) {
-  try {
-    const host = new URL(String(value)).hostname.toLowerCase()
-    return host === 'example.com' || host === 'example.org' || host === 'example.net'
-  } catch {
-    return false
-  }
-}
-
-function isSPDXLike(value) {
-  const text = String(value)
-  if (!/^[A-Za-z0-9.+-]+(?:\s+(?:AND|OR|WITH)\s+[A-Za-z0-9.+-]+)*$/.test(text)) return false
-  return /-\d/.test(text) || text === 'LicenseRef-proprietary'
-}
-
-function isFFmpegVersionLine(value) {
-  return /^ffmpeg\s+version\b/i.test(String(value).trim())
-}
-
 function normalizePathForPolicy(path) {
   return String(path).replace(/\\/g, '/').toLowerCase()
 }
 
 function isWindowsAbsolutePath(path) {
   return /^[a-z]:[\\/]/i.test(String(path))
-}
-
-function isDirectRun() {
-  return process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])
 }

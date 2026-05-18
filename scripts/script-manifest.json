@@ -1,0 +1,217 @@
+{
+  "schema": "movscript.script-manifest.v1",
+  "description": "Owned inventory for repository automation scripts. Keep this file in sync when adding, moving, deleting, or changing script ownership.",
+  "entries": [
+    {
+      "path": "apps/agent/scripts/build-server-bundle.mjs",
+      "category": "build",
+      "lifecycle": "maintained",
+      "owner": "agent-runtime",
+      "purpose": "Bundle the agent server entry point into dist/server.bundle.js for desktop deployment.",
+      "entrypoint": "pnpm --filter movscript-agent build",
+      "invokedBy": [
+        "apps/agent/package.json build"
+      ],
+      "tests": [
+        "node --test tests/scripts/agent/build-server-bundle.test.mjs",
+        "pnpm --filter movscript-agent build"
+      ]
+    },
+    {
+      "path": "apps/agent/scripts/dev-watch.mjs",
+      "category": "dev",
+      "lifecycle": "maintained",
+      "owner": "agent-runtime",
+      "purpose": "Run the agent development server and optionally restart it when src or catalog files change.",
+      "entrypoint": "pnpm --filter movscript-agent dev",
+      "invokedBy": [
+        "apps/agent/package.json dev",
+        "apps/frontend/electron/agentRuntime.ts"
+      ],
+      "tests": [
+        "pnpm --filter movscript-agent typecheck"
+      ]
+    },
+    {
+      "path": "apps/backend/scripts/build.mjs",
+      "category": "build",
+      "lifecycle": "maintained",
+      "owner": "backend",
+      "purpose": "Build the Go backend server binary and copy built admin assets into apps/backend/bin for desktop packaging.",
+      "entrypoint": "pnpm --filter movscript-backend build; node apps/backend/scripts/build.mjs copy-admin-assets",
+      "invokedBy": [
+        "apps/backend/package.json build",
+        "Makefile dev-frontend-local",
+        "scripts/release/release-workflow.mjs package-desktop"
+      ],
+      "tests": [
+        "pnpm --filter movscript-backend test",
+        "node --test tests/scripts/backend/copy-admin-assets.test.mjs"
+      ]
+    },
+    {
+      "path": "apps/frontend/scripts/prepare-agent-deploy.mjs",
+      "category": "build",
+      "lifecycle": "maintained",
+      "owner": "frontend-desktop",
+      "purpose": "Build the agent package and copy deployable agent files into the frontend desktop bundle.",
+      "entrypoint": "pnpm --filter movscript-frontend build",
+      "invokedBy": [
+        "apps/frontend/package.json build"
+      ],
+      "tests": [
+        "node --test tests/scripts/frontend/prepare-agent-deploy.test.mjs",
+        "pnpm --filter movscript-frontend build"
+      ]
+    },
+    {
+      "path": "apps/frontend/scripts/run-with-env.mjs",
+      "category": "dev",
+      "lifecycle": "maintained",
+      "owner": "frontend-desktop",
+      "purpose": "Run the frontend local desktop dev command with portable inline environment variable assignments and signal forwarding.",
+      "entrypoint": "node apps/frontend/scripts/run-with-env.mjs KEY=value command [...args]",
+      "invokedBy": [
+        "apps/frontend/package.json dev:local"
+      ],
+      "tests": [
+        "node --test tests/scripts/run-with-env.test.mjs",
+        "pnpm run verify:scripts"
+      ]
+    },
+    {
+      "path": "scripts/release/audit-ffmpeg.mjs",
+      "category": "release",
+      "lifecycle": "maintained",
+      "owner": "desktop-release",
+      "purpose": "Audit staged desktop FFmpeg binaries and print remediation commands for missing or invalid targets.",
+      "entrypoint": "pnpm run release -- audit-ffmpeg",
+      "invokedBy": [
+        "package.json release",
+        "scripts/release/release-workflow.mjs check"
+      ],
+      "tests": [
+        "node --test tests/scripts/release/audit-ffmpeg.test.mjs"
+      ]
+    },
+    {
+      "path": "scripts/release/download-ffmpeg-static.mjs",
+      "category": "release",
+      "lifecycle": "maintained",
+      "owner": "desktop-release",
+      "purpose": "Download redistributable ffmpeg-static binaries and stage them for desktop packaging.",
+      "entrypoint": "pnpm run release -- download-ffmpeg-static",
+      "invokedBy": [
+        "package.json release",
+        ".github/workflows/release.yml"
+      ],
+      "tests": [
+        "node --test tests/scripts/release/download-ffmpeg-static.test.mjs"
+      ]
+    },
+    {
+      "path": "scripts/release/release-common.mjs",
+      "category": "release",
+      "lifecycle": "maintained",
+      "owner": "desktop-release",
+      "purpose": "Shared desktop target, ffmpeg-static source policy, checksum, direct-run, URL, license, version-line, and FFmpeg/package verification helpers for release automation.",
+      "entrypoint": "imported module",
+      "invokedBy": [
+        "scripts/release/*.mjs"
+      ],
+      "tests": [
+        "node --test tests/scripts/release/desktop-package-verification.test.mjs",
+        "pnpm run test:scripts"
+      ]
+    },
+    {
+      "path": "scripts/release/release-workflow.mjs",
+      "category": "release",
+      "lifecycle": "maintained",
+      "owner": "desktop-release",
+      "purpose": "Coordinate high-level release check/full workflows, desktop packaging, and low-level release subcommands from one CLI.",
+      "entrypoint": "pnpm run release -- [check|full|<subcommand>]",
+      "invokedBy": [
+        "package.json release",
+        ".github/workflows/release.yml"
+      ],
+      "tests": [
+        "node --test tests/scripts/release/package-desktop-prepare.test.mjs",
+        "node --test tests/scripts/release/package-desktop.test.mjs",
+        "node --test tests/scripts/release/release-workflow-cli.test.mjs"
+      ]
+    },
+    {
+      "path": "scripts/release/stage-ffmpeg.mjs",
+      "category": "release",
+      "lifecycle": "maintained",
+      "owner": "desktop-release",
+      "purpose": "Stage a local redistributable FFmpeg binary and write metadata for desktop packaging.",
+      "entrypoint": "pnpm run release -- stage-ffmpeg",
+      "invokedBy": [
+        "package.json release",
+        "scripts/release/release-workflow.mjs package-desktop",
+        "apps/frontend/vendor/ffmpeg/README.md"
+      ],
+      "tests": [
+        "node --test tests/scripts/release/stage-ffmpeg.test.mjs"
+      ]
+    },
+    {
+      "path": "scripts/run-node-tests.mjs",
+      "category": "test",
+      "lifecycle": "maintained",
+      "owner": "workspace-tooling",
+      "purpose": "Discover Node test files from simple glob patterns and execute them through node --test with tsx.",
+      "entrypoint": "node scripts/run-node-tests.mjs <test-file-pattern...>",
+      "invokedBy": [
+        "apps/frontend/package.json test",
+        "apps/admin/package.json test",
+        "apps/agent/package.json test"
+      ],
+      "tests": [
+        "node --test tests/scripts/run-node-tests.test.mjs",
+        "pnpm --filter movscript-frontend test",
+        "pnpm --filter movscript-admin test",
+        "pnpm --filter movscript-agent test"
+      ]
+    },
+    {
+      "path": "scripts/verifier-utils.mjs",
+      "category": "contract",
+      "lifecycle": "maintained",
+      "owner": "script-governance",
+      "purpose": "Shared file, path, argument, predicate, and JSON Schema fixture helpers for static verification scripts.",
+      "entrypoint": "imported module",
+      "invokedBy": [
+        "scripts/verify-script-manifest.mjs",
+        "tests/scripts/agent/verify-compact-contract.test.mjs",
+        "tests/scripts/agent/verify-context-management.mjs",
+        "tests/scripts/agent/verify-run-debugging.mjs"
+      ],
+      "tests": [
+        "node --test tests/scripts/verifier-utils.test.mjs",
+        "pnpm run verify:scripts",
+        "node --test tests/scripts/agent/verify-compact-contract.test.mjs",
+        "node --test tests/scripts/agent/verify-context-management.test.mjs",
+        "node --test tests/scripts/agent/verify-run-debugging.test.mjs"
+      ]
+    },
+    {
+      "path": "scripts/verify-script-manifest.mjs",
+      "category": "contract",
+      "lifecycle": "maintained",
+      "owner": "workspace-tooling",
+      "purpose": "Verify every repository automation script is inventoried and release helper ownership boundaries stay centralized.",
+      "entrypoint": "pnpm run verify:scripts",
+      "invokedBy": [
+        "package.json verify:scripts",
+        "scripts/release/release-workflow.mjs check"
+      ],
+      "tests": [
+        "pnpm run verify:scripts",
+        "node --test tests/scripts/verify-script-manifest.test.mjs"
+      ]
+    }
+  ]
+}

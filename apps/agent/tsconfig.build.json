@@ -7,5 +7,9 @@
     "paths": {
       "@movscript/draft-schemas": ["../../packages/draft-schemas/dist/index.d.ts"]
     }
-  }
+  },
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
+  ]
 }

@@ -6,6 +6,8 @@ apps/frontend/dist-electron/
 apps/frontend/out/
 apps/frontend/release/
 apps/frontend/movscript-agent/
+apps/frontend/src/api/generated.ts
+apps/frontend/vendor/ffmpeg/*/
 apps/frontend/test-results/
 apps/frontend/playwright-report/
 
@@ -19,7 +21,14 @@ apps/backend/uploads/
 node_modules/
 **/node_modules/
 apps/*/dist/
+apps/movcli/bundle.js
+apps/movcli/manifest.json
+apps/movcli/*.movpkg
 packages/*/dist/
+plugins/*/dist/
+
+# Local prototypes and design exports
+docs/prototypes/
 
 # Env
 .env

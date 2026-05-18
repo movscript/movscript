@@ -56,10 +56,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Download ffmpeg-static release binaries
-        run: pnpm run release:download-ffmpeg-static:matrix
+        run: pnpm run release -- download-ffmpeg-static --matrix
 
       - name: Run release checks
-        run: pnpm run release:check
+        run: pnpm run release -- check
 
   package:
     name: Package ${{ matrix.name }}
@@ -70,31 +70,36 @@ jobs:
         include:
           - name: macos
             os: macos-latest
-            command: package:desktop:mac:arm64
+            package-platform: darwin
+            package-arch: arm64
             artifact: movscript-desktop-macos-arm64
             ffmpeg-platform: darwin
             ffmpeg-arch: arm64
           - name: macos-x64
             os: macos-latest
-            command: package:desktop:mac:x64
+            package-platform: darwin
+            package-arch: x64
             artifact: movscript-desktop-macos-x64
             ffmpeg-platform: darwin
             ffmpeg-arch: x64
           - name: linux-x64
             os: ubuntu-latest
-            command: package:desktop:linux:x64
+            package-platform: linux
+            package-arch: x64
             artifact: movscript-desktop-linux-x64
             ffmpeg-platform: linux
             ffmpeg-arch: x64
           - name: linux-arm64
             os: ubuntu-latest
-            command: package:desktop:linux:arm64
+            package-platform: linux
+            package-arch: arm64
             artifact: movscript-desktop-linux-arm64
             ffmpeg-platform: linux
             ffmpeg-arch: arm64
           - name: windows-x64
             os: windows-latest
-            command: package:desktop:win
+            package-platform: win32
+            package-arch: x64
             artifact: movscript-desktop-windows-x64
             ffmpeg-platform: win32
             ffmpeg-arch: x64
@@ -127,13 +132,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Download ffmpeg-static release binary
-        run: pnpm run release:download-ffmpeg-static -- --platform=${{ matrix.ffmpeg-platform }} --arch=${{ matrix.ffmpeg-arch }}
+        run: pnpm run release -- download-ffmpeg-static --platform=${{ matrix.ffmpeg-platform }} --arch=${{ matrix.ffmpeg-arch }}
 
       - name: Build desktop package
-        run: pnpm run ${{ matrix.command }}
+        run: pnpm run release -- package-desktop --platform=${{ matrix.package-platform }} --arch=${{ matrix.package-arch }}
 
       - name: Collect release artifacts
-        run: pnpm run release:collect
+        run: pnpm run release -- collect
         env:
           MOVSCRIPT_COLLECT_PLUGINS: '0'
           MOVSCRIPT_ARTIFACT_PREFIX: ${{ matrix.artifact }}
@@ -172,10 +177,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build plugin packages
-        run: pnpm run release:prepare-plugins
+        run: pnpm --filter "./packages/*" build && pnpm --filter "./plugins/*" build
 
       - name: Collect plugin artifacts
-        run: pnpm run release:collect
+        run: pnpm run release -- collect
 
       - name: Upload plugin artifacts
         uses: actions/upload-artifact@v4

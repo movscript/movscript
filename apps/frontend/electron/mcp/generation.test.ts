@@ -7,7 +7,7 @@ import {
   getGenerationStage,
   isTerminalGenerationStatus,
   normalizeGenerationJob,
-} from './generation'
+} from './generation.ts'
 
 test('normalizeGenerationJob maps provider/model metadata and output media', () => {
   const normalized = normalizeGenerationJob({
@@ -65,6 +65,7 @@ test('normalizeGenerationJob uses explicit output_resource_id when present', () 
 
   assert.equal(normalized.jobId, 45)
   assert.equal(normalized.output_resource_id, 100)
+  assert.deepEqual(normalized.output_resource_ids, [100])
   assert.deepEqual(normalized.media, {
     id: 100,
     type: 'image',
@@ -73,6 +74,32 @@ test('normalizeGenerationJob uses explicit output_resource_id when present', () 
     direct_url: undefined,
     mime_type: 'image/png',
   })
+})
+
+test('normalizeGenerationJob preserves multiple output resources for candidate attachment', () => {
+  const normalized = normalizeGenerationJob({
+    ID: 46,
+    status: 'succeeded',
+    output_resources: [
+      { ID: 101, type: 'image', name: 'result-a.png', url: '/api/v1/resources/101/file', mime_type: 'image/png' },
+      { id: 102, type: 'image', name: 'result-b.png', url: '/api/v1/resources/102/file', mime_type: 'image/png' },
+    ],
+  })
+
+  assert.deepEqual(normalized.output_resource_ids, [101, 102])
+  assert.equal(normalized.output_resource_id, 101)
+  assert.deepEqual(normalized.output_resources, [
+    { ID: 101, type: 'image', name: 'result-a.png', url: '/api/v1/resources/101/file', mime_type: 'image/png' },
+    { id: 102, type: 'image', name: 'result-b.png', url: '/api/v1/resources/102/file', mime_type: 'image/png' },
+  ])
+  assert.deepEqual(normalized.output_resource, {
+    ID: 101,
+    type: 'image',
+    name: 'result-a.png',
+    url: '/api/v1/resources/101/file',
+    mime_type: 'image/png',
+  })
+  assert.equal(generationJobMessage(46, normalized), '生成完成，输出资源 #101、#102。')
 })
 
 test('getGenerationProgress normalizes provider progress variants', () => {

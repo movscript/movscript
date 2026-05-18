@@ -115,11 +115,40 @@ export interface PluginWorkflowContribution {
   tags?: string[]
 }
 
+export type AgentSkillContributionKind = 'persona' | 'workflow' | 'policy' | 'expertise'
+export type AgentSkillContributionLoadMode = 'core' | 'on_demand' | 'manual'
+export type AgentSkillContributionScope = 'turn' | 'run' | 'thread'
+
+/**
+ * Codex-style agent skill contribution.
+ *
+ * Prefer the low-friction form:
+ *   { "path": "agent-skills/director-jiangwen" }
+ *
+ * The path must point to a directory containing SKILL.md, or directly to a
+ * SKILL.md / *.skill.md file. The SKILL.md frontmatter should include at least
+ * `name` and `description`; MovScript-specific fields here are optional
+ * overrides for indexing, routing, and conflict management.
+ */
+export interface AgentSkillContribution {
+  path: string
+  id?: string
+  kind?: AgentSkillContributionKind
+  tags?: string[]
+  aliases?: string[]
+  useWhen?: string[]
+  load?: AgentSkillContributionLoadMode
+  scope?: AgentSkillContributionScope
+  dependencies?: string[]
+  conflicts?: string[]
+}
+
 export interface PluginContributions {
   tools?: PluginToolContribution[]
   cards?: PluginCardContribution[]
   canvasNodes?: CanvasNodeContribution[]
   workflows?: PluginWorkflowContribution[]
+  agentSkills?: AgentSkillContribution[]
   commands?: Array<{ id: string; title: string; tool?: string }>
 }
 

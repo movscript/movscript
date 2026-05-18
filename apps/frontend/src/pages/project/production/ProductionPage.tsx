@@ -22,6 +22,7 @@ import {
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { SemanticEntityCrudDialog } from '@/components/shared/SemanticEntityCrudDialog'
+import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge, Button, Progress } from '@movscript/ui'
@@ -847,7 +848,7 @@ function assetSlotsForProduction(segmentIds: Set<number>, sceneMomentIds: Set<nu
 }
 
 function keyframesForProduction(sceneMomentIds: Set<number>, contentUnitIds: Set<number>, productionId: number, data: ProductionData) {
-  return data.keyframes.filter((keyframe) => (
+  return data.keyframes.filter((keyframe) => !isGeneratedKeyframeCandidateRecord(keyframe) && (
     Number(keyframe.production_id) === productionId ||
     sceneMomentIds.has(Number(keyframe.scene_moment_id)) ||
     contentUnitIds.has(Number(keyframe.content_unit_id))

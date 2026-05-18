@@ -1,10 +1,11 @@
 import type { AgentRun } from '@/lib/localAgentClient'
-import { isRecord } from '@/lib/jsonValue'
+import { isRecord } from './jsonValue.ts'
 import type { ChatGenerationParamAudit, ChatGenerationValidationError } from '@/store/agentStore'
 
 export interface AgentGeneratedResourceRef {
   jobId?: number
   outputResourceId: number
+  outputResourceIds: number[]
 }
 
 export function selectLatestGeneratedResource(run?: AgentRun): AgentGeneratedResourceRef | undefined {
@@ -54,21 +55,32 @@ function generatedResourceFromToolResult(result: unknown): AgentGeneratedResourc
   const data = dataRecord(result)
   if (!isRecord(data)) return undefined
 
-  const outputResourceId =
-    numericField(data, 'output_resource_id') ??
-    numericField(data, 'outputResourceId') ??
-    numericField(readRecord(data, 'output_resource'), 'ID') ??
-    numericField(readRecord(data, 'output_resource'), 'id') ??
-    numericField(readRecord(data, 'outputResource'), 'ID') ??
-    numericField(readRecord(data, 'outputResource'), 'id') ??
-    numericField(readRecord(data, 'media'), 'id')
+  const outputResourceIds = generatedResourceIdsFromToolData(data)
+  const outputResourceId = outputResourceIds[0]
 
   if (!outputResourceId) return undefined
   const job = readRecord(data, 'job')
   return {
     outputResourceId,
+    outputResourceIds,
     jobId: numericField(data, 'jobId') ?? numericField(data, 'job_id') ?? numericField(job, 'ID') ?? numericField(job, 'id'),
   }
+}
+
+function generatedResourceIdsFromToolData(data: Record<string, unknown>): number[] {
+  return uniquePositiveNumbers([
+    ...arrayField(data, 'output_resource_ids'),
+    ...arrayField(data, 'outputResourceIds'),
+    ...recordArrayField(data, 'output_resources').flatMap((resource) => [resource.ID, resource.id]),
+    ...recordArrayField(data, 'outputResources').flatMap((resource) => [resource.ID, resource.id]),
+    numericField(data, 'output_resource_id'),
+    numericField(data, 'outputResourceId'),
+    numericField(readRecord(data, 'output_resource'), 'ID'),
+    numericField(readRecord(data, 'output_resource'), 'id'),
+    numericField(readRecord(data, 'outputResource'), 'ID'),
+    numericField(readRecord(data, 'outputResource'), 'id'),
+    numericField(readRecord(data, 'media'), 'id'),
+  ])
 }
 
 function generationParamAuditFromToolResult(result: unknown): Omit<ChatGenerationParamAudit, 'stepId' | 'jobId'> | undefined {
@@ -154,6 +166,28 @@ function numericField(source: Record<string, unknown> | undefined, key: string):
   const value = source[key]
   const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+}
+
+function arrayField(source: Record<string, unknown> | undefined, key: string): unknown[] {
+  if (!source) return []
+  const value = source[key]
+  return Array.isArray(value) ? value : []
+}
+
+function recordArrayField(source: Record<string, unknown> | undefined, key: string): Array<Record<string, unknown>> {
+  return arrayField(source, key).filter(isRecord)
+}
+
+function uniquePositiveNumbers(values: unknown[]): number[] {
+  const seen = new Set<number>()
+  const result: number[] = []
+  for (const value of values) {
+    const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
+    if (!Number.isFinite(parsed) || parsed <= 0 || seen.has(parsed)) continue
+    seen.add(parsed)
+    result.push(parsed)
+  }
+  return result
 }
 
 function stringArrayField(source: Record<string, unknown> | undefined, key: string): string[] | undefined {

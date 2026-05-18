@@ -61,6 +61,18 @@ const projectProposalAssetSlotsSchema = {
   }),
 }
 
+const projectPromptRuleSchema = objectSchema(['key', 'label', 'value'], {
+  id: { type: 'string' },
+  key: { type: 'string', minLength: 1 },
+  label: { type: 'string', minLength: 1 },
+  category: { type: 'string' },
+  value: { type: 'string', minLength: 1 },
+  prompt_role: { enum: ['context', 'style', 'constraint', 'negative', 'quality_gate'] },
+  enabled: { type: 'boolean' },
+  required: { type: 'boolean' },
+  order: { type: 'number' },
+})
+
 export const projectProposalSchema = {
   id: 'movscript.project_proposal.v1',
   kind: 'project_proposal',
@@ -73,8 +85,6 @@ export const projectProposalSchema = {
     mode: proposalModeSchema,
     snapshot_base: { type: 'object' },
     proposal: objectSchema([], {
-      creative_references: projectProposalCreativeReferencesSchema,
-      asset_slots: projectProposalAssetSlotsSchema,
       project_style: {
         type: 'object',
         additionalProperties: true,
@@ -87,35 +97,45 @@ export const projectProposalSchema = {
           color_palette: { type: 'string' },
           pacing_rules: { type: 'string' },
           negative_rules: { type: 'array', items: { type: 'string' } },
+          custom_rules: { type: 'array', items: projectPromptRuleSchema },
         },
       },
     }),
-    impact_notes: { type: 'string' },
+    impact_notes: { type: 'array', items: { type: 'string' } },
     summary: { type: 'string' },
   }),
   promptSummary: [
     '# movscript.project_proposal.v1',
     '',
     'Content shape:',
-    '{ mode: "snapshot", proposal: { project_style: { aspect_ratio?, shot_size_system?, camera_language?, visual_style?, lighting_style?, color_palette?, pacing_rules?, negative_rules? }, creative_references?: [], asset_slots?: [] }, snapshot_base?, impact_notes?, summary? }',
+    '{ mode: "snapshot", proposal: { project_style: { aspect_ratio?, shot_size_system?, camera_language?, visual_style?, lighting_style?, color_palette?, pacing_rules?, negative_rules?, custom_rules?: Array<{ id?, key, label, category?, value, prompt_role?, enabled?, required?, order? }> } }, snapshot_base?, impact_notes?, summary? }',
     '',
     'Rules:',
     '- Project proposal owns project-wide production standards: shot sizes, aspect ratio, camera language, style, lighting, color, pacing, and negative rules.',
-    '- Do not use project proposal as the default place for setting lists or asset slot lists. Use setting_proposal and asset_proposal for those.',
-    '- Draft content is an editable backend snapshot. Keep existing ids, omit rows that should be removed, and add new rows with client_id only until apply canonicalizes them.',
+    '- Keep the fixed project_style fields for required baseline standards; use custom_rules for additional project-wide prompt rules from any angle.',
+    '- custom_rules entries are key/value prompt rules. key must be stable, value must be concrete, and prompt_role must be one of context, style, constraint, negative, quality_gate.',
+    '- Project proposal must not include setting lists or asset slot lists. Use setting_proposal and asset_proposal for those.',
     '- Vague style words need concrete visible traits or must be recorded in impact_notes.',
   ].join('\n'),
   examples: [{
     name: 'basic',
     content: {
       proposal: {
-        creative_references: [],
-        asset_slots: [],
         project_style: {
           aspect_ratio: '9:16',
           shot_size_system: ['wide', 'medium', 'close-up', 'insert'],
           visual_style: 'Clean vertical drama realism with readable product and prop details.',
           negative_rules: ['No unreadable dark scenes', 'No arbitrary character face changes'],
+          custom_rules: [{
+            key: 'character_consistency',
+            label: 'Character consistency',
+            category: 'Character',
+            value: 'Keep the lead character age, hairstyle, wardrobe silhouette, and face identity consistent across all generated shots.',
+            prompt_role: 'constraint',
+            enabled: true,
+            required: false,
+            order: 10,
+          }],
         },
       },
       summary: 'Defines project-wide production standards.',

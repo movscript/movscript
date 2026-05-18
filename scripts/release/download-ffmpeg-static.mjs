@@ -3,16 +3,24 @@ import { get as httpsGet } from 'node:https'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { pipeline } from 'node:stream/promises'
-import { fileURLToPath } from 'node:url'
 import { createGunzip } from 'node:zlib'
 
-import { desktopReleaseTargets } from './desktop-targets.mjs'
-import { parseDesktopArch, parseDesktopPlatform, readFFmpegVersion, resolveDesktopFFmpegPath, stageFFmpegBinary } from './stage-ffmpeg.mjs'
-import { ffmpegStaticDefaultVersion, ffmpegStaticReleaseTag, ffmpegStaticSourcePlan } from './ffmpeg-static-source.mjs'
+import {
+  desktopReleaseTargets,
+  ffmpegStaticDefaultVersion,
+  ffmpegStaticReleaseTag,
+  ffmpegStaticSourcePlan,
+  isDirectRun,
+  isFFmpegVersionLine,
+  parseDesktopArchArg,
+  parseDesktopPlatformArg,
+  resolveDesktopFFmpegPath,
+} from './release-common.mjs'
+import { readFFmpegVersion, stageFFmpegBinary } from './stage-ffmpeg.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 
-if (isDirectRun()) {
+if (isDirectRun(import.meta.url)) {
   runDownloadFFmpegStaticCli(repoRoot, process.env, process.argv.slice(2))
 }
 
@@ -42,8 +50,8 @@ export async function runDownloadFFmpegStaticCli(root = repoRoot, env = process.
       }
       return
     }
-    const platform = parseDesktopPlatform(args, env.MOVSCRIPT_FFMPEG_PLATFORM || currentPlatform)
-    const arch = parseDesktopArch(args, env.MOVSCRIPT_FFMPEG_ARCH || currentArch)
+    const platform = parseDesktopPlatformArg(args, env.MOVSCRIPT_FFMPEG_PLATFORM || currentPlatform, 'ffmpeg-static download')
+    const arch = parseDesktopArchArg(args, env.MOVSCRIPT_FFMPEG_ARCH || currentArch, 'ffmpeg-static download')
     const version = env.MOVSCRIPT_FFMPEG_VERSION?.trim() || ffmpegStaticDefaultVersion
     const runnableOnCurrentMachine = platform === currentPlatform && arch === currentArch
     if (!isFFmpegVersionLine(version)) {
@@ -126,12 +134,4 @@ function getHTTPStream(url) {
       resolveStream(response)
     }).on('error', reject)
   })
-}
-
-function isFFmpegVersionLine(value) {
-  return /^ffmpeg\s+version\b/i.test(String(value).trim())
-}
-
-function isDirectRun() {
-  return process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])
 }

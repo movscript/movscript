@@ -35,6 +35,7 @@ type WorkItemResultPayload struct {
 	Status               string `json:"status"`
 	TargetStatus         string `json:"target_status"`
 	AssetSlotCandidateID uint   `json:"asset_slot_candidate_id"`
+	KeyframeCandidateID  uint   `json:"keyframe_candidate_id"`
 }
 
 type WorkItemResultApplication struct {
@@ -42,6 +43,7 @@ type WorkItemResultApplication struct {
 	TargetType           string
 	TargetStatus         string
 	AssetSlotCandidateID uint
+	KeyframeCandidateID  uint
 }
 
 type WorkItem struct {
@@ -88,9 +90,10 @@ const (
 	WorkItemApplyStatusApplied       = "applied"
 	WorkItemApplyStatusFailed        = "failed"
 
-	WorkItemResultApplicationNone                   = "none"
-	WorkItemResultApplicationTargetStatus           = "target_status"
-	WorkItemResultApplicationLockAssetSlotCandidate = "lock_asset_slot_candidate"
+	WorkItemResultApplicationNone                    = "none"
+	WorkItemResultApplicationTargetStatus            = "target_status"
+	WorkItemResultApplicationLockAssetSlotCandidate  = "lock_asset_slot_candidate"
+	WorkItemResultApplicationAcceptKeyframeCandidate = "accept_keyframe_candidate"
 
 	WorkItemTargetTypeContentUnit     = "content_unit"
 	WorkItemTargetTypeKeyframe        = "keyframe"
@@ -300,6 +303,23 @@ func WorkItemResultApplicationFor(item WorkItem) (WorkItemResultApplication, err
 			AssetSlotCandidateID: payload.AssetSlotCandidateID,
 		}, nil
 	case WorkItemResultAcceptKeyframe:
+		if item.TargetType != WorkItemTargetTypeKeyframe {
+			return WorkItemResultApplication{}, errors.New("accept_keyframe 只能应用到 keyframe 任务")
+		}
+		if strings.TrimSpace(item.ResultJSON) != "" {
+			payload, err := DecodeWorkItemResultJSON(item.ResultJSON)
+			if err != nil {
+				return WorkItemResultApplication{}, err
+			}
+			if payload.KeyframeCandidateID > 0 {
+				return WorkItemResultApplication{
+					Kind:                WorkItemResultApplicationAcceptKeyframeCandidate,
+					TargetType:          WorkItemTargetTypeKeyframe,
+					TargetStatus:        KeyframeStatusAccepted,
+					KeyframeCandidateID: payload.KeyframeCandidateID,
+				}, nil
+			}
+		}
 		return WorkItemResultApplication{
 			Kind:         WorkItemResultApplicationTargetStatus,
 			TargetType:   WorkItemTargetTypeKeyframe,

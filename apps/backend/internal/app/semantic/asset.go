@@ -2,7 +2,10 @@ package semantic
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"strings"
+	"time"
 
 	relationapp "github.com/movscript/movscript/internal/app/relation"
 	"github.com/movscript/movscript/internal/app/workflow"
@@ -178,6 +181,9 @@ func (s *Service) CreateAssetSlot(ctx context.Context, projectID uint, input Ass
 	if err := s.validateAssetSlotOwners(ctx, projectID, input.ProductionID, input.CreativeReferenceID, input.CreativeReferenceStateID, input.OwnerType, input.OwnerID, input.LockedAssetSlotID); err != nil {
 		return domainsemantic.AssetSlot{}, err
 	}
+	if input.ResourceID != nil || input.LockedAssetSlotID != nil {
+		return domainsemantic.AssetSlot{}, ErrInvalidInput{Err: errors.New("素材资源采纳必须通过候选锁定流程")}
+	}
 	item := domainsemantic.NewAssetSlot(domainsemantic.AssetSlotSpec{
 		ProjectID:                projectID,
 		ProductionID:             input.ProductionID,
@@ -216,6 +222,9 @@ func (s *Service) PatchAssetSlot(ctx context.Context, projectID uint, id string,
 	item, err := s.repo.LoadAssetSlot(ctx, projectID, id)
 	if err != nil {
 		return item, err
+	}
+	if input.ResourceID != nil || input.LockedAssetSlotID != nil {
+		return item, ErrInvalidInput{Err: errors.New("素材资源采纳必须通过候选锁定流程")}
 	}
 	if err := s.validateAssetSlotOwners(ctx, projectID, input.ProductionID, input.CreativeReferenceID, input.CreativeReferenceStateID, input.OwnerType, input.OwnerID, input.LockedAssetSlotID); err != nil {
 		return item, err
@@ -423,6 +432,9 @@ func (s *Service) CreateAssetSlotCandidate(ctx context.Context, projectID uint, 
 	if err := s.ensureAssetSlotInProject(ctx, projectID, input.AssetSlotID); err != nil {
 		return domainsemantic.AssetSlotCandidate{}, err
 	}
+	if input.ResourceID != nil && *input.ResourceID == 0 {
+		return domainsemantic.AssetSlotCandidate{}, ErrInvalidInput{Err: errors.New("asset slot candidate resource_id must be positive")}
+	}
 	if input.ResourceID != nil && *input.ResourceID > 0 {
 		result, err := s.repo.AttachAssetSlotCandidate(ctx, workflow.AttachAssetSlotCandidateInput{
 			ProjectID:   projectID,
@@ -469,7 +481,7 @@ func (s *Service) CreateAssetSlotCandidate(ctx context.Context, projectID uint, 
 	return created, nil
 }
 
-func (s *Service) PatchAssetSlotCandidate(ctx context.Context, projectID uint, id string, input AssetSlotCandidateInput) (domainsemantic.AssetSlotCandidate, error) {
+func (s *Service) PatchAssetSlotCandidate(ctx context.Context, projectID uint, id string, input AssetSlotCandidateInput, actorID *uint) (domainsemantic.AssetSlotCandidate, error) {
 	item, err := s.repo.LoadAssetSlotCandidate(ctx, projectID, id)
 	if err != nil {
 		return item, err
@@ -497,12 +509,334 @@ func (s *Service) PatchAssetSlotCandidate(ctx context.Context, projectID uint, i
 		if err != nil {
 			return err
 		}
-		return txSvc.upsertAssetSlotCandidateRelation(ctx, patched)
+		if err := txSvc.upsertAssetSlotCandidateRelation(ctx, patched); err != nil {
+			return err
+		}
+		if err := txSvc.recordAssetSlotCandidateRejectionDecision(ctx, patched, actorID); err != nil {
+			return err
+		}
+		if err := txSvc.recordAssetSlotCandidateRejectionReviewEvent(ctx, patched, actorID); err != nil {
+			return err
+		}
+		if err := txSvc.resetAssetSlotCandidateStatusIfEmpty(ctx, patched); err != nil {
+			return err
+		}
+		return txSvc.applySelectedAssetSlotCandidate(ctx, patched, actorID)
 	})
 	if err != nil {
 		return patched, err
 	}
 	return patched, nil
+}
+
+func (s *Service) applySelectedAssetSlotCandidate(ctx context.Context, selected domainsemantic.AssetSlotCandidate, actorID *uint) error {
+	if strings.TrimSpace(selected.Status) != domainsemantic.AssetSlotCandidateStatusSelected {
+		return nil
+	}
+	if selected.AssetSlotID == 0 || selected.CandidateAssetSlotID == 0 {
+		return ErrInvalidInput{Err: errors.New("selected asset slot candidate is missing slot references")}
+	}
+	target, err := s.repo.LoadAssetSlot(ctx, selected.ProjectID, entityIDString(selected.AssetSlotID))
+	if err != nil {
+		return err
+	}
+	candidateSlot := selected.CandidateAssetSlot
+	if candidateSlot == nil {
+		loaded, err := s.repo.LoadAssetSlot(ctx, selected.ProjectID, entityIDString(selected.CandidateAssetSlotID))
+		if err != nil {
+			return err
+		}
+		candidateSlot = &loaded
+	}
+	if err := s.ensureSelectableAssetSlotCandidateResource(ctx, selected.ProjectID, candidateSlot); err != nil {
+		return err
+	}
+	lockedAssetSlotID := selected.CandidateAssetSlotID
+	slotPatch := domainsemantic.AssetSlotPatch{
+		Status:            domainsemantic.AssetSlotStatusLocked,
+		LockedAssetSlotID: &lockedAssetSlotID,
+		ResourceID:        candidateSlot.ResourceID,
+	}
+	locked, err := s.repo.PatchAssetSlot(ctx, target, slotPatch)
+	if err != nil {
+		return err
+	}
+	if err := s.upsertAssetSlotRelations(ctx, locked); err != nil {
+		return err
+	}
+	siblings, err := s.ListAssetSlotCandidates(ctx, AssetSlotCandidateFilter{
+		ProjectID:   selected.ProjectID,
+		AssetSlotID: selected.AssetSlotID,
+	})
+	if err != nil {
+		return err
+	}
+	for _, sibling := range siblings {
+		if sibling.ID == selected.ID || sibling.CandidateAssetSlotID == 0 || strings.TrimSpace(sibling.Status) == domainsemantic.AssetSlotCandidateStatusRejected {
+			continue
+		}
+		rejected, err := s.repo.PatchAssetSlotCandidate(ctx, sibling, domainsemantic.AssetSlotCandidatePatch{
+			AssetSlotID:          sibling.AssetSlotID,
+			CandidateAssetSlotID: sibling.CandidateAssetSlotID,
+			SourceType:           sibling.SourceType,
+			SourceID:             sibling.SourceID,
+			Score:                sibling.Score,
+			Status:               domainsemantic.AssetSlotCandidateStatusRejected,
+			Note:                 sibling.Note,
+		})
+		if err != nil {
+			return err
+		}
+		if err := s.upsertAssetSlotCandidateRelation(ctx, rejected); err != nil {
+			return err
+		}
+	}
+	return s.recordAssetSlotCandidateSelectionArtifacts(ctx, selected, actorID)
+}
+
+func (s *Service) ensureSelectableAssetSlotCandidateResource(ctx context.Context, projectID uint, candidateSlot *domainsemantic.AssetSlot) error {
+	if candidateSlot == nil || candidateSlot.ResourceID == nil || *candidateSlot.ResourceID == 0 {
+		return ErrInvalidInput{Err: errors.New("素材候选缺少资源")}
+	}
+	if err := s.validateScopedOwner(ctx, projectID, "resource", candidateSlot.ResourceID); err != nil {
+		if errors.Is(err, ErrOwnerNotFound) {
+			return ErrInvalidInput{Err: errors.New("素材候选资源不存在")}
+		}
+		return err
+	}
+	return nil
+}
+
+func (s *Service) recordAssetSlotCandidateSelectionArtifacts(ctx context.Context, selected domainsemantic.AssetSlotCandidate, actorID *uint) error {
+	appliedAt := time.Now().UTC().Format(time.RFC3339)
+	if err := s.recordAssetSlotCandidateSelectionDecision(ctx, selected, actorID, appliedAt); err != nil {
+		return err
+	}
+	return s.recordAssetSlotCandidateSelectionReviewEvent(ctx, selected, actorID, appliedAt)
+}
+
+func (s *Service) recordAssetSlotCandidateSelectionDecision(ctx context.Context, selected domainsemantic.AssetSlotCandidate, actorID *uint, appliedAt string) error {
+	candidateID := selected.ID
+	targetID := selected.AssetSlotID
+	existing, err := s.ListCandidateDecisions(ctx, CandidateDecisionFilter{
+		ProjectID:     selected.ProjectID,
+		CandidateType: domainsemantic.CandidateDecisionTypeAssetSlotCandidate,
+		CandidateID:   candidateID,
+		Decision:      domainsemantic.CandidateDecisionAccept,
+		Status:        domainsemantic.CandidateDecisionStatusApplied,
+	})
+	if err != nil {
+		return err
+	}
+	for _, decision := range existing {
+		if decision.TargetType == domainsemantic.WorkItemTargetTypeAssetSlot && decision.TargetID != nil && *decision.TargetID == targetID {
+			return nil
+		}
+	}
+	decision := domainsemantic.NewCandidateDecision(domainsemantic.CandidateDecisionSpec{
+		ProjectID:     selected.ProjectID,
+		CandidateType: domainsemantic.CandidateDecisionTypeAssetSlotCandidate,
+		CandidateID:   &candidateID,
+		TargetType:    domainsemantic.WorkItemTargetTypeAssetSlot,
+		TargetID:      &targetID,
+		Decision:      domainsemantic.CandidateDecisionAccept,
+		Status:        domainsemantic.CandidateDecisionStatusApplied,
+		Source:        domainsemantic.CandidateDecisionSourceManual,
+		DecidedByID:   actorID,
+		AppliedAt:     appliedAt,
+		MetadataJSON:  directAssetSlotCandidateSelectionMetadata(candidateID, appliedAt),
+	})
+	created, err := s.repo.CreateCandidateDecision(ctx, decision)
+	if err != nil {
+		return err
+	}
+	return s.upsertCandidateDecisionRelations(ctx, created)
+}
+
+func (s *Service) recordAssetSlotCandidateSelectionReviewEvent(ctx context.Context, selected domainsemantic.AssetSlotCandidate, actorID *uint, appliedAt string) error {
+	candidateID := selected.ID
+	targetID := selected.AssetSlotID
+	existing, err := s.ListReviewEvents(ctx, ReviewEventFilter{
+		ProjectID:   selected.ProjectID,
+		SubjectType: domainsemantic.WorkItemTargetTypeAssetSlot,
+		SubjectID:   targetID,
+		EventType:   domainsemantic.ReviewEventTypeApplied,
+	})
+	if err != nil {
+		return err
+	}
+	for _, event := range existing {
+		if event.ToStatus == domainsemantic.WorkItemResultLockAssetCandidate && metadataAssetSlotCandidateID(event.MetadataJSON) == candidateID {
+			return nil
+		}
+	}
+	event := domainsemantic.NewReviewEvent(domainsemantic.ReviewEventSpec{
+		ProjectID:    selected.ProjectID,
+		SubjectType:  domainsemantic.WorkItemTargetTypeAssetSlot,
+		SubjectID:    &targetID,
+		EventType:    domainsemantic.ReviewEventTypeApplied,
+		ToStatus:     domainsemantic.WorkItemResultLockAssetCandidate,
+		Comment:      "直接锁定素材候选",
+		Source:       domainsemantic.ReviewEventSourceManual,
+		ActorID:      actorID,
+		MetadataJSON: directAssetSlotCandidateSelectionMetadata(candidateID, appliedAt),
+	})
+	created, err := s.repo.CreateReviewEvent(ctx, event)
+	if err != nil {
+		return err
+	}
+	return s.upsertReviewEventRelation(ctx, created)
+}
+
+func (s *Service) recordAssetSlotCandidateRejectionDecision(ctx context.Context, rejected domainsemantic.AssetSlotCandidate, actorID *uint) error {
+	if strings.TrimSpace(rejected.Status) != domainsemantic.AssetSlotCandidateStatusRejected {
+		return nil
+	}
+	if rejected.ID == 0 || rejected.AssetSlotID == 0 {
+		return nil
+	}
+	candidateID := rejected.ID
+	targetID := rejected.AssetSlotID
+	existing, err := s.ListCandidateDecisions(ctx, CandidateDecisionFilter{
+		ProjectID:     rejected.ProjectID,
+		CandidateType: domainsemantic.CandidateDecisionTypeAssetSlotCandidate,
+		CandidateID:   candidateID,
+		Decision:      domainsemantic.CandidateDecisionReject,
+		Status:        domainsemantic.CandidateDecisionStatusApplied,
+	})
+	if err != nil {
+		return err
+	}
+	for _, decision := range existing {
+		if decision.TargetType == domainsemantic.WorkItemTargetTypeAssetSlot && decision.TargetID != nil && *decision.TargetID == targetID {
+			return nil
+		}
+	}
+	appliedAt := time.Now().UTC().Format(time.RFC3339)
+	decision := domainsemantic.NewCandidateDecision(domainsemantic.CandidateDecisionSpec{
+		ProjectID:     rejected.ProjectID,
+		CandidateType: domainsemantic.CandidateDecisionTypeAssetSlotCandidate,
+		CandidateID:   &candidateID,
+		TargetType:    domainsemantic.WorkItemTargetTypeAssetSlot,
+		TargetID:      &targetID,
+		Decision:      domainsemantic.CandidateDecisionReject,
+		Status:        domainsemantic.CandidateDecisionStatusApplied,
+		Source:        domainsemantic.CandidateDecisionSourceManual,
+		DecidedByID:   actorID,
+		AppliedAt:     appliedAt,
+		Note:          rejected.Note,
+		MetadataJSON:  directAssetSlotCandidateRejectionMetadata(candidateID, targetID, appliedAt),
+	})
+	created, err := s.repo.CreateCandidateDecision(ctx, decision)
+	if err != nil {
+		return err
+	}
+	return s.upsertCandidateDecisionRelations(ctx, created)
+}
+
+func (s *Service) recordAssetSlotCandidateRejectionReviewEvent(ctx context.Context, rejected domainsemantic.AssetSlotCandidate, actorID *uint) error {
+	if strings.TrimSpace(rejected.Status) != domainsemantic.AssetSlotCandidateStatusRejected {
+		return nil
+	}
+	if rejected.ID == 0 || rejected.AssetSlotID == 0 {
+		return nil
+	}
+	candidateID := rejected.ID
+	targetID := rejected.AssetSlotID
+	existing, err := s.ListReviewEvents(ctx, ReviewEventFilter{
+		ProjectID:   rejected.ProjectID,
+		SubjectType: domainsemantic.WorkItemTargetTypeAssetSlot,
+		SubjectID:   targetID,
+		EventType:   domainsemantic.ReviewEventTypeApplied,
+	})
+	if err != nil {
+		return err
+	}
+	for _, event := range existing {
+		if event.ToStatus == domainsemantic.CandidateDecisionReject && metadataAssetSlotCandidateID(event.MetadataJSON) == candidateID {
+			return nil
+		}
+	}
+	appliedAt := time.Now().UTC().Format(time.RFC3339)
+	event := domainsemantic.NewReviewEvent(domainsemantic.ReviewEventSpec{
+		ProjectID:    rejected.ProjectID,
+		SubjectType:  domainsemantic.WorkItemTargetTypeAssetSlot,
+		SubjectID:    &targetID,
+		EventType:    domainsemantic.ReviewEventTypeApplied,
+		ToStatus:     domainsemantic.CandidateDecisionReject,
+		Comment:      "直接拒绝素材候选",
+		Source:       domainsemantic.ReviewEventSourceManual,
+		ActorID:      actorID,
+		MetadataJSON: directAssetSlotCandidateRejectionMetadata(candidateID, targetID, appliedAt),
+	})
+	created, err := s.repo.CreateReviewEvent(ctx, event)
+	if err != nil {
+		return err
+	}
+	return s.upsertReviewEventRelation(ctx, created)
+}
+
+func (s *Service) resetAssetSlotCandidateStatusIfEmpty(ctx context.Context, rejected domainsemantic.AssetSlotCandidate) error {
+	if strings.TrimSpace(rejected.Status) != domainsemantic.AssetSlotCandidateStatusRejected || rejected.AssetSlotID == 0 {
+		return nil
+	}
+	candidates, err := s.ListAssetSlotCandidates(ctx, AssetSlotCandidateFilter{
+		ProjectID:   rejected.ProjectID,
+		AssetSlotID: rejected.AssetSlotID,
+	})
+	if err != nil {
+		return err
+	}
+	for _, candidate := range candidates {
+		if strings.TrimSpace(candidate.Status) != domainsemantic.AssetSlotCandidateStatusRejected {
+			return nil
+		}
+	}
+	target, err := s.repo.LoadAssetSlot(ctx, rejected.ProjectID, entityIDString(rejected.AssetSlotID))
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(target.Status) != domainsemantic.AssetSlotStatusCandidate || target.ResourceID != nil || target.LockedAssetSlotID != nil {
+		return nil
+	}
+	reset, err := s.repo.PatchAssetSlot(ctx, target, domainsemantic.AssetSlotPatch{
+		Status: domainsemantic.AssetSlotStatusMissing,
+	})
+	if err != nil {
+		return err
+	}
+	return s.upsertAssetSlotRelations(ctx, reset)
+}
+
+func directAssetSlotCandidateSelectionMetadata(candidateID uint, appliedAt string) string {
+	payload := map[string]any{
+		"source":                  "direct_asset_slot_candidate_selection",
+		"asset_slot_candidate_id": candidateID,
+		"applied_at":              appliedAt,
+	}
+	data, _ := json.Marshal(payload)
+	return string(data)
+}
+
+func directAssetSlotCandidateRejectionMetadata(candidateID uint, targetID uint, appliedAt string) string {
+	payload := map[string]any{
+		"source":                  "direct_asset_slot_candidate_rejection",
+		"asset_slot_candidate_id": candidateID,
+		"target_asset_slot_id":    targetID,
+		"applied_at":              appliedAt,
+	}
+	data, _ := json.Marshal(payload)
+	return string(data)
+}
+
+func metadataAssetSlotCandidateID(metadata string) uint {
+	var payload struct {
+		AssetSlotCandidateID uint `json:"asset_slot_candidate_id"`
+	}
+	if err := json.Unmarshal([]byte(metadata), &payload); err != nil {
+		return 0
+	}
+	return payload.AssetSlotCandidateID
 }
 
 func (s *Service) upsertAssetSlotCandidateRelation(ctx context.Context, item domainsemantic.AssetSlotCandidate) error {

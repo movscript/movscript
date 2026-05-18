@@ -125,8 +125,8 @@ test('buildRuntimeRunPreview builds a preview without persisting a run', async (
     const debug = preview.debug
     assert.equal(context.project?.id, 42)
     assert.equal(context.productionId, 9)
-    assert.equal(preview.memoryIds[0], 'mem_1')
-    assert.equal(preview.memoryCount, 1)
+    assert.deepEqual(preview.memoryIds, [])
+    assert.equal(preview.memoryCount, 0)
     assert.equal(policy.maxToolCalls, 3)
     assert.equal(policy.maxIterations, 2)
     assert.ok(tools.discovered.length > 0)
@@ -135,7 +135,7 @@ test('buildRuntimeRunPreview builds a preview without persisting a run', async (
     assert.deepEqual(preview.toolCalls, [])
     assert.deepEqual(preview.pendingApprovals, [])
     assert.deepEqual(preview.warnings, ['catalog warning'])
-    assert.deepEqual(memoryQueries, [{ projectId: 42, query: preview.message }])
+    assert.deepEqual(memoryQueries, [])
     assert.deepEqual(calls, [
       'getThread:thread_1',
       'initialize',
@@ -192,7 +192,7 @@ test('buildRuntimeRunPreview ignores invalid focus project ids at preview bounda
       draftStore: new InMemoryAgentDraftStore(),
       catalogSnapshot,
       contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
-      previewInput: { message: 'preview scope check', agentManifest: DEFAULT_AGENT_MANIFEST },
+      previewInput: { message: 'memory preview scope check', agentManifest: DEFAULT_AGENT_MANIFEST },
       makePreviewId: () => 'preview_invalid_project',
       makeApprovalId: () => 'approval_1',
       now: () => '2026-01-01T00:00:01.000Z',
@@ -202,7 +202,7 @@ test('buildRuntimeRunPreview ignores invalid focus project ids at preview bounda
     const context = preview.context
     assert.ok(context)
     assert.equal(context.project?.id, undefined)
-    assert.deepEqual(memoryQueries, [{ query: 'preview scope check' }])
+    assert.deepEqual(memoryQueries, [{ query: 'memory preview scope check' }])
   } finally {
     if (previousModelConfigPath === undefined) delete process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
     else process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = previousModelConfigPath

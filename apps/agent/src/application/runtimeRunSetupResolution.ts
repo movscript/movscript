@@ -7,6 +7,7 @@ import { buildDebugContext } from '../context/debugContext.js'
 import type { AgentRuntimeContract, AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
 import type { AgentMemory } from '../memory/types.js'
 import { resolveRuntimeLayers, type RuntimeLayerResolution } from '../skills/runtimeLayerResolver.js'
+import { activeSkillStateFromRun } from '../skills/activeSkillState.js'
 import type { AgentStore } from '../state/store.js'
 import type {
   AgentCapabilitiesResponse,
@@ -81,6 +82,7 @@ export async function resolveRuntimeRunSetup(input: {
 
   const shouldUseLayeredRuntime = input.run.metadata?.manifestSource === 'default'
     && input.catalogSnapshot.layeredRegistry.profiles.size > 0
+  const activeSkillState = activeSkillStateFromRun(input.run)
   const layers = shouldUseLayeredRuntime
     ? resolveRuntimeLayers({
       registry: input.catalogSnapshot.layeredRegistry,
@@ -89,6 +91,8 @@ export async function resolveRuntimeRunSetup(input: {
       debugContext: baseDebugContext,
       ...(input.clientInput ? { clientInput: input.clientInput } : {}),
       history: input.history,
+      requestedSkillIds: activeSkillState.loadedSkillIds,
+      unloadedSkillIds: activeSkillState.unloadedSkillIds,
     })
     : undefined
 

@@ -8,7 +8,11 @@ test('createRuntimeCatalogOperationsBridge wires capabilities, catalog reads, an
   const calls: string[] = []
   const manifest = { id: 'manifest' } as unknown as AgentManifest
   const toolRegistry = { list: () => [{ name: 'tool' }] } as unknown as ToolRegistry
-  const layeredRegistry = { skills: new Map([['skill', { id: 'skill' }]]), tools: new Map() } as never
+  const layeredRegistry = {
+    skills: new Map([['skill', { id: 'skill' }]]),
+    profiles: new Map([['profile', { id: 'profile' }]]),
+    tools: new Map(),
+  } as never
   let state = {
     defaultAgentManifest: manifest,
     toolRegistry,
@@ -56,6 +60,7 @@ test('createRuntimeCatalogOperationsBridge wires capabilities, catalog reads, an
   await bridge.getCapabilities({ runRole: 'planner' })
   assert.deepEqual(bridge.listRegisteredTools(), [{ name: 'tool' }])
   assert.deepEqual(bridge.listSkillCatalog().map((skill) => skill.id), ['skill'])
+  assert.deepEqual(bridge.listProfileCatalog().map((profile) => profile.id), ['profile'])
   assert.equal(bridge.getDefaultAgentManifest(), manifest)
   assert.deepEqual(bridge.reloadAgentCatalog(), { status: 'reloaded' })
   assert.deepEqual(calls, [

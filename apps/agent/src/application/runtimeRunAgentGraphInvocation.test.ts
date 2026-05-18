@@ -307,6 +307,7 @@ function emptyContractResolver(): AgentRuntimeContractResolver {
 function emptyCatalogManager(): AgentCatalogToolManager {
   return {
     inspectAgentCatalog: () => ({}),
+    updateActiveSkills: () => ({}),
     reloadAgentCatalog: () => ({}),
     createAgentPlan: () => ({}),
     getAgentPlan: () => ({}),

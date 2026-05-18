@@ -1,0 +1,33 @@
+{
+  "name": "movscript_update_active_skills",
+  "description": "请求在当前 run 中加载或卸载 agent skills。用于按需切换专家、角色、风格或工作流上下文；执行后 runtime 会刷新下一轮模型上下文。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "load": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "要加载到当前 run 上下文的 skill id 列表。"
+      },
+      "unload": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "要从当前 run 上下文卸载或屏蔽的 skill id 列表。"
+      },
+      "reason": {
+        "type": "string",
+        "description": "本次技能变更原因，用于 trace 和调试视图。"
+      }
+    }
+  },
+  "permission": "agent.skills.manage",
+  "risk": "read",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "动态管理当前 run 的 active skills，支持加载按需专家和卸载不再适用的技能。"
+}

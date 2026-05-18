@@ -16,20 +16,21 @@ Local mode lets Electron start the backend at `http://localhost:8766`, uses SQLi
 For split backend/frontend development:
 
 ```bash
-make dev-backend
-make dev-frontend
+pnpm --filter movscript-backend dev
+pnpm --filter movscript-frontend dev
 curl http://localhost:8765/health
 ```
 
 Start the local Agent when working on agent flows:
 
 ```bash
-make dev-agent
+pnpm --filter movscript-agent dev
 ```
 
 ## Configuration
 
 Local desktop mode sets `MOVSCRIPT_BACKEND_POLICY=spawn`. The default external backend URL is `http://localhost:8765`; backend environment variables are documented in `apps/backend/.env.example`.
+To run local desktop mode against an external Agent service, reuse the same entry point with `MOVSCRIPT_AGENT_POLICY=external make dev-frontend-local`.
 
 Common local backend settings:
 
@@ -84,16 +85,24 @@ Common commands:
 ```bash
 pnpm install
 make dev-frontend-local
-make dev-backend
-make dev-frontend
-make dev-agent
+pnpm --filter movscript-backend dev
+pnpm --filter movscript-frontend dev
+pnpm --filter movscript-agent dev
 pnpm run typecheck
-pnpm run test:backend
-pnpm run test:agent-run-debugging
-pnpm run test:release-scripts
+pnpm --filter movscript-backend test
+pnpm run test:contracts
+pnpm run test:scripts
+pnpm run verify:scripts
 ```
 
-Plugin-related code lives in `apps/movcli`, `packages/plugin-sdk`, and `plugins/*`. Use `make dev-movcli` and `pnpm run build:plugins` when working on plugin packaging.
+Plugin-related code lives in `apps/movcli`, `packages/plugin-sdk`, and `plugins/*`. Use `pnpm --filter movcli dev` and `pnpm --filter "./plugins/*" build` when working on plugin packaging.
+
+Script ownership and lifecycle policy is documented in [Script Management](./script-management.md). Update `scripts/script-manifest.json` whenever a repository automation script is added, moved, or deleted.
+
+AI-generated media enters review through candidate sets, not direct binding. The candidate rules for asset slots, keyframes, and future visual anchors are documented in [Candidate Workflow](./candidate-workflow.md).
+
+The responsibility boundary between Agent Settings, Agent Debug, and conversation details is documented in [Agent Settings And Debug Boundaries](./agent-settings-debug.md).
+Stable Agent Debug Bundle and Agent Settings Snapshot schemas are documented in [Agent Schema Reference](./agent-schema-reference.md).
 
 ## Release And Deployment
 
@@ -103,30 +112,28 @@ Build and package commands:
 
 ```bash
 pnpm run build
-pnpm run package:desktop
-pnpm run package:desktop:mac:x64
-pnpm run package:desktop:mac:arm64
-pnpm run package:desktop:linux:x64
-pnpm run package:desktop:linux:arm64
-pnpm run package:desktop:win
-pnpm run package:desktop:win:arm64
+pnpm run release -- package-desktop
+pnpm run release -- package-desktop --platform=darwin --arch=arm64
+pnpm run release -- package-desktop --platform=linux --arch=x64
+pnpm run release -- package-desktop --platform=win32 --arch=x64
 ```
 
 Before release, verify at minimum:
 
 - `pnpm run typecheck`
-- `pnpm run test:backend`
-- `pnpm run test:agent-run-debugging`
+- `pnpm --filter movscript-backend test`
+- `pnpm run test:contracts`
 - `pnpm --filter movscript-frontend typecheck`
 - `pnpm --filter movscript-admin typecheck`
-- `pnpm run test:release-scripts`
-- `pnpm run release:audit-ffmpeg:matrix`
+- `pnpm run verify:scripts`
+- `pnpm run test:scripts`
+- `pnpm run release -- audit-ffmpeg --all --all-archs`
 - The admin static assets are built and copied.
 - Local desktop mode starts `http://localhost:8766`.
 - The admin console opens at `http://localhost:8766/admin`.
 - Desktop video clipping uses staged redistributable ffmpeg binaries from `apps/frontend/vendor/ffmpeg`.
 
-For AgentRun debugging changes that specifically need browser or screenshot coverage, run `pnpm run test:agent-run-debugging:e2e` manually in an environment that can launch Chromium.
+For AgentRun debugging changes that specifically need browser or screenshot coverage, run `make test-agent-run-debugging-e2e` manually in an environment that can launch Chromium.
 
 ## Troubleshooting
 
@@ -153,4 +160,4 @@ Video clipping cannot find ffmpeg:
 - Local clipping only runs in the desktop app.
 - Packaged apps look under `resources/ffmpeg/<platform>/<arch>/<binary>`.
 - Development builds can use `FFMPEG_PATH`, `MOVSCRIPT_FFMPEG_PATH`, or an `ffmpeg` binary on `PATH`.
-- Release builds must stage redistributable binaries with `pnpm run release:stage-ffmpeg` or `pnpm run release:download-ffmpeg-static`.
+- Release builds must stage redistributable binaries with `pnpm run release -- stage-ffmpeg` or `pnpm run release -- download-ffmpeg-static`.

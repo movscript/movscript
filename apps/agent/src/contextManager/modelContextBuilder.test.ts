@@ -112,6 +112,7 @@ test('buildContext keeps default chat prompt lean', () => {
   assert.equal(built.debugParts.some((part) => part.id === 'context.memories'), false)
   assert.doesNotMatch(built.systemPrompt, /Available tool handles/)
   assert.doesNotMatch(built.systemPrompt, /Blocked tool handles/)
+  assert.doesNotMatch(built.systemPrompt, /Focus snapshot:/)
   assert.doesNotMatch(built.systemPrompt, /movscript_create_draft/)
   assert.doesNotMatch(built.systemPrompt, /memory#memory_1/)
   assert.match(built.systemPrompt, /Available tool schemas are attached to the model call/)
@@ -153,6 +154,7 @@ test('buildContext explains skill discovery and catalog inspection when a skill 
           description: 'Plan storyboard and keyframe proposal drafts.',
           active: false,
           triggerHints: ['intent:content_unit_proposal', 'keyword:分镜'],
+          conflicts: ['movscript.workflow.visual-generation'],
         },
         {
           id: 'movscript.expertise.storyboard.general-director',
@@ -202,6 +204,8 @@ test('buildContext explains skill discovery and catalog inspection when a skill 
   const discovery = built.debugParts.find((part) => part.id === 'skills.discovery')
   assert.ok(discovery)
   assert.match(discovery.content, /Skill activation is automatic/)
+  assert.match(discovery.content, /ask the user to choose with movscript_request_user_input/)
+  assert.match(discovery.content, /conflicts=movscript\.workflow\.visual-generation/)
   assert.match(discovery.content, /movscript_inspect_agent_catalog/)
   assert.match(discovery.content, /Enabled workflow skills:/)
   assert.match(discovery.content, /movscript\.workflow\.content-unit-proposal/)
@@ -558,6 +562,7 @@ test('buildContext orders activated behavior as persona, policies, then workflow
         enabled: true,
         instruction: 'workflow',
         compiledInstruction: 'workflow',
+        toolHints: ['tool://movscript_get_focus'],
         activationReason: 'default',
         resolvedPriority: 100,
         warnings: [],
@@ -622,7 +627,12 @@ test('buildContext orders activated behavior as persona, policies, then workflow
   assert.ok(ids.indexOf('skill.persona.default') < ids.indexOf('skill.policy.safe'))
   assert.ok(ids.indexOf('skill.policy.safe') < ids.indexOf('skill.workflow.story'))
   assert.ok(ids.indexOf('skill.workflow.story') < ids.indexOf('context.warnings'))
-  assert.equal(built.promptStats.totalChars, built.systemPrompt.length)
+  assert.equal(built.promptStats.systemChars, built.systemPrompt.length)
+  assert.ok(built.promptStats.totalChars > built.systemPrompt.length)
+  assert.equal(built.promptStats.conversationChars, built.promptStats.totalChars - built.systemPrompt.length)
+  assert.equal(built.promptStats.budget.usedChars, built.promptStats.totalChars)
+  assert.ok(built.promptStats.budget.remainingChars >= 0)
+  assert.equal(built.promptStats.budget.status, 'ok')
   assert.ok(built.promptStats.byLayer.level0_core > 0)
   assert.ok(built.promptStats.byLayer.level1_context > 0)
   assert.ok(built.promptStats.byLayer.level2_behavior > 0)

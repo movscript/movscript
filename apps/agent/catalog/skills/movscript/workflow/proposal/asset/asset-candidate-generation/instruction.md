@@ -24,7 +24,7 @@
 - 模型发现：{{tool:movscript_list_models}}
 - 创建生成任务：{{tool:movscript_create_generation_job}}
 - 监控生成任务：{{tool:movscript_get_generation_job}} {{tool:movscript_list_generation_jobs}}
-- 生成成功并拿到 output_resource_id 后，写入候选集：{{tool:movscript_attach_asset_slot_candidate}}
+- 生成成功并拿到一个或多个 output_resource_id 后，写入候选集：{{tool:movscript_attach_asset_slot_candidate}}
 - 缺少目标或引用时询问：{{tool:movscript_request_user_input}}
 
 流程：
@@ -34,7 +34,7 @@
 4. 处理剧情描述与视觉定位冲突时，以可长期复用的角色资产为准。主角或重要角色即使文本说“丑”“狼狈”“不起眼”，也不要把候选写成真实低质或不可用的丑化形象；应转译为朴素、疲惫、被环境误读、衣着状态差等可控特征，除非用户明确要求丑化。
 5. 将期望候选总结为具体 prompt intent、引用、输出类型、模型能力和验收标准。
 6. 检查可行性时，使用模型发现 contracts，而不是 provider 假设。记录缺失引用、不支持的时长/画幅比例、不支持的模型专用参数、输入数量限制或归属不清等阻塞项。
-7. 用户要求生成候选时，必须创建并监控生成任务；生成成功且有 output_resource_id 后，调用 `movscript_attach_asset_slot_candidate` 把资源加入选中 asset slot 的候选集。不要只返回更详细的文字提案。
+7. 用户要求生成候选时，必须创建并监控生成任务；生成成功且有一个或多个 output_resource_id 后，调用 `movscript_attach_asset_slot_candidate` 把每个可用资源逐个加入选中 asset slot 的候选集。不要只返回更详细的文字提案。
 
 校验：
 - 候选必须命名 asset target，并说明准备方向为什么适合它。
@@ -42,8 +42,8 @@
 - 候选必须说明与已有设定材料或素材资源的关系：复用哪张/哪个 resource id、延续哪些一致性特征、或缺少哪些参考。
 
 输出：
-返回已选 asset target、候选 prompt 方向、已有设定/素材检查结果、已知的引用/资源 id、所需模型能力、验收标准、生成 jobId、output_resource_id、候选写入结果、阻塞项和下一步动作。
+返回已选 asset target、候选 prompt 方向、已有设定/素材检查结果、已知的引用/资源 id、所需模型能力、验收标准、生成 jobId、output_resource_id 列表、每个 output_resource_id 的候选写入结果、阻塞项和下一步动作。
 
 绝不：
 - 除非生成工具结果证明媒体存在，否则绝不声称媒体已经存在。
-- 除非 `movscript_attach_asset_slot_candidate` 成功返回，否则绝不声称资源已经加入候选集。
+- 除非 `movscript_attach_asset_slot_candidate` 对对应 output_resource_id 成功返回，否则绝不声称该资源已经加入候选集；如果有多个 output_resource_id，必须逐项写入并逐项报告成功、失败或阻塞。

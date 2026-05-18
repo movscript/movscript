@@ -2,6 +2,7 @@ import { api } from '@/lib/api'
 import type { CanvasExecutableSpec, CanvasPortDef, PublicModel, RawResource } from '@/types'
 import { createMcpTools, type McpTools } from '@/lib/mcpTools'
 import { publicModelId } from '@/lib/modelDisplay'
+import { localAgentClient, type AgentSkillBundleFile, type AgentSkillBundleInstallResult } from '@/lib/localAgentClient'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -42,6 +43,18 @@ export interface ClientPluginContributions {
   canvasNodes?: ClientPluginCanvasNodeContribution[]
   tools?: unknown[]
   cards?: unknown[]
+  agentSkills?: Array<{
+    path: string
+    id?: string
+    kind?: 'persona' | 'workflow' | 'policy' | 'expertise' | string
+    tags?: string[]
+    aliases?: string[]
+    useWhen?: string[]
+    load?: 'core' | 'on_demand' | 'manual' | string
+    scope?: 'turn' | 'run' | 'thread' | string
+    dependencies?: string[]
+    conflicts?: string[]
+  }>
   commands?: unknown[]
 }
 
@@ -67,6 +80,8 @@ export interface ClientPluginManifest {
   sourceUrl?: string
   /** Logo as data URL (extracted from .movpkg assets/) */
   logoDataUrl?: string
+  /** Result of installing bundled agent skills into the local agent catalog. */
+  agentSkillInstall?: AgentSkillBundleInstallResult
   installedAt?: string
 }
 
@@ -243,14 +258,39 @@ async function installPluginFromMovpkg(file: File): Promise<ClientPluginManifest
     homepage: typeof raw.homepage === 'string' ? raw.homepage : undefined,
     permissions: Array.isArray(raw.permissions) ? raw.permissions : undefined,
     inputSchema: raw.inputSchema as ClientPluginInputSchema | undefined,
+    contributes: raw.contributes as ClientPluginContributions | undefined,
     bundle,
     ...(logoDataUrl ? { logoDataUrl } : {}),
     installedAt: new Date().toISOString(),
   }
 
   if (!isClientPluginManifest(manifest)) throw new Error('invalid plugin manifest in .movpkg')
+  const agentSkillFiles = await extractMovpkgAgentSkillFiles(zip)
+  if (manifest.contributes?.agentSkills?.length && agentSkillFiles.length === 0) {
+    throw new Error('.movpkg declares contributes.agentSkills but does not include agent-skills/ files')
+  }
+  if (agentSkillFiles.length > 0) {
+    await localAgentClient.ensureRunning()
+    manifest.agentSkillInstall = await localAgentClient.installAgentSkillBundle({
+      pluginId: manifest.id,
+      files: agentSkillFiles,
+    })
+  }
   await saveClientPlugin(manifest)
   return manifest
+}
+
+async function extractMovpkgAgentSkillFiles(zip: {
+  forEach: (callback: (relativePath: string, file: { dir: boolean; async: (type: 'text') => Promise<string> }) => void) => void
+}): Promise<AgentSkillBundleFile[]> {
+  const pending: Array<Promise<AgentSkillBundleFile>> = []
+  zip.forEach((relativePath, entry) => {
+    if (entry.dir) return
+    if (!relativePath.startsWith('agent-skills/')) return
+    if (!/\.(md|json|txt)$/i.test(relativePath)) return
+    pending.push(entry.async('text').then((content) => ({ path: relativePath, content })))
+  })
+  return (await Promise.all(pending)).sort((left, right) => left.path.localeCompare(right.path))
 }
 
 /**
@@ -287,6 +327,7 @@ function extractBundleManifest(src: string, sourceUrl: string): ClientPluginMani
     homepage: typeof raw.homepage === 'string' ? raw.homepage : undefined,
     permissions: Array.isArray(raw.permissions) ? raw.permissions : undefined,
     inputSchema: raw.inputSchema as ClientPluginInputSchema | undefined,
+    contributes: raw.contributes as ClientPluginContributions | undefined,
     bundle: typeof raw.bundle === 'string' ? raw.bundle : src,
     script: typeof raw.script === 'string' ? raw.script : undefined,
     sourceUrl,

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { agentPermissionModeLabel, agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, approvalStatusLabel, buildDebugAttentionEvents, buildDebugCoverageSummary, buildDebugReadinessChecklist, buildDebugReportText, buildModelCallDebugContext, buildModelCallDebugContexts, buildModelCallSummaries, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runApprovalModeLabel, runRoleLabel, runStatusLabel, toolApprovalLabel, toolGrantModeLabel, traceCategoryLabel, traceEventDurationMs, traceEventStatusLabel, traceKindLabel } from './agentRunUi'
+import { agentPermissionModeLabel, agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, approvalStatusLabel, buildDebugAttentionEvents, buildDebugCoverageSummary, buildDebugReadinessChecklist, buildDebugReportText, buildModelCallDebugContext, buildModelCallDebugContexts, buildModelCallSummaries, buildSkillTraceSummary, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runApprovalModeLabel, runRoleLabel, runStatusLabel, toolApprovalLabel, toolGrantModeLabel, traceCategoryLabel, traceEventDurationMs, traceEventStatusLabel, traceKindLabel } from './agentRunUi'
 import type { AgentTraceEvent } from './localAgentClient'
 
 function traceEvent(overrides: Partial<AgentTraceEvent>): AgentTraceEvent {
@@ -55,6 +55,43 @@ test('agentTraceView translates prompt composition into readable Chinese summary
   ])
   assert.deepEqual(view.promptDetail?.skills, ['skill.a', 'skill.b'])
   assert.deepEqual(view.promptDetail?.tools, ['movscript_get_focus'])
+})
+
+test('buildSkillTraceSummary summarizes dynamic skill state events', () => {
+  const summary = buildSkillTraceSummary([
+    traceEvent({
+      id: 'skill_1',
+      kind: 'skill',
+      title: 'Runtime skills resolved',
+      data: {
+        skillEventType: 'skill.state_resolved',
+        activeSkillIds: ['core.policy'],
+        loadedSkillIds: [],
+        unloadedSkillIds: [],
+        availableSkillIds: ['core.policy', 'director.jiangwen'],
+      },
+    }),
+    traceEvent({
+      id: 'skill_2',
+      kind: 'tool_call',
+      title: 'Tool completed: movscript_update_active_skills',
+      toolName: 'movscript_update_active_skills',
+      createdAt: '2026-05-15T00:01:00.000Z',
+      data: {
+        eventType: 'skill.state_requested',
+        activeSkillIds: ['core.policy', 'director.jiangwen'],
+        loadedSkillIds: ['director.jiangwen'],
+        unloadedSkillIds: ['director.marvel'],
+        availableSkillIds: ['core.policy', 'director.jiangwen', 'director.marvel'],
+      },
+    }),
+  ])
+
+  assert.equal(summary.timeline.length, 2)
+  assert.equal(summary.timeline[1]?.title, '技能状态变更请求')
+  assert.deepEqual(summary.currentActiveSkillIds, ['core.policy', 'director.jiangwen'])
+  assert.deepEqual(summary.currentLoadedSkillIds, ['director.jiangwen'])
+  assert.deepEqual(summary.currentUnloadedSkillIds, ['director.marvel'])
 })
 
 test('agentTraceView separates model HTTP request and impact', () => {

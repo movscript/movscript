@@ -10,7 +10,6 @@ COPY .npmrc ./
 COPY apps/admin/package.json ./apps/admin/package.json
 COPY apps/agent/package.json ./apps/agent/package.json
 COPY apps/frontend/package.json ./apps/frontend/package.json
-COPY apps/frontend/movscript-agent/package.json ./apps/frontend/movscript-agent/package.json
 COPY apps/movcli/package.json ./apps/movcli/package.json
 COPY packages/draft-schemas/package.json ./packages/draft-schemas/package.json
 COPY packages/plugin-sdk/package.json ./packages/plugin-sdk/package.json

@@ -18,7 +18,7 @@ import type { JSONValue } from '../types.js'
 import { isJSONRecord, isJSONValue, isRecord } from '../jsonValue.js'
 import { buildLayeredCatalogRegistry } from './registry.js'
 import { lintCatalog } from './linter.js'
-import type { AgentProfile, CapabilityPack, CatalogIssue, CatalogRegistry, ContextSelector, PolicyScope, SkillDefinition, ToolDefinition } from './types.js'
+import type { AgentProfile, CapabilityPack, CatalogIssue, CatalogRegistry, ContextSelector, PolicyScope, SkillActivationScope, SkillDefinition, SkillKind, SkillLoadMode, SkillTrigger, ToolDefinition } from './types.js'
 import { loadAgentKnowledgeStore } from '../knowledge/knowledgeLoader.js'
 import type { KnowledgeCollection } from '../knowledge/types.js'
 
@@ -82,11 +82,13 @@ export function loadAgentPluginCatalog(options: {
   ])
   const builtinLayeredSkillResult = loadLayeredSkillsForPacks(builtinSkillsDir, builtinPackResult.packs)
   const localLayeredSkillResult = loadLayeredSkillsForPacks(skillsDir, localPackResult.packs)
+  const localStandaloneCodexSkillResult = loadStandaloneCodexSkills(skillsDir)
   const builtinLayeredToolResult = loadLayeredToolsForPacks(builtinToolsDir, builtinPackResult.packs, 'runtime')
   const localLayeredToolResult = loadLayeredToolsForPacks(toolsDir, localPackResult.packs, 'plugin')
   const layeredSkills = dedupeLayeredSkills([
     ...builtinLayeredSkillResult.skills,
     ...localLayeredSkillResult.skills,
+    ...localStandaloneCodexSkillResult.skills,
   ])
   const layeredTools = dedupeLayeredTools([
     ...builtinLayeredToolResult.tools,
@@ -110,6 +112,7 @@ export function loadAgentPluginCatalog(options: {
     ...localProfileResult.warnings,
     ...builtinLayeredSkillResult.warnings,
     ...localLayeredSkillResult.warnings,
+    ...localStandaloneCodexSkillResult.warnings,
     ...builtinLayeredToolResult.warnings,
     ...localLayeredToolResult.warnings,
     ...packResourceWarnings(builtinPackResult.packs, 'builtin'),
@@ -135,7 +138,7 @@ export function loadAgentPluginCatalog(options: {
   const resourcePaths = {
     packs: { ...builtinPackResult.paths, ...localPackResult.paths },
     profiles: { ...builtinProfileResult.paths, ...localProfileResult.paths },
-    skills: { ...builtinLayeredSkillResult.paths, ...localLayeredSkillResult.paths },
+    skills: { ...builtinLayeredSkillResult.paths, ...localLayeredSkillResult.paths, ...localStandaloneCodexSkillResult.paths },
     tools: { ...builtinLayeredToolResult.paths, ...localLayeredToolResult.paths },
   }
 
@@ -342,12 +345,23 @@ function loadLayeredSkillsForPacks(rootDir: string, packs: CapabilityPack[]): { 
   const warnings: string[] = []
   const skills: SkillDefinition[] = []
   const paths: Record<string, string> = {}
-  for (const filePath of listPackResourceJSONFiles(rootDir, packs, 'skills', warnings, /\.(persona|workflow|policy|expertise)\.json$/i)) {
-    const parsed = readJSONFile(filePath, warnings)
-    if (parsed === undefined) continue
-    const normalizedSkills = normalizeLayeredSkillFile(parsed, filePath, warnings)
+  for (const filePath of listPackResourceSkillFiles(rootDir, packs, warnings)) {
+    const normalizedSkills = normalizeLayeredSkillResource(filePath, warnings)
     skills.push(...normalizedSkills)
     for (const skill of normalizedSkills) paths[skill.id] = filePath
+  }
+  return { skills: dedupeLayeredSkills(skills), warnings, paths }
+}
+
+function loadStandaloneCodexSkills(rootDir: string): { skills: SkillDefinition[]; warnings: string[]; paths: Record<string, string> } {
+  const warnings: string[] = []
+  const skills: SkillDefinition[] = []
+  const paths: Record<string, string> = {}
+  for (const filePath of listPluginCodexSkillFiles(rootDir)) {
+    const skill = normalizeCodexSkillFile(filePath, warnings)
+    if (!skill) continue
+    skills.push(skill)
+    paths[skill.id] = filePath
   }
   return { skills: dedupeLayeredSkills(skills), warnings, paths }
 }
@@ -372,11 +386,8 @@ function loadLayeredSkillDirectory(dir: string): { skills: SkillDefinition[]; wa
   const warnings: string[] = []
   const skills: SkillDefinition[] = []
   const paths: Record<string, string> = {}
-  for (const filePath of listPluginJSONFiles(dir)) {
-    if (!/\.(persona|workflow|policy|expertise)\.json$/i.test(filePath)) continue
-    const parsed = readJSONFile(filePath, warnings)
-    if (parsed === undefined) continue
-    const normalizedSkills = normalizeLayeredSkillFile(parsed, filePath, warnings)
+  for (const filePath of listPluginSkillFiles(dir)) {
+    const normalizedSkills = normalizeLayeredSkillResource(filePath, warnings)
     skills.push(...normalizedSkills)
     for (const skill of normalizedSkills) paths[skill.id] = filePath
   }
@@ -441,6 +452,22 @@ function listPackResourceJSONFiles(
   return Array.from(files).sort()
 }
 
+function listPackResourceSkillFiles(rootDir: string, packs: CapabilityPack[], warnings: string[]): string[] {
+  const files = new Set<string>()
+  for (const pack of packs) {
+    const resourcePaths = pack.resources?.skills ?? []
+    for (const resourcePath of resourcePaths) {
+      const resolvedPath = resolveCatalogResourcePath(rootDir, resourcePath)
+      if (!resolvedPath) {
+        warnings.push(`pack ${pack.id} has invalid skills resource path ${resourcePath}; paths must be relative and stay inside the catalog skills root`)
+        continue
+      }
+      for (const filePath of listResourceSkillFiles(resolvedPath)) files.add(filePath)
+    }
+  }
+  return Array.from(files).sort()
+}
+
 function resolveCatalogResourcePath(rootDir: string, resourcePath: string): string | undefined {
   if (isAbsolute(resourcePath)) return undefined
   const resolvedPath = resolve(rootDir, resourcePath)
@@ -455,6 +482,14 @@ function listResourceJSONFiles(path: string): string[] {
   const stat = statSync(path)
   if (stat.isFile()) return path.endsWith('.json') ? [path] : []
   if (stat.isDirectory()) return listPluginJSONFiles(path)
+  return []
+}
+
+function listResourceSkillFiles(path: string): string[] {
+  if (!existsSync(path)) return []
+  const stat = statSync(path)
+  if (stat.isFile()) return isSkillResourceFile(path) ? [path] : []
+  if (stat.isDirectory()) return listPluginSkillFiles(path)
   return []
 }
 
@@ -475,6 +510,50 @@ function listPluginJSONFiles(dir: string): string[] {
       if (stat.isDirectory()) visit(fullPath)
     }
   }
+}
+
+function listPluginSkillFiles(dir: string): string[] {
+  if (!existsSync(dir)) return []
+  const files: string[] = []
+  visit(dir)
+  return files
+
+  function visit(currentDir: string): void {
+    for (const entry of readdirSync(currentDir).sort()) {
+      const fullPath = join(currentDir, entry)
+      const stat = statSync(fullPath)
+      if (stat.isFile() && isSkillResourceFile(fullPath)) {
+        files.push(fullPath)
+        continue
+      }
+      if (stat.isDirectory()) visit(fullPath)
+    }
+  }
+}
+
+function listPluginCodexSkillFiles(dir: string): string[] {
+  if (!existsSync(dir)) return []
+  const files: string[] = []
+  visit(dir)
+  return files
+
+  function visit(currentDir: string): void {
+    for (const entry of readdirSync(currentDir).sort()) {
+      const fullPath = join(currentDir, entry)
+      const stat = statSync(fullPath)
+      if (stat.isFile() && (/(^|\/)SKILL\.md$/i.test(fullPath) || /\.skill\.md$/i.test(fullPath))) {
+        files.push(fullPath)
+        continue
+      }
+      if (stat.isDirectory()) visit(fullPath)
+    }
+  }
+}
+
+function isSkillResourceFile(filePath: string): boolean {
+  return /\.(persona|workflow|policy|expertise)\.json$/i.test(filePath)
+    || /(^|\/)SKILL\.md$/i.test(filePath)
+    || /\.skill\.md$/i.test(filePath)
 }
 
 function readJSONFile(filePath: string, warnings: string[]): unknown {
@@ -591,6 +670,88 @@ function normalizeLayeredSkillFile(input: unknown, filePath: string, warnings: s
   return skill ? [skill] : []
 }
 
+function normalizeLayeredSkillResource(filePath: string, warnings: string[]): SkillDefinition[] {
+  if (/\.md$/i.test(filePath)) {
+    const skill = normalizeCodexSkillFile(filePath, warnings)
+    return skill ? [skill] : []
+  }
+  const parsed = readJSONFile(filePath, warnings)
+  if (parsed === undefined) return []
+  return normalizeLayeredSkillFile(parsed, filePath, warnings)
+}
+
+function normalizeCodexSkillFile(filePath: string, warnings: string[]): SkillDefinition | undefined {
+  let content: string
+  try {
+    content = readFileSync(filePath, 'utf8')
+  } catch (error) {
+    warnings.push(`${filePath} could not be read: ${error instanceof Error ? error.message : String(error)}`)
+    return undefined
+  }
+  const parsed = parseMarkdownFrontmatter(content)
+  if (!parsed.frontmatter) {
+    warnings.push(`${filePath} is not a valid Codex-style skill: SKILL.md requires frontmatter with name and description`)
+    return undefined
+  }
+  const input = parsed.frontmatter
+  const name = nonEmptyString(input.name)
+  const description = nonEmptyString(input.description)
+  const kind = normalizeSkillKind(input.kind) ?? 'expertise'
+  const id = nonEmptyString(input.id) ?? codexSkillIdFromPath(filePath, name)
+  const body = parsed.body.trim()
+  if (!id || !name || !description || !body) {
+    warnings.push(`${filePath} is not a valid Codex-style skill: name, description, and Markdown body are required`)
+    return undefined
+  }
+  const aliases = stringArray(input.aliases)
+  const tags = stringArray(input.tags)
+  const useWhen = stringArray(input.useWhen)
+  const loadMode = normalizeSkillLoadMode(input.loadMode) ?? normalizeSkillLoadMode(input.load) ?? 'on_demand'
+  const activationScope = normalizeSkillActivationScope(input.activationScope) ?? normalizeSkillActivationScope(input.scope)
+  const base = {
+    id,
+    kind,
+    version: nonEmptyString(input.version) ?? '1.0.0',
+    name,
+    description,
+    priority: typeof input.priority === 'number' && Number.isFinite(input.priority) ? input.priority : defaultSkillPriority(kind),
+    enabled: input.enabled !== false,
+    instructionTemplate: body,
+    loadMode,
+    sourcePath: filePath,
+    ...(tags.length > 0 ? { tags } : {}),
+    ...(aliases.length > 0 ? { aliases } : {}),
+    ...(useWhen.length > 0 ? { useWhen } : {}),
+    ...(stringArray(input.dependencies).length > 0 ? { dependencies: stringArray(input.dependencies) } : {}),
+    ...(stringArray(input.conflicts).length > 0 ? { conflicts: stringArray(input.conflicts) } : {}),
+    ...(typeof input.tokenEstimate === 'number' && Number.isFinite(input.tokenEstimate) ? { tokenEstimate: Math.max(0, Math.floor(input.tokenEstimate)) } : {}),
+    ...(activationScope ? { activationScope } : {}),
+    ...(stringArray(input.toolRefs).length > 0 ? { toolRefs: stringArray(input.toolRefs) } : {}),
+    ...(stringArray(input.schemaRefs).length > 0 ? { schemaRefs: stringArray(input.schemaRefs) } : {}),
+    ...(nonEmptyString(input.outputContract) ? { outputContract: nonEmptyString(input.outputContract) } : {}),
+    metadata: {
+      ...(jsonRecord(input.metadata) ?? {}),
+      codexSkill: true,
+      sourcePath: filePath,
+      loadMode,
+    },
+  }
+  if (kind === 'persona') return { ...base, kind: 'persona' }
+  if (kind === 'policy') return { ...base, kind: 'policy' }
+  if (kind === 'workflow') {
+    return {
+      ...base,
+      kind: 'workflow',
+      triggers: normalizeSkillTriggers(input.triggers).length > 0
+        ? normalizeSkillTriggers(input.triggers)
+        : defaultCodexWorkflowTriggers(name, aliases, tags, useWhen),
+      toolRefs: stringArray(input.toolRefs),
+      ...(input.toolScope === 'union' || input.toolScope === 'intersect' ? { toolScope: input.toolScope } : {}),
+    }
+  }
+  return { ...base, kind: 'expertise' }
+}
+
 function normalizeLayeredSkill(input: unknown, filePath: string, warnings: string[]): SkillDefinition | undefined {
   if (!isRecord(input)) return undefined
   const id = nonEmptyString(input.id)
@@ -598,6 +759,8 @@ function normalizeLayeredSkill(input: unknown, filePath: string, warnings: strin
   const name = nonEmptyString(input.name) ?? id
   const description = nonEmptyString(input.description) ?? ''
   const instructionTemplate = resolveInstructionTemplate(input, filePath, warnings)
+  const loadMode = normalizeSkillLoadMode(input.loadMode) ?? normalizeSkillLoadMode(input.load)
+  const activationScope = normalizeSkillActivationScope(input.activationScope) ?? normalizeSkillActivationScope(input.scope)
   if (!id || !kind || !name || !instructionTemplate) {
     warnings.push(`${filePath} is not a valid ${kind ?? 'skill'}: id, kind, name, and instructionTemplate or instructionTemplatePath are required`)
     return undefined
@@ -611,6 +774,15 @@ function normalizeLayeredSkill(input: unknown, filePath: string, warnings: strin
     priority: typeof input.priority === 'number' && Number.isFinite(input.priority) ? input.priority : kind === 'persona' ? 1000 : 100,
     enabled: input.enabled !== false,
     instructionTemplate,
+    ...(loadMode ? { loadMode } : {}),
+    ...(nonEmptyString(input.sourcePath) ? { sourcePath: nonEmptyString(input.sourcePath) } : {}),
+    ...(stringArray(input.tags).length > 0 ? { tags: stringArray(input.tags) } : {}),
+    ...(stringArray(input.aliases).length > 0 ? { aliases: stringArray(input.aliases) } : {}),
+    ...(stringArray(input.useWhen).length > 0 ? { useWhen: stringArray(input.useWhen) } : {}),
+    ...(stringArray(input.dependencies).length > 0 ? { dependencies: stringArray(input.dependencies) } : {}),
+    ...(stringArray(input.conflicts).length > 0 ? { conflicts: stringArray(input.conflicts) } : {}),
+    ...(typeof input.tokenEstimate === 'number' && Number.isFinite(input.tokenEstimate) ? { tokenEstimate: Math.max(0, Math.floor(input.tokenEstimate)) } : {}),
+    ...(activationScope ? { activationScope } : {}),
     ...(stringArray(input.toolRefs).length > 0 ? { toolRefs: stringArray(input.toolRefs) } : {}),
     ...(stringArray(input.schemaRefs).length > 0 ? { schemaRefs: stringArray(input.schemaRefs) } : {}),
     ...(nonEmptyString(input.outputContract) ? { outputContract: nonEmptyString(input.outputContract) } : {}),
@@ -712,6 +884,102 @@ function normalizeLayeredToolDefaults(value: unknown): ToolDefinition['defaults'
   }
 }
 
+function parseMarkdownFrontmatter(content: string): { frontmatter?: Record<string, unknown>; body: string } {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)([\s\S]*)$/.exec(content)
+  if (!match) return { body: content }
+  return {
+    frontmatter: parseSimpleFrontmatter(match[1]),
+    body: match[2],
+  }
+}
+
+function parseSimpleFrontmatter(raw: string): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  let currentArrayKey: string | undefined
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    if (currentArrayKey && trimmed.startsWith('- ')) {
+      const current = Array.isArray(result[currentArrayKey]) ? result[currentArrayKey] as unknown[] : []
+      current.push(parseFrontmatterScalar(trimmed.slice(2).trim()))
+      result[currentArrayKey] = current
+      continue
+    }
+    currentArrayKey = undefined
+    const separator = line.indexOf(':')
+    if (separator < 0) continue
+    const key = line.slice(0, separator).trim()
+    const value = line.slice(separator + 1).trim()
+    if (!key) continue
+    if (!value) {
+      result[key] = []
+      currentArrayKey = key
+      continue
+    }
+    result[key] = parseFrontmatterScalar(value)
+  }
+  return result
+}
+
+function parseFrontmatterScalar(value: string): unknown {
+  const unquoted = stripMatchingQuotes(value)
+  if (value.startsWith('[') && value.endsWith(']')) {
+    const inner = value.slice(1, -1).trim()
+    if (!inner) return []
+    return inner.split(',').map((item) => stripMatchingQuotes(item.trim())).filter((item) => item.length > 0)
+  }
+  if (unquoted === 'true') return true
+  if (unquoted === 'false') return false
+  const number = Number(unquoted)
+  if (/^-?\d+(\.\d+)?$/.test(unquoted) && Number.isFinite(number)) return number
+  return unquoted
+}
+
+function stripMatchingQuotes(value: string): string {
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1)
+  }
+  return value
+}
+
+function normalizeSkillKind(value: unknown): SkillKind | undefined {
+  return value === 'persona' || value === 'workflow' || value === 'policy' || value === 'expertise' ? value : undefined
+}
+
+function normalizeSkillLoadMode(value: unknown): SkillLoadMode | undefined {
+  return value === 'core' || value === 'on_demand' || value === 'manual' ? value : undefined
+}
+
+function normalizeSkillActivationScope(value: unknown): SkillActivationScope | undefined {
+  return value === 'turn' || value === 'run' || value === 'thread' ? value : undefined
+}
+
+function defaultSkillPriority(kind: SkillKind): number {
+  if (kind === 'persona') return 1000
+  if (kind === 'expertise') return 75
+  return 100
+}
+
+function codexSkillIdFromPath(filePath: string, name: string | undefined): string {
+  const parent = dirname(filePath).split('/').at(-1) ?? 'skill'
+  return `codex.skill.${slugify(name ?? parent)}`
+}
+
+function slugify(value: string): string {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/['"]/g, '')
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return normalized || 'skill'
+}
+
+function defaultCodexWorkflowTriggers(name: string, aliases: string[], tags: string[], useWhen: string[]): SkillTrigger[] {
+  const keywords = stringArray([name, ...aliases, ...tags, ...useWhen].filter((item) => item.length <= 80))
+  return [{ kind: 'keyword', any: keywords.length > 0 ? keywords : [name] }]
+}
+
 function normalizePolicyScope(value: unknown): PolicyScope | undefined {
   if (value === 'global') return 'global'
   if (!isRecord(value)) return undefined
@@ -769,6 +1037,7 @@ function normalizeProfileLimits(input: Record<string, unknown>): NonNullable<Age
   return {
     ...(positiveNumber(input.maxActiveWorkflows) ? { maxActiveWorkflows: positiveNumber(input.maxActiveWorkflows) } : {}),
     ...(positiveNumber(input.systemPromptCharLimit) ? { systemPromptCharLimit: positiveNumber(input.systemPromptCharLimit) } : {}),
+    ...(positiveNumber(input.contextWindowCharLimit) ? { contextWindowCharLimit: positiveNumber(input.contextWindowCharLimit) } : {}),
     ...(positiveNumber(input.maxRetrievedContextChars) ? { maxRetrievedContextChars: positiveNumber(input.maxRetrievedContextChars) } : {}),
     ...(positiveNumber(input.maxKnowledgeCharsPerRun) ? { maxKnowledgeCharsPerRun: positiveNumber(input.maxKnowledgeCharsPerRun) } : {}),
     ...(positiveNumber(input.maxKnowledgeChunksPerRun) ? { maxKnowledgeChunksPerRun: positiveNumber(input.maxKnowledgeChunksPerRun) } : {}),

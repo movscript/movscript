@@ -45,9 +45,20 @@ export interface BuiltContext {
 
 export interface PromptStats {
   totalChars: number
+  systemChars: number
+  conversationChars: number
+  budget: ContextBudgetSnapshot
   parts: Array<{ id: string; title: string; kind: string; layer: PromptLayer; chars: number }>
   byLayer: Record<PromptLayer, number>
   byContextLayer: Record<ContextPromptLayer, number>
+}
+
+export interface ContextBudgetSnapshot {
+  limitChars: number
+  usedChars: number
+  remainingChars: number
+  usageRatio: number
+  status: 'ok' | 'warning' | 'critical' | 'exceeded'
 }
 
 export type PromptLayer = 'level0_core' | 'level1_context' | 'level2_behavior' | 'retrieved_context' | 'runtime_warnings'
@@ -75,8 +86,11 @@ export interface SkillDiscoveryItem {
   kind: 'persona' | 'policy' | 'workflow' | 'expertise' | string
   description?: string
   active: boolean
+  loadMode?: 'core' | 'on_demand' | 'manual' | string
+  tags?: string[]
   triggerHints?: string[]
   useWhen?: string[]
+  conflicts?: string[]
 }
 
 export function buildContext(input: ContextBuilderInput): BuiltContext {
@@ -115,12 +129,14 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
   })
 
   // --- Focus ---
-  debugParts.push({
-    id: 'context.summary',
-    kind: 'context',
-    title: 'Focus',
-    content: renderDebugContextText(input.context),
-  })
+  if (shouldIncludeFocusContext(input, command)) {
+    debugParts.push({
+      id: 'context.summary',
+      kind: 'context',
+      title: 'Focus',
+      content: renderDebugContextText(input.context),
+    })
+  }
 
   if (input.threadSummary?.trim()) {
     debugParts.push({
@@ -187,10 +203,10 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
     })
   }
 
-  const fittedPrompt = fitDebugPartsToLimit(debugParts, input.skills, systemPromptLimit(input.manifest), warnings)
+  const promptLimit = systemPromptLimit(input.manifest)
+  const fittedPrompt = fitDebugPartsToLimit(debugParts, input.skills, promptLimit, warnings)
   const finalDebugParts = fittedPrompt.debugParts
   const systemPrompt = renderDebugParts(finalDebugParts)
-  const promptStats = buildPromptStats(finalDebugParts, systemPrompt)
   const systemMessages: RuntimeModelChatMessage[] = finalDebugParts.map((part) => ({
     role: 'system' as const,
     content: `## ${part.title}\n${part.content}`,
@@ -201,6 +217,7 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
     ...input.history.map((msg): RuntimeModelChatMessage => ({ role: msg.role as RuntimeModelChatMessage['role'], content: msg.content })),
     { role: 'user', content: input.userMessage },
   ]
+  const promptStats = buildPromptStats(finalDebugParts, systemPrompt, messages, contextWindowCharLimit(input.manifest))
 
   return { messages, systemPrompt, systemMessages, debugParts: finalDebugParts, promptStats, warnings, ...(fittedPrompt.degraded ? { degraded: fittedPrompt.degraded } : {}) }
 }
@@ -237,6 +254,7 @@ function resolveOpenAIToolParameters(
   if (tool.name === 'movscript_update_draft') return UPDATE_DRAFT_TOOL_SCHEMA
   if (tool.name === 'movscript_read_draft') return DRAFT_FILE_PATH_TOOL_SCHEMA
   if (tool.name === 'movscript_inspect_agent_catalog') return INSPECT_AGENT_CATALOG_TOOL_SCHEMA
+  if (tool.name === 'movscript_update_active_skills') return UPDATE_ACTIVE_SKILLS_TOOL_SCHEMA
   if (tool.name === 'movscript_reload_agent_catalog') return EMPTY_OBJECT_TOOL_SCHEMA
   if (tool.name === 'movscript_create_plan') return CREATE_PLAN_TOOL_SCHEMA
   if (tool.name === 'movscript_get_plan') return GET_PLAN_TOOL_SCHEMA
@@ -255,6 +273,17 @@ function shouldIncludeCommandContract(command: AgentCommandRuntime): boolean {
   return command.requiredTools.length > 0 || command.outputMode !== 'natural'
 }
 
+function shouldIncludeFocusContext(input: ContextBuilderInput, command: AgentCommandRuntime): boolean {
+  if (command.name === 'context') return true
+  if (input.context.agentPlan) return true
+  if (input.context.productionId !== undefined) return true
+  return input.skills.some((skill) => (skill.toolHints ?? []).some((hint) => normalizeToolRef(hint) === 'movscript_get_focus'))
+}
+
+function normalizeToolRef(value: string): string {
+  return value.startsWith('tool://') ? value.slice('tool://'.length) : value
+}
+
 function orderedActivatedSkills(skills: ResolvedAgentSkill[]): ResolvedAgentSkill[] {
   const kindRank = (skill: ResolvedAgentSkill): number => {
     const kind = typeof skill.metadata?.kind === 'string' ? skill.metadata.kind : skill.category
@@ -267,7 +296,7 @@ function orderedActivatedSkills(skills: ResolvedAgentSkill[]): ResolvedAgentSkil
   return [...skills].sort((a, b) => kindRank(a) - kindRank(b) || b.resolvedPriority - a.resolvedPriority || a.id.localeCompare(b.id))
 }
 
-function buildPromptStats(debugParts: CompiledPromptPreview['debugParts'], systemPrompt: string): PromptStats {
+function buildPromptStats(debugParts: CompiledPromptPreview['debugParts'], systemPrompt: string, messages: RuntimeModelChatMessage[], limitChars: number): PromptStats {
   const byLayer: Record<PromptLayer, number> = {
     level0_core: 0,
     level1_context: 0,
@@ -292,7 +321,35 @@ function buildPromptStats(debugParts: CompiledPromptPreview['debugParts'], syste
     byContextLayer[contextLayer] += chars
     return { id: part.id, title: part.title, kind: part.kind, layer, chars }
   })
-  return { totalChars: systemPrompt.length, parts, byLayer, byContextLayer }
+  const totalChars = estimateModelRequestChars(messages)
+  return {
+    totalChars,
+    systemChars: systemPrompt.length,
+    conversationChars: Math.max(0, totalChars - systemPrompt.length),
+    budget: buildContextBudgetSnapshot(totalChars, limitChars),
+    parts,
+    byLayer,
+    byContextLayer,
+  }
+}
+
+function buildContextBudgetSnapshot(usedChars: number, limitChars: number): ContextBudgetSnapshot {
+  const normalizedLimit = Number.isFinite(limitChars) && limitChars > 0 ? Math.floor(limitChars) : 32000
+  const normalizedUsed = Math.max(0, Math.floor(usedChars))
+  const usageRatio = normalizedUsed / normalizedLimit
+  return {
+    limitChars: normalizedLimit,
+    usedChars: normalizedUsed,
+    remainingChars: Math.max(0, normalizedLimit - normalizedUsed),
+    usageRatio,
+    status: usageRatio >= 1
+      ? 'exceeded'
+      : usageRatio >= 0.9
+        ? 'critical'
+        : usageRatio >= 0.7
+          ? 'warning'
+          : 'ok',
+  }
 }
 
 function promptLayerForPart(part: CompiledPromptPreview['debugParts'][number]): PromptLayer {
@@ -327,6 +384,7 @@ function renderSkillDiscoveryText(
     kind: typeof skill.metadata?.kind === 'string' ? skill.metadata.kind : skill.category ?? 'skill',
     description: skill.description,
     active: true,
+    ...(Array.isArray(skill.metadata?.conflicts) ? { conflicts: skill.metadata.conflicts.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) } : {}),
   }))
   const items = summary?.availableSkills?.length
     ? summary.availableSkills.map((skill) => ({ ...skill, active: skill.active || activeIds.has(skill.id) }))
@@ -342,6 +400,7 @@ function renderSkillDiscoveryText(
   const lines = [
     'Skill activation is automatic for the current run. Persona and policy skills are loaded from the active profile; workflow skills activate when their trigger hints match the user request, UI context, or inferred intent; expertise skills attach through active workflow metadata.',
     'Use activated skill instructions as behavior rules for this run. Do not claim that a skill is active unless it appears in the active list below or after inspecting the catalog.',
+    'For style skills such as directors, cinematography, acting, editing, or writing voices: if the user prompt, project standards, active focus, or retrieved context clearly names one style, load that one. If several matching styles conflict and the choice is ambiguous, ask the user to choose with movscript_request_user_input before loading a style skill.',
     catalogToolAvailable
       ? 'When the user asks for a specialist, a skill, an expert mode, or a task seems to need a workflow that is not active, call movscript_inspect_agent_catalog with view="summary" or view="skill" before deciding the workflow is unavailable. Set includeInstruction=true only when the skill details are needed to perform the task.'
       : 'The catalog inspection tool is not available in this run; rely only on the active skills and the short enabled-skill index below.',
@@ -376,8 +435,11 @@ function renderSkillDiscoveryLine(skill: SkillDiscoveryItem): string {
   const details = [
     `kind=${skill.kind}`,
     skill.active ? 'active=true' : undefined,
+    skill.loadMode ? `load=${skill.loadMode}` : undefined,
+    skill.tags && skill.tags.length > 0 ? `tags=${skill.tags.slice(0, 5).join('|')}` : undefined,
     skill.triggerHints && skill.triggerHints.length > 0 ? `triggers=${skill.triggerHints.slice(0, 5).join('|')}` : undefined,
     skill.useWhen && skill.useWhen.length > 0 ? `useWhen=${skill.useWhen.slice(0, 5).join('|')}` : undefined,
+    skill.conflicts && skill.conflicts.length > 0 ? `conflicts=${skill.conflicts.slice(0, 5).join('|')}` : undefined,
   ].filter(Boolean).join('; ')
   const description = skill.description ? ` - ${truncateForPrompt(skill.description, 140)}` : ''
   return `- ${skill.id} (${skill.name}; ${details})${description}`
@@ -448,6 +510,31 @@ const INSPECT_AGENT_CATALOG_TOOL_SCHEMA = {
     includeSchema: {
       type: 'boolean',
       description: 'When inspecting a tool, include inputSchema/outputSchema. Defaults to false.',
+    },
+  },
+} satisfies Record<string, unknown>
+
+const UPDATE_ACTIVE_SKILLS_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    load: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Skill ids to load into the current run context.',
+    },
+    unload: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Skill ids to unload or suppress for the current run context.',
+    },
+    reason: {
+      type: 'string',
+      description: 'Short reason for the skill state change.',
+    },
+    allowConflicts: {
+      type: 'boolean',
+      description: 'Advanced override. Defaults to false. Leave false for style skills; if the tool reports conflicts, ask the user which skill to use before loading.',
     },
   },
 } satisfies Record<string, unknown>
@@ -861,6 +948,15 @@ function skillPriority(skills: ResolvedAgentSkill[], partId: string): number {
 function systemPromptLimit(manifest: AgentManifest): number {
   const value = manifest.metadata?.systemPromptCharLimit
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 32000
+}
+
+function contextWindowCharLimit(manifest: AgentManifest): number {
+  const value = manifest.metadata?.contextWindowCharLimit
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : systemPromptLimit(manifest)
+}
+
+function estimateModelRequestChars(messages: RuntimeModelChatMessage[]): number {
+  return messages.reduce((total, message) => total + message.role.length + String(message.content ?? '').length + 2, 0)
 }
 
 // Re-export CompiledPromptPreview-compatible output for previewRun

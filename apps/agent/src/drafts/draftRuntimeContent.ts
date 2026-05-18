@@ -37,8 +37,8 @@ export function canonicalizeProjectProposalDraftContent(draft: AgentDraft, backe
     nextProposal.asset_slots = Array.isArray(canonicalSnapshot.asset_slots) ? canonicalSnapshot.asset_slots : []
   } else {
     nextProposal.project_style = isRecord(currentProposal.project_style) ? currentProposal.project_style : {}
-    nextProposal.creative_references = []
-    nextProposal.asset_slots = []
+    delete nextProposal.creative_references
+    delete nextProposal.asset_slots
   }
   return JSON.stringify({
     ...parsed,

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
-import { applyDraftReview, attachAssetSlotCandidate, buildGenerationModelParamRules, buildGenerationParamValidationAudit, createGenerationJob, getDraftModelContract, listModels, listTools, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, queryCreativeReferences, queryProductionContext, setMCPAPIBaseURL, summarizeModelContractForAgent } from './server'
+import { applyDraftReview, attachAssetSlotCandidate, attachKeyframeCandidate, buildGenerationModelParamRules, buildGenerationParamValidationAudit, createGenerationJob, getDraftModelContract, listModels, listTools, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, queryCreativeReferences, queryProductionContext, setMCPAPIBaseURL, summarizeModelContractForAgent } from './server'
 
 test('normalizeBackendHTTPErrorForMCP preserves structured generation validation details', () => {
   const body = {
@@ -123,12 +123,15 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
   const listModels = tools.find((tool) => tool.name === 'movscript_list_models')
   const createJob = tools.find((tool) => tool.name === 'movscript_create_generation_job')
   const attachCandidate = tools.find((tool) => tool.name === 'movscript_attach_asset_slot_candidate')
+  const attachKeyframe = tools.find((tool) => tool.name === 'movscript_attach_keyframe_candidate')
   const staticListModels = loadStaticCatalogTool('list-models.tool.json')
   const staticCreateJob = loadStaticCatalogTool('create-job.tool.json')
   const staticAttachCandidate = loadStaticCatalogTool('attach-asset-slot-candidate.tool.json')
+  const staticAttachKeyframe = loadStaticCatalogTool('attach-keyframe-candidate.tool.json')
   assert.ok(listModels)
   assert.ok(createJob)
   assert.ok(attachCandidate)
+  assert.ok(attachKeyframe)
   assert.match(listModels.description, /model_contracts/)
   assert.match(listModels.description, /contract_version 1/)
   assert.match(listModels.description, /input_requirements/)
@@ -149,6 +152,7 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
   assert.ok((listModels.outputSchema?.properties?.model_contracts as any)?.items?.properties?.supported_params)
   assert.match(createJob.description, /param_validation audit_version 1/)
   assert.match(createJob.description, /input_preflight_errors/)
+  assert.match(createJob.description, /output_resources\/output_resource_ids/)
   const createJobProperties = schemaProperties(createJob.inputSchema)
   assert.match(schemaDescription(createJobProperties.extra_params), /param_validation audit_version 1/)
   assert.match(schemaDescription(createJobProperties.input_resource_ids), /input_preflight_errors/)
@@ -164,12 +168,48 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
   assert.ok(createJob.outputSchema?.properties?.monitor)
   assert.ok(createJob.outputSchema?.properties?.output_resource)
   assert.ok(createJob.outputSchema?.properties?.output_resource_id)
+  assert.ok(createJob.outputSchema?.properties?.output_resources)
+  assert.ok(createJob.outputSchema?.properties?.output_resource_ids)
   assert.ok(createJob.outputSchema?.properties?.param_validation)
   assert.match(attachCandidate.description, /reviewable candidate/)
   assert.match(attachCandidate.description, /does not accept, select, bind, or lock/)
   assert.ok(attachCandidate.inputSchema.properties?.asset_slot_id)
+  assert.equal((attachCandidate.inputSchema.properties?.asset_slot_id as any)?.minimum, 1)
+  assert.ok(attachCandidate.inputSchema.properties?.assetSlotId)
   assert.ok(attachCandidate.inputSchema.properties?.resource_id)
+  assert.equal((attachCandidate.inputSchema.properties?.resource_id as any)?.minimum, 1)
+  assert.ok(attachCandidate.inputSchema.properties?.resourceId)
+  assert.ok(attachCandidate.inputSchema.properties?.output_resource_id)
+  assert.ok(attachCandidate.inputSchema.properties?.outputResourceId)
+  assert.equal((attachCandidate.inputSchema.properties?.outputResourceId as any)?.minimum, 1)
+  assert.deepEqual(schemaShapeWithoutDescriptions(attachCandidate.inputSchema.allOf), [
+    { anyOf: [{ required: ['asset_slot_id'] }, { required: ['assetSlotId'] }] },
+    { anyOf: [{ required: ['resource_id'] }, { required: ['resourceId'] }, { required: ['output_resource_id'] }, { required: ['outputResourceId'] }] },
+  ])
   assert.ok(attachCandidate.outputSchema?.properties?.candidate)
+  assert.match(attachKeyframe.description, /reviewable candidate/)
+  assert.match(attachKeyframe.description, /original target keyframe/)
+  assert.match(attachKeyframe.description, /Do not pass an existing generated candidate keyframe as the target/)
+  assert.match(attachKeyframe.description, /does not accept, select, bind, or lock/)
+  assert.ok(attachKeyframe.inputSchema.properties?.keyframe_id)
+  assert.equal((attachKeyframe.inputSchema.properties?.keyframe_id as any)?.minimum, 1)
+  assert.ok(attachKeyframe.inputSchema.properties?.keyframeId)
+  assert.ok(attachKeyframe.inputSchema.properties?.target_keyframe_id)
+  assert.equal((attachKeyframe.inputSchema.properties?.target_keyframe_id as any)?.minimum, 1)
+  assert.ok(attachKeyframe.inputSchema.properties?.targetKeyframeId)
+  assert.match(schemaDescription(attachKeyframe.inputSchema.properties?.target_keyframe_id), /original target keyframe/)
+  assert.match(schemaDescription(attachKeyframe.inputSchema.properties?.target_keyframe_id), /Do not pass the generated candidate keyframe ID/)
+  assert.ok(attachKeyframe.inputSchema.properties?.resource_id)
+  assert.equal((attachKeyframe.inputSchema.properties?.resource_id as any)?.minimum, 1)
+  assert.ok(attachKeyframe.inputSchema.properties?.resourceId)
+  assert.ok(attachKeyframe.inputSchema.properties?.output_resource_id)
+  assert.ok(attachKeyframe.inputSchema.properties?.outputResourceId)
+  assert.equal((attachKeyframe.inputSchema.properties?.outputResourceId as any)?.minimum, 1)
+  assert.deepEqual(schemaShapeWithoutDescriptions(attachKeyframe.inputSchema.allOf), [
+    { anyOf: [{ required: ['keyframe_id'] }, { required: ['keyframeId'] }, { required: ['target_keyframe_id'] }, { required: ['targetKeyframeId'] }] },
+    { anyOf: [{ required: ['resource_id'] }, { required: ['resourceId'] }, { required: ['output_resource_id'] }, { required: ['outputResourceId'] }] },
+  ])
+  assert.ok(attachKeyframe.outputSchema?.properties?.candidate)
   assert.ok((createJob.outputSchema?.properties?.param_validation as any)?.properties?.audit_version)
   assert.ok((createJob.outputSchema?.properties?.param_validation as any)?.properties?.model_contract_loaded)
   assert.ok((createJob.outputSchema?.properties?.param_validation as any)?.properties?.params_schema_loaded)
@@ -201,20 +241,26 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
       `movscript_create_generation_job ${field} schema should match the static agent catalog`,
     )
   }
-  for (const field of ['status', 'job', 'jobId', 'monitor', 'output_resource', 'output_resource_id', 'param_validation', 'terminal', 'message']) {
+  for (const field of ['status', 'job', 'jobId', 'monitor', 'output_resource', 'output_resource_id', 'output_resources', 'output_resource_ids', 'param_validation', 'terminal', 'message']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(createJob.outputSchema?.properties?.[field]),
       schemaShapeWithoutDescriptions(staticCreateJob.outputSchema?.properties?.[field]),
       `movscript_create_generation_job ${field} output schema should match the static agent catalog`,
     )
   }
-  for (const field of ['projectId', 'asset_slot_id', 'resource_id', 'source_type', 'source_id', 'score', 'note']) {
+  for (const field of ['projectId', 'asset_slot_id', 'assetSlotId', 'resource_id', 'resourceId', 'output_resource_id', 'outputResourceId', 'source_type', 'sourceType', 'source_id', 'sourceId', 'jobId', 'score', 'note']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(attachCandidate.inputSchema.properties?.[field]),
       schemaShapeWithoutDescriptions(staticAttachCandidate.inputSchema.properties?.[field]),
       `movscript_attach_asset_slot_candidate ${field} schema should match the static agent catalog`,
     )
   }
+  assert.equal(attachCandidate.inputSchema.additionalProperties, staticAttachCandidate.inputSchema.additionalProperties)
+  assert.deepEqual(
+    schemaShapeWithoutDescriptions(attachCandidate.inputSchema.allOf),
+    schemaShapeWithoutDescriptions(staticAttachCandidate.inputSchema.allOf),
+    'movscript_attach_asset_slot_candidate alias requirements should match the static agent catalog',
+  )
   for (const field of ['status', 'candidate', 'asset_slot_id', 'candidate_asset_slot_id', 'resource_id', 'message']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(attachCandidate.outputSchema?.properties?.[field]),
@@ -222,6 +268,30 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
       `movscript_attach_asset_slot_candidate ${field} output schema should match the static agent catalog`,
     )
   }
+  assert.equal(attachCandidate.outputSchema?.additionalProperties, staticAttachCandidate.outputSchema?.additionalProperties)
+  for (const field of ['projectId', 'keyframe_id', 'keyframeId', 'target_keyframe_id', 'targetKeyframeId', 'resource_id', 'resourceId', 'output_resource_id', 'outputResourceId', 'source_type', 'sourceType', 'source_id', 'sourceId', 'jobId', 'title', 'description', 'prompt', 'note']) {
+    assert.deepEqual(
+      schemaShapeWithoutDescriptions(attachKeyframe.inputSchema.properties?.[field]),
+      schemaShapeWithoutDescriptions(staticAttachKeyframe.inputSchema.properties?.[field]),
+      `movscript_attach_keyframe_candidate ${field} schema should match the static agent catalog`,
+    )
+  }
+  assert.equal(attachKeyframe.inputSchema.additionalProperties, staticAttachKeyframe.inputSchema.additionalProperties)
+  assert.deepEqual(
+    schemaShapeWithoutDescriptions(attachKeyframe.inputSchema.allOf),
+    schemaShapeWithoutDescriptions(staticAttachKeyframe.inputSchema.allOf),
+    'movscript_attach_keyframe_candidate alias requirements should match the static agent catalog',
+  )
+  for (const field of ['status', 'candidate', 'keyframe_id', 'resource_id', 'message']) {
+    assert.deepEqual(
+      schemaShapeWithoutDescriptions(attachKeyframe.outputSchema?.properties?.[field]),
+      schemaShapeWithoutDescriptions(staticAttachKeyframe.outputSchema?.properties?.[field]),
+      `movscript_attach_keyframe_candidate ${field} output schema should match the static agent catalog`,
+    )
+  }
+  assert.equal(attachKeyframe.outputSchema?.additionalProperties, staticAttachKeyframe.outputSchema?.additionalProperties)
+  assert.deepEqual(attachCandidate.inputSchema.required, staticAttachCandidate.inputSchema.required)
+  assert.deepEqual(attachKeyframe.inputSchema.required, staticAttachKeyframe.inputSchema.required)
 })
 
 test('attach asset slot candidate posts resource candidate without selecting it', async () => {
@@ -274,6 +344,268 @@ test('attach asset slot candidate posts resource candidate without selecting it'
     assert.equal(result.candidate_asset_slot_id, 901)
     assert.equal(result.candidate.status, 'candidate')
     assert.match(result.message, /资源 #88 已加入素材位 #7 的候选集/)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+  }
+})
+
+test('attach asset slot candidate accepts generation output_resource_id alias', async () => {
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const calls: Array<Record<string, unknown>> = []
+  globalThis.fetch = mockFetch({
+    'POST /projects/42/entities/asset-slot-candidates': (body: Record<string, unknown>) => {
+      calls.push(body)
+      return {
+        id: 901,
+        asset_slot_id: body.asset_slot_id,
+        candidate_asset_slot_id: 902,
+        status: 'candidate',
+      }
+    },
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await attachAssetSlotCandidate({
+      projectId: 42,
+      assetSlotId: 7,
+      outputResourceId: 88,
+    }) as Record<string, any>
+
+    assert.deepEqual(calls, [{
+      asset_slot_id: 7,
+      resource_id: 88,
+      source_type: 'agent',
+    }])
+    assert.equal(result.status, 'attached')
+    assert.equal(result.resource_id, 88)
+    assert.equal(result.candidate_asset_slot_id, 902)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+  }
+})
+
+test('attach asset slot candidate requires a resource id or output resource id', async () => {
+  await assert.rejects(
+    () => attachAssetSlotCandidate({ projectId: 42, asset_slot_id: 7 }),
+    /resource_id is required/,
+  )
+})
+
+test('attach asset slot candidate rejects non-positive IDs before posting', async () => {
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  let called = false
+  globalThis.fetch = (async () => {
+    called = true
+    throw new Error('unexpected fetch')
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    await assert.rejects(
+      () => attachAssetSlotCandidate({ projectId: 42, asset_slot_id: 7, outputResourceId: -1 }),
+      /resource_id must be a positive integer/,
+    )
+    await assert.rejects(
+      () => attachAssetSlotCandidate({ projectId: 42, asset_slot_id: 0, outputResourceId: 88 }),
+      /asset_slot_id must be a positive integer/,
+    )
+    assert.equal(called, false)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+  }
+})
+
+test('attach asset slot candidate rejects conflicting ID aliases before posting', async () => {
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  let called = false
+  globalThis.fetch = (async () => {
+    called = true
+    throw new Error('unexpected fetch')
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    await assert.rejects(
+      () => attachAssetSlotCandidate({ projectId: 42, asset_slot_id: 7, assetSlotId: 8, outputResourceId: 88 }),
+      /asset_slot_id aliases must match/,
+    )
+    await assert.rejects(
+      () => attachAssetSlotCandidate({ projectId: 42, asset_slot_id: 7, resource_id: 88, outputResourceId: 89 }),
+      /resource_id aliases must match/,
+    )
+    assert.equal(called, false)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+  }
+})
+
+test('attach keyframe candidate posts generated resource as a reviewable visual anchor candidate', async () => {
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const calls: Array<{ path: string; body: Record<string, unknown> }> = []
+  globalThis.fetch = mockFetch({
+    'GET /projects/42/entities/keyframes': [
+      {
+        ID: 17,
+        production_id: 301,
+        scene_moment_id: 401,
+        content_unit_id: 501,
+        canvas_id: 601,
+        title: '镜头开场',
+        description: '女主推门进入旧仓库。',
+        prompt: 'Wide shot, rainy warehouse entrance.',
+        order: 3,
+        status: 'pending',
+      },
+    ],
+    'POST /projects/42/entities/keyframes': (body: Record<string, unknown>) => {
+      calls.push({ path: '/projects/42/entities/keyframes', body })
+      return {
+        ID: 902,
+        ...body,
+        metadata_json: body.metadata_json,
+      }
+    },
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await attachKeyframeCandidate({
+      projectId: 42,
+      targetKeyframeId: 17,
+      outputResourceId: 88,
+      jobId: 123,
+      note: 'stronger composition',
+    }) as Record<string, any>
+
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].path, '/projects/42/entities/keyframes')
+    assert.deepEqual(calls[0].body, {
+      production_id: 301,
+      scene_moment_id: 401,
+      content_unit_id: 501,
+      resource_id: 88,
+      canvas_id: 601,
+      title: '候选：镜头开场',
+      description: '女主推门进入旧仓库。',
+      prompt: 'Wide shot, rainy warehouse entrance.',
+      order: 3,
+      status: 'candidate',
+      metadata_json: JSON.stringify({
+        source: 'ai_generated_keyframe_candidate',
+        target_keyframe_id: 17,
+        resource_id: 88,
+        source_type: 'agent',
+        source_id: 123,
+        source_job_id: 123,
+        note: 'stronger composition',
+      }),
+    })
+    assert.equal(result.status, 'attached')
+    assert.equal(result.keyframe_id, 17)
+    assert.equal(result.resource_id, 88)
+    assert.equal(result.candidate.status, 'candidate')
+    assert.match(result.message, /资源 #88 已加入画面锚点 #17 的候选集/)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+  }
+})
+
+test('attach keyframe candidate requires a resource id or output resource id', async () => {
+  await assert.rejects(
+    () => attachKeyframeCandidate({ projectId: 42, keyframe_id: 17 }),
+    /resource_id is required/,
+  )
+})
+
+test('attach keyframe candidate rejects non-positive IDs before fetching targets', async () => {
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  let called = false
+  globalThis.fetch = (async () => {
+    called = true
+    throw new Error('unexpected fetch')
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    await assert.rejects(
+      () => attachKeyframeCandidate({ projectId: 42, keyframe_id: 17, outputResourceId: -1 }),
+      /resource_id must be a positive integer/,
+    )
+    await assert.rejects(
+      () => attachKeyframeCandidate({ projectId: 42, targetKeyframeId: 0, outputResourceId: 88 }),
+      /keyframe_id must be a positive integer/,
+    )
+    assert.equal(called, false)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+  }
+})
+
+test('attach keyframe candidate rejects conflicting ID aliases before fetching targets', async () => {
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  let called = false
+  globalThis.fetch = (async () => {
+    called = true
+    throw new Error('unexpected fetch')
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    await assert.rejects(
+      () => attachKeyframeCandidate({ projectId: 42, keyframe_id: 17, targetKeyframeId: 18, outputResourceId: 88 }),
+      /keyframe_id aliases must match/,
+    )
+    await assert.rejects(
+      () => attachKeyframeCandidate({ projectId: 42, keyframe_id: 17, resource_id: 88, outputResourceId: 89 }),
+      /resource_id aliases must match/,
+    )
+    assert.equal(called, false)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+  }
+})
+
+test('attach keyframe candidate rejects nested generated candidate targets', async () => {
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const calls: Array<{ path: string; body: Record<string, unknown> }> = []
+  globalThis.fetch = mockFetch({
+    'GET /projects/42/entities/keyframes': [
+      {
+        ID: 18,
+        title: '候选：镜头开场',
+        status: 'candidate',
+        metadata_json: JSON.stringify({
+          source: 'ai_generated_keyframe_candidate',
+          target_keyframe_id: 17,
+          resource_id: 88,
+        }),
+      },
+    ],
+    'POST /projects/42/entities/keyframes': (body: Record<string, unknown>) => {
+      calls.push({ path: '/projects/42/entities/keyframes', body })
+      return body
+    },
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    await assert.rejects(
+      () => attachKeyframeCandidate({
+        projectId: 42,
+        keyframe_id: 18,
+        resource_id: 99,
+      }),
+      /already a generated candidate/,
+    )
+    assert.equal(calls.length, 0)
   } finally {
     globalThis.fetch = previousFetch
     setMCPAPIBaseURL(previousBaseURL)
@@ -462,6 +794,10 @@ test('semantic query tools expose production context and content unit generation
     '/projects/42/entities/content-units?production_id=7&segment_id=101&scene_moment_id=201': [
       { ID: 301, production_id: 7, segment_id: 101, scene_moment_id: 201, title: '女主抬头', prompt: 'close up' },
     ],
+    '/projects/42/entities/keyframes?production_id=7&scene_moment_id=201&content_unit_id=301': [
+      { ID: 401, production_id: 7, scene_moment_id: 201, content_unit_id: 301, title: '开头帧', prompt: 'close up', resource_id: 88, status: 'draft' },
+      { ID: 402, production_id: 7, scene_moment_id: 201, content_unit_id: 301, title: '候选：开头帧', status: 'candidate', metadata_json: '{"source":"ai_generated_keyframe_candidate","target_keyframe_id":401}' },
+    ],
     'POST /projects/42/entities/content-units/301/generation-context': {
       target: { type: 'content_unit', content_unit: { ID: 301, title: '女主抬头' } },
       intent: 'video',
@@ -479,12 +815,15 @@ test('semantic query tools expose production context and content unit generation
       segment_id: 101,
       scene_moment_id: 201,
       content_unit_id: 301,
+      include: ['segments', 'scene_moments', 'content_units', 'keyframes'],
       include_generation_context: true,
     }) as Record<string, any>
 
     assert.deepEqual(result.segments.map((item: any) => item.ID), [101])
     assert.deepEqual(result.scene_moments.map((item: any) => item.ID), [201])
     assert.deepEqual(result.content_units.map((item: any) => item.ID), [301])
+    assert.deepEqual(result.keyframes.map((item: any) => item.ID), [401])
+    assert.equal(result.keyframes[0].resource_id, 88)
     assert.equal(result.generation_context.target.content_unit.ID, 301)
   } finally {
     globalThis.fetch = previousFetch
@@ -548,6 +887,29 @@ test('applyDraftReview posts direct asset proposal snapshot rows for backend pro
     setMCPAPIBaseURL('http://localhost:8765')
     globalThis.fetch = previousFetch
   }
+})
+
+test('applyDraftReview rejects direct candidate resource writes for asset slots and keyframes', async () => {
+  await assert.rejects(() => applyDraftReview({
+    review: {
+      target: { projectId: 4, entityType: 'asset_slot', entityId: 7, field: 'resource_id' },
+      proposedValue: 88,
+    },
+  }), /apply_draft cannot write field resource_id on asset_slot/)
+
+  await assert.rejects(() => applyDraftReview({
+    review: {
+      target: { projectId: 4, entityType: 'asset_slot', entityId: 7, field: 'locked_asset_slot_id' },
+      proposedValue: 19,
+    },
+  }), /apply_draft cannot write field locked_asset_slot_id on asset_slot/)
+
+  await assert.rejects(() => applyDraftReview({
+    review: {
+      target: { projectId: 4, entityType: 'keyframe', entityId: 17, field: 'resource_id' },
+      proposedValue: 88,
+    },
+  }), /apply_draft cannot write field resource_id on keyframe/)
 })
 
 test('applyDraftReview rejects legacy production proposal action payloads', async () => {

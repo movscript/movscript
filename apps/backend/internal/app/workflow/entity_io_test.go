@@ -31,6 +31,17 @@ func TestEntityFieldUpdatesUseSchemaStorageMapping(t *testing.T) {
 	}
 }
 
+func TestValidateEntityPortValuesRejectsAssetSlotResourceAdoptionPorts(t *testing.T) {
+	for _, portID := range []string{"resource_id", "locked_asset_slot_id"} {
+		err := validateEntityPortValues("asset_slot", map[string]EntityPortValue{
+			portID: {Type: "number", ResourceIDs: []uint{42}},
+		})
+		if err == nil || !strings.Contains(err.Error(), "not writable") {
+			t.Fatalf("expected readonly error for %s, got %v", portID, err)
+		}
+	}
+}
+
 func TestEntityFieldUpdatesUseResourceIDForNumberPort(t *testing.T) {
 	updates := entityFieldUpdates("asset_slot", map[string]EntityPortValue{
 		"resource_id": {Type: "number", ResourceIDs: []uint{42}},
@@ -172,7 +183,7 @@ func TestProductionEntitySchemasOnlyWriteMediaPorts(t *testing.T) {
 		readonly   string
 		writePorts []string
 	}{
-		{kind: "asset_slot", readonly: "prompt_hint", writePorts: []string{"result", "image", "video", "audio", "reference", "resource_id", "locked_asset_slot_id", "candidates", "candidate_item"}},
+		{kind: "asset_slot", readonly: "prompt_hint", writePorts: []string{"result", "image", "video", "audio", "reference", "candidates", "candidate_item"}},
 		{kind: "content_unit", readonly: "prompt", writePorts: []string{"result", "image", "video", "audio"}},
 		{kind: "segment", readonly: "summary", writePorts: nil},
 		{kind: "scene_moment", readonly: "description", writePorts: nil},
@@ -365,6 +376,47 @@ func TestWritePortsSyncsAssetCandidateRelationsWithoutHooks(t *testing.T) {
 	assertRelationWithMetadataExists(t, db, "resource_binding_id", result.BindingIDs[0])
 }
 
+func TestWritePortsRoutesAssetSlotMediaPortsToCandidates(t *testing.T) {
+	db := newWorkflowIOTestDB(t)
+	ctx := context.Background()
+	ownerID := uint(77)
+	slot := model.AssetSlot{
+		ProjectID: 1,
+		OwnerType: "content_unit",
+		OwnerID:   &ownerID,
+		Kind:      "image",
+		Name:      "Hero still",
+		Status:    "missing",
+	}
+	resource := model.RawResource{OwnerID: 1, Type: "image", Name: "generated.png", FilePath: "/tmp/generated.png"}
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&slot).Error; err != nil {
+		t.Fatalf("create slot: %v", err)
+	}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+
+	svc := NewEntityIOService(db.Session(&gorm.Session{SkipHooks: true}))
+	result, err := svc.WritePorts(ctx, "asset_slot", slot.ID, map[string]EntityPortValue{
+		"image": {Type: "image", ResourceIDs: []uint{resource.ID}},
+	}, EntityWriteMeta{ProjectID: uintPtr(1), SourceType: "canvas", CanvasID: 9, RunID: 10, NodeID: "node-a", UserID: 2})
+	if err != nil {
+		t.Fatalf("write ports: %v", err)
+	}
+	if result.PrimaryResourceID == nil || *result.PrimaryResourceID != resource.ID {
+		t.Fatalf("primary resource = %v, want %d", result.PrimaryResourceID, resource.ID)
+	}
+	var updatedSlot model.AssetSlot
+	if err := db.First(&updatedSlot, slot.ID).Error; err != nil {
+		t.Fatalf("reload slot: %v", err)
+	}
+	if updatedSlot.ResourceID != nil {
+		t.Fatalf("asset slot resource_id was directly written: %+v", updatedSlot)
+	}
+	assertModelCount(t, db, &model.ResourceBinding{}, 0, "project_id = ? AND owner_type = ? AND owner_id = ? AND resource_id = ?", 1, "asset_slot", slot.ID, resource.ID)
+	assertModelCount(t, db, &model.AssetSlotCandidate{}, 1, "project_id = ? AND asset_slot_id = ?", 1, slot.ID)
+}
+
 func TestWriteAndReadContentUnitGeneratedMediaBindings(t *testing.T) {
 	db := newWorkflowIOTestDB(t)
 	ctx := context.Background()
@@ -502,6 +554,68 @@ func TestAttachAssetSlotCandidateDefaultsManualSourceWithoutCanvasContext(t *tes
 	}
 }
 
+func TestAttachAssetSlotCandidateIsIdempotentForSameSlotAndResource(t *testing.T) {
+	db := newWorkflowIOTestDB(t)
+	ctx := context.Background()
+	ownerID := uint(88)
+	slot := model.AssetSlot{
+		ProjectID: 1,
+		OwnerType: "content_unit",
+		OwnerID:   &ownerID,
+		Kind:      "image",
+		Name:      "Primary slot",
+		Status:    "missing",
+	}
+	resource := model.RawResource{OwnerID: 1, Type: "image", Name: "attached.png", FilePath: "/tmp/attached.png"}
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&slot).Error; err != nil {
+		t.Fatalf("create slot: %v", err)
+	}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+
+	svc := NewEntityIOService(db.Session(&gorm.Session{SkipHooks: true}))
+	first, err := svc.AttachAssetSlotCandidate(ctx, AttachAssetSlotCandidateInput{
+		ProjectID:   1,
+		AssetSlotID: slot.ID,
+		ResourceID:  resource.ID,
+		SourceType:  "job",
+		Score:       0.7,
+		Note:        "first attach",
+	})
+	if err != nil {
+		t.Fatalf("first attach candidate: %v", err)
+	}
+	second, err := svc.AttachAssetSlotCandidate(ctx, AttachAssetSlotCandidateInput{
+		ProjectID:   1,
+		AssetSlotID: slot.ID,
+		ResourceID:  resource.ID,
+		SourceType:  "job",
+		Score:       0.9,
+		Note:        "second attach",
+	})
+	if err != nil {
+		t.Fatalf("second attach candidate: %v", err)
+	}
+
+	if second.CandidateSlot.ID != first.CandidateSlot.ID {
+		t.Fatalf("candidate slot id = %d, want reused %d", second.CandidateSlot.ID, first.CandidateSlot.ID)
+	}
+	if second.ResourceBinding.ID != first.ResourceBinding.ID {
+		t.Fatalf("resource binding id = %d, want reused %d", second.ResourceBinding.ID, first.ResourceBinding.ID)
+	}
+	if second.Candidate.ID != first.Candidate.ID {
+		t.Fatalf("candidate id = %d, want reused %d", second.Candidate.ID, first.Candidate.ID)
+	}
+
+	assertModelCount(t, db, &model.AssetSlot{}, 1, "project_id = ? AND owner_type = ? AND owner_id = ?", 1, "asset_slot", slot.ID)
+	assertModelCount(t, db, &model.ResourceBinding{}, 1, "project_id = ? AND owner_type = ? AND owner_id = ? AND resource_id = ?", 1, "asset_slot", first.CandidateSlot.ID, resource.ID)
+	assertModelCount(t, db, &model.AssetSlotCandidate{}, 1, "project_id = ? AND asset_slot_id = ? AND candidate_asset_slot_id = ?", 1, slot.ID, first.CandidateSlot.ID)
+	if second.Candidate.Score != 0.9 || second.Candidate.Note != "second attach" {
+		t.Fatalf("second attach did not update candidate metadata: %+v", second.Candidate)
+	}
+}
+
 func newWorkflowIOTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	return testutil.OpenSQLiteWithConfig(t, "workflow.db", &gorm.Config{
@@ -515,6 +629,17 @@ func newWorkflowIOTestDB(t *testing.T) *gorm.DB {
 		&model.RawResource{},
 		&model.CanvasEntityWriteAudit{},
 	)
+}
+
+func assertModelCount(t *testing.T, db *gorm.DB, modelValue any, want int64, query string, args ...any) {
+	t.Helper()
+	var count int64
+	if err := db.Model(modelValue).Where(query, args...).Count(&count).Error; err != nil {
+		t.Fatalf("count model: %v", err)
+	}
+	if count != want {
+		t.Fatalf("count for %q = %d, want %d", query, count, want)
+	}
 }
 
 func assertRelationExists(t *testing.T, db *gorm.DB, sourceType string, sourceID uint, targetType string, targetID uint, relationType string) {

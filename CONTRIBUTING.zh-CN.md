@@ -21,14 +21,14 @@ openssl rand -hex 32
 启动主要开发服务：
 
 ```bash
-make dev-backend
-make dev-frontend
+pnpm --filter movscript-backend dev
+pnpm --filter movscript-frontend dev
 ```
 
 可选本地 Agent：
 
 ```bash
-make dev-agent
+pnpm --filter movscript-agent dev
 ```
 
 ## 提交 Pull Request 前
@@ -36,8 +36,8 @@ make dev-agent
 尽量运行相关检查：
 
 ```bash
-make test
-make build
+pnpm run test
+pnpm run build
 ```
 
 较小的前端改动至少运行：

@@ -2,7 +2,6 @@ import type { ElementType } from 'react'
 import {
   ArrowRight,
   Boxes,
-  CheckCircle2,
   Clapperboard,
   CopyPlus,
   Database,
@@ -114,7 +113,7 @@ const DOMAIN_META: Record<CanvasDomainEntityKind, {
     tone: 'amber',
     defaultActions: [
       { label: '生成', icon: Sparkles, outputPortId: 'result' },
-      { label: '锁定', icon: CheckCircle2, outputPortId: 'locked_asset_slot_id' },
+      { label: '加候选', icon: ImagePlus, outputPortId: 'candidates' },
     ],
   },
   content_unit: {
@@ -502,7 +501,7 @@ function domainFields(kind: CanvasDomainEntityKind, semanticValues?: EntitySeman
     return compactFields([
       { label: '需要什么', value: values.name ?? values.description ?? fallbackText },
       { label: '约束来源', value: values.prompt_hint ?? values.slot_key },
-      { label: '锁定策略', value: values.locked_asset_slot_id ? `#${values.locked_asset_slot_id}` : values.status },
+      { label: '候选状态', value: countValue(values.candidates) || values.status },
     ])
   }
   if (kind === 'content_unit') {

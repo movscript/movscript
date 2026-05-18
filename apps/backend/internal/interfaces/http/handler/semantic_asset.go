@@ -95,12 +95,14 @@ func (h *SemanticEntityHandler) PatchAssetSlotCandidate(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
-	item, err := h.semantic.PatchAssetSlotCandidate(c.Request.Context(), parseID(c.Param("id")), c.Param("candidateId"), req)
+	item, err := h.semantic.PatchAssetSlotCandidate(c.Request.Context(), parseID(c.Param("id")), c.Param("candidateId"), req, currentUserID(c))
 	if err != nil {
 		h.writeSemanticAppError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, item)
+	single := []domainsemantic.AssetSlotCandidate{item}
+	populateAssetSlotCandidateResourceURLs(c, single)
+	c.JSON(http.StatusOK, single[0])
 }
 
 func (h *SemanticEntityHandler) ListCandidateDecisions(c *gin.Context) {

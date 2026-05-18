@@ -50,6 +50,75 @@ test('deferRuntimePostRunRecords writes memories and rollback traces for complet
   assert.equal(((traces[1]?.data as any)?.rollbackRecords as unknown[]).length, 1)
 })
 
+test('deferRuntimePostRunRecords skips memory writes for ordinary completed runs', async () => {
+  const store = new InMemoryAgentStore()
+  const run = makeRun('completed')
+  store.createRun(run)
+  const traces: RuntimePostRunRecordsTraceInput[] = []
+  const tracked: Promise<void>[] = []
+  let memoryWrites = 0
+
+  deferRuntimePostRunRecords({
+    store,
+    memoryManager: {
+      extractAndWriteMemories: () => {
+        memoryWrites += 1
+        return [memory('memory_1')]
+      },
+    },
+    tasks: {
+      track: (task) => tracked.push(task),
+    },
+    runId: run.id,
+    records: {
+      round,
+      userMessage: { ...message(), content: 'please summarize this scene' },
+      projectId: 7,
+      toolOutcomes: [],
+      warnings: ['warning'],
+    },
+    defer: (callback) => callback(),
+    recordTrace: (_run, trace) => traces.push(trace),
+  })
+  await Promise.all(tracked)
+
+  assert.equal(memoryWrites, 0)
+  assert.equal(store.getRun(run.id)?.metadata?.writtenMemoryIds, undefined)
+  assert.deepEqual(traces, [])
+})
+
+test('deferRuntimePostRunRecords records rollback traces even when memory write is skipped', async () => {
+  const store = new InMemoryAgentStore()
+  const run = makeRun('completed')
+  store.createRun(run)
+  const traces: RuntimePostRunRecordsTraceInput[] = []
+  const tracked: Promise<void>[] = []
+
+  deferRuntimePostRunRecords({
+    store,
+    memoryManager: {
+      extractAndWriteMemories: () => [memory('memory_1')],
+    },
+    tasks: {
+      track: (task) => tracked.push(task),
+    },
+    runId: run.id,
+    records: {
+      round,
+      userMessage: { ...message(), content: 'please run the tool' },
+      projectId: 7,
+      toolOutcomes: [rollbackOutcome('reversible')],
+      warnings: [],
+    },
+    defer: (callback) => callback(),
+    recordTrace: (_run, trace) => traces.push(trace),
+  })
+  await Promise.all(tracked)
+
+  assert.equal(store.getRun(run.id)?.metadata?.writtenMemoryIds, undefined)
+  assert.deepEqual(traces.map((trace) => trace.title), ['Rollback policy recorded'])
+})
+
 test('deferRuntimePostRunRecords skips non-terminal successful runs', async () => {
   const store = new InMemoryAgentStore()
   const run = makeRun('in_progress')

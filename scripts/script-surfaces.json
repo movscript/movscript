@@ -1,0 +1,104 @@
+{
+  "schema": "movscript.script-surfaces.v1",
+  "maxMaintainedScriptFiles": 13,
+  "rootScriptFiles": [
+    "scripts/run-node-tests.mjs",
+    "scripts/verifier-utils.mjs",
+    "scripts/verify-script-manifest.mjs"
+  ],
+  "rootPackageScripts": [
+    "build",
+    "release",
+    "test",
+    "test:contracts",
+    "test:scripts",
+    "typecheck",
+    "verify:scripts"
+  ],
+  "workspacePackageScripts": {
+    "apps/admin/package.json": [
+      "build",
+      "dev",
+      "test",
+      "test:model-capability-contract",
+      "typecheck"
+    ],
+    "apps/agent/package.json": [
+      "build",
+      "dev",
+      "test",
+      "test:context-management",
+      "test:model-capability-contract",
+      "typecheck"
+    ],
+    "apps/backend/package.json": [
+      "build",
+      "dev",
+      "test",
+      "test:model-capability-contract"
+    ],
+    "apps/frontend/package.json": [
+      "build",
+      "dev",
+      "dev:local",
+      "dist",
+      "test",
+      "test:agent-run-debugging",
+      "test:generation-contract",
+      "test:model-capability-contract",
+      "typecheck"
+    ],
+    "apps/movcli/package.json": [
+      "build",
+      "dev"
+    ],
+    "packages/draft-schemas/package.json": [
+      "build",
+      "typecheck"
+    ],
+    "packages/plugin-sdk/examples/scene-summary/package.json": [
+      "build"
+    ],
+    "packages/plugin-sdk/package.json": [
+      "build",
+      "typecheck"
+    ],
+    "packages/tokens/package.json": [
+      "build",
+      "typecheck"
+    ],
+    "packages/ui/package.json": [
+      "build",
+      "typecheck"
+    ],
+    "plugins/image-generator/package.json": [
+      "build"
+    ],
+    "plugins/video-generator/package.json": [
+      "build"
+    ]
+  },
+  "releaseSubcommands": {
+    "audit-ffmpeg": [
+      "scripts/release/audit-ffmpeg.mjs"
+    ],
+    "collect": [
+      "builtin:collect"
+    ],
+    "download-ffmpeg-static": [
+      "scripts/release/download-ffmpeg-static.mjs"
+    ],
+    "package-desktop": [
+      "builtin:package-desktop"
+    ],
+    "stage-ffmpeg": [
+      "scripts/release/stage-ffmpeg.mjs"
+    ]
+  },
+  "makeTargets": [
+    "dev-frontend-local",
+    "test-agent-run-debugging-e2e",
+    "verify-agent-run-debugging-summary",
+    "verify-agent-run-debugging-summary-contract"
+  ]
+}

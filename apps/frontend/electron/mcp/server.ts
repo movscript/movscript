@@ -14,6 +14,7 @@ import {
   normalizeGenerationJob,
   stringValue,
 } from './generation'
+import { getRequiredPositiveIntegerAliasParam } from './candidateParams'
 import { getDraftDomainModel, type DraftSeedMode } from '../../src/lib/draftDomainModel'
 import type { AgentDraftKind } from '../../src/lib/localAgentClient'
 
@@ -41,12 +42,12 @@ const FIELD_ALLOWLIST: Record<string, Set<string>> = {
     'character_relationships', 'core_settings', 'background', 'scenes_desc', 'hook', 'plot_summary',
     'script_points',
   ]),
-  asset_slot: new Set(['name', 'kind', 'description', 'prompt_hint', 'priority', 'resource_id', 'locked_asset_slot_id', 'status', 'metadata_json']),
+  asset_slot: new Set(['name', 'kind', 'description', 'prompt_hint', 'priority', 'status', 'metadata_json']),
   segment: new Set(['title', 'kind', 'summary', 'content', 'production_id', 'text_block_id', 'status', 'metadata_json']),
   scene_moment: new Set(['title', 'description', 'time_text', 'location_text', 'condition_text', 'action_text', 'mood', 'status', 'metadata_json']),
   storyboard_script: new Set(['name', 'description', 'is_primary', 'status', 'metadata_json']),
   content_unit: new Set(['title', 'kind', 'description', 'prompt', 'duration_sec', 'status', 'metadata_json']),
-  keyframe: new Set(['title', 'description', 'prompt', 'resource_id', 'status', 'metadata_json']),
+  keyframe: new Set(['title', 'description', 'prompt', 'status', 'metadata_json']),
   preview_timeline: new Set(['name', 'duration_sec', 'is_primary', 'status', 'metadata_json']),
   delivery_version: new Set(['name', 'description', 'duration_sec', 'is_primary', 'status', 'metadata_json']),
 }
@@ -549,7 +550,7 @@ export function listTools(): MCPTool[] {
     },
     {
       name: 'movscript_query_production_context',
-      description: 'Query production context entities for material planning: productions, emotional / dramatic segments, scene moments, and content units. For a content_unit_id it can also build the generation context with references and asset slots.',
+      description: 'Query production context entities for material planning: productions, emotional / dramatic segments, scene moments, content units, and official keyframes. For a content_unit_id it can also build the generation context with references and asset slots.',
       inputSchema: objectSchema(
         {
           projectId: { type: 'number', description: 'Defaults to the current UI project when omitted.' },
@@ -559,7 +560,7 @@ export function listTools(): MCPTool[] {
           content_unit_id: { type: 'number', description: 'Optional content unit ID.' },
           status: { type: 'string', description: 'Optional status filter for productions or segments where supported.' },
           query: { type: 'string', description: 'Optional text search over titles, descriptions, summaries, prompts, mood, action, and metadata.' },
-          include: { type: 'array', items: { type: 'string', enum: ['productions', 'segments', 'scene_moments', 'content_units'] }, description: 'Optional entity groups to include. Defaults to segments, scene_moments, and content_units.' },
+          include: { type: 'array', items: { type: 'string', enum: ['productions', 'segments', 'scene_moments', 'content_units', 'keyframes'] }, description: 'Optional entity groups to include. Defaults to segments, scene_moments, and content_units. keyframes returns official keyframes only, excluding AI candidate keyframes.' },
           include_generation_context: { type: 'boolean', description: 'When true and content_unit_id is provided, include backend generation context for that content unit.' },
           intent: { type: 'string', enum: ['keyframe', 'video'], description: 'Generation-context intent. Defaults to video.' },
           limit: { type: 'number', description: 'Maximum items per group. Defaults to 50.' },
@@ -695,7 +696,7 @@ export function listTools(): MCPTool[] {
     },
     {
       name: 'movscript_create_generation_job',
-      description: 'Create and wait for an AI image or video generation job through the MovScript backend. Before choosing model_id, input_resource_ids, or extra_params, inspect movscript_list_models and obey the selected model capability contract: capabilities, input_requirements, supported_params, and params_schema. Returns the completed job, output_resource, and param_validation audit_version 1 data, including non-blocking preflight_errors and input_preflight_errors, for direct chat display. This is cost-bearing and should only run after explicit user approval.',
+      description: 'Create and wait for an AI image or video generation job through the MovScript backend. Before choosing model_id, input_resource_ids, or extra_params, inspect movscript_list_models and obey the selected model capability contract: capabilities, input_requirements, supported_params, and params_schema. Returns the completed job, output_resource/output_resource_id for the first output, output_resources/output_resource_ids when multiple outputs exist, and param_validation audit_version 1 data, including non-blocking preflight_errors and input_preflight_errors, for direct chat display. This is cost-bearing and should only run after explicit user approval.',
       inputSchema: objectSchema(
         {
           prompt: { type: 'string' },
@@ -736,6 +737,8 @@ export function listTools(): MCPTool[] {
           },
           output_resource: { type: 'object', description: 'Generated resource object when available.' },
           output_resource_id: { type: 'number', description: 'Generated resource ID when available.' },
+          output_resources: { type: 'array', items: { type: 'object' }, description: 'Generated resource objects when the provider returns multiple outputs.' },
+          output_resource_ids: { type: 'array', items: { type: 'number' }, description: 'Generated resource IDs when the provider returns multiple outputs.' },
           media: { type: 'object', description: 'Media preview metadata when available.' },
           param_validation: {
             type: 'object',
@@ -779,19 +782,25 @@ export function listTools(): MCPTool[] {
     },
     {
       name: 'movscript_attach_asset_slot_candidate',
-      description: 'Attach an existing raw resource as a reviewable candidate for an asset slot. Use after generation succeeds and an output_resource_id is available. This creates or reuses the candidate asset slot and candidate relation, but does not accept, select, bind, or lock the candidate.',
-      inputSchema: objectSchema(
+      description: 'Add an existing raw resource to the reviewable candidate set for an asset slot. Use after generation succeeds and an output_resource_id is available. This creates or reuses the candidate asset slot and candidate relation, but does not accept, select, bind, or lock the candidate.',
+      inputSchema: withCandidateAttachAliasRequirements(objectSchema(
         {
           projectId: { type: 'number', description: 'Defaults to the current UI project when omitted.' },
-          asset_slot_id: { type: 'number', description: 'Target asset slot / requirement ID.' },
-          resource_id: { type: 'number', description: 'Existing raw resource ID, usually movscript_create_generation_job.output_resource_id.' },
+          asset_slot_id: { type: 'number', minimum: 1, description: 'Target asset slot / requirement ID.' },
+          assetSlotId: { type: 'number', minimum: 1, description: 'Alias for asset_slot_id.' },
+          resource_id: { type: 'number', minimum: 1, description: 'Existing raw resource ID, usually movscript_create_generation_job.output_resource_id.' },
+          resourceId: { type: 'number', minimum: 1, description: 'Alias for resource_id.' },
+          output_resource_id: { type: 'number', minimum: 1, description: 'Alias for resource_id when using movscript_create_generation_job.output_resource_id directly.' },
+          outputResourceId: { type: 'number', minimum: 1, description: 'Alias for output_resource_id.' },
           source_type: { type: 'string', description: 'Optional audit source type. Defaults to agent.' },
+          sourceType: { type: 'string', description: 'Alias for source_type.' },
           source_id: { type: 'number', description: 'Optional source entity/job/canvas ID for audit.' },
+          sourceId: { type: 'number', description: 'Alias for source_id.' },
+          jobId: { type: 'number', description: 'Alias for source_id when the source is a generation job.' },
           score: { type: 'number', description: 'Optional candidate score.' },
           note: { type: 'string', description: 'Optional review note for why this resource is a candidate.' },
-        },
-        ['asset_slot_id', 'resource_id']
-      ),
+        }
+      ), ['asset_slot_id', 'assetSlotId']),
       outputSchema: objectSchema(
         {
           status: { type: 'string' },
@@ -802,6 +811,42 @@ export function listTools(): MCPTool[] {
           message: { type: 'string' },
         },
         ['status', 'candidate', 'asset_slot_id', 'resource_id', 'message']
+      ),
+    },
+    {
+      name: 'movscript_attach_keyframe_candidate',
+      description: 'Add an existing raw resource to the reviewable candidate set for an original target keyframe / visual anchor. Use after generation succeeds and an output_resource_id is available. This creates or reuses a candidate keyframe linked to the original target keyframe, but does not accept, select, bind, or lock the candidate. Do not pass an existing generated candidate keyframe as the target.',
+      inputSchema: withCandidateAttachAliasRequirements(objectSchema(
+        {
+          projectId: { type: 'number', description: 'Defaults to the current UI project when omitted.' },
+          keyframe_id: { type: 'number', minimum: 1, description: 'Original target keyframe / visual anchor ID, not an existing generated candidate keyframe.' },
+          keyframeId: { type: 'number', minimum: 1, description: 'Alias for keyframe_id.' },
+          target_keyframe_id: { type: 'number', minimum: 1, description: 'Alias for the original target keyframe / visual anchor ID when reusing generated candidate metadata. Do not pass the generated candidate keyframe ID.' },
+          targetKeyframeId: { type: 'number', minimum: 1, description: 'Alias for target_keyframe_id; must still be the original target keyframe / visual anchor ID.' },
+          resource_id: { type: 'number', minimum: 1, description: 'Existing raw resource ID, usually movscript_create_generation_job.output_resource_id.' },
+          resourceId: { type: 'number', minimum: 1, description: 'Alias for resource_id.' },
+          output_resource_id: { type: 'number', minimum: 1, description: 'Alias for resource_id when using movscript_create_generation_job.output_resource_id directly.' },
+          outputResourceId: { type: 'number', minimum: 1, description: 'Alias for output_resource_id.' },
+          source_type: { type: 'string', description: 'Optional audit source type. Defaults to agent.' },
+          sourceType: { type: 'string', description: 'Alias for source_type.' },
+          source_id: { type: 'number', description: 'Optional source entity/job/canvas ID for audit.' },
+          sourceId: { type: 'number', description: 'Alias for source_id.' },
+          jobId: { type: 'number', description: 'Alias for source_id and source_job_id when the source is a generation job.' },
+          title: { type: 'string', description: 'Optional candidate title. Defaults to the target keyframe title/name when available.' },
+          description: { type: 'string', description: 'Optional candidate description. Defaults to the target keyframe description when available.' },
+          prompt: { type: 'string', description: 'Optional candidate prompt. Defaults to the target keyframe prompt or description when available.' },
+          note: { type: 'string', description: 'Optional review note for why this resource is a candidate.' },
+        }
+      ), ['keyframe_id', 'keyframeId', 'target_keyframe_id', 'targetKeyframeId']),
+      outputSchema: objectSchema(
+        {
+          status: { type: 'string' },
+          candidate: { type: 'object', description: 'Created or reused keyframe candidate.' },
+          keyframe_id: { type: 'number' },
+          resource_id: { type: 'number' },
+          message: { type: 'string' },
+        },
+        ['status', 'candidate', 'keyframe_id', 'resource_id', 'message']
       ),
     },
     {
@@ -873,6 +918,21 @@ function objectSchema(properties: Record<string, MCPJSONValue>, required?: strin
   }
 }
 
+function withCandidateAttachAliasRequirements(schema: ReturnType<typeof objectSchema>, targetIdAliases: string[]) {
+  const resourceIdAliases = ['resource_id', 'resourceId', 'output_resource_id', 'outputResourceId']
+  const anyRequired = (fields: string[]) => ({
+    anyOf: fields.map((field) => ({ required: [field] })),
+  })
+  const { required: _required, ...baseSchema } = schema
+  return {
+    ...baseSchema,
+    allOf: [
+      anyRequired(targetIdAliases),
+      anyRequired(resourceIdAliases),
+    ],
+  }
+}
+
 async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue> {
   const name = getStringParam(params, 'name')
   const args = getObjectParam(params, 'arguments')
@@ -900,6 +960,8 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
       return toolText(await createGenerationJob(args))
     case 'movscript_attach_asset_slot_candidate':
       return toolText(await attachAssetSlotCandidate(args))
+    case 'movscript_attach_keyframe_candidate':
+      return toolText(await attachKeyframeCandidate(args))
     case 'movscript_get_generation_job':
       return toolText(await getGenerationJob(args))
     case 'movscript_list_generation_jobs':
@@ -1424,6 +1486,29 @@ export async function queryProductionContext(args: Record<string, unknown>): Pro
       return true
     }), limit).map(summarizeProductionContextEntity)
   }
+  if (include.has('keyframes')) {
+    const keyframes = await backendList(withQuery(`/projects/${projectId}/entities/keyframes`, {
+      production_id: productionId,
+      scene_moment_id: sceneMomentId,
+      content_unit_id: contentUnitId,
+      status,
+    }))
+    const segmentContentUnitIds = segmentId !== undefined && contentUnitId === undefined && sceneMomentId === undefined
+      ? new Set((await backendList(withQuery(`/projects/${projectId}/entities/content-units`, { segment_id: segmentId })))
+        .map(entityId)
+        .filter((id): id is number => id !== undefined))
+      : undefined
+    result.keyframes = limitItems(keyframes.filter((item) => {
+      if (!isRecord(item)) return false
+      if (isGeneratedKeyframeCandidateRecord(item)) return false
+      if (contentUnitId !== undefined && numericValue(item.content_unit_id ?? item.contentUnitId) !== contentUnitId) return false
+      if (sceneMomentId !== undefined && numericValue(item.scene_moment_id ?? item.sceneMomentId) !== sceneMomentId) return false
+      if (productionId !== undefined && numericValue(item.production_id ?? item.productionId) !== productionId) return false
+      if (segmentContentUnitIds && !segmentContentUnitIds.has(numericValue(item.content_unit_id ?? item.contentUnitId) ?? -1)) return false
+      if (query && !recordMatchesQuery(item, query, ['title', 'description', 'prompt', 'metadata_json'])) return false
+      return true
+    }), limit).map(summarizeProductionContextEntity)
+  }
   if ((args.include_generation_context === true || args.includeGenerationContext === true) && contentUnitId !== undefined) {
     result.generation_context = await backendPost(
       `/projects/${projectId}/entities/content-units/${contentUnitId}/generation-context`,
@@ -1911,7 +1996,7 @@ async function queryAssetSlotCandidates(projectId: number, slots: unknown[]): Pr
 }
 
 function normalizeProductionContextInclude(value: unknown): Set<string> {
-  const allowed = new Set(['productions', 'segments', 'scene_moments', 'content_units'])
+  const allowed = new Set(['productions', 'segments', 'scene_moments', 'content_units', 'keyframes'])
   if (!Array.isArray(value)) return new Set(['segments', 'scene_moments', 'content_units'])
   const out = new Set(value.filter((item): item is string => typeof item === 'string' && allowed.has(item)))
   return out.size > 0 ? out : new Set(['segments', 'scene_moments', 'content_units'])
@@ -1994,29 +2079,33 @@ export async function createGenerationJob(args: Record<string, unknown>): Promis
   const finalStatus = stringValue(normalized.status) ?? 'unknown'
   const outputResourceId = typeof normalized.output_resource_id === 'number' ? normalized.output_resource_id : undefined
   const outputResource = isRecord(normalized.output_resource) ? normalized.output_resource : undefined
+  const outputResourceIds = Array.isArray(normalized.output_resource_ids) ? normalized.output_resource_ids.filter((id): id is number => typeof id === 'number') : []
+  const outputResources = Array.isArray(normalized.output_resources) ? normalized.output_resources.filter(isRecord) : []
   const media = isRecord(normalized.media) ? normalized.media : undefined
 
   return {
     status: finalStatus,
     job: normalized.job,
     jobId: initialJobId,
+    ...(outputResources.length > 0 ? { output_resources: outputResources } : {}),
+    ...(outputResourceIds.length > 0 ? { output_resource_ids: outputResourceIds } : {}),
     ...(outputResource ? { output_resource: outputResource } : {}),
     ...(outputResourceId ? { output_resource_id: outputResourceId } : {}),
     ...(media ? { media } : {}),
     param_validation: paramValidation,
     terminal: isTerminalGenerationStatus(finalStatus),
     message: finalStatus === 'succeeded'
-      ? `生成完成${outputResourceId ? `，输出资源 #${outputResourceId}` : ''}。`
+      ? generationJobMessage(initialJobId, normalized)
       : `生成任务结束，状态：${finalStatus}。`,
   }
 }
 
 export async function attachAssetSlotCandidate(args: Record<string, unknown>): Promise<unknown> {
   const projectId = resolveToolProjectId(args)
-  const assetSlotId = getOptionalNumeric(args, 'asset_slot_id') ?? getOptionalNumeric(args, 'assetSlotId')
-  const resourceId = getOptionalNumeric(args, 'resource_id') ?? getOptionalNumeric(args, 'resourceId') ?? getOptionalNumeric(args, 'output_resource_id')
-  if (!assetSlotId) throw new Error('asset_slot_id is required')
-  if (!resourceId) throw new Error('resource_id is required')
+  const assetSlotIdAliases = ['asset_slot_id', 'assetSlotId']
+  const resourceIdAliases = ['resource_id', 'resourceId', 'output_resource_id', 'outputResourceId']
+  const assetSlotId = getRequiredPositiveIntegerAliasParam(args, assetSlotIdAliases, 'asset_slot_id')
+  const resourceId = getRequiredPositiveIntegerAliasParam(args, resourceIdAliases, 'resource_id')
 
   const sourceType = getOptionalString(args, 'source_type') ?? getOptionalString(args, 'sourceType') ?? 'agent'
   const sourceId = getOptionalNumeric(args, 'source_id') ?? getOptionalNumeric(args, 'sourceId') ?? getOptionalNumeric(args, 'jobId')
@@ -2039,6 +2128,84 @@ export async function attachAssetSlotCandidate(args: Record<string, unknown>): P
     ...(candidateAssetSlotId ? { candidate_asset_slot_id: candidateAssetSlotId } : {}),
     resource_id: resourceId,
     message: `资源 #${resourceId} 已加入素材位 #${assetSlotId} 的候选集。`,
+  }
+}
+
+export async function attachKeyframeCandidate(args: Record<string, unknown>): Promise<unknown> {
+  const projectId = resolveToolProjectId(args)
+  const keyframeIdAliases = ['keyframe_id', 'keyframeId', 'target_keyframe_id', 'targetKeyframeId']
+  const resourceIdAliases = ['resource_id', 'resourceId', 'output_resource_id', 'outputResourceId']
+  const keyframeId = getRequiredPositiveIntegerAliasParam(args, keyframeIdAliases, 'keyframe_id')
+  const resourceId = getRequiredPositiveIntegerAliasParam(args, resourceIdAliases, 'resource_id')
+
+  const keyframes = await backendList(`/projects/${projectId}/entities/keyframes`)
+  const target = keyframes.find((item) => entityId(item) === keyframeId)
+  if (!target || !isRecord(target)) throw new Error(`target keyframe ${keyframeId} not found in project ${projectId}`)
+  if (isGeneratedKeyframeCandidateTarget(target)) {
+    throw new Error(`keyframe ${keyframeId} is already a generated candidate; choose the original target keyframe`)
+  }
+
+  const sourceType = getOptionalString(args, 'source_type') ?? getOptionalString(args, 'sourceType') ?? 'agent'
+  const sourceId = getOptionalNumeric(args, 'source_id') ?? getOptionalNumeric(args, 'sourceId') ?? getOptionalNumeric(args, 'jobId')
+  const sourceJobId = getOptionalNumeric(args, 'jobId') ?? (sourceType === 'job' ? sourceId : undefined)
+  const explicitTitle = getOptionalString(args, 'title')
+  const explicitDescription = getOptionalString(args, 'description')
+  const explicitPrompt = getOptionalString(args, 'prompt')
+  const note = getOptionalString(args, 'note')
+  const targetTitle = stringValue(target.title) ?? stringValue(target.name) ?? `画面锚点 #${keyframeId}`
+  const targetDescription = stringValue(target.description)
+  const targetPrompt = stringValue(target.prompt)
+  const metadata: Record<string, unknown> = {
+    source: 'ai_generated_keyframe_candidate',
+    target_keyframe_id: keyframeId,
+    resource_id: resourceId,
+    source_type: sourceType,
+    ...(sourceId ? { source_id: sourceId } : {}),
+    ...(sourceJobId ? { source_job_id: sourceJobId } : {}),
+    ...(note ? { note } : {}),
+  }
+
+  const candidate = await backendPost(`/projects/${projectId}/entities/keyframes`, {
+    production_id: numericValue(target.production_id ?? target.productionId),
+    scene_moment_id: numericValue(target.scene_moment_id ?? target.sceneMomentId),
+    content_unit_id: numericValue(target.content_unit_id ?? target.contentUnitId),
+    resource_id: resourceId,
+    canvas_id: numericValue(target.canvas_id ?? target.canvasId),
+    title: explicitTitle ?? `候选：${targetTitle}`,
+    description: explicitDescription ?? targetDescription ?? '',
+    prompt: explicitPrompt ?? targetPrompt ?? '',
+    order: numericValue(target.order ?? target.sort_order ?? target.sortOrder) ?? 0,
+    status: 'candidate',
+    metadata_json: JSON.stringify(metadata),
+  })
+
+  return {
+    status: 'attached',
+    candidate,
+    keyframe_id: keyframeId,
+    resource_id: resourceId,
+    message: `资源 #${resourceId} 已加入画面锚点 #${keyframeId} 的候选集。`,
+  }
+}
+
+function isGeneratedKeyframeCandidateTarget(keyframe: Record<string, unknown>): boolean {
+  return isGeneratedKeyframeCandidateRecord(keyframe)
+}
+
+function isGeneratedKeyframeCandidateRecord(keyframe: Record<string, unknown>): boolean {
+  const metadata = parseMetadataRecord(keyframe.metadata_json)
+  return metadata?.source === 'ai_generated_keyframe_candidate'
+    || numericValue(metadata?.target_keyframe_id) !== undefined
+}
+
+function parseMetadataRecord(value: unknown): Record<string, unknown> | undefined {
+  if (isRecord(value)) return value
+  if (typeof value !== 'string' || value.trim().length === 0) return undefined
+  try {
+    const parsed = JSON.parse(value)
+    return isRecord(parsed) ? parsed : undefined
+  } catch {
+    return undefined
   }
 }
 
@@ -3320,6 +3487,8 @@ function summarizeProductionContextEntity(item: any): unknown {
     'mood',
     'prompt',
     'duration_sec',
+    'resource_id',
+    'canvas_id',
     'shot_size',
     'camera_angle',
     'camera_height',

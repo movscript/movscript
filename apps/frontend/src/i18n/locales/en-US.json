@@ -1002,7 +1002,12 @@
     "debug": {
       "shortTitle": "Debug",
       "title": "Agent Debug Console",
-      "description": "Inspect local Agent Runtime skills, tools, manifest, context, prompt, and dry-run plan.",
+      "description": "Observe local Agent Runtime status, current context, Prompt Preview, recent runs, and raw diagnostics. Manage persistent configuration in Agent Settings.",
+      "scope": {
+        "observabilityPlane": "Observability plane: read-only Runtime state",
+        "noPersistentWrites": "Does not modify models, Skills, Profiles, or tool policy",
+        "runDiagnosticsInDetails": "Per-run diagnostics live in conversation details"
+      },
       "defaultPreviewMessage": "Check the next best step for the current project.",
       "defaultRuntimeManifest": "Default runtime manifest",
       "tabs": {
@@ -1018,8 +1023,15 @@
       "actions": {
         "refresh": "Refresh",
         "copied": "Copied",
+        "copyTriage": "Copy Triage",
+        "triageCopied": "Triage Copied",
+        "downloaded": "Downloaded",
         "copyJson": "Copy JSON",
-        "runPreview": "Run Preview"
+        "downloadJson": "Download JSON",
+        "viewRun": "View Run",
+        "openSettings": "Open Settings",
+        "runPreview": "Run Preview",
+        "observeOnly": "Observe Only"
       },
       "status": {
         "runtimeOnline": "Runtime online",
@@ -1034,10 +1046,16 @@
       },
       "panels": {
         "runtime": "Runtime",
+        "runtimeModelConfig": "Runtime Model Config",
         "previewInput": "Preview Input",
         "warnings": "Warnings",
         "mcpResources": "MCP Resources",
         "latestPreview": "Latest Preview",
+        "triage": "Issue Triage",
+        "runAttention": "Runs Needing Attention",
+        "observationCoverage": "Observation Coverage",
+        "remediationPlan": "Remediation Plan",
+        "runIssueSummary": "Run Issue Summary",
         "effectiveManifest": "Effective Manifest",
         "defaultManifest": "Default Runtime Manifest",
         "activatedSkills": "Activated Skills",
@@ -1048,10 +1066,12 @@
         "contextSummary": "Context Summary",
         "contextJson": "Context JSON",
         "plan": "Plan",
-        "approvals": "Approvals"
+        "approvals": "Approvals",
+        "debugBundleFieldGuide": "Debug Bundle Field Guide"
       },
       "fields": {
         "baseUrl": "Base URL",
+        "lastUpdated": "Last refreshed",
         "skillsDir": "Skills dir",
         "toolsDir": "Tools dir",
         "agentManifest": "Agent Manifest",
@@ -1063,11 +1083,27 @@
         "selection": "Selection",
         "recentResources": "Recent resources",
         "attachments": "Attachments",
-        "memories": "Memories"
+        "memories": "Memories",
+        "modelConfigured": "Model config",
+        "model": "Model",
+        "apiKind": "Call mode",
+        "modelCredentials": "Model credentials",
+        "modelRoutes": "Model routes",
+        "modelSource": "Model source"
+      },
+      "modelCredentials": {
+        "configured": "Loaded: {{env}}",
+        "missing": "Missing: {{env}}",
+        "notRequired": "Not required for this call mode"
       },
       "metrics": {
         "runtime": "Runtime",
         "mcpTools": "MCP tools",
+        "resources": "MCP resources",
+        "runs": "Runs",
+        "activeRuns": "Active runs",
+        "waitingRuns": "Waiting",
+        "failedRuns": "Failed runs",
         "registeredTools": "Registered tools",
         "skills": "Skills",
         "registry": "Registry",
@@ -1082,6 +1118,118 @@
         "permission": "Permission",
         "approval": "Approval",
         "status": "Status"
+      },
+      "observationStatuses": {
+        "ready": "Covered",
+        "warning": "Missing",
+        "action": "Unavailable"
+      },
+      "observation": {
+        "runtime": "Runtime connection",
+        "modelConfig": "Runtime model config",
+        "mcp": "MCP status",
+        "context": "Project context",
+        "preview": "Prompt Preview",
+        "runs": "Run records",
+        "warnings": "Warning signals"
+      },
+      "observationDetails": {
+        "runtimeReady": "Runtime health, catalog, and capabilities are loaded.",
+        "runtimeMissing": "Runtime is not connected; status cannot be observed.",
+        "modelConfigReady": "Runtime model config is saved for {{model}} and credentials are ready.",
+        "modelConfigUnavailable": "Runtime is not connected, so model config cannot be observed.",
+        "modelConfigReadFailed": "Runtime is online, but model config could not be read: {{reason}}.",
+        "modelConfigMissing": "No Runtime model config is saved. Open Agent Settings to configure the default model.",
+        "modelCredentialMissing": "Runtime model config is saved, but direct provider credentials are missing: {{env}}.",
+        "mcpReady": "MCP is connected, so resources and tool capabilities can be observed.",
+        "mcpMissing": "MCP is disconnected or resources are unavailable.",
+        "contextReady": "Current project: {{project}}.",
+        "contextMissing": "No project selected; only global Runtime can be observed.",
+        "previewReady": "Preview is generated; prompt, context, and plan can be inspected.",
+        "previewMissing": "Preview has not been run yet.",
+        "runsReady": "{{count}} run records loaded.",
+        "runsMissing": "No run records yet.",
+        "warningsFound": "{{count}} warnings found.",
+        "warningsClear": "No warnings right now."
+      },
+      "triageSeverities": {
+        "action": "Action",
+        "warning": "Watch",
+        "info": "Info"
+      },
+      "triage": {
+        "failedRuns": "{{count}} failed runs",
+        "requiresAction": "{{count}} runs waiting for confirmation",
+        "observationMissing": "Observation signal is incomplete",
+        "warningSignals": "{{count}} warning signals",
+        "signal": "Signal: {{signal}}"
+      },
+      "triageSummary": {
+        "title": "Agent Debug Triage Summary"
+      },
+      "remediationSummary": {
+        "title": "Suggested next steps"
+      },
+      "remediation": {
+        "failedRuns": "Inspect failed run details",
+        "requiresAction": "Resolve waiting run confirmation",
+        "modelConfig": "Fix persistent model configuration",
+        "preview": "Generate Prompt Preview evidence",
+        "mcp": "Inspect MCP connectivity signals",
+        "warningSignals": "Review grouped warning signals"
+      },
+      "remediationDetails": {
+        "failedRuns": "{{count}} failed runs found. The representative reason is: {{reason}}.",
+        "requiresAction": "{{count}} runs are waiting for confirmation. The representative reason is: {{reason}}.",
+        "modelConfig": "Debug only observes the problem; Agent Settings owns the persistent model, credential, and route fix.",
+        "preview": "Run Preview builds prompt, context, plan, and approval evidence without changing saved settings.",
+        "mcp": "MCP state is read-only here. Use the grouped signals to decide whether Runtime or connector setup needs attention.",
+        "warningSignals": "{{count}} warnings across {{sources}} sources are present. Review the grouped warnings before changing configuration."
+      },
+      "redactionNotice": {
+        "title": "Debug Bundle is redacted",
+        "detail": "Copied or downloaded Bundles redact keys, tokens, cookies, and signed URL parameters; full per-run diagnostics still live in conversation details."
+      },
+      "triageDetails": {
+        "failedRuns": "Representative reason: {{reason}}. Open run details to inspect steps, tool calls, and error context.",
+        "requiresAction": "Representative reason: {{reason}}. Per-run handling still lives in conversation details.",
+        "warningSignals": "From {{sources}} sources. Debug only aggregates signals; use Agent Settings for persistent configuration fixes.",
+        "observation": {
+          "runtime": "Runtime connection is required to read health, catalog, capabilities, and run records.",
+          "model-config": "Runtime model config is missing or lacks direct provider credentials. Use Agent Settings to fix persistent model configuration.",
+          "mcp": "MCP is disconnected or resources are unavailable, so tool/resource observation is incomplete.",
+          "context": "Without a selected project, Debug can only observe global Runtime state.",
+          "preview": "Run Preview before inspecting this prompt, context, and plan.",
+          "runs": "No run records are available, so runtime trends cannot be judged yet.",
+          "warnings": "Warning signals exist; inspect the grouped warning sources."
+        }
+      },
+      "warningSources": {
+        "capabilities": "Runtime capabilities",
+        "catalog": "Plugin catalog",
+        "model": "Runtime model config",
+        "preview": "Prompt Preview"
+      },
+      "runIssueGroups": {
+        "requiresAction": "Waiting for confirmation",
+        "failed": "Failed runs",
+        "inProgress": "In progress",
+        "completedWithWarnings": "Completed with warnings"
+      },
+      "bundleFields": {
+        "schema": "Stable machine-readable identifier for this Debug Bundle.",
+        "schemaVersion": "Debug Bundle structure version for automated parsing and compatibility checks.",
+        "schemaUrl": "Public location of the Debug Bundle schema for issue-report validation.",
+        "triageItems": "Prioritized read-only triage results for deciding what to inspect next.",
+        "remediationPlan": "Read-only next-step routing that points to Settings, run details, Preview, or observation-only review.",
+        "observationCoverage": "Which observation signals this diagnostic bundle covers, and whether each one is missing.",
+        "runIssueGroups": "Run issue counts and representative reasons grouped by status.",
+        "warningGroups": "Runtime, catalog, and Preview warnings grouped by source.",
+        "redacted": "Marks that this Debug Bundle has redacted keys, tokens, cookies, and signed URL parameters.",
+        "preview": "The latest Preview prompt, context, plan, and approval data, redacted on export.",
+        "runtime": "Runtime health, catalog, capabilities, and recent run snapshot, redacted on export.",
+        "modelConfig": "The effective Runtime model config, routes, and credential status, redacted on export.",
+        "modelConfigError": "A redacted error explaining why Runtime model config could not be read."
       },
       "empty": {
         "noResources": "No resources discovered.",
@@ -1098,7 +1246,12 @@
         "noProject": "No project selected.",
         "runContextPreviewHint": "Run a preview to inspect runtime context.",
         "runPlanPreviewHint": "Run a preview to inspect plan, tool calls, and approvals.",
-        "noApprovals": "No approval required in this preview."
+        "noApprovals": "No approval required in this preview.",
+        "noRunAttention": "No runs need attention.",
+        "noRunIssues": "No run issues right now.",
+        "noTriageItems": "No issues need triage right now.",
+        "noRemediationItems": "No remediation steps are suggested right now.",
+        "modelConfigReadFailed": "Model config could not be read: {{reason}}"
       },
       "values": {
         "none": "none",
@@ -1111,30 +1264,735 @@
     },
     "settings": {
       "title": "Agent Settings",
-      "description": "Configure the text model used by the local Agent Runtime. This affects AI Assistant chat, planning, and debug previews.",
+      "description": "Manage persistent local Agent Runtime configuration, including model calls, Skills, Profiles, tool policy, run presets, and settings snapshots.",
+      "scope": {
+        "controlPlane": "Control plane: configures future default runs",
+        "futureRuns": "Does not show per-run diagnostics",
+        "debugReadOnly": "Use Agent Debug for Runtime observation"
+      },
+      "settingsStatusSummaryTitle": "Agent Settings Status Summary",
+      "settingsStatusSummaryReadiness": "Configuration readiness",
+      "settingsStatusSummaryActionItems": "Configuration action items",
+      "settingsStatusSummaryAudit": "Recent configuration changes",
+      "copySettingsStatus": "Copy Status",
+      "settingsStatusCopied": "Status Copied",
+      "openDebug": "Open Debug",
+      "refresh": "Refresh",
       "modelPanel": "Model Config",
       "modelLabel": "Runtime text model",
       "modelHelp": "Select an enabled backend model with text capability. It will be saved to the local Agent Runtime model-config.",
+      "providerModelIdLabel": "Provider model ID",
+      "providerModelIdHelp": "For direct OpenAI or Anthropic modes, enter the provider model ID directly. It does not need a matching backend model catalog entry.",
+      "providerModelPanel": "Direct Provider Model",
+      "providerModelPanelHelp": "This call mode does not use the backend model list. Enter the provider model ID in Model Config and make sure Runtime environment variables have loaded the model credential.",
+      "modelRequired": "Select a model or enter a provider model ID first.",
+      "modelIdSecretsBlocked": "The provider model ID looks like it contains an API key, Bearer token, or URL with secret parameters. Enter only the model ID and keep credentials in Runtime environment variables.",
+      "providerCredentialNotice": "Direct provider mode needs model credentials in Runtime environment variables",
+      "providerCredentialHelp": "Do not put keys in the Base URL. After saving, use Save and Test to confirm Runtime loaded the credential.",
+      "apiKindLabel": "Call mode",
+      "selectApiKind": "Select call mode",
+      "baseUrlLabel": "Model Base URL",
+      "baseUrlHelp": "Leave empty to use the default URL for this call mode. Direct OpenAI/Anthropic modes require a model API key in the Agent Runtime environment.",
+      "baseUrlSecretsBlocked": "The Base URL contains username/password credentials or sensitive fields such as token, api_key, or signature. Remove URL secrets and store model credentials in Agent Runtime environment variables instead.",
+      "apiKinds": {
+        "backendChatCompletions": "Backend Gateway / Chat Completions",
+        "openaiResponses": "OpenAI / Responses",
+        "openaiChatCompletions": "OpenAI / Chat Completions",
+        "anthropicMessages": "Anthropic / Messages"
+      },
+      "apiKindDescriptions": {
+        "backendChatCompletions": "Calls through the MovScript backend model gateway, reusing backend credentials, routing, and audit controls.",
+        "openaiResponses": "Calls OpenAI Responses API directly for newer agentic, multi-turn, and tool-using workflows.",
+        "openaiChatCompletions": "Calls OpenAI Chat Completions API directly for compatibility with the older message format.",
+        "anthropicMessages": "Calls Anthropic Messages API directly for Anthropic models."
+      },
+      "apiModeCapabilityPanel": "Call Mode Capability Matrix",
+      "apiModeCapabilityHelp": "This controls which model interface future runs use. Debug only shows the effective result and does not modify call mode.",
+      "apiModeCapabilityBadges": {
+        "recommended": "Recommended for new Agents",
+        "managed": "Managed Gateway",
+        "compatibility": "Compatibility Mode",
+        "providerNative": "Provider Native"
+      },
+      "apiModeCapabilityItems": {
+        "centralizedCredentials": {
+          "label": "Centralized credentials",
+          "detail": "Uses backend model gateway credentials and does not require a local Runtime direct key."
+        },
+        "backendRouting": {
+          "label": "Backend routing",
+          "detail": "Reuses backend model catalog, toggles, and route policy for team governance."
+        },
+        "backendAudit": {
+          "label": "Backend audit",
+          "detail": "Model calls still pass through backend audit paths for investigation and cost attribution."
+        },
+        "chatCompatibility": {
+          "label": "Chat compatibility",
+          "detail": "Keeps the Chat Completions shape for existing gateway behavior."
+        },
+        "agenticPrimitive": {
+          "label": "Agentic primitive",
+          "detail": "Responses is the default preferred mode for new Agent workflows with tools and multi-turn tasks."
+        },
+        "structuredOutputs": {
+          "label": "Structured outputs",
+          "detail": "Supports clearer structured output and tool-call contracts."
+        },
+        "responseState": {
+          "label": "Response state",
+          "detail": "Fits future stateful long tasks and continuous reasoning better."
+        },
+        "builtInTools": {
+          "label": "Built-in tool expansion",
+          "detail": "Can later connect provider-side built-in tools instead of only local functions."
+        },
+        "legacyCompatibility": {
+          "label": "Legacy compatibility",
+          "detail": "Keeps the message/choice format for migration periods or older models."
+        },
+        "functionCalling": {
+          "label": "Function calling",
+          "detail": "Supports traditional function calling, while new capabilities should converge on Responses."
+        },
+        "simpleMessageShape": {
+          "label": "Simple message shape",
+          "detail": "Request bodies stay close to older chat APIs and existing code."
+        },
+        "migrationPath": {
+          "label": "Migration path",
+          "detail": "Keep it as a compatibility option; move new Agent capabilities to Responses over time."
+        },
+        "anthropicNative": {
+          "label": "Anthropic native",
+          "detail": "Uses Anthropic Messages API directly for the Claude model family."
+        },
+        "toolUse": {
+          "label": "Tool use",
+          "detail": "Preserves Anthropic tool-use semantics and normalizes them into local Agent trace."
+        },
+        "directCredential": {
+          "label": "Direct credential",
+          "detail": "Requires a direct provider key in Runtime environment variables."
+        },
+        "separateModelFamily": {
+          "label": "Separate model family",
+          "detail": "Useful for evaluation and routing outside OpenAI model families."
+        }
+      },
+      "modelCompatibilityPanel": "Provider Compatibility Probes",
+      "modelCompatibilityHelp": "Local checks for provider fit before Save and Test. They do not write configuration or call the model.",
+      "modelCompatibilityStatuses": {
+        "ready": "Ready",
+        "warning": "Review",
+        "action": "Action"
+      },
+      "modelCompatibility": {
+        "apiMode": "API mode",
+        "modelId": "Model ID",
+        "credentials": "Credentials",
+        "baseURL": "Base URL",
+        "routes": "Routes"
+      },
+      "modelCompatibilityDetails": {
+        "apiModeReady": "{{apiKind}} is compatible with the selected provider path.",
+        "apiModeChatCompatibility": "Chat Completions is a compatibility mode; prefer Responses for new OpenAI Agent work.",
+        "modelIdReady": "{{model}} matches the selected provider path.",
+        "modelIdMissing": "Select or enter a model ID before saving.",
+        "modelIdSecret": "The model ID contains secret-looking text; keep credentials in Runtime environment variables.",
+        "modelIdBackendReference": "Direct provider modes need provider model IDs, not backend model_config references.",
+        "modelIdProviderMismatch": "{{model}} looks like it belongs to another provider family.",
+        "credentialsBackendManaged": "Backend gateway credentials are managed outside local Runtime direct provider settings.",
+        "credentialsMissing": "Runtime has not loaded {{env}} for this provider.",
+        "credentialsReady": "Runtime reports {{env}} is configured for this provider.",
+        "credentialsUnchecked": "Credential status is verified after saving this provider mode and running Test.",
+        "baseURLDefault": "Default provider endpoint will be used.",
+        "baseURLCustom": "Custom endpoint configured: {{baseURL}}.",
+        "baseURLSecret": "Base URL contains secret-looking query or credential data.",
+        "baseURLInvalid": "Base URL must be a valid http(s) URL.",
+        "routesReady": "At least one model route is enabled for future runs.",
+        "routesMissing": "Enable chat or planning route before saving."
+      },
+      "apiModeMigrationGuide": "Call Mode Migration Guide",
+      "apiModeMigrationStep": "Step {{index}}",
+      "switchToResponses": "Switch to Responses",
+      "apiModeMigration": {
+        "backend_chat_completions": {
+          "detail": "Backend gateway mode is stable for shared credentials and routing. Move to direct Responses only when the Runtime should own provider-native behavior."
+        },
+        "openai_responses": {
+          "detail": "Responses is already selected, which is the recommended path for new Agent capabilities."
+        },
+        "openai_chat_completions": {
+          "detail": "Chat Completions is compatibility mode. Use it for older flows, then migrate new Agent work to Responses."
+        },
+        "anthropic_messages": {
+          "detail": "Anthropic Messages is a provider-native path, not an OpenAI migration step. Keep it separate for Claude-family evaluation."
+        }
+      },
+      "apiModeMigrationSteps": {
+        "centralize": "Keep team credentials, routing, and audit centralized in the backend gateway.",
+        "evaluate": "Evaluate whether the workflow needs provider-native response state or built-in tools.",
+        "switchWhenReady": "Switch selected flows to Responses once direct provider credentials and model ids are ready.",
+        "recommended": "Use Responses as the default for new OpenAI Agent workflows.",
+        "stateful": "Prefer Responses when future runs need response state or longer reasoning continuity.",
+        "futureTools": "Leave room for provider-side built-in tools without changing the settings boundary.",
+        "preserveCompatibility": "Keep Chat Completions only for older message/choice integrations during migration.",
+        "verifyModel": "Confirm the direct provider model id and Base URL are valid for the Responses API.",
+        "switchResponses": "Switch the draft call mode to Responses, save, then run the connectivity test.",
+        "providerNative": "Use Anthropic Messages when evaluating Claude-family provider-native behavior.",
+        "compare": "Compare behavior against OpenAI modes through run outputs and read-only Debug observations.",
+        "keepSeparate": "Do not mix Anthropic provider settings into the OpenAI migration path."
+      },
       "selectModel": "Select model",
       "noTextModels": "No text models are available. Enable a text model in model management first.",
       "useForChat": "Use for chat",
       "useForChatHelp": "Use this model for regular AI Assistant conversations.",
       "useForPlanner": "Use for planning",
       "useForPlannerHelp": "Use this model for multi-step plans and task decomposition.",
+      "modelRouteIssues": {
+        "allRoutesDisabled": "Enable at least one of Use for chat or Use for planning; otherwise the Agent has no available model route."
+      },
+      "modelCredentialStatus": {
+        "configured": "Loaded: {{env}}",
+        "missing": "Missing: {{env}}",
+        "notRequired": "Current call mode does not require a direct key"
+      },
       "save": "Save Config",
       "saved": "Saved",
       "test": "Save and Test",
+      "clearModelConfig": "Clear Config",
+      "clearModelConfigConfirm": "Confirm Clear",
       "testPanel": "Connectivity Test",
       "testMessageDefault": "Reply in one sentence: the Agent Runtime model connection is working.",
       "testOk": "Test passed",
       "testFailed": "Test failed",
+      "runPresetsPanel": "Run Presets",
+      "activeRunPreset": "Default run preset",
+      "runPresetsHelp": "Regular Agent chat uses this preset's tool-call limit, iteration limit, and frontend planning preferences by default. Page-level explicit run policies still take priority.",
+      "editRunPreset": "Edit Active Preset",
+      "effectiveRunPolicy": "Effective Run Policy",
+      "createRunPreset": "New Preset",
+      "duplicateRunPreset": "Duplicate",
+      "deleteRunPreset": "Delete Custom",
+      "resetRunPresets": "Restore Default Presets",
+      "runPresetNewName": "Custom Preset",
+      "runPresetNewDescription": "Custom defaults for future Agent runs.",
+      "runPresetCopyName": "Copy of {{name}}",
+      "runPresetCopyDescription": "Copy of {{name}}.",
+      "runPresetFields": {
+        "name": "Name",
+        "description": "Description",
+        "maxToolCalls": "Tool limit",
+        "maxIterations": "Iteration limit",
+        "permissionMode": "Approval mode",
+        "planWorkers": "Plan workers",
+        "planAttempts": "Task retries",
+        "planTimeout": "Task timeout",
+        "autoPlan": "Auto plan"
+      },
+      "runPresetPermissionModes": {
+        "ask": "Confirm each time",
+        "suggest": "Suggest first",
+        "auto": "Automatic"
+      },
+      "skillsPanel": "Skills Management",
+      "reloadCatalog": "Reload Catalog",
+      "reloadCatalogDone": "Reloaded {{time}}",
+      "installSkillBundle": "Install Skill Bundle",
+      "installSkillBundleHelp": "Paste JSON with pluginId and files. The Agent catalog reloads automatically after install.",
+      "loadSkillBundleFile": "Load JSON File",
+      "skillBundleFileLoaded": "Loaded {{fileName}}. Review the content before installing.",
+      "skillBundleDraftSummary": "Ready to install: {{pluginId}}, {{count}} files, {{size}}.",
+      "installSkillBundleAction": "Install",
+      "installSkillBundlePlaceholder": "{\n  \"pluginId\": \"my-agent-skills\",\n  \"files\": [\n    { \"path\": \"SKILL.md\", \"content\": \"---\\nname: ...\\ndescription: ...\\n---\\n...\" }\n  ]\n}",
+      "installSkillBundleDone": "Installed {{count}} files for {{pluginId}}.",
+      "uninstallSkillBundle": "Uninstall Skill Bundle",
+      "installedSkillBundles": "Installed Skill Bundles",
+      "uninstallSkillBundleHelp": "Only deletes files owned by this pluginId under the Agent Skills plugin directory. The Agent catalog reloads automatically after uninstall.",
+      "uninstallSkillBundlePlaceholder": "pluginId, for example my-agent-skills",
+      "uninstallSkillBundleAction": "Uninstall",
+      "uninstallSkillBundleConfirm": "Confirm Uninstall",
+      "uninstallSkillBundleDone": "Uninstalled {{pluginId}}.",
+      "uninstallSkillBundleMissing": "{{pluginId}} does not have an installed plugin directory.",
+      "uninstallSkillBundlePluginIdRequired": "Enter the pluginId to uninstall.",
+      "uninstallSkillBundlePluginIdInvalid": "pluginId may only contain letters, numbers, dot, underscore, or hyphen.",
+      "coreSkills": "Core Skills",
+      "noSkills": "No skills found.",
+      "saveSkillPolicy": "Save Skill Policy",
+      "skillPolicySaved": "Skill policy saved",
+      "resetSkillPolicy": "Reset",
+      "skillPolicyEditHelp": "Manage default skill enabled state here. Core skills are locked by the system.",
+      "skillPolicyCoreLocked": "Core skills are loaded by the system and cannot be disabled here.",
+      "skillPolicyToggleHelp": "Affects skill activation candidates for future default Agent runs.",
+      "skillPolicyIssues": "Skill policy has dependency or conflict issues",
+      "skillPolicyIssueDependency": "{{skillId}} requires enabled dependency {{dependencyId}}.",
+      "skillPolicyIssueConflict": "{{skillId}} conflicts with enabled {{conflictId}}.",
+      "skillGovernancePanel": "Skill Governance",
+      "skillGovernanceHelp": "Review version coverage, source, and trust posture before changing default Skill policy.",
+      "skillGovernanceFields": {
+        "versioned": "Versioned"
+      },
+      "profilesPanel": "Profiles / Work Modes",
+      "noProfiles": "No profiles found.",
+      "defaultProfileLabel": "Default work mode",
+      "defaultProfileHelp": "After saving, future default Agent runs use this Profile's skills, tool grants, and policies.",
+      "selectProfile": "Select profile",
+      "saveProfile": "Save Profile",
+      "profileSaved": "Profile saved",
+      "profileDiffTitle": "Switch Impact Preview",
+      "profileDiffAdded": "Adds",
+      "profileDiffRemoved": "Removes",
+      "profileDiffChanged": "Changes",
+      "profileDiffNoChange": "No change",
+      "profileSwitchResetsToolPolicy": "Changing the default Profile uses the new Profile's tool grants and clears current tool policy overrides. Save the Profile first, then tighten permissions in Tool Permission Policy if needed.",
+      "toolPolicyPanel": "Tool Permission Policy",
+      "noTools": "No tools found.",
+      "saveToolPolicy": "Save Tool Policy",
+      "toolPolicySaved": "Tool policy saved",
+      "resetToolPolicy": "Reset",
+      "toolPolicyEditHelp": "Only tighten permissions for the current default Profile here. Add tool grants by changing the Profile or capability pack.",
+      "toolPolicySearchPlaceholder": "Search tools by name, source, risk, or reason",
+      "toolPolicyFilterSummary": "Showing {{shown}} / {{total}} tools.",
+      "toolPolicyFilters": {
+        "all": "All tools",
+        "available": "Available",
+        "blocked": "Blocked",
+        "profile_granted": "Profile granted",
+        "requires_approval": "Needs approval",
+        "write_risk": "Write risk"
+      },
+      "toolPolicyBulkActions": "Bulk edit filtered",
+      "toolPolicyBulkHelp": "Applies to the currently filtered tool policy rows only. Review the diff before saving.",
+      "toolPolicyBulkAllowAvailable": "Allow available",
+      "toolPolicyBulkDeny": "Deny",
+      "toolPolicyBulkApprovalNever": "No approval",
+      "toolPolicyBulkApprovalOnWrite": "Approve on write",
+      "toolPolicyBulkApprovalAlways": "Always approve",
+      "toolPolicyFilterPresets": "Saved filters",
+      "saveToolPolicyFilterPreset": "Save Filter",
+      "deleteToolPolicyFilterPreset": "Delete filter",
+      "toolPolicyFilterPresetsHelp": "Save recurring tool reviews such as write-risk or blocked tools.",
+      "toolPolicyFilterPresetsEmpty": "No saved filters yet.",
+      "toolPolicyAllowDisabled": "Only tools granted by the current Profile and available in Runtime can be saved as allowed.",
+      "toolPolicyDraftIssues": "Tool policy draft has unsavable items",
+      "toolPolicyDraftInvalid": "Tool policy draft has {{count}} unsavable items.",
+      "fixToolPolicyDraftIssues": "Fix Draft",
+      "toolPolicyDraftIssueDetails": {
+        "notProfileGranted": "Not granted by the current Profile.",
+        "unavailableAllow": "Currently unavailable ({{reason}}), so it cannot be saved as allowed."
+      },
+      "toolPolicyDiffPreview": "Tool Policy Diff",
+      "toolPolicyDiffSummaryTitle": "Agent Settings Tool Policy Diff",
+      "toolPolicyDiffSummary": "{{added}} added, {{removed}} removed, {{changed}} changed.",
+      "copyToolPolicyDiff": "Copy Diff",
+      "toolPolicyDiffCopied": "Diff Copied",
+      "toolPolicyDiffChangeTypes": {
+        "added": "Added",
+        "removed": "Removed",
+        "changed": "Changed"
+      },
+      "toolPolicyDiffValues": {
+        "none": "not present",
+        "policy": "{{mode}} / {{approval}}"
+      },
       "currentRuntime": "Current Runtime",
+      "configurationMapPanel": "Configuration Map",
+      "sectionDescriptions": {
+        "model": "Choose call mode, model, and usage routes.",
+        "runPresets": "Save common run limits and planning preferences.",
+        "skills": "Install, reload, and manage default Skill policy.",
+        "profiles": "Select default work mode and preview switch impact.",
+        "tools": "Tighten tool permissions for the current Profile.",
+        "snapshot": "Migrate, back up, or restore Agent settings."
+      },
+      "readinessPanel": "Configuration Readiness",
+      "settingsAuditPanel": "Configuration Change Audit",
+      "settingsAuditEmpty": "No configuration changes recorded yet.",
+      "settingsAuditHelp": "Records Settings page configuration actions only, not per-run diagnostics.",
+      "settingsAuditSummaryTitle": "Agent Settings Configuration Change Audit",
+      "copySettingsAudit": "Copy Audit",
+      "settingsAuditCopied": "Audit Copied",
+      "clearSettingsAudit": "Clear",
+      "auditTargets": {
+        "model": "Model",
+        "profile": "Profile",
+        "skills": "Skills",
+        "tools": "Tools",
+        "run_preset": "Run preset",
+        "snapshot": "Snapshot"
+      },
+      "auditActions": {
+        "settings_changed": "Settings changed",
+        "model_saved": "Saved",
+        "model_tested": "Tested",
+        "model_cleared": "Cleared",
+        "profile_saved": "Saved",
+        "skill_catalog_reloaded": "Catalog reloaded",
+        "skill_policy_saved": "Policy saved",
+        "skill_bundle_installed": "Installed",
+        "skill_bundle_uninstalled": "Uninstalled",
+        "tool_policy_saved": "Policy saved",
+        "run_preset_selected": "Selected",
+        "run_preset_updated": "Updated",
+        "run_preset_created": "Created",
+        "run_preset_duplicated": "Duplicated",
+        "run_preset_deleted": "Deleted",
+        "run_presets_reset": "Reset",
+        "settings_snapshot_imported": "Imported",
+        "settings_backup_cleared": "Backup cleared",
+        "settings_quick_fix_applied": "Quick fix",
+        "settings_quick_fix_draft_reset": "Draft reset",
+        "settings_quick_fix_draft_repair": "Draft repair",
+        "settings_quick_fix_sensitive_cleanup": "Sensitive cleanup",
+        "settings_quick_fix_risk_downgrade": "Risk downgrade",
+        "settings_quick_fix_mode_migration": "Mode migration",
+        "settings_quick_fix_route_enable": "Route enabled",
+        "settings_quick_fix_clear_confirmation": "Clear confirmation",
+        "settings_operation_failed": "Operation failed"
+      },
+      "auditSummaries": {
+        "modelSaved": "Saved model config: {{model}} ({{apiKind}} / {{routes}})",
+        "modelTested": "Saved and tested model config: {{model}} ({{apiKind}} / {{routes}})",
+        "modelCleared": "Cleared Runtime model config",
+        "profileSaved": "Saved default Profile: {{profileId}}",
+        "skillCatalogReloaded": "Reloaded Skill / Tool catalog",
+        "skillPolicySaved": "Saved Skill policy: {{count}} Skills enabled",
+        "skillBundleInstalled": "Installed Skill Bundle: {{pluginId}} ({{count}} files)",
+        "skillBundleUninstalled": "Uninstalled Skill Bundle: {{pluginId}}",
+        "toolPolicySaved": "Saved tool permission policy: {{count}} rules (allow {{allow}} / deny {{deny}} / approval {{approvals}})",
+        "toolPolicyFilterPresetSaved": "Saved tool policy filter: {{name}}",
+        "toolPolicyFilterPresetDeleted": "Deleted tool policy filter: {{name}}",
+        "runPresetSelected": "Selected default run preset: {{preset}} (tools {{maxToolCalls}} / iterations {{maxIterations}} / {{permissionMode}} / {{workers}}x / {{attempts}}r / {{timeout}})",
+        "runPresetUpdated": "Updated run preset: {{preset}} (tools {{maxToolCalls}} / iterations {{maxIterations}} / {{permissionMode}} / {{workers}}x / {{attempts}}r / {{timeout}})",
+        "runPresetCreated": "Created run preset: {{preset}} (tools {{maxToolCalls}} / iterations {{maxIterations}} / {{permissionMode}} / {{workers}}x / {{attempts}}r / {{timeout}})",
+        "runPresetDuplicated": "Duplicated run preset: {{preset}} (tools {{maxToolCalls}} / iterations {{maxIterations}} / {{permissionMode}} / {{workers}}x / {{attempts}}r / {{timeout}})",
+        "runPresetDeleted": "Deleted run preset: {{preset}}; selected {{nextPreset}}.",
+        "runPresetsReset": "Restored default run presets: {{count}} presets",
+        "settingsSnapshotImported": "Imported settings snapshot: {{exportedAt}}",
+        "settingsBackupCleared": "Cleared pre-import backup",
+        "quickFixApplied": "Applied local quick fix: {{quickFix}} ({{target}}, persists only after saving)",
+        "quickFixAppliedImmediate": "Applied quick fix: {{quickFix}} ({{target}}, local defaults updated)",
+        "operationFailed": "{{operation}} operation failed: {{error}}"
+      },
+      "actionItemsPanel": "Configuration Action Items",
+      "actionItemsSummaryTitle": "Agent Settings Configuration Action Items",
+      "actionItemsSummarySection": "Settings section: {{section}}",
+      "actionItemsSummaryQuickFix": "Available quick fix: {{quickFix}}",
+      "actionItemsCountSummary": "{{actions}} actions, {{warnings}} reviews",
+      "actionItemsEmpty": "No configuration action items need attention.",
+      "copyActionItems": "Copy Issues",
+      "actionItemsCopied": "Issues Copied",
+      "actionStatuses": {
+        "action": "Action",
+        "warning": "Review"
+      },
+      "quickFixes": {
+        "jumpToSection": "Locate",
+        "resetDraft": "Reset Draft",
+        "confirmClearModelConfig": "Prepare Clear Model Config",
+        "enableChatRoute": "Enable Chat Route",
+        "switchOpenAIResponses": "Switch to Responses",
+        "stripSensitiveBaseURLQuery": "Remove Sensitive Params",
+        "downgradeAutoPermission": "Downgrade to Suggest",
+        "switchedToResponses": "Local draft switched to OpenAI Responses. Save before future default runs use it.",
+        "downgradedAutoPermission": "Current run preset approval mode changed to Suggest. Save before future default runs use it.",
+        "applied": "Local fix applied. Review and save any configuration that should persist."
+      },
+      "actionItems": {
+        "modelMissing": "Runtime model is not configured",
+        "modelUnsaved": "Model config has unsaved changes",
+        "modelIdSensitive": "Saved model ID may contain secrets",
+        "apiModeCompatibility": "Call mode is still compatibility mode",
+        "modelCredentialsMissing": "Direct model credentials are not loaded",
+        "modelBaseURLSensitive": "Model Base URL may contain secrets",
+        "routesInvalid": "Model routes are unavailable",
+        "routesMissing": "No model route is active",
+        "profileMissing": "Default Profile is missing",
+        "profileUnsaved": "Default Profile has unsaved changes",
+        "skillPolicyInvalid": "Skill policy has conflicts",
+        "skillPolicyUnsaved": "Skill policy has unsaved changes",
+        "toolPolicyInvalid": "Tool policy draft cannot be saved",
+        "toolPolicyUnsaved": "Tool policy has unsaved changes",
+        "autoPermissionWriteRisk": "Auto approval mode has high-risk tools",
+        "toolsBlocked": "All tools are unavailable"
+      },
+      "actionItemDetails": {
+        "modelMissing": "Choose a model, call mode, and usage routes, then save.",
+        "modelUnsaved": "Save or reset the current model config; future default runs still use the old config until then.",
+        "modelIdSensitive": "The saved direct Provider model ID looks like it contains an API key, Bearer token, or URL with secret parameters. Clear this config and save only the model ID; credentials belong in Runtime environment variables.",
+        "apiModeCompatibility": "Chat Completions is available for older flows; unless this is a migration period, switch new Agent workflows to OpenAI Responses.",
+        "modelCredentialsMissing": "Runtime did not detect {{env}}; direct provider calls will fail.",
+        "modelBaseURLSensitive": "The Base URL contains username/password credentials or sensitive fields such as token, api_key, or signature. Put model credentials in the Agent Runtime environment instead.",
+        "routesInvalid": "Enable at least one usage route for chat or planning.",
+        "routesMissing": "Check model config and usage toggles so future runs have an available model.",
+        "profileMissing": "Select and save a default work mode.",
+        "profileUnsaved": "Save the Profile before future default runs use the new work mode.",
+        "skillPolicyInvalid": "There are {{count}} dependency or conflict issues. Fix them before saving Skill policy.",
+        "skillPolicyUnsaved": "Save Skill policy before future default runs use the new Skill enabled state.",
+        "toolPolicyInvalid": "Tool policy draft has {{count}} unsavable items. Fix them before saving tool policy.",
+        "toolPolicyUnsaved": "Save tool policy before future default runs use the new tightened permissions.",
+        "autoPermissionWriteRisk": "The current run preset auto-approves execution while {{count}} available tools can write, generate, change UI, or perform destructive actions. Switch to Suggest or tighten tool policy.",
+        "toolsBlocked": "{{count}} tools were discovered, but none are available under the current policy."
+      },
+      "actionItemPersistHints": {
+        "saveOrReset": "This is a Settings draft: save to affect future default runs, or reset to discard local changes.",
+        "saveAfterQuickFix": "Quick fix only changes the local draft; save before it affects future default runs.",
+        "localDefaultsImmediately": "Quick fix updates local default settings immediately for future runs.",
+        "useRuntimeEnvForSecrets": "Do not store secrets in URLs; switch to Runtime environment variables before saving."
+      },
+      "actionItemReasons": {
+        "skillDependency": "{{skillId}} depends on {{dependencyId}}",
+        "skillConflict": "{{skillId}} conflicts with {{conflictId}}",
+        "toolNotProfileGranted": "{{toolName}} is not granted by the current Profile",
+        "toolUnavailableAllow": "{{toolName}} is currently unavailable ({{reason}}), so it cannot be saved as allowed",
+        "toolUnavailableReason": "{{reason}}: {{count}} tools",
+        "more": "{{count}} more"
+      },
+      "readiness": {
+        "model": "Model config",
+        "apiMode": "Call mode",
+        "modelCredentials": "Model credentials",
+        "routes": "Model routes",
+        "runPreset": "Run preset",
+        "profile": "Default Profile",
+        "skills": "Skills",
+        "tools": "Tool policy",
+        "pendingChanges": "Unsaved changes"
+      },
+      "readinessStatuses": {
+        "ready": "Ready",
+        "warning": "Review",
+        "action": "Action"
+      },
+      "readinessSummaryTitle": "Agent Settings Configuration Readiness",
+      "copyReadiness": "Copy Readiness",
+      "readinessCopied": "Readiness Copied",
+      "readinessDetails": {
+        "modelReady": "Current model: {{model}}.",
+        "modelMissing": "Runtime model config has not been saved.",
+        "modelIdSensitive": "The saved model ID looks like it contains secrets; settings snapshot export will skip this model config.",
+        "apiModeResponsesRecommended": "OpenAI Responses is the recommended path for new Agent capabilities.",
+        "apiModeChatCompatibility": "Current mode is Chat Completions compatibility; useful during migration, but new Agent capabilities should prefer Responses.",
+        "apiModeBackendManaged": "Current calls are managed through the backend gateway for team credentials, routing, and audit.",
+        "apiModeAnthropicProvider": "Current calls use Anthropic Messages directly for Claude-family models and provider-native evaluation.",
+        "modelCredentialsReady": "Runtime loaded model credentials from {{env}}.",
+        "modelCredentialsMissing": "Runtime did not detect {{env}}.",
+        "modelCredentialsNotRequired": "This call mode does not require a direct model key in Runtime.",
+        "routesReady": "{{count}} model routes are available.",
+        "routesInvalid": "Model route config is invalid; fix usage toggles first.",
+        "routesMissing": "No model routes are available.",
+        "runPresetReady": "{{name}}, tool limit {{maxToolCalls}}, iteration limit {{maxIterations}}.",
+        "runPresetAutoWriteRisk": "{{name}} uses Auto approval while {{count}} available tools can write, generate, change UI, or perform destructive actions.",
+        "profileReady": "Current default Profile: {{name}}.",
+        "profileMissing": "No default Profile is available.",
+        "skillsReady": "{{enabled}} / {{installed}} Skills enabled.",
+        "skillsInvalid": "Skill policy has {{count}} dependency or conflict issues.",
+        "skillsMissing": "No Skills are available in the catalog.",
+        "toolsReady": "{{available}} / {{discovered}} tools available.",
+        "toolsInvalid": "Tool policy draft has {{count}} unsavable items.",
+        "toolsMissing": "No tools are available.",
+        "pendingChanges": "{{count}} configuration groups have unsaved changes.",
+        "noPendingChanges": "Current configuration is saved."
+      },
+      "settingsSnapshotPanel": "Config Import / Export",
+      "settingsSnapshotHelp": "Export includes model call config, default Profile, Skill policy, Tool Permission Policy, and Run Presets, and strips secret URL credentials from Base URLs. Import applies only the selected sections, in model, profile, skills, tools, then run presets order, and rejects Base URLs that contain secret URL credentials.",
+      "settingsSnapshotPlaceholder": "Generate or paste Agent Settings Snapshot JSON here.",
+      "settingsSnapshotSummary": "Snapshot Summary",
+      "settingsSnapshotFields": {
+        "exportedAt": "Exported",
+        "model": "Model",
+        "profile": "Profile",
+        "skills": "Skills",
+        "tools": "Tool policy",
+        "runPresets": "Run presets",
+        "activeRunPreset": "Active preset"
+      },
+      "settingsSnapshotImpactPreview": "Import Impact Preview",
+      "settingsSnapshotImpactSummaryTitle": "Agent Settings Snapshot Import Impact",
+      "copySettingsSnapshotImpact": "Copy Impact",
+      "settingsSnapshotImpactCopied": "Impact Copied",
+      "settingsSnapshotImpactScopes": {
+        "runtime": "Writes Runtime",
+        "local": "Writes Local",
+        "skipped": "No Change"
+      },
+      "settingsSnapshotImpact": {
+        "model": "Model call config",
+        "profile": "Default Profile",
+        "skills": "Skill policy",
+        "tools": "Tool permission policy",
+        "runPresets": "Run presets"
+      },
+      "settingsSnapshotImpactDetails": {
+        "model": "Import saves model {{model}} and affects future Agent calls.",
+        "modelSkipped": "The snapshot has no model config; the current Runtime model is unchanged.",
+        "profile": "Import saves default Profile {{profileId}}.",
+        "profileSkipped": "The snapshot has no default Profile; the current work mode is unchanged.",
+        "skills": "Import saves {{count}} Skill enablement rules.",
+        "skillsSkipped": "The snapshot has no Skill policy; current Skill state is unchanged.",
+        "tools": "Import saves {{count}} tool permission rules.",
+        "toolsSkipped": "The snapshot has no tool policy; current tool permissions are unchanged.",
+        "runPresets": "Import updates {{count}} run presets and selects {{activeRunPresetId}}.",
+        "runPresetsSkipped": "The snapshot has no run presets or active preset; local run presets are unchanged."
+      },
+      "settingsSnapshotImportScopes": "Import sections",
+      "settingsSnapshotImportScopesHelp": "Only selected sections are checked during dry-run and written during import.",
+      "settingsSnapshotImportPresets": "Presets",
+      "settingsSnapshotImportPresetsHelp": "Presets only change selected sections; dry-run and Import still control writes.",
+      "settingsSnapshotImportPresetApplied": "Import preset selected: {{preset}}.",
+      "settingsSnapshotImportPresetNames": {
+        "all": "All",
+        "model-routing": "Model routing only",
+        "skills-tools": "Skills + tools",
+        "run-presets": "Run presets only"
+      },
+      "settingsSnapshotImportScopeDetails": {
+        "model": "Runtime model routing and provider API mode.",
+        "profile": "Default Profile used by future runs.",
+        "skills": "Enabled and disabled Skill rules.",
+        "tools": "Tool grants and approval rules.",
+        "run-presets": "Local run presets and the active run preset."
+      },
+      "exportSettings": "Export",
+      "loadSettingsSnapshotFile": "Load File",
+      "copySettings": "Copy",
+      "downloadSettings": "Download",
+      "previewSettingsImportDryRun": "Preview Only",
+      "importSettings": "Import",
+      "settingsExportReady": "Settings snapshot generated.",
+      "settingsSnapshotFileLoaded": "Loaded {{fileName}}. Review the content before importing.",
+      "settingsCopied": "Settings snapshot copied.",
+      "settingsDownloaded": "Settings snapshot downloaded.",
+      "settingsImportBackup": "Pre-import Backup",
+      "settingsImportBackupHelp": "Current settings were automatically backed up at {{time}} before the latest import. Loading the backup still shows a preview first; click Import again to roll back.",
+      "loadImportBackup": "Load Backup",
+      "copyImportBackup": "Copy Backup",
+      "clearImportBackup": "Clear Backup",
+      "settingsBackupCopied": "Pre-import backup copied.",
+      "settingsBackupLoaded": "Pre-import backup loaded. Review the preview before importing.",
+      "settingsBackupCleared": "Pre-import backup cleared.",
+      "settingsSnapshotInvalid": "Snapshot cannot be imported: {{error}}",
+      "settingsSnapshotTooLarge": "Snapshot exceeds the {{size}} limit.",
+      "settingsSnapshotModelCatalogUnavailable": "The snapshot references a backend model config, but the current model catalog is not available.",
+      "settingsSnapshotCatalogUnavailable": "The snapshot references Profiles, Skills, or tool policy, but the current catalog is not available.",
+      "settingsSnapshotCapabilitiesUnavailable": "The snapshot references tool policy, but the current Runtime capabilities catalog is not available.",
+      "settingsSnapshotToolPolicyInvalid": "Snapshot tool policy has {{count}} items that cannot be imported.",
+      "settingsSnapshotImportScopeEmpty": "Select at least one available section to import.",
+      "settingsSnapshotDryRunReady": "Dry-run passed. {{count}} impact items are ready to import; no settings were written.",
+      "settingsImportDone": "Settings snapshot imported.",
+      "settingsImportDoneWithBackup": "Settings snapshot imported and pre-import backup retained.",
+      "modelRoutesPanel": "Model Routes",
+      "modelRoutesEmpty": "No model route metadata is available.",
+      "modelRouteConfigured": "Active",
+      "modelRouteUnavailable": "Unavailable",
+      "modelRouteModel": "Model",
+      "modelCapabilities": {
+        "reasoning": "Agent reasoning",
+        "text": "Text generation",
+        "planning": "Planning",
+        "multimodal": "Multimodal"
+      },
+      "modelRouteSources": {
+        "configured": "Uses an explicit route.",
+        "chat-config-fallback": "Uses the chat model configuration.",
+        "planner-config": "Uses the planner model configuration.",
+        "disabled": "A model is configured, but this usage is disabled by scope.",
+        "unconfigured": "No model is configured for this usage."
+      },
+      "values": {
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
       "availableModels": "Available Text Models",
       "configured": "Configured",
       "notConfigured": "Not configured",
+      "skillStatus": {
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
+      "skillKinds": {
+        "persona": "Persona",
+        "workflow": "Workflow",
+        "policy": "Policy",
+        "expertise": "Expertise"
+      },
+      "skillLoadModes": {
+        "core": "Core",
+        "onDemand": "On demand",
+        "manual": "Manual"
+      },
+      "skillSources": {
+        "core": "Built-in",
+        "plugin": "Plugin",
+        "local": "Local",
+        "catalog": "Catalog"
+      },
+      "skillTrustLevels": {
+        "trusted": "Trusted",
+        "managed": "Managed",
+        "review": "Review"
+      },
+      "skillFields": {
+        "installed": "Installed",
+        "enabled": "Enabled",
+        "core": "Core",
+        "onDemand": "On demand",
+        "dependencies": "Dependencies",
+        "conflicts": "Conflicts"
+      },
+      "profileStatus": {
+        "current": "Current",
+        "selected": "Unsaved"
+      },
+      "profileFields": {
+        "total": "Profiles",
+        "current": "Current mode",
+        "packs": "Packs",
+        "toolGrants": "Tool grants",
+        "workflows": "Workflows",
+        "policies": "Policies",
+        "tools": "Tools"
+      },
+      "toolPolicyStatus": {
+        "available": "Available",
+        "blocked": "Blocked",
+        "profileGranted": "Profile grant"
+      },
+      "toolPolicyValues": {
+        "yes": "Yes",
+        "no": "No",
+        "none": "None",
+        "unknown": "Unknown"
+      },
+      "toolPolicyModes": {
+        "allow": "Allow",
+        "deny": "Deny"
+      },
+      "toolPolicyApprovals": {
+        "never": "No approval",
+        "onWrite": "Approve on write",
+        "always": "Always approve"
+      },
+      "toolPolicyFields": {
+        "discovered": "Discovered",
+        "available": "Available",
+        "blocked": "Blocked",
+        "requiresApproval": "Needs approval",
+        "writeRisk": "Write risk",
+        "projectScoped": "Project scoped",
+        "profileGrants": "Profile grants",
+        "registered": "Registered",
+        "granted": "Granted",
+        "mode": "Mode",
+        "approval": "Approval"
+      },
       "fields": {
         "baseUrl": "Base URL",
         "configuredModel": "Current model",
+        "apiKind": "Call mode",
+        "modelBaseUrl": "Model URL",
+        "modelCredentials": "Model credentials",
         "source": "Source",
         "updatedAt": "Updated",
         "modelId": "Model ID",

@@ -25,6 +25,7 @@ import '@xyflow/react/dist/style.css'
 
 import { api } from '@/lib/api'
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { invalidateAssetCandidateConsumers } from '@/lib/assetCandidateQueryInvalidation'
 import type { Canvas, CanvasEntityKind, CanvasNodeData, CanvasPortDef, CanvasPortValue, CanvasRun, CanvasTask, CanvasType, EntityWorkflowSchema, NodeType, PaginatedResponse, RawResource, ResourceBinding } from '@/types'
 import {
 	TextNode, ImageNode, VideoNode, AudioNode, ToolNode,
@@ -2142,24 +2143,21 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     if (!canvas?.project_id) return
     try {
       if (target.kind === 'asset_slot') {
-        await api.patch(`/projects/${canvas.project_id}/entities/asset-slots/${target.id}`, {
+        await api.post(`/projects/${canvas.project_id}/entities/asset-slot-candidates`, {
+          asset_slot_id: target.id,
           resource_id: resourceId,
-          status: 'locked',
-        })
-        await api.post(`/projects/${canvas.project_id}/resource-bindings`, {
-          resource_id: resourceId,
-          owner_type: 'asset_slot',
-          owner_id: target.id,
-          role: 'final',
           source_type: 'canvas',
-          is_primary: true,
-          status: 'selected',
+          source_id: Number(canvas.ID),
+          status: 'candidate',
+          note: `由 Canvas 推送加入候选：${target.label}`,
         })
-        qc.invalidateQueries({ queryKey: ['v2-asset-slots-page', canvas.project_id] })
+        invalidateAssetCandidateConsumers(qc, canvas.project_id)
         qc.invalidateQueries({ queryKey: ['canvas-resource-shelf', 'asset-slots', canvas.project_id] })
+        toast.success('已加入素材候选')
       }
-    } catch {
+    } catch (err: any) {
       // Keep node execution state intact; users can retry pushing from the node.
+      toast.error(err?.response?.data?.error || err?.message || '加入素材候选失败')
     }
   }
 

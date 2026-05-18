@@ -1,0 +1,11 @@
+{
+  "name": "movscript-backend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "make dev",
+    "test": "make test",
+    "test:model-capability-contract": "make test-model-capability-contract"
+  }
+}

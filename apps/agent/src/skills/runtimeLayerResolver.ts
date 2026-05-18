@@ -1,5 +1,5 @@
 import type { AgentManifest } from '../catalog/agentManifest.js'
-import type { CatalogRegistry, ExpertiseSkill, RuntimeContext, SkillDefinition, WorkflowSkill } from '../catalog/types.js'
+import type { AgentProfile, CatalogRegistry, ExpertiseSkill, RuntimeContext, SkillDefinition, ToolGrant, WorkflowSkill } from '../catalog/types.js'
 import type { NormalizedClientInput } from '../context/normalizeClientInput.js'
 import type { SkillDiscoveryItem, SkillDiscoverySummary } from '../contextManager/modelContextBuilder.js'
 import type { AgentDebugContextPanel, AgentMessage, ResolvedAgentSkill } from '../state/types.js'
@@ -33,8 +33,15 @@ export function resolveRuntimeLayers(input: {
   debugContext: AgentDebugContextPanel
   clientInput?: NormalizedClientInput
   history?: AgentMessage[]
+  requestedSkillIds?: string[]
+  unloadedSkillIds?: string[]
 }): RuntimeLayerResolution {
-  const resolvedProfile = resolveProfile(input.registry)
+  const profileId = typeof input.baseManifest.metadata?.profileId === 'string' ? input.baseManifest.metadata.profileId : undefined
+  const userToolPolicy = userToolPolicyProfile(input.baseManifest)
+  const resolvedProfile = resolveProfile(input.registry, {
+    ...(profileId ? { profileId } : {}),
+    ...(userToolPolicy ? { userProfile: userToolPolicy } : {}),
+  })
   const intentResolution = resolveRuntimeIntents(input.message, input.debugContext)
   const ctx: RuntimeContext = {
     profile: resolvedProfile.profile,
@@ -59,14 +66,22 @@ export function resolveRuntimeLayers(input: {
     return skill?.kind === 'workflow' && skill.enabled !== false ? [skill] : []
   })
   const selected = selectActiveWorkflowsWithTrace(candidateWorkflows, ctx)
-  const expertise = selectWorkflowExpertise(input.registry, selected.workflows)
+  const unloadedIds = new Set(input.unloadedSkillIds ?? [])
+  const requested = selectRequestedSkills(input.registry, input.requestedSkillIds ?? [], input.unloadedSkillIds ?? [])
+  const activePersona = requested.persona ?? (persona?.kind === 'persona' && persona.enabled !== false && !unloadedIds.has(persona.id) ? persona : undefined)
+  const activePolicies = policies.filter((skill) => !unloadedIds.has(skill.id))
+  const activeWorkflows = selected.workflows.filter((skill) => !unloadedIds.has(skill.id))
+  const expertise = selectWorkflowExpertise(input.registry, activeWorkflows)
+  const mergedPolicies = mergeSkills(activePolicies, requested.policies)
+  const mergedWorkflows = mergeSkills(activeWorkflows, requested.workflows)
+  const mergedExpertise = mergeSkills(expertise, requested.expertise)
   const composed = composePrompt({
     registry: input.registry,
     ctx,
-    ...(persona?.kind === 'persona' && persona.enabled !== false ? { persona } : {}),
-    policies,
-    workflows: selected.workflows,
-    expertise,
+    ...(activePersona ? { persona: activePersona } : {}),
+    policies: mergedPolicies,
+    workflows: mergedWorkflows,
+    expertise: mergedExpertise,
   })
 
   const skillById = new Map<SkillDefinition, string>()
@@ -75,10 +90,10 @@ export function resolveRuntimeLayers(input: {
     if (skill) skillById.set(skill, part.content)
   }
   const skills = [
-    ...(persona?.kind === 'persona' && persona.enabled !== false ? [persona] : []),
-    ...policies,
-    ...selected.workflows,
-    ...expertise,
+    ...(activePersona ? [activePersona] : []),
+    ...mergedPolicies,
+    ...mergedWorkflows,
+    ...mergedExpertise,
   ]
     .filter((skill) => composed.parts.some((part) => part.id === skill.id))
     .map((skill, index) => toResolvedSkill(skill, input.registry, ctx, skillById.get(skill), index))
@@ -101,12 +116,51 @@ export function resolveRuntimeLayers(input: {
       profileVersion: resolvedProfile.profile.version,
       profileLayers: resolvedProfile.profile.resolvedFrom?.layers ?? [],
       ...(persona?.kind === 'persona' ? { personaId: persona.id } : {}),
-      policyIds: policies.map((skill) => skill.id),
-      workflowIds: selected.workflows.map((skill) => skill.id),
+      policyIds: mergedPolicies.map((skill) => skill.id),
+      workflowIds: mergedWorkflows.map((skill) => skill.id),
       intentSignals: intentResolution.signals,
       workflowTriggers: selected.trace,
     },
   }
+}
+
+function selectRequestedSkills(
+  registry: CatalogRegistry,
+  requestedIds: string[],
+  unloadedIds: string[],
+): {
+  persona?: Extract<SkillDefinition, { kind: 'persona' }>
+  policies: Extract<SkillDefinition, { kind: 'policy' }>[]
+  workflows: WorkflowSkill[]
+  expertise: ExpertiseSkill[]
+} {
+  const unloaded = new Set(unloadedIds)
+  const policies: Extract<SkillDefinition, { kind: 'policy' }>[] = []
+  const workflows: WorkflowSkill[] = []
+  const expertise: ExpertiseSkill[] = []
+  let persona: Extract<SkillDefinition, { kind: 'persona' }> | undefined
+  for (const id of requestedIds) {
+    if (unloaded.has(id)) continue
+    const skill = registry.skills.get(id)
+    if (!skill || skill.enabled === false) continue
+    if (skill.kind === 'persona') persona = skill
+    else if (skill.kind === 'policy') policies.push(skill)
+    else if (skill.kind === 'workflow') workflows.push(skill)
+    else if (skill.kind === 'expertise') expertise.push(skill)
+  }
+  return {
+    ...(persona ? { persona } : {}),
+    policies,
+    workflows,
+    expertise,
+  }
+}
+
+function mergeSkills<T extends SkillDefinition>(base: T[], extra: T[]): T[] {
+  const byId = new Map<string, T>()
+  for (const skill of base) byId.set(skill.id, skill)
+  for (const skill of extra) byId.set(skill.id, skill)
+  return Array.from(byId.values())
 }
 
 function manifestFromProfile(baseManifest: AgentManifest, profile: RuntimeContext['profile']): AgentManifest {
@@ -135,6 +189,7 @@ function manifestFromProfile(baseManifest: AgentManifest, profile: RuntimeContex
       profileId: profile.id,
       profileVersion: profile.version,
       ...(profile.limits?.systemPromptCharLimit ? { systemPromptCharLimit: profile.limits.systemPromptCharLimit } : {}),
+      ...(profile.limits?.contextWindowCharLimit ? { contextWindowCharLimit: profile.limits.contextWindowCharLimit } : {}),
       ...(profile.resolvedFrom ? { resolvedFrom: profileResolutionTraceMetadata(profile.resolvedFrom) } : {}),
     },
   }
@@ -151,6 +206,39 @@ function profileResolutionTraceMetadata(trace: NonNullable<RuntimeContext['profi
   }
 }
 
+function userToolPolicyProfile(manifest: AgentManifest): AgentProfile | undefined {
+  const toolGrants = toolGrantsFromMetadata(manifest.metadata?.defaultToolGrants)
+  if (toolGrants.length === 0) return undefined
+  return {
+    schema: 'movscript.agent.profile.v1',
+    id: `${typeof manifest.metadata?.profileId === 'string' ? manifest.metadata.profileId : manifest.id}.tool-policy`,
+    version: String(manifest.metadata?.profileVersion ?? manifest.version),
+    name: 'User Tool Policy',
+    enabledPacks: [],
+    persona: null,
+    enabledWorkflows: [],
+    enabledPolicies: [],
+    toolGrants,
+  }
+}
+
+function toolGrantsFromMetadata(input: unknown): ToolGrant[] {
+  if (!Array.isArray(input)) return []
+  const grants: ToolGrant[] = []
+  for (const item of input) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue
+    const record = item as Record<string, unknown>
+    const name = typeof record.name === 'string' && record.name.trim() ? record.name.trim() : undefined
+    const mode = record.mode === 'deny' ? 'deny' : record.mode === 'allow' ? 'allow' : undefined
+    if (!name || !mode) continue
+    const approval = record.approval === 'always' || record.approval === 'on_write' || record.approval === 'never'
+      ? record.approval
+      : undefined
+    grants.push({ name, mode, ...(approval ? { approval } : {}) })
+  }
+  return grants
+}
+
 function buildSkillDiscoverySummary(input: {
   registry: CatalogRegistry
   profile: RuntimeContext['profile']
@@ -165,7 +253,9 @@ function buildSkillDiscoverySummary(input: {
     const skill = input.registry.skills.get(id)
     if (!skill || skill.enabled === false) return []
     const triggerHints = triggerHintsBySkill.get(id) ?? (skill.kind === 'workflow' ? summarizeTriggers(skill.triggers) : [])
-    const useWhen = Array.isArray(skill.metadata?.useWhen)
+    const useWhen = skill.useWhen?.length
+      ? skill.useWhen
+      : Array.isArray(skill.metadata?.useWhen)
       ? skill.metadata.useWhen.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim())
       : undefined
     return [{
@@ -174,8 +264,11 @@ function buildSkillDiscoverySummary(input: {
       kind: skill.kind,
       description: skill.description,
       active: activeIds.has(skill.id),
+      ...(skill.loadMode ? { loadMode: skill.loadMode } : {}),
+      ...(skill.tags && skill.tags.length > 0 ? { tags: skill.tags } : {}),
       ...(triggerHints.length > 0 ? { triggerHints } : {}),
       ...(useWhen && useWhen.length > 0 ? { useWhen } : {}),
+      ...(skill.conflicts && skill.conflicts.length > 0 ? { conflicts: skill.conflicts } : {}),
     }]
   })
   return {
@@ -247,6 +340,15 @@ function toResolvedSkill(
     metadata: {
       ...(skill.metadata ?? {}),
       kind: skill.kind,
+      ...(skill.loadMode ? { loadMode: skill.loadMode } : {}),
+      ...(skill.sourcePath ? { sourcePath: skill.sourcePath } : {}),
+      ...(skill.tags ? { tags: skill.tags } : {}),
+      ...(skill.aliases ? { aliases: skill.aliases } : {}),
+      ...(skill.useWhen ? { useWhen: skill.useWhen } : {}),
+      ...(skill.dependencies ? { dependencies: skill.dependencies } : {}),
+      ...(skill.conflicts ? { conflicts: skill.conflicts } : {}),
+      ...(skill.tokenEstimate !== undefined ? { tokenEstimate: skill.tokenEstimate } : {}),
+      ...(skill.activationScope ? { activationScope: skill.activationScope } : {}),
       ...(skill.kind === 'workflow' && skill.toolScope ? { toolScope: skill.toolScope } : {}),
     },
     resolvedPriority: skill.priority,

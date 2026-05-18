@@ -8,6 +8,7 @@
     "skills": [
       "agent-core/persona/default",
       "agent-core/policy/agent-core",
+      "agent-core/workflow/memory-access",
       "agent-core/workflow/planner-subagents"
     ],
     "tools": [
@@ -21,6 +22,7 @@
     "movscript_create_memory",
     "movscript_delete_memory",
     "movscript_inspect_agent_catalog",
+    "movscript_update_active_skills",
     "movscript_reload_agent_catalog",
     "movscript_create_plan",
     "movscript_get_plan",
@@ -34,6 +36,7 @@
   "skills": [
     "movscript.persona.default",
     "movscript.policy.agent-core",
+    "movscript.workflow.memory-access",
     "movscript.workflow.planner-subagents"
   ]
 }

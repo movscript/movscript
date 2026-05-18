@@ -25,10 +25,31 @@ test('loadRuntimeRunExecutionContext uses frozen run input, records trace, and p
         attachments: [{ id: 'att_1', name: 'Attachment', type: 'file' }],
       },
       threadContextSummary: {
-        schema: 'movscript.thread-context-summary.v1',
+        schema: 'movscript.thread-context-summary.v2',
         threadId: 'thread_1',
         updatedAt: '2026-01-01T00:00:00.000Z',
-        entries: [],
+        stablePreferences: [],
+        acceptedFacts: [],
+        artifactRefs: [],
+        retrievedRefs: [],
+        invalidatedRefs: [],
+        openDecisions: [],
+        recentRunRefs: [],
+        summaryProvenance: {
+          strategy: 'deterministic',
+          runId: 'run_previous',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          factsRequireEvidence: true,
+          summariesAreAdvisory: true,
+        },
+        compactStats: {
+          recentRunRefCount: 0,
+          artifactRefCount: 0,
+          retrievedRefCount: 0,
+          acceptedFactCount: 0,
+          invalidatedRefCount: 0,
+          maxSummaryChars: 4000,
+        },
       },
     },
   })
@@ -64,7 +85,7 @@ test('loadRuntimeRunExecutionContext uses frozen run input, records trace, and p
     hasClientInput: true,
     attachmentCount: 1,
   })
-  assert.equal((run.metadata?.threadContextSummary as any)?.schema, 'movscript.thread-context-summary.v1')
+  assert.equal((run.metadata?.threadContextSummary as any)?.schema, 'movscript.thread-context-summary.v2')
   assert.equal(store.getRun('run_1')?.metadata?.threadContextSummary !== undefined, true)
 })
 

@@ -3,15 +3,18 @@ import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import { EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER } from '../contracts/runtimeContract.js'
 import {
+  buildLocalDiagnosticCommand,
   buildLocalDiagnosticFallbackContextResult,
   isLocalDiagnosticCommand,
   renderLocalDiagnosticCommand,
   renderLocalFinalAssistantContent,
 } from './localDiagnosticCommands.js'
-import type { AgentRun } from '../state/types.js'
+import type { AgentMessage, AgentRun } from '../state/types.js'
 
 test('local diagnostic command detection is limited to deterministic diagnostics', () => {
   assert.equal(isLocalDiagnosticCommand('context'), true)
+  assert.equal(isLocalDiagnosticCommand('status'), true)
+  assert.equal(isLocalDiagnosticCommand('compact'), true)
   assert.equal(isLocalDiagnosticCommand('memory'), true)
   assert.equal(isLocalDiagnosticCommand('chat'), false)
 })
@@ -104,7 +107,7 @@ test('renderLocalDiagnosticCommand renders memory file references without memory
       updatedAt: '2026-05-06T00:00:00.000Z',
     }],
     warnings: [],
-    history: [],
+    history: Array.from({ length: 8 }, (_, index) => buildTestMessage(index)),
     userMessage: '/memory lens',
     memoryStorePath: '/tmp/memories',
     contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
@@ -113,6 +116,105 @@ test('renderLocalDiagnosticCommand renders memory file references without memory
   assert.match(content, /Opened memory files:/)
   assert.match(content, /\/tmp\/memories#project-42\/mem_1/)
   assert.doesNotMatch(content, /Do not leak this content/)
+})
+
+test('renderLocalDiagnosticCommand reports runtime status and context budget without calling model gateway', () => {
+  const run = buildTestRun()
+  run.metadata = {
+    contextLedger: {
+      schema: 'movscript.context-ledger.v1',
+      retrieved: [{
+        ref: { type: 'knowledge', id: 'storyboard.rhythm.basic' },
+        source: 'knowledge',
+        evidence: 'advisory',
+        title: '分镜节奏基础',
+        retrievedAt: '2026-05-06T00:00:00.000Z',
+        usedInPrompt: true,
+      }],
+      artifactRefs: [{ type: 'draft', id: 'draft_1' }],
+    },
+  }
+
+  const result = buildLocalDiagnosticCommand({
+    command: {
+      name: 'status',
+      rawName: '/status',
+      payload: '',
+      contextProfile: 'minimal',
+      outputMode: 'natural',
+      requiredTools: [],
+      systemContract: 'Status diagnostic.',
+    },
+    run,
+    manifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      metadata: {
+        ...(DEFAULT_AGENT_MANIFEST.metadata ?? {}),
+        systemPromptCharLimit: 16000,
+      },
+    },
+    skills: [],
+    context: buildTestContext(),
+    tools: { discovered: [], available: [], blocked: [], byName: {} },
+    policy: buildTestPolicy(),
+    memories: [],
+    warnings: [],
+    history: Array.from({ length: 8 }, (_, index) => buildTestMessage(index)),
+    userMessage: '/status',
+    contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
+  })
+
+  assert.match(result.content, /Runtime status:/)
+  assert.match(result.content, /Context budget:/)
+  assert.match(result.content, /remaining \d+/)
+  assert.match(result.content, /History: 6\/8 retained, 2 compacted/)
+  assert.match(result.content, /Context refs: 1 retrieved, 1 artifacts/)
+  const diagnostic = result.metadata as any
+  assert.equal(diagnostic.schema, 'movscript.local_status_diagnostic.v1')
+  assert.equal(diagnostic.modelGatewayCalled, false)
+  assert.equal(diagnostic.contextBudget.limitChars, 16000)
+  assert.equal(typeof diagnostic.contextBudget.remainingChars, 'number')
+  assert.equal(diagnostic.prompt.historyInputCount, 8)
+  assert.equal(diagnostic.prompt.historyRetainedCount, 6)
+  assert.equal(diagnostic.prompt.historyCompactedCount, 2)
+  assert.equal(diagnostic.context.retrievedRefCount, 1)
+  assert.equal(diagnostic.context.artifactRefCount, 1)
+})
+
+test('renderLocalDiagnosticCommand reports deterministic compact result without calling model gateway', () => {
+  const result = buildLocalDiagnosticCommand({
+    command: {
+      name: 'compact',
+      rawName: '/compact',
+      payload: '',
+      contextProfile: 'minimal',
+      outputMode: 'natural',
+      requiredTools: [],
+      systemContract: 'Compact diagnostic.',
+    },
+    run: buildTestRun(),
+    manifest: DEFAULT_AGENT_MANIFEST,
+    skills: [],
+    context: buildTestContext(),
+    tools: { discovered: [], available: [], blocked: [], byName: {} },
+    policy: buildTestPolicy(),
+    memories: [],
+    warnings: [],
+    history: Array.from({ length: 9 }, (_, index) => buildTestMessage(index)),
+    userMessage: '/compact',
+    contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
+  })
+
+  assert.match(result.content, /Runtime compact:/)
+  assert.match(result.content, /History: 6\/9 retained, 3 compacted/)
+  assert.match(result.content, /Context budget after compact:/)
+  assert.match(result.content, /Model gateway: not called/)
+  const diagnostic = result.metadata as any
+  assert.equal(diagnostic.schema, 'movscript.local_compact_diagnostic.v1')
+  assert.equal(diagnostic.modelGatewayCalled, false)
+  assert.equal(diagnostic.compact.historyInputCount, 9)
+  assert.equal(diagnostic.compact.historyRetainedCount, 6)
+  assert.equal(diagnostic.compact.historyCompactedCount, 3)
 })
 
 test('renderLocalFinalAssistantContent renders local context command output', () => {
@@ -219,6 +321,16 @@ function buildTestRun(): AgentRun {
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
     steps: [],
+  }
+}
+
+function buildTestMessage(index: number): AgentMessage {
+  return {
+    id: `msg_${index}`,
+    threadId: 'thread_1',
+    role: index % 2 === 0 ? 'user' : 'assistant',
+    content: `message ${index}`,
+    createdAt: `2026-05-06T00:00:0${index}.000Z`,
   }
 }
 

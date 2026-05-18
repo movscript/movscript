@@ -46,6 +46,38 @@ func TestAssetSlotsFromModelsAttachesResourcesByResourceID(t *testing.T) {
 	}
 }
 
+func TestKeyframesFromModelsExcludesGeneratedKeyframeCandidates(t *testing.T) {
+	resourceID := uint(42)
+	updatedAt := time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC)
+	items := []persistencemodel.Keyframe{
+		{
+			Model:        gorm.Model{ID: 1, CreatedAt: updatedAt, UpdatedAt: updatedAt},
+			Title:        "正式首帧",
+			Status:       "accepted",
+			ResourceID:   &resourceID,
+			MetadataJSON: `{"source":"manual"}`,
+		},
+		{
+			Model:        gorm.Model{ID: 2, CreatedAt: updatedAt, UpdatedAt: updatedAt},
+			Title:        "AI 候选首帧",
+			Status:       "candidate",
+			ResourceID:   &resourceID,
+			MetadataJSON: `{"source":"ai_generated_keyframe_candidate","target_keyframe_id":1}`,
+		},
+	}
+	resources := []domainresource.RawResource{
+		{ID: resourceID, Name: "frame.png", Type: "image"},
+	}
+
+	got := keyframesFromModels(items, resources)
+	if len(got) != 1 {
+		t.Fatalf("keyframesFromModels len = %d, want 1", len(got))
+	}
+	if got[0].ID != 1 || got[0].Title != "正式首帧" {
+		t.Fatalf("keyframesFromModels first = %+v, want official keyframe", got[0])
+	}
+}
+
 func TestRawResourcesByIDReturnsIndependentPointers(t *testing.T) {
 	resources := []domainresource.RawResource{
 		{ID: 1, Name: "one"},

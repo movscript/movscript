@@ -7,15 +7,26 @@
     "movscript-agent": "./dist/cli.js"
   },
   "scripts": {
-    "build": "node ../../scripts/with-build-lock.mjs movscript-agent-build -- pnpm run build:unlocked",
-    "build:unlocked": "pnpm --filter @movscript/draft-schemas build && tsc -p tsconfig.build.json && node scripts/build-server-bundle.mjs",
+    "build": "node scripts/build-server-bundle.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node ../../scripts/run-node-tests.mjs \"src/**/*.test.ts\"",
-    "test:generation-repair": "node --import tsx --test \"src/orchestration/toolExecutor.test.ts\"",
-    "dev": "node scripts/dev-watch.mjs",
-    "dev:cli": "tsx src/cli.ts",
-    "start": "node dist/server.js",
-    "cli": "node dist/cli.js"
+    "test:context-management": "node ../../scripts/run-node-tests.mjs --suite context-management && pnpm run typecheck",
+    "test:model-capability-contract": "node ../../scripts/run-node-tests.mjs --suite model-capability-contract && node --import tsx --test \"src/orchestration/toolExecutor.test.ts\"",
+    "dev": "node scripts/dev-watch.mjs"
+  },
+  "testSuites": {
+    "context-management": [
+      "src/context/**/*.test.ts",
+      "src/contextManager/**/*.test.ts",
+      "src/application/runtimeLocalDiagnosticCommand.test.ts",
+      "src/application/runtimeRunExecutionContext.test.ts"
+    ],
+    "model-capability-contract": {
+      "patterns": [
+        "src/catalog/layering.test.ts"
+      ],
+      "testNamePattern": "asset candidate preparation is separated from generation execution|visual generation prompt exposes backend generation validation error codes"
+    }
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",

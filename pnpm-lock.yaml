@@ -121,6 +121,8 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  apps/backend: {}
+
   apps/frontend:
     dependencies:
       '@movscript/draft-schemas':
@@ -312,6 +314,15 @@ importers:
         specifier: ^5.8.0
         version: 5.9.3
 
+  packages/plugin-sdk/examples/scene-summary:
+    devDependencies:
+      '@movscript/plugin-sdk':
+        specifier: workspace:*
+        version: link:../..
+      movcli:
+        specifier: workspace:*
+        version: link:../../../../apps/movcli
+
   packages/tokens:
     devDependencies:
       tsup:
@@ -387,24 +398,18 @@ importers:
       '@movscript/plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
-      tsx:
-        specifier: ^4.0.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
+      movcli:
+        specifier: workspace:*
+        version: link:../../apps/movcli
 
   plugins/video-generator:
     devDependencies:
       '@movscript/plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
-      tsx:
-        specifier: ^4.0.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
+      movcli:
+        specifier: workspace:*
+        version: link:../../apps/movcli
 
 packages:
 

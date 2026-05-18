@@ -148,7 +148,7 @@ export interface AgentManifest {
 
 export interface AgentCatalogSkill {
   id: string
-  kind?: 'persona' | 'workflow' | 'policy'
+  kind?: 'persona' | 'workflow' | 'policy' | 'expertise'
   name: string
   description: string
   version?: string
@@ -157,8 +157,44 @@ export interface AgentCatalogSkill {
   enabled: boolean
   priority?: number
   instruction: string
+  instructionTemplate?: string
+  loadMode?: 'core' | 'on_demand' | 'manual'
+  activationScope?: 'turn' | 'run' | 'thread'
+  tags?: string[]
+  aliases?: string[]
+  useWhen?: string[]
+  dependencies?: string[]
+  conflicts?: string[]
+  toolRefs?: string[]
+  schemaRefs?: string[]
+  tokenEstimate?: number
   outputContract?: string
   toolHints?: string[]
+  metadata?: Record<string, unknown>
+}
+
+export interface AgentCatalogProfile {
+  schema: 'movscript.agent.profile.v1'
+  id: string
+  version: string
+  name: string
+  description?: string
+  enabledPacks: string[]
+  persona: string | null
+  enabledWorkflows: string[]
+  enabledPolicies: string[]
+  toolGrants: Array<{
+    name: string
+    mode: 'allow' | 'deny'
+    approval?: 'never' | 'always' | 'on_write'
+  }>
+  model?: {
+    provider: string
+    modelId: string
+    platformModelId?: string
+    routes?: unknown[]
+  }
+  limits?: Record<string, number>
   metadata?: Record<string, unknown>
 }
 
@@ -166,7 +202,7 @@ export interface AgentDebugContextPanel {
   route: { pathname: string; search?: string; hash?: string }
   projects?: Array<{ id: number; name: string; description?: string; status?: string; totalEpisodes?: number }>
   projectsError?: string
-  project?: { id: number; name?: string; status?: string; description?: string }
+  project?: { id: number; name?: string; status?: string; description?: string; aspect_ratio?: string; visual_style?: string; project_style?: string }
   productionId?: number
   user?: { id: number; username: string; systemRole?: string }
   selection?: { entityType: string; entityId: number | string; label?: string } | null
@@ -409,6 +445,8 @@ export interface AgentRunPolicy {
   }
 }
 
+export type AgentRunPolicyOverride = Partial<Pick<AgentRunPolicy, 'approvalMode' | 'maxToolCalls' | 'maxIterations'>>
+
 export interface AgentCapabilitiesResponse {
   defaultAgentManifest: AgentManifest
   pluginCatalog?: {
@@ -453,6 +491,7 @@ export interface AgentInspectResponse {
     categories?: string[]
   }>
   skills: AgentCatalogSkill[]
+  profiles: AgentCatalogProfile[]
   defaultAgentManifest: AgentManifest
   pluginCatalog?: {
     skillsDir: string
@@ -461,6 +500,10 @@ export interface AgentInspectResponse {
     builtinToolsDir?: string
     skillCount: number
     toolCount: number
+    skillPlugins?: Array<{
+      pluginId: string
+      path: string
+    }>
     warnings?: string[]
   }
 }
@@ -524,6 +567,7 @@ export interface AgentHealth {
   }
   modelConfigPath?: string
   modelConfig?: RuntimeModelConfigPublic
+  modelCapabilities?: RuntimeModelCapabilityRoutePublic[]
   pluginCatalog?: {
     skillsDir: string
     toolsDir: string
@@ -546,6 +590,24 @@ export interface RuntimeModelConfigPublic {
   useForPlanner: boolean
   updatedAt?: string
   source: 'file' | 'none'
+  credentialStatus?: RuntimeModelCredentialStatusPublic
+  capabilities?: RuntimeModelCapabilityRoutePublic[]
+}
+
+export interface RuntimeModelCredentialStatusPublic {
+  required: boolean
+  configured: boolean
+  sourceEnv: string[]
+  acceptedEnv: string[]
+}
+
+export interface RuntimeModelCapabilityRoutePublic {
+  capability: 'reasoning' | 'text' | 'planning' | 'multimodal'
+  configured: boolean
+  provider?: 'backend-model-config'
+  modelConfigId?: number
+  model?: string
+  source: 'configured' | 'chat-config-fallback' | 'planner-config' | 'disabled' | 'unconfigured'
 }
 
 export interface RuntimeModelTestResult {
@@ -561,8 +623,14 @@ export interface RuntimeModelTestResult {
     headers: Record<string, string>
     body: {
       model: string
-      messages: Array<{ role: 'system' | 'user'; content: string }>
-    }
+      messages: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string | null }>
+      stream?: boolean
+      temperature?: number
+      response_format?: { type: 'json_object' }
+      tools?: unknown
+      tool_choice?: unknown
+      sdk_body?: unknown
+    } & Record<string, unknown>
   }
 }
 
@@ -677,8 +745,20 @@ export interface AgentThreadResolution {
   missingRequestedThread: boolean
 }
 
+export class LocalAgentHTTPError extends Error {
+  constructor(
+    readonly status: number,
+    readonly responseText: string,
+    message: string,
+  ) {
+    super(`local agent returned ${status}: ${message}`)
+  }
+}
+
 export function isLocalAgentNotFoundError(error: unknown): boolean {
-  return error instanceof Error && /^local agent returned 404:/.test(error.message)
+  return error instanceof LocalAgentHTTPError
+    ? error.status === 404
+    : error instanceof Error && /^local agent returned 404:/.test(error.message)
 }
 
 export type AgentRunStreamEvent =
@@ -736,6 +816,27 @@ export interface AgentRunTraceSummary {
   latestEvent?: AgentTraceEvent
 }
 
+export interface AgentSkillBundleFile {
+  path: string
+  content: string
+}
+
+export interface AgentSkillBundleInstallResult {
+  status: 'installed'
+  pluginId: string
+  targetDir: string
+  installedFiles: string[]
+  catalog?: Record<string, unknown>
+}
+
+export interface AgentSkillBundleUninstallResult {
+  status: 'uninstalled'
+  pluginId: string
+  targetDir: string
+  removed: boolean
+  catalog?: Record<string, unknown>
+}
+
 export interface RunMessageOptions {
   onRunUpdate?: (run: AgentRun) => void
   onStreamEvent?: (event: AgentRunStreamEvent) => void
@@ -743,7 +844,7 @@ export interface RunMessageOptions {
   timeoutMs?: number
   pollMs?: number
   agentManifest?: AgentManifest
-  runPolicy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>>
+  runPolicy?: AgentRunPolicyOverride
   signal?: AbortSignal
 }
 
@@ -808,7 +909,7 @@ export class LocalAgentClient {
     }, signal)
   }
 
-  createRun(threadId: string, input: { agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput; policy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>> } = {}, signal?: AbortSignal): Promise<AgentRun> {
+  createRun(threadId: string, input: { agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput; policy?: AgentRunPolicyOverride } = {}, signal?: AbortSignal): Promise<AgentRun> {
     return this.postJSON('/runs', { threadId, ...input }, signal)
   }
 
@@ -828,12 +929,12 @@ export class LocalAgentClient {
     agentManifest?: AgentManifest
     approvedToolNames?: string[]
     clientInput?: AgentClientInput
-    policy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>>
+    policy?: AgentRunPolicyOverride
   }, signal?: AbortSignal): Promise<AgentRun> {
     return this.postJSON('/runs/tool', input, signal)
   }
 
-  previewRun(input: { threadId?: string; message?: string; agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput; policy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>> }, signal?: AbortSignal): Promise<AgentRunPreview> {
+  previewRun(input: { threadId?: string; message?: string; agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput; policy?: AgentRunPolicyOverride }, signal?: AbortSignal): Promise<AgentRunPreview> {
     return this.postJSON('/runs/preview', input, signal)
   }
 
@@ -841,6 +942,30 @@ export class LocalAgentClient {
     const params = new URLSearchParams()
     if (typeof query.projectId === 'number') params.set('projectId', String(query.projectId))
     return this.getJSON(`/capabilities${params.size ? `?${params.toString()}` : ''}`)
+  }
+
+  installAgentSkillBundle(input: { pluginId: string; files: AgentSkillBundleFile[] }, signal?: AbortSignal): Promise<AgentSkillBundleInstallResult> {
+    return this.postJSON('/agent-catalog/skills/install-bundle', input, signal)
+  }
+
+  uninstallAgentSkillBundle(input: { pluginId: string }, signal?: AbortSignal): Promise<AgentSkillBundleUninstallResult> {
+    return this.postJSON('/agent-catalog/skills/uninstall-bundle', input, signal)
+  }
+
+  reloadAgentCatalog(signal?: AbortSignal): Promise<unknown> {
+    return this.postJSON('/agent-catalog/reload', {}, signal)
+  }
+
+  saveDefaultAgentProfile(input: { profileId: string }, signal?: AbortSignal): Promise<AgentManifest> {
+    return this.postJSON('/agent-profiles/default', input, signal)
+  }
+
+  saveDefaultToolPolicy(input: { toolGrants: AgentManifest['tools'] }, signal?: AbortSignal): Promise<AgentManifest> {
+    return this.postJSON('/agent-tools/default-policy', input, signal)
+  }
+
+  saveDefaultSkillPolicy(input: { skills: Array<{ id: string; enabled: boolean }> }, signal?: AbortSignal): Promise<{ skills: AgentCatalogSkill[] }> {
+    return this.postJSON('/agent-skills/default-policy', input, signal)
   }
 
   getModelConfig(): Promise<RuntimeModelConfigPublic> {
@@ -856,6 +981,10 @@ export class LocalAgentClient {
     useForPlanner?: boolean
   }): Promise<RuntimeModelConfigPublic> {
     return withRuntimeModelConfigError(this.postJSON('/model-config', input))
+  }
+
+  clearModelConfig(): Promise<RuntimeModelConfigPublic> {
+    return withRuntimeModelConfigError(this.deleteJSON('/model-config'))
   }
 
   testModelConfig(input: { message?: string } = {}): Promise<RuntimeModelTestResult> {
@@ -891,7 +1020,7 @@ export class LocalAgentClient {
     tasks?: Array<Partial<AgentTask> & { title?: string }>
     createPlannerRun?: boolean
     agentManifest?: AgentManifest
-    policy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>>
+    policy?: AgentRunPolicyOverride
   }, signal?: AbortSignal): Promise<AgentPlanSnapshot> {
     return this.postJSON('/plans', input, signal)
   }
@@ -912,7 +1041,7 @@ export class LocalAgentClient {
     retryFailed?: boolean
     workerTimeoutMs?: number
     agentManifest?: AgentManifest
-    policy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>>
+    policy?: AgentRunPolicyOverride
   } = {}, signal?: AbortSignal): Promise<DispatchPlanResult> {
     return this.postJSON(`/plans/${encodeURIComponent(planId)}/dispatch`, input, signal)
   }
@@ -1003,7 +1132,7 @@ export class LocalAgentClient {
         headers: this.authHeaders({ Accept: 'text/event-stream' }),
         signal: controller.signal,
       })
-      if (!res.ok) throw new Error(`local agent returned ${res.status}: ${await res.text()}`)
+      if (!res.ok) throw await localAgentResponseError(res)
       if (!res.body) return await this.waitForRun(runId, { ...options, signal: controller.signal })
 
       let latestRun = await this.getRun(runId, controller.signal)
@@ -1242,7 +1371,7 @@ export class LocalAgentClient {
       headers: options.auth === false ? {} : this.authHeaders(),
       signal: options.signal,
     })
-    if (!res.ok) throw new Error(`local agent returned ${res.status}: ${await res.text()}`)
+    if (!res.ok) throw await localAgentResponseError(res)
     return await res.json() as T
   }
 
@@ -1253,7 +1382,7 @@ export class LocalAgentClient {
       body: JSON.stringify(this.withBackendContext(body)),
       signal,
     })
-    if (!res.ok) throw new Error(`local agent returned ${res.status}: ${await res.text()}`)
+    if (!res.ok) throw await localAgentResponseError(res)
     return await res.json() as T
   }
 
@@ -1264,7 +1393,7 @@ export class LocalAgentClient {
       body: JSON.stringify(this.withBackendContext(body)),
       signal,
     })
-    if (!res.ok) throw new Error(`local agent returned ${res.status}: ${await res.text()}`)
+    if (!res.ok) throw await localAgentResponseError(res)
     return await res.json() as T
   }
 
@@ -1274,7 +1403,7 @@ export class LocalAgentClient {
       headers: this.authHeaders(),
       signal,
     })
-    if (!res.ok) throw new Error(`local agent returned ${res.status}: ${await res.text()}`)
+    if (!res.ok) throw await localAgentResponseError(res)
     return await res.json() as T
   }
 
@@ -1296,6 +1425,33 @@ function runtimeLocalAgentBaseURL(): string {
 }
 
 export const localAgentClient = new LocalAgentClient()
+
+async function localAgentResponseError(res: Response): Promise<LocalAgentHTTPError> {
+  const text = await res.text()
+  const message = localAgentErrorMessage(text)
+  return new LocalAgentHTTPError(res.status, text, message)
+}
+
+function localAgentErrorMessage(text: string): string {
+  const body = text.trim()
+  if (!body) return ''
+  try {
+    const parsed = JSON.parse(body) as unknown
+    if (isLocalAgentErrorRecord(parsed)) {
+      const error = parsed.error
+      if (typeof error === 'string' && error.trim()) return error.trim()
+      if (isLocalAgentErrorRecord(error) && typeof error.message === 'string' && error.message.trim()) return error.message.trim()
+      if (typeof parsed.message === 'string' && parsed.message.trim()) return parsed.message.trim()
+    }
+  } catch {
+    // Fall back to the raw response body.
+  }
+  return body
+}
+
+function isLocalAgentErrorRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 
 async function withRuntimeModelConfigError<T>(promise: Promise<T>): Promise<T> {
   try {

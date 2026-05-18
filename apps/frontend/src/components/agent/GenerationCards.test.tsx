@@ -68,6 +68,31 @@ test('GenerationJobSummaryCard renders summary cards with accessible progressbar
   assert.equal(html.includes('完成'), true)
 })
 
+test('generation cards render multiple output resource ids', () => {
+  const progressHtml = renderToStaticMarkup(
+    <GenerationProgressCard state={{
+      jobId: 12,
+      status: 'succeeded',
+      stage: 'completed',
+      terminal: true,
+      outputResourceId: 120,
+      outputResourceIds: [120, 121],
+    }} />,
+  )
+  const summaryHtml = renderToStaticMarkup(
+    <GenerationJobSummaryCard jobs={[{
+      jobId: 12,
+      status: 'succeeded',
+      terminal: true,
+      outputResourceId: 120,
+      outputResourceIds: [120, 121],
+    }]} />,
+  )
+
+  assert.equal(progressHtml.includes('输出资源 #120、#121'), true)
+  assert.equal(summaryHtml.includes('资源 #120、#121'), true)
+})
+
 test('GenerationParamAuditCard renders preflight suggested fixes', () => {
   const html = renderToStaticMarkup(
     <GenerationParamAuditCard audits={[

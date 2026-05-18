@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { LocalAgentClient, type AgentRun, type AgentThread } from './localAgentClient'
+import { isLocalAgentNotFoundError, LocalAgentClient, LocalAgentHTTPError, type AgentRun, type AgentThread } from './localAgentClient'
 
 test('runMessage reports when a saved thread id is reused', async () => {
   const requests: string[] = []
@@ -92,6 +92,37 @@ test('runMessage only replaces saved thread ids for not-found responses', async 
 
     assert.deepEqual(requests, ['GET /threads/thread_broken'])
   })
+})
+
+test('local agent client unwraps JSON error response bodies', async () => {
+  await withFetch(async (input, init) => {
+    const url = new URL(String(input))
+    if (url.pathname === '/model-config' && init?.method === 'POST') {
+      return new Response(JSON.stringify({ error: 'model must be a non-empty string' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    return new Response('not found', { status: 404 })
+  }, async () => {
+    await assert.rejects(async () => {
+      try {
+        await new LocalAgentClient('http://local.test').saveModelConfig({ model: '' })
+      } catch (error) {
+        assert.ok(error instanceof LocalAgentHTTPError)
+        assert.equal(error.status, 400)
+        assert.equal(error.responseText, '{"error":"model must be a non-empty string"}')
+        assert.equal(error.message, 'local agent returned 400: model must be a non-empty string')
+        throw error
+      }
+    }, /local agent returned 400: model must be a non-empty string/)
+  })
+})
+
+test('local agent not found detection uses structured HTTP status when available', () => {
+  assert.equal(isLocalAgentNotFoundError(new LocalAgentHTTPError(404, '{"error":"missing"}', 'missing')), true)
+  assert.equal(isLocalAgentNotFoundError(new LocalAgentHTTPError(500, 'backend failed', 'backend failed')), false)
+  assert.equal(isLocalAgentNotFoundError(new Error('local agent returned 404: legacy')), true)
 })
 
 test('runMessageStream reports thread resolution on the streaming path', async () => {

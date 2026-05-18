@@ -34,6 +34,7 @@ import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
 import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
+import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
 import { buildContentWorkbenchRouteSearch } from '@/lib/contentWorkbenchRoute'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
@@ -303,7 +304,10 @@ export default function ContentUnitsPage() {
   const scriptBlocks = scriptBlocksQuery.data ?? []
   const sceneMoments = sceneMomentsQuery.data ?? []
   const sections = sectionsQuery.data ?? []
-  const keyframes = keyframesQuery.data ?? []
+  const keyframes = useMemo(
+    () => (keyframesQuery.data ?? []).filter((item) => !isGeneratedKeyframeCandidateRecord(item)),
+    [keyframesQuery.data],
+  )
   const references = referencesQuery.data ?? []
   const usages = usagesQuery.data ?? []
   const assetSlots = assetSlotsQuery.data ?? []

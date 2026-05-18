@@ -11,8 +11,7 @@ interface BuildOptions {
 
 export async function cmdBuild(options: BuildOptions) {
   const cwd = options.cwd ? resolve(options.cwd) : process.cwd()
-  // --out is resolved relative to the caller's cwd, not the plugin directory
-  const outDir = resolve(process.cwd(), options.out)
+  const outDir = resolve(cwd, options.out)
 
   // 1. Load and validate mov.json
   let manifest: MovJson
@@ -118,6 +117,13 @@ function packMovpkg(outDir: string, pkgPath: string, hasUi: boolean, cwd: string
     const assetsDir = join(cwd, 'assets')
     if (existsSync(assetsDir)) {
       archive.directory(assetsDir, 'assets')
+    }
+
+    // Include Codex-style agent skills if present. Plugin manifests reference
+    // these paths via contributes.agentSkills[].path.
+    const agentSkillsDir = join(cwd, 'agent-skills')
+    if (existsSync(agentSkillsDir)) {
+      archive.directory(agentSkillsDir, 'agent-skills')
     }
 
     archive.finalize()

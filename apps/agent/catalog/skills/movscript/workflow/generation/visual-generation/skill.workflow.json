@@ -17,8 +17,12 @@
         "生成图片",
         "生成视频",
         "生成关键帧",
+        "关键帧候选",
+        "画面锚点候选",
         "关键帧",
         "keyframe generation",
+        "keyframe candidate",
+        "visual anchor candidate",
         "keyframe_generation",
         "出图",
         "出视频",
@@ -48,11 +52,12 @@
     "tool://movscript_list_models",
     "tool://movscript_create_generation_job",
     "tool://movscript_attach_asset_slot_candidate",
+    "tool://movscript_attach_keyframe_candidate",
     "tool://movscript_get_generation_job",
     "tool://movscript_list_generation_jobs",
     "tool://movscript_cancel_generation_job"
   ],
   "toolScope": "intersect",
-  "outputContract": "返回最终任务状态、jobId、生成类型、目标实体、可用时的输出资源、一致性参考说明、简洁的匹配理由，以及候选集写入结果。",
+  "outputContract": "返回最终任务状态、jobId、生成类型、目标实体、可用时的输出资源列表、一致性参考说明、简洁的匹配理由，以及每个 output_resource_id 的候选集写入结果。",
   "instructionTemplatePath": "instruction.md"
 }

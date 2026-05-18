@@ -322,14 +322,15 @@ function normalizeProjectProposalPayloadForKind(value: JSONValue, kind: ApplyDra
   const effectiveKind = inferProjectProposalDraftKind(payload, kind)
   if (effectiveKind === 'project_proposal') {
     const proposal = isRecord(payload.proposal) ? payload.proposal : {}
+    if (proposal.creative_references !== undefined || proposal.asset_slots !== undefined) {
+      throw new Error('project_proposal only supports proposal.project_style; use setting_proposal or asset_proposal for project-layer lists')
+    }
     return {
       ...payload,
       mode: 'snapshot',
       proposal: {
         ...proposal,
         project_style: isRecord(proposal.project_style) ? proposal.project_style : {},
-        creative_references: [],
-        asset_slots: [],
       },
     }
   }

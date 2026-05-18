@@ -450,6 +450,110 @@ test('loads native layered skill instructions from pack-declared markdown files'
   }
 })
 
+test('loads Codex-style SKILL.md resources declared by packs', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-codex-skill-'))
+  const skillsDir = join(dir, 'skills')
+  const packsDir = join(dir, 'packs')
+
+  try {
+    const skillDir = join(skillsDir, 'directors', 'jiangwen')
+    mkdirSync(skillDir, { recursive: true })
+    writeFileSync(join(skillDir, 'SKILL.md'), `---
+id: studio.director.jiangwen
+name: 姜文风格导演
+description: 当用户需要姜文式黑色幽默、强人物张力和强节奏对白时使用。
+kind: persona
+tags: [director, style]
+aliases: [姜文, 让子弹飞]
+useWhen:
+  - 姜文风格
+  - 黑色幽默
+load: on_demand
+scope: run
+conflicts: [studio.director.marvel]
+---
+
+# 姜文风格导演
+
+保持荒诞现实主义、对白压迫感和强人物博弈。
+`, 'utf8')
+    writePluginFile(packsDir, 'director.pack.json', {
+      id: 'studio.pack.directors',
+      name: 'Director Skills',
+      source: 'plugin',
+      resources: {
+        skills: ['directors/jiangwen'],
+      },
+      schemas: [],
+      tools: [],
+      skills: ['studio.director.jiangwen'],
+    })
+
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      builtinSkillsDir: join(dir, 'builtin-skills'),
+      packsDir,
+      builtinPacksDir: join(dir, 'builtin-packs'),
+      toolsDir: join(dir, 'tools'),
+      builtinToolsDir: join(dir, 'builtin-tools'),
+    })
+    const skill = catalog.layeredRegistry.skills.get('studio.director.jiangwen')
+
+    assert.equal(skill?.kind, 'persona')
+    assert.equal(skill?.loadMode, 'on_demand')
+    assert.equal(skill?.activationScope, 'run')
+    assert.deepEqual(skill?.tags, ['director', 'style'])
+    assert.deepEqual(skill?.aliases, ['姜文', '让子弹飞'])
+    assert.deepEqual(skill?.useWhen, ['姜文风格', '黑色幽默'])
+    assert.deepEqual(skill?.conflicts, ['studio.director.marvel'])
+    assert.match(skill?.instructionTemplate ?? '', /荒诞现实主义/)
+    assert.equal((skill?.metadata as Record<string, unknown> | undefined)?.codexSkill, true)
+    assert.deepEqual(catalog.warnings, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('indexes standalone local Codex-style SKILL.md files without enabling them by default', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-standalone-codex-skill-'))
+  const skillsDir = join(dir, 'skills')
+
+  try {
+    const skillDir = join(skillsDir, 'action-director')
+    mkdirSync(skillDir, { recursive: true })
+    writeFileSync(join(skillDir, 'SKILL.md'), `---
+name: 武术指导
+description: 当动作戏、打斗调度、威亚、节奏和安全边界需要专业设计时使用。
+kind: expertise
+aliases: [武指, 动作指导]
+---
+
+# 武术指导
+
+拆解动作节拍、空间关系、危险动作替代方案和镜头可拍性。
+`, 'utf8')
+
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      builtinSkillsDir: join(dir, 'builtin-skills'),
+      packsDir: join(dir, 'packs'),
+      builtinPacksDir: join(dir, 'builtin-packs'),
+      toolsDir: join(dir, 'tools'),
+      builtinToolsDir: join(dir, 'builtin-tools'),
+    })
+    const skill = catalog.layeredSkills.find((item) => item.name === '武术指导')
+
+    assert.ok(skill)
+    assert.equal(skill?.id, 'codex.skill.武术指导')
+    assert.equal(skill?.kind, 'expertise')
+    assert.equal(skill?.loadMode, 'on_demand')
+    assert.equal(catalog.profiles.some((profile) => profile.enabledWorkflows.includes(skill!.id)), false)
+    assert.deepEqual(catalog.warnings, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('catalog loading does not expose tools outside pack-declared resource paths', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-target-catalog-'))
   const skillsDir = join(dir, 'skills')

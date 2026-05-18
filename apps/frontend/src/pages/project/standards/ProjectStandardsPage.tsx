@@ -4,20 +4,26 @@ import { useQuery } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import {
   ArrowRight,
+  BookOpen,
   CheckCircle2,
   ChevronRight,
+  Eye,
   FileText,
   GitBranch,
   Layers3,
   Loader2,
   PackageCheck,
+  Pencil,
+  Plus,
   RefreshCw,
   Route,
+  Save,
   Sparkles,
   Trash2,
   Wand2,
+  X,
 } from 'lucide-react'
-import { Badge, Button, Card } from '@movscript/ui'
+import { Badge, Button, Card, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@movscript/ui'
 
 import {
   applyProjectProposal,
@@ -68,32 +74,8 @@ interface WorkspaceData {
   contentUnits: WorkspaceRecord[]
 }
 
-interface ProjectProposalDraftEntry {
-  key: string
-  kind: 'creative_references' | 'asset_slots'
-  index: number
-  changeType: 'added' | 'modified' | 'deleted' | 'unchanged'
-  inferred?: boolean
-  applied: boolean
-  label: string
-  detail: string
-  target?: string
-  ownerKey?: string
-  raw: Record<string, unknown>
-}
-
-interface ProjectProposalAssetGroup {
-  ownerKey: string
-  ownerLabel: string
-  items: ProjectProposalDraftEntry[]
-}
-
 interface ProjectProposalDraftView {
-  mode: 'snapshot'
   summary: string
-  creativeReferences: ProjectProposalDraftEntry[]
-  assetSlots: ProjectProposalDraftEntry[]
-  assetSlotGroups: ProjectProposalAssetGroup[]
   impactNotes: string[]
   debug: {
     scope?: string
@@ -106,22 +88,13 @@ interface ProjectProposalDraftView {
   }
 }
 
-type ProjectProposalEntryDecision = 'rejected'
-type ProjectProposalEntryDecisions = Record<string, ProjectProposalEntryDecision>
-
-interface ProjectProposalDiffRow {
-  label: string
-  before?: string
-  after: string
-  tone: 'added' | 'modified' | 'deleted' | 'unchanged'
-}
-
 interface ProjectStyleDraftRow {
   key: string
   label: string
   before: string
   after: string
   changed: boolean
+  kind?: 'core' | 'custom'
 }
 
 interface StatCardProps {
@@ -129,6 +102,79 @@ interface StatCardProps {
   value: string | number
   detail: string
   icon: LucideIcon
+}
+
+type PromptRole = 'context' | 'style' | 'constraint' | 'negative' | 'quality_gate'
+
+interface CoreStandardDef {
+  key: string
+  label: string
+  category: string
+  promptRole: PromptRole
+  required: boolean
+  helper: string
+  multiline?: boolean
+  list?: boolean
+}
+
+interface ProjectPromptRule {
+  id: string
+  key: string
+  label: string
+  category: string
+  value: string
+  prompt_role: PromptRole
+  enabled: boolean
+  required: boolean
+  order: number
+}
+
+interface ProjectPromptRuleForm {
+  id?: string
+  key: string
+  label: string
+  category: string
+  value: string
+  prompt_role: PromptRole
+  enabled: boolean
+  required: boolean
+}
+
+const CORE_STANDARD_DEFS: CoreStandardDef[] = [
+  { key: 'aspect_ratio', label: '画幅比例', category: '基础', promptRole: 'context', required: true, helper: '例如 16:9、9:16、1:1。用于生成任务默认比例。' },
+  { key: 'visual_style', label: '视觉风格', category: '视觉', promptRole: 'style', required: true, helper: '项目整体画风、质感、年代感和镜头观感。', multiline: true },
+  { key: 'shot_size_system', label: '镜头大小体系', category: '镜头', promptRole: 'style', required: true, helper: '每行一个镜头尺度，例如远景、中景、近景、特写。', multiline: true, list: true },
+  { key: 'camera_language', label: '镜头语言', category: '镜头', promptRole: 'style', required: true, helper: '运动、稳定性、构图、视角和镜头切换规则。', multiline: true },
+  { key: 'lighting_style', label: '灯光规则', category: '视觉', promptRole: 'style', required: true, helper: '光源、明暗层次、曝光和氛围要求。', multiline: true },
+  { key: 'color_palette', label: '色彩规则', category: '视觉', promptRole: 'style', required: true, helper: '主色、辅助色、饱和度和禁止色彩倾向。', multiline: true },
+  { key: 'pacing_rules', label: '节奏规则', category: '叙事', promptRole: 'constraint', required: true, helper: '剪辑、情绪推进、镜头时长和段落节奏。', multiline: true },
+  { key: 'negative_rules', label: '负面规则', category: '负面', promptRole: 'negative', required: true, helper: '每行一个禁止项，会进入负面约束。', multiline: true, list: true },
+]
+
+const PROMPT_ROLE_LABELS: Record<PromptRole, string> = {
+  context: '背景',
+  style: '风格',
+  constraint: '约束',
+  negative: '负面',
+  quality_gate: '质检',
+}
+
+const PROMPT_ROLE_SECTIONS: Array<{ role: PromptRole; title: string }> = [
+  { role: 'context', title: '项目背景规范' },
+  { role: 'style', title: '视觉与表达规范' },
+  { role: 'constraint', title: '必须遵守' },
+  { role: 'negative', title: '禁止出现' },
+  { role: 'quality_gate', title: '质检口径' },
+]
+
+const emptyRuleForm: ProjectPromptRuleForm = {
+  key: '',
+  label: '',
+  category: '通用',
+  value: '',
+  prompt_role: 'constraint',
+  enabled: true,
+  required: false,
 }
 
 const emptyData: WorkspaceData = {
@@ -144,23 +190,6 @@ const emptyData: WorkspaceData = {
   contentUnits: [],
 }
 
-function textOf(value: unknown, fallback = '') {
-  return typeof value === 'string' && value.trim() ? value.trim() : fallback
-}
-
-function numberOf(value: unknown) {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : 0
-}
-
-function titleOf(record: WorkspaceRecord, fallback: string) {
-  return textOf(record.title, textOf(record.name, textOf(record.label, fallback)))
-}
-
-function bodyOf(record: WorkspaceRecord, fallback = '暂无说明') {
-  return textOf(record.description, textOf(record.summary, textOf(record.content, fallback)))
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -173,114 +202,24 @@ function asString(value: unknown, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback
 }
 
-function asKey(value: unknown, fallback = '') {
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-  return asString(value, fallback)
-}
-
-function proposalField(item: Record<string, unknown>, keys: string[]): unknown {
-  for (const key of keys) {
-    if (item[key] !== undefined) return item[key]
-  }
-  return undefined
-}
-
-function draftAppliedEntryKeySet(draft: AgentDraft) {
-  const metadata = isRecord(draft.metadata) ? draft.metadata : {}
-  const appliedEntryKeys = Array.isArray(metadata.appliedEntryKeys) ? metadata.appliedEntryKeys : []
-  return new Set(appliedEntryKeys.map((value) => asKey(value, '')).filter(Boolean))
-}
-
 function isProjectProposalHelperDraft(draft: AgentDraft) {
   if (draft.kind !== 'project_proposal') return false
   const metadata = isRecord(draft.metadata) ? draft.metadata : {}
   return typeof metadata.sourceDraftId === 'string' && metadata.sourceDraftId.trim().length > 0
 }
 
-function parseProjectProposalDraft(draft: AgentDraft, pageKey?: string, data?: WorkspaceData): ProjectProposalDraftView | null {
+function parseProjectProposalDraft(draft: AgentDraft, pageKey?: string): ProjectProposalDraftView | null {
   try {
     const content = JSON.parse(draft.content) as Record<string, unknown>
-    const proposal = isRecord(content.proposal) ? content.proposal : undefined
-    const appliedEntryKeys = draftAppliedEntryKeySet(draft)
-    const mode = 'snapshot' as const
-    const creativeReferences = asRecordArray(proposal?.creative_references).map((item, index) => ({
-      key: `${draft.id}:creative_references:${index}`,
-      kind: 'creative_references' as const,
-      index,
-      changeType: inferProjectProposalEntryChangeType('creative_references', item, data),
-      applied: appliedEntryKeys.has(`${draft.id}:creative_references:${index}`),
-      label: asString(proposalField(item, ['title', 'name', 'label', 'kind']), `设定建议 #${index + 1}`),
-      detail: asString(proposalField(item, ['description', 'note', 'reason', 'summary', 'content', 'rationale']), '暂无说明'),
-      target: (() => {
-        const value = item.id
-        return typeof value === 'number' ? `合并到 #${value}` : '新增候选'
-      })(),
-      raw: item,
-    }))
-    const creativeReferenceLabelByKey = new Map<string, string>()
-    asRecordArray(proposal?.creative_references).forEach((item, index) => {
-      const key = asKey(item.client_id ?? item.id, '')
-      if (!key) return
-      creativeReferenceLabelByKey.set(key, asString(proposalField(item, ['title', 'name', 'label', 'kind']), `设定建议 #${index + 1}`))
-    })
-
-    const assetSlots = asRecordArray(proposal?.asset_slots).map((item, index) => ({
-      key: `${draft.id}:asset_slots:${index}`,
-      kind: 'asset_slots' as const,
-      index,
-      changeType: inferProjectProposalEntryChangeType('asset_slots', item, data),
-      applied: appliedEntryKeys.has(`${draft.id}:asset_slots:${index}`),
-      label: asString(proposalField(item, ['title', 'name', 'label', 'kind']), `素材建议 #${index + 1}`),
-      detail: asString(proposalField(item, ['description', 'note', 'reason', 'summary', 'content', 'rationale']), '暂无说明'),
-      target: (() => {
-        const value = item.id
-        return typeof value === 'number' ? `调整 #${value}` : '新增候选'
-      })(),
-      ownerKey: asKey(isRecord(item.owner) ? item.owner.client_id ?? item.owner.id : proposalField(item, ['creative_reference_id', 'owner_id', 'reference_id']), ''),
-      raw: item,
-    }))
-    const assetSlotGroupsMap = new Map<string, ProjectProposalAssetGroup>()
-    asRecordArray(proposal?.asset_slots).forEach((item, index) => {
-      const ownerKey = asKey(
-        isRecord(item.owner) ? item.owner.client_id ?? item.owner.id : proposalField(item, ['creative_reference_id', 'owner_id', 'reference_id']),
-        '',
-      )
-      const groupKey = ownerKey || 'ungrouped'
-      const ownerLabel = ownerKey
-        ? creativeReferenceLabelByKey.get(ownerKey)
-        ?? asString(proposalField(item, ['owner_name', 'source_label', 'name', 'label']), `关联设定 ${ownerKey}`)
-        : '未绑定设定'
-      const entry = assetSlots[index]
-      if (!entry) return
-      const existing = assetSlotGroupsMap.get(groupKey)
-      if (existing) {
-        existing.items.push(entry)
-      } else {
-        assetSlotGroupsMap.set(groupKey, {
-          ownerKey: groupKey,
-          ownerLabel,
-          items: [entry],
-        })
-      }
-    })
     const impactNotes = [
       ...asRecordArray(content.impact_notes).map((item) => asString(item.note ?? item.text ?? item.content ?? item.summary)),
       ...asRecordArray(content.impactNotes).map((item) => asString(item.note ?? item.text ?? item.content ?? item.summary)),
       ...(Array.isArray(content.impact_notes) ? content.impact_notes.map((item) => asString(item)).filter(Boolean) : []),
       ...(Array.isArray(content.impactNotes) ? content.impactNotes.map((item) => asString(item)).filter(Boolean) : []),
     ].filter(Boolean)
-    const snapshotDeleteEntries = mode === 'snapshot' && data
-      ? inferSnapshotDeletionEntries(draft, proposal, data, appliedEntryKeys)
-      : { creativeReferences: [], assetSlots: [] }
-    const nextCreativeReferences = [...creativeReferences, ...snapshotDeleteEntries.creativeReferences]
-    const nextAssetSlots = [...assetSlots, ...snapshotDeleteEntries.assetSlots]
 
     return {
-      mode,
       summary: asString(content.summary, '暂无摘要'),
-      creativeReferences: nextCreativeReferences,
-      assetSlots: nextAssetSlots,
-      assetSlotGroups: Array.from(assetSlotGroupsMap.values()),
       impactNotes,
       debug: {
         scope: asString(content.scope, ''),
@@ -297,168 +236,6 @@ function parseProjectProposalDraft(draft: AgentDraft, pageKey?: string, data?: W
   }
 }
 
-function inferProjectProposalEntryChangeType(
-  kind: 'creative_references' | 'asset_slots',
-  item: Record<string, unknown>,
-  data?: WorkspaceData,
-): ProjectProposalDraftEntry['changeType'] {
-  const status = asString(proposalField(item, ['status']), '')
-  if (['ignored', 'waived'].includes(status)) return 'deleted'
-  const id = numberOf(item.id)
-  if (id <= 0) return 'added'
-  if (!data) return 'modified'
-  const current = kind === 'creative_references'
-    ? data.creativeReferences.find((record) => record.ID === id)
-    : data.assetSlots.find((record) => record.ID === id)
-  if (!current) return 'modified'
-  return projectProposalRecordHasFieldDiff(kind, item, current) ? 'modified' : 'unchanged'
-}
-
-function projectProposalRecordHasFieldDiff(kind: 'creative_references' | 'asset_slots', item: Record<string, unknown>, current: WorkspaceRecord): boolean {
-  const currentField = (keys: string[]) => {
-    for (const key of keys) {
-      if ((current as Record<string, unknown>)[key] !== undefined) return (current as Record<string, unknown>)[key]
-    }
-    return undefined
-  }
-  const proposedField = (keys: string[]) => proposalField(item, keys)
-  const differs = (keys: string[]) => {
-    const proposed = proposedField(keys)
-    if (proposed === undefined || proposed === null || proposed === '') return false
-    return draftEntryFieldText(proposed) !== draftEntryFieldText(currentField(keys))
-  }
-  if (kind === 'creative_references') {
-    return [
-      ['name', 'title', 'label'],
-      ['kind'],
-      ['description', 'summary', 'content', 'rationale'],
-      ['alias'],
-      ['importance'],
-      ['status'],
-      ['profile_json'],
-      ['tags_json'],
-    ].some(differs) || (Array.isArray(item.merge_candidates) && item.merge_candidates.length > 0)
-  }
-  const proposedOwnerId = asKey(isRecord(item.owner) ? item.owner.id : proposalField(item, ['owner_id', 'creative_reference_id', 'reference_id']), '')
-  const currentOwnerId = asKey(current.creative_reference_id ?? current.owner_id, '')
-  return [
-    ['name', 'title', 'label'],
-    ['kind'],
-    ['description', 'summary', 'content', 'rationale'],
-    ['usage', 'prompt_hint'],
-    ['priority'],
-    ['status'],
-    ['resource_id'],
-    ['locked_asset_slot_id'],
-    ['metadata_json'],
-  ].some(differs) || (proposedOwnerId !== '' && proposedOwnerId !== currentOwnerId)
-}
-
-function inferSnapshotDeletionEntries(
-  draft: AgentDraft,
-  proposal: Record<string, unknown> | undefined,
-  data: WorkspaceData,
-  appliedEntryKeys: Set<string>,
-): { creativeReferences: ProjectProposalDraftEntry[]; assetSlots: ProjectProposalDraftEntry[] } {
-  const proposedReferenceIds = new Set(asRecordArray(proposal?.creative_references).map((item) => numberOf(item.id)).filter((id) => id > 0))
-  const proposedAssetSlotIds = new Set(asRecordArray(proposal?.asset_slots).map((item) => numberOf(item.id)).filter((id) => id > 0))
-  const activeReferences = data.creativeReferences.filter((record) => !['ignored', 'merged'].includes(String(record.status ?? '')))
-  const activeAssetSlots = data.assetSlots.filter((record) => !['ignored', 'waived', 'merged'].includes(String(record.status ?? '')))
-
-  const creativeReferences = activeReferences.flatMap((record, index) => {
-    if (proposedReferenceIds.has(record.ID)) return []
-    const key = `${draft.id}:creative_references:delete:${record.ID}`
-    return [{
-      key,
-      kind: 'creative_references' as const,
-      index,
-      changeType: 'deleted' as const,
-      inferred: true,
-      applied: appliedEntryKeys.has(key),
-      label: titleOf(record, `设定 #${record.ID}`),
-      detail: bodyOf(record, '新提案未包含此设定，按 snapshot 语义视为删除候选。'),
-      target: `移出 #${record.ID}`,
-      raw: {
-        id: record.ID,
-        name: titleOf(record, `设定 #${record.ID}`),
-        status: 'ignored',
-        description: bodyOf(record, ''),
-      },
-    }]
-  })
-
-  const assetSlots = activeAssetSlots.flatMap((record, index) => {
-    if (proposedAssetSlotIds.has(record.ID)) return []
-    const key = `${draft.id}:asset_slots:delete:${record.ID}`
-    return [{
-      key,
-      kind: 'asset_slots' as const,
-      index,
-      changeType: 'deleted' as const,
-      inferred: true,
-      applied: appliedEntryKeys.has(key),
-      label: titleOf(record, `素材需求 #${record.ID}`),
-      detail: bodyOf(record, '新提案未包含此素材需求，按 snapshot 语义视为删除候选。'),
-      target: `移出 #${record.ID}`,
-      ownerKey: asKey(record.creative_reference_id ?? record.owner_id, ''),
-      raw: {
-        id: record.ID,
-        owner: record.creative_reference_id ? { type: 'creative_reference', id: record.creative_reference_id } : undefined,
-        name: titleOf(record, `素材需求 #${record.ID}`),
-        status: 'waived',
-        kind: String(record.kind ?? 'image'),
-        description: bodyOf(record, ''),
-      },
-    }]
-  })
-
-  return { creativeReferences, assetSlots }
-}
-
-function buildProjectProposalSnapshotFromWorkspace(data: WorkspaceData) {
-  const activeReferences = data.creativeReferences.filter((record) => !['ignored', 'merged'].includes(String(record.status ?? '')))
-  const activeAssetSlots = data.assetSlots.filter((record) => !['ignored', 'waived', 'merged'].includes(String(record.status ?? '')))
-
-  return {
-    creativeReferences: activeReferences.map((record) => ({
-      id: record.ID,
-      name: titleOf(record, `设定 #${record.ID}`),
-      kind: String(record.kind ?? ''),
-      alias: String(record.alias ?? ''),
-      description: String(record.description ?? ''),
-      content: String(record.content ?? ''),
-      importance: String(record.importance ?? ''),
-      status: String(record.status ?? ''),
-      profile_json: String(record.profile_json ?? ''),
-      tags_json: String(record.tags_json ?? ''),
-    })),
-    assetSlots: activeAssetSlots.map((record) => ({
-      id: record.ID,
-      owner: buildProjectProposalSnapshotOwner(record),
-      name: titleOf(record, `素材需求 #${record.ID}`),
-      kind: String(record.kind ?? 'image'),
-      description: String(record.description ?? ''),
-      slot_key: String(record.slot_key ?? ''),
-      prompt_hint: String(record.prompt_hint ?? ''),
-      status: String(record.status ?? ''),
-      priority: String(record.priority ?? ''),
-      metadata_json: String(record.metadata_json ?? ''),
-      ...(record.production_id ? { production_id: record.production_id } : {}),
-      ...(record.creative_reference_id ? { creative_reference_id: record.creative_reference_id } : {}),
-      ...(record.resource_id ? { resource_id: record.resource_id } : {}),
-      ...(record.locked_asset_slot_id ? { locked_asset_slot_id: record.locked_asset_slot_id } : {}),
-    })),
-  }
-}
-
-function buildProjectProposalSnapshotOwner(record: WorkspaceRecord) {
-  const creativeReferenceId = numberOf(record.creative_reference_id)
-  if (creativeReferenceId > 0) return { type: 'creative_reference', id: creativeReferenceId }
-  const ownerId = numberOf(record.owner_id)
-  if (String(record.owner_type ?? '') === 'creative_reference' && ownerId > 0) return { type: 'creative_reference', id: ownerId }
-  return undefined
-}
-
 function buildProjectStyleApplyPayload(draft: AgentDraft) {
   const content = JSON.parse(draft.content) as Record<string, unknown>
   const proposal = isRecord(content.proposal) ? content.proposal : {}
@@ -466,38 +243,9 @@ function buildProjectStyleApplyPayload(draft: AgentDraft) {
     ...content,
     mode: 'snapshot',
     proposal: {
-      ...proposal,
       project_style: isRecord(proposal.project_style) ? proposal.project_style : {},
-      creative_references: [],
-      asset_slots: [],
     },
   }, null, 2)
-}
-
-function formatDraftEntry(entry: ProjectProposalDraftEntry) {
-  const parts = [entry.label]
-  if (entry.target) parts.push(entry.target)
-  return parts.join(' · ')
-}
-
-function draftEntryLabel(entry: ProjectProposalDraftEntry) {
-  return entry.kind === 'creative_references' ? '设定资料' : '素材需求'
-}
-
-function draftEntryChangeLabel(entry: ProjectProposalDraftEntry) {
-  if (entry.changeType === 'added') return '新增'
-  if (entry.changeType === 'deleted') return '删除'
-  if (entry.changeType === 'unchanged') return '保留'
-  return '修改'
-}
-
-function draftEntryCurrentRecord(entry: ProjectProposalDraftEntry, data: WorkspaceData) {
-  const id = numberOf(entry.raw.id)
-  if (id <= 0) return null
-  if (entry.kind === 'creative_references') {
-    return data.creativeReferences.find((record) => record.ID === id) ?? null
-  }
-  return data.assetSlots.find((record) => record.ID === id) ?? null
 }
 
 function draftEntryFieldText(value: unknown) {
@@ -514,105 +262,114 @@ function draftEntryFieldText(value: unknown) {
   return String(value)
 }
 
-function draftEntryOwnerLabel(entry: ProjectProposalDraftEntry, referenceLabels: Map<string, string>, rawOwnerValue?: string) {
-  if (rawOwnerValue) return referenceLabels.get(rawOwnerValue) ?? rawOwnerValue
-  if (entry.ownerKey) return referenceLabels.get(entry.ownerKey) ?? entry.ownerKey
-  return '未绑定设定'
+function valueToPromptText(value: unknown) {
+  if (Array.isArray(value)) return value.map((item) => draftEntryFieldText(item)).filter(Boolean).join('；')
+  return draftEntryFieldText(value)
 }
 
-function buildProjectProposalEntryDiffRows(
-  entry: ProjectProposalDraftEntry,
-  data: WorkspaceData,
-  referenceLabels: Map<string, string>,
-): ProjectProposalDiffRow[] {
-  const current = draftEntryCurrentRecord(entry, data)
-  const rows: ProjectProposalDiffRow[] = []
+function splitListText(value: string) {
+  return value
+    .split(/\n|,|，|;|；/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
 
-  if (entry.changeType === 'deleted') {
-    rows.push({
-      label: entry.kind === 'creative_references' ? '设定' : '素材需求',
-      before: entry.label,
-      after: entry.kind === 'creative_references' ? '移出项目设定' : '移出素材需求',
-      tone: 'deleted',
-    })
-    return rows
+function coreStandardValue(project: WorkspaceRecord | null | undefined, key: string) {
+  const style = parseProjectStyleRecord(project)
+  if (key === 'aspect_ratio') return project?.aspect_ratio ?? style.aspect_ratio
+  if (key === 'visual_style') return project?.visual_style ?? style.visual_style
+  return style[key]
+}
+
+function coreStandardText(project: WorkspaceRecord | null | undefined, key: string) {
+  return valueToPromptText(coreStandardValue(project, key))
+}
+
+function normalizePromptRole(value: unknown): PromptRole {
+  if (value === 'context' || value === 'style' || value === 'constraint' || value === 'negative' || value === 'quality_gate') return value
+  return 'constraint'
+}
+
+function normalizeProjectPromptRule(value: unknown, index: number): ProjectPromptRule | null {
+  if (!isRecord(value)) return null
+  const label = asString(value.label, asString(value.name, asString(value.key, `扩展规范 ${index + 1}`)))
+  const ruleValue = draftEntryFieldText(value.value ?? value.content ?? value.description)
+  const key = asString(value.key, label.toLowerCase().replace(/\s+/g, '_'))
+  if (!label && !ruleValue) return null
+  return {
+    id: asString(value.id, `rule_${key || index}_${index}`),
+    key,
+    label,
+    category: asString(value.category, '通用'),
+    value: ruleValue,
+    prompt_role: normalizePromptRole(value.prompt_role ?? value.promptRole ?? value.role),
+    enabled: typeof value.enabled === 'boolean' ? value.enabled : true,
+    required: typeof value.required === 'boolean' ? value.required : false,
+    order: typeof value.order === 'number' && Number.isFinite(value.order) ? value.order : (index + 1) * 10,
   }
+}
 
-  const pushField = (label: string, beforeValue: unknown, afterValue: unknown) => {
-    const afterText = draftEntryFieldText(afterValue)
-    const beforeText = draftEntryFieldText(beforeValue)
-    const changed = entry.changeType === 'added' || beforeText !== afterText
-    if (!changed) return
-    rows.push({
-      label,
-      before: entry.changeType === 'added' ? '' : beforeText,
-      after: afterText || '未填写',
-      tone: entry.changeType === 'added' ? 'added' : 'modified',
-    })
+function projectPromptRules(project?: WorkspaceRecord | null) {
+  const style = parseProjectStyleRecord(project)
+  return asRecordArray(style.custom_rules)
+    .map((item, index) => normalizeProjectPromptRule(item, index))
+    .filter((item): item is ProjectPromptRule => Boolean(item))
+    .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
+}
+
+function projectPromptRulePayload(rules: ProjectPromptRule[]) {
+  return rules
+    .map((rule, index) => ({
+      id: rule.id,
+      key: rule.key.trim(),
+      label: rule.label.trim(),
+      category: rule.category.trim() || '通用',
+      value: rule.value.trim(),
+      prompt_role: rule.prompt_role,
+      enabled: rule.enabled,
+      required: rule.required,
+      order: rule.order || (index + 1) * 10,
+    }))
+    .filter((rule) => rule.key || rule.label || rule.value)
+}
+
+function buildRuleId(key: string) {
+  const safe = key.trim().toLowerCase().replace(/[^a-z0-9_\u4e00-\u9fa5-]+/gi, '_').replace(/^_+|_+$/g, '')
+  return `rule_${safe || Date.now().toString(36)}`
+}
+
+function normalizeRuleForm(form: ProjectPromptRuleForm, order: number): ProjectPromptRule {
+  const label = form.label.trim() || form.key.trim() || '未命名规范'
+  const key = form.key.trim() || label.toLowerCase().replace(/\s+/g, '_')
+  return {
+    id: form.id || buildRuleId(key),
+    key,
+    label,
+    category: form.category.trim() || '通用',
+    value: form.value.trim(),
+    prompt_role: form.prompt_role,
+    enabled: form.enabled,
+    required: form.required,
+    order,
   }
+}
 
-  const currentFields = current ? { ...current } as Record<string, unknown> : {}
-  const currentField = (keys: string[]) => {
-    for (const key of keys) {
-      if (currentFields[key] !== undefined) return currentFields[key]
-    }
-    return undefined
-  }
-
-  const item = entry.raw
-  const proposedField = (keys: string[]) => proposalField(item, keys)
-
-  if (entry.kind === 'creative_references') {
-    pushField('名称', currentField(['name', 'title', 'label']), proposedField(['name', 'title', 'label']))
-    pushField('类型', currentField(['kind']), proposedField(['kind']))
-    pushField('说明', currentField(['description', 'summary', 'content', 'rationale']), proposedField(['description', 'summary', 'content', 'rationale']))
-    pushField('别名', currentField(['alias']), proposedField(['alias']))
-    pushField('重要度', currentField(['importance']), proposedField(['importance']))
-    pushField('状态', currentField(['status']), proposedField(['status']))
-    pushField('画像', currentField(['profile_json']), proposedField(['profile_json']))
-    pushField('标签', currentField(['tags_json']), proposedField(['tags_json']))
-    const mergeCandidates = Array.isArray(item.merge_candidates) ? item.merge_candidates.filter(isRecord) : []
-    for (const [index, candidate] of mergeCandidates.entries()) {
-      const sourceId = draftEntryFieldText(candidate.source_id)
-      const reason = draftEntryFieldText(candidate.reason)
-      rows.push({
-        label: `合并候选 #${index + 1}`,
-        before: '',
-        after: [sourceId ? `来源 #${sourceId}` : '来源未标注', reason ? `原因：${reason}` : ''].filter(Boolean).join(' · '),
-        tone: 'added',
-      })
-    }
-  } else {
-    pushField('名称', currentField(['name', 'title', 'label']), proposedField(['name', 'title', 'label']))
-    pushField('类型', currentField(['kind']), proposedField(['kind']))
-    pushField('说明', currentField(['description', 'summary', 'content', 'rationale']), proposedField(['description', 'summary', 'content', 'rationale']))
-    pushField('用途', currentField(['usage', 'prompt_hint']), proposedField(['usage', 'prompt_hint']))
-    pushField('优先级', currentField(['priority']), proposedField(['priority']))
-    pushField('状态', currentField(['status']), proposedField(['status']))
-    pushField('资源 ID', currentField(['resource_id']), proposedField(['resource_id']))
-    pushField('锁定素材', currentField(['locked_asset_slot_id']), proposedField(['locked_asset_slot_id']))
-
-    const currentOwnerId = current
-      ? asKey(isRecord(current.owner) ? current.owner.client_id ?? current.owner.id : proposalField(current, ['creative_reference_id', 'owner_id', 'reference_id']), '')
-      : ''
-    const currentOwnerLabel = draftEntryOwnerLabel(entry, referenceLabels, currentOwnerId)
-    const proposedOwnerId = asKey(isRecord(item.owner) ? item.owner.client_id ?? item.owner.id : proposalField(item, ['creative_reference_id', 'owner_id', 'reference_id']), '')
-    const proposedOwnerLabel = draftEntryOwnerLabel(entry, referenceLabels, proposedOwnerId)
-    if (entry.changeType === 'added' || currentOwnerLabel !== proposedOwnerLabel) {
-      rows.push({
-        label: '归属',
-        before: entry.changeType === 'added' ? '' : currentOwnerLabel,
-        after: proposedOwnerLabel,
-        tone: entry.changeType === 'added' ? 'added' : 'modified',
-      })
-    }
-
-    const currentMetadata = currentField(['metadata_json'])
-    const proposedMetadata = proposedField(['metadata_json'])
-    pushField('元数据', currentMetadata, proposedMetadata)
-  }
-
-  return rows
+function buildProjectPromptPreview(project?: WorkspaceRecord | null) {
+  const coreItems = CORE_STANDARD_DEFS.map((item) => ({
+    label: item.label,
+    role: item.promptRole,
+    value: coreStandardText(project, item.key),
+  })).filter((item) => item.value)
+  const customItems = projectPromptRules(project)
+    .filter((item) => item.enabled && item.value)
+    .map((item) => ({ label: item.label, role: item.prompt_role, value: item.value }))
+  const allItems = [...coreItems, ...customItems]
+  const sections = PROMPT_ROLE_SECTIONS.flatMap((section) => {
+    const items = allItems.filter((item) => item.role === section.role)
+    if (items.length === 0) return []
+    return [`${section.title}：`, ...items.map((item) => `- ${item.label}：${item.value}`)]
+  })
+  return sections.length > 0 ? `项目规范：\n${sections.join('\n')}` : '项目规范：\n- 暂无已启用规范。'
 }
 
 function parseProjectStyleDraftRows(draft: AgentDraft, project?: WorkspaceRecord | null): ProjectStyleDraftRow[] {
@@ -621,17 +378,7 @@ function parseProjectStyleDraftRows(draft: AgentDraft, project?: WorkspaceRecord
     const proposal = isRecord(content.proposal) ? content.proposal : {}
     const projectStyle = isRecord(proposal.project_style) ? proposal.project_style : {}
     const currentStyle = parseProjectStyleRecord(project)
-    const labels: Record<string, string> = {
-      aspect_ratio: '画幅比例',
-      shot_size_system: '镜头大小体系',
-      camera_language: '镜头语言',
-      visual_style: '视觉风格',
-      lighting_style: '灯光规则',
-      color_palette: '色彩规则',
-      pacing_rules: '节奏规则',
-      negative_rules: '负面规则',
-    }
-    return Object.entries(labels).flatMap(([key, label]) => {
+    const coreRows = CORE_STANDARD_DEFS.flatMap(({ key, label }) => {
       const value = projectStyle[key]
       const text = draftEntryFieldText(value)
       if (!text) return []
@@ -640,8 +387,24 @@ function parseProjectStyleDraftRows(draft: AgentDraft, project?: WorkspaceRecord
         : key === 'visual_style'
           ? project?.visual_style ?? currentStyle[key]
           : currentStyle[key])
-      return [{ key, label, before, after: text, changed: before !== text }]
+      return [{ key, label, before, after: text, changed: before !== text, kind: 'core' as const }]
     })
+    const currentRules = new Map(projectPromptRules(project).map((rule) => [rule.id || rule.key, rule]))
+    const customRows = asRecordArray(projectStyle.custom_rules).flatMap((item, index) => {
+      const rule = normalizeProjectPromptRule(item, index)
+      if (!rule) return []
+      const current = currentRules.get(rule.id) ?? currentRules.get(rule.key)
+      const before = current?.value ?? ''
+      return [{
+        key: `custom:${rule.id}`,
+        label: `扩展：${rule.label}`,
+        before,
+        after: rule.value,
+        changed: before !== rule.value || current?.enabled !== rule.enabled || current?.prompt_role !== rule.prompt_role,
+        kind: 'custom' as const,
+      }]
+    })
+    return [...coreRows, ...customRows]
   } catch {
     return []
   }
@@ -657,33 +420,14 @@ function parseProjectStyleRecord(project?: WorkspaceRecord | null): Record<strin
   }
 }
 
-function projectHasGlobalStyle(project?: WorkspaceRecord | null) {
-  if (!project) return false
-  return Boolean(
-    textOf(project.aspect_ratio) ||
-    textOf(project.visual_style) ||
-    Object.keys(parseProjectStyleRecord(project)).length > 0,
-  )
-}
-
 function projectStandardRows(project?: WorkspaceRecord | null): ProjectStyleDraftRow[] {
-  const style = parseProjectStyleRecord(project)
-  const rows: Array<[string, string, unknown]> = [
-    ['aspect_ratio', '镜头比例', project?.aspect_ratio ?? style.aspect_ratio],
-    ['visual_style', '画风', project?.visual_style ?? style.visual_style],
-    ['shot_size_system', '镜头大小体系', style.shot_size_system],
-    ['camera_language', '镜头语言', style.camera_language],
-    ['lighting_style', '灯光规则', style.lighting_style],
-    ['color_palette', '色彩规则', style.color_palette],
-    ['pacing_rules', '节奏规则', style.pacing_rules],
-    ['negative_rules', '负面规则', style.negative_rules],
-  ]
-  return rows.map(([key, label, value]) => ({
-    key,
-    label,
+  return CORE_STANDARD_DEFS.map((item) => ({
+    key: item.key,
+    label: item.label,
     before: '',
-    after: draftEntryFieldText(value),
+    after: valueToPromptText(coreStandardValue(project, item.key)),
     changed: false,
+    kind: 'core' as const,
   }))
 }
 
@@ -800,8 +544,13 @@ export default function ProjectStandardsPage() {
   const [launching, setLaunching] = useState(false)
   const [workspaceView, setWorkspaceView] = useState<'structure' | 'review'>('structure')
   const [applyingDraftId, setApplyingDraftId] = useState<string | null>(null)
-  const [draftEntryDecisions, setDraftEntryDecisions] = useState<ProjectProposalEntryDecisions>({})
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null)
+  const [editingCoreKey, setEditingCoreKey] = useState<string | null>(null)
+  const [coreDraftValue, setCoreDraftValue] = useState('')
+  const [savingCoreKey, setSavingCoreKey] = useState<string | null>(null)
+  const [ruleForm, setRuleForm] = useState<ProjectPromptRuleForm | null>(null)
+  const [savingRule, setSavingRule] = useState(false)
+  const [deletingRuleId, setDeletingRuleId] = useState<string | null>(null)
   const openedDraftId = searchParams.get('draftId')?.trim() || ''
 
   const queryKey = ['project-workspace', projectId] as const
@@ -856,16 +605,6 @@ export default function ProjectStandardsPage() {
     setWorkspaceView('review')
   }, [activeDraftId, draftsQuery.data, openedDraftId])
 
-  const derived = useMemo(() => {
-    const activeReferences = data.creativeReferences.filter((item) => !['ignored', 'merged'].includes(String(item.status ?? '')))
-    const activeProductions = data.productions.filter((item) => !['delivered', 'archived'].includes(String(item.status ?? '')))
-
-    return {
-      activeReferences,
-      activeProductions,
-    }
-  }, [data])
-
   const draftCounts = useMemo(() => {
     const drafts = (draftsQuery.data ?? []).filter((draft) => !isProjectProposalHelperDraft(draft))
     return {
@@ -882,15 +621,13 @@ export default function ProjectStandardsPage() {
       const draftShell = await localAgentClient.createDraft({
         projectId,
         kind: 'project_proposal',
-        title: `项目标准提案草稿 - ${project?.name ?? `#${projectId}`}`,
+        title: `项目规范提案草稿 - ${project?.name ?? `#${projectId}`}`,
         content: JSON.stringify(buildEmptyProjectProposalDraftContent({
           projectId,
           mode: 'snapshot',
           projectStyle: buildDefaultProjectStylePatch(),
-          creativeReferences: [],
-          assetSlots: [],
           createdAt: new Date().toISOString(),
-          summary: '请定义项目级制作标准：画幅、镜头大小体系、镜头语言、视觉风格、灯光、色彩、节奏和负面规则。',
+          summary: '请定义项目级制作规范：固定 8 项和按需扩展的提示词规则。',
         }), null, 2),
         source: {
           entityType: 'project',
@@ -921,7 +658,7 @@ export default function ProjectStandardsPage() {
       }, { replace: true })
 
       const requestId = `project_orchestrate_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
-      const userMessage = requestedPrompt || `请基于已写入 draft 的空模板，为项目「${project?.name ?? `#${projectId}`}」制定项目级制作标准。只填写 proposal.project_style，包括画幅、镜头大小体系、镜头语言、视觉风格、灯光、色彩、节奏和负面规则；不要创建设定资料或素材需求。`
+      const userMessage = requestedPrompt || `请基于已写入 draft 的空模板，为项目「${project?.name ?? `#${projectId}`}」制定项目级制作规范。填写 proposal.project_style：保留并补齐固定字段 aspect_ratio、shot_size_system、camera_language、visual_style、lighting_style、color_palette、pacing_rules、negative_rules；也可以按项目需要新增 custom_rules，每条包含 key、label、category、value、prompt_role、enabled、required、order。不要创建设定资料或素材需求。`
 
       orchestrationToolCleanupRef.current?.()
       orchestrationToolCleanupRef.current = registerAgentPanelPageTool(requestId, async (payload) => {
@@ -943,8 +680,8 @@ export default function ProjectStandardsPage() {
       openAgentPanelDraft({
         requestId,
         taskType: 'project_standards_proposal',
-        message: `请制定项目标准：${project?.name ?? `#${projectId}`}`,
-        title: `项目标准提案: ${project?.name ?? `#${projectId}`}`,
+        message: `请制定项目规范：${project?.name ?? `#${projectId}`}`,
+        title: `项目规范提案: ${project?.name ?? `#${projectId}`}`,
         newConversation: true,
         autoSend: true,
         projectId,
@@ -962,7 +699,7 @@ export default function ProjectStandardsPage() {
         timeoutMs: 180_000,
         renderMode: 'page',
       })
-      toast.info('已打开项目标准提案会话；AI 生成的草稿会回到审阅区')
+      toast.info('已打开项目规范提案会话；AI 生成的草稿会回到审阅区')
       await draftsQuery.refetch()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '项目提案启动失败')
@@ -1020,11 +757,11 @@ export default function ProjectStandardsPage() {
         }
         const nextProject = await getProject(projectId)
         useProjectStore.getState().setCurrent(nextProject)
-        toast.success('项目全局设定已写入后端')
+        toast.success('项目规范已写入后端')
         await refetch()
         await draftsQuery.refetch()
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : '应用项目标准提案失败')
+        toast.error(error instanceof Error ? error.message : '应用项目规范提案失败')
       } finally {
         setApplyingDraftId(null)
       }
@@ -1039,36 +776,112 @@ export default function ProjectStandardsPage() {
 
   const drafts = (draftsQuery.data ?? []).filter((draft) => !isProjectProposalHelperDraft(draft))
 
-  function setDraftEntryDecision(key: string, decision: ProjectProposalEntryDecision) {
-    setDraftEntryDecisions((current) => ({ ...current, [key]: decision }))
+  const filledStandardCount = projectStandardFilledCount(data.project)
+  const missingStandardLabels = projectStandardMissingLabels(data.project)
+  const customRules = useMemo(() => projectPromptRules(data.project), [data.project])
+  const enabledCustomRules = customRules.filter((rule) => rule.enabled)
+  const enabledRuleCount = filledStandardCount + enabledCustomRules.length
+  const promptPreview = useMemo(() => buildProjectPromptPreview(data.project), [data.project])
+
+  async function saveProjectStylePatch(projectStyle: Record<string, unknown>, successMessage: string) {
+    if (!projectId) return
+    await applyProjectProposal(projectId, {
+      scope: 'project_proposal',
+      mode: 'patch',
+      proposal: {
+        project_style: projectStyle,
+      },
+    })
+    const nextProject = await getProject(projectId)
+    useProjectStore.getState().setCurrent(nextProject)
+    await refetch()
+    toast.success(successMessage)
   }
 
-  function clearDraftEntryDecision(key: string) {
-    setDraftEntryDecisions((current) => {
-      const next = { ...current }
-      delete next[key]
-      return next
+  function openCoreEditor(key: string) {
+    setEditingCoreKey(key)
+    setCoreDraftValue(coreStandardText(data.project, key))
+  }
+
+  async function saveCoreStandard(def: CoreStandardDef) {
+    if (!projectId) return
+    setSavingCoreKey(def.key)
+    try {
+      const value = def.list ? splitListText(coreDraftValue) : coreDraftValue.trim()
+      await saveProjectStylePatch({ [def.key]: value }, '核心规范已保存')
+      setEditingCoreKey(null)
+      setCoreDraftValue('')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '保存核心规范失败')
+    } finally {
+      setSavingCoreKey(null)
+    }
+  }
+
+  function openNewRuleForm() {
+    setRuleForm({ ...emptyRuleForm })
+  }
+
+  function openEditRuleForm(rule: ProjectPromptRule) {
+    setRuleForm({
+      id: rule.id,
+      key: rule.key,
+      label: rule.label,
+      category: rule.category,
+      value: rule.value,
+      prompt_role: rule.prompt_role,
+      enabled: rule.enabled,
+      required: rule.required,
     })
   }
 
-  function draftReferenceOptions(view: ProjectProposalDraftView) {
-    return [
-      ...derived.activeReferences.map((reference) => ({
-        value: String(reference.ID),
-        label: titleOf(reference, `设定 #${reference.ID}`),
-        numericId: reference.ID,
-      })),
-      ...view.creativeReferences.map((reference) => ({
-        value: reference.raw.client_id ? String(reference.raw.client_id) : reference.key,
-        label: reference.label,
-        numericId: undefined,
-      })),
-    ]
+  async function saveRuleForm() {
+    if (!projectId || !ruleForm) return
+    const normalized = normalizeRuleForm(ruleForm, ruleForm.id
+      ? customRules.find((rule) => rule.id === ruleForm.id)?.order ?? (customRules.length + 1) * 10
+      : (customRules.length + 1) * 10)
+    if (!normalized.value) {
+      toast.error('请填写规范内容')
+      return
+    }
+    setSavingRule(true)
+    try {
+      const exists = customRules.some((rule) => rule.id === normalized.id)
+      const nextRules = exists
+        ? customRules.map((rule) => rule.id === normalized.id ? normalized : rule)
+        : [...customRules, normalized]
+      await saveProjectStylePatch({ custom_rules: projectPromptRulePayload(nextRules) }, exists ? '扩展规范已更新' : '扩展规范已新增')
+      setRuleForm(null)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '保存扩展规范失败')
+    } finally {
+      setSavingRule(false)
+    }
   }
 
-  const currentStandardRows = projectStandardRows(data.project)
-  const filledStandardCount = projectStandardFilledCount(data.project)
-  const missingStandardLabels = projectStandardMissingLabels(data.project)
+  async function toggleRule(rule: ProjectPromptRule) {
+    if (!projectId) return
+    const nextRules = customRules.map((item) => item.id === rule.id ? { ...item, enabled: !item.enabled } : item)
+    try {
+      await saveProjectStylePatch({ custom_rules: projectPromptRulePayload(nextRules) }, rule.enabled ? '规范已停用' : '规范已启用')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '更新规范状态失败')
+    }
+  }
+
+  async function deleteRule(rule: ProjectPromptRule) {
+    if (!projectId) return
+    setDeletingRuleId(rule.id)
+    try {
+      const nextRules = customRules.filter((item) => item.id !== rule.id)
+      await saveProjectStylePatch({ custom_rules: projectPromptRulePayload(nextRules) }, '扩展规范已删除')
+      if (ruleForm?.id === rule.id) setRuleForm(null)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '删除扩展规范失败')
+    } finally {
+      setDeletingRuleId(null)
+    }
+  }
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
@@ -1079,13 +892,13 @@ export default function ProjectStandardsPage() {
               <Layers3 size={13} />
               <span>{project?.name ?? '当前项目'}</span>
               <ChevronRight size={12} />
-              <span>项目标准</span>
+              <span>项目规范</span>
               <Badge variant="secondary" className="h-6 rounded-full px-2 text-[10px]">
                 backend apply
               </Badge>
               {isFetching ? <Badge variant="outline" className="h-6 rounded-full px-2 text-[10px]">同步中</Badge> : null}
             </div>
-            <h1 className="mt-1 truncate text-xl font-semibold tracking-normal text-foreground">项目标准工作台</h1>
+            <h1 className="mt-1 truncate text-xl font-semibold tracking-normal text-foreground">项目规范库</h1>
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" className="h-7 gap-1.5 text-xs" onClick={() => startProjectOrchestration()} loading={launching} disabled={!projectId}>
@@ -1110,10 +923,10 @@ export default function ProjectStandardsPage() {
           ) : (
             <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 lg:p-5">
               <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <StatCard title="镜头比例" value={textOf(data.project?.aspect_ratio, '未设置')} detail={projectHasGlobalStyle(data.project) ? '已接入 Project 全局字段' : '等待项目标准提案写入'} icon={Route} />
-                <StatCard title="画风" value={textOf(data.project?.visual_style, '未设置')} detail="由 project_proposal.project_style 写入" icon={Sparkles} />
-                <StatCard title="制作标准" value="8 类" detail="画幅、镜头、风格、光色、节奏和负面规则" icon={Sparkles} />
-                <StatCard title="独立工作台" value="2 个" detail="设定资料和素材需求已拆分审阅" icon={PackageCheck} />
+                <StatCard title="核心规范完成度" value={`${filledStandardCount}/8`} detail={missingStandardLabels.length > 0 ? `缺失 ${missingStandardLabels.length} 项必选规范` : '固定规范已覆盖'} icon={Route} />
+                <StatCard title="启用规范" value={enabledRuleCount} detail={`${enabledCustomRules.length} 条扩展规范会进入提示词`} icon={BookOpen} />
+                <StatCard title="扩展规范" value={customRules.length} detail="支持任意 key/value、分类和提示词角色" icon={Sparkles} />
+                <StatCard title="待审阅提案" value={draftCounts.draft} detail="AI 生成的规范变更在审阅区应用" icon={PackageCheck} />
               </section>
 
               <div className="sticky top-0 z-10 -mx-4 border-b border-border bg-muted/90 px-4 py-3 backdrop-blur lg:-mx-5 lg:px-5">
@@ -1141,92 +954,177 @@ export default function ProjectStandardsPage() {
                   </div>
                   <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                     <Badge variant={workspaceView === 'review' ? 'secondary' : 'outline'} className="h-6 rounded-full px-2 text-[10px]">
-                      {workspaceView === 'review' ? '标准审阅' : '项目标准'}
+                      {workspaceView === 'review' ? '规范审阅' : '项目规范库'}
                     </Badge>
-                    <span>{workspaceView === 'review' ? '审阅并写入项目级镜头、风格和节奏规则' : '定义项目全局设定，不维护设定或素材需求'}</span>
+                    <span>{workspaceView === 'review' ? '审阅并写入项目级固定规范和扩展规范' : '核心规范必填，扩展规范按需进入提示词'}</span>
                   </div>
                 </div>
               </div>
 
               {workspaceView === 'structure' && (
-                <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
-                  <Card className="min-h-0 overflow-hidden rounded-lg border-border bg-card p-4 shadow-sm">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h2 className="text-sm font-semibold text-foreground">项目全局标准</h2>
-                        <p className="mt-1 text-xs text-muted-foreground">这里展示 Project 本体的全局制作设定；人物、地点、道具和素材需求不在此视图编辑。</p>
-                      </div>
-                      <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => startProjectOrchestration('请为当前项目制定项目级制作标准：镜头比例、画风、镜头大小体系、镜头语言、灯光、色彩、节奏和负面规则。不要创建设定资料或素材需求。')}>
-                        <Wand2 size={12} />
-                        让 AI 制定
-                      </Button>
-                    </div>
-
-                    <div className="mt-4 grid gap-2 md:grid-cols-2">
-                      {currentStandardRows.map((row) => (
-                        <div key={row.key} className={cn(
-                          'min-h-24 rounded-md border px-3 py-2',
-                          row.after ? 'border-border bg-background' : 'border-dashed border-amber-500/40 bg-amber-500/5',
-                        )}>
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-[10px] font-medium text-muted-foreground">{row.label}</p>
-                            <Badge variant={row.after ? 'secondary' : 'warning'} className="h-5 rounded-full px-1.5 text-[9px]">
-                              {row.after ? '已设置' : '缺失'}
-                            </Badge>
-                          </div>
-                          <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-foreground">{row.after || '未设置'}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-
-                  <div className="min-h-0 space-y-4">
+                <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.78fr)]">
+                  <div className="min-w-0 space-y-4">
                     <Card className="min-h-0 overflow-hidden rounded-lg border-border bg-card p-4 shadow-sm">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h2 className="text-sm font-semibold text-foreground">标准完整度</h2>
-                          <p className="mt-1 text-xs text-muted-foreground">用于判断当前项目是否已经具备可复用的视觉生成约束。</p>
-                        </div>
-                        <Badge variant={missingStandardLabels.length === 0 ? 'success' : 'warning'} className="text-[10px]">
-                          {filledStandardCount}/8
-                        </Badge>
-                      </div>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        <MiniMetric icon={Route} label="已设置标准" value={filledStandardCount} />
-                        <MiniMetric icon={GitBranch} label="待审阅草稿" value={draftCounts.draft} />
-                      </div>
-                      {missingStandardLabels.length > 0 ? (
-                        <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2">
-                          <p className="text-[10px] font-medium text-amber-700 dark:text-amber-300">缺失字段</p>
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {missingStandardLabels.map((label) => (
-                              <Badge key={label} variant="warning" className="h-5 rounded-full px-1.5 text-[9px]">{label}</Badge>
-                            ))}
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h2 className="text-sm font-semibold text-foreground">核心规范</h2>
+                            <p className="mt-1 text-xs text-muted-foreground">固定 8 项为必选规范，直接写入 Project 全局字段和 project_style。</p>
                           </div>
+                          <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => startProjectOrchestration('请为当前项目制定项目级制作规范：补齐固定 8 项，并按需要新增 custom_rules。custom_rules 每条要包含 key、label、category、value、prompt_role、enabled、required、order。不要创建设定资料或素材需求。')}>
+                            <Wand2 size={12} />
+                            让 AI 制定
+                          </Button>
                         </div>
-                      ) : (
-                        <div className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-[10px] leading-4 text-emerald-700 dark:text-emerald-300">
-                          项目全局标准已经覆盖当前工作台的 8 个核心字段。
+
+                        <div className="mt-4 grid gap-2 md:grid-cols-2">
+                          {CORE_STANDARD_DEFS.map((def) => {
+                            const value = coreStandardText(data.project, def.key)
+                            const editing = editingCoreKey === def.key
+                            return (
+                              <div key={def.key} className={cn(
+                                'rounded-md border px-3 py-2',
+                                value ? 'border-border bg-background' : 'border-dashed border-amber-500/40 bg-amber-500/5',
+                              )}>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <p className="text-xs font-medium text-foreground">{def.label}</p>
+                                      <Badge variant="outline" className="h-5 rounded-full px-1.5 text-[9px]">{def.category}</Badge>
+                                      <Badge variant="secondary" className="h-5 rounded-full px-1.5 text-[9px]">{PROMPT_ROLE_LABELS[def.promptRole]}</Badge>
+                                      <Badge variant={value ? 'success' : 'warning'} className="h-5 rounded-full px-1.5 text-[9px]">{value ? '已设置' : '缺失'}</Badge>
+                                    </div>
+                                    <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{def.helper}</p>
+                                  </div>
+                                  <Button size="sm" variant="ghost" className="h-7 w-7 shrink-0 p-0" onClick={() => editing ? setEditingCoreKey(null) : openCoreEditor(def.key)}>
+                                    {editing ? <X size={13} /> : <Pencil size={13} />}
+                                  </Button>
+                                </div>
+                                {editing ? (
+                                  <div className="mt-2 space-y-2">
+                                    {def.multiline ? (
+                                      <Textarea value={coreDraftValue} onChange={(event) => setCoreDraftValue(event.target.value)} className="min-h-24 text-xs" placeholder={def.helper} />
+                                    ) : (
+                                      <Input value={coreDraftValue} onChange={(event) => setCoreDraftValue(event.target.value)} className="h-8 text-xs" placeholder={def.helper} />
+                                    )}
+                                    <div className="flex justify-end gap-1.5">
+                                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditingCoreKey(null)}>取消</Button>
+                                      <Button size="sm" className="h-7 gap-1.5 text-xs" loading={savingCoreKey === def.key} onClick={() => saveCoreStandard(def)}>
+                                        <Save size={12} />
+                                        保存
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-foreground">{value || '未设置'}</p>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
-                      )}
                     </Card>
 
                     <Card className="min-h-0 overflow-hidden rounded-lg border-border bg-card p-4 shadow-sm">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <h2 className="text-sm font-semibold text-foreground">项目上下文概览</h2>
-                          <p className="mt-1 text-xs text-muted-foreground">这些数量只用于判断标准覆盖范围；具体内容请进入对应工作台。</p>
+                          <h2 className="text-sm font-semibold text-foreground">扩展规范</h2>
+                          <p className="mt-1 text-xs text-muted-foreground">用任意 key/value 补充角色、台词、平台禁忌、审核口径等项目规则。</p>
                         </div>
-                        <Badge variant="outline" className="text-[10px]">只读摘要</Badge>
+                        <Button size="sm" className="h-7 gap-1.5 text-xs" onClick={openNewRuleForm}>
+                          <Plus size={12} />
+                          新增规范
+                        </Button>
                       </div>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        <MiniMetric icon={Sparkles} label="设定资料" value={derived.activeReferences.length} />
-                        <MiniMetric icon={PackageCheck} label="素材需求" value={data.assetSlots.length} />
-                        <MiniMetric icon={Route} label="制作单元" value={data.contentUnits.length} />
-                        <MiniMetric icon={FileText} label="Production" value={derived.activeProductions.length} />
+
+                      {ruleForm && (
+                        <div className="mt-3 rounded-md border border-primary/30 bg-primary/5 p-3">
+                          <div className="grid gap-2 md:grid-cols-2">
+                            <label className="space-y-1 text-[10px] font-medium text-muted-foreground">
+                              名称
+                              <Input value={ruleForm.label} onChange={(event) => setRuleForm({ ...ruleForm, label: event.target.value })} className="h-8 text-xs" placeholder="角色一致性" />
+                            </label>
+                            <label className="space-y-1 text-[10px] font-medium text-muted-foreground">
+                              Key
+                              <Input value={ruleForm.key} onChange={(event) => setRuleForm({ ...ruleForm, key: event.target.value })} className="h-8 font-mono text-xs" placeholder="character_consistency" />
+                            </label>
+                            <label className="space-y-1 text-[10px] font-medium text-muted-foreground">
+                              分类
+                              <Input value={ruleForm.category} onChange={(event) => setRuleForm({ ...ruleForm, category: event.target.value })} className="h-8 text-xs" placeholder="人物 / 审核 / 平台 / 交付" />
+                            </label>
+                            <label className="space-y-1 text-[10px] font-medium text-muted-foreground">
+                              提示词角色
+                              <Select value={ruleForm.prompt_role} onValueChange={(value) => setRuleForm({ ...ruleForm, prompt_role: value as PromptRole })}>
+                                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {Object.entries(PROMPT_ROLE_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </label>
+                          </div>
+                          <label className="mt-2 block space-y-1 text-[10px] font-medium text-muted-foreground">
+                            规范内容
+                            <Textarea value={ruleForm.value} onChange={(event) => setRuleForm({ ...ruleForm, value: event.target.value })} className="min-h-24 text-xs" placeholder="写清楚会进入提示词的项目级规则。" />
+                          </label>
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+                              <label className="inline-flex items-center gap-1.5">
+                                <input type="checkbox" checked={ruleForm.enabled} onChange={(event) => setRuleForm({ ...ruleForm, enabled: event.target.checked })} />
+                                启用
+                              </label>
+                              <label className="inline-flex items-center gap-1.5">
+                                <input type="checkbox" checked={ruleForm.required} onChange={(event) => setRuleForm({ ...ruleForm, required: event.target.checked })} />
+                                标记必选
+                              </label>
+                            </div>
+                            <div className="flex gap-1.5">
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setRuleForm(null)}>取消</Button>
+                              <Button size="sm" className="h-7 gap-1.5 text-xs" loading={savingRule} onClick={saveRuleForm}>
+                                <Save size={12} />
+                                保存规范
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="mt-3 space-y-2">
+                        {customRules.length === 0 ? (
+                          <EmptyBlock compact title="暂无扩展规范" detail="新增一条规范后，它会按启用状态进入提示词预览。" />
+                        ) : customRules.map((rule) => (
+                          <div key={rule.id} className={cn('rounded-md border p-3', rule.enabled ? 'border-border bg-background' : 'border-dashed border-border bg-muted/30 opacity-80')}>
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <p className="text-xs font-semibold text-foreground">{rule.label}</p>
+                                  <Badge variant="outline" className="h-5 rounded-full px-1.5 text-[9px]">{rule.category}</Badge>
+                                  <Badge variant="secondary" className="h-5 rounded-full px-1.5 text-[9px]">{PROMPT_ROLE_LABELS[rule.prompt_role]}</Badge>
+                                  {rule.required ? <Badge variant="warning" className="h-5 rounded-full px-1.5 text-[9px]">必选</Badge> : null}
+                                  <Badge variant={rule.enabled ? 'success' : 'outline'} className="h-5 rounded-full px-1.5 text-[9px]">{rule.enabled ? '启用' : '停用'}</Badge>
+                                </div>
+                                <p className="mt-1 font-mono text-[10px] text-muted-foreground">{rule.key}</p>
+                                <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-foreground">{rule.value || '未填写'}</p>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-1">
+                                <Button size="sm" variant="outline" className="h-7 px-2 text-[10px]" onClick={() => toggleRule(rule)}>{rule.enabled ? '停用' : '启用'}</Button>
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEditRuleForm(rule)} title="编辑规范"><Pencil size={13} /></Button>
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" loading={deletingRuleId === rule.id} onClick={() => deleteRule(rule)} title="删除规范"><Trash2 size={13} /></Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </Card>
                   </div>
+
+                  <Card className="min-h-0 self-start overflow-hidden rounded-lg border-border bg-card p-4 shadow-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground"><Eye size={14} />提示词预览</h2>
+                        <p className="mt-1 text-xs text-muted-foreground">这里展示最终会注入模型的项目规范片段。</p>
+                      </div>
+                      <Badge variant="secondary" className="text-[10px]">{enabledRuleCount} 条启用</Badge>
+                    </div>
+                    <pre className="mt-3 max-h-[620px] overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background p-3 text-xs leading-5 text-foreground">{promptPreview}</pre>
+                  </Card>
                 </section>
               )}
 
@@ -1235,8 +1133,8 @@ export default function ProjectStandardsPage() {
                   <Card className="min-h-0 overflow-hidden rounded-lg border-border bg-card p-4 shadow-sm">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
-                        <h2 className="text-sm font-semibold text-foreground">项目标准审阅</h2>
-                        <p className="mt-1 text-xs text-muted-foreground">这里只审阅 project_proposal 中的 project_style；确认后写入 Project 的全局设定字段。</p>
+                        <h2 className="text-sm font-semibold text-foreground">项目规范审阅</h2>
+                        <p className="mt-1 text-xs text-muted-foreground">审阅 project_proposal 中的 project_style，包含固定规范和扩展 custom_rules。</p>
                       </div>
                       <Badge variant="secondary" className="text-[10px]">draft {draftCounts.draft}</Badge>
                     </div>
@@ -1248,18 +1146,10 @@ export default function ProjectStandardsPage() {
                           读取草稿…
                         </div>
                       ) : drafts.length === 0 ? (
-                        <EmptyBlock title="暂无项目标准草稿" detail="从上方发起项目标准提案后，AI 对画幅、镜头、风格和节奏规则的建议会进入这里审阅。" />
+                        <EmptyBlock title="暂无项目规范草稿" detail="从上方发起项目规范提案后，AI 对核心规范和扩展规则的建议会进入这里审阅。" />
                       ) : drafts.map((draft) => {
-                        const proposalView = parseProjectProposalDraft(draft, pageKey, data)
+                        const proposalView = parseProjectProposalDraft(draft, pageKey)
                         const styleRows = parseProjectStyleDraftRows(draft, data.project)
-                        const referenceEntries = proposalView?.creativeReferences ?? []
-                        const assetEntries = proposalView?.assetSlots ?? []
-                        const allEntries = [...referenceEntries, ...assetEntries]
-                        const referenceOptions = proposalView ? draftReferenceOptions(proposalView) : []
-                        const referenceLabels = new Map(referenceOptions.map((option) => [option.value, option.label]))
-                        const handledEntries = allEntries.filter((entry) => entry.applied)
-                        const rejectedEntries = allEntries.filter((entry) => draftEntryDecisions[entry.key] === 'rejected')
-                        const unchangedEntries = allEntries.filter((entry) => entry.changeType === 'unchanged')
 
                         return (
                           <div key={draft.id} className="rounded-lg border border-border bg-background p-3 last:mb-0">
@@ -1270,7 +1160,7 @@ export default function ProjectStandardsPage() {
                               </div>
                               <div className="flex items-center gap-2">
                                 <Badge variant={draftStatusVariant(draft.status)} className="shrink-0 text-[10px]">{draftStatusLabel(draft.status)}</Badge>
-                                <Badge variant="outline" className="text-[10px]">{allEntries.length} 条变更</Badge>
+                                <Badge variant="outline" className="text-[10px]">{styleRows.length} 条标准</Badge>
                               </div>
                             </div>
 
@@ -1279,20 +1169,16 @@ export default function ProjectStandardsPage() {
                                 <div className="rounded-md border border-sky-500/20 bg-sky-500/5 p-2.5">
                                   <div className="flex flex-wrap items-center justify-between gap-2">
                                     <div className="min-w-0">
-                                      <p className="text-[10px] font-medium text-foreground">项目标准提案</p>
+                                      <p className="text-[10px] font-medium text-foreground">项目规范提案</p>
                                       <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{proposalView.summary}</p>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
-                                      <Badge variant="secondary" className="h-5 rounded-full px-1.5">{styleRows.length} 条标准</Badge>
-                                      {allEntries.length > 0 ? <Badge variant="warning" className="h-5 rounded-full px-1.5">{allEntries.length} 条旧结构项</Badge> : null}
+                                      <Badge variant="secondary" className="h-5 rounded-full px-1.5">{styleRows.length} 条规范</Badge>
                                       <Badge variant="outline" className="h-5 rounded-full px-1.5">写入 Project</Badge>
-                                      {proposalView.mode === 'snapshot' ? <Badge variant="outline" className="h-5 rounded-full px-1.5">{unchangedEntries.length} 保留</Badge> : null}
-                                      <Badge variant="success" className="h-5 rounded-full px-1.5">{handledEntries.length} 已处理</Badge>
-                                      {rejectedEntries.length > 0 ? <Badge variant="destructive" className="h-5 rounded-full px-1.5">{rejectedEntries.length} 已忽略</Badge> : null}
                                     </div>
                                   </div>
                                   <div className="mt-2 flex items-center justify-between gap-2">
-                                    <p className="text-[10px] text-muted-foreground">提交后会写入 Project.aspect_ratio、Project.visual_style 和完整 project_style JSON。</p>
+                                    <p className="text-[10px] text-muted-foreground">提交后会写入 Project.aspect_ratio、Project.visual_style 和完整 project_style JSON，包括 custom_rules。</p>
                                     <div className="flex gap-1.5">
                                       <Button
                                         size="sm"
@@ -1302,7 +1188,7 @@ export default function ProjectStandardsPage() {
                                         disabled={draft.status === 'applied' || draft.status === 'accepted' || styleRows.length === 0}
                                       >
                                         <CheckCircle2 size={12} />
-                                        应用标准
+                                        应用规范
                                       </Button>
                                     </div>
                                   </div>
@@ -1324,86 +1210,6 @@ export default function ProjectStandardsPage() {
                                 ) : (
                                   <div className="rounded-md border border-dashed border-border bg-background px-3 py-4 text-[10px] text-muted-foreground">
                                     这份草稿还没有填写 project_style。
-                                  </div>
-                                )}
-
-                                {allEntries.length > 0 ? (
-                                  <div className="space-y-2">
-                                    <p className="text-[10px] font-medium text-amber-700 dark:text-amber-300">兼容旧草稿：以下设定/素材需求项不属于新的 project_proposal 边界，请迁移到设定工作台或素材需求工作台。</p>
-                                    {allEntries.map((entry) => {
-                                      const isHandled = entry.applied
-                                      const isRejected = draftEntryDecisions[entry.key] === 'rejected'
-                                      const rows = buildProjectProposalEntryDiffRows(entry, data, referenceLabels)
-                                      return (
-                                        <div key={entry.key} className={cn(
-                                          'rounded-md border px-2.5 py-2',
-                                          entry.changeType === 'deleted'
-                                            ? 'border-rose-500/40 bg-rose-500/5'
-                                            : entry.changeType === 'unchanged'
-                                              ? 'border-border/60 bg-muted/20'
-                                              : 'border-border/70 bg-card',
-                                        )}>
-                                          <div className="flex flex-wrap items-start justify-between gap-2">
-                                            <div className="min-w-0">
-                                              <div className="flex flex-wrap items-center gap-1.5">
-                                                <span className="text-[10px] font-medium text-foreground">{formatDraftEntry(entry)}</span>
-                                                <Badge variant={entry.changeType === 'deleted' ? 'destructive' : entry.changeType === 'added' ? 'secondary' : 'outline'} className="h-5 rounded-full px-1.5 text-[9px]">
-                                                  {entry.changeType === 'deleted' ? <Trash2 size={9} /> : null}
-                                                  {draftEntryChangeLabel(entry)}
-                                                </Badge>
-                                                {entry.inferred ? <Badge variant="outline" className="h-5 rounded-full px-1.5 text-[9px]">缺席推断</Badge> : null}
-                                                <Badge variant="outline" className="h-5 rounded-full px-1.5 text-[9px]">{draftEntryLabel(entry)}</Badge>
-                                                {isHandled ? <Badge variant="success" className="h-5 rounded-full px-1.5 text-[9px]">已处理</Badge> : null}
-                                                {isRejected ? <Badge variant="destructive" className="h-5 rounded-full px-1.5 text-[9px]">已忽略</Badge> : null}
-                                              </div>
-                                              <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{entry.detail}</p>
-                                              <p className="mt-1 text-[10px] leading-4 text-amber-700 dark:text-amber-300">
-                                                项目标准工作台不再提交设定或素材需求；请在对应工作台新建/导入为 setting_proposal 或 asset_proposal 后审阅。
-                                              </p>
-                                            </div>
-                                            <div className="flex shrink-0 items-center gap-1.5">
-                                              {isRejected ? (
-                                                <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => clearDraftEntryDecision(entry.key)}>
-                                                  恢复
-                                                </Button>
-                                              ) : (
-                                                <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => setDraftEntryDecision(entry.key, 'rejected')}>
-                                                  忽略
-                                                </Button>
-                                              )}
-                                            </div>
-                                          </div>
-
-                                          {rows.length > 0 ? (
-                                            <div className="mt-2 space-y-1 rounded border border-dashed border-border/60 bg-muted/20 px-2 py-1">
-                                              {rows.map((row, index) => (
-                                                <div key={`${entry.key}-${row.label}-${index}`} className="flex items-start gap-1.5 text-[10px] leading-4">
-                                                  <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-muted-foreground">{row.label}</span>
-                                                  <span className={cn('min-w-0 flex-1 truncate', row.before ? 'line-through text-muted-foreground' : 'text-muted-foreground')}>
-                                                    {row.before || '新增'}
-                                                  </span>
-                                                  <ArrowRight size={9} className="mt-0.5 shrink-0 text-muted-foreground" />
-                                                  <span className={cn(
-                                                    'min-w-0 flex-1 truncate',
-                                                    row.tone === 'added' ? 'text-emerald-700 dark:text-emerald-300' : row.tone === 'deleted' ? 'text-rose-700 dark:text-rose-300' : 'text-foreground',
-                                                  )}>
-                                                    {row.after || '未填写'}
-                                                  </span>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          ) : (
-                                            <div className="mt-2 rounded border border-dashed border-border/60 bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground">
-                                              没有可展示的字段差异。
-                                            </div>
-                                          )}
-                                        </div>
-                                      )
-                                    })}
-                                  </div>
-                                ) : (
-                                  <div className="rounded-md border border-dashed border-border bg-background px-3 py-4 text-[10px] text-muted-foreground">
-                                    这份草稿没有可展示的 diff。
                                   </div>
                                 )}
 
@@ -1449,18 +1255,6 @@ export default function ProjectStandardsPage() {
   )
 }
 
-function MiniMetric({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string | number }) {
-  return (
-    <div className="rounded-md border border-border bg-card px-3 py-2">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Icon size={12} />
-        {label}
-      </div>
-      <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">{value}</p>
-    </div>
-  )
-}
-
 function EmptyBlock({ title, detail, compact = false }: { title: string; detail: string; compact?: boolean }) {
   return (
     <div className={cn('rounded-md border border-dashed border-border bg-background text-center', compact ? 'px-3 py-4' : 'px-4 py-6')}>
@@ -1468,15 +1262,4 @@ function EmptyBlock({ title, detail, compact = false }: { title: string; detail:
       <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p>
     </div>
   )
-}
-
-function dedupeDrafts(drafts: AgentDraft[]) {
-  const seen = new Set<string>()
-  const result: AgentDraft[] = []
-  for (const draft of drafts) {
-    if (seen.has(draft.id)) continue
-    seen.add(draft.id)
-    result.push(draft)
-  }
-  return result
 }

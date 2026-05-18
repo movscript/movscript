@@ -16,6 +16,7 @@ import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
 import { selectLatestDraftArtifact } from '@/lib/agentArtifacts'
 import { selectLatestGeneratedResource } from '@/lib/agentGenerationArtifacts'
+import { invalidateAssetCandidateConsumers } from '@/lib/assetCandidateQueryInvalidation'
 import { localAgentClient, type AgentDraft } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
@@ -276,6 +277,36 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['semantic-asset-slots-page', projectId] }),
   })
 
+  const lockCandidateMutation = useMutation({
+    mutationFn: async ({ row, candidate }: { row: AssetSlotViewModel; candidate: AssetSlotCandidateRecord }) => {
+      if (!projectId) throw new Error('请先选择项目')
+      if (!candidate.candidate_asset_slot_id) throw new Error('候选缺少素材位')
+      if (!assetSlotHasLoadedResource(candidate.candidate_asset_slot)) throw new Error('候选资源不存在或未加载')
+      await api.patch(`/projects/${projectId}/entities/asset-slot-candidates/${candidate.ID}`, candidatePatchPayload(row.slot.ID, candidate, 'selected'))
+    },
+    onSuccess: () => {
+      invalidateAssetCandidateConsumers(queryClient, projectId)
+      toast.success('素材候选已锁定')
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : '锁定候选失败')
+    },
+  })
+  const rejectCandidateMutation = useMutation({
+    mutationFn: async ({ row, candidate }: { row: AssetSlotViewModel; candidate: AssetSlotCandidateRecord }) => {
+      if (!projectId) throw new Error('请先选择项目')
+      if (!candidate.candidate_asset_slot_id) throw new Error('候选缺少素材位')
+      await api.patch(`/projects/${projectId}/entities/asset-slot-candidates/${candidate.ID}`, candidatePatchPayload(row.slot.ID, candidate, 'rejected'))
+    },
+    onSuccess: () => {
+      invalidateAssetCandidateConsumers(queryClient, projectId)
+      toast.success('素材候选已拒绝')
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : '拒绝候选失败')
+    },
+  })
+
   const createSlotMutation = useMutation({
     mutationFn: () => {
       if (!projectId) throw new Error('请先选择项目')
@@ -302,8 +333,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     mutationFn: (payload: Record<string, string | number | boolean | null>) =>
       api.post(`/projects/${projectId}/entities/asset-slot-candidates`, payload).then((r) => r.data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['semantic-asset-slot-candidates-page', projectId] })
-      queryClient.invalidateQueries({ queryKey: ['semantic-asset-slots-page', projectId] })
+      invalidateAssetCandidateConsumers(queryClient, projectId)
     },
   })
 
@@ -325,11 +355,8 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
       })
     },
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['resources'] }),
-        queryClient.invalidateQueries({ queryKey: ['semantic-asset-slots-page', projectId] }),
-        queryClient.invalidateQueries({ queryKey: ['semantic-asset-slot-candidates-page', projectId] }),
-      ])
+      await queryClient.invalidateQueries({ queryKey: ['resources'] })
+      invalidateAssetCandidateConsumers(queryClient, projectId)
       toast.success('候选已上传')
     },
     onError: (error) => {
@@ -479,7 +506,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   const selectedCluster = filteredClusters.find((cluster) => (cluster.reference?.ID ?? 0) === (selectedReferenceId ?? 0)) ?? filteredClusters[0] ?? null
 
   const missingCount = visibleSlots.filter((slot) => normalizeSlotStatus(slot.status) === 'missing').length
-  const candidateCount = visibleSlots.filter((slot) => normalizeSlotStatus(slot.status) === 'candidate').length
+  const candidateCount = rows.filter(rowHasActiveAssetCandidates).length
   const lockedCount = visibleSlots.filter((slot) => normalizeSlotStatus(slot.status) === 'locked').length
   const waivedCount = visibleSlots.filter((slot) => normalizeSlotStatus(slot.status) === 'waived').length
 
@@ -503,12 +530,14 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     setFilter({ reference_id: null, asset_slot_id: null, selected: null })
   }
 
-  function lockToSlot(candidateSlotID: number) {
+  function lockCandidate(candidate: AssetSlotCandidateRecord) {
     if (!selected) return
-    updateSlotMutation.mutate({
-      id: selected.slot.ID,
-      payload: { status: 'locked', locked_asset_slot_id: candidateSlotID },
-    })
+    lockCandidateMutation.mutate({ row: selected, candidate })
+  }
+
+  function rejectCandidate(candidate: AssetSlotCandidateRecord) {
+    if (!selected) return
+    rejectCandidateMutation.mutate({ row: selected, candidate })
   }
 
   function triggerUpload() {
@@ -643,6 +672,8 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
       prepAuditLaunching={prepAuditLaunching}
       setWorkspaceView={setWorkspaceView}
       updateSlotMutationPending={updateSlotMutation.isPending}
+      lockCandidatePending={lockCandidateMutation.isPending}
+      rejectCandidatePending={rejectCandidateMutation.isPending}
       addCandidateMutationPending={addCandidateMutation.isPending}
       uploadCandidatePending={uploadCandidateMutation.isPending}
       openCanvasPending={openCanvasMutation.isPending}
@@ -665,7 +696,8 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
         setNewReferenceEditKey(null)
         setFilter({ reference_id: null, asset_slot_id: null, selected: null })
       }}
-      onLock={lockToSlot}
+      onLock={lockCandidate}
+      onReject={rejectCandidate}
       onUploadCandidate={triggerUpload}
       onGenerateProposal={generateCandidate}
       onGenerateMedia={generateMediaCandidate}
@@ -746,6 +778,8 @@ function PreProductionWorkspace({
   prepAuditLaunching,
   setWorkspaceView,
   updateSlotMutationPending,
+  lockCandidatePending,
+  rejectCandidatePending,
   addCandidateMutationPending,
   uploadCandidatePending,
   openCanvasPending,
@@ -757,6 +791,7 @@ function PreProductionWorkspace({
   onReferenceSaved,
   onReferenceDeleted,
   onLock,
+  onReject,
   onUploadCandidate,
   onGenerateProposal,
   onGenerateMedia,
@@ -791,6 +826,8 @@ function PreProductionWorkspace({
   prepAuditLaunching: boolean
   setWorkspaceView: (view: 'main' | 'review') => void
   updateSlotMutationPending: boolean
+  lockCandidatePending: boolean
+  rejectCandidatePending: boolean
   addCandidateMutationPending: boolean
   uploadCandidatePending: boolean
   openCanvasPending: boolean
@@ -801,7 +838,8 @@ function PreProductionWorkspace({
   onDeleted: () => void
   onReferenceSaved: (record: SemanticEntityRecord) => void
   onReferenceDeleted: () => void
-  onLock: (candidateSlotID: number) => void
+  onLock: (candidate: AssetSlotCandidateRecord) => void
+  onReject: (candidate: AssetSlotCandidateRecord) => void
   onUploadCandidate: () => void
   onGenerateProposal: (kind: CandidateGenerationKind) => void
   onGenerateMedia: (kind: CandidateGenerationKind) => void
@@ -812,7 +850,7 @@ function PreProductionWorkspace({
   onSelectReference: (referenceId: number) => void
 }) {
   const clusterRows = selectedCluster?.rows ?? []
-  const busy = updateSlotMutationPending || addCandidateMutationPending || uploadCandidatePending || openCanvasPending || generateCandidatePending
+  const busy = updateSlotMutationPending || lockCandidatePending || rejectCandidatePending || addCandidateMutationPending || uploadCandidatePending || openCanvasPending || generateCandidatePending
   const headerActionButtonClass = 'h-8 w-[132px] justify-center gap-1.5 text-xs'
   const creatingReference = Boolean(newReferenceEditKey)
   return (
@@ -925,6 +963,7 @@ function PreProductionWorkspace({
                 <AssetSlotDetail
                   row={selected}
                   onLock={onLock}
+                  onReject={onReject}
                   onUploadCandidate={onUploadCandidate}
                   onGenerateCandidate={onGenerateProposal}
                   onGenerateMediaCandidate={onGenerateMedia}
@@ -1310,6 +1349,7 @@ function AssetSlotCard({ row, selected, onSelect }: { row: AssetSlotViewModel; s
 function AssetSlotDetail({
   row,
   onLock,
+  onReject,
   onUploadCandidate,
   onGenerateCandidate,
   onGenerateMediaCandidate,
@@ -1320,7 +1360,8 @@ function AssetSlotDetail({
   generatingKind,
 }: {
   row: AssetSlotViewModel | null
-  onLock: (candidateSlotID: number) => void
+  onLock: (candidate: AssetSlotCandidateRecord) => void
+  onReject: (candidate: AssetSlotCandidateRecord) => void
   onUploadCandidate: () => void
   onGenerateCandidate: (kind: CandidateGenerationKind) => void
   onGenerateMediaCandidate: (kind: CandidateGenerationKind) => void
@@ -1407,7 +1448,8 @@ function AssetSlotDetail({
               key={candidate.ID}
               candidate={candidate}
               selected={slot.locked_asset_slot_id === candidate.candidate_asset_slot_id || candidate.status === 'selected'}
-              onConfirm={() => candidate.candidate_asset_slot_id && onLock(candidate.candidate_asset_slot_id)}
+              onConfirm={() => onLock(candidate)}
+              onReject={() => onReject(candidate)}
               busy={busy}
             />
           ))}
@@ -1417,8 +1459,21 @@ function AssetSlotDetail({
   )
 }
 
-function CandidateRow({ candidate, selected, onConfirm, busy }: { candidate: AssetSlotCandidateRecord; selected: boolean; onConfirm: () => void; busy: boolean }) {
+function CandidateRow({
+  candidate,
+  selected,
+  onConfirm,
+  onReject,
+  busy,
+}: {
+  candidate: AssetSlotCandidateRecord
+  selected: boolean
+  onConfirm: () => void
+  onReject: () => void
+  busy: boolean
+}) {
   const slot = candidate.candidate_asset_slot
+  const canLock = selected || assetSlotHasLoadedResource(slot)
   return (
     <div className={cn('rounded-md border p-2', selected ? 'border-primary bg-primary/5' : 'border-border bg-background')}>
       <div className="flex gap-2">
@@ -1426,25 +1481,49 @@ function CandidateRow({ candidate, selected, onConfirm, busy }: { candidate: Ass
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground">{slot?.name || `素材需求 #${candidate.candidate_asset_slot_id}`}</p>
           <p className="truncate text-xs text-muted-foreground">{candidate.note || sourceTypeLabel(candidate.source_type)}</p>
+          {slot && !assetSlotHasLoadedResource(slot) ? (
+            <p className="mt-0.5 truncate text-xs text-amber-600 dark:text-amber-300">候选资源不存在或未加载，暂不能锁定。</p>
+          ) : null}
         </div>
       </div>
-      <Button size="sm" className="mt-2 w-full" disabled={selected || busy || !candidate.candidate_asset_slot_id} onClick={onConfirm}>
-        {selected ? '已锁定' : '锁定此候选'}
-      </Button>
+      <div className="mt-2 grid grid-cols-2 gap-1.5">
+        <Button size="sm" disabled={selected || busy || !candidate.candidate_asset_slot_id || !canLock} onClick={onConfirm}>
+          {selected ? '已锁定' : canLock ? '锁定此候选' : '缺资源'}
+        </Button>
+        <Button size="sm" variant="outline" disabled={selected || busy || !candidate.candidate_asset_slot_id} onClick={onReject}>
+          拒绝
+        </Button>
+      </div>
     </div>
   )
+}
+
+function assetSlotHasLoadedResource(slot?: AssetSlotRecord) {
+  return Boolean(slot?.resource?.ID)
 }
 
 function buildRows(slots: AssetSlotRecord[], candidates: AssetSlotCandidateRecord[], slotById: Map<number, AssetSlotRecord>): AssetSlotViewModel[] {
   return slots.map((slot) => {
     const kind = normalizeAssetKind(slot.kind)
     const slotCandidates = candidates
-      .filter((candidate) => candidate.asset_slot_id === slot.ID)
+      .filter((candidate) => candidate.asset_slot_id === slot.ID && candidate.status !== 'rejected')
       .map((candidate) => ({ ...candidate, candidate_asset_slot: candidate.candidate_asset_slot ?? (candidate.candidate_asset_slot_id ? slotById.get(candidate.candidate_asset_slot_id) : undefined) }))
     const lockedSlot = slot.locked_asset_slot ?? (slot.locked_asset_slot_id ? slotById.get(slot.locked_asset_slot_id) : undefined)
     const searchText = [slot.name, assetKindLabel(kind), slot.kind, slot.status, slot.description, slot.prompt_hint, slotScopeLabel(slot), lockedSlot?.name].filter(Boolean).join(' ').toLowerCase()
     return { slot, candidates: slotCandidates, lockedSlot, searchText, kind, hasResource: Boolean(slot.resource_id || slot.resource) }
   })
+}
+
+function candidatePatchPayload(assetSlotId: number, candidate: AssetSlotCandidateRecord, status: 'selected' | 'rejected') {
+  return {
+    asset_slot_id: candidate.asset_slot_id ?? assetSlotId,
+    candidate_asset_slot_id: candidate.candidate_asset_slot_id ?? 0,
+    score: candidate.score ?? 0,
+    status,
+    ...(candidate.source_type ? { source_type: candidate.source_type } : {}),
+    ...(candidate.source_id !== undefined ? { source_id: candidate.source_id } : {}),
+    ...(candidate.note ? { note: candidate.note } : {}),
+  }
 }
 
 function buildReferenceAssetClusters(references: CreativeReferenceRecord[], rows: AssetSlotViewModel[]): ReferenceAssetCluster[] {
@@ -1472,7 +1551,7 @@ function buildReferenceAssetClusters(references: CreativeReferenceRecord[], rows
     cluster.rows.push(row)
     const status = normalizeSlotStatus(row.slot.status)
     if (status === 'missing') cluster.missing += 1
-    if (status === 'candidate') cluster.candidate += 1
+    if (rowHasActiveAssetCandidates(row)) cluster.candidate += 1
     if (status === 'locked') cluster.locked += 1
     cluster.searchText = `${cluster.searchText} ${row.searchText}`
   }
@@ -1480,6 +1559,10 @@ function buildReferenceAssetClusters(references: CreativeReferenceRecord[], rows
   return output
     .filter((cluster) => cluster.rows.length > 0 || cluster.reference)
     .sort((a, b) => b.rows.length - a.rows.length)
+}
+
+function rowHasActiveAssetCandidates(row: AssetSlotViewModel) {
+  return row.candidates.some((candidate) => candidate.status !== 'selected')
 }
 
 function isInternalCandidateSlot(slot: AssetSlotRecord) {
@@ -1705,22 +1788,38 @@ function runMediaCandidateGeneration(
     }
     if (!payload.run || (payload.run.status !== 'completed' && payload.run.status !== 'completed_with_warnings')) return
     const generated = selectLatestGeneratedResource(payload.run)
-    if (generated?.outputResourceId) {
-      options.addCandidateMutation.mutate({
-        asset_slot_id: row.slot.ID,
-        resource_id: generated.outputResourceId,
-        source_type: 'ai_agent',
-        source_id: generated.jobId ?? generated.outputResourceId,
-        status: 'candidate',
-        score: 0.8,
-        note: `AI 生成${kind === 'video' ? '视频' : '图片'}候选：resource #${generated.outputResourceId}`,
-      })
-      await Promise.all([
-        options.queryClient.invalidateQueries({ queryKey: ['resources'] }),
-        options.queryClient.invalidateQueries({ queryKey: ['semantic-asset-slots-page', options.projectId] }),
-        options.queryClient.invalidateQueries({ queryKey: ['semantic-asset-slot-candidates-page', options.projectId] }),
-      ])
-      toast.success(`已加入${kind === 'video' ? '视频' : '图片'}候选 #${generated.outputResourceId}`)
+    const outputResourceIds = generated?.outputResourceIds?.length
+      ? generated.outputResourceIds
+      : generated?.outputResourceId
+        ? [generated.outputResourceId]
+        : []
+    if (outputResourceIds.length > 0) {
+      const results = await Promise.allSettled(outputResourceIds.map((outputResourceId) => (
+        options.addCandidateMutation.mutateAsync({
+          asset_slot_id: row.slot.ID,
+          resource_id: outputResourceId,
+          source_type: 'ai_agent',
+          source_id: generated?.jobId ?? outputResourceId,
+          status: 'candidate',
+          score: 0.8,
+          note: `AI 生成${kind === 'video' ? '视频' : '图片'}候选：resource #${outputResourceId}`,
+        })
+      )))
+      const successCount = results.filter((result) => result.status === 'fulfilled').length
+      const failedCount = results.length - successCount
+      if (successCount > 0) {
+        await options.queryClient.invalidateQueries({ queryKey: ['resources'] })
+        invalidateAssetCandidateConsumers(options.queryClient, options.projectId)
+      }
+      if (failedCount > 0 && successCount > 0) {
+        toast.info(`已加入 ${successCount} 个候选，${failedCount} 个失败`)
+      } else if (failedCount > 0) {
+        toast.error('生成完成，但候选写入失败')
+      } else {
+        toast.success(outputResourceIds.length === 1
+          ? `已加入${kind === 'video' ? '视频' : '图片'}候选 #${outputResourceIds[0]}`
+          : `已加入 ${outputResourceIds.length} 个${kind === 'video' ? '视频' : '图片'}候选`)
+      }
     } else {
       toast.info('生成流程完成，但没有返回可加入的输出资源')
     }
@@ -1738,11 +1837,11 @@ function runMediaCandidateGeneration(
     projectId: options.projectId,
     clientInput: buildCommandFirstClientInput({
       message: [
-        `请为当前 asset slot 真实生成一个${kind === 'video' ? '视频' : '图片'}候选：${slotName}。`,
+        `请为当前 asset slot 真实生成一个或多个${kind === 'video' ? '视频' : '图片'}候选：${slotName}。`,
         `目标 assetSlotId=${row.slot.ID}，类型=${row.kind}。`,
         row.slot.description ? `素材说明：${row.slot.description}` : '',
         row.slot.prompt_hint ? `提示词线索：${row.slot.prompt_hint}` : '',
-        '这不是素材方案草稿，请走 asset_candidate_generation / visual_generation，创建生成任务并监控结果；如果得到 output_resource_id，请报告它。',
+        '这不是素材方案草稿，请走 asset_candidate_generation / visual_generation，创建生成任务并监控结果；如果得到一个或多个 output_resource_id，请逐个加入候选集并逐项报告写入结果。',
       ].filter(Boolean).join('\n'),
       labels: ['pre-production', 'asset-candidate-generation', kind === 'video' ? 'video-generation' : 'image-generation'],
       hints: {

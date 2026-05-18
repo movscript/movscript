@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import test from 'node:test'
+
+test('pre-production candidate lock keeps slot and candidate statuses in sync', () => {
+  const source = readFileSync(resolve('src/pages/pre-production/PreProductionPage.tsx'), 'utf8')
+  const invalidationSource = readFileSync(resolve('src/lib/assetCandidateQueryInvalidation.ts'), 'utf8')
+
+  assert.match(source, /entities\/asset-slot-candidates\/\$\{candidate\.ID\}/)
+  assert.match(source, /candidatePatchPayload\(row\.slot\.ID,\s*candidate,\s*'selected'\)/)
+  assert.match(source, /candidatePatchPayload\(row\.slot\.ID,\s*candidate,\s*'rejected'\)/)
+  assert.match(source, /if \(!assetSlotHasLoadedResource\(candidate\.candidate_asset_slot\)\) throw new Error\('候选资源不存在或未加载'\)/)
+  assert.match(source, /function assetSlotHasLoadedResource/)
+  assert.match(source, /Boolean\(slot\?\.resource\?\.ID\)/)
+  assert.match(source, /候选资源不存在或未加载，暂不能锁定。/)
+  assert.match(source, /canLock \? '锁定此候选' : '缺资源'/)
+  assert.match(source, /const rejectCandidateMutation = useMutation/)
+  assert.match(source, /toast\.success\('素材候选已拒绝'\)/)
+  assert.match(source, /onReject=\{\(\) => onReject\(candidate\)\}/)
+  assert.match(source, /candidate\.asset_slot_id === slot\.ID && candidate\.status !== 'rejected'/)
+  assert.match(source, /const candidateCount = rows\.filter\(rowHasActiveAssetCandidates\)\.length/)
+  assert.match(source, /if \(rowHasActiveAssetCandidates\(row\)\) cluster\.candidate \+= 1/)
+  assert.match(source, /return row\.candidates\.some\(\(candidate\) => candidate\.status !== 'selected'\)/)
+  assert.match(source, /const outputResourceIds = generated\?\.outputResourceIds\?\.length/)
+  assert.match(source, /outputResourceIds\.map\(\(outputResourceId\) =>/)
+  assert.match(source, /options\.addCandidateMutation\.mutateAsync/)
+  assert.match(source, /Promise\.allSettled/)
+  assert.match(source, /const successCount = results\.filter/)
+  assert.match(source, /toast\.info\(`已加入 \$\{successCount\} 个候选，\$\{failedCount\} 个失败`\)/)
+  assert.match(source, /已加入 \$\{outputResourceIds\.length\} 个/)
+  assert.match(source, /如果得到一个或多个 output_resource_id，请逐个加入候选集并逐项报告写入结果/)
+  assert.doesNotMatch(source, /locked_asset_slot_id:\s*candidate\.candidate_asset_slot_id/)
+  assert.doesNotMatch(source, /item\.ID === candidate\.ID \? 'selected' : 'rejected'/)
+  assert.match(source, /function candidatePatchPayload/)
+  assert.match(source, /status,\s*\.\.\.\(candidate\.source_type/)
+  assert.match(source, /invalidateAssetCandidateConsumers\(queryClient,\s*projectId\)/)
+  assert.match(invalidationSource, /'semantic-asset-slot-candidates-page'/)
+  assert.match(invalidationSource, /'project-overview'/)
+})

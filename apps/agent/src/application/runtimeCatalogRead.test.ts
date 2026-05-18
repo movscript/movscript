@@ -2,13 +2,16 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import type { AgentProfile, CapabilityPack, CatalogRegistry, SkillDefinition, ToolDefinition } from '../catalog/types.js'
+import type { AgentRun } from '../state/types.js'
 import { StaticToolRegistry } from '../tools/toolRegistry.js'
 import { RuntimeCatalogSnapshotRegistry, buildRuntimeCatalogSnapshot } from './runtimeCatalogSnapshot.js'
 import {
   getRuntimeDefaultAgentManifest,
   inspectRuntimeAgentCatalog,
+  listRuntimeProfileCatalog,
   listRuntimeRegisteredTools,
   listRuntimeSkillCatalog,
+  updateRuntimeActiveSkills,
 } from './runtimeCatalogRead.js'
 
 test('runtime catalog read helpers expose registered tools, skills, and default manifest without reshaping them', () => {
@@ -23,10 +26,12 @@ test('runtime catalog read helpers expose registered tools, skills, and default 
     },
   ])
   const skill = makeSkill('skill_a')
-  const layeredRegistry = makeRegistry({ skills: [skill] })
+  const profile = makeProfile()
+  const layeredRegistry = makeRegistry({ skills: [skill], profiles: [profile] })
 
   assert.deepEqual(listRuntimeRegisteredTools(registry).map((tool) => tool.name), ['movscript_test_tool'])
   assert.deepEqual(listRuntimeSkillCatalog(layeredRegistry), [skill])
+  assert.deepEqual(listRuntimeProfileCatalog(layeredRegistry), [profile])
   assert.equal(getRuntimeDefaultAgentManifest(DEFAULT_AGENT_MANIFEST), DEFAULT_AGENT_MANIFEST)
 })
 
@@ -101,6 +106,108 @@ test('inspectRuntimeAgentCatalog reads the captured run catalog snapshot and act
   assert.deepEqual(result.warnings, ['warning-a'])
 })
 
+test('updateRuntimeActiveSkills stores run skill state and reports missing ids', () => {
+  const skillA = makeSkill('skill_a')
+  const skillB = makeSkill('skill_b')
+  const snapshots = new RuntimeCatalogSnapshotRegistry(buildRuntimeCatalogSnapshot({
+    id: 'catalog_1',
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: new StaticToolRegistry([]),
+    layeredRegistry: makeRegistry({ skills: [skillA, skillB] }),
+  }))
+  snapshots.captureRun('run_1')
+  const run: AgentRun = {
+    id: 'run_1',
+    threadId: 'thread_1',
+    status: 'in_progress' as const,
+    policy: {
+      approvalMode: 'interactive' as const,
+      maxToolCalls: 20,
+      maxIterations: 8,
+      allowNetwork: false,
+      allowFileBytes: false,
+    },
+    metadata: { activeSkillIds: [skillA.id] },
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    steps: [],
+  }
+
+  const result = updateRuntimeActiveSkills({
+    catalogSnapshots: snapshots,
+    run,
+    request: { load: [skillB.id, 'missing_skill'], unload: [skillA.id], reason: 'switch specialist' },
+    now: () => '2026-01-01T00:00:01.000Z',
+  }) as Record<string, unknown>
+
+  assert.equal(result.status, 'partial')
+  assert.equal(result.eventType, 'skill.state_requested')
+  assert.deepEqual(result.loadedSkillIds, [skillB.id])
+  assert.deepEqual(result.unloadedSkillIds, [skillA.id])
+  assert.deepEqual(result.activeSkillIds, [skillB.id])
+  assert.deepEqual(result.missingSkillIds, ['missing_skill'])
+  assert.deepEqual((run.metadata?.skillState as any)?.loadedSkillIds, [skillB.id])
+})
+
+test('updateRuntimeActiveSkills expands dependencies and blocks conflicting style skills by default', () => {
+  const dependency = makeSkill('skill_dependency')
+  const styleA = makeSkill('style_a', {
+    conflicts: ['style_b'],
+    dependencies: [dependency.id],
+  })
+  const styleB = makeSkill('style_b', {
+    conflicts: ['style_a'],
+  })
+  const snapshots = new RuntimeCatalogSnapshotRegistry(buildRuntimeCatalogSnapshot({
+    id: 'catalog_1',
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: new StaticToolRegistry([]),
+    layeredRegistry: makeRegistry({ skills: [dependency, styleA, styleB] }),
+  }))
+  snapshots.captureRun('run_1')
+  const run: AgentRun = {
+    id: 'run_1',
+    threadId: 'thread_1',
+    status: 'in_progress' as const,
+    policy: {
+      approvalMode: 'interactive' as const,
+      maxToolCalls: 20,
+      maxIterations: 8,
+      allowNetwork: false,
+      allowFileBytes: false,
+    },
+    metadata: {},
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    steps: [],
+  }
+
+  const conflict = updateRuntimeActiveSkills({
+    catalogSnapshots: snapshots,
+    run,
+    request: { load: [styleA.id, styleB.id], reason: 'ambiguous director styles' },
+    now: () => '2026-01-01T00:00:01.000Z',
+  }) as Record<string, unknown>
+
+  assert.equal(conflict.status, 'conflict')
+  assert.equal(conflict.requiresUserInput, true)
+  assert.deepEqual(conflict.dependencySkillIds, [dependency.id])
+  assert.deepEqual(conflict.conflicts, [{ id: styleA.id, conflictId: styleB.id }])
+  assert.equal(run.metadata?.skillState, undefined)
+
+  const selected = updateRuntimeActiveSkills({
+    catalogSnapshots: snapshots,
+    run,
+    request: { load: [styleA.id], reason: 'user selected style A' },
+    now: () => '2026-01-01T00:00:02.000Z',
+  }) as Record<string, unknown>
+
+  assert.equal(selected.status, 'updated')
+  assert.deepEqual(selected.dependencySkillIds, [dependency.id])
+  assert.deepEqual(selected.loadedSkillIds, [dependency.id, styleA.id])
+  assert.deepEqual((run.metadata?.skillState as any)?.loadedSkillIds, [dependency.id, styleA.id])
+})
+
 function makeRegistry(input: {
   skills?: SkillDefinition[]
   tools?: ToolDefinition[]
@@ -118,7 +225,10 @@ function makeRegistry(input: {
   }
 }
 
-function makeSkill(id: string): SkillDefinition {
+function makeSkill(id: string, overrides: {
+  conflicts?: string[]
+  dependencies?: string[]
+} = {}): SkillDefinition {
   return {
     id,
     kind: 'persona',
@@ -128,6 +238,7 @@ function makeSkill(id: string): SkillDefinition {
     priority: 1,
     enabled: true,
     instructionTemplate: 'Use this skill.',
+    ...overrides,
   }
 }
 

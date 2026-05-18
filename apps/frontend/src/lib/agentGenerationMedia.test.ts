@@ -8,7 +8,7 @@ import {
   generationProgressListFromEvents,
   rawResourceFromUnknown,
   replayGenerationTrace,
-} from './agentGenerationMedia'
+} from './agentGenerationMedia.ts'
 
 test('rawResourceFromUnknown normalizes image and video resources', () => {
   assert.deepEqual(rawResourceFromUnknown({
@@ -116,6 +116,7 @@ test('generationProgressListFromEvents keeps the latest state per async job', ()
       progress: 100,
       terminal: true,
       outputResourceId: 77,
+      outputResourceIds: [77],
       message: 'done',
     },
     {
@@ -166,10 +167,52 @@ test('generationProgressListFromEvents keeps monitoring timestamps for async job
     progress: 100,
     terminal: true,
     outputResourceId: 310,
+    outputResourceIds: [310],
     firstSeenAt: '2026-05-09T08:00:00.000Z',
     updatedAt: '2026-05-09T08:00:12.000Z',
     completedAt: '2026-05-09T08:00:13.000Z',
   }])
+})
+
+test('generationProgressListFromEvents keeps multiple output resource ids', () => {
+  const states = generationProgressListFromEvents([
+    {
+      data: {
+        generation: {
+          jobId: 41,
+          status: 'succeeded',
+          stage: 'completed',
+          terminal: true,
+          output_resource_ids: [410, 411],
+        },
+      },
+    },
+  ])
+
+  assert.equal(states[0]?.outputResourceId, 410)
+  assert.deepEqual(states[0]?.outputResourceIds, [410, 411])
+})
+
+test('generationProgressListFromEvents derives output ids from output resource objects', () => {
+  const states = generationProgressListFromEvents([
+    {
+      data: {
+        generation: {
+          jobId: 42,
+          status: 'succeeded',
+          stage: 'completed',
+          terminal: true,
+          output_resources: [
+            { ID: 420, type: 'image' },
+            { id: 421, type: 'image' },
+          ],
+        },
+      },
+    },
+  ])
+
+  assert.equal(states[0]?.outputResourceId, 420)
+  assert.deepEqual(states[0]?.outputResourceIds, [420, 421])
 })
 
 test('generationMetadataByResourceIdFromEvents maps output media to provider metadata', () => {
@@ -210,6 +253,36 @@ test('generationMetadataByResourceIdFromEvents maps output media to provider met
     stage: 'completed',
   })
   assert.deepEqual(metadata.get(121), metadata.get(120))
+})
+
+test('generationMetadataByResourceIdFromEvents maps multiple output resources to provider metadata', () => {
+  const metadata = generationMetadataByResourceIdFromEvents([
+    {
+      data: {
+        generation: {
+          jobId: 22,
+          jobType: 'image',
+          providerName: 'Provider Multi',
+          status: 'succeeded',
+          stage: 'completed',
+          output_resource_ids: [220, 221],
+          output_resources: [
+            { ID: 220, type: 'image', name: 'a.png', url: '/r/220', size: 512, mime_type: 'image/png' },
+            { ID: 221, type: 'image', name: 'b.png', url: '/r/221', size: 512, mime_type: 'image/png' },
+          ],
+        },
+      },
+    },
+  ])
+
+  assert.deepEqual(metadata.get(220), {
+    jobId: 22,
+    jobType: 'image',
+    providerName: 'Provider Multi',
+    status: 'succeeded',
+    stage: 'completed',
+  })
+  assert.deepEqual(metadata.get(221), metadata.get(220))
 })
 
 test('replayGenerationTrace summarizes a provider trace replay', () => {

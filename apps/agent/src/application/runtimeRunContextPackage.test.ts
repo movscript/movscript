@@ -11,7 +11,7 @@ import {
 
 const setupRound = { roundId: 'round_0', roundIndex: 0, roundLabel: 'Setup', roundSource: 'setup' as const }
 
-test('resolveRuntimeRunContextPackage extracts project context, updates thread, and loads scoped memories', async () => {
+test('resolveRuntimeRunContextPackage extracts project context and skips memories for ordinary requests', async () => {
   const run = makeRun()
   const thread = makeThread()
   const traces: RuntimeRunContextPackageTraceInput[] = []
@@ -54,12 +54,53 @@ test('resolveRuntimeRunContextPackage extracts project context, updates thread, 
   assert.deepEqual(result.focusTimings, { totalMs: 8, focusMs: 8 })
   assert.equal(thread.projectId, 42)
   assert.deepEqual(updatedThreads.map((item) => item.projectId), [42])
-  assert.deepEqual(loadedQueries, [{ projectId: 42, query: 'write a scene' }])
+  assert.deepEqual(loadedQueries, [])
+  assert.deepEqual(result.memories, [])
+  assert.equal(result.memoryDurationMs, 0)
+  assert.equal(result.contextCompletedAt, 1028)
+  assert.deepEqual(traces, [])
+  assert.deepEqual(updatedRuns, [])
+})
+
+test('resolveRuntimeRunContextPackage loads scoped memories for memory-related requests', async () => {
+  const run = makeRun()
+  const thread = makeThread()
+  const traces: RuntimeRunContextPackageTraceInput[] = []
+  const loadedQueries: Array<{ projectId?: number; query?: string }> = []
+
+  const result = await resolveRuntimeRunContextPackage({
+    store: {
+      updateRun: () => {},
+      updateThread: () => {},
+    },
+    run,
+    thread,
+    command: parseAgentCommand('参考上次的偏好写一段'),
+    userMessage: '参考上次的偏好写一段',
+    setupRound,
+    timestampMs: makeClock(1100, 1115, 1120, 1128, 1131),
+    now: () => '2026-01-01T00:00:01.115Z',
+    mcpClient: new FakeFocusClient({
+      data: {
+        snapshot: {
+          project: { id: 42 },
+        },
+      },
+    }),
+    memoryManager: {
+      loadRelevantMemories: (query) => {
+        loadedQueries.push(query)
+        return [memory('mem_1', 'preference')]
+      },
+    },
+    recordTrace: (_run, trace) => traces.push(trace),
+  })
+
+  assert.deepEqual(loadedQueries, [{ projectId: 42, query: '参考上次的偏好写一段' }])
   assert.deepEqual(result.memories.map((item) => item.id), ['mem_1'])
   assert.equal(result.memoryDurationMs, 8)
-  assert.equal(result.contextCompletedAt, 1031)
-  assert.equal(traces[0]?.kind, 'memory')
-  assert.deepEqual(updatedRuns, [])
+  assert.equal(result.contextCompletedAt, 1131)
+  assert.equal(traces[0]?.title, 'Relevant memories loaded')
 })
 
 test('resolveRuntimeRunContextPackage keeps thread project unchanged when focus has no project id', async () => {
@@ -93,9 +134,7 @@ test('resolveRuntimeRunContextPackage keeps thread project unchanged when focus 
   assert.equal(result.context.currentProjectId, undefined)
   assert.equal(thread.projectId, undefined)
   assert.deepEqual(updatedThreads, [])
-  assert.equal(loadedQueries.length, 1)
-  assert.equal(loadedQueries[0]?.projectId, undefined)
-  assert.equal(loadedQueries[0]?.query, 'hello')
+  assert.deepEqual(loadedQueries, [])
 })
 
 test('resolveRuntimeRunContextPackage ignores invalid focus project ids at the package boundary', async () => {
@@ -111,8 +150,8 @@ test('resolveRuntimeRunContextPackage ignores invalid focus project ids at the p
     },
     run,
     thread,
-    command: parseAgentCommand('scope check'),
-    userMessage: 'scope check',
+    command: parseAgentCommand('memory scope check'),
+    userMessage: 'memory scope check',
     setupRound,
     timestampMs: makeClock(3000, 3001, 3002, 3003),
     now: () => '2026-01-01T00:00:03.001Z',
@@ -129,7 +168,7 @@ test('resolveRuntimeRunContextPackage ignores invalid focus project ids at the p
   assert.equal(result.context.currentProjectId, undefined)
   assert.equal(thread.projectId, undefined)
   assert.deepEqual(updatedThreads, [])
-  assert.deepEqual(loadedQueries, [{ query: 'scope check' }])
+  assert.deepEqual(loadedQueries, [{ query: 'memory scope check' }])
 })
 
 function makeRun(): AgentRun {

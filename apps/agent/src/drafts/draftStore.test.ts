@@ -318,13 +318,21 @@ test('validateDraft accepts canonical project standards proposal content', () =>
       mode: 'snapshot',
       summary: '定义项目级制作规范',
       proposal: {
-        creative_references: [],
-        asset_slots: [],
         project_style: {
           aspect_ratio: '9:16',
           shot_size_system: ['wide', 'medium', 'close-up', 'insert'],
           visual_style: '竖屏短剧写实风格，关键道具和人物表情必须清晰可读。',
           negative_rules: ['不要随机改脸', '不要压暗证据道具'],
+          custom_rules: [{
+            key: 'character_consistency',
+            label: '角色一致性',
+            category: '人物',
+            value: '主角发型、年龄感和服装气质必须保持一致。',
+            prompt_role: 'constraint',
+            enabled: true,
+            required: false,
+            order: 10,
+          }],
         },
       },
       impact_notes: [],
@@ -335,6 +343,67 @@ test('validateDraft accepts canonical project standards proposal content', () =>
   const validation = validateDraft(draft)
   assert.equal(validation.ok, true)
   assert.equal(validation.issues.filter((issue) => issue.severity === 'error').length, 0)
+})
+
+test('validateDraft rejects malformed project standards custom rules', () => {
+  const store = new InMemoryAgentDraftStore()
+  const draft = store.createDraft({
+    kind: 'project_proposal',
+    title: 'project standards proposal',
+    content: JSON.stringify({
+      schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
+      scope: 'project_proposal',
+      mode: 'snapshot',
+      summary: '定义项目级制作规范',
+      proposal: {
+        project_style: {
+          aspect_ratio: '9:16',
+          custom_rules: [{
+            key: '',
+            label: '角色一致性',
+            value: '',
+            prompt_role: 'bad_role',
+            enabled: 'yes',
+          }],
+        },
+      },
+      impact_notes: [],
+      createdAt: '2026-05-08T00:00:00.000Z',
+    }),
+  })
+
+  const validation = validateDraft(draft)
+  assert.equal(validation.ok, false)
+  assert.match(JSON.stringify(validation.issues), /custom_rules\.key/)
+  assert.match(JSON.stringify(validation.issues), /custom_rules\.value/)
+  assert.match(JSON.stringify(validation.issues), /prompt_role/)
+  assert.match(JSON.stringify(validation.issues), /enabled/)
+})
+
+test('validateDraft rejects project standards proposal list fields', () => {
+  const store = new InMemoryAgentDraftStore()
+  const draft = store.createDraft({
+    kind: 'project_proposal',
+    title: 'project standards proposal',
+    content: JSON.stringify({
+      schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
+      scope: 'project_proposal',
+      mode: 'snapshot',
+      summary: '定义项目级制作规范',
+      proposal: {
+        project_style: {
+          aspect_ratio: '9:16',
+        },
+        creative_references: [],
+      },
+      impact_notes: [],
+      createdAt: '2026-05-08T00:00:00.000Z',
+    }),
+  })
+
+  const validation = validateDraft(draft)
+  assert.equal(validation.ok, false)
+  assert.match(JSON.stringify(validation.issues), /outside project_proposal/)
 })
 
 test('validateDraft accepts canonical setting proposal content', () => {

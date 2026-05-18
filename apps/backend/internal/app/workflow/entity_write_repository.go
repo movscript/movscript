@@ -30,7 +30,11 @@ func (r *gormRepository) WriteEntityPorts(ctx context.Context, kind string, id u
 			return err
 		}
 		if kind == domainworkflow.EntityKindAssetSlot {
-			bindingIDs, err := txRepo.writeAssetSlotCandidates(ctx, id, values["candidates"], projectID, sourceType, meta)
+			candidateValue := assetSlotCandidatePortValue(values)
+			if result.PrimaryResourceID == nil {
+				result.PrimaryResourceID = firstEntityPortResourceID(candidateValue)
+			}
+			bindingIDs, err := txRepo.writeAssetSlotCandidates(ctx, id, candidateValue, projectID, sourceType, meta)
 			if err != nil {
 				return err
 			}
@@ -41,7 +45,7 @@ func (r *gormRepository) WriteEntityPorts(ctx context.Context, kind string, id u
 
 		bindingIDsByPort := map[string][]uint{}
 		for portID, value := range values {
-			if kind == domainworkflow.EntityKindAssetSlot && portID == "candidates" {
+			if kind == domainworkflow.EntityKindAssetSlot && assetSlotCandidateWritePort(portID) {
 				continue
 			}
 			field, ok := EntityFieldForPort(kind, portID)
@@ -85,6 +89,39 @@ func (r *gormRepository) WriteEntityPorts(ctx context.Context, kind string, id u
 		return result, err
 	}
 	return result, nil
+}
+
+func assetSlotCandidateWritePort(portID string) bool {
+	switch portID {
+	case "result", "image", "video", "audio", "candidates":
+		return true
+	default:
+		return false
+	}
+}
+
+func assetSlotCandidatePortValue(values map[string]EntityPortValue) EntityPortValue {
+	var merged EntityPortValue
+	for _, portID := range []string{"candidates", "result", "image", "video", "audio"} {
+		if value, ok := values[portID]; ok {
+			merged = mergeEntityPortValue(merged, value)
+		}
+	}
+	if strings.TrimSpace(merged.Type) == "" {
+		merged.Type = "resource"
+	}
+	return merged
+}
+
+func firstEntityPortResourceID(value EntityPortValue) *uint {
+	for _, resourceID := range value.ResourceIDs {
+		if resourceID == 0 {
+			continue
+		}
+		id := resourceID
+		return &id
+	}
+	return nil
 }
 
 func (r *gormRepository) writeEntityFields(ctx context.Context, kind string, id uint, values map[string]EntityPortValue) error {

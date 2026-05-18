@@ -50,6 +50,42 @@ test('buildDebugContext drops invalid project and production ids', () => {
   assert.deepEqual(context.projects, [{ id: 7, name: 'Valid project' }])
 })
 
+test('buildDebugContext keeps project standards fields for focus prompts', () => {
+  const context = buildDebugContext({
+    data: {
+      focus: {
+        project: {
+          id: 42,
+          name: 'Runtime Project',
+          aspect_ratio: '16:9',
+          visual_style: 'cinematic',
+          project_style: '{"custom_rules":[{"key":"qa","label":"QA","value":"Check outputs."}]}',
+        },
+      },
+    },
+  }, [], {
+    visibleMessage: 'context',
+    attachments: [],
+    uiSnapshot: {
+      project: {
+        id: 42,
+        name: 'UI Project',
+        aspect_ratio: '9:16',
+        visual_style: 'ui style',
+        project_style: '{"custom_rules":[]}',
+      },
+    },
+  })
+
+  assert.deepEqual(context.project, {
+    id: 42,
+    name: 'Runtime Project',
+    aspect_ratio: '16:9',
+    visual_style: 'cinematic',
+    project_style: '{"custom_rules":[{"key":"qa","label":"QA","value":"Check outputs."}]}',
+  })
+})
+
 test('buildDebugContext drops invalid user, resource, and attachment ids', () => {
   const context = buildDebugContext({
     data: {

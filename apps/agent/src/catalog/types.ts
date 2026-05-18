@@ -4,6 +4,8 @@ import type { ToolRiskLevel } from '../tools/toolRegistry.js'
 import type { KnowledgeCollection } from '../knowledge/types.js'
 
 export type SkillKind = 'persona' | 'workflow' | 'policy' | 'expertise'
+export type SkillLoadMode = 'core' | 'on_demand' | 'manual'
+export type SkillActivationScope = 'turn' | 'run' | 'thread'
 export type ToolSource = 'runtime' | 'plugin' | 'mcp'
 export type PackSource = 'builtin' | 'plugin' | 'mcp'
 export type ApprovalMode = 'never' | 'always' | 'on_write'
@@ -62,6 +64,15 @@ export interface SkillDefinitionBase {
   priority: number
   enabled: boolean
   instructionTemplate: string
+  loadMode?: SkillLoadMode
+  sourcePath?: string
+  tags?: string[]
+  aliases?: string[]
+  useWhen?: string[]
+  dependencies?: string[]
+  conflicts?: string[]
+  tokenEstimate?: number
+  activationScope?: SkillActivationScope
   toolRefs?: string[]
   schemaRefs?: string[]
   outputContract?: string
@@ -141,6 +152,7 @@ export interface ToolGrant {
 export interface ProfileLimits {
   maxActiveWorkflows?: number
   systemPromptCharLimit?: number
+  contextWindowCharLimit?: number
   maxRetrievedContextChars?: number
   maxKnowledgeCharsPerRun?: number
   maxKnowledgeChunksPerRun?: number

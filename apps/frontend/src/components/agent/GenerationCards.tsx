@@ -50,8 +50,8 @@ export function GenerationProgressCard({ state }: { state: GenerationProgressSta
       <p className="text-[11px] leading-relaxed text-muted-foreground">
         {message}
       </p>
-      {state.outputResourceId !== undefined && (
-        <p className="text-[10px] text-muted-foreground/80">输出资源 #{state.outputResourceId}</p>
+      {generationOutputResourceLabel(state, '输出资源') && (
+        <p className="text-[10px] text-muted-foreground/80">{generationOutputResourceLabel(state, '输出资源')}</p>
       )}
       {timing && (
         <p className="text-[10px] text-muted-foreground/80">{timing}</p>
@@ -88,7 +88,7 @@ export function GenerationJobSummaryCard({ jobs }: { jobs?: ChatGenerationJob[] 
                     {job.jobType ? ` · ${job.jobType}` : ''}
                   </p>
                   <p className="truncate text-[9px] text-muted-foreground">
-                    {[job.status, job.stage, job.outputResourceId !== undefined ? `资源 #${job.outputResourceId}` : undefined].filter(Boolean).join(' · ')}
+                    {[job.status, job.stage, generationOutputResourceLabel(job)].filter(Boolean).join(' · ')}
                   </p>
                   {(job.providerName || job.modelDisplay || job.modelIdentifier || job.modelConfigId !== undefined) && (
                     <p className="truncate text-[9px] text-muted-foreground">
@@ -347,7 +347,7 @@ export function GenerationTraceSummaryCard({ jobs }: { jobs?: ChatGenerationJob[
             {latest.jobType ? ` · ${latest.jobType}` : ''}
           </p>
           <p className="truncate text-[9px] text-muted-foreground">
-            {[latest.status, latest.stage, latest.outputResourceId !== undefined ? `资源 #${latest.outputResourceId}` : undefined].filter(Boolean).join(' · ')}
+            {[latest.status, latest.stage, generationOutputResourceLabel(latest)].filter(Boolean).join(' · ')}
           </p>
           {(latest.providerName || latest.modelDisplay || latest.modelIdentifier) && (
             <p className="truncate text-[9px] text-muted-foreground">
@@ -362,6 +362,16 @@ export function GenerationTraceSummaryCard({ jobs }: { jobs?: ChatGenerationJob[
       )}
     </div>
   )
+}
+
+function generationOutputResourceLabel(item: { outputResourceId?: number; outputResourceIds?: number[] }, prefix = '资源') {
+  const ids = item.outputResourceIds?.length
+    ? item.outputResourceIds
+    : item.outputResourceId !== undefined
+      ? [item.outputResourceId]
+      : []
+  if (ids.length === 0) return ''
+  return ids.length === 1 ? `${prefix} #${ids[0]}` : `${prefix} ${ids.map((id) => `#${id}`).join('、')}`
 }
 
 function generationDisplayLocale() {

@@ -13,6 +13,7 @@ const (
 
 	CandidateDecisionTypeAssetSlotCandidate = "asset_slot_candidate"
 	CandidateDecisionAccept                 = "accept"
+	CandidateDecisionReject                 = "reject"
 	CandidateDecisionStatusApplied          = "applied"
 	CandidateDecisionSourceManual           = "manual"
 

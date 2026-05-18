@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MovScript thread context summary v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "threadId",
+    "updatedAt",
+    "stablePreferences",
+    "acceptedFacts",
+    "artifactRefs",
+    "retrievedRefs",
+    "invalidatedRefs",
+    "openDecisions",
+    "recentRunRefs",
+    "summaryProvenance",
+    "compactStats"
+  ],
+  "properties": {
+    "schema": { "const": "movscript.thread-context-summary.v2" },
+    "threadId": { "type": "string", "minLength": 1 },
+    "updatedAt": { "type": "string", "minLength": 1 },
+    "userGoal": { "type": "string", "minLength": 1 },
+    "stablePreferences": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "acceptedFacts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/factRecord" }
+    },
+    "artifactRefs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/contextRef" }
+    },
+    "retrievedRefs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/contextRef" }
+    },
+    "invalidatedRefs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/contextRef" }
+    },
+    "openDecisions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "recentRunRefs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/recentRunRef" }
+    },
+    "summaryProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy", "runId", "createdAt", "factsRequireEvidence", "summariesAreAdvisory"],
+      "properties": {
+        "strategy": { "const": "deterministic" },
+        "runId": { "type": "string", "minLength": 1 },
+        "createdAt": { "type": "string", "minLength": 1 },
+        "factsRequireEvidence": { "const": true },
+        "summariesAreAdvisory": { "const": true }
+      }
+    },
+    "compactStats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recentRunRefCount",
+        "artifactRefCount",
+        "retrievedRefCount",
+        "acceptedFactCount",
+        "invalidatedRefCount",
+        "maxSummaryChars"
+      ],
+      "properties": {
+        "recentRunRefCount": { "type": "integer", "minimum": 0 },
+        "artifactRefCount": { "type": "integer", "minimum": 0 },
+        "retrievedRefCount": { "type": "integer", "minimum": 0 },
+        "acceptedFactCount": { "type": "integer", "minimum": 0 },
+        "invalidatedRefCount": { "type": "integer", "minimum": 0 },
+        "maxSummaryChars": { "type": "integer", "minimum": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "contextRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "id"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["knowledge", "memory", "draft", "tool_result", "project", "production", "asset_slot", "generation_job", "plan"]
+        },
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "hash": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1 },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "factRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "claim", "evidence", "source", "refs", "createdAt"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "claim": { "type": "string", "minLength": 1 },
+        "evidence": {
+          "type": "string",
+          "enum": ["verified", "runtime_state", "user_claimed", "draft", "advisory", "summary", "unknown"]
+        },
+        "source": {
+          "type": "string",
+          "enum": ["system", "catalog", "profile", "skill", "tool_result", "mcp", "backend", "draft", "memory", "knowledge", "user_input", "assistant_history", "thread_summary"]
+        },
+        "refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/contextRef" }
+        },
+        "createdAt": { "type": "string", "minLength": 1 }
+      }
+    },
+    "recentRunRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runId", "summary", "artifactRefs", "retrievedRefs"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1 },
+        "artifactRefs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/contextRef" }
+        },
+        "retrievedRefs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/contextRef" }
+        }
+      }
+    }
+  }
+}

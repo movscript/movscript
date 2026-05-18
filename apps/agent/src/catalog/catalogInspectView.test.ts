@@ -59,6 +59,8 @@ test('skill and tool summaries include optional internals only when requested', 
   const skill = workflowSkill()
   assert.equal((summarizeCatalogSkill(skill, false) as Record<string, unknown>).instructionTemplate, undefined)
   assert.equal((summarizeCatalogSkill(skill, true) as Record<string, unknown>).instructionTemplate, 'Do work')
+  assert.deepEqual((summarizeCatalogSkill(skill, false) as Record<string, unknown>).tags, ['writing'])
+  assert.equal((summarizeCatalogSkill(skill, false) as Record<string, unknown>).loadMode, 'on_demand')
 
   const tool = toolDefinition()
   assert.equal((summarizeCatalogTool(tool, false) as Record<string, unknown>).inputSchema, undefined)
@@ -107,6 +109,8 @@ test('inspectAgentCatalogView builds summary and detail views from a catalog sna
   assert.equal(summary.catalogSnapshot.id, 'snapshot_1')
   assert.deepEqual(summary.enabledPackIds, ['pack.a'])
   assert.deepEqual(summary.activeSkillIds, ['skill.workflow'])
+  assert.deepEqual(summary.installedSkills.map((skill: any) => skill.id), ['skill.workflow'])
+  assert.equal(summary.installedSkills[0].loadMode, 'on_demand')
   assert.deepEqual(summary.toolNames, ['tool.a'])
   assert.deepEqual(summary.warnings, ['warning'])
 
@@ -208,6 +212,10 @@ function workflowSkill(overrides: Partial<SkillDefinition> = {}): SkillDefinitio
     priority: 10,
     enabled: true,
     instructionTemplate: 'Do work',
+    loadMode: 'on_demand',
+    tags: ['writing'],
+    aliases: ['writer'],
+    useWhen: ['writing scenes'],
     triggers: [{ kind: 'always' }],
     toolRefs: ['tool.a'],
     ...overrides,

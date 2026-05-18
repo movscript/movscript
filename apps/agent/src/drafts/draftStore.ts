@@ -770,10 +770,12 @@ function validateProjectProposalDraft(
   }
 
   if (options.kind === 'project_standards') {
-    validateEmptyProjectProposalArray('creative_references', proposal.creative_references, issues)
-    validateEmptyProjectProposalArray('asset_slots', proposal.asset_slots, issues)
+    validateAbsentProjectProposalArray('creative_references', proposal.creative_references, issues)
+    validateAbsentProjectProposalArray('asset_slots', proposal.asset_slots, issues)
     if (!isRecord(proposal.project_style)) {
       issues.push({ path: '/proposal/project_style', message: 'Project standards proposal requires proposal.project_style.', severity: 'error' })
+    } else {
+      validateProjectStyleCustomRules(proposal.project_style.custom_rules, '/proposal/project_style/custom_rules', issues)
     }
   } else {
     validateProjectProposalPatchArray('creative_references', proposal.creative_references, issues)
@@ -793,6 +795,52 @@ function validateProjectProposalDraft(
         severity: 'error',
       })
   }
+}
+
+function validateProjectStyleCustomRules(
+  value: unknown,
+  basePath: string,
+  issues: AgentDraftValidationIssue[],
+): void {
+  if (value === undefined) return
+  if (!Array.isArray(value)) {
+    issues.push({ path: basePath, message: 'custom_rules must be an array when present.', severity: 'error' })
+    return
+  }
+  const allowedPromptRoles = new Set(['context', 'style', 'constraint', 'negative', 'quality_gate'])
+  value.forEach((item, index) => {
+    const itemPath = `${basePath}/${index}`
+    if (!isRecord(item)) {
+      issues.push({ path: itemPath, message: 'custom_rules entries must be objects.', severity: 'error' })
+      return
+    }
+    for (const key of ['key', 'label', 'value'] as const) {
+      if (typeof item[key] !== 'string' || !item[key].trim()) {
+        issues.push({ path: `${itemPath}/${key}`, message: `custom_rules.${key} must be a non-empty string.`, severity: 'error' })
+      }
+    }
+    if (item.prompt_role !== undefined && (typeof item.prompt_role !== 'string' || !allowedPromptRoles.has(item.prompt_role))) {
+      issues.push({ path: `${itemPath}/prompt_role`, message: 'custom_rules.prompt_role must be one of context, style, constraint, negative, quality_gate.', severity: 'error' })
+    }
+    if (item.enabled !== undefined && typeof item.enabled !== 'boolean') {
+      issues.push({ path: `${itemPath}/enabled`, message: 'custom_rules.enabled must be a boolean when present.', severity: 'error' })
+    }
+    if (item.required !== undefined && typeof item.required !== 'boolean') {
+      issues.push({ path: `${itemPath}/required`, message: 'custom_rules.required must be a boolean when present.', severity: 'error' })
+    }
+    if (item.order !== undefined && (typeof item.order !== 'number' || !Number.isFinite(item.order))) {
+      issues.push({ path: `${itemPath}/order`, message: 'custom_rules.order must be a finite number when present.', severity: 'error' })
+    }
+  })
+}
+
+function validateAbsentProjectProposalArray(
+  key: 'creative_references' | 'asset_slots',
+  value: unknown,
+  issues: AgentDraftValidationIssue[],
+): void {
+  if (value === undefined) return
+  issues.push({ path: `/proposal/${key}`, message: `${key} is outside project_proposal. Use the dedicated proposal kind instead.`, severity: 'error' })
 }
 
 function validateEmptyProjectProposalArray(

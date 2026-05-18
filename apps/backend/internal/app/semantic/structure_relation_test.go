@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/movscript/movscript/internal/app/coregraph"
 	relationapp "github.com/movscript/movscript/internal/app/relation"
 	domainrelation "github.com/movscript/movscript/internal/domain/relation"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/testutil"
 )
@@ -199,23 +201,33 @@ func TestKeyframePatchExpiresPreviousStructureAndAssetRelationIdentities(t *test
 	service := NewService(db)
 	ctx := context.Background()
 	firstResourceID := uint(101)
-	keyframe, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
+	keyframeModel := persistencemodel.Keyframe{
+		ProjectID:     1,
 		ContentUnitID: &firstUnit.ID,
 		ResourceID:    &firstResourceID,
 		Title:         "Keyframe",
 		Status:        "draft",
-	})
-	if err != nil {
+	}
+	if err := db.Create(&keyframeModel).Error; err != nil {
 		t.Fatalf("create keyframe: %v", err)
+	}
+	keyframe := domainsemantic.KeyframeFromModel(keyframeModel)
+	if err := service.upsertKeyframeRelations(ctx, keyframe); err != nil {
+		t.Fatalf("sync keyframe relations: %v", err)
 	}
 	secondResourceID := uint(102)
 	if _, err := service.PatchKeyframe(ctx, 1, fmt.Sprint(keyframe.ID), KeyframeInput{
 		ContentUnitID: &secondUnit.ID,
-		ResourceID:    &secondResourceID,
 		Title:         "Keyframe",
 		Status:        "draft",
 	}); err != nil {
 		t.Fatalf("patch keyframe: %v", err)
+	}
+	if _, err := service.PatchKeyframe(ctx, 1, fmt.Sprint(keyframe.ID), KeyframeInput{
+		ResourceID: &secondResourceID,
+		Status:     "draft",
+	}); err == nil || err.Error() != "关键帧资源采纳必须通过候选采纳流程" {
+		t.Fatalf("patch direct keyframe resource error = %v, want candidate-accept error", err)
 	}
 
 	structureEdges, err := service.relations.ListEdges(ctx, relationapp.EdgeFilter{
@@ -240,8 +252,126 @@ func TestKeyframePatchExpiresPreviousStructureAndAssetRelationIdentities(t *test
 	if err != nil {
 		t.Fatalf("list resource edges: %v", err)
 	}
-	if len(resourceEdges) != 1 || resourceEdges[0].Target.ID != secondResourceID {
-		t.Fatalf("current keyframe resource edges = %+v, want only second resource", resourceEdges)
+	if len(resourceEdges) != 1 || resourceEdges[0].Target.ID != firstResourceID {
+		t.Fatalf("current keyframe resource edges = %+v, want original resource", resourceEdges)
+	}
+}
+
+func TestGeneratedKeyframeCandidateDoesNotCreateOfficialStructureRelations(t *testing.T) {
+	db := testutil.OpenSQLite(t,
+		"semantic_generated_keyframe_candidate_relations.db",
+		&persistencemodel.Project{},
+		&persistencemodel.ContentUnit{},
+		&persistencemodel.Keyframe{},
+		&persistencemodel.RawResource{},
+		&persistencemodel.EntityRelation{},
+	)
+	project := persistencemodel.Project{Name: "Project"}
+	project.ID = 1
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("seed project: %v", err)
+	}
+	unit := persistencemodel.ContentUnit{ProjectID: 1, Title: "Unit", Status: "draft"}
+	if err := db.Create(&unit).Error; err != nil {
+		t.Fatalf("seed content unit: %v", err)
+	}
+	resource := persistencemodel.RawResource{OwnerID: 1, Type: "image", Name: "candidate.png", FilePath: "/tmp/candidate.png"}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("seed resource: %v", err)
+	}
+
+	service := NewService(db)
+	ctx := context.Background()
+	target, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
+		ContentUnitID: &unit.ID,
+		Title:         "Official keyframe",
+		Status:        "draft",
+	})
+	if err != nil {
+		t.Fatalf("create official keyframe: %v", err)
+	}
+	candidate, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
+		ContentUnitID: &unit.ID,
+		ResourceID:    &resource.ID,
+		Title:         "Generated candidate",
+		Status:        "candidate",
+		MetadataJSON:  `{"source":"ai_generated_keyframe_candidate","target_keyframe_id":` + fmt.Sprint(target.ID) + `}`,
+	})
+	if err != nil {
+		t.Fatalf("create generated candidate: %v", err)
+	}
+	if err := service.upsertRelationEdge(ctx, relationapp.EdgeInput{
+		ProjectID: 1,
+		Source:    domainrelation.NewEntityRef("content_unit", unit.ID),
+		Target:    domainrelation.NewEntityRef("keyframe", candidate.ID),
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeHasKeyframe,
+		Status:    "candidate",
+	}); err != nil {
+		t.Fatalf("seed stale candidate structure edge: %v", err)
+	}
+	if _, err := service.CreateKeyframe(ctx, 1, KeyframeInput{
+		ContentUnitID: &unit.ID,
+		ResourceID:    &resource.ID,
+		Title:         "Generated candidate",
+		Status:        "candidate",
+		MetadataJSON:  `{"source":"ai_generated_keyframe_candidate","target_keyframe_id":` + fmt.Sprint(target.ID) + `}`,
+	}); err != nil {
+		t.Fatalf("reattach generated candidate: %v", err)
+	}
+	if err := service.upsertRelationEdge(ctx, relationapp.EdgeInput{
+		ProjectID: 1,
+		Source:    domainrelation.NewEntityRef("content_unit", unit.ID),
+		Target:    domainrelation.NewEntityRef("keyframe", candidate.ID),
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeHasKeyframe,
+		Status:    "candidate",
+	}); err != nil {
+		t.Fatalf("seed stale candidate structure edge before coregraph rewrite: %v", err)
+	}
+	var candidateModel persistencemodel.Keyframe
+	if err := db.First(&candidateModel, candidate.ID).Error; err != nil {
+		t.Fatalf("load candidate model: %v", err)
+	}
+	if err := coregraph.NewWriter(db).Write(ctx, &candidateModel); err != nil {
+		t.Fatalf("rewrite candidate graph: %v", err)
+	}
+
+	structureEdges, err := service.relations.ListEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: 1,
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeHasKeyframe,
+		Target:    domainrelation.NewEntityRef("keyframe", candidate.ID),
+	})
+	if err != nil {
+		t.Fatalf("list candidate structure edges: %v", err)
+	}
+	if len(structureEdges) != 0 {
+		t.Fatalf("candidate structure edges = %+v, want none", structureEdges)
+	}
+	resourceEdges, err := service.relations.ListEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: 1,
+		Category:  domainrelation.CategoryAsset,
+		Type:      domainrelation.TypeUsesResource,
+		Source:    domainrelation.NewEntityRef("keyframe", candidate.ID),
+	})
+	if err != nil {
+		t.Fatalf("list candidate resource edges: %v", err)
+	}
+	if len(resourceEdges) != 1 || resourceEdges[0].Target.ID != resource.ID {
+		t.Fatalf("candidate resource edges = %+v, want generated resource", resourceEdges)
+	}
+	candidateEdges, err := service.relations.ListEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: 1,
+		Category:  domainrelation.CategoryWorkflow,
+		Type:      domainrelation.TypeCandidateFor,
+		Source:    domainrelation.NewEntityRef("keyframe", candidate.ID),
+	})
+	if err != nil {
+		t.Fatalf("list candidate_for edges: %v", err)
+	}
+	if len(candidateEdges) != 1 || candidateEdges[0].Target.Type != "keyframe" || candidateEdges[0].Target.ID != target.ID {
+		t.Fatalf("candidate_for edges = %+v, want candidate linked to target keyframe", candidateEdges)
 	}
 }
 

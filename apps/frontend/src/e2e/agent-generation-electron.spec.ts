@@ -9,12 +9,12 @@ import {
   assertGenerationFailureLifecycle,
   assertGenerationSuccessLifecycle,
   assertGenerationTimeoutLifecycle,
-  bindGeneratedResource,
-  mockGenerationBindingSuccess,
-  mockGenerationBindingTargets,
+  attachGeneratedResourceCandidate,
+  mockGenerationCandidateAttachSuccess,
+  mockGenerationCandidateTargets,
 } from './generationAssertions'
 
-test('electron renderer smoke renders generation lifecycle and binding flow', async () => {
+test('electron renderer smoke renders generation lifecycle and candidate flow', async () => {
   const baseURL = test.info().project.use.baseURL
   if (!baseURL) throw new Error('electron generation E2E requires a baseURL')
   const app = await electron.launch({
@@ -29,13 +29,13 @@ test('electron renderer smoke renders generation lifecycle and binding flow', as
   try {
     const page = await app.firstWindow()
     await mockGenerationAppShell(page)
-    await mockGenerationBindingTargets(page)
-    await mockGenerationBindingSuccess(page)
+    await mockGenerationCandidateTargets(page)
+    await mockGenerationCandidateAttachSuccess(page)
     await page.goto(`${baseURL}/projects`)
 
     await assertGenerationLifecycle(page)
-    const binding = await bindGeneratedResource(page, '77')
-    await expect(binding).toContainText('已绑定资源 #9101')
+    const candidateControl = await attachGeneratedResourceCandidate(page, '77')
+    await expect(candidateControl).toContainText('已加入候选 #601')
   } finally {
     await app.close()
   }
@@ -87,7 +87,7 @@ test('electron renderer smoke surfaces generation monitor timeouts without a gen
   }
 })
 
-test('electron renderer smoke renders video generation lifecycle and binding flow', async () => {
+test('electron renderer smoke renders video generation lifecycle and candidate flow', async () => {
   const baseURL = test.info().project.use.baseURL
   if (!baseURL) throw new Error('electron generation E2E requires a baseURL')
   const app = await electron.launch({
@@ -102,8 +102,8 @@ test('electron renderer smoke renders video generation lifecycle and binding flo
   try {
     const page = await app.firstWindow()
     await mockGenerationAppShell(page, 'video')
-    await mockGenerationBindingTargets(page)
-    await mockGenerationBindingSuccess(page, 9102)
+    await mockGenerationCandidateTargets(page)
+    await mockGenerationCandidateAttachSuccess(page, 9102)
     await page.goto(`${baseURL}/projects`)
 
     await assertGenerationSuccessLifecycle(page, {
@@ -112,8 +112,8 @@ test('electron renderer smoke renders video generation lifecycle and binding flo
       providerName: 'Sanitized Video Provider',
       mimeType: 'video/mp4',
     })
-    const binding = await bindGeneratedResource(page, '77')
-    await expect(binding).toContainText('已绑定资源 #9102')
+    const candidateControl = await attachGeneratedResourceCandidate(page, '77')
+    await expect(candidateControl).toContainText('已加入候选 #601')
   } finally {
     await app.close()
   }

@@ -9,8 +9,10 @@ import type { RuntimeCatalogSnapshotBridge } from './runtimeCatalogSnapshotBridg
 import {
   getRuntimeDefaultAgentManifest,
   inspectRuntimeAgentCatalog,
+  listRuntimeProfileCatalog,
   listRuntimeRegisteredTools,
   listRuntimeSkillCatalog,
+  updateRuntimeActiveSkills,
 } from './runtimeCatalogRead.js'
 import { applyRuntimeAgentCatalogReload } from './runtimeCatalogReload.js'
 import { resolveRuntimeCapabilities, type RuntimeCapabilitiesInput } from './runtimeCapabilities.js'
@@ -27,9 +29,11 @@ export interface RuntimeCatalogOperationsBridge {
   getCapabilities: (input?: RuntimeCapabilitiesInput) => Promise<AgentCapabilitiesResponse>
   listRegisteredTools: () => ReturnType<ToolRegistry['list']>
   listSkillCatalog: () => ReturnType<typeof listRuntimeSkillCatalog>
+  listProfileCatalog: () => ReturnType<typeof listRuntimeProfileCatalog>
   getDefaultAgentManifest: () => AgentManifest
   reloadAgentCatalog: () => JSONValue
   inspectAgentCatalog: (run: AgentRun, input?: Record<string, JSONValue>) => JSONValue
+  updateActiveSkills: (run: AgentRun, input?: Record<string, JSONValue>) => JSONValue
 }
 
 export function createRuntimeCatalogOperationsBridge(input: {
@@ -60,6 +64,7 @@ export function createRuntimeCatalogOperationsBridge(input: {
     },
     listRegisteredTools: () => listRuntimeRegisteredTools(input.getState().toolRegistry),
     listSkillCatalog: () => listRuntimeSkillCatalog(input.getState().layeredRegistry),
+    listProfileCatalog: () => listRuntimeProfileCatalog(input.getState().layeredRegistry),
     getDefaultAgentManifest: () => getRuntimeDefaultAgentManifest(input.getState().defaultAgentManifest),
     reloadAgentCatalog: () => {
       const state = input.getState()
@@ -84,6 +89,11 @@ export function createRuntimeCatalogOperationsBridge(input: {
       })
     },
     inspectAgentCatalog: (run, request = {}) => inspectRuntimeAgentCatalog({
+      catalogSnapshots: input.catalogSnapshots,
+      run,
+      request,
+    }),
+    updateActiveSkills: (run, request = {}) => updateRuntimeActiveSkills({
       catalogSnapshots: input.catalogSnapshots,
       run,
       request,

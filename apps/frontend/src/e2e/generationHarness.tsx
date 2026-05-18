@@ -23,6 +23,8 @@ function GenerationHarness() {
   const replay = replayGenerationTrace(successFixture.events)
   const resource = replay.outputResources[0]
   if (!resource) throw new Error('missing generated resource')
+  const params = new URLSearchParams(window.location.search)
+  const includeMultipleOutputs = params.get('multiple') === '1'
 
   const attachments: AgentAttachment[] = [{
     id: `resource-${resource.ID}`,
@@ -34,6 +36,18 @@ function GenerationHarness() {
     resourceId: resource.ID,
     generated: replay.metadataByResourceId.get(resource.ID),
   }]
+  if (includeMultipleOutputs) {
+    attachments.push({
+      id: 'resource-9103',
+      name: 'provider-image-redacted-variant.png',
+      type: 'image',
+      mimeType: resource.mime_type,
+      size: resource.size + 512,
+      url: '/api/v1/resources/9103/file',
+      resourceId: 9103,
+      generated: replay.metadataByResourceId.get(resource.ID),
+    })
+  }
 
   return (
     <QueryClientProvider client={queryClient}>

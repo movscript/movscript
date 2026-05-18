@@ -5,7 +5,7 @@ import { getBackendLaunchPolicy, getBackendStatus, LOCAL_BACKEND_URL, type Backe
 import { ensureAgentRuntimeRunning, getAgentRuntimeLaunchPolicy, setAgentRuntimeAPIBaseURL, stopAgentRuntime } from './agentRuntime'
 import { getMCPServerStatus, setMCPAPIBaseURL, startMCPServer, stopMCPServer, updateMCPContextSnapshot } from './mcp/server'
 import type { MCPContextSnapshot } from './mcp/types'
-import { clipVideo, getVideoClipStatus, type VideoClipInput } from './videoClip'
+import { clipVideo, exportVideoTimeline, getVideoClipStatus, type VideoClipInput, type VideoTimelineExportInput } from './videoClip'
 import { resolveAdminConsoleURL } from './adminConsole'
 
 function resolvePreloadPath(): string {
@@ -198,6 +198,10 @@ ipcMain.handle('agent:ensure-running', async (_e, input?: { baseURL?: string }) 
 
 ipcMain.handle('video:clip', async (_e, input: VideoClipInput) => {
   return clipVideo({ ...input, sourcePath: undefined })
+})
+
+ipcMain.handle('video:timeline-export', async (_e, input: VideoTimelineExportInput) => {
+  return exportVideoTimeline(input)
 })
 
 ipcMain.handle('video:clip-status', async () => {

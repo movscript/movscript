@@ -1,0 +1,171 @@
+{
+  "name": "movscript_attach_keyframe_candidate",
+  "description": "把已有 raw resource 加入某个原始 keyframe / 画面锚点的候选集。通常在 movscript_create_generation_job 成功返回 output_resource_id 后调用。该工具只创建/复用 candidate keyframe 并关联原始目标 keyframe，不会 accept、select、bind 或 lock 候选。不要把已有 generated candidate keyframe 当作目标传入。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "projectId": {
+        "type": "number"
+      },
+      "keyframe_id": {
+        "type": "number",
+        "minimum": 1,
+        "description": "原始目标 keyframe / 画面锚点 ID，不要传已有 generated candidate keyframe。"
+      },
+      "keyframeId": {
+        "type": "number",
+        "minimum": 1,
+        "description": "keyframe_id 的别名。"
+      },
+      "target_keyframe_id": {
+        "type": "number",
+        "minimum": 1,
+        "description": "原始目标 keyframe / 画面锚点 ID 的别名；可复用候选 metadata 中的 target_keyframe_id 字段值，但不要传 generated candidate keyframe 自身 ID。"
+      },
+      "targetKeyframeId": {
+        "type": "number",
+        "minimum": 1,
+        "description": "target_keyframe_id 的别名，仍必须是原始目标 keyframe / 画面锚点 ID。"
+      },
+      "resource_id": {
+        "type": "number",
+        "minimum": 1,
+        "description": "已有 raw resource ID，通常来自 movscript_create_generation_job.output_resource_id。"
+      },
+      "resourceId": {
+        "type": "number",
+        "minimum": 1,
+        "description": "resource_id 的别名。"
+      },
+      "output_resource_id": {
+        "type": "number",
+        "minimum": 1,
+        "description": "resource_id 的别名，可直接传 movscript_create_generation_job.output_resource_id。"
+      },
+      "outputResourceId": {
+        "type": "number",
+        "minimum": 1,
+        "description": "output_resource_id 的别名。"
+      },
+      "source_type": {
+        "type": "string",
+        "description": "可选审计来源类型。默认 agent。"
+      },
+      "sourceType": {
+        "type": "string",
+        "description": "source_type 的别名。"
+      },
+      "source_id": {
+        "type": "number",
+        "description": "可选来源实体、生成任务或画布 ID。"
+      },
+      "sourceId": {
+        "type": "number",
+        "description": "source_id 的别名。"
+      },
+      "jobId": {
+        "type": "number",
+        "description": "当来源是生成任务时，source_id 和 source_job_id 的别名。"
+      },
+      "title": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "prompt": {
+        "type": "string"
+      },
+      "note": {
+        "type": "string"
+      }
+    },
+    "allOf": [
+      {
+        "anyOf": [
+          {
+            "required": [
+              "keyframe_id"
+            ]
+          },
+          {
+            "required": [
+              "keyframeId"
+            ]
+          },
+          {
+            "required": [
+              "target_keyframe_id"
+            ]
+          },
+          {
+            "required": [
+              "targetKeyframeId"
+            ]
+          }
+        ]
+      },
+      {
+        "anyOf": [
+          {
+            "required": [
+              "resource_id"
+            ]
+          },
+          {
+            "required": [
+              "resourceId"
+            ]
+          },
+          {
+            "required": [
+              "output_resource_id"
+            ]
+          },
+          {
+            "required": [
+              "outputResourceId"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "outputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "status",
+      "candidate",
+      "keyframe_id",
+      "resource_id",
+      "message"
+    ],
+    "properties": {
+      "status": {
+        "type": "string"
+      },
+      "candidate": {
+        "type": "object"
+      },
+      "keyframe_id": {
+        "type": "number"
+      },
+      "resource_id": {
+        "type": "number"
+      },
+      "message": {
+        "type": "string"
+      }
+    }
+  },
+  "permission": "keyframe.candidate.write",
+  "risk": "write",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "on_write"
+  },
+  "source": "runtime"
+}

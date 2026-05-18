@@ -17,6 +17,7 @@ import { AGENT_PANEL_DRAFT_EVENT, consumeAgentPanelDraft, notifyAgentPanelRunSet
 import { attachmentFromResource, attachmentKey, attachmentKind, dedupeAttachments, placeholderAttachment } from '@/lib/agentAttachments'
 import { publicModelId, publicModelLabel } from '@/lib/modelDisplay'
 import { buildCommandFirstClientInput, buildPageContext, isDiagnosticAgentCommand, normalizeAgentCommandMessage } from '@/lib/agentCommandInput'
+import { isGeneratedResultAttachment } from '@/lib/agentGeneratedResultAttachments'
 import { generationProgressFromEvents, type GenerationProgressState } from '@/lib/agentGenerationMedia'
 import { generationJobBadge, generationProgressTitle, generationStatusText, generationTimingLabel, type GenerationJobBadgeTone } from '@/lib/agentGenerationDisplay'
 import {
@@ -65,6 +66,7 @@ import {
   type AgentPlanSnapshot,
   type AgentRun,
   type AgentRunPolicy,
+  type AgentRunPolicyOverride,
   type AgentRunPreview,
   type AgentRunStreamEvent,
   type AgentRunTraceSummary,
@@ -116,6 +118,7 @@ import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
 import {
+  activeRunPresetFromSettings,
   useAgentStore,
   type ChatGenerationJob,
   type ChatMessage,
@@ -589,6 +592,12 @@ function buildAgentContext(options: {
   return ''
 }
 
+function agentPermissionModeToApprovalMode(permissionMode: AgentPermissionMode): AgentRunPolicy['approvalMode'] {
+  if (permissionMode === 'auto') return 'auto'
+  if (permissionMode === 'suggest') return 'auto_readonly'
+  return 'interactive'
+}
+
 type AgentSendRoute = 'local-runtime'
 
 interface AgentSendDraft {
@@ -611,7 +620,7 @@ interface AgentSendDraft {
   settings: Pick<AgentSettings, 'permissionMode' | 'includeProjectContext' | 'includeRecentResources' | 'autoPlan'>
   contextLabels: string[]
   context: {
-    project?: Pick<Project, 'ID' | 'name' | 'status' | 'description'>
+    project?: Pick<Project, 'ID' | 'name' | 'status' | 'description' | 'aspect_ratio' | 'visual_style' | 'project_style'>
     recentResources: Array<Pick<RawResource, 'ID' | 'name' | 'type' | 'mime_type' | 'size'>>
   }
   outbound: {
@@ -627,7 +636,7 @@ interface AgentSendDraft {
     projectId?: number
     clientInput?: AgentClientInput
     agentManifest?: AgentManifest
-    runPolicy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>>
+    runPolicy?: AgentRunPolicyOverride
     requestId?: string
     timeoutMs?: number
     diagnosticCommand?: boolean
@@ -684,6 +693,9 @@ function compactProject(project: Project | null): AgentSendDraft['context']['pro
     name: project.name,
     status: project.status,
     description: project.description,
+    aspect_ratio: project.aspect_ratio,
+    visual_style: project.visual_style,
+    project_style: project.project_style,
   }
 }
 
@@ -1535,6 +1547,9 @@ function agentContextFromRun(run: AgentRun | null | undefined): AgentRunPreview[
         ...(stringValue(context.project.name) ? { name: stringValue(context.project.name) } : {}),
         ...(stringValue(context.project.status) ? { status: stringValue(context.project.status) } : {}),
         ...(stringValue(context.project.description) ? { description: stringValue(context.project.description) } : {}),
+        ...(stringValue(context.project.aspect_ratio) ? { aspect_ratio: stringValue(context.project.aspect_ratio) } : {}),
+        ...(stringValue(context.project.visual_style) ? { visual_style: stringValue(context.project.visual_style) } : {}),
+        ...(stringValue(context.project.project_style) ? { project_style: stringValue(context.project.project_style) } : {}),
       },
     } : {}),
     ...(numberValue(context.productionId) !== undefined ? { productionId: numberValue(context.productionId) } : {}),
@@ -2120,17 +2135,41 @@ function formatGenerationTraceDetail(event: ChatRunActivityEvent) {
   const stage = typeof generation.stage === 'string' ? generation.stage : undefined
   const progress = typeof generation.progress === 'number' ? generation.progress : undefined
   const outputResourceId = typeof generation.outputResourceId === 'number' ? generation.outputResourceId : undefined
+  const outputResourceIds = generationOutputResourceIds(generation)
   const message = typeof generation.message === 'string' ? generation.message : undefined
   return {
     label: jobId !== undefined ? `生成任务 #${jobId}` : '生成任务',
     summary: [
       generationStatusText(status, stage),
       progress !== undefined ? `${progress}%` : undefined,
-      outputResourceId !== undefined ? `资源 #${outputResourceId}` : undefined,
+      generationOutputResourceSummary(outputResourceIds.length > 0 ? outputResourceIds : outputResourceId !== undefined ? [outputResourceId] : []),
     ].filter(Boolean).join(' · '),
     message,
     generation,
   }
+}
+
+function generationOutputResourceIds(generation: Record<string, unknown>) {
+  const values = [
+    ...(Array.isArray(generation.outputResourceIds) ? generation.outputResourceIds : []),
+    ...(Array.isArray(generation.output_resource_ids) ? generation.output_resource_ids : []),
+    generation.outputResourceId,
+    generation.output_resource_id,
+  ]
+  const seen = new Set<number>()
+  const ids: number[] = []
+  for (const value of values) {
+    const id = Number(value)
+    if (!Number.isFinite(id) || id <= 0 || seen.has(id)) continue
+    seen.add(id)
+    ids.push(id)
+  }
+  return ids
+}
+
+function generationOutputResourceSummary(ids: number[]) {
+  if (ids.length === 0) return undefined
+  return ids.length === 1 ? `资源 #${ids[0]}` : `资源 ${ids.map((id) => `#${id}`).join('、')}`
 }
 
 function toolCallParseStatusLabel(status: string | undefined): string {
@@ -3041,12 +3080,16 @@ function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?: numbe
     [historicalGeneratedAttachments, msg.attachments],
   )
   const mediaAttachments = messageAttachments.filter((attachment) => attachment.type === 'image' || attachment.type === 'video')
+  const generatedMediaAttachments = mediaAttachments.filter(isGeneratedResultAttachment)
+  const nonGeneratedMediaAttachments = mediaAttachments.filter((attachment) => !isGeneratedResultAttachment(attachment))
   const otherAttachments = messageAttachments.filter((attachment) => attachment.type !== 'image' && attachment.type !== 'video')
-  const showLargeMedia = !isUser && mediaAttachments.some((attachment) => attachment.id.startsWith('generated-'))
+  const showLargeMedia = !isUser && generatedMediaAttachments.length > 0
+  const hasUsableGeneratedResource = generatedMediaAttachments.some((attachment) => attachment.resourceId !== undefined)
+  const compactAttachments = showLargeMedia ? [...nonGeneratedMediaAttachments, ...otherAttachments] : messageAttachments
   const contextDiagnostic = !isUser ? msg.meta?.contextDiagnostic : undefined
   const displayContent = contextDiagnostic
     ? ''
-    : showLargeMedia ? hideGeneratedResultTechnicalSummary(msg.content) : msg.content
+    : showLargeMedia && hasUsableGeneratedResource ? hideGeneratedResultTechnicalSummary(msg.content) : msg.content
   const showModelSetupAction = !isUser && needsModelSetupAction(msg.content)
 
   function copy() {
@@ -3115,10 +3158,10 @@ function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?: numbe
           title="运行过程"
         />
       )}
-      {showLargeMedia && <GeneratedResultCard attachments={mediaAttachments} projectId={projectId} />}
-      {(showLargeMedia ? otherAttachments : messageAttachments).length > 0 && (
-        <div className={cn('mt-2 grid gap-1.5', (showLargeMedia ? otherAttachments : messageAttachments).length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
-          {(showLargeMedia ? otherAttachments : messageAttachments).map((attachment) => (
+      {showLargeMedia && <GeneratedResultCard attachments={generatedMediaAttachments} projectId={projectId} />}
+      {compactAttachments.length > 0 && (
+        <div className={cn('mt-2 grid gap-1.5', compactAttachments.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
+          {compactAttachments.map((attachment) => (
             <AttachmentPreview key={attachment.id} attachment={attachment} compact />
           ))}
         </div>
@@ -5255,7 +5298,7 @@ function ChatView({
     projectId?: number
     clientInput?: AgentClientInput
     agentManifest?: AgentManifest
-    runPolicy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>>
+    runPolicy?: AgentRunPolicyOverride
     requestId?: string
     timeoutMs?: number
     omitDebugArtifacts?: boolean
@@ -5264,6 +5307,17 @@ function ChatView({
       && !externalTask.settledAt
       && (externalTask.status === 'queued' || externalTask.status === 'claimed')
     const taskPayload = canUseExternalTask && !options.clientInput && options.message === undefined ? externalTask?.payload : undefined
+    const activeRunPreset = activeRunPresetFromSettings(settings)
+    const presetRunPolicy: AgentRunPolicyOverride = {
+      approvalMode: agentPermissionModeToApprovalMode(settings.permissionMode),
+      maxToolCalls: activeRunPreset.maxToolCalls,
+      maxIterations: activeRunPreset.maxIterations,
+    }
+    const effectiveRunPolicy: AgentRunPolicyOverride = {
+      ...presetRunPolicy,
+      ...(taskPayload?.runPolicy ?? {}),
+      ...(options.runPolicy ?? {}),
+    }
     const taskRequestId = canUseExternalTask ? pageToolRequestId : undefined
     const text = (options.message ?? input).trim()
     const sentAttachments = options.message === undefined
@@ -5324,7 +5378,7 @@ function ChatView({
       ...((options.projectId ?? taskPayload?.projectId) !== undefined ? { projectId: options.projectId ?? taskPayload?.projectId } : {}),
       clientInput,
       ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
-      ...((options.runPolicy ?? taskPayload?.runPolicy) ? { runPolicy: options.runPolicy ?? taskPayload?.runPolicy } : {}),
+      ...(effectiveRunPolicy ? { runPolicy: effectiveRunPolicy } : {}),
       ...((options.requestId ?? taskRequestId) ? { requestId: options.requestId ?? taskRequestId } : {}),
       ...((options.timeoutMs ?? taskPayload?.timeoutMs) ? { timeoutMs: options.timeoutMs ?? taskPayload?.timeoutMs } : {}),
       diagnosticCommand,
@@ -5343,7 +5397,7 @@ function ChatView({
             ...(threadId ? { threadId } : {}),
             clientInput,
             ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
-            ...(options.runPolicy ? { policy: options.runPolicy } : {}),
+            ...(effectiveRunPolicy ? { policy: effectiveRunPolicy } : {}),
           })
         } catch (e) {
           if (!threadId || !isLocalAgentNotFoundError(e)) throw e
@@ -5351,7 +5405,7 @@ function ChatView({
           localRuntime.preview = await localAgentClient.previewRun({
             clientInput,
             ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
-            ...(options.runPolicy ? { policy: options.runPolicy } : {}),
+            ...(effectiveRunPolicy ? { policy: effectiveRunPolicy } : {}),
           })
         }
       } catch (e) {

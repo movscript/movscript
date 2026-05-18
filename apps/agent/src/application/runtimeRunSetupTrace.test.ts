@@ -64,7 +64,11 @@ test('recordRuntimeRunSetupTraces emits context, manifest, skill, tool catalog, 
   ])
   assert.equal(traces[0]?.summary, 'Project #42 Project (25ms)')
   assert.deepEqual((traces[1]?.data as any)?.permissions, ['tool.a'])
+  assert.equal((traces[2]?.data as any)?.eventType, 'trigger.evaluated')
+  assert.equal((traces[2]?.data as any)?.skillEventType, 'skill.state_resolved')
+  assert.deepEqual((traces[2]?.data as any)?.activeSkillIds, ['skill_1'])
   assert.deepEqual((traces[2]?.data as any)?.skills.map((item: any) => item.id), ['skill_1'])
+  assert.equal((traces[2]?.data as any)?.skills[0].loadMode, 'on_demand')
   assert.deepEqual((traces[3]?.data as any)?.availableToolNames, ['tool_a'])
   assert.equal((traces[4]?.data as any)?.memoryRefCount, 1)
   assert.equal((traces[4]?.data as any)?.warningCount, 1)
@@ -180,6 +184,11 @@ function skill(): ResolvedAgentSkill {
     resolvedPriority: 1,
     activationReason: 'profile',
     compiledInstruction: 'Do work.',
+    metadata: {
+      loadMode: 'on_demand',
+      activationScope: 'run',
+      tags: ['test'],
+    },
     warnings: [],
   }
 }

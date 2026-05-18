@@ -416,9 +416,14 @@ test('applyReview posts project proposal with only project style', async () => {
         project_style: {
           aspect_ratio: '9:16',
           visual_style: '竖屏短剧写实',
+          custom_rules: [{
+            key: 'character_consistency',
+            label: '角色一致性',
+            value: '主角发型、年龄感和服装气质必须保持一致。',
+            prompt_role: 'constraint',
+            enabled: true,
+          }],
         },
-        creative_references: [{ name: 'Should be dropped' }],
-        asset_slots: [{ name: 'Also dropped', kind: 'image' }],
       },
     }
 
@@ -436,13 +441,32 @@ test('applyReview posts project proposal with only project style', async () => {
       ...payload,
       proposal: {
         project_style: payload.proposal.project_style,
-        creative_references: [],
-        asset_slots: [],
       },
     })
   } finally {
     globalThis.fetch = originalFetch
   }
+})
+
+test('applyReview rejects project proposal list payloads', async () => {
+  const client = new BackendApplyClient({ baseURL: 'http://backend' })
+  const payload = {
+    scope: 'project_proposal',
+    mode: 'snapshot',
+    proposal: {
+      project_style: { aspect_ratio: '9:16' },
+      creative_references: [{ name: 'Should be setting_proposal' }],
+    },
+  }
+
+  await assert.rejects(() => client.applyReview(review({
+    draftKind: 'project_proposal',
+    projectId: 42,
+    entityType: 'project',
+    entityId: 42,
+    field: 'proposal',
+    proposedValue: JSON.stringify(payload),
+  })), /project_proposal only supports proposal\.project_style/)
 })
 
 function review(input: {
