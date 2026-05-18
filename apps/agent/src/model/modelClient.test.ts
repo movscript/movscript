@@ -34,6 +34,7 @@ test('callModel retries empty assistant gateway responses with exponential backo
 
     const result = await callModel({
       config: CONFIG,
+      auth: { backendAuthToken: 'test-token' },
       messages: [{ role: 'user', content: 'hello' }],
       retry: { maxAttempts: 3, initialDelayMs: 0 },
     })
@@ -68,6 +69,7 @@ test('callModel normalizes only object-shaped gateway tool calls', async () => {
 
     const result = await callModel({
       config: CONFIG,
+      auth: { backendAuthToken: 'test-token' },
       messages: [{ role: 'user', content: 'hello' }],
       retry: { maxAttempts: 1, initialDelayMs: 0 },
     })
@@ -98,6 +100,7 @@ test('callModel stops retrying empty assistant responses after the configured at
     await assert.rejects(
       callModel({
         config: CONFIG,
+        auth: { backendAuthToken: 'test-token' },
         messages: [{ role: 'user', content: 'hello' }],
         retry: { maxAttempts: 2, initialDelayMs: 0 },
       }),
@@ -134,6 +137,7 @@ test('callModel retries direct HTTP 429 gateway responses with exponential backo
 
     const result = await callModel({
       config: CONFIG,
+      auth: { backendAuthToken: 'test-token' },
       messages: [{ role: 'user', content: 'hello' }],
       retry: { maxAttempts: 2, initialDelayMs: 0 },
     })
@@ -229,6 +233,7 @@ test('callModel retries backend 502 responses that wrap provider rate limits', a
 
     const result = await callModel({
       config: CONFIG,
+      auth: { backendAuthToken: 'test-token' },
       messages: [{ role: 'user', content: 'hello' }],
       retry: { maxAttempts: 2, initialDelayMs: 0 },
       onTrace: (event) => {
@@ -270,6 +275,7 @@ test('callModel retries backend 502 responses that wrap upstream rate_limit_erro
 
     const result = await callModel({
       config: CONFIG,
+      auth: { backendAuthToken: 'test-token' },
       messages: [{ role: 'user', content: 'hello' }],
       retry: { maxAttempts: 2, initialDelayMs: 0 },
     })
@@ -298,6 +304,7 @@ test('callModel stops retrying rate limited gateway responses after the configur
     await assert.rejects(
       callModel({
         config: CONFIG,
+        auth: { backendAuthToken: 'test-token' },
         messages: [{ role: 'user', content: 'hello' }],
         retry: { maxAttempts: 3, initialDelayMs: 0 },
       }),
@@ -312,11 +319,10 @@ test('callModel stops retrying rate limited gateway responses after the configur
 
 test('callModel sends OpenAI Responses requests and normalizes function calls', async () => {
   const originalFetch = globalThis.fetch
-  const originalAPIKey = process.env.MOVSCRIPT_AGENT_MODEL_API_KEY
   let capturedURL = ''
   let capturedBody: Record<string, any> | undefined
   try {
-    process.env.MOVSCRIPT_AGENT_MODEL_API_KEY = 'direct-openai-key'
+    
     globalThis.fetch = (async (url, init) => {
       capturedURL = requestURL(url)
       capturedBody = JSON.parse(await requestBodyText(url, init)) as Record<string, any>
@@ -343,6 +349,7 @@ test('callModel sends OpenAI Responses requests and normalizes function calls', 
         model: 'gpt-direct-test',
         apiKind: 'openai_responses',
         baseURL: 'https://model.example/v1',
+        apiKey: 'direct-openai-key',
       },
       messages: [
         { role: 'system', content: 'You are concise.' },
@@ -404,18 +411,16 @@ test('callModel sends OpenAI Responses requests and normalizes function calls', 
     assert.equal(result.trace.request.url, 'https://model.example/v1/responses')
   } finally {
     globalThis.fetch = originalFetch
-    restoreEnv('MOVSCRIPT_AGENT_MODEL_API_KEY', originalAPIKey)
   }
 })
 
 test('callModel sends OpenAI Chat Completions requests and hides direct API keys from traces', async () => {
   const originalFetch = globalThis.fetch
-  const originalAPIKey = process.env.MOVSCRIPT_AGENT_MODEL_API_KEY
   let capturedURL = ''
   let capturedHeaders: Record<string, string> = {}
   let capturedBody: Record<string, any> | undefined
   try {
-    process.env.MOVSCRIPT_AGENT_MODEL_API_KEY = 'direct-openai-chat-key'
+    
     globalThis.fetch = (async (url, init) => {
       capturedURL = requestURL(url)
       capturedHeaders = Object.fromEntries(new Headers(init?.headers).entries())
@@ -443,6 +448,7 @@ test('callModel sends OpenAI Chat Completions requests and hides direct API keys
         model: 'gpt-chat-direct',
         apiKind: 'openai_chat_completions',
         baseURL: 'https://openai.example/v1',
+        apiKey: 'direct-openai-chat-key',
       },
       messages: [{ role: 'user', content: 'hello' }],
       tools: [{
@@ -468,18 +474,16 @@ test('callModel sends OpenAI Chat Completions requests and hides direct API keys
     assert.equal(result.trace.request.headers.authorization, undefined)
   } finally {
     globalThis.fetch = originalFetch
-    restoreEnv('MOVSCRIPT_AGENT_MODEL_API_KEY', originalAPIKey)
   }
 })
 
 test('callModel sends Anthropic Messages requests and normalizes tool use blocks', async () => {
   const originalFetch = globalThis.fetch
-  const originalAPIKey = process.env.MOVSCRIPT_AGENT_MODEL_API_KEY
   let capturedURL = ''
   let capturedHeaders: Record<string, string> = {}
   let capturedBody: Record<string, any> | undefined
   try {
-    process.env.MOVSCRIPT_AGENT_MODEL_API_KEY = 'direct-anthropic-key'
+    
     globalThis.fetch = (async (url, init) => {
       capturedURL = requestURL(url)
       capturedHeaders = Object.fromEntries(new Headers(init?.headers).entries())
@@ -509,6 +513,7 @@ test('callModel sends Anthropic Messages requests and normalizes tool use blocks
         model: 'claude-direct-test',
         apiKind: 'anthropic_messages',
         baseURL: 'https://anthropic.example',
+        apiKey: 'direct-anthropic-key',
       },
       messages: [
         { role: 'system', content: 'Use concise answers.' },
@@ -546,45 +551,36 @@ test('callModel sends Anthropic Messages requests and normalizes tool use blocks
     assert.equal(result.trace.request.url, 'https://anthropic.example/v1/messages')
   } finally {
     globalThis.fetch = originalFetch
-    restoreEnv('MOVSCRIPT_AGENT_MODEL_API_KEY', originalAPIKey)
   }
 })
 
 test('callModel rejects direct provider calls without a direct API key', async () => {
-  const originalAgentAPIKey = process.env.MOVSCRIPT_AGENT_MODEL_API_KEY
-  const originalGatewayAPIKey = process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
   const traceEvents: Parameters<RuntimeModelTraceCallback>[0][] = []
-  try {
-    delete process.env.MOVSCRIPT_AGENT_MODEL_API_KEY
-    delete process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
+  await assert.rejects(
+    callModel({
+      config: {
+        ...CONFIG,
+        modelConfigId: undefined,
+        model: 'gpt-direct-test',
+        apiKind: 'openai_responses',
+        baseURL: 'https://api.openai.com/v1',
+      },
+      auth: { backendAuthToken: 'backend-user-token' },
+      messages: [{ role: 'user', content: 'hello' }],
+      retry: { maxAttempts: 1 },
+      onTrace: (event) => traceEvents.push(event),
+    }),
+    /openai_responses requires an API key in model settings/,
+  )
 
-    await assert.rejects(
-      callModel({
-        config: {
-          ...CONFIG,
-          modelConfigId: undefined,
-          model: 'gpt-direct-test',
-          apiKind: 'openai_responses',
-        },
-        messages: [{ role: 'user', content: 'hello' }],
-        retry: { maxAttempts: 1 },
-        onTrace: (event) => traceEvents.push(event),
-      }),
-      /openai_responses requires MOVSCRIPT_AGENT_MODEL_API_KEY or MOVSCRIPT_MODEL_GATEWAY_API_KEY/,
-    )
+  const requestEvent = traceEvents.find((event) => event.phase === 'request')
+  const errorEvent = traceEvents.find((event) => event.phase === 'error')
 
-    const requestEvent = traceEvents.find((event) => event.phase === 'request')
-    const errorEvent = traceEvents.find((event) => event.phase === 'error')
-
-    assert.equal(requestEvent?.trace.request.url, 'https://api.openai.com/v1/responses')
-    assert.equal(requestEvent?.trace.request.headers.Authorization, undefined)
-    assert.equal(requestEvent?.trace.request.body.model, 'gpt-direct-test')
-    assert.match(errorEvent?.error ?? '', /openai_responses requires MOVSCRIPT_AGENT_MODEL_API_KEY/)
-    assert.equal(errorEvent?.trace.request.url, 'https://api.openai.com/v1/responses')
-  } finally {
-    restoreEnv('MOVSCRIPT_AGENT_MODEL_API_KEY', originalAgentAPIKey)
-    restoreEnv('MOVSCRIPT_MODEL_GATEWAY_API_KEY', originalGatewayAPIKey)
-  }
+  assert.equal(requestEvent?.trace.request.url, 'https://api.openai.com/v1/responses')
+  assert.equal(requestEvent?.trace.request.headers.Authorization, undefined)
+  assert.equal(requestEvent?.trace.request.body.model, 'gpt-direct-test')
+  assert.match(errorEvent?.error ?? '', /openai_responses requires an API key in model settings/)
+  assert.equal(errorEvent?.trace.request.url, 'https://api.openai.com/v1/responses')
 })
 
 function requestURL(input: Parameters<typeof fetch>[0]): string {
@@ -597,9 +593,4 @@ async function requestBodyText(input: Parameters<typeof fetch>[0], init?: Parame
   if (typeof init?.body === 'string') return init.body
   if (input instanceof Request) return input.clone().text()
   return ''
-}
-
-function restoreEnv(name: string, value: string | undefined): void {
-  if (value === undefined) delete process.env[name]
-  else process.env[name] = value
 }

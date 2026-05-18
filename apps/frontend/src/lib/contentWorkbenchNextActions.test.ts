@@ -80,6 +80,18 @@ test('content workbench blocks generation on prompt, assets, keyframes, then con
   }).map((action) => action.key), ['resolve_generation_context', 'resolve_generation_context'])
 })
 
+test('content workbench skips keyframe action for non-visual units', () => {
+  assert.deepEqual(buildContentWorkbenchNextActions({
+    hasSelectedMoment: true,
+    unitCount: 1,
+    hasSelectedUnit: true,
+    hasUnitPrompt: true,
+    missingSlotCount: 0,
+    keyframeCount: 0,
+    requiresKeyframe: false,
+  }).map((action) => action.key), ['open_generation_canvas'])
+})
+
 test('content workbench opens generation canvas only when all gates are ready', () => {
   assert.deepEqual(buildContentWorkbenchNextActions({
     hasSelectedMoment: true,

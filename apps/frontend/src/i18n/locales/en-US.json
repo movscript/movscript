@@ -1031,7 +1031,9 @@
         "viewRun": "View Run",
         "openSettings": "Open Settings",
         "runPreview": "Run Preview",
-        "observeOnly": "Observe Only"
+        "observeOnly": "Observe Only",
+        "copyEvidence": "Copy Evidence",
+        "evidenceCopied": "Evidence Copied"
       },
       "status": {
         "runtimeOnline": "Runtime online",
@@ -1054,6 +1056,7 @@
         "triage": "Issue Triage",
         "runAttention": "Runs Needing Attention",
         "observationCoverage": "Observation Coverage",
+        "evidenceChecklist": "Evidence Checklist",
         "remediationPlan": "Remediation Plan",
         "runIssueSummary": "Run Issue Summary",
         "effectiveManifest": "Effective Manifest",
@@ -1152,6 +1155,27 @@
         "warningsFound": "{{count}} warnings found.",
         "warningsClear": "No warnings right now."
       },
+      "evidenceChecklist": {
+        "title": "Agent Debug Evidence Checklist",
+        "runtime": "Runtime snapshot",
+        "observations": "Observation coverage",
+        "triage": "Triage result",
+        "remediation": "Next-step routing",
+        "runs": "Run history evidence",
+        "preview": "Prompt Preview evidence",
+        "redaction": "Redaction status"
+      },
+      "evidenceChecklistDetails": {
+        "runtimeReady": "Runtime health, catalog, capabilities, and run list are included.",
+        "runtimeMissing": "Runtime is unavailable; this bundle cannot prove current Runtime state.",
+        "observations": "{{total}} observation checks completed; {{actions}} unavailable and {{warnings}} missing, across {{warningSources}} warning sources.",
+        "triage": "{{total}} triage items generated, including {{actions}} action items.",
+        "remediation": "{{count}} read-only next steps are included.",
+        "runs": "{{total}} recent runs are included; {{issues}} grouped run issues need review.",
+        "previewReady": "Prompt Preview evidence is included.",
+        "previewMissing": "Run Preview for prompt, context, and plan evidence before escalation.",
+        "redactionReady": "Bundle copy/download paths redact secret-like values before export."
+      },
       "triageSeverities": {
         "action": "Action",
         "warning": "Watch",
@@ -1223,6 +1247,7 @@
         "triageItems": "Prioritized read-only triage results for deciding what to inspect next.",
         "remediationPlan": "Read-only next-step routing that points to Settings, run details, Preview, or observation-only review.",
         "observationCoverage": "Which observation signals this diagnostic bundle covers, and whether each one is missing.",
+        "evidenceChecklist": "Support-readiness checklist explaining whether the bundle has enough redacted evidence for escalation.",
         "runIssueGroups": "Run issue counts and representative reasons grouped by status.",
         "warningGroups": "Runtime, catalog, and Preview warnings grouped by source.",
         "redacted": "Marks that this Debug Bundle has redacted keys, tokens, cookies, and signed URL parameters.",
@@ -1283,17 +1308,20 @@
       "modelHelp": "Select an enabled backend model with text capability. It will be saved to the local Agent Runtime model-config.",
       "providerModelIdLabel": "Provider model ID",
       "providerModelIdHelp": "For direct OpenAI or Anthropic modes, enter the provider model ID directly. It does not need a matching backend model catalog entry.",
-      "providerModelPanel": "Direct Provider Model",
-      "providerModelPanelHelp": "This call mode does not use the backend model list. Enter the provider model ID in Model Config and make sure Runtime environment variables have loaded the model credential.",
+      "providerModelPanel": "Provider Model",
+      "providerModelPanelHelp": "Enter the model ID. When Base URL is empty or points to the MovScript backend, the backend login credential is used; only external provider URLs need an API key here.",
       "modelRequired": "Select a model or enter a provider model ID first.",
-      "modelIdSecretsBlocked": "The provider model ID looks like it contains an API key, Bearer token, or URL with secret parameters. Enter only the model ID and keep credentials in Runtime environment variables.",
-      "providerCredentialNotice": "Direct provider mode needs model credentials in Runtime environment variables",
-      "providerCredentialHelp": "Do not put keys in the Base URL. After saving, use Save and Test to confirm Runtime loaded the credential.",
+      "modelIdSecretsBlocked": "The provider model ID looks like it contains an API key, Bearer token, or URL with secret parameters. Enter only the model ID and put the secret in the API key field.",
+      "providerApiKeyLabel": "API key",
+      "providerApiKeyPlaceholder": "Enter external provider API key",
+      "providerApiKeyConfiguredPlaceholder": "API key saved; leave blank to keep using it",
+      "providerCredentialNotice": "External providers need an API key",
+      "providerCredentialHelp": "Only required when Base URL points to an external provider. Do not put keys in the Base URL.",
       "apiKindLabel": "Call mode",
       "selectApiKind": "Select call mode",
       "baseUrlLabel": "Model Base URL",
-      "baseUrlHelp": "Leave empty to use the default URL for this call mode. Direct OpenAI/Anthropic modes require a model API key in the Agent Runtime environment.",
-      "baseUrlSecretsBlocked": "The Base URL contains username/password credentials or sensitive fields such as token, api_key, or signature. Remove URL secrets and store model credentials in Agent Runtime environment variables instead.",
+      "baseUrlHelp": "Leave empty to use the MovScript backend /v1 compatible endpoint. Only external provider URLs need an API key.",
+      "baseUrlSecretsBlocked": "The Base URL contains username/password credentials or sensitive fields such as token, api_key, or signature. Remove URL secrets and store model credentials in the API key field instead.",
       "apiKinds": {
         "backendChatCompletions": "Backend Gateway / Chat Completions",
         "openaiResponses": "OpenAI / Responses",
@@ -1373,7 +1401,7 @@
         },
         "directCredential": {
           "label": "Direct credential",
-          "detail": "Requires a direct provider key in Runtime environment variables."
+          "detail": "Requires a direct provider key in the API key field."
         },
         "separateModelFamily": {
           "label": "Separate model family",
@@ -1399,12 +1427,12 @@
         "apiModeChatCompatibility": "Chat Completions is a compatibility mode; prefer Responses for new OpenAI Agent work.",
         "modelIdReady": "{{model}} matches the selected provider path.",
         "modelIdMissing": "Select or enter a model ID before saving.",
-        "modelIdSecret": "The model ID contains secret-looking text; keep credentials in Runtime environment variables.",
+        "modelIdSecret": "The model ID contains secret-looking text; keep credentials in the API key field.",
         "modelIdBackendReference": "Direct provider modes need provider model IDs, not backend model_config references.",
         "modelIdProviderMismatch": "{{model}} looks like it belongs to another provider family.",
         "credentialsBackendManaged": "Backend gateway credentials are managed outside local Runtime direct provider settings.",
-        "credentialsMissing": "Runtime has not loaded {{env}} for this provider.",
-        "credentialsReady": "Runtime reports {{env}} is configured for this provider.",
+        "credentialsMissing": "API key settings have not saved {{env}} for this provider.",
+        "credentialsReady": "API key settings report {{env}} is configured for this provider.",
         "credentialsUnchecked": "Credential status is verified after saving this provider mode and running Test.",
         "baseURLDefault": "Default provider endpoint will be used.",
         "baseURLCustom": "Custom endpoint configured: {{baseURL}}.",
@@ -1417,9 +1445,6 @@
       "apiModeMigrationStep": "Step {{index}}",
       "switchToResponses": "Switch to Responses",
       "apiModeMigration": {
-        "backend_chat_completions": {
-          "detail": "Backend gateway mode is stable for shared credentials and routing. Move to direct Responses only when the Runtime should own provider-native behavior."
-        },
         "openai_responses": {
           "detail": "Responses is already selected, which is the recommended path for new Agent capabilities."
         },
@@ -1444,6 +1469,27 @@
         "compare": "Compare behavior against OpenAI modes through run outputs and read-only Debug observations.",
         "keepSeparate": "Do not mix Anthropic provider settings into the OpenAI migration path."
       },
+      "apiModeSwitchPlanTitle": "Call Mode Switch Plan",
+      "apiModeSwitchPlanHelp": "Review the concrete blockers before saving. {{actions}} actions and {{warnings}} review items are currently visible.",
+      "apiModeSwitchPlanCopyContext": "Draft call mode: {{apiKind}}",
+      "copyApiModeSwitchPlan": "Copy switch plan",
+      "apiModeSwitchPlanCopied": "Switch plan copied",
+      "apiModeSwitchPlan": {
+        "targetMode": "Target mode",
+        "modelId": "Model ID readiness",
+        "credentials": "Credential readiness",
+        "baseURL": "Base URL readiness",
+        "routes": "Route readiness",
+        "saveTest": "Save and test"
+      },
+      "apiModeSwitchPlanDetails": {
+        "targetModeStable": "{{apiKind}} is already the recommended target for this provider path.",
+        "targetModeMigration": "{{apiKind}} should migrate toward {{targetApiKind}} for new Agent work.",
+        "probeMissing": "Compatibility probe data is not available yet.",
+        "saveTestBlocked": "Resolve action items before saving and running the model connectivity test.",
+        "saveTestPending": "Draft changes are ready for Save and Test after review.",
+        "saveTestReady": "Saved configuration is ready for the model connectivity test."
+      },
       "selectModel": "Select model",
       "noTextModels": "No text models are available. Enable a text model in model management first.",
       "useForChat": "Use for chat",
@@ -1454,9 +1500,9 @@
         "allRoutesDisabled": "Enable at least one of Use for chat or Use for planning; otherwise the Agent has no available model route."
       },
       "modelCredentialStatus": {
-        "configured": "Loaded: {{env}}",
-        "missing": "Missing: {{env}}",
-        "notRequired": "Current call mode does not require a direct key"
+        "configured": "Configured: {{env}}",
+        "missing": "Required: {{env}}",
+        "notRequired": "Using backend login credential"
       },
       "save": "Save Config",
       "saved": "Saved",
@@ -1720,9 +1766,9 @@
       "actionItemDetails": {
         "modelMissing": "Choose a model, call mode, and usage routes, then save.",
         "modelUnsaved": "Save or reset the current model config; future default runs still use the old config until then.",
-        "modelIdSensitive": "The saved direct Provider model ID looks like it contains an API key, Bearer token, or URL with secret parameters. Clear this config and save only the model ID; credentials belong in Runtime environment variables.",
+        "modelIdSensitive": "The saved direct Provider model ID looks like it contains an API key, Bearer token, or URL with secret parameters. Clear this config and save only the model ID; credentials belong in the API key field.",
         "apiModeCompatibility": "Chat Completions is available for older flows; unless this is a migration period, switch new Agent workflows to OpenAI Responses.",
-        "modelCredentialsMissing": "Runtime did not detect {{env}}; direct provider calls will fail.",
+        "modelCredentialsMissing": "API key settings did not detect {{env}}; direct provider calls will fail.",
         "modelBaseURLSensitive": "The Base URL contains username/password credentials or sensitive fields such as token, api_key, or signature. Put model credentials in the Agent Runtime environment instead.",
         "routesInvalid": "Enable at least one usage route for chat or planning.",
         "routesMissing": "Check model config and usage toggles so future runs have an available model.",
@@ -1739,7 +1785,7 @@
         "saveOrReset": "This is a Settings draft: save to affect future default runs, or reset to discard local changes.",
         "saveAfterQuickFix": "Quick fix only changes the local draft; save before it affects future default runs.",
         "localDefaultsImmediately": "Quick fix updates local default settings immediately for future runs.",
-        "useRuntimeEnvForSecrets": "Do not store secrets in URLs; switch to Runtime environment variables before saving."
+        "useRuntimeEnvForSecrets": "Do not store secrets in URLs; switch to the API key field before saving."
       },
       "actionItemReasons": {
         "skillDependency": "{{skillId}} depends on {{dependencyId}}",
@@ -1776,8 +1822,8 @@
         "apiModeChatCompatibility": "Current mode is Chat Completions compatibility; useful during migration, but new Agent capabilities should prefer Responses.",
         "apiModeBackendManaged": "Current calls are managed through the backend gateway for team credentials, routing, and audit.",
         "apiModeAnthropicProvider": "Current calls use Anthropic Messages directly for Claude-family models and provider-native evaluation.",
-        "modelCredentialsReady": "Runtime loaded model credentials from {{env}}.",
-        "modelCredentialsMissing": "Runtime did not detect {{env}}.",
+        "modelCredentialsReady": "API key settings loaded model credentials from {{env}}.",
+        "modelCredentialsMissing": "API key settings did not detect {{env}}.",
         "modelCredentialsNotRequired": "This call mode does not require a direct model key in Runtime.",
         "routesReady": "{{count}} model routes are available.",
         "routesInvalid": "Model route config is invalid; fix usage toggles first.",

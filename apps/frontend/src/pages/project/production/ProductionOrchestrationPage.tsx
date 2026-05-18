@@ -59,7 +59,7 @@ import { localAgentClient, type AgentDraft, type AgentRun, type AgentRunStep } f
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
 import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@movscript/ui'
-import { ROUTES, mergeSearch, withRouteParams } from '@/routes/projectRoutes'
+import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -560,6 +560,26 @@ export default function ProductionOrchestrationPage() {
   )
   const scriptText = (selectedScriptVersion?.content || selectedScriptVersion?.raw_source || '').trim()
   const canLaunchLinkedProposal = Boolean(scriptText) && !isFetchingScriptVersions
+  const bindScriptVersionMutation = useMutation({
+    mutationFn: async (scriptVersionId: number | null) => {
+      if (!projectId || !effectiveProductionId) throw new Error('请先选择制作')
+      return updateSemanticEntity(projectId, semanticEntityConfig('productions'), effectiveProductionId, {
+        script_version_id: scriptVersionId,
+        source_type: scriptVersionId ? 'script' : 'direct',
+      })
+    },
+    onSuccess: () => {
+      toast.success('制作剧本来源已更新')
+      void refetch()
+      queryClient.invalidateQueries({ queryKey })
+      queryClient.invalidateQueries({ queryKey: scriptVersionsQueryKey })
+    },
+    onError: (error) => {
+      const apiErrorData = (error as { response?: { data?: unknown } })?.response?.data
+      const responseData = isRecordValue(apiErrorData) ? apiErrorData as APIErrorBody : null
+      toast.error(responseData ? translateApiError(responseData, 'common.requestFailed') : error instanceof Error ? error.message : '绑定剧本失败')
+    },
+  })
 
   const allSegments = useMemo(
     () => filterSegmentsForProduction(data?.segments ?? [], effectiveProductionId).sort(byOrder),
@@ -991,21 +1011,6 @@ export default function ProductionOrchestrationPage() {
             {openedSettingDraftId && <Badge variant="secondary" className="h-6 rounded-full px-2 text-[10px]">设定 draft</Badge>}
             {openedAssetProposalDraftId && <Badge variant="secondary" className="h-6 rounded-full px-2 text-[10px]">素材需求 draft</Badge>}
             {openedDraftId && <Badge variant="secondary" className="h-6 rounded-full px-2 text-[10px]">已打开 draft</Badge>}
-            <Badge variant={allCreativeReferences.length > 0 || allAssetSlots.length > 0 ? 'secondary' : 'warning'} className="h-6 rounded-full px-2 text-[10px]">
-              {allCreativeReferences.length > 0 || allAssetSlots.length > 0 ? '上游资源已就绪' : '先补设定/素材需求'}
-            </Badge>
-            <Button asChild size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
-              <Link to={mergeSearch(ROUTES.project.preProduction, '', { tab: 'settings' })}>
-                <Sparkles size={13} />
-                设定工作台
-              </Link>
-            </Button>
-            <Button asChild size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
-              <Link to={mergeSearch(ROUTES.project.preProduction, '', { tab: 'assets' })}>
-                <PackageCheck size={13} />
-                素材需求
-              </Link>
-            </Button>
             <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => refetch()}>
               <RefreshCw size={13} />
               刷新
@@ -1022,7 +1027,7 @@ export default function ProductionOrchestrationPage() {
           ) : (
             <div className="flex min-h-0 flex-1 flex-col">
               <div className="sticky top-0 z-10 border-b border-border bg-muted/90 px-4 py-3 backdrop-blur">
-                <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3">
+                <div className="flex w-full flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-1 rounded-full border border-border bg-background p-1">
                     <Button
                       size="sm"
@@ -1073,7 +1078,7 @@ export default function ProductionOrchestrationPage() {
               </div>
               <div className="min-h-0 flex-1">
                 {workspaceView === 'review' ? (
-                  <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-4 p-4">
+                  <div className="flex h-full w-full flex-col gap-4 p-4">
                     <ProjectProposalReviewSummary
                       settingDraft={openedSettingDraftQuery.data}
                       assetProposalDraft={openedAssetProposalDraftQuery.data}
@@ -1112,11 +1117,13 @@ export default function ProductionOrchestrationPage() {
                     projectName={project?.name ?? '当前项目'}
                     selectedProduction={selectedProduction}
                     selectedScriptVersion={selectedScriptVersion}
+                    scriptVersions={scriptVersions}
                     scriptText={scriptText}
+                    isFetchingScriptVersions={isFetchingScriptVersions}
+                    isBindingScriptVersion={bindScriptVersionMutation.isPending}
+                    onBindScriptVersion={(scriptVersionId) => bindScriptVersionMutation.mutate(scriptVersionId)}
                     overview={currentProductionOverview}
-                    projectReady={allCreativeReferences.length > 0 || allAssetSlots.length > 0}
                     creativeReferences={allCreativeReferences}
-                    assetSlots={allAssetSlots}
                     segments={allSegments}
                     sceneMoments={allSceneMoments}
                     lookup={lookup}
@@ -1189,7 +1196,7 @@ export default function ProductionOrchestrationPage() {
 
 function ProductionWorkspaceSkeleton() {
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4">
+    <div className="flex w-full flex-col gap-4 p-4">
       <section className="rounded-lg border border-border bg-background p-4">
         <div className="animate-pulse space-y-4">
           <div className="flex items-start justify-between gap-3">
@@ -1240,65 +1247,130 @@ function ContextLine({ icon: Icon, label, value }: { icon: LucideIcon; label: st
   )
 }
 
-function CreativeIntentStrip({
-  productionLabel,
-  scriptTitle,
-  segmentCount,
-  sceneMomentCount,
-  hasResources,
+function ScriptVersionBindingBar({
+  scriptVersions,
+  selectedScriptVersion,
+  isFetching,
+  isSaving,
+  disabled,
+  onChange,
 }: {
-  productionLabel: string
-  scriptTitle: string
-  segmentCount: number
-  sceneMomentCount: number
-  hasResources: boolean
+  scriptVersions: ScriptVersion[]
+  selectedScriptVersion: ScriptVersion | null
+  isFetching: boolean
+  isSaving: boolean
+  disabled: boolean
+  onChange: (scriptVersionId: number | null) => void
 }) {
-  const prompts = [
-    {
-      icon: Target,
-      label: '作品意图',
-      value: productionLabel,
-      detail: '这一集/这一段想让观众记住什么情绪、关系或冲突。',
-    },
-    {
-      icon: Route,
-      label: '情绪推进',
-      value: segmentCount > 0 ? `${segmentCount} 段情绪变化` : '等待拆出情绪段',
-      detail: '每个段落先回答“为什么发生变化”，再决定要做哪些画面。',
-    },
-    {
-      icon: Sparkles,
-      label: '画面线索',
-      value: hasResources ? `${sceneMomentCount} 个情节可继续推演` : '先补设定或素材锚点',
-      detail: scriptTitle ? `从《${scriptTitle}》提取人物、道具、地点和氛围。` : '绑定剧本后，线索会更容易被拆成可执行画面。',
-    },
-  ]
-
+  const selectedValue = selectedScriptVersion ? String(selectedScriptVersion.ID) : '__none__'
   return (
-    <div className="mt-4 grid gap-2 md:grid-cols-3">
-      {prompts.map(({ icon: Icon, label, value, detail }) => (
-        <div key={label} className="rounded-md border border-border bg-background p-3">
-          <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
-            <Icon size={13} />
-            {label}
-          </div>
-          <p className="mt-2 truncate text-sm font-semibold text-foreground">{value}</p>
-          <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{detail}</p>
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/20 px-3 py-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+          <ScrollText size={12} />
+          剧本来源
         </div>
-      ))}
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          绑定制作要使用的稳定剧本版本；当前绑定会显示版本号、ID 和正文快照。
+        </p>
+      </div>
+      <div className="flex min-w-[260px] flex-wrap items-center justify-end gap-2">
+        <Select
+          value={selectedValue}
+          onValueChange={(value) => onChange(value === '__none__' ? null : Number(value))}
+          disabled={disabled || isFetching || isSaving || scriptVersions.length === 0}
+        >
+          <SelectTrigger className="h-8 w-[260px] text-xs">
+            <SelectValue placeholder={isFetching ? '读取剧本版本...' : '选择剧本版本'} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">不绑定剧本</SelectItem>
+            {scriptVersions.map((version) => (
+              <SelectItem key={version.ID} value={String(version.ID)}>
+                {scriptVersionOptionLabel(version)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {isSaving ? <Loader2 size={14} className="animate-spin text-muted-foreground" /> : null}
+        {scriptVersions.length === 0 ? (
+          <Button asChild size="sm" variant="outline" className="h-8 gap-1.5 text-xs">
+            <Link to={ROUTES.project.scripts}>
+              <Plus size={12} />
+              去创建剧本
+            </Link>
+          </Button>
+        ) : null}
+      </div>
     </div>
   )
+}
+
+function ScriptVersionContentPreview({ scriptVersion, scriptText }: { scriptVersion: ScriptVersion | null; scriptText: string }) {
+  if (!scriptVersion) {
+    return (
+      <div className="mt-3 rounded-md border border-dashed border-border bg-muted/10 px-3 py-3">
+        <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+          <ScrollText size={12} />
+          未绑定剧本版本
+        </div>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">绑定后这里会显示该版本的正文快照，创作编排会基于这份锁定文本展开。</p>
+      </div>
+    )
+  }
+  return (
+    <div className="mt-3 rounded-md border border-border bg-muted/10 px-3 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+            <ScrollText size={12} />
+            绑定剧本正文
+          </div>
+          <p className="mt-1 truncate text-xs font-medium text-foreground">{scriptVersionOptionLabel(scriptVersion)}</p>
+        </div>
+        <span className="shrink-0 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground">
+          {formatVersionUpdatedAt(scriptVersion.UpdatedAt)}
+        </span>
+      </div>
+      {scriptText ? (
+        <div className="mt-3 max-h-44 overflow-y-auto rounded border border-border bg-background px-3 py-2">
+          <p className="whitespace-pre-wrap text-xs leading-5 text-foreground">{scriptText}</p>
+        </div>
+      ) : (
+        <p className="mt-3 rounded border border-dashed border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+          这个版本没有正文内容，请回到剧本页重新快照正文。
+        </p>
+      )}
+    </div>
+  )
+}
+
+function scriptVersionOptionLabel(version: ScriptVersion) {
+  return `v${version.version_number || version.ID} · ${version.title || `剧本版本 #${version.ID}`} · ID ${version.ID}`
+}
+
+function scriptVersionContextLabel(version: ScriptVersion) {
+  return `v${version.version_number || version.ID} · ${version.title || `#${version.ID}`}`
+}
+
+function formatVersionUpdatedAt(value?: string) {
+  if (!value) return '未记录时间'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 function ProductionOrchestrationWorkspace({
   projectName,
   selectedProduction,
   selectedScriptVersion,
+  scriptVersions,
   scriptText,
+  isFetchingScriptVersions,
+  isBindingScriptVersion,
+  onBindScriptVersion,
   overview,
-  projectReady,
   creativeReferences,
-  assetSlots,
   segments,
   sceneMoments,
   lookup,
@@ -1314,11 +1386,13 @@ function ProductionOrchestrationWorkspace({
   projectName: string
   selectedProduction: (SemanticEntityRecord & { name?: string; status?: string }) | null
   selectedScriptVersion: ScriptVersion | null
+  scriptVersions: ScriptVersion[]
   scriptText: string
+  isFetchingScriptVersions: boolean
+  isBindingScriptVersion: boolean
+  onBindScriptVersion: (scriptVersionId: number | null) => void
   overview: ContextOverview
-  projectReady: boolean
   creativeReferences: CreativeReferenceRecord[]
-  assetSlots: AssetSlotRecord[]
   segments: SegmentRecord[]
   sceneMoments: SceneMomentRecord[]
   lookup: OrchestrationLookup
@@ -1332,14 +1406,10 @@ function ProductionOrchestrationWorkspace({
   onCreateSceneMoment: (segmentId: number) => void
 }) {
   const productionLabel = selectedProduction ? String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`) : '未选择制作'
-  const boundaryTone = projectReady ? 'ok' : 'warn'
   const treeNodeCount = creativeReferences.length + segments.length + sceneMoments.length
-  const unlinkedReferenceCount = creativeReferences.filter((reference) => (lookup.usagesByReferenceId.get(reference.ID)?.length ?? 0) === 0).length
-  const unboundAssetSlotCount = assetSlots.filter((slot) => !slot.creative_reference_id).length
-  const [projectResourcesExpanded, setProjectResourcesExpanded] = useState(false)
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4">
-      <section className={cn('rounded-lg border bg-background p-4', projectReady ? 'border-emerald-200' : 'border-amber-200')}>
+    <div className="flex w-full flex-col gap-4 p-4">
+      <section className="rounded-lg bg-background p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
@@ -1351,134 +1421,27 @@ function ProductionOrchestrationWorkspace({
               先把作品想表达的情绪、关系和关键画面讲清楚，再把它们拆成情节、设定资料引用和素材缺口。
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={boundaryTone === 'ok' ? 'secondary' : 'warning'} className="h-6 rounded-full px-2 text-[10px]">
-              {boundaryTone === 'ok' ? '上游资源已就绪' : '先补设定/素材需求'}
-            </Badge>
-            <Button asChild size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
-              <Link to={mergeSearch(ROUTES.project.preProduction, '', { tab: 'settings' })}>
-                <Sparkles size={13} />
-                设定工作台
-              </Link>
-            </Button>
-            <Button asChild size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
-              <Link to={mergeSearch(ROUTES.project.preProduction, '', { tab: 'assets' })}>
-                <PackageCheck size={13} />
-                素材需求
-              </Link>
-            </Button>
-          </div>
         </div>
+        <ScriptVersionBindingBar
+          scriptVersions={scriptVersions}
+          selectedScriptVersion={selectedScriptVersion}
+          isFetching={isFetchingScriptVersions}
+          isSaving={isBindingScriptVersion}
+          disabled={!selectedProduction}
+          onChange={onBindScriptVersion}
+        />
         <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <ContextLine icon={Layers3} label="项目" value={projectName} />
           <ContextLine icon={Route} label="制作" value={productionLabel} />
-          <ContextLine icon={ScrollText} label="剧本" value={selectedScriptVersion?.title || '未绑定'} />
+          <ContextLine icon={ScrollText} label="剧本版本" value={selectedScriptVersion ? scriptVersionContextLabel(selectedScriptVersion) : '未绑定'} />
           <ContextLine icon={Eye} label="文本" value={`${scriptText.length} 字`} />
         </div>
-        <CreativeIntentStrip
-          productionLabel={productionLabel}
-          scriptTitle={selectedScriptVersion?.title || ''}
-          segmentCount={segments.length}
-          sceneMomentCount={sceneMoments.length}
-          hasResources={projectReady}
-        />
+        <ScriptVersionContentPreview scriptVersion={selectedScriptVersion} scriptText={scriptText} />
         <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
           {overview.position.map((item, index) => (
             <span key={`${item}-${index}`} className="rounded-full border border-border bg-muted/40 px-2 py-0.5">{item}</span>
           ))}
         </div>
-      </section>
-
-      <section className="rounded-lg border border-border bg-background p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
-              <Sparkles size={12} />
-              上游资源池
-            </div>
-            <h2 className="mt-1 text-sm font-semibold text-foreground">设定与素材资源池</h2>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              这里展示设定工作台和素材需求工作台沉淀下来的资源；创作编排只负责选择哪些线索会影响当前作品表达。
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-            <span className="rounded-full border border-border bg-muted/30 px-2 py-1">设定 {creativeReferences.length}</span>
-            <span className="rounded-full border border-border bg-muted/30 px-2 py-1">素材 {assetSlots.length}</span>
-            {unlinkedReferenceCount > 0 && (
-              <span className="rounded-full border border-border bg-muted/30 px-2 py-1">未关联 {unlinkedReferenceCount}</span>
-            )}
-            {unboundAssetSlotCount > 0 && (
-              <span className="rounded-full border border-border bg-muted/30 px-2 py-1">未归属 {unboundAssetSlotCount}</span>
-            )}
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 gap-1.5 px-2 text-[10px]"
-              onClick={() => setProjectResourcesExpanded((prev) => !prev)}
-            >
-              <ChevronDown size={11} className={cn('transition-transform', projectResourcesExpanded && 'rotate-180')} />
-              {projectResourcesExpanded ? '收起' : '展开'}
-            </Button>
-          </div>
-        </div>
-        {projectResourcesExpanded ? (
-          <div className="mt-4 space-y-2">
-            {creativeReferences.length === 0 ? (
-              <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-4 text-xs text-muted-foreground">
-                当前还没有可引用的设定资料，先去设定工作台补齐。
-              </div>
-            ) : (
-              creativeReferences.map((reference) => (
-                <ProductionTreeNode
-                  key={`project-ref-${reference.ID}`}
-                  id={`project-ref-${reference.ID}`}
-                  level={0}
-                  expanded={expandedIds.has(`project-ref-${reference.ID}`)}
-                  onToggle={() => onToggleExpand(`project-ref-${reference.ID}`)}
-                  title={titleOfRecord(reference)}
-                  detail={String(reference.description ?? reference.summary ?? reference.content ?? '暂无说明')}
-                  badges={[
-                    creativeReferenceKindLabel[String(reference.kind ?? '')] ?? String(reference.kind ?? '设定'),
-                    String(reference.status ?? 'draft'),
-                    `${lookup.assetSlotsByReferenceId.get(reference.ID)?.length ?? 0} 个素材`,
-                  ]}
-                  actions={(
-                    <>
-                      <span className="rounded-full border border-border bg-muted/30 px-2 py-1 text-[10px] text-muted-foreground">
-                        {lookup.usagesByReferenceId.get(reference.ID)?.length ?? 0} 次引用
-                      </span>
-                    </>
-                  )}
-                >
-                  <div className="space-y-2 pb-2">
-                    <TreeMiniLine label="说明" value={String(reference.description ?? reference.summary ?? reference.content ?? '暂无说明')} />
-                    {renderReferenceAssetSlots(reference, lookup, assetSlots)}
-                  </div>
-                </ProductionTreeNode>
-              ))
-            )}
-            {assetSlots.filter((slot) => !slot.creative_reference_id).length > 0 && (
-              <div className="rounded-md border border-dashed border-border bg-muted/20 p-3">
-                <p className="text-xs font-medium text-foreground">未归属素材</p>
-                <div className="mt-2 space-y-1.5">
-                  {assetSlots.filter((slot) => !slot.creative_reference_id).map((slot) => (
-                    <div key={`unbound-slot-${slot.ID}`} className="rounded border border-border bg-background px-2 py-1.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-[11px] font-medium text-foreground">{titleOfRecord(slot)}</p>
-                        <Badge variant="outline" className="h-5 rounded-full px-2 text-[10px]">{String(slot.status ?? 'missing')}</Badge>
-                      </div>
-                      <p className="mt-1 text-[10px] text-muted-foreground">{String(slot.description ?? '暂无说明')}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="mt-4 rounded-md border border-dashed border-border bg-muted/20 px-3 py-4 text-xs text-muted-foreground">
-            默认收起。展开后查看设定工作台和素材需求工作台的上游资源池。
-          </div>
-        )}
       </section>
 
       <section className="rounded-lg border border-border bg-background p-4">
@@ -1540,17 +1503,6 @@ function ProductionOrchestrationWorkspace({
         </div>
       </section>
 
-      {!projectReady && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-amber-700 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-300">
-          <div className="flex items-center gap-2">
-            <AlertCircle size={13} />
-            <p className="text-xs font-semibold">创作编排还没接上上游线索</p>
-          </div>
-          <p className="mt-1 text-[11px] leading-4">
-            先去设定工作台补齐人物、地点、道具或风格线索，或去素材需求工作台补齐视觉锚点，再回到这里继续展开情绪段和情节树。
-          </p>
-        </div>
-      )}
     </div>
   )
 }
@@ -1625,6 +1577,7 @@ function EmotionFlowColumn({
           <div className="border-t border-border/60 px-3 py-2">
             <div className="space-y-2">
               <TreeMiniLine label="摘要" value={String(segment.summary ?? segment.content ?? '暂无摘要')} />
+              {segment.source_range ? renderScriptExcerpt(lookup.scriptText, String(segment.source_range), segment) : null}
               <TreeChipRow label="引用设定" items={segmentReferences.map((reference) => titleOfRecord(reference))} />
               <TreeChipRow label="关联素材" items={segmentAssetSlots.map((slot) => formatAssetSlotLabel(slot, lookup))} />
             </div>
@@ -1807,32 +1760,6 @@ function TreeChipRow({ label, items }: { label: string; items: string[] }) {
           </span>
         ))}
       </div>
-    </div>
-  )
-}
-
-function renderReferenceAssetSlots(reference: CreativeReferenceRecord, lookup: OrchestrationLookup, assetSlots: AssetSlotRecord[]) {
-  const slots = assetSlots.filter((slot) => Number(slot.creative_reference_id ?? 0) === reference.ID)
-  if (slots.length === 0) {
-    return <div className="rounded-md border border-dashed border-border bg-background px-2 py-2 text-[11px] text-muted-foreground">这个设定还没有挂载素材需求。</div>
-  }
-  return (
-    <div className="space-y-1.5">
-      <p className="text-[10px] text-muted-foreground">关联素材</p>
-      {slots.map((slot) => (
-        <div key={slot.ID} className="rounded border border-border bg-background px-2 py-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[11px] font-medium text-foreground">{titleOfRecord(slot)}</p>
-            <span className="rounded-full border border-border bg-muted/30 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-              {String(slot.priority ?? 'normal')}
-            </span>
-            <span className="rounded-full border border-border bg-muted/30 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-              {formatOwnerLabel(String(slot.owner_type ?? ''), Number(slot.owner_id ?? 0), lookup) || '未归属'}
-            </span>
-          </div>
-          <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{String(slot.description ?? '暂无说明')}</p>
-        </div>
-      ))}
     </div>
   )
 }
@@ -2368,7 +2295,7 @@ function ProposalReviewPanel({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-        <div className="mx-auto flex w-full max-w-5xl min-h-0 flex-col gap-3">
+        <div className="flex min-h-0 w-full flex-col gap-3">
           {applyError && (
             <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50/60 p-3 dark:border-rose-800/50 dark:bg-rose-950/30">
               <AlertCircle size={13} className="mt-0.5 shrink-0 text-rose-500" />
@@ -2458,18 +2385,6 @@ function ProposalReviewEmptyState({ onSwitchToStructure }: { onSwitchToStructure
           <Button size="sm" className="h-7 gap-1.5 text-xs" onClick={onSwitchToStructure}>
             <Route size={12} />
             回到结构
-          </Button>
-          <Button asChild size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
-            <Link to={mergeSearch(ROUTES.project.preProduction, '', { tab: 'settings' })}>
-              <Sparkles size={12} />
-              设定工作台
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
-            <Link to={mergeSearch(ROUTES.project.preProduction, '', { tab: 'assets' })}>
-              <PackageCheck size={12} />
-              素材需求
-            </Link>
           </Button>
         </div>
       </div>
@@ -3331,7 +3246,7 @@ function buildProposalApplyGate(preview: ProposalApplyPreview, backendPreviewRea
     return {
       status: 'blocked',
       title: '存在不能写入的变更',
-      detail: '请处理依赖未接受的节点；如果变更是新增或更新设定/素材需求，需要回到设定工作台或素材需求工作台处理。',
+      detail: '请处理依赖未接受的节点；如果变更是新增或更新设定/素材需求，需要先处理对应上游草稿。',
     }
   }
   if (!backendPreviewReady) {
@@ -3619,7 +3534,7 @@ function ProposalSemanticDiffRow({
           className="h-6 px-2 text-[10px]"
           onClick={() => onSetDecisions(projectBoundaryBlocked ? [] : item.acceptKeys, 'accepted')}
           disabled={projectBoundaryBlocked}
-          title={projectBoundaryBlocked ? '设定和素材需求需要回到设定工作台或素材需求工作台处理' : undefined}
+          title={projectBoundaryBlocked ? '设定和素材需求需要先处理对应上游草稿' : undefined}
         >
           {projectBoundaryBlocked ? '回上游工作台' : '接受'}
         </Button>

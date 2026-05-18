@@ -15,7 +15,7 @@ export interface BackendApplyAuthContext {
 
 export interface BackendApplyResult {
   performed: boolean
-  method?: 'PATCH' | 'POST'
+  method?: 'GET' | 'PATCH' | 'POST'
   url?: string
   payload?: Record<string, JSONValue>
   response?: JSONValue
@@ -23,7 +23,7 @@ export interface BackendApplyResult {
 }
 
 export interface BackendApplyErrorDetail {
-  method: 'PATCH' | 'POST'
+  method: 'GET' | 'PATCH' | 'POST'
   path: string
   status: number
   responseText: string
@@ -147,25 +147,22 @@ export class BackendApplyClient {
     }
   }
 
-  async createScript(projectId: number, payload: Record<string, JSONValue>, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
+  async getProject(projectId: number, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
     const baseURL = this.resolveBaseURL(auth)
     if (!baseURL) {
-      return { performed: false, skippedReason: 'backend apply disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
+      return { performed: false, skippedReason: 'backend read disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
     }
-    const path = `/projects/${encodeURIComponent(String(projectId))}/scripts`
+    const path = `/projects/${encodeURIComponent(String(projectId))}`
     const url = `${baseURL}${path}`
-    const headers = buildHeaders(auth)
-
     const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
+      method: 'GET',
+      headers: buildHeaders(auth),
     })
     const responseText = await response.text()
     const parsed = parseJSONText(responseText)
     if (!response.ok) {
-      throw new BackendApplyHTTPError(`backend POST ${path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`, {
-        method: 'POST',
+      throw new BackendApplyHTTPError(`backend GET ${path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`, {
+        method: 'GET',
         path,
         status: response.status,
         responseText,
@@ -174,9 +171,8 @@ export class BackendApplyClient {
     }
     return {
       performed: true,
-      method: 'POST',
+      method: 'GET',
       url,
-      payload,
       ...(parsed !== undefined ? { response: parsed } : {}),
     }
   }

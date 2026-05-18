@@ -856,6 +856,10 @@ test('exportVideoTimeline preserves timeline gaps with black video when ffmpeg i
       ],
       outputName: 'timeline-gap.mp4',
     })
+    if (!result.ok && result.code === 'FFMPEG_FILTER_MISSING') {
+      t.skip(result.error ?? 'ffmpeg timeline gap filters are not available in this environment')
+      return
+    }
     assert.equal(result.ok, true, result.error)
     assert.equal(result.mimeType, 'video/mp4')
     assert.equal(result.outputName, 'timeline-gap.mp4')
@@ -897,7 +901,7 @@ test('exportVideoTimeline renders upper video overlays when ffmpeg is available'
       '-hide_banner',
       '-loglevel', 'error',
       '-f', 'lavfi',
-      '-i', 'color=c=red:size=80x45:rate=15',
+      '-i', 'color=c=red:size=80x46:rate=15',
       '-t', '1',
       '-pix_fmt', 'yuv420p',
       upperPath,
@@ -923,6 +927,10 @@ test('exportVideoTimeline renders upper video overlays when ffmpeg is available'
       }],
       outputName: 'timeline-video-overlay.mp4',
     })
+    if (!result.ok && result.code === 'FFMPEG_FILTER_MISSING') {
+      t.skip(result.error ?? 'ffmpeg video overlay filters are not available in this environment')
+      return
+    }
     assert.equal(result.ok, true, result.error)
     assert.equal(result.mimeType, 'video/mp4')
     assert.equal(result.outputName, 'timeline-video-overlay.mp4')
@@ -984,6 +992,10 @@ test('exportVideoTimeline mixes external audio with fades when ffmpeg is availab
       }],
       outputName: 'timeline-audio.mp4',
     })
+    if (!result.ok && result.code === 'FFMPEG_FILTER_MISSING') {
+      t.skip(result.error ?? 'ffmpeg audio mix filters are not available in this environment')
+      return
+    }
     assert.equal(result.ok, true, result.error)
     assert.equal(result.mimeType, 'video/mp4')
     assert.equal(result.outputName, 'timeline-audio.mp4')

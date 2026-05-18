@@ -45,8 +45,15 @@ export function updateRuntimeActiveSkills(input: {
   now?: () => string
 }): JSONValue {
   const snapshot = input.catalogSnapshots.getForRun(input.run.id)
-  const load = stringList(input.request?.load)
-  const unload = stringList(input.request?.unload)
+  const requestedLoad = stringList(input.request?.load)
+  const requestedUnload = stringList(input.request?.unload)
+  const activationCorrection = correctScriptReadingSkillActivation({
+    userMessage: input.run.input?.userMessage,
+    load: requestedLoad,
+    unload: requestedUnload,
+  })
+  const load = activationCorrection.load
+  const unload = activationCorrection.unload
   const reason = typeof input.request?.reason === 'string' ? input.request.reason : undefined
   const allowConflicts = input.request?.allowConflicts === true
   const knownSkillIds = new Set(snapshot.layeredRegistry.skills.keys())
@@ -101,7 +108,66 @@ export function updateRuntimeActiveSkills(input: {
     conflicts,
     ...(next.reason ? { reason: next.reason } : {}),
     ...(next.updatedAt ? { updatedAt: next.updatedAt } : {}),
+    ...(activationCorrection.applied ? { correctedSkillActivation: activationCorrection.details } : {}),
   } as unknown as JSONValue
+}
+
+const SCRIPT_READING_SKILL_ID = 'movscript.workflow.script-reading'
+const SCRIPT_ADJACENT_PROPOSAL_SKILL_IDS = new Set([
+  'movscript.workflow.asset-proposal',
+  'movscript.workflow.asset_proposal',
+  'movscript.workflow.setting-proposal',
+  'movscript.workflow.setting_proposal',
+  'movscript.workflow.project-proposal',
+  'movscript.workflow.project_proposal',
+  'movscript.workflow.production-proposal',
+  'movscript.workflow.production_proposal',
+  'movscript.workflow.content-unit-proposal',
+  'movscript.workflow.content_unit_proposal',
+])
+
+function correctScriptReadingSkillActivation(input: {
+  userMessage?: string
+  load: string[]
+  unload: string[]
+}): {
+  load: string[]
+  unload: string[]
+  applied: boolean
+  details?: Record<string, JSONValue>
+} {
+  if (!isPlainScriptReadingRequest(input.userMessage)) return { load: input.load, unload: input.unload, applied: false }
+  if (input.load.includes(SCRIPT_READING_SKILL_ID)) return { load: input.load, unload: input.unload, applied: false }
+  if (!input.load.some(isScriptAdjacentProposalSkillId)) return { load: input.load, unload: input.unload, applied: false }
+
+  const suppressed = input.load.filter(isScriptAdjacentProposalSkillId)
+  const preserved = input.load.filter((id) => !isScriptAdjacentProposalSkillId(id))
+  return {
+    load: Array.from(new Set([...preserved, SCRIPT_READING_SKILL_ID])).sort(),
+    unload: input.unload,
+    applied: true,
+    details: {
+      reason: 'script_reading_request',
+      requestedLoad: input.load,
+      suppressedLoad: suppressed,
+      addedLoad: [SCRIPT_READING_SKILL_ID],
+    },
+  }
+}
+
+function isScriptAdjacentProposalSkillId(id: string): boolean {
+  if (SCRIPT_ADJACENT_PROPOSAL_SKILL_IDS.has(id)) return true
+  return /(?:^|\.)((asset|setting|project|production)[-_]proposal|content[-_]unit[-_]proposal)$/.test(id)
+}
+
+function isPlainScriptReadingRequest(message: string | undefined): boolean {
+  const text = message?.trim().toLowerCase()
+  if (!text) return false
+  const hasScriptTarget = /剧本|总剧本|分集剧本|第一集|screenplay|\bscript\b/.test(text)
+  if (!hasScriptTarget) return false
+  const hasReadIntent = /查看|读取|读|看一下|看看|理解|分析|总结|梳理|内容|正文|read|show|view|inspect|summari[sz]e|analy[sz]e/.test(text)
+  if (!hasReadIntent) return false
+  return !/提案|方案|创建|起草|生成|修改|更新|改写|补充|拆分|素材|素材位|候选|设定资料|人物设定|地点设定|asset|setting proposal|proposal|create|draft|update|revise/.test(text)
 }
 
 function expandSkillDependencies(input: {

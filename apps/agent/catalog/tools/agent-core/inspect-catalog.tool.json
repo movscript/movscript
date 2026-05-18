@@ -12,13 +12,14 @@
           "pack",
           "skill",
           "tool",
-          "profile"
+          "profile",
+          "knowledge"
         ],
         "description": "要查看的 catalog 视图。默认 summary。"
       },
       "id": {
         "type": "string",
-        "description": "pack id、skill id、tool name 或 profile id。summary 可省略。"
+        "description": "pack id、skill id、tool name、profile id 或 knowledge collection id。summary 可省略，其它 view 必填。"
       },
       "includeInstruction": {
         "type": "boolean",
@@ -28,7 +29,37 @@
         "type": "boolean",
         "description": "查看 tool 时是否返回 inputSchema/outputSchema。默认 false。"
       }
-    }
+    },
+    "anyOf": [
+      {
+        "properties": {
+          "view": {
+            "const": "summary"
+          }
+        }
+      },
+      {
+        "properties": {
+          "view": {
+            "enum": [
+              "pack",
+              "skill",
+              "tool",
+              "profile",
+              "knowledge"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "view",
+          "id"
+        ]
+      }
+    ]
   },
   "permission": "agent.catalog.read",
   "risk": "read",
@@ -38,5 +69,5 @@
     "approval": "never"
   },
   "source": "runtime",
-  "capability": "按需读取当前 run 的 agent catalog snapshot 中的 pack、skill、tool 和 profile 详情，不会安装、启用或 reload catalog。"
+  "capability": "按需读取当前 run 的 agent catalog snapshot 中的 pack、skill、tool、profile 和 knowledge 详情，不会安装、启用或 reload catalog。"
 }

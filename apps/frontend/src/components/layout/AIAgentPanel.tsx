@@ -584,9 +584,7 @@ function buildAgentContext(options: {
   permissionMode: AgentPermissionMode
   autoPlan: boolean
   project: Project | null
-  recentResources: RawResource[]
   includeProjectContext: boolean
-  includeRecentResources: boolean
 }) {
   void options
   return ''
@@ -599,6 +597,8 @@ function agentPermissionModeToApprovalMode(permissionMode: AgentPermissionMode):
 }
 
 type AgentSendRoute = 'local-runtime'
+type AgentInputAnswer = { choiceIds?: string[]; text?: string }
+type AgentPendingInputRequest = NonNullable<AgentRun['pendingInputRequests']>[number]
 
 interface AgentSendDraft {
   id: string
@@ -696,16 +696,6 @@ function compactProject(project: Project | null): AgentSendDraft['context']['pro
     aspect_ratio: project.aspect_ratio,
     visual_style: project.visual_style,
     project_style: project.project_style,
-  }
-}
-
-function compactResource(resource: RawResource): Pick<RawResource, 'ID' | 'name' | 'type' | 'mime_type' | 'size'> {
-  return {
-    ID: resource.ID,
-    name: resource.name,
-    type: resource.type,
-    mime_type: resource.mime_type,
-    size: resource.size,
   }
 }
 
@@ -920,7 +910,7 @@ function LocalAgentWorkflow({
   events?: ChatRunActivityEvent[]
   onApprove?: (approvalIds?: string[]) => void
   onReject?: (approvalIds?: string[]) => void
-  onAnswerInput?: (requestId: string, answer: { choiceIds?: string[]; text?: string }) => void
+  onAnswerInput?: (requestId: string, answer: AgentInputAnswer) => void
 }) {
   const { t } = useTranslation()
   return (
@@ -1653,6 +1643,22 @@ function isStoppableAgentRun(run: AgentRun | null | undefined): run is AgentRun 
 
 function isTerminalAgentRun(run: AgentRun | null | undefined): run is AgentRun {
   return !!run && TERMINAL_AGENT_RUN_STATUSES.has(run.status)
+}
+
+function firstPendingInputRequest(run: AgentRun | null | undefined): AgentPendingInputRequest | null {
+  return run?.pendingInputRequests?.find((request) => request.status === 'pending') ?? null
+}
+
+function formatInputAnswerForChat(request: AgentPendingInputRequest, answer: AgentInputAnswer): string {
+  const selected = (answer.choiceIds ?? [])
+    .map((choiceId) => request.choices.find((choice) => choice.id === choiceId))
+    .filter((choice): choice is AgentPendingInputRequest['choices'][number] => Boolean(choice))
+  const lines = [
+    `回答：${request.title}`,
+    ...selected.map((choice) => `选择：${choice.label}`),
+    answer.text?.trim() ? `补充：${answer.text.trim()}` : undefined,
+  ].filter((line): line is string => Boolean(line))
+  return lines.join('\n')
 }
 
 function createLocalAgentStopAbortError(): Error {
@@ -4555,7 +4561,6 @@ function ChatView({
     t('agents.chat.localRuntime'),
     activeConversationManifest ? t('agents.chat.panel.capabilities.custom') : null,
     settings.includeProjectContext && currentProject ? currentProject.name : null,
-    settings.includeRecentResources && recentResources.length > 0 ? t('agents.chat.recentResourcesCount', { count: Math.min(recentResources.length, 8) }) : null,
     composerAttachments.length > 0 ? t('agents.chat.attachmentsCount', { count: composerAttachments.length }) : null,
   ].filter(Boolean) as string[]
   const localAgentOnline = !!localAgentHealth?.ok && !localAgentHealthError
@@ -4564,7 +4569,6 @@ function ChatView({
     : localAgentOnline
       ? t('agents.chat.panel.status.localRuntimeOnline')
       : t('agents.chat.panel.status.localRuntimeOffline')
-  const canSend = (!!input.trim() || composerAttachments.length > 0) && !loading && !uploading && !buildingSendDraft
   const canAutoStartLocalAgent = canStartLocalAgentFromClient()
   const localAgentErrorMessage = localAgentStartError
     ?? (!localAgentOnline && localAgentHealthError instanceof Error ? localAgentHealthError.message : null)
@@ -4576,8 +4580,6 @@ function ChatView({
     toastMCPStatus(status)
     throw new Error(status.error || `MCP server is not available at ${status.endpoint}`)
   }, [])
-  const hasActiveLocalWork = !isTerminalAgentRun(activeLocalRun) && (loading || buildingSendDraft)
-  const canStopLocalRun = isStoppableAgentRun(activeLocalRun) || hasActiveLocalWork || stopRequestedBeforeRun
   const { data: localAgentInspect, isFetching: fetchingLocalAgentInspect, refetch: refetchLocalAgentInspect } = useQuery<AgentInspectResponse>({
     queryKey: ['local-agent-panel-inspect', localAgentClient.baseURL],
     queryFn: async () => {
@@ -4610,6 +4612,22 @@ function ChatView({
     refetchInterval: (query) => shouldPollPlanSnapshot(query.state.data, activeLocalRun) ? 1500 : false,
   })
   const actionableLocalRun = actionableRunForPlan(activePlanSnapshot, activeLocalRun)
+  const activePendingInputRequest = firstPendingInputRequest(actionableLocalRun)
+  const answeringPendingInput = !!activePendingInputRequest
+  const canAnswerPendingInputWithText = !!activePendingInputRequest
+    && (activePendingInputRequest.inputType === 'text' || activePendingInputRequest.allowCustomAnswer)
+  const canSend = (
+    answeringPendingInput
+      ? canAnswerPendingInputWithText && !!input.trim()
+      : (!!input.trim() || composerAttachments.length > 0)
+  ) && !loading && !uploading && !buildingSendDraft
+  const hasActiveLocalWork = !isTerminalAgentRun(activeLocalRun) && (loading || buildingSendDraft)
+  const canStopLocalRun = !answeringPendingInput && (isStoppableAgentRun(activeLocalRun) || hasActiveLocalWork || stopRequestedBeforeRun)
+  const composerPlaceholder = activePendingInputRequest
+    ? activePendingInputRequest.inputType === 'choice'
+      ? activePendingInputRequest.allowCustomAnswer ? '可补充自定义答案' : '请选择上方选项'
+      : activePendingInputRequest.question
+    : t('agents.chat.inputPlaceholder')
   const showLocalWorkflow = !!actionableLocalRun
   function setDebugBeforeSend(next: boolean) {
     setDebugBeforeSendState(next)
@@ -5053,13 +5071,20 @@ function ChatView({
     }
   }, [actionableLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime, refreshAgentCatalogContext])
 
-  const answerActiveLocalRunInput = useCallback(async (requestId: string, answer: { choiceIds?: string[]; text?: string }) => {
+  const answerActiveLocalRunInput = useCallback(async (requestId: string, answer: AgentInputAnswer) => {
     const run = actionableLocalRun
     if (!run || run.status !== 'requires_action' || approvingLocalRun) return
+    const request = (run.pendingInputRequests ?? []).find((item) => item.id === requestId && item.status === 'pending')
 
     setConversationRuntime(conv.id, { approving: true, loading: true, error: undefined })
     try {
       const answeredRun = await localAgentClient.answerRunInput(run.id, { requestId, ...answer })
+      if (request) {
+        addMessage(userId, conv.id, {
+          role: 'user',
+          content: formatInputAnswerForChat(request, answer),
+        })
+      }
       setConversationRun(conv.id, answeredRun, { approving: true, loading: true })
       const finalRun = await streamFollowUpRun(answeredRun.id)
       const thread = await localAgentClient.getThread(finalRun.threadId)
@@ -5359,9 +5384,7 @@ function ChatView({
       permissionMode: settings.permissionMode,
       autoPlan: settings.autoPlan,
       project: currentProject,
-      recentResources,
       includeProjectContext: settings.includeProjectContext,
-      includeRecentResources: settings.includeRecentResources,
     })
     const enrichedUserContent = `${visibleUserContent}${attachmentPromptBlock(sentAttachments)}`
     const messages = [
@@ -5439,7 +5462,9 @@ function ChatView({
       contextLabels,
       context: {
         ...(compactProject(currentProject) ? { project: compactProject(currentProject) } : {}),
-        recentResources: recentResources.slice(0, 8).map(compactResource),
+        // Recent resources are only mention candidates. Explicit resource context
+        // travels through attachments after upload, drag, or @-mention.
+        recentResources: [],
       },
       outbound: {
         systemPrompt,
@@ -5830,6 +5855,14 @@ function ChatView({
 
   const send = useCallback(async () => {
     if ((!input.trim() && composerAttachments.length === 0) || loading || uploading || buildingSendDraft) return
+    if (answeringPendingInput && activePendingInputRequest) {
+      const text = input.trim()
+      if (!canAnswerPendingInputWithText || !text) return
+      updateDraft({ input: '' })
+      setMentionRange(null)
+      await answerActiveLocalRunInput(activePendingInputRequest.id, { text })
+      return
+    }
     if (!modelId) {
       addMessage(userId, conv.id, { role: 'assistant', content: t('agents.chat.selectModelFirst') })
       return
@@ -5856,6 +5889,11 @@ function ChatView({
     loading,
     uploading,
     buildingSendDraft,
+    answeringPendingInput,
+    activePendingInputRequest,
+    canAnswerPendingInputWithText,
+    updateDraft,
+    answerActiveLocalRunInput,
     modelId,
     currentProject,
     userId,
@@ -6178,8 +6216,10 @@ function ChatView({
 
       <section className="ai-agent-panel-card ai-agent-panel-input-card">
         <div className="ai-agent-panel-card-header ai-agent-panel-input-header">
-          <p className="ai-agent-panel-card-title">输入</p>
-          <p className="min-w-0 truncate text-right text-[10px] text-muted-foreground/40">{t('agents.chat.inputHint')}</p>
+          <p className="ai-agent-panel-card-title">{answeringPendingInput ? '回答请求' : '输入'}</p>
+          <p className="min-w-0 truncate text-right text-[10px] text-muted-foreground/40">
+            {activePendingInputRequest ? activePendingInputRequest.title : t('agents.chat.inputHint')}
+          </p>
         </div>
         <AgentComposer
           className={cn('ai-agent-panel-composer', draggingFiles && 'ai-agent-panel-composer--dragging')}
@@ -6214,8 +6254,8 @@ function ChatView({
           <div className="relative">
             <AgentMentionEditor
               editorRef={inputRef}
-              placeholder={t('agents.chat.inputPlaceholder')}
-              disabled={loading || buildingSendDraft}
+              placeholder={composerPlaceholder}
+              disabled={loading || buildingSendDraft || (answeringPendingInput && !canAnswerPendingInputWithText)}
               onChange={(value) => {
                 updateDraft({ input: value })
               }}
@@ -6256,7 +6296,7 @@ function ChatView({
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
               <AgentComposerAction
                 onClick={() => fileRef.current?.click()}
-                disabled={uploading || loading || buildingSendDraft}
+                disabled={answeringPendingInput || uploading || loading || buildingSendDraft}
                 aria-label={t('agents.chat.uploadAttachment')}
                 title={t('agents.chat.uploadAttachment')}
               >
@@ -6264,7 +6304,7 @@ function ChatView({
               </AgentComposerAction>
               <AgentComposerAction
                 onClick={addMentionTrigger}
-                disabled={loading || buildingSendDraft}
+                disabled={answeringPendingInput || loading || buildingSendDraft}
                 aria-label={t('shared.genInput.mention')}
                 title={t('shared.genInput.mention')}
               >
@@ -6278,6 +6318,7 @@ function ChatView({
                 size="xs"
                 variant={debugBeforeSend ? 'secondary' : 'ghost'}
                 onClick={() => setDebugBeforeSend(!debugBeforeSend)}
+                disabled={answeringPendingInput}
                 className="h-7 px-2 text-[10px]"
                 title={t('agents.chat.previewPayload')}
               >
@@ -6289,7 +6330,7 @@ function ChatView({
               type={canStopLocalRun ? 'button' : 'submit'}
               running={canStopLocalRun}
               disabled={canStopLocalRun ? stoppingLocalRun : !canSend}
-              label={canStopLocalRun ? t('agents.chat.stop') : debugBeforeSend ? t('agents.chat.preview') : t('common.send')}
+              label={canStopLocalRun ? t('agents.chat.stop') : answeringPendingInput ? '回答' : debugBeforeSend ? t('agents.chat.preview') : t('common.send')}
               onClick={canStopLocalRun ? stopActiveLocalRun : undefined}
             >
               {stoppingLocalRun

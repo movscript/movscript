@@ -51,6 +51,7 @@ type AgentDebugBundle = {
   modelConfigError: string | null
   lastUpdated: string | null
   observationCoverage: DebugObservationItem[]
+  evidenceChecklist: DebugEvidenceItem[]
   triageItems: DebugTriageItem[]
   remediationPlan: DebugRemediationItem[]
   runSummary: ReturnType<typeof summarizeRuns>
@@ -66,6 +67,13 @@ type DebugWarningGroup = {
 }
 type DebugObservationItem = {
   id: string
+  status: 'ready' | 'warning' | 'action'
+  labelKey: string
+  detailKey: string
+  detailValues?: Record<string, string | number>
+}
+type DebugEvidenceItem = {
+  id: 'runtime' | 'observations' | 'triage' | 'remediation' | 'runs' | 'preview' | 'redaction'
   status: 'ready' | 'warning' | 'action'
   labelKey: string
   detailKey: string
@@ -149,6 +157,7 @@ export default function AIAgentDebugPage() {
     debug: debugQuery.data ?? null,
     preview,
   }), [currentProjectSnapshot, debugQuery.data, preview])
+  const evidenceChecklist = rawData.evidenceChecklist
   const triageItems = rawData.triageItems
   const remediationPlan = rawData.remediationPlan
 
@@ -342,7 +351,7 @@ export default function AIAgentDebugPage() {
                       <div className="mt-2 grid gap-2 text-xs md:grid-cols-2">
                         <SummaryItem label={t('agents.debug.fields.modelConfigured')} value={debugQuery.data.modelConfig.configured ? t('agents.debug.status.enabled') : t('agents.debug.status.disabled')} />
                         <SummaryItem label={t('agents.debug.fields.model')} value={debugModelConfigValue(debugQuery.data.modelConfig)} />
-                        <SummaryItem label={t('agents.debug.fields.apiKind')} value={debugQuery.data.modelConfig.apiKind ?? 'backend_chat_completions'} />
+                        <SummaryItem label={t('agents.debug.fields.apiKind')} value={debugQuery.data.modelConfig.apiKind ?? 'openai_chat_completions'} />
                         <SummaryItem label={t('agents.debug.fields.modelCredentials')} value={debugModelCredentialStatusLabel(debugQuery.data.modelConfig, t)} />
                         <SummaryItem label={t('agents.debug.fields.modelRoutes')} value={debugModelRouteSummary(debugQuery.data.modelConfig)} />
                         <SummaryItem label={t('agents.debug.fields.modelSource')} value={debugQuery.data.modelConfig.source} />
@@ -399,6 +408,9 @@ export default function AIAgentDebugPage() {
                 </Panel>
                 <Panel title={t('agents.debug.panels.observationCoverage')}>
                   <DebugObservationCoverage items={observationItems} previewLoading={previewLoading} onRunPreview={() => void runPreview()} />
+                </Panel>
+                <Panel title={t('agents.debug.panels.evidenceChecklist')}>
+                  <DebugEvidenceChecklistPanel items={evidenceChecklist} />
                 </Panel>
                 <Panel title={t('agents.debug.panels.runIssueSummary')}>
                   <RunIssueSummary groups={runHealth.issueGroups} />
@@ -570,6 +582,44 @@ function DebugObservationRow({
   )
 }
 
+function DebugEvidenceChecklistPanel({ items }: { items: DebugEvidenceItem[] }) {
+  const { t } = useTranslation()
+  const [copied, setCopied] = useState(false)
+  async function copyEvidenceChecklist() {
+    const lines = [
+      t('agents.debug.evidenceChecklist.title'),
+      ...items.map((item, index) => (
+        `${index + 1}. [${t(`agents.debug.observationStatuses.${item.status}`)}] ${t(item.labelKey)} - ${t(item.detailKey, item.detailValues)}`
+      )),
+    ]
+    await navigator.clipboard.writeText(lines.map(redactAgentTraceDebugText).join('\n'))
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <div data-testid="agent-debug-evidence-checklist" className="space-y-2">
+      <div className="flex justify-end">
+        <Button type="button" size="sm" variant="outline" onClick={() => void copyEvidenceChecklist()} data-testid="agent-debug-copy-evidence-checklist">
+          <Clipboard size={13} />
+          {copied ? t('agents.debug.actions.evidenceCopied') : t('agents.debug.actions.copyEvidence')}
+        </Button>
+      </div>
+      {items.map((item) => (
+        <div key={item.id} data-testid="agent-debug-evidence-item" className="flex items-start justify-between gap-2 rounded-md border border-border bg-muted/20 p-2">
+          <span className="min-w-0">
+            <span className="block text-xs font-medium text-foreground">{t(item.labelKey)}</span>
+            <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">{t(item.detailKey, item.detailValues)}</span>
+          </span>
+          <Badge variant={item.status === 'ready' ? 'success' : item.status === 'action' ? 'destructive' : 'warning'} className="shrink-0">
+            {t(`agents.debug.observationStatuses.${item.status}`)}
+          </Badge>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function RunIssueSummary({ groups }: { groups: DebugRunIssueGroup[] }) {
   const { t } = useTranslation()
   if (groups.length === 0) return <EmptyText>{t('agents.debug.empty.noRunIssues')}</EmptyText>
@@ -730,6 +780,7 @@ function DebugBundleFieldGuide() {
     'triageItems',
     'remediationPlan',
     'observationCoverage',
+    'evidenceChecklist',
     'runIssueGroups',
     'warningGroups',
     'redacted',
@@ -1210,6 +1261,69 @@ function buildDebugRemediationPlan(input: {
   return items.slice(0, 5)
 }
 
+function buildDebugEvidenceChecklist(input: {
+  debug: AgentDebugData | null
+  observationItems: DebugObservationItem[]
+  triageItems: DebugTriageItem[]
+  remediationPlan: DebugRemediationItem[]
+  runIssueGroups: DebugRunIssueGroup[]
+  warningGroups: DebugWarningGroup[]
+  preview: AgentRunPreview | null
+}): DebugEvidenceItem[] {
+  const actionObservations = input.observationItems.filter((item) => item.status === 'action').length
+  const warningObservations = input.observationItems.filter((item) => item.status === 'warning').length
+  const actionTriage = input.triageItems.filter((item) => item.severity === 'action').length
+  const runIssueCount = input.runIssueGroups.reduce((total, group) => total + group.count, 0)
+  return [
+    {
+      id: 'runtime',
+      status: input.debug ? 'ready' : 'action',
+      labelKey: 'agents.debug.evidenceChecklist.runtime',
+      detailKey: input.debug ? 'agents.debug.evidenceChecklistDetails.runtimeReady' : 'agents.debug.evidenceChecklistDetails.runtimeMissing',
+    },
+    {
+      id: 'observations',
+      status: actionObservations > 0 ? 'action' : warningObservations > 0 ? 'warning' : 'ready',
+      labelKey: 'agents.debug.evidenceChecklist.observations',
+      detailKey: 'agents.debug.evidenceChecklistDetails.observations',
+      detailValues: { actions: actionObservations, warnings: warningObservations, total: input.observationItems.length, warningSources: input.warningGroups.length },
+    },
+    {
+      id: 'triage',
+      status: actionTriage > 0 ? 'action' : input.triageItems.length > 0 ? 'warning' : 'ready',
+      labelKey: 'agents.debug.evidenceChecklist.triage',
+      detailKey: 'agents.debug.evidenceChecklistDetails.triage',
+      detailValues: { actions: actionTriage, total: input.triageItems.length },
+    },
+    {
+      id: 'remediation',
+      status: input.remediationPlan.some((item) => item.severity === 'action') ? 'action' : input.remediationPlan.length > 0 ? 'warning' : 'ready',
+      labelKey: 'agents.debug.evidenceChecklist.remediation',
+      detailKey: 'agents.debug.evidenceChecklistDetails.remediation',
+      detailValues: { count: input.remediationPlan.length },
+    },
+    {
+      id: 'runs',
+      status: runIssueCount > 0 ? 'warning' : input.debug && input.debug.runs.length > 0 ? 'ready' : 'warning',
+      labelKey: 'agents.debug.evidenceChecklist.runs',
+      detailKey: 'agents.debug.evidenceChecklistDetails.runs',
+      detailValues: { issues: runIssueCount, total: input.debug?.runs.length ?? 0 },
+    },
+    {
+      id: 'preview',
+      status: input.preview ? 'ready' : 'warning',
+      labelKey: 'agents.debug.evidenceChecklist.preview',
+      detailKey: input.preview ? 'agents.debug.evidenceChecklistDetails.previewReady' : 'agents.debug.evidenceChecklistDetails.previewMissing',
+    },
+    {
+      id: 'redaction',
+      status: 'ready',
+      labelKey: 'agents.debug.evidenceChecklist.redaction',
+      detailKey: 'agents.debug.evidenceChecklistDetails.redactionReady',
+    },
+  ]
+}
+
 function buildDebugBundle(input: {
   baseURL: string
   currentProject: AgentDebugProjectSnapshot
@@ -1235,6 +1349,15 @@ function buildDebugBundle(input: {
     runIssueGroups: runSummary.issueGroups,
     warningGroups,
   })
+  const evidenceChecklist = buildDebugEvidenceChecklist({
+    debug: input.debug,
+    observationItems: observationCoverage,
+    triageItems,
+    remediationPlan,
+    runIssueGroups: runSummary.issueGroups,
+    warningGroups,
+    preview: input.preview,
+  })
   return {
     schema: AGENT_DEBUG_BUNDLE_SCHEMA,
     schemaVersion: AGENT_DEBUG_BUNDLE_SCHEMA_VERSION,
@@ -1248,6 +1371,7 @@ function buildDebugBundle(input: {
     modelConfigError: input.debug?.modelConfigError ? redactAgentTraceDebugText(input.debug.modelConfigError) : null,
     lastUpdated: input.debug?.lastUpdated ?? null,
     observationCoverage,
+    evidenceChecklist,
     triageItems,
     remediationPlan,
     runSummary: redactAgentTraceDebugData(runSummary) as ReturnType<typeof summarizeRuns>,

@@ -36,9 +36,8 @@ export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
   tools: [
     { name: 'movscript_get_focus', mode: 'allow', approval: 'never' },
     { name: 'movscript_list_projects', mode: 'allow', approval: 'never' },
+    { name: 'movscript_get_project_standards', mode: 'allow', approval: 'never' },
     { name: 'movscript_read_project_scripts', mode: 'allow', approval: 'never' },
-    { name: 'movscript_list_drafts', mode: 'allow', approval: 'never' },
-    { name: 'movscript_read_draft', mode: 'allow', approval: 'never' },
     { name: 'movscript_update_draft', mode: 'allow', approval: 'never' },
     { name: 'movscript_search_memories', mode: 'allow', approval: 'never' },
     { name: 'movscript_get_memory', mode: 'allow', approval: 'never' },

@@ -1,6 +1,6 @@
 {
   "name": "movscript_get_draft",
-  "description": "按 id 读取本地 draft。返回 content、metadata、status 和本地校验结果。",
+  "description": "按 id 读取 Agent 本地审阅 draft artifact。Draft 是 proposal/审阅草稿，不是后端项目剧本；读取总剧本、第一集、分集剧本或 script 正文时必须使用 movscript_read_project_scripts。",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,

@@ -149,6 +149,102 @@ test('updateRuntimeActiveSkills stores run skill state and reports missing ids',
   assert.deepEqual((run.metadata?.skillState as any)?.loadedSkillIds, [skillB.id])
 })
 
+test('updateRuntimeActiveSkills corrects proposal skill choice for plain script reading requests', () => {
+  const scriptReading = makeSkill('movscript.workflow.script-reading')
+  const assetProposal = makeSkill('movscript.workflow.asset-proposal')
+  const settingProposal = makeSkill('movscript.workflow.setting-proposal')
+  const snapshots = new RuntimeCatalogSnapshotRegistry(buildRuntimeCatalogSnapshot({
+    id: 'catalog_1',
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: new StaticToolRegistry([]),
+    layeredRegistry: makeRegistry({ skills: [scriptReading, assetProposal, settingProposal] }),
+  }))
+  snapshots.captureRun('run_1')
+  const run: AgentRun = {
+    id: 'run_1',
+    threadId: 'thread_1',
+    status: 'in_progress' as const,
+    input: {
+      schema: 'movscript.agent.run-input.v1',
+      userMessage: '请查看好运甜妻的总剧本内容',
+      executionMode: 'chat',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
+    policy: {
+      approvalMode: 'interactive' as const,
+      maxToolCalls: 20,
+      maxIterations: 8,
+      allowNetwork: false,
+      allowFileBytes: false,
+    },
+    metadata: {},
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    steps: [],
+  }
+
+  const result = updateRuntimeActiveSkills({
+    catalogSnapshots: snapshots,
+    run,
+    request: {
+      load: [assetProposal.id, settingProposal.id],
+      reason: 'read script context',
+    },
+    now: () => '2026-01-01T00:00:01.000Z',
+  }) as Record<string, any>
+
+  assert.equal(result.status, 'updated')
+  assert.deepEqual(result.loadedSkillIds, [scriptReading.id])
+  assert.deepEqual(result.correctedSkillActivation.suppressedLoad, [assetProposal.id, settingProposal.id])
+  assert.deepEqual(result.correctedSkillActivation.addedLoad, [scriptReading.id])
+  assert.deepEqual((run.metadata?.skillState as any)?.loadedSkillIds, [scriptReading.id])
+})
+
+test('updateRuntimeActiveSkills preserves proposal skills when script request asks for proposal work', () => {
+  const scriptReading = makeSkill('movscript.workflow.script-reading')
+  const assetProposal = makeSkill('movscript.workflow.asset-proposal')
+  const snapshots = new RuntimeCatalogSnapshotRegistry(buildRuntimeCatalogSnapshot({
+    id: 'catalog_1',
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: new StaticToolRegistry([]),
+    layeredRegistry: makeRegistry({ skills: [scriptReading, assetProposal] }),
+  }))
+  snapshots.captureRun('run_1')
+  const run: AgentRun = {
+    id: 'run_1',
+    threadId: 'thread_1',
+    status: 'in_progress' as const,
+    input: {
+      schema: 'movscript.agent.run-input.v1',
+      userMessage: '根据总剧本创建素材提案',
+      executionMode: 'chat',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
+    policy: {
+      approvalMode: 'interactive' as const,
+      maxToolCalls: 20,
+      maxIterations: 8,
+      allowNetwork: false,
+      allowFileBytes: false,
+    },
+    metadata: {},
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    steps: [],
+  }
+
+  const result = updateRuntimeActiveSkills({
+    catalogSnapshots: snapshots,
+    run,
+    request: { load: [assetProposal.id], reason: 'create asset proposal' },
+    now: () => '2026-01-01T00:00:01.000Z',
+  }) as Record<string, unknown>
+
+  assert.equal(result.status, 'updated')
+  assert.deepEqual(result.loadedSkillIds, [assetProposal.id])
+  assert.equal(result.correctedSkillActivation, undefined)
+})
+
 test('updateRuntimeActiveSkills expands dependencies and blocks conflicting style skills by default', () => {
   const dependency = makeSkill('skill_dependency')
   const styleA = makeSkill('style_a', {

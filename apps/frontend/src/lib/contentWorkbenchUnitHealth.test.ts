@@ -71,6 +71,28 @@ test('content workbench unit health separates core readiness from preview delive
   assert.equal(health.checks.find((check) => check.key === 'delivery')?.done, false)
 })
 
+test('content workbench unit health treats non-visual units as not requiring keyframes', () => {
+  const health = buildContentWorkbenchUnitHealth({
+    hasSelectedUnit: true,
+    hasPrompt: true,
+    assetSlotCount: 0,
+    missingSlotCount: 0,
+    keyframeCount: 0,
+    requiresKeyframe: false,
+    generationContextReady: true,
+    generationContextLoading: false,
+    generationContextError: false,
+    pendingReviewDraftCount: 0,
+    runningJobCount: 0,
+    completedJobCount: 0,
+  })
+
+  const keyframeCheck = health.checks.find((check) => check.key === 'keyframes')
+  assert.equal(keyframeCheck?.done, true)
+  assert.equal(keyframeCheck?.value, '非画面项')
+  assert.equal(health.checks.filter((check) => check.tone === 'blocked').length, 0)
+})
+
 test('content workbench unit health reports closed loop after delivery', () => {
   const health = buildContentWorkbenchUnitHealth({
     hasSelectedUnit: true,

@@ -64,8 +64,7 @@ export function buildSettingsSnapshot(input: {
 
 function buildSnapshotModelConfig(config: RuntimeModelConfigPublic | null): AgentSettingsSnapshot['modelConfig'] | undefined {
   if (!config?.configured) return undefined
-  const apiKind = config.apiKind ?? 'backend_chat_completions'
-  if (apiKind !== 'backend_chat_completions' && hasSensitiveTextSecret(config.model)) return undefined
+  if (hasSensitiveTextSecret(config.model)) return undefined
   return {
     model: config.model,
     ...(typeof config.modelConfigId === 'number' ? { modelConfigId: config.modelConfigId } : {}),
@@ -172,12 +171,11 @@ function validateSnapshotModelReference(
   modelConfig: NonNullable<AgentSettingsSnapshot['modelConfig']>,
   textModels: PublicModel[] | undefined,
 ): AgentSettingsSnapshotReferenceIssue[] {
-  const apiKind = modelConfig.apiKind ?? 'backend_chat_completions'
-  if (apiKind !== 'backend_chat_completions') return []
+  if (!modelConfig.model.startsWith('model_config:') && typeof modelConfig.modelConfigId !== 'number') return []
   if (!textModels) {
     return [{
       path: 'modelConfig.model',
-      message: 'backend model catalog is not available',
+      message: 'model catalog is not available',
     }]
   }
   const byPublicId = textModels.some((model) => publicModelId(model) === modelConfig.model)
@@ -191,7 +189,7 @@ function validateSnapshotModelReference(
   if (byPublicId || byConfigId || byModelConfigModel) return []
   return [{
     path: 'modelConfig.model',
-    message: `backend model ${modelConfig.model} not found`,
+    message: `model ${modelConfig.model} not found`,
   }]
 }
 
@@ -200,7 +198,7 @@ function parseSnapshotModelConfig(input: Record<string, unknown>): NonNullable<A
   const model = typeof input.model === 'string' && input.model.trim() ? input.model.trim() : ''
   if (!model) throw new Error('agent settings snapshot modelConfig.model is required')
   const apiKind = parseSnapshotAPIKind(input.apiKind)
-  if (apiKind && apiKind !== 'backend_chat_completions' && hasSensitiveTextSecret(model)) {
+  if (hasSensitiveTextSecret(model)) {
     throw new Error('agent settings snapshot modelConfig.model must not include API keys, bearer tokens, or secret URL credentials')
   }
   const modelConfigId = parseOptionalPositiveInteger(input.modelConfigId, 'agent settings snapshot modelConfig.modelConfigId')
@@ -229,7 +227,7 @@ function parseSnapshotModelConfig(input: Record<string, unknown>): NonNullable<A
 
 function parseSnapshotAPIKind(input: unknown): RuntimeModelAPIKind | undefined {
   if (input === undefined) return undefined
-  if (input === 'backend_chat_completions' || input === 'openai_responses' || input === 'openai_chat_completions' || input === 'anthropic_messages') return input
+  if (input === 'openai_responses' || input === 'openai_chat_completions' || input === 'anthropic_messages') return input
   throw new Error('agent settings snapshot modelConfig.apiKind is invalid')
 }
 

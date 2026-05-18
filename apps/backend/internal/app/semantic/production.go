@@ -57,9 +57,6 @@ func (s *Service) PatchProduction(ctx context.Context, projectID uint, id string
 	if err := s.validateProductionOwners(ctx, projectID, input.ScriptVersionID, input.PreviewTimelineID); err != nil {
 		return item, err
 	}
-	if err := s.ensureProductionSourceCanChange(ctx, projectID, item, input); err != nil {
-		return item, err
-	}
 	patch := domainsemantic.ProductionPatch{
 		ScriptVersionID:   input.ScriptVersionID,
 		PreviewTimelineID: input.PreviewTimelineID,
@@ -85,23 +82,6 @@ func (s *Service) PatchProduction(ctx context.Context, projectID uint, id string
 		return patched, err
 	}
 	return patched, nil
-}
-
-func (s *Service) ensureProductionSourceCanChange(ctx context.Context, projectID uint, item domainsemantic.Production, input ProductionInput) error {
-	if productionSourcePreserved(item, input) {
-		return nil
-	}
-	status, err := s.productionSourceLockStatus(ctx, projectID, item)
-	if err != nil {
-		return err
-	}
-	return status.ErrSourceChangeLocked("production source cannot be changed after downstream items are created")
-}
-
-func productionSourcePreserved(item domainsemantic.Production, input ProductionInput) bool {
-	return optionalUintPatchPreserves(item.ScriptVersionID, input.ScriptVersionID) &&
-		optionalUintPatchPreserves(item.PreviewTimelineID, input.PreviewTimelineID) &&
-		stringPatchPreserves(item.SourceType, input.SourceType)
 }
 
 func (s *Service) upsertProductionRelations(ctx context.Context, item domainsemantic.Production) error {
@@ -138,14 +118,6 @@ func (s *Service) upsertProductionRelations(ctx context.Context, item domainsema
 		})
 	}
 	return nil
-}
-
-func stringPatchPreserves(existing string, patch string) bool {
-	patch = strings.TrimSpace(patch)
-	if patch == "" {
-		return true
-	}
-	return strings.TrimSpace(existing) == patch
 }
 
 func (s *Service) ListContentUnits(ctx context.Context, filter ContentUnitFilter) ([]domainsemantic.ContentUnit, error) {
@@ -1064,11 +1036,21 @@ func (s *Service) PatchPreviewTimelineItem(ctx context.Context, projectID uint, 
 		}
 	} else {
 		timelineID = input.PreviewTimelineID
-		if err := s.ensurePreviewTimelineInProject(ctx, projectID, timelineID); err != nil {
-			return item, err
+		if timelineID == 0 {
+			timelineID = item.PreviewTimelineID
+		} else {
+			if err := s.ensurePreviewTimelineInProject(ctx, projectID, timelineID); err != nil {
+				return item, err
+			}
 		}
 	}
 	patch := previewTimelineItemPatch(input)
+	if input.Order == 0 {
+		patch.Order = item.Order
+	}
+	if input.DurationSec == 0 {
+		patch.DurationSec = item.DurationSec
+	}
 	if timelineID > 0 && input.PreviewTimelineID > 0 {
 		patch.PreviewTimelineID = timelineID
 	}

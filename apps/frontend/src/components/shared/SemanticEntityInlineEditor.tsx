@@ -20,6 +20,15 @@ import { Button, Input, Label, Textarea } from '@movscript/ui'
 
 type FormState = Record<string, string | boolean>
 
+export interface SemanticEntityInlineEditorControlState {
+  formId: string
+  isEditing: boolean
+  canSave: boolean
+  isSaving: boolean
+  isDeleting: boolean
+  isImmutableRecord: boolean
+}
+
 interface SemanticEntityInlineEditorProps {
   projectId?: number
   config: SemanticEntityConfig
@@ -28,6 +37,11 @@ interface SemanticEntityInlineEditorProps {
   queryKey?: readonly unknown[]
   title?: string
   description?: string
+  hideHeaderCopy?: boolean
+  hideHeaderActions?: boolean
+  editing?: boolean
+  onEditingChange?: (editing: boolean) => void
+  onControlStateChange?: (state: SemanticEntityInlineEditorControlState) => void
   emptyTitle?: string
   emptyDescription?: string
   className?: string
@@ -58,6 +72,11 @@ export function SemanticEntityInlineEditor({
   queryKey,
   title,
   description,
+  hideHeaderCopy = false,
+  hideHeaderActions = false,
+  editing,
+  onEditingChange,
+  onControlStateChange,
   emptyTitle = '未选择对象',
   emptyDescription = '从左侧列表选择一个对象后，可直接在卡片内编辑。',
   className,
@@ -72,7 +91,8 @@ export function SemanticEntityInlineEditor({
   const basicFields = useMemo(() => fields.filter((field) => !isAdvancedField(config.kind, field.key)), [config.kind, fields])
   const advancedFields = useMemo(() => fields.filter((field) => isAdvancedField(config.kind, field.key)), [config.kind, fields])
   const [form, setForm] = useState<FormState>(() => buildInitialForm(fields, record, defaults))
-  const [isEditing, setIsEditing] = useState(Boolean(!record))
+  const [uncontrolledIsEditing, setUncontrolledIsEditing] = useState(Boolean(!record))
+  const isEditing = editing ?? uncontrolledIsEditing
   const enableCreativeReferenceLookups = config.kind === 'assetSlots' && Boolean(projectId)
   const enableScriptBlockLookups = (config.kind === 'contentUnits' || config.kind === 'segments' || config.kind === 'sceneMoments') && Boolean(projectId)
   const canDeleteRecord = !isDeleteProtectedKind(config.kind)
@@ -80,6 +100,11 @@ export function SemanticEntityInlineEditor({
   const sourceLockEnabled = Boolean(projectId && record?.ID && sourceLockSupportedKind(config.kind))
   const editorDomScope = idScope ?? `${config.kind}-${record?.ID ?? 'new'}`
   const formId = `inline-${editorDomScope}`
+
+  function setEditorEditing(nextEditing: boolean) {
+    if (editing === undefined) setUncontrolledIsEditing(nextEditing)
+    onEditingChange?.(nextEditing)
+  }
 
   const { data: creativeReferences = [] } = useQuery({
     queryKey: ['semantic-inline-editor', projectId, 'creative-references'],
@@ -136,7 +161,7 @@ export function SemanticEntityInlineEditor({
 
   useEffect(() => {
     setForm(buildInitialForm(fields, record, defaults))
-    setIsEditing(Boolean(!record || editKey))
+    setEditorEditing(Boolean(!record || editKey))
   }, [defaults, editKey, fields, record])
 
   const missingRequiredFields = useMemo(() => fields.filter((field) => field.required && !isFieldFilled(form[field.key], field.type)), [fields, form])
@@ -181,6 +206,17 @@ export function SemanticEntityInlineEditor({
     if (!projectId || !canSave) return
     saveMutation.mutate(buildPayload(fields, form))
   }
+
+  useEffect(() => {
+    onControlStateChange?.({
+      formId,
+      isEditing,
+      canSave,
+      isSaving: saveMutation.isPending,
+      isDeleting: deleteMutation.isPending,
+      isImmutableRecord,
+    })
+  }, [canSave, deleteMutation.isPending, formId, isEditing, isImmutableRecord, onControlStateChange, saveMutation.isPending])
 
   function updateField(key: string, value: string | boolean) {
     setForm((prev) => ({
@@ -231,7 +267,7 @@ export function SemanticEntityInlineEditor({
               {hero.status}
               {record && (!isEditing || isImmutableRecord) ? (
                 <div className="flex items-center gap-2">
-                  {isImmutableRecord ? null : <Button size="sm" variant="outline" className="shrink-0 gap-2 bg-background/80" onClick={() => setIsEditing(true)} disabled={deleteMutation.isPending}>
+                  {isImmutableRecord ? null : <Button size="sm" variant="outline" className="shrink-0 gap-2 bg-background/80" onClick={() => setEditorEditing(true)} disabled={deleteMutation.isPending}>
                     <Pencil size={14} />
                     编辑
                   </Button>}
@@ -255,7 +291,7 @@ export function SemanticEntityInlineEditor({
                       className="shrink-0 gap-2 bg-background/80"
                       onClick={() => {
                         setForm(buildInitialForm(fields, record, defaults))
-                        setIsEditing(false)
+                        setEditorEditing(false)
                       }}
                       disabled={saveMutation.isPending || deleteMutation.isPending}
                     >
@@ -338,15 +374,17 @@ export function SemanticEntityInlineEditor({
 
   return (
     <section className={cn('rounded-lg border border-border bg-card', className)}>
-      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground">{title ?? `${record ? '编辑' : '新建'}${config.label}`}</p>
-          {description ? <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{description}</p> : null}
-          {(!isEditing || isImmutableRecord) && record && config.requiredHint ? <p className="mt-1 text-[11px] text-muted-foreground">{config.requiredHint}</p> : null}
-        </div>
-        {record && (!isEditing || isImmutableRecord) ? (
-          <div className="flex shrink-0 items-center gap-2">
-            {isImmutableRecord ? null : <Button size="sm" variant="outline" className="gap-2" onClick={() => setIsEditing(true)} disabled={deleteMutation.isPending}>
+      {(!hideHeaderCopy || !hideHeaderActions) ? <div className={cn('flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-start sm:gap-3', hideHeaderCopy ? 'sm:justify-end' : 'sm:justify-between')}>
+        {hideHeaderCopy ? null : (
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-foreground">{title ?? `${record ? '编辑' : '新建'}${config.label}`}</p>
+            {description ? <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{description}</p> : null}
+            {(!isEditing || isImmutableRecord) && record && config.requiredHint ? <p className="mt-1 text-[11px] text-muted-foreground">{config.requiredHint}</p> : null}
+          </div>
+        )}
+        {hideHeaderActions ? null : record && (!isEditing || isImmutableRecord) ? (
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            {isImmutableRecord ? null : <Button size="sm" variant="outline" className="gap-2" onClick={() => setEditorEditing(true)} disabled={deleteMutation.isPending}>
               <Pencil size={14} />
               编辑
             </Button>}
@@ -356,7 +394,7 @@ export function SemanticEntityInlineEditor({
             </Button> : null}
           </div>
         ) : (
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             {record && canDeleteRecord ? (
               <Button type="button" size="sm" variant="destructive" className="shrink-0 gap-2" onClick={removeRecord} loading={deleteMutation.isPending}>
                 <Trash2 size={14} />
@@ -370,7 +408,7 @@ export function SemanticEntityInlineEditor({
                 className="shrink-0 gap-2"
                 onClick={() => {
                   setForm(buildInitialForm(fields, record, defaults))
-                  setIsEditing(false)
+                  setEditorEditing(false)
                 }}
                 disabled={saveMutation.isPending || deleteMutation.isPending}
               >
@@ -390,7 +428,7 @@ export function SemanticEntityInlineEditor({
             </Button>
           </div>
         )}
-      </div>
+      </div> : null}
 	      <form id={formId} onSubmit={submit} className="space-y-4 p-4">
 	        {sourceLock?.locked ? <SourceLockNotice fields={fields} sourceLock={sourceLock} reason={sourceLockReason} /> : null}
 	        <div className="grid gap-3">

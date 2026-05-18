@@ -21,7 +21,7 @@ Agent 设置应该回答：以后 Agent 默认怎么运行。
 
 已归属设置页的能力：
 
-- 模型调用模式：后端网关、OpenAI Responses、OpenAI Chat Completions、Anthropic Messages，以及调用模式迁移指南。
+- 模型调用模式：后端网关、OpenAI Responses、OpenAI Chat Completions、Anthropic Messages、调用模式迁移指南，以及由兼容性探测生成的可复制切换计划。
 - 模型用途路由：对话、规划等用途是否启用。
 - Provider 模型 ID、Base URL、凭证就绪状态、敏感信息防护和按 Provider 区分的模型兼容性探测。
 - Skills 管理：安装、卸载、重载目录、启用策略、依赖和冲突检查、版本覆盖、来源和信任状态。
@@ -49,6 +49,7 @@ Agent 调试应该回答：当前 Runtime 和最近运行哪里不对。
 - Triage：把运行失败、等待审批、警告信号聚合成排查入口。
 - 只读修复建议：把下一步路由到 Agent 设置、运行详情、Prompt Preview
   或只读观察检查，不写入配置。
+- 证据完整性清单：说明脱敏 Debug Bundle 是否已包含 Runtime、观测、分诊、运行历史、Preview 和脱敏证据，能否用于升级排障。
 - Debug Bundle：复制或下载脱敏诊断包。
 - 跳转到设置页修复持久配置问题。
 

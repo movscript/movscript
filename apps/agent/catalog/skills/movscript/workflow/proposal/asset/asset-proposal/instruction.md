@@ -35,13 +35,13 @@ Draft schema：{{schema:movscript.asset_proposal.v1.id}}
 - Focus：{{tool:movscript_get_focus}}
 - 项目剧本：{{tool:movscript_read_project_scripts}}（请使用 `includeContent: true`）
 - 设定/素材查询：{{tool:movscript_query_creative_references}} {{tool:movscript_query_asset_slots}} {{tool:movscript_query_production_context}}
-- Draft：{{tool:movscript_list_drafts}} {{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
+- Draft：{{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
 - 缺少目标时询问：{{tool:movscript_request_user_input}}
 
 流程：
 1. 读取 focus，确认用户是在整理素材需求清单，还是在为已选素材需求规划候选。
 2. 读取 focus 后，先拉取项目剧本正文（`movscript_read_project_scripts` + `includeContent: true`），并优先从剧本中提取角色关系、场景边界、道具与拍摄语义。
-3. 若是素材需求清单：查询 creative references 和现有 asset slots，查找或创建 asset_proposal draft，维护 `proposal.asset_slots` 作为完整目标 snapshot；`proposal.creative_references` 和 `proposal.candidate_plans` 保持空数组。
+3. 若是素材需求清单：查询 creative references 和现有 asset slots；当前会话已有 asset_proposal draftId 时先读取它，否则创建新 draft；维护 `proposal.asset_slots` 作为完整目标 snapshot；`proposal.creative_references` 和 `proposal.candidate_plans` 保持空数组。
 4. 若是候选方案：确认 asset slot 或 asset need。若没有 assetSlotId 且不能通过查询唯一定位，先询问用户；若素材需求尚不存在，先在同一个 asset_proposal draft 的 `proposal.asset_slots` 创建锚点，不要创建别的 kind。
 5. 在规划候选前，先读取相关 setting_proposal / asset_proposal draft。若 setting draft 已经应用，必须重新基于后端 snapshot 获取真实 creative reference id；不要沿用旧 client_id。素材锚点再用查询工具检查 asset slots、asset slot ownership、production context、已知 reference resources 或已有候选资源。
 6. 如果 creative reference 查询返回 `total_count > 0` 但 `count` 或 `returned` 为 0，说明当前筛选没有可用设定明细；应回到 draft seed/snapshot 或放宽筛选，不要据此判定“有设定但没有可编辑明细”。

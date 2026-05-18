@@ -329,12 +329,12 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
           kind: 'model_call',
           title: 'Model HTTP request sent',
           status: 'started',
-          summary: 'POST /api/v1/model-gateway/chat/completions',
+          summary: 'POST /v1/chat/completions',
           data: {
             phase: 'request',
             latencyMs: 0,
             request: {
-              url: 'http://localhost:8765/api/v1/model-gateway/chat/completions?api_key=e2e-model-url-secret&request_id=req_e2e',
+              url: 'http://localhost:8765/v1/chat/completions?api_key=e2e-model-url-secret&request_id=req_e2e',
               method: 'POST',
               headers: { authorization: 'Bearer e2e-header-secret', 'content-type': 'application/json' },
               body: {

@@ -9,7 +9,6 @@ type BackendApplyMCPClient = Pick<MCPClient, 'initialize' | 'callTool'>
 const BACKEND_APPLY_MCP_TOOLS = {
   applyReview: 'movscript_apply_draft_review',
   previewApplyReview: 'movscript_preview_apply_draft_review',
-  createScript: 'movscript_create_script_backend',
 } as const
 
 export class MCPBackendApplyClient extends BackendApplyClient {
@@ -34,14 +33,6 @@ export class MCPBackendApplyClient extends BackendApplyClient {
   override async previewApplyReview(review: ApplyDraftReview, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
     return this.callBackendApplyTool(BACKEND_APPLY_MCP_TOOLS.previewApplyReview, {
       review: review as unknown as JSONValue,
-      ...authArgs(auth),
-    })
-  }
-
-  override async createScript(projectId: number, payload: Record<string, JSONValue>, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
-    return this.callBackendApplyTool(BACKEND_APPLY_MCP_TOOLS.createScript, {
-      projectId,
-      payload,
       ...authArgs(auth),
     })
   }

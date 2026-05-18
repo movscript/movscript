@@ -22,6 +22,20 @@
       "detailKey": "agents.debug.observationDetails.runtimeReady"
     }
   ],
+  "evidenceChecklist": [
+    {
+      "id": "runtime",
+      "status": "ready",
+      "labelKey": "agents.debug.evidenceChecklist.runtime",
+      "detailKey": "agents.debug.evidenceChecklistDetails.runtimeReady"
+    },
+    {
+      "id": "redaction",
+      "status": "ready",
+      "labelKey": "agents.debug.evidenceChecklist.redaction",
+      "detailKey": "agents.debug.evidenceChecklistDetails.redactionReady"
+    }
+  ],
   "triageItems": [],
   "remediationPlan": [],
   "runSummary": {

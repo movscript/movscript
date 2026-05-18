@@ -4,8 +4,6 @@ import { isValidAgentEntityId, isValidAgentProjectId, parseToolResult } from '..
 import { parseAgentCommand } from '../context/commandRouter.js'
 import { renderLocalFinalAssistantContent } from '../context/localDiagnosticCommands.js'
 import {
-  buildBackendGatewayChatRequest,
-  callBackendGatewayChatWithTrace,
   resolveRuntimeChatFileModelConfig,
   type RuntimeModelChatMessage,
   type RuntimeModelChatTool,
@@ -13,6 +11,7 @@ import {
   type RuntimeModelAuthContext,
   type RuntimeModelTraceCallback,
 } from '../model/modelConfig.js'
+import { callModel } from '../model/modelClient.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { AgentMessageRole, AgentRun, ResolvedToolCatalog, ToolCall, ToolCallOutcome } from '../state/types.js'
 import { formatToolNameForDisplay, publicToolName } from '../tools/toolNames.js'
@@ -155,16 +154,15 @@ export async function buildConfiguredAssistantTurn(input: ConfiguredAssistantTur
   }
 
   try {
-    const result = await callBackendGatewayChatWithTrace(buildBackendGatewayChatRequest(
+    const result = await callModel({
       config,
-      messages ?? buildAssistantMessages(userMessage, toolResults, warnings, memories, run),
+      messages: messages ?? buildAssistantMessages(userMessage, toolResults, warnings, memories, run),
       auth,
-      {
-        tools,
-        toolChoice: tools.length > 0 ? 'auto' : undefined,
-      },
-    ), onModelTrace)
-    return { content: result.content, assistantMessage: result.assistantMessage }
+      tools,
+      toolChoice: tools.length > 0 ? 'auto' : undefined,
+      onTrace: onModelTrace,
+    })
+    return { content: result.content ?? '', assistantMessage: result.rawAssistantMessage }
   } catch (error) {
     if (requiresModel) {
       throw new Error(`production orchestration model call failed: ${error instanceof Error ? error.message : String(error)}`)
@@ -443,14 +441,6 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
     const label = typeof draftId === 'string' && draftId.length > 0 ? ` ${draftId}` : ''
     const isProposal = isRecord(parsed) && typeof parsed.proposalRef === 'string'
     return isProposal ? `创建对话提案草稿${label}。` : `创建本地草稿${label}。`
-  }
-  if (call.name === 'movscript_read_draft') {
-    const draftPath = isRecord(parsed) && typeof parsed.filePath === 'string' ? ` ${parsed.filePath}` : ''
-    return `读取本地草稿文件${draftPath}。`
-  }
-  if (call.name === 'movscript_list_drafts') {
-    const count = isRecord(parsed) && Array.isArray(parsed.drafts) ? parsed.drafts.length : undefined
-    return `列出本地草稿${count === undefined ? '' : `，共 ${count} 条`}。`
   }
   if (call.name === 'movscript_update_draft') {
     const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : undefined

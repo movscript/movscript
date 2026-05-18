@@ -27,7 +27,8 @@ Agent Settings should answer: how will future Agent runs behave by default?
 Settings owns:
 
 - Model call modes: backend gateway, OpenAI Responses, OpenAI Chat
-  Completions, Anthropic Messages, and call-mode migration guidance.
+  Completions, Anthropic Messages, call-mode migration guidance, and a
+  copyable call-mode switch plan derived from compatibility probes.
 - Model usage routes such as chat and planning.
 - Provider model IDs, Base URLs, credential readiness, secret hygiene, and
   per-provider model compatibility probes.
@@ -67,6 +68,9 @@ Debug owns:
 - Triage that aggregates run failures, approval waits, and warning signals.
 - Read-only remediation plan that routes the next step to Agent Settings, run
   details, Prompt Preview, or observation-only review without writing config.
+- Evidence checklist that states whether the redacted Debug Bundle has enough
+  Runtime, observation, triage, run history, Preview, and redaction evidence for
+  escalation.
 - Redacted Debug Bundle copy/download.
 - Links to Agent Settings for persistent configuration fixes.
 

@@ -1031,7 +1031,9 @@
         "viewRun": "查看运行",
         "openSettings": "打开设置",
         "runPreview": "运行 Preview",
-        "observeOnly": "只读观察"
+        "observeOnly": "只读观察",
+        "copyEvidence": "复制证据",
+        "evidenceCopied": "证据已复制"
       },
       "status": {
         "runtimeOnline": "Runtime 在线",
@@ -1054,6 +1056,7 @@
         "triage": "问题分诊",
         "runAttention": "需关注运行",
         "observationCoverage": "观测覆盖度",
+        "evidenceChecklist": "证据完整性",
         "remediationPlan": "修复建议",
         "runIssueSummary": "运行问题摘要",
         "effectiveManifest": "生效 Manifest",
@@ -1152,6 +1155,27 @@
         "warningsFound": "发现 {{count}} 条警告。",
         "warningsClear": "当前没有警告。"
       },
+      "evidenceChecklist": {
+        "title": "Agent Debug 证据完整性清单",
+        "runtime": "Runtime 快照",
+        "observations": "观测覆盖",
+        "triage": "分诊结果",
+        "remediation": "下一步路由",
+        "runs": "运行历史证据",
+        "preview": "Prompt Preview 证据",
+        "redaction": "脱敏状态"
+      },
+      "evidenceChecklistDetails": {
+        "runtimeReady": "已包含 Runtime health、catalog、capabilities 和运行列表。",
+        "runtimeMissing": "Runtime 不可用，该 Bundle 无法证明当前 Runtime 状态。",
+        "observations": "已完成 {{total}} 项观测检查；其中 {{actions}} 项不可用、{{warnings}} 项待补充，涉及 {{warningSources}} 个警告来源。",
+        "triage": "已生成 {{total}} 个分诊项，其中 {{actions}} 个需处理。",
+        "remediation": "已包含 {{count}} 个只读下一步建议。",
+        "runs": "已包含 {{total}} 条最近运行；{{issues}} 组运行问题需要复核。",
+        "previewReady": "已包含 Prompt Preview 证据。",
+        "previewMissing": "升级排障前建议运行 Preview，补齐 prompt、context 和 plan 证据。",
+        "redactionReady": "复制/下载 Bundle 前会脱敏疑似密钥内容。"
+      },
       "triageSeverities": {
         "action": "需处理",
         "warning": "需关注",
@@ -1223,6 +1247,7 @@
         "triageItems": "按优先级整理的只读问题分诊结果，用于快速判断下一步检查哪里。",
         "remediationPlan": "只读下一步路由，指向设置、运行详情、Preview 或仅观察检查。",
         "observationCoverage": "诊断包覆盖了哪些观测信号，以及每项是否缺失。",
+        "evidenceChecklist": "面向排障升级的证据完整性清单，说明该 Bundle 是否已有足够脱敏证据。",
         "runIssueGroups": "按状态聚合的运行问题数量和代表原因。",
         "warningGroups": "按来源分组的 Runtime、目录和 Preview 警告。",
         "redacted": "标记该 Debug Bundle 已对密钥、令牌、Cookie 和签名 URL 参数做脱敏处理。",
@@ -1283,17 +1308,20 @@
       "modelHelp": "这里选择的是后端已启用的 text 能力模型，会保存到本地 Agent Runtime 的 model-config。",
       "providerModelIdLabel": "Provider 模型 ID",
       "providerModelIdHelp": "直连 OpenAI 或 Anthropic 时直接填写 Provider 的模型 ID；不需要后端模型目录存在对应项。",
-      "providerModelPanel": "直连 Provider 模型",
-      "providerModelPanelHelp": "当前调用模式不会使用右侧后端模型列表；请在模型配置里填写 Provider 模型 ID，并确保 Runtime 环境变量已加载模型密钥。",
+      "providerModelPanel": "Provider 模型",
+      "providerModelPanelHelp": "填写模型 ID。Base URL 留空或指向 MovScript 后端时会使用后端登录凭证；只有指向外部 Provider 时才需要在本页填写 API key。",
       "modelRequired": "请先选择模型或填写 Provider 模型 ID。",
-      "modelIdSecretsBlocked": "Provider 模型 ID 看起来包含 API key、Bearer token 或带密钥参数的 URL。请只填写模型 ID，并把密钥放在 Runtime 环境变量中。",
-      "providerCredentialNotice": "直连模式需要 Runtime 环境变量提供模型密钥",
-      "providerCredentialHelp": "不要把密钥写入 Base URL；保存后请用“保存并测试”确认 Runtime 已加载凭证。",
+      "modelIdSecretsBlocked": "Provider 模型 ID 看起来包含 API key、Bearer token 或带密钥参数的 URL。请只填写模型 ID，并在 API key 字段填写密钥。",
+      "providerApiKeyLabel": "API key",
+      "providerApiKeyPlaceholder": "输入外部 Provider API key",
+      "providerApiKeyConfiguredPlaceholder": "已保存 API key；留空则继续沿用",
+      "providerCredentialNotice": "外部 Provider 需要 API key",
+      "providerCredentialHelp": "只有 Base URL 指向外部 Provider 时才需要填写；不要把密钥写入 Base URL。",
       "apiKindLabel": "调用模式",
       "selectApiKind": "选择调用模式",
       "baseUrlLabel": "模型 Base URL",
-      "baseUrlHelp": "留空时使用该调用模式的默认地址；直连 OpenAI/Anthropic 需要在 Agent Runtime 环境中配置模型 API Key。",
-      "baseUrlSecretsBlocked": "Base URL 包含 username/password 或 token、api_key、signature 等敏感字段。请移除 URL 密钥，并改用 Agent Runtime 环境变量保存模型凭证。",
+      "baseUrlHelp": "留空时使用 MovScript 后端 /v1 兼容接口；只有填写外部 Provider 地址时才需要 API key。",
+      "baseUrlSecretsBlocked": "Base URL 包含 username/password 或 token、api_key、signature 等敏感字段。请移除 URL 密钥，并改用 API key 字段保存模型凭证。",
       "apiKinds": {
         "backendChatCompletions": "Backend Gateway / Chat Completions",
         "openaiResponses": "OpenAI / Responses",
@@ -1373,7 +1401,7 @@
         },
         "directCredential": {
           "label": "直连凭证",
-          "detail": "需要 Runtime 环境变量提供直连 Provider 密钥。"
+          "detail": "需要 API key 字段提供直连 Provider 密钥。"
         },
         "separateModelFamily": {
           "label": "独立模型族",
@@ -1399,7 +1427,7 @@
         "apiModeChatCompatibility": "Chat Completions 是兼容模式；新的 OpenAI Agent 工作建议优先使用 Responses。",
         "modelIdReady": "{{model}} 与当前 Provider 路径匹配。",
         "modelIdMissing": "保存前需要选择或填写模型 ID。",
-        "modelIdSecret": "模型 ID 包含疑似密钥内容；凭证应放在 Runtime 环境变量中。",
+        "modelIdSecret": "模型 ID 包含疑似密钥内容；凭证应放在 API key 字段中。",
         "modelIdBackendReference": "直连 Provider 模式需要填写 Provider 模型 ID，不能使用 backend model_config 引用。",
         "modelIdProviderMismatch": "{{model}} 看起来属于另一个 Provider 模型族。",
         "credentialsBackendManaged": "后端网关凭证由本地 Runtime 直连 Provider 配置之外的链路托管。",
@@ -1417,9 +1445,6 @@
       "apiModeMigrationStep": "步骤 {{index}}",
       "switchToResponses": "切到 Responses",
       "apiModeMigration": {
-        "backend_chat_completions": {
-          "detail": "后端网关模式适合统一团队凭证、路由和审计；只有当 Runtime 需要承接 Provider 原生行为时，再迁移到直连 Responses。"
-        },
         "openai_responses": {
           "detail": "当前已经选择 Responses，这是新增 Agent 能力的推荐路径。"
         },
@@ -1444,6 +1469,27 @@
         "compare": "通过运行结果和只读调试观测对比 OpenAI 模式差异。",
         "keepSeparate": "不要把 Anthropic Provider 设置混入 OpenAI 迁移路径。"
       },
+      "apiModeSwitchPlanTitle": "调用模式切换计划",
+      "apiModeSwitchPlanHelp": "保存前先核对具体阻断项；当前有 {{actions}} 个需处理项、{{warnings}} 个复核项。",
+      "apiModeSwitchPlanCopyContext": "草稿调用模式：{{apiKind}}",
+      "copyApiModeSwitchPlan": "复制切换计划",
+      "apiModeSwitchPlanCopied": "切换计划已复制",
+      "apiModeSwitchPlan": {
+        "targetMode": "目标模式",
+        "modelId": "模型 ID 就绪度",
+        "credentials": "凭证就绪度",
+        "baseURL": "Base URL 就绪度",
+        "routes": "用途路由就绪度",
+        "saveTest": "保存并测试"
+      },
+      "apiModeSwitchPlanDetails": {
+        "targetModeStable": "{{apiKind}} 已经是该 Provider 路径的推荐目标。",
+        "targetModeMigration": "{{apiKind}} 的新增 Agent 工作应迁移到 {{targetApiKind}}。",
+        "probeMissing": "兼容性探测数据尚不可用。",
+        "saveTestBlocked": "请先处理需处理项，再保存并执行模型连通性测试。",
+        "saveTestPending": "草稿变更已可复核，之后执行保存并测试。",
+        "saveTestReady": "已保存配置可执行模型连通性测试。"
+      },
       "selectModel": "选择模型",
       "noTextModels": "暂无可用文本模型，请先在模型管理中启用 text 模型。",
       "useForChat": "用于对话",
@@ -1454,9 +1500,9 @@
         "allRoutesDisabled": "至少需要启用“用于对话”或“用于规划”中的一个，否则 Agent 没有可用模型路由。"
       },
       "modelCredentialStatus": {
-        "configured": "已加载：{{env}}",
-        "missing": "缺失：{{env}}",
-        "notRequired": "当前调用模式不需要直连密钥"
+        "configured": "已配置：{{env}}",
+        "missing": "需要：{{env}}",
+        "notRequired": "使用后端登录凭证"
       },
       "save": "保存配置",
       "saved": "已保存",
@@ -1720,10 +1766,10 @@
       "actionItemDetails": {
         "modelMissing": "选择模型、调用模式和用途路由后保存。",
         "modelUnsaved": "保存或重置当前模型配置，否则后续默认运行仍使用旧配置。",
-        "modelIdSensitive": "已保存的直连 Provider 模型 ID 看起来包含 API key、Bearer token 或带密钥参数的 URL。请清除该配置，并只保存模型 ID；密钥应放在 Runtime 环境变量中。",
+        "modelIdSensitive": "已保存的直连 Provider 模型 ID 看起来包含 API key、Bearer token 或带密钥参数的 URL。请清除该配置，并只保存模型 ID；密钥应放在 API key 字段中。",
         "apiModeCompatibility": "Chat Completions 可用于兼容旧流程；如果不是迁移期，新 Agent 工作流建议切到 OpenAI Responses。",
-        "modelCredentialsMissing": "Runtime 环境中未检测到 {{env}}；直连 Provider 调用会失败。",
-        "modelBaseURLSensitive": "Base URL 包含 username/password 或 token、api_key、signature 等敏感字段；模型密钥应放在 Agent Runtime 环境变量中。",
+        "modelCredentialsMissing": "API key 设置中未检测到 {{env}}；直连 Provider 调用会失败。",
+        "modelBaseURLSensitive": "Base URL 包含 username/password 或 token、api_key、signature 等敏感字段；模型密钥应放在 API key 字段中。",
         "routesInvalid": "至少启用对话或规划中的一个用途路由。",
         "routesMissing": "检查模型配置和用途开关，确保后续运行有可用模型。",
         "profileMissing": "选择并保存一个默认工作模式。",
@@ -1739,7 +1785,7 @@
         "saveOrReset": "这是设置页草稿：保存后影响后续默认运行，重置则放弃本地变更。",
         "saveAfterQuickFix": "快速修复只改本地草稿；保存后才会影响后续默认运行。",
         "localDefaultsImmediately": "快速修复会立即更新本地默认配置，后续运行直接使用。",
-        "useRuntimeEnvForSecrets": "不要把密钥写入 URL；请改用 Runtime 环境变量后再保存。"
+        "useRuntimeEnvForSecrets": "不要把密钥写入 URL；请改用 API key 字段后再保存。"
       },
       "actionItemReasons": {
         "skillDependency": "{{skillId}} 依赖 {{dependencyId}}",
@@ -1776,8 +1822,8 @@
         "apiModeChatCompatibility": "当前使用 Chat Completions 兼容模式；适合迁移期，但新 Agent 能力建议优先 Responses。",
         "apiModeBackendManaged": "当前通过后端网关托管调用，适合团队统一凭证、路由和审计。",
         "apiModeAnthropicProvider": "当前直连 Anthropic Messages，适合 Claude 模型族和 Provider 原生评估。",
-        "modelCredentialsReady": "Runtime 已通过 {{env}} 加载模型凭证。",
-        "modelCredentialsMissing": "Runtime 未检测到 {{env}}。",
+        "modelCredentialsReady": "API key 设置已通过 {{env}} 加载模型凭证。",
+        "modelCredentialsMissing": "API key 设置未检测到 {{env}}。",
         "modelCredentialsNotRequired": "当前调用模式不需要 Runtime 侧直连模型密钥。",
         "routesReady": "{{count}} 条模型路由可用。",
         "routesInvalid": "模型路由配置无效，请先修复用途开关。",

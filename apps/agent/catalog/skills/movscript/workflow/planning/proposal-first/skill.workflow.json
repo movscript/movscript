@@ -19,7 +19,6 @@
   ],
   "toolRefs": [
     "tool://movscript_get_focus",
-    "tool://movscript_list_drafts",
     "tool://movscript_get_draft",
     "tool://movscript_create_draft",
     "tool://movscript_update_draft",

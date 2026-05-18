@@ -13,7 +13,7 @@ import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.
 import type { SkillDiscoverySummary } from '../contextManager/modelContextBuilder.js'
 import { createDefaultRuntimeModelRouter, type RuntimeModelRouter } from '../model/modelRouter.js'
 import { executeTool, type AgentCatalogToolManager } from './toolExecutor.js'
-import { applyToolPolicy } from '../tools/toolPolicy.js'
+import { applyToolPolicy, type BlockedToolCall } from '../tools/toolPolicy.js'
 import { formatToolNameForDisplay } from '../tools/toolNames.js'
 import type { AgentCommandRuntime } from '../context/commandRouter.js'
 import {
@@ -565,6 +565,42 @@ async function runPolicyNode(state: AgentGraphState, input: AgentGraphInput): Pr
     }
   }
 
+  const skillActivationRepairCalls = buildSkillActivationRepairCalls(policyResult.blockedToolCalls, input)
+  if (policyResult.toolCalls.length === 0 && skillActivationRepairCalls.length > 0) {
+    const repairPolicyResult = applyToolPolicy(skillActivationRepairCalls, {
+      currentProjectId: input.context.project?.id,
+      manifest: input.manifest,
+      catalog: input.capabilities,
+      registry: input.registry,
+      approvedToolNames: input.approvedToolNames,
+      sandboxMode: input.policy.sandboxMode === true,
+      runRole: input.run.role,
+    })
+    if (repairPolicyResult.toolCalls.length > 0) {
+      input.onTrace({
+        kind: 'policy',
+        title: `Turn ${currentRoundIndex}: skill activation repair`,
+        summary: repairPolicyResult.toolCalls.map((call) => call.name).join(', '),
+        status: 'completed',
+        roundIndex: currentRoundIndex,
+        roundLabel,
+        roundSource: 'runtime_rule',
+        data: {
+          eventType: 'tool.call.skill_activation_repair',
+          blocked: policyResult.blockedToolCalls.map((b) => ({ name: b.call.name, reason: b.reason })),
+          repairCalls: repairPolicyResult.toolCalls.map((call) => ({ name: call.name, args: call.args })),
+        },
+      })
+      return {
+        requestedCalls: repairPolicyResult.toolCalls,
+        warnings: [
+          ...repairPolicyResult.warnings,
+          '读取项目剧本需要先加载剧本读取能力，已自动加载后重试。',
+        ],
+      }
+    }
+  }
+
   if (policyResult.toolCalls.length === 0) {
     return {
       status: 'completed',
@@ -577,6 +613,39 @@ async function runPolicyNode(state: AgentGraphState, input: AgentGraphInput): Pr
     requestedCalls: policyResult.toolCalls,
     warnings: policyResult.warnings,
   }
+}
+
+const TOOL_SKILL_ACTIVATION_REPAIRS: Record<string, { skillId: string; reason: string }> = {
+  movscript_read_project_scripts: {
+    skillId: 'movscript.workflow.script-reading',
+    reason: '读取项目剧本需要加载剧本读取 workflow。',
+  },
+}
+
+function buildSkillActivationRepairCalls(blockedToolCalls: BlockedToolCall[], input: AgentGraphInput): ToolCall[] {
+  const skillTool = input.capabilities.byName.movscript_update_active_skills
+  if (!skillTool?.available) return []
+
+  const activeSkillIds = new Set(input.skills.map((skill) => skill.id))
+  const load: string[] = []
+  const reasons: string[] = []
+  for (const blocked of blockedToolCalls) {
+    if (blocked.reason !== 'not_granted' && blocked.reason !== 'unknown_tool') continue
+    const repair = TOOL_SKILL_ACTIVATION_REPAIRS[blocked.call.name]
+    if (!repair || activeSkillIds.has(repair.skillId) || load.includes(repair.skillId)) continue
+    load.push(repair.skillId)
+    reasons.push(repair.reason)
+  }
+
+  if (load.length === 0) return []
+  return [{
+    id: makeId('call'),
+    name: 'movscript_update_active_skills',
+    args: {
+      load,
+      reason: Array.from(new Set(reasons)).join(' '),
+    },
+  }]
 }
 
 function buildInputRequest(runId: string, args: Record<string, JSONValue>): AgentInputRequest {
@@ -1028,9 +1097,30 @@ function summarizeResult(value: JSONValue | undefined): string {
   if (value === undefined || value === null) return 'null'
   if (typeof value !== 'object') return String(value).slice(0, 180)
   if (Array.isArray(value)) return `${value.length} item(s)`
+  const skillSummary = summarizeSkillStateResult(value)
+  if (skillSummary) return skillSummary
   const keys = Object.keys(value)
   const status = typeof value.status === 'string' ? `${value.status}; ` : ''
   return `${status}${keys.length} key(s): ${keys.slice(0, 6).join(', ')}`
+}
+
+function summarizeSkillStateResult(value: Record<string, JSONValue>): string | undefined {
+  if (value.eventType !== 'skill.state_requested') return undefined
+  const status = typeof value.status === 'string' ? value.status : 'updated'
+  const loaded = stringArray(value.loadedSkillIds)
+  const unloaded = stringArray(value.unloadedSkillIds)
+  const corrected = isJSONRecord(value.correctedSkillActivation)
+  const parts = [
+    `${status}; skill state`,
+    loaded.length > 0 ? `loaded=${loaded.join(', ')}` : undefined,
+    unloaded.length > 0 ? `unloaded=${unloaded.join(', ')}` : undefined,
+    corrected ? 'corrected=true' : undefined,
+  ].filter(Boolean)
+  return parts.join('; ')
+}
+
+function stringArray(value: JSONValue | undefined): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : []
 }
 
 function buildRollbackRecord(call: ToolCall, result: JSONValue | undefined, sandboxed?: boolean): ToolCallOutcome['rollback'] {
@@ -1079,8 +1169,7 @@ function buildRollbackRecord(call: ToolCall, result: JSONValue | undefined, sand
 }
 
 function isBackendWriteTool(name: string): boolean {
-  return name === 'movscript_create_script'
-    || name === 'movscript_apply_draft'
+  return name === 'movscript_apply_draft'
     || name.includes('_create_')
     || name.includes('_update_')
     || name.includes('_delete_')

@@ -15,6 +15,7 @@ import {
   Textarea,
 } from '@movscript/ui'
 import { api } from '@/lib/api'
+import { getAPIBaseURL } from '@/lib/config'
 import { buildSettingsSnapshot, parseSettingsSnapshot, resolveSnapshotRunPresetImport, validateSettingsSnapshotReferences, type AgentSettingsSnapshot, type RuntimeModelAPIKind, type SkillPolicyDraft, type ToolGrantDraft } from '@/lib/agentSettingsSnapshot'
 import { hasSensitiveTextSecret, hasSensitiveURLSecret, redactAgentTraceDebugText, stripSensitiveURLSecrets } from '@/lib/agentTraceDebugData'
 import { localAgentClient, type AgentCapabilitiesResponse, type AgentCatalogProfile, type AgentCatalogSkill, type AgentDebugTool, type AgentInspectResponse, type AgentSkillBundleInstallResult, type AgentSkillBundleUninstallResult, type RuntimeModelConfigPublic, type RuntimeModelTestResult } from '@/lib/localAgentClient'
@@ -25,7 +26,7 @@ import { activeRunPresetFromSettings, defaultAgentRunPresets, useAgentStore, typ
 import type { PublicModel } from '@/types'
 
 const NO_MODEL_VALUE = '__none'
-const DEFAULT_API_KIND: RuntimeModelAPIKind = 'backend_chat_completions'
+const DEFAULT_API_KIND: RuntimeModelAPIKind = 'openai_chat_completions'
 const MAX_SKILL_BUNDLE_FILES = 50
 const MAX_SKILL_BUNDLE_FILE_BYTES = 256 * 1024
 const MAX_SKILL_BUNDLE_TOTAL_BYTES = 1024 * 1024
@@ -36,23 +37,18 @@ const RUN_PRESET_PLAN_TIMEOUT_OPTIONS = [5 * 60_000, 15 * 60_000, 30 * 60_000, 6
 const DEFAULT_RUN_PRESET_IDS = new Set(defaultAgentRunPresets().map((preset) => preset.id))
 const TOOL_POLICY_FILTER_OPTIONS = ['all', 'available', 'blocked', 'profile_granted', 'requires_approval', 'write_risk'] as const
 const API_KIND_OPTIONS: Array<{ value: RuntimeModelAPIKind; labelKey: string; descriptionKey: string }> = [
-  { value: 'backend_chat_completions', labelKey: 'agents.settings.apiKinds.backendChatCompletions', descriptionKey: 'agents.settings.apiKindDescriptions.backendChatCompletions' },
-  { value: 'openai_responses', labelKey: 'agents.settings.apiKinds.openaiResponses', descriptionKey: 'agents.settings.apiKindDescriptions.openaiResponses' },
   { value: 'openai_chat_completions', labelKey: 'agents.settings.apiKinds.openaiChatCompletions', descriptionKey: 'agents.settings.apiKindDescriptions.openaiChatCompletions' },
+  { value: 'openai_responses', labelKey: 'agents.settings.apiKinds.openaiResponses', descriptionKey: 'agents.settings.apiKindDescriptions.openaiResponses' },
   { value: 'anthropic_messages', labelKey: 'agents.settings.apiKinds.anthropicMessages', descriptionKey: 'agents.settings.apiKindDescriptions.anthropicMessages' },
 ]
 const API_MODE_CAPABILITY_MATRIX: Record<RuntimeModelAPIKind, { badge: 'recommended' | 'managed' | 'compatibility' | 'providerNative'; itemKeys: string[] }> = {
-  backend_chat_completions: {
-    badge: 'managed',
-    itemKeys: ['centralizedCredentials', 'backendRouting', 'backendAudit', 'chatCompatibility'],
-  },
   openai_responses: {
     badge: 'recommended',
     itemKeys: ['agenticPrimitive', 'structuredOutputs', 'responseState', 'builtInTools'],
   },
   openai_chat_completions: {
-    badge: 'compatibility',
-    itemKeys: ['legacyCompatibility', 'functionCalling', 'simpleMessageShape', 'migrationPath'],
+    badge: 'managed',
+    itemKeys: ['centralizedCredentials', 'backendRouting', 'backendAudit', 'functionCalling'],
   },
   anthropic_messages: {
     badge: 'providerNative',
@@ -60,9 +56,8 @@ const API_MODE_CAPABILITY_MATRIX: Record<RuntimeModelAPIKind, { badge: 'recommen
   },
 }
 const API_MODE_MIGRATION_STEPS: Record<RuntimeModelAPIKind, string[]> = {
-  backend_chat_completions: ['centralize', 'evaluate', 'switchWhenReady'],
   openai_responses: ['recommended', 'stateful', 'futureTools'],
-  openai_chat_completions: ['preserveCompatibility', 'verifyModel', 'switchResponses'],
+  openai_chat_completions: ['centralize', 'verifyModel', 'switchResponses'],
   anthropic_messages: ['providerNative', 'compare', 'keepSeparate'],
 }
 const SETTINGS_NAV_SECTIONS = [
@@ -138,6 +133,13 @@ type ModelCompatibilityProbe = {
   detailKey: string
   detailValues?: Record<string, string | number>
 }
+type ApiModeSwitchPlanItem = {
+  id: 'target-mode' | 'model-id' | 'credentials' | 'base-url' | 'routes' | 'save-test'
+  status: 'ready' | 'warning' | 'action'
+  labelKey: string
+  detailKey: string
+  detailValues?: Record<string, string | number>
+}
 const SETTINGS_SNAPSHOT_IMPORT_SCOPES: SettingsSnapshotImportScope[] = ['model', 'profile', 'skills', 'tools', 'run-presets']
 const SETTINGS_SNAPSHOT_IMPORT_PRESETS: Array<{ id: SettingsSnapshotImportPresetId; scopes: SettingsSnapshotImportScope[] }> = [
   { id: 'all', scopes: SETTINGS_SNAPSHOT_IMPORT_SCOPES },
@@ -183,6 +185,7 @@ export default function AIAgentSettingsPage() {
   const [directModelId, setDirectModelId] = useState('')
   const [selectedApiKind, setSelectedApiKind] = useState<RuntimeModelAPIKind>(DEFAULT_API_KIND)
   const [baseURL, setBaseURL] = useState('')
+  const [modelApiKey, setModelApiKey] = useState('')
   const [useForChat, setUseForChat] = useState(true)
   const [useForPlanner, setUseForPlanner] = useState(true)
   const [testMessage, setTestMessage] = useState(t('agents.settings.testMessageDefault'))
@@ -261,18 +264,17 @@ export default function AIAgentSettingsPage() {
   const selectedModel = useMemo(() => {
     return textModels.find((model) => publicModelId(model) === selectedModelId) ?? null
   }, [selectedModelId, textModels])
-  const usesBackendGateway = selectedApiKind === 'backend_chat_completions'
-  const usesDirectProvider = !usesBackendGateway
+  const usesModelCatalog = selectedApiKind === 'openai_chat_completions'
+  const usesManualModelId = !usesModelCatalog
   const directModelIdValue = directModelId.trim()
-  const directModelIdHasSecret = usesDirectProvider && hasSensitiveTextSecret(directModelIdValue)
-  const draftModelValue = usesBackendGateway ? (selectedModel ? publicModelId(selectedModel) : '') : directModelIdValue
+  const directModelIdHasSecret = usesManualModelId && hasSensitiveTextSecret(directModelIdValue)
+  const draftModelValue = usesModelCatalog ? (selectedModel ? publicModelId(selectedModel) : '') : directModelIdValue
   const modelValueMissing = !draftModelValue
   const canSaveModelConfig = Boolean(draftModelValue) && !directModelIdHasSecret
   const effectiveConfig = savedConfig ?? runtimeQuery.data ?? null
   const modelRoutes = effectiveConfig?.capabilities ?? []
   const savedDirectModelIdHasSecret = Boolean(
     effectiveConfig?.configured
-    && (effectiveConfig.apiKind ?? DEFAULT_API_KIND) !== 'backend_chat_completions'
     && hasSensitiveTextSecret(effectiveConfig.model),
   )
   const effectiveModelValue = useMemo(() => (
@@ -282,7 +284,7 @@ export default function AIAgentSettingsPage() {
     ? redactAgentTraceDebugText(modelDisplayName(textModels, effectiveConfig))
     : t('agents.settings.notConfigured')
   const modelCredentialStatus = effectiveConfig?.credentialStatus
-  const modelCredentialAcceptedEnv = modelCredentialStatus?.acceptedEnv?.join(', ') || 'MOVSCRIPT_AGENT_MODEL_API_KEY, MOVSCRIPT_MODEL_GATEWAY_API_KEY'
+  const modelCredentialAcceptedEnv = modelCredentialStatus?.acceptedEnv?.join(', ') || 'model settings API key'
   const modelCredentialStatusLabel = modelCredentialStatus?.required
     ? modelCredentialStatus.configured
       ? t('agents.settings.modelCredentialStatus.configured', { env: modelCredentialStatus.sourceEnv.join(', ') })
@@ -345,7 +347,7 @@ export default function AIAgentSettingsPage() {
   )
   const settingsSnapshotNeedsCatalog = Boolean(selectedSettingsSnapshotForImport?.defaultProfileId || selectedSettingsSnapshotForImport?.skillPolicy || selectedSettingsSnapshotForImport?.toolPolicy)
   const settingsSnapshotNeedsCapabilities = Boolean(selectedSettingsSnapshotForImport?.toolPolicy)
-  const settingsSnapshotNeedsModelCatalog = Boolean(selectedSettingsSnapshotForImport?.modelConfig && (selectedSettingsSnapshotForImport.modelConfig.apiKind ?? DEFAULT_API_KIND) === 'backend_chat_completions')
+  const settingsSnapshotNeedsModelCatalog = Boolean(selectedSettingsSnapshotForImport?.modelConfig?.model.startsWith('model_config:') || selectedSettingsSnapshotForImport?.modelConfig?.modelConfigId)
   const settingsSnapshotReferenceIssues = useMemo(() => (
     selectedSettingsSnapshotForImport && (!settingsSnapshotNeedsCatalog || catalogQuery.data) && (!settingsSnapshotNeedsModelCatalog || modelsQuery.data)
       ? validateSettingsSnapshotReferences(selectedSettingsSnapshotForImport, {
@@ -406,21 +408,31 @@ export default function AIAgentSettingsPage() {
     ? draftModelValue !== effectiveModelValue ||
       selectedApiKind !== (effectiveConfig.apiKind ?? DEFAULT_API_KIND) ||
       baseURL.trim() !== (effectiveConfig.baseURL ?? '') ||
+      Boolean(modelApiKey.trim()) ||
       useForChat !== effectiveConfig.useForChat ||
       useForPlanner !== effectiveConfig.useForPlanner
     : canSaveModelConfig
   const modelBaseURLHasSecret = hasSensitiveURLSecret(baseURL.trim())
+  const usesBackendCompatibleBaseURL = isBackendCompatibleBaseURL(baseURL)
+  const modelApiKeyProvided = Boolean(modelApiKey.trim())
   const modelRouteIssues = useMemo(() => buildModelRouteIssues({ useForChat, useForPlanner }), [useForChat, useForPlanner])
   const modelCompatibilityProbes = useMemo(() => buildModelCompatibilityProbes({
     selectedApiKind,
     modelValue: draftModelValue,
     baseURL: baseURL.trim(),
+    apiKeyProvided: modelApiKeyProvided,
+    usesBackendCompatibleBaseURL,
     modelBaseURLHasSecret,
     directModelIdHasSecret,
     useForChat,
     useForPlanner,
     effectiveConfig,
-  }), [baseURL, directModelIdHasSecret, draftModelValue, effectiveConfig, modelBaseURLHasSecret, selectedApiKind, useForChat, useForPlanner])
+  }), [baseURL, directModelIdHasSecret, draftModelValue, effectiveConfig, modelApiKeyProvided, modelBaseURLHasSecret, selectedApiKind, useForChat, useForPlanner, usesBackendCompatibleBaseURL])
+  const apiModeSwitchPlan = useMemo(() => buildApiModeSwitchPlan({
+    selectedApiKind,
+    probes: modelCompatibilityProbes,
+    hasUnsavedChanges,
+  }), [hasUnsavedChanges, modelCompatibilityProbes, selectedApiKind])
   const hasProfileChange = Boolean(selectedProfileId && currentProfile && selectedProfileId !== currentProfile.id)
   const hasSkillPolicyChange = skillPolicySignature(skillDrafts) !== skillPolicySignature(skillPolicyBaseline)
   const skillPolicyIssues = useMemo(
@@ -545,7 +557,7 @@ export default function AIAgentSettingsPage() {
     if (!runtimeQuery.data) return
     if (runtimeQuery.data.configured) {
       const apiKind = runtimeQuery.data.apiKind ?? DEFAULT_API_KIND
-      setSelectedModelId(apiKind === 'backend_chat_completions' ? runtimeModelValue(textModels, runtimeQuery.data) : NO_MODEL_VALUE)
+      setSelectedModelId(apiKind === 'openai_chat_completions' ? runtimeModelValue(textModels, runtimeQuery.data) : NO_MODEL_VALUE)
       setDirectModelId(runtimeQuery.data.model ?? '')
       setSelectedApiKind(runtimeQuery.data.apiKind ?? DEFAULT_API_KIND)
       setBaseURL(runtimeQuery.data.baseURL ?? '')
@@ -573,7 +585,7 @@ export default function AIAgentSettingsPage() {
 
   useEffect(() => {
     setModelConfigClearConfirming(false)
-  }, [baseURL, draftModelValue, selectedApiKind, useForChat, useForPlanner])
+  }, [baseURL, draftModelValue, modelApiKey, selectedApiKind, useForChat, useForPlanner])
 
   function recordSettingsOperationFailure(target: AgentSettingsAuditEntry['target'], operation: string, error: string) {
     recordSettingsAudit({
@@ -593,7 +605,7 @@ export default function AIAgentSettingsPage() {
       useForPlanner ? t('agents.settings.useForPlanner') : null,
     ].filter(Boolean).join(' + ') || '-'
     return {
-      model: usesBackendGateway ? (selectedModel ? publicModelLabel(selectedModel, true) : '-') : (directModelIdValue || '-'),
+      model: usesModelCatalog ? (selectedModel ? publicModelLabel(selectedModel, true) : '-') : (directModelIdValue || '-'),
       apiKind,
       routes,
     }
@@ -622,15 +634,17 @@ export default function AIAgentSettingsPage() {
     try {
       await localAgentClient.ensureRunning()
       const nextConfig = await localAgentClient.saveModelConfig({
-        ...(usesBackendGateway && selectedModel ? { modelConfigId: selectedModel.id } : {}),
+        ...(usesModelCatalog && selectedModel ? { modelConfigId: selectedModel.id } : {}),
         model: draftModelValue,
         apiKind: selectedApiKind,
         ...(baseURL.trim() ? { baseURL: baseURL.trim() } : {}),
+        ...(modelApiKey.trim() ? { apiKey: modelApiKey.trim() } : {}),
         useForChat,
         useForPlanner,
       })
       setSavedConfig(nextConfig)
-      updateAgentSettings({ modelId: usesBackendGateway && selectedModel ? selectedModel.id : null })
+      updateAgentSettings({ modelId: usesModelCatalog && selectedModel ? selectedModel.id : null })
+      setModelApiKey('')
       await runtimeQuery.refetch()
       recordSettingsAudit({
         action: 'model_saved',
@@ -671,14 +685,15 @@ export default function AIAgentSettingsPage() {
     try {
       await localAgentClient.ensureRunning()
       await localAgentClient.saveModelConfig({
-        ...(usesBackendGateway && selectedModel ? { modelConfigId: selectedModel.id } : {}),
+        ...(usesModelCatalog && selectedModel ? { modelConfigId: selectedModel.id } : {}),
         model: draftModelValue,
         apiKind: selectedApiKind,
         ...(baseURL.trim() ? { baseURL: baseURL.trim() } : {}),
+        ...(modelApiKey.trim() ? { apiKey: modelApiKey.trim() } : {}),
         useForChat,
         useForPlanner,
       })
-      updateAgentSettings({ modelId: usesBackendGateway && selectedModel ? selectedModel.id : null })
+      updateAgentSettings({ modelId: usesModelCatalog && selectedModel ? selectedModel.id : null })
       const result = await localAgentClient.testModelConfig({ message: testMessage.trim() || t('agents.settings.testMessageDefault') })
       setTestResult(result)
       await runtimeQuery.refetch()
@@ -1109,7 +1124,7 @@ export default function AIAgentSettingsPage() {
     if (quickFix === 'reset-model-draft') {
       if (!effectiveConfig?.configured) return
       const apiKind = effectiveConfig.apiKind ?? DEFAULT_API_KIND
-      setSelectedModelId(apiKind === 'backend_chat_completions' ? runtimeModelValue(textModels, effectiveConfig) : NO_MODEL_VALUE)
+      setSelectedModelId(apiKind === 'openai_chat_completions' ? runtimeModelValue(textModels, effectiveConfig) : NO_MODEL_VALUE)
       setDirectModelId(effectiveConfig.model ?? '')
       setSelectedApiKind(apiKind)
       setBaseURL(effectiveConfig.baseURL ?? '')
@@ -1138,7 +1153,6 @@ export default function AIAgentSettingsPage() {
     }
     if (quickFix === 'switch-openai-responses') {
       setSelectedApiKind('openai_responses')
-      if (isBackendModelReference(directModelId)) setDirectModelId('')
       setSaveError(null)
       setTestError(null)
       setSettingsActionFeedback(t('agents.settings.quickFixes.switchedToResponses'))
@@ -1466,9 +1480,9 @@ export default function AIAgentSettingsPage() {
                 <div className="grid gap-4">
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-foreground">
-                      {usesBackendGateway ? t('agents.settings.modelLabel') : t('agents.settings.providerModelIdLabel')}
+                      {usesModelCatalog ? t('agents.settings.modelLabel') : t('agents.settings.providerModelIdLabel')}
                     </label>
-                    {usesBackendGateway ? (
+                    {usesModelCatalog ? (
                       <Select value={selectedModelId} onValueChange={setSelectedModelId}>
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder={t('agents.settings.selectModel')} />
@@ -1494,7 +1508,7 @@ export default function AIAgentSettingsPage() {
                       />
                     )}
                     <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-                      {usesBackendGateway ? t('agents.settings.modelHelp') : t('agents.settings.providerModelIdHelp')}
+                      {usesModelCatalog ? t('agents.settings.modelHelp') : t('agents.settings.providerModelIdHelp')}
                     </p>
                     {modelValueMissing && (
                       <p className="mt-1 text-[11px] leading-4 text-destructive">{t('agents.settings.modelRequired')}</p>
@@ -1514,7 +1528,6 @@ export default function AIAgentSettingsPage() {
                         onValueChange={(value) => {
                           const apiKind = value as RuntimeModelAPIKind
                           setSelectedApiKind(apiKind)
-                          if (apiKind !== 'backend_chat_completions' && isBackendModelReference(directModelId)) setDirectModelId('')
                         }}
                       >
                         <SelectTrigger className="w-full">
@@ -1557,14 +1570,19 @@ export default function AIAgentSettingsPage() {
                           </Button>
                         </div>
                       )}
-                      {usesDirectProvider && (
-                        <div data-testid="agent-settings-provider-env-notice" className="mt-2 rounded-md border border-border bg-muted/40 p-2 text-[11px] leading-4 text-muted-foreground">
-                          <p className="font-medium text-foreground">{t('agents.settings.providerCredentialNotice')}</p>
-                          <p className="mt-1">{t('agents.settings.providerCredentialHelp')}</p>
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            <span className="rounded bg-background px-1.5 py-0.5 font-mono">MOVSCRIPT_AGENT_MODEL_API_KEY</span>
-                            <span className="rounded bg-background px-1.5 py-0.5 font-mono">MOVSCRIPT_MODEL_GATEWAY_API_KEY</span>
-                          </div>
+                      {usesManualModelId && baseURL.trim() && !usesBackendCompatibleBaseURL && (
+                        <div className="mt-3">
+                          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('agents.settings.providerApiKeyLabel')}</label>
+                          <Input
+                            value={modelApiKey}
+                            onChange={(event) => setModelApiKey(event.target.value)}
+                            placeholder={effectiveConfig?.apiKeyConfigured ? t('agents.settings.providerApiKeyConfiguredPlaceholder') : t('agents.settings.providerApiKeyPlaceholder')}
+                            type="password"
+                            autoComplete="off"
+                            className="text-xs"
+                            data-testid="agent-settings-provider-api-key"
+                          />
+                          <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{t('agents.settings.providerCredentialHelp')}</p>
                         </div>
                       )}
                     </div>
@@ -1577,13 +1595,14 @@ export default function AIAgentSettingsPage() {
                   <ApiModeCapabilityMatrix apiKind={selectedApiKind} t={t} />
                   <ModelCompatibilityProbePanel probes={modelCompatibilityProbes} />
                   <ApiModeMigrationGuide apiKind={selectedApiKind} onSwitchToResponses={() => setSelectedApiKind('openai_responses')} />
+                  <ApiModeSwitchPlanPanel apiKind={selectedApiKind} items={apiModeSwitchPlan} />
                   {modelRouteIssues.length > 0 && (
                     <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-800 dark:text-amber-300">
                       {modelRouteIssues.map((issue) => <p key={issue}>{t(`agents.settings.modelRouteIssues.${issue}`)}</p>)}
                     </div>
                   )}
 
-                  {usesBackendGateway && selectedModel && (
+                  {usesModelCatalog && selectedModel && (
                     <div className="grid gap-2 text-xs sm:grid-cols-2">
                       <SummaryItem label={t('agents.settings.fields.modelId')} value={publicModelId(selectedModel)} />
                       <SummaryItem label={t('agents.settings.fields.capabilities')} value={selectedModel.capabilities.join(', ') || '-'} />
@@ -2380,7 +2399,7 @@ export default function AIAgentSettingsPage() {
                 )}
               </Panel>
 
-              {usesBackendGateway ? (
+              {usesModelCatalog ? (
                 <Panel title={t('agents.settings.availableModels')}>
                   {textModels.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{t('agents.settings.noTextModels')}</p>
@@ -2452,6 +2471,8 @@ function buildModelCompatibilityProbes(input: {
   selectedApiKind: RuntimeModelAPIKind
   modelValue: string
   baseURL: string
+  apiKeyProvided: boolean
+  usesBackendCompatibleBaseURL: boolean
   modelBaseURLHasSecret: boolean
   directModelIdHasSecret: boolean
   useForChat: boolean
@@ -2475,9 +2496,6 @@ function buildModelCompatibilityProbes(input: {
   if (model && input.directModelIdHasSecret) {
     modelStatus = 'action'
     modelDetailKey = 'agents.settings.modelCompatibilityDetails.modelIdSecret'
-  } else if (model && input.selectedApiKind !== 'backend_chat_completions' && isBackendModelReference(model)) {
-    modelStatus = 'action'
-    modelDetailKey = 'agents.settings.modelCompatibilityDetails.modelIdBackendReference'
   } else if (model && input.selectedApiKind === 'anthropic_messages' && /^(gpt|o\d|text-|davinci)/i.test(model)) {
     modelStatus = 'warning'
     modelDetailKey = 'agents.settings.modelCompatibilityDetails.modelIdProviderMismatch'
@@ -2494,24 +2512,22 @@ function buildModelCompatibilityProbes(input: {
   })
 
   const credentialStatus = input.effectiveConfig?.apiKind === input.selectedApiKind ? input.effectiveConfig.credentialStatus : undefined
+  const hasUsableSettingsApiKey = input.apiKeyProvided || Boolean(input.effectiveConfig?.apiKeyConfigured)
+  const usesBackendRequestAuth = input.usesBackendCompatibleBaseURL
   probes.push({
     id: 'credentials',
-    status: input.selectedApiKind === 'backend_chat_completions'
+    status: usesBackendRequestAuth
       ? 'ready'
-      : credentialStatus?.required && !credentialStatus.configured
+      : !hasUsableSettingsApiKey
         ? 'action'
-        : credentialStatus?.required
-          ? 'ready'
-          : 'warning',
+        : 'ready',
     labelKey: 'agents.settings.modelCompatibility.credentials',
-    detailKey: input.selectedApiKind === 'backend_chat_completions'
+    detailKey: usesBackendRequestAuth
       ? 'agents.settings.modelCompatibilityDetails.credentialsBackendManaged'
-      : credentialStatus?.required && !credentialStatus.configured
+      : !hasUsableSettingsApiKey
         ? 'agents.settings.modelCompatibilityDetails.credentialsMissing'
-        : credentialStatus?.required
-          ? 'agents.settings.modelCompatibilityDetails.credentialsReady'
-          : 'agents.settings.modelCompatibilityDetails.credentialsUnchecked',
-    detailValues: { env: credentialStatus?.acceptedEnv.join(', ') || 'MOVSCRIPT_AGENT_MODEL_API_KEY' },
+        : 'agents.settings.modelCompatibilityDetails.credentialsReady',
+    detailValues: { env: credentialStatus?.acceptedEnv.join(', ') || 'model settings API key' },
   })
 
   const hasCustomBaseURL = Boolean(input.baseURL)
@@ -2539,6 +2555,61 @@ function buildModelCompatibilityProbes(input: {
       : 'agents.settings.modelCompatibilityDetails.routesMissing',
   })
   return probes
+}
+
+function buildApiModeSwitchPlan(input: {
+  selectedApiKind: RuntimeModelAPIKind
+  probes: ModelCompatibilityProbe[]
+  hasUnsavedChanges: boolean
+}): ApiModeSwitchPlanItem[] {
+  const probeById = new Map(input.probes.map((probe) => [probe.id, probe]))
+  const targetApiKind = recommendedSwitchTarget(input.selectedApiKind)
+  const hasActionProbe = input.probes.some((probe) => probe.status === 'action')
+  const saveStatus: ApiModeSwitchPlanItem['status'] = hasActionProbe ? 'action' : input.hasUnsavedChanges ? 'warning' : 'ready'
+  return [
+    {
+      id: 'target-mode',
+      status: input.selectedApiKind === targetApiKind ? 'ready' : 'warning',
+      labelKey: 'agents.settings.apiModeSwitchPlan.targetMode',
+      detailKey: input.selectedApiKind === targetApiKind
+        ? 'agents.settings.apiModeSwitchPlanDetails.targetModeStable'
+        : 'agents.settings.apiModeSwitchPlanDetails.targetModeMigration',
+      detailValues: { apiKind: input.selectedApiKind, targetApiKind },
+    },
+    switchPlanProbeItem('model-id', probeById.get('model-id'), 'agents.settings.apiModeSwitchPlan.modelId'),
+    switchPlanProbeItem('credentials', probeById.get('credentials'), 'agents.settings.apiModeSwitchPlan.credentials'),
+    switchPlanProbeItem('base-url', probeById.get('base-url'), 'agents.settings.apiModeSwitchPlan.baseURL'),
+    switchPlanProbeItem('routes', probeById.get('routes'), 'agents.settings.apiModeSwitchPlan.routes'),
+    {
+      id: 'save-test',
+      status: saveStatus,
+      labelKey: 'agents.settings.apiModeSwitchPlan.saveTest',
+      detailKey: hasActionProbe
+        ? 'agents.settings.apiModeSwitchPlanDetails.saveTestBlocked'
+        : input.hasUnsavedChanges
+          ? 'agents.settings.apiModeSwitchPlanDetails.saveTestPending'
+          : 'agents.settings.apiModeSwitchPlanDetails.saveTestReady',
+    },
+  ]
+}
+
+function switchPlanProbeItem(
+  id: ApiModeSwitchPlanItem['id'],
+  probe: ModelCompatibilityProbe | undefined,
+  labelKey: string,
+): ApiModeSwitchPlanItem {
+  return {
+    id,
+    status: probe?.status ?? 'warning',
+    labelKey,
+    detailKey: probe?.detailKey ?? 'agents.settings.apiModeSwitchPlanDetails.probeMissing',
+    detailValues: probe?.detailValues,
+  }
+}
+
+function recommendedSwitchTarget(apiKind: RuntimeModelAPIKind): RuntimeModelAPIKind {
+  if (apiKind === 'openai_chat_completions') return 'openai_responses'
+  return apiKind
 }
 
 function buildSettingsReadinessItems(input: {
@@ -3261,9 +3332,10 @@ function modelDisplayName(models: PublicModel[], config: RuntimeModelConfigPubli
 }
 
 function apiKindBaseURLPlaceholder(apiKind: RuntimeModelAPIKind): string {
-  if (apiKind === 'openai_chat_completions' || apiKind === 'openai_responses') return 'https://api.openai.com/v1'
-  if (apiKind === 'anthropic_messages') return 'https://api.anthropic.com/v1'
-  return 'Backend model gateway'
+  if (apiKind === 'openai_chat_completions') return `${getAPIBaseURL()}/v1`
+  if (apiKind === 'openai_responses') return `${getAPIBaseURL()}/v1`
+  if (apiKind === 'anthropic_messages') return `${getAPIBaseURL()}/v1`
+  return `${getAPIBaseURL()}/v1`
 }
 
 function apiKindModelPlaceholder(apiKind: RuntimeModelAPIKind): string {
@@ -3273,10 +3345,6 @@ function apiKindModelPlaceholder(apiKind: RuntimeModelAPIKind): string {
   return 'model_config:1'
 }
 
-function isBackendModelReference(value: string): boolean {
-  return /^model_config:\d+$/.test(value.trim())
-}
-
 function isValidHTTPURL(value: string): boolean {
   try {
     const url = new URL(value)
@@ -3284,6 +3352,22 @@ function isValidHTTPURL(value: string): boolean {
   } catch {
     return false
   }
+}
+
+function isBackendCompatibleBaseURL(value: string): boolean {
+  if (!value.trim()) return true
+  try {
+    return new URL(toCompatibleGatewayBaseURL(value)).origin === new URL(toCompatibleGatewayBaseURL(getAPIBaseURL())).origin
+  } catch {
+    return false
+  }
+}
+
+function toCompatibleGatewayBaseURL(value: string): string {
+  const normalized = value.trim().replace(/\/+$/, '')
+  if (normalized.endsWith('/api/v1')) return `${normalized.slice(0, -'/api/v1'.length)}/v1`
+  if (normalized.endsWith('/v1')) return normalized
+  return `${normalized}/v1`
 }
 
 function apiModeReadinessDetailKey(apiKind: RuntimeModelAPIKind): string {
@@ -4220,7 +4304,7 @@ function skillLoadModeLabel(loadMode: AgentCatalogSkill['loadMode'], t: (key: st
 }
 
 function ApiModeCapabilityMatrix({ apiKind, t }: { apiKind: RuntimeModelAPIKind; t: (key: string) => string }) {
-  const mode = API_MODE_CAPABILITY_MATRIX[apiKind] ?? API_MODE_CAPABILITY_MATRIX.backend_chat_completions
+  const mode = API_MODE_CAPABILITY_MATRIX[apiKind] ?? API_MODE_CAPABILITY_MATRIX.openai_chat_completions
   return (
     <div data-testid="agent-settings-api-mode-capabilities" className="rounded-md border border-border bg-muted/20 p-2">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -4277,7 +4361,7 @@ function ApiModeMigrationGuide({
   onSwitchToResponses: () => void
 }) {
   const { t } = useTranslation()
-  const stepKeys = API_MODE_MIGRATION_STEPS[apiKind] ?? API_MODE_MIGRATION_STEPS.backend_chat_completions
+  const stepKeys = API_MODE_MIGRATION_STEPS[apiKind] ?? API_MODE_MIGRATION_STEPS.openai_chat_completions
   return (
     <div data-testid="agent-settings-api-mode-migration-guide" data-api-kind={apiKind} className="rounded-md border border-border bg-background p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -4296,6 +4380,57 @@ function ApiModeMigrationGuide({
           <div key={stepKey} data-testid="agent-settings-api-mode-migration-step" className="rounded border border-border bg-muted/20 px-2 py-1.5">
             <p className="text-[10px] font-medium uppercase text-muted-foreground">{t('agents.settings.apiModeMigrationStep', { index: index + 1 })}</p>
             <p className="mt-0.5 text-[11px] leading-4 text-foreground">{t(`agents.settings.apiModeMigrationSteps.${stepKey}`)}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ApiModeSwitchPlanPanel({ apiKind, items }: { apiKind: RuntimeModelAPIKind; items: ApiModeSwitchPlanItem[] }) {
+  const { t } = useTranslation()
+  const [copied, setCopied] = useState(false)
+  const actionCount = items.filter((item) => item.status === 'action').length
+  const warningCount = items.filter((item) => item.status === 'warning').length
+  async function copySwitchPlan() {
+    const lines = [
+      t('agents.settings.apiModeSwitchPlanTitle'),
+      t('agents.settings.apiModeSwitchPlanCopyContext', { apiKind }),
+      ...items.map((item, index) => (
+        `${index + 1}. [${t(`agents.settings.modelCompatibilityStatuses.${item.status}`)}] ${t(item.labelKey)} - ${t(item.detailKey, item.detailValues)}`
+      )),
+    ]
+    await copyRedactedSettingsLines(lines)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <div data-testid="agent-settings-api-mode-switch-plan" className="rounded-md border border-border bg-background p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <span className="min-w-0">
+          <p className="text-xs font-medium text-foreground">{t('agents.settings.apiModeSwitchPlanTitle')}</p>
+          <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
+            {t('agents.settings.apiModeSwitchPlanHelp', { actions: actionCount, warnings: warningCount })}
+          </p>
+        </span>
+        <Button type="button" size="sm" variant="outline" onClick={() => void copySwitchPlan()} data-testid="agent-settings-copy-api-mode-switch-plan">
+          <Clipboard size={13} />
+          {copied ? t('agents.settings.apiModeSwitchPlanCopied') : t('agents.settings.copyApiModeSwitchPlan')}
+        </Button>
+      </div>
+      <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+        {items.map((item) => (
+          <div key={item.id} data-testid="agent-settings-api-mode-switch-plan-item" className="rounded border border-border bg-muted/20 px-2 py-1.5">
+            <div className="flex items-start justify-between gap-2">
+              <span className="min-w-0">
+                <span className="block text-[11px] font-medium leading-4 text-foreground">{t(item.labelKey)}</span>
+                <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">{t(item.detailKey, item.detailValues)}</span>
+              </span>
+              <Badge variant={item.status === 'ready' ? 'success' : item.status === 'warning' ? 'warning' : 'destructive'} className="shrink-0">
+                {t(`agents.settings.modelCompatibilityStatuses.${item.status}`)}
+              </Badge>
+            </div>
           </div>
         ))}
       </div>

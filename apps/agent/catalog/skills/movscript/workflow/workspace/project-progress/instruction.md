@@ -3,7 +3,7 @@
 
 输入：
 - 当前 focus 中的 project、production、route、selected entity。
-- 必要时读取的项目剧本、已有 drafts 和用户明确提供的状态说明。
+- 必要时读取的项目剧本、当前会话 draft 和用户明确提供的状态说明。
 
 边界：
 - 此 workflow 只做状态审阅和下一步建议。
@@ -13,11 +13,11 @@
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
 - 项目剧本：{{tool:movscript_read_project_scripts}}
-- Draft 列表：{{tool:movscript_list_drafts}}
+- Draft：{{tool:movscript_get_draft}}
 
 流程：
 1. 读取 focus，确认要总结的是 project、production 还是已选实体。
-2. 如果进度判断依赖剧本事实，读取相关项目剧本；如果依赖未关闭方案，读取 draft 列表。
+2. 如果进度判断依赖剧本事实，读取相关项目剧本；如果依赖当前会话未关闭方案，读取对应 draft。
 3. 按层级归类：project 设定和素材需求、production 编排、content unit、媒体计划、生成任务或交付审阅。
 4. 将每项状态标记为已验证、draft 中、proposal 待审阅、candidate 待审阅、generation job 中、建议、未知或阻塞。
 5. 给出最少的下一步 workflow 建议，例如继续 project_proposal（项目标准）、setting_proposal（设定资料）、asset_proposal（素材需求或素材候选）、production_proposal、content_unit_proposal、visual_generation 或 storyboard_gap_review。

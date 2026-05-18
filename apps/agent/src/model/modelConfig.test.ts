@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
-import { buildBackendGatewayChatRequest, RuntimeModelConfigStore } from './modelConfig.js'
+import { ensureJSONModeMessages, RuntimeModelConfigStore } from './modelConfig.js'
 
 test('runtime model config saves only backend model config routing fields', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
@@ -261,11 +261,7 @@ test('runtime model config preserves base URL when only route flags change', () 
 
 test('runtime model config clears backend model config id when switching to a direct model id', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
-  const originalAgentKey = process.env.MOVSCRIPT_AGENT_MODEL_API_KEY
-  const originalGatewayKey = process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
   try {
-    delete process.env.MOVSCRIPT_AGENT_MODEL_API_KEY
-    delete process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
     const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
 
     store.save({ modelConfigId: 7, model: 'model_config:7', useForChat: true })
@@ -273,6 +269,7 @@ test('runtime model config clears backend model config id when switching to a di
       model: 'gpt-5.5',
       apiKind: 'openai_responses',
       baseURL: 'https://api.openai.com/v1',
+      apiKey: 'direct-provider-key',
       useForChat: true,
       useForPlanner: true,
     })
@@ -283,20 +280,16 @@ test('runtime model config clears backend model config id when switching to a di
     assert.equal(updated.model, 'gpt-5.5')
     assert.equal(updated.apiKind, 'openai_responses')
     assert.equal(updated.baseURL, 'https://api.openai.com/v1')
+    assert.equal(updated.apiKeyConfigured, true)
     assert.equal(updated.credentialStatus.required, true)
-    assert.equal(updated.credentialStatus.configured, false)
-    assert.deepEqual(updated.credentialStatus.acceptedEnv, ['MOVSCRIPT_AGENT_MODEL_API_KEY', 'MOVSCRIPT_MODEL_GATEWAY_API_KEY'])
+    assert.equal(updated.credentialStatus.configured, true)
+    assert.deepEqual(updated.credentialStatus.acceptedEnv, ['model settings API key'])
     assert.equal(raw.modelConfigId, undefined)
-
-    process.env.MOVSCRIPT_AGENT_MODEL_API_KEY = 'direct-provider-key'
+    assert.equal(raw.apiKey, 'direct-provider-key')
     const publicConfig = store.getPublicConfig()
     assert.equal(publicConfig.credentialStatus.configured, true)
-    assert.deepEqual(publicConfig.credentialStatus.sourceEnv, ['MOVSCRIPT_AGENT_MODEL_API_KEY'])
+    assert.deepEqual(publicConfig.credentialStatus.sourceEnv, ['model settings API key'])
   } finally {
-    if (originalAgentKey === undefined) delete process.env.MOVSCRIPT_AGENT_MODEL_API_KEY
-    else process.env.MOVSCRIPT_AGENT_MODEL_API_KEY = originalAgentKey
-    if (originalGatewayKey === undefined) delete process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
-    else process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY = originalGatewayKey
     rmSync(dir, { recursive: true, force: true })
   }
 })
@@ -313,7 +306,8 @@ test('runtime model config ignores corrupt or non-object config files', () => {
       configured: false,
       provider: 'backend-model-config',
       model: 'movscript-default-chat',
-      apiKind: 'backend_chat_completions',
+      apiKind: 'openai_chat_completions',
+      apiKeyConfigured: false,
       useForChat: true,
       useForPlanner: true,
       source: 'none',
@@ -321,7 +315,7 @@ test('runtime model config ignores corrupt or non-object config files', () => {
         required: false,
         configured: false,
         sourceEnv: [],
-        acceptedEnv: ['MOVSCRIPT_AGENT_MODEL_API_KEY', 'MOVSCRIPT_MODEL_GATEWAY_API_KEY'],
+        acceptedEnv: ['model settings API key'],
       },
     })
 
@@ -385,7 +379,7 @@ test('runtime model config ignores persisted direct configs with embedded secret
   }
 })
 
-test('runtime model config test uses backend gateway and hides auth from the public request snapshot', async () => {
+test('runtime model config test uses backend OpenAI-compatible gateway and hides auth from the public request snapshot', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
   const originalFetch = globalThis.fetch
   try {
@@ -396,17 +390,12 @@ test('runtime model config test uses backend gateway and hides auth from the pub
     })
 
     globalThis.fetch = (async (url, init) => {
-      assert.equal(url, 'http://localhost:8765/api/v1/model-gateway/chat/completions')
+      assert.equal(String(url), 'http://localhost:8765/v1/chat/completions')
       assert.equal(init?.method, 'POST')
-      assert.deepEqual(init?.headers, {
-        Accept: 'text/event-stream',
-        Authorization: 'Bearer user-token',
-        'Content-Type': 'application/json',
-      })
+      assert.equal(headerValue(init?.headers, 'authorization'), 'Bearer user-token')
       assert.equal(typeof init?.body, 'string')
       const body = JSON.parse(init?.body as string) as Record<string, unknown>
       assert.equal(body.model, 'model_config:9')
-      assert.equal(body.stream, true)
       assert.ok(Array.isArray(body.messages))
       return new Response(JSON.stringify({
         choices: [{ message: { content: 'connection ok' } }],
@@ -418,7 +407,7 @@ test('runtime model config test uses backend gateway and hides auth from the pub
     assert.equal(result.ok, true)
     assert.equal(result.content, 'connection ok')
     assert.equal(result.modelConfigId, 9)
-    assert.equal(result.request.url, 'http://localhost:8765/api/v1/model-gateway/chat/completions')
+    assert.equal(result.request.url, 'http://localhost:8765/v1/chat/completions')
     assert.equal(result.request.method, 'POST')
     assert.equal(result.request.headers.Authorization, undefined)
     assert.equal(result.request.body.model, 'model_config:9')
@@ -429,43 +418,59 @@ test('runtime model config test uses backend gateway and hides auth from the pub
   }
 })
 
-test('runtime model config direct OpenAI test does not treat backend auth as provider API key', async () => {
+test('runtime model config normalizes explicit backend /api/v1 base URL to OpenAI-compatible /v1', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
-  const originalAgentKey = process.env.MOVSCRIPT_AGENT_MODEL_API_KEY
-  const originalGatewayKey = process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
+  const originalFetch = globalThis.fetch
   try {
-    delete process.env.MOVSCRIPT_AGENT_MODEL_API_KEY
-    delete process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
     const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
-    store.save({
+    const saved = store.save({
       model: 'gpt-5.5',
-      apiKind: 'openai_responses',
+      apiKind: 'openai_chat_completions',
+      baseURL: 'http://localhost:8765/api/v1',
+    })
+    assert.equal(saved.credentialStatus.required, false)
+
+    globalThis.fetch = (async (url, init) => {
+      assert.equal(String(url), 'http://localhost:8765/v1/chat/completions')
+      assert.equal(headerValue(init?.headers, 'authorization'), 'Bearer user-token')
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: 'connection ok' } }],
+      }), { status: 200 })
+    }) as typeof fetch
+
+    const result = await store.test({ message: 'hello' }, {
+      backendAuthToken: 'user-token',
+      backendAPIBaseURL: 'http://localhost:8765/api/v1',
     })
 
-    await assert.rejects(
-      () => store.test({ message: 'hello' }, { backendAuthToken: 'backend-user-token' }),
-      /openai_responses requires MOVSCRIPT_AGENT_MODEL_API_KEY or MOVSCRIPT_MODEL_GATEWAY_API_KEY/,
-    )
+    assert.equal(result.request.url, 'http://localhost:8765/v1/chat/completions')
   } finally {
-    if (originalAgentKey === undefined) delete process.env.MOVSCRIPT_AGENT_MODEL_API_KEY
-    else process.env.MOVSCRIPT_AGENT_MODEL_API_KEY = originalAgentKey
-    if (originalGatewayKey === undefined) delete process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
-    else process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY = originalGatewayKey
+    globalThis.fetch = originalFetch
     rmSync(dir, { recursive: true, force: true })
   }
 })
 
-test('backend gateway JSON mode request includes ASCII JSON instruction when missing', () => {
-  const request = buildBackendGatewayChatRequest(
-    {
-      provider: 'backend-model-config',
-      modelConfigId: 12,
-      model: 'model_config:12',
-      useForChat: true,
-      useForPlanner: true,
-      updatedAt: new Date(0).toISOString(),
-    },
-    [
+test('runtime model config explicit provider test does not treat backend auth as provider API key', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
+  try {
+    const store = new RuntimeModelConfigStore(join(dir, 'model-config.json'))
+    store.save({
+      model: 'gpt-5.5',
+      apiKind: 'openai_responses',
+      baseURL: 'https://api.openai.com/v1',
+    })
+
+    await assert.rejects(
+      () => store.test({ message: 'hello' }, { backendAuthToken: 'backend-user-token' }),
+      /openai_responses requires an API key in model settings/,
+    )
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('JSON mode messages include ASCII JSON instruction when missing', () => {
+  const messages = ensureJSONModeMessages([
       {
         role: 'system',
         content: '输出结构化对象，不要使用 markdown。',
@@ -474,28 +479,15 @@ test('backend gateway JSON mode request includes ASCII JSON instruction when mis
         role: 'user',
         content: '分析这个剧本。',
       },
-    ],
-    {},
-    { jsonMode: true },
-  )
+    ])
 
-  assert.equal(request.body.response_format?.type, 'json_object')
-  assert.equal(request.body.messages[0]?.role, 'system')
-  assert.match(request.body.messages[0]?.content ?? '', /\bJSON\b/)
-  assert.equal(request.body.messages[1]?.content, '输出结构化对象，不要使用 markdown。')
+  assert.equal(messages[0]?.role, 'system')
+  assert.match(messages[0]?.content ?? '', /\bJSON\b/)
+  assert.equal(messages[1]?.content, '输出结构化对象，不要使用 markdown。')
 })
 
-test('backend gateway JSON mode request does not duplicate an existing JSON instruction', () => {
-  const request = buildBackendGatewayChatRequest(
-    {
-      provider: 'backend-model-config',
-      modelConfigId: 12,
-      model: 'model_config:12',
-      useForChat: true,
-      useForPlanner: true,
-      updatedAt: new Date(0).toISOString(),
-    },
-    [
+test('JSON mode messages do not duplicate an existing JSON instruction', () => {
+  const messages = ensureJSONModeMessages([
       {
         role: 'system',
         content: 'Return only valid JSON.',
@@ -504,11 +496,19 @@ test('backend gateway JSON mode request does not duplicate an existing JSON inst
         role: 'user',
         content: 'Analyze this script.',
       },
-    ],
-    {},
-    { jsonMode: true },
-  )
+    ])
 
-  assert.equal(request.body.messages.length, 2)
-  assert.equal(request.body.messages[0]?.content, 'Return only valid JSON.')
+  assert.equal(messages.length, 2)
+  assert.equal(messages[0]?.content, 'Return only valid JSON.')
 })
+
+function headerValue(headers: HeadersInit | undefined, name: string): string | null {
+  if (!headers) return null
+  if (headers instanceof Headers) return headers.get(name)
+  if (Array.isArray(headers)) {
+    const entry = headers.find(([key]) => key.toLowerCase() === name.toLowerCase())
+    return entry?.[1] ?? null
+  }
+  const entry = Object.entries(headers).find(([key]) => key.toLowerCase() === name.toLowerCase())
+  return entry?.[1] ?? null
+}

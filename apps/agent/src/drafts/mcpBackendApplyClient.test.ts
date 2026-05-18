@@ -18,7 +18,7 @@ class FakeMCPClient {
     return {
       data: {
         performed: true,
-        method: name.includes('create_script') ? 'POST' : 'PATCH',
+        method: 'PATCH',
         url: 'http://frontend-mcp/backend-write',
         payload: {},
         response: { ok: true },
@@ -57,33 +57,6 @@ test('MCPBackendApplyClient applies draft reviews through frontend MCP without b
   })
 })
 
-test('MCPBackendApplyClient creates scripts through the internal MCP backend write tool', async () => {
-  const mcpClient = new FakeMCPClient()
-  const client = new MCPBackendApplyClient(mcpClient)
-
-  await client.createScript(42, { title: 'Test', raw_source: 'Body', source_type: 'raw' }, { userId: 3 })
-
-  assert.equal(mcpClient.calls[0]?.name, 'movscript_create_script_backend')
-  assert.deepEqual(mcpClient.calls[0]?.args, {
-    projectId: 42,
-    payload: { title: 'Test', raw_source: 'Body', source_type: 'raw' },
-    userId: 3,
-  })
-})
-
-test('MCPBackendApplyClient drops invalid auth user ids from MCP args', async () => {
-  const mcpClient = new FakeMCPClient()
-  const client = new MCPBackendApplyClient(mcpClient)
-
-  await client.createScript(42, { title: 'Test', raw_source: 'Body', source_type: 'raw' }, { userId: 3.5 })
-
-  assert.equal(mcpClient.calls[0]?.name, 'movscript_create_script_backend')
-  assert.deepEqual(mcpClient.calls[0]?.args, {
-    projectId: 42,
-    payload: { title: 'Test', raw_source: 'Body', source_type: 'raw' },
-  })
-})
-
 test('MCPBackendApplyClient previews project proposal apply through the internal MCP tool', async () => {
   const mcpClient = new FakeMCPClient()
   const client = new MCPBackendApplyClient(mcpClient)
@@ -111,5 +84,15 @@ test('MCPBackendApplyClient rejects non-plain backend apply tool results', async
   mcpClient.callTool = async () => new RuntimeResult() as never
   const client = new MCPBackendApplyClient(mcpClient)
 
-  await assert.rejects(() => client.createScript(42, { title: 'Test' }), /invalid backend apply result/)
+  await assert.rejects(() => client.applyReview({
+    draftId: 'draft-3',
+    draftTitle: 'Draft',
+    draftKind: 'content_unit',
+    target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
+    currentValue: 'old',
+    proposedValue: 'new',
+    risk: 'write',
+    sideEffect: 'write content unit',
+    requiresBackendApply: true,
+  }), /invalid backend apply result/)
 })

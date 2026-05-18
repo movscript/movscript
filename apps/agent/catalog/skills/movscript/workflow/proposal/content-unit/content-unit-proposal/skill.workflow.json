@@ -32,7 +32,6 @@
     "tool://movscript_create_draft",
     "tool://movscript_update_draft",
     "tool://movscript_get_draft",
-    "tool://movscript_list_drafts",
     "tool://movscript_search_knowledge",
     "tool://movscript_get_knowledge",
     "tool://movscript_request_user_input"

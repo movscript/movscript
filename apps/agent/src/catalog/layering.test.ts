@@ -61,6 +61,15 @@ test('layered catalog registry exposes schema/tool/skill/pack/profile boundaries
   assert.ok(registry.tools.has('movscript_get_draft_model'))
   assert.ok(registry.tools.has('movscript_search_knowledge'))
   assert.ok(registry.tools.has('movscript_get_knowledge'))
+  const readScriptsTool = registry.tools.get('movscript_read_project_scripts')
+  assert.ok(readScriptsTool)
+  assert.match(readScriptsTool.description, /后端项目剧本/)
+  assert.match(readScriptsTool.description, /不要用 movscript_get_draft 读取剧本/)
+  const readScriptsProperties = schemaProperties(readScriptsTool.inputSchema)
+  assert.ok(readScriptsProperties.scriptId)
+  assert.ok(readScriptsProperties.scriptTitle)
+  assert.ok(readScriptsProperties.query)
+  assert.ok(readScriptsProperties.contentLimit)
   assert.ok(registry.skills.has('movscript.policy.drafts'))
   assert.ok(registry.skills.has('movscript.expertise.storyboard.general-director'))
   assert.ok(registry.packs.has('movscript.pack.default'))
@@ -119,6 +128,7 @@ test('target-state pack files and the default profile are loaded as first-class 
     'movscript.workflow.planner-subagents',
     'movscript.workflow.draft-lifecycle',
     'movscript.workflow.project-progress',
+    'movscript.workflow.script-reading',
     'movscript.workflow.proposal-first',
     'movscript.workflow.project-proposal',
     'movscript.workflow.setting-proposal',
@@ -139,6 +149,7 @@ test('target-state pack files and the default profile are loaded as first-class 
   assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.project-proposal'))
   assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.planner-subagents'))
   assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.draft-lifecycle'))
+  assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.script-reading'))
   assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.production-proposal'))
   assert.ok(resolved.profile.toolGrants.some((grant) => grant.name === 'movscript_create_generation_job' && grant.approval === 'always'))
   assert.ok(resolved.profile.toolGrants.some((grant) => grant.name === 'movscript_request_user_input' && grant.approval === 'never'))
@@ -150,14 +161,14 @@ test('draft lifecycle workflow describes read-before-write draft handling', () =
   const workflow = catalog.layeredRegistry.skills.get('movscript.workflow.draft-lifecycle')
 
   assert.ok(workflow?.kind === 'workflow')
-  assert.ok(workflow.toolRefs.includes('tool://movscript_list_drafts'))
   assert.ok(workflow.toolRefs.includes('tool://movscript_get_draft'))
   assert.ok(workflow.toolRefs.includes('tool://movscript_create_draft'))
   assert.ok(workflow.toolRefs.includes('tool://movscript_update_draft'))
-  assert.match(workflow.instructionTemplate, /写入前必须先读取/)
-  assert.match(workflow.instructionTemplate, /若用户给了 draftId，先 get\/read 该 draft/)
-  assert.match(workflow.instructionTemplate, /没有 draftId，先 list/)
-  assert.match(workflow.instructionTemplate, /绝不在未读取现有 draft\/list 结果前直接覆盖写入/)
+  assert.equal(workflow.toolRefs.includes('tool://movscript_list_drafts'), false)
+  assert.match(workflow.instructionTemplate, /当前会话没有 draftId/)
+  assert.match(workflow.instructionTemplate, /若用户或当前会话上下文给了 draftId，先 get 该 draft/)
+  assert.match(workflow.instructionTemplate, /不要跨会话查找旧 draft/)
+  assert.match(workflow.instructionTemplate, /绝不在未读取当前会话现有 draft 前直接覆盖写入/)
 
   const selected = selectActiveWorkflows([workflow], {
     profile,
@@ -507,6 +518,73 @@ test('content unit proposal activates general director storyboard expertise', ()
   assert.match(expertise.compiledInstruction, /镜头参数/)
   assert.match(expertise.compiledInstruction, /人物动作/)
   assert.match(expertise.compiledInstruction, /光线/)
+})
+
+test('manual script reading skill is discovered before it exposes script tools', () => {
+  const catalog = loadAgentPluginCatalog()
+  const message = '请查看 projectId=5 的总剧本'
+  const debugContext = {
+    route: { pathname: '/project/scripts' },
+    projects: [{ id: 5, name: '好运甜妻' }],
+    project: { id: 5, name: '好运甜妻' },
+    selection: null,
+    recentResources: [],
+    attachments: [],
+    memories: [],
+    labels: [],
+  }
+
+  const coreOnly = resolveRuntimeLayers({
+    registry: catalog.layeredRegistry,
+    baseManifest: {
+      ...catalog.manifest,
+      metadata: {
+        ...(catalog.manifest.metadata ?? {}),
+        profileId: 'movscript.profile.default.tool-policy',
+        defaultToolGrants: [],
+      },
+    },
+    message,
+    debugContext,
+  })
+
+  assert.equal(coreOnly.warnings.some((warning) => /Profile movscript\.profile\.default\.tool-policy/.test(warning)), false)
+  assert.equal(coreOnly.manifest.metadata?.profileId, 'movscript.profile.default')
+  assert.equal(coreOnly.trace.workflowIds.includes('movscript.workflow.script-reading'), false)
+  const discoveredScriptSkill = coreOnly.skillDiscovery.availableSkills.find((skill) => skill.id === 'movscript.workflow.script-reading')
+  assert.ok(discoveredScriptSkill)
+  assert.equal(discoveredScriptSkill.loadMode, 'manual')
+
+  const coreTools = resolveToolCatalog({
+    mcpTools: [],
+    registry: catalog.registry,
+    manifest: coreOnly.manifest,
+    currentProjectId: 5,
+    activeSkills: coreOnly.skills,
+    userMessage: message,
+  })
+  assert.equal(coreTools.byName.movscript_read_project_scripts?.available, false)
+  assert.equal(coreTools.byName.movscript_read_project_scripts?.unavailableReason, 'workflow_scope')
+  assert.equal(coreTools.byName.movscript_update_active_skills?.available, true)
+
+  const loaded = resolveRuntimeLayers({
+    registry: catalog.layeredRegistry,
+    baseManifest: coreOnly.manifest,
+    message,
+    debugContext,
+    requestedSkillIds: ['movscript.workflow.script-reading'],
+  })
+  assert.ok(loaded.trace.workflowIds.includes('movscript.workflow.script-reading'))
+
+  const loadedTools = resolveToolCatalog({
+    mcpTools: [],
+    registry: catalog.registry,
+    manifest: loaded.manifest,
+    currentProjectId: 5,
+    activeSkills: loaded.skills,
+    userMessage: message,
+  })
+  assert.equal(loadedTools.byName.movscript_read_project_scripts?.available, true)
 })
 
 test('visual generation prompt exposes backend generation validation error codes', () => {

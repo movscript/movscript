@@ -40,8 +40,8 @@ test('draft domain model separates project standards, settings, and asset slots'
   assert.ok(assetProposal?.fieldGuide.forbids.includes('creative_reference_edits'))
   assert.equal(assetProposal?.applyBoundary.backendApply, 'project_proposal')
 
-  assert.equal(production?.seed.defaultMode, 'snapshot')
-  assert.deepEqual(production?.seed.allowedModes, ['empty', 'snapshot'])
+  assert.equal(production?.seed.defaultMode, 'editable_snapshot')
+  assert.deepEqual(production?.seed.allowedModes, ['empty', 'snapshot', 'editable_snapshot'])
   assert.ok(production?.seed.include.includes('production_script_brief'))
   assert.ok(production?.seed.include.includes('project_scripts'))
   assert.ok(production?.seed.include.includes('segments'))

@@ -36,7 +36,7 @@ func TestPatchProductionAllowsSourceChangeBeforeDerivedItems(t *testing.T) {
 	}
 }
 
-func TestPatchProductionRejectsSourceChangeAfterDerivedItems(t *testing.T) {
+func TestPatchProductionAllowsSourceChangeAfterDerivedItems(t *testing.T) {
 	cases := []struct {
 		name string
 		seed func(t *testing.T, db *gorm.DB, production model.Production)
@@ -98,23 +98,25 @@ func TestPatchProductionRejectsSourceChangeAfterDerivedItems(t *testing.T) {
 			}
 			tc.seed(t, db, production)
 
-			_, err := service.PatchProduction(context.Background(), 1, strconv.FormatUint(uint64(production.ID), 10), ProductionInput{
+			patched, err := service.PatchProduction(context.Background(), 1, strconv.FormatUint(uint64(production.ID), 10), ProductionInput{
 				ScriptVersionID: &secondVersion.ID,
 				Name:            "Moved source",
 				SourceType:      "script",
 				Status:          "planning",
 			})
-			var invalid ErrInvalidInput
-			if !errors.As(err, &invalid) {
-				t.Fatalf("PatchProduction() error = %v, want ErrInvalidInput", err)
+			if err != nil {
+				t.Fatalf("PatchProduction() error = %v", err)
+			}
+			if patched.ScriptVersionID == nil || *patched.ScriptVersionID != secondVersion.ID {
+				t.Fatalf("patched script version id = %v, want %d", patched.ScriptVersionID, secondVersion.ID)
 			}
 
 			var persisted model.Production
 			if err := db.First(&persisted, production.ID).Error; err != nil {
 				t.Fatalf("load production: %v", err)
 			}
-			if persisted.ScriptVersionID == nil || *persisted.ScriptVersionID != firstVersion.ID {
-				t.Fatalf("script version changed to %v, want %d", persisted.ScriptVersionID, firstVersion.ID)
+			if persisted.ScriptVersionID == nil || *persisted.ScriptVersionID != secondVersion.ID {
+				t.Fatalf("script version id = %v, want %d", persisted.ScriptVersionID, secondVersion.ID)
 			}
 		})
 	}

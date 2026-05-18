@@ -98,7 +98,7 @@ test('agentTraceView separates model HTTP request and impact', () => {
   const view = agentTraceView(traceEvent({
     kind: 'model_call',
     title: 'Model HTTP request sent',
-    summary: 'POST /api/v1/model-gateway/chat/completions',
+    summary: 'POST /v1/chat/completions',
     data: {
       phase: 'request',
       latencyMs: 234,
@@ -118,7 +118,7 @@ test('agentTraceView separates model HTTP request and impact', () => {
   }))
   assert.equal(view.category, 'http')
   assert.equal(view.title, '发起模型 HTTP 请求')
-  assert.equal(view.summary, '请求 POST /api/v1/model-gateway/chat/completions')
+  assert.equal(view.summary, '请求 POST /v1/chat/completions')
   assert.match(view.behavior ?? '', /向模型网关发送请求/)
   assert.equal(view.contextGroups.some((group) => group.label === 'HTTP 调用'), true)
   assert.equal(view.modelDetail?.kind, 'request')

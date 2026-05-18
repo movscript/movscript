@@ -17,8 +17,9 @@ Required top-level fields:
 - `schema`, `schemaVersion`, `schemaUrl`, `redacted`, `exportedAt`.
 - Runtime context: `baseURL`, `currentProject`, `runtime`, `lastUpdated`.
 - Model context: `modelConfig`, `modelConfigError`.
-- Observation context: `observationCoverage`, `triageItems`, `runSummary`,
-  `remediationPlan`, `runIssueGroups`, `warnings`, `warningGroups`, `preview`.
+- Observation context: `observationCoverage`, `evidenceChecklist`,
+  `triageItems`, `runSummary`, `remediationPlan`, `runIssueGroups`,
+  `warnings`, `warningGroups`, `preview`.
 
 Compatibility rules:
 

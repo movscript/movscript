@@ -1,8 +1,9 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type DragEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
+  ArrowLeft,
   ArrowRight,
   Bot,
   Boxes,
@@ -28,6 +29,7 @@ import {
   Plus,
   RefreshCw,
   Route,
+  Save,
   ScrollText,
   Settings2,
   ShieldCheck,
@@ -100,7 +102,7 @@ import type { Canvas, CanvasStage, Job, PaginatedResponse, PublicModel, RawResou
 import type { Script } from '@/types'
 import { Badge, Button, Card, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Progress, ScrollArea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
 import { Input, Label, Textarea } from '@movscript/ui'
-import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
+import { SemanticEntityInlineEditor, type SemanticEntityInlineEditorControlState } from '@/components/shared/SemanticEntityInlineEditor'
 import { AuthedImage } from '@/components/shared/AuthedImage'
 import { ResourceLibraryPicker } from '@/components/shared/ResourceLibraryPicker'
 import {
@@ -124,6 +126,8 @@ import { ROUTES, mergeSearch, withRouteParams } from '@/routes/projectRoutes'
 export type WorkbenchMode = 'free'
 type WorkStatus = 'blocked' | 'review' | 'ready' | 'running'
 type Priority = 'high' | 'medium' | 'low'
+type ContentWorkbenchDropPosition = 'before' | 'after'
+type ContentWorkbenchScopeLevel = 'production' | 'segment' | 'scene_moment'
 
 interface WorkbenchContentProps {
   mode: WorkbenchMode
@@ -499,6 +503,8 @@ type WorkbenchRecord = SemanticEntityRecord & {
   scene_moment_id?: number
   content_unit_id?: number
   script_block_id?: number
+  preview_timeline_id?: number
+  is_primary?: boolean
   speaker?: string
   start_line?: number
   end_line?: number
@@ -519,6 +525,7 @@ type WorkbenchRecord = SemanticEntityRecord & {
   scope_id?: number
   score?: number
   note?: string
+  start_sec?: number
   candidate_asset_slot_id?: number
   asset_slot_id?: number
   candidate_asset_slot?: WorkbenchRecord
@@ -597,6 +604,7 @@ interface ContentGenerationViewRow {
   missingSlots: WorkbenchRecord[]
   keyframes: WorkbenchRecord[]
   scriptBlocks: WorkbenchRecord[]
+  previewTimelineItems: WorkbenchRecord[]
 }
 
 interface ContentGenerationMomentRow {
@@ -614,6 +622,14 @@ interface ContentGenerationMomentRow {
   assetSlots: WorkbenchRecord[]
   missingSlots: WorkbenchRecord[]
   keyframes: WorkbenchRecord[]
+  scriptBlocks: WorkbenchRecord[]
+  previewTimelineItems: WorkbenchRecord[]
+}
+
+interface ContentWorkbenchTrackSection {
+  id: string
+  title: string
+  rows: ContentGenerationMomentRow[]
 }
 
 type ContentSnapshotDiffState = 'added' | 'changed' | 'unchanged' | 'planned'
@@ -650,7 +666,7 @@ interface ContentDraftReviewModel {
 }
 
 async function loadProductionWorkbenchData(projectId: number): Promise<ProductionWorkbenchData> {
-  const [productions, segments, sceneMoments, creativeReferences, creativeReferenceUsages, contentUnits, assetSlots, keyframes, previewTimelines, previewTimelineItems, deliveryVersions, jobs] = await Promise.all([
+  const [productions, segments, sceneMoments, creativeReferences, creativeReferenceUsages, contentUnits, assetSlots, keyframes, scriptBlocks, previewTimelines, previewTimelineItems, deliveryVersions, jobs] = await Promise.all([
     listSemanticEntities(projectId, semanticEntityConfig('productions')),
     listSemanticEntities(projectId, semanticEntityConfig('segments')),
     listSemanticEntities(projectId, semanticEntityConfig('sceneMoments')),
@@ -659,6 +675,7 @@ async function loadProductionWorkbenchData(projectId: number): Promise<Productio
     listSemanticEntities(projectId, semanticEntityConfig('contentUnits')),
     listSemanticEntities(projectId, semanticEntityConfig('assetSlots')),
     listSemanticEntities(projectId, semanticEntityConfig('keyframes')),
+    listSemanticEntities(projectId, semanticEntityConfig('scriptBlocks')),
     listSemanticEntities(projectId, semanticEntityConfig('previewTimelines')),
     listSemanticEntities(projectId, semanticEntityConfig('previewTimelineItems')),
     listSemanticEntities(projectId, semanticEntityConfig('deliveryVersions')),
@@ -673,6 +690,7 @@ async function loadProductionWorkbenchData(projectId: number): Promise<Productio
     contentUnits: contentUnits as WorkbenchRecord[],
     assetSlots: assetSlots as WorkbenchRecord[],
     keyframes: keyframes as WorkbenchRecord[],
+    scriptBlocks: scriptBlocks as WorkbenchRecord[],
     previewTimelines: previewTimelines as WorkbenchRecord[],
     previewTimelineItems: previewTimelineItems as WorkbenchRecord[],
     deliveryVersions: deliveryVersions as WorkbenchRecord[],
@@ -749,6 +767,7 @@ function buildContentGenerationRows(data?: ProductionWorkbenchData): ContentGene
   const contentUnits = data.contentUnits ?? []
   const assetSlotsData = data.assetSlots ?? []
   const keyframesData = (data.keyframes ?? []).filter((keyframe) => !isGeneratedKeyframeCandidateRecord(keyframe))
+  const scriptBlocksData = data.scriptBlocks ?? []
   const visibleAssetSlots = assetSlotsData.filter((slot) => slot.owner_type !== 'asset_slot')
   return contentUnits
     .map((unit) => {
@@ -758,7 +777,14 @@ function buildContentGenerationRows(data?: ProductionWorkbenchData): ContentGene
         (slot.owner_type === 'keyframe' && slot.owner_id ? keyframeIds.has(Number(slot.owner_id)) : false)
       ))
       const missingSlots = assetSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
+      const previewTimelineIds = bestPreviewTimelineIdsForProductionIds(new Set([Number(unit.production_id) || 0].filter((id) => id > 0)), data)
+      const previewTimelineItems = scopedPreviewTimelineItems(
+        data.previewTimelineItems,
+        previewTimelineIds,
+        (item) => Number(item.content_unit_id) === unit.ID,
+      )
       const keyframes = keyframesData.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID)
+      const scriptBlocks = scriptBlocksData.filter((block) => block.ID === Number(unit.script_block_id)).slice().sort(byOrder)
       const status = contentUnitWorkStatus(unit, missingSlots)
       const priority: Priority = missingSlots.length > 0 ? 'high' : status === 'running' ? 'medium' : 'low'
       return {
@@ -772,6 +798,8 @@ function buildContentGenerationRows(data?: ProductionWorkbenchData): ContentGene
         assetSlots,
         missingSlots,
         keyframes,
+        scriptBlocks,
+        previewTimelineItems,
       }
     })
     .sort((a, b) => workStatusRank(a.status) - workStatusRank(b.status) || priorityRank(b.priority) - priorityRank(a.priority) || numberOf(a.unit.order) - numberOf(b.unit.order))
@@ -785,6 +813,7 @@ function buildContentGenerationMomentRows(data?: ProductionWorkbenchData): Conte
   const contentUnits = data.contentUnits ?? []
   const assetSlotsData = data.assetSlots ?? []
   const keyframesData = (data.keyframes ?? []).filter((keyframe) => !isGeneratedKeyframeCandidateRecord(keyframe))
+  const scriptBlocksData = data.scriptBlocks ?? []
   const creativeReferences = data.creativeReferences ?? []
   const creativeReferenceUsages = data.creativeReferenceUsages ?? []
   const visibleAssetSlots = assetSlotsData.filter((slot) => slot.owner_type !== 'asset_slot')
@@ -812,6 +841,11 @@ function buildContentGenerationMomentRows(data?: ProductionWorkbenchData): Conte
         .map((usage) => Number(usage.creative_reference_id))
         .filter((id) => Number.isFinite(id) && id > 0)
       const references = dedupeRecords(creativeReferences.filter((reference) => usageReferenceIds.includes(reference.ID)))
+      const scriptBlockIds = new Set([
+        Number(moment.script_block_id) || 0,
+        ...units.map((unit) => Number(unit.script_block_id) || 0),
+      ].filter((id) => id > 0))
+      const scriptBlocks = scriptBlocksData.filter((block) => scriptBlockIds.has(block.ID)).slice().sort(byOrder)
       const keyframes = keyframesData.filter((keyframe) => Number(keyframe.scene_moment_id) === moment.ID || (keyframe.content_unit_id ? unitIds.has(Number(keyframe.content_unit_id)) : false)).slice().sort(byOrder)
       const keyframeIds = new Set(keyframes.map((keyframe) => keyframe.ID))
       const assetSlots = visibleAssetSlots.filter((slot) => (
@@ -820,6 +854,15 @@ function buildContentGenerationMomentRows(data?: ProductionWorkbenchData): Conte
         (slot.owner_type === 'keyframe' && slot.owner_id ? keyframeIds.has(Number(slot.owner_id)) : false)
       ))
       const missingSlots = assetSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
+      const previewTimelineIds = bestPreviewTimelineIdsForProductionIds(productionIds, data)
+      const previewTimelineItems = scopedPreviewTimelineItems(
+        data.previewTimelineItems,
+        previewTimelineIds,
+        (item) => (
+          Number(item.scene_moment_id) === moment.ID ||
+          (item.content_unit_id ? unitIds.has(Number(item.content_unit_id)) : false)
+        ),
+      )
       const hasUnitPrompt = units.some((unit) => firstText(unit.description, unit.prompt))
       const status = momentWorkStatus(moment, units, missingSlots)
       const priority: Priority = units.length === 0 || missingSlots.length > 0 ? 'high' : status === 'running' ? 'medium' : 'low'
@@ -838,6 +881,8 @@ function buildContentGenerationMomentRows(data?: ProductionWorkbenchData): Conte
         assetSlots,
         missingSlots,
         keyframes,
+        scriptBlocks,
+        previewTimelineItems,
       }
     })
 }
@@ -1285,40 +1330,53 @@ function appendReviewGate(rows: WorkbenchGate[], pendingDraftCount: number): Wor
 
 function buildGenerationContextStandards(context?: GenerationContext): WorkbenchGate[] {
   if (!context) return []
-  const target = context.target.content_unit
-  const lockedAssets = context.asset_slots.filter((slot) => isGenerationAssetUsable(slot)).length
-  const missingAssets = context.asset_slots.filter((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing').length
+  const target = context.target?.content_unit
+  if (!target) {
+    return [
+      { label: '目标提示可读', detail: '后端生成上下文缺少制作项目标，请重新检查生成上下文接口。', done: false, tone: 'warning' },
+    ]
+  }
+  const assetSlots = Array.isArray(context.asset_slots) ? context.asset_slots : []
+  const keyframes = Array.isArray(context.keyframes) ? context.keyframes : []
+  const creativeReferences = Array.isArray(context.creative_references) ? context.creative_references : []
+  const lockedAssets = assetSlots.filter((slot) => isGenerationAssetUsable(slot)).length
+  const missingAssets = assetSlots.filter((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing').length
   const hasTargetPrompt = Boolean(firstText(target.prompt, target.description))
   const hasScriptSource = Boolean(context.script_block)
   const hasStoryContext = Boolean(context.scene_moment || context.segment)
-  const hasContinuity = context.creative_references.length > 0
-  const assetsReady = context.asset_slots.length > 0 && missingAssets === 0 && lockedAssets > 0
-  const hasKeyframe = context.keyframes.length > 0
+  const hasContinuity = creativeReferences.length > 0
+  const assetsReady = assetSlots.length > 0 && missingAssets === 0 && lockedAssets > 0
+  const hasKeyframe = keyframes.length > 0
   return [
     { label: '目标提示可读', detail: hasTargetPrompt ? firstText(target.prompt, target.description) : '制作项缺少 prompt 或 description，Agent 难以判断画面目标', done: hasTargetPrompt, tone: hasTargetPrompt ? 'success' : 'warning' },
     { label: '剧本来源稳定', detail: hasScriptSource ? scriptBlockContextLabel(context.script_block) : '未绑定不可变剧本块，生成缺少可追溯的剧本行文', done: hasScriptSource, tone: hasScriptSource ? 'success' : 'warning' },
     { label: '情景上下文存在', detail: hasStoryContext ? [context.segment ? `编排段：${titleOfRecord(context.segment)}` : null, context.scene_moment ? `情景：${titleOfRecord(context.scene_moment)}` : null].filter(Boolean).join(' / ') : '未绑定情景或编排段，生成会缺少时空、动作和情绪约束', done: hasStoryContext, tone: hasStoryContext ? 'success' : 'warning' },
-    { label: '连续性资料可用', detail: hasContinuity ? `${context.creative_references.length} 个设定引用会进入生成上下文` : '未找到人物、地点、风格或道具设定引用', done: hasContinuity, tone: hasContinuity ? 'success' : 'warning' },
-    { label: '素材输入可用', detail: context.asset_slots.length === 0 ? '未找到素材需求或参考素材' : `${context.asset_slots.length} 个素材输入，${lockedAssets} 个可用，${missingAssets} 个缺失`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
-    { label: '首帧/画面锚点', detail: hasKeyframe ? `${context.keyframes.length} 个画面锚点可作为视频生成锚点` : '视频生成前建议先创建或采纳开头、结尾等画面锚点', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
+    { label: '连续性资料可用', detail: hasContinuity ? `${creativeReferences.length} 个设定引用会进入生成上下文` : '未找到人物、地点、风格或道具设定引用', done: hasContinuity, tone: hasContinuity ? 'success' : 'warning' },
+    { label: '素材输入可用', detail: assetSlots.length === 0 ? '未找到素材需求或参考素材' : `${assetSlots.length} 个素材输入，${lockedAssets} 个可用，${missingAssets} 个缺失`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
+    { label: '首帧/画面锚点', detail: hasKeyframe ? `${keyframes.length} 个画面锚点可作为视频生成锚点` : '视频生成前建议先创建或采纳开头、结尾等画面锚点', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
   ]
 }
 
 function buildGenerationContextRows(context?: GenerationContext): WorkbenchLinkRow[] {
   if (!context) return []
-  const target = context.target.content_unit
-  const referenceNames = context.creative_references
+  const target = context.target?.content_unit
+  if (!target) return []
+  const creativeReferences = Array.isArray(context.creative_references) ? context.creative_references : []
+  const assetSlots = Array.isArray(context.asset_slots) ? context.asset_slots : []
+  const keyframes = Array.isArray(context.keyframes) ? context.keyframes : []
+  const writeTargets = Array.isArray(context.constraints?.write_targets) ? context.constraints.write_targets : []
+  const referenceNames = creativeReferences
     .map((item) => titleOfRecord(item.state ?? item.reference))
     .filter(Boolean)
-  const assetSummary = summarizeGenerationAssets(context.asset_slots)
+  const assetSummary = summarizeGenerationAssets(assetSlots)
   return [
     { label: '后端目标', value: firstText(target.prompt, target.description, titleOfRecord(target)), icon: Target },
     { label: '剧本来源', value: context.script_block ? firstText(context.script_block.content, scriptBlockContextLabel(context.script_block)) : '未绑定剧本块', icon: ScrollText },
     { label: '情景', value: context.scene_moment ? firstText(context.scene_moment.description, context.scene_moment.action_text, titleOfRecord(context.scene_moment)) : '未绑定情景', icon: Route },
     { label: '设定引用', value: referenceNames.length > 0 ? referenceNames.slice(0, 4).join('、') : '未找到设定引用', icon: Users },
     { label: '素材输入', value: assetSummary, icon: PackageCheck },
-    { label: '画面锚点', value: context.keyframes.length > 0 ? context.keyframes.slice(0, 3).map(titleOfRecord).join('、') : '未找到画面锚点', icon: Image },
-    { label: '写回范围', value: context.constraints.write_targets.join('、') || '未声明写回范围', icon: ShieldCheck },
+    { label: '画面锚点', value: keyframes.length > 0 ? keyframes.slice(0, 3).map(titleOfRecord).join('、') : '未找到画面锚点', icon: Image },
+    { label: '写回范围', value: writeTargets.join('、') || '未声明写回范围', icon: ShieldCheck },
   ]
 }
 
@@ -2426,6 +2484,60 @@ function ProductionPipeline({
   )
 }
 
+interface HierarchyFilterOption {
+  value: string
+  label: string
+  count: number
+}
+
+function HierarchyFilterColumn({
+  title,
+  options,
+  value,
+  testId,
+  emptyText,
+  onSelect,
+}: {
+  title: string
+  options: HierarchyFilterOption[]
+  value: string
+  testId: string
+  emptyText: string
+  onSelect: (value: string) => void
+}) {
+  return (
+    <div className="min-w-0 rounded-md border border-border bg-background p-2" data-testid={testId}>
+      <div className="mb-1.5 flex items-center justify-between gap-2 px-0.5">
+        <p className="truncate text-xs font-medium text-muted-foreground">{title}</p>
+        <Badge variant="outline">{options.length}</Badge>
+      </div>
+      {options.length > 0 ? (
+        <div className="max-h-44 space-y-1 overflow-auto pr-1">
+          {options.map((option) => {
+            const active = option.value === value
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => onSelect(option.value)}
+                className={cn(
+                  'flex w-full items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-left text-xs transition-colors',
+                  active ? 'border-primary/60 bg-primary/5 text-foreground' : 'border-border bg-card text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-foreground',
+                )}
+              >
+                <span className="min-w-0 flex-1 truncate font-medium">{option.label}</span>
+                <span className="shrink-0 text-[11px] tabular-nums">{option.count}</span>
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <p className="rounded-md border border-dashed border-border px-2 py-4 text-center text-xs text-muted-foreground">{emptyText}</p>
+      )}
+    </div>
+  )
+}
+
 function ContextStack({ rows, className }: { rows: WorkbenchLinkRow[]; className?: string }) {
   return (
     <div className={cn('overflow-hidden rounded-md border border-border bg-background', className)}>
@@ -2864,24 +2976,46 @@ function UnitProductionTrack({
   row,
   selectedUnitId,
   onSelectUnit,
+  onCreateUnit,
+  onAiSuggest,
+  onSelectFirstMoment,
+  onReorderUnit,
+  onMoveUnitOnTimeline,
+  isReordering,
 }: {
   row: ContentGenerationMomentRow | null
   selectedUnitId?: number
   onSelectUnit: (unitId: number) => void
+  onCreateUnit: () => void
+  onAiSuggest?: () => void
+  onSelectFirstMoment: () => void
+  onReorderUnit: (draggedUnitId: number, targetUnitId: number, position: ContentWorkbenchDropPosition) => void
+  onMoveUnitOnTimeline: (unitId: number, startSec: number) => void
+  isReordering?: boolean
 }) {
+  const [draggedUnitId, setDraggedUnitId] = useState<number | null>(null)
+  const [timelineZoom, setTimelineZoom] = useState(1)
   const summary = buildContentWorkbenchUnitTrack((row?.units ?? []).slice().sort(byOrder).map((unit) => {
     const unitSlots = row?.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && Number(slot.owner_id) === unit.ID) ?? []
     const missingSlots = unitSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
+    const audioSlots = unitSlots.filter((slot) => slot.kind === 'audio')
     const keyframes = row?.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID) ?? []
+    const scriptBlock = row?.scriptBlocks.find((block) => block.ID === Number(unit.script_block_id)) ?? null
+    const previewTimelineItem = pickPreviewTimelineItemForUnit(row?.previewTimelineItems ?? [], unit.ID)
     return {
       id: unit.ID,
       title: titleOfRecord(unit),
       kind: unit.kind,
-      durationSec: numberOf(unit.duration_sec),
+      startSec: previewTimelineItem ? numberOf(previewTimelineItem.start_sec) : undefined,
+      durationSec: numberOf(previewTimelineItem?.duration_sec) || numberOf(unit.duration_sec),
       status: unit.status,
       summary: firstText(unit.description, unit.prompt),
+      scriptCue: scriptBlockCue(scriptBlock),
+      soundCue: unitSoundCue(unit, scriptBlock, audioSlots),
       keyframeTitles: keyframes.map(titleOfRecord),
       missingAssetTitles: missingSlots.map(titleOfRecord),
+      requiresKeyframe: contentWorkbenchUnitRequiresKeyframe(unit.kind),
+      timeSource: previewTimelineItem ? 'preview' as const : 'estimated' as const,
       hasPrompt: Boolean(firstText(unit.prompt, unit.description)),
       assetSlotCount: unitSlots.length,
       missingSlotCount: missingSlots.length,
@@ -2892,12 +3026,133 @@ function UnitProductionTrack({
 
   if (!row || summary.total === 0) {
     return (
-      <div className="rounded-md border border-dashed border-border bg-background px-3 py-4 text-sm text-muted-foreground" data-testid="content-workbench-unit-track">
-        <p className="font-medium text-foreground">{summary.title}</p>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">{summary.detail}</p>
+      <div className="rounded-md border border-border bg-background p-2.5" data-testid="content-workbench-unit-track">
+        <div className="flex flex-wrap items-start justify-between gap-2.5">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <Route size={15} className="text-muted-foreground" />
+              {summary.title}
+            </div>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{summary.detail}</p>
+          </div>
+          <Badge variant="outline">{row ? '待制作项' : '待情节'}</Badge>
+        </div>
+        <div className="mt-3 overflow-hidden rounded-md border border-dashed border-border bg-card" data-testid="content-workbench-unit-schedule">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-2.5 py-2">
+            <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+              <Clock3 size={15} className="shrink-0 text-muted-foreground" />
+              <span className="truncate">制作项时间表</span>
+            </div>
+            <Badge variant="outline">等待输入</Badge>
+          </div>
+          <div className="px-3 py-5 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">{row ? '当前情节还没有制作项' : '先选择一个情节'}</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {row
+                ? '添加或采纳制作项后，这里会显示时间位置、对白/声音、关键帧和素材缺口。'
+                : '选择情节后，这里会显示该情节的制作项时间表和右侧可编辑卡片。'}
+            </p>
+            {row ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button size="sm" className="h-8 gap-1.5" onClick={onCreateUnit}>
+                  <Plus size={13} />
+                  添加制作项
+                </Button>
+                {onAiSuggest ? (
+                  <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={onAiSuggest}>
+                    <Sparkles size={13} />
+                    让 AI 规划制作项
+                  </Button>
+                ) : null}
+              </div>
+            ) : (
+              <Button size="sm" variant="outline" className="mt-3 h-8 gap-1.5" onClick={onSelectFirstMoment}>
+                <Route size={13} />
+                选择第一个情节
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
     )
   }
+
+  const timelineMemberItems = summary.items.filter((item) => item.timeSource === 'preview')
+  const timelineOriginSec = contentWorkbenchTimelineOriginSec(timelineMemberItems)
+  const timelineDurationSec = Math.max(1, summary.items.reduce((max, item) => Math.max(max, item.endSec - timelineOriginSec), 0))
+  const timelineTicks = buildTrackTimeTicks(timelineDurationSec)
+  const selectedTimelineItem = timelineMemberItems.find((item) => item.selected) ?? timelineMemberItems[0] ?? null
+  const selectedTimelineItemStartSec = selectedTimelineItem ? contentWorkbenchLocalTimelineSec(selectedTimelineItem.startSec, timelineOriginSec) : 0
+  const focusedTimeline = timelineOriginSec > 0
+  const canDragUnits = Boolean(row && summary.total > 0 && !isReordering)
+  const timelineCanvasWidth = Math.round(1040 * timelineZoom)
+  function handleUnitDragStart(event: DragEvent<HTMLElement>, unitId: number, source: 'card' | 'timeline' = 'card') {
+    if (!canDragUnits) return
+    setDraggedUnitId(unitId)
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('application/x-movscript-content-unit-id', String(unitId))
+    const item = summary.items.find((entry) => Number(entry.id) === unitId)
+    const box = event.currentTarget.getBoundingClientRect()
+    const pointerRatio = box.width > 0 ? Math.max(0, Math.min(1, (event.clientX - box.left) / box.width)) : 0
+    const offsetSec = source === 'timeline' && item ? pointerRatio * item.durationSec : 0
+    event.dataTransfer.setData('application/x-movscript-timeline-drag-offset-sec', String(offsetSec))
+  }
+  function handleUnitDrop(event: DragEvent<HTMLElement>, targetUnitId: number) {
+    event.preventDefault()
+    event.stopPropagation()
+    const rawUnitId = event.dataTransfer.getData('application/x-movscript-content-unit-id')
+    const sourceUnitId = Number(rawUnitId || draggedUnitId || 0)
+    setDraggedUnitId(null)
+    if (!sourceUnitId || sourceUnitId === targetUnitId) return
+    const box = event.currentTarget.getBoundingClientRect()
+    const position: ContentWorkbenchDropPosition = event.clientX > box.left + box.width / 2 ? 'after' : 'before'
+    onReorderUnit(sourceUnitId, targetUnitId, position)
+  }
+  function handleTimelineLaneDrop(event: DragEvent<HTMLElement>) {
+    event.preventDefault()
+    const rawUnitId = event.dataTransfer.getData('application/x-movscript-content-unit-id')
+    const sourceUnitId = Number(rawUnitId || draggedUnitId || 0)
+    const dragOffsetSec = Number(event.dataTransfer.getData('application/x-movscript-timeline-drag-offset-sec')) || 0
+    setDraggedUnitId(null)
+    if (!sourceUnitId) return
+    const box = event.currentTarget.getBoundingClientRect()
+    const unit = summary.items.find((item) => Number(item.id) === sourceUnitId)
+    if (!unit) return
+    const dropRatio = Math.max(0, Math.min(1, (event.clientX - box.left) / Math.max(1, box.width)))
+    const rawStartSec = dropRatio * timelineDurationSec - dragOffsetSec
+    const localStartSec = snapContentWorkbenchTimelineStartSec(rawStartSec, timelineDurationSec, unit.durationSec, timelineMemberItems.map((item) => ({
+      id: item.id,
+      startSec: contentWorkbenchLocalTimelineSec(item.startSec, timelineOriginSec),
+      endSec: contentWorkbenchLocalTimelineSec(item.endSec, timelineOriginSec),
+    })), sourceUnitId)
+    onMoveUnitOnTimeline(sourceUnitId, Math.round((localStartSec + timelineOriginSec) * 10) / 10)
+  }
+  const timelineKinds = Array.from(new Set(summary.items.map((item) => String(item.kind || 'shot'))))
+    .sort((a, b) => contentUnitTimelineKindRank(a) - contentUnitTimelineKindRank(b) || trackKindLabel(a).localeCompare(trackKindLabel(b), 'zh-Hans-CN'))
+  const timelineLanes = timelineKinds.map((kind) => {
+    const laneItems = timelineMemberItems.filter((item) => String(item.kind || 'shot') === kind)
+    return {
+      key: kind,
+      label: trackKindLabel(kind),
+      detail: kind === 'shot' ? '镜头 · 关键帧挂载' : '制作项',
+      rawItems: laneItems,
+      items: laneItems.map((item) => {
+        const keyframeText = item.requiresKeyframe
+          ? item.keyframeTitles.length > 0
+            ? `关键帧：${item.keyframeTitles.slice(0, 2).join('、')}`
+            : '关键帧：未设置'
+          : item.scriptCue || item.soundCue || item.summary || '未补内容'
+        const localStartSec = contentWorkbenchLocalTimelineSec(item.startSec, timelineOriginSec)
+        const gapText = item.missingAssetTitles[0] ? `缺口：${item.missingAssetTitles[0]}` : formatTrackTimeRange(localStartSec, localStartSec + item.durationSec, item.durationSec)
+        return {
+          item,
+          title: `${String(item.order).padStart(2, '0')} ${item.title}`,
+          detail: kind === 'shot' ? `${keyframeText} · ${gapText}` : firstText(item.scriptCue, item.soundCue, item.summary, gapText),
+          muted: kind === 'shot' ? item.requiresKeyframe && item.keyframeTitles.length === 0 : !item.scriptCue && !item.soundCue && !item.summary,
+        }
+      }),
+    }
+  })
 
   return (
     <div className="rounded-md border border-border bg-background p-2.5" data-testid="content-workbench-unit-track">
@@ -2922,13 +3177,28 @@ function UnitProductionTrack({
 
       <div className="mt-2.5 overflow-x-auto pb-1">
         <div className="flex min-w-max gap-2">
-          {summary.items.map((item, index) => (
-            <button
+          {summary.items.map((item, index) => {
+            const previousItem = summary.items[index - 1]
+            const nextItem = summary.items[index + 1]
+            return (
+            <div
               key={item.id}
-              type="button"
-              onClick={() => onSelectUnit(Number(item.id))}
+              draggable={canDragUnits}
+              data-testid="content-workbench-unit-card"
+              data-track-item-id={item.id}
+              aria-grabbed={draggedUnitId === Number(item.id)}
+              title={canDragUnits ? '拖动到下方时间轴调整开始时间' : undefined}
+              onDragStart={(event) => handleUnitDragStart(event, Number(item.id))}
+              onDragOver={(event) => {
+                if (!canDragUnits) return
+                event.preventDefault()
+                event.dataTransfer.dropEffect = 'move'
+              }}
+              onDrop={(event) => handleUnitDrop(event, Number(item.id))}
+              onDragEnd={() => setDraggedUnitId(null)}
               className={cn(
-                'w-[164px] shrink-0 rounded-md border px-2 py-1.5 text-left transition-colors',
+                'w-[172px] shrink-0 rounded-md border px-2 py-1.5 text-left transition-colors',
+                canDragUnits ? 'cursor-grab active:cursor-grabbing' : '',
                 item.selected
                   ? 'border-primary/60 bg-primary/5'
                   : item.tone === 'blocked'
@@ -2937,17 +3207,58 @@ function UnitProductionTrack({
               )}
             >
               <div className="flex items-center gap-1.5">
-                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
-                <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{item.title}</p>
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                  onClick={() => onSelectUnit(Number(item.id))}
+                >
+                  <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{item.title}</span>
+                </button>
+                {canDragUnits ? (
+                  <span className="flex shrink-0 items-center gap-0.5">
+                    <button
+                      type="button"
+                      data-testid="content-workbench-unit-move-earlier"
+                      aria-label={`前移 ${item.title}`}
+                      title="前移"
+                      disabled={!previousItem || isReordering}
+                      onClick={() => {
+                        if (!previousItem) return
+                        onReorderUnit(Number(item.id), Number(previousItem.id), 'before')
+                      }}
+                      className="inline-flex h-6 w-6 items-center justify-center rounded border border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground disabled:pointer-events-none disabled:opacity-35"
+                    >
+                      <ArrowLeft size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="content-workbench-unit-move-later"
+                      aria-label={`后移 ${item.title}`}
+                      title="后移"
+                      disabled={!nextItem || isReordering}
+                      onClick={() => {
+                        if (!nextItem) return
+                        onReorderUnit(Number(item.id), Number(nextItem.id), 'after')
+                      }}
+                      className="inline-flex h-6 w-6 items-center justify-center rounded border border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground disabled:pointer-events-none disabled:opacity-35"
+                    >
+                      <ArrowRight size={12} />
+                    </button>
+                  </span>
+                ) : null}
               </div>
-              <p className="mt-1 truncate text-[11px] text-muted-foreground">{trackKindLabel(item.kind)} · {item.labels.slice(0, 2).join(' · ') || '待补输入'}</p>
-              {item.blockers.length > 0 ? (
-                <p className="mt-1 truncate text-[11px] text-amber-700 dark:text-amber-300">{item.blockers[0]}{item.blockers.length > 1 ? ` · 另 ${item.blockers.length - 1}` : ''}</p>
-              ) : (
-                <p className="mt-1 truncate text-[11px] text-emerald-700 dark:text-emerald-300">基础输入可用</p>
-              )}
-            </button>
-          ))}
+              <button type="button" className="mt-1 block w-full text-left" onClick={() => onSelectUnit(Number(item.id))}>
+                <span className="block truncate text-[11px] text-muted-foreground">{trackKindLabel(item.kind)} · {item.labels.slice(0, 2).join(' · ') || '待补输入'}</span>
+                {item.blockers.length > 0 ? (
+                  <span className="mt-1 block truncate text-[11px] text-amber-700 dark:text-amber-300">{item.blockers[0]}{item.blockers.length > 1 ? ` · 另 ${item.blockers.length - 1}` : ''}</span>
+                ) : (
+                  <span className="mt-1 block truncate text-[11px] text-emerald-700 dark:text-emerald-300">基础输入可用</span>
+                )}
+              </button>
+            </div>
+            )
+          })}
         </div>
       </div>
 
@@ -2955,17 +3266,143 @@ function UnitProductionTrack({
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-2.5 py-2">
           <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
             <Clock3 size={15} className="shrink-0 text-muted-foreground" />
-            <span className="truncate">制作项时间表</span>
+            <span className="truncate">制作项时间轴</span>
           </div>
-          <Badge variant="outline">{formatTrackDuration(summary.durationSec)}</Badge>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <div className="flex items-center overflow-hidden rounded-md border border-border bg-background" data-testid="content-workbench-timeline-zoom">
+              <button
+                type="button"
+                className="h-7 px-2 text-xs text-muted-foreground hover:bg-primary/5 hover:text-foreground disabled:opacity-40"
+                onClick={() => setTimelineZoom((value) => Math.max(0.75, Math.round((value - 0.25) * 100) / 100))}
+                disabled={timelineZoom <= 0.75}
+                aria-label="缩小时间轴"
+              >
+                -
+              </button>
+              <span className="border-x border-border px-2 text-[11px] tabular-nums text-muted-foreground">{Math.round(timelineZoom * 100)}%</span>
+              <button
+                type="button"
+                className="h-7 px-2 text-xs text-muted-foreground hover:bg-primary/5 hover:text-foreground disabled:opacity-40"
+                onClick={() => setTimelineZoom((value) => Math.min(2, Math.round((value + 0.25) * 100) / 100))}
+                disabled={timelineZoom >= 2}
+                aria-label="放大时间轴"
+              >
+                +
+              </button>
+            </div>
+            {selectedTimelineItem ? (
+              <Badge variant="secondary" data-testid="content-workbench-timeline-playhead-label">播放头 {formatTrackClock(selectedTimelineItemStartSec)}</Badge>
+            ) : null}
+            {focusedTimeline ? (
+              <Badge variant="outline" data-testid="content-workbench-timeline-focus-label">关注段 0:00 = 全局 {formatTrackClock(timelineOriginSec)}</Badge>
+            ) : null}
+            <Badge variant="outline">{formatTrackDuration(timelineDurationSec)}</Badge>
+          </div>
         </div>
         <div className="overflow-x-auto">
-          <div className="min-w-[760px]">
-            <div className="grid grid-cols-[64px_88px_112px_minmax(0,1fr)_136px_104px] gap-2 border-b border-border bg-muted/30 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground">
+          <div style={{ minWidth: timelineCanvasWidth }}>
+            <div className="border-b border-border bg-background px-2.5 py-2.5" data-testid="content-workbench-unit-timeline">
+              <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-2">
+                <div className="text-[11px] font-medium text-muted-foreground">时间尺</div>
+                <div className="relative h-8 rounded bg-muted/40">
+                  {selectedTimelineItem ? (
+                    <div
+                      className="absolute top-0 z-10 h-full border-l-2 border-primary"
+                      data-testid="content-workbench-timeline-playhead"
+                      style={{ left: `${trackTimelinePercent(selectedTimelineItemStartSec, timelineDurationSec)}%` }}
+                    >
+                      <span className="ml-1 mt-1 block rounded bg-primary px-1 py-0.5 text-[10px] leading-none text-primary-foreground shadow-sm">
+                        {formatTrackClock(selectedTimelineItemStartSec)}
+                      </span>
+                    </div>
+                  ) : null}
+                  {timelineTicks.map((tick) => (
+                    <div
+                      key={tick.seconds}
+                      className="absolute top-0 h-full border-l border-border/80 pl-1"
+                      style={{ left: `${trackTimelinePercent(tick.seconds, timelineDurationSec)}%` }}
+                    >
+                      <span className="absolute bottom-0 text-[10px] leading-4 text-muted-foreground">{tick.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-2 space-y-1.5">
+                {timelineLanes.map((lane) => (
+                  <div key={lane.key} className="grid grid-cols-[112px_minmax(0,1fr)] gap-2">
+                    <div className="min-w-0 rounded bg-muted/30 px-2 py-1.5">
+                      <p className="truncate text-[11px] font-medium text-foreground">{lane.label}</p>
+                      <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{lane.detail}</p>
+                    </div>
+                    <div
+                      className="relative h-[46px] rounded border border-border bg-muted/20"
+                      data-testid="content-workbench-timeline-lane"
+                      data-lane-kind={lane.key}
+                      onDragOver={(event) => {
+                        if (!canDragUnits) return
+                        event.preventDefault()
+                        event.dataTransfer.dropEffect = 'move'
+                      }}
+                      onDrop={(event) => handleTimelineLaneDrop(event)}
+                    >
+                      {selectedTimelineItem ? (
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute top-0 z-10 h-full border-l-2 border-primary/70"
+                          style={{ left: `${trackTimelinePercent(selectedTimelineItemStartSec, timelineDurationSec)}%` }}
+                        />
+                      ) : null}
+                      {timelineTicks.map((tick) => (
+                        <span
+                          key={`${lane.key}-${tick.seconds}`}
+                          className="pointer-events-none absolute top-0 h-full border-l border-border/50"
+                          style={{ left: `${trackTimelinePercent(tick.seconds, timelineDurationSec)}%` }}
+                        />
+                      ))}
+                      {lane.items.map(({ item, title, detail, muted }) => (
+                        <button
+                          key={`${lane.key}-${item.id}`}
+                          type="button"
+                          data-testid="content-workbench-timeline-block"
+                          data-lane-key={lane.key}
+                          data-track-item-id={item.id}
+                          draggable={canDragUnits}
+                          aria-grabbed={draggedUnitId === Number(item.id)}
+                          title={canDragUnits ? '拖动到时间轴空白处调整开始时间' : undefined}
+                          onDragStart={(event) => handleUnitDragStart(event, Number(item.id), 'timeline')}
+                          onDragOver={(event) => {
+                            if (!canDragUnits) return
+                            event.preventDefault()
+                            event.dataTransfer.dropEffect = 'move'
+                          }}
+                          onDragEnd={() => setDraggedUnitId(null)}
+                          onClick={() => onSelectUnit(Number(item.id))}
+                          className={cn(
+                            'absolute top-1 h-9 min-w-0 overflow-hidden rounded border px-1.5 py-1 text-left text-[11px] shadow-sm transition-colors hover:border-primary/60 hover:bg-primary/5',
+                            canDragUnits ? 'cursor-grab active:cursor-grabbing' : '',
+                            item.selected ? 'border-primary/70 bg-primary/10' : item.tone === 'blocked' ? 'border-amber-200 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/20' : 'border-border bg-card',
+                            muted ? 'opacity-60' : '',
+                          )}
+                          style={{
+                            left: `${trackTimelinePercent(contentWorkbenchLocalTimelineSec(item.startSec, timelineOriginSec), timelineDurationSec)}%`,
+                            width: `${trackTimelineWidthPercent(item.durationSec, timelineDurationSec)}%`,
+                          }}
+                        >
+                          <span className="block truncate font-medium text-foreground">{title}</span>
+                          <span className={cn('block truncate text-[10px]', item.tone === 'blocked' && !muted ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>{detail}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-[64px_96px_104px_minmax(220px,1fr)_180px_160px_104px] gap-2 border-b border-border bg-muted/30 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground">
               <span>顺序</span>
               <span>时间</span>
               <span>类型</span>
               <span>内容</span>
+              <span>对白 / 声音</span>
               <span>关键帧 / 缺口</span>
               <span className="text-right">状态</span>
             </div>
@@ -2973,27 +3410,38 @@ function UnitProductionTrack({
               <button
                 key={`schedule-${item.id}`}
                 type="button"
+                data-testid="content-workbench-schedule-row"
+                data-track-item-id={item.id}
                 onClick={() => onSelectUnit(Number(item.id))}
                 className={cn(
-                  'grid w-full grid-cols-[64px_88px_112px_minmax(0,1fr)_136px_104px] gap-2 border-b border-border/70 px-2.5 py-2 text-left text-xs transition-colors last:border-b-0 hover:bg-primary/5',
+                  'grid w-full grid-cols-[64px_96px_104px_minmax(220px,1fr)_180px_160px_104px] gap-2 border-b border-border/70 px-2.5 py-2 text-left text-xs transition-colors last:border-b-0 hover:bg-primary/5',
                   item.selected ? 'bg-primary/5' : 'bg-background',
                 )}
               >
                 <span className="tabular-nums text-muted-foreground">{String(item.order).padStart(2, '0')}</span>
-                <span className="tabular-nums text-muted-foreground">{formatTrackTimeRange(item.startSec, item.endSec, item.durationSec)}</span>
+                <span className="min-w-0">
+                  <span className="block tabular-nums text-muted-foreground">
+                    {formatTrackTimeRange(contentWorkbenchLocalTimelineSec(item.startSec, timelineOriginSec), contentWorkbenchLocalTimelineSec(item.startSec, timelineOriginSec) + item.durationSec, item.durationSec)}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">{item.timeSource === 'preview' ? '预览时间线' : '待加入时间线'}</span>
+                </span>
                 <span className="truncate text-foreground">{trackKindLabel(item.kind)}</span>
                 <span className="min-w-0">
                   <span className="block truncate font-medium text-foreground">{item.title}</span>
                   <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{item.summary || '暂无描述或创作提示'}</span>
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate text-foreground">{item.keyframeTitles.length > 0 ? item.keyframeTitles.slice(0, 2).join('、') : '无关键帧'}</span>
+                  <span className="block truncate text-foreground">{item.scriptCue || '未绑定对白'}</span>
+                  <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{item.soundCue || '无显性声音需求'}</span>
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-foreground">{item.requiresKeyframe ? (item.keyframeTitles.length > 0 ? item.keyframeTitles.slice(0, 2).join('、') : '无关键帧') : '不要求关键帧'}</span>
                   <span className={cn('mt-0.5 block truncate text-[11px]', item.missingAssetTitles.length > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>
                     {item.missingAssetTitles.length > 0 ? item.missingAssetTitles.slice(0, 2).join('、') : '无素材缺口'}
                   </span>
                 </span>
-                <span className="flex justify-end">
-                  <Badge variant={item.tone === 'blocked' ? 'warning' : item.tone === 'ready' ? 'success' : item.tone === 'running' ? 'secondary' : 'outline'} className="text-[10px]">
+                <span className="flex min-w-0 justify-end overflow-hidden">
+                  <Badge variant={item.tone === 'blocked' ? 'warning' : item.tone === 'ready' ? 'success' : item.tone === 'running' ? 'secondary' : 'outline'} className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[10px]">
                     {item.blockers.length > 0 ? item.blockers[0] : item.tone === 'ready' ? '可执行' : item.tone === 'running' ? '生产中' : '待确认'}
                   </Badge>
                 </span>
@@ -3018,6 +3466,125 @@ function formatTrackClock(seconds: number) {
   return `${minutes}:${String(rest).padStart(2, '0')}`
 }
 
+function buildTrackTimeTicks(durationSec: number) {
+  const duration = Math.max(1, Math.ceil(Number(durationSec) || 1))
+  const divisions = duration <= 12 ? duration : 4
+  const ticks = Array.from({ length: divisions + 1 }, (_, index) => {
+    const seconds = index === divisions ? duration : Math.round((duration / divisions) * index)
+    return { seconds, label: formatTrackClock(seconds) }
+  })
+  return ticks.filter((tick, index) => index === 0 || tick.seconds !== ticks[index - 1]?.seconds)
+}
+
+function trackTimelinePercent(seconds: number, durationSec: number) {
+  const duration = Math.max(1, Number(durationSec) || 1)
+  const value = Math.max(0, Math.min(duration, Number(seconds) || 0))
+  return Math.round((value / duration) * 1000) / 10
+}
+
+function trackTimelineWidthPercent(durationSec: number, totalDurationSec: number) {
+  const duration = Math.max(1, Number(totalDurationSec) || 1)
+  const width = Math.max(0, Number(durationSec) || 0)
+  if (width <= 0) return 0.4
+  return Math.min(100, Math.round((width / duration) * 1000) / 10)
+}
+
+function contentWorkbenchTimelineOriginSec(items: Array<{ startSec: number }>) {
+  const starts = items
+    .map((item) => Number(item.startSec))
+    .filter((value) => Number.isFinite(value) && value > 0)
+  if (starts.length === 0) return 0
+  return Math.round(Math.min(...starts) * 10) / 10
+}
+
+function contentWorkbenchLocalTimelineSec(seconds: number, originSec: number) {
+  return Math.max(0, Math.round(((Number(seconds) || 0) - originSec) * 10) / 10)
+}
+
+function snapContentWorkbenchTimelineStartSec(rawStartSec: number, totalDurationSec: number, itemDurationSec: number, items: Array<{ id: string; startSec: number; endSec: number }>, sourceUnitId: number) {
+  const duration = Math.max(1, Number(totalDurationSec) || 1)
+  const itemDuration = Math.max(0, Number(itemDurationSec) || 0)
+  const maxStart = Math.max(0, duration - itemDuration)
+  const raw = Math.max(0, Math.min(maxStart, Number(rawStartSec) || 0))
+  const gridStep = contentWorkbenchTimelineSnapStep(duration)
+  const gridTarget = Math.round(raw / gridStep) * gridStep
+  const targets = [
+    0,
+    maxStart,
+    gridTarget,
+    ...items
+      .filter((item) => Number(item.id) !== sourceUnitId)
+      .flatMap((item) => [item.startSec, item.endSec]),
+  ]
+    .map((value) => Math.max(0, Math.min(maxStart, Number(value) || 0)))
+  const threshold = Math.max(gridStep / 2, duration * 0.015, 0.25)
+  const nearest = targets.reduce((best, value) => {
+    const bestDistance = Math.abs(raw - best)
+    const distance = Math.abs(raw - value)
+    return distance < bestDistance ? value : best
+  }, raw)
+  const snapped = Math.abs(raw - nearest) <= threshold ? nearest : raw
+  return Math.round(Math.max(0, Math.min(maxStart, snapped)) * 10) / 10
+}
+
+function contentWorkbenchTimelineSnapStep(durationSec: number) {
+  if (durationSec <= 12) return 0.5
+  if (durationSec <= 60) return 1
+  if (durationSec <= 180) return 5
+  return 10
+}
+
+function contentUnitTimelineKindRank(kind: string) {
+  switch (kind) {
+    case 'shot':
+      return 0
+    case 'visual_segment':
+      return 1
+    case 'product_showcase':
+      return 2
+    case 'dialogue':
+      return 3
+    case 'voiceover':
+      return 4
+    case 'sound':
+      return 5
+    case 'subtitle':
+      return 6
+    default:
+      return 20
+  }
+}
+
+function pickPreviewTimelineItemForUnit(items: WorkbenchRecord[], unitId: number) {
+  const unitItems = items
+    .filter((item) => Number(item.content_unit_id) === unitId)
+    .slice()
+    .sort((a, b) => previewTimelineItemRank(a) - previewTimelineItemRank(b) || numberOf(a.start_sec) - numberOf(b.start_sec) || byOrder(a, b))
+  return unitItems[0] ?? null
+}
+
+function reorderContentWorkbenchUnits(units: WorkbenchRecord[], draggedUnitId: number, targetUnitId: number, position: ContentWorkbenchDropPosition) {
+  const orderedUnits = units.slice().sort(byOrder)
+  const draggedUnit = orderedUnits.find((unit) => unit.ID === draggedUnitId)
+  if (!draggedUnit || draggedUnitId === targetUnitId) return orderedUnits
+  const withoutDragged = orderedUnits.filter((unit) => unit.ID !== draggedUnitId)
+  const targetIndex = withoutDragged.findIndex((unit) => unit.ID === targetUnitId)
+  if (targetIndex < 0) return orderedUnits
+  const insertIndex = position === 'after' ? targetIndex + 1 : targetIndex
+  return [
+    ...withoutDragged.slice(0, insertIndex),
+    draggedUnit,
+    ...withoutDragged.slice(insertIndex),
+  ]
+}
+
+function previewTimelineItemRank(item: WorkbenchRecord) {
+  const status = String(item.status ?? '').toLowerCase()
+  if (status === 'locked' || status === 'approved' || status === 'confirmed') return 0
+  if (status === 'draft') return 1
+  return 2
+}
+
 function trackKindLabel(kind: string) {
   switch (kind) {
     case 'shot':
@@ -3036,6 +3603,43 @@ function trackKindLabel(kind: string) {
       return '节拍'
     default:
       return kind || '制作项'
+  }
+}
+
+function scriptBlockCue(block?: WorkbenchRecord | null) {
+  if (!block) return ''
+  const content = firstText(block.content, block.summary, block.title)
+  const speaker = firstText(block.speaker)
+  if (block.kind === 'dialogue') {
+    return content ? `对白：${speaker ? `${speaker}：` : ''}${summarizeText(content, 36)}` : speaker ? `对白：${speaker}` : '对白'
+  }
+  const label = scriptBlockKindLabel(block.kind)
+  return content ? `${label}：${summarizeText(content, 36)}` : label
+}
+
+function unitSoundCue(unit: WorkbenchRecord, scriptBlock?: WorkbenchRecord | null, audioSlots: WorkbenchRecord[] = []) {
+  const sourceText = firstText(scriptBlock?.content, unit.prompt, unit.description)
+  if (unit.kind === 'narration') return sourceText ? `配音：${summarizeText(sourceText, 34)}` : '配音'
+  if (unit.kind === 'music_beat') return sourceText ? `音乐/节拍：${summarizeText(sourceText, 32)}` : '音乐/节拍'
+  if (unit.kind === 'caption_card') return sourceText ? `字幕：${summarizeText(sourceText, 34)}` : '字幕'
+  if (audioSlots.length > 0) return `音频：${audioSlots.slice(0, 2).map(titleOfRecord).join('、')}`
+  return ''
+}
+
+function scriptBlockKindLabel(kind?: string) {
+  switch (kind) {
+    case 'dialogue':
+      return '对白'
+    case 'parenthetical':
+      return '括注'
+    case 'transition':
+      return '转场文本'
+    case 'scene_heading':
+      return '场景标题'
+    case 'action':
+      return '动作文本'
+    default:
+      return '剧本块'
   }
 }
 
@@ -3574,6 +4178,7 @@ function ContentGenerationWorkbench() {
   const rows = useMemo(() => buildContentGenerationMomentRows(data), [data])
   const [productionFilter, setProductionFilter] = useState('all')
   const [segmentFilter, setSegmentFilter] = useState('all')
+  const [scopeLevel, setScopeLevel] = useState<ContentWorkbenchScopeLevel>('scene_moment')
   const [selectedId, setSelectedId] = useState('')
   const [selectedUnitId, setSelectedUnitId] = useState<number | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -3582,6 +4187,7 @@ function ContentGenerationWorkbench() {
   const [unitDraftDefaults, setUnitDraftDefaults] = useState<Partial<SemanticEntityPayload> | null>(null)
   const [optimisticSelectedUnit, setOptimisticSelectedUnit] = useState<WorkbenchRecord | null>(null)
   const [editingUnit, setEditingUnit] = useState(false)
+  const [creatingAssetSlot, setCreatingAssetSlot] = useState(false)
   const [reviewPanelCollapsed, setReviewPanelCollapsed] = useState(false)
   const [creatingKeyframe, setCreatingKeyframe] = useState(false)
   const [keyframeLibraryTarget, setKeyframeLibraryTarget] = useState<WorkbenchRecord | null>(null)
@@ -3615,7 +4221,7 @@ function ContentGenerationWorkbench() {
     const unassignedCount = rows.filter((row) => row.productionIds.length === 0).length
     return [
       { value: 'all', label: '全部制作', count: rows.length },
-      { value: 'unassigned', label: '未绑定制作', count: unassignedCount },
+      ...(unassignedCount > 0 ? [{ value: 'unassigned', label: '未绑定制作', count: unassignedCount }] : []),
       ...productions.map((production) => ({
         value: String(production.ID),
         label: titleOfRecord(production),
@@ -3676,6 +4282,15 @@ function ContentGenerationWorkbench() {
   }, [filteredRows, linkedContentUnitId, linkedSceneMomentId, selectedId])
 
   const selected = filteredRows.find((item) => item.id === selectedId) ?? filteredRows[0] ?? null
+  const scopedTrackRows = useMemo(() => {
+    if (scopeLevel === 'production') return productionFilteredRows
+    if (scopeLevel === 'segment') return filteredRows
+    return selected ? [selected] : filteredRows.slice(0, 1)
+  }, [filteredRows, productionFilteredRows, scopeLevel, selected])
+  const scopedTrackSections = useMemo(
+    () => buildContentWorkbenchTrackSections(scopedTrackRows, scopeLevel, data),
+    [data, scopeLevel, scopedTrackRows],
+  )
 
   useEffect(() => {
     if (!selected) {
@@ -3714,9 +4329,44 @@ function ContentGenerationWorkbench() {
   const selectedProduction = selected?.productionIds[0]
     ? data?.productions.find((production) => production.ID === selected.productionIds[0])
     : null
+  const [unitInspectorEditing, setUnitInspectorEditing] = useState(false)
+  const [unitInspectorControls, setUnitInspectorControls] = useState<SemanticEntityInlineEditorControlState | null>(null)
+
+  useEffect(() => {
+    setUnitInspectorEditing(false)
+  }, [selectedUnit?.ID])
+
+  const unitInspectorAction = selectedUnit ? (
+    <div className="flex items-center gap-2" data-testid="content-workbench-unit-detail-actions">
+      {unitInspectorControls?.isEditing ? (
+        <Button
+          form={unitInspectorControls.formId}
+          size="sm"
+          className="gap-2"
+          loading={unitInspectorControls.isSaving}
+          disabled={!unitInspectorControls.canSave || unitInspectorControls.isDeleting}
+        >
+          <Save size={14} />
+          保存
+        </Button>
+      ) : (
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-2"
+          onClick={() => setUnitInspectorEditing(true)}
+          disabled={Boolean(unitInspectorControls?.isDeleting || unitInspectorControls?.isImmutableRecord)}
+        >
+          <Pencil size={14} />
+          编辑
+        </Button>
+      )}
+    </div>
+  ) : <Badge variant="warning">未选择制作项</Badge>
 
   function selectSceneMoment(rowId: string, options: { replace?: boolean } = {}) {
     const row = filteredRows.find((item) => item.id === rowId) ?? rows.find((item) => item.id === rowId)
+    setScopeLevel('scene_moment')
     setOptimisticSelectedUnit(null)
     setSelectedId(rowId)
     if (!row) return
@@ -3740,7 +4390,22 @@ function ContentGenerationWorkbench() {
     }, { replace: options.replace ?? true })
   }
 
+  function selectContentUnitFromRow(row: ContentGenerationMomentRow, unitId: number | null, options: { replace?: boolean } = {}) {
+    if (!unitId || optimisticSelectedUnit?.ID !== unitId) setOptimisticSelectedUnit(null)
+    setScopeLevel('scene_moment')
+    setSelectedId(row.id)
+    setSelectedUnitId(unitId)
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('scene_moment_id', String(row.moment.ID))
+      if (unitId && unitId > 0) next.set('content_unit_id', String(unitId))
+      else next.delete('content_unit_id')
+      return next
+    }, { replace: options.replace ?? true })
+  }
+
   function selectProductionFilter(value: string) {
+    setScopeLevel('production')
     setOptimisticSelectedUnit(null)
     setSelectedUnitId(null)
     setProductionFilter(value)
@@ -3755,6 +4420,7 @@ function ContentGenerationWorkbench() {
   }
 
   function selectSegmentFilter(value: string) {
+    setScopeLevel('segment')
     setOptimisticSelectedUnit(null)
     setSelectedUnitId(null)
     setSegmentFilter(value)
@@ -3937,6 +4603,7 @@ function ContentGenerationWorkbench() {
   })
   const selectedUnitRunningJobCount = selectedUnitJobs.filter((job) => job.status === 'pending' || job.status === 'running').length
   const selectedUnitCompletedJobCount = selectedUnitJobs.filter((job) => job.status === 'succeeded').length
+  const selectedUnitRequiresKeyframe = selectedUnit ? contentWorkbenchUnitRequiresKeyframe(selectedUnit.kind) : true
   const selectedUnitStatus = selectedUnit ? contentUnitWorkStatus(selectedUnit, selectedUnitMissingSlots) : 'blocked'
   const selectedKeyframeSequence = selected ? buildMomentKeyframeSequence(selected) : []
   const showMomentKeyframeContinuity = selectedKeyframeSequence.length > 0 && (!selectedUnit || selectedKeyframeSequence.some((item) => {
@@ -3944,6 +4611,7 @@ function ContentGenerationWorkbench() {
     return sequenceUnitId !== selectedUnit.ID
   }))
   const keyframeConfig = useMemo(() => semanticEntityConfig('keyframes'), [])
+  const assetSlotConfig = useMemo(() => semanticEntityConfig('assetSlots'), [])
   const nextKeyframeRole = frameRoleLabel(selectedUnitKeyframes.length, selectedUnitKeyframes.length + 1)
   const keyframeDefaults = useMemo<Partial<SemanticEntityPayload> | undefined>(() => {
     if (!selected || !selectedUnit) return undefined
@@ -3956,6 +4624,21 @@ function ContentGenerationWorkbench() {
       status: 'candidate',
     }
   }, [nextKeyframeRole, selected, selectedUnit, selectedUnitKeyframes.length])
+  const assetSlotDefaults = useMemo<Partial<SemanticEntityPayload> | undefined>(() => {
+    if (!selected || !selectedUnit) return undefined
+    return {
+      production_id: nullableNumber(selectedUnit.production_id ?? selected.moment.production_id ?? selected.segment?.production_id ?? selected.productionIds[0]),
+      owner_type: 'content_unit',
+      owner_id: selectedUnit.ID,
+      kind: 'image',
+      name: `${titleOfRecord(selectedUnit)}参考素材`,
+      slot_key: `content_unit_${selectedUnit.ID}_asset_${selectedUnitAssetSlots.length + 1}`,
+      description: firstText(selectedUnit.description, selectedUnit.prompt, ''),
+      prompt_hint: firstText(selectedUnit.prompt, selectedUnit.description, ''),
+      priority: selectedUnitAssetSlots.length === 0 ? 'high' : 'normal',
+      status: 'missing',
+    }
+  }, [selected, selectedUnit, selectedUnitAssetSlots.length])
   const missingGenerationContext = generationContextQuery.data
     ? buildGenerationContextStandards(generationContextQuery.data).filter((item) => !item.done)
     : []
@@ -4004,7 +4687,13 @@ function ContentGenerationWorkbench() {
     setCreatingKeyframe(true)
   }
 
+  function openCreateAssetSlot() {
+    if (!selectedUnit) return
+    setCreatingAssetSlot(true)
+  }
+
   const contentUnitConfig = useMemo(() => semanticEntityConfig('contentUnits'), [])
+  const previewTimelineItemConfig = useMemo(() => semanticEntityConfig('previewTimelineItems'), [])
   const productionWorkbenchQueryKey = ['workbench', 'production', projectId] as const
   const reviewDraftsQuery = useQuery<AgentDraft[]>({
     queryKey: ['workbench', 'production', 'content-drafts', projectId],
@@ -4187,17 +4876,111 @@ function ContentGenerationWorkbench() {
       toast.error(apiErrorMessage(error, '候选状态更新失败'))
     },
   })
+  const reorderContentUnits = useMutation({
+    mutationFn: async ({ row, draggedUnitId, targetUnitId, position }: {
+      row: ContentGenerationMomentRow
+      draggedUnitId: number
+      targetUnitId: number
+      position: ContentWorkbenchDropPosition
+    }) => {
+      if (!projectId) throw new Error('请先选择项目')
+      const reorderedUnits = reorderContentWorkbenchUnits(row.units, draggedUnitId, targetUnitId, position)
+      const originalIds = row.units.slice().sort(byOrder).map((unit) => unit.ID).join(',')
+      const nextIds = reorderedUnits.map((unit) => unit.ID).join(',')
+      if (originalIds === nextIds) return { draggedUnitId }
 
-  function openAiSuggest() {
-    if (!projectId || !selected) {
+      const unitUpdates = reorderedUnits
+        .map((unit, index) => ({ unit, order: index + 1 }))
+        .filter(({ unit, order }) => numberOf(unit.order) !== order)
+        .map(({ unit, order }) => updateSemanticEntity(projectId, contentUnitConfig, unit.ID, { order }))
+
+      await Promise.all(unitUpdates)
+      return { draggedUnitId }
+    },
+    onSuccess: async (_data, variables) => {
+      await queryClient.invalidateQueries({ queryKey: productionWorkbenchQueryKey })
+      selectContentUnitFromRow(variables.row, variables.draggedUnitId)
+      toast.success('制作项顺序已更新')
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '制作项顺序更新失败'))
+    },
+  })
+  const moveContentUnitOnTimeline = useMutation({
+    mutationFn: async ({ row, unitId, startSec }: {
+      row: ContentGenerationMomentRow
+      unitId: number
+      startSec: number
+    }) => {
+      if (!projectId) throw new Error('请先选择项目')
+      const unit = row.units.find((item) => item.ID === unitId)
+      if (!unit) throw new Error('未找到制作项')
+      const normalizedStartSec = Math.max(0, Math.round(Number(startSec) * 10) / 10)
+      const durationSec = Math.max(0, numberOf(unit.duration_sec))
+      const timelineItem = pickPreviewTimelineItemForUnit(row.previewTimelineItems, unitId)
+      if (timelineItem) {
+        await updateSemanticEntity(projectId, previewTimelineItemConfig, timelineItem.ID, {
+          preview_timeline_id: numberOf(timelineItem.preview_timeline_id),
+          start_sec: normalizedStartSec,
+          duration_sec: numberOf(timelineItem.duration_sec) || durationSec,
+          order: numberOf(timelineItem.order) || numberOf(unit.order),
+        })
+        return { unitId }
+      }
+
+      const productionId = numberOf(unit.production_id) || row.productionIds[0]
+      if (!productionId) throw new Error('当前制作项未绑定制作，无法写入时间轴')
+      let timeline = data?.previewTimelines
+        .filter((item) => Number(item.production_id) === productionId)
+        .slice()
+        .sort((a, b) => previewTimelineRank(a) - previewTimelineRank(b) || byOrder(a, b))[0]
+      if (!timeline) {
+        timeline = await createSemanticEntity(projectId, semanticEntityConfig('previewTimelines'), {
+          production_id: productionId,
+          name: `${titleOfRecord(unit)} 时间轴`,
+          duration_sec: Math.max(normalizedStartSec + durationSec, durationSec, 1),
+          is_primary: true,
+          status: 'draft',
+        })
+      }
+      await createSemanticEntity(projectId, previewTimelineItemConfig, {
+        preview_timeline_id: timeline.ID,
+        production_id: productionId,
+        scene_moment_id: row.moment.ID,
+        content_unit_id: unit.ID,
+        kind: 'content_unit',
+        label: titleOfRecord(unit),
+        start_sec: normalizedStartSec,
+        duration_sec: durationSec,
+        order: numberOf(unit.order) || row.units.findIndex((item) => item.ID === unit.ID) + 1,
+        status: 'draft',
+      })
+      return { unitId }
+    },
+    onSuccess: async (_data, variables) => {
+      await queryClient.invalidateQueries({ queryKey: productionWorkbenchQueryKey })
+      selectContentUnit(variables.unitId)
+      toast.success('制作项时间已更新')
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '制作项时间更新失败'))
+    },
+  })
+
+  function openAiSuggest(rowOverride?: ContentGenerationMomentRow) {
+    const targetRow = rowOverride ?? selected
+    const targetProduction = targetRow?.productionIds[0]
+      ? data?.productions.find((production) => production.ID === targetRow.productionIds[0])
+      : null
+    if (!projectId || !targetRow) {
       toast.info('请先选择情节')
       return
     }
     const prompt = buildContentWorkbenchAiSuggestPrompt({
-      momentTitle: selected.title,
-      sceneMomentId: selected.moment.ID,
-      momentScope: selected.scope,
-      existingUnits: selected.units.map((unit) => ({
+      momentTitle: targetRow.title,
+      sceneMomentId: targetRow.moment.ID,
+      momentScope: targetRow.scope,
+      existingUnits: targetRow.units.map((unit) => ({
         title: titleOfRecord(unit),
         kind: unit.kind,
         status: unit.status,
@@ -4205,12 +4988,12 @@ function ContentGenerationWorkbench() {
         description: unit.description,
       })),
     })
-    const requestId = `content_unit_suggest_${selected.moment.ID}_${Date.now().toString(36)}`
+    const requestId = `content_unit_suggest_${targetRow.moment.ID}_${Date.now().toString(36)}`
     openAgentPanelDraft({
       requestId,
       taskType: 'content_unit_suggest',
       message: prompt,
-      title: `制作项 AI 建议: ${selected.title}`,
+      title: `制作项 AI 建议: ${targetRow.title}`,
       newConversation: true,
       autoSend: false,
       projectId,
@@ -4219,15 +5002,15 @@ function ContentGenerationWorkbench() {
         labels: ['workbench', 'content-unit-suggest'],
         hints: {
           projectId,
-          productionId: selectedProduction?.ID,
+          productionId: targetProduction?.ID,
           route: {
             pathname: ROUTES.project.contentUnitWorkbench,
-            search: buildContentWorkbenchRouteSearch({ sceneMomentId: selected.moment.ID }),
+            search: buildContentWorkbenchRouteSearch({ sceneMomentId: targetRow.moment.ID }),
           },
           selection: {
             entityType: 'scene_moment',
-            entityId: selected.moment.ID,
-            label: selected.title,
+            entityId: targetRow.moment.ID,
+            label: targetRow.title,
           },
         },
       }),
@@ -4269,6 +5052,27 @@ function ContentGenerationWorkbench() {
     setCreatingUnit(true)
   }
 
+  function openCreateUnit() {
+    if (!selected) return
+    setUnitDraftDefaults(null)
+    setCreatingUnit(true)
+  }
+
+  function openCreateUnitForRow(row: ContentGenerationMomentRow) {
+    setScopeLevel('scene_moment')
+    setOptimisticSelectedUnit(null)
+    setSelectedId(row.id)
+    setSelectedUnitId(null)
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('scene_moment_id', String(row.moment.ID))
+      next.delete('content_unit_id')
+      return next
+    }, { replace: true })
+    setUnitDraftDefaults(null)
+    setCreatingUnit(true)
+  }
+
   function openSelectedUnitCanvas() {
     if (openUnitCanvas.isPending) return
     if (!selectedUnit) {
@@ -4307,6 +5111,7 @@ function ContentGenerationWorkbench() {
     hasUnitPrompt: Boolean(selectedUnit && firstText(selectedUnit.prompt, selectedUnit.description)),
     missingSlotCount: selectedUnitMissingSlots.length,
     keyframeCount: selectedUnitKeyframes.length,
+    requiresKeyframe: selectedUnitRequiresKeyframe,
     pendingReviewDraftCount: reviewQueueSummary.pending,
     missingGenerationContext,
     completedJobCount: selectedUnitCompletedJobCount,
@@ -4330,7 +5135,7 @@ function ContentGenerationWorkbench() {
   const nextActionHandlers: Partial<Record<ContentWorkbenchNextActionKey, () => void>> = {
     select_scene_moment: selectFirstSceneMoment,
     ai_plan_units: openAiSuggest,
-    manual_add_unit: () => setCreatingUnit(true),
+    manual_add_unit: openCreateUnit,
     select_unit: selectFirstContentUnit,
     complete_unit_prompt: () => openEditSelectedUnit(),
     upload_missing_assets: triggerCandidateUpload,
@@ -4348,6 +5153,7 @@ function ContentGenerationWorkbench() {
     assetSlotCount: selectedUnitAssetSlots.length,
     missingSlotCount: selectedUnitMissingSlots.length,
     keyframeCount: selectedUnitKeyframes.length,
+    requiresKeyframe: selectedUnitRequiresKeyframe,
     generationContextReady: Boolean(selectedUnit && generationContextQuery.data && missingGenerationContext.length === 0),
     generationContextLoading: !generationContextQuery.data && (generationContextQuery.isLoading || generationContextQuery.isFetching),
     generationContextError: generationContextQuery.isError,
@@ -4362,6 +5168,7 @@ function ContentGenerationWorkbench() {
     assetSlotCount: selectedUnitAssetSlots.length,
     missingSlotCount: selectedUnitMissingSlots.length,
     keyframeCount: selectedUnitKeyframes.length,
+    requiresKeyframe: selectedUnitRequiresKeyframe,
     generationContextReady: Boolean(selectedUnit && generationContextQuery.data && missingGenerationContext.length === 0),
     generationContextLoading: !generationContextQuery.data && (generationContextQuery.isLoading || generationContextQuery.isFetching),
     generationContextError: generationContextQuery.isError,
@@ -4403,10 +5210,9 @@ function ContentGenerationWorkbench() {
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
       <SpecializedWorkbenchHeader
         category="production"
-        generationKind="production"
         kicker="内容编排"
         title="内容编排工作台"
-        description="围绕情节拆解制作项、补齐画面锚点和素材需求，并把设定资料一起带入 AI 生成流程。"
+        description="把情节拆成制作项，用时间轴管理顺序、对白、声音和关键帧。"
       />
       <main className="min-h-0 flex-1 overflow-auto p-4">
         {!projectId ? (
@@ -4423,10 +5229,10 @@ function ContentGenerationWorkbench() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                       <Wand2 size={14} />
-                      AI 内容创作指挥台
+                      当前情节
                     </div>
                     <h2 className="mt-1 truncate text-lg font-semibold text-foreground">{selected ? selected.title : '暂无情节'}</h2>
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{selected ? selected.scope : '选择制作和情节后，拆解制作项、补视觉锚点并检查生成上下文。'}</p>
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{selected ? selected.scope : '选择制作和情节后，在时间轴里编排制作项。'}</p>
                   </div>
                   <div className="shrink-0" data-testid="content-workbench-review-action">
                     <button
@@ -4448,58 +5254,38 @@ function ContentGenerationWorkbench() {
                 </div>
               </div>
 
-              <div className="grid gap-3 p-2.5 xl:grid-cols-[minmax(0,1fr)_300px]">
-                <div className="min-w-0 space-y-3">
-                  <ProductionPipeline
-                    title={productionPipeline.title}
-                    detail={productionPipeline.detail}
-                    steps={productionPipeline.steps}
-                    icons={productionPipelineIcons}
-                  />
-
-                </div>
-
+              <div className="p-2.5">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                     <Settings2 size={14} />
                     筛选与定位
                   </div>
-                  <Select value={productionFilter} onValueChange={selectProductionFilter}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="选择制作" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {productionFilterOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label} · {option.count}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={segmentFilter} onValueChange={selectSegmentFilter}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="选择情绪段" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {segmentFilterOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label} · {option.count}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={selected?.id ?? ''} onValueChange={selectSceneMoment} disabled={sceneMomentFilterOptions.length === 0}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="选择情节" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sceneMomentFilterOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label} · {option.count} 制作项
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="grid gap-2 lg:grid-cols-3" data-testid="content-workbench-hierarchy-filter">
+                    <HierarchyFilterColumn
+                      title="制作卡片"
+                      options={productionFilterOptions}
+                      value={productionFilter}
+                      testId="content-workbench-production-filter"
+                      emptyText="暂无制作"
+                      onSelect={selectProductionFilter}
+                    />
+                    <HierarchyFilterColumn
+                      title="情绪段卡片"
+                      options={segmentFilterOptions}
+                      value={segmentFilter}
+                      testId="content-workbench-segment-filter"
+                      emptyText="先选择制作"
+                      onSelect={selectSegmentFilter}
+                    />
+                    <HierarchyFilterColumn
+                      title="情节卡片"
+                      options={sceneMomentFilterOptions}
+                      value={scopeLevel === 'scene_moment' ? selected?.id ?? '' : ''}
+                      testId="content-workbench-scene-moment-filter"
+                      emptyText="当前范围没有情节"
+                      onSelect={selectSceneMoment}
+                    />
+                  </div>
                   {filteredRows.length === 0 ? (
                     <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
                       <p>当前项目还没有情节入口，先完成制作编排后再进入内容编排。</p>
@@ -4535,11 +5321,79 @@ function ContentGenerationWorkbench() {
             <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]" data-testid="content-workbench-production-grid">
               <div className="min-w-0 space-y-3">
                 <WorkbenchPanel
-                  title="制作项轨道"
+                  title="制作项时间表"
                   icon={Play}
+                  action={(
+                    <Button size="sm" className="h-8 gap-1.5" onClick={openCreateUnit} disabled={!selected}>
+                      <Plus size={13} />
+                      添加制作项
+                    </Button>
+                  )}
                 >
-                  <div className="space-y-3">
-                    <UnitProductionTrack row={selected} selectedUnitId={selectedUnit?.ID} onSelectUnit={selectContentUnit} />
+                  <div className="flex flex-col gap-3">
+                    {scopedTrackSections.length > 0 ? (
+                      <div className="space-y-3" data-testid="content-workbench-scoped-tracks">
+                        {scopedTrackSections.map((section) => (
+                          <section key={section.id} className="space-y-2" data-testid="content-workbench-track-section">
+                            {scopedTrackSections.length > 1 || section.rows.length > 1 ? (
+                              <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 py-2">
+                                <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+                                  <Route size={14} className="shrink-0 text-muted-foreground" />
+                                  <span className="truncate">{section.title}</span>
+                                </div>
+                                <div className="flex shrink-0 items-center gap-1.5">
+                                  <Badge variant="outline">{section.rows.length} 情节</Badge>
+                                  <Badge variant="outline">{section.rows.reduce((sum, row) => sum + row.units.length, 0)} 制作项</Badge>
+                                </div>
+                              </div>
+                            ) : null}
+                            <div className="space-y-2">
+                              {section.rows.map((trackRow) => (
+                                <div key={trackRow.id} className="space-y-1.5">
+                                  {section.rows.length > 1 || scopedTrackSections.length > 1 ? (
+                                    <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                                      <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+                                        <Route size={14} className="shrink-0 text-muted-foreground" />
+                                        <span className="truncate">{trackRow.title}</span>
+                                      </div>
+                                      <Badge variant="outline">{trackRow.units.length} 制作项</Badge>
+                                    </div>
+                                  ) : null}
+                                  <UnitProductionTrack
+                                    row={trackRow}
+                                    selectedUnitId={selected?.id === trackRow.id ? selectedUnit?.ID : undefined}
+                                    onSelectUnit={(unitId) => selectContentUnitFromRow(trackRow, unitId)}
+                                    onCreateUnit={() => openCreateUnitForRow(trackRow)}
+                                    onAiSuggest={() => openAiSuggest(trackRow)}
+                                    onSelectFirstMoment={selectFirstSceneMoment}
+                                    onReorderUnit={(draggedUnitId, targetUnitId, position) => {
+                                      if (reorderContentUnits.isPending) return
+                                      reorderContentUnits.mutate({ row: trackRow, draggedUnitId, targetUnitId, position })
+                                    }}
+                                    onMoveUnitOnTimeline={(unitId, startSec) => {
+                                      if (moveContentUnitOnTimeline.isPending) return
+                                      moveContentUnitOnTimeline.mutate({ row: trackRow, unitId, startSec })
+                                    }}
+                                    isReordering={reorderContentUnits.isPending || moveContentUnitOnTimeline.isPending}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </section>
+                        ))}
+                      </div>
+                    ) : (
+                      <UnitProductionTrack
+                        row={null}
+                        selectedUnitId={undefined}
+                        onSelectUnit={() => {}}
+                        onCreateUnit={openCreateUnit}
+                        onSelectFirstMoment={selectFirstSceneMoment}
+                        onReorderUnit={() => {}}
+                        onMoveUnitOnTimeline={() => {}}
+                        isReordering={reorderContentUnits.isPending || moveContentUnitOnTimeline.isPending}
+                      />
+                    )}
                     {showMomentKeyframeContinuity ? (
                       <KeyframeContinuityStrip
                         sequence={selectedKeyframeSequence}
@@ -4604,7 +5458,7 @@ function ContentGenerationWorkbench() {
                       </details>
                     ) : null}
 
-                    <div className="border-t border-border pt-3" data-testid="content-workbench-keyframe-track">
+                    <div className="order-first rounded-md border border-border bg-background p-2.5" data-testid="content-workbench-keyframe-track">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                           <Image size={15} className="text-muted-foreground" />
@@ -4786,195 +5640,36 @@ function ContentGenerationWorkbench() {
 
               <div className="min-w-0 space-y-3">
                 <WorkbenchPanel
-                  title="生成检查"
-                  icon={ShieldCheck}
-                  action={selectedUnit ? (
-                    <div className="flex items-center gap-2">
-                      <Badge variant={statusVariant(selectedUnitStatus)}>{statusLabel(selectedUnitStatus)}</Badge>
-                      <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => openEditSelectedUnit()}>
-                        <Pencil size={13} />
-                        编辑
-                      </Button>
-                    </div>
-                  ) : <Badge variant="warning">未选择制作项</Badge>}
+                  title="详情卡片"
+                  icon={Pencil}
+                  action={unitInspectorAction}
                 >
                   {selectedUnit ? (
-                    <div className="mb-2.5" data-testid="content-workbench-current-unit-panel">
-                      <div
-                        className={cn(
-                          'rounded-md border px-2.5 py-1.5',
-                          currentUnitHealth.tone === 'done' || currentUnitHealth.tone === 'ready'
-                            ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/20'
-                            : currentUnitHealth.tone === 'blocked' || currentUnitHealth.tone === 'warning'
-                              ? 'border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20'
-                              : 'border-border bg-background',
-                        )}
-                        data-testid="content-workbench-generation-target"
-                      >
-                        <div className="flex items-center justify-between gap-2" data-testid="content-workbench-unit-health">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <Target size={15} className="shrink-0 text-muted-foreground" />
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-foreground">{titleOfRecord(selectedUnit)}</p>
-                              <p className="truncate text-[11px] text-muted-foreground">{firstText(selectedUnit.prompt, selectedUnit.description, '暂无描述或创作提示')}</p>
-                            </div>
-                          </div>
-                          <span className="flex shrink-0 items-center gap-1.5">
-                            <Badge variant="outline">{selectedUnit.kind || 'shot'}</Badge>
-                            <Badge variant="outline">{formatDuration(selectedUnit.duration_sec)}</Badge>
-                            <Badge variant={unitHealthBadgeVariant(currentUnitHealth)} data-testid="content-workbench-unit-health-status">{unitHealthStatusLabel(currentUnitHealth)}</Badge>
-                          </span>
-                        </div>
-                        <p className="mt-1 truncate text-[11px] text-muted-foreground">{currentUnitHealth.detail}</p>
+                    <div data-testid="content-workbench-current-unit-panel">
+                      <div data-testid="content-workbench-unit-inspector">
+                        <SemanticEntityInlineEditor
+                          projectId={projectId}
+                          config={contentUnitConfig}
+                          record={selectedUnit}
+                          queryKey={productionWorkbenchQueryKey}
+                          idScope={`content-workbench-unit-inspector-${selectedUnit.ID}`}
+                          hideHeaderCopy
+                          hideHeaderActions
+                          editing={unitInspectorEditing}
+                          onEditingChange={setUnitInspectorEditing}
+                          onControlStateChange={setUnitInspectorControls}
+                          className="border-border bg-card"
+                          onSaved={(record) => {
+                            selectContentUnit(record.ID)
+                            setOptimisticSelectedUnit(record)
+                            setUnitInspectorEditing(false)
+                          }}
+                        />
                       </div>
-                      <details open className="mt-2 overflow-hidden rounded-md border border-border bg-background" data-testid="content-workbench-unit-inspector">
-                        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 text-sm font-medium text-foreground marker:text-muted-foreground">
-                          <span className="flex min-w-0 items-center gap-2">
-                            <Pencil size={15} className="text-muted-foreground" />
-                            <span className="truncate">制作项编辑卡片</span>
-                          </span>
-                          <Badge variant="outline">{trackKindLabel(String(selectedUnit.kind ?? 'shot'))}</Badge>
-                        </summary>
-                        <div className="border-t border-border p-2.5">
-                          <SemanticEntityInlineEditor
-                            projectId={projectId}
-                            config={contentUnitConfig}
-                            record={selectedUnit}
-                            queryKey={productionWorkbenchQueryKey}
-                            idScope={`content-workbench-unit-inspector-${selectedUnit.ID}`}
-                            editKey={selectedUnit.ID}
-                            title="编辑制作项"
-                            description="维护制作类型、提示词、时长、状态和上下游引用。"
-                            className="border-border bg-card"
-                            onSaved={(record) => {
-                              selectContentUnit(record.ID)
-                              setOptimisticSelectedUnit(record)
-                            }}
-                          />
-                        </div>
-                      </details>
                     </div>
                   ) : (
-                    <p className="mb-2.5 rounded-md border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">从制作项轨道选择一个制作项后查看生成目标、健康度和检查状态。</p>
+                    <p className="rounded-md border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">从时间轴选择一个制作项后，在这里编辑标题、提示词、时长和状态。</p>
                   )}
-                  <ReadinessSummaryCard rows={standards} />
-                  <details className="rounded-md border border-border bg-background" data-testid="content-workbench-gate-detail">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 text-sm font-medium text-foreground marker:text-muted-foreground">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <ShieldCheck size={15} className="text-muted-foreground" />
-                        <span className="truncate">检查明细</span>
-                      </span>
-                      <span className="flex shrink-0 items-center gap-1.5">
-                        <Badge variant={standards.every((item) => item.done) ? 'success' : 'warning'}>{standards.filter((item) => item.done).length}/{standards.length}</Badge>
-                        {!selectedUnit ? (
-                          <Badge variant="warning">待制作项</Badge>
-                        ) : generationContextQuery.isFetching ? (
-                          <Badge variant="secondary">检查中</Badge>
-                        ) : generationContextQuery.isError ? (
-                          <Badge variant="warning">失败</Badge>
-                        ) : (
-                          <Badge variant={missingGenerationContext.length > 0 ? 'warning' : 'success'}>
-                            {missingGenerationContext.length > 0 ? `${missingGenerationContext.length} 缺失` : '上下文'}
-                          </Badge>
-                        )}
-                      </span>
-                    </summary>
-                    <div className="space-y-2.5 border-t border-border p-2.5">
-                      <GateChecklist rows={standards} />
-                      <div className="border-t border-border pt-2.5" data-testid="content-workbench-generation-context-detail">
-                        <div className="mb-2 flex items-center justify-between gap-2 text-sm font-medium text-foreground">
-                          <span className="flex min-w-0 items-center gap-2">
-                            <ClipboardCheck size={15} className="text-muted-foreground" />
-                            <span className="truncate">生成上下文</span>
-                          </span>
-                          {!selectedUnit ? (
-                            <Badge variant="warning">待生成制作项</Badge>
-                          ) : generationContextQuery.isFetching ? (
-                            <Badge variant="secondary">检查中</Badge>
-                          ) : generationContextQuery.isError ? (
-                            <Badge variant="warning">检查失败</Badge>
-                          ) : (
-                            <Badge variant={missingGenerationContext.length > 0 ? 'warning' : 'success'}>
-                              {missingGenerationContext.length > 0 ? `${missingGenerationContext.length} 个缺失` : '上下文可用'}
-                            </Badge>
-                          )}
-                        </div>
-                        {!selected ? (
-                          <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">选择情节后检查生成上下文。</p>
-                        ) : !selectedUnit ? (
-                          <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">当前情节还没有制作项，暂时不能读取制作项级生成上下文。</p>
-                        ) : generationContextQuery.isLoading ? (
-                          <p className="rounded-md border border-border bg-card px-3 py-5 text-center text-sm text-muted-foreground">正在读取后端生成上下文...</p>
-                        ) : generationContextQuery.isError ? (
-                          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800">
-                            {apiErrorMessage(generationContextQuery.error, '后端上下文检查失败，请确认后端已更新并重新加载页面。')}
-                          </p>
-                        ) : generationContextQuery.data ? (
-                          <div className="space-y-3">
-                            <ContextStack rows={generationContextRows} className="production-context-stack" />
-                            {missingGenerationContext.length > 0 ? (
-                              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-                                <p className="text-sm font-medium text-amber-900">生成前建议补齐</p>
-                                <div className="mt-1.5 space-y-1">
-                                  {missingGenerationContext.map((item) => (
-                                    <p key={item.label} className="text-xs leading-5 text-amber-800">{item.label}：{item.detail}</p>
-                                  ))}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                                当前制作项的后端生成上下文已具备，可以进入生成计划阶段。
-                              </div>
-                            )}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </details>
-
-                  <div className="mt-2 border-t border-border pt-2">
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-                        <Settings2 size={15} className="text-muted-foreground" />
-                        <span className="truncate">下一步动作</span>
-                      </div>
-                      <Badge variant={nextActions.some((action) => action.tone === 'warning') ? 'warning' : 'success'}>{nextActions.length}</Badge>
-                    </div>
-                    <NextActionsPanel
-                      actions={nextActions}
-                      actionIcons={nextActionIcons}
-                      actionHandlers={nextActionHandlers}
-                      generationCanvasPending={openUnitCanvas.isPending}
-                    />
-                  </div>
-
-                  <details open={executionSectionOpen} className="mt-2 rounded-md border border-border bg-background" data-testid="content-workbench-execution-section">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 text-sm font-medium text-foreground marker:text-muted-foreground">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <PackageCheck size={15} className="text-muted-foreground" />
-                        <span className="truncate">生成结果</span>
-                      </span>
-                      <Badge variant={deliveryBrief.tone === 'ready' ? 'success' : deliveryBrief.tone === 'blocked' ? 'warning' : 'outline'}>
-                        {executionStatusLabel}
-                      </Badge>
-                    </summary>
-                    <div className="space-y-2.5 border-t border-border p-2.5">
-                      {selectedProduction ? (
-                        <div ref={previewMountSectionRef}>
-                          <PreviewMountCard
-                            productionTitle={titleOfRecord(selectedProduction)}
-                            segments={selectedPreviewPlanSegments}
-                            timelineUnits={selectedPreviewTimelineUnits}
-                            gaps={selectedPreviewMissingAssets}
-                            previewTimelineCount={selectedPreviewTimelines.length}
-                            previewItemCount={selectedPreviewItemCount}
-                          />
-                        </div>
-                      ) : null}
-                      <DeliveryBriefCard brief={deliveryBrief} />
-                      <ActivityFeedCard feed={activityFeed} />
-                    </div>
-                  </details>
                 </WorkbenchPanel>
               </div>
             </div>
@@ -5038,11 +5733,12 @@ function ContentGenerationWorkbench() {
                   ...unitDraftDefaults,
                   segment_id: selected.segment?.ID ?? null,
                   scene_moment_id: selected.moment.ID,
-                  production_id: selectedUnit?.production_id ?? selected.segment?.production_id ?? null,
-                  script_block_id: nullableNumber(selectedUnit?.script_block_id ?? selected.segment?.script_block_id),
+                  production_id: nullableNumber(selectedUnit?.production_id ?? selected.moment.production_id ?? selected.segment?.production_id ?? selected.productionIds[0]),
+                  script_block_id: nullableNumber(selectedUnit?.script_block_id ?? selected.moment.script_block_id ?? selected.segment?.script_block_id),
                   order: selected.units.length + 1,
                 }}
                 queryKey={productionWorkbenchQueryKey}
+                idScope="content-workbench-create-unit"
                 title="新建制作项"
                 description="填写制作项基本信息后保存，加入当前情节候选。"
                 onSaved={(record) => {
@@ -5076,9 +5772,10 @@ function ContentGenerationWorkbench() {
                 config={contentUnitConfig}
                 record={selectedUnit}
                 queryKey={productionWorkbenchQueryKey}
+                idScope={`content-workbench-edit-unit-${selectedUnit.ID}`}
                 editKey={selectedUnit.ID}
                 title="编辑制作项"
-                description="保存后会刷新制作项轨道、生成检查和下一步动作。"
+                description="保存后会刷新制作项时间轴和右侧详情。"
                 onSaved={(record) => {
                   selectContentUnit(record.ID)
                   setEditingUnit(false)
@@ -5087,6 +5784,38 @@ function ContentGenerationWorkbench() {
             ) : (
               <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
                 请先在制作项轨道中选择一个制作项。
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={creatingAssetSlot} onOpenChange={(open) => { if (!open) setCreatingAssetSlot(false) }}>
+        <DialogContent className="max-h-[88vh] w-[min(760px,calc(100vw-32px))] overflow-auto p-0">
+          <DialogHeader className="border-b border-border px-5 py-4">
+            <DialogTitle>添加素材需求</DialogTitle>
+            <DialogDescription>
+              {selectedUnit ? `将写入当前制作项：${titleOfRecord(selectedUnit)}` : '请先选择制作项再添加素材需求。'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-5">
+            {selected && selectedUnit && assetSlotDefaults ? (
+              <SemanticEntityInlineEditor
+                projectId={projectId}
+                config={assetSlotConfig}
+                record={null}
+                defaults={assetSlotDefaults}
+                queryKey={productionWorkbenchQueryKey}
+                idScope={`content-workbench-create-asset-slot-${selectedUnit.ID}`}
+                title="新建素材需求"
+                description="保存后会作为当前制作项的素材缺口出现，可以继续上传候选或绑定资源。"
+                onSaved={() => {
+                  setCreatingAssetSlot(false)
+                }}
+              />
+            ) : (
+              <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+                请先在制作项轨道中选择一个制作项；如果当前情节还没有制作项，请先添加制作项。
               </p>
             )}
           </div>
@@ -5109,6 +5838,7 @@ function ContentGenerationWorkbench() {
                 record={null}
                 defaults={keyframeDefaults}
                 queryKey={productionWorkbenchQueryKey}
+                idScope={`content-workbench-create-keyframe-${selectedUnit.ID}`}
                 title="新建关键帧"
                 description="保存后会出现在画面连续性和当前制作项的画面锚点轨道中。随后可以上传图片或从资源库选择素材。"
                 onSaved={(record) => {
@@ -5185,6 +5915,58 @@ interface PreviewAssetGap {
 
 function previewTimelinesForWorkbenchProduction(record: WorkbenchRecord, data: ProductionWorkbenchData) {
   return data.previewTimelines.filter((item) => Number(item.production_id) === record.ID)
+}
+
+function bestPreviewTimelineIdsForProductionIds(productionIds: Set<number>, data: ProductionWorkbenchData) {
+  if (productionIds.size === 0) return null
+  const ids = new Set<number>()
+  for (const productionId of productionIds) {
+    const timeline = data.previewTimelines
+      .filter((item) => Number(item.production_id) === productionId)
+      .slice()
+      .sort((a, b) => previewTimelineRank(a) - previewTimelineRank(b) || byOrder(a, b))[0]
+    if (timeline) ids.add(timeline.ID)
+  }
+  return ids.size > 0 ? ids : null
+}
+
+function scopedPreviewTimelineItems(items: WorkbenchRecord[], timelineIds: Set<number> | null, predicate: (item: WorkbenchRecord) => boolean) {
+  const relatedItems = items.filter(predicate).slice().sort(byOrder)
+  if (!timelineIds?.size) return relatedItems
+  const scopedItems = relatedItems.filter((item) => timelineIds.has(Number(item.preview_timeline_id)))
+  return scopedItems.length > 0 ? scopedItems : relatedItems
+}
+
+function previewTimelineRank(item: WorkbenchRecord) {
+  const status = String(item.status ?? '').toLowerCase()
+  if (Boolean(item.is_primary)) return 0
+  if (status === 'confirmed') return 1
+  if (status === 'playable') return 2
+  if (status === 'draft') return 3
+  return 4
+}
+
+function buildContentWorkbenchTrackSections(rows: ContentGenerationMomentRow[], scopeLevel: ContentWorkbenchScopeLevel, data?: ProductionWorkbenchData): ContentWorkbenchTrackSection[] {
+  if (rows.length === 0) return []
+  if (scopeLevel === 'scene_moment') {
+    return [{ id: 'scene_moment', title: '当前情节', rows }]
+  }
+  const productionById = new Map((data?.productions ?? []).map((production) => [production.ID, production]))
+  const sections = new Map<string, ContentWorkbenchTrackSection>()
+  for (const row of rows) {
+    const productionId = row.productionIds[0] ?? 0
+    const key = scopeLevel === 'production'
+      ? `production-${productionId || 'unassigned'}`
+      : `segment-${row.segment?.ID ?? 'unassigned'}`
+    const production = productionId > 0 ? productionById.get(productionId) : undefined
+    const title = scopeLevel === 'production'
+      ? production ? `制作 · ${titleOfRecord(production)}` : '未绑定制作'
+      : row.segment ? `情绪段 · ${titleOfRecord(row.segment)}` : '未绑定情绪段'
+    const section = sections.get(key)
+    if (section) section.rows.push(row)
+    else sections.set(key, { id: key, title, rows: [row] })
+  }
+  return Array.from(sections.values())
 }
 
 function relatedSegmentIdsForWorkbenchProduction(record: WorkbenchRecord, data: ProductionWorkbenchData) {

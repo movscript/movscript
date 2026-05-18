@@ -5,6 +5,7 @@ export interface ContentWorkbenchUnitTrackInput {
   title: string
   kind?: string
   durationSec?: number
+  startSec?: number
   status?: string
   summary?: string
   scriptCue?: string
@@ -12,6 +13,7 @@ export interface ContentWorkbenchUnitTrackInput {
   keyframeTitles?: string[]
   missingAssetTitles?: string[]
   requiresKeyframe?: boolean
+  timeSource?: 'preview' | 'estimated'
   hasPrompt: boolean
   assetSlotCount: number
   missingSlotCount: number
@@ -27,6 +29,7 @@ export interface ContentWorkbenchUnitTrackItem {
   durationSec: number
   startSec: number
   endSec: number
+  timeSource: 'preview' | 'estimated'
   readiness: number
   tone: ContentWorkbenchUnitTrackTone
   selected: boolean
@@ -62,7 +65,7 @@ export function buildContentWorkbenchUnitTrack(inputs: ContentWorkbenchUnitTrack
     return item
   })
   const total = items.length
-  const durationSec = items.reduce((sum, item) => sum + item.durationSec, 0)
+  const durationSec = items.reduce((max, item) => Math.max(max, item.endSec), 0)
   const readyCount = items.filter((item) => item.tone === 'ready').length
   const blockedCount = items.filter((item) => item.tone === 'blocked').length
   const needsPromptCount = items.filter((item) => item.blockers.some((blocker) => blocker === '缺提示')).length
@@ -133,9 +136,12 @@ export function buildContentWorkbenchUnitTrack(inputs: ContentWorkbenchUnitTrack
   }
 }
 
-function buildTrackItem(input: ContentWorkbenchUnitTrackInput, order: number, startSec: number): ContentWorkbenchUnitTrackItem {
+function buildTrackItem(input: ContentWorkbenchUnitTrackInput, order: number, fallbackStartSec: number): ContentWorkbenchUnitTrackItem {
   const kind = input.kind || '制作项'
   const durationSec = Math.max(0, Number(input.durationSec) || 0)
+  const explicitStartSec = Number(input.startSec)
+  const hasExplicitStartSec = Number.isFinite(explicitStartSec) && explicitStartSec >= 0
+  const startSec = hasExplicitStartSec ? explicitStartSec : fallbackStartSec
   const missingSlotCount = Math.max(0, Number(input.missingSlotCount) || 0)
   const keyframeCount = Math.max(0, Number(input.keyframeCount) || 0)
   const status = String(input.status ?? '').trim().toLowerCase()
@@ -162,6 +168,7 @@ function buildTrackItem(input: ContentWorkbenchUnitTrackInput, order: number, st
     durationSec,
     startSec,
     endSec: startSec + durationSec,
+    timeSource: input.timeSource ?? (hasExplicitStartSec ? 'preview' : 'estimated'),
     readiness: unitReadiness(input.hasPrompt, missingSlotCount, keyframeCount, requiresKeyframe, status),
     tone,
     selected: Boolean(input.selected),

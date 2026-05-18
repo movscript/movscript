@@ -488,6 +488,57 @@ func TestPreviewTimelineItemPatchExpiresPreviousStructureRelationIdentity(t *tes
 	}
 }
 
+func TestPreviewTimelineItemFlatPatchPreservesTimelineAndDuration(t *testing.T) {
+	db := testutil.OpenSQLite(t,
+		"semantic_preview_timeline_item_flat_patch.db",
+		&persistencemodel.Project{},
+		&persistencemodel.PreviewTimeline{},
+		&persistencemodel.PreviewTimelineItem{},
+		&persistencemodel.EntityRelation{},
+	)
+	project := persistencemodel.Project{Name: "Project"}
+	project.ID = 1
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("seed project: %v", err)
+	}
+
+	service := NewService(db)
+	ctx := context.Background()
+	timeline, err := service.CreatePreviewTimeline(ctx, 1, PreviewTimelineInput{Name: "Preview", Status: "draft"})
+	if err != nil {
+		t.Fatalf("create preview timeline: %v", err)
+	}
+	item, err := service.CreatePreviewTimelineItem(ctx, 1, timeline.ID, PreviewTimelineItemInput{
+		Kind:        "content_unit",
+		Order:       7,
+		StartSec:    1,
+		DurationSec: 4,
+		Status:      "draft",
+	})
+	if err != nil {
+		t.Fatalf("create preview timeline item: %v", err)
+	}
+
+	patched, err := service.PatchPreviewTimelineItem(ctx, 1, fmt.Sprint(item.ID), 0, PreviewTimelineItemInput{
+		StartSec: 2.5,
+	})
+	if err != nil {
+		t.Fatalf("flat patch preview timeline item: %v", err)
+	}
+	if patched.PreviewTimelineID != timeline.ID {
+		t.Fatalf("preview timeline id = %d, want %d", patched.PreviewTimelineID, timeline.ID)
+	}
+	if patched.StartSec != 2.5 {
+		t.Fatalf("start sec = %v, want 2.5", patched.StartSec)
+	}
+	if patched.DurationSec != 4 {
+		t.Fatalf("duration sec = %v, want 4", patched.DurationSec)
+	}
+	if patched.Order != 7 {
+		t.Fatalf("order = %d, want 7", patched.Order)
+	}
+}
+
 func TestStoryboardScriptPatchExpiresPreviousStructureRelationIdentity(t *testing.T) {
 	db := testutil.OpenSQLite(t,
 		"semantic_storyboard_script_relation_patch.db",

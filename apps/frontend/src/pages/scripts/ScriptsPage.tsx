@@ -438,7 +438,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
             </div>
           </aside>
 
-          <main className="min-h-0 min-w-0 overflow-hidden">
+          <main className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
         {!selected ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
             <ScrollText size={36} className="opacity-20" />
@@ -508,7 +508,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
             </div>
 
             {/* Tab content */}
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               {detailTab === 'edit' && (
                 <ScriptForm
                   script={selected}
@@ -526,7 +526,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
 
               {detailTab === 'versions' && (
                 <div className="p-5">
-                  <div className="mb-4 flex items-center justify-between">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h3 className="text-sm font-semibold text-foreground">版本历史</h3>
                       <p className="mt-0.5 text-xs text-muted-foreground">版本创建后即锁定为历史快照，不支持修改、激活或归档；创建制作时默认使用最新版本。</p>

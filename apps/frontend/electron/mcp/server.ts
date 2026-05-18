@@ -499,11 +499,13 @@ export function listTools(): MCPTool[] {
     },
     {
       name: 'movscript_read_project_scripts',
-      description: 'Read scripts in the current or specified project. Use this when project planning, splitting, or orchestration needs access to the project screenplay/library. Set includeContent when the actual script body is needed.',
+      description: 'Read backend project scripts / 剧本 in the current or specified project. Use this for 总剧本、分集剧本、第一集 and any screenplay/library content. This is not the local Agent draft artifact API. Set includeContent when the actual script body is needed.',
       inputSchema: objectSchema(
         {
           projectId: { type: 'number', description: 'Defaults to the current UI project when omitted.' },
           scriptId: { type: 'number', description: 'Optional script ID to read one script.' },
+          query: { type: 'string', description: 'Optional text search over title, script_type, summary, description, characters, hook, and plot_summary.' },
+          scriptTitle: { type: 'string', description: 'Optional title match such as 总剧本 or 第一集. Matches exact title first, then substring.' },
           includeContent: { type: 'boolean', description: 'When true, include script body text up to contentLimit characters per script.' },
           contentLimit: { type: 'number', description: 'Maximum script body characters per script when includeContent is true. Defaults to 8000.' },
           limit: { type: 'number', description: 'Maximum scripts to return when scriptId is omitted. Defaults to 50.' },
@@ -894,18 +896,6 @@ export function listTools(): MCPTool[] {
         ['review']
       ),
     },
-    {
-      name: 'movscript_create_script_backend',
-      description: 'Create a formal backend script record from an approved agent script payload. This is an internal approval-backed write tool.',
-      inputSchema: objectSchema(
-        {
-          projectId: { type: 'number' },
-          payload: { type: 'object' },
-          userId: { type: 'number' },
-        },
-        ['projectId', 'payload']
-      ),
-    },
   ]
 }
 
@@ -972,8 +962,6 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
       return toolText(await applyDraftReview(args))
     case 'movscript_preview_apply_draft_review':
       return toolText(await previewApplyDraftReview(args))
-    case 'movscript_create_script_backend':
-      return toolText(await createScriptBackend(args))
     default:
       throw new Error(`Unknown tool: ${name}`)
   }
@@ -1247,27 +1235,41 @@ function copyRequiresValueRules(out: Record<string, unknown>, source: Record<str
   if (rules.length > 0) out.requires_value = rules
 }
 
-async function readProjectScripts(args: Record<string, unknown>): Promise<unknown> {
+export async function readProjectScripts(args: Record<string, unknown>): Promise<unknown> {
   const projectId = getOptionalNumber(args, 'projectId') ?? contextSnapshot.project?.id
   if (!projectId) throw new Error('projectId is required when no current project is selected')
 
   const scriptId = getOptionalNumber(args, 'scriptId')
+  const query = getOptionalString(args, 'query')
+  const scriptTitle = getOptionalString(args, 'scriptTitle')
   const includeContent = args.includeContent === true
   const contentLimit = clampNumber(Math.floor(getOptionalNumber(args, 'contentLimit') ?? 8000), 500, 50000)
   const limit = Math.max(1, Math.min(Math.floor(getOptionalNumber(args, 'limit') ?? 50), 100))
   const scripts = await backendList(`/projects/${projectId}/scripts`)
-  const selectedScripts = scriptId
-    ? scripts.filter((script: any) => Number(script?.ID ?? script?.id) === scriptId)
-    : scripts.slice(0, limit)
+  const matchedScripts = scripts.filter((script: any) => {
+    if (scriptId && Number(script?.ID ?? script?.id) !== scriptId) return false
+    if (scriptTitle && !scriptMatchesTitle(script, scriptTitle)) return false
+    if (query && !recordMatchesQuery(script, query, ['title', 'script_type', 'summary', 'description', 'characters', 'hook', 'plot_summary'])) return false
+    return true
+  })
+  const selectedScripts = matchedScripts.slice(0, limit)
 
   return {
     projectId,
     count: scripts.length,
+    matched: matchedScripts.length,
     returned: selectedScripts.length,
     includeContent,
     contentLimit: includeContent ? contentLimit : 0,
     scripts: selectedScripts.map((script: any) => summarizeScript(script, { includeContent, contentLimit })),
   }
+}
+
+function scriptMatchesTitle(script: any, title: string): boolean {
+  const expected = title.trim().toLowerCase()
+  if (!expected) return true
+  const actual = String(script?.title ?? '').trim().toLowerCase()
+  return actual === expected || actual.includes(expected)
 }
 
 export async function queryCreativeReferences(args: Record<string, unknown>): Promise<unknown> {
@@ -2305,20 +2307,6 @@ async function previewApplyDraftReview(args: Record<string, unknown>): Promise<u
     method: request.method,
     url: `${apiBaseURL}${path}`,
     payload: request.payload,
-    response,
-  }
-}
-
-async function createScriptBackend(args: Record<string, unknown>): Promise<unknown> {
-  const projectId = getRequiredNumber(args, 'projectId')
-  const payload = getObjectParamValue(args, 'payload')
-  const path = `/projects/${encodeURIComponent(String(projectId))}/scripts`
-  const response = await backendPost(path, payload, args.userId)
-  return {
-    performed: true,
-    method: 'POST',
-    url: `${apiBaseURL}${path}`,
-    payload,
     response,
   }
 }

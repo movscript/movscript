@@ -25,7 +25,6 @@ const WRITE_AGENT_MANIFEST = {
   tools: [
     ...DEFAULT_AGENT_MANIFEST.tools,
     { name: 'movscript_create_project', mode: 'allow' as const, approval: 'always' as const },
-    { name: 'movscript_create_script', mode: 'allow' as const, approval: 'always' as const },
   ],
 }
 
@@ -140,20 +139,6 @@ function installDefaultModelFetch(): void {
         ? `用户请求：${userMsg}\n\n参考记忆：\n${memoriesSection}`
         : `用户请求：${userMsg}`
       callsToMake.push({ id: 'call_draft_1', name: 'movscript_create_draft', args: { kind: 'content_unit', title: '草稿', content: draftContent, ...(projectId !== undefined ? { projectId } : {}) } })
-    }
-    if (/保存.*剧本|创建.*剧本|create.*script/i.test(userMsg) && toolNames.has('movscript_create_script')) {
-      callsToMake.push({
-        id: 'call_create_script_1',
-        name: 'movscript_create_script',
-        args: {
-          title: '雨夜便利店',
-          content: '雨夜。便利店。一个外卖员发现柜台后藏着一封没有寄出的信。',
-          summary: '一个外卖员在雨夜便利店卷入旧信和失踪案。',
-          hook: '一封没有寄出的信指向十年前同一场雨。',
-          script_type: 'short_drama',
-          ...(projectId !== undefined ? { projectId } : {}),
-        },
-      })
     }
     if (/按模型能力|model contract/i.test(userMsg) && toolNames.has('movscript_list_models')) {
       callsToMake.push({
@@ -351,7 +336,6 @@ class FakeMCPClient {
 class FakeBackendApplyClient extends BackendApplyClient {
   readonly calls: Array<{ review: ApplyDraftReview; auth?: BackendApplyAuthContext }> = []
   readonly previewCalls: Array<{ review: ApplyDraftReview; auth?: BackendApplyAuthContext }> = []
-  readonly createScriptCalls: Array<{ projectId: number; payload: Record<string, JSONValue>; auth?: BackendApplyAuthContext }> = []
   result: BackendApplyResult = {
     performed: true,
     method: 'PATCH',
@@ -376,20 +360,6 @@ class FakeBackendApplyClient extends BackendApplyClient {
     }
   }
 
-  override async createScript(projectId: number, payload: Record<string, JSONValue>, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
-    this.createScriptCalls.push({ projectId, payload, auth })
-    return {
-      performed: true,
-      method: 'POST',
-      url: `http://backend/api/v1/projects/${projectId}/scripts`,
-      payload,
-      response: {
-        id: 99,
-        project_id: projectId,
-        ...payload,
-      },
-    }
-  }
 }
 
 function createTestRuntime(options: ConstructorParameters<typeof AgentRuntime>[0]): AgentRuntime {
@@ -413,7 +383,7 @@ test('previews plan and policy without creating a run or executing planned tools
   const client = new FakeMCPClient()
   client.projectId = 42
   const runtime = createTestRuntime({ mcpClient: client })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请保存剧本' }] })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请创建一个项目「测试项目」' }] })
 
   const preview = await runtime.previewRun({
     threadId: thread.id,
@@ -423,15 +393,15 @@ test('previews plan and policy without creating a run or executing planned tools
   assert.equal(preview.status, 'preview')
   assert.equal(preview.threadId, thread.id)
   assert.equal(preview.currentProjectId, 42)
-  assert.equal(preview.pendingApprovals[0]?.toolName, 'movscript_create_script')
+  assert.equal(preview.pendingApprovals[0]?.toolName, 'movscript_create_project')
   assert.equal(preview.agentManifest?.schema, 'movscript.agent.current')
   assert.ok(preview.context)
   assert.ok(preview.skills)
-  assert.ok(preview.tools?.available.some((tool) => tool.name === 'movscript_create_script'))
+  assert.ok(preview.tools?.available.some((tool) => tool.name === 'movscript_create_project'))
   assert.ok(preview.promptPreview?.debugParts.some((part) => part.kind === 'tool'))
   assert.equal(preview.toolCalls.length, 0)
   assert.equal(runtime.listRuns().length, 0)
-  assert.equal(client.calls.some((call) => call.name === 'movscript_create_script'), false)
+  assert.equal(client.calls.some((call) => call.name === 'movscript_create_project'), false)
   assert.ok(client.calls.some((call) => call.name === 'movscript_get_focus'))
 })
 
@@ -570,22 +540,19 @@ test('capabilities distinguish available and blocked tools', async () => {
   assert.ok(capabilities.registry.some((tool) => tool.name === 'mcp__default__studio_render' && tool.source === 'mcp'))
 })
 
-test('runtime draft tools are available without MCP tool discovery except draft creation', async () => {
+test('runtime draft tools are available without MCP tool discovery except removed listing', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const runtime = createTestRuntime({ mcpClient: client })
 
   const capabilities = await runtime.getCapabilities({ currentProjectId: 42 })
 
-  assert.equal(capabilities.resolvedTools.byName['movscript_read_draft']?.available, true)
   assert.equal(capabilities.resolvedTools.byName['movscript_update_draft']?.available, true)
-  assert.equal(capabilities.resolvedTools.byName['movscript_list_drafts']?.available, true)
+  assert.equal(capabilities.resolvedTools.byName['movscript_list_drafts'], undefined)
   assert.equal(capabilities.resolvedTools.byName['movscript_create_draft']?.available, true)
-  assert.equal(capabilities.resolvedTools.byName['movscript_create_script']?.source, 'runtime')
-  assert.equal(capabilities.resolvedTools.byName['movscript_create_script']?.available, true)
 })
 
-test('runtime can read, edit, and validate a script split draft without backend writes', async () => {
+test('runtime can edit and validate a script split draft without backend writes', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const draftStore = new InMemoryAgentDraftStore()
@@ -638,18 +605,6 @@ test('runtime can read, edit, and validate a script split draft without backend 
     }),
   })
 
-  const readRun = runtime.createToolRun({
-    threadId: thread.id,
-    title: 'Read draft',
-    message: 'Read draft',
-    toolCall: {
-      name: 'movscript_read_draft',
-      args: {
-        file_path: draft.filePath,
-      },
-    },
-  })
-  const readCompleted = await waitForRun(runtime, readRun.id)
   const editRun = runtime.createToolRun({
     threadId: thread.id,
     title: 'Edit draft',
@@ -669,7 +624,6 @@ test('runtime can read, edit, and validate a script split draft without backend 
   const parsed = JSON.parse(updated?.content ?? '{}') as { episode_drafts?: Array<{ summary?: string }> }
   const validation = runtime.validateDraft({ draftId: draft.id }) as { ok?: boolean }
 
-  assert.equal(readCompleted.status, 'completed')
   assert.equal(completed.status, 'completed')
   assert.equal(parsed.episode_drafts?.[0]?.summary, '新摘要')
   assert.equal(validation.ok, true)
@@ -729,43 +683,6 @@ test('explicit write agent can create_project without a current project after ap
   const toolStep = runtime.getRun(resumed.id)?.steps.find((step) => step.toolName === 'movscript_create_project' && step.status === 'completed')
   assert.equal(typeof toolStep?.durationMs, 'number')
   assert.ok((toolStep?.durationMs ?? -1) >= 0)
-})
-
-test('create_script requires approval and creates a backend script after approval', async () => {
-  const client = new FakeMCPClient()
-  client.projectId = 42
-  client.userId = 7
-  const backendApplyClient = new FakeBackendApplyClient()
-  const runtime = createTestRuntime({ mcpClient: client, backendApplyClient })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我创建并保存一个新剧本' }] })
-
-  const run = await createAndWaitForRun(runtime, thread.id, { agentManifest: WRITE_AGENT_MANIFEST, backendAuthToken: 'secret-token' })
-
-  assert.equal(run.status, 'requires_action')
-  assert.equal(run.pendingApprovals?.[0].toolName, 'movscript_create_script')
-  assert.equal(backendApplyClient.createScriptCalls.length, 0)
-
-  runtime.approveRun(run.id, { backendAuthToken: 'secret-token' })
-  const resumed = await waitForRun(runtime, run.id)
-  await runtime.flushPostRunRecords()
-
-  assert.equal(resumed.status, 'completed')
-  assert.equal(backendApplyClient.createScriptCalls.length, 1)
-  assert.equal(backendApplyClient.createScriptCalls[0]?.projectId, 42)
-  assert.equal(backendApplyClient.createScriptCalls[0]?.payload.title, '雨夜便利店')
-  assert.equal(backendApplyClient.createScriptCalls[0]?.payload.raw_source, '雨夜。便利店。一个外卖员发现柜台后藏着一封没有寄出的信。')
-  assert.equal(backendApplyClient.createScriptCalls[0]?.payload.source_type, 'raw')
-  assert.equal(backendApplyClient.createScriptCalls[0]?.auth?.userId, 7)
-  assert.equal(backendApplyClient.createScriptCalls[0]?.auth?.backendAuthToken, 'secret-token')
-  assert.ok(resumed.steps.some((step) => step.toolName === 'movscript_create_script' && step.status === 'completed'))
-  const rollbackRecords = isPlainTestRecord(resumed.metadata)
-    && Array.isArray(resumed.metadata.rollbackRecords)
-    ? resumed.metadata.rollbackRecords
-    : []
-  assert.equal(rollbackRecords.some((record) => isPlainTestRecord(record)
-    && isPlainTestRecord(record.rollback)
-    && record.rollback.policy === 'manual_compensation'), true)
-  assertRunTraceEventTypes(runtime, resumed.id, ['rollback_policy'])
 })
 
 test('worker completion records reversible rollback artifacts for local draft side effects', async () => {
@@ -864,22 +781,22 @@ test('run requiring approval pauses before tool execution and resumes after appr
   const client = new FakeMCPClient()
   client.projectId = 42
   const runtime = createTestRuntime({ mcpClient: client })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请保存剧本' }] })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请创建一个项目「测试项目」' }] })
 
   const run = await createAndWaitForRun(runtime, thread.id, {
     agentManifest: WRITE_AGENT_MANIFEST,
   })
 
   assert.equal(run.status, 'requires_action')
-  assert.equal(run.pendingApprovals?.[0].toolName, 'movscript_create_script')
-  assert.equal(client.calls.some((call) => call.name === 'movscript_create_script'), false)
+  assert.equal(run.pendingApprovals?.[0].toolName, 'movscript_create_project')
+  assert.equal(client.calls.some((call) => call.name === 'movscript_create_project'), false)
 
   runtime.approveRun(run.id)
   const resumed = await waitForRun(runtime, run.id)
-  const draft = client.calls.find((call) => call.name === 'movscript_create_script')
+  const projectCall = client.calls.find((call) => call.name === 'movscript_create_project')
 
   assert.ok(resumed.status === 'completed' || resumed.status === 'completed_with_warnings')
-  assert.equal(draft, undefined)
+  assert.equal(projectCall?.args.name, '测试项目')
   assert.equal(runtime.listDrafts({ projectId: 42 }).length, 0)
   assert.equal(resumed.pendingApprovals?.[0].status, 'approved')
   assertRunTraceEventTypes(runtime, resumed.id, ['approval.resolved'])
@@ -924,7 +841,7 @@ test('run requiring approval can be rejected without executing the tool', async 
   const client = new FakeMCPClient()
   client.projectId = 42
   const runtime = createTestRuntime({ mcpClient: client })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请保存剧本' }] })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请创建一个项目「测试项目」' }] })
 
   const run = await createAndWaitForRun(runtime, thread.id, {
     agentManifest: WRITE_AGENT_MANIFEST,
@@ -935,7 +852,7 @@ test('run requiring approval can be rejected without executing the tool', async 
 
   assert.equal(rejected.status, 'completed_with_warnings')
   assert.equal(rejected.pendingApprovals?.[0].status, 'rejected')
-  assert.equal(client.calls.some((call) => call.name === 'movscript_create_script'), false)
+  assert.equal(client.calls.some((call) => call.name === 'movscript_create_project'), false)
   assert.match(assistant?.content ?? '', /已取消需要确认的工具调用/)
   assertRunTraceEventTypes(runtime, rejected.id, ['approval.resolved'])
   assert.equal(findTraceEventByEventType(runtime, rejected.id, 'approval.resolved')?.data?.outcome, 'denied')
@@ -945,7 +862,7 @@ test('run can be cancelled while waiting for action', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const runtime = createTestRuntime({ mcpClient: client })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请保存剧本' }] })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请创建一个项目「测试项目」' }] })
 
   const run = await createAndWaitForRun(runtime, thread.id, {
     agentManifest: WRITE_AGENT_MANIFEST,
@@ -958,7 +875,7 @@ test('run can be cancelled while waiting for action', async () => {
   assert.equal(cancelled.pendingApprovals?.[0].status, 'rejected')
   assert.ok(cancelled.cancelledAt)
   assert.match(assistant?.content ?? '', /已停止当前会话/)
-  assert.equal(client.calls.some((call) => call.name === 'movscript_create_script'), false)
+  assert.equal(client.calls.some((call) => call.name === 'movscript_create_project'), false)
 })
 
 test('cancelling an already finished run returns the current run', async () => {
@@ -1127,25 +1044,25 @@ test('sandbox mode intercepts agent write-risk tools', async () => {
   const backendApplyClient = new FakeBackendApplyClient()
   const runtime = createTestRuntime({ mcpClient: client, backendApplyClient })
   const run = runtime.createToolRun({
-    title: 'Sandbox create script',
-    message: 'Sandbox create script',
+    title: 'Sandbox create project',
+    message: 'Sandbox create project',
     sandboxMode: true,
     agentManifest: WRITE_AGENT_MANIFEST,
     toolCall: {
-      name: 'movscript_create_script',
-      args: { projectId: 42, title: 'Draft script', content: 'Body' },
+      name: 'movscript_create_project',
+      args: { name: 'Sandbox project' },
     },
   })
 
   const finished = await waitForRun(runtime, run.id)
-  const sandboxed = finished.steps.find((step) => step.toolName === 'movscript_create_script')
+  const sandboxed = finished.steps.find((step) => step.toolName === 'movscript_create_project')
 
   assert.equal(finished.status, 'completed')
   assert.equal(Boolean(finished.pendingApprovals?.some((approval) => approval.status === 'pending')), false)
   assert.equal(sandboxed?.sandboxed, true)
   assert.equal(sandboxed?.roundSource, 'runtime_rule')
   assert.equal((sandboxed?.result as any)?.sandboxed, true)
-  assert.equal(backendApplyClient.createScriptCalls.length, 0)
+  assert.equal(client.calls.some((call) => call.name === 'movscript_create_project'), false)
 })
 
 test('persists threads, messages, runs, and steps across runtime rebuilds', async () => {
@@ -1617,7 +1534,7 @@ test('content unit storyboard proposal searches knowledge and creates a proposal
   }
 })
 
-test('records backend model gateway HTTP request and response in run trace', async () => {
+test('records backend OpenAI-compatible model HTTP request and response in run trace', async () => {
   const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-model-trace-'))
   const statePath = join(modelConfigDir, 'state.json')
   const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
@@ -1657,7 +1574,7 @@ test('records backend model gateway HTTP request and response in run trace', asy
     const assistantData = assistantEvent?.data as any
 
     assert.equal(run.warnings?.join('\n') ?? '', '')
-    assert.equal(requestData.request.url, 'http://localhost:8765/api/v1/model-gateway/chat/completions')
+    assert.equal(requestData.request.url, 'http://localhost:8765/v1/chat/completions')
     assert.equal(requestData.request.method, 'POST')
     assert.equal(requestData.request.headers.Authorization, undefined)
     assert.equal(requestData.request.body.model, 'model_config:13')
@@ -1810,11 +1727,11 @@ test('emits structured live trace events from streamed tool call deltas', async 
       callCount += 1
       if (callCount === 1) {
         const body = [
-          'data: {"choices":[{"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_stream_script","type":"function","function":{"name":"movscript_create_script","arguments":"{\\"title\\""}}]},"finish_reason":null}]}',
+          'data: {"choices":[{"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_stream_project","type":"function","function":{"name":"movscript_create_project","arguments":"{\\"name\\""}}]},"finish_reason":null}]}',
           '',
-          'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":":\\"雨夜便利店\\",\\"content\\":\\"雨夜。便利店。一个外卖员发现柜台后藏着一封没有寄出的信。\\""}}]},"finish_reason":null}]}',
+          'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":":\\"雨夜便利店\\""}}]},"finish_reason":null}]}',
           '',
-          'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":",\\"summary\\":\\"一个外卖员在雨夜便利店卷入旧信和失踪案。\\",\\"hook\\":\\"一封没有寄出的信指向十年前同一场雨。\\",\\"script_type\\":\\"short_drama\\"}"}}]},"finish_reason":"tool_calls"}]}',
+          'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"}"}}]},"finish_reason":"tool_calls"}]}',
           '',
           'data: [DONE]',
           '',
@@ -1845,7 +1762,7 @@ test('emits structured live trace events from streamed tool call deltas', async 
         ...DEFAULT_AGENT_MANIFEST,
         tools: [
           ...DEFAULT_AGENT_MANIFEST.tools,
-          { name: 'movscript_create_script', mode: 'allow', approval: 'never' },
+          { name: 'movscript_create_project', mode: 'allow', approval: 'never' },
         ],
       },
     })
@@ -1866,9 +1783,9 @@ test('emits structured live trace events from streamed tool call deltas', async 
     assert.deepEqual(new Set(liveToolEvents.map((event) => event.id)).size, 1)
     assert.equal(liveToolStreamEvents.every((event) => event.run === undefined), true)
     const finalStream = liveToolEvents.at(-1)?.data?.stream
-    assert.equal(finalStream?.toolCall?.name, 'movscript_create_script')
+    assert.equal(finalStream?.toolCall?.name, 'movscript_create_project')
     assert.equal(finalStream?.toolCall?.parseStatus, 'valid_json')
-    assert.deepEqual(finalStream?.toolCall?.argumentsJSON, { title: '雨夜便利店', content: '雨夜。便利店。一个外卖员发现柜台后藏着一封没有寄出的信。', summary: '一个外卖员在雨夜便利店卷入旧信和失踪案。', hook: '一封没有寄出的信指向十年前同一场雨。', script_type: 'short_drama' })
+    assert.deepEqual(finalStream?.toolCall?.argumentsJSON, { name: '雨夜便利店' })
     assert.deepEqual(completed.traceEvents ?? [], [])
     assert.equal(runtime.getRunTraceEvents(completed.id, { limit: Number.MAX_SAFE_INTEGER }).some((event) => event.title === 'Model tool call delta'), false)
   } finally {
@@ -1893,14 +1810,14 @@ test('model tool_calls are executed and fed back into the next model turn', asyn
       const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
       const messages = (body.messages as Array<{ role: string; content: string | null }>) ?? []
       if (isThreadTitleRequest(messages)) {
-        return new Response(JSON.stringify({ choices: [{ message: { content: '保存剧本' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+        return new Response(JSON.stringify({ choices: [{ message: { content: '创建项目' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
       }
       callCount += 1
       requests.push(body)
 
       if (callCount === 1) {
         assert.equal(Array.isArray(body.tools), true)
-        assert.equal((body.tools as any[]).some((tool) => tool?.function?.name === 'movscript_create_script'), true)
+        assert.equal((body.tools as any[]).some((tool) => tool?.function?.name === 'movscript_create_project'), true)
         return new Response(JSON.stringify({
           id: 'chatcmpl_tool_turn_1',
           choices: [{
@@ -1911,13 +1828,9 @@ test('model tool_calls are executed and fed back into the next model turn', asyn
                   id: 'call_read_context',
                   type: 'function',
                   function: {
-                    name: 'movscript_create_script',
+                    name: 'movscript_create_project',
                     arguments: JSON.stringify({
-                      title: '雨夜便利店',
-                      content: '雨夜。便利店。一个外卖员发现柜台后藏着一封没有寄出的信。',
-                      summary: '一个外卖员在雨夜便利店卷入旧信和失踪案。',
-                      hook: '一封没有寄出的信指向十年前同一场雨。',
-                      script_type: 'short_drama',
+                      name: '雨夜便利店',
                     }),
                   },
                 },
@@ -1952,13 +1865,13 @@ test('model tool_calls are executed and fed back into the next model turn', asyn
     const client = new FakeMCPClient()
     client.projectId = 42
     const runtime = createTestRuntime({ mcpClient: client })
-    const thread = runtime.createThread({ messages: [{ role: 'user', content: '保存剧本' }] })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: '创建项目' }] })
     const run = await createAndWaitForRun(runtime, thread.id, {
       agentManifest: {
         ...DEFAULT_AGENT_MANIFEST,
         tools: [
           ...DEFAULT_AGENT_MANIFEST.tools,
-          { name: 'movscript_create_script', mode: 'allow', approval: 'never' },
+          { name: 'movscript_create_project', mode: 'allow', approval: 'never' },
         ],
       },
     })
@@ -1970,11 +1883,9 @@ test('model tool_calls are executed and fed back into the next model turn', asyn
     assert.equal(runtime.listDrafts({ projectId: 42 }).length, 0)
     const ledger = run.metadata?.contextLedger as any
     assert.equal(ledger?.schema, 'movscript.context-ledger.v1')
-    assert.equal(ledger?.retrieved?.some((record: any) => record.ref?.type === 'project' && record.ref?.id === '42'), true)
-    assert.equal(ledger?.artifactRefs?.some((ref: any) => ref.type === 'project' && ref.id === '42'), true)
     const ledgerEvent = runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
       .find((event) => event.data && (event.data as any).eventType === 'context.ledger_updated')
-    assert.equal((ledgerEvent?.data as any)?.retrievedCount >= 1, true)
+    assert.ok(ledgerEvent)
     const secondMessages = requests[1]?.messages as any[]
     assert.equal(secondMessages.some((message) => message?.role === 'assistant' && Array.isArray(message.tool_calls)), true)
     assert.equal(secondMessages.some((message) => message?.role === 'tool' && message.tool_call_id === 'call_read_context'), true)
@@ -2009,25 +1920,21 @@ test('assistant content from multiple model turns is preserved in the final chat
       const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
       const messages = (body.messages as Array<{ role: string; content: string | null }>) ?? []
       if (isThreadTitleRequest(messages)) {
-        return new Response(JSON.stringify({ choices: [{ message: { content: '保存剧本' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+        return new Response(JSON.stringify({ choices: [{ message: { content: '创建项目' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
       }
       callCount += 1
       if (callCount === 1) {
         return new Response(JSON.stringify({
           choices: [{
             message: {
-              content: '先说明一下，我会先创建剧本，再给出结果。',
+              content: '先说明一下，我会先创建项目，再给出结果。',
               tool_calls: [{
-                id: 'call_create_script_turn_1',
+                id: 'call_create_project_turn_1',
                 type: 'function',
                 function: {
-                  name: 'movscript_create_script',
+                  name: 'movscript_create_project',
                   arguments: JSON.stringify({
-                    title: '雨夜便利店',
-                    content: '雨夜。便利店。一个外卖员发现柜台后藏着一封没有寄出的信。',
-                    summary: '一个外卖员在雨夜便利店卷入旧信和失踪案。',
-                    hook: '一封没有寄出的信指向十年前同一场雨。',
-                    script_type: 'short_drama',
+                    name: '雨夜便利店',
                   }),
                 },
               }],
@@ -2045,13 +1952,13 @@ test('assistant content from multiple model turns is preserved in the final chat
     const client = new FakeMCPClient()
     client.projectId = 42
     const runtime = createTestRuntime({ mcpClient: client })
-    const thread = runtime.createThread({ messages: [{ role: 'user', content: '保存剧本' }] })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: '创建项目' }] })
     const run = await createAndWaitForRun(runtime, thread.id, {
       agentManifest: {
         ...DEFAULT_AGENT_MANIFEST,
         tools: [
           ...DEFAULT_AGENT_MANIFEST.tools,
-          { name: 'movscript_create_script', mode: 'allow', approval: 'never' },
+          { name: 'movscript_create_project', mode: 'allow', approval: 'never' },
         ],
       },
     })
@@ -2701,7 +2608,7 @@ test('create_draft success writes draft memory', async () => {
   await createAndWaitForRun(runtime, thread.id, {
     agentManifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      tools: [{ name: 'movscript_create_script', mode: 'allow', approval: 'never' }],
+      tools: [{ name: 'movscript_create_project', mode: 'allow', approval: 'never' }],
     },
   })
 
@@ -2774,54 +2681,6 @@ test('drafts can be scoped by page key', async () => {
   const drafts = runtime.listDrafts({ projectId: 42, kind: 'production_proposal', status: 'draft', pageKey })
   assert.equal(drafts.length, 1)
   assert.equal(drafts[0]?.title, 'Scoped draft')
-})
-
-test('runtime list_drafts filters by kind and status locally', async () => {
-  const client = new FakeMCPClient()
-  client.projectId = 42
-  const draftStore = new InMemoryAgentDraftStore()
-  const kept = draftStore.createDraft({
-    projectId: 42,
-    kind: 'production_proposal',
-    title: 'Active proposal',
-    content: '{}',
-  })
-  const rejected = draftStore.createDraft({
-    projectId: 42,
-    kind: 'production_proposal',
-    title: 'Rejected proposal',
-    content: '{}',
-  })
-  draftStore.updateDraft(rejected.id, { status: 'rejected' })
-  draftStore.createDraft({
-    projectId: 42,
-    kind: 'note',
-    title: 'Unrelated note',
-    content: '{}',
-  })
-  const runtime = createTestRuntime({ mcpClient: client, draftStore })
-
-  const run = runtime.createToolRun({
-    toolCall: {
-      name: 'movscript_list_drafts',
-      args: {
-        projectId: 42,
-        kind: 'production_proposal',
-        status: 'draft',
-      },
-    },
-    agentManifest: {
-      ...DEFAULT_AGENT_MANIFEST,
-      tools: [{ name: 'movscript_list_drafts', mode: 'allow', approval: 'never' }],
-    },
-  })
-  const completed = await waitForRun(runtime, run.id)
-  const step = completed.steps.find((item) => item.toolName === 'movscript_list_drafts')
-  const drafts = ((step?.result as any)?.drafts ?? []) as Array<{ id: string }>
-
-  assert.equal(completed.status, 'completed')
-  assert.deepEqual(drafts.map((draft) => draft.id), [kept.id])
-  assert.equal(client.calls.some((call) => call.name === 'movscript_list_drafts'), false)
 })
 
 test('runtime reloads target-state local catalog tools for later runs', async () => {

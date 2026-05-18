@@ -20,7 +20,7 @@
   "toolRefs": [
     "tool://movscript_get_focus",
     "tool://movscript_read_project_scripts",
-    "tool://movscript_list_drafts"
+    "tool://movscript_get_draft"
   ],
   "toolScope": "intersect",
   "outputContract": "返回已验证进度、未关闭 drafts、阻塞项、未知项和推荐下一步 workflow。",

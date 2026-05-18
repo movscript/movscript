@@ -410,7 +410,7 @@ test('validateSettingsSnapshotReferences rejects missing backend model reference
     modelConfig: {
       model: 'model_config:404',
       modelConfigId: 404,
-      apiKind: 'backend_chat_completions',
+      apiKind: 'openai_chat_completions',
     },
   }), {
     textModels: [modelFixture(7)],
@@ -419,7 +419,7 @@ test('validateSettingsSnapshotReferences rejects missing backend model reference
     skills: [],
   })
 
-  assert.match(issues.map((issue) => issue.message).join('\n'), /backend model model_config:404 not found/)
+  assert.match(issues.map((issue) => issue.message).join('\n'), /model model_config:404 not found/)
 })
 
 test('validateSettingsSnapshotReferences allows direct API model ids outside backend model catalog', () => {

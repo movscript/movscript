@@ -39,7 +39,7 @@ test('projectRunOntoTask adds rollback policy artifacts once', () => {
     status: 'completed',
     metadata: {
       rollbackRecords: [{
-        call: { name: 'movscript_create_script' },
+        call: { name: 'movscript_create_project' },
         rollback: { policy: 'manual_compensation', reason: 'External write completed.' },
       }],
     },
@@ -57,7 +57,7 @@ test('projectRunOntoTask ignores non-plain rollback and subagent metadata record
   class RunMetadata {
     subagentName = 'Einstein'
     rollbackRecords = [{
-      call: { name: 'movscript_create_script' },
+      call: { name: 'movscript_create_project' },
       rollback: { policy: 'manual_compensation', reason: 'External write completed.' },
     }]
   }

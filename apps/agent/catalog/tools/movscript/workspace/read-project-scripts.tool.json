@@ -1,15 +1,37 @@
 {
   "name": "movscript_read_project_scripts",
-  "description": "读取当前或指定 project 中的 scripts，可选包含 script 正文。",
+  "description": "读取当前或指定 project 中的后端项目剧本 / Script，包括总剧本、分集剧本和正文内容。不要用 movscript_get_draft 读取剧本；movscript_get_draft 只读取 Agent 本地审阅 draft artifact。",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,
     "properties": {
       "projectId": {
-        "type": "number"
+        "type": "number",
+        "description": "项目 ID；省略时使用当前 UI project。"
+      },
+      "scriptId": {
+        "type": "number",
+        "description": "可选后端剧本 ID，用于读取单个剧本。"
+      },
+      "query": {
+        "type": "string",
+        "description": "可选文本查询，匹配 title、script_type、summary、description、characters、hook、plot_summary。"
+      },
+      "scriptTitle": {
+        "type": "string",
+        "description": "可选剧本标题，例如“总剧本”或“第一集”。"
       },
       "includeContent": {
-        "type": "boolean"
+        "type": "boolean",
+        "description": "为 true 时返回剧本正文 content。需要理解剧情、人物、台词或分场时必须设为 true。"
+      },
+      "contentLimit": {
+        "type": "number",
+        "description": "每个剧本最多返回多少正文字符；默认 8000，最大 50000。"
+      },
+      "limit": {
+        "type": "number",
+        "description": "未指定 scriptId 时最多返回多少个剧本；默认 50。"
       }
     }
   },

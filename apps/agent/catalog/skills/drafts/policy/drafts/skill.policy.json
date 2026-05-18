@@ -8,9 +8,7 @@
   "enabled": true,
   "scope": "global",
   "toolRefs": [
-    "tool://movscript_read_draft",
     "tool://movscript_get_draft",
-    "tool://movscript_list_drafts",
     "tool://movscript_update_draft"
   ],
   "outputContract": "明确说明 artifact 是本地审阅状态，还是已批准的后端写入目标。",

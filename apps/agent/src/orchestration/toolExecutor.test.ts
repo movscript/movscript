@@ -122,6 +122,71 @@ test('executeTool serves runtime knowledge search and bounded get', async () => 
   assert.equal(((body.result as any)?.content as string).length <= 32, true)
 })
 
+test('executeTool explains numeric draft ids are not backend script ids', async () => {
+  const options = {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('MCP should not be called for local draft tools')
+      },
+    }),
+    draftStore: new InMemoryAgentDraftStore(),
+  }
+
+  await assert.rejects(
+    () => executeTool({ name: 'movscript_get_draft', args: { draftId: 3 } }, options),
+    /not backend project script IDs.*movscript_read_project_scripts/s,
+  )
+})
+
+test('executeTool reads project standards from backend project data with context fallback', async () => {
+  const run = testRun()
+  run.metadata = {
+    context: {
+      project: {
+        id: 42,
+        name: 'Context Project',
+        aspect_ratio: '16:9',
+        visual_style: 'context style',
+        project_style: JSON.stringify({
+          camera_language: 'stable camera',
+          custom_rules: [{ key: 'qa', label: 'QA', value: 'Check every output.', prompt_role: 'quality_gate', enabled: true }],
+        }),
+      },
+    },
+  }
+  const options = {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('MCP should not be called for project standards')
+      },
+    }),
+    run,
+    backendApplyClient: {
+      async getProject(): Promise<any> {
+        return { performed: false, skippedReason: 'backend disabled in test' }
+      },
+    } as never,
+  }
+
+  const result = await executeTool({
+    name: 'movscript_get_project_standards',
+    args: { projectId: 42 },
+  }, options)
+
+  assert.equal((result.result as any)?.loaded, true)
+  assert.equal((result.result as any)?.source, 'run_context')
+  assert.equal((result.result as any)?.standards.core.aspect_ratio, '16:9')
+  assert.equal((result.result as any)?.standards.core.camera_language, 'stable camera')
+  assert.equal((result.result as any)?.standards.enabled_custom_rules[0].prompt_role, 'quality_gate')
+  assert.match(((result.result as any)?.warnings as string[]).join('\n'), /backend disabled/)
+})
+
 test('executeTool creates content unit proposal drafts after media proposal deprecation', async () => {
   const draftStore = new InMemoryAgentDraftStore()
   const result = await executeTool({
@@ -237,63 +302,6 @@ test('executeTool drops invalid numeric page entity ids from runtime draft sourc
     runId: 'run-1',
     threadId: 'thread-1',
   })
-})
-
-test('executeTool rejects invalid project ids for project-scoped backend writes', async () => {
-  for (const projectId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY]) {
-    await assert.rejects(
-      () => executeTool({
-        name: 'movscript_create_script',
-        args: { projectId, title: 'Invalid project script' },
-      }, {
-        ...testOptions({
-          async initialize(): Promise<JSONValue> {
-            return {}
-          },
-          async callTool(): Promise<JSONValue> {
-            throw new Error('MCP should not be called for runtime script creation')
-          },
-        }),
-        backendApplyClient: {
-          async createScript(): Promise<never> {
-            throw new Error('backend create should not be called for invalid project ids')
-          },
-        } as never,
-      }),
-      /create_script requires projectId/,
-    )
-  }
-})
-
-test('executeTool drops invalid user ids from create script backend auth', async () => {
-  const calls: Array<{ auth?: { userId?: number | string } }> = []
-  const result = await executeTool({
-    name: 'movscript_create_script',
-    args: {
-      projectId: 42,
-      createdByUserId: 7.5,
-      title: 'Script',
-      content: 'Body',
-    },
-  }, {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for runtime script creation')
-      },
-    }),
-    backendApplyClient: {
-      async createScript(_projectId: number, _payload: Record<string, JSONValue>, auth?: { userId?: number | string }): Promise<JSONValue> {
-        calls.push({ auth })
-        return { performed: true }
-      },
-    } as never,
-  })
-
-  assert.equal((result.result as any)?.status, 'created')
-  assert.deepEqual(calls[0]?.auth, {})
 })
 
 test('executeTool rejects invalid project ids for project proposals', async () => {

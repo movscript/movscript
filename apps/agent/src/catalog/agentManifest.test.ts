@@ -9,7 +9,7 @@ test('normalizes a valid current agent manifest', () => {
     version: '1.2.3',
     name: 'Content Unit Planner',
     tools: [
-      { name: 'movscript_create_script', mode: 'allow', approval: 'always' },
+      { name: 'movscript_create_project', mode: 'allow', approval: 'always' },
       { name: '', mode: 'allow' },
     ],
     metadata: { owner: 'studio' },

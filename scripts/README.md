@@ -14,6 +14,8 @@ Only cross-workspace runners and shared verifier helpers may live directly under
 
 Tests for scripts live under `tests/scripts/`, not in this directory. Keep `scripts/` limited to callable entrypoints and shared helpers.
 
+Do not add unmanaged `.mjs`, `.py`, or `.sh` files anywhere in the repository. Durable automation belongs in a governed script root with a manifest entry; test-only helpers belong under `tests/`.
+
 The maintained script-file inventory is `scripts/script-manifest.json`. Supported package scripts, Makefile targets, root script files, and release subcommands are governed by `scripts/script-surfaces.json`; validate both with:
 
 ```sh

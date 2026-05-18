@@ -133,8 +133,8 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
     targetEntityType: 'production',
     contentSchemaId: 'movscript.production_proposal.v1',
     seed: {
-      defaultMode: 'snapshot',
-      allowedModes: ['empty', 'snapshot'],
+      defaultMode: 'editable_snapshot',
+      allowedModes: ['empty', 'snapshot', 'editable_snapshot'],
       include: [
         'production',
         'production_script_brief',

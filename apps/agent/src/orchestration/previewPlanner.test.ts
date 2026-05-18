@@ -8,8 +8,8 @@ import { planPreviewToolRequests } from './previewPlanner.js'
 
 const registry = new StaticToolRegistry([
   {
-    name: 'movscript_create_script',
-    description: 'Create a script.',
+    name: 'movscript_create_project',
+    description: 'Create a project.',
     permission: 'project.write',
     risk: 'write',
     source: 'runtime',
@@ -22,7 +22,7 @@ test('planPreviewToolRequests predicts approval-gated write calls without draft 
   const draftStore = new InMemoryAgentDraftStore()
   const manifest = {
     ...DEFAULT_AGENT_MANIFEST,
-    tools: [{ name: 'movscript_create_script', mode: 'allow' as const, approval: 'always' as const }],
+    tools: [{ name: 'movscript_create_project', mode: 'allow' as const, approval: 'always' as const }],
   }
 
   const result = await planPreviewToolRequests({
@@ -42,7 +42,7 @@ test('planPreviewToolRequests predicts approval-gated write calls without draft 
       blocked: [],
       byName: {},
       available: [{
-        name: 'movscript_create_script',
+        name: 'movscript_create_project',
         source: 'runtime',
         registered: true,
         granted: true,
@@ -64,10 +64,10 @@ test('planPreviewToolRequests predicts approval-gated write calls without draft 
     memories: [],
     warnings: [],
     history: [],
-    userMessage: '保存剧本',
+    userMessage: '创建项目',
     command: {
       name: 'chat',
-      payload: '保存剧本',
+      payload: '创建项目',
       contextProfile: 'minimal',
       outputMode: 'natural',
       requiredTools: [],
@@ -94,8 +94,8 @@ test('planPreviewToolRequests predicts approval-gated write calls without draft 
         id: 'call_1',
           type: 'function',
           function: {
-          name: 'movscript_create_script',
-          arguments: JSON.stringify({ title: '雨夜便利店', content: '正文' }),
+          name: 'movscript_create_project',
+          arguments: JSON.stringify({ name: '雨夜便利店' }),
         },
       }],
       rawAssistantMessage: {
@@ -117,7 +117,7 @@ test('planPreviewToolRequests predicts approval-gated write calls without draft 
   assert.equal(result.toolCalls.length, 0)
   assert.equal(result.pendingApprovals.length, 1)
   assert.equal(result.pendingApprovals[0].id, 'approval_1')
-  assert.equal(result.pendingApprovals[0].toolName, 'movscript_create_script')
+  assert.equal(result.pendingApprovals[0].toolName, 'movscript_create_project')
   assert.equal(result.pendingApprovals[0].risk, 'write')
   assert.equal(result.pendingApprovals[0].preview, undefined)
 })

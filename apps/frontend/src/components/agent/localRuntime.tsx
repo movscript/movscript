@@ -3,11 +3,12 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, ListChecks, Loader2, ShieldCheck, Workflow, X } from 'lucide-react'
 import { Badge, Button } from '@movscript/ui'
-import i18n from '@/i18n'
 import { cn } from '@/lib/utils'
 import { approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, runStatusLabel } from '@/lib/agentRunUi'
-import type { AgentRun, AgentThread } from '@/lib/localAgentClient'
+import type { AgentRun } from '@/lib/localAgentClient'
 import type { ChatRunActivityEvent } from '@/store/agentStore'
+
+export { formatLocalAgentAssistantContent } from '@/lib/localAgentResult'
 
 type PendingApproval = NonNullable<AgentRun['pendingApprovals']>[number]
 type PendingInputRequest = NonNullable<AgentRun['pendingInputRequests']>[number]
@@ -36,33 +37,6 @@ export interface LocalAgentInputRequestCardProps {
 
 export function localAgentApprovalImpactText(approval: ApprovalLike): string {
   return approvalImpactLabel(approval)
-}
-
-export function formatLocalAgentAssistantContent(run: AgentRun, thread: Pick<AgentThread, 'messages'>) {
-  const t = i18n.t.bind(i18n)
-  const assistant = thread.messages.find((item) => item.id === run.assistantMessageId)
-    ?? [...thread.messages].reverse().find((item) => item.role === 'assistant')
-  const pendingApprovals = (run.pendingApprovals ?? []).filter((approval) => approval.status === 'pending')
-  const pendingInputs = (run.pendingInputRequests ?? []).filter((request) => request.status === 'pending')
-  const content = assistant?.content
-    ?? (run.status === 'failed'
-      ? t('agents.chat.workflow.failed', { error: run.error ?? t('agents.chat.workflow.unknownError') })
-      : run.status === 'cancelled'
-        ? t('agents.chat.workflow.cancelledMessage')
-        : run.status === 'requires_action'
-          ? pendingInputs.length > 0
-            ? t('agents.chat.workflow.needsInput', {
-              items: pendingInputs.map((request) => `- ${request.title}: ${request.question}`).join('\n'),
-            })
-            : t('agents.chat.workflow.needsApproval', {
-              items: pendingApprovals.map((approval) => `- ${approval.toolName}: ${approval.reason}`).join('\n') || t('agents.chat.workflow.waitingForToolCallConfirmation'),
-            })
-          : t('agents.chat.workflow.noAssistantMessage'))
-
-  if (run.status !== 'completed_with_warnings' || !run.warnings?.length) return content
-  const missing = run.warnings.filter((warning) => !content.includes(warning))
-  if (missing.length === 0) return content
-  return `${content}\n\n${t('agents.chat.workflow.warnings')}:\n${missing.map((warning) => `- ${warning}`).join('\n')}`
 }
 
 export function LocalAgentInputRequestCard({

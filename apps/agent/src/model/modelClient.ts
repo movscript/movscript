@@ -1,6 +1,7 @@
 import { setTimeout as sleep } from 'node:timers/promises'
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
+import { ensureJSONModeMessages } from './modelConfig.js'
 import type {
   RuntimeModelChatMessage,
   RuntimeModelChatTool,
@@ -15,7 +16,6 @@ import type {
   ConfiguredRuntimeModelConfig,
   RuntimeModelAPIKind,
 } from './modelConfig.js'
-import { buildBackendGatewayChatRequest } from './modelConfig.js'
 import { isJSONRecord } from '../jsonValue.js'
 
 export interface ModelCallInput {
@@ -96,8 +96,6 @@ export async function callModel(input: ModelCallInput): Promise<ModelCallResult>
 
 async function callModelOnce(input: ModelCallInput): Promise<ModelCallResult> {
   switch (runtimeModelAPIKind(input.config)) {
-    case 'backend_chat_completions':
-      return callBackendChatCompletionsModelOnce(input)
     case 'openai_chat_completions':
       return callOpenAIChatCompletionsModelOnce(input)
     case 'openai_responses':
@@ -107,33 +105,25 @@ async function callModelOnce(input: ModelCallInput): Promise<ModelCallResult> {
   }
 }
 
-async function callBackendChatCompletionsModelOnce(input: ModelCallInput): Promise<ModelCallResult> {
-  const { config, auth = {}, messages, tools = [], toolChoice, temperature, jsonMode, onTrace } = input
-
-  const request = buildBackendGatewayChatRequest(config, messages, auth, {
-    temperature,
-    jsonMode,
-    tools: tools.length > 0 ? tools : undefined,
-    toolChoice: tools.length > 0 ? (toolChoice ?? 'auto') : undefined,
-  })
-
+async function callOpenAIChatCompletionsModelOnce(input: ModelCallInput): Promise<ModelCallResult> {
+  const request = buildOpenAIChatCompletionsSDKRequest(input)
   const started = Date.now()
   const publicRequest = sanitizeRequestSnapshot(request)
   let trace: RuntimeModelHTTPTrace = { request: publicRequest, latencyMs: 0 }
-  onTrace?.({ phase: 'request', trace })
+  input.onTrace?.({ phase: 'request', trace })
 
   let response: Response
   try {
     response = await fetch(request.url, {
       method: request.method,
       headers: request.headers,
-      body: JSON.stringify(request.body),
+      body: JSON.stringify(sdkRequestBody(request)),
       signal: input.signal,
     })
   } catch (error) {
     trace = { request: publicRequest, latencyMs: Date.now() - started }
     const message = error instanceof Error ? error.message : String(error)
-    onTrace?.({ phase: 'error', trace, error: message })
+    input.onTrace?.({ phase: 'error', trace, error: message })
     throw error
   }
 
@@ -144,24 +134,11 @@ async function callBackendChatCompletionsModelOnce(input: ModelCallInput): Promi
       started,
       publicRequest,
       responseHeaders,
-      onTrace,
+      onTrace: input.onTrace,
       signal: input.signal,
     })
     : await response.text()
-  const latencyMs = Date.now() - started
-
   const parsedResult = parseGatewayModelResponse(responseText, responseContentType)
-  const parsed = parsedResult.parsedBody
-
-  const content = parsedResult.content
-  const rawToolCalls = parsedResult.tool_calls
-  const finishReason = parsedResult.finish_reason
-  const usage = parsedResult.usage
-    ? { input_tokens: parsedResult.usage.prompt_tokens ?? 0, output_tokens: parsedResult.usage.completion_tokens ?? 0 }
-    : undefined
-
-  const rawAssistantMessage = parsedResult.rawAssistantMessage
-
   trace = {
     request: publicRequest,
     response: {
@@ -170,75 +147,37 @@ async function callBackendChatCompletionsModelOnce(input: ModelCallInput): Promi
       ok: response.ok,
       headers: responseHeaders,
       bodyText: responseText,
-      ...(parsed !== undefined ? { parsedBody: parsed } : {}),
-      ...(content ? { content } : {}),
+      ...(parsedResult.parsedBody !== undefined ? { parsedBody: parsedResult.parsedBody } : {}),
+      ...(parsedResult.content ? { content: parsedResult.content } : {}),
     },
-    latencyMs,
+    latencyMs: Date.now() - started,
   }
-  onTrace?.({ phase: 'response', trace })
+  input.onTrace?.({ phase: 'response', trace })
 
   if (!response.ok) {
     const error = new ModelCallHTTPError(response.status, responseText)
-    onTrace?.({ phase: 'error', trace, error: error.message })
+    input.onTrace?.({ phase: 'error', trace, error: error.message })
     throw error
   }
   if (!parsedResult.ok) {
     const error = parsedResult.error ?? 'backend model gateway returned invalid response'
-    onTrace?.({ phase: 'error', trace, error })
+    input.onTrace?.({ phase: 'error', trace, error })
     throw new Error(error)
   }
-  if (content === null && rawToolCalls.length === 0) {
+  if (parsedResult.content === null && parsedResult.tool_calls.length === 0) {
     const error = 'backend model gateway returned no assistant content and no tool calls'
-    onTrace?.({ phase: 'error', trace, error })
+    input.onTrace?.({ phase: 'error', trace, error })
     throw new Error(error)
   }
-
-  return { content, tool_calls: rawToolCalls, finish_reason: finishReason, usage, rawAssistantMessage, trace }
-}
-
-async function callOpenAIChatCompletionsModelOnce(input: ModelCallInput): Promise<ModelCallResult> {
-  const request = buildOpenAIChatCompletionsSDKRequest(input)
-  const started = Date.now()
-  const publicRequest = sanitizeRequestSnapshot(request)
-  let trace: RuntimeModelHTTPTrace = { request: publicRequest, latencyMs: 0 }
-  input.onTrace?.({ phase: 'request', trace })
-
-  try {
-    const client = await createOpenAISDKClient(input)
-    const completion = await client.chat.completions.create(sdkRequestBody(request), { signal: input.signal })
-    const parsedResult = parseGatewayModelResponse(JSON.stringify(completion), 'application/json')
-    trace = {
-      request: publicRequest,
-      response: {
-        status: 200,
-        statusText: 'OK',
-        ok: true,
-        headers: {},
-        bodyText: JSON.stringify(completion),
-        parsedBody: completion,
-        ...(parsedResult.content ? { content: parsedResult.content } : {}),
-      },
-      latencyMs: Date.now() - started,
-    }
-    input.onTrace?.({ phase: 'response', trace })
-    if (parsedResult.content === null && parsedResult.tool_calls.length === 0) {
-      throw new Error('backend model gateway returned no assistant content and no tool calls')
-    }
-    return {
-      content: parsedResult.content,
-      tool_calls: parsedResult.tool_calls,
-      finish_reason: parsedResult.finish_reason,
-      usage: parsedResult.usage
-        ? { input_tokens: parsedResult.usage.prompt_tokens ?? 0, output_tokens: parsedResult.usage.completion_tokens ?? 0 }
-        : undefined,
-      rawAssistantMessage: parsedResult.rawAssistantMessage,
-      trace,
-    }
-  } catch (error) {
-    trace = { request: publicRequest, latencyMs: Date.now() - started }
-    const message = error instanceof Error ? error.message : String(error)
-    input.onTrace?.({ phase: 'error', trace, error: message })
-    throw error
+  return {
+    content: parsedResult.content,
+    tool_calls: parsedResult.tool_calls,
+    finish_reason: parsedResult.finish_reason,
+    usage: parsedResult.usage
+      ? { input_tokens: parsedResult.usage.prompt_tokens ?? 0, output_tokens: parsedResult.usage.completion_tokens ?? 0 }
+      : undefined,
+    rawAssistantMessage: parsedResult.rawAssistantMessage,
+    trace,
   }
 }
 
@@ -366,13 +305,6 @@ function minimalRetryTrace(input: ModelCallInput): RuntimeModelHTTPTrace {
 
 function buildRequestSnapshotForRetry(input: ModelCallInput): RuntimeModelRequestSnapshot {
   switch (runtimeModelAPIKind(input.config)) {
-    case 'backend_chat_completions':
-      return buildBackendGatewayChatRequest(input.config, input.messages, input.auth ?? {}, {
-        temperature: input.temperature,
-        jsonMode: input.jsonMode,
-        tools: input.tools && input.tools.length > 0 ? input.tools : undefined,
-        toolChoice: input.tools && input.tools.length > 0 ? (input.toolChoice ?? 'auto') : undefined,
-      })
     case 'openai_chat_completions':
       return buildOpenAIChatCompletionsSDKRequest(input)
     case 'openai_responses':
@@ -383,7 +315,7 @@ function buildRequestSnapshotForRetry(input: ModelCallInput): RuntimeModelReques
 }
 
 function runtimeModelAPIKind(config: ConfiguredRuntimeModelConfig): RuntimeModelAPIKind {
-  return config.apiKind ?? 'backend_chat_completions'
+  return config.apiKind ?? 'openai_chat_completions'
 }
 
 function modelIdentifier(config: ConfiguredRuntimeModelConfig): string {
@@ -469,31 +401,64 @@ function resolveModelAPIKey(input: ModelCallInput): string {
   const apiKind = runtimeModelAPIKind(input.config)
   const value = resolveOptionalModelAPIKey(input)
   if (!value) {
-    throw new Error(apiKind === 'backend_chat_completions'
-      ? `${apiKind} requires a backend auth token or gateway API key`
-      : `${apiKind} requires MOVSCRIPT_AGENT_MODEL_API_KEY or MOVSCRIPT_MODEL_GATEWAY_API_KEY`)
+    throw new Error(usesBackendCompatibleBaseURL(input)
+      ? `${apiKind} requires a backend auth token`
+      : `${apiKind} requires an API key in model settings`)
   }
   return value
 }
 
 function resolveOptionalModelAPIKey(input: ModelCallInput): string | undefined {
-  const apiKind = runtimeModelAPIKind(input.config)
-  const value = apiKind === 'backend_chat_completions'
-    ? input.auth?.backendAuthToken || process.env.MOVSCRIPT_AGENT_MODEL_API_KEY || process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
-    : process.env.MOVSCRIPT_AGENT_MODEL_API_KEY || process.env.MOVSCRIPT_MODEL_GATEWAY_API_KEY
+  const value = shouldUseBackendRequestAuth(input)
+    ? input.auth?.backendAuthToken
+    : input.config.apiKey
   return value?.trim() || undefined
 }
 
 function resolveStandardModelBaseURL(config: ConfiguredRuntimeModelConfig, auth?: RuntimeModelAuthContext): string {
   const explicit = config.baseURL || process.env.MOVSCRIPT_AGENT_MODEL_BASE_URL
-  if (explicit?.trim()) return explicit.trim().replace(/\/+$/, '')
-  const apiKind = runtimeModelAPIKind(config)
-  if (apiKind === 'openai_chat_completions' || apiKind === 'openai_responses') return 'https://api.openai.com/v1'
-  if (apiKind === 'anthropic_messages') return 'https://api.anthropic.com/v1'
-  const raw = auth?.backendAPIBaseURL || process.env.MOVSCRIPT_BACKEND_API_BASE_URL || process.env.MOVSCRIPT_API_BASE_URL || 'http://localhost:8765'
+  if (explicit?.trim()) {
+    return isBackendCompatibleURL(explicit, auth)
+      ? resolveCompatibleGatewayBaseURL(explicit)
+      : explicit.trim().replace(/\/+$/, '')
+  }
+  return resolveCompatibleGatewayBaseURL(resolveBackendBaseURL(auth))
+}
+
+function shouldUseBackendRequestAuth(input: ModelCallInput): boolean {
+  if (!input.auth?.backendAuthToken) return false
+  return usesBackendCompatibleBaseURL(input)
+}
+
+function usesBackendCompatibleBaseURL(input: ModelCallInput): boolean {
+  const explicit = input.config.baseURL?.trim() || process.env.MOVSCRIPT_AGENT_MODEL_BASE_URL?.trim()
+  if (!explicit) return true
+  return isBackendCompatibleURL(explicit, input.auth)
+}
+
+function isBackendCompatibleURL(value: string, auth?: RuntimeModelAuthContext): boolean {
+  return sameURLOrigin(resolveCompatibleGatewayBaseURL(value), resolveCompatibleGatewayBaseURL(resolveBackendBaseURL(auth)))
+}
+
+function resolveBackendBaseURL(auth?: RuntimeModelAuthContext): string {
+  return auth?.backendAPIBaseURL
+    || process.env.MOVSCRIPT_BACKEND_API_BASE_URL
+    || process.env.MOVSCRIPT_API_BASE_URL
+    || 'http://localhost:8765'
+}
+
+function sameURLOrigin(left: string, right: string): boolean {
+  try {
+    return new URL(left).origin === new URL(right).origin
+  } catch {
+    return false
+  }
+}
+
+function resolveCompatibleGatewayBaseURL(raw: string): string {
   const normalized = raw.trim().replace(/\/+$/, '')
-  if (normalized.endsWith('/v1')) return normalized
   if (normalized.endsWith('/api/v1')) return `${normalized.slice(0, -'/api/v1'.length)}/v1`
+  if (normalized.endsWith('/v1')) return normalized
   return `${normalized}/v1`
 }
 
@@ -519,17 +484,6 @@ async function createAnthropicSDKClient(input: ModelCallInput): Promise<any> {
 function resolveAnthropicSDKBaseURL(config: ConfiguredRuntimeModelConfig, auth?: RuntimeModelAuthContext): string {
   const baseURL = resolveAnthropicMessagesBaseURL(config, auth)
   return baseURL.endsWith('/v1') ? baseURL.slice(0, -'/v1'.length) : baseURL
-}
-
-function ensureJSONModeMessages(messages: RuntimeModelChatMessage[]): RuntimeModelChatMessage[] {
-  if (messages.some((message) => /\bjson\b/i.test(message.content ?? ''))) return messages
-  return [
-    {
-      role: 'system',
-      content: 'JSON mode is enabled. Return only a valid JSON object with no markdown fences.',
-    },
-    ...messages,
-  ]
 }
 
 function toOpenAIResponsesInput(messages: RuntimeModelChatMessage[]): unknown[] {

@@ -33,6 +33,12 @@ Draft / Proposal：
 - Draft 是本地可审阅 artifact，不是正式项目数据。
 - Proposal 是带 schema 的 draft，用于表达某一层可审阅结构或语义变更；不要把真实媒体生成伪装成 proposal。
 
+Script / 剧本：
+- 剧本是后端项目数据，包含总剧本、分集剧本、正文 content、摘要、人物、钩子、剧情点和排序等字段。
+- 读取剧本列表、指定剧本或剧本正文时，使用 `movscript_read_project_scripts`；需要理解剧情、人物关系、台词、分场或拆分时必须设置 `includeContent: true`。
+- 用户说“剧本草稿”“总剧本草稿”“第一集草稿”时，除非明确给出 Agent 本地 `draftId`，优先理解为后端项目剧本 / Script，而不是本地 Draft artifact。
+- 不要把后端剧本 ID 当作 `movscript_get_draft.draftId`；`movscript_get_draft` 只接受本地 proposal/draft artifact ID。
+
 Generation job：
 - 是生成任务，不是媒体结果。
 - 只有工具结果包含输出资源或媒体预览时，才能说生成结果存在。

@@ -584,8 +584,9 @@ export interface RuntimeModelConfigPublic {
   provider: 'backend-model-config'
   modelConfigId?: number
   model: string
-  apiKind?: 'backend_chat_completions' | 'openai_chat_completions' | 'openai_responses' | 'anthropic_messages'
+  apiKind?: 'openai_chat_completions' | 'openai_responses' | 'anthropic_messages'
   baseURL?: string
+  apiKeyConfigured?: boolean
   useForChat: boolean
   useForPlanner: boolean
   updatedAt?: string
@@ -975,8 +976,9 @@ export class LocalAgentClient {
   saveModelConfig(input: {
     modelConfigId?: number
     model: string
-    apiKind?: 'backend_chat_completions' | 'openai_chat_completions' | 'openai_responses' | 'anthropic_messages'
+    apiKind?: 'openai_chat_completions' | 'openai_responses' | 'anthropic_messages'
     baseURL?: string
+    apiKey?: string
     useForChat?: boolean
     useForPlanner?: boolean
   }): Promise<RuntimeModelConfigPublic> {

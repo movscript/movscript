@@ -111,9 +111,10 @@ Known verification blockers in a dependency-incomplete workspace:
 
 Current local snapshot on 2026-05-18:
 
-- Passed: focused candidate tests, backend `go test ./...`, `pnpm --filter movscript-frontend test:generation-contract`, root `pnpm run typecheck`, `pnpm run test:scripts`, `node tests/scripts/agent/candidate-feature-source.test.mjs`, and `git diff --check`.
-- Blocked after dependency preflight: offline store is missing `@radix-ui/react-toast-1.2.15.tgz`; the failed offline install left `node_modules` incomplete, so dependency-based gates must be rerun after dependencies are restored.
-- Not yet completed: browser / Electron E2E and the manual release acceptance checklist below.
+- Passed: focused candidate tests, backend `go test ./...`, `pnpm --filter movscript-frontend test:generation-contract`, `pnpm --filter movscript-frontend test`, root `pnpm run typecheck`, `pnpm run test:scripts`, `node tests/scripts/agent/candidate-feature-source.test.mjs`, and `git diff --check`.
+- Still blocked for clean dependency restore: offline store preflight reports the missing `@radix-ui/react-toast-1.2.15.tgz` tarball, so `CI=true pnpm install --offline --frozen-lockfile` is not a reliable clean install gate yet.
+- Browser E2E attempted with `pnpm --filter movscript-frontend exec playwright test src/e2e/agent-generation.spec.ts --reporter=line`; blocked by sandbox `listen EPERM` on `127.0.0.1:4179` before assertions ran.
+- Not yet completed: browser / Electron E2E in a local-port-capable environment and the manual release acceptance checklist below.
 
 ## Release Acceptance Checklist
 

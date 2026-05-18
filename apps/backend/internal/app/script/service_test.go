@@ -40,6 +40,29 @@ func TestNormalizeDefaultsBackfillsContentFromRawSource(t *testing.T) {
 	}
 }
 
+func TestCreateScriptDoesNotCreateEmptyInitialVersion(t *testing.T) {
+	db := newScriptTestDB(t)
+	service := NewService(db.Session(&gorm.Session{SkipHooks: true}))
+	ctx := context.Background()
+
+	item, err := service.Create(ctx, CreateInput{
+		ProjectID: 1,
+		AuthorID:  1,
+		Script:    dto.ScriptInput{Title: "Empty Draft"},
+	})
+	if err != nil {
+		t.Fatalf("create script: %v", err)
+	}
+
+	var count int64
+	if err := db.Model(&model.ScriptVersion{}).Where("project_id = ? AND script_id = ?", 1, item.ID).Count(&count).Error; err != nil {
+		t.Fatalf("count versions: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("empty script version count = %d, want 0", count)
+	}
+}
+
 func TestEnsureInitialVersionCreatesImmutableSnapshotWithoutHooks(t *testing.T) {
 	db := newScriptTestDB(t)
 	service := NewService(db.Session(&gorm.Session{SkipHooks: true}))

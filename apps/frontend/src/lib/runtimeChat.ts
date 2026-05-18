@@ -7,7 +7,6 @@ import { localAgentClient } from '@/lib/localAgentClient'
 import { useAgentSessionStore } from '@/store/agentSessionStore'
 
 export type RuntimeModelAPIKind =
-  | 'backend_chat_completions'
   | 'openai_chat_completions'
   | 'openai_responses'
   | 'anthropic_messages'

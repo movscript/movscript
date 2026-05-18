@@ -34,13 +34,13 @@ Draft schema：{{schema:movscript.project_proposal.v1.id}}
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
 - Draft 模型：{{tool:movscript_get_draft_model}}
-- Draft 查找/读取/创建/编辑：{{tool:movscript_list_drafts}} {{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
+- Draft 读取/创建/编辑：{{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
 - 用户输入：{{tool:movscript_request_user_input}}
 
 流程：
 1. 读取当前 focus。如果 projectId 缺失且无法推断，用 movscript_request_user_input 询问。
 2. 获取 project_proposal 的 draft model 契约；若暂不可用，使用 schema fallback 并在输出中说明。
-3. 查找已有 project_proposal draft；如果不存在，则用 proposal=true 创建一个，source/target 记录 project 锚点，并把 MCP 返回的 seed/modelRef 作为 movscript_create_draft.seed 传入。
+3. 如果当前会话已有 project_proposal draftId，先读取它；否则用 proposal=true 创建一个，source/target 记录 project 锚点，并把 MCP 返回的 seed/modelRef 作为 movscript_create_draft.seed 传入。
 4. 修改现有 draft 前必须先读取内容。
 5. 只 patch proposal.project_style；draft 中不得出现 creative_references 或 asset_slots。
 6. Validate draft。当前 applyBoundary 若为 draft_only，不运行正式 preview apply；只报告本地 validation 状态和未决规范。

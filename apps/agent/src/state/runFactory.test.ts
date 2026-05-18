@@ -4,16 +4,16 @@ import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import { buildAgentRun, buildRunCreationMetadata } from './runFactory.js'
 
 test('buildAgentRun assembles lifecycle defaults and optional runtime metadata', () => {
-  const approvedToolNames = ['movscript_create_script']
+  const approvedToolNames = ['movscript_create_project']
   const clientInput = { message: 'hello', nested: { selected: true } }
-  const forcedToolCall = { name: 'movscript_create_script', args: { title: 'Draft script' } }
+  const forcedToolCall = { name: 'movscript_create_project', args: { name: 'Draft project' } }
   const runInput = {
     schema: 'movscript.agent.run-input.v1' as const,
     userMessage: 'hello',
     clientInput: { message: 'hello', nested: { selected: true } },
     sourceMessageId: 'msg_1',
     executionMode: 'tool' as const,
-    forcedToolCall: { name: 'movscript_create_script', args: { title: 'Draft script' } },
+    forcedToolCall: { name: 'movscript_create_project', args: { name: 'Draft project' } },
     task: {
       id: 'task_1',
       title: 'Draft outline',
@@ -48,9 +48,9 @@ test('buildAgentRun assembles lifecycle defaults and optional runtime metadata',
 
   approvedToolNames.push('changed_tool')
   clientInput.nested.selected = false
-  forcedToolCall.args.title = 'Changed script'
+  forcedToolCall.args.name = 'Changed project'
   runInput.clientInput.nested.selected = false
-  runInput.forcedToolCall.args.title = 'Changed script'
+  runInput.forcedToolCall.args.name = 'Changed project'
   runInput.task.expectedArtifacts.push('changed.md')
 
   assert.equal(run.status, 'queued')
@@ -63,10 +63,10 @@ test('buildAgentRun assembles lifecycle defaults and optional runtime metadata',
   assert.equal(run.input?.sourceMessageId, 'msg_1')
   assert.equal(run.input?.executionMode, 'tool')
   assert.deepEqual(run.input?.clientInput, { message: 'hello', nested: { selected: true } })
-  assert.deepEqual(run.input?.forcedToolCall, { name: 'movscript_create_script', args: { title: 'Draft script' } })
+  assert.deepEqual(run.input?.forcedToolCall, { name: 'movscript_create_project', args: { name: 'Draft project' } })
   assert.deepEqual(run.input?.task?.expectedArtifacts, ['outline.md'])
-  assert.deepEqual(run.metadata?.approvedToolNames, ['movscript_create_script'])
-  assert.deepEqual(run.metadata?.forcedToolCall, { name: 'movscript_create_script', args: { title: 'Draft script' } })
+  assert.deepEqual(run.metadata?.approvedToolNames, ['movscript_create_project'])
+  assert.deepEqual(run.metadata?.forcedToolCall, { name: 'movscript_create_project', args: { name: 'Draft project' } })
   assert.deepEqual(run.metadata?.clientInput, { message: 'hello', nested: { selected: true } })
   assert.equal(run.metadata?.runtimeContractId, 'contract_1')
   assert.equal(run.metadata?.runtimeRequiresConfiguredModel, true)

@@ -9,6 +9,7 @@ export interface RuntimeModelConfig {
   model: string
   apiKind?: RuntimeModelAPIKind
   baseURL?: string
+  apiKey?: string
   useForChat: boolean
   useForPlanner: boolean
   updatedAt: string
@@ -21,6 +22,7 @@ export interface RuntimeModelConfigPublic {
   model: string
   apiKind: RuntimeModelAPIKind
   baseURL?: string
+  apiKeyConfigured: boolean
   useForChat: boolean
   useForPlanner: boolean
   updatedAt?: string
@@ -33,6 +35,7 @@ export interface RuntimeModelConfigInput {
   model?: unknown
   apiKind?: unknown
   baseURL?: unknown
+  apiKey?: unknown
   useForChat?: unknown
   useForPlanner?: unknown
 }
@@ -54,7 +57,6 @@ export interface RuntimeModelAuthContext {
 export class RuntimeModelConfigInputError extends Error {}
 
 export const RUNTIME_MODEL_API_KINDS = [
-  'backend_chat_completions',
   'openai_chat_completions',
   'openai_responses',
   'anthropic_messages',
@@ -172,9 +174,8 @@ export type RuntimeModelTraceCallback = (event: {
   }
 }) => void
 
-const DEFAULT_BACKEND_API_BASE_URL = 'http://localhost:8765/api/v1'
 const DEFAULT_BACKEND_MODEL = 'movscript-default-chat'
-const DEFAULT_RUNTIME_MODEL_API_KIND: RuntimeModelAPIKind = 'backend_chat_completions'
+const DEFAULT_RUNTIME_MODEL_API_KIND: RuntimeModelAPIKind = 'openai_chat_completions'
 const SENSITIVE_RUNTIME_MODEL_URL_PARAM_PATTERN = /^(token|access_token|refresh_token|id_token|api_key|apikey|key|signature|sig|secret)$/i
 const AUTHORIZATION_INLINE_SECRET_PATTERN = /\bauthorization\s*[:=]\s*(?:bearer\s+)?[^\s"',;&]+/i
 const NAMED_INLINE_SECRET_PATTERN = /\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|secret|password)\s*[:=]\s*[^\s"',;&]+/i
@@ -226,6 +227,7 @@ export class RuntimeModelConfigStore {
         provider: 'backend-model-config',
         model: DEFAULT_BACKEND_MODEL,
         apiKind: DEFAULT_RUNTIME_MODEL_API_KIND,
+        apiKeyConfigured: false,
         useForChat: true,
         useForPlanner: true,
         source: 'none',
@@ -239,6 +241,7 @@ export class RuntimeModelConfigStore {
       model: fileConfig.model,
       apiKind: fileConfig.apiKind ?? DEFAULT_RUNTIME_MODEL_API_KIND,
       baseURL: fileConfig.baseURL,
+      apiKeyConfigured: Boolean(fileConfig.apiKey?.trim()),
       useForChat: fileConfig.useForChat,
       useForPlanner: fileConfig.useForPlanner,
       updatedAt: fileConfig.updatedAt,
@@ -258,7 +261,10 @@ export class RuntimeModelConfigStore {
     const baseURL = input.baseURL !== undefined
       ? parseOptionalSaveBaseURL(input.baseURL)
       : preserveExistingBaseURL ? existing?.baseURL : undefined
-    if (apiKind !== 'backend_chat_completions' && hasSensitiveRuntimeModelText(model)) {
+    const apiKey = input.apiKey !== undefined
+      ? parseOptionalSaveAPIKey(input.apiKey)
+      : existing?.apiKey
+    if (hasSensitiveRuntimeModelText(model)) {
       throw new RuntimeModelConfigInputError('model must not include API keys, bearer tokens, or secret URL credentials')
     }
     if (hasSensitiveRuntimeModelURL(baseURL)) {
@@ -273,6 +279,7 @@ export class RuntimeModelConfigStore {
       model,
       apiKind,
       ...(baseURL ? { baseURL } : {}),
+      ...(apiKey ? { apiKey } : {}),
       useForChat,
       useForPlanner,
       updatedAt: new Date().toISOString(),
@@ -325,8 +332,9 @@ export class RuntimeModelConfigStore {
     const useForPlanner = parsed.useForPlanner !== false
     if (!useForChat && !useForPlanner) return undefined
     const apiKind = normalizeRuntimeModelAPIKind(parsed.apiKind) ?? DEFAULT_RUNTIME_MODEL_API_KIND
-    if (apiKind !== 'backend_chat_completions' && hasSensitiveRuntimeModelText(model)) return undefined
+    if (hasSensitiveRuntimeModelText(model)) return undefined
     const baseURL = normalizeNonEmptyString(parsed.baseURL)
+    const apiKey = normalizeNonEmptyString(parsed.apiKey)
     if (hasSensitiveRuntimeModelURL(baseURL)) return undefined
     return {
       provider: 'backend-model-config',
@@ -334,6 +342,7 @@ export class RuntimeModelConfigStore {
       model,
       apiKind,
       ...(baseURL ? { baseURL } : {}),
+      ...(apiKey ? { apiKey } : {}),
       useForChat,
       useForPlanner,
       updatedAt: normalizeNonEmptyString(parsed.updatedAt) ?? new Date(0).toISOString(),
@@ -348,11 +357,14 @@ export function resolveRuntimeModelConfigPath(statePath = resolveAgentStatePath(
 }
 
 export function describeRuntimeModelCredentialStatus(config: RuntimeModelConfig | undefined): RuntimeModelCredentialStatus {
-  const acceptedEnv = ['MOVSCRIPT_AGENT_MODEL_API_KEY', 'MOVSCRIPT_MODEL_GATEWAY_API_KEY']
-  const sourceEnv = acceptedEnv.filter((name) => Boolean(process.env[name]?.trim()))
+  const acceptedEnv = ['model settings API key']
+  const sourceEnv = config?.apiKey?.trim() ? ['model settings API key'] : []
   const apiKind = config?.apiKind ?? DEFAULT_RUNTIME_MODEL_API_KIND
+  const usesBackendCompatibleGateway = Boolean(config)
+    && isBackendCompatibleConfigBaseURL(config?.baseURL)
+    && !process.env.MOVSCRIPT_AGENT_MODEL_BASE_URL?.trim()
   return {
-    required: apiKind !== 'backend_chat_completions' && Boolean(config),
+    required: Boolean(config) && !usesBackendCompatibleGateway,
     configured: sourceEnv.length > 0,
     sourceEnv,
     acceptedEnv,
@@ -374,37 +386,7 @@ export function resolveRuntimePlannerModelConfig(store = new RuntimeModelConfigS
   return config?.model?.trim() && config.useForPlanner ? config : undefined
 }
 
-export function buildBackendGatewayChatRequest(
-  config: ConfiguredRuntimeModelConfig,
-  messages: RuntimeModelChatMessage[],
-  auth: RuntimeModelAuthContext = {},
-  options: { temperature?: number; jsonMode?: boolean; tools?: RuntimeModelChatTool[]; toolChoice?: RuntimeModelToolChoice } = {},
-): RuntimeModelRequestSnapshot {
-  const requestMessages = options.jsonMode ? ensureJSONModeMessages(messages) : messages
-  const headers: Record<string, string> = {
-    Accept: 'text/event-stream',
-    'Content-Type': 'application/json',
-  }
-  if (auth.backendAuthToken) {
-    headers.Authorization = `Bearer ${auth.backendAuthToken}`
-  }
-  return {
-    url: `${resolveBackendAPIBaseURL(auth.backendAPIBaseURL)}/model-gateway/chat/completions`,
-    method: 'POST',
-    headers,
-    body: {
-      model: runtimeModelIdentifier(config),
-      messages: requestMessages,
-      stream: true,
-      ...(typeof options.temperature === 'number' ? { temperature: options.temperature } : {}),
-      ...(options.jsonMode ? { response_format: { type: 'json_object' } } : {}),
-      ...(options.tools && options.tools.length > 0 ? { tools: options.tools } : {}),
-      ...(options.toolChoice ? { tool_choice: options.toolChoice } : {}),
-    },
-  }
-}
-
-function ensureJSONModeMessages(messages: RuntimeModelChatMessage[]): RuntimeModelChatMessage[] {
+export function ensureJSONModeMessages(messages: RuntimeModelChatMessage[]): RuntimeModelChatMessage[] {
   if (messages.some((message) => containsJSONKeyword(message.content ?? ''))) return messages
   return [
     {
@@ -457,258 +439,9 @@ function parseOptionalSaveBaseURL(value: unknown): string | undefined {
   return parseOptionalSaveString(value, 'baseURL')
 }
 
-export async function callBackendGatewayChat(request: RuntimeModelRequestSnapshot): Promise<string> {
-  return callBackendGatewayChatWithTrace(request).then((result) => result.content)
-}
-
-export async function callBackendGatewayChatWithTrace(
-  request: RuntimeModelRequestSnapshot,
-  onTrace?: RuntimeModelTraceCallback,
-): Promise<{ content: string; assistantMessage: RuntimeModelChatMessage; trace: RuntimeModelHTTPTrace }> {
-  const started = Date.now()
-  const publicRequest = publicRequestSnapshot(request)
-  let trace: RuntimeModelHTTPTrace = {
-    request: publicRequest,
-    latencyMs: 0,
-  }
-  onTrace?.({ phase: 'request', trace })
-
-  let response: Response
-  try {
-    response = await fetch(request.url, {
-      method: request.method,
-      headers: request.headers,
-      body: JSON.stringify(request.body),
-    })
-  } catch (error) {
-    trace = {
-      request: publicRequest,
-      latencyMs: Date.now() - started,
-    }
-    const message = error instanceof Error ? error.message : String(error)
-    onTrace?.({ phase: 'error', trace, error: message })
-    throw error
-  }
-  const responseText = await response.text()
-  const contentType = response.headers.get('content-type') ?? ''
-  const parsedResult = parseGatewayResponse(responseText, contentType)
-  const parsed = parsedResult.parsedBody
-  const assistantMessage = parsedResult.assistantMessage
-  const content = parsedResult.content
-  trace = {
-    request: publicRequest,
-    response: {
-      status: response.status,
-      statusText: response.statusText,
-      ok: response.ok,
-      headers: publicHeadersSnapshot(Object.fromEntries(response.headers.entries())),
-      bodyText: responseText,
-      ...(parsed !== undefined ? { parsedBody: parsed } : {}),
-      ...(content ? { content } : {}),
-    },
-    latencyMs: Date.now() - started,
-  }
-  onTrace?.({ phase: 'response', trace })
-
-  if (!response.ok) {
-    const error = `backend model gateway HTTP ${response.status}: ${responseText}`
-    onTrace?.({ phase: 'error', trace, error })
-    throw new Error(error)
-  }
-  if (!parsedResult.ok) {
-    const error = parsedResult.error ?? 'backend model gateway returned invalid response'
-    onTrace?.({ phase: 'error', trace, error })
-    throw new Error(error)
-  }
-  if (!content) {
-    const error = 'backend model gateway returned no assistant content'
-    onTrace?.({ phase: 'error', trace, error })
-    throw new Error(error)
-  }
-  return { content, assistantMessage, trace }
-}
-
-function publicRequestSnapshot(request: RuntimeModelRequestSnapshot): RuntimeModelRequestSnapshot {
-  return { ...request, headers: publicHeadersSnapshot(request.headers) }
-}
-
-function publicHeadersSnapshot(headers: Record<string, string>): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(headers).filter(([key]) => !isSensitiveHeaderName(key)),
-  )
-}
-
-function isSensitiveHeaderName(key: string): boolean {
-  return [
-    'authorization',
-    'proxy-authorization',
-    'cookie',
-    'set-cookie',
-    'x-api-key',
-    'api-key',
-  ].includes(key.toLowerCase())
-}
-
-interface ParsedGatewayResponse {
-  ok: boolean
-  content?: string
-  assistantMessage: RuntimeModelChatMessage
-  parsedBody?: unknown
-  error?: string
-}
-
-function parseGatewayResponse(responseText: string, contentType: string): ParsedGatewayResponse {
-  const normalizedText = responseText.trimStart()
-  if (contentType.toLowerCase().includes('text/event-stream') || normalizedText.startsWith('data:') || responseText.includes('\ndata:')) {
-    return parseSSEChatResponse(responseText)
-  }
-  const parsed = parseJSONResponse(responseText)
-  return {
-    ok: parsed !== undefined,
-    parsedBody: parsed,
-    assistantMessage: extractAssistantMessage(parsed),
-    content: extractAssistantContent(parsed),
-    ...(parsed === undefined ? { error: 'backend model gateway returned invalid JSON' } : {}),
-  }
-}
-
-function parseJSONResponse(responseText: string): { choices?: Array<{ message?: { role?: string; content?: string | null; tool_calls?: unknown[] } }> } | undefined {
-  try {
-    return JSON.parse(responseText) as { choices?: Array<{ message?: { role?: string; content?: string | null; tool_calls?: unknown[] } }> }
-  } catch {
-    return undefined
-  }
-}
-
-function parseSSEChatResponse(responseText: string): ParsedGatewayResponse {
-  const chunks: unknown[] = []
-  let content = ''
-  let finishReason = ''
-  let role = 'assistant'
-  const toolCallParts = new Map<number, { id?: string; type?: string; name?: string; arguments: string }>()
-
-  for (const eventData of readSSEDataBlocks(responseText)) {
-    if (eventData === '[DONE]') break
-    let chunk: {
-      choices?: Array<{
-        delta?: {
-          role?: string
-          content?: string
-          tool_calls?: Array<{
-            index?: number
-            id?: string
-            type?: string
-            function?: { name?: string; arguments?: string }
-          }>
-        }
-        finish_reason?: string
-      }>
-    }
-    try {
-      chunk = JSON.parse(eventData)
-    } catch {
-      continue
-    }
-    chunks.push(chunk)
-    const choice = chunk.choices?.[0]
-    const delta = choice?.delta
-    if (delta?.role) role = delta.role
-    if (delta?.content) content += delta.content
-    if (choice?.finish_reason) finishReason = choice.finish_reason
-    for (const toolDelta of delta?.tool_calls ?? []) {
-      const index = typeof toolDelta.index === 'number' ? toolDelta.index : toolCallParts.size
-      const current = toolCallParts.get(index) ?? { arguments: '' }
-      if (toolDelta.id) current.id = toolDelta.id
-      if (toolDelta.type) current.type = toolDelta.type
-      if (toolDelta.function?.name) current.name = (current.name ?? '') + toolDelta.function.name
-      if (toolDelta.function?.arguments) current.arguments += toolDelta.function.arguments
-      toolCallParts.set(index, current)
-    }
-  }
-
-  const toolCalls = Array.from(toolCallParts.entries())
-    .sort(([a], [b]) => a - b)
-    .flatMap(([, part]) => {
-      if (!part.id || !part.name) return []
-      return [{
-        id: part.id,
-        type: 'function' as const,
-        function: {
-          name: part.name,
-          arguments: part.arguments,
-        },
-      }]
-    })
-  const trimmed = content.trim()
-  const assistantMessage: RuntimeModelChatMessage = {
-    role: role === 'assistant' ? 'assistant' : 'assistant',
-    content: trimmed || null,
-    ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
-  }
-  return {
-    ok: chunks.length > 0 || responseText.includes('[DONE]'),
-    parsedBody: { object: 'chat.completion.stream', choices: [{ message: assistantMessage, finish_reason: finishReason || undefined }] },
-    assistantMessage,
-    content: trimmed || (toolCalls.length > 0 ? JSON.stringify({ tool_calls: toolCalls }) : undefined),
-    ...(chunks.length === 0 && !responseText.includes('[DONE]') ? { error: 'backend model gateway returned invalid SSE' } : {}),
-  }
-}
-
-function readSSEDataBlocks(responseText: string): string[] {
-  const blocks = responseText.replace(/\r\n/g, '\n').split(/\n\n+/)
-  const out: string[] = []
-  for (const block of blocks) {
-    const lines = block.split('\n')
-    const dataLines = lines
-      .filter((line) => line.startsWith('data:'))
-      .map((line) => line.slice('data:'.length).trimStart())
-    if (dataLines.length > 0) {
-      out.push(dataLines.join('\n').trim())
-    }
-  }
-  return out
-}
-
-function extractAssistantMessage(parsed: { choices?: Array<{ message?: { role?: string; content?: string | null; tool_calls?: unknown[] } }> } | undefined): RuntimeModelChatMessage {
-  const message = parsed?.choices?.[0]?.message
-  const content = typeof message?.content === 'string' ? message.content : null
-  const toolCalls = normalizeRuntimeToolCalls(message?.tool_calls)
-  return {
-    role: 'assistant',
-    content,
-    ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
-  }
-}
-
-function extractAssistantContent(parsed: { choices?: Array<{ message?: { content?: string | null; tool_calls?: unknown[] } }> } | undefined): string | undefined {
-  const message = parsed?.choices?.[0]?.message
-  const content = typeof message?.content === 'string' ? message.content.trim() : ''
-  if (content) return content
-  if (Array.isArray(message?.tool_calls) && message.tool_calls.length > 0) {
-    return JSON.stringify({ tool_calls: message.tool_calls })
-  }
-  return undefined
-}
-
-function normalizeRuntimeToolCalls(value: unknown): RuntimeModelChatToolCall[] {
-  if (!Array.isArray(value)) return []
-  return value.flatMap((item): RuntimeModelChatToolCall[] => {
-    if (!isRecord(item)) return []
-    const record = item
-    const fn = isRecord(record.function) ? record.function : undefined
-    const id = typeof record.id === 'string' && record.id.trim() ? record.id.trim() : undefined
-    const name = typeof fn?.name === 'string' && fn.name.trim() ? fn.name.trim() : undefined
-    const args = typeof fn?.arguments === 'string' ? fn.arguments : ''
-    if (!id || !name) return []
-    return [{
-      id,
-      type: 'function',
-      function: {
-        name,
-        arguments: args,
-      },
-    }]
-  })
+function parseOptionalSaveAPIKey(value: unknown): string | undefined {
+  if (value === null) return undefined
+  return parseOptionalSaveString(value, 'apiKey')
 }
 
 function buildTestMessages(message: string): RuntimeModelChatMessage[] {
@@ -724,16 +457,25 @@ function buildTestMessages(message: string): RuntimeModelChatMessage[] {
   ]
 }
 
-function resolveBackendAPIBaseURL(override?: string): string {
-  return normalizeBaseURL(override || process.env.MOVSCRIPT_BACKEND_API_BASE_URL || process.env.MOVSCRIPT_API_BASE_URL || DEFAULT_BACKEND_API_BASE_URL)
-}
-
 function backendModelID(modelConfigId: number): string {
   return `model_config:${modelConfigId}`
 }
 
-function runtimeModelIdentifier(config: ConfiguredRuntimeModelConfig): string {
-  return config.model?.trim() || (config.modelConfigId ? backendModelID(config.modelConfigId) : DEFAULT_BACKEND_MODEL)
+function isBackendCompatibleConfigBaseURL(value: string | undefined): boolean {
+  if (!value?.trim()) return true
+  const backendBaseURL = process.env.MOVSCRIPT_BACKEND_API_BASE_URL || process.env.MOVSCRIPT_API_BASE_URL || 'http://localhost:8765'
+  try {
+    return new URL(toCompatibleGatewayBaseURL(value)).origin === new URL(toCompatibleGatewayBaseURL(backendBaseURL)).origin
+  } catch {
+    return false
+  }
+}
+
+function toCompatibleGatewayBaseURL(value: string): string {
+  const normalized = value.trim().replace(/\/+$/, '')
+  if (normalized.endsWith('/api/v1')) return `${normalized.slice(0, -'/api/v1'.length)}/v1`
+  if (normalized.endsWith('/v1')) return normalized
+  return `${normalized}/v1`
 }
 
 function normalizeBaseURL(value: string): string {

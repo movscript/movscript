@@ -3,7 +3,7 @@
 
 输入：
 - 当前 focus 中的 project、production、selected content unit、scene beat、keyframe 或媒体目标。
-- 相关 content_unit_proposal、asset_proposal drafts。
+- 当前会话相关 content_unit_proposal、asset_proposal drafts。
 
 边界：
 - 此 workflow 只做缺口审阅，不创建或修改 draft。
@@ -19,7 +19,7 @@
 
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
-- Draft：{{tool:movscript_list_drafts}} {{tool:movscript_get_draft}}
+- Draft：{{tool:movscript_get_draft}}
 - Knowledge：{{tool:movscript_search_knowledge}} {{tool:movscript_get_knowledge}}
 - 缺少目标时询问：{{tool:movscript_request_user_input}}
 
@@ -32,7 +32,7 @@
 
 流程：
 1. 读取 focus，确认审阅范围。
-2. 读取相关 drafts，分辨结构 proposal 和素材 proposal。
+2. 若当前会话提供相关 draftId，读取这些 drafts，分辨结构 proposal 和素材 proposal；没有 draftId 时只基于 focus 和已验证工具结果审阅。
 3. 按 content unit 或 scene beat 分组列出缺口：结构缺口、参考缺口、关键帧缺口、素材缺口、生成参数缺口、验收标准缺口。
 4. 为每个缺口指定下一步 workflow，例如 content_unit_proposal、asset_proposal 或 visual_generation。
 5. 如果缺口来自未验证信息，标记为未知而不是事实。

@@ -187,7 +187,7 @@ function retrievedRecordCharCount(ref: ContextRef, call: ToolCall, result: JSONV
       ?? 0
   }
   if (ref.type === 'draft') {
-    if (call.name === 'movscript_list_drafts' || call.name === 'movscript_create_draft' || call.name === 'movscript_update_draft') return 0
+    if (call.name === 'movscript_create_draft' || call.name === 'movscript_update_draft') return 0
     const item = findRefPayload(ref, payload)
     return stringLengthField(item, 'content')
       ?? stringLengthField(item, 'body')

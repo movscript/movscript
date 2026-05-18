@@ -1,0 +1,23 @@
+{
+  "name": "movscript_get_project_standards",
+  "description": "读取当前或指定 project 的项目规范，返回 Project.aspect_ratio、Project.visual_style、Project.project_style 中的固定规范和 custom_rules。项目相关的创作、生产、审阅、提示词、素材、内容单元或生成任务前应先调用；非项目任务不要调用。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "projectId": {
+        "type": "number",
+        "description": "项目 ID。省略时 runtime 会尝试使用当前 run context 中的 project。"
+      }
+    }
+  },
+  "permission": "project.read",
+  "risk": "read",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "按需读取项目级制作规范，不会修改 project。"
+}

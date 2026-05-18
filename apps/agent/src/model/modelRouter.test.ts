@@ -60,12 +60,11 @@ test('default model router calls the configured backend route for a capability',
   const originalFetch = globalThis.fetch
   try {
     globalThis.fetch = (async (url, init) => {
-      assert.equal(url, 'http://localhost:8765/api/v1/model-gateway/chat/completions')
+      assert.equal(String(url), 'http://localhost:8765/v1/chat/completions')
       assert.equal(init?.method, 'POST')
       assert.equal(typeof init?.body, 'string')
       const body = JSON.parse(init?.body as string) as Record<string, unknown>
       assert.equal(body.model, 'model_config:21')
-      assert.equal(body.stream, true)
       return new Response(JSON.stringify({
         choices: [{
           message: { role: 'assistant', content: 'reasoning ok' },
@@ -78,6 +77,7 @@ test('default model router calls the configured backend route for a capability',
     const result = await router.call({
       capability: 'reasoning',
       messages: [{ role: 'user', content: 'hello' }],
+      auth: { backendAuthToken: 'test-token' },
     })
 
     assert.equal(result.content, 'reasoning ok')

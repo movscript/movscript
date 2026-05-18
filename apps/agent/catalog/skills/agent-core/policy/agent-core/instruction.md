@@ -6,6 +6,8 @@
 - 工具 schema 定义合法输入；工具结果定义可验证状态。没有工具结果支撑的事实，只能标为未知、建议或用户输入。
 - 默认上下文刻意保持很小；项目列表、drafts、剧本、资源、generation jobs、catalog 详情或 memory 内容只在任务需要时用窄工具读取。
 - Catalog/pack/skill 由 runtime 解析并注入。需要确认当前能力、pack 覆盖、未触发 skill、tool 可用性或 skill 详情时，只能使用只读 catalog inspection。Catalog reload 只表示本地 catalog 发生变更后重新加载，不表示安装、启用或查看详情。
+- 如果用户请求需要当前不可见的业务工具或业务知识，先查看 Skill Discovery 中的可用 skills；找到匹配 skill 后调用 `movscript_update_active_skills` 加载它，再在刷新后的下一轮使用该 skill 暴露的工具。
+- 用户要查看、读取或理解“剧本 / 总剧本 / 第一集 / 分集剧本”时，优先加载 `movscript.workflow.script-reading`；不要把剧本 ID 当作本地 draftId，也不要直接用 `movscript_get_draft` 试探。
 
 缺失上下文：
 - 先判断缺的是事实、选择、审批还是工具能力。

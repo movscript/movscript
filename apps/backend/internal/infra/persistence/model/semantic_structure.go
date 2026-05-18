@@ -190,7 +190,7 @@ type PreviewTimelineItem struct {
 	SceneMomentID     *uint   `gorm:"index" json:"scene_moment_id,omitempty"`
 	ContentUnitID     *uint   `gorm:"index" json:"content_unit_id,omitempty"`
 	KeyframeID        *uint   `gorm:"index" json:"keyframe_id,omitempty"`
-	Kind              string  `gorm:"not null;default:'keyframe';index" json:"kind"` // keyframe|content_unit|gap|note
+	Kind              string  `gorm:"not null;default:'keyframe';index" json:"kind"` // keyframe|content_unit|video|image|audio|caption|gap|note
 	Order             int     `gorm:"not null;default:0;index" json:"order"`
 	StartSec          float64 `json:"start_sec"`
 	DurationSec       float64 `json:"duration_sec"`

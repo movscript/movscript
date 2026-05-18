@@ -36,8 +36,9 @@ export function resolveRuntimeLayers(input: {
   requestedSkillIds?: string[]
   unloadedSkillIds?: string[]
 }): RuntimeLayerResolution {
-  const profileId = typeof input.baseManifest.metadata?.profileId === 'string' ? input.baseManifest.metadata.profileId : undefined
-  const userToolPolicy = userToolPolicyProfile(input.baseManifest)
+  const rawProfileId = typeof input.baseManifest.metadata?.profileId === 'string' ? input.baseManifest.metadata.profileId : undefined
+  const profileId = resolveManifestProfileId(input.registry, rawProfileId)
+  const userToolPolicy = userToolPolicyProfile(input.baseManifest, profileId)
   const resolvedProfile = resolveProfile(input.registry, {
     ...(profileId ? { profileId } : {}),
     ...(userToolPolicy ? { userProfile: userToolPolicy } : {}),
@@ -63,7 +64,7 @@ export function resolveRuntimeLayers(input: {
   })
   const candidateWorkflows = resolvedProfile.profile.enabledWorkflows.flatMap((id) => {
     const skill = input.registry.skills.get(id)
-    return skill?.kind === 'workflow' && skill.enabled !== false ? [skill] : []
+    return skill?.kind === 'workflow' && skill.enabled !== false && skill.loadMode !== 'manual' ? [skill] : []
   })
   const selected = selectActiveWorkflowsWithTrace(candidateWorkflows, ctx)
   const unloadedIds = new Set(input.unloadedSkillIds ?? [])
@@ -164,6 +165,7 @@ function mergeSkills<T extends SkillDefinition>(base: T[], extra: T[]): T[] {
 }
 
 function manifestFromProfile(baseManifest: AgentManifest, profile: RuntimeContext['profile']): AgentManifest {
+  const baseProfile = baseProfileLayer(profile)
   return {
     ...baseManifest,
     id: profile.id,
@@ -186,12 +188,33 @@ function manifestFromProfile(baseManifest: AgentManifest, profile: RuntimeContex
       : {}),
     metadata: {
       ...(baseManifest.metadata ?? {}),
-      profileId: profile.id,
-      profileVersion: profile.version,
+      profileId: baseProfile.id,
+      profileVersion: baseProfile.version,
       ...(profile.limits?.systemPromptCharLimit ? { systemPromptCharLimit: profile.limits.systemPromptCharLimit } : {}),
       ...(profile.limits?.contextWindowCharLimit ? { contextWindowCharLimit: profile.limits.contextWindowCharLimit } : {}),
       ...(profile.resolvedFrom ? { resolvedFrom: profileResolutionTraceMetadata(profile.resolvedFrom) } : {}),
     },
+  }
+}
+
+function resolveManifestProfileId(registry: CatalogRegistry, rawProfileId: string | undefined): string | undefined {
+  const profileId = rawProfileId?.trim()
+  if (!profileId) return undefined
+  if (registry.profiles.has(profileId)) return profileId
+  const baseId = stripToolPolicyProfileSuffix(profileId)
+  return baseId && registry.profiles.has(baseId) ? baseId : profileId
+}
+
+function stripToolPolicyProfileSuffix(profileId: string): string | undefined {
+  const suffix = '.tool-policy'
+  return profileId.endsWith(suffix) ? profileId.slice(0, -suffix.length) : undefined
+}
+
+function baseProfileLayer(profile: RuntimeContext['profile']): { id: string; version: string } {
+  const base = profile.resolvedFrom?.layers.find((layer) => layer.source === 'default')
+  return {
+    id: base?.id ?? stripToolPolicyProfileSuffix(profile.id) ?? profile.id,
+    version: base?.version ?? profile.version,
   }
 }
 
@@ -206,12 +229,13 @@ function profileResolutionTraceMetadata(trace: NonNullable<RuntimeContext['profi
   }
 }
 
-function userToolPolicyProfile(manifest: AgentManifest): AgentProfile | undefined {
+function userToolPolicyProfile(manifest: AgentManifest, baseProfileId: string | undefined): AgentProfile | undefined {
   const toolGrants = toolGrantsFromMetadata(manifest.metadata?.defaultToolGrants)
   if (toolGrants.length === 0) return undefined
+  const profileId = baseProfileId ?? stripToolPolicyProfileSuffix(typeof manifest.metadata?.profileId === 'string' ? manifest.metadata.profileId : '') ?? 'movscript.profile.default'
   return {
     schema: 'movscript.agent.profile.v1',
-    id: `${typeof manifest.metadata?.profileId === 'string' ? manifest.metadata.profileId : manifest.id}.tool-policy`,
+    id: `${profileId}.tool-policy`,
     version: String(manifest.metadata?.profileVersion ?? manifest.version),
     name: 'User Tool Policy',
     enabledPacks: [],

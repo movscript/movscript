@@ -1,0 +1,45 @@
+{
+  "id": "movscript.workflow.script-reading",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Script Reading",
+  "description": "读取后端项目剧本 / Script 列表、指定剧本和剧本正文，避免把剧本误判为本地 draft artifact。",
+  "priority": 760,
+  "enabled": true,
+  "load": "manual",
+  "tags": [
+    "script",
+    "screenplay",
+    "剧本",
+    "总剧本",
+    "分集剧本"
+  ],
+  "useWhen": [
+    "用户要查看、读取、理解、分析或总结后端项目剧本内容",
+    "用户提到总剧本、第一集、分集剧本或剧本正文",
+    "不要用 asset-proposal、setting-proposal 或本地 draft workflow 代替纯剧本读取"
+  ],
+  "triggers": [
+    {
+      "kind": "keyword",
+      "any": [
+        "剧本",
+        "总剧本",
+        "分集剧本",
+        "第一集",
+        "查看剧本",
+        "读取剧本",
+        "script",
+        "screenplay"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_get_focus",
+    "tool://movscript_read_project_scripts",
+    "tool://movscript_request_user_input"
+  ],
+  "toolScope": "intersect",
+  "outputContract": "返回已读取的后端剧本 ID、标题、是否包含正文、截断状态和基于工具结果的剧本事实。",
+  "instructionTemplatePath": "instruction.md"
+}

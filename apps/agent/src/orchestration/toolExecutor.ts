@@ -2,7 +2,7 @@ import { MCPError, type MCPClient } from '../mcpClient.js'
 import type { JSONValue } from '../state/types.js'
 import type { AgentRun, ToolCall } from '../state/types.js'
 import { buildApplyDraftPreview } from '../drafts/draftApply.js'
-import { normalizeDraftStatus, validateDraft, type AgentDraftKind, type AgentDraftSource, type AgentDraftStatus, type AgentDraftStore, type AgentDraftTarget } from '../drafts/draftStore.js'
+import { normalizeDraftStatus, validateDraft, type AgentDraftKind, type AgentDraftSource, type AgentDraftStore, type AgentDraftTarget } from '../drafts/draftStore.js'
 import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
 import { BackendApplyHTTPError, type BackendApplyClient } from '../drafts/backendApplyClient.js'
 import type { ToolRegistry, ToolRiskLevel } from '../tools/toolRegistry.js'
@@ -263,6 +263,26 @@ async function callRuntimeTool(
     return catalogManager.cancelSubagent(run, args)
   }
 
+  if (toolName === 'movscript_get_project_standards') {
+    const projectId = projectIdField(args.projectId)
+      ?? projectIdField(args.project_id)
+      ?? projectIdFromRunContext(run)
+    if (projectId === undefined) throw new Error('get_project_standards requires projectId')
+    const contextProject = projectFromRunContext(run, projectId)
+    const user = userFromRunContext(run)
+    const auth = {
+      ...(isValidAgentReferenceId(user?.id) ? { userId: user.id } : {}),
+      ...(typeof run.metadata?.backendAuthToken === 'string' ? { backendAuthToken: run.metadata.backendAuthToken } : {}),
+      ...(typeof run.metadata?.backendAPIBaseURL === 'string' ? { backendAPIBaseURL: run.metadata.backendAPIBaseURL } : {}),
+    }
+    const backendRead = await backendApplyClient.getProject(projectId, auth)
+    const backendProject = isJSONRecord(backendRead.response) ? backendRead.response : undefined
+    return buildProjectStandardsToolResult(projectId, backendProject ?? contextProject, {
+      source: backendProject ? 'backend' : contextProject ? 'run_context' : 'unavailable',
+      backendRead,
+    }) as unknown as JSONValue
+  }
+
   if (toolName === 'movscript_create_draft') {
     if (args.proposal === true || args.proposalKind !== undefined) {
       return createProposalDraft(draftStore, run, args) as unknown as JSONValue
@@ -290,7 +310,12 @@ async function callRuntimeTool(
     const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
     if (!draftId) throw new Error('get_draft requires draftId')
     const draft = draftStore.getDraft(draftId)
-    if (!draft) throw new Error(`draft not found: ${draftId}`)
+    if (!draft) {
+      const scriptHint = /^\d+$/.test(draftId)
+        ? ' movscript_get_draft only reads Agent local review draft artifacts, not backend project script IDs. To read 总剧本、第一集、分集剧本, or script body content, call movscript_read_project_scripts with projectId, scriptId or scriptTitle, and includeContent: true.'
+        : ''
+      throw new Error(`draft not found: ${draftId}.${scriptHint}`)
+    }
     return {
       draft,
       validation: validateDraft(draft),
@@ -301,47 +326,6 @@ async function callRuntimeTool(
     const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
     if (!draftId) throw new Error('update_draft requires draftId')
     return updateDraftByAction(draftStore, backendApplyClient, args, draftId) as unknown as JSONValue
-  }
-
-  if (toolName === 'movscript_read_draft') {
-    const filePath = draftFilePathArg(args, draftStore)
-    if (!filePath) throw new Error('read_draft requires file_path')
-    const result = draftStore.readDraftFile(filePath)
-    return {
-      file_path: result.filePath,
-      filePath: result.filePath,
-      draft: result.draft,
-      content: result.content,
-    } as unknown as JSONValue
-  }
-
-  if (toolName === 'movscript_list_drafts') {
-    return {
-      drafts: draftStore.listDrafts(normalizeDraftQuery(args)),
-    } as unknown as JSONValue
-  }
-
-  if (toolName === 'movscript_create_script') {
-    const projectId = isValidAgentProjectId(args.projectId) ? args.projectId : undefined
-    if (projectId === undefined) throw new Error('create_script requires projectId')
-    const context = isJSONRecord(run.metadata?.context) ? run.metadata.context : undefined
-    const user = isJSONRecord(context?.user) ? context.user : undefined
-    const userId = args.createdByUserId ?? user?.id
-    const payload = normalizeCreateScriptPayload(args)
-    const backendCreate = await backendApplyClient.createScript(projectId, payload, {
-      ...(isValidAgentReferenceId(userId) ? { userId } : {}),
-      ...(typeof run.metadata?.backendAuthToken === 'string' ? { backendAuthToken: run.metadata.backendAuthToken } : {}),
-      ...(typeof run.metadata?.backendAPIBaseURL === 'string' ? { backendAPIBaseURL: run.metadata.backendAPIBaseURL } : {}),
-    })
-    return {
-      status: backendCreate.performed ? 'created' : 'skipped',
-      projectId,
-      script: backendCreate.response ?? null,
-      message: backendCreate.performed
-        ? 'Formal script record created in the backend project.'
-        : 'Formal script creation was skipped.',
-      backendCreate,
-    } as unknown as JSONValue
   }
 
   if (toolName === 'movscript_search_memories') {
@@ -447,61 +431,6 @@ function translateToolArgsForRuntime(toolName: string, args: Record<string, JSON
   return args
 }
 
-function normalizeCreateScriptPayload(args: Record<string, JSONValue>): Record<string, JSONValue> {
-  const title = stringField(args.title)
-  const content = stringField(args.content)
-  if (!title) throw new Error('create_script requires title')
-  if (!content) throw new Error('create_script requires content')
-
-  const payload: Record<string, JSONValue> = {
-    title,
-    content,
-    raw_source: stringField(args.raw_source) ?? content,
-    script_type: stringField(args.script_type) ?? 'uncategorized',
-    source_type: normalizeSourceType(args.source_type),
-    version: numberField(args.version) ?? 1,
-  }
-  copyStringFields(args, payload, [
-    'description',
-    'summary',
-    'characters',
-    'core_settings',
-    'hook',
-    'plot_summary',
-    'script_points',
-    'time_text',
-    'location_text',
-    'structured_characters',
-    'plot_beats',
-    'atmosphere',
-    'structure_json',
-    'entity_candidates',
-    'relationship_candidates',
-  ])
-  copyNumberFields(args, payload, [
-    'planned_scene_count',
-    'planned_character_count',
-    'order',
-  ])
-  if (typeof args.parent_script_id === 'number') payload.parent_script_id = args.parent_script_id
-  if (typeof args.assignee_id === 'number') payload.assignee_id = args.assignee_id
-  return payload
-}
-
-function copyStringFields(source: Record<string, JSONValue>, target: Record<string, JSONValue>, fields: string[]): void {
-  for (const field of fields) {
-    const value = stringField(source[field])
-    if (value !== undefined) target[field] = value
-  }
-}
-
-function copyNumberFields(source: Record<string, JSONValue>, target: Record<string, JSONValue>, fields: string[]): void {
-  for (const field of fields) {
-    const value = numberField(source[field])
-    if (value !== undefined) target[field] = value
-  }
-}
-
 function stringField(value: JSONValue | undefined): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
 }
@@ -517,6 +446,27 @@ function numberField(value: JSONValue | undefined): number | undefined {
 
 function projectIdField(value: JSONValue | undefined): number | undefined {
   return isValidAgentProjectId(value) ? value : undefined
+}
+
+function projectIdFromRunContext(run: AgentRun): number | undefined {
+  const context = isJSONRecord(run.metadata?.context) ? run.metadata.context : undefined
+  const project = isJSONRecord(context?.project) ? context.project : undefined
+  const pageContext = isJSONRecord(context?.pageContext) ? context.pageContext : undefined
+  return projectIdField(project?.id)
+    ?? projectIdField(project?.ID)
+    ?? projectIdField(pageContext?.pageEntityType === 'project' ? pageContext.pageEntityId : undefined)
+}
+
+function projectFromRunContext(run: AgentRun, projectId: number): Record<string, JSONValue> | undefined {
+  const context = isJSONRecord(run.metadata?.context) ? run.metadata.context : undefined
+  const project = isJSONRecord(context?.project) ? context.project : undefined
+  const candidateId = projectIdField(project?.id) ?? projectIdField(project?.ID)
+  return candidateId === projectId ? project : undefined
+}
+
+function userFromRunContext(run: AgentRun): Record<string, JSONValue> | undefined {
+  const context = isJSONRecord(run.metadata?.context) ? run.metadata.context : undefined
+  return isJSONRecord(context?.user) ? context.user : undefined
 }
 
 function entityIdField(value: JSONValue | undefined): number | undefined {
@@ -690,6 +640,156 @@ function defaultProposalDraftTitle(
   return `提案草稿 - ${kind}`
 }
 
+function buildProjectStandardsToolResult(
+  projectId: number,
+  project: Record<string, JSONValue> | undefined,
+  meta: {
+    source: 'backend' | 'run_context' | 'unavailable'
+    backendRead?: { performed: boolean; skippedReason?: string; response?: JSONValue }
+  },
+): Record<string, JSONValue> {
+  const warnings: string[] = []
+  if (!project) {
+    if (meta.backendRead?.skippedReason) warnings.push(meta.backendRead.skippedReason)
+    return {
+      loaded: false,
+      projectId,
+      source: meta.source,
+      standards: null,
+      warnings,
+      message: 'Project standards are unavailable because no backend project record or run context project snapshot was available.',
+    }
+  }
+
+  const projectStyleRaw = project.project_style ?? project.projectStyle
+  const parsedStyle = parseProjectStyle(projectStyleRaw)
+  if (parsedStyle.warning) warnings.push(parsedStyle.warning)
+  if (meta.backendRead?.skippedReason && meta.source !== 'backend') warnings.push(meta.backendRead.skippedReason)
+
+  const aspectRatio = stringField(project.aspect_ratio) ?? stringField(project.aspectRatio) ?? stringField(parsedStyle.style.aspect_ratio)
+  const visualStyle = stringField(project.visual_style) ?? stringField(project.visualStyle) ?? stringField(parsedStyle.style.visual_style)
+  const core = compactJSONRecord({
+    ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}),
+    ...(visualStyle ? { visual_style: visualStyle } : {}),
+    ...pickProjectStyleCore(parsedStyle.style),
+  })
+  const customRules = normalizeProjectStandardsRules(parsedStyle.style.custom_rules)
+  const enabledCustomRules = customRules.filter((rule) => rule.enabled !== false)
+  const promptSections = groupProjectStandardsRules(enabledCustomRules)
+
+  return {
+    loaded: true,
+    projectId,
+    projectName: stringField(project.name) ?? stringField(project.title) ?? '',
+    source: meta.source,
+    standards: compactJSONRecord({
+      core,
+      custom_rules: customRules,
+      enabled_custom_rules: enabledCustomRules,
+      prompt_sections: promptSections,
+      project_style: parsedStyle.style,
+      ...(typeof projectStyleRaw === 'string' ? { project_style_raw: projectStyleRaw } : {}),
+      ...(stringField(project.UpdatedAt) ? { updated_at: stringField(project.UpdatedAt) } : {}),
+      ...(stringField(project.updated_at) ? { updated_at: stringField(project.updated_at) } : {}),
+    }),
+    warnings,
+    message: 'Project standards loaded. Use these standards for project-scoped creative planning, writing, prompt, asset, production, and generation work.',
+  }
+}
+
+function parseProjectStyle(value: JSONValue | undefined): { style: Record<string, JSONValue>; warning?: string } {
+  if (isJSONRecord(value)) return { style: value }
+  if (typeof value !== 'string' || !value.trim()) return { style: {} }
+  try {
+    const parsed = JSON.parse(value) as JSONValue
+    if (isJSONRecord(parsed)) return { style: parsed }
+    return { style: {}, warning: 'project_style was present but was not a JSON object.' }
+  } catch (error) {
+    return {
+      style: {},
+      warning: `project_style could not be parsed as JSON: ${error instanceof Error ? error.message : String(error)}`,
+    }
+  }
+}
+
+function pickProjectStyleCore(style: Record<string, JSONValue>): Record<string, JSONValue> {
+  const out: Record<string, JSONValue> = {}
+  for (const key of [
+    'shot_size_system',
+    'camera_language',
+    'lighting_style',
+    'color_palette',
+    'pacing_rules',
+    'negative_rules',
+  ]) {
+    const value = style[key]
+    if (projectStandardValueText(value)) out[key] = value
+  }
+  return out
+}
+
+function normalizeProjectStandardsRules(value: JSONValue | undefined): Array<Record<string, JSONValue>> {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item, index) => {
+    if (!isJSONRecord(item)) return []
+    const label = stringField(item.label) ?? stringField(item.name) ?? stringField(item.key) ?? `custom_rule_${index + 1}`
+    const key = stringField(item.key) ?? label.toLowerCase().replace(/\s+/g, '_')
+    const ruleValue = projectStandardValueText(item.value ?? item.content ?? item.description)
+    if (!ruleValue) return []
+    const role = normalizeProjectStandardsPromptRole(item.prompt_role ?? item.promptRole ?? item.role)
+    return [compactJSONRecord({
+      id: stringField(item.id) ?? `rule_${key}_${index + 1}`,
+      key,
+      label,
+      category: stringField(item.category) ?? '',
+      value: ruleValue,
+      prompt_role: role,
+      enabled: typeof item.enabled === 'boolean' ? item.enabled : true,
+      required: typeof item.required === 'boolean' ? item.required : false,
+      order: typeof item.order === 'number' && Number.isFinite(item.order) ? item.order : (index + 1) * 10,
+    })]
+  })
+    .sort((a, b) => (numberField(a.order) ?? 0) - (numberField(b.order) ?? 0) || String(a.label ?? '').localeCompare(String(b.label ?? '')))
+}
+
+function groupProjectStandardsRules(rules: Array<Record<string, JSONValue>>): Record<string, JSONValue> {
+  const sections: Record<string, JSONValue[]> = {
+    context: [],
+    style: [],
+    constraint: [],
+    negative: [],
+    quality_gate: [],
+  }
+  for (const rule of rules) {
+    const role = normalizeProjectStandardsPromptRole(rule.prompt_role)
+    sections[role]!.push(rule)
+  }
+  return compactJSONRecord(sections)
+}
+
+function normalizeProjectStandardsPromptRole(value: JSONValue | undefined): 'context' | 'style' | 'constraint' | 'negative' | 'quality_gate' {
+  return value === 'context' || value === 'style' || value === 'constraint' || value === 'negative' || value === 'quality_gate'
+    ? value
+    : 'constraint'
+}
+
+function projectStandardValueText(value: JSONValue | undefined): string {
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) return value.map((item) => projectStandardValueText(item)).filter(Boolean).join('; ')
+  return ''
+}
+
+function compactJSONRecord(value: Record<string, JSONValue>): Record<string, JSONValue> {
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => {
+    if (item === undefined || item === null) return false
+    if (typeof item === 'string') return item.trim().length > 0
+    if (Array.isArray(item)) return item.length > 0
+    if (isJSONRecord(item)) return Object.keys(item).length > 0
+    return true
+  })) as Record<string, JSONValue>
+}
+
 function truncate(value: string, limit: number): string {
   const text = value.trim()
   if (text.length <= limit) return text
@@ -718,19 +818,16 @@ function extractPageContext(run: AgentRun): Record<string, JSONValue> {
 }
 
 function draftRefArg(args: Record<string, JSONValue>): unknown {
-  return stringField(args.draftRef)
-    ?? stringField(args.draft_ref)
-    ?? stringField(args.draftId)
-    ?? stringField(args.draft_id)
-    ?? stringField(args.id)
+  return draftRefStringField(args.draftRef)
+    ?? draftRefStringField(args.draft_ref)
+    ?? draftRefStringField(args.draftId)
+    ?? draftRefStringField(args.draft_id)
+    ?? draftRefStringField(args.id)
 }
 
-function draftFilePathArg(args: Record<string, JSONValue>, draftStore: AgentDraftStore): string | undefined {
-  const filePath = stringField(args.file_path)
-    ?? stringField(args.filePath)
-  if (filePath) return filePath
-  const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
-  return draftId ? draftStore.getDraftFilePath(draftId) : undefined
+function draftRefStringField(value: JSONValue | undefined): string | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return stringField(value)
 }
 
 function createProposalDraft(
@@ -785,24 +882,6 @@ function createProposalDraft(
     status: 'created',
     message: 'Created a local proposal review draft from the conversation.',
   } as unknown as JSONValue
-}
-
-function normalizeSourceType(value: JSONValue | undefined): string {
-  return value === 'adapted' || value === 'revised' || value === 'raw' ? value : 'raw'
-}
-
-function normalizeDraftQuery(args: Record<string, JSONValue>): {
-  projectId?: number
-  kind?: AgentDraftKind
-  status?: AgentDraftStatus
-  limit?: number
-} {
-  return {
-    ...(isValidAgentProjectId(args.projectId) ? { projectId: args.projectId } : {}),
-    ...(isDraftKind(args.kind) ? { kind: args.kind } : {}),
-    ...(isDraftStatus(args.status) ? { status: args.status } : {}),
-    ...(typeof args.limit === 'number' && Number.isFinite(args.limit) ? { limit: args.limit } : {}),
-  }
 }
 
 async function updateDraftByAction(
@@ -956,31 +1035,6 @@ async function previewDraftApply(
       message: 'Backend apply preview failed. Update the draft and preview again.',
     } as unknown as JSONValue
   }
-}
-
-function isDraftKind(value: JSONValue | undefined): value is AgentDraftKind {
-  return value === 'setting_proposal'
-    || value === 'script_split_proposal'
-    || value === 'script'
-    || value === 'asset_slot'
-    || value === 'content_unit'
-    || value === 'prompt'
-    || value === 'note'
-    || value === 'pipeline'
-    || value === 'segment'
-    || value === 'scene_moment'
-    || value === 'asset_proposal'
-    || value === 'project_proposal'
-    || value === 'production_proposal'
-    || value === 'content_unit_proposal'
-}
-
-function isDraftStatus(value: JSONValue | undefined): value is AgentDraftStatus {
-  return value === 'draft'
-    || value === 'accepted'
-    || value === 'rejected'
-    || value === 'applied'
-    || value === 'superseded'
 }
 
 function normalizeMemoryKind(value: JSONValue | undefined): AgentMemoryKind | undefined {

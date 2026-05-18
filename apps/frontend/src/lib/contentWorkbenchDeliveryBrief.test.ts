@@ -61,6 +61,25 @@ test('content workbench delivery brief allows generation when core inputs are re
   assert.deepEqual(brief.metrics.map((metric) => metric.value), ['已通过', '待执行', '待挂载', '待整理'])
 })
 
+test('content workbench delivery brief does not block non-visual units on keyframes', () => {
+  const brief = buildContentWorkbenchDeliveryBrief({
+    hasSelectedUnit: true,
+    unitTitle: '心声旁白',
+    hasPrompt: true,
+    assetSlotCount: 0,
+    missingSlotCount: 0,
+    keyframeCount: 0,
+    requiresKeyframe: false,
+    generationContextReady: true,
+    generationContextLoading: false,
+    generationContextError: false,
+    pendingReviewDraftCount: 0,
+  })
+
+  assert.equal(brief.tone, 'ready')
+  assert.deepEqual(brief.metrics.map((metric) => metric.value), ['已通过', '待执行', '待挂载', '待整理'])
+})
+
 test('content workbench delivery brief moves completed generation into preview', () => {
   const brief = buildContentWorkbenchDeliveryBrief({
     hasSelectedUnit: true,

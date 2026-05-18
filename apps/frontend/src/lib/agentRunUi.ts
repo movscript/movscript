@@ -488,7 +488,6 @@ export function approvalImpactLabel(approval: Pick<AgentApprovalRequest, 'toolNa
     case 'movscript_create_generation_job': return '批准后会创建生成任务，可能消耗生成额度。'
     case 'movscript_cancel_generation_job': return '批准后会取消生成任务，未完成的输出可能不再产生。'
     case 'movscript_create_project': return '批准后会创建项目数据。'
-    case 'movscript_create_script': return '批准后会写入剧本数据。'
     case 'movscript_delete_memory': return '批准后会删除记忆，后续运行将无法再引用它。'
     case 'movscript_reload_agent_catalog': return '批准后会重新加载 Agent 工具和技能目录。'
     case 'movscript_spawn_subagent': return '批准后会启动子代理执行分配任务。'

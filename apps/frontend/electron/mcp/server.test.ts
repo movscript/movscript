@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
-import { applyDraftReview, attachAssetSlotCandidate, attachKeyframeCandidate, buildGenerationModelParamRules, buildGenerationParamValidationAudit, createGenerationJob, getDraftModelContract, listModels, listTools, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, queryCreativeReferences, queryProductionContext, setMCPAPIBaseURL, summarizeModelContractForAgent } from './server'
+import { applyDraftReview, attachAssetSlotCandidate, attachKeyframeCandidate, buildGenerationModelParamRules, buildGenerationParamValidationAudit, createGenerationJob, getDraftModelContract, listModels, listTools, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, queryCreativeReferences, queryProductionContext, readProjectScripts, setMCPAPIBaseURL, summarizeModelContractForAgent } from './server'
 
 test('normalizeBackendHTTPErrorForMCP preserves structured generation validation details', () => {
   const body = {
@@ -292,6 +292,67 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
   assert.equal(attachKeyframe.outputSchema?.additionalProperties, staticAttachKeyframe.outputSchema?.additionalProperties)
   assert.deepEqual(attachCandidate.inputSchema.required, staticAttachCandidate.inputSchema.required)
   assert.deepEqual(attachKeyframe.inputSchema.required, staticAttachKeyframe.inputSchema.required)
+})
+
+test('script MCP tool exposes backend script identity and content controls', () => {
+  const tool = listTools().find((item) => item.name === 'movscript_read_project_scripts')
+  assert.ok(tool)
+  assert.match(tool.description, /backend project scripts/)
+  assert.match(tool.description, /not the local Agent draft artifact API/)
+  const properties = schemaProperties(tool.inputSchema)
+  assert.ok(properties.projectId)
+  assert.ok(properties.scriptId)
+  assert.ok(properties.query)
+  assert.ok(properties.scriptTitle)
+  assert.ok(properties.includeContent)
+  assert.ok(properties.contentLimit)
+  assert.ok(properties.limit)
+})
+
+test('readProjectScripts filters project scripts by title and returns requested body', async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = mockFetch({
+    '/projects/5/scripts': [
+      {
+        ID: 3,
+        project_id: 5,
+        title: '总剧本',
+        script_type: 'series_bible',
+        summary: '甜妻主线。',
+        content: '好运甜妻总剧本正文。第一幕，便利店相遇。',
+        UpdatedAt: '2026-05-18T00:00:00.000Z',
+      },
+      {
+        ID: 4,
+        project_id: 5,
+        title: '第一集',
+        script_type: 'episode',
+        summary: '第一集摘要。',
+        content: '第一集正文。',
+        UpdatedAt: '2026-05-18T00:00:01.000Z',
+      },
+    ],
+  }) as typeof fetch
+  const previousBaseURL = 'http://localhost:8765'
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await readProjectScripts({
+      projectId: 5,
+      scriptTitle: '总剧本',
+      includeContent: true,
+      contentLimit: 500,
+    }) as Record<string, any>
+
+    assert.equal(result.count, 2)
+    assert.equal(result.matched, 1)
+    assert.equal(result.returned, 1)
+    assert.equal(result.scripts[0].ID, 3)
+    assert.equal(result.scripts[0].title, '总剧本')
+    assert.equal(result.scripts[0].content, '好运甜妻总剧本正文。第一幕，便利店相遇。')
+  } finally {
+    setMCPAPIBaseURL(previousBaseURL)
+    globalThis.fetch = previousFetch
+  }
 })
 
 test('attach asset slot candidate posts resource candidate without selecting it', async () => {
@@ -616,7 +677,7 @@ test('draft model MCP tool exposes frontend-owned field and seed contract', asyn
   const result = await getDraftModelContract({
     kind: 'production_proposal',
     target: { entityType: 'production', entityId: 301, projectId: 42 },
-    seedMode: 'snapshot',
+    seedMode: 'editable_snapshot',
     include: ['production', 'segments', 'not_allowed'],
     hydrate: false,
   }) as Record<string, any>
@@ -625,8 +686,8 @@ test('draft model MCP tool exposes frontend-owned field and seed contract', asyn
   assert.equal(result.kind, 'production_proposal')
   assert.equal(result.contentSchemaId, 'movscript.production_proposal.v1')
   assert.deepEqual(result.seedPolicy.include, ['production', 'segments'])
-  assert.equal(result.seedPolicy.defaultMode, 'snapshot')
-  assert.deepEqual(result.seedPolicy.allowedModes, ['empty', 'snapshot'])
+  assert.equal(result.seedPolicy.defaultMode, 'editable_snapshot')
+  assert.deepEqual(result.seedPolicy.allowedModes, ['empty', 'snapshot', 'editable_snapshot'])
   assert.deepEqual(result.fieldGuide.owns, [
     'snapshot.proposal.segments',
     'snapshot.proposal.segments[].scene_moments',
@@ -677,7 +738,7 @@ test('draft model MCP tool hydrates production proposal snapshot with production
       include: ['production_script_brief', 'project_scripts'],
     }) as Record<string, any>
 
-    assert.equal(result.seedPolicy.mode, 'snapshot')
+    assert.equal(result.seedPolicy.mode, 'editable_snapshot')
     assert.equal(result.seed.data.production_script_brief.scriptVersionId, 77)
     assert.equal(result.seed.data.production_script_brief.brief, 'Production brief from page.')
     assert.equal(result.seed.data.production_script_brief.body_excerpt, 'A long script body.')

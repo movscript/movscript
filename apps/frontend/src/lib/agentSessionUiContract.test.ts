@@ -36,3 +36,33 @@ test('agent session UI keeps worker trace drilldown contracts', () => {
   assert.match(panelSource, /运行事件/)
   assert.match(panelSource, /加载更多/)
 })
+
+test('agent session UI routes pending input answers before starting a new run', () => {
+  const panelSource = readFileSync(resolve('src/components/layout/AIAgentPanel.tsx'), 'utf8')
+  const runPageSource = readFileSync(resolve('src/pages/agent/AIAgentRunPage.tsx'), 'utf8')
+
+  assert.match(panelSource, /const activePendingInputRequest = firstPendingInputRequest\(actionableLocalRun\)/)
+  assert.match(panelSource, /const answeringPendingInput = !!activePendingInputRequest/)
+  assert.match(panelSource, /answeringPendingInput[\s\S]*localAgentClient\.answerRunInput\(run\.id, \{ requestId, \.\.\.answer \}\)/)
+  assert.match(panelSource, /formatInputAnswerForChat\(request, answer\)/)
+  assert.match(panelSource, /answeringPendingInput \? '回答' : debugBeforeSend/)
+  assert.match(panelSource, /disabled=\{loading \|\| buildingSendDraft \|\| \(answeringPendingInput && !canAnswerPendingInputWithText\)\}/)
+
+  const pendingBranch = panelSource.indexOf('if (answeringPendingInput && activePendingInputRequest)')
+  const newRunPath = panelSource.indexOf('const draft = await buildSendDraft')
+  assert.ok(pendingBranch > 0, 'pending input answer branch must exist in send()')
+  assert.ok(newRunPath > pendingBranch, 'pending input must be handled before building a new send draft')
+
+  assert.match(runPageSource, /import \{ LocalAgentInputRequestCard \}/)
+  assert.match(runPageSource, /<LocalAgentInputRequestCard/)
+  assert.doesNotMatch(runPageSource, /inputDrafts/)
+})
+
+test('agent panel keeps recent resources as mention candidates, not automatic context labels', () => {
+  const panelSource = readFileSync(resolve('src/components/layout/AIAgentPanel.tsx'), 'utf8')
+
+  assert.doesNotMatch(panelSource, /recentResourcesCount/)
+  assert.match(panelSource, /\.\.\.recentResources\.map\(attachmentFromResource\)/)
+  assert.match(panelSource, /resourceMentionAttachments\(input, resourceAttachmentIndex\)/)
+  assert.match(panelSource, /recentResources: \[\]/)
+})

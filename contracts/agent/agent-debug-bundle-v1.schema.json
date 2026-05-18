@@ -17,6 +17,7 @@
     "modelConfigError",
     "lastUpdated",
     "observationCoverage",
+    "evidenceChecklist",
     "triageItems",
     "remediationPlan",
     "runSummary",
@@ -75,6 +76,10 @@
     "observationCoverage": {
       "type": "array",
       "items": { "$ref": "#/$defs/observationItem" }
+    },
+    "evidenceChecklist": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/evidenceItem" }
     },
     "triageItems": {
       "type": "array",
@@ -135,6 +140,21 @@
         "titleKey": { "type": "string", "minLength": 1 },
         "detailKey": { "type": "string", "minLength": 1 },
         "runId": { "type": "string" }
+      }
+    },
+    "evidenceItem": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "status", "labelKey", "detailKey"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": ["runtime", "observations", "triage", "remediation", "runs", "preview", "redaction"]
+        },
+        "status": { "$ref": "#/$defs/status" },
+        "labelKey": { "type": "string", "minLength": 1 },
+        "detailKey": { "type": "string", "minLength": 1 },
+        "detailValues": { "type": "object" }
       }
     },
     "remediationItem": {

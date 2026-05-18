@@ -72,20 +72,7 @@ func (s *Service) SourceLockStatus(ctx context.Context, projectID uint, kind str
 }
 
 func (s *Service) productionSourceLockStatus(ctx context.Context, projectID uint, item domainsemantic.Production) (SourceLockStatus, error) {
-	status := newSourceLockStatus("production", item.ID)
-	if err := status.addTargetRelationReason(ctx, s, projectID, "production_text_blocks", "已有制作文本块，制作来源不可再切换", "production_text_block", domainrelation.NewEntityRef("production", item.ID), domainrelation.CategoryStructure, domainrelation.TypeContains); err != nil {
-		return SourceLockStatus{}, err
-	}
-	if err := status.addTargetRelationReason(ctx, s, projectID, "segments", "已有编排段，制作来源不可再切换", "segment", domainrelation.NewEntityRef("production", item.ID), domainrelation.CategoryStructure, domainrelation.TypeContains); err != nil {
-		return SourceLockStatus{}, err
-	}
-	if err := status.addTargetRelationReason(ctx, s, projectID, "content_units", "已有制作项，制作来源不可再切换", "content_unit", domainrelation.NewEntityRef("production", item.ID), domainrelation.CategoryStructure, domainrelation.TypeContains); err != nil {
-		return SourceLockStatus{}, err
-	}
-	if err := status.addKeyframeTargetRelationReason(ctx, s, projectID, "keyframes", "已有关键帧，制作来源不可再切换", domainrelation.NewEntityRef("production", item.ID)); err != nil {
-		return SourceLockStatus{}, err
-	}
-	return status, nil
+	return newSourceLockStatus("production", item.ID), nil
 }
 
 func (s *Service) segmentSourceLockStatus(ctx context.Context, projectID uint, item domainsemantic.Segment) (SourceLockStatus, error) {

@@ -2,7 +2,7 @@
 在正式写入之前，把宽泛、跨层或目标不清的变更请求路由到最小必要的本地 proposal draft。
 
 输入锚点：
-- 当前 focus、已选页面或实体、已有本地 drafts，以及用户的变更请求。
+- 当前 focus、已选页面或实体、当前会话 draftId，以及用户的变更请求。
 
 边界：
 - 此 workflow 只做 proposal 路由、复用现有 draft 或创建最小范围 draft。
@@ -11,7 +11,7 @@
 
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
-- Draft：{{tool:movscript_list_drafts}} {{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
+- Draft：{{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
 - 缺少目标时询问：{{tool:movscript_request_user_input}}
 
 路由规则：
@@ -30,10 +30,10 @@
 - 如果上下文已足够且用户目标明确，交接对应 workflow，而不是创建额外泛用 draft。
 
 流程：
-1. 读取 focus，并检查相关已有 drafts。
+1. 读取 focus，并检查当前会话是否已有 draftId。
 2. 判断用户请求属于哪一层；如果跨层，先选择最上游缺口对应的 proposal。
-3. 如果已有本地 proposal draft 匹配请求的变更，优先复用它。
-4. 如果没有合适 draft，推荐或创建范围最窄的 proposal draft kind。
+3. 如果当前会话已有本地 proposal draft，先读取并复用它。
+4. 如果当前会话没有 draft，推荐或创建范围最窄的 proposal draft kind。
 5. 如果目标层级仍不明确，问一个窄问题，而不是创建泛用 draft。
 6. 总结下一步 review 或交接 workflow，但不要声称已经正式写入。
 

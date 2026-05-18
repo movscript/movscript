@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	dto "github.com/movscript/movscript/internal/app/dto"
 	domainscript "github.com/movscript/movscript/internal/domain/script"
@@ -140,6 +141,9 @@ func NormalizeDefaults(item *domainscript.ScriptSnapshot) {
 
 func (s *Service) ensureInitialVersion(ctx context.Context, item *domainscript.ScriptSnapshot, createdByID *uint) error {
 	if item == nil || item.ID == 0 {
+		return nil
+	}
+	if strings.TrimSpace(item.Content) == "" && strings.TrimSpace(item.RawSource) == "" {
 		return nil
 	}
 	_, found, err := s.repo.FindInitialVersion(ctx, item.ProjectID, item.ID)

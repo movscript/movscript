@@ -269,3 +269,52 @@ func TestMigration000022BackfillsCurrentSchemaTables(t *testing.T) {
 		}
 	}
 }
+
+func TestMigration000024BackfillsAIModelCapacityConfigColumns(t *testing.T) {
+	db := testutil.OpenSQLiteWithConfig(t, "migration_000024_ai_model_capacity_config.db", &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	}, &AppliedMigration{})
+	if err := db.Exec(`CREATE TABLE ai_model_configs (id integer primary key, credential_id integer, model_def_id text)`).Error; err != nil {
+		t.Fatalf("create ai_model_configs: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO ai_model_configs (id, credential_id, model_def_id) VALUES (1, 1, 'test-model')`).Error; err != nil {
+		t.Fatalf("insert ai_model_config: %v", err)
+	}
+	for _, migration := range RegisteredMigrations() {
+		if migration.Version >= "000024" {
+			break
+		}
+		if err := db.Create(&AppliedMigration{
+			Version:   migration.Version,
+			Name:      migration.Name,
+			Checksum:  migrationChecksum(migration),
+			AppliedAt: time.Now().UTC(),
+		}).Error; err != nil {
+			t.Fatalf("insert migration %s: %v", migration.Version, err)
+		}
+	}
+	if db.Migrator().HasColumn(&model.AIModelConfig{}, "capacity_weight") {
+		t.Fatal("capacity_weight column exists before migration")
+	}
+	if db.Migrator().HasColumn(&model.AIModelConfig{}, "max_concurrency") {
+		t.Fatal("max_concurrency column exists before migration")
+	}
+
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+
+	if !db.Migrator().HasColumn(&model.AIModelConfig{}, "capacity_weight") {
+		t.Fatal("expected capacity_weight column to be backfilled")
+	}
+	if !db.Migrator().HasColumn(&model.AIModelConfig{}, "max_concurrency") {
+		t.Fatal("expected max_concurrency column to be backfilled")
+	}
+	var cfg model.AIModelConfig
+	if err := db.First(&cfg, 1).Error; err != nil {
+		t.Fatalf("read migrated ai model config: %v", err)
+	}
+	if cfg.CapacityWeight != 1 {
+		t.Fatalf("capacity_weight = %d, want 1", cfg.CapacityWeight)
+	}
+}

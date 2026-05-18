@@ -237,6 +237,13 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&persistencemodel.EntityRelation{})
 			},
 		},
+		{
+			Version: "000024",
+			Name:    "add_ai_model_capacity_config",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.AIModelConfig{})
+			},
+		},
 	}
 	return core
 }

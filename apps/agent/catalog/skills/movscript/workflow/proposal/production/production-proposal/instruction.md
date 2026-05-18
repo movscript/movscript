@@ -35,7 +35,7 @@ Draft schema：{{schema:movscript.production_proposal.v1.id}}
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
 - Draft 模型：{{tool:movscript_get_draft_model}}
-- Draft：{{tool:movscript_list_drafts}} {{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
+- Draft：{{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
 - Project 设定和素材槽查询：{{tool:movscript_query_creative_references}} {{tool:movscript_query_asset_slots}}
 - 缺少目标时询问：{{tool:movscript_request_user_input}}
 
@@ -44,7 +44,7 @@ Draft schema：{{schema:movscript.production_proposal.v1.id}}
 2. 获取 production_proposal 的 draft model 契约；若暂不可用，使用 schema fallback 并在输出中说明。
 3. 使用 draft model 返回的 snapshot seed；如需要剧本正文，再调用项目剧本读取工具，不要自行假设当前剧本/brief。
 4. 先检查 production proposal 需要引用的 project 层对象是否已存在或已有可用 setting_proposal / asset_proposal draft 可承接；可通过 draft model seed 确认，也可调用 `movscript_query_creative_references` / `movscript_query_asset_slots` 查询。无法确认 id 存在时不得绑定；如果不存在，停止 production draft 写入，按缺口类型转去创建/更新对应 project 层 draft，并在输出中说明 production 将在其通过 review 后继续。
-5. 查找或创建 production_proposal draft，source/target 记录 production 锚点，并把 MCP 返回的 seed/modelRef 作为 movscript_create_draft.seed 传入。
+5. 如果当前会话已有 production_proposal draftId，先读取它；否则创建 production_proposal draft，source/target 记录 production 锚点，并把 MCP 返回的 seed/modelRef 作为 movscript_create_draft.seed 传入。
 6. 修改现有 draft 前必须先读取内容；用 JSON Pointer operations patch segments、scene moments，以及每个 scene moment 下的 `creative_references`/`asset_slots`。Production draft 不创建 project 层设定；已有设定只用 `{ "id": number, "role"?: string }` 引用，不写 `action`。
 7. Validate draft，然后运行 preview apply。
 8. 如果出现 validation 或后端错误，patch 具体路径并再次 preview。

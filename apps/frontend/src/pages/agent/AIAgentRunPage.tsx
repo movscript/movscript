@@ -4,8 +4,9 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ChevronDown, ChevronRight, Copy, History, Loader2, RefreshCw, Route, XCircle } from 'lucide-react'
 import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
 import { AgentRunGenerationArtifacts } from '@/components/agent/AgentRunGenerationArtifacts'
+import { LocalAgentInputRequestCard } from '@/components/agent/localRuntime'
 import { agentTaskStatusLabel, buildPlanTaskViews, buildTaskArtifactViews } from '@/lib/agentPlanUi'
-import { AGENT_DEBUG_FIELD_GUIDE, agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, buildDebugAttentionEvents, buildDebugCoverageSummary, buildDebugReadinessChecklist, buildDebugReportText, buildModelCallDebugContext, buildModelCallDebugContexts, buildModelCallSummaries, buildSkillTraceSummary, buildTraceEventLink, canCancelWorkerRun, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runRoleLabel, runStatusLabel, traceCategoryLabel, traceDeepLinkMissing as isTraceDeepLinkMissing, traceEventDurationMs, traceEventIdFromHash, traceEventStatusLabel, traceKindLabel, type AgentDebugAttentionEvent, type AgentDebugCoverageSummary, type AgentDebugReadinessItem, type AgentModelCallSummary, type AgentSkillTraceSummary, type AgentTraceCategory } from '@/lib/agentRunUi'
+import { AGENT_DEBUG_FIELD_GUIDE, agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, buildDebugAttentionEvents, buildDebugCoverageSummary, buildDebugReadinessChecklist, buildDebugReportText, buildModelCallDebugContext, buildModelCallDebugContexts, buildModelCallSummaries, buildSkillTraceSummary, buildTraceEventLink, canCancelWorkerRun, formatTraceEventDuration, hasUnloadedTraceEvents, runRoleLabel, runStatusLabel, traceCategoryLabel, traceDeepLinkMissing as isTraceDeepLinkMissing, traceEventDurationMs, traceEventIdFromHash, traceEventStatusLabel, traceKindLabel, type AgentDebugAttentionEvent, type AgentDebugCoverageSummary, type AgentDebugReadinessItem, type AgentModelCallSummary, type AgentSkillTraceSummary, type AgentTraceCategory } from '@/lib/agentRunUi'
 import { formatAgentTraceDebugData, redactAgentTraceDebugText } from '@/lib/agentTraceDebugData'
 import { isRecord } from '@/lib/jsonValue'
 import { localAgentClient, type AgentRun, type AgentTraceEvent, type AgentTraceEventKind } from '@/lib/localAgentClient'
@@ -49,7 +50,6 @@ export default function AIAgentRunPage() {
   const [approvalActionId, setApprovalActionId] = useState<string | null>(null)
   const [approvalError, setApprovalError] = useState<string | null>(null)
   const [inputActionId, setInputActionId] = useState<string | null>(null)
-  const [inputDrafts, setInputDrafts] = useState<Record<string, string>>({})
   const [inputError, setInputError] = useState<string | null>(null)
   const [expandedEventIds, setExpandedEventIds] = useState<Set<string>>(() => new Set())
   const [traceDeepLinkEventId, setTraceDeepLinkEventId] = useState(() => traceEventIdFromLocationHash())
@@ -172,7 +172,6 @@ export default function AIAgentRunPage() {
     setApprovalActionId(null)
     setApprovalError(null)
     setInputActionId(null)
-    setInputDrafts({})
     setInputError(null)
     setDebugReportCopied(false)
     setDebugReportCopyError(null)
@@ -461,7 +460,6 @@ export default function AIAgentRunPage() {
     setInputError(null)
     try {
       await localAgentClient.answerRunInput(runId, { requestId, ...answer })
-      setInputDrafts((current) => ({ ...current, [requestId]: '' }))
       await refreshRunPage()
     } catch (error) {
       setInputError(error instanceof Error ? error.message : String(error))
@@ -602,63 +600,14 @@ export default function AIAgentRunPage() {
                     </p>
                   )}
                   {(runQuery.data.pendingInputRequests ?? []).filter((request) => request.status === 'pending').map((request) => (
-                    <div key={request.id} className="space-y-0.5">
-                      <div className="flex min-w-0 flex-wrap items-center gap-1">
-                        <div className="min-w-0 truncate font-medium text-foreground">{request.title}</div>
-                        <Badge variant="outline" className="shrink-0 text-[9px]">输入类型 {inputTypeLabel(request.inputType)}</Badge>
-                      </div>
-                      <p className="text-muted-foreground">{request.question}</p>
-                      {request.choices.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {request.choices.map((choice) => (
-                            <Button
-                              data-testid="agent-run-input-choice"
-                              key={choice.id}
-                              type="button"
-                              size="xs"
-                              variant="outline"
-                              className="h-auto min-h-6 max-w-full whitespace-normal px-2 py-1 text-left text-[9px]"
-                              aria-label={`回答${request.title}: ${choice.label}`}
-                              disabled={!!inputActionId}
-                              onClick={() => { void answerInput(request.id, { choiceIds: [choice.id] }) }}
-                            >
-                              {inputActionId === request.id && <Loader2 size={10} className="animate-spin" />}
-                              <span className="min-w-0">
-                                <span className="block font-medium">{choice.label}</span>
-                                {choice.description && <span className="block text-[8px] text-muted-foreground">{choice.description}</span>}
-                              </span>
-                            </Button>
-                          ))}
-                          {request.allowCustomAnswer && <Badge variant="outline" className="text-[9px]">可自定义答案</Badge>}
-                        </div>
-                      )}
-                      {(request.allowCustomAnswer || request.inputType === 'text') && (
-                        <div className="flex items-center gap-1 pt-1">
-                          <input
-                            data-testid="agent-run-input-text"
-                            value={inputDrafts[request.id] ?? ''}
-                            onChange={(event) => setInputDrafts((current) => ({ ...current, [request.id]: event.target.value }))}
-                            disabled={!!inputActionId}
-                            placeholder="输入答案"
-                            aria-label={`输入${request.title}的自定义答案`}
-                            className="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                          />
-                          <Button
-                            data-testid="agent-run-input-submit"
-                            type="button"
-                            size="xs"
-                            variant="secondary"
-                            className="h-7 px-2 text-[10px]"
-                            aria-label={`提交${request.title}的自定义答案`}
-                            disabled={!!inputActionId || !(inputDrafts[request.id] ?? '').trim()}
-                            onClick={() => { void answerInput(request.id, { text: (inputDrafts[request.id] ?? '').trim() }) }}
-                          >
-                            {inputActionId === request.id && <Loader2 size={10} className="animate-spin" />}
-                            发送
-                          </Button>
-                        </div>
-                      )}
-                    </div>
+                    <LocalAgentInputRequestCard
+                      key={request.id}
+                      request={request}
+                      disabled={!!inputActionId}
+                      onAnswer={(answer) => { void answerInput(request.id, answer) }}
+                      placeholder="输入答案"
+                      sendLabel="发送"
+                    />
                   ))}
                 </div>
               )}
