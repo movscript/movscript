@@ -30,7 +30,7 @@ test('generationTimingLabel describes active and terminal monitoring time', () =
     firstSeenAt: '2026-05-09T08:00:00.000Z',
     updatedAt: '2026-05-09T08:00:05.500Z',
     terminal: false,
-  }, 'en-US').startsWith('已监控 5.5s · 更新'), true)
+  }, 'en-US').startsWith('已等待 5.5s · 更新'), true)
   assert.equal(generationTimingLabel({
     firstSeenAt: '2026-05-09T08:00:00.000Z',
     completedAt: '2026-05-09T08:01:12.000Z',

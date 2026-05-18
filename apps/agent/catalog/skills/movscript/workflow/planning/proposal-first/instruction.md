@@ -42,7 +42,7 @@
 - 本地 draft 变更必须保持可审阅、可回退。
 - 不要让 production_proposal 承担 project 层设定或 asset slot 创建。
 
-输出合同：
+输出：
 返回已选择的 draft 或推荐的 draft kind、理由、阻塞项、下一步审阅动作和应交接的 workflow。
 
 绝不：

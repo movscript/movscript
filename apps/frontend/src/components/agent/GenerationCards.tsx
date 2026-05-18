@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { AlertCircle, Check, Loader2, Wand2 } from 'lucide-react'
 import type { ChatGenerationJob, ChatGenerationParamAudit, ChatGenerationValidationError } from '@/store/agentStore'
 import type { GenerationProgressState } from '@/lib/agentGenerationMedia'
@@ -5,22 +6,34 @@ import { generationJobBadge, generationProgressTitle, generationStatusText, gene
 import { cn } from '@/lib/utils'
 
 export function GenerationProgressCard({ state }: { state: GenerationProgressState }) {
+  const [now, setNow] = useState(() => new Date().toISOString())
   const title = generationProgressTitle(state)
   const badge = generationJobBadge(state)
   const status = generationStatusText(state.status, state.stage)
   const progress = state.progress !== undefined ? clampNumber(state.progress, 0, 100) : undefined
-  const timing = generationTimingLabel(state, generationDisplayLocale())
+  const waitingTime = !state.terminal ? durationLabel(state.firstSeenAt, now) : ''
+  const timing = generationTimingLabel({
+    ...state,
+    updatedAt: state.terminal ? state.updatedAt : now,
+  }, generationDisplayLocale())
   const icon = badge.tone === 'failed' || badge.tone === 'warning'
     ? <AlertCircle size={12} className="shrink-0 text-amber-600" />
     : state.terminal
       ? <Check size={12} className="shrink-0 text-green-600" />
       : <Loader2 size={12} className="shrink-0 animate-spin text-muted-foreground" />
+  useEffect(() => {
+    if (state.terminal) return undefined
+    const timer = window.setInterval(() => setNow(new Date().toISOString()), 1000)
+    return () => window.clearInterval(timer)
+  }, [state.terminal])
   const message = state.message
     ?? (state.status === 'timeout' || state.stage === 'timeout'
       ? '生成监控已超时，任务可能仍在后台继续运行。'
       : progress !== undefined
         ? `当前进度 ${progress}%`
-        : '正在等待生成服务返回最新状态。')
+        : waitingTime
+          ? `正在等待生成服务返回结果，已等待 ${waitingTime}。`
+          : '正在等待生成服务返回结果。')
   return (
     <div data-testid="agent-generation-progress" aria-live="polite" className="space-y-2 rounded-md border border-border bg-background/70 p-2">
       <div className="flex min-w-0 items-center justify-between gap-2">
@@ -35,7 +48,7 @@ export function GenerationProgressCard({ state }: { state: GenerationProgressSta
           </span>
         </div>
       </div>
-      {progress !== undefined && (
+      {progress !== undefined ? (
         <div
           data-testid="agent-generation-progress-bar"
           role="progressbar"
@@ -45,6 +58,15 @@ export function GenerationProgressCard({ state }: { state: GenerationProgressSta
           className="h-1.5 overflow-hidden rounded-full bg-muted"
         >
           <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${progress}%` }} />
+        </div>
+      ) : !state.terminal && (
+        <div
+          data-testid="agent-generation-waiting-bar"
+          role="progressbar"
+          aria-valuetext={waitingTime ? `已等待 ${waitingTime}` : '等待生成服务返回结果'}
+          className="h-1.5 overflow-hidden rounded-full bg-muted"
+        >
+          <div className="h-full w-1/3 rounded-full bg-primary/70 animate-pulse" />
         </div>
       )}
       <p className="text-[11px] leading-relaxed text-muted-foreground">
@@ -58,6 +80,19 @@ export function GenerationProgressCard({ state }: { state: GenerationProgressSta
       )}
     </div>
   )
+}
+
+function durationLabel(start: string | undefined, end: string | undefined) {
+  if (!start || !end) return ''
+  const startMs = new Date(start).getTime()
+  const endMs = new Date(end).getTime()
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) return ''
+  const ms = endMs - startMs
+  if (ms < 1000) return `${ms}ms`
+  if (ms < 60_000) return `${Math.floor(ms / 1000)} 秒`
+  const minutes = Math.floor(ms / 60_000)
+  const seconds = Math.floor((ms % 60_000) / 1000)
+  return seconds > 0 ? `${minutes} 分 ${seconds} 秒` : `${minutes} 分钟`
 }
 
 export function GenerationJobSummaryCard({ jobs }: { jobs?: ChatGenerationJob[] }) {

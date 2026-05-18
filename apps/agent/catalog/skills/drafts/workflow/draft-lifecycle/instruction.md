@@ -42,7 +42,7 @@
 - proposal draft 是否已经在最终回复前运行 `preview_apply` dry-run，并记录结果。
 - 汇报是否包含 draftId、kind、status 和下一步动作。
 
-输出合同：
+输出：
 返回 draftId、kind、status、读取来源、变更摘要、validation/preview 状态、阻塞项，以及下一步 review 或 apply 动作。
 
 绝不：

@@ -27,6 +27,7 @@
     "tool://movscript_get_draft",
     "tool://movscript_create_draft",
     "tool://movscript_update_draft",
+    "tool://movscript_apply_draft",
     "tool://movscript_request_user_input"
   ],
   "toolScope": "intersect",

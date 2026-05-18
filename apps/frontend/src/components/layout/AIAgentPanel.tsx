@@ -3206,6 +3206,7 @@ function LiveRunActivityBubble({
 }) {
   if (!run && events.length === 0) return null
   const statusLabel = latestModelRetryStatus(events) ?? latestAgentStatusLabel(run, events)
+  const activeTool = activeToolStatus(run, events)
   return (
     <div className="space-y-1">
       <AgentBubbleStatusText label={statusLabel} />
@@ -3219,15 +3220,67 @@ function LiveRunActivityBubble({
           </Badge>
         )}
       >
+        {activeTool && <ActiveToolStatusCard tool={activeTool} />}
         <RunActivityTitleBubble
           run={run}
           events={events}
           title="运行过程"
-          className="mt-0"
+          className={activeTool ? 'mt-2' : 'mt-0'}
         />
       </AgentChatMessage>
     </div>
   )
+}
+
+interface ActiveToolStatus {
+  name: string
+  status: string
+  detail?: string
+}
+
+function ActiveToolStatusCard({ tool }: { tool: ActiveToolStatus }) {
+  return (
+    <div data-testid="agent-active-tool-status" className="rounded-md border border-border bg-background/70 p-2">
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Loader2 size={12} className="shrink-0 animate-spin text-muted-foreground" />
+          <span className="truncate text-[11px] font-medium text-foreground">正在执行工具</span>
+        </div>
+        <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">
+          {tool.status}
+        </Badge>
+      </div>
+      <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">
+        <Wrench size={11} className="shrink-0" />
+        <span className="truncate font-mono">{tool.name}</span>
+      </div>
+      {tool.detail && (
+        <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">{tool.detail}</p>
+      )}
+    </div>
+  )
+}
+
+function activeToolStatus(run: AgentRun | null, events: ChatRunActivityEvent[]): ActiveToolStatus | null {
+  const activeStep = [...(run?.steps ?? [])].reverse().find((step) => step.type === 'tool_call' && step.status === 'in_progress')
+  if (activeStep?.toolName) {
+    return {
+      name: activeStep.toolName,
+      status: agentStepStatusLabel(activeStep.status),
+      ...(activeStep.title ? { detail: activeStep.title } : {}),
+    }
+  }
+  const latestToolEvent = [...events].reverse().find((event) => event.kind === 'tool_call' && (event.status === 'started' || event.status === 'info'))
+  if (latestToolEvent) {
+    const streamTool = formatToolCallStreamDetail(latestToolEvent)
+    const detail = latestToolEvent.summary ?? streamTool?.parseStatus
+    return {
+      name: latestToolEvent.toolName ?? streamTool?.label ?? 'tool',
+      status: latestToolEvent.status === 'started' ? '执行中' : '等待结果',
+      ...(detail ? { detail } : {}),
+    }
+  }
+  return null
 }
 
 function latestAgentStatusLabel(run: AgentRun | null, events: ChatRunActivityEvent[]): string | undefined {

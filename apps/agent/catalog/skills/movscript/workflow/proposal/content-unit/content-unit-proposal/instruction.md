@@ -57,7 +57,7 @@ Draft schema：{{schema:movscript.content_unit_proposal.v1.id}}
 - Content unit 不得覆盖或改写上游 creative reference；需要新增或修订可复用设定时，输出缺口并交接 setting_proposal。
 - 不确定 production 或 scene 范围时，应询问用户。
 
-输出合同：
+输出：
 返回 draftId、productionId、content unit 数量、validation/preview 状态、结构缺口和下一步媒体/素材工作建议。
 
 绝不：

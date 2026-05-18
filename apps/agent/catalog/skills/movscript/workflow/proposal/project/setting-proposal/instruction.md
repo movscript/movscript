@@ -49,7 +49,7 @@ Draft schema：{{schema:movscript.setting_proposal.v1.id}}
 - 不确定设定对象时先问用户。
 - 不把素材候选 prompt、模型参数或生成 job 写进设定 proposal。
 
-输出合同：
+输出：
 回复 draftId、projectId、draft status、设定变更数量、validation/preview 状态、未解决设定问题和下一步 proposal。
 
 绝不：

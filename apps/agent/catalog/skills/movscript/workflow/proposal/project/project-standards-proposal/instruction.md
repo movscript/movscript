@@ -65,7 +65,7 @@ Draft schema：{{schema:movscript.project_standards_proposal.v1.id}}
 - 如果用户要求“需要哪些素材”“素材需求归属”“素材复用边界”，切换到 asset_proposal。
 - 如果用户要求“候选图方案”“prompt”“出图方向”，切换到 asset_proposal。
 
-输出合同：
+输出：
 回复 draftId、projectId、draft status、validation 状态、项目规范摘要和未解决的镜头/风格决策。
 
 绝不：

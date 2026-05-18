@@ -58,7 +58,7 @@ export function generationTimingLabel(
   const duration = durationLabel(item.firstSeenAt, completedAt ?? item.updatedAt)
   const updatedTime = formatActivityTime(completedAt ?? item.updatedAt, locale)
   return [
-    duration ? `${item.terminal ? '耗时' : '已监控'} ${duration}` : undefined,
+    duration ? `${item.terminal ? '耗时' : '已等待'} ${duration}` : undefined,
     updatedTime ? `${item.terminal ? '结束' : '更新'} ${updatedTime}` : undefined,
   ].filter(Boolean).join(' · ')
 }

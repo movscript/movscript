@@ -43,6 +43,22 @@ test('GenerationProgressCard renders monitor timeout as explicit feedback', () =
   assert.equal(html.includes('aria-valuenow="72"'), true)
 })
 
+test('GenerationProgressCard renders waiting state without fake progress', () => {
+  const html = renderToStaticMarkup(
+    <GenerationProgressCard state={{
+      jobId: 11,
+      status: 'running',
+      stage: 'provider_rendering',
+      terminal: false,
+    }} />,
+  )
+
+  assert.equal(html.includes('data-testid="agent-generation-waiting-bar"'), true)
+  assert.equal(html.includes('aria-valuetext="等待生成服务返回结果"'), true)
+  assert.equal(html.includes('aria-valuenow='), false)
+  assert.equal(html.includes('正在等待生成服务返回结果'), true)
+})
+
 test('GenerationJobSummaryCard renders summary cards with accessible progressbars', () => {
   const html = renderToStaticMarkup(
     <GenerationJobSummaryCard jobs={[

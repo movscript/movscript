@@ -13,7 +13,7 @@ import type { AgentRun, JSONValue } from '../state/types.js'
 import type { ToolRegistry } from '../tools/toolRegistry.js'
 
 export type RuntimeLocalGenerationToolCall = {
-  name: 'movscript_create_generation_job'
+  name: 'movscript_create_generation_job' | 'movscript_get_generation_job'
   args: Record<string, JSONValue>
 }
 

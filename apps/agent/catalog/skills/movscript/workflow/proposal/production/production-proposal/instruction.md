@@ -55,7 +55,7 @@ Draft schema：{{schema:movscript.production_proposal.v1.id}}
 - Validate 或 preview apply 出现 `SCENE_MOMENT_WITHOUT_CONTEXT` 时，必须 patch 对应 scene_moment，添加已有 creative reference reuse 或明确的 asset_slots 素材需求后再次 preview。
 - 不确定 segment 或 scene moment 范围时，应询问用户。
 
-输出合同：
+输出：
 回复 draftId、projectId、productionId、draft status、最近一次 preview apply 的 ok/stage、segments 和 scene moments 数量，以及未解决缺口。
 
 绝不：

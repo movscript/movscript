@@ -46,7 +46,7 @@ export async function applyRuntimeLocalCommandDispatch(input: {
   contractResolver: AgentRuntimeContractResolver
   now: () => string
   timestampMs: () => number
-  executeGenerationTool: (call: { name: 'movscript_create_generation_job'; args: Record<string, JSONValue> }) => Promise<ToolExecutionResult>
+  executeGenerationTool: (call: { name: 'movscript_create_generation_job' | 'movscript_get_generation_job'; args: Record<string, JSONValue> }) => Promise<ToolExecutionResult>
   recordTrace: (run: AgentRun, trace: RuntimeLocalCommandTraceInput) => void
   createStep: (run: AgentRun, type: AgentRunStep['type'], round?: AgentRunRoundInfo, toolName?: string) => AgentRunStep
   emitAssistantMessage: (run: AgentRun, message: AgentMessage) => void
