@@ -23,7 +23,7 @@
           "scene_moment",
           "setting_proposal",
           "asset_proposal",
-          "project_proposal",
+          "project_standards_proposal",
           "production_proposal",
           "content_unit_proposal"
         ]
@@ -33,7 +33,7 @@
       },
       "content": {
         "type": "string",
-        "description": "Draft 正文。创建 proposal draft 时必须传 JSON.stringify 后的 canonical JSON 字符串；顶层必须包含 schema 字段（project_proposal=movscript.project_proposal.v1，setting_proposal=movscript.setting_proposal.v1，asset_proposal=movscript.asset_proposal.v1，production_proposal=movscript.production_proposal.v1，content_unit_proposal=movscript.content_unit_proposal.v1，script_split_proposal=movscript.script_split_proposal.v1），并按对应 schema 填写 scope/mode/proposal 等字段。"
+        "description": "Draft 正文。创建 proposal draft 时必须传 JSON.stringify 后的 canonical JSON 字符串；顶层必须包含 schema 字段（project_standards_proposal=movscript.project_standards_proposal.v1，setting_proposal=movscript.setting_proposal.v1，asset_proposal=movscript.asset_proposal.v1，production_proposal=movscript.production_proposal.v1，content_unit_proposal=movscript.content_unit_proposal.v1，script_split_proposal=movscript.script_split_proposal.v1），并按对应 schema 填写 scope/mode/proposal 等字段。"
       },
       "projectId": {
         "type": "number"

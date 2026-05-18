@@ -6,7 +6,7 @@ import { buildApplyDraftPreview, markDraftApplied, rejectDraft, type ApplyDraftI
 import { BackendApplyHTTPError, type BackendApplyResult } from '../drafts/backendApplyClient.js'
 import {
   assetProposalContainsAssetSlots,
-  canonicalizeProjectProposalDraftContent,
+  canonicalizeProjectStandardsProposalDraftContent,
 } from '../drafts/draftRuntimeContent.js'
 import {
   buildRuntimeCreateDraftInput,
@@ -90,7 +90,7 @@ export async function simulateRuntimeDraftApply(input: {
   applyInput: ApplyDraftInput & { backendAuthToken?: unknown; backendAPIBaseURL?: unknown }
 }): Promise<JSONValue> {
   const preview = buildApplyDraftPreview(input.draftStore, input.applyInput)
-  const preparedReview = buildRuntimeProjectProposalReviewForBackend(preview.review, input.draftStore)
+  const preparedReview = buildRuntimeProjectLayerProposalReviewForBackend(preview.review, input.draftStore)
   const validation = validateDraft(preview.draft)
   if (!validation.ok) {
     return {
@@ -140,12 +140,14 @@ export async function applyRuntimeDraftFromUI(input: {
   backendApplyClient: Pick<RuntimeDraftBackendApplyClient, 'applyReview'>
   applyInput: ApplyDraftInput & { backendAuthToken?: unknown; backendAPIBaseURL?: unknown }
   now: () => string
+  appliedBy?: string
 }): Promise<JSONValue> {
+  const appliedBy = input.appliedBy ?? 'movscript-ui'
   const preview = buildApplyDraftPreview(input.draftStore, input.applyInput)
-  const preparedReview = buildRuntimeProjectProposalReviewForBackend(preview.review, input.draftStore)
+  const preparedReview = buildRuntimeProjectLayerProposalReviewForBackend(preview.review, input.draftStore)
   if (isAssetPlanningDraft(preview.draft)) {
     const finalDraft = markDraftApplied(input.draftStore, preview.draft, preparedReview, input.applyInput, {
-      appliedBy: 'movscript-ui',
+      appliedBy,
       backendWritePerformed: false,
       backendApplySkippedReason: 'asset proposal contains candidate plans only; project snapshot apply was skipped',
     })
@@ -174,8 +176,8 @@ export async function applyRuntimeDraftFromUI(input: {
     throw error
   }
 
-  const rebasedContent = canonicalizeProjectProposalDraftContent(preview.draft, backendApply)
-  const nextCreativeReferenceClientIDMap = prepareProjectProposalClientIDMap(preparedReview, backendApply, preview.draft)
+  const rebasedContent = canonicalizeProjectStandardsProposalDraftContent(preview.draft, backendApply)
+  const nextCreativeReferenceClientIDMap = prepareProjectLayerProposalClientIDMap(preparedReview, backendApply, preview.draft)
   const mergedCreativeReferenceClientIDMap = mergeCreativeReferenceClientIDMap(
     isRecord(preview.draft.metadata) ? normalizeClientIDMap(preview.draft.metadata.creativeReferenceClientIDMap) : {},
     nextCreativeReferenceClientIDMap ?? {},
@@ -190,7 +192,7 @@ export async function applyRuntimeDraftFromUI(input: {
       })
     : preview.draft
   const finalDraft = markDraftApplied(input.draftStore, rebasedDraft, preparedReview, input.applyInput, {
-    appliedBy: 'movscript-ui',
+    appliedBy,
     backendWritePerformed: backendApply.performed,
     backendApply: backendApply as unknown as JSONValue,
     ...(Object.keys(mergedCreativeReferenceClientIDMap).length > 0 ? {
@@ -221,7 +223,7 @@ function isAssetPlanningDraft(draft: AgentDraft): boolean {
   return draft.kind === 'asset_proposal' && !assetProposalContainsAssetSlots(draft.content)
 }
 
-function buildRuntimeProjectProposalReviewForBackend(review: ApplyDraftReview, draftStore: AgentDraftStore): ApplyDraftReview {
+function buildRuntimeProjectLayerProposalReviewForBackend(review: ApplyDraftReview, draftStore: AgentDraftStore): ApplyDraftReview {
   if (!isRecord(review) || review.draftKind !== 'asset_proposal' || !isRecord(review.target)) {
     return review
   }
@@ -346,7 +348,7 @@ function mergeCreativeReferenceClientIDMap(left: Record<string, number>, right: 
   return { ...left, ...right }
 }
 
-function prepareProjectProposalClientIDMap(
+function prepareProjectLayerProposalClientIDMap(
   review: ApplyDraftReview,
   backendApply: BackendApplyResult,
   draft: AgentDraft,

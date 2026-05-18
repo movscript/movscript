@@ -2141,7 +2141,7 @@
           "segment": "Segment proposal",
           "scene_moment": "Scene moment proposal",
           "asset_proposal": "Asset candidate proposal",
-          "project_proposal": "Project proposal",
+          "project_standards_proposal": "Project standards proposal",
           "production_proposal": "Production proposal",
           "content_unit_proposal": "Production item proposal",
           "script_split_proposal": "Script split proposal"

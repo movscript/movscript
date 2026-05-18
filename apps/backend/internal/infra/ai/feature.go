@@ -208,7 +208,7 @@ var FeatureCatalog = []FeatureDef{
 		Description:  "兼容入口：项目编排提示词已迁移到前端 agent 侧",
 		RequiredCap:  CapabilityText,
 		SystemPrompt: `你是制作编排分析助手。该功能现已迁移到前端 agent 侧，后端这里只保留兼容入口。直接输出JSON对象，禁止输出JSON以外的任何内容。`,
-		OutputSchema: `{"summary":"production_orchestrate 后端提示词已废弃，请使用前端 agent 的 project_proposal 草稿流程。","creative_references":[],"asset_slots":[],"warnings":["backend_prompt_deprecated"]}`,
+		OutputSchema: `{"summary":"production_orchestrate 后端提示词已废弃，请使用前端 agent 的 project_standards_proposal 草稿流程。","creative_references":[],"asset_slots":[],"warnings":["backend_prompt_deprecated"]}`,
 		MaxTokens:    DefaultTextMaxTokens, Temperature: 0,
 	},
 }

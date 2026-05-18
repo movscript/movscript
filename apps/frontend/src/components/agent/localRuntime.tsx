@@ -32,6 +32,7 @@ export interface LocalAgentInputRequestCardProps {
   onAnswer: (answer: { choiceIds?: string[]; text?: string }) => void
   sendLabel?: string
   placeholder?: string
+  meta?: ReactNode
   className?: string
 }
 
@@ -45,13 +46,17 @@ export function LocalAgentInputRequestCard({
   onAnswer,
   sendLabel,
   placeholder,
+  meta,
   className,
 }: LocalAgentInputRequestCardProps) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
   return (
     <div className={cn('rounded border border-sky-500/20 bg-background/70 px-2 py-1.5', className)}>
-      <div className="font-medium text-foreground">{request.title}</div>
+      <div className="flex flex-wrap items-center gap-1">
+        <div className="font-medium text-foreground">{request.title}</div>
+        {meta}
+      </div>
       {request.summary && <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{request.summary}</p>}
       <p className="mt-1 text-[10px] leading-relaxed text-foreground">{request.question}</p>
       {request.choices.length > 0 && (
@@ -64,6 +69,8 @@ export function LocalAgentInputRequestCard({
               variant="outline"
               disabled={disabled}
               onClick={() => onAnswer({ choiceIds: [choice.id] })}
+              data-testid="agent-run-input-choice"
+              aria-label={`回答${request.title}: ${choice.label}`}
               className="h-auto justify-start whitespace-normal px-2 py-1 text-left text-[10px]"
             >
               <span className="min-w-0">
@@ -81,6 +88,8 @@ export function LocalAgentInputRequestCard({
             onChange={(e) => setText(e.target.value)}
             disabled={disabled}
             placeholder={placeholder ?? t('common.inputPlaceholder')}
+            data-testid="agent-run-input-text"
+            aria-label={`输入${request.title}的自定义答案`}
             className="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
           />
           <Button
@@ -89,6 +98,8 @@ export function LocalAgentInputRequestCard({
             variant="secondary"
             disabled={disabled || !text.trim()}
             onClick={() => onAnswer({ text: text.trim() })}
+            data-testid="agent-run-input-submit"
+            aria-label={`提交${request.title}的自定义答案`}
             className="h-7 px-2 text-[10px]"
           >
             {sendLabel ?? t('common.send')}

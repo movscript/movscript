@@ -44,7 +44,7 @@ function normalizeDraftKind(value: unknown): AgentDraftKind | undefined {
     'segment',
     'scene_moment',
     'asset_proposal',
-    'project_proposal',
+    'project_standards_proposal',
     'production_proposal',
     'content_unit_proposal',
   ]

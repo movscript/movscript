@@ -1,5 +1,6 @@
 import type { ToolCall } from '../state/types.js'
 import type { AgentRunRole } from '../state/types.js'
+import type { AgentRunPolicy } from '../state/types.js'
 import {
   DEFAULT_AGENT_MANIFEST,
   findToolGrant,
@@ -31,6 +32,7 @@ export function applyToolPolicy(
     registry?: ToolRegistry
     catalog?: ResolvedToolCatalog
     approvedToolNames?: string[]
+    approvalMode?: AgentRunPolicy['approvalMode']
     sandboxMode?: boolean
     runRole?: AgentRunRole
   },
@@ -66,7 +68,12 @@ export function applyToolPolicy(
       continue
     }
 
-    if (!isSandboxAutoAllowedTool(tool, options.sandboxMode) && requiresToolApproval(tool, grant.approval) && !approvedToolNames.has(call.name)) {
+    if (
+      !isSandboxAutoAllowedTool(tool, options.sandboxMode)
+      && requiresToolApproval(tool, grant.approval)
+      && !approvedToolNames.has(call.name)
+      && !isAutoApprovedByRunPolicy(tool.risk, options.approvalMode)
+    ) {
       block(call, 'approval_required', `${call.name} 需要用户确认后才能执行`)
       continue
     }
@@ -94,6 +101,12 @@ export function applyToolPolicy(
     const blockedTool = registry.get(call.name)
     blockedToolCalls.push({ call, reason, message, ...(blockedTool ? { tool: blockedTool } : {}) })
   }
+}
+
+function isAutoApprovedByRunPolicy(risk: RegisteredTool['risk'], approvalMode?: AgentRunPolicy['approvalMode']): boolean {
+  if (approvalMode === 'auto') return risk !== 'destructive'
+  if (approvalMode === 'auto_readonly') return risk === 'read' || risk === 'draft' || risk === 'ui'
+  return false
 }
 
 function mapCatalogReason(reason: ResolvedToolCatalog['blocked'][number]['unavailableReason']): BlockedToolCall['reason'] {

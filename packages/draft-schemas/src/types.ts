@@ -11,7 +11,7 @@ export type DraftScope = 'project' | 'production' | 'content_unit' | 'asset'
 
 export type DraftKind =
   | 'setting_proposal'
-  | 'project_proposal'
+  | 'project_standards_proposal'
   | 'production_proposal'
   | 'content_unit_proposal'
   | 'asset_proposal'

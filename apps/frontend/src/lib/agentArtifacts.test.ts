@@ -6,7 +6,7 @@ import type { AgentRun } from './localAgentClient'
 test('extractAgentTaskArtifacts ignores non-plain draft result objects', () => {
   class RuntimeDraftResult {
     id = 'draft_runtime'
-    kind = 'project_proposal'
+    kind = 'project_standards_proposal'
   }
 
   const run = {

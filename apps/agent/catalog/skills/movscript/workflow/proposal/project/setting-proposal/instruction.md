@@ -18,7 +18,7 @@ Draft schema：{{schema:movscript.setting_proposal.v1.id}}
 - setting_proposal draft 是可编辑的后端 snapshot。已有设定保留后端 id；新增设定临时使用 client_id；删除就是从 `proposal.creative_references` 中移除。
 
 上下文缺失回退：
-- 缺项目级画幅、镜头体系、摄影语言、视觉风格或负面约束时，交接 project_proposal。
+- 缺项目级画幅、镜头体系、摄影语言、视觉风格或负面约束时，交接 project_standards_proposal。
 - 设定目标不清或只需要最小事实澄清时，交接 setting_prep 或询问用户。
 - 设定已经明确但缺素材需求、asset slot、用途、归属或复用边界时，交接 asset_proposal。
 - 用户要求根据设定直接生成候选图片/视频时，先确认 asset slot；缺 slot 交接 asset_proposal，已有 slot 交接 asset_candidate_generation 或 visual_generation。

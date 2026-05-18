@@ -14,7 +14,7 @@ test('default profile prompt composition covers global policy and triggered work
   const persona = profile.persona ? catalog.layeredRegistry.skills.get(profile.persona) : undefined
   const policies = profile.enabledPolicies.map((id) => catalog.layeredRegistry.skills.get(id))
   const workflows = [
-    catalog.layeredRegistry.skills.get('movscript.workflow.project-proposal'),
+    catalog.layeredRegistry.skills.get('movscript.workflow.project-standards-proposal'),
     catalog.layeredRegistry.skills.get('movscript.workflow.proposal-first'),
   ]
 
@@ -24,8 +24,8 @@ test('default profile prompt composition covers global policy and triggered work
 
   const ctx: RuntimeContext = {
     profile,
-    message: '请帮我做项目提案草稿',
-    intents: ['project_proposal'],
+    message: '请帮我做项目规范提案草稿',
+    intents: ['project_standards_proposal'],
     uiContext: { route: '/project-workspace', projectId: 1 },
     conversation: { turnCount: 0, lastToolCalls: [], recentErrors: [] },
     catalogVersion: catalog.layeredRegistry.version,
@@ -46,5 +46,5 @@ test('default profile prompt composition covers global policy and triggered work
   assert.doesNotMatch(prompt.systemPrompt, /\{\{schema:/)
   assert.ok(prompt.parts.some((part) => part.id === 'movscript.policy.agent-core'))
   assert.equal(prompt.parts.some((part) => part.id === 'movscript.policy.drafts'), false)
-  assert.ok(prompt.parts.some((part) => part.id === 'movscript.workflow.project-proposal'))
+  assert.ok(prompt.parts.some((part) => part.id === 'movscript.workflow.project-standards-proposal'))
 })

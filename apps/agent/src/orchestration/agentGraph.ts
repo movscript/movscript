@@ -1,6 +1,6 @@
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph'
 import type { MCPClient } from '../mcpClient.js'
-import type { AgentManifest } from '../catalog/agentManifest.js'
+import { findToolGrant, type AgentManifest } from '../catalog/agentManifest.js'
 import type { AgentApprovalRequest, AgentDebugContextPanel, AgentInputRequest, AgentMessage, AgentRun, AgentRunPolicy, AgentRunStatus, AgentTraceEventKind, ResolvedAgentSkill, ResolvedToolCatalog, ToolCall, ToolCallOutcome, JSONValue } from '../state/types.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
@@ -172,6 +172,7 @@ export async function runAgentGraph(input: AgentGraphInput): Promise<AgentGraphR
     })
     .addConditionalEdges('execute', (state) => {
       if (state.status || state.error) return END
+      if (state.requestedCalls.length > 0) return 'policy'
       return 'model'
     })
     .compile()
@@ -506,6 +507,7 @@ async function runPolicyNode(state: AgentGraphState, input: AgentGraphInput): Pr
     catalog: input.capabilities,
     registry: input.registry,
     approvedToolNames: input.approvedToolNames,
+    approvalMode: input.policy.approvalMode,
     sandboxMode: input.policy.sandboxMode === true,
     runRole: input.run.role,
   })
@@ -573,6 +575,7 @@ async function runPolicyNode(state: AgentGraphState, input: AgentGraphInput): Pr
       catalog: input.capabilities,
       registry: input.registry,
       approvedToolNames: input.approvedToolNames,
+      approvalMode: input.policy.approvalMode,
       sandboxMode: input.policy.sandboxMode === true,
       runRole: input.run.role,
     })
@@ -868,7 +871,9 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
   if (!canRunConcurrently) {
     for (const call of requestedCalls) {
       throwIfAborted(input.signal)
-      results.push(await executeOne(call))
+      const result = await executeOne(call)
+      results.push(result)
+      if (call.name === 'movscript_apply_draft' && result.outcome.error) break
     }
   }
 
@@ -923,6 +928,26 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
   const nextHistory: RuntimeModelChatMessage[] = turnResults.flatMap(({ toolCall, content }) => ([
     { role: 'tool', tool_call_id: toolCall.id ?? makeId('call'), content },
   ]))
+  const defaultApplyCalls = buildDefaultDraftApplyCalls(results.map((result) => result.outcome), input)
+  if (defaultApplyCalls.length > 0) {
+    input.onTrace({
+      kind: 'policy',
+      title: 'Default draft apply queued',
+      summary: defaultApplyCalls.map((call) => String(call.args?.draftId ?? call.args?.draft_id ?? call.name)).join(', '),
+      status: 'info',
+      roundIndex: currentRoundIndex,
+      roundLabel,
+      roundSource: 'runtime_rule',
+      data: {
+        eventType: 'draft.apply.default_queued',
+        order: defaultApplyCalls.map((call) => ({
+          toolName: call.name,
+          draftId: call.args?.draftId,
+          draftKind: call.args?.draftKind,
+        })),
+      },
+    })
+  }
 
   if (currentRoundIndex === 1 && input.forcedToolCalls && input.forcedToolCalls.length > 0) {
     return {
@@ -931,8 +956,9 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
       warnings,
       toolCallCount: state.toolCallCount + requestedCalls.length,
       roundIndex: currentRoundIndex + 1,
-      status: 'completed',
-      finalContent: '',
+      ...(defaultApplyCalls.length > 0
+        ? { requestedCalls: defaultApplyCalls }
+        : { status: 'completed' as const, finalContent: '' }),
     }
   }
 
@@ -942,7 +968,49 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
     warnings,
     toolCallCount: state.toolCallCount + requestedCalls.length,
     roundIndex: currentRoundIndex + 1,
+    requestedCalls: defaultApplyCalls,
   }
+}
+
+const DEFAULT_DRAFT_APPLY_KIND_ORDER: Record<string, number> = {
+  project_standards_proposal: 5,
+  setting_proposal: 10,
+  asset_proposal: 20,
+  production_proposal: 30,
+  content_unit_proposal: 40,
+}
+
+function buildDefaultDraftApplyCalls(outcomes: ToolCallOutcome[], input: AgentGraphInput): ToolCall[] {
+  if (!input.registry.get('movscript_apply_draft')) return []
+  const grant = findToolGrant(input.manifest, 'movscript_apply_draft')
+  if (!grant || grant.mode === 'deny') return []
+  const candidates = outcomes.flatMap((outcome, index) => {
+    if (outcome.call.name !== 'movscript_create_draft') return []
+    const result = isJSONRecord(outcome.result) ? outcome.result : undefined
+    if (!result || result.status !== 'created') return []
+    const draft = isJSONRecord(result.draft) ? result.draft : undefined
+    const draftId = typeof result.draftId === 'string'
+      ? result.draftId
+      : typeof result.draftRef === 'string'
+        ? result.draftRef
+        : typeof draft?.id === 'string'
+          ? draft.id
+          : undefined
+    const draftKind = typeof draft?.kind === 'string' ? draft.kind : undefined
+    const rank = draftKind ? DEFAULT_DRAFT_APPLY_KIND_ORDER[draftKind] : undefined
+    if (!draftId || rank === undefined) return []
+    return [{ draftId, draftKind, rank, index }]
+  })
+  return candidates
+    .sort((left, right) => left.rank - right.rank || left.index - right.index)
+    .map((candidate): ToolCall => ({
+      id: makeId('call'),
+      name: 'movscript_apply_draft',
+      args: {
+        draftId: candidate.draftId,
+        ...(candidate.draftKind ? { draftKind: candidate.draftKind } : {}),
+      },
+    }))
 }
 
 function updateRunContextLedger(input: AgentGraphInput, call: ToolCall, result: JSONValue | undefined, source: 'runtime' | 'mcp' | 'sandbox'): ReturnType<typeof contextManager.recordToolResult> {

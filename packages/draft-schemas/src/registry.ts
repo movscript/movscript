@@ -14,7 +14,7 @@ const proposalModeSchema = { const: 'snapshot' }
 const assetSlotOwnerTypeSchema = {
   enum: ['creative_reference', 'creative_reference_state', 'segment', 'scene_moment', 'content_unit', 'keyframe'],
 }
-const projectProposalCreativeReferencesSchema = {
+const projectLayerProposalCreativeReferencesSchema = {
   type: 'array',
   items: objectSchema(['name'], {
     id: { type: 'number' },
@@ -33,7 +33,7 @@ const projectProposalCreativeReferencesSchema = {
     tags_json: { type: 'string' },
   }),
 }
-const projectProposalAssetSlotsSchema = {
+const projectLayerProposalAssetSlotsSchema = {
   type: 'array',
   items: objectSchema(['name', 'kind'], {
     id: { type: 'number' },
@@ -73,17 +73,17 @@ const projectPromptRuleSchema = objectSchema(['key', 'label', 'value'], {
   order: { type: 'number' },
 })
 
-export const projectProposalSchema = {
-  id: 'movscript.project_proposal.v1',
-  kind: 'project_proposal',
+export const projectStandardsProposalSchema = {
+  id: 'movscript.project_standards_proposal.v1',
+  kind: 'project_standards_proposal',
   category: 'project',
   scope: 'project',
-  title: 'Project Proposal',
+  title: 'Project Standards Proposal',
   version: '1.0.0',
   status: 'active',
   jsonSchema: objectSchema(['schema', 'scope', 'proposal'], {
-    schema: { const: 'movscript.project_proposal.v1' },
-    scope: { const: 'project_proposal' },
+    schema: { const: 'movscript.project_standards_proposal.v1' },
+    scope: { const: 'project_standards_proposal' },
     mode: proposalModeSchema,
     snapshot_base: { type: 'object' },
     proposal: objectSchema([], {
@@ -107,23 +107,23 @@ export const projectProposalSchema = {
     summary: { type: 'string' },
   }),
   promptSummary: [
-    '# movscript.project_proposal.v1',
+    '# movscript.project_standards_proposal.v1',
     '',
     'Content shape:',
-    '{ schema: "movscript.project_proposal.v1", scope: "project_proposal", mode: "snapshot", proposal: { project_style: { aspect_ratio?, shot_size_system?, camera_language?, visual_style?, lighting_style?, color_palette?, pacing_rules?, negative_rules?, custom_rules?: Array<{ id?, key, label, category?, value, prompt_role?, enabled?, required?, order? }> } }, snapshot_base?, impact_notes?: string[], summary? }',
+    '{ schema: "movscript.project_standards_proposal.v1", scope: "project_standards_proposal", mode: "snapshot", proposal: { project_style: { aspect_ratio?, shot_size_system?, camera_language?, visual_style?, lighting_style?, color_palette?, pacing_rules?, negative_rules?, custom_rules?: Array<{ id?, key, label, category?, value, prompt_role?, enabled?, required?, order? }> } }, snapshot_base?, impact_notes?: string[], summary? }',
     '',
     'Rules:',
-    '- Project proposal owns project-wide production standards: shot sizes, aspect ratio, camera language, style, lighting, color, pacing, and negative rules.',
+    '- Project standards proposal owns project-wide production standards: shot sizes, aspect ratio, camera language, style, lighting, color, pacing, and negative rules.',
     '- Keep the fixed project_style fields for required baseline standards; use custom_rules for additional project-wide prompt rules from any angle.',
     '- custom_rules entries are key/value prompt rules. key must be stable, value must be concrete, and prompt_role must be one of context, style, constraint, negative, quality_gate.',
-    '- Project proposal must not include setting lists or asset slot lists. Use setting_proposal and asset_proposal for those.',
+    '- Project standards proposal must not include setting lists or asset slot lists. Use setting_proposal and asset_proposal for those.',
     '- Vague style words need concrete visible traits or must be recorded in impact_notes.',
   ].join('\n'),
   examples: [{
     name: 'basic',
     content: {
-      schema: 'movscript.project_proposal.v1',
-      scope: 'project_proposal',
+      schema: 'movscript.project_standards_proposal.v1',
+      scope: 'project_standards_proposal',
       mode: 'snapshot',
       proposal: {
         project_style: {
@@ -162,7 +162,7 @@ export const settingProposalSchema = {
     mode: proposalModeSchema,
     snapshot_base: { type: 'object' },
     proposal: objectSchema([], {
-      creative_references: projectProposalCreativeReferencesSchema,
+      creative_references: projectLayerProposalCreativeReferencesSchema,
       asset_slots: {
         type: 'array',
         maxItems: 0,
@@ -447,7 +447,7 @@ export const assetProposalSchema = {
         maxItems: 0,
         description: 'Asset proposals never edit settings.',
       },
-      asset_slots: projectProposalAssetSlotsSchema,
+      asset_slots: projectLayerProposalAssetSlotsSchema,
       candidate_plans: {
         type: 'array',
         items: objectSchema(['output_kind', 'prompt'], {
@@ -480,6 +480,7 @@ export const assetProposalSchema = {
     '- Use proposal.asset_slots to create, update, reassign, waive, or retire asset slot requirements.',
     '- Asset slot entries are editable backend snapshot rows. Put name/kind/description/priority directly on asset_slots[] entries.',
     '- Put ownership in owner, for example { type: "scene_moment", id: 7 } or { type: "creative_reference", id: 1 }. owner.client_id is only valid inside a same-request bundle where that local reference is also created.',
+    '- Asset proposals must not create isolated assets. For character, location, prop, world-rule, or style-reference material, cite an existing creative_reference backend id through owner, candidate plan references, or context. If the needed setting does not exist, create/update a setting_proposal first and make the asset proposal depend on that setting.',
     '- Use proposal.candidate_plans only after an asset slot exists or is explicitly selected.',
     '- Do not include creative reference edits, generation jobs, or generated resource bindings.',
   ].join('\n'),
@@ -556,7 +557,7 @@ export const scriptSplitProposalSchema = {
 
 export const DRAFT_SCHEMA_REGISTRY = {
   [settingProposalSchema.id]: settingProposalSchema,
-  [projectProposalSchema.id]: projectProposalSchema,
+  [projectStandardsProposalSchema.id]: projectStandardsProposalSchema,
   [productionProposalSchema.id]: productionProposalSchema,
   [contentUnitProposalSchema.id]: contentUnitProposalSchema,
   [assetProposalSchema.id]: assetProposalSchema,
@@ -565,7 +566,7 @@ export const DRAFT_SCHEMA_REGISTRY = {
 
 export const DRAFT_CONTENT_SCHEMA_IDS = {
   settingProposal: settingProposalSchema.id,
-  projectProposal: projectProposalSchema.id,
+  projectStandardsProposal: projectStandardsProposalSchema.id,
   productionProposal: productionProposalSchema.id,
   contentUnitProposal: contentUnitProposalSchema.id,
   assetProposal: assetProposalSchema.id,
@@ -577,7 +578,7 @@ export type DraftSchemaKey = keyof typeof DRAFT_SCHEMA_REGISTRY
 
 export const DRAFT_SCOPES = {
   settingProposal: settingProposalSchema.kind,
-  projectProposal: projectProposalSchema.kind,
+  projectStandardsProposal: projectStandardsProposalSchema.kind,
   productionProposal: productionProposalSchema.kind,
   contentUnitProposal: contentUnitProposalSchema.kind,
   assetProposal: assetProposalSchema.kind,
@@ -596,7 +597,7 @@ export const DRAFT_KIND_VALUES = [
   'segment',
   'scene_moment',
   'asset_proposal',
-  'project_proposal',
+  'project_standards_proposal',
   'production_proposal',
   'content_unit_proposal',
 ] as const satisfies readonly DraftKind[]

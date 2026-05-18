@@ -83,13 +83,13 @@ test('createDraft stores DraftDomainModel seed metadata', () => {
   const store = new InMemoryAgentDraftStore()
   const draft = store.createDraft({
     projectId: 42,
-    kind: 'project_proposal',
-    title: 'seeded project proposal',
+    kind: 'project_standards_proposal',
+    title: 'seeded project standards proposal',
     content: '{}',
     seed: {
       mode: 'editable_snapshot',
       include: ['project', 'creative_references'],
-      modelRef: 'frontend:DraftDomainModel:project_proposal:v1',
+      modelRef: 'frontend:DraftDomainModel:project_standards_proposal:v1',
       sourceVersions: { project: { id: 42, updatedAt: '2026-05-13T00:00:00.000Z' } },
     },
     metadata: {
@@ -100,7 +100,7 @@ test('createDraft stores DraftDomainModel seed metadata', () => {
   assert.deepEqual(draft.metadata?.seed, {
     mode: 'editable_snapshot',
     include: ['project', 'creative_references'],
-    modelRef: 'frontend:DraftDomainModel:project_proposal:v1',
+    modelRef: 'frontend:DraftDomainModel:project_standards_proposal:v1',
     sourceVersions: { project: { id: 42, updatedAt: '2026-05-13T00:00:00.000Z' } },
   })
   assert.equal(draft.metadata?.proposal, true)
@@ -310,11 +310,11 @@ test('read and edit draft files with unique text replacement', () => {
 test('validateDraft accepts canonical project standards proposal content', () => {
   const store = new InMemoryAgentDraftStore()
   const draft = store.createDraft({
-    kind: 'project_proposal',
+    kind: 'project_standards_proposal',
     title: 'project standards proposal',
     content: JSON.stringify({
-      schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
-      scope: 'project_proposal',
+      schema: DRAFT_CONTENT_SCHEMA_IDS.projectStandardsProposal,
+      scope: 'project_standards_proposal',
       mode: 'snapshot',
       summary: '定义项目级制作规范',
       proposal: {
@@ -348,11 +348,11 @@ test('validateDraft accepts canonical project standards proposal content', () =>
 test('validateDraft rejects malformed project standards custom rules', () => {
   const store = new InMemoryAgentDraftStore()
   const draft = store.createDraft({
-    kind: 'project_proposal',
+    kind: 'project_standards_proposal',
     title: 'project standards proposal',
     content: JSON.stringify({
-      schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
-      scope: 'project_proposal',
+      schema: DRAFT_CONTENT_SCHEMA_IDS.projectStandardsProposal,
+      scope: 'project_standards_proposal',
       mode: 'snapshot',
       summary: '定义项目级制作规范',
       proposal: {
@@ -383,11 +383,11 @@ test('validateDraft rejects malformed project standards custom rules', () => {
 test('validateDraft rejects project standards proposal list fields', () => {
   const store = new InMemoryAgentDraftStore()
   const draft = store.createDraft({
-    kind: 'project_proposal',
+    kind: 'project_standards_proposal',
     title: 'project standards proposal',
     content: JSON.stringify({
-      schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
-      scope: 'project_proposal',
+      schema: DRAFT_CONTENT_SCHEMA_IDS.projectStandardsProposal,
+      scope: 'project_standards_proposal',
       mode: 'snapshot',
       summary: '定义项目级制作规范',
       proposal: {
@@ -403,7 +403,7 @@ test('validateDraft rejects project standards proposal list fields', () => {
 
   const validation = validateDraft(draft)
   assert.equal(validation.ok, false)
-  assert.match(JSON.stringify(validation.issues), /outside project_proposal/)
+  assert.match(JSON.stringify(validation.issues), /outside project_standards_proposal/)
 })
 
 test('validateDraft accepts canonical setting proposal content', () => {
@@ -462,11 +462,11 @@ test('validateDraft accepts canonical asset slot proposal content', () => {
   assert.equal(validation.issues.filter((issue) => issue.severity === 'error').length, 0)
 })
 
-test('validateDraft rejects operation-shaped project proposal content', () => {
+test('validateDraft rejects operation-shaped project standards proposal content', () => {
   const store = new InMemoryAgentDraftStore()
   const draft = store.createDraft({
     kind: 'setting_proposal',
-    title: 'project proposal',
+    title: 'project standards proposal',
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.settingProposal,
       scope: 'setting_proposal',
@@ -496,11 +496,11 @@ test('validateDraft rejects operation-shaped project proposal content', () => {
   assert.match(JSON.stringify(validation.issues), /source_ids/)
 })
 
-test('validateDraft rejects non-snake-case project proposal asset owner type', () => {
+test('validateDraft rejects non-snake-case project standards proposal asset owner type', () => {
   const store = new InMemoryAgentDraftStore()
   const draft = store.createDraft({
     kind: 'asset_proposal',
-    title: 'project proposal',
+    title: 'project standards proposal',
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
       scope: 'asset_proposal',

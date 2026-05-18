@@ -19,23 +19,23 @@ test('resolveRuntimeIntents treats client labels as high-confidence structured i
 })
 
 test('resolveRuntimeIntents records keyword activation as low-confidence fallback', () => {
-  const result = resolveRuntimeIntents('请帮我做项目提案', debugContext())
+  const result = resolveRuntimeIntents('请帮我做项目规范提案', debugContext())
 
-  assert.ok(result.intents.includes('project_proposal'))
-  assert.deepEqual(result.signals.find((signal) => signal.intent === 'project_proposal'), {
-    intent: 'project_proposal',
+  assert.ok(result.intents.includes('project_standards_proposal'))
+  assert.deepEqual(result.signals.find((signal) => signal.intent === 'project_standards_proposal'), {
+    intent: 'project_standards_proposal',
     source: 'keyword_fallback',
     confidence: 'low',
-    evidence: 'keyword:项目提案',
+    evidence: 'keyword:项目规范提案',
   })
 })
 
 test('resolveRuntimeIntents activates route intents deterministically without keywords', () => {
   const result = resolveRuntimeIntents('当前页面有什么', debugContext({ route: { pathname: '/projects/42/project-workspace' } }))
 
-  assert.ok(result.intents.includes('project_proposal'))
-  assert.equal(result.signals.find((signal) => signal.intent === 'project_proposal')?.source, 'route')
-  assert.equal(result.signals.find((signal) => signal.intent === 'project_proposal')?.confidence, 'high')
+  assert.ok(result.intents.includes('project_standards_proposal'))
+  assert.equal(result.signals.find((signal) => signal.intent === 'project_standards_proposal')?.source, 'route')
+  assert.equal(result.signals.find((signal) => signal.intent === 'project_standards_proposal')?.confidence, 'high')
 })
 
 test('resolveRuntimeIntents does not activate generation for negated visual requests', () => {

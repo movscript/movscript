@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   assetProposalContainsAssetSlots,
-  canonicalizeProjectProposalDraftContent,
+  canonicalizeProjectStandardsProposalDraftContent,
   normalizeRuntimeDraftSource,
 } from './draftRuntimeContent.js'
 import type { BackendApplyResult } from './backendApplyClient.js'
@@ -14,8 +14,8 @@ test('assetProposalContainsAssetSlots detects concrete asset slots only', () => 
   assert.equal(assetProposalContainsAssetSlots('not json'), false)
 })
 
-test('canonicalizeProjectProposalDraftContent rebases asset proposals onto canonical snapshots', () => {
-  const content = canonicalizeProjectProposalDraftContent(
+test('canonicalizeProjectStandardsProposalDraftContent rebases asset proposals onto canonical snapshots', () => {
+  const content = canonicalizeProjectStandardsProposalDraftContent(
     draft({ kind: 'asset_proposal', content: JSON.stringify({ mode: 'proposal', proposal: { note: 'keep' } }) }),
     backendApply({ canonical_snapshot: { asset_slots: [{ id: 'slot_1' }], creative_references: [{ id: 'ref_1' }] } }),
   )
@@ -26,9 +26,9 @@ test('canonicalizeProjectProposalDraftContent rebases asset proposals onto canon
   })
 })
 
-test('canonicalizeProjectProposalDraftContent preserves project proposal style without planning arrays', () => {
-  const content = canonicalizeProjectProposalDraftContent(
-    draft({ kind: 'project_proposal', content: JSON.stringify({ proposal: { project_style: { tone: 'calm', custom_rules: [{ key: 'qa', label: 'QA', value: 'Check every output.' }] }, asset_slots: [{ id: 'old' }] } }) }),
+test('canonicalizeProjectStandardsProposalDraftContent preserves project standards proposal style without planning arrays', () => {
+  const content = canonicalizeProjectStandardsProposalDraftContent(
+    draft({ kind: 'project_standards_proposal', content: JSON.stringify({ proposal: { project_style: { tone: 'calm', custom_rules: [{ key: 'qa', label: 'QA', value: 'Check every output.' }] }, asset_slots: [{ id: 'old' }] } }) }),
     backendApply({ canonical_snapshot: { asset_slots: [{ id: 'slot_1' }] } }),
   )
   assert.deepEqual(JSON.parse(content ?? '').proposal, {
@@ -36,14 +36,14 @@ test('canonicalizeProjectProposalDraftContent preserves project proposal style w
   })
 })
 
-test('canonicalizeProjectProposalDraftContent rejects unsupported or malformed inputs', () => {
-  assert.equal(canonicalizeProjectProposalDraftContent(draft({ kind: 'script' }), backendApply({ canonical_snapshot: {} })), undefined)
-  assert.equal(canonicalizeProjectProposalDraftContent(draft({ content: 'not json' }), backendApply({ canonical_snapshot: {} })), undefined)
-  assert.equal(canonicalizeProjectProposalDraftContent(draft(), backendApply({ other: true })), undefined)
+test('canonicalizeProjectStandardsProposalDraftContent rejects unsupported or malformed inputs', () => {
+  assert.equal(canonicalizeProjectStandardsProposalDraftContent(draft({ kind: 'script' }), backendApply({ canonical_snapshot: {} })), undefined)
+  assert.equal(canonicalizeProjectStandardsProposalDraftContent(draft({ content: 'not json' }), backendApply({ canonical_snapshot: {} })), undefined)
+  assert.equal(canonicalizeProjectStandardsProposalDraftContent(draft(), backendApply({ other: true })), undefined)
 })
 
-test('canonicalizeProjectProposalDraftContent rejects non-finite canonical snapshots', () => {
-  const content = canonicalizeProjectProposalDraftContent(
+test('canonicalizeProjectStandardsProposalDraftContent rejects non-finite canonical snapshots', () => {
+  const content = canonicalizeProjectStandardsProposalDraftContent(
     draft({ kind: 'asset_proposal' }),
     backendApply({ canonical_snapshot: { asset_slots: [{ score: Number.POSITIVE_INFINITY }] } }),
   )

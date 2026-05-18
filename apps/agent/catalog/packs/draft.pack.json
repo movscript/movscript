@@ -16,7 +16,7 @@
   "schemas": [
     "movscript.setting_proposal.v1",
     "movscript.asset_proposal.v1",
-    "movscript.project_proposal.v1",
+    "movscript.project_standards_proposal.v1",
     "movscript.production_proposal.v1",
     "movscript.content_unit_proposal.v1"
   ],
@@ -24,7 +24,8 @@
     "movscript_get_draft",
     "movscript_get_draft_model",
     "movscript_create_draft",
-    "movscript_update_draft"
+    "movscript_update_draft",
+    "movscript_apply_draft"
   ],
   "skills": [
     "movscript.policy.drafts",

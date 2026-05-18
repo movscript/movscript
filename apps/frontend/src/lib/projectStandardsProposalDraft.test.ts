@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildEmptyProjectProposalDraftContent } from './projectProposalDraft'
+import { buildEmptyProjectStandardsProposalDraftContent } from './projectStandardsProposalDraft'
 
-test('buildEmptyProjectProposalDraftContent can seed editable snapshot content', () => {
-  const content = buildEmptyProjectProposalDraftContent({
+test('buildEmptyProjectStandardsProposalDraftContent can seed editable snapshot content', () => {
+  const content = buildEmptyProjectStandardsProposalDraftContent({
     projectId: 4,
     mode: 'snapshot',
     projectStyle: {

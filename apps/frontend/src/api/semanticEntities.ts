@@ -219,7 +219,7 @@ export async function getProject(projectId: number) {
   return data
 }
 
-export interface ApplyProjectProposalResponse {
+export interface ApplyProjectLayerProposalResponse {
   project_id: number
   counts: Partial<{
     creative_references_created: number
@@ -236,12 +236,34 @@ export interface ApplyProjectProposalResponse {
   }>
 }
 
-export async function applyProjectProposal(
+export async function applyProjectStandardsProposal(
   projectId: number,
   payload: Record<string, unknown>,
-): Promise<ApplyProjectProposalResponse> {
-  const { data } = await api.post<ApplyProjectProposalResponse>(
-    `/projects/${projectId}/entities/project-proposals/apply`,
+): Promise<ApplyProjectLayerProposalResponse> {
+  const { data } = await api.post<ApplyProjectLayerProposalResponse>(
+    `/projects/${projectId}/entities/project-standards-proposals/apply`,
+    payload,
+  )
+  return data
+}
+
+export async function applySettingProposal(
+  projectId: number,
+  payload: Record<string, unknown>,
+): Promise<ApplyProjectLayerProposalResponse> {
+  const { data } = await api.post<ApplyProjectLayerProposalResponse>(
+    `/projects/${projectId}/entities/setting-proposals/apply`,
+    payload,
+  )
+  return data
+}
+
+export async function applyAssetProposal(
+  projectId: number,
+  payload: Record<string, unknown>,
+): Promise<ApplyProjectLayerProposalResponse> {
+  const { data } = await api.post<ApplyProjectLayerProposalResponse>(
+    `/projects/${projectId}/entities/asset-proposals/apply`,
     payload,
   )
   return data

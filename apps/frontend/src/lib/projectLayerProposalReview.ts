@@ -143,7 +143,12 @@ export function buildProjectLayerDraftContentForEntries(
   const assetSlots = ownsAssetSlots
     ? applyProjectLayerEntriesToSnapshot(
       data.assetSlots.map(projectLayerAssetSlotSnapshot),
-      entries.filter((entry) => entry.kind === 'asset_slots'),
+      entries
+        .filter((entry) => entry.kind === 'asset_slots')
+        .map((entry) => ({
+          ...entry,
+          raw: rebaseAssetSlotOwner(entry.raw, data),
+        })),
     )
     : []
 
@@ -216,6 +221,72 @@ function projectLayerAssetSlotSnapshot(record: ProjectLayerProposalRecord): Reco
     ...(record.resource_id ? { resource_id: record.resource_id } : {}),
     ...(record.locked_asset_slot_id ? { locked_asset_slot_id: record.locked_asset_slot_id } : {}),
   }
+}
+
+function rebaseAssetSlotOwner(item: Record<string, unknown>, data: ProjectLayerProposalData): Record<string, unknown> {
+  const resolvedReferenceID = resolveAssetSlotOwnerReferenceID(item, data)
+  if (resolvedReferenceID <= 0) return item
+  const owner = isRecord(item.owner) ? item.owner : {}
+  return {
+    ...item,
+    owner: {
+      ...owner,
+      type: 'creative_reference',
+      id: resolvedReferenceID,
+    },
+    creative_reference_id: resolvedReferenceID,
+  }
+}
+
+function resolveAssetSlotOwnerReferenceID(item: Record<string, unknown>, data: ProjectLayerProposalData) {
+  const currentReferenceIds = new Set(data.creativeReferences.map((reference) => reference.ID).filter((id) => id > 0))
+  const owner = isRecord(item.owner) ? item.owner : undefined
+  const ownerID = numberOf(owner?.id ?? item.creative_reference_id ?? item.owner_id)
+  if (ownerID > 0 && currentReferenceIds.has(ownerID)) return ownerID
+
+  const ownerClientID = asKey(owner?.client_id ?? item.creative_reference_client_id, '')
+  if (ownerClientID) {
+    const matchedByClientID = data.creativeReferences.find((reference) => asKey(reference.proposal_client_id, '') === ownerClientID)
+    if (matchedByClientID?.ID) return matchedByClientID.ID
+  }
+
+  const itemText = searchableProjectLayerText(item)
+  const matchedByName = uniqueProjectLayerReferenceMatch(data.creativeReferences, (referenceText, reference) => {
+    const name = asString(reference.name ?? reference.title ?? reference.label, '')
+    return name.length >= 2 && itemText.includes(normalizeSearchText(name))
+  })
+  if (matchedByName?.ID) return matchedByName.ID
+
+  const matchedByRole = uniqueProjectLayerReferenceMatch(data.creativeReferences, (referenceText) => {
+    const roleTokens = ['女主', '男主', '萌宝', '女配', '男配', '爷爷', '奶奶', '父亲', '母亲', '反派']
+    return roleTokens.some((token) => itemText.includes(token) && referenceText.includes(token))
+  })
+  return matchedByRole?.ID ?? 0
+}
+
+function uniqueProjectLayerReferenceMatch(
+  references: ProjectLayerProposalRecord[],
+  predicate: (referenceText: string, reference: ProjectLayerProposalRecord) => boolean,
+): ProjectLayerProposalRecord | undefined {
+  const matches = references.filter((reference) => predicate(searchableProjectLayerText(reference), reference))
+  return matches.length === 1 ? matches[0] : undefined
+}
+
+function searchableProjectLayerText(record: Record<string, unknown>) {
+  return normalizeSearchText([
+    record.name,
+    record.title,
+    record.label,
+    record.kind,
+    record.alias,
+    record.description,
+    record.summary,
+    record.content,
+  ].map((value) => (typeof value === 'string' ? value : '')).join(' '))
+}
+
+function normalizeSearchText(value: string) {
+  return value.toLowerCase().replace(/\s+/g, '')
 }
 
 export function buildProjectLayerProposalEntryDiffRows(

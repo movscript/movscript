@@ -12,7 +12,7 @@
 - 不得把生成媒体绑定、接受、锁定或正式写入 production 实体。
 
 上下文缺失回退：
-- 缺项目级画幅、风格、镜头语言或负面约束时，先交接 project_proposal。
+- 缺项目级画幅、风格、镜头语言或负面约束时，先交接 project_standards_proposal。
 - 缺角色、场景、道具、世界规则或 creative reference 时，先交接 setting_proposal 或 setting_prep。
 - 缺 asset slot、素材用途、复用边界、候选 prompt intent 或验收标准时，先交接 asset_proposal。
 - 缺 content unit、制作项职责、表达节拍或 prompt intent 时，先交接 content_unit_proposal。

@@ -1,9 +1,9 @@
 目标：
-产出或编辑一个本地 project_proposal draft，作为项目级制作规范的可审阅提案。它定义固定项目制作规范，也可以用 custom_rules 追加任意 key/value 形式的项目级提示词规范；不要写入最终项目实体。
+产出或编辑一个本地 project_standards_proposal draft，作为项目级制作规范的可审阅提案。它定义固定项目制作规范，也可以用 custom_rules 追加任意 key/value 形式的项目级提示词规范；不要写入最终项目实体。
 
-Draft schema：{{schema:movscript.project_proposal.v1.id}}
+Draft schema：{{schema:movscript.project_standards_proposal.v1.id}}
 
-{{schema:movscript.project_proposal.v1}}
+{{schema:movscript.project_standards_proposal.v1}}
 
 模型契约：
 - 字段含义、seed 策略、review route 和 apply 边界应以 runtime draft model contract 为准。
@@ -17,12 +17,12 @@ Draft schema：{{schema:movscript.project_proposal.v1.id}}
 边界：
 - 此 workflow 只维护 project 层制作规范 proposal draft。
 - 固定 8 项制作规范是基础必选项；custom_rules 用于承载额外项目规范，不限制 key。
-- project_proposal 不再负责设定资料清单或素材需求清单。
+- project_standards_proposal 不再负责设定资料清单或素材需求清单。
 - 设定资料创建/合并/修改使用 setting_proposal。
 - 素材需求创建/归属/复用/豁免使用 asset_proposal。
 - 素材候选图方向、prompt、参考资源、模型参数、风险和验收标准使用 asset_proposal。
 - 不写 production segments、scene moments、content units、生成任务或已生成资源绑定。
-- 当前 project_proposal 是本地审阅规范；除非 runtime draft model contract 或工具结果明确给出正式 apply target，不要声称已正式写入后端。
+- 当前 project_standards_proposal 是本地审阅规范；除非 runtime draft model contract 或工具结果明确给出正式 apply target，不要声称已正式写入后端。
 
 上下文缺失回退：
 - 缺人物、地点、道具、世界规则、关系或 creative reference 时，交接 setting_proposal。
@@ -39,8 +39,8 @@ Draft schema：{{schema:movscript.project_proposal.v1.id}}
 
 流程：
 1. 读取当前 focus。如果 projectId 缺失且无法推断，用 movscript_request_user_input 询问。
-2. 获取 project_proposal 的 draft model 契约；若暂不可用，使用 schema fallback 并在输出中说明。
-3. 如果当前会话已有 project_proposal draftId，先读取它；否则用 proposal=true 创建一个，source/target 记录 project 锚点，并把 MCP 返回的 seed/modelRef 作为 movscript_create_draft.seed 传入。
+2. 获取 project_standards_proposal 的 draft model 契约；若暂不可用，使用 schema fallback 并在输出中说明。
+3. 如果当前会话已有 project_standards_proposal draftId，先读取它；否则用 proposal=true 创建一个，source/target 记录 project 锚点，并把 MCP 返回的 seed/modelRef 作为 movscript_create_draft.seed 传入。
 4. 修改现有 draft 前必须先读取内容。
 5. 只 patch proposal.project_style；draft 中不得出现 creative_references 或 asset_slots。
 6. Validate draft。当前 applyBoundary 若为 draft_only，不运行正式 preview apply；只报告本地 validation 状态和未决规范。
@@ -58,9 +58,9 @@ Draft schema：{{schema:movscript.project_proposal.v1.id}}
 - custom_rules.prompt_role：只能是 context、style、constraint、negative、quality_gate。缺省时使用 constraint。
 
 校验：
-- Project proposal 只写 project_style 及必要 impact_notes/summary。
+- Project standards proposal 只写 project_style 及必要 impact_notes/summary。
 - custom_rules 必须是数组；每条必须有非空 key、label、value；prompt_role 只能使用允许值。
-- Project proposal 中出现 creative_references 或 asset_slots 视为越界，应改用 setting_proposal 或 asset_proposal。
+- Project standards proposal 中出现 creative_references 或 asset_slots 视为越界，应改用 setting_proposal 或 asset_proposal。
 - 如果用户要求人物、地点、道具、世界规则等设定，切换到 setting_proposal。
 - 如果用户要求“需要哪些素材”“素材需求归属”“素材复用边界”，切换到 asset_proposal。
 - 如果用户要求“候选图方案”“prompt”“出图方向”，切换到 asset_proposal。
@@ -70,4 +70,4 @@ Draft schema：{{schema:movscript.project_proposal.v1.id}}
 
 绝不：
 - 绝不把本地规范 draft 描述为已正式写入 project。
-- 绝不把设定资料、素材需求、候选图方案或 production 编排写进 project_proposal。
+- 绝不把设定资料、素材需求、候选图方案或 production 编排写进 project_standards_proposal。

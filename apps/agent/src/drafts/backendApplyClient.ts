@@ -183,7 +183,7 @@ export class BackendApplyClient {
       return { performed: false, skippedReason: 'backend apply preview disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
     }
     const request = buildApplyRequest(review)
-    if (!isProjectProposalTarget(review) && !isProductionProposalTarget(review)) {
+    if (!isProjectLayerProposalTarget(review) && !isProductionProposalTarget(review)) {
       return { performed: false, skippedReason: 'backend apply preview is only implemented for proposal drafts' }
     }
     const path = request.path.replace(/\/apply$/, '/apply-preview')
@@ -227,8 +227,8 @@ export function buildPatchRequest(review: ApplyDraftReview): { path: string; pay
 }
 
 function buildApplyRequest(review: ApplyDraftReview): { method: 'PATCH' | 'POST'; path: string; payload: Record<string, JSONValue> } {
-  if (isProjectProposalTarget(review)) {
-    return buildProjectProposalRequest(review)
+  if (isProjectLayerProposalTarget(review)) {
+    return buildProjectLayerProposalRequest(review)
   }
   if (isProductionProposalTarget(review)) {
     return buildProductionProposalRequest(review)
@@ -261,19 +261,21 @@ function buildApplyRequest(review: ApplyDraftReview): { method: 'PATCH' | 'POST'
   }
 }
 
-function buildProjectProposalRequest(review: ApplyDraftReview): { method: 'POST'; path: string; payload: Record<string, JSONValue> } {
+function buildProjectLayerProposalRequest(review: ApplyDraftReview): { method: 'POST'; path: string; payload: Record<string, JSONValue> } {
   const projectId = resolveProjectId(review)
-  const payload = normalizeProjectProposalPayloadForKind(review.proposedValue, review.draftKind)
+  const payload = normalizeProjectLayerProposalPayloadForKind(review.proposedValue, review.draftKind)
+  const routeSegment = projectLayerProposalRouteSegment(inferProjectLayerProposalDraftKind(payload, review.draftKind))
   return {
     method: 'POST',
-    path: `/projects/${encodeURIComponent(String(projectId))}/entities/project-proposals/apply`,
+    path: `/projects/${encodeURIComponent(String(projectId))}/entities/${routeSegment}/apply`,
     payload,
   }
 }
 
-function isProjectProposalTarget(review: ApplyDraftReview): boolean {
+function isProjectLayerProposalTarget(review: ApplyDraftReview): boolean {
   return review.draftKind === 'setting_proposal'
     || review.draftKind === 'asset_proposal'
+    || review.draftKind === 'project_standards_proposal'
     || (review.target.entityType === 'project' && review.target.field === 'proposal')
 }
 
@@ -292,37 +294,38 @@ function isProductionProposalTarget(review: ApplyDraftReview): boolean {
 }
 
 function resolveProjectId(review: ApplyDraftReview): number {
-  const candidate = review.target.projectId ?? (isProjectProposalTarget(review) ? review.target.entityId : undefined)
+  const candidate = review.target.projectId ?? (isProjectLayerProposalTarget(review) ? review.target.entityId : undefined)
   if (!isValidAgentProjectId(candidate)) {
     throw new Error('apply_draft requires projectId for proposal apply')
   }
   return candidate
 }
 
-function normalizeProjectProposalPayload(value: JSONValue): Record<string, JSONValue> {
+function normalizeProjectLayerProposalPayload(value: JSONValue): Record<string, JSONValue> {
   if (typeof value === 'string') {
     const parsed = parseJSONText(value)
     if (!isRecord(parsed)) {
-      throw new Error('project proposal draft content must be a JSON object')
+      throw new Error('project-layer proposal draft content must be a JSON object')
     }
     return parsed as Record<string, JSONValue>
   }
   if (!isRecord(value)) {
-    throw new Error('project proposal draft content must be a JSON object')
+    throw new Error('project-layer proposal draft content must be a JSON object')
   }
   return value as Record<string, JSONValue>
 }
 
-function normalizeProjectProposalPayloadForKind(value: JSONValue, kind: ApplyDraftReview['draftKind']): Record<string, JSONValue> {
-  const payload = normalizeProjectProposalPayload(value)
-  const effectiveKind = inferProjectProposalDraftKind(payload, kind)
-  if (effectiveKind === 'project_proposal') {
+function normalizeProjectLayerProposalPayloadForKind(value: JSONValue, kind: ApplyDraftReview['draftKind']): Record<string, JSONValue> {
+  const payload = normalizeProjectLayerProposalPayload(value)
+  const effectiveKind = inferProjectLayerProposalDraftKind(payload, kind)
+  if (effectiveKind === 'project_standards_proposal') {
     const proposal = isRecord(payload.proposal) ? payload.proposal : {}
     if (proposal.creative_references !== undefined || proposal.asset_slots !== undefined) {
-      throw new Error('project_proposal only supports proposal.project_style; use setting_proposal or asset_proposal for project-layer lists')
+      throw new Error('project_standards_proposal only supports proposal.project_style; use setting_proposal or asset_proposal for project-layer lists')
     }
     return {
       ...payload,
+      scope: 'project_standards_proposal',
       mode: 'snapshot',
       proposal: {
         ...proposal,
@@ -334,31 +337,45 @@ function normalizeProjectProposalPayloadForKind(value: JSONValue, kind: ApplyDra
   const proposal = isRecord(payload.proposal) ? payload.proposal : {}
   return {
     ...payload,
+    scope: effectiveKind,
     mode: 'snapshot',
     proposal: {
       ...proposal,
-      creative_references: effectiveKind === 'setting_proposal' ? normalizeProjectProposalSnapshotNodes(proposal.creative_references) : [],
-      asset_slots: effectiveKind === 'asset_proposal' ? normalizeProjectProposalSnapshotNodes(proposal.asset_slots) : [],
+      creative_references: effectiveKind === 'setting_proposal' ? normalizeProjectLayerProposalSnapshotNodes(proposal.creative_references) : [],
+      asset_slots: effectiveKind === 'asset_proposal' ? normalizeProjectLayerProposalSnapshotNodes(proposal.asset_slots) : [],
     },
   }
 }
 
-function inferProjectProposalDraftKind(payload: Record<string, JSONValue>, kind: ApplyDraftReview['draftKind']): ApplyDraftReview['draftKind'] {
-  if (kind === 'setting_proposal' || kind === 'asset_proposal' || kind === 'project_proposal') return kind
+function inferProjectLayerProposalDraftKind(payload: Record<string, JSONValue>, kind: ApplyDraftReview['draftKind']): ApplyDraftReview['draftKind'] {
+  if (kind === 'setting_proposal' || kind === 'asset_proposal' || kind === 'project_standards_proposal') return kind
   const schema = typeof payload.schema === 'string' ? payload.schema : ''
   if (schema === 'movscript.setting_proposal.v1') return 'setting_proposal'
   if (schema === 'movscript.asset_proposal.v1') return 'asset_proposal'
-  if (schema === 'movscript.project_proposal.v1') return 'project_proposal'
+  if (schema === 'movscript.project_standards_proposal.v1') return 'project_standards_proposal'
   const scope = typeof payload.scope === 'string' ? payload.scope : ''
-  if (scope === 'setting_proposal' || scope === 'asset_proposal' || scope === 'project_proposal') return scope
+  if (scope === 'setting_proposal' || scope === 'asset_proposal' || scope === 'project_standards_proposal') return scope
   return kind
 }
 
-function normalizeProjectProposalSnapshotNodes(value: JSONValue): JSONValue[] {
+function projectLayerProposalRouteSegment(kind: ApplyDraftReview['draftKind']): string {
+  switch (kind) {
+  case 'setting_proposal':
+    return 'setting-proposals'
+  case 'asset_proposal':
+    return 'asset-proposals'
+  case 'project_standards_proposal':
+    return 'project-standards-proposals'
+  default:
+    throw new Error(`unsupported project-layer proposal kind: ${kind}`)
+  }
+}
+
+function normalizeProjectLayerProposalSnapshotNodes(value: JSONValue): JSONValue[] {
   if (!Array.isArray(value)) return []
   return value.map((item, index) => {
     if (isRecord(item) && item.fields !== undefined) {
-      throw new Error(`project proposal snapshot node ${index} uses deprecated fields wrapper; put editable values directly on the node`)
+      throw new Error(`project-layer proposal snapshot node ${index} uses deprecated fields wrapper; put editable values directly on the node`)
     }
     return item
   })

@@ -12,19 +12,83 @@ import (
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
-var errProjectProposalPreviewRollback = errors.New("project proposal apply preview rollback")
+var errProjectLayerProposalPreviewRollback = errors.New("project-layer proposal apply preview rollback")
 
-type ApplyProjectProposalRequest struct {
-	Scope    string               `json:"scope"`
-	Mode     string               `json:"mode"`
-	Summary  string               `json:"summary"`
-	Proposal *ProjectProposalTree `json:"proposal"`
+type ProjectLayerProposalAssetSlotLinkError struct {
+	Message                  string `json:"message"`
+	SlotID                   *uint  `json:"slot_id,omitempty"`
+	SlotClientID             string `json:"slot_client_id,omitempty"`
+	SlotName                 string `json:"slot_name,omitempty"`
+	OwnerType                string `json:"owner_type,omitempty"`
+	OwnerID                  *uint  `json:"owner_id,omitempty"`
+	CreativeReferenceID      *uint  `json:"creative_reference_id,omitempty"`
+	ProductionID             *uint  `json:"production_id,omitempty"`
+	CreativeReferenceStateID *uint  `json:"creative_reference_state_id,omitempty"`
+	Cause                    string `json:"cause"`
+	err                      error
 }
 
-type ProjectProposalTree struct {
-	ProjectStyle       *ProjectStylePatch                      `json:"project_style"`
-	CreativeReferences []ProjectProposalCreativeReferencePatch `json:"creative_references"`
-	AssetSlots         []ProjectProposalAssetSlotPatch         `json:"asset_slots"`
+type ProjectLayerProposalApplyLinkError struct {
+	Message              string                                       `json:"message"`
+	ProjectID            uint                                         `json:"project_id"`
+	Scope                string                                       `json:"scope,omitempty"`
+	Mode                 string                                       `json:"mode,omitempty"`
+	CreativeReferenceIDs []uint                                       `json:"creative_reference_ids,omitempty"`
+	AssetSlots           []ProjectLayerProposalApplyAssetSlotLinkHint `json:"asset_slots,omitempty"`
+	Cause                string                                       `json:"cause"`
+	err                  error
+}
+
+type ProjectLayerProposalApplyAssetSlotLinkHint struct {
+	ID                  *uint  `json:"id,omitempty"`
+	ClientID            string `json:"client_id,omitempty"`
+	Name                string `json:"name,omitempty"`
+	OwnerType           string `json:"owner_type,omitempty"`
+	OwnerID             *uint  `json:"owner_id,omitempty"`
+	OwnerClientID       string `json:"owner_client_id,omitempty"`
+	CreativeReferenceID *uint  `json:"creative_reference_id,omitempty"`
+	ProductionID        *uint  `json:"production_id,omitempty"`
+}
+
+func (e *ProjectLayerProposalAssetSlotLinkError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
+
+func (e *ProjectLayerProposalAssetSlotLinkError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
+}
+
+func (e *ProjectLayerProposalApplyLinkError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
+
+func (e *ProjectLayerProposalApplyLinkError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
+}
+
+type ApplyProjectLayerProposalRequest struct {
+	Scope    string                    `json:"scope"`
+	Mode     string                    `json:"mode"`
+	Summary  string                    `json:"summary"`
+	Proposal *ProjectLayerProposalTree `json:"proposal"`
+}
+
+type ProjectLayerProposalTree struct {
+	ProjectStyle       *ProjectStylePatch                           `json:"project_style"`
+	CreativeReferences []ProjectLayerProposalCreativeReferencePatch `json:"creative_references"`
+	AssetSlots         []ProjectLayerProposalAssetSlotPatch         `json:"asset_slots"`
 }
 
 type ProjectStylePatch struct {
@@ -51,69 +115,71 @@ type ProjectStyleCustomRulePatch struct {
 	Order      *int   `json:"order"`
 }
 
-type ProjectProposalCreativeReferencePatch struct {
-	ClientID         string                          `json:"client_id"`
-	ID               *uint                           `json:"id"`
-	MergeCandidates  []ProjectProposalMergeCandidate `json:"merge_candidates"`
-	SourceScriptID   *uint                           `json:"source_script_id"`
-	SourceAnalysisID *uint                           `json:"source_analysis_id"`
-	Kind             string                          `json:"kind"`
-	Name             string                          `json:"name"`
-	Alias            string                          `json:"alias"`
-	Description      string                          `json:"description"`
-	Content          string                          `json:"content"`
-	Importance       string                          `json:"importance"`
-	Status           string                          `json:"status"`
-	ProfileJSON      string                          `json:"profile_json"`
-	TagsJSON         string                          `json:"tags_json"`
+type ProjectLayerProposalCreativeReferencePatch struct {
+	ClientID         string                               `json:"client_id"`
+	ID               *uint                                `json:"id"`
+	MergeCandidates  []ProjectLayerProposalMergeCandidate `json:"merge_candidates"`
+	SourceScriptID   *uint                                `json:"source_script_id"`
+	SourceAnalysisID *uint                                `json:"source_analysis_id"`
+	Kind             string                               `json:"kind"`
+	Name             string                               `json:"name"`
+	Alias            string                               `json:"alias"`
+	Description      string                               `json:"description"`
+	Content          string                               `json:"content"`
+	Importance       string                               `json:"importance"`
+	Status           string                               `json:"status"`
+	ProfileJSON      string                               `json:"profile_json"`
+	TagsJSON         string                               `json:"tags_json"`
 }
 
-type ProjectProposalAssetSlotPatch struct {
-	ClientID                 string                   `json:"client_id"`
-	ID                       *uint                    `json:"id"`
-	Owner                    *ProjectProposalOwnerRef `json:"owner"`
-	ProductionID             *uint                    `json:"production_id"`
-	CreativeReferenceID      *uint                    `json:"creative_reference_id"`
-	CreativeReferenceStateID *uint                    `json:"creative_reference_state_id"`
-	OwnerType                string                   `json:"owner_type"`
-	OwnerID                  *uint                    `json:"owner_id"`
-	Kind                     string                   `json:"kind"`
-	Name                     string                   `json:"name"`
-	Description              string                   `json:"description"`
-	SlotKey                  string                   `json:"slot_key"`
-	PromptHint               string                   `json:"prompt_hint"`
-	Status                   string                   `json:"status"`
-	Priority                 string                   `json:"priority"`
-	ResourceID               *uint                    `json:"resource_id"`
-	LockedAssetSlotID        *uint                    `json:"locked_asset_slot_id"`
-	MetadataJSON             string                   `json:"metadata_json"`
+type ProjectLayerProposalAssetSlotPatch struct {
+	ClientID                 string                        `json:"client_id"`
+	ID                       *uint                         `json:"id"`
+	Owner                    *ProjectLayerProposalOwnerRef `json:"owner"`
+	ProductionID             *uint                         `json:"production_id"`
+	CreativeReferenceID      *uint                         `json:"creative_reference_id"`
+	CreativeReferenceStateID *uint                         `json:"creative_reference_state_id"`
+	OwnerType                string                        `json:"owner_type"`
+	OwnerID                  *uint                         `json:"owner_id"`
+	Kind                     string                        `json:"kind"`
+	Name                     string                        `json:"name"`
+	Description              string                        `json:"description"`
+	SlotKey                  string                        `json:"slot_key"`
+	PromptHint               string                        `json:"prompt_hint"`
+	Status                   string                        `json:"status"`
+	Priority                 string                        `json:"priority"`
+	ResourceID               *uint                         `json:"resource_id"`
+	LockedAssetSlotID        *uint                         `json:"locked_asset_slot_id"`
+	MetadataJSON             string                        `json:"metadata_json"`
 }
 
-type ProjectProposalOwnerRef struct {
+type ProjectLayerProposalOwnerRef struct {
 	Type     string `json:"type"`
 	ID       *uint  `json:"id"`
 	ClientID string `json:"client_id"`
 }
 
-type ProjectProposalMergeCandidate struct {
+type ProjectLayerProposalMergeCandidate struct {
 	SourceID *uint  `json:"source_id"`
 	Reason   string `json:"reason"`
 }
 
-type projectProposalApplyState struct {
+type projectLayerProposalApplyState struct {
 	creativeReferenceIDByClientID map[string]uint
+	creativeReferenceIDs          map[uint]bool
+	creativeReferenceSearchText   map[uint]string
 	keptCreativeReferenceIDs      map[uint]bool
 	keptAssetSlotIDs              map[uint]bool
 }
 
-type ApplyProjectProposalResponse struct {
-	ProjectID          uint                       `json:"project_id"`
-	Counts             ProjectProposalApplyCounts `json:"counts"`
-	CanonicalSnapshot  *ProjectProposalTree       `json:"canonical_snapshot,omitempty"`
-	DeprecatedWarnings []string                   `json:"deprecated_warnings,omitempty"`
+type ApplyProjectLayerProposalResponse struct {
+	ProjectID          uint                            `json:"project_id"`
+	Counts             ProjectLayerProposalApplyCounts `json:"counts"`
+	CanonicalSnapshot  *ProjectLayerProposalTree       `json:"canonical_snapshot,omitempty"`
+	DeprecatedWarnings []string                        `json:"deprecated_warnings,omitempty"`
 }
 
-type ProjectProposalApplyCounts struct {
+type ProjectLayerProposalApplyCounts struct {
 	CreativeReferencesCreated int `json:"creative_references_created"`
 	CreativeReferencesUpdated int `json:"creative_references_updated"`
 	CreativeReferencesMerged  int `json:"creative_references_merged"`
@@ -127,7 +193,7 @@ type ProjectProposalApplyCounts struct {
 	ProjectStyleUpdated       int `json:"project_style_updated"`
 }
 
-func (s *Service) ApplyProjectProposal(ctx context.Context, projectID uint, req ApplyProjectProposalRequest) (*ApplyProjectProposalResponse, error) {
+func (s *Service) ApplyProjectLayerProposal(ctx context.Context, projectID uint, req ApplyProjectLayerProposalRequest) (*ApplyProjectLayerProposalResponse, error) {
 	if projectID == 0 {
 		return nil, ErrInvalidInput{Err: errors.New("project id is required")}
 	}
@@ -135,16 +201,16 @@ func (s *Service) ApplyProjectProposal(ctx context.Context, projectID uint, req 
 		return nil, ErrInvalidInput{Err: errors.New("proposal is required")}
 	}
 
-	resp, err := s.applyProjectProposalInTx(ctx, projectID, req)
+	resp, err := s.applyProjectLayerProposalInTx(ctx, projectID, req)
 	if err != nil {
-		return nil, err
+		return nil, projectLayerProposalApplyLinkError(projectID, req, err)
 	}
 
 	s.bumpProgressVersion(ctx, projectID)
 	return resp, nil
 }
 
-func (s *Service) PreviewProjectProposalApply(ctx context.Context, projectID uint, req ApplyProjectProposalRequest) (*ApplyProjectProposalResponse, error) {
+func (s *Service) PreviewProjectLayerProposalApply(ctx context.Context, projectID uint, req ApplyProjectLayerProposalRequest) (*ApplyProjectLayerProposalResponse, error) {
 	if projectID == 0 {
 		return nil, ErrInvalidInput{Err: errors.New("project id is required")}
 	}
@@ -152,39 +218,51 @@ func (s *Service) PreviewProjectProposalApply(ctx context.Context, projectID uin
 		return nil, ErrInvalidInput{Err: errors.New("proposal is required")}
 	}
 
-	var resp *ApplyProjectProposalResponse
+	var resp *ApplyProjectLayerProposalResponse
 	err := s.repo.WithTx(ctx, func(txRepo repository) error {
 		txSvc := s.withRepository(txRepo)
 		var err error
-		resp, err = txSvc.applyProjectProposalInTx(ctx, projectID, req)
+		resp, err = txSvc.applyProjectLayerProposalInTx(ctx, projectID, req)
 		if err != nil {
 			return err
 		}
-		return errProjectProposalPreviewRollback
+		return errProjectLayerProposalPreviewRollback
 	})
-	if errors.Is(err, errProjectProposalPreviewRollback) {
+	if errors.Is(err, errProjectLayerProposalPreviewRollback) {
 		return resp, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, projectLayerProposalApplyLinkError(projectID, req, err)
 	}
 	return resp, nil
 }
 
-func (s *Service) applyProjectProposalInTx(ctx context.Context, projectID uint, req ApplyProjectProposalRequest) (*ApplyProjectProposalResponse, error) {
-	if normalizeProjectProposalScope(req.Scope) == "project_proposal" && (len(req.Proposal.CreativeReferences) > 0 || len(req.Proposal.AssetSlots) > 0) {
-		return nil, ErrInvalidInput{Err: errors.New("project_proposal only supports project_style; use setting_proposal or asset_proposal for project-layer lists")}
+func (s *Service) applyProjectLayerProposalInTx(ctx context.Context, projectID uint, req ApplyProjectLayerProposalRequest) (*ApplyProjectLayerProposalResponse, error) {
+	scope := normalizeProjectLayerProposalScope(req.Scope)
+	if !isProjectLayerProposalScope(scope) {
+		return nil, ErrInvalidInput{Err: fmt.Errorf("project-layer proposal scope must be project_standards_proposal, setting_proposal, or asset_proposal")}
 	}
-	resp := &ApplyProjectProposalResponse{ProjectID: projectID}
-	state := projectProposalApplyState{
+	if scope == "project_standards_proposal" && (len(req.Proposal.CreativeReferences) > 0 || len(req.Proposal.AssetSlots) > 0) {
+		return nil, ErrInvalidInput{Err: errors.New("project_standards_proposal only supports project_style; use setting_proposal or asset_proposal for project-layer lists")}
+	}
+	if scope == "setting_proposal" && len(req.Proposal.AssetSlots) > 0 {
+		return nil, ErrInvalidInput{Err: errors.New("setting_proposal only supports creative_references; use asset_proposal for asset slots")}
+	}
+	if scope == "asset_proposal" && len(req.Proposal.CreativeReferences) > 0 {
+		return nil, ErrInvalidInput{Err: errors.New("asset_proposal only supports asset_slots; use setting_proposal for creative references")}
+	}
+	resp := &ApplyProjectLayerProposalResponse{ProjectID: projectID}
+	state := projectLayerProposalApplyState{
 		creativeReferenceIDByClientID: make(map[string]uint),
+		creativeReferenceIDs:          make(map[uint]bool),
+		creativeReferenceSearchText:   make(map[uint]string),
 		keptCreativeReferenceIDs:      make(map[uint]bool),
 		keptAssetSlotIDs:              make(map[uint]bool),
 	}
 
 	err := s.repo.WithTx(ctx, func(txRepo repository) error {
 		txSvc := s.withRepository(txRepo)
-		if err := txSvc.loadPersistedProjectProposalClientIDs(ctx, projectID, &state); err != nil {
+		if err := txSvc.loadPersistedProjectLayerProposalClientIDs(ctx, projectID, &state); err != nil {
 			return err
 		}
 		if req.Proposal.ProjectStyle != nil && req.Proposal.ProjectStyle.hasChanges() {
@@ -203,13 +281,13 @@ func (s *Service) applyProjectProposalInTx(ctx context.Context, projectID uint, 
 				return err
 			}
 		}
-		if normalizeProjectProposalMode(req.Mode) == "snapshot" {
-			ownedReferences, ownedAssetSlots := projectProposalSnapshotOwnedLists(req.Scope)
-			if err := txSvc.applyProjectProposalSnapshotOmissions(ctx, projectID, &state, resp, ownedReferences, ownedAssetSlots); err != nil {
+		if normalizeProjectLayerProposalMode(req.Mode) == "snapshot" {
+			ownedReferences, ownedAssetSlots := projectLayerProposalSnapshotOwnedLists(scope)
+			if err := txSvc.applyProjectLayerProposalSnapshotOmissions(ctx, projectID, &state, resp, ownedReferences, ownedAssetSlots); err != nil {
 				return err
 			}
 		}
-		snapshot, err := txSvc.loadProjectProposalCanonicalSnapshot(ctx, projectID)
+		snapshot, err := txSvc.loadProjectLayerProposalCanonicalSnapshot(ctx, projectID)
 		if err != nil {
 			return err
 		}
@@ -223,7 +301,7 @@ func (s *Service) applyProjectProposalInTx(ctx context.Context, projectID uint, 
 	return resp, nil
 }
 
-func (s *Service) applyProjectProposalSnapshotOmissions(ctx context.Context, projectID uint, state *projectProposalApplyState, resp *ApplyProjectProposalResponse, ownedReferences bool, ownedAssetSlots bool) error {
+func (s *Service) applyProjectLayerProposalSnapshotOmissions(ctx context.Context, projectID uint, state *projectLayerProposalApplyState, resp *ApplyProjectLayerProposalResponse, ownedReferences bool, ownedAssetSlots bool) error {
 	if state == nil {
 		return nil
 	}
@@ -233,7 +311,7 @@ func (s *Service) applyProjectProposalSnapshotOmissions(ctx context.Context, pro
 			return err
 		}
 		for _, reference := range references {
-			if state.keptCreativeReferenceIDs[reference.ID] || !projectProposalReferenceActive(reference) {
+			if state.keptCreativeReferenceIDs[reference.ID] || !projectLayerProposalReferenceActive(reference) {
 				continue
 			}
 			if _, err := s.PatchCreativeReference(ctx, projectID, fmt.Sprint(reference.ID), CreativeReferenceInput{
@@ -254,25 +332,13 @@ func (s *Service) applyProjectProposalSnapshotOmissions(ctx context.Context, pro
 			return err
 		}
 		for _, slot := range slots {
-			if state.keptAssetSlotIDs[slot.ID] || !projectProposalAssetSlotActive(slot) {
+			if state.keptAssetSlotIDs[slot.ID] || !projectLayerProposalAssetSlotActive(slot) {
 				continue
 			}
 			if _, err := s.PatchAssetSlot(ctx, projectID, fmt.Sprint(slot.ID), PatchAssetSlotInput{
-				ProductionID:             slot.ProductionID,
-				CreativeReferenceID:      slot.CreativeReferenceID,
-				CreativeReferenceStateID: slot.CreativeReferenceStateID,
-				OwnerType:                slot.OwnerType,
-				OwnerID:                  slot.OwnerID,
-				Kind:                     slot.Kind,
-				Name:                     slot.Name,
-				Description:              slot.Description,
-				SlotKey:                  slot.SlotKey,
-				PromptHint:               slot.PromptHint,
-				Status:                   "waived",
-				Priority:                 slot.Priority,
-				MetadataJSON:             slot.MetadataJSON,
+				Status: "waived",
 			}); err != nil {
-				return err
+				return projectLayerProposalOmittedAssetSlotApplyError(slot, err)
 			}
 			resp.Counts.AssetSlotsDeleted++
 		}
@@ -280,21 +346,54 @@ func (s *Service) applyProjectProposalSnapshotOmissions(ctx context.Context, pro
 	return nil
 }
 
-func projectProposalSnapshotOwnedLists(scope string) (creativeReferences bool, assetSlots bool) {
-	switch normalizeProjectProposalScope(scope) {
-	case "project_proposal":
+func projectLayerProposalOmittedAssetSlotApplyError(slot domainsemantic.AssetSlot, err error) error {
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, ErrOwnerNotFound) && !errors.Is(err, ErrTextBlockNotFound) && !errors.Is(err, ErrOwnerWrongProject) {
+		return err
+	}
+	fields := map[string]any{
+		"owner_type":                  slot.OwnerType,
+		"owner_id":                    slot.OwnerID,
+		"creative_reference_id":       slot.CreativeReferenceID,
+		"production_id":               slot.ProductionID,
+		"creative_reference_state_id": slot.CreativeReferenceStateID,
+	}
+	slotID := slot.ID
+	return &ProjectLayerProposalAssetSlotLinkError{
+		Message:                  fmt.Sprintf("清理旧素材需求 %q 时关联对象无效：%s；原因：%s", slot.Name, projectLayerProposalAssetSlotLinkLabel(fields), err.Error()),
+		SlotID:                   &slotID,
+		SlotName:                 strings.TrimSpace(slot.Name),
+		OwnerType:                strings.TrimSpace(slot.OwnerType),
+		OwnerID:                  slot.OwnerID,
+		CreativeReferenceID:      slot.CreativeReferenceID,
+		ProductionID:             slot.ProductionID,
+		CreativeReferenceStateID: slot.CreativeReferenceStateID,
+		Cause:                    err.Error(),
+		err:                      err,
+	}
+}
+
+func projectLayerProposalSnapshotOwnedLists(scope string) (creativeReferences bool, assetSlots bool) {
+	switch normalizeProjectLayerProposalScope(scope) {
+	case "project_standards_proposal":
 		return false, false
 	case "setting_proposal":
 		return true, false
 	case "asset_proposal":
 		return false, true
 	default:
-		return true, true
+		return false, false
 	}
 }
 
-func normalizeProjectProposalScope(scope string) string {
+func normalizeProjectLayerProposalScope(scope string) string {
 	return strings.TrimSpace(scope)
+}
+
+func isProjectLayerProposalScope(scope string) bool {
+	return scope == "project_standards_proposal" || scope == "setting_proposal" || scope == "asset_proposal"
 }
 
 func (patch ProjectStylePatch) hasChanges() bool {
@@ -447,24 +546,24 @@ func mergeProjectStyleJSON(current string, patch ProjectStylePatch) (string, err
 	return string(raw), nil
 }
 
-func normalizeProjectProposalMode(mode string) string {
+func normalizeProjectLayerProposalMode(mode string) string {
 	if strings.TrimSpace(mode) == "snapshot" {
 		return "snapshot"
 	}
 	return "patch"
 }
 
-func projectProposalReferenceActive(reference domainsemantic.CreativeReference) bool {
+func projectLayerProposalReferenceActive(reference domainsemantic.CreativeReference) bool {
 	status := strings.TrimSpace(reference.Status)
 	return status != "ignored" && status != "merged"
 }
 
-func projectProposalAssetSlotActive(slot domainsemantic.AssetSlot) bool {
+func projectLayerProposalAssetSlotActive(slot domainsemantic.AssetSlot) bool {
 	status := strings.TrimSpace(slot.Status)
 	return status != "ignored" && status != "waived" && status != "merged"
 }
 
-func (s *Service) loadProjectProposalCanonicalSnapshot(ctx context.Context, projectID uint) (*ProjectProposalTree, error) {
+func (s *Service) loadProjectLayerProposalCanonicalSnapshot(ctx context.Context, projectID uint) (*ProjectLayerProposalTree, error) {
 	references, err := s.repo.ListCreativeReferences(ctx, CreativeReferenceFilter{ProjectID: projectID})
 	if err != nil {
 		return nil, err
@@ -473,28 +572,28 @@ func (s *Service) loadProjectProposalCanonicalSnapshot(ctx context.Context, proj
 	if err != nil {
 		return nil, err
 	}
-	snapshot := &ProjectProposalTree{
-		CreativeReferences: make([]ProjectProposalCreativeReferencePatch, 0, len(references)),
-		AssetSlots:         make([]ProjectProposalAssetSlotPatch, 0, len(slots)),
+	snapshot := &ProjectLayerProposalTree{
+		CreativeReferences: make([]ProjectLayerProposalCreativeReferencePatch, 0, len(references)),
+		AssetSlots:         make([]ProjectLayerProposalAssetSlotPatch, 0, len(slots)),
 	}
 	for _, reference := range references {
-		if !projectProposalReferenceActive(reference) {
+		if !projectLayerProposalReferenceActive(reference) {
 			continue
 		}
-		snapshot.CreativeReferences = append(snapshot.CreativeReferences, projectProposalCreativeReferenceFromDomain(reference))
+		snapshot.CreativeReferences = append(snapshot.CreativeReferences, projectLayerProposalCreativeReferenceFromDomain(reference))
 	}
 	for _, slot := range slots {
-		if !projectProposalAssetSlotActive(slot) {
+		if !projectLayerProposalAssetSlotActive(slot) {
 			continue
 		}
-		snapshot.AssetSlots = append(snapshot.AssetSlots, projectProposalAssetSlotFromDomain(slot))
+		snapshot.AssetSlots = append(snapshot.AssetSlots, projectLayerProposalAssetSlotFromDomain(slot))
 	}
 	return snapshot, nil
 }
 
-func projectProposalCreativeReferenceFromDomain(reference domainsemantic.CreativeReference) ProjectProposalCreativeReferencePatch {
+func projectLayerProposalCreativeReferenceFromDomain(reference domainsemantic.CreativeReference) ProjectLayerProposalCreativeReferencePatch {
 	id := reference.ID
-	return ProjectProposalCreativeReferencePatch{
+	return ProjectLayerProposalCreativeReferencePatch{
 		ID:               &id,
 		SourceScriptID:   reference.SourceScriptID,
 		SourceAnalysisID: reference.SourceAnalysisID,
@@ -510,9 +609,9 @@ func projectProposalCreativeReferenceFromDomain(reference domainsemantic.Creativ
 	}
 }
 
-func projectProposalAssetSlotFromDomain(slot domainsemantic.AssetSlot) ProjectProposalAssetSlotPatch {
+func projectLayerProposalAssetSlotFromDomain(slot domainsemantic.AssetSlot) ProjectLayerProposalAssetSlotPatch {
 	id := slot.ID
-	return ProjectProposalAssetSlotPatch{
+	return ProjectLayerProposalAssetSlotPatch{
 		ID:                       &id,
 		ProductionID:             slot.ProductionID,
 		CreativeReferenceID:      slot.CreativeReferenceID,
@@ -532,7 +631,7 @@ func projectProposalAssetSlotFromDomain(slot domainsemantic.AssetSlot) ProjectPr
 	}
 }
 
-func (s *Service) applyProjectCreativeReferencePatch(ctx context.Context, projectID uint, patch ProjectProposalCreativeReferencePatch, resp *ApplyProjectProposalResponse, state *projectProposalApplyState) error {
+func (s *Service) applyProjectCreativeReferencePatch(ctx context.Context, projectID uint, patch ProjectLayerProposalCreativeReferencePatch, resp *ApplyProjectLayerProposalResponse, state *projectLayerProposalApplyState) error {
 	fields := patch.fields()
 	if patch.ID == nil {
 		input, err := creativeReferenceInputFromProposalFields(fields)
@@ -552,8 +651,8 @@ func (s *Service) applyProjectCreativeReferencePatch(ctx context.Context, projec
 		if err != nil {
 			return err
 		}
-		rememberProjectProposalCreativeReferenceID(state, patch.ClientID, fields, created.ID)
-		rememberProjectProposalCreativeReferenceKeep(state, created.ID)
+		rememberProjectLayerProposalCreativeReferenceID(state, patch.ClientID, fields, created.ID)
+		rememberProjectLayerProposalCreativeReferenceKeep(state, created.ID)
 		resp.Counts.CreativeReferencesCreated++
 		return nil
 	}
@@ -565,7 +664,7 @@ func (s *Service) applyProjectCreativeReferencePatch(ctx context.Context, projec
 		if _, err := s.PatchCreativeReference(ctx, projectID, fmt.Sprint(*patch.ID), input); err != nil {
 			return err
 		}
-		if isProjectProposalSoftDeleteStatus(input.Status) {
+		if isProjectLayerProposalSoftDeleteStatus(input.Status) {
 			resp.Counts.CreativeReferencesDeleted++
 		} else {
 			resp.Counts.CreativeReferencesUpdated++
@@ -573,8 +672,8 @@ func (s *Service) applyProjectCreativeReferencePatch(ctx context.Context, projec
 	} else if _, err := s.repo.LoadCreativeReference(ctx, projectID, fmt.Sprint(*patch.ID)); err != nil {
 		return err
 	}
-	rememberProjectProposalCreativeReferenceID(state, patch.ClientID, fields, *patch.ID)
-	rememberProjectProposalCreativeReferenceKeep(state, *patch.ID)
+	rememberProjectLayerProposalCreativeReferenceID(state, patch.ClientID, fields, *patch.ID)
+	rememberProjectLayerProposalCreativeReferenceKeep(state, *patch.ID)
 	for _, candidate := range patch.MergeCandidates {
 		if candidate.SourceID == nil || *candidate.SourceID == 0 {
 			return ErrInvalidInput{Err: errors.New("creative reference merge candidate requires source_id")}
@@ -587,7 +686,7 @@ func (s *Service) applyProjectCreativeReferencePatch(ctx context.Context, projec
 	return nil
 }
 
-func (s *Service) applyProjectCreativeReferenceMerge(ctx context.Context, projectID uint, targetID uint, sourceIDs []uint, resp *ApplyProjectProposalResponse) error {
+func (s *Service) applyProjectCreativeReferenceMerge(ctx context.Context, projectID uint, targetID uint, sourceIDs []uint, resp *ApplyProjectLayerProposalResponse) error {
 	if len(sourceIDs) == 0 {
 		return ErrInvalidInput{Err: errors.New("creative reference merge candidate requires source_id")}
 	}
@@ -740,8 +839,8 @@ func (s *Service) applyProjectCreativeReferenceMerge(ctx context.Context, projec
 	return nil
 }
 
-func (s *Service) applyProjectAssetSlotPatch(ctx context.Context, projectID uint, patch ProjectProposalAssetSlotPatch, resp *ApplyProjectProposalResponse, state *projectProposalApplyState) error {
-	fields, err := resolveProjectProposalAssetSlotFields(patch.fields(), patch.Owner, state)
+func (s *Service) applyProjectAssetSlotPatch(ctx context.Context, projectID uint, patch ProjectLayerProposalAssetSlotPatch, resp *ApplyProjectLayerProposalResponse, state *projectLayerProposalApplyState) error {
+	fields, err := resolveProjectLayerProposalAssetSlotFields(patch.fields(), patch.Owner, state)
 	if err != nil {
 		return err
 	}
@@ -761,9 +860,9 @@ func (s *Service) applyProjectAssetSlotPatch(ctx context.Context, projectID uint
 		}
 		created, err := s.CreateAssetSlot(ctx, projectID, input)
 		if err != nil {
-			return err
+			return projectLayerProposalAssetSlotApplyError(patch, fields, err)
 		}
-		rememberProjectProposalAssetSlotKeep(state, created.ID)
+		rememberProjectLayerProposalAssetSlotKeep(state, created.ID)
 		resp.Counts.AssetSlotsCreated++
 		return nil
 	}
@@ -772,18 +871,109 @@ func (s *Service) applyProjectAssetSlotPatch(ctx context.Context, projectID uint
 		return err
 	}
 	if _, err := s.PatchAssetSlot(ctx, projectID, fmt.Sprint(*patch.ID), input); err != nil {
-		return err
+		return projectLayerProposalAssetSlotApplyError(patch, fields, err)
 	}
-	if isProjectProposalSoftDeleteStatus(input.Status) {
+	if isProjectLayerProposalSoftDeleteStatus(input.Status) {
 		resp.Counts.AssetSlotsDeleted++
 	} else {
 		resp.Counts.AssetSlotsUpdated++
 	}
-	rememberProjectProposalAssetSlotKeep(state, *patch.ID)
+	rememberProjectLayerProposalAssetSlotKeep(state, *patch.ID)
 	return nil
 }
 
-func isProjectProposalSoftDeleteStatus(status string) bool {
+func projectLayerProposalAssetSlotApplyError(patch ProjectLayerProposalAssetSlotPatch, fields map[string]any, err error) error {
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, ErrOwnerNotFound) && !errors.Is(err, ErrTextBlockNotFound) && !errors.Is(err, ErrOwnerWrongProject) {
+		return err
+	}
+	detail := ProjectLayerProposalAssetSlotLinkError{
+		SlotID:                   patch.ID,
+		SlotClientID:             strings.TrimSpace(patch.ClientID),
+		SlotName:                 strings.TrimSpace(patch.Name),
+		OwnerType:                strings.TrimSpace(fieldString(fields, "owner_type")),
+		OwnerID:                  fieldUint(fields, "owner_id"),
+		CreativeReferenceID:      fieldUint(fields, "creative_reference_id"),
+		ProductionID:             fieldUint(fields, "production_id"),
+		CreativeReferenceStateID: fieldUint(fields, "creative_reference_state_id"),
+		Cause:                    err.Error(),
+		err:                      err,
+	}
+	detail.Message = fmt.Sprintf("素材需求 %q 的关联对象无效：%s；原因：%s", detail.SlotName, projectLayerProposalAssetSlotLinkLabel(fields), err.Error())
+	if detail.SlotName == "" {
+		detail.Message = fmt.Sprintf("素材需求的关联对象无效：%s；原因：%s", projectLayerProposalAssetSlotLinkLabel(fields), err.Error())
+	}
+	return &detail
+}
+
+func projectLayerProposalApplyLinkError(projectID uint, req ApplyProjectLayerProposalRequest, err error) error {
+	if err == nil {
+		return nil
+	}
+	var slotLinkErr *ProjectLayerProposalAssetSlotLinkError
+	if errors.As(err, &slotLinkErr) {
+		return err
+	}
+	if !errors.Is(err, ErrOwnerNotFound) && !errors.Is(err, ErrTextBlockNotFound) && !errors.Is(err, ErrOwnerWrongProject) && !errors.Is(err, ErrNotFound) {
+		return err
+	}
+	detail := ProjectLayerProposalApplyLinkError{
+		ProjectID: projectID,
+		Scope:     strings.TrimSpace(req.Scope),
+		Mode:      strings.TrimSpace(req.Mode),
+		Cause:     err.Error(),
+		err:       err,
+	}
+	if req.Proposal != nil {
+		for _, reference := range req.Proposal.CreativeReferences {
+			if reference.ID != nil && *reference.ID > 0 {
+				detail.CreativeReferenceIDs = append(detail.CreativeReferenceIDs, *reference.ID)
+			}
+		}
+		for _, slot := range req.Proposal.AssetSlots {
+			if len(detail.AssetSlots) >= 20 {
+				break
+			}
+			hint := ProjectLayerProposalApplyAssetSlotLinkHint{
+				ID:                  slot.ID,
+				ClientID:            strings.TrimSpace(slot.ClientID),
+				Name:                strings.TrimSpace(slot.Name),
+				CreativeReferenceID: slot.CreativeReferenceID,
+				ProductionID:        slot.ProductionID,
+			}
+			if slot.Owner != nil {
+				hint.OwnerType = strings.TrimSpace(slot.Owner.Type)
+				hint.OwnerID = slot.Owner.ID
+				hint.OwnerClientID = strings.TrimSpace(slot.Owner.ClientID)
+			}
+			detail.AssetSlots = append(detail.AssetSlots, hint)
+		}
+	}
+	detail.Message = fmt.Sprintf("项目层提案应用失败：关联对象无效；project_id=%d scope=%q mode=%q；原因：%s", projectID, detail.Scope, detail.Mode, err.Error())
+	return &detail
+}
+
+func projectLayerProposalAssetSlotLinkLabel(fields map[string]any) string {
+	if ownerType := strings.TrimSpace(fieldString(fields, "owner_type")); ownerType != "" {
+		if ownerID := fieldUint(fields, "owner_id"); ownerID != nil {
+			return fmt.Sprintf("owner %s #%d", ownerType, *ownerID)
+		}
+	}
+	if referenceID := fieldUint(fields, "creative_reference_id"); referenceID != nil {
+		return fmt.Sprintf("creative_reference #%d", *referenceID)
+	}
+	if productionID := fieldUint(fields, "production_id"); productionID != nil {
+		return fmt.Sprintf("production #%d", *productionID)
+	}
+	if stateID := fieldUint(fields, "creative_reference_state_id"); stateID != nil {
+		return fmt.Sprintf("creative_reference_state #%d", *stateID)
+	}
+	return "unknown owner"
+}
+
+func isProjectLayerProposalSoftDeleteStatus(status string) bool {
 	switch strings.TrimSpace(status) {
 	case "ignored", "waived":
 		return true
@@ -792,7 +982,7 @@ func isProjectProposalSoftDeleteStatus(status string) bool {
 	}
 }
 
-func rememberProjectProposalCreativeReferenceID(state *projectProposalApplyState, clientID string, fields map[string]any, id uint) {
+func rememberProjectLayerProposalCreativeReferenceID(state *projectLayerProposalApplyState, clientID string, fields map[string]any, id uint) {
 	if state == nil || id == 0 {
 		return
 	}
@@ -807,7 +997,7 @@ func rememberProjectProposalCreativeReferenceID(state *projectProposalApplyState
 	}
 }
 
-func (s *Service) loadPersistedProjectProposalClientIDs(ctx context.Context, projectID uint, state *projectProposalApplyState) error {
+func (s *Service) loadPersistedProjectLayerProposalClientIDs(ctx context.Context, projectID uint, state *projectLayerProposalApplyState) error {
 	if state == nil {
 		return nil
 	}
@@ -816,8 +1006,15 @@ func (s *Service) loadPersistedProjectProposalClientIDs(ctx context.Context, pro
 		return err
 	}
 	for _, reference := range references {
+		if reference.ID == 0 {
+			continue
+		}
+		state.creativeReferenceIDs[reference.ID] = true
+		state.creativeReferenceSearchText[reference.ID] = normalizeProjectLayerProposalMatchText(
+			strings.Join([]string{reference.Name, reference.Alias, reference.Kind, reference.Description, reference.Content}, " "),
+		)
 		clientID := strings.TrimSpace(reference.ProposalClientID)
-		if clientID == "" || reference.ID == 0 {
+		if clientID == "" {
 			continue
 		}
 		state.creativeReferenceIDByClientID[clientID] = reference.ID
@@ -825,27 +1022,27 @@ func (s *Service) loadPersistedProjectProposalClientIDs(ctx context.Context, pro
 	return nil
 }
 
-func rememberProjectProposalCreativeReferenceKeep(state *projectProposalApplyState, id uint) {
+func rememberProjectLayerProposalCreativeReferenceKeep(state *projectLayerProposalApplyState, id uint) {
 	if state == nil || id == 0 {
 		return
 	}
 	state.keptCreativeReferenceIDs[id] = true
 }
 
-func rememberProjectProposalAssetSlotKeep(state *projectProposalApplyState, id uint) {
+func rememberProjectLayerProposalAssetSlotKeep(state *projectLayerProposalApplyState, id uint) {
 	if state == nil || id == 0 {
 		return
 	}
 	state.keptAssetSlotIDs[id] = true
 }
 
-func resolveProjectProposalAssetSlotFields(fields map[string]any, owner *ProjectProposalOwnerRef, state *projectProposalApplyState) (map[string]any, error) {
+func resolveProjectLayerProposalAssetSlotFields(fields map[string]any, owner *ProjectLayerProposalOwnerRef, state *projectLayerProposalApplyState) (map[string]any, error) {
 	next := make(map[string]any, len(fields)+3)
 	for key, value := range fields {
 		next[key] = value
 	}
 	if owner != nil {
-		ownerType := normalizeProjectProposalOwnerType(owner.Type)
+		ownerType := normalizeProjectLayerProposalOwnerType(owner.Type)
 		if strings.TrimSpace(owner.Type) != "" {
 			next["owner_type"] = ownerType
 		}
@@ -859,6 +1056,19 @@ func resolveProjectProposalAssetSlotFields(fields map[string]any, owner *Project
 			}
 		}
 		if owner.ID != nil && *owner.ID > 0 {
+			if ownerType == "creative_reference" {
+				if state == nil || state.creativeReferenceIDs[*owner.ID] {
+					next["owner_id"] = *owner.ID
+					next["creative_reference_id"] = *owner.ID
+					return next, nil
+				}
+				if resolvedID := resolveProjectLayerProposalAssetSlotReferenceByText(fields, state); resolvedID > 0 {
+					next["owner_id"] = resolvedID
+					next["owner_type"] = "creative_reference"
+					next["creative_reference_id"] = resolvedID
+					return next, nil
+				}
+			}
 			next["owner_id"] = *owner.ID
 			if ownerType == "creative_reference" {
 				next["creative_reference_id"] = *owner.ID
@@ -886,14 +1096,65 @@ func resolveProjectProposalAssetSlotFields(fields map[string]any, owner *Project
 	return next, nil
 }
 
-func normalizeProjectProposalOwnerType(value string) string {
+func resolveProjectLayerProposalAssetSlotReferenceByText(fields map[string]any, state *projectLayerProposalApplyState) uint {
+	if state == nil || len(state.creativeReferenceSearchText) == 0 {
+		return 0
+	}
+	slotText := normalizeProjectLayerProposalMatchText(strings.Join([]string{
+		fieldString(fields, "name"),
+		fieldString(fields, "description"),
+		fieldString(fields, "kind"),
+		fieldString(fields, "prompt_hint"),
+	}, " "))
+	if slotText == "" {
+		return 0
+	}
+	if resolvedID := uniqueProjectLayerProposalReferenceTextMatch(slotText, state, func(referenceText string) bool {
+		for _, token := range []string{"女主", "男主", "萌宝", "女配", "男配", "爷爷", "奶奶", "父亲", "母亲", "反派"} {
+			if strings.Contains(slotText, token) && strings.Contains(referenceText, token) {
+				return true
+			}
+		}
+		return false
+	}); resolvedID > 0 {
+		return resolvedID
+	}
+	return uniqueProjectLayerProposalReferenceTextMatch(slotText, state, func(referenceText string) bool {
+		return referenceText != "" && strings.Contains(slotText, referenceText)
+	})
+}
+
+func uniqueProjectLayerProposalReferenceTextMatch(slotText string, state *projectLayerProposalApplyState, matches func(referenceText string) bool) uint {
+	var resolvedID uint
+	for id, referenceText := range state.creativeReferenceSearchText {
+		if !matches(referenceText) {
+			continue
+		}
+		if resolvedID != 0 {
+			return 0
+		}
+		resolvedID = id
+	}
+	return resolvedID
+}
+
+func normalizeProjectLayerProposalMatchText(value string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) {
+			return -1
+		}
+		return unicode.ToLower(r)
+	}, strings.TrimSpace(value))
+}
+
+func normalizeProjectLayerProposalOwnerType(value string) string {
 	switch strings.TrimSpace(value) {
 	default:
 		return strings.TrimSpace(value)
 	}
 }
 
-func (patch ProjectProposalCreativeReferencePatch) fields() map[string]any {
+func (patch ProjectLayerProposalCreativeReferencePatch) fields() map[string]any {
 	fields := make(map[string]any)
 	if strings.TrimSpace(patch.ClientID) != "" {
 		fields["proposal_client_id"] = patch.ClientID
@@ -934,7 +1195,7 @@ func (patch ProjectProposalCreativeReferencePatch) fields() map[string]any {
 	return fields
 }
 
-func (patch ProjectProposalAssetSlotPatch) fields() map[string]any {
+func (patch ProjectLayerProposalAssetSlotPatch) fields() map[string]any {
 	fields := make(map[string]any)
 	if patch.ProductionID != nil {
 		fields["production_id"] = *patch.ProductionID
@@ -1000,7 +1261,7 @@ func assetSlotInputFromProposalFields(fields map[string]any) (AssetSlotInput, er
 		ProductionID:             fieldUint(fields, "production_id"),
 		CreativeReferenceID:      fieldUint(fields, "creative_reference_id"),
 		CreativeReferenceStateID: fieldUint(fields, "creative_reference_state_id"),
-		OwnerType:                normalizeProjectProposalOwnerType(fieldString(fields, "owner_type")),
+		OwnerType:                normalizeProjectLayerProposalOwnerType(fieldString(fields, "owner_type")),
 		OwnerID:                  fieldUint(fields, "owner_id"),
 		Kind:                     fieldString(fields, "kind"),
 		Name:                     fieldString(fields, "name"),
@@ -1018,7 +1279,7 @@ func assetSlotPatchInputFromProposalFields(fields map[string]any) (PatchAssetSlo
 		ProductionID:             fieldUint(fields, "production_id"),
 		CreativeReferenceID:      fieldUint(fields, "creative_reference_id"),
 		CreativeReferenceStateID: fieldUint(fields, "creative_reference_state_id"),
-		OwnerType:                normalizeProjectProposalOwnerType(fieldString(fields, "owner_type")),
+		OwnerType:                normalizeProjectLayerProposalOwnerType(fieldString(fields, "owner_type")),
 		OwnerID:                  fieldUint(fields, "owner_id"),
 		Kind:                     fieldString(fields, "kind"),
 		Name:                     fieldString(fields, "name"),

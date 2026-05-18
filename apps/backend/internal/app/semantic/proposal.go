@@ -194,9 +194,9 @@ func (s *Service) PreviewProductionProposalApply(ctx context.Context, projectID 
 		if err != nil {
 			return err
 		}
-		return errProjectProposalPreviewRollback
+		return errProjectLayerProposalPreviewRollback
 	})
-	if errors.Is(err, errProjectProposalPreviewRollback) {
+	if errors.Is(err, errProjectLayerProposalPreviewRollback) {
 		return buildProductionProposalPreviewResponse(req.Proposal, resp), nil
 	}
 	if err != nil {

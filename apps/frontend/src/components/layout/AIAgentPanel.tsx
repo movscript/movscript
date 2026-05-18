@@ -3965,7 +3965,7 @@ function PromptLayerPanel({ draft }: { draft: AgentSendDraft | null }) {
   )
 }
 
-const DRAFT_KINDS: AgentDraftKind[] = ['setting_proposal', 'script_split_proposal', 'script', 'asset_slot', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_proposal', 'production_proposal', 'content_unit_proposal']
+const DRAFT_KINDS: AgentDraftKind[] = ['setting_proposal', 'script_split_proposal', 'script', 'asset_slot', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_standards_proposal', 'production_proposal', 'content_unit_proposal']
 const DRAFT_STATUSES: AgentDraftStatus[] = ['draft', 'accepted', 'rejected', 'applied', 'superseded']
 const DRAFT_REFRESH_INTERVAL_MS = 1500
 
@@ -3978,8 +3978,8 @@ function inferScopedDraftKind(pageContext?: PageContextSummary): AgentDraftKind 
   if (pageContext.pageType === 'asset_proposal' || pageContext.labels.some((label) => /asset-proposal|asset_proposal|asset-slots/i.test(label))) {
     return 'asset_proposal'
   }
-  if (pageContext.pageType === 'project_proposal' || pageContext.labels.some((label) => /project-(workspace|orchestration|proposal)/i.test(label))) {
-    return 'project_proposal'
+  if (pageContext.pageType === 'project_standards_proposal' || pageContext.labels.some((label) => /project-(workspace|orchestration|standards)|project_standards_proposal/i.test(label))) {
+    return 'project_standards_proposal'
   }
   return undefined
 }

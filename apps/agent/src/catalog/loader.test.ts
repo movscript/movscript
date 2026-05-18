@@ -175,7 +175,7 @@ test('loads built-in MovScript platform catalog by default', () => {
     assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.policy.movscript'))
     assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.policy.drafts'))
     assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.workflow.proposal-first'))
-    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.workflow.project-proposal'))
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.workflow.project-standards-proposal'))
     assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.agent-core'))
     assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.drafts'))
     assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.movscript'))

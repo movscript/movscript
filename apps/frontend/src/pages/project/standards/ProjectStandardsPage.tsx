@@ -26,7 +26,7 @@ import {
 import { Badge, Button, Card, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@movscript/ui'
 
 import {
-  applyProjectProposal,
+  applyProjectStandardsProposal,
   getProject,
   listSemanticEntities,
   semanticEntityConfig,
@@ -36,7 +36,7 @@ import {
 import { buildCommandFirstClientInput, buildPageKey } from '@/lib/agentCommandInput'
 import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
 import { selectLatestDraftArtifact } from '@/lib/agentArtifacts'
-import { buildDefaultProjectStylePatch, buildEmptyProjectProposalDraftContent } from '@/lib/projectProposalDraft'
+import { buildDefaultProjectStylePatch, buildEmptyProjectStandardsProposalDraftContent } from '@/lib/projectStandardsProposalDraft'
 import { localAgentClient, type AgentDraft } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
@@ -74,7 +74,7 @@ interface WorkspaceData {
   contentUnits: WorkspaceRecord[]
 }
 
-interface ProjectProposalDraftView {
+interface ProjectStandardsProposalDraftView {
   summary: string
   impactNotes: string[]
   debug: {
@@ -202,13 +202,13 @@ function asString(value: unknown, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback
 }
 
-function isProjectProposalHelperDraft(draft: AgentDraft) {
-  if (draft.kind !== 'project_proposal') return false
+function isProjectStandardsProposalHelperDraft(draft: AgentDraft) {
+  if (draft.kind !== 'project_standards_proposal') return false
   const metadata = isRecord(draft.metadata) ? draft.metadata : {}
   return typeof metadata.sourceDraftId === 'string' && metadata.sourceDraftId.trim().length > 0
 }
 
-function parseProjectProposalDraft(draft: AgentDraft, pageKey?: string): ProjectProposalDraftView | null {
+function parseProjectStandardsProposalDraft(draft: AgentDraft, pageKey?: string): ProjectStandardsProposalDraftView | null {
   try {
     const content = JSON.parse(draft.content) as Record<string, unknown>
     const impactNotes = [
@@ -587,9 +587,9 @@ export default function ProjectStandardsPage() {
       const scopedDraftId = openedDraftId || activeDraftId
       if (scopedDraftId) {
         const draft = await localAgentClient.getDraft(scopedDraftId)
-        return draft.kind === 'project_proposal' ? [draft] : []
+        return draft.kind === 'project_standards_proposal' ? [draft] : []
       }
-      const { drafts } = await localAgentClient.listDrafts({ projectId, kind: 'project_proposal', pageKey, limit: 20 })
+      const { drafts } = await localAgentClient.listDrafts({ projectId, kind: 'project_standards_proposal', pageKey, limit: 20 })
       return drafts
     },
     enabled: !!projectId && !!pageKey,
@@ -599,14 +599,14 @@ export default function ProjectStandardsPage() {
 
   useEffect(() => {
     if (openedDraftId || activeDraftId) return
-    const firstProjectProposalDraft = draftsQuery.data?.find((draft) => draft.kind === 'project_proposal')
-    if (!firstProjectProposalDraft) return
-    setActiveDraftId(firstProjectProposalDraft.id)
+    const firstProjectStandardsProposalDraft = draftsQuery.data?.find((draft) => draft.kind === 'project_standards_proposal')
+    if (!firstProjectStandardsProposalDraft) return
+    setActiveDraftId(firstProjectStandardsProposalDraft.id)
     setWorkspaceView('review')
   }, [activeDraftId, draftsQuery.data, openedDraftId])
 
   const draftCounts = useMemo(() => {
-    const drafts = (draftsQuery.data ?? []).filter((draft) => !isProjectProposalHelperDraft(draft))
+    const drafts = (draftsQuery.data ?? []).filter((draft) => !isProjectStandardsProposalHelperDraft(draft))
     return {
       draft: drafts.filter((item) => item.status === 'draft').length,
       applied: drafts.filter((item) => item.status === 'applied').length,
@@ -620,9 +620,9 @@ export default function ProjectStandardsPage() {
     try {
       const draftShell = await localAgentClient.createDraft({
         projectId,
-        kind: 'project_proposal',
+        kind: 'project_standards_proposal',
         title: `项目规范提案草稿 - ${project?.name ?? `#${projectId}`}`,
-        content: JSON.stringify(buildEmptyProjectProposalDraftContent({
+        content: JSON.stringify(buildEmptyProjectStandardsProposalDraftContent({
           projectId,
           mode: 'snapshot',
           projectStyle: buildDefaultProjectStylePatch(),
@@ -646,7 +646,7 @@ export default function ProjectStandardsPage() {
           pageOwned: true,
           proposalScope: 'project_standards',
           proposalMode: 'snapshot',
-          backendApply: 'project_proposal',
+          backendApply: 'project_standards_proposal',
         },
       })
       setActiveDraftId(draftShell.id)
@@ -666,7 +666,7 @@ export default function ProjectStandardsPage() {
           await draftsQuery.refetch()
           return
         }
-        const latestDraftArtifact = selectLatestDraftArtifact(payload.artifacts, 'project_proposal')
+        const latestDraftArtifact = selectLatestDraftArtifact(payload.artifacts, 'project_standards_proposal')
         const nextDraftId = latestDraftArtifact?.draftId || draftShell.id
         setActiveDraftId(nextDraftId)
         setSearchParams((current) => {
@@ -702,7 +702,7 @@ export default function ProjectStandardsPage() {
       toast.info('已打开项目规范提案会话；AI 生成的草稿会回到审阅区')
       await draftsQuery.refetch()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '项目提案启动失败')
+      toast.error(error instanceof Error ? error.message : '项目规范提案启动失败')
     } finally {
       setLaunching(false)
     }
@@ -710,7 +710,7 @@ export default function ProjectStandardsPage() {
 
   async function applyDraft(draft: AgentDraft) {
     if (!projectId) return
-    if (draft.kind === 'project_proposal') {
+    if (draft.kind === 'project_standards_proposal') {
       setApplyingDraftId(draft.id)
       try {
         const proposedValue = buildProjectStyleApplyPayload(draft)
@@ -737,7 +737,7 @@ export default function ProjectStandardsPage() {
             proposedValue,
           })
         } catch (error) {
-          await applyProjectProposal(projectId, JSON.parse(proposedValue) as Record<string, unknown>)
+          await applyProjectStandardsProposal(projectId, JSON.parse(proposedValue) as Record<string, unknown>)
           await localAgentClient.updateDraft(draft.id, {
             status: 'applied',
             target: {
@@ -774,7 +774,7 @@ export default function ProjectStandardsPage() {
     void draftsQuery.refetch()
   }
 
-  const drafts = (draftsQuery.data ?? []).filter((draft) => !isProjectProposalHelperDraft(draft))
+  const drafts = (draftsQuery.data ?? []).filter((draft) => !isProjectStandardsProposalHelperDraft(draft))
 
   const filledStandardCount = projectStandardFilledCount(data.project)
   const missingStandardLabels = projectStandardMissingLabels(data.project)
@@ -785,8 +785,8 @@ export default function ProjectStandardsPage() {
 
   async function saveProjectStylePatch(projectStyle: Record<string, unknown>, successMessage: string) {
     if (!projectId) return
-    await applyProjectProposal(projectId, {
-      scope: 'project_proposal',
+    await applyProjectStandardsProposal(projectId, {
+      scope: 'project_standards_proposal',
       mode: 'patch',
       proposal: {
         project_style: projectStyle,
@@ -1134,7 +1134,7 @@ export default function ProjectStandardsPage() {
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <h2 className="text-sm font-semibold text-foreground">项目规范审阅</h2>
-                        <p className="mt-1 text-xs text-muted-foreground">审阅 project_proposal 中的 project_style，包含固定规范和扩展 custom_rules。</p>
+                        <p className="mt-1 text-xs text-muted-foreground">审阅 project_standards_proposal 中的 project_style，包含固定规范和扩展 custom_rules。</p>
                       </div>
                       <Badge variant="secondary" className="text-[10px]">draft {draftCounts.draft}</Badge>
                     </div>
@@ -1148,7 +1148,7 @@ export default function ProjectStandardsPage() {
                       ) : drafts.length === 0 ? (
                         <EmptyBlock title="暂无项目规范草稿" detail="从上方发起项目规范提案后，AI 对核心规范和扩展规则的建议会进入这里审阅。" />
                       ) : drafts.map((draft) => {
-                        const proposalView = parseProjectProposalDraft(draft, pageKey)
+                        const proposalView = parseProjectStandardsProposalDraft(draft, pageKey)
                         const styleRows = parseProjectStyleDraftRows(draft, data.project)
 
                         return (

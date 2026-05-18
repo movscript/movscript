@@ -54,6 +54,22 @@ const registry = new StaticToolRegistry([
     projectScoped: true,
     requiresApprovalByDefault: true,
   },
+  {
+    name: 'movscript_apply_draft',
+    description: 'Apply a draft.',
+    permission: 'draft.apply',
+    risk: 'write',
+    projectScoped: false,
+    requiresApprovalByDefault: true,
+  },
+  {
+    name: 'movscript_delete_project',
+    description: 'Delete a project.',
+    permission: 'project.delete',
+    risk: 'destructive',
+    projectScoped: false,
+    requiresApprovalByDefault: true,
+  },
 ])
 
 test('tool policy injects current projectId into project scoped tools', () => {
@@ -245,4 +261,53 @@ test('tool policy lets sandbox intercept approval-gated write and generation too
   assert.deepEqual(result.warnings, [])
   assert.equal(result.blockedToolCalls.length, 0)
   assert.equal(result.toolCalls[0].args?.projectId, 42)
+})
+
+test('tool policy auto approval mode allows granted write tools without explicit approval', () => {
+  const result = applyToolPolicy([
+    { name: 'movscript_apply_draft', args: { draftId: 'draft_1' } },
+  ], {
+    approvalMode: 'auto',
+    registry,
+    manifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      tools: [{ name: 'movscript_apply_draft', mode: 'allow', approval: 'on_write' }],
+    },
+  })
+
+  assert.deepEqual(result.warnings, [])
+  assert.equal(result.blockedToolCalls.length, 0)
+  assert.equal(result.toolCalls[0].name, 'movscript_apply_draft')
+})
+
+test('tool policy readonly auto mode still blocks draft apply writes', () => {
+  const result = applyToolPolicy([
+    { name: 'movscript_apply_draft', args: { draftId: 'draft_1' } },
+  ], {
+    approvalMode: 'auto_readonly',
+    registry,
+    manifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      tools: [{ name: 'movscript_apply_draft', mode: 'allow', approval: 'on_write' }],
+    },
+  })
+
+  assert.deepEqual(result.toolCalls, [])
+  assert.equal(result.blockedToolCalls[0]?.reason, 'approval_required')
+})
+
+test('tool policy auto approval mode does not auto-approve destructive tools', () => {
+  const result = applyToolPolicy([
+    { name: 'movscript_delete_project', args: { projectId: 42 } },
+  ], {
+    approvalMode: 'auto',
+    registry,
+    manifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      tools: [{ name: 'movscript_delete_project', mode: 'allow', approval: 'always' }],
+    },
+  })
+
+  assert.deepEqual(result.toolCalls, [])
+  assert.equal(result.blockedToolCalls[0]?.reason, 'approval_required')
 })

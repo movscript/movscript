@@ -223,6 +223,56 @@ test('executeTool creates content unit proposal drafts after media proposal depr
   assert.equal(draftStore.listDrafts()[0]?.kind, 'content_unit_proposal')
 })
 
+test('executeTool applies valid proposal drafts through runtime apply tool', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const draft = draftStore.createDraft({
+    projectId: 42,
+    kind: 'asset_proposal',
+    title: 'Asset candidates',
+    content: JSON.stringify({
+      schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
+      scope: 'asset_proposal',
+      proposal: {
+        creative_references: [],
+        asset_slots: [],
+        candidate_plans: [],
+      },
+    }),
+    target: {
+      projectId: 42,
+      entityType: 'project',
+      entityId: 42,
+      field: 'proposal',
+    },
+  })
+
+  const result = await executeTool({
+    name: 'movscript_apply_draft',
+    args: { draftId: draft.id },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('MCP should not be called for runtime draft apply')
+      },
+    }),
+    draftStore,
+    backendApplyClient: {
+      async applyReview(): Promise<any> {
+        throw new Error('backend apply should be skipped for asset planning drafts without asset slots')
+      },
+    } as never,
+  })
+
+  assert.equal((result.result as any)?.ok, true)
+  assert.equal((result.result as any)?.status, 'applied')
+  const applied = draftStore.getDraft(draft.id)
+  assert.equal(applied?.status, 'applied')
+  assert.equal((applied?.metadata as any)?.appliedBy, 'movscript-agent')
+})
+
 test('executeTool ignores non-plain runtime draft source and metadata records', async () => {
   class RuntimeRecord {
     injected = 'runtime'
@@ -304,18 +354,18 @@ test('executeTool drops invalid numeric page entity ids from runtime draft sourc
   })
 })
 
-test('executeTool rejects invalid project ids for project proposals', async () => {
+test('executeTool rejects invalid project ids for project standards proposals', async () => {
   for (const projectId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY, '42']) {
     await assert.rejects(
       () => executeTool({
         name: 'movscript_create_draft',
         args: {
-          kind: 'project_proposal',
+          kind: 'project_standards_proposal',
           proposal: true,
           projectId,
           content: JSON.stringify({
-            schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
-            scope: 'project_proposal',
+            schema: DRAFT_CONTENT_SCHEMA_IDS.projectStandardsProposal,
+            scope: 'project_standards_proposal',
             proposal: {},
           }),
         },
@@ -330,7 +380,7 @@ test('executeTool rejects invalid project ids for project proposals', async () =
         }),
         draftStore: new InMemoryAgentDraftStore(),
       }),
-      /create_proposal requires projectId for project_proposal/,
+      /create_proposal requires projectId for project_standards_proposal/,
     )
   }
 })

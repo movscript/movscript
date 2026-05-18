@@ -41,7 +41,7 @@ export function resolveRuntimeIntents(message: string, debugContext: AgentDebugC
   }
 
   const route = debugContext.route.pathname.toLowerCase()
-  if (route.includes('project-workspace')) addSignal(signals, 'project_proposal', 'route', 'high', `route:${debugContext.route.pathname}`)
+  if (route.includes('project-workspace')) addSignal(signals, 'project_standards_proposal', 'route', 'high', `route:${debugContext.route.pathname}`)
   if (route.includes('creative-references') || route.includes('pre-production')) addSignal(signals, 'setting_proposal', 'route', 'high', `route:${debugContext.route.pathname}`)
   if (route.includes('production-orchestrate')) addSignal(signals, 'production_proposal', 'route', 'high', `route:${debugContext.route.pathname}`)
   if (route.includes('asset-slots') || route.includes('pre-production')) {
@@ -84,7 +84,7 @@ function normalizeIntentLabel(label: string): string | undefined {
 }
 
 const LABEL_INTENT_ALIASES: Record<string, string> = {
-  project_orchestration: 'project_proposal',
+  project_orchestration: 'project_standards_proposal',
   setting_proposal: 'setting_proposal',
   asset_proposal: 'asset_proposal',
   production_orchestration: 'production_proposal',
@@ -115,7 +115,7 @@ function isVisualGenerationLabel(label: string): boolean {
 }
 
 const INTENT_KEYWORD_MAPPINGS = [
-  ['project_proposal', ['项目提案', '项目规范', '镜头大小', '镜头规格', '风格规范', 'project proposal', 'project_proposal']],
+  ['project_standards_proposal', ['项目规范提案', '项目规范', '镜头大小', '镜头规格', '风格规范', 'project standards proposal', 'project_standards_proposal']],
   ['setting_proposal', ['设定提案', '设定资料', '人物设定', '地点设定', 'setting proposal', 'setting_proposal']],
   ['asset_proposal', ['素材需求提案', '素材需求', '素材位', 'asset slot', '素材方案', '素材候选方案', '候选图方案', '候选视频方案', 'prompt 方案', 'asset proposal', 'asset_proposal']],
   ['production_proposal', ['制作提案', 'production proposal', 'production_proposal']],

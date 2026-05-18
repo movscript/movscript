@@ -15,8 +15,8 @@ export function assetProposalContainsAssetSlots(content: string): boolean {
   }
 }
 
-export function canonicalizeProjectProposalDraftContent(draft: AgentDraft, backendApply: BackendApplyResult): string | undefined {
-  if (draft.kind !== 'setting_proposal' && draft.kind !== 'asset_proposal' && draft.kind !== 'project_proposal') return undefined
+export function canonicalizeProjectStandardsProposalDraftContent(draft: AgentDraft, backendApply: BackendApplyResult): string | undefined {
+  if (draft.kind !== 'setting_proposal' && draft.kind !== 'asset_proposal' && draft.kind !== 'project_standards_proposal') return undefined
   const response = isRecord(backendApply.response) ? backendApply.response : undefined
   const canonicalSnapshot = isJSONRecord(response?.canonical_snapshot) ? response.canonical_snapshot : undefined
   if (!canonicalSnapshot) return undefined

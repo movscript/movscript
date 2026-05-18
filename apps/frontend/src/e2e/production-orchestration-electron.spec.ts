@@ -148,8 +148,8 @@ async function mockProductionOrchestrationEntities(page: Parameters<typeof mockG
         body: JSON.stringify({
           id: 'project-draft-e2e',
           projectId: PROJECT_ID,
-          kind: 'project_proposal',
-          title: '项目提案草稿',
+          kind: 'project_standards_proposal',
+          title: '项目规范提案草稿',
           content: JSON.stringify({
             summary: '项目级设定与素材草稿',
             proposal: {

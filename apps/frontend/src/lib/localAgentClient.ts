@@ -650,7 +650,7 @@ export type AgentDraftKind =
   | 'segment'
   | 'scene_moment'
   | 'asset_proposal'
-  | 'project_proposal'
+  | 'project_standards_proposal'
   | 'production_proposal'
   | 'content_unit_proposal'
 export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected' | 'applied' | 'superseded'

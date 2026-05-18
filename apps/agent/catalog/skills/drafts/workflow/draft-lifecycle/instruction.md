@@ -18,7 +18,7 @@
 允许的工具：
 - 模型契约：{{tool:movscript_get_draft_model}}
 - 读取：{{tool:movscript_get_draft}}
-- 写入/校验/preview：{{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
+- 写入/校验/preview/apply：{{tool:movscript_create_draft}} {{tool:movscript_update_draft}} {{tool:movscript_apply_draft}}
 - 缺失决策：{{tool:movscript_request_user_input}}
 
 流程：
@@ -28,13 +28,18 @@
 4. 创建修改型 draft 时应带 target/source 页面或实体锚点，并把模型 MCP 返回的 seed/modelRef 作为 movscript_create_draft.seed 传入。
 5. 修改现有 draft 时，基于已读取内容做最小 patch；不要覆盖未知字段，不要凭空重建整个 draft。
 6. 每次 create/update 后都要检查工具返回的 draftId、kind、status、validation 或 preview_apply 结果。
-7. validation 或 preview 失败时，报告具体失败阶段和可修复路径；如果能安全定位 JSON Pointer 或字段路径，再做一次最小修复。
-8. apply 前只说明“可进入 apply/review”，不要声称已写入正式项目数据。
+7. 创建或修改 proposal draft 后，最终回复前必须调用 `movscript_update_draft`，传入 `action: "preview_apply"` 做 dry-run。preview_apply 会先做本地 schema validation，再在支持的 kind 上调用后端 apply-preview；不正式写入。
+8. preview_apply 失败时，先根据返回的 validation path、backend error 或 review diff 做最小修复，再重新 preview_apply；无法安全修复时，把失败阶段、错误路径和阻塞项汇报给用户。
+9. 创建 proposal draft 后默认继续进入 apply 流程；若当前运行策略需要确认，运行时会暂停等待用户批准或拒绝。
+10. 同一轮生成多个 proposal draft 时，按层级顺序 apply：`project_standards_proposal`、`setting_proposal`、`asset_proposal`、`production_proposal`、`content_unit_proposal`。
+11. validation 或 preview 失败时，报告具体失败阶段和可修复路径；如果能安全定位 JSON Pointer 或字段路径，再做一次最小修复。
+12. apply 前只说明“可进入 apply/review”，不要声称已写入正式项目数据。
 
 校验：
 - 写入现有 draft 前是否已经读取该 draft。
 - draft kind 是否与用户请求层级一致。
 - 本地 draft 变更是否可审阅、可回退、可解释。
+- proposal draft 是否已经在最终回复前运行 `preview_apply` dry-run，并记录结果。
 - 汇报是否包含 draftId、kind、status 和下一步动作。
 
 输出合同：

@@ -15,7 +15,7 @@ function draft(input: Partial<AgentDraft> & Pick<AgentDraft, 'id' | 'kind'>): Ag
 }
 
 test('draft domain model separates project standards, settings, and asset slots', () => {
-  const project = getDraftDomainModel('project_proposal')
+  const project = getDraftDomainModel('project_standards_proposal')
   const setting = getDraftDomainModel('setting_proposal')
   const assetProposal = getDraftDomainModel('asset_proposal')
   const production = getDraftDomainModel('production_proposal')
@@ -23,22 +23,22 @@ test('draft domain model separates project standards, settings, and asset slots'
   assert.equal(project?.seed.defaultMode, 'editable_snapshot')
   assert.deepEqual(project?.seed.include, ['project'])
   assert.equal(project?.targetEntityType, 'project')
-  assert.equal(project?.contentSchemaId, 'movscript.project_proposal.v1')
+  assert.equal(project?.contentSchemaId, 'movscript.project_standards_proposal.v1')
   assert.ok(project?.fieldGuide.owns.includes('shot_size_system'))
   assert.ok(project?.fieldGuide.owns.includes('custom_rules'))
   assert.ok(project?.fieldGuide.forbids.includes('creative_reference_lists'))
   assert.ok(project?.fieldGuide.forbids.includes('asset_requirement_lists'))
-  assert.equal(project?.applyBoundary.backendApply, 'project_proposal')
+  assert.equal(project?.applyBoundary.backendApply, 'project_standards_proposal')
 
   assert.equal(setting?.contentSchemaId, 'movscript.setting_proposal.v1')
   assert.ok(setting?.fieldGuide.owns.includes('creative_references'))
   assert.ok(setting?.fieldGuide.forbids.includes('asset_slots'))
-  assert.equal(setting?.applyBoundary.backendApply, 'project_proposal')
+  assert.equal(setting?.applyBoundary.backendApply, 'setting_proposal')
 
   assert.equal(assetProposal?.contentSchemaId, 'movscript.asset_proposal.v1')
   assert.ok(assetProposal?.fieldGuide.owns.includes('asset_slots'))
   assert.ok(assetProposal?.fieldGuide.forbids.includes('creative_reference_edits'))
-  assert.equal(assetProposal?.applyBoundary.backendApply, 'project_proposal')
+  assert.equal(assetProposal?.applyBoundary.backendApply, 'asset_proposal')
 
   assert.equal(production?.seed.defaultMode, 'editable_snapshot')
   assert.deepEqual(production?.seed.allowedModes, ['empty', 'snapshot', 'editable_snapshot'])
@@ -69,7 +69,7 @@ test('draft domain model defines content unit proposal contracts', () => {
 
 test('draft review path is resolved from the shared frontend draft model helpers', () => {
   assert.equal(
-    buildDraftReviewPath(draft({ id: 'draft-project', kind: 'project_proposal' })),
+    buildDraftReviewPath(draft({ id: 'draft-project', kind: 'project_standards_proposal' })),
     '/project/standards?draftId=draft-project',
   )
   assert.equal(
@@ -131,8 +131,8 @@ test('draft artifact review path does not require loading the full draft first',
     buildDraftArtifactReviewPath({
       type: 'draft',
       draftId: 'draft-project',
-      draftKind: 'project_proposal',
-      title: '项目提案',
+      draftKind: 'project_standards_proposal',
+      title: '项目规范提案',
     }),
     '/project/standards?draftId=draft-project',
   )

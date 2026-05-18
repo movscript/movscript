@@ -43,10 +43,10 @@ function generationValidationErrorCodes(): string[] {
 }
 
 test('draft schema registry is keyed by full schema id and supports active kind lookup', () => {
-  assert.ok(DRAFT_SCHEMA_REGISTRY['movscript.project_proposal.v1'])
-  assert.equal(getDraftSchemaEntry('movscript.project_proposal.v1')?.kind, 'project_proposal')
-  assert.equal(getActiveSchemaForKind('project_proposal').id, 'movscript.project_proposal.v1')
-  assert.deepEqual(listSchemasByKind('project_proposal').map((schema) => schema.id), ['movscript.project_proposal.v1'])
+  assert.ok(DRAFT_SCHEMA_REGISTRY['movscript.project_standards_proposal.v1'])
+  assert.equal(getDraftSchemaEntry('movscript.project_standards_proposal.v1')?.kind, 'project_standards_proposal')
+  assert.equal(getActiveSchemaForKind('project_standards_proposal').id, 'movscript.project_standards_proposal.v1')
+  assert.deepEqual(listSchemasByKind('project_standards_proposal').map((schema) => schema.id), ['movscript.project_standards_proposal.v1'])
   assert.match(getActiveSchemaForKind('content_unit_proposal').promptSummary, /shot_size/)
   assert.match(getActiveSchemaForKind('content_unit_proposal').promptSummary, /lighting/)
   assert.match(getActiveSchemaForKind('content_unit_proposal').promptSummary, /performance/)
@@ -56,7 +56,7 @@ test('layered catalog registry exposes schema/tool/skill/pack/profile boundaries
   const catalog = loadAgentPluginCatalog()
   const registry = catalog.layeredRegistry
 
-  assert.ok(registry.schemas.has('movscript.project_proposal.v1'))
+  assert.ok(registry.schemas.has('movscript.project_standards_proposal.v1'))
   assert.ok(registry.tools.has('movscript_update_draft'))
   assert.ok(registry.tools.has('movscript_get_draft_model'))
   assert.ok(registry.tools.has('movscript_search_knowledge'))
@@ -94,7 +94,7 @@ test('target-state pack files and the default profile are loaded as first-class 
     'movscript.pack.agent-core': '>=1.0.0',
     'movscript.pack.drafts': '>=1.0.0',
   })
-  assert.ok(movscriptPack.skills.includes('movscript.workflow.project-proposal'))
+  assert.ok(movscriptPack.skills.includes('movscript.workflow.project-standards-proposal'))
   assert.ok(movscriptPack.skills.includes('movscript.workflow.setting-proposal'))
   assert.ok(movscriptPack.skills.includes('movscript.workflow.asset-proposal'))
   assert.ok(movscriptPack.skills.includes('movscript.workflow.production-proposal'))
@@ -130,7 +130,7 @@ test('target-state pack files and the default profile are loaded as first-class 
     'movscript.workflow.project-progress',
     'movscript.workflow.script-reading',
     'movscript.workflow.proposal-first',
-    'movscript.workflow.project-proposal',
+    'movscript.workflow.project-standards-proposal',
     'movscript.workflow.setting-proposal',
     'movscript.workflow.asset-proposal',
     'movscript.workflow.setting-prep',
@@ -146,7 +146,7 @@ test('target-state pack files and the default profile are loaded as first-class 
 
   const resolved = resolveProfile(catalog.layeredRegistry)
   assert.equal(resolved.profile.id, 'movscript.profile.default')
-  assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.project-proposal'))
+  assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.project-standards-proposal'))
   assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.planner-subagents'))
   assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.draft-lifecycle'))
   assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.script-reading'))
@@ -186,7 +186,7 @@ test('proposal workflows reference runtime draft model contract before field-spe
   const catalog = loadAgentPluginCatalog()
   const workflowIds = [
     'movscript.workflow.draft-lifecycle',
-    'movscript.workflow.project-proposal',
+    'movscript.workflow.project-standards-proposal',
     'movscript.workflow.production-proposal',
   ]
 
@@ -804,8 +804,8 @@ test('pre-production prep routes to setting and asset proposal drafts without ge
 
 test('workflow skills use isolated skill directories', () => {
   assert.equal(existsSync(new URL('workflow/general-workflows.workflow.json', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('workflow/project-proposal.workflow.json', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('workflow/project-proposal.workflow.md', CATALOG_SKILLS_DIR)), false)
+  assert.equal(existsSync(new URL('workflow/project-standards-proposal.workflow.json', CATALOG_SKILLS_DIR)), false)
+  assert.equal(existsSync(new URL('workflow/project-standards-proposal.workflow.md', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('workflow/proposal-workflows.workflow.json', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('workflow/proposal-first.workflow.md', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('workflow/production-proposal.workflow.md', CATALOG_SKILLS_DIR)), false)
@@ -823,7 +823,7 @@ test('workflow skills use isolated skill directories', () => {
   assert.equal(existsSync(new URL('workflow/visual-generation.workflow.md', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('workflow/asset-candidate-generation.workflow.md', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('movscript/workflow/planning/proposal-first/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('movscript/workflow/proposal/project/project-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/project/project-standards-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
   assert.equal(existsSync(new URL('movscript/workflow/proposal/production/production-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
   assert.equal(existsSync(new URL('movscript/workflow/proposal/production/dual-orchestration/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('movscript/workflow/proposal/asset/asset-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
@@ -843,14 +843,14 @@ test('workflow skills use isolated skill directories', () => {
 
 test('target-state skill and tool files define the active runtime resources', () => {
   const catalog = loadAgentPluginCatalog()
-  const workflow = catalog.layeredRegistry.skills.get('movscript.workflow.project-proposal')
+  const workflow = catalog.layeredRegistry.skills.get('movscript.workflow.project-standards-proposal')
   const inputTool = catalog.layeredRegistry.tools.get('movscript_request_user_input')
 
   assert.ok(workflow?.kind === 'workflow')
   assert.equal(workflow.version, '1.0.0')
-  assert.ok(workflow.schemaRefs?.includes('schema://movscript.project_proposal.v1'))
-  assert.match(workflow.instructionTemplate, /目标：\n产出或编辑一个本地 project_proposal draft/)
-  assert.match(workflow.instructionTemplate, /\{\{schema:movscript\.project_proposal\.v1\}\}/)
+  assert.ok(workflow.schemaRefs?.includes('schema://movscript.project_standards_proposal.v1'))
+  assert.match(workflow.instructionTemplate, /目标：\n产出或编辑一个本地 project_standards_proposal draft/)
+  assert.match(workflow.instructionTemplate, /\{\{schema:movscript\.project_standards_proposal\.v1\}\}/)
   assert.equal(catalog.layeredRegistry.skills.has('movscript.workflow.script-split'), false)
   assert.equal(catalog.layeredRegistry.skills.has('movscript.workflow.script-writing'), false)
   assert.equal(catalog.layeredRegistry.skills.has('movscript.workflow.creative-workbench'), false)
@@ -1048,7 +1048,7 @@ test('profile resolution, trigger selection, prompt refs, and tool scope work to
   const { profile, warnings } = resolveProfile(catalog.layeredRegistry)
   assert.deepEqual(warnings, [])
 
-  const workflow = catalog.layeredRegistry.skills.get('movscript.workflow.project-proposal')
+  const workflow = catalog.layeredRegistry.skills.get('movscript.workflow.project-standards-proposal')
   const policy = catalog.layeredRegistry.skills.get('movscript.policy.drafts')
   assert.ok(workflow?.kind === 'workflow')
   assert.ok(policy?.kind === 'policy')
@@ -1063,7 +1063,7 @@ test('profile resolution, trigger selection, prompt refs, and tool scope work to
 
   const ctx = {
     profile,
-    message: '请帮我做项目提案',
+    message: '请帮我做项目规范提案',
     intents: [],
     uiContext: { projectId: 1 },
     conversation: { turnCount: 1, lastToolCalls: [], recentErrors: [] },
@@ -1102,7 +1102,7 @@ test('org and user profile overrides can only narrow runtime capability', () => 
     name: 'Org Override',
     enabledPacks: ['movscript.pack.agent-core', 'movscript.pack.drafts', 'movscript.pack.movscript'],
     persona: null,
-    enabledWorkflows: ['movscript.workflow.project-proposal'],
+    enabledWorkflows: ['movscript.workflow.project-standards-proposal'],
     enabledPolicies: ['movscript.policy.drafts', 'movscript.policy.agent-core', 'movscript.policy.movscript'],
     toolGrants: [
       { name: 'movscript_update_draft', mode: 'allow' as const, approval: 'always' as const },
@@ -1117,7 +1117,7 @@ test('org and user profile overrides can only narrow runtime capability', () => 
     name: 'User Override',
     enabledPacks: [],
     persona: null,
-    enabledWorkflows: ['movscript.workflow.project-proposal'],
+    enabledWorkflows: ['movscript.workflow.project-standards-proposal'],
     enabledPolicies: [],
     toolGrants: [
       { name: 'movscript_update_draft', mode: 'deny' as const },
@@ -1131,7 +1131,7 @@ test('org and user profile overrides can only narrow runtime capability', () => 
 
   assert.deepEqual(resolved.warnings, [])
   assert.deepEqual(resolved.profile.enabledPacks, ['movscript.pack.agent-core', 'movscript.pack.drafts', 'movscript.pack.movscript'])
-  assert.deepEqual(resolved.profile.enabledWorkflows, ['movscript.workflow.project-proposal'])
+  assert.deepEqual(resolved.profile.enabledWorkflows, ['movscript.workflow.project-standards-proposal'])
   assert.equal(resolved.profile.toolGrants.find((grant) => grant.name === 'movscript_update_draft')?.mode, 'deny')
   assert.equal(resolved.profile.toolGrants.find((grant) => grant.name === 'movscript_create_draft')?.mode, 'deny')
   assert.equal(resolved.profile.limits?.maxActiveWorkflows, 1)

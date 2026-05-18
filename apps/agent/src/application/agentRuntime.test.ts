@@ -452,7 +452,7 @@ test('preview activates only triggered layered skills instead of loading every p
   assert.ok(skillIds.includes('movscript.policy.agent-core'))
   assert.equal(skillIds.includes('movscript.policy.drafts'), false)
   assert.equal(skillIds.includes('movscript.policy.movscript'), false)
-  assert.equal(skillIds.includes('movscript.workflow.project-proposal'), false)
+  assert.equal(skillIds.includes('movscript.workflow.project-standards-proposal'), false)
   assert.equal(skillIds.includes('movscript.workflow.visual-generation'), false)
   assert.deepEqual(preview.debug?.layerTrace?.workflowIds, [])
   assert.equal(preview.debug?.layerTrace?.profileId, 'movscript.profile.default')
@@ -466,7 +466,7 @@ test('preview debug explains selected workflow trigger reasons', async () => {
 
   const preview = await runtime.previewRun({
     clientInput: {
-      message: '请帮我做项目提案',
+      message: '请帮我做项目规范提案',
       uiSnapshot: {
         route: { pathname: '/projects/42' },
         project: { id: 42, name: 'Test Project' },
@@ -475,16 +475,16 @@ test('preview debug explains selected workflow trigger reasons', async () => {
   })
 
   const triggers = preview.debug?.layerTrace?.workflowTriggers ?? []
-  const selected = triggers.find((trigger) => trigger.id === 'movscript.workflow.project-proposal')
-  assert.equal(preview.debug?.layerTrace?.workflowIds.includes('movscript.workflow.project-proposal'), true)
+  const selected = triggers.find((trigger) => trigger.id === 'movscript.workflow.project-standards-proposal')
+  assert.equal(preview.debug?.layerTrace?.workflowIds.includes('movscript.workflow.project-standards-proposal'), true)
   assert.equal(selected?.selected, true)
   assert.equal(selected?.matched, true)
   assert.ok(selected?.reason.startsWith('selected:'))
-  assert.deepEqual(preview.debug?.layerTrace?.intentSignals?.find((signal) => signal.intent === 'project_proposal'), {
-    intent: 'project_proposal',
+  assert.deepEqual(preview.debug?.layerTrace?.intentSignals?.find((signal) => signal.intent === 'project_standards_proposal'), {
+    intent: 'project_standards_proposal',
     source: 'keyword_fallback',
     confidence: 'low',
-    evidence: 'keyword:项目提案',
+    evidence: 'keyword:项目规范提案',
   })
 })
 
@@ -991,11 +991,11 @@ test('simulateApplyDraft dry-runs backend apply without marking draft applied', 
   const runtime = createTestRuntime({ mcpClient: new FakeMCPClient(), backendApplyClient })
   const draft = runtime.createLocalDraft({
     projectId: 42,
-    kind: 'project_proposal',
-    title: 'Project proposal',
+    kind: 'project_standards_proposal',
+    title: 'Project standards proposal',
     content: JSON.stringify({
-      schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
-      scope: 'project_proposal',
+      schema: DRAFT_CONTENT_SCHEMA_IDS.projectStandardsProposal,
+      scope: 'project_standards_proposal',
       mode: 'snapshot',
       summary: 'Project-level style standards.',
       proposal: {
@@ -2618,7 +2618,7 @@ test('create_proposal creates a local proposal draft from conversation context',
   client.projectId = 42
   const draftStore = new InMemoryAgentDraftStore()
   const runtime = createTestRuntime({ mcpClient: client, draftStore })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我开一个项目提案' }] })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我开一个项目规范提案' }] })
 
   const run = runtime.createToolRun({
     threadId: thread.id,
@@ -2629,12 +2629,12 @@ test('create_proposal creates a local proposal draft from conversation context',
     toolCall: {
       name: 'movscript_create_draft',
       args: {
-        kind: 'project_proposal',
+        kind: 'project_standards_proposal',
         projectId: 42,
         proposal: true,
         content: JSON.stringify({
-          schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
-          scope: 'project_proposal',
+          schema: DRAFT_CONTENT_SCHEMA_IDS.projectStandardsProposal,
+          scope: 'project_standards_proposal',
           summary: '整理项目设定和素材需求',
           proposal: {
             creative_references: [],
@@ -2652,7 +2652,7 @@ test('create_proposal creates a local proposal draft from conversation context',
   assert.equal(finished.status, 'completed')
   assert.equal(draft?.status, 'created')
   assert.equal(typeof draft?.draftId, 'string')
-  assert.equal(runtime.listDrafts({ kind: 'project_proposal' }).length, 1)
+  assert.equal(runtime.listDrafts({ kind: 'project_standards_proposal' }).length, 1)
 })
 
 test('drafts can be scoped by page key', async () => {
@@ -4935,7 +4935,7 @@ test('planner capabilities expose subagent scheduling tools', async () => {
 test('inspect agent catalog returns current snapshot summary and skill details', async () => {
   const client = new FakeMCPClient()
   const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请帮我做项目提案草稿' }] })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请帮我做项目规范提案草稿' }] })
   const run = await createAndWaitForRun(runtime, thread.id)
 
   const summary = runtime.inspectAgentCatalog(run, { view: 'summary' }) as any

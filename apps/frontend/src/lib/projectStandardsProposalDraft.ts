@@ -1,7 +1,7 @@
 import { DRAFT_CONTENT_SCHEMA_IDS, DRAFT_SCOPES } from '@movscript/draft-schemas'
 
-export const PROJECT_PROPOSAL_DRAFT_SCHEMA = DRAFT_CONTENT_SCHEMA_IDS.projectProposal
-export const PROJECT_PROPOSAL_SCOPE = DRAFT_SCOPES.projectProposal
+export const PROJECT_STANDARDS_PROPOSAL_DRAFT_SCHEMA = DRAFT_CONTENT_SCHEMA_IDS.projectStandardsProposal
+export const PROJECT_STANDARDS_PROPOSAL_SCOPE = DRAFT_SCOPES.projectStandardsProposal
 
 export interface ProjectStylePatch {
   aspect_ratio?: string
@@ -27,9 +27,9 @@ export interface ProjectPromptRulePatch {
   order?: number
 }
 
-export interface ProjectProposalDraftContent {
-  schema: typeof PROJECT_PROPOSAL_DRAFT_SCHEMA
-  scope: typeof PROJECT_PROPOSAL_SCOPE
+export interface ProjectStandardsProposalDraftContent {
+  schema: typeof PROJECT_STANDARDS_PROPOSAL_DRAFT_SCHEMA
+  scope: typeof PROJECT_STANDARDS_PROPOSAL_SCOPE
   mode: 'snapshot'
   projectId?: number
   productionId?: number
@@ -41,17 +41,17 @@ export interface ProjectProposalDraftContent {
   createdAt: string
 }
 
-export function buildEmptyProjectProposalDraftContent(input: {
+export function buildEmptyProjectStandardsProposalDraftContent(input: {
   projectId?: number
   productionId?: number
   mode?: 'snapshot'
   projectStyle?: ProjectStylePatch
   createdAt?: string
   summary?: string
-} = {}): ProjectProposalDraftContent {
+} = {}): ProjectStandardsProposalDraftContent {
   return {
-    schema: PROJECT_PROPOSAL_DRAFT_SCHEMA,
-    scope: PROJECT_PROPOSAL_SCOPE,
+    schema: PROJECT_STANDARDS_PROPOSAL_DRAFT_SCHEMA,
+    scope: PROJECT_STANDARDS_PROPOSAL_SCOPE,
     mode: input.mode ?? 'snapshot',
     ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
     ...(input.productionId !== undefined ? { productionId: input.productionId } : {}),

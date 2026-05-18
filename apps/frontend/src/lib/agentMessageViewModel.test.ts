@@ -36,8 +36,8 @@ test('assistantResultPayloadForRun builds the same structured payload from run a
       toolName: 'movscript_create_draft',
       result: {
         id: 'draft_1',
-        kind: 'project_proposal',
-        title: '项目提案',
+        kind: 'project_standards_proposal',
+        title: '项目规范提案',
         target: { entityType: 'project', entityId: 9 },
       },
       createdAt: '2026-05-09T08:00:01.000Z',

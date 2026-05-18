@@ -52,7 +52,7 @@ test('previewApplyReview rejects invalid proposal project ids', async () => {
   await assert.rejects(
     () => client.previewApplyReview({
       draftId: 'draft_project',
-      draftTitle: 'Project proposal',
+      draftTitle: 'Project standards proposal',
       draftKind: 'setting_proposal',
       target: { entityType: 'project', entityId: '42', field: 'proposal' },
       currentValue: null,
@@ -272,7 +272,7 @@ test('applyReview posts setting proposal payload with auth headers', async () =>
 
     assert.equal(result.performed, true)
     assert.equal(result.method, 'POST')
-    assert.equal(result.url, 'http://backend/api/v1/projects/42/entities/project-proposals/apply')
+    assert.equal(result.url, 'http://backend/api/v1/projects/42/entities/setting-proposals/apply')
     assert.deepEqual(result.payload, {
       ...payload,
       proposal: {
@@ -325,7 +325,7 @@ test('applyReview posts asset slot proposal with settings filtered out', async (
       proposedValue: JSON.stringify(payload),
     }))
 
-    assert.equal(result.url, 'http://backend/api/v1/projects/42/entities/project-proposals/apply')
+    assert.equal(result.url, 'http://backend/api/v1/projects/42/entities/asset-proposals/apply')
     assert.deepEqual(JSON.parse(String(calls[0].init.body)), {
       ...payload,
       proposal: {
@@ -378,6 +378,7 @@ test('applyReview posts direct asset slot proposal snapshots', async () => {
 
     assert.deepEqual(JSON.parse(String(calls[0].init.body)), {
       ...payload,
+      scope: 'asset_proposal',
       mode: 'snapshot',
       proposal: {
         creative_references: [],
@@ -397,7 +398,7 @@ test('applyReview posts direct asset slot proposal snapshots', async () => {
   }
 })
 
-test('applyReview posts project proposal with only project style', async () => {
+test('applyReview posts project standards proposal with only project style', async () => {
   const originalFetch = globalThis.fetch
   const calls: Array<{ url: string; init: RequestInit }> = []
   globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
@@ -410,7 +411,7 @@ test('applyReview posts project proposal with only project style', async () => {
   try {
     const client = new BackendApplyClient({ baseURL: 'http://backend' })
     const payload = {
-      scope: 'project_proposal',
+      scope: 'project_standards_proposal',
       mode: 'snapshot',
       proposal: {
         project_style: {
@@ -428,7 +429,7 @@ test('applyReview posts project proposal with only project style', async () => {
     }
 
     const result = await client.applyReview(review({
-      draftKind: 'project_proposal',
+      draftKind: 'project_standards_proposal',
       projectId: 42,
       entityType: 'project',
       entityId: 42,
@@ -436,9 +437,10 @@ test('applyReview posts project proposal with only project style', async () => {
       proposedValue: JSON.stringify(payload),
     }))
 
-    assert.equal(result.url, 'http://backend/api/v1/projects/42/entities/project-proposals/apply')
+    assert.equal(result.url, 'http://backend/api/v1/projects/42/entities/project-standards-proposals/apply')
     assert.deepEqual(JSON.parse(String(calls[0].init.body)), {
       ...payload,
+      scope: 'project_standards_proposal',
       proposal: {
         project_style: payload.proposal.project_style,
       },
@@ -448,10 +450,10 @@ test('applyReview posts project proposal with only project style', async () => {
   }
 })
 
-test('applyReview rejects project proposal list payloads', async () => {
+test('applyReview rejects project standards proposal list payloads', async () => {
   const client = new BackendApplyClient({ baseURL: 'http://backend' })
   const payload = {
-    scope: 'project_proposal',
+    scope: 'project_standards_proposal',
     mode: 'snapshot',
     proposal: {
       project_style: { aspect_ratio: '9:16' },
@@ -460,13 +462,13 @@ test('applyReview rejects project proposal list payloads', async () => {
   }
 
   await assert.rejects(() => client.applyReview(review({
-    draftKind: 'project_proposal',
+    draftKind: 'project_standards_proposal',
     projectId: 42,
     entityType: 'project',
     entityId: 42,
     field: 'proposal',
     proposedValue: JSON.stringify(payload),
-  })), /project_proposal only supports proposal\.project_style/)
+  })), /project_standards_proposal only supports proposal\.project_style/)
 })
 
 function review(input: {

@@ -27,7 +27,21 @@ func (h *SemanticEntityHandler) writeSemanticAppError(c *gin.Context, err error)
 	var invalidInput semanticapp.ErrInvalidInput
 	var forbidden semanticapp.ErrForbidden
 	var generationContextErr semanticapp.GenerationContextError
+	var projectLayerProposalAssetSlotLinkErr *semanticapp.ProjectLayerProposalAssetSlotLinkError
+	var projectLayerProposalApplyLinkErr *semanticapp.ProjectLayerProposalApplyLinkError
 	switch {
+	case errors.As(err, &projectLayerProposalAssetSlotLinkErr):
+		if errors.Is(err, semanticapp.ErrOwnerWrongProject) {
+			c.JSON(http.StatusBadRequest, api.InvalidInputDebug(projectLayerProposalAssetSlotLinkErr.Message, projectLayerProposalAssetSlotLinkErr))
+			return
+		}
+		c.JSON(http.StatusNotFound, api.NotFoundDebug(projectLayerProposalAssetSlotLinkErr.Message, projectLayerProposalAssetSlotLinkErr))
+	case errors.As(err, &projectLayerProposalApplyLinkErr):
+		if errors.Is(err, semanticapp.ErrOwnerWrongProject) {
+			c.JSON(http.StatusBadRequest, api.InvalidInputDebug(projectLayerProposalApplyLinkErr.Message, projectLayerProposalApplyLinkErr))
+			return
+		}
+		c.JSON(http.StatusNotFound, api.NotFoundDebug(projectLayerProposalApplyLinkErr.Message, projectLayerProposalApplyLinkErr))
 	case errors.As(err, &generationContextErr):
 		if generationContextErr.Code == "GENERATION_CONTEXT_UNSUPPORTED_TARGET" || generationContextErr.Code == "GENERATION_CONTEXT_TARGET_REQUIRED" {
 			c.JSON(http.StatusBadRequest, api.InvalidInputDebug(generationContextErr.Message, generationContextErr))
@@ -50,7 +64,11 @@ func (h *SemanticEntityHandler) writeSemanticAppError(c *gin.Context, err error)
 	case errors.Is(err, semanticapp.ErrNotFound):
 		c.JSON(http.StatusNotFound, api.NotFound("对象不存在"))
 	case errors.Is(err, semanticapp.ErrOwnerNotFound), errors.Is(err, semanticapp.ErrTextBlockNotFound):
-		c.JSON(http.StatusNotFound, api.NotFound("关联对象不存在"))
+		message := "关联对象不存在"
+		if err.Error() != semanticapp.ErrOwnerNotFound.Error() && err.Error() != semanticapp.ErrTextBlockNotFound.Error() {
+			message = err.Error()
+		}
+		c.JSON(http.StatusNotFound, api.NotFound(message))
 	case errors.Is(err, semanticapp.ErrOwnerWrongProject):
 		c.JSON(http.StatusBadRequest, api.InvalidInput("关联对象不属于当前项目"))
 	case errors.Is(err, semanticapp.ErrOwnerInvalidType):

@@ -18,7 +18,7 @@
 | --- | --- | --- |
 | Project Proposal | Creative references，以及绑定到 creative references 的 asset slots | Production segments、生成任务 |
 | Production Proposal | 绑定到 segments 的情绪段和场景时刻；引用项目设定/资产 | 项目级设定创建、生成媒体绑定 |
-| Asset Proposal | 独立素材候选计划、引用、风险、验收标准、生成准备度 | Project proposal 的 asset-slot 归属、任务创建 |
+| Asset Proposal | 独立素材候选计划、引用、风险、验收标准、生成准备度 | Project standards proposal 的 asset-slot 归属、任务创建 |
 | Content Unit Proposal | 分镜/content-unit/keyframe/media 规划 proposals；可由未来 skills 扩展 | 直接执行生成、正式后端 apply |
 
 ## 层职责
@@ -77,7 +77,7 @@ skills/
     workflow/
       proposal/
         project/
-          project-proposal/
+          project-standards-proposal/
             skill.workflow.json
             instruction.md
       generation/
@@ -144,7 +144,7 @@ skills/
 
 ## 边界规则
 
-- Project proposal skills 只管理项目级 setting references 和有归属的 asset slot requirements。
+- Project standards proposal skills 只管理项目级 setting references 和有归属的 asset slot requirements。
 - Production proposal skills 只管理 production segments 和 scene moments。
 - Asset proposal skills 是独立业务层。它们创建或编辑本地 asset proposal drafts 和 generation-ready candidate plans，但不提交图片/视频任务。
 - Content-unit proposal skills 只管理 storyboard、keyframe 和 media planning draft units。

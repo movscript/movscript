@@ -904,11 +904,11 @@ test('semantic query tools expose production context and content unit generation
   }
 })
 
-test('applyDraftReview posts direct asset proposal snapshot rows for backend project proposal apply', async () => {
+test('applyDraftReview posts direct asset proposal snapshot rows to asset proposal apply', async () => {
   const postedBodies: Array<Record<string, unknown>> = []
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
-    'POST /projects/4/entities/project-proposals/apply': (body: Record<string, unknown>) => {
+    'POST /projects/4/entities/asset-proposals/apply': (body: Record<string, unknown>) => {
       postedBodies.push(body)
       return { counts: { asset_slots_created: 3 } }
     },
@@ -942,7 +942,8 @@ test('applyDraftReview posts direct asset proposal snapshot rows for backend pro
     }) as Record<string, any>
 
     assert.equal(result.performed, true)
-    assert.equal(result.url, 'http://mock.backend/api/v1/projects/4/entities/project-proposals/apply')
+    assert.equal(result.url, 'http://mock.backend/api/v1/projects/4/entities/asset-proposals/apply')
+    assert.equal(postedBodies[0].scope, 'asset_proposal')
     assert.equal(postedBodies[0].mode, 'snapshot')
     assert.deepEqual(postedBodies[0].proposal, {
       creative_references: [],

@@ -50,6 +50,7 @@ import { selectLatestDraftArtifact } from '@/lib/agentArtifacts'
 import { SemanticEntityCrudDialog } from '@/components/shared/SemanticEntityCrudDialog'
 import { cn } from '@/lib/utils'
 import { translateApiError, type APIErrorBody } from '@/lib/apiError'
+import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
 import { listScriptVersions, type ScriptVersion } from '@/api/scriptVersions'
 import {
   buildEmptyProductionProposalDraftContent,
@@ -79,11 +80,11 @@ type RailItem = {
 type SegmentRecord = SemanticEntityRecord & {
   production_id?: number
   title?: string; kind?: string; summary?: string; content?: string
-  source_range?: string; order?: number; status?: string; script_version_id?: number
+  source_range?: string; order?: number; status?: string; script_version_id?: number; script_block_id?: number
 }
 type SceneMomentRecord = SemanticEntityRecord & {
   segment_id?: number; title?: string; time_text?: string; location_text?: string
-  action_text?: string; mood?: string; order?: number; status?: string; description?: string
+  action_text?: string; mood?: string; order?: number; status?: string; description?: string; script_block_id?: number
 }
 type CreativeReferenceRecord = SemanticEntityRecord & {
   name?: string; kind?: string; importance?: string; status?: string; description?: string; alias?: string
@@ -95,7 +96,11 @@ type AssetSlotRecord = SemanticEntityRecord & {
 type ContentUnitRecord = SemanticEntityRecord & {
   production_id?: number; segment_id?: number; scene_moment_id?: number
   title?: string; kind?: string; order?: number; duration_sec?: number; description?: string
-  shot_size?: string; camera_angle?: string; camera_motion?: string; status?: string; prompt?: string
+  shot_size?: string; camera_angle?: string; camera_motion?: string; status?: string; prompt?: string; script_block_id?: number
+}
+type KeyframeRecord = SemanticEntityRecord & {
+  production_id?: number; scene_moment_id?: number; content_unit_id?: number
+  title?: string; description?: string; prompt?: string; order?: number; status?: string
 }
 
 interface OrchestrationData {
@@ -106,6 +111,7 @@ interface OrchestrationData {
   creativeReferenceUsages: SemanticEntityRecord[]
   assetSlots: AssetSlotRecord[]
   contentUnits: ContentUnitRecord[]
+  keyframes: KeyframeRecord[]
 }
 
 // AI proposal output types
@@ -162,7 +168,7 @@ interface AIContentUnitCandidate {
   camera_angle?: string
 }
 
-type ProposalSnapshotAction = 'create' | 'update'
+type ProposalSnapshotAction = 'create' | 'update' | 'delete'
 
 interface ProposalContentUnitNode {
   id?: number
@@ -175,8 +181,10 @@ interface ProposalContentUnitNode {
   duration_sec?: number
   order?: number
   status?: string
+  script_block_id?: number
   before?: Record<string, unknown>
   keyframes?: ProposalKeyframeNode[]
+  __delete?: boolean
 }
 interface ProposalKeyframeNode {
   id?: number
@@ -187,6 +195,7 @@ interface ProposalKeyframeNode {
   order?: number
   status?: string
   before?: Record<string, unknown>
+  __delete?: boolean
 }
 interface ProposalCreativeRefNode {
   id?: number
@@ -196,6 +205,7 @@ interface ProposalCreativeRefNode {
   role?: string
   source_label?: string
   state?: Record<string, unknown>
+  __delete?: boolean
 }
 interface ProposalAssetSlotNode {
   id?: number
@@ -205,6 +215,7 @@ interface ProposalAssetSlotNode {
   description?: string
   priority?: string
   source_label?: string
+  __delete?: boolean
 }
 interface ProposalSceneMomentNode {
   id?: number
@@ -217,12 +228,14 @@ interface ProposalSceneMomentNode {
   description?: string
   order?: number
   status?: string
+  script_block_id?: number
   content_units?: ProposalContentUnitNode[]
   creative_references?: ProposalCreativeRefNode[]
   asset_slots?: ProposalAssetSlotNode[]
   keyframes?: ProposalKeyframeNode[]
   rationale?: string
   before?: Record<string, unknown>
+  __delete?: boolean
 }
 interface ProposalSegmentNode {
   id?: number
@@ -232,9 +245,11 @@ interface ProposalSegmentNode {
   summary?: string
   order?: number
   status?: string
+  script_block_id?: number
   scene_moments?: ProposalSceneMomentNode[]
   rationale?: string
   before?: Record<string, unknown>
+  __delete?: boolean
 }
 interface ProposalDraftContent {
   mode?: 'snapshot'
@@ -261,7 +276,7 @@ interface ProposalSimulationResult {
     creative_references_created: number
     creative_reference_usages: number
   }
-  actions: { create: number; update: number }
+  actions: { create: number; update: number; delete: number }
   preview: ProposalApplyPreview
   backendPreview?: {
     dryRun: boolean
@@ -468,7 +483,7 @@ const creativeReferenceKindLabel: Record<string, string> = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function loadOrchestrationData(projectId: number): Promise<OrchestrationData> {
-  const [productions, segments, sceneMoments, creativeReferences, creativeReferenceUsages, assetSlots, contentUnits] = await Promise.all([
+  const [productions, segments, sceneMoments, creativeReferences, creativeReferenceUsages, assetSlots, contentUnits, keyframes] = await Promise.all([
     listSemanticEntities(projectId, semanticEntityConfig('productions')),
     listSemanticEntities(projectId, semanticEntityConfig('segments')),
     listSemanticEntities(projectId, semanticEntityConfig('sceneMoments')),
@@ -476,6 +491,7 @@ async function loadOrchestrationData(projectId: number): Promise<OrchestrationDa
     listSemanticEntities(projectId, semanticEntityConfig('creativeReferenceUsages')),
     listSemanticEntities(projectId, semanticEntityConfig('assetSlots')),
     listSemanticEntities(projectId, semanticEntityConfig('contentUnits')),
+    listSemanticEntities(projectId, semanticEntityConfig('keyframes')),
   ])
   return {
     productions,
@@ -485,6 +501,7 @@ async function loadOrchestrationData(projectId: number): Promise<OrchestrationDa
     creativeReferenceUsages,
     assetSlots: assetSlots as AssetSlotRecord[],
     contentUnits: contentUnits as ContentUnitRecord[],
+    keyframes: keyframes as KeyframeRecord[],
   }
 }
 
@@ -596,6 +613,17 @@ export default function ProductionOrchestrationPage() {
     [currentSceneMomentIds, currentSegmentIds, data?.contentUnits, effectiveProductionId]
   )
   const currentContentUnitIds = useMemo(() => new Set(allContentUnits.map((unit) => unit.ID)), [allContentUnits])
+  const allKeyframes = useMemo(
+    () => (data?.keyframes ?? [])
+      .filter((keyframe) => !isGeneratedKeyframeCandidateRecord(keyframe))
+      .filter((keyframe) => (
+        Number(keyframe.production_id) === effectiveProductionId
+        || (keyframe.scene_moment_id ? currentSceneMomentIds.has(Number(keyframe.scene_moment_id)) : false)
+        || (keyframe.content_unit_id ? currentContentUnitIds.has(Number(keyframe.content_unit_id)) : false)
+      ))
+      .sort(byOrder),
+    [currentContentUnitIds, currentSceneMomentIds, data?.keyframes, effectiveProductionId],
+  )
   const allAssetSlots = useMemo(
     () => (data?.assetSlots ?? []).filter((slot) => !['ignored', 'merged'].includes(String(slot.status ?? ''))),
     [data?.assetSlots],
@@ -616,9 +644,19 @@ export default function ProductionOrchestrationPage() {
     }),
     [allAssetSlots, allCreativeReferences, allContentUnits, allSceneMoments, allSegments, selectedProduction, selectedScriptVersion],
   )
+  const currentProductionSnapshot = useMemo(
+    () => buildCurrentProductionProposalSnapshot({
+      segments: allSegments,
+      sceneMoments: allSceneMoments,
+      contentUnits: allContentUnits,
+      keyframes: allKeyframes,
+      assetSlots: allAssetSlots,
+    }),
+    [allAssetSlots, allContentUnits, allKeyframes, allSceneMoments, allSegments],
+  )
   const proposalReviewNodeCount = useMemo(
-    () => proposalPreviewDraft ? collectProposalReviewNodes(proposalPreviewDraft.proposal.segments).length : 0,
-    [proposalPreviewDraft],
+    () => proposalPreviewDraft ? collectProposalReviewNodes(buildProposalReviewSegments(proposalPreviewDraft.proposal.segments, currentProductionSnapshot)).length : 0,
+    [currentProductionSnapshot, proposalPreviewDraft],
   )
   const workspaceStatusLabel = workspaceView === 'review'
     ? proposalPreviewDraft
@@ -941,8 +979,8 @@ export default function ProductionOrchestrationPage() {
       projectId,
       clientInput: buildCommandFirstClientInput({
         message: target.scope === 'segmentAnalysis' && target.entityId
-          ? `请围绕当前选中的编排段 #${target.entityId} 生成 production_proposal。若发现必须引用但不存在的项目级设定资料，先转 setting_proposal；若缺少素材需求锚点，先转 asset_proposal。不要把这些上游对象写进 project_proposal。`
-          : '请基于当前 production snapshot 生成 production_proposal。若发现必须引用但不存在的项目级设定资料，先转 setting_proposal；若缺少素材需求锚点，先转 asset_proposal。不要把这些上游对象写进 project_proposal。',
+          ? `请围绕当前选中的编排段 #${target.entityId} 生成 production_proposal。若发现必须引用但不存在的项目级设定资料，先转 setting_proposal；若缺少素材需求锚点，先转 asset_proposal。不要把这些上游对象写进 project_standards_proposal。`
+          : '请基于当前 production snapshot 生成 production_proposal。若发现必须引用但不存在的项目级设定资料，先转 setting_proposal；若缺少素材需求锚点，先转 asset_proposal。不要把这些上游对象写进 project_standards_proposal。',
         labels: ['production-orchestration', 'draft-application'],
         hints: {
           projectId,
@@ -1066,12 +1104,12 @@ export default function ProductionOrchestrationPage() {
                   <div className="flex items-center gap-2">
                     {orchestrationStage !== 'idle' && (
                       <Badge variant="secondary" className="h-6 rounded-full px-2 text-[10px]">
-                        生成创作方案
+                        生成制作提案
                       </Badge>
                     )}
                     <Button size="sm" className="h-7 gap-1.5 text-xs" onClick={() => handleAnalyzeTarget({ scope: 'production' })} disabled={!projectId || !effectiveProductionId}>
                       <Wand2 size={13} />
-                      生成创作方案
+                      生成制作提案
                     </Button>
                   </div>
                 </div>
@@ -1079,7 +1117,7 @@ export default function ProductionOrchestrationPage() {
               <div className="min-h-0 flex-1">
                 {workspaceView === 'review' ? (
                   <div className="flex h-full w-full flex-col gap-4 p-4">
-                    <ProjectProposalReviewSummary
+                    <ProjectLayerProposalReviewSummary
                       settingDraft={openedSettingDraftQuery.data}
                       assetProposalDraft={openedAssetProposalDraftQuery.data}
                       projectName={project?.name ?? '当前项目'}
@@ -1091,6 +1129,7 @@ export default function ProductionOrchestrationPage() {
                       <ProposalReviewPanel
                         projectId={projectId}
                         proposalDraft={proposalPreviewDraft}
+                        currentSnapshot={currentProductionSnapshot}
                         nodeDecisions={proposalNodeDecisions}
                         onNodeDecisionsChange={setProposalNodeDecisions}
                         onAccepted={() => {
@@ -1764,9 +1803,397 @@ function TreeChipRow({ label, items }: { label: string; items: string[] }) {
   )
 }
 
+function buildCurrentProductionProposalSnapshot(input: {
+  segments: SegmentRecord[]
+  sceneMoments: SceneMomentRecord[]
+  contentUnits: ContentUnitRecord[]
+  keyframes: KeyframeRecord[]
+  assetSlots: AssetSlotRecord[]
+}): { segments: ProposalSegmentNode[] } {
+  const assetSlotsBySceneMoment = new Map<number, AssetSlotRecord[]>()
+  const unitsBySceneMoment = new Map<number, ContentUnitRecord[]>()
+  const keyframesBySceneMoment = new Map<number, KeyframeRecord[]>()
+  const keyframesByContentUnit = new Map<number, KeyframeRecord[]>()
+
+  for (const slot of input.assetSlots) {
+    if (String(slot.owner_type ?? '') !== 'scene_moment') continue
+    const ownerId = positiveRecordNumber(slot.owner_id)
+    if (!ownerId) continue
+    pushGroupedRecord(assetSlotsBySceneMoment, ownerId, slot)
+  }
+  for (const unit of input.contentUnits) {
+    const sceneMomentId = positiveRecordNumber(unit.scene_moment_id)
+    if (!sceneMomentId) continue
+    pushGroupedRecord(unitsBySceneMoment, sceneMomentId, unit)
+  }
+  for (const keyframe of input.keyframes) {
+    const contentUnitId = positiveRecordNumber(keyframe.content_unit_id)
+    if (contentUnitId) {
+      pushGroupedRecord(keyframesByContentUnit, contentUnitId, keyframe)
+      continue
+    }
+    const sceneMomentId = positiveRecordNumber(keyframe.scene_moment_id)
+    if (sceneMomentId) pushGroupedRecord(keyframesBySceneMoment, sceneMomentId, keyframe)
+  }
+
+  return {
+    segments: input.segments.map((segment) => {
+      const moments = input.sceneMoments
+        .filter((moment) => Number(moment.segment_id) === segment.ID)
+        .sort(byOrder)
+        .map((moment) => {
+          const contentUnits = (unitsBySceneMoment.get(moment.ID) ?? []).slice().sort(byOrder).map((unit) => ({
+            id: unit.ID,
+            client_id: stringRecordValue(unit.client_id),
+            title: stringRecordValue(unit.title) || titleOfRecord(unit),
+            kind: stringRecordValue(unit.kind),
+            description: stringRecordValue(unit.description),
+            shot_size: stringRecordValue(unit.shot_size),
+            camera_angle: stringRecordValue(unit.camera_angle),
+            duration_sec: positiveRecordNumber(unit.duration_sec),
+            order: positiveRecordNumber(unit.order),
+            status: stringRecordValue(unit.status),
+            script_block_id: positiveRecordNumber(unit.script_block_id),
+            keyframes: (keyframesByContentUnit.get(unit.ID) ?? []).slice().sort(byOrder).map(proposalKeyframeFromRecord),
+          }))
+          return {
+            id: moment.ID,
+            client_id: stringRecordValue(moment.client_id),
+            title: stringRecordValue(moment.title) || titleOfRecord(moment),
+            time_text: stringRecordValue(moment.time_text),
+            location_text: stringRecordValue(moment.location_text),
+            action_text: stringRecordValue(moment.action_text),
+            mood: stringRecordValue(moment.mood),
+            description: stringRecordValue(moment.description),
+            order: positiveRecordNumber(moment.order),
+            status: stringRecordValue(moment.status),
+            script_block_id: positiveRecordNumber(moment.script_block_id),
+            content_units: contentUnits,
+            keyframes: (keyframesBySceneMoment.get(moment.ID) ?? []).slice().sort(byOrder).map(proposalKeyframeFromRecord),
+            creative_references: [],
+            asset_slots: (assetSlotsBySceneMoment.get(moment.ID) ?? []).slice().sort(byOrder).map((slot) => ({
+              id: slot.ID,
+              client_id: stringRecordValue(slot.client_id),
+              name: stringRecordValue(slot.name) || titleOfRecord(slot),
+              kind: stringRecordValue(slot.kind),
+              description: stringRecordValue(slot.description),
+              priority: stringRecordValue(slot.priority),
+              source_label: '当前项目',
+            })),
+          } satisfies ProposalSceneMomentNode
+        })
+      return {
+        id: segment.ID,
+        client_id: stringRecordValue(segment.client_id),
+        title: stringRecordValue(segment.title) || titleOfRecord(segment),
+        kind: stringRecordValue(segment.kind),
+        summary: stringRecordValue(segment.summary ?? segment.content),
+        order: positiveRecordNumber(segment.order),
+        status: stringRecordValue(segment.status),
+        script_block_id: positiveRecordNumber(segment.script_block_id),
+        scene_moments: moments,
+      } satisfies ProposalSegmentNode
+    }),
+  }
+
+  function proposalKeyframeFromRecord(keyframe: KeyframeRecord): ProposalKeyframeNode {
+    return {
+      id: keyframe.ID,
+      client_id: stringRecordValue(keyframe.client_id),
+      title: stringRecordValue(keyframe.title) || titleOfRecord(keyframe),
+      description: stringRecordValue(keyframe.description),
+      prompt: stringRecordValue(keyframe.prompt),
+      order: positiveRecordNumber(keyframe.order),
+      status: stringRecordValue(keyframe.status),
+    }
+  }
+}
+
+function buildProposalReviewSegments(proposalSegments: ProposalSegmentNode[], currentSnapshot: { segments: ProposalSegmentNode[] }): ProposalSegmentNode[] {
+  const next = cloneProposalSegments(proposalSegments)
+  const currentById = new Map(currentSnapshot.segments.filter((segment) => snapshotNodeHasID(segment)).map((segment) => [segment.id!, segment]))
+  const proposedIds = new Set(next.filter((segment) => snapshotNodeHasID(segment)).map((segment) => segment.id!))
+
+  for (const segment of next) {
+    if (!snapshotNodeHasID(segment)) continue
+    const current = currentById.get(segment.id!)
+    if (current) appendDeletedChildren(segment, current)
+  }
+  for (const current of currentSnapshot.segments) {
+    if (!snapshotNodeHasID(current) || proposedIds.has(current.id!)) continue
+    next.push(markProposalSegmentDeleted(current))
+  }
+  return next
+}
+
+function appendDeletedChildren(proposed: ProposalSegmentNode, current: ProposalSegmentNode) {
+  const proposedMoments = proposed.scene_moments ?? []
+  const currentMoments = current.scene_moments ?? []
+  const proposedMomentIds = new Set(proposedMoments.filter(snapshotNodeHasID).map((moment) => moment.id!))
+  for (const moment of proposedMoments) {
+    if (!snapshotNodeHasID(moment)) continue
+    const currentMoment = currentMoments.find((item) => item.id === moment.id)
+    if (currentMoment) appendDeletedMomentChildren(moment, currentMoment)
+  }
+  const deletedMoments = currentMoments
+    .filter((moment) => snapshotNodeHasID(moment) && !proposedMomentIds.has(moment.id!))
+    .map(markProposalMomentDeleted)
+  if (deletedMoments.length > 0) proposed.scene_moments = [...proposedMoments, ...deletedMoments]
+}
+
+function appendDeletedMomentChildren(proposed: ProposalSceneMomentNode, current: ProposalSceneMomentNode) {
+  proposed.content_units = appendDeletedNodes(
+    proposed.content_units ?? [],
+    current.content_units ?? [],
+    markProposalContentUnitDeleted,
+  )
+  proposed.keyframes = appendDeletedNodes(
+    proposed.keyframes ?? [],
+    current.keyframes ?? [],
+    markProposalKeyframeDeleted,
+  )
+  proposed.asset_slots = appendDeletedNodes(
+    proposed.asset_slots ?? [],
+    current.asset_slots ?? [],
+    markProposalAssetSlotDeleted,
+  )
+  for (const unit of proposed.content_units ?? []) {
+    if (!snapshotNodeHasID(unit)) continue
+    const currentUnit = (current.content_units ?? []).find((item) => item.id === unit.id)
+    if (!currentUnit) continue
+    unit.keyframes = appendDeletedNodes(unit.keyframes ?? [], currentUnit.keyframes ?? [], markProposalKeyframeDeleted)
+  }
+}
+
+function appendDeletedNodes<T extends { id?: number; __delete?: boolean }>(proposed: T[], current: T[], markDeleted: (node: T) => T): T[] {
+  const proposedIds = new Set(proposed.filter(snapshotNodeHasID).map((node) => node.id!))
+  const deleted = current
+    .filter((node) => snapshotNodeHasID(node) && !proposedIds.has(node.id!))
+    .map(markDeleted)
+  return deleted.length > 0 ? [...proposed, ...deleted] : proposed
+}
+
+function buildMergedProductionProposal(
+  currentSnapshot: { segments: ProposalSegmentNode[] },
+  reviewSegments: ProposalSegmentNode[],
+  decisions: ProposalNodeDecisions,
+): { segments: ProposalSegmentNode[] } {
+  const next = cloneProposalSegments(currentSnapshot.segments)
+  reviewSegments.forEach((segment, segmentIndex) => {
+    const segmentKey = proposalNodeDecisionKey('segment', segment, String(segmentIndex))
+    if (decisions[segmentKey] !== 'accepted') return
+    const segmentId = proposalNodeIdentity(segment, String(segmentIndex))
+    if (segment.__delete) {
+      removeNodeById(next, segment.id)
+      return
+    }
+    const targetSegment = upsertSegmentNode(next, segment)
+    ;(segment.scene_moments ?? []).forEach((moment, momentIndex) => {
+      const momentFallback = `${segmentId}-${momentIndex}`
+      const momentKey = proposalNodeDecisionKey('scene_moment', moment, momentFallback)
+      if (decisions[momentKey] !== 'accepted') return
+      if (moment.__delete) {
+        targetSegment.scene_moments = removeNodeById(targetSegment.scene_moments ?? [], moment.id)
+        return
+      }
+      const targetMoment = upsertMomentNode(targetSegment, moment)
+      ;(moment.content_units ?? []).forEach((unit, unitIndex) => {
+        const unitFallback = `${momentFallback}-content-${unitIndex}`
+        const unitKey = proposalNodeDecisionKey('content_unit', unit, unitFallback)
+        if (decisions[unitKey] !== 'accepted') return
+        if (unit.__delete) {
+          targetMoment.content_units = removeNodeById(targetMoment.content_units ?? [], unit.id)
+          return
+        }
+        const targetUnit = upsertContentUnitNode(targetMoment, unit)
+        ;(unit.keyframes ?? []).forEach((keyframe, keyframeIndex) => {
+          const keyframeKey = proposalNodeDecisionKey('keyframe', keyframe, `${unitFallback}-keyframe-${keyframeIndex}`)
+          if (decisions[keyframeKey] !== 'accepted') return
+          if (keyframe.__delete) {
+            targetUnit.keyframes = removeNodeById(targetUnit.keyframes ?? [], keyframe.id)
+            return
+          }
+          targetUnit.keyframes = upsertNode(targetUnit.keyframes ?? [], keyframe)
+        })
+      })
+      ;(moment.keyframes ?? []).forEach((keyframe, keyframeIndex) => {
+        const keyframeKey = proposalNodeDecisionKey('keyframe', keyframe, `${momentFallback}-keyframe-${keyframeIndex}`)
+        if (decisions[keyframeKey] !== 'accepted') return
+        if (keyframe.__delete) {
+          targetMoment.keyframes = removeNodeById(targetMoment.keyframes ?? [], keyframe.id)
+          return
+        }
+        targetMoment.keyframes = upsertNode(targetMoment.keyframes ?? [], keyframe)
+      })
+      ;(moment.creative_references ?? []).forEach((reference, referenceIndex) => {
+        const referenceKey = proposalNodeDecisionKey('creative_reference', reference, `${momentFallback}-reference-${referenceIndex}`)
+        if (decisions[referenceKey] !== 'accepted' || reference.__delete) return
+        targetMoment.creative_references = upsertNode(targetMoment.creative_references ?? [], reference)
+      })
+      ;(moment.asset_slots ?? []).forEach((slot, slotIndex) => {
+        const slotKey = proposalNodeDecisionKey('asset_slot', slot, `${momentFallback}-asset-${slotIndex}`)
+        if (decisions[slotKey] !== 'accepted') return
+        if (slot.__delete) {
+          targetMoment.asset_slots = removeNodeById(targetMoment.asset_slots ?? [], slot.id)
+          return
+        }
+        targetMoment.asset_slots = upsertNode(targetMoment.asset_slots ?? [], slot)
+      })
+    })
+  })
+  return { segments: next.map(stripProposalInternalFields) }
+}
+
+function upsertSegmentNode(segments: ProposalSegmentNode[], segment: ProposalSegmentNode) {
+  const nextSegment = {
+    ...stripProposalInternalFields(segment),
+    scene_moments: snapshotNodeHasID(segment)
+      ? segments.find((item) => item.id === segment.id)?.scene_moments ?? []
+      : [],
+  }
+  if (!snapshotNodeHasID(segment)) {
+    segments.push(nextSegment)
+    return nextSegment
+  }
+  const index = segments.findIndex((item) => item.id === segment.id)
+  if (index >= 0) {
+    segments[index] = nextSegment
+    return segments[index]
+  }
+  segments.push(nextSegment)
+  return nextSegment
+}
+
+function upsertMomentNode(segment: ProposalSegmentNode, moment: ProposalSceneMomentNode) {
+  const moments = segment.scene_moments ?? []
+  segment.scene_moments = moments
+  const existing = snapshotNodeHasID(moment) ? moments.find((item) => item.id === moment.id) : undefined
+  const nextMoment = {
+    ...stripProposalInternalFields(moment),
+    content_units: existing?.content_units ?? [],
+    keyframes: existing?.keyframes ?? [],
+    creative_references: existing?.creative_references ?? [],
+    asset_slots: existing?.asset_slots ?? [],
+  }
+  if (snapshotNodeHasID(nextMoment)) {
+    const index = moments.findIndex((item) => item.id === nextMoment.id)
+    if (index >= 0) {
+      const next = [...moments]
+      next[index] = nextMoment
+      segment.scene_moments = next
+      return next[index]
+    }
+  }
+  segment.scene_moments = [...moments, nextMoment]
+  return nextMoment
+}
+
+function upsertContentUnitNode(moment: ProposalSceneMomentNode, unit: ProposalContentUnitNode) {
+  const units = moment.content_units ?? []
+  moment.content_units = units
+  const existing = snapshotNodeHasID(unit) ? units.find((item) => item.id === unit.id) : undefined
+  const nextUnit = {
+    ...stripProposalInternalFields(unit),
+    keyframes: existing?.keyframes ?? [],
+  }
+  if (snapshotNodeHasID(nextUnit)) {
+    const index = units.findIndex((item) => item.id === nextUnit.id)
+    if (index >= 0) {
+      const next = [...units]
+      next[index] = nextUnit
+      moment.content_units = next
+      return next[index]
+    }
+  }
+  moment.content_units = [...units, nextUnit]
+  return nextUnit
+}
+
+function upsertNode<T extends { id?: number | null; __delete?: boolean }>(nodes: T[], node: T): T[] {
+  const cleaned = stripProposalInternalFields(node) as T
+  if (snapshotNodeHasID(cleaned)) {
+    const index = nodes.findIndex((item) => item.id === cleaned.id)
+    if (index >= 0) {
+      const next = [...nodes]
+      next[index] = cleaned
+      return next
+    }
+  }
+  return [...nodes, cleaned]
+}
+
+function removeNodeById<T extends { id?: number | null }>(nodes: T[], id?: number | null): T[] {
+  if (!id) return nodes
+  return nodes.filter((node) => node.id !== id)
+}
+
+function markProposalSegmentDeleted(segment: ProposalSegmentNode): ProposalSegmentNode {
+  return {
+    ...cloneProposalNode(segment),
+    __delete: true,
+    scene_moments: (segment.scene_moments ?? []).map(markProposalMomentDeleted),
+  }
+}
+
+function markProposalMomentDeleted(moment: ProposalSceneMomentNode): ProposalSceneMomentNode {
+  return {
+    ...cloneProposalNode(moment),
+    __delete: true,
+    content_units: (moment.content_units ?? []).map(markProposalContentUnitDeleted),
+    keyframes: (moment.keyframes ?? []).map(markProposalKeyframeDeleted),
+    creative_references: [],
+    asset_slots: (moment.asset_slots ?? []).map(markProposalAssetSlotDeleted),
+  }
+}
+
+function markProposalContentUnitDeleted(unit: ProposalContentUnitNode): ProposalContentUnitNode {
+  return {
+    ...cloneProposalNode(unit),
+    __delete: true,
+    keyframes: (unit.keyframes ?? []).map(markProposalKeyframeDeleted),
+  }
+}
+
+function markProposalKeyframeDeleted(keyframe: ProposalKeyframeNode): ProposalKeyframeNode {
+  return { ...cloneProposalNode(keyframe), __delete: true }
+}
+
+function markProposalAssetSlotDeleted(slot: ProposalAssetSlotNode): ProposalAssetSlotNode {
+  return { ...cloneProposalNode(slot), __delete: true }
+}
+
+function stripProposalInternalFields<T>(node: T): T {
+  if (Array.isArray(node)) return node.map(stripProposalInternalFields) as T
+  if (!isRecordValue(node)) return node
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(node)) {
+    if (key === '__delete') continue
+    out[key] = stripProposalInternalFields(value)
+  }
+  return out as T
+}
+
+function cloneProposalSegments(segments: ProposalSegmentNode[]) {
+  return segments.map((segment) => cloneProposalNode(segment))
+}
+
+function cloneProposalNode<T>(node: T): T {
+  return stripProposalInternalFields(JSON.parse(JSON.stringify(node))) as T
+}
+
+function positiveRecordNumber(value: unknown): number | undefined {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+}
+
+function stringRecordValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
 function ProposalReviewPanel({
   projectId,
   proposalDraft,
+  currentSnapshot,
   nodeDecisions,
   onNodeDecisionsChange,
   previewOnly = false,
@@ -1776,6 +2203,7 @@ function ProposalReviewPanel({
 }: {
   projectId?: number
   proposalDraft: ProposalDraftContent
+  currentSnapshot: { segments: ProposalSegmentNode[] }
   nodeDecisions: ProposalNodeDecisions
   onNodeDecisionsChange: Dispatch<SetStateAction<ProposalNodeDecisions>>
   previewOnly?: boolean
@@ -1790,11 +2218,12 @@ function ProposalReviewPanel({
   const [appliedCounts, setAppliedCounts] = useState<Record<string, number> | null>(null)
   const [simulationResult, setSimulationResult] = useState<ProposalSimulationResult | null>(null)
   const [backendPreviewDecisionKey, setBackendPreviewDecisionKey] = useState('')
-  const segments = proposalDraft.proposal?.segments ?? []
+  const proposalSegments = proposalDraft.proposal?.segments ?? []
+  const segments = useMemo(() => buildProposalReviewSegments(proposalSegments, currentSnapshot), [currentSnapshot, proposalSegments])
   const proposalContext = useMemo(() => collectProposalContextResources(segments), [segments])
   const semanticDiff = useMemo(() => buildProposalSemanticDiff(segments), [segments])
   const currentApplyPreview = useMemo(() => buildProposalApplyPreview(segments, nodeDecisions), [nodeDecisions, segments])
-  const proposalSnapshotKey = useMemo(() => JSON.stringify(proposalDraft.proposal ?? null), [proposalDraft.proposal])
+  const proposalSnapshotKey = useMemo(() => JSON.stringify({ proposal: proposalDraft.proposal ?? null, currentSnapshot }), [currentSnapshot, proposalDraft.proposal])
   const reviewNodes = useMemo(() => collectProposalReviewNodes(segments), [segments])
   const currentDecisionKey = useMemo(() => proposalDecisionSnapshotKey(reviewNodes, nodeDecisions), [nodeDecisions, reviewNodes])
   const actionCounts = useMemo(() => countProposalActions(segments), [segments])
@@ -1951,41 +2380,7 @@ function ProposalReviewPanel({
   }
 
   function buildAcceptedProposal() {
-    const acceptedSegments = segments.flatMap((segment, index) => {
-      const segmentKey = proposalNodeDecisionKey('segment', segment, String(index))
-      if (nodeDecisions[segmentKey] !== 'accepted') return []
-      const segmentId = proposalNodeIdentity(segment, String(index))
-      return [{
-        ...segment,
-        scene_moments: (segment.scene_moments ?? []).flatMap((moment, momentIndex) => {
-          const momentFallback = `${segmentId}-${momentIndex}`
-          if (nodeDecisions[proposalNodeDecisionKey('scene_moment', moment, momentFallback)] !== 'accepted') return []
-          return [{
-            ...moment,
-            content_units: (moment.content_units ?? []).flatMap((unit, unitIndex) => {
-              const unitFallback = `${momentFallback}-content-${unitIndex}`
-              if (nodeDecisions[proposalNodeDecisionKey('content_unit', unit, unitFallback)] !== 'accepted') return []
-              return [{
-                ...unit,
-                keyframes: (unit.keyframes ?? []).filter((keyframe, keyframeIndex) =>
-                  nodeDecisions[proposalNodeDecisionKey('keyframe', keyframe, `${unitFallback}-keyframe-${keyframeIndex}`)] === 'accepted',
-                ),
-              }]
-            }),
-            keyframes: (moment.keyframes ?? []).filter((keyframe, keyframeIndex) =>
-              nodeDecisions[proposalNodeDecisionKey('keyframe', keyframe, `${momentFallback}-keyframe-${keyframeIndex}`)] === 'accepted',
-            ),
-            creative_references: (moment.creative_references ?? []).filter((reference, referenceIndex) =>
-              nodeDecisions[proposalNodeDecisionKey('creative_reference', reference, `${momentFallback}-reference-${referenceIndex}`)] === 'accepted',
-            ),
-            asset_slots: (moment.asset_slots ?? []).filter((slot, slotIndex) =>
-              nodeDecisions[proposalNodeDecisionKey('asset_slot', slot, `${momentFallback}-asset-${slotIndex}`)] === 'accepted',
-            ),
-          }]
-        }),
-      }]
-    })
-    return { segments: acceptedSegments }
+    return buildMergedProductionProposal(currentSnapshot, segments, nodeDecisions)
   }
 
   function buildSimulationResult() {
@@ -1999,10 +2394,11 @@ function ProposalReviewPanel({
       creative_references_created: 0,
       creative_reference_usages: 0,
     }
-    const actions = { create: 0, update: 0 }
-    const addAction = (node: { id?: number | null }) => {
+    const actions = { create: 0, update: 0, delete: 0 }
+    const addAction = (node: { id?: number | null; __delete?: boolean }) => {
       const action = proposalSnapshotAction(node)
-      if (action === 'update') actions.update += 1
+      if (action === 'delete') actions.delete += 1
+      else if (action === 'update') actions.update += 1
       else actions.create += 1
     }
 
@@ -2050,6 +2446,10 @@ function ProposalReviewPanel({
     setBackendPreviewIssue(null)
     const localResult = buildSimulationResult()
     const proposal = buildAcceptedProposal()
+    if (currentApplyPreview.writePlan.length === 0) {
+      setSimulationResult(localResult)
+      return
+    }
     if (!projectId || proposal.segments.length === 0) {
       setSimulationResult(localResult)
       return
@@ -2109,7 +2509,7 @@ function ProposalReviewPanel({
       return
     }
     const proposal = buildAcceptedProposal()
-    if (proposal.segments.length === 0) {
+    if (applyPreview.writePlan.length === 0 || proposal.segments.length === 0) {
       setApplyError('请至少接受一个段落后再写入项目')
       return
     }
@@ -2318,6 +2718,7 @@ function ProposalReviewPanel({
             <div className="mt-2 grid grid-cols-2 gap-1.5 text-center text-[10px]">
               <span className="rounded bg-emerald-500/10 px-1.5 py-1 text-emerald-700 dark:text-emerald-300">新建 {actionCounts.create}</span>
               <span className="rounded bg-amber-500/10 px-1.5 py-1 text-amber-700 dark:text-amber-300">更新 {actionCounts.update}</span>
+              <span className="rounded bg-rose-500/10 px-1.5 py-1 text-rose-700 dark:text-rose-300">删除 {actionCounts.delete}</span>
             </div>
             <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
               制作提案按后端 snapshot 写入：带 ID 的节点会更新，缺少 ID 的节点会新增，旧 snapshot 中未保留的节点会删除。
@@ -2392,7 +2793,7 @@ function ProposalReviewEmptyState({ onSwitchToStructure }: { onSwitchToStructure
   )
 }
 
-interface InlineProjectProposalEntry {
+interface InlineProjectLayerProposalEntry {
   key: string
   title: string
   detail: string
@@ -2402,19 +2803,19 @@ interface InlineProjectProposalEntry {
   raw: Record<string, unknown>
 }
 
-interface InlineProjectProposalView {
+interface InlineProjectLayerProposalView {
   mode: 'patch' | 'snapshot'
   summary: string
-  creativeReferences: InlineProjectProposalEntry[]
-  assetSlots: InlineProjectProposalEntry[]
+  creativeReferences: InlineProjectLayerProposalEntry[]
+  assetSlots: InlineProjectLayerProposalEntry[]
   impactNotes: string[]
 }
 
-function parseInlineProjectProposalDraft(
+function parseInlineProjectLayerProposalDraft(
   draft: AgentDraft | null | undefined,
   creativeReferenceRecords: CreativeReferenceRecord[] = [],
   assetSlotRecords: AssetSlotRecord[] = [],
-): InlineProjectProposalView | null {
+): InlineProjectLayerProposalView | null {
   if (!draft) return null
   try {
     const content = JSON.parse(draft.content) as Record<string, unknown>
@@ -2425,8 +2826,8 @@ function parseInlineProjectProposalDraft(
       kind: 'creative_references' as const,
       title: asString(proposalField(item, ['name', 'title', 'label', 'kind']), `设定建议 #${index + 1}`),
       detail: asString(proposalField(item, ['description', 'summary', 'content', 'rationale']), '暂无说明'),
-      changeType: inlineProjectProposalChangeType(item),
-      target: inlineProjectProposalChangeType(item) === 'deleted' ? `移出 #${item.id}` : typeof item.id === 'number' ? `合并到 #${item.id}` : '新增候选',
+      changeType: inlineProjectLayerProposalChangeType(item),
+      target: inlineProjectLayerProposalChangeType(item) === 'deleted' ? `移出 #${item.id}` : typeof item.id === 'number' ? `合并到 #${item.id}` : '新增候选',
       raw: item,
     }))
     const assetSlots = asRecordArray(proposal.asset_slots).map((item, index) => ({
@@ -2434,12 +2835,12 @@ function parseInlineProjectProposalDraft(
       kind: 'asset_slots' as const,
       title: asString(proposalField(item, ['name', 'title', 'label', 'kind']), `素材建议 #${index + 1}`),
       detail: asString(proposalField(item, ['description', 'summary', 'content', 'rationale']), '暂无说明'),
-      changeType: inlineProjectProposalChangeType(item),
-      target: inlineProjectProposalChangeType(item) === 'deleted' ? `移出 #${item.id}` : typeof item.id === 'number' ? `调整 #${item.id}` : '新增候选',
+      changeType: inlineProjectLayerProposalChangeType(item),
+      target: inlineProjectLayerProposalChangeType(item) === 'deleted' ? `移出 #${item.id}` : typeof item.id === 'number' ? `调整 #${item.id}` : '新增候选',
       raw: item,
     }))
     const snapshotDeleted = mode === 'snapshot'
-      ? inferInlineProjectProposalSnapshotDeletes(draft, proposal, creativeReferenceRecords, assetSlotRecords)
+      ? inferInlineProjectLayerProposalSnapshotDeletes(draft, proposal, creativeReferenceRecords, assetSlotRecords)
       : { creativeReferences: [], assetSlots: [] }
     const impactNotes = [
       ...asRecordArray(content.impact_notes).map((item) => asString(item.note ?? item.text ?? item.content ?? item.summary)),
@@ -2457,7 +2858,7 @@ function parseInlineProjectProposalDraft(
   }
 }
 
-function inferInlineProjectProposalSnapshotDeletes(
+function inferInlineProjectLayerProposalSnapshotDeletes(
   draft: AgentDraft,
   proposal: Record<string, unknown>,
   creativeReferenceRecords: CreativeReferenceRecord[],
@@ -2496,13 +2897,13 @@ function inferInlineProjectProposalSnapshotDeletes(
   return { creativeReferences, assetSlots }
 }
 
-function inlineProjectProposalChangeType(item: Record<string, unknown>): InlineProjectProposalEntry['changeType'] {
+function inlineProjectLayerProposalChangeType(item: Record<string, unknown>): InlineProjectLayerProposalEntry['changeType'] {
   const status = asString(proposalField(item, ['status']))
   if (['ignored', 'waived'].includes(status)) return 'deleted'
   return typeof item.id === 'number' ? 'modified' : 'added'
 }
 
-function ProjectProposalReviewSummary({
+function ProjectLayerProposalReviewSummary({
   settingDraft,
   assetProposalDraft,
   projectName,
@@ -2517,8 +2918,8 @@ function ProjectProposalReviewSummary({
   creativeReferences: CreativeReferenceRecord[]
   assetSlots: AssetSlotRecord[]
 }) {
-  const settingView = useMemo(() => parseInlineProjectProposalDraft(settingDraft, creativeReferences, []), [creativeReferences, settingDraft])
-  const assetProposalView = useMemo(() => parseInlineProjectProposalDraft(assetProposalDraft, [], assetSlots), [assetProposalDraft, assetSlots])
+  const settingView = useMemo(() => parseInlineProjectLayerProposalDraft(settingDraft, creativeReferences, []), [creativeReferences, settingDraft])
+  const assetProposalView = useMemo(() => parseInlineProjectLayerProposalDraft(assetProposalDraft, [], assetSlots), [assetProposalDraft, assetSlots])
   const deletedCount = (settingView?.creativeReferences ?? []).filter((entry) => entry.changeType === 'deleted').length
     + (assetProposalView?.assetSlots ?? []).filter((entry) => entry.changeType === 'deleted').length
   const hasDraft = Boolean(settingDraft || assetProposalDraft)
@@ -2955,6 +3356,7 @@ function ProposalSemanticDiffPanel({
               ['all', '全部动作'],
               ['create', '新建'],
               ['update', '更新'],
+              ['delete', '删除'],
             ]}
             value={actionFilter}
             onChange={(value) => setActionFilter(value as ProposalSemanticDiffActionFilter)}
@@ -3399,6 +3801,9 @@ function proposalApplyPreviewKindLabel(kind: ProposalApplyPreviewItem['kind']) {
 
 function ProposalDiffActionBadge({ action, compact = false }: { action: ProposalSnapshotAction | undefined; compact?: boolean }) {
   const cls = compact ? 'px-1 py-0 text-[9px]' : 'px-1.5 py-0.5 text-[9px]'
+  if (action === 'delete') {
+    return <span className={cn('shrink-0 rounded font-mono font-medium text-rose-600 dark:text-rose-400', cls)}>-</span>
+  }
   if (action === 'update') {
     return <span className={cn('shrink-0 rounded font-mono font-medium text-amber-600 dark:text-amber-400', cls)}>~</span>
   }
@@ -3506,7 +3911,7 @@ function ProposalSemanticDiffRow({
   return (
     <div className={cn(
       'border-l-2 px-3 py-2',
-      item.action === 'update' ? 'border-l-amber-400 bg-amber-500/5' : 'border-l-emerald-400 bg-emerald-500/5',
+      item.action === 'delete' ? 'border-l-rose-400 bg-rose-500/5' : item.action === 'update' ? 'border-l-amber-400 bg-amber-500/5' : 'border-l-emerald-400 bg-emerald-500/5',
       decision === 'rejected' && 'opacity-60',
     )}>
       <div className="flex items-start gap-2">
@@ -3626,6 +4031,7 @@ function semanticDiffNodeMatches(
 }
 
 function normalizeProposalSemanticAction(action?: ProposalSnapshotAction): ProposalSemanticDiffActionFilter {
+  if (action === 'delete') return 'delete'
   return action === 'update' ? 'update' : 'create'
 }
 
@@ -3739,9 +4145,11 @@ function countProposalDecisionSummary(segments: ProposalSegmentNode[], decisions
 }
 
 function countProposalActions(segments: ProposalSegmentNode[]) {
-  const counts = { create: 0, update: 0 }
-  function add(node: { id?: number | null }) {
-    if (proposalSnapshotAction(node) === 'update') counts.update += 1
+  const counts = { create: 0, update: 0, delete: 0 }
+  function add(node: { id?: number | null; __delete?: boolean }) {
+    const action = proposalSnapshotAction(node)
+    if (action === 'delete') counts.delete += 1
+    else if (action === 'update') counts.update += 1
     else counts.create += 1
   }
   for (const segment of segments) {
@@ -3783,7 +4191,8 @@ function snapshotNodeHasID(node: { id?: number | null }) {
   return typeof node.id === 'number' && node.id > 0
 }
 
-function proposalSnapshotAction(node: { id?: number | null }): ProposalSnapshotAction {
+function proposalSnapshotAction(node: { id?: number | null; __delete?: boolean }): ProposalSnapshotAction {
+  if (node.__delete) return 'delete'
   return snapshotNodeHasID(node) ? 'update' : 'create'
 }
 

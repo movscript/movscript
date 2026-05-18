@@ -574,7 +574,7 @@ export function listTools(): MCPTool[] {
       description: 'Return the frontend-owned DraftDomainModel contract for a draft kind and target. This is the single source for draft field ownership, seed policy, review route, apply boundary, and optional hydrated seed data.',
       inputSchema: objectSchema(
         {
-          kind: { type: 'string', enum: ['setting_proposal', 'project_proposal', 'production_proposal', 'script_split_proposal', 'asset_proposal'] },
+          kind: { type: 'string', enum: ['setting_proposal', 'project_standards_proposal', 'production_proposal', 'script_split_proposal', 'asset_proposal'] },
           target: { type: 'object', additionalProperties: true, description: 'Optional target entity anchor. entityType/entityId defaults come from the model and current focus when available.' },
           seedMode: { type: 'string', enum: ['empty', 'snapshot', 'editable_snapshot'], description: 'Defaults to the model seed.defaultMode.' },
           include: { type: 'array', items: { type: 'string' }, description: 'Optional subset of the model seed.include allowlist.' },
@@ -1614,7 +1614,7 @@ async function hydrateDraftSeedData(
   const data: Record<string, unknown> = {}
   const sourceVersions: Record<string, unknown> = {}
   const warnings: string[] = []
-  const projectId = numericValue(target.projectId) ?? (['setting_proposal', 'asset_proposal', 'project_proposal'].includes(kind) ? numericValue(target.entityId) : contextSnapshot.project?.id)
+  const projectId = numericValue(target.projectId) ?? (['setting_proposal', 'asset_proposal', 'project_standards_proposal'].includes(kind) ? numericValue(target.entityId) : contextSnapshot.project?.id)
   const targetIds = {
     entityId: numericValue(target.entityId),
     productionId: numericValue(target.productionId ?? target.production_id),
@@ -2313,7 +2313,7 @@ export async function applyDraftReview(args: Record<string, unknown>): Promise<u
 async function previewApplyDraftReview(args: Record<string, unknown>): Promise<unknown> {
   const review = getReviewParam(args)
   const request = buildApplyRequest(review)
-  if (!isProjectProposalTarget(review) && !isProductionProposalTarget(review)) {
+  if (!isProjectLayerProposalTarget(review) && !isProductionProposalTarget(review)) {
     return {
       performed: false,
       skippedReason: 'backend apply preview is only implemented for proposal drafts',
@@ -2335,8 +2335,8 @@ function getReviewParam(args: Record<string, unknown>): Record<string, unknown> 
 }
 
 function buildApplyRequest(review: Record<string, unknown>): { method: 'PATCH' | 'POST'; path: string; payload: Record<string, unknown> } {
-  if (isProjectProposalTarget(review)) {
-    return buildProjectProposalRequest(review)
+  if (isProjectLayerProposalTarget(review)) {
+    return buildProjectLayerProposalRequest(review)
   }
   if (isProductionProposalTarget(review)) {
     return buildProductionProposalRequest(review)
@@ -2370,16 +2370,18 @@ function buildApplyRequest(review: Record<string, unknown>): { method: 'PATCH' |
   }
 }
 
-function buildProjectProposalRequest(review: Record<string, unknown>): { method: 'POST'; path: string; payload: Record<string, unknown> } {
+function buildProjectLayerProposalRequest(review: Record<string, unknown>): { method: 'POST'; path: string; payload: Record<string, unknown> } {
   const projectId = resolveProjectId(review)
+  const payload = normalizeProjectLayerProposalPayloadForKind(review.proposedValue, stringValue(review.draftKind) as AgentDraftKind)
+  const routeSegment = projectLayerProposalRouteSegment(inferProjectLayerProposalDraftKind(payload, stringValue(review.draftKind) as AgentDraftKind))
   return {
     method: 'POST',
-    path: `/projects/${encodeURIComponent(String(projectId))}/entities/project-proposals/apply`,
-    payload: normalizeProjectProposalPayloadForKind(review.proposedValue, stringValue(review.draftKind) as AgentDraftKind),
+    path: `/projects/${encodeURIComponent(String(projectId))}/entities/${routeSegment}/apply`,
+    payload,
   }
 }
 
-function isProjectProposalTarget(review: Record<string, unknown>): boolean {
+function isProjectLayerProposalTarget(review: Record<string, unknown>): boolean {
   const target = isRecord(review.target) ? review.target : {}
   return target.entityType === 'project' && target.field === 'proposal'
 }
@@ -2401,14 +2403,14 @@ function isProductionProposalTarget(review: Record<string, unknown>): boolean {
 
 function resolveProjectId(review: Record<string, unknown>): string | number {
   const target = getObjectValue(review.target, 'target')
-  const candidate = target.projectId ?? (isProjectProposalTarget(review) ? target.entityId : undefined)
+  const candidate = target.projectId ?? (isProjectLayerProposalTarget(review) ? target.entityId : undefined)
   if ((typeof candidate !== 'string' && typeof candidate !== 'number') || String(candidate).trim() === '') {
     throw new Error('apply_draft requires projectId for proposal apply')
   }
   return candidate
 }
 
-function normalizeProjectProposalPayload(value: unknown): Record<string, unknown> {
+function normalizeProjectLayerProposalPayload(value: unknown): Record<string, unknown> {
   if (typeof value === 'string') {
     try {
       const parsed = JSON.parse(value)
@@ -2416,58 +2418,74 @@ function normalizeProjectProposalPayload(value: unknown): Record<string, unknown
     } catch {
       // handled below
     }
-    throw new Error('project proposal draft content must be a JSON object')
+    throw new Error('project-layer proposal draft content must be a JSON object')
   }
   if (!isRecord(value)) {
-    throw new Error('project proposal draft content must be a JSON object')
+    throw new Error('project-layer proposal draft content must be a JSON object')
   }
   return value
 }
 
-function normalizeProjectProposalPayloadForKind(value: unknown, kind: AgentDraftKind): Record<string, unknown> {
-  const payload = normalizeProjectProposalPayload(value)
-  const effectiveKind = inferProjectProposalDraftKind(payload, kind)
+function normalizeProjectLayerProposalPayloadForKind(value: unknown, kind: AgentDraftKind): Record<string, unknown> {
+  const payload = normalizeProjectLayerProposalPayload(value)
+  const effectiveKind = inferProjectLayerProposalDraftKind(payload, kind)
   const proposal = isRecord(payload.proposal) ? payload.proposal : {}
   if (effectiveKind === 'setting_proposal' || effectiveKind === 'asset_proposal') {
     return {
       ...payload,
+      scope: effectiveKind,
       mode: 'snapshot',
       proposal: {
         ...proposal,
-        creative_references: effectiveKind === 'setting_proposal' ? normalizeProjectProposalSnapshotNodes(proposal.creative_references) : [],
-        asset_slots: effectiveKind === 'asset_proposal' ? normalizeProjectProposalSnapshotNodes(proposal.asset_slots) : [],
+        creative_references: effectiveKind === 'setting_proposal' ? normalizeProjectLayerProposalSnapshotNodes(proposal.creative_references) : [],
+        asset_slots: effectiveKind === 'asset_proposal' ? normalizeProjectLayerProposalSnapshotNodes(proposal.asset_slots) : [],
       },
     }
   }
-  if (effectiveKind !== 'project_proposal') return payload
+  if (effectiveKind !== 'project_standards_proposal') return payload
+  if (proposal.creative_references !== undefined || proposal.asset_slots !== undefined) {
+    throw new Error('project_standards_proposal only supports proposal.project_style; use setting_proposal or asset_proposal for project-layer lists')
+  }
   return {
     ...payload,
+    scope: 'project_standards_proposal',
     mode: 'snapshot',
     proposal: {
       ...proposal,
       project_style: isRecord(proposal.project_style) ? proposal.project_style : {},
-      creative_references: [],
-      asset_slots: [],
     },
   }
 }
 
-function inferProjectProposalDraftKind(payload: Record<string, unknown>, kind: AgentDraftKind): AgentDraftKind {
-  if (kind === 'setting_proposal' || kind === 'asset_proposal' || kind === 'project_proposal') return kind
+function inferProjectLayerProposalDraftKind(payload: Record<string, unknown>, kind: AgentDraftKind): AgentDraftKind {
+  if (kind === 'setting_proposal' || kind === 'asset_proposal' || kind === 'project_standards_proposal') return kind
   const schema = typeof payload.schema === 'string' ? payload.schema : ''
   if (schema === 'movscript.setting_proposal.v1') return 'setting_proposal'
   if (schema === 'movscript.asset_proposal.v1') return 'asset_proposal'
-  if (schema === 'movscript.project_proposal.v1') return 'project_proposal'
+  if (schema === 'movscript.project_standards_proposal.v1') return 'project_standards_proposal'
   const scope = typeof payload.scope === 'string' ? payload.scope : ''
-  if (scope === 'setting_proposal' || scope === 'asset_proposal' || scope === 'project_proposal') return scope
+  if (scope === 'setting_proposal' || scope === 'asset_proposal' || scope === 'project_standards_proposal') return scope
   return kind
 }
 
-function normalizeProjectProposalSnapshotNodes(value: unknown): unknown[] {
+function projectLayerProposalRouteSegment(kind: AgentDraftKind): string {
+  switch (kind) {
+  case 'setting_proposal':
+    return 'setting-proposals'
+  case 'asset_proposal':
+    return 'asset-proposals'
+  case 'project_standards_proposal':
+    return 'project-standards-proposals'
+  default:
+    throw new Error(`unsupported project-layer proposal kind: ${kind}`)
+  }
+}
+
+function normalizeProjectLayerProposalSnapshotNodes(value: unknown): unknown[] {
   if (!Array.isArray(value)) return []
   return value.map((item, index) => {
     if (isRecord(item) && item.fields !== undefined) {
-      throw new Error(`project proposal snapshot node ${index} uses deprecated fields wrapper; put editable values directly on the node`)
+      throw new Error(`project-layer proposal snapshot node ${index} uses deprecated fields wrapper; put editable values directly on the node`)
     }
     return item
   })

@@ -15,7 +15,7 @@
 - 缺少目标时询问：{{tool:movscript_request_user_input}}
 
 路由规则：
-- 项目制作标准 -> project_proposal。
+- 项目制作标准 -> project_standards_proposal。
 - 人物、地点、道具、世界规则、creative reference -> setting_proposal。
 - 素材需求、asset slot、复用边界、素材候选计划 -> asset_proposal。
 - production segments、scene moments、production-local gaps -> production_proposal。

@@ -49,7 +49,7 @@ test('production orchestration opens both drafts for review', async ({ page }, t
     projectDraftId: 'project-draft-e2e',
   })
 
-  await expect(page.getByText('项目提案审阅', { exact: true })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('项目规范提案审阅', { exact: true })).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText('制作提案审阅', { exact: true })).toBeVisible({ timeout: 10_000 })
   await expect(page.getByRole('heading', { name: '项目级设定与素材草稿' })).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText('风格统一', { exact: false })).toBeVisible({ timeout: 10_000 })
@@ -158,8 +158,8 @@ async function mockProductionOrchestrationEntities(page: Page) {
         body: JSON.stringify({
           id: 'project-draft-e2e',
           projectId: PROJECT_ID,
-          kind: 'project_proposal',
-          title: '项目提案草稿',
+          kind: 'project_standards_proposal',
+          title: '项目规范提案草稿',
           content: JSON.stringify({
             summary: '项目级设定与素材草稿',
             proposal: {

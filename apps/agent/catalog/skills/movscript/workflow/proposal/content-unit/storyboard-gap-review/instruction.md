@@ -11,7 +11,7 @@
 - 缺口必须指向具体 content unit、scene beat、asset slot 或 keyframe target。
 
 上下文缺失回退：
-- 发现 project 级标准缺失时，建议 project_proposal。
+- 发现 project 级标准缺失时，建议 project_standards_proposal。
 - 发现角色、地点、道具、世界规则或 creative reference 缺失时，建议 setting_proposal。
 - 发现素材需求、asset slot、候选计划或验收标准缺失时，建议 asset_proposal。
 - 发现 production 结构、scene moment 或 content unit 缺失时，建议 production_proposal 或 content_unit_proposal。

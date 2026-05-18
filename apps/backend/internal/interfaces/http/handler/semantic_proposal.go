@@ -107,19 +107,38 @@ func containsActionKey(value any) bool {
 	return false
 }
 
-func (h *SemanticEntityHandler) ApplyProjectProposal(c *gin.Context) {
+func (h *SemanticEntityHandler) ApplyProjectStandardsProposal(c *gin.Context) {
+	h.applyProjectLayerProposal(c, "project_standards_proposal")
+}
+
+func (h *SemanticEntityHandler) ApplySettingProposal(c *gin.Context) {
+	h.applyProjectLayerProposal(c, "setting_proposal")
+}
+
+func (h *SemanticEntityHandler) ApplyAssetProposal(c *gin.Context) {
+	h.applyProjectLayerProposal(c, "asset_proposal")
+}
+
+func (h *SemanticEntityHandler) applyProjectLayerProposal(c *gin.Context, routeScope string) {
 	projectID := parseID(c.Param("id"))
-	var req semanticapp.ApplyProjectProposalRequest
+	var req semanticapp.ApplyProjectLayerProposalRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
+	}
+	if routeScope != "" {
+		if req.Scope != "" && req.Scope != routeScope {
+			c.JSON(http.StatusBadRequest, api.InvalidInput("proposal scope does not match apply route"))
+			return
+		}
+		req.Scope = routeScope
 	}
 	if req.Proposal == nil {
 		c.JSON(http.StatusBadRequest, api.InvalidInput("proposal is required"))
 		return
 	}
 
-	resp, err := h.semantic.ApplyProjectProposal(c.Request.Context(), projectID, req)
+	resp, err := h.semantic.ApplyProjectLayerProposal(c.Request.Context(), projectID, req)
 	if err != nil {
 		h.writeSemanticAppError(c, err)
 		return
@@ -127,19 +146,38 @@ func (h *SemanticEntityHandler) ApplyProjectProposal(c *gin.Context) {
 	c.JSON(http.StatusCreated, resp)
 }
 
-func (h *SemanticEntityHandler) PreviewProjectProposalApply(c *gin.Context) {
+func (h *SemanticEntityHandler) PreviewProjectStandardsProposalApply(c *gin.Context) {
+	h.previewProjectLayerProposalApply(c, "project_standards_proposal")
+}
+
+func (h *SemanticEntityHandler) PreviewSettingProposalApply(c *gin.Context) {
+	h.previewProjectLayerProposalApply(c, "setting_proposal")
+}
+
+func (h *SemanticEntityHandler) PreviewAssetProposalApply(c *gin.Context) {
+	h.previewProjectLayerProposalApply(c, "asset_proposal")
+}
+
+func (h *SemanticEntityHandler) previewProjectLayerProposalApply(c *gin.Context, routeScope string) {
 	projectID := parseID(c.Param("id"))
-	var req semanticapp.ApplyProjectProposalRequest
+	var req semanticapp.ApplyProjectLayerProposalRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
+	}
+	if routeScope != "" {
+		if req.Scope != "" && req.Scope != routeScope {
+			c.JSON(http.StatusBadRequest, api.InvalidInput("proposal scope does not match apply route"))
+			return
+		}
+		req.Scope = routeScope
 	}
 	if req.Proposal == nil {
 		c.JSON(http.StatusBadRequest, api.InvalidInput("proposal is required"))
 		return
 	}
 
-	resp, err := h.semantic.PreviewProjectProposalApply(c.Request.Context(), projectID, req)
+	resp, err := h.semantic.PreviewProjectLayerProposalApply(c.Request.Context(), projectID, req)
 	if err != nil {
 		h.writeSemanticAppError(c, err)
 		return

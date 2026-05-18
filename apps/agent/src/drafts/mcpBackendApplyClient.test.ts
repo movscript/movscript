@@ -57,14 +57,14 @@ test('MCPBackendApplyClient applies draft reviews through frontend MCP without b
   })
 })
 
-test('MCPBackendApplyClient previews project proposal apply through the internal MCP tool', async () => {
+test('MCPBackendApplyClient previews project standards proposal apply through the internal MCP tool', async () => {
   const mcpClient = new FakeMCPClient()
   const client = new MCPBackendApplyClient(mcpClient)
 
   await client.previewApplyReview({
     draftId: 'draft-2',
-    draftTitle: 'Project proposal',
-    draftKind: 'project_proposal',
+    draftTitle: 'Project standards proposal',
+    draftKind: 'project_standards_proposal',
     target: { projectId: 42, entityType: 'project', entityId: 42, field: 'proposal' },
     currentValue: null,
     proposedValue: { proposal: true },

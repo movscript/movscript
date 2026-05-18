@@ -87,6 +87,7 @@ export async function planPreviewToolRequests(input: PreviewToolPlanInput): Prom
     manifest: input.manifest,
     catalog: input.tools,
     registry: input.registry,
+    approvalMode: input.policy.approvalMode,
     sandboxMode: false,
   })
 

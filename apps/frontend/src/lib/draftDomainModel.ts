@@ -25,7 +25,7 @@ export interface DraftDomainModel {
     forbids: string[]
   }
   applyBoundary: {
-    backendApply: 'project_proposal' | 'production_proposal' | 'draft_only'
+    backendApply: 'project_standards_proposal' | 'setting_proposal' | 'asset_proposal' | 'production_proposal' | 'draft_only'
     writableEntityTypes: string[]
   }
   routes: {
@@ -67,7 +67,7 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
       forbids: ['asset_slots', 'asset_candidate_plans', 'media_generation_jobs', 'generated_resource_bindings', 'production_segments', 'scene_moments', 'content_units'],
     },
     applyBoundary: {
-      backendApply: 'project_proposal',
+      backendApply: 'setting_proposal',
       writableEntityTypes: ['creative_reference'],
     },
     routes: {
@@ -93,7 +93,7 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
       forbids: ['creative_reference_edits', 'media_generation_jobs', 'generated_resource_bindings', 'resource_binding_apply'],
     },
     applyBoundary: {
-      backendApply: 'project_proposal',
+      backendApply: 'asset_proposal',
       writableEntityTypes: ['asset_slot'],
     },
     routes: {
@@ -101,11 +101,11 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
       reviewTemplate: `${ROUTES.project.preProduction}?view=review&draftId=:draftId`,
     },
   },
-  project_proposal: {
-    kind: 'project_proposal',
+  project_standards_proposal: {
+    kind: 'project_standards_proposal',
     title: 'Project standards proposal',
     targetEntityType: 'project',
-    contentSchemaId: 'movscript.project_proposal.v1',
+    contentSchemaId: 'movscript.project_standards_proposal.v1',
     seed: {
       defaultMode: 'editable_snapshot',
       allowedModes: ['empty', 'snapshot', 'editable_snapshot'],
@@ -119,7 +119,7 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
       forbids: ['creative_reference_lists', 'asset_requirement_lists', 'asset_candidate_plans', 'production_segments', 'scene_moments', 'content_units', 'media_generation_jobs', 'generated_resource_bindings'],
     },
     applyBoundary: {
-      backendApply: 'project_proposal',
+      backendApply: 'project_standards_proposal',
       writableEntityTypes: ['project'],
     },
     routes: {
@@ -256,7 +256,7 @@ export function buildDraftReviewPath(draft: AgentDraft): string | null {
     return withRouteParams(ROUTES.project.preProduction, { draftId: draft.id, asset_slot_id: assetSlotId })
   }
 
-  if (draft.kind === 'project_proposal' || sourceEntityType === 'project' || targetEntityType === 'project') {
+  if (draft.kind === 'project_standards_proposal' || sourceEntityType === 'project' || targetEntityType === 'project') {
     return withRouteParams(ROUTES.project.standards, { draftId: draft.id })
   }
 

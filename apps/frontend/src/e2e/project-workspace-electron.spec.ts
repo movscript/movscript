@@ -3,7 +3,7 @@ import electronPath from 'electron'
 import { resolve } from 'node:path'
 
 import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/lib/e2eBootstrap'
-import { PROJECT_PROPOSAL_DRAFT_SCHEMA } from '@/lib/projectProposalDraft'
+import { PROJECT_STANDARDS_PROPOSAL_DRAFT_SCHEMA } from '@/lib/projectStandardsProposalDraft'
 import { buildGenerationAppBootstrap } from './generationAppSeed'
 import { mockGenerationAppShell } from './generationAppShell'
 
@@ -11,14 +11,14 @@ const PROJECT_ID = 123
 const DRAFT_ID = 'draft-project-workspace-electron-e2e'
 const NOW = '2026-05-11T12:00:00.000Z'
 
-const PROJECT_PROPOSAL_DRAFT = {
+const PROJECT_STANDARDS_PROPOSAL_DRAFT = {
   id: DRAFT_ID,
   projectId: PROJECT_ID,
-  kind: 'project_proposal',
-  title: 'Electron 项目提案草稿',
+  kind: 'project_standards_proposal',
+  title: 'Electron 项目规范提案草稿',
   content: JSON.stringify({
-    schema: PROJECT_PROPOSAL_DRAFT_SCHEMA,
-    scope: 'project_proposal',
+    schema: PROJECT_STANDARDS_PROPOSAL_DRAFT_SCHEMA,
+    scope: 'project_standards_proposal',
     projectId: PROJECT_ID,
     summary: '整理项目级制作标准。',
     proposal: {
@@ -61,7 +61,7 @@ test('electron renderer smoke reaches project workspace with seeded review flow'
     await page.goto(`${baseURL}/project/standards`)
 
     await expect(page.getByRole('heading', { name: '项目标准审阅' })).toBeVisible()
-    await expect(page.getByText('Electron 项目提案草稿')).toBeVisible()
+    await expect(page.getByText('Electron 项目规范提案草稿')).toBeVisible()
     await expect(page.getByText('竖屏短剧写实，人物表情和关键道具清晰可读。')).toBeVisible()
     await expect(page.getByText('不要随机改脸')).toBeVisible()
   } finally {
@@ -114,8 +114,8 @@ async function mockProjectWorkspaceDrafts(page: Parameters<typeof mockGeneration
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(url.pathname === `/drafts/${DRAFT_ID}`
-        ? PROJECT_PROPOSAL_DRAFT
-        : { drafts: [PROJECT_PROPOSAL_DRAFT] }),
+        ? PROJECT_STANDARDS_PROPOSAL_DRAFT
+        : { drafts: [PROJECT_STANDARDS_PROPOSAL_DRAFT] }),
     })
   })
 }

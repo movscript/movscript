@@ -133,7 +133,7 @@ test('applyRuntimeDraftFromUI marks asset planning drafts applied without backen
     kind: 'asset_proposal',
     title: 'Asset plan',
     content: JSON.stringify({ proposal: { asset_slots: [], candidates: [{ id: 'candidate_1' }] } }),
-    target: { entityType: 'project_proposal', entityId: 1 },
+    target: { entityType: 'project', entityId: 1 },
   })
   const backend = fakeBackendApplyClient()
 
@@ -220,7 +220,7 @@ test('applyRuntimeDraftFromUI rewrites asset owner client_id using project setti
     target: { entityType: 'project', entityId: 7 },
   })
   const backend = fakeBackendApplyClient({
-    applyResult: { performed: true, method: 'POST', url: 'http://backend/projects/7/entities/project-proposals/apply' },
+    applyResult: { performed: true, method: 'POST', url: 'http://backend/projects/7/entities/asset-proposals/apply' },
   })
 
   await applyRuntimeDraftFromUI({
@@ -284,7 +284,7 @@ test('applyRuntimeDraftFromUI prefers latest setting proposal mapping when multi
     target: { entityType: 'project', entityId: 7 },
   })
   const backend = fakeBackendApplyClient({
-    applyResult: { performed: true, method: 'POST', url: 'http://backend/projects/7/entities/project-proposals/apply' },
+    applyResult: { performed: true, method: 'POST', url: 'http://backend/projects/7/entities/asset-proposals/apply' },
   })
 
   await applyRuntimeDraftFromUI({
@@ -333,7 +333,7 @@ test('applyRuntimeDraftFromUI rewrites creative_reference_id on top-level slot f
     target: { entityType: 'project', entityId: 7 },
   })
   const backend = fakeBackendApplyClient({
-    applyResult: { performed: true, method: 'POST', url: 'http://backend/projects/7/entities/project-proposals/apply' },
+    applyResult: { performed: true, method: 'POST', url: 'http://backend/projects/7/entities/asset-proposals/apply' },
   })
 
   await applyRuntimeDraftFromUI({
@@ -387,7 +387,7 @@ test('applyRuntimeDraftFromUI prefers mapped owner client_id over stale owner id
     target: { entityType: 'project', entityId: 7 },
   })
   const backend = fakeBackendApplyClient({
-    applyResult: { performed: true, method: 'POST', url: 'http://backend/projects/7/entities/project-proposals/apply' },
+    applyResult: { performed: true, method: 'POST', url: 'http://backend/projects/7/entities/asset-proposals/apply' },
   })
 
   await applyRuntimeDraftFromUI({

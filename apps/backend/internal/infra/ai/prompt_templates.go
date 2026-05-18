@@ -62,14 +62,14 @@ func BuildProductionOrchestrationPrompt(input ProductionOrchestrationPromptInput
 	user := strings.Join([]string{
 		"任务",
 		"兼容入口：制作编排提示词已迁移到前端 agent。后端不再负责项目编排口径、字段选择或推理步骤。",
-		"如仍有旧调用进入这里，只返回一个最小 JSON 对象，提示调用方改用 project_proposal agent 草稿流程。",
+		"如仍有旧调用进入这里，只返回一个最小 JSON 对象，提示调用方改用 project_standards_proposal agent 草稿流程。",
 		"",
 		"当前上下文",
 		formatPromptContext(input.Context),
 		"",
 		"输出字段要求",
 		`{
-  "summary": "production_orchestrate 后端提示词已废弃，请使用前端 agent 的 project_proposal 草稿流程。",
+  "summary": "production_orchestrate 后端提示词已废弃，请使用前端 agent 的 project_standards_proposal 草稿流程。",
   "creative_references": [],
   "asset_slots": [],
   "warnings": ["backend_prompt_deprecated"]

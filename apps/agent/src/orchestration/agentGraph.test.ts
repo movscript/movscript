@@ -7,6 +7,7 @@ import type { RuntimeModelRouter } from '../model/modelRouter.js'
 import { DEFAULT_TOOL_REGISTRY, StaticToolRegistry } from '../tools/toolRegistry.js'
 import type { AgentDebugTool, AgentRun, AgentRunPolicy, ResolvedToolCatalog } from '../state/types.js'
 import { runAgentGraph } from './agentGraph.js'
+import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
 
 const policy: AgentRunPolicy = {
   approvalMode: 'interactive',
@@ -22,6 +23,176 @@ const emptyTools: ResolvedToolCatalog = {
   blocked: [],
   byName: {},
 }
+
+test('runAgentGraph queues default draft apply approvals in proposal layer order', async () => {
+  const run: AgentRun = {
+    id: 'run_default_apply',
+    threadId: 'thread_1',
+    status: 'queued',
+    policy,
+    createdAt: '2026-05-16T00:00:00.000Z',
+    updatedAt: '2026-05-16T00:00:00.000Z',
+    steps: [],
+    input: {
+      schema: 'movscript.agent.run-input.v1',
+      userMessage: '生成 setting 和 asset 草稿',
+      sourceMessageId: 'msg_1',
+      executionMode: 'chat',
+      createdAt: '2026-05-16T00:00:00.000Z',
+    },
+  }
+  const router: RuntimeModelRouter = {
+    resolve: () => ({
+      capability: 'reasoning',
+      provider: 'backend-model-config',
+      config: { provider: 'backend-model-config', model: 'test-model', modelConfigId: 1 } as any,
+      source: 'configured',
+    }),
+    describe: () => [],
+    analyzeMultimodal: async () => ({
+      summary: '',
+      observations: [],
+      confidence: 0,
+      route: { capability: 'multimodal', configured: true, source: 'configured' },
+    }),
+    call: async () => ({
+      content: null,
+      tool_calls: [
+        {
+          id: 'call_asset',
+          type: 'function',
+          function: {
+            name: 'movscript_create_draft',
+            arguments: JSON.stringify({
+              kind: 'asset_proposal',
+              proposal: true,
+              projectId: 42,
+              content: JSON.stringify({
+                schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
+                scope: 'asset_proposal',
+                proposal: { creative_references: [], asset_slots: [], candidate_plans: [] },
+              }),
+            }),
+          },
+        },
+        {
+          id: 'call_setting',
+          type: 'function',
+          function: {
+            name: 'movscript_create_draft',
+            arguments: JSON.stringify({
+              kind: 'setting_proposal',
+              proposal: true,
+              projectId: 42,
+              content: JSON.stringify({
+                schema: DRAFT_CONTENT_SCHEMA_IDS.settingProposal,
+                scope: 'setting_proposal',
+                proposal: { creative_references: [] },
+              }),
+            }),
+          },
+        },
+      ],
+      finish_reason: 'tool_calls',
+      rawAssistantMessage: { role: 'assistant', content: null },
+      trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
+    }),
+  }
+  const registry = new StaticToolRegistry([
+    {
+      name: 'movscript_create_draft',
+      description: 'Create draft.',
+      permission: 'draft.write',
+      risk: 'draft',
+      source: 'runtime',
+      projectScoped: false,
+      requiresApprovalByDefault: false,
+    },
+    {
+      name: 'movscript_apply_draft',
+      description: 'Apply draft.',
+      permission: 'draft.apply',
+      risk: 'write',
+      source: 'runtime',
+      projectScoped: false,
+      requiresApprovalByDefault: true,
+    },
+  ])
+  const available = registry.list().map((tool): AgentDebugTool => ({
+    name: tool.name,
+    description: tool.description,
+    permission: tool.permission,
+    risk: tool.risk,
+    source: tool.source ?? 'runtime',
+    projectScoped: tool.projectScoped,
+    registered: true,
+    granted: true,
+    available: true,
+    approval: tool.name === 'movscript_apply_draft' ? 'on_write' : 'never',
+    requiresApproval: tool.name === 'movscript_apply_draft',
+  }))
+  const capabilities: ResolvedToolCatalog = {
+    discovered: available,
+    available,
+    blocked: [],
+    byName: Object.fromEntries(available.map((tool) => [tool.name, tool])),
+  }
+
+  const result = await runAgentGraph({
+    run,
+    threadMessages: [
+      { id: 'msg_1', threadId: 'thread_1', role: 'user', content: '生成 setting 和 asset 草稿', createdAt: '2026-05-16T00:00:00.000Z' },
+    ],
+    manifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      tools: [
+        { name: 'movscript_create_draft', mode: 'allow', approval: 'never' },
+        { name: 'movscript_apply_draft', mode: 'allow', approval: 'on_write' },
+      ],
+    },
+    capabilities,
+    skills: [],
+    context: {
+      route: { pathname: '/' },
+      project: { id: 42 },
+      projects: [],
+      recentResources: [],
+      attachments: [],
+      memories: [],
+      labels: [],
+    },
+    memories: [],
+    warnings: [],
+    userMessage: run.input?.userMessage,
+    rootUserMessageId: run.input?.sourceMessageId,
+    config: { provider: 'backend-model-config', model: 'test-model', modelConfigId: 1 } as any,
+    modelRouter: router,
+    auth: {},
+    policy,
+    mcpClient: {
+      initialize: async () => null,
+      callTool: async () => ({}),
+    },
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    registry,
+    onTrace: () => undefined,
+    onStepCreate: () => 'step_1',
+    onStepComplete: () => undefined,
+  })
+
+  assert.equal(result.status, 'requires_action')
+  if (result.status === 'requires_action') {
+    assert.deepEqual(result.pendingApprovals.map((approval) => approval.toolName), [
+      'movscript_apply_draft',
+      'movscript_apply_draft',
+    ])
+    assert.deepEqual(result.pendingApprovals.map((approval) => approval.args?.draftKind), [
+      'setting_proposal',
+      'asset_proposal',
+    ])
+  }
+})
 
 test('runAgentGraph uses frozen run input instead of later thread user messages', async () => {
   const run: AgentRun = {

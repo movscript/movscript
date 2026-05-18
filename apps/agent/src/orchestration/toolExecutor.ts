@@ -5,6 +5,7 @@ import { buildApplyDraftPreview } from '../drafts/draftApply.js'
 import { normalizeDraftStatus, validateDraft, type AgentDraftKind, type AgentDraftSource, type AgentDraftStore, type AgentDraftTarget } from '../drafts/draftStore.js'
 import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
 import { BackendApplyHTTPError, type BackendApplyClient } from '../drafts/backendApplyClient.js'
+import { applyRuntimeDraftFromUI } from '../application/runtimeDraftOperations.js'
 import type { ToolRegistry, ToolRiskLevel } from '../tools/toolRegistry.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
 import type { AgentMemoryKind } from '../memory/types.js'
@@ -322,6 +323,48 @@ async function callRuntimeTool(
     return updateDraftByAction(draftStore, backendApplyClient, args, draftId) as unknown as JSONValue
   }
 
+  if (toolName === 'movscript_apply_draft') {
+    const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
+    if (!draftId) throw new Error('apply_draft requires draftId')
+    const draft = draftStore.getDraft(draftId)
+    if (!draft) throw new Error(`draft not found: ${draftId}`)
+    const validation = validateDraft(draft)
+    if (!validation.ok) {
+      return {
+        ok: false,
+        stage: 'local_validation',
+        draftId,
+        validation,
+        message: 'Draft failed local validation. Patch the draft and validate again before applying.',
+      } as unknown as JSONValue
+    }
+    const user = userFromRunContext(run)
+    const result = await applyRuntimeDraftFromUI({
+      draftStore,
+      backendApplyClient,
+      applyInput: {
+        draftId,
+        target: isJSONRecord(args.target) ? args.target : draft.target,
+        targetEntityType: args.targetEntityType ?? args.target_entity_type,
+        targetEntityId: args.targetEntityId ?? args.target_entity_id,
+        targetField: args.targetField ?? args.target_field,
+        currentValue: args.currentValue ?? args.current_value,
+        proposedValue: args.proposedValue ?? args.proposed_value,
+        appliedByUserId: args.appliedByUserId ?? args.applied_by_user_id ?? user?.id,
+        ...(typeof run.metadata?.backendAuthToken === 'string' ? { backendAuthToken: run.metadata.backendAuthToken } : {}),
+        ...(typeof run.metadata?.backendAPIBaseURL === 'string' ? { backendAPIBaseURL: run.metadata.backendAPIBaseURL } : {}),
+      },
+      now: () => new Date().toISOString(),
+      appliedBy: 'movscript-agent',
+    })
+    return {
+      ok: true,
+      stage: 'apply',
+      validation,
+      ...(isJSONRecord(result) ? result : { result }),
+    } as unknown as JSONValue
+  }
+
   if (toolName === 'movscript_search_memories') {
     if (!memoryManager) return { memories: [], count: 0 } as unknown as JSONValue
     const projectId = projectIdField(args.projectId)
@@ -510,7 +553,7 @@ function normalizeProposalDraftKind(value: JSONValue | undefined): AgentDraftKin
     || value === 'segment'
     || value === 'scene_moment'
     || value === 'asset_proposal'
-    || value === 'project_proposal'
+    || value === 'project_standards_proposal'
     || value === 'production_proposal'
     || value === 'content_unit_proposal'
     ? value
@@ -530,8 +573,8 @@ function validateStructuredProposalDraftContent(kind: AgentDraftKind, content: s
     ? DRAFT_CONTENT_SCHEMA_IDS.scriptSplit
     : kind === 'setting_proposal'
       ? DRAFT_CONTENT_SCHEMA_IDS.settingProposal
-    : kind === 'project_proposal'
-      ? DRAFT_CONTENT_SCHEMA_IDS.projectProposal
+    : kind === 'project_standards_proposal'
+      ? DRAFT_CONTENT_SCHEMA_IDS.projectStandardsProposal
       : kind === 'production_proposal'
         ? DRAFT_CONTENT_SCHEMA_IDS.productionProposal
         : kind === 'asset_proposal'
@@ -573,7 +616,7 @@ function inferProposalDraftTarget(
     ?? entityIdField(args.production_id)
     ?? entityIdField(context?.productionId)
     ?? entityIdField(pageContext.pageEntityType === 'production' ? pageContext.pageEntityId : undefined)
-  if (kind === 'project_proposal') {
+  if (kind === 'project_standards_proposal') {
     return {
       ...(projectId !== undefined ? { projectId } : {}),
       entityType: 'project',
@@ -625,7 +668,7 @@ function defaultProposalDraftTitle(
   target: AgentDraftTarget | undefined,
 ): string {
   const projectLabel = projectId !== undefined ? `#${projectId}` : 'conversation'
-  if (kind === 'project_proposal') return `项目提案 - ${projectLabel}`
+  if (kind === 'project_standards_proposal') return `项目规范提案 - ${projectLabel}`
   if (kind === 'production_proposal') {
     const targetLabel = target?.entityId !== undefined ? `#${String(target.entityId)}` : projectLabel
     return `制作提案 - ${targetLabel}`
@@ -838,8 +881,8 @@ function createProposalDraft(
     ?? projectIdField(args.project_id)
     ?? projectIdField(contextProject?.id)
     ?? projectIdField(pageContext.pageEntityType === 'project' ? pageContext.pageEntityId : undefined)
-  if (kind === 'project_proposal' && projectId === undefined) {
-    throw new Error('create_proposal requires projectId for project_proposal')
+  if (kind === 'project_standards_proposal' && projectId === undefined) {
+    throw new Error('create_proposal requires projectId for project_standards_proposal')
   }
   const target = normalizeProposalDraftTarget(args.target)
     ?? inferProposalDraftTarget(kind, projectId, context, pageContext, args)

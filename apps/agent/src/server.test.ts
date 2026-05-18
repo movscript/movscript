@@ -375,7 +375,7 @@ test('public agent project id boundaries reject invalid project scopes', async (
   for (const invalidProjectId of ['0', '42.5']) {
     const capabilities = await dispatch(handler, 'GET', `/capabilities?projectId=${invalidProjectId}`)
     const drafts = await dispatch(handler, 'GET', `/drafts?projectId=${invalidProjectId}`)
-    const draft = await dispatch(handler, 'POST', '/draft', JSON.stringify({ projectId: Number(invalidProjectId), kind: 'project_proposal' }))
+    const draft = await dispatch(handler, 'POST', '/draft', JSON.stringify({ projectId: Number(invalidProjectId), kind: 'project_standards_proposal' }))
 
     assert.equal(capabilities.statusCode, 400)
     assert.equal(JSON.parse(capabilities.body).error, 'projectId must be a positive safe integer')
@@ -386,7 +386,7 @@ test('public agent project id boundaries reject invalid project scopes', async (
   }
   await dispatch(handler, 'GET', '/capabilities?projectId=42')
   await dispatch(handler, 'GET', '/drafts?projectId=42')
-  await dispatch(handler, 'POST', '/draft', JSON.stringify({ projectId: 42, kind: 'project_proposal' }))
+  await dispatch(handler, 'POST', '/draft', JSON.stringify({ projectId: 42, kind: 'project_standards_proposal' }))
 
   assert.deepEqual(calls.map((call) => [call.endpoint, call.input.projectId, call.input.currentProjectId]), [
     ['capabilities', undefined, 42],

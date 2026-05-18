@@ -159,3 +159,34 @@ test('buildProjectLayerDraftContentForEntries scopes asset proposal payload to a
   assert.deepEqual(payload.proposal.creative_references, [])
   assert.deepEqual(payload.proposal.asset_slots.map((item: any) => item.name).sort(), ['旧头像', '角色头像'])
 })
+
+test('buildProjectLayerDraftContentForEntries rebases stale asset owner ids from current references', () => {
+  const sourceDraft = draft({
+    id: 'asset-draft',
+    kind: 'asset_proposal',
+    content: JSON.stringify({
+      schema: 'movscript.asset_proposal.v1',
+      scope: 'asset_proposal',
+      mode: 'snapshot',
+      proposal: {
+        creative_references: [],
+        asset_slots: [
+          { name: '女主形象图', kind: 'image', owner: { type: 'creative_reference', id: 999 }, description: '女主官方人设图' },
+        ],
+      },
+    }),
+  })
+  const data = {
+    creativeReferences: [
+      { ID: 41, name: '苏晚', description: '女主，单亲妈妈' },
+      { ID: 42, name: '陆景深', description: '男主，集团总裁' },
+    ],
+    assetSlots: [],
+  }
+  const view = parseProjectLayerProposalDraft(sourceDraft, data, { includeCreativeReferences: false })
+  const payload = JSON.parse(buildProjectLayerDraftContentForEntries(sourceDraft, [view!.assetSlots[0]!], data)) as Record<string, any>
+  const slot = payload.proposal.asset_slots[0]
+
+  assert.equal(slot.owner.id, 41)
+  assert.equal(slot.creative_reference_id, 41)
+})
