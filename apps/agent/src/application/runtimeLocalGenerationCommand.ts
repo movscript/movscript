@@ -279,6 +279,7 @@ function localGenerationEventChangeKey(event: GenerationEvent): string {
     event.status,
     event.progress ?? '',
     event.outputResourceId ?? '',
+    event.outputResourceIds?.join(',') ?? '',
   ].join(':')
 }
 

@@ -182,11 +182,23 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
   assert.ok(attachCandidate.inputSchema.properties?.output_resource_id)
   assert.ok(attachCandidate.inputSchema.properties?.outputResourceId)
   assert.equal((attachCandidate.inputSchema.properties?.outputResourceId as any)?.minimum, 1)
+  assert.ok(attachCandidate.inputSchema.properties?.output_resource_ids)
+  assert.ok(attachCandidate.inputSchema.properties?.outputResourceIds)
   assert.deepEqual(schemaShapeWithoutDescriptions(attachCandidate.inputSchema.allOf), [
     { anyOf: [{ required: ['asset_slot_id'] }, { required: ['assetSlotId'] }] },
-    { anyOf: [{ required: ['resource_id'] }, { required: ['resourceId'] }, { required: ['output_resource_id'] }, { required: ['outputResourceId'] }] },
+    { anyOf: [
+      { required: ['resource_id'] },
+      { required: ['resourceId'] },
+      { required: ['output_resource_id'] },
+      { required: ['outputResourceId'] },
+      { required: ['resource_ids'] },
+      { required: ['resourceIds'] },
+      { required: ['output_resource_ids'] },
+      { required: ['outputResourceIds'] },
+    ] },
   ])
   assert.ok(attachCandidate.outputSchema?.properties?.candidate)
+  assert.ok(attachCandidate.outputSchema?.properties?.candidates)
   assert.match(attachKeyframe.description, /reviewable candidate/)
   assert.match(attachKeyframe.description, /original target keyframe/)
   assert.match(attachKeyframe.description, /Do not pass an existing generated candidate keyframe as the target/)
@@ -205,11 +217,23 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
   assert.ok(attachKeyframe.inputSchema.properties?.output_resource_id)
   assert.ok(attachKeyframe.inputSchema.properties?.outputResourceId)
   assert.equal((attachKeyframe.inputSchema.properties?.outputResourceId as any)?.minimum, 1)
+  assert.ok(attachKeyframe.inputSchema.properties?.output_resource_ids)
+  assert.ok(attachKeyframe.inputSchema.properties?.outputResourceIds)
   assert.deepEqual(schemaShapeWithoutDescriptions(attachKeyframe.inputSchema.allOf), [
     { anyOf: [{ required: ['keyframe_id'] }, { required: ['keyframeId'] }, { required: ['target_keyframe_id'] }, { required: ['targetKeyframeId'] }] },
-    { anyOf: [{ required: ['resource_id'] }, { required: ['resourceId'] }, { required: ['output_resource_id'] }, { required: ['outputResourceId'] }] },
+    { anyOf: [
+      { required: ['resource_id'] },
+      { required: ['resourceId'] },
+      { required: ['output_resource_id'] },
+      { required: ['outputResourceId'] },
+      { required: ['resource_ids'] },
+      { required: ['resourceIds'] },
+      { required: ['output_resource_ids'] },
+      { required: ['outputResourceIds'] },
+    ] },
   ])
   assert.ok(attachKeyframe.outputSchema?.properties?.candidate)
+  assert.ok(attachKeyframe.outputSchema?.properties?.candidates)
   assert.ok((createJob.outputSchema?.properties?.param_validation as any)?.properties?.audit_version)
   assert.ok((createJob.outputSchema?.properties?.param_validation as any)?.properties?.model_contract_loaded)
   assert.ok((createJob.outputSchema?.properties?.param_validation as any)?.properties?.params_schema_loaded)
@@ -248,7 +272,7 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
       `movscript_create_generation_job ${field} output schema should match the static agent catalog`,
     )
   }
-  for (const field of ['projectId', 'asset_slot_id', 'assetSlotId', 'resource_id', 'resourceId', 'output_resource_id', 'outputResourceId', 'source_type', 'sourceType', 'source_id', 'sourceId', 'jobId', 'score', 'note']) {
+  for (const field of ['projectId', 'asset_slot_id', 'assetSlotId', 'resource_id', 'resourceId', 'output_resource_id', 'outputResourceId', 'resource_ids', 'resourceIds', 'output_resource_ids', 'outputResourceIds', 'source_type', 'sourceType', 'source_id', 'sourceId', 'jobId', 'score', 'note']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(attachCandidate.inputSchema.properties?.[field]),
       schemaShapeWithoutDescriptions(staticAttachCandidate.inputSchema.properties?.[field]),
@@ -261,7 +285,7 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
     schemaShapeWithoutDescriptions(staticAttachCandidate.inputSchema.allOf),
     'movscript_attach_asset_slot_candidate alias requirements should match the static agent catalog',
   )
-  for (const field of ['status', 'candidate', 'asset_slot_id', 'candidate_asset_slot_id', 'resource_id', 'message']) {
+  for (const field of ['status', 'candidate', 'candidates', 'asset_slot_id', 'candidate_asset_slot_id', 'candidate_asset_slot_ids', 'resource_id', 'resource_ids', 'skipped_resource_ids', 'message']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(attachCandidate.outputSchema?.properties?.[field]),
       schemaShapeWithoutDescriptions(staticAttachCandidate.outputSchema?.properties?.[field]),
@@ -269,7 +293,7 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
     )
   }
   assert.equal(attachCandidate.outputSchema?.additionalProperties, staticAttachCandidate.outputSchema?.additionalProperties)
-  for (const field of ['projectId', 'keyframe_id', 'keyframeId', 'target_keyframe_id', 'targetKeyframeId', 'resource_id', 'resourceId', 'output_resource_id', 'outputResourceId', 'source_type', 'sourceType', 'source_id', 'sourceId', 'jobId', 'title', 'description', 'prompt', 'note']) {
+  for (const field of ['projectId', 'keyframe_id', 'keyframeId', 'target_keyframe_id', 'targetKeyframeId', 'resource_id', 'resourceId', 'output_resource_id', 'outputResourceId', 'resource_ids', 'resourceIds', 'output_resource_ids', 'outputResourceIds', 'source_type', 'sourceType', 'source_id', 'sourceId', 'jobId', 'title', 'description', 'prompt', 'note']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(attachKeyframe.inputSchema.properties?.[field]),
       schemaShapeWithoutDescriptions(staticAttachKeyframe.inputSchema.properties?.[field]),
@@ -282,7 +306,7 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
     schemaShapeWithoutDescriptions(staticAttachKeyframe.inputSchema.allOf),
     'movscript_attach_keyframe_candidate alias requirements should match the static agent catalog',
   )
-  for (const field of ['status', 'candidate', 'keyframe_id', 'resource_id', 'message']) {
+  for (const field of ['status', 'candidate', 'candidates', 'keyframe_id', 'resource_id', 'resource_ids', 'skipped_resource_ids', 'message']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(attachKeyframe.outputSchema?.properties?.[field]),
       schemaShapeWithoutDescriptions(staticAttachKeyframe.outputSchema?.properties?.[field]),
@@ -448,6 +472,97 @@ test('attach asset slot candidate accepts generation output_resource_id alias', 
   }
 })
 
+test('attach asset slot candidate accepts generation output_resource_ids array', async () => {
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const calls: Array<Record<string, unknown>> = []
+  globalThis.fetch = mockFetch({
+    'POST /projects/42/entities/asset-slot-candidates': (body: Record<string, unknown>) => {
+      calls.push(body)
+      return {
+        id: Number(body.resource_id),
+        asset_slot_id: body.asset_slot_id,
+        candidate_asset_slot_id: Number(body.resource_id) + 1000,
+        status: 'candidate',
+      }
+    },
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await attachAssetSlotCandidate({
+      projectId: 42,
+      assetSlotId: 7,
+      outputResourceIds: [88, 89],
+      jobId: 123,
+    }) as Record<string, any>
+
+    assert.deepEqual(calls, [
+      { asset_slot_id: 7, resource_id: 88, source_type: 'agent', source_id: 123 },
+      { asset_slot_id: 7, resource_id: 89, source_type: 'agent', source_id: 123 },
+    ])
+    assert.equal(result.status, 'attached')
+    assert.equal(result.resource_id, 88)
+    assert.deepEqual(result.resource_ids, [88, 89])
+    assert.equal(result.candidates.length, 2)
+    assert.deepEqual(result.candidate_asset_slot_ids, [1088, 1089])
+    assert.match(result.message, /资源 #88、#89 已加入素材位 #7 的候选集/)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+  }
+})
+
+test('attach asset slot candidate skips resources already in the candidate set', async () => {
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const calls: Array<Record<string, unknown>> = []
+  globalThis.fetch = mockFetch({
+    'GET /projects/42/entities/asset-slot-candidates': [
+      {
+        ID: 901,
+        asset_slot_id: 7,
+        status: 'candidate',
+        candidate_asset_slot: {
+          ID: 902,
+          resource_id: 88,
+        },
+      },
+    ],
+    'POST /projects/42/entities/asset-slot-candidates': (body: Record<string, unknown>) => {
+      calls.push(body)
+      return {
+        id: Number(body.resource_id),
+        asset_slot_id: body.asset_slot_id,
+        candidate_asset_slot_id: Number(body.resource_id) + 1000,
+        status: 'candidate',
+      }
+    },
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await attachAssetSlotCandidate({
+      projectId: 42,
+      assetSlotId: 7,
+      outputResourceIds: [88, 89],
+      note: 'do not overwrite existing candidate note',
+    }) as Record<string, any>
+
+    assert.deepEqual(calls, [{
+      asset_slot_id: 7,
+      resource_id: 89,
+      source_type: 'agent',
+      note: 'do not overwrite existing candidate note',
+    }])
+    assert.deepEqual(result.resource_ids, [88, 89])
+    assert.deepEqual(result.skipped_resource_ids, [88])
+    assert.equal(result.candidates.length, 1)
+    assert.match(result.message, /已跳过重复资源 #88/)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+  }
+})
+
 test('attach asset slot candidate requires a resource id or output resource id', async () => {
   await assert.rejects(
     () => attachAssetSlotCandidate({ projectId: 42, asset_slot_id: 7 }),
@@ -571,6 +686,96 @@ test('attach keyframe candidate posts generated resource as a reviewable visual 
     assert.equal(result.resource_id, 88)
     assert.equal(result.candidate.status, 'candidate')
     assert.match(result.message, /资源 #88 已加入画面锚点 #17 的候选集/)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+  }
+})
+
+test('attach keyframe candidate accepts generation output_resource_ids array', async () => {
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const calls: Array<Record<string, unknown>> = []
+  globalThis.fetch = mockFetch({
+    'GET /projects/42/entities/keyframes': [
+      {
+        ID: 17,
+        title: '镜头开场',
+        description: '女主推门进入旧仓库。',
+        prompt: 'Wide shot, rainy warehouse entrance.',
+        status: 'pending',
+      },
+    ],
+    'POST /projects/42/entities/keyframes': (body: Record<string, unknown>) => {
+      calls.push(body)
+      return {
+        ID: Number(body.resource_id) + 1000,
+        ...body,
+      }
+    },
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await attachKeyframeCandidate({
+      projectId: 42,
+      targetKeyframeId: 17,
+      output_resource_ids: [88, 89],
+      jobId: 123,
+    }) as Record<string, any>
+
+    assert.equal(calls.length, 2)
+    assert.deepEqual(calls.map((call) => call.resource_id), [88, 89])
+    assert.deepEqual(result.resource_ids, [88, 89])
+    assert.equal(result.candidates.length, 2)
+    assert.match(result.message, /资源 #88、#89 已加入画面锚点 #17 的候选集/)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+  }
+})
+
+test('attach keyframe candidate skips resources already in the candidate set', async () => {
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const calls: Array<Record<string, unknown>> = []
+  globalThis.fetch = mockFetch({
+    'GET /projects/42/entities/keyframes': [
+      {
+        ID: 17,
+        title: '镜头开场',
+        description: '女主推门进入旧仓库。',
+        prompt: 'Wide shot, rainy warehouse entrance.',
+        status: 'pending',
+      },
+      {
+        ID: 902,
+        resource_id: 88,
+        status: 'candidate',
+        metadata_json: '{"source":"ai_generated_keyframe_candidate","target_keyframe_id":17,"resource_id":88}',
+      },
+    ],
+    'POST /projects/42/entities/keyframes': (body: Record<string, unknown>) => {
+      calls.push(body)
+      return {
+        ID: Number(body.resource_id) + 1000,
+        ...body,
+      }
+    },
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await attachKeyframeCandidate({
+      projectId: 42,
+      targetKeyframeId: 17,
+      output_resource_ids: [88, 89],
+    }) as Record<string, any>
+
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].resource_id, 89)
+    assert.deepEqual(result.resource_ids, [88, 89])
+    assert.deepEqual(result.skipped_resource_ids, [88])
+    assert.equal(result.candidates.length, 1)
+    assert.match(result.message, /已跳过重复资源 #88/)
   } finally {
     globalThis.fetch = previousFetch
     setMCPAPIBaseURL(previousBaseURL)

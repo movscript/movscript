@@ -10,23 +10,25 @@ test('content workbench renders the timeline and selected item details', async (
   await openContentWorkbenchPage(page, testInfo)
 
   await expect(page.getByTestId('content-workbench-command-center')).toBeVisible()
-  await expect(page.getByText('当前情节', { exact: true })).toBeVisible()
+  await expect(page.getByText('编排视图', { exact: true })).toBeVisible()
   await expect(page.getByTestId('content-workbench-command-center').getByRole('heading', { name: '旧伞纸条滑落' })).toBeVisible()
-  await expect(page.getByTestId('content-workbench-hierarchy-filter')).toContainText('制作卡片')
+  await expect(page.getByTestId('content-workbench-production-scope')).toHaveCount(0)
+  await expect(page.getByTestId('content-workbench-hierarchy-filter')).not.toContainText('制作卡片')
   await expect(page.getByTestId('content-workbench-hierarchy-filter')).toContainText('情绪段卡片')
   await expect(page.getByTestId('content-workbench-hierarchy-filter')).toContainText('情节卡片')
-  await page.getByTestId('content-workbench-production-filter').getByRole('button', { name: /雨夜重逢制作/ }).click()
-  await expect(page.getByTestId('content-workbench-scoped-tracks')).toContainText('旧伞纸条滑落')
-  await expect(page.getByTestId('content-workbench-scoped-tracks')).toContainText('门外等待')
-  await page.getByTestId('content-workbench-scene-moment-filter').getByRole('button', { name: /旧伞纸条滑落/ }).click()
+  await expect(page.getByTestId('content-workbench-production-filter')).not.toContainText('全部制作')
+  await expect(page.getByTestId('content-workbench-segment-filter')).not.toContainText('全部情绪段')
+  await expect(page.getByTestId('content-workbench-production-compressed-timeline')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '按情绪段拆分' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '合并为一条' })).toHaveCount(0)
+  await expect(page.getByTestId('content-workbench-keyframe-track')).toHaveCount(0)
+  await expect(page.getByTestId('content-workbench-shot-inputs')).toHaveCount(0)
   await expect(page.getByTestId('content-workbench-unit-track')).toBeVisible()
-  const keyframeTrackBox = await page.getByTestId('content-workbench-keyframe-track').boundingBox()
-  const unitScheduleBox = await page.getByTestId('content-workbench-unit-schedule').boundingBox()
-  expect(keyframeTrackBox?.y).toBeLessThan(unitScheduleBox?.y ?? 0)
-  await expect(page.getByTestId('content-workbench-unit-schedule')).toContainText('制作项时间轴')
-  await expect(page.getByTestId('content-workbench-unit-schedule')).toContainText('0:01-0:05')
-  await expect(page.getByTestId('content-workbench-unit-schedule')).toContainText('预览时间线')
-  await expect(page.getByTestId('content-workbench-unit-schedule')).toContainText('对白：林夏：伞里有东西')
+  await expect(page.getByTestId('content-workbench-unit-kind-filter')).toContainText('全部 2')
+  await expect(page.getByTestId('content-workbench-unit-kind-filter')).toContainText('镜头 2')
+  await expect(page.getByTestId('content-workbench-create-unit-from-track')).toBeVisible()
+  await expect(page.getByTestId('content-workbench-schedule-panel-switcher')).toContainText('制作项时间轴')
+  await expect(page.getByTestId('content-workbench-schedule-panel-switcher')).toContainText('内容编辑')
   await expect(page.getByTestId('content-workbench-unit-timeline')).toContainText('时间尺')
   await expect(page.getByTestId('content-workbench-unit-timeline')).toContainText('镜头')
   await expect(page.getByTestId('content-workbench-unit-timeline')).toContainText('关键帧：纸条落下首帧')
@@ -38,11 +40,11 @@ test('content workbench renders the timeline and selected item details', async (
   await expect(page.getByTestId('content-workbench-timeline-playhead')).toBeVisible()
   await expect(page.getByTestId('content-workbench-timeline-playhead-label')).toContainText('播放头 0:01')
   await expectTimelineBlocksDoNotOverlap(page)
-  await expect(page.getByTestId('content-workbench-unit-inspector')).not.toContainText('制作项详情')
-  await expect(page.locator('#semantic-inline-content-workbench-unit-inspector-801-title')).toHaveValue('纸条特写')
-  await expect(page.locator('#semantic-inline-content-workbench-unit-inspector-801-title')).toBeDisabled()
-  await expect(page.getByTestId('content-workbench-unit-detail-actions').getByRole('button', { name: /^编辑$/ })).toBeEnabled()
-  await expect(page.getByTestId('content-workbench-unit-inspector').getByRole('button', { name: /^保存$/ })).toHaveCount(0)
+  await page.getByTestId('content-workbench-schedule-panel-switcher').getByRole('button', { name: '内容编辑' }).click()
+  await expect(page.getByTestId('content-workbench-schedule-blank-panel')).toBeVisible()
+  await expect(page.getByTestId('content-workbench-schedule-row')).toHaveCount(0)
+  await expect(page.getByTestId('content-workbench-scene-preview')).toContainText('纸条特写')
+  await expect(page.getByTestId('content-workbench-unit-inspector')).toHaveCount(0)
   await expect(page.getByTestId('content-workbench-production-pipeline')).toHaveCount(0)
   await expect(page.getByTestId('content-workbench-readiness-summary')).toHaveCount(0)
   await expect(page.getByTestId('content-workbench-next-actions')).toHaveCount(0)
@@ -59,7 +61,8 @@ test('content workbench keeps core production controls visible on mobile width',
 
   await expect(page.getByTestId('content-workbench-command-center')).toBeVisible()
   await expect(page.getByTestId('content-workbench-unit-track')).toBeVisible()
-  await expect(page.getByTestId('content-workbench-unit-inspector')).toBeVisible()
+  await expect(page.getByTestId('content-workbench-scene-preview')).toBeVisible()
+  await expect(page.getByTestId('content-workbench-shot-inputs')).toHaveCount(0)
   await expect(page.getByTestId('content-workbench-production-pipeline')).toHaveCount(0)
   await expect(page.getByText('生产链路仍有阻塞', { exact: true })).toHaveCount(0)
 })
@@ -114,7 +117,7 @@ test('content workbench can deep link to a unit without an explicit scene moment
 
   await expect(page).toHaveURL(/scene_moment_id=403/)
   await expect(page.getByTestId('content-workbench-command-center')).toContainText('门外等待')
-  await expect(page.locator('#semantic-inline-content-workbench-unit-inspector-804-title')).toHaveValue('门外空镜')
+  await expect(page.getByTestId('content-workbench-scene-preview')).toContainText('门外空镜')
 })
 
 test('content workbench AI planning task carries selected scene context', async ({ page }, testInfo) => {
@@ -188,37 +191,13 @@ test('content workbench can manually add a production item from an empty scene m
   await expect(page).toHaveURL(/content_unit_id=803/)
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByTestId('content-workbench-unit-schedule')).toContainText('窗边旁白')
-  await expect(page.locator('#semantic-inline-content-workbench-unit-inspector-803-title')).toHaveValue('窗边旁白')
+  await expect(page.getByTestId('content-workbench-scene-preview')).toContainText('窗边旁白')
   expect(controls.createdUnitPayloads()).toMatchObject([{
     title: '窗边旁白',
     prompt: '旁白交代林夏看到纸条后的迟疑。',
     production_id: 301,
     segment_id: 401,
     scene_moment_id: 404,
-    status: 'candidate',
-    order: 1,
-  }])
-})
-
-test('content workbench can manually add the first keyframe for a production item', async ({ page }, testInfo) => {
-  const controls = await openContentWorkbenchPage(page, testInfo)
-  await page.goto('/project/content-units/workbench?scene_moment_id=402&content_unit_id=802')
-
-  await expect(page.getByTestId('content-workbench-keyframe-track')).toContainText('当前制作项还没有关键帧')
-  await page.getByRole('button', { name: /添加第一张关键帧/ }).click()
-  await expect(page.getByRole('dialog')).toContainText('添加关键帧')
-  await page.locator('#semantic-inline-content-workbench-create-keyframe-802-title').fill('林夏反应首帧')
-  await page.locator('#semantic-inline-content-workbench-create-keyframe-802-prompt').fill('林夏刚意识到纸条内容，眼神压住情绪。')
-  await page.getByRole('button', { name: /保存/ }).click()
-
-  await expect(page.getByRole('dialog')).toHaveCount(0)
-  await expect(page.getByTestId('content-workbench-keyframe-track')).toContainText('林夏反应首帧')
-  expect(controls.createdKeyframePayloads()).toMatchObject([{
-    title: '林夏反应首帧',
-    prompt: '林夏刚意识到纸条内容，眼神压住情绪。',
-    production_id: 301,
-    scene_moment_id: 402,
-    content_unit_id: 802,
     status: 'candidate',
     order: 1,
   }])
@@ -232,7 +211,7 @@ test('content workbench can drag production items onto the timeline to set timin
       targetPosition: { x: 8, y: 20 },
     })
 
-  await expect(page.getByTestId('content-workbench-schedule-row').first()).toContainText('纸条特写')
+  await expect(page.getByTestId('content-workbench-unit-card').first()).toContainText('纸条特写')
   await expect(page.getByTestId('content-workbench-timeline-playhead-label')).toContainText('播放头 0:00')
   expect(controls.contentUnitUpdates()).toEqual([])
   const movedUpdate = controls.previewTimelineItemUpdates().find((item) => item.id === 7111)
@@ -247,7 +226,7 @@ test('content workbench can reorder production items without dragging', async ({
 
   await page.getByTestId('content-workbench-unit-card').filter({ hasText: '林夏反应' }).getByLabel('前移 林夏反应').click()
 
-  await expect(page.getByTestId('content-workbench-schedule-row').first()).toContainText('林夏反应')
+  await expect(page.getByTestId('content-workbench-unit-card').first()).toContainText('林夏反应')
   expect(controls.contentUnitUpdates()).toEqual(expect.arrayContaining([
     expect.objectContaining({ id: 802, payload: expect.objectContaining({ order: 1 }) }),
     expect.objectContaining({ id: 801, payload: expect.objectContaining({ order: 2 }) }),
@@ -268,32 +247,6 @@ test('content workbench does not expose generation canvas from the header', asyn
   await openContentWorkbenchPage(page, testInfo)
 
   await expect(page.getByRole('button', { name: /打开生成画布|创建生成画布/ })).toHaveCount(0)
-})
-
-test('content workbench focuses a candidate after confirmation', async ({ page }, testInfo) => {
-  const controls = await openContentWorkbenchPage(page, testInfo)
-
-  const candidateQueue = page.getByTestId('content-workbench-candidate-queue')
-  await candidateQueue.click()
-  await candidateQueue.getByRole('button', { name: /确认/ }).click()
-
-  await expect(page).toHaveURL(/content_unit_id=802/)
-  await expect(page.locator('#semantic-inline-content-workbench-unit-inspector-802-title')).toHaveValue('林夏反应')
-  expect(controls.confirmedUnitIds()).toEqual([802])
-})
-
-test('content workbench returns to a usable unit after ignoring the focused candidate', async ({ page }, testInfo) => {
-  const controls = await openContentWorkbenchPage(page, testInfo)
-  await page.goto('/project/content-units/workbench?scene_moment_id=402&content_unit_id=802')
-
-  await expect(page.locator('#semantic-inline-content-workbench-unit-inspector-802-title')).toHaveValue('林夏反应')
-  const candidateQueue = page.getByTestId('content-workbench-candidate-queue')
-  await candidateQueue.click()
-  await candidateQueue.getByRole('button', { name: /忽略/ }).click()
-
-  await expect(page).toHaveURL(/content_unit_id=801/)
-  await expect(page.locator('#semantic-inline-content-workbench-unit-inspector-801-title')).toHaveValue('纸条特写')
-  expect(controls.ignoredUnitIds()).toEqual([802])
 })
 
 async function openContentWorkbenchPage(page: Page, testInfo: TestInfo, options: { previewMountReady?: boolean; hideReviewDraft?: boolean } = {}) {

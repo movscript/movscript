@@ -193,15 +193,16 @@ const statusMeta: Record<string, { label: string; className: string; dot: string
 
 const kindLabels: Record<string, string> = {
   shot: '镜头',
-  visual_segment: '视觉编排段',
-  product_showcase: '产品展示',
-  caption_card: '字幕卡',
-  narration: '旁白',
-  transition: '转场',
+  voiceover: '旁白/画外音',
+  dialogue_audio: '对白音频',
+  sound: '音效',
   music_beat: '音乐节拍',
+  subtitle: '字幕',
+  caption_card: '字幕卡',
+  transition: '转场',
 }
 
-const kindOptions = ['all', 'shot', 'visual_segment', 'product_showcase', 'caption_card', 'narration', 'transition', 'music_beat']
+const kindOptions = ['all', 'shot', 'voiceover', 'dialogue_audio', 'sound', 'music_beat', 'subtitle', 'caption_card', 'transition']
 
 const contentTargetMeta: Record<ContentTargetKind, { label: string; description: string; icon: LucideIcon; slotKeys: string[]; assetKinds: string[] }> = {
   keyframe: {

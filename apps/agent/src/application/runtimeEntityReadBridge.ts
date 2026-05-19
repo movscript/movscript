@@ -11,11 +11,13 @@ import {
   getRuntimeRun,
   listRuntimeRuns,
   listRuntimeRunsByParent,
+  listRuntimeRunsByThread,
 } from './runtimeRunProjection.js'
 
 export interface RuntimeEntityReadBridge {
   listRuns: () => AgentRun[]
   listRunsByParent: (parentRunId: string) => AgentRun[]
+  listRunsByThread: (threadId: string) => AgentRun[]
   getRun: (id: string) => AgentRun | undefined
   getChildRuns: (parentRunId: string) => AgentRun[]
   listPlans: () => AgentPlan[]
@@ -30,6 +32,7 @@ export function createRuntimeEntityReadBridge(input: {
   return {
     listRuns: () => listRuntimeRuns({ store: input.store }),
     listRunsByParent: (parentRunId) => listRuntimeRunsByParent({ store: input.store, parentRunId }),
+    listRunsByThread: (threadId) => listRuntimeRunsByThread({ store: input.store, threadId }),
     getRun: (runId) => getRuntimeRun({ store: input.store, runId }),
     getChildRuns: (parentRunId) => getRuntimeChildRuns({ store: input.store, parentRunId }),
     listPlans: () => listRuntimePlans({ store: input.store }),

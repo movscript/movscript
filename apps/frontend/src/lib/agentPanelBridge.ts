@@ -4,6 +4,7 @@ import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
 
 export const AGENT_PANEL_DRAFT_EVENT = 'movscript:agent-panel-draft'
 export const AGENT_PANEL_RUN_SETTLED_EVENT = 'movscript:agent-panel-run-settled'
+export const AGENT_PANEL_THREAD_EVENT = 'movscript:agent-panel-thread'
 
 export interface AgentPanelRunSettledPayload {
   requestId?: string
@@ -20,9 +21,18 @@ const pageToolsByRequestId = new Map<string, AgentPanelPageTool>()
 
 export type AgentPanelDraftPayload = AgentPageTaskPayload
 
+export interface AgentPanelThreadPayload {
+  threadId: string
+}
+
 export function openAgentPanelDraft(payload: AgentPanelDraftPayload) {
   const normalized = useAgentSessionStore.getState().enqueuePageTask(payload)
   window.dispatchEvent(new CustomEvent<AgentPanelDraftPayload>(AGENT_PANEL_DRAFT_EVENT, { detail: normalized }))
+}
+
+export function openAgentPanelThread(threadId: string) {
+  if (!threadId.trim()) return
+  window.dispatchEvent(new CustomEvent<AgentPanelThreadPayload>(AGENT_PANEL_THREAD_EVENT, { detail: { threadId } }))
 }
 
 export function consumeAgentPanelDraft() {

@@ -17,6 +17,7 @@ export interface Conversation {
   id: string
   title: string
   messages: ChatMessage[]
+  runtimeThreadId?: string
   createdAt: number
   updatedAt: number
 }
@@ -104,12 +105,19 @@ export interface ChatMessageMeta {
   agentName?: string
   permissionMode?: AgentPermissionMode
   contextLabels?: string[]
+  runtimeMessage?: ChatRuntimeMessageRef
   contextDiagnostic?: ChatContextDiagnostic
   generationJobs?: ChatGenerationJob[]
   generationParamAudits?: ChatGenerationParamAudit[]
   generationValidationErrors?: ChatGenerationValidationError[]
   draftArtifacts?: AgentTaskArtifactRef[]
   localRunActivity?: ChatRunActivity
+}
+
+export interface ChatRuntimeMessageRef {
+  threadId: string
+  messageId?: string
+  runId?: string
 }
 
 export interface ChatContextDiagnostic {
@@ -264,8 +272,45 @@ export interface ChatRunActivity {
   failedAt?: string
   error?: string
   warnings?: string[]
+  approvals?: ChatRunActivityApproval[]
+  inputs?: ChatRunActivityInputRequest[]
   steps: ChatRunActivityStep[]
   events: ChatRunActivityEvent[]
+}
+
+export interface ChatRunActivityApproval {
+  id: string
+  runId?: string
+  toolName: string
+  args?: Record<string, unknown>
+  preview?: unknown
+  reason: string
+  risk?: string
+  permission?: string
+  status: string
+  createdAt: string
+  updatedAt: string
+  approvedAt?: string
+  rejectedAt?: string
+}
+
+export interface ChatRunActivityInputRequest {
+  id: string
+  runId?: string
+  title: string
+  summary?: string
+  question: string
+  inputType: string
+  choices: Array<{ id: string; label: string; description?: string }>
+  allowCustomAnswer: boolean
+  status: string
+  createdAt: string
+  updatedAt: string
+  answeredAt?: string
+  answer?: {
+    choiceIds?: string[]
+    text?: string
+  }
 }
 
 export interface ChatRunActivityStep {
@@ -318,9 +363,12 @@ interface AgentStore {
   deleteConversation: (userId: string, id: string) => void
   deleteConversations: (userId: string, ids: string[]) => void
   setActiveConversation: (userId: string, id: string | null) => void
-  addMessage: (userId: string, conversationId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp?: number }) => void
+  addMessage: (userId: string, conversationId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp?: number }) => string
   upsertMessage: (userId: string, conversationId: string, messageId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp?: number }) => void
+  setConversationMessages: (userId: string, conversationId: string, messages: ChatMessage[]) => void
+  updateMessageMeta: (userId: string, conversationId: string, messageId: string, meta: ChatMessageMeta) => void
   removeMessage: (userId: string, conversationId: string, messageId: string) => void
+  setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
   updateConversationTitle: (userId: string, id: string, title: string) => void
   getConversationDraft: (userId: string, conversationId: string) => ConversationDraft
   updateConversationDraft: (userId: string, conversationId: string, patch: Partial<ConversationDraft>) => void
@@ -481,22 +529,26 @@ export const useAgentStore = create<AgentStore>()(
       },
     })),
 
-    addMessage: (userId, conversationId, msg) => set((state) => {
-      const cur = getUserState(state, userId)
-      return {
-        convsByUser: {
-          ...state.convsByUser,
-          [userId]: {
-            ...cur,
-            conversations: cur.conversations.map((c) =>
-              c.id === conversationId
-                ? { ...c, messages: [...c.messages, { ...msg, id: genId(), timestamp: msg.timestamp ?? Date.now() }], updatedAt: Date.now() }
-                : c
-            ),
+    addMessage: (userId, conversationId, msg) => {
+      const id = genId()
+      set((state) => {
+        const cur = getUserState(state, userId)
+        return {
+          convsByUser: {
+            ...state.convsByUser,
+            [userId]: {
+              ...cur,
+              conversations: cur.conversations.map((c) =>
+                c.id === conversationId
+                  ? { ...c, messages: [...c.messages, { ...msg, id, timestamp: msg.timestamp ?? Date.now() }], updatedAt: Date.now() }
+                  : c
+              ),
+            },
           },
-        },
-      }
-    }),
+        }
+      })
+      return id
+    },
 
     upsertMessage: (userId, conversationId, messageId, msg) => set((state) => {
       const cur = getUserState(state, userId)
@@ -520,6 +572,48 @@ export const useAgentStore = create<AgentStore>()(
       }
     }),
 
+    setConversationMessages: (userId, conversationId, messages) => set((state) => {
+      const cur = getUserState(state, userId)
+      const normalizedMessages = normalizeMessages(messages)
+      return {
+        convsByUser: {
+          ...state.convsByUser,
+          [userId]: {
+            ...cur,
+            conversations: cur.conversations.map((c) => c.id === conversationId
+              ? {
+                ...c,
+                messages: normalizedMessages,
+                updatedAt: Date.now(),
+              }
+              : c),
+          },
+        },
+      }
+    }),
+
+    updateMessageMeta: (userId, conversationId, messageId, meta) => set((state) => {
+      const cur = getUserState(state, userId)
+      return {
+        convsByUser: {
+          ...state.convsByUser,
+          [userId]: {
+            ...cur,
+            conversations: cur.conversations.map((c) => {
+              if (c.id !== conversationId) return c
+              return {
+                ...c,
+                messages: c.messages.map((message) => message.id === messageId
+                  ? { ...message, meta: { ...message.meta, ...meta } }
+                  : message),
+                updatedAt: Date.now(),
+              }
+            }),
+          },
+        },
+      }
+    }),
+
     removeMessage: (userId, conversationId, messageId) => set((state) => {
       const cur = getUserState(state, userId)
       return {
@@ -532,6 +626,23 @@ export const useAgentStore = create<AgentStore>()(
                 ? { ...c, messages: c.messages.filter((message) => message.id !== messageId), updatedAt: Date.now() }
                 : c
             ),
+          },
+        },
+      }
+    }),
+
+    setConversationRuntimeThreadId: (userId, conversationId, threadId) => set((state) => {
+      const cur = getUserState(state, userId)
+      const normalizedThreadId = threadId.trim()
+      if (!normalizedThreadId) return {}
+      return {
+        convsByUser: {
+          ...state.convsByUser,
+          [userId]: {
+            ...cur,
+            conversations: cur.conversations.map((c) => c.id === conversationId
+              ? { ...c, runtimeThreadId: normalizedThreadId, updatedAt: Date.now() }
+              : c),
           },
         },
       }
@@ -641,6 +752,7 @@ function normalizeConversations(value: unknown): Conversation[] {
         id,
         title: typeof conversation.title === 'string' && conversation.title.trim() ? conversation.title : i18n.t('agents.chat.newConversation'),
         messages,
+        ...(typeof conversation.runtimeThreadId === 'string' && conversation.runtimeThreadId.trim() ? { runtimeThreadId: conversation.runtimeThreadId.trim() } : {}),
         createdAt: numberOrFallback(conversation.createdAt, messages[0]?.timestamp ?? now),
         updatedAt: numberOrFallback(conversation.updatedAt, messages[messages.length - 1]?.timestamp ?? now),
       }

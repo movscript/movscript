@@ -26,6 +26,10 @@ export function buildCommandFirstClientInput(input: {
     projectId?: number
     productionId?: number
     draftId?: string
+    agent?: {
+      key?: string
+      name?: string
+    }
     selection?: AgentSelectionHint
     route?: { pathname?: string; search?: string; hash?: string }
   }
@@ -48,6 +52,7 @@ export function buildCommandFirstClientInput(input: {
         ...(input.hints?.projectId !== undefined ? { project: { id: input.hints.projectId } } : {}),
         ...(input.hints?.productionId !== undefined ? { productionId: input.hints.productionId } : {}),
         ...(input.hints?.draftId ? { draftId: input.hints.draftId } : {}),
+        ...(input.hints?.agent ? { agent: input.hints.agent } : {}),
         ...(input.hints && 'selection' in input.hints ? { selection: input.hints.selection ?? null } : {}),
         ...(input.labels?.length ? { labels: input.labels } : {}),
       },

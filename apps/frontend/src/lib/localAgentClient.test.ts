@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { isLocalAgentNotFoundError, LocalAgentClient, LocalAgentHTTPError, type AgentRun, type AgentThread } from './localAgentClient'
+import { isLocalAgentNotFoundError, LocalAgentClient, LocalAgentHTTPError, type AgentMessage, type AgentRun, type AgentThread } from './localAgentClient'
 
 test('runMessage reports when a saved thread id is reused', async () => {
   const requests: string[] = []
@@ -10,8 +10,7 @@ test('runMessage reports when a saved thread id is reused', async () => {
     const url = new URL(String(input))
     requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
     if (url.pathname === '/threads/thread_existing') return jsonResponse(thread)
-    if (url.pathname === '/threads/thread_existing/messages') return jsonResponse({ id: 'message_1' })
-    if (url.pathname === '/runs') return jsonResponse(runFixture('run_1', 'thread_existing', 'completed'))
+    if (url.pathname === '/threads/thread_existing/runs') return jsonResponse(messageRunFixture('run_1', 'thread_existing', 'completed'))
     if (url.pathname === '/runs/run_1') return jsonResponse(runFixture('run_1', 'thread_existing', 'completed'))
     return new Response('not found', { status: 404 })
   }, async () => {
@@ -21,6 +20,7 @@ test('runMessage reports when a saved thread id is reused', async () => {
     }, { timeoutMs: 1, pollMs: 1 })
 
     assert.equal(result.thread.id, 'thread_existing')
+    assert.equal(result.sourceMessage?.id, 'msg_1')
     assert.deepEqual(result.threadResolution, {
       requestedThreadId: 'thread_existing',
       threadId: 'thread_existing',
@@ -30,8 +30,8 @@ test('runMessage reports when a saved thread id is reused', async () => {
     })
     assert.deepEqual(requests.slice(0, 3), [
       'GET /threads/thread_existing',
-      'POST /threads/thread_existing/messages',
-      'POST /runs',
+      'POST /threads/thread_existing/runs',
+      'GET /runs/run_1',
     ])
   })
 })
@@ -45,8 +45,7 @@ test('runMessage reports when a missing saved thread id is replaced by a new thr
     if (url.pathname === '/threads/thread_missing') return new Response('missing', { status: 404 })
     if (url.pathname === '/threads' && init?.method === 'POST') return jsonResponse(thread)
     if (url.pathname === '/threads/thread_new') return jsonResponse(thread)
-    if (url.pathname === '/threads/thread_new/messages') return jsonResponse({ id: 'message_1' })
-    if (url.pathname === '/runs') return jsonResponse(runFixture('run_1', 'thread_new', 'completed'))
+    if (url.pathname === '/threads/thread_new/runs') return jsonResponse(messageRunFixture('run_1', 'thread_new', 'completed'))
     if (url.pathname === '/runs/run_1') return jsonResponse(runFixture('run_1', 'thread_new', 'completed'))
     return new Response('not found', { status: 404 })
   }, async () => {
@@ -67,8 +66,8 @@ test('runMessage reports when a missing saved thread id is replaced by a new thr
     assert.deepEqual(requests.slice(0, 4), [
       'GET /threads/thread_missing',
       'POST /threads',
-      'POST /threads/thread_new/messages',
-      'POST /runs',
+      'POST /threads/thread_new/runs',
+      'GET /runs/run_1',
     ])
   })
 })
@@ -125,8 +124,51 @@ test('local agent not found detection uses structured HTTP status when available
   assert.equal(isLocalAgentNotFoundError(new Error('local agent returned 404: legacy')), true)
 })
 
+test('listRunsByThread reads the thread-scoped run projection endpoint', async () => {
+  const requests: string[] = []
+  await withFetch(async (input, init) => {
+    const url = new URL(String(input))
+    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
+    if (url.pathname === '/threads/thread_1/runs') {
+      return jsonResponse({
+        threadId: 'thread_1',
+        runs: [runFixture('run_1', 'thread_1', 'completed')],
+      })
+    }
+    return new Response('not found', { status: 404 })
+  }, async () => {
+    const result = await new LocalAgentClient('http://local.test').listRunsByThread('thread_1')
+
+    assert.equal(result.threadId, 'thread_1')
+    assert.deepEqual(result.runs.map((run) => run.id), ['run_1'])
+    assert.deepEqual(requests, ['GET /threads/thread_1/runs'])
+  })
+})
+
+test('getThreadRuntime reads the combined thread runtime snapshot endpoint', async () => {
+  const requests: string[] = []
+  await withFetch(async (input, init) => {
+    const url = new URL(String(input))
+    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
+    if (url.pathname === '/threads/thread_1/runtime') {
+      return jsonResponse({
+        thread: threadFixture('thread_1'),
+        runs: [runFixture('run_1', 'thread_1', 'completed')],
+      })
+    }
+    return new Response('not found', { status: 404 })
+  }, async () => {
+    const result = await new LocalAgentClient('http://local.test').getThreadRuntime('thread_1')
+
+    assert.equal(result.thread.id, 'thread_1')
+    assert.deepEqual(result.runs.map((run) => run.id), ['run_1'])
+    assert.deepEqual(requests, ['GET /threads/thread_1/runtime'])
+  })
+})
+
 test('runMessageStream reports thread resolution on the streaming path', async () => {
   const requests: string[] = []
+  const runBodies: Array<Record<string, unknown>> = []
   const thread = threadFixture('thread_stream')
   const run = runFixture('run_stream', 'thread_stream', 'completed')
   await withFetch(async (input, init) => {
@@ -135,11 +177,12 @@ test('runMessageStream reports thread resolution on the streaming path', async (
     if (url.pathname === '/threads/thread_missing') return new Response('missing', { status: 404 })
     if (url.pathname === '/threads' && init?.method === 'POST') return jsonResponse(thread)
     if (url.pathname === '/threads/thread_stream') return jsonResponse(thread)
-    if (url.pathname === '/threads/thread_stream/messages') return jsonResponse({ id: 'message_1' })
-    if (url.pathname === '/runs') return jsonResponse(run)
-    if (url.pathname === '/runs/run_stream') return jsonResponse(run)
-    if (url.pathname === '/runs/run_stream/stream') {
-      return new Response(`data: ${JSON.stringify({ type: 'done', run })}\n\n`, {
+    if (url.pathname === '/threads/thread_stream/runs') {
+      runBodies.push(parseJSONBody(init?.body))
+      return jsonResponse({ run, message: messageFixture('msg_stream', 'thread_stream', 'continue') })
+    }
+    if (url.pathname === '/threads/thread_stream/stream') {
+      return new Response(`data: ${JSON.stringify({ type: 'done', threadId: 'thread_stream', run })}\n\n`, {
         status: 200,
         headers: { 'Content-Type': 'text/event-stream' },
       })
@@ -152,6 +195,7 @@ test('runMessageStream reports thread resolution on the streaming path', async (
     }, { timeoutMs: 1000, pollMs: 1 })
 
     assert.equal(result.run.id, 'run_stream')
+    assert.equal(result.sourceMessage?.id, 'msg_stream')
     assert.equal(result.thread.id, 'thread_stream')
     assert.deepEqual(result.threadResolution, {
       requestedThreadId: 'thread_missing',
@@ -160,7 +204,65 @@ test('runMessageStream reports thread resolution on the streaming path', async (
       createdNewThread: true,
       missingRequestedThread: true,
     })
+    assert.ok(requests.includes('GET /threads/thread_stream/stream'))
+    assert.equal(requests.includes('GET /runs/run_stream/stream'), false)
+    assert.equal(runBodies[0]?.message, 'continue')
+  })
+})
+
+test('runMessageStream falls back to run stream when thread stream is unavailable', async () => {
+  const requests: string[] = []
+  const thread = threadFixture('thread_stream')
+  const run = runFixture('run_stream', 'thread_stream', 'completed')
+  await withFetch(async (input, init) => {
+    const url = new URL(String(input))
+    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
+    if (url.pathname === '/threads/thread_stream') return jsonResponse(thread)
+    if (url.pathname === '/threads/thread_stream/runs') {
+      return jsonResponse({ run, message: messageFixture('msg_stream', 'thread_stream', 'continue') })
+    }
+    if (url.pathname === '/threads/thread_stream/stream') return new Response('not found', { status: 404 })
+    if (url.pathname === '/runs/run_stream') return jsonResponse(run)
+    if (url.pathname === '/runs/run_stream/stream') {
+      return new Response(`data: ${JSON.stringify({ type: 'done', run })}\n\n`, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    }
+    return new Response('not found', { status: 404 })
+  }, async () => {
+    const result = await new LocalAgentClient('http://local.test').runMessageStream({
+      threadId: 'thread_stream',
+      message: 'continue',
+    }, { timeoutMs: 1000, pollMs: 1 })
+
+    assert.equal(result.run.id, 'run_stream')
+    assert.ok(requests.includes('GET /threads/thread_stream/stream'))
     assert.ok(requests.includes('GET /runs/run_stream/stream'))
+  })
+})
+
+test('streamThread reads thread-scoped runtime stream events', async () => {
+  const requests: string[] = []
+  const run = runFixture('run_stream', 'thread_stream', 'completed')
+  await withFetch(async (input, init) => {
+    const url = new URL(String(input))
+    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
+    if (url.pathname === '/threads/thread_stream/stream') {
+      return new Response(`data: ${JSON.stringify({ type: 'run', threadId: 'thread_stream', run })}\n\n`, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    }
+    return new Response('not found', { status: 404 })
+  }, async () => {
+    const events: Array<{ type: string; threadId: string }> = []
+    await new LocalAgentClient('http://local.test').streamThread('thread_stream', {
+      onStreamEvent: (event) => events.push({ type: event.type, threadId: event.threadId }),
+    })
+
+    assert.deepEqual(events, [{ type: 'run', threadId: 'thread_stream' }])
+    assert.deepEqual(requests, ['GET /threads/thread_stream/stream'])
   })
 })
 
@@ -276,6 +378,23 @@ function runFixture(id: string, threadId: string, status: AgentRun['status']): A
   }
 }
 
+function messageFixture(id: string, threadId: string, content: string): AgentMessage {
+  return {
+    id,
+    threadId,
+    role: 'user',
+    content,
+    createdAt: '2026-05-16T00:00:00.000Z',
+  }
+}
+
+function messageRunFixture(id: string, threadId: string, status: AgentRun['status']) {
+  return {
+    run: runFixture(id, threadId, status),
+    message: messageFixture('msg_1', threadId, 'continue'),
+  }
+}
+
 function traceEvent(id: string) {
   return {
     id,
@@ -303,6 +422,14 @@ function createAbortError(): Error {
     error.name = 'AbortError'
     return error
   }
+}
+
+function parseJSONBody(body: BodyInit | null | undefined): Record<string, unknown> {
+  if (typeof body !== 'string') return {}
+  const parsed = JSON.parse(body) as unknown
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    ? parsed as Record<string, unknown>
+    : {}
 }
 
 async function withFetch(fetchImpl: typeof fetch, fn: () => Promise<void>): Promise<void> {

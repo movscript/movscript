@@ -38,6 +38,31 @@ test('resolveRunCreationUserInput falls back to latest thread user message', () 
   assert.equal(resolved.sourceUser?.content, 'later request')
 })
 
+test('resolveRunCreationUserInput binds explicit source message before latest thread user', () => {
+  const thread = buildThread([
+    buildMessage('msg_original', 'original request'),
+    buildMessage('msg_later', 'later request'),
+  ])
+
+  const resolved = resolveRunCreationUserInput({
+    sourceMessageId: 'msg_original',
+    thread,
+  })
+
+  assert.equal(resolved.explicitUserMessage, undefined)
+  assert.equal(resolved.sourceUser?.id, 'msg_original')
+  assert.equal(resolved.sourceUser?.content, 'original request')
+})
+
+test('resolveRunCreationUserInput rejects an explicit missing source message', () => {
+  const thread = buildThread([buildMessage('msg_original', 'original request')])
+
+  assert.throws(() => resolveRunCreationUserInput({
+    sourceMessageId: 'msg_missing',
+    thread,
+  }), /source user message not found: msg_missing/)
+})
+
 test('resolveToolRunUserMessage uses client input, explicit message, then tool fallback', () => {
   assert.match(resolveToolRunUserMessage({
     clientInput: {

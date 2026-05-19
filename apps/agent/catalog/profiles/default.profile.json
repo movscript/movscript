@@ -24,5 +24,13 @@
     "maxKnowledgeChunksPerRun": 3,
     "maxHistoryMessages": 6,
     "maxThreadSummaryChars": 4000
+  },
+  "metadata": {
+    "promptPolicy": {
+      "projectStandards": {
+        "mode": "required_for_project_work"
+      },
+      "finalSourceBlock": true
+    }
   }
 }

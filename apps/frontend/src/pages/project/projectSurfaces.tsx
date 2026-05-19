@@ -182,8 +182,8 @@ export const workbenchSurfaces: WorkbenchSurfaceItem[] = [
     shortTitle: '交付',
     href: ROUTES.project.deliveryWorkbench,
     icon: ClipboardCheck,
-    purpose: '围绕某个制作做轻量剪辑装配、资源锁定、导出前检查和放行。',
-    decision: '素材包、轻量成片、放行、阻塞、补齐或导出检查版。',
+    purpose: '围绕某个制作总览交付版本、成片时间线、预览资源、轻量剪辑微调和导出前门禁。',
+    decision: '检查覆盖、预览片段、微调顺序和时长、替换采用资源、标记阻塞或导出检查版。',
     output: '交付包、内部评审版、正式成片和归档记录。',
   },
 ]

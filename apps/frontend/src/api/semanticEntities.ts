@@ -7,6 +7,7 @@ export type SemanticEntityKind =
   | 'segments'
   | 'productionTextBlocks'
   | 'sceneMoments'
+  | 'writingExpressions'
   | 'productions'
   | 'storyboardScripts'
   | 'storyboardVersions'
@@ -422,6 +423,24 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       ]),
       area('metadata_json', '元数据 JSON'),
     ], '情景可以继续修改标题、动作、台词等内容；已有下游生产结构后，父编排段和剧本块来源会被锁定。'),
+    cfg('writingExpressions', 'writing-expressions', '表达条目', '编剧在情节下逐条编辑的对白、动作、沉默、旁白、字幕和画面信息。', 'text-emerald-600', ['kind', 'speaker', 'text', 'intent'], [
+      num('scene_moment_id', '情节 ID', true, false, '表达条目必须属于一个情节'),
+      num('script_block_id', '来源剧本块 ID', false, false, '可选，用于追溯原剧本块'),
+      num('order', '顺序'),
+      selectOptions('kind', '类型', [
+        { value: 'dialogue', label: '对白' },
+        { value: 'action', label: '动作' },
+        { value: 'silence', label: '沉默' },
+        { value: 'narration', label: '旁白' },
+        { value: 'subtitle', label: '字幕' },
+        { value: 'visual', label: '画面信息' },
+      ]),
+      text('speaker', '人物 / 声源'),
+      area('text', '正文', true),
+      area('note', '潜台词 / 表演说明'),
+      area('intent', '表达目的'),
+      area('metadata_json', '元数据 JSON'),
+    ], '表达条目不承担稿件状态；它只表示当前情节里的具体表达。'),
     cfg('productions', 'productions', '制作', '一次完整制作主体，可从剧本、brief、预览创建，也可以直接裸创建。', 'text-orange-600', ['name', 'source_type', 'status', 'description'], [
       text('name', '制作名称', true),
       area('description', '制作说明'),
@@ -458,12 +477,13 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       text('title', '标题', true),
       selectOptions('kind', '类型', [
         { value: 'shot', label: '镜头' },
-        { value: 'visual_segment', label: '视觉段' },
-        { value: 'product_showcase', label: '产品展示' },
-        { value: 'caption_card', label: '字幕卡' },
-        { value: 'narration', label: '旁白' },
-        { value: 'transition', label: '转场' },
+        { value: 'voiceover', label: '旁白/画外音' },
+        { value: 'dialogue_audio', label: '对白音频' },
+        { value: 'sound', label: '音效' },
         { value: 'music_beat', label: '节拍' },
+        { value: 'subtitle', label: '字幕' },
+        { value: 'caption_card', label: '字幕卡' },
+        { value: 'transition', label: '转场' },
       ]),
       num('order', '顺序'),
       num('duration_sec', '时长秒'),
@@ -786,8 +806,8 @@ function textCreateOnly(key: string, label: string, required = false, helper?: s
   return { key, label, type: 'text', required, createOnly: true, helper }
 }
 
-function area(key: string, label: string): SemanticEntityField {
-  return { key, label, type: 'textarea' }
+function area(key: string, label: string, required = false): SemanticEntityField {
+  return { key, label, type: 'textarea', required }
 }
 
 function areaCreateOnly(key: string, label: string, helper?: string): SemanticEntityField {

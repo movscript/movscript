@@ -48,6 +48,12 @@ func registerSemanticEntityRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.DELETE("/projects/:id/entities/scene-moments/:sceneMomentId", func(c *gin.Context) {
 		h.semanticEntities.DeleteSemanticItemByKind(c, "scene_moment", c.Param("sceneMomentId"))
 	})
+	protected.GET("/projects/:id/entities/writing-expressions", h.semanticEntities.ListWritingExpressions)
+	protected.POST("/projects/:id/entities/writing-expressions", h.semanticEntities.CreateWritingExpression)
+	protected.PATCH("/projects/:id/entities/writing-expressions/:expressionId", h.semanticEntities.PatchWritingExpression)
+	protected.DELETE("/projects/:id/entities/writing-expressions/:expressionId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItemByKind(c, "writing_expression", c.Param("expressionId"))
+	})
 	protected.GET("/projects/:id/entities/storyboard-scripts", h.semanticEntities.ListStoryboardScripts)
 	protected.POST("/projects/:id/entities/storyboard-scripts", h.semanticEntities.CreateStoryboardScript)
 	protected.PATCH("/projects/:id/entities/storyboard-scripts/:storyboardScriptId", h.semanticEntities.PatchStoryboardScript)

@@ -258,6 +258,13 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&persistencemodel.CreativeReference{})
 			},
 		},
+		{
+			Version: "000027",
+			Name:    "add_writing_expressions",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.WritingExpression{})
+			},
+		},
 	}
 	return core
 }
@@ -714,6 +721,7 @@ func allModels() []any {
 		&persistencemodel.ProductionTextBlock{},
 		&persistencemodel.Segment{},
 		&persistencemodel.SceneMoment{},
+		&persistencemodel.WritingExpression{},
 		&persistencemodel.ContentUnit{},
 		&persistencemodel.Keyframe{},
 		&persistencemodel.PreviewTimeline{},
@@ -785,6 +793,7 @@ func currentSchemaBackfillModels() []any {
 		&persistencemodel.ProductionTextBlock{},
 		&persistencemodel.Segment{},
 		&persistencemodel.SceneMoment{},
+		&persistencemodel.WritingExpression{},
 		&persistencemodel.ContentUnit{},
 		&persistencemodel.Keyframe{},
 		&persistencemodel.PreviewTimeline{},

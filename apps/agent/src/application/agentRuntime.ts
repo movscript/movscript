@@ -175,6 +175,7 @@ import type {
   AgentRun,
   AgentTraceEvent,
   AgentRunStreamEvent,
+  AgentThreadStreamEvent,
   AgentRunStep,
   AgentRuntimeOptions,
   AgentCapabilitiesResponse,
@@ -313,6 +314,7 @@ export class AgentRuntime {
   private readonly runControllers = new RuntimeRunControllerRegistry()
   private readonly runAuth = new RuntimeRunAuthRegistry()
   private readonly runStreamSubscribers = new RuntimeEventSubscriberRegistry<AgentRunStreamEvent>()
+  private readonly threadStreamSubscribers = new RuntimeEventSubscriberRegistry<AgentThreadStreamEvent>()
   private readonly planStreamSubscribers = new RuntimeEventSubscriberRegistry<AgentPlanStreamEvent>()
   private readonly postRunRecordTasks = new RuntimeDeferredTaskRegistry()
   private readonly streams: RuntimeStreamBridge
@@ -438,6 +440,7 @@ export class AgentRuntime {
     this.streams = createRuntimeStreamBridge({
       store: this.store,
       runSubscribers: this.runStreamSubscribers,
+      threadSubscribers: this.threadStreamSubscribers,
       planSubscribers: this.planStreamSubscribers,
       getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
       createTraceId: () => makeId('trace'),
@@ -709,6 +712,10 @@ export class AgentRuntime {
     return this.entityReads.listRunsByParent(parentRunId)
   }
 
+  listRunsByThread(threadId: string): AgentRun[] {
+    return this.entityReads.listRunsByThread(threadId)
+  }
+
   getRun(id: string): AgentRun | undefined {
     return this.entityReads.getRun(id)
   }
@@ -771,6 +778,10 @@ export class AgentRuntime {
 
   subscribeRunStream(runId: string, listener: (event: AgentRunStreamEvent) => void): () => void {
     return this.streamSubscriptions.subscribeRunStream(runId, listener)
+  }
+
+  subscribeThreadStream(threadId: string, listener: (event: AgentThreadStreamEvent) => void): () => void {
+    return this.streamSubscriptions.subscribeThreadStream(threadId, listener)
   }
 
   subscribePlanStream(planId: string, listener: (event: AgentPlanStreamEvent) => void): () => void {

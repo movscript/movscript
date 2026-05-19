@@ -61,7 +61,14 @@ export function buildAgentMessage(input: {
     : typeof input.messageInput.content === 'string' ? input.messageInput.content.trim() : ''
   if (!content) throw new Error('message content is required')
   return {
-    message: { id: input.id, threadId: input.threadId, role, content, createdAt: input.now },
+    message: {
+      id: input.id,
+      threadId: input.threadId,
+      role,
+      content,
+      ...(clientInput ? { clientInput: cloneJSONValue(clientInput as unknown as JSONValue) } : {}),
+      createdAt: input.now,
+    },
     ...(clientInput ? { clientInput } : {}),
   }
 }

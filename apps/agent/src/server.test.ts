@@ -150,6 +150,7 @@ test('write endpoints reject non-object request bodies before touching runtime d
     { method: 'POST', path: '/threads', label: 'thread body' },
     { method: 'PATCH', path: '/threads/thread_1', label: 'thread update body' },
     { method: 'POST', path: '/threads/thread_1/messages', label: 'message body' },
+    { method: 'POST', path: '/threads/thread_1/runs', label: 'thread run body' },
     { method: 'POST', path: '/runs', label: 'run body' },
     { method: 'POST', path: '/runs/tool', label: 'tool run body' },
     { method: 'POST', path: '/runs/preview', label: 'run preview body' },
@@ -174,6 +175,194 @@ test('write endpoints reject non-object request bodies before touching runtime d
     assert.equal(response.statusCode, 400, entry.path)
     assert.equal(JSON.parse(response.body).error, `${entry.label} must be an object`, entry.path)
   }
+})
+
+test('thread run endpoint appends a user message and creates a run bound to that message', async () => {
+  const calls: Array<{ endpoint: string; input: Record<string, unknown> }> = []
+  const handler = createAgentRequestListener({
+    agentRuntime: {
+      addMessage: (threadId: string, input: Record<string, unknown>) => {
+        calls.push({ endpoint: 'message', input: { threadId, ...input } })
+        return { id: 'msg_bound', threadId, role: 'user', content: input.content, createdAt: '2026-05-19T00:00:00.000Z' }
+      },
+      createRun: (input: Record<string, unknown>) => {
+        calls.push({ endpoint: 'run', input })
+        return { id: 'run_bound', threadId: input.threadId, status: 'queued' }
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'POST', '/threads/thread_1/runs', JSON.stringify({
+    message: 'Continue safely',
+    clientInput: { visibleMessage: 'Continue safely', attachments: [] },
+    policy: { maxIterations: 2 },
+    sourceMessageId: 'ignored_client_source',
+  }))
+
+  assert.equal(response.statusCode, 201)
+  assert.deepEqual(JSON.parse(response.body), {
+    run: { id: 'run_bound', threadId: 'thread_1', status: 'queued' },
+    message: {
+      id: 'msg_bound',
+      threadId: 'thread_1',
+      role: 'user',
+      content: 'Continue safely',
+      createdAt: '2026-05-19T00:00:00.000Z',
+    },
+  })
+  assert.deepEqual(calls, [
+    {
+      endpoint: 'message',
+      input: {
+        threadId: 'thread_1',
+        role: 'user',
+        content: 'Continue safely',
+        clientInput: { visibleMessage: 'Continue safely', attachments: [] },
+      },
+    },
+    {
+      endpoint: 'run',
+      input: {
+        clientInput: { visibleMessage: 'Continue safely', attachments: [] },
+        policy: { maxIterations: 2 },
+        threadId: 'thread_1',
+        sourceMessageId: 'msg_bound',
+        role: 'planner',
+      },
+    },
+  ])
+})
+
+test('thread runs endpoint lists only runs from the requested thread', async () => {
+  const handler = createAgentRequestListener({
+    agentRuntime: {
+      getThread: (threadId: string) => threadId === 'thread_1'
+        ? { id: threadId, messages: [], createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:00.000Z' }
+        : undefined,
+      listRunsByThread: () => [
+        { id: 'run_1', threadId: 'thread_1', status: 'completed' },
+      ],
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'GET', '/threads/thread_1/runs')
+
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(JSON.parse(response.body), {
+    threadId: 'thread_1',
+    runs: [{ id: 'run_1', threadId: 'thread_1', status: 'completed' }],
+  })
+})
+
+test('thread runtime endpoint returns a consistent thread and run snapshot', async () => {
+  const thread = {
+    id: 'thread_1',
+    messages: [{ id: 'msg_1', threadId: 'thread_1', role: 'user', content: 'Continue', createdAt: '2026-05-19T00:00:00.000Z' }],
+    createdAt: '2026-05-19T00:00:00.000Z',
+    updatedAt: '2026-05-19T00:00:01.000Z',
+  }
+  const handler = createAgentRequestListener({
+    agentRuntime: {
+      getThread: (threadId: string) => threadId === 'thread_1' ? thread : undefined,
+      listRunsByThread: () => [
+        { id: 'run_1', threadId: 'thread_1', status: 'completed' },
+      ],
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'GET', '/threads/thread_1/runtime')
+
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(JSON.parse(response.body), {
+    thread,
+    runs: [{ id: 'run_1', threadId: 'thread_1', status: 'completed' }],
+  })
+})
+
+test('thread runs endpoint returns not found for missing threads', async () => {
+  const handler = createAgentRequestListener({
+    agentRuntime: {
+      getThread: () => undefined,
+      listRunsByThread: () => [],
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'GET', '/threads/missing/runs')
+
+  assert.equal(response.statusCode, 404)
+  assert.equal(JSON.parse(response.body).error, 'thread not found')
+})
+
+test('thread runtime endpoint returns not found for missing threads', async () => {
+  const handler = createAgentRequestListener({
+    agentRuntime: {
+      getThread: () => undefined,
+      listRunsByThread: () => [],
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'GET', '/threads/missing/runtime')
+
+  assert.equal(response.statusCode, 404)
+  assert.equal(JSON.parse(response.body).error, 'thread not found')
+})
+
+test('thread stream endpoint delegates thread-scoped runtime stream events', async () => {
+  const calls: string[] = []
+  const handler = createAgentRequestListener({
+    agentRuntime: {
+      getThread: (threadId: string) => threadId === 'thread_1'
+        ? { id: threadId, messages: [], createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:00.000Z' }
+        : undefined,
+      subscribeThreadStream: (threadId: string, listener: (event: unknown) => void) => {
+        calls.push(`subscribe:${threadId}`)
+        listener({ type: 'run', threadId, run: { id: 'run_1', threadId, status: 'completed' } })
+        return () => calls.push(`unsubscribe:${threadId}`)
+      },
+    },
+  } as unknown as AgentServerContext)
+  const req = new EventEmitter() as IncomingMessage & { method?: string; url?: string; headers: Record<string, string> }
+  req.method = 'GET'
+  req.url = '/threads/thread_1/stream'
+  req.headers = { host: '127.0.0.1' }
+  let statusCode = 0
+  let output = ''
+  const res = {
+    setHeader() {},
+    writeHead(code: number) {
+      statusCode = code
+    },
+    write(chunk: string) {
+      output += chunk
+    },
+    end() {},
+    writableEnded: false,
+  } as unknown as ServerResponse
+
+  await handler(req, res)
+  req.emit('close')
+
+  assert.equal(statusCode, 200)
+  assert.match(output, /: connected/)
+  assert.match(output, /event: run/)
+  assert.match(output, /"threadId":"thread_1"/)
+  assert.deepEqual(calls, ['subscribe:thread_1', 'unsubscribe:thread_1'])
+})
+
+test('thread stream endpoint returns not found for missing threads', async () => {
+  const handler = createAgentRequestListener({
+    agentRuntime: {
+      getThread: () => undefined,
+      subscribeThreadStream: () => {
+        throw new Error('should not subscribe missing thread')
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'GET', '/threads/missing/stream')
+
+  assert.equal(response.statusCode, 404)
+  assert.equal(JSON.parse(response.body).error, 'thread not found')
 })
 
 test('agent skill bundle install endpoint writes plugin skills and reloads catalog', async () => {

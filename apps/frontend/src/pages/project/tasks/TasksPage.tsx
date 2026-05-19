@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
   BadgeCheck,
+  Bot,
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
@@ -23,11 +24,15 @@ import {
 } from 'lucide-react'
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
+import { openAgentPanelDraft, openAgentPanelThread, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
 import { usePermissions } from '@/hooks/usePermissions'
 import { api } from '@/lib/api'
 import { generatedKeyframeCandidateTargetId, isGeneratedKeyframeCandidateRecord, isUnresolvedCandidateStatus } from '@/lib/agentGeneratedResourceBinding'
 import { invalidateAssetCandidateConsumers } from '@/lib/assetCandidateQueryInvalidation'
 import { cn } from '@/lib/utils'
+import { agentRunPath, ROUTES } from '@/routes/projectRoutes'
+import { useAgentSessionStore } from '@/store/agentSessionStore'
 import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
 import type { ProjectMember, User } from '@/types'
@@ -50,6 +55,13 @@ type UserTaskType = 'execution' | 'generation' | 'hybrid' | 'review' | 'fix' | '
 type WorkTargetType = 'project' | 'production' | 'segment' | 'scene_moment' | 'content_unit' | 'asset_slot' | 'keyframe' | 'delivery_version'
 type WorkItemResultType = 'none' | 'status_change' | 'lock_asset_candidate' | 'accept_keyframe' | 'approve_delivery_version'
 type TaskPurpose = 'general' | 'review_output' | 'choose_asset_candidate' | 'confirm_content_unit' | 'accept_keyframe' | 'approve_delivery'
+type TaskAgentKey = 'project_assistant' | 'asset_agent' | 'storyboard_agent' | 'delivery_agent'
+
+interface TaskAgentOption {
+  key: TaskAgentKey
+  name: string
+  description: string
+}
 
 interface WorkItem {
   ID: number
@@ -85,6 +97,16 @@ interface WorkItemMetadata {
   submitted_at?: string
   approved_at?: string
   reviewer_name?: string
+  agent_key?: TaskAgentKey | string
+  agent_name?: string
+  agent_source?: 'task_publish' | string
+  agent_request_id?: string
+  agent_thread_id?: string
+  agent_run_id?: string
+  agent_status?: string
+  agent_published_at?: string
+  agent_completed_at?: string
+  agent_error?: string
 }
 
 type WorkReviewStatus = 'pending' | 'approved' | 'changes_requested' | 'rejected'
@@ -156,6 +178,7 @@ interface TaskCreateDraft {
   priority: TaskPriority
   resultType: WorkItemResultType
   resultJSON: string
+  agentKey?: TaskAgentKey
 }
 
 interface TaskCreateDialogInitialDraft {
@@ -166,6 +189,35 @@ interface TaskCreateDialogInitialDraft {
 }
 
 const seededTasks: ProjectTask[] = []
+
+const taskAgentOptions: TaskAgentOption[] = [
+  {
+    key: 'project_assistant',
+    name: '项目助理 Agent',
+    description: '整理上下文、拆解执行步骤，并把处理过程留在任务会话里。',
+  },
+  {
+    key: 'asset_agent',
+    name: '素材 Agent',
+    description: '适合素材需求、候选资源、图片或视频资产相关任务。',
+  },
+  {
+    key: 'storyboard_agent',
+    name: '分镜 Agent',
+    description: '适合画面锚点、镜头描述和内容结构相关任务。',
+  },
+  {
+    key: 'delivery_agent',
+    name: '交付检查 Agent',
+    description: '适合交付版本检查、审核意见整理和收口任务。',
+  },
+]
+
+const defaultTaskAgentKey: TaskAgentKey = 'project_assistant'
+
+function taskAgentOptionByKey(key?: string) {
+  return taskAgentOptions.find((agent) => agent.key === key) ?? taskAgentOptions.find((agent) => agent.key === defaultTaskAgentKey)!
+}
 
 const targetTypeLabels: Record<WorkTargetType, string> = {
   project: '项目',
@@ -491,6 +543,60 @@ function formatDateTime(value?: string) {
   })
 }
 
+function agentWorkStatusLabel(status?: string, requestId?: string) {
+  if (!status && !requestId) return '未发布'
+  if (status === 'queued') return '已发布'
+  if (status === 'in_progress' || status === 'running') return '执行中'
+  if (status === 'requires_action') return '等待确认'
+  if (status === 'completed') return '已完成'
+  if (status === 'completed_with_warnings') return '完成有警告'
+  if (status === 'failed' || status === 'error') return '失败'
+  if (status === 'cancelled') return '已取消'
+  if (requestId) return status ? `已发布 · ${status}` : '已发布'
+  return status ?? '未发布'
+}
+
+function agentRequestCanRetry(status?: string) {
+  return status === 'failed' || status === 'error' || status === 'cancelled'
+}
+
+function buildAgentTaskMessage(task: ProjectTask, projectName: string) {
+  const lines = [
+    '请基于任务系统中的这条任务开始处理，并把执行过程和结果保留在当前 AI 会话里。',
+    '',
+    `项目：${projectName}`,
+    `任务 ID：${task.id}`,
+    `任务标题：${task.title}`,
+    `任务类型：${taskTypeMeta[task.taskType].label}`,
+    `当前状态：${statusMeta[task.status].label}`,
+    `优先级：${priorityMeta[task.priority].label}`,
+    `执行成员：${task.assigneeName}`,
+    `审核人：${task.reviewerName}`,
+    `关联对象：${task.target}`,
+    `截止时间：${task.due}`,
+    '',
+    '任务说明：',
+    task.description || '无',
+    '',
+    '完成动作：',
+    `${resultTypeMeta[(task.resultType as WorkItemResultType) || 'none']?.label ?? task.resultType}。${resultSummary((task.resultType as WorkItemResultType) || 'none', task.resultJSON)}`,
+  ]
+  if (task.deliverable) {
+    lines.push('', '已有提交内容：', task.deliverable)
+  }
+  if (task.reviewNote) {
+    lines.push('', '审核意见：', task.reviewNote)
+  }
+  lines.push(
+    '',
+    '执行要求：',
+    '- 先按任务说明处理，不要自动把业务任务标记完成。',
+    '- 如果需要人确认，请在会话里说明需要确认的点。',
+    '- 完成后给出可供成员提交审核的结果摘要。',
+  )
+  return lines.join('\n')
+}
+
 function optionalPositiveID(value: string) {
   const n = Number(value.trim())
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined
@@ -665,12 +771,14 @@ function TaskCreateDialog({
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [targetStatus, setTargetStatus] = useState('confirmed')
   const [candidateID, setCandidateID] = useState('')
+  const [agentKey, setAgentKey] = useState<TaskAgentKey | ''>('')
   const initialTargetKey = initialDraft?.targetType && initialDraft.targetId ? `${initialDraft.targetType}:${initialDraft.targetId}` : ''
 
   const availableTargets = useMemo(() => purposeTargetOptions(purpose, targetOptions), [purpose, targetOptions])
   const selectedTarget = availableTargets.find((target) => target.key === targetKey) ?? availableTargets[0]
   const selectedAssignee = memberOptions.find((member) => String(member.id) === assigneeId) ?? memberOptions[0]
   const purposeMeta = taskPurposeMeta[purpose]
+  const selectedAgent = agentKey ? taskAgentOptionByKey(agentKey) : undefined
   const resultType = purposeMeta.resultType
   const candidateOptions = useMemo(
     () => candidateOptionsForAssetSlot(assetSlotCandidates, resultType === 'lock_asset_candidate' ? selectedTarget?.id : undefined),
@@ -726,6 +834,7 @@ function TaskCreateDialog({
     setPriority('medium')
     setTargetStatus(taskPurposeMeta[nextPurpose].defaultStatus ?? 'confirmed')
     setCandidateID(initialDraft?.candidateId ? String(initialDraft.candidateId) : '')
+    setAgentKey('')
   }, [initialDraft?.candidateId, initialDraft?.purpose, initialTargetKey, memberOptions, open, targetOptions])
 
   useEffect(() => {
@@ -788,216 +897,241 @@ function TaskCreateDialog({
       priority,
       resultType,
       resultJSON,
+      agentKey: selectedAgent?.key,
     })
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[88vh] w-[min(920px,calc(100vw-32px))] overflow-auto p-0">
-        <DialogHeader className="border-b border-border px-5 py-4">
+      <DialogContent className="flex max-h-[88vh] w-[min(920px,calc(100vw-32px))] flex-col overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b border-border px-5 py-4">
           <DialogTitle>新建任务</DialogTitle>
           <DialogDescription>
             选择任务目的和关联对象，系统会自动生成完成后的实体动作。
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 p-5">
-          <section>
-            <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-              <ClipboardList size={14} />
-              <span>任务目的</span>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {Object.entries(taskPurposeMeta).map(([key, meta]) => {
-                const active = purpose === key
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setPurpose(key as TaskPurpose)}
-                    className={cn(
-                      'min-h-[86px] rounded-md border p-3 text-left transition-colors',
-                      active ? 'border-primary bg-primary/5' : 'border-border bg-background hover:border-primary/40'
-                    )}
-                  >
-                    <p className="text-sm font-semibold text-foreground">{meta.label}</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{meta.description}</p>
-                  </button>
-                )
-              })}
-            </div>
-          </section>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="grid gap-4 p-5">
+            <section>
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                <ClipboardList size={14} />
+                <span>任务目的</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {Object.entries(taskPurposeMeta).map(([key, meta]) => {
+                  const active = purpose === key
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setPurpose(key as TaskPurpose)}
+                      className={cn(
+                        'min-h-[86px] rounded-md border p-3 text-left transition-colors',
+                        active ? 'border-primary bg-primary/5' : 'border-border bg-background hover:border-primary/40'
+                      )}
+                    >
+                      <p className="text-sm font-semibold text-foreground">{meta.label}</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{meta.description}</p>
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
 
-          <section className="grid grid-cols-[minmax(0,1fr)_280px] gap-4">
-            <div className="space-y-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">关联对象</label>
-                <select
-                  value={selectedTarget?.key ?? ''}
-                  onChange={(event) => setTargetKey(event.target.value)}
-                  className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
-                >
-                  {availableTargets.map((target) => (
-                    <option key={target.key} value={target.key}>{target.label}</option>
-                  ))}
-                </select>
-                {availableTargets.length === 0 && (
-                  <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">当前任务目的没有可用对象。</p>
+            <section className="grid grid-cols-[minmax(0,1fr)_280px] gap-4">
+              <div className="space-y-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">关联对象</label>
+                  <select
+                    value={selectedTarget?.key ?? ''}
+                    onChange={(event) => setTargetKey(event.target.value)}
+                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                  >
+                    {availableTargets.map((target) => (
+                      <option key={target.key} value={target.key}>{target.label}</option>
+                    ))}
+                  </select>
+                  {availableTargets.length === 0 && (
+                    <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">当前任务目的没有可用对象。</p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">执行成员</label>
+                    <select
+                      value={selectedAssignee ? String(selectedAssignee.id) : ''}
+                      onChange={(event) => setAssigneeId(event.target.value)}
+                      className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                    >
+                      {memberOptions.map((member) => (
+                        <option key={member.id} value={member.id}>{member.name} · {member.role}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">截止时间</label>
+                    <select
+                      value={due}
+                      onChange={(event) => setDue(event.target.value)}
+                      className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                    >
+                      <option value="今天 18:00">今天 18:00</option>
+                      <option value="明天 18:00">明天 18:00</option>
+                      <option value="本周五 18:00">本周五 18:00</option>
+                      <option value="未设置">未设置</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-[minmax(0,1fr)_150px] gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">任务标题</label>
+                    <input
+                      value={title}
+                      onChange={(event) => setTitle(event.target.value)}
+                      className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">优先级</label>
+                    <select
+                      value={priority}
+                      onChange={(event) => setPriority(event.target.value as TaskPriority)}
+                      className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                    >
+                      <option value="high">高</option>
+                      <option value="medium">中</option>
+                      <option value="low">低</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">任务说明</label>
+                  <textarea
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    placeholder="可补充交付要求、审核重点或上下文"
+                    className="min-h-[82px] w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                  />
+                </div>
+
+                {resultType === 'status_change' && (
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">通过后目标状态</label>
+                    <select
+                      value={targetStatus}
+                      onChange={(event) => setTargetStatus(event.target.value)}
+                      className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                    >
+                      <option value="confirmed">confirmed</option>
+                      <option value="locked">locked</option>
+                      <option value="accepted">accepted</option>
+                      <option value="approved">approved</option>
+                    </select>
+                  </div>
+                )}
+
+                {resultType === 'lock_asset_candidate' && (
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">候选素材</label>
+                    <select
+                      value={selectedCandidate ? String(selectedCandidate.ID) : ''}
+                      onChange={(event) => setCandidateID(event.target.value)}
+                      disabled={!candidateOptions.length}
+                      className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+                    >
+                      {requestedAssetCandidateUnavailable && <option value="">指定候选不可采纳</option>}
+                      {candidateOptions.map((candidate) => (
+                        <option key={candidate.ID} value={candidate.ID}>{candidateOptionLabel(candidate)}</option>
+                      ))}
+                    </select>
+                    {!candidateOptions.length && (
+                      <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">
+                        {requestedAssetCandidateUnavailable ? '指定素材候选缺少资源或已不可采纳，请回预制作或 AI 助手重新加入候选。' : '当前素材需求暂无可采纳候选，请先在预制作或 AI 助手中加入带资源的候选。'}
+                      </p>
+                    )}
+                    {candidateOptions.length > 0 && requestedAssetCandidateUnavailable && (
+                      <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">指定素材候选缺少资源或已不可采纳，请重新选择一个可采纳候选，或回预制作/AI 助手重新加入候选。</p>
+                    )}
+                  </div>
+                )}
+
+                {resultType === 'accept_keyframe' && (
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">候选画面锚点</label>
+                    <select
+                      value={selectedKeyframeCandidate ? String(selectedKeyframeCandidate.ID) : ''}
+                      onChange={(event) => setCandidateID(event.target.value)}
+                      disabled={!keyframeCandidateOptions.length}
+                      className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+                    >
+                      {requestedKeyframeCandidateUnavailable && <option value="">指定候选不可采纳</option>}
+                      {keyframeCandidateOptions.map((candidate) => (
+                        <option key={candidate.ID} value={candidate.ID}>{keyframeCandidateOptionLabel(candidate)}</option>
+                      ))}
+                    </select>
+                    {!keyframeCandidateOptions.length && (
+                      <p className={cn('mt-2 text-xs', requestedKeyframeCandidateUnavailable ? 'text-rose-600 dark:text-rose-300' : 'text-muted-foreground')}>
+                        {requestedKeyframeCandidateUnavailable ? '指定候选缺少资源或已不可采纳，请回工作台拒绝该候选或重新加入候选。' : '当前画面锚点暂无 AI 候选，通过后会直接采纳当前画面锚点。'}
+                      </p>
+                    )}
+                    {keyframeCandidateOptions.length > 0 && requestedKeyframeCandidateUnavailable && (
+                      <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">指定候选缺少资源或已不可采纳，请重新选择一个可采纳候选，或回工作台拒绝该候选后重新加入候选。</p>
+                    )}
+                  </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <aside className="space-y-4 rounded-md border border-border bg-background p-3">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">执行成员</label>
+                  <p className="text-xs font-medium text-muted-foreground">对象摘要</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{selectedTarget?.label ?? '未选择对象'}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{selectedTarget?.subtitle || projectName}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <Info label="任务类型" value={taskTypeMeta[purposeMeta.taskType].label} />
+                  <Info label="完成动作" value={resultTypeMeta[resultType].label} />
+                  <Info label="执行成员" value={selectedAssignee?.name ?? '未选择'} />
+                  <Info label="截止时间" value={due} />
+                </div>
+                <div className="space-y-2 border-t border-border pt-3">
+                  <label className="block text-xs font-medium text-muted-foreground">AI 助手</label>
                   <select
-                    value={selectedAssignee ? String(selectedAssignee.id) : ''}
-                    onChange={(event) => setAssigneeId(event.target.value)}
-                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                    value={agentKey}
+                    onChange={(event) => setAgentKey(event.target.value as TaskAgentKey | '')}
+                    className="h-10 w-full rounded-md border border-border bg-card px-3 text-sm text-foreground outline-none focus:border-primary"
                   >
-                    {memberOptions.map((member) => (
-                      <option key={member.id} value={member.id}>{member.name} · {member.role}</option>
+                    <option value="">不发送给 AI 助手</option>
+                    {taskAgentOptions.map((agent) => (
+                      <option key={agent.key} value={agent.key}>{agent.name}</option>
                     ))}
                   </select>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    {selectedAgent ? selectedAgent.description : '仅创建人工任务，之后仍可在任务详情中交给 AI 助手。'}
+                  </p>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">截止时间</label>
-                  <select
-                    value={due}
-                    onChange={(event) => setDue(event.target.value)}
-                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
-                  >
-                    <option value="今天 18:00">今天 18:00</option>
-                    <option value="明天 18:00">明天 18:00</option>
-                    <option value="本周五 18:00">本周五 18:00</option>
-                    <option value="未设置">未设置</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-[minmax(0,1fr)_150px] gap-3">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">任务标题</label>
-                  <input
-                    value={title}
-                    onChange={(event) => setTitle(event.target.value)}
-                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">优先级</label>
-                  <select
-                    value={priority}
-                    onChange={(event) => setPriority(event.target.value as TaskPriority)}
-                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
-                  >
-                    <option value="high">高</option>
-                    <option value="medium">中</option>
-                    <option value="low">低</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">任务说明</label>
-                <textarea
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  placeholder="可补充交付要求、审核重点或上下文"
-                  className="min-h-[82px] w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
-                />
-              </div>
-
-              {resultType === 'status_change' && (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">通过后目标状态</label>
-                  <select
-                    value={targetStatus}
-                    onChange={(event) => setTargetStatus(event.target.value)}
-                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
-                  >
-                    <option value="confirmed">confirmed</option>
-                    <option value="locked">locked</option>
-                    <option value="accepted">accepted</option>
-                    <option value="approved">approved</option>
-                  </select>
-                </div>
-              )}
-
-              {resultType === 'lock_asset_candidate' && (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">候选素材</label>
-                  <select
-                    value={selectedCandidate ? String(selectedCandidate.ID) : ''}
-                    onChange={(event) => setCandidateID(event.target.value)}
-                    disabled={!candidateOptions.length}
-                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
-                  >
-                    {requestedAssetCandidateUnavailable && <option value="">指定候选不可采纳</option>}
-                    {candidateOptions.map((candidate) => (
-                      <option key={candidate.ID} value={candidate.ID}>{candidateOptionLabel(candidate)}</option>
-                    ))}
-                  </select>
-                  {!candidateOptions.length && (
-                    <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">
-                      {requestedAssetCandidateUnavailable ? '指定素材候选缺少资源或已不可采纳，请回预制作或 AI 助手重新加入候选。' : '当前素材需求暂无可采纳候选，请先在预制作或 AI 助手中加入带资源的候选。'}
+                <div className="border-t border-border pt-3">
+                  <p className="text-xs font-medium text-muted-foreground">发布摘要</p>
+                  <p className="mt-2 text-sm leading-6 text-foreground">
+                    将任务“{title.trim() || purposeMeta.defaultTitle}”分配给{selectedAssignee?.name ?? '成员'}。
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">{resultSummary(resultType, resultJSON)}</p>
+                  {selectedAgent && (
+                    <p className="mt-2 inline-flex items-center gap-1 rounded-md bg-sky-500/10 px-2 py-1 text-xs font-medium text-sky-700 dark:text-sky-300">
+                      <Bot size={12} />
+                      发布后交给{selectedAgent.name}
                     </p>
                   )}
-                  {candidateOptions.length > 0 && requestedAssetCandidateUnavailable && (
-                    <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">指定素材候选缺少资源或已不可采纳，请重新选择一个可采纳候选，或回预制作/AI 助手重新加入候选。</p>
-                  )}
                 </div>
-              )}
-
-              {resultType === 'accept_keyframe' && (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">候选画面锚点</label>
-                  <select
-                    value={selectedKeyframeCandidate ? String(selectedKeyframeCandidate.ID) : ''}
-                    onChange={(event) => setCandidateID(event.target.value)}
-                    disabled={!keyframeCandidateOptions.length}
-                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
-                  >
-                    {requestedKeyframeCandidateUnavailable && <option value="">指定候选不可采纳</option>}
-                    {keyframeCandidateOptions.map((candidate) => (
-                      <option key={candidate.ID} value={candidate.ID}>{keyframeCandidateOptionLabel(candidate)}</option>
-                    ))}
-                  </select>
-                  {!keyframeCandidateOptions.length && (
-                    <p className={cn('mt-2 text-xs', requestedKeyframeCandidateUnavailable ? 'text-rose-600 dark:text-rose-300' : 'text-muted-foreground')}>
-                      {requestedKeyframeCandidateUnavailable ? '指定候选缺少资源或已不可采纳，请回工作台拒绝该候选或重新加入候选。' : '当前画面锚点暂无 AI 候选，通过后会直接采纳当前画面锚点。'}
-                    </p>
-                  )}
-                  {keyframeCandidateOptions.length > 0 && requestedKeyframeCandidateUnavailable && (
-                    <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">指定候选缺少资源或已不可采纳，请重新选择一个可采纳候选，或回工作台拒绝该候选后重新加入候选。</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <aside className="space-y-3 rounded-md border border-border bg-background p-3">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">对象摘要</p>
-                <p className="mt-1 text-sm font-semibold text-foreground">{selectedTarget?.label ?? '未选择对象'}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{selectedTarget?.subtitle || projectName}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <Info label="任务类型" value={taskTypeMeta[purposeMeta.taskType].label} />
-                <Info label="完成动作" value={resultTypeMeta[resultType].label} />
-                <Info label="执行成员" value={selectedAssignee?.name ?? '未选择'} />
-                <Info label="截止时间" value={due} />
-              </div>
-              <div className="rounded-md border border-border bg-card p-3">
-                <p className="text-xs font-medium text-muted-foreground">发布摘要</p>
-                <p className="mt-2 text-sm leading-6 text-foreground">
-                  将任务“{title.trim() || purposeMeta.defaultTitle}”分配给{selectedAssignee?.name ?? '成员'}。
-                </p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">{resultSummary(resultType, resultJSON)}</p>
-              </div>
-            </aside>
-          </section>
+              </aside>
+            </section>
+          </div>
         </div>
 
-        <DialogFooter className="border-t border-border px-5 py-4">
+        <DialogFooter className="shrink-0 border-t border-border bg-card px-5 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>取消</Button>
           <Button onClick={submit} disabled={!canSubmit || isSubmitting} loading={isSubmitting}>发布任务</Button>
         </DialogFooter>
@@ -1108,8 +1242,10 @@ function ManagementTab({
 }
 
 export default function TasksPage() {
+  const navigate = useNavigate()
   const project = useProjectStore((state) => state.current)
   const currentUser = useUserStore((state) => state.currentUser)
+  const agentPageTasks = useAgentSessionStore((state) => state.pageTasks)
   const projectId = project?.ID
   const [searchParams, setSearchParams] = useSearchParams()
   const taskCreateSearch = searchParams.toString()
@@ -1122,7 +1258,17 @@ export default function TasksPage() {
   const [submitJobId, setSubmitJobId] = useState('')
   const [submitCanvasId, setSubmitCanvasId] = useState('')
   const [reviewComment, setReviewComment] = useState('')
+  const [publishingAgentTaskId, setPublishingAgentTaskId] = useState<string | null>(null)
+  const [agentPublishError, setAgentPublishError] = useState<string | null>(null)
+  const agentPublishCleanupRef = useRef<Record<string, () => void>>({})
   const qc = useQueryClient()
+
+  useEffect(() => {
+    return () => {
+      Object.values(agentPublishCleanupRef.current).forEach((cleanup) => cleanup())
+      agentPublishCleanupRef.current = {}
+    }
+  }, [])
 
   const { data: projectDetail } = useQuery({
     queryKey: ['project', projectId],
@@ -1214,15 +1360,18 @@ export default function TasksPage() {
   )
 
   const createWorkItem = useMutation({
-    mutationFn: (payload: Record<string, unknown>) =>
-      api.post(`/projects/${projectId}/entities/work-items`, payload).then((response) => response.data as WorkItem),
-    onSuccess: (item) => {
+    mutationFn: (input: { payload: Record<string, unknown>; agentKey?: TaskAgentKey }) =>
+      api.post(`/projects/${projectId}/entities/work-items`, input.payload).then((response) => response.data as WorkItem),
+    onSuccess: (item, variables) => {
       void qc.invalidateQueries({ queryKey: ['work-items', projectId] })
       setSelectedTaskId(`TASK-${item.ID}`)
       setView('all')
       setStatusFilter('all')
       clearTaskCreateSearch()
       setTaskDialogOpen(false)
+      if (variables.agentKey) {
+        void publishTaskToAgent(workItemToProjectTask(item, reviewerName), variables.agentKey)
+      }
     },
   })
 
@@ -1294,6 +1443,18 @@ export default function TasksPage() {
       .sort((a, b) => new Date(b.CreatedAt).getTime() - new Date(a.CreatedAt).getTime())
   }, [selectedTask, workReviews])
 
+  const selectedTaskAgentSession = useMemo(() => {
+    const requestId = selectedTask?.metadata.agent_request_id
+    return requestId ? agentPageTasks[requestId] : undefined
+  }, [agentPageTasks, selectedTask?.metadata.agent_request_id])
+  const selectedTaskAgentThreadId = selectedTask?.metadata.agent_thread_id ?? selectedTaskAgentSession?.threadId
+  const selectedTaskAgentRunId = selectedTask?.metadata.agent_run_id ?? selectedTaskAgentSession?.runId
+  const selectedTaskAgentStatus = selectedTaskAgentSession?.run?.status ?? selectedTask?.metadata.agent_status
+  const selectedTaskAgentWaiting = !!selectedTask?.metadata.agent_request_id
+    && !selectedTaskAgentThreadId
+    && !selectedTaskAgentRunId
+    && !agentRequestCanRetry(selectedTaskAgentStatus)
+
   useEffect(() => {
     setSubmitDeliverable(selectedTask?.deliverable && selectedTask.deliverable !== '处理中' ? selectedTask.deliverable : '')
     setSubmitJobId(selectedTask?.sourceJobID ? String(selectedTask.sourceJobID) : '')
@@ -1354,6 +1515,97 @@ export default function TasksPage() {
     setReviewComment('')
   }
 
+  async function publishTaskToAgent(task: ProjectTask, preferredAgentKey?: TaskAgentKey) {
+    if (!projectId || publishingAgentTaskId === task.id) return
+    if (task.metadata.agent_thread_id) {
+      openAgentPanelThread(task.metadata.agent_thread_id)
+      return
+    }
+    if (task.metadata.agent_run_id) {
+      navigate(agentRunPath(task.metadata.agent_run_id))
+      return
+    }
+    if (task.metadata.agent_request_id && !agentRequestCanRetry(task.metadata.agent_status)) return
+
+    const requestId = `work_item_${task.workItemID}_${Date.now().toString(36)}`
+    const publishedAt = new Date().toISOString()
+    const agentOption = taskAgentOptionByKey(preferredAgentKey ?? task.metadata.agent_key)
+    setPublishingAgentTaskId(task.id)
+    setAgentPublishError(null)
+
+    try {
+      await api.patch(`/projects/${projectId}/entities/work-items/${task.workItemID}`, buildWorkItemPayload(task, {
+        metadata: {
+          agent_key: agentOption.key,
+          agent_name: agentOption.name,
+          agent_source: 'task_publish',
+          agent_request_id: requestId,
+          agent_status: 'queued',
+          agent_published_at: publishedAt,
+        },
+      }))
+      void qc.invalidateQueries({ queryKey: ['work-items', projectId] })
+
+      agentPublishCleanupRef.current[requestId]?.()
+      agentPublishCleanupRef.current[requestId] = registerAgentPanelPageTool(requestId, async (payload) => {
+        const runStatus = payload.run?.status ?? payload.status
+        const completedAt = new Date().toISOString()
+        try {
+          await api.patch(`/projects/${projectId}/entities/work-items/${task.workItemID}`, buildWorkItemPayload(task, {
+            metadata: {
+              agent_key: agentOption.key,
+              agent_name: agentOption.name,
+              agent_source: 'task_publish',
+              agent_request_id: requestId,
+              ...(payload.thread?.id ?? payload.run?.threadId ? { agent_thread_id: payload.thread?.id ?? payload.run?.threadId } : {}),
+              ...(payload.run?.id ? { agent_run_id: payload.run.id } : {}),
+              agent_status: runStatus,
+              agent_completed_at: completedAt,
+              agent_error: payload.run?.error ?? payload.error ?? undefined,
+            },
+          }))
+        } finally {
+          agentPublishCleanupRef.current[requestId]?.()
+          delete agentPublishCleanupRef.current[requestId]
+          void qc.invalidateQueries({ queryKey: ['work-items', projectId] })
+        }
+      })
+
+      const agentMessage = buildAgentTaskMessage(task, project?.name ?? '当前项目')
+      openAgentPanelDraft({
+        requestId,
+        taskType: 'work_item',
+        title: `${agentOption.name}: ${task.title}`,
+        message: agentMessage,
+        displayMessage: `请以${agentOption.name}处理任务：${task.title}`,
+        newConversation: true,
+        autoSend: true,
+        projectId,
+        clientInput: buildCommandFirstClientInput({
+          message: agentMessage,
+          labels: ['project-tasks', 'work-item', 'task-publish'],
+          hints: {
+            projectId,
+            productionId: task.raw.production_id,
+            route: { pathname: ROUTES.project.tasks },
+            selection: {
+              entityType: 'work_item',
+              entityId: task.workItemID,
+              label: task.title,
+            },
+          },
+        }),
+        runPolicy: { maxToolCalls: 12, maxIterations: 8 },
+        timeoutMs: 600_000,
+        renderMode: 'chat',
+      })
+    } catch (error) {
+      setAgentPublishError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setPublishingAgentTaskId(null)
+    }
+  }
+
   function createTask(draft: TaskCreateDraft) {
     if (!projectId) return
     const metadata: WorkItemMetadata = {
@@ -1361,20 +1613,27 @@ export default function TasksPage() {
       target_label: draft.target.label,
       due: draft.due.trim() || '未设置',
       reviewer_name: reviewerName,
+      ...(draft.agentKey ? {
+        agent_key: draft.agentKey,
+        agent_name: taskAgentOptionByKey(draft.agentKey).name,
+      } : {}),
     }
     createWorkItem.mutate({
-      production_id: draft.target.productionId,
-      target_type: draft.target.type,
-      target_id: draft.target.id,
-      kind: taskTypeMeta[draft.taskType].kind,
-      title: draft.title.trim(),
-      description: draft.description.trim(),
-      status: draft.taskType === 'coordination' ? 'blocked' : 'todo',
-      priority: draft.priority === 'high' ? 'high' : draft.priority === 'low' ? 'low' : 'normal',
-      assignee_id: draft.assignee.id,
-      result_type: draft.resultType,
-      result_json: draft.resultType === 'none' ? '' : draft.resultJSON.trim(),
-      metadata_json: JSON.stringify(metadata),
+      payload: {
+        production_id: draft.target.productionId,
+        target_type: draft.target.type,
+        target_id: draft.target.id,
+        kind: taskTypeMeta[draft.taskType].kind,
+        title: draft.title.trim(),
+        description: draft.description.trim(),
+        status: draft.taskType === 'coordination' ? 'blocked' : 'todo',
+        priority: draft.priority === 'high' ? 'high' : draft.priority === 'low' ? 'low' : 'normal',
+        assignee_id: draft.assignee.id,
+        result_type: draft.resultType,
+        result_json: draft.resultType === 'none' ? '' : draft.resultJSON.trim(),
+        metadata_json: JSON.stringify(metadata),
+      },
+      agentKey: draft.agentKey,
     })
   }
 
@@ -1541,6 +1800,12 @@ export default function TasksPage() {
                           <StatusPill status={task.status} />
                           <PriorityPill priority={task.priority} />
                           <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">{taskTypeMeta[task.taskType].label}</span>
+                          {task.metadata.agent_request_id && (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-sky-500/10 px-2 py-1 text-xs font-medium text-sky-700 dark:text-sky-300">
+                              <Bot size={12} />
+                              AI
+                            </span>
+                          )}
                           <span className="font-mono text-xs text-muted-foreground">{task.id}</span>
                         </div>
                         <p className="mt-2 truncate text-sm font-semibold">{task.title}</p>
@@ -1609,6 +1874,58 @@ export default function TasksPage() {
 
                 <DetailBlock title="任务说明" icon={ListChecks}>
                   <p className="text-sm leading-relaxed text-muted-foreground">{selectedTask.description}</p>
+                </DetailBlock>
+
+                <DetailBlock title="AI 助手" icon={Bot}>
+                  <div className="space-y-2 rounded-md border border-border bg-background p-3 text-xs">
+                    <div className="grid grid-cols-2 gap-2">
+                      <Info label="执行 Agent" value={selectedTask.metadata.agent_name ?? taskAgentOptionByKey(selectedTask.metadata.agent_key).name} />
+                      <Info label="会话状态" value={agentWorkStatusLabel(selectedTaskAgentStatus, selectedTask.metadata.agent_request_id)} />
+                      <Info label="发布时间" value={formatDateTime(selectedTask.metadata.agent_published_at)} />
+                    </div>
+                    {agentPublishError && (
+                      <p role="alert" className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-destructive">
+                        {agentPublishError}
+                      </p>
+                    )}
+                    {selectedTask.metadata.agent_error && (
+                      <p className="rounded border border-rose-500/25 bg-rose-500/10 px-2 py-1 text-rose-700 dark:text-rose-300">
+                        {selectedTask.metadata.agent_error}
+                      </p>
+                    )}
+                    <div className="grid gap-2">
+                      <Button
+                        type="button"
+                        variant={selectedTaskAgentThreadId || selectedTaskAgentRunId ? 'outline' : 'default'}
+                        className="justify-start gap-2"
+                        onClick={() => {
+                          if (selectedTaskAgentThreadId) openAgentPanelThread(selectedTaskAgentThreadId)
+                          else if (selectedTaskAgentRunId) navigate(agentRunPath(selectedTaskAgentRunId))
+                          else void publishTaskToAgent(selectedTask)
+                        }}
+                        disabled={publishingAgentTaskId === selectedTask.id || selectedTaskAgentWaiting}
+                        loading={publishingAgentTaskId === selectedTask.id}
+                      >
+                        <Bot size={15} />
+                        {selectedTaskAgentThreadId || selectedTaskAgentRunId
+                          ? '打开 AI 会话'
+                          : selectedTaskAgentWaiting
+                            ? '等待 AI 会话'
+                            : `交给${taskAgentOptionByKey(selectedTask.metadata.agent_key).name}`}
+                      </Button>
+                      {selectedTaskAgentRunId && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="justify-start gap-2"
+                          onClick={() => navigate(agentRunPath(selectedTaskAgentRunId))}
+                        >
+                          <ChevronRight size={15} />
+                          查看运行详情
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 </DetailBlock>
 
                 <DetailBlock title="完成动作" icon={ClipboardCheck}>

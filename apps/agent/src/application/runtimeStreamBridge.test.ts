@@ -7,6 +7,7 @@ import type {
   AgentPlanStreamEvent,
   AgentRun,
   AgentRunStreamEvent,
+  AgentThreadStreamEvent,
   AgentTask,
 } from '../state/types.js'
 import { RuntimeEventSubscriberRegistry } from './runtimeEventSubscribers.js'
@@ -33,6 +34,24 @@ test('createRuntimeStreamBridge records run traces and forwards trace events to 
   assert.deepEqual(planEvents.map((event) => event.type), ['snapshot', 'trace'])
 })
 
+test('createRuntimeStreamBridge replays and forwards run stream events to thread subscribers', () => {
+  const store = new InMemoryAgentStore()
+  const run = makeRun({ status: 'completed' })
+  store.createRun(run)
+  const threadEvents: AgentThreadStreamEvent[] = []
+  const bridge = createBridge(store)
+
+  bridge.subscribeThreadStream('thread_1', (event) => threadEvents.push(event))
+  bridge.emitRunSnapshot(run, { done: true })
+
+  assert.deepEqual(threadEvents.map((event) => `${event.threadId}:${event.type}`), [
+    'thread_1:run',
+    'thread_1:done',
+    'thread_1:run',
+    'thread_1:done',
+  ])
+})
+
 test('createRuntimeStreamBridge closes run and plan subscribers on terminal stream events', () => {
   const store = new InMemoryAgentStore()
   const run = makeRun({ planId: 'plan_1', status: 'completed' })
@@ -55,6 +74,7 @@ function createBridge(store: InMemoryAgentStore, input: { planStatus?: AgentPlan
   return createRuntimeStreamBridge({
     store,
     runSubscribers: new RuntimeEventSubscriberRegistry<AgentRunStreamEvent>(),
+    threadSubscribers: new RuntimeEventSubscriberRegistry<AgentThreadStreamEvent>(),
     planSubscribers: new RuntimeEventSubscriberRegistry<AgentPlanStreamEvent>(),
     getPlanSnapshot: () => snapshot({ status: input.planStatus ?? 'running' }),
     createTraceId: () => `trace_${++traceId}`,

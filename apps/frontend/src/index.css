@@ -136,6 +136,21 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.content-workbench-detail-panel--collapsed > div:first-child {
+  justify-content: center;
+  padding: 8px;
+}
+
+.content-workbench-detail-panel--collapsed > div:first-child > div:first-child {
+  display: none;
+}
+
+@media (min-width: 1280px) {
+  [data-testid="content-workbench-production-grid"][data-detail-collapsed="true"] {
+    grid-template-columns: minmax(0, 1fr) 52px;
+  }
+}
+
 .script-workbench-shell {
   container-type: inline-size;
 }
@@ -501,7 +516,6 @@
 }
 
 .ai-agent-panel-conversation-tab-main:focus-visible,
-.ai-agent-panel-conversation-tab-menu:focus-visible,
 .ai-agent-panel-conversation-tab-close:focus-visible {
   border-radius: 4px;
   outline: 1px solid hsl(var(--ring));
@@ -538,7 +552,6 @@
   color: hsl(var(--primary));
 }
 
-.ai-agent-panel-conversation-tab-menu,
 .ai-agent-panel-conversation-tab-close {
   display: inline-flex;
   width: 20px;
@@ -557,22 +570,44 @@
     opacity 120ms ease;
 }
 
-.ai-agent-panel-conversation-tab:hover .ai-agent-panel-conversation-tab-menu,
 .ai-agent-panel-conversation-tab:hover .ai-agent-panel-conversation-tab-close,
-.ai-agent-panel-conversation-tab:focus-within .ai-agent-panel-conversation-tab-menu,
 .ai-agent-panel-conversation-tab:focus-within .ai-agent-panel-conversation-tab-close,
 .ai-agent-panel-conversation-tab[data-active="true"] .ai-agent-panel-conversation-tab-close {
   opacity: 1;
 }
 
-.ai-agent-panel-conversation-tab-menu:hover {
-  background: hsl(var(--muted));
-  color: hsl(var(--foreground));
-}
-
 .ai-agent-panel-conversation-tab-close:hover,
 .ai-agent-panel-conversation-tab-close:focus-visible {
   background: hsl(var(--destructive) / 0.1);
+  color: hsl(var(--destructive));
+}
+
+.ai-agent-panel-tab-context-menu {
+  position: fixed;
+  z-index: 100;
+  width: 176px;
+}
+
+.ai-agent-panel-tab-context-menu .ms-dropdown__item {
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.ai-agent-panel-tab-context-menu .ms-dropdown__item:not(:disabled) {
+  cursor: pointer;
+}
+
+.ai-agent-panel-tab-context-menu .ms-dropdown__item:not(:disabled):hover {
+  background: var(--ms-color-muted);
+}
+
+.ai-agent-panel-tab-context-menu .ms-dropdown__item:disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.ai-agent-panel-tab-context-menu-danger {
   color: hsl(var(--destructive));
 }
 

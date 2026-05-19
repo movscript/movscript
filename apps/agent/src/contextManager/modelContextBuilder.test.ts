@@ -674,6 +674,84 @@ test('buildContext orders activated behavior as persona, policies, then workflow
   assert.match(built.systemPrompt, /call movscript_get_project_standards before planning/)
 })
 
+test('buildContext lets manifest prompt policy disable project standards guidance', () => {
+  const built = buildContext({
+    manifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      metadata: {
+        promptPolicy: {
+          projectStandards: { mode: 'disabled' },
+          finalSourceBlock: false,
+        },
+      },
+    },
+    skills: [],
+    context: {
+      route: { pathname: '/agent' },
+      projects: [],
+      recentResources: [],
+      attachments: [],
+      memories: [],
+      labels: [],
+    },
+    tools: { discovered: [], available: [], blocked: [], byName: {} },
+    policy: {
+      approvalMode: 'interactive',
+      maxToolCalls: 20,
+      maxIterations: 8,
+      allowNetwork: false,
+      allowFileBytes: false,
+    },
+    memories: [],
+    warnings: [],
+    history: [],
+    userMessage: '继续',
+  })
+
+  assert.doesNotMatch(built.systemPrompt, /movscript_get_project_standards before planning/)
+  assert.doesNotMatch(built.systemPrompt, /Format source lines as:/)
+})
+
+test('buildContext lets manifest prompt policy provide custom project standards guidance', () => {
+  const built = buildContext({
+    manifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      metadata: {
+        promptPolicy: {
+          projectStandards: {
+            mode: 'required_for_project_work',
+            instruction: 'Before project-scoped output, fetch the configured standards once and cite the relevant rule ids.',
+          },
+        },
+      },
+    },
+    skills: [],
+    context: {
+      route: { pathname: '/agent' },
+      projects: [],
+      recentResources: [],
+      attachments: [],
+      memories: [],
+      labels: [],
+    },
+    tools: { discovered: [], available: [], blocked: [], byName: {} },
+    policy: {
+      approvalMode: 'interactive',
+      maxToolCalls: 20,
+      maxIterations: 8,
+      allowNetwork: false,
+      allowFileBytes: false,
+    },
+    memories: [],
+    warnings: [],
+    history: [],
+    userMessage: '继续',
+  })
+
+  assert.match(built.systemPrompt, /fetch the configured standards once/)
+  assert.doesNotMatch(built.systemPrompt, /call movscript_get_project_standards before planning/)
+})
+
 test('buildContext renders current plan and worker state for planner decisions', () => {
   const built = buildContext({
     manifest: DEFAULT_AGENT_MANIFEST,
@@ -776,7 +854,7 @@ test('buildContext degrades oversized prompts using manifest prompt limit', () =
   const manifest = {
     ...DEFAULT_AGENT_MANIFEST,
     metadata: {
-      systemPromptCharLimit: 4000,
+      systemPromptCharLimit: 4500,
     },
   }
   const activeSkills = [
@@ -838,5 +916,5 @@ test('buildContext degrades oversized prompts using manifest prompt limit', () =
   assert.equal(built.debugParts.some((part) => part.id === 'skill.test.workflow'), true)
   assert.equal(built.degraded, 'dropped_policies')
   assert.ok(built.warnings.some((warning) => warning.includes('dropped non-critical skill')))
-  assert.ok(built.systemPrompt.length <= 4000)
+  assert.ok(built.systemPrompt.length <= 4500)
 })

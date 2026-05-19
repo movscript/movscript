@@ -1,6 +1,6 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pencil, Save, Trash2, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Pencil, Save, Trash2, X } from 'lucide-react'
 
 import {
   createSemanticEntity,
@@ -46,6 +46,9 @@ interface SemanticEntityInlineEditorProps {
   emptyDescription?: string
   className?: string
   hero?: SemanticEntityInlineEditorHero
+  primaryFieldKeys?: string[]
+  collapsed?: boolean
+  onCollapsedChange?: (collapsed: boolean) => void
   idScope?: string
   editKey?: string | number | null
   onSaved?: (record: SemanticEntityRecord) => void
@@ -81,6 +84,9 @@ export function SemanticEntityInlineEditor({
   emptyDescription = '从左侧列表选择一个对象后，可直接在卡片内编辑。',
   className,
   hero,
+  primaryFieldKeys,
+  collapsed = false,
+  onCollapsedChange,
   idScope,
   editKey,
   onSaved,
@@ -88,8 +94,9 @@ export function SemanticEntityInlineEditor({
 }: SemanticEntityInlineEditorProps) {
   const queryClient = useQueryClient()
   const fields = useMemo(() => config.fields.filter((field) => !field.createOnly), [config.fields])
-  const basicFields = useMemo(() => fields.filter((field) => !isAdvancedField(config.kind, field.key)), [config.kind, fields])
-  const advancedFields = useMemo(() => fields.filter((field) => isAdvancedField(config.kind, field.key)), [config.kind, fields])
+  const primaryFieldKeySet = useMemo(() => new Set(primaryFieldKeys ?? []), [primaryFieldKeys])
+  const basicFields = useMemo(() => fields.filter((field) => primaryFieldKeySet.has(field.key) || !isAdvancedField(config.kind, field.key)), [config.kind, fields, primaryFieldKeySet])
+  const advancedFields = useMemo(() => fields.filter((field) => !primaryFieldKeySet.has(field.key) && isAdvancedField(config.kind, field.key)), [config.kind, fields, primaryFieldKeySet])
   const [form, setForm] = useState<FormState>(() => buildInitialForm(fields, record, defaults))
   const [uncontrolledIsEditing, setUncontrolledIsEditing] = useState(Boolean(!record))
   const isEditing = editing ?? uncontrolledIsEditing
@@ -228,6 +235,10 @@ export function SemanticEntityInlineEditor({
     }))
   }
 
+  function toggleCollapsed() {
+    onCollapsedChange?.(!collapsed)
+  }
+
   if (!record && !defaults) {
     return (
       <section className={cn('rounded-lg border border-border bg-card p-4', className)}>
@@ -316,7 +327,7 @@ export function SemanticEntityInlineEditor({
           {description ? <p className={cn('text-xs leading-5 text-muted-foreground', compactHero ? 'mt-2' : 'mt-4')}>{description}</p> : null}
         </div>
 
-        {hero.stats?.length ? (
+        {!collapsed && hero.stats?.length ? (
           <div className={cn('grid grid-cols-2 lg:grid-cols-4', compactHero ? 'gap-2 p-3' : 'gap-3 p-4')}>
             {hero.stats.map((stat) => (
               <div key={stat.label} className={cn('rounded-md border border-border bg-background px-3', compactHero ? 'py-2' : 'py-2.5')}>
@@ -327,7 +338,7 @@ export function SemanticEntityInlineEditor({
           </div>
         ) : null}
 
-	        <form id={formId} onSubmit={submit} className="space-y-4 border-t border-border p-4">
+        {!collapsed ? <form id={formId} onSubmit={submit} className="space-y-4 border-t border-border p-4">
 	          {sourceLock?.locked ? <SourceLockNotice fields={fields} sourceLock={sourceLock} reason={sourceLockReason} /> : null}
 	          <div className="grid gap-3 md:grid-cols-2">
 	            {basicFields.map((field) => (
@@ -367,7 +378,7 @@ export function SemanticEntityInlineEditor({
               </div>
             </details>
           ) : null}
-        </form>
+        </form> : null}
       </section>
     )
   }
@@ -384,6 +395,10 @@ export function SemanticEntityInlineEditor({
         )}
         {hideHeaderActions ? null : record && (!isEditing || isImmutableRecord) ? (
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            {onCollapsedChange ? <Button type="button" size="sm" variant="outline" className="gap-2" onClick={toggleCollapsed}>
+              {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+              {collapsed ? '展开' : '收起'}
+            </Button> : null}
             {isImmutableRecord ? null : <Button size="sm" variant="outline" className="gap-2" onClick={() => setEditorEditing(true)} disabled={deleteMutation.isPending}>
               <Pencil size={14} />
               编辑
@@ -395,6 +410,10 @@ export function SemanticEntityInlineEditor({
           </div>
         ) : (
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            {onCollapsedChange ? <Button type="button" size="sm" variant="outline" className="gap-2" onClick={toggleCollapsed}>
+              {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+              {collapsed ? '展开' : '收起'}
+            </Button> : null}
             {record && canDeleteRecord ? (
               <Button type="button" size="sm" variant="destructive" className="shrink-0 gap-2" onClick={removeRecord} loading={deleteMutation.isPending}>
                 <Trash2 size={14} />
@@ -429,7 +448,7 @@ export function SemanticEntityInlineEditor({
           </div>
         )}
       </div> : null}
-	      <form id={formId} onSubmit={submit} className="space-y-4 p-4">
+      {!collapsed ? <form id={formId} onSubmit={submit} className="space-y-4 p-4">
 	        {sourceLock?.locked ? <SourceLockNotice fields={fields} sourceLock={sourceLock} reason={sourceLockReason} /> : null}
 	        <div className="grid gap-3">
 	          {basicFields.map((field) => (
@@ -469,7 +488,7 @@ export function SemanticEntityInlineEditor({
             </div>
           </details>
         ) : null}
-      </form>
+      </form> : null}
     </section>
   )
 }

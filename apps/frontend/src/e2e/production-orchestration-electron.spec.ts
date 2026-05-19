@@ -28,19 +28,21 @@ test('electron renderer smoke reaches production orchestration with project-leve
 
     await page.goto(`${baseURL}/project/production/orchestration?productionId=301`)
 
-    await expect(page.getByRole('heading', { name: '创作蓝图' })).toBeVisible()
-    await expect(page.getByRole('button', { name: '蓝图' })).toBeVisible()
-    await expect(page.getByRole('button', { name: '审阅' })).toBeVisible()
-    await expect(page.getByText('设定与素材资源池', { exact: true })).toHaveCount(0)
-    await expect(page.getByText('作品意图', { exact: true })).toHaveCount(0)
-    await expect(page.getByText('情绪推进', { exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '编排写作' })).toBeVisible()
+    await expect(page.getByRole('button', { name: /AI 提案/ })).toBeVisible()
+    await expect(page.getByText('编排段列表', { exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '进入并停顿' })).toBeVisible()
+    await expect(page.getByText('制作剧本', { exact: true }).first()).toBeVisible()
+    await expect(page.getByText('绑定剧本块', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: /选择剧本块/ })).toBeVisible()
+    await expect(page.getByText('表达条目', { exact: true })).toBeVisible()
+    await expect(page.getByText('写作辅助', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('绑定全局设定', { exact: true })).toHaveCount(0)
     await expect(page.getByText('项目级角色设定', { exact: false })).toHaveCount(0)
-    await expect(page.getByText('设定 2', { exact: false })).toHaveCount(0)
-    await expect(page.getByText('未关联 1', { exact: false })).toHaveCount(0)
 
-    await page.getByRole('button', { name: '审阅' }).click()
+    await page.getByRole('button', { name: /AI 提案/ }).click()
 
-    await expect(page.getByRole('heading', { name: '当前没有可审阅的提案' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '当前没有 AI 编排提案' })).toBeVisible()
   } finally {
     await app.close()
   }
@@ -61,7 +63,7 @@ async function mockProductionOrchestrationEntities(page: Parameters<typeof mockG
         source_type: 'raw',
         content: '第一段：主角进入空间，第二段：氛围变化。',
         raw_source: '第一段：主角进入空间，第二段：氛围变化。',
-        summary: '用于创作编排页的最小剧本版本。',
+        summary: '用于创作编排页的最小剧本文本。',
         status: 'active',
         CreatedAt: '2026-05-11T12:00:00.000Z',
         UpdatedAt: '2026-05-11T12:00:00.000Z',
@@ -72,12 +74,14 @@ async function mockProductionOrchestrationEntities(page: Parameters<typeof mockG
         title: '进入空间',
         kind: 'setup',
         summary: '主角进入新的场景空间。',
+        script_block_id: 9010,
         status: 'draft',
         order: 1,
       }],
       'scene-moments': [{
         ID: 402,
         segment_id: 401,
+        script_block_id: 9011,
         title: '进入并停顿',
         time_text: '0:00-0:10',
         location_text: '入口',
@@ -109,6 +113,28 @@ async function mockProductionOrchestrationEntities(page: Parameters<typeof mockG
         creative_reference_id: 501,
         role: 'supporting',
         status: 'draft',
+      }],
+      'script-blocks': [{
+        ID: 9010,
+        script_id: 801,
+        script_version_id: 901,
+        kind: 'action',
+        content: '主角推门进入陌生空间，灯光很暗。',
+        status: 'active',
+        start_line: 1,
+        end_line: 2,
+        order: 1,
+      }, {
+        ID: 9011,
+        script_id: 801,
+        script_version_id: 901,
+        kind: 'dialogue',
+        speaker: '主角',
+        content: '这里有人来过。',
+        start_line: 3,
+        end_line: 3,
+        status: 'active',
+        order: 2,
       }],
       'asset-slots': [{
         ID: 701,

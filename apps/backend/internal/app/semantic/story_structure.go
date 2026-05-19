@@ -539,20 +539,110 @@ func (s *Service) PatchSceneMoment(ctx context.Context, projectID uint, id strin
 	return patched, nil
 }
 
+func (s *Service) ListWritingExpressions(ctx context.Context, filter WritingExpressionFilter) ([]domainsemantic.WritingExpression, error) {
+	return s.repo.ListWritingExpressions(ctx, filter)
+}
+
+func (s *Service) CreateWritingExpression(ctx context.Context, projectID uint, input WritingExpressionInput) (domainsemantic.WritingExpression, error) {
+	if input.SceneMomentID == 0 {
+		return domainsemantic.WritingExpression{}, ErrInvalidInput{Err: errors.New("scene_moment_id is required")}
+	}
+	if err := s.repo.EnsureSceneMomentInProject(ctx, projectID, input.SceneMomentID); err != nil {
+		return domainsemantic.WritingExpression{}, err
+	}
+	if input.ScriptBlockID != nil {
+		if err := s.ensureScriptBlockInProject(ctx, projectID, *input.ScriptBlockID); err != nil {
+			return domainsemantic.WritingExpression{}, err
+		}
+	}
+	item := writingExpressionFromInput(projectID, input)
+	var created domainsemantic.WritingExpression
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateWritingExpression(ctx, item)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
+}
+
+func (s *Service) PatchWritingExpression(ctx context.Context, projectID uint, id string, input WritingExpressionInput) (domainsemantic.WritingExpression, error) {
+	item, err := s.repo.LoadWritingExpression(ctx, projectID, id)
+	if err != nil {
+		return item, err
+	}
+	if input.SceneMomentID != 0 {
+		if err := s.repo.EnsureSceneMomentInProject(ctx, projectID, input.SceneMomentID); err != nil {
+			return item, err
+		}
+	}
+	if input.ScriptBlockID != nil {
+		if err := s.ensureScriptBlockInProject(ctx, projectID, *input.ScriptBlockID); err != nil {
+			return item, err
+		}
+	}
+	patch := writingExpressionPatch(input)
+	var patched domainsemantic.WritingExpression
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchWritingExpression(ctx, item, patch)
+		return err
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
+}
+
+func writingExpressionFromInput(projectID uint, input WritingExpressionInput) domainsemantic.WritingExpression {
+	return domainsemantic.NewWritingExpression(domainsemantic.WritingExpressionSpec{
+		ProjectID:     projectID,
+		SceneMomentID: input.SceneMomentID,
+		ScriptBlockID: input.ScriptBlockID,
+		Order:         input.Order,
+		Kind:          input.Kind,
+		Speaker:       input.Speaker,
+		Text:          input.Text,
+		Note:          input.Note,
+		Intent:        input.Intent,
+		MetadataJSON:  input.MetadataJSON,
+	})
+}
+
+func writingExpressionPatch(input WritingExpressionInput) domainsemantic.WritingExpressionPatch {
+	var sceneMomentID *uint
+	if input.SceneMomentID != 0 {
+		sceneMomentID = &input.SceneMomentID
+	}
+	return domainsemantic.WritingExpressionPatch{
+		SceneMomentID: sceneMomentID,
+		ScriptBlockID: input.ScriptBlockID,
+		Order:         input.Order,
+		Kind:          input.Kind,
+		Speaker:       input.Speaker,
+		Text:          input.Text,
+		Note:          input.Note,
+		Intent:        input.Intent,
+		MetadataJSON:  input.MetadataJSON,
+	}
+}
+
 func (s *Service) ensureSceneMomentSourceCanChange(ctx context.Context, projectID uint, item domainsemantic.SceneMoment, input PatchSceneMomentInput) error {
-	if sceneMomentSourcePreserved(item, input) {
+	if optionalUintPatchPreserves(item.SegmentID, input.SegmentID) {
 		return nil
 	}
 	status, err := s.sceneMomentSourceLockStatus(ctx, projectID, item)
 	if err != nil {
 		return err
 	}
-	return status.ErrSourceChangeLocked("scene moment source cannot be changed after downstream items are created")
-}
-
-func sceneMomentSourcePreserved(item domainsemantic.SceneMoment, input PatchSceneMomentInput) bool {
-	return optionalUintPatchPreserves(item.SegmentID, input.SegmentID) &&
-		optionalUintPatchPreserves(item.ScriptBlockID, input.ScriptBlockID)
+	return status.ErrSourceChangeLocked("scene moment segment cannot be changed after downstream items are created")
 }
 
 func (s *Service) upsertSceneMomentRelations(ctx context.Context, item domainsemantic.SceneMoment) error {

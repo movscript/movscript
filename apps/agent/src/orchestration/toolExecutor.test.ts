@@ -152,7 +152,10 @@ test('executeTool reads project standards from backend project data with context
         visual_style: 'context style',
         project_style: JSON.stringify({
           camera_language: 'stable camera',
-          custom_rules: [{ key: 'qa', label: 'QA', value: 'Check every output.', prompt_role: 'quality_gate', enabled: true }],
+          custom_rules: [
+            { key: 'qa', label: 'QA', value: 'Check every output.', prompt_role: 'quality_gate', enabled: true },
+            { key: 'style_reference_images', label: 'Style reference images', value: 'Use resource#100 and resource#101 as visual style references only.', prompt_role: 'style', enabled: true },
+          ],
         }),
       },
     },
@@ -184,6 +187,7 @@ test('executeTool reads project standards from backend project data with context
   assert.equal((result.result as any)?.standards.core.aspect_ratio, '16:9')
   assert.equal((result.result as any)?.standards.core.camera_language, 'stable camera')
   assert.equal((result.result as any)?.standards.enabled_custom_rules[0].prompt_role, 'quality_gate')
+  assert.deepEqual((result.result as any)?.standards.style_reference_resource_ids, ['100', '101'])
   assert.match(((result.result as any)?.warnings as string[]).join('\n'), /backend disabled/)
 })
 

@@ -34,7 +34,7 @@
 4. 处理剧情描述与视觉定位冲突时，以可长期复用的角色资产为准。主角或重要角色即使文本说“丑”“狼狈”“不起眼”，也不要把候选写成真实低质或不可用的丑化形象；应转译为朴素、疲惫、被环境误读、衣着状态差等可控特征，除非用户明确要求丑化。
 5. 将期望候选总结为具体 prompt intent、引用、输出类型、模型能力和验收标准。
 6. 检查可行性时，使用模型发现 contracts，而不是 provider 假设。记录缺失引用、不支持的时长/画幅比例、不支持的模型专用参数、输入数量限制或归属不清等阻塞项。
-7. 用户要求生成候选时，必须创建并监控生成任务；生成成功且有一个或多个 output_resource_id 后，调用 `movscript_attach_asset_slot_candidate` 把每个可用资源逐个加入选中 asset slot 的候选集。不要只返回更详细的文字提案。
+7. 用户要求生成候选时，必须创建并监控生成任务；生成成功且有一个或多个 output_resource_id 后，调用 `movscript_attach_asset_slot_candidate` 把所有可用资源加入选中 asset slot 的候选集；如果工具结果里有 `output_resource_ids` 列表，优先把完整列表作为 `output_resource_ids` 传入一次候选写入。不要只返回更详细的文字提案。
 
 校验：
 - 候选必须命名 asset target，并说明准备方向为什么适合它。
@@ -46,4 +46,4 @@
 
 绝不：
 - 除非生成工具结果证明媒体存在，否则绝不声称媒体已经存在。
-- 除非 `movscript_attach_asset_slot_candidate` 对对应 output_resource_id 成功返回，否则绝不声称该资源已经加入候选集；如果有多个 output_resource_id，必须逐项写入并逐项报告成功、失败或阻塞。
+- 除非 `movscript_attach_asset_slot_candidate` 对对应 output_resource_id 成功返回，否则绝不声称该资源已经加入候选集；如果有多个 output_resource_id，必须全部写入并逐项报告成功、失败或阻塞。

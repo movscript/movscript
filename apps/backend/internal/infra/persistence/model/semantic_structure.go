@@ -91,6 +91,23 @@ type SceneMoment struct {
 	MetadataJSON  string `gorm:"type:text" json:"metadata_json"`
 }
 
+// WritingExpression is the screenwriter-facing expression line under a scene
+// moment. It stores dialogue, action, silence, narration, subtitles, and visual
+// information as first-class editable writing units.
+type WritingExpression struct {
+	gorm.Model
+	ProjectID     uint   `gorm:"not null;index" json:"project_id"`
+	SceneMomentID uint   `gorm:"not null;index" json:"scene_moment_id"`
+	ScriptBlockID *uint  `gorm:"index" json:"script_block_id,omitempty"`
+	Order         int    `gorm:"not null;default:0;index" json:"order"`
+	Kind          string `gorm:"not null;default:'action';index" json:"kind"` // dialogue|action|silence|narration|subtitle|visual
+	Speaker       string `gorm:"index" json:"speaker"`
+	Text          string `gorm:"type:text" json:"text"`
+	Note          string `gorm:"type:text" json:"note"`
+	Intent        string `gorm:"type:text" json:"intent"`
+	MetadataJSON  string `gorm:"type:text" json:"metadata_json"`
+}
+
 // StoryboardScript is the structured written plan that bridges confirmed
 // SceneMoments and content units.
 type StoryboardScript struct {
@@ -128,7 +145,7 @@ type ContentUnit struct {
 	SegmentID        *uint   `gorm:"index" json:"segment_id,omitempty"`
 	SceneMomentID    *uint   `gorm:"index" json:"scene_moment_id,omitempty"`
 	ScriptBlockID    *uint   `gorm:"index" json:"script_block_id,omitempty"`
-	Kind             string  `gorm:"not null;default:'shot';index" json:"kind"` // shot|visual_segment|product_showcase|caption_card|narration|transition|music_beat
+	Kind             string  `gorm:"not null;default:'shot';index" json:"kind"` // shot|voiceover|dialogue_audio|sound|music_beat|subtitle|caption_card|transition
 	Order            int     `gorm:"not null;default:0;index" json:"order"`
 	Title            string  `json:"title"`
 	Description      string  `gorm:"type:text" json:"description"`

@@ -24,9 +24,19 @@ export interface ResolvedPreviewRunMessageInput {
 
 export function resolveRunCreationUserInput(input: {
   userMessage?: unknown
+  sourceMessageId?: unknown
   thread: AgentThread
 }): ResolvedRunCreationUserInput {
   const explicitUserMessage = normalizeNonEmptyString(input.userMessage)
+  const explicitSourceMessageId = normalizeNonEmptyString(input.sourceMessageId)
+  if (explicitSourceMessageId) {
+    const sourceUser = input.thread.messages.find((message) => message.id === explicitSourceMessageId && message.role === 'user')
+    if (!sourceUser) throw new Error(`source user message not found: ${explicitSourceMessageId}`)
+    return {
+      ...(explicitUserMessage ? { explicitUserMessage } : {}),
+      sourceUser,
+    }
+  }
   if (explicitUserMessage) return { explicitUserMessage }
   const sourceUser = latestThreadUserMessage(input.thread)
   return sourceUser ? { sourceUser } : {}

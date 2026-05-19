@@ -78,6 +78,10 @@ test('assistantResultPayloadForRun builds the same structured payload from run a
   assert.equal(payload.meta.generationJobs?.[0]?.jobId, 50)
   assert.equal(payload.meta.draftArtifacts?.[0]?.draftId, 'draft_1')
   assert.deepEqual(payload.meta.draftArtifacts?.[0]?.target, { entityType: 'project', entityId: 9 })
+  assert.deepEqual(payload.meta.runtimeMessage, {
+    threadId: 'thread_1',
+    runId: 'run_1',
+  })
   assert.equal(payload.meta.localRunActivity?.runId, 'run_1')
 })
 

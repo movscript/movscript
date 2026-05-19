@@ -1087,6 +1087,7 @@ function generationEventChangeKey(event: GenerationEvent): string {
     event.status,
     event.progress ?? '',
     event.outputResourceId ?? '',
+    event.outputResourceIds?.join(',') ?? '',
   ].join(':')
 }
 

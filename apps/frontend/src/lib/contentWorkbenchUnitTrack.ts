@@ -8,6 +8,8 @@ export interface ContentWorkbenchUnitTrackInput {
   startSec?: number
   status?: string
   summary?: string
+  sceneMomentTitle?: string
+  segmentTitle?: string
   scriptCue?: string
   soundCue?: string
   keyframeTitles?: string[]
@@ -34,6 +36,8 @@ export interface ContentWorkbenchUnitTrackItem {
   tone: ContentWorkbenchUnitTrackTone
   selected: boolean
   summary: string
+  sceneMomentTitle: string
+  segmentTitle: string
   scriptCue: string
   soundCue: string
   keyframeTitles: string[]
@@ -83,24 +87,8 @@ export function buildContentWorkbenchUnitTrack(inputs: ContentWorkbenchUnitTrack
       missingAssetCount,
       keyframeCount,
       selectedId,
-      title: '暂无制作项轨道',
-      detail: '先创建或让 AI 规划制作项，轨道会显示每个生成目标的准备度。',
-      items,
-    }
-  }
-
-  if (blockedCount > 0) {
-    return {
-      total,
-      durationSec,
-      readyCount,
-      blockedCount,
-      needsPromptCount,
-      missingAssetCount,
-      keyframeCount,
-      selectedId,
-      title: '制作轨道存在阻塞',
-      detail: `${blockedCount} 个制作项仍被提示、素材或画面锚点阻塞。`,
+      title: '暂无内容单元',
+      detail: '先创建或让 AI 规划内容单元，这里会显示每个生成目标。',
       items,
     }
   }
@@ -115,8 +103,8 @@ export function buildContentWorkbenchUnitTrack(inputs: ContentWorkbenchUnitTrack
       missingAssetCount,
       keyframeCount,
       selectedId,
-      title: '制作轨道可执行',
-      detail: `${total} 个制作项都具备生成前基础输入。`,
+      title: '内容单元',
+      detail: `${total} 个内容单元按当前情节顺序排列。`,
       items,
     }
   }
@@ -130,8 +118,8 @@ export function buildContentWorkbenchUnitTrack(inputs: ContentWorkbenchUnitTrack
     missingAssetCount,
     keyframeCount,
     selectedId,
-    title: '制作轨道待确认',
-    detail: `${total - readyCount} 个制作项还需要人工确认或补充信息。`,
+    title: '内容单元',
+    detail: `${total} 个内容单元按当前情节顺序排列。`,
     items,
   }
 }
@@ -173,6 +161,8 @@ function buildTrackItem(input: ContentWorkbenchUnitTrackInput, order: number, fa
     tone,
     selected: Boolean(input.selected),
     summary,
+    sceneMomentTitle: String(input.sceneMomentTitle ?? '').trim(),
+    segmentTitle: String(input.segmentTitle ?? '').trim(),
     scriptCue: String(input.scriptCue ?? '').trim(),
     soundCue: String(input.soundCue ?? '').trim(),
     keyframeTitles: normalizeLabels(input.keyframeTitles),
@@ -194,7 +184,7 @@ function normalizeLabels(values?: string[]) {
 }
 
 export function contentWorkbenchUnitRequiresKeyframe(kind?: string) {
-  return kind === 'shot' || kind === 'visual_segment' || kind === 'product_showcase'
+  return kind === 'shot'
 }
 
 function unitReadiness(hasPrompt: boolean, missingSlotCount: number, keyframeCount: number, requiresKeyframe: boolean, status: string) {

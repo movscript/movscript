@@ -29,8 +29,8 @@ import {
   Plus,
   RefreshCw,
   Route,
-  Save,
   ScrollText,
+  Search,
   Settings2,
   ShieldCheck,
   Scissors,
@@ -50,7 +50,7 @@ import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 import { buildCommandFirstClientInput, buildPageKey } from '@/lib/agentCommandInput'
 import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
 import { selectLatestDraftArtifact } from '@/lib/agentArtifacts'
-import { generatedKeyframeCandidateTargetId, isGeneratedKeyframeCandidateRecord, isUnresolvedCandidateStatus } from '@/lib/agentGeneratedResourceBinding'
+import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
 import { invalidateAssetCandidateConsumers } from '@/lib/assetCandidateQueryInvalidation'
 import {
   buildScriptSplitDraftContent,
@@ -73,7 +73,7 @@ import { localAgentClient, type AgentDraft, type AgentDraftValidationResult, typ
 import { SCRIPT_DOCUMENT_ACCEPT, readScriptDocument, scriptDocumentTitleFromName } from '@/lib/scriptDocuments'
 import { buildContentWorkbenchActivityFeed, type ContentWorkbenchActivityFeed } from '@/lib/contentWorkbenchActivity'
 import { buildContentWorkbenchAiSuggestPrompt } from '@/lib/contentWorkbenchAiPrompt'
-import { pickContentWorkbenchFirstUsableUnit, pickContentWorkbenchFocusAfterIgnoredCandidate } from '@/lib/contentWorkbenchCandidateFocus'
+import { pickContentWorkbenchFirstUsableUnit } from '@/lib/contentWorkbenchCandidateFocus'
 import {
   contentWorkbenchProposalDefaults,
   contentWorkbenchProposalFieldString,
@@ -98,13 +98,12 @@ import { useAgentStore } from '@/store/agentStore'
 import { useAgentSessionStore } from '@/store/agentSessionStore'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
-import type { Canvas, CanvasStage, Job, PaginatedResponse, PublicModel, RawResource } from '@/types'
+import type { Canvas, CanvasStage, Job, PublicModel, RawResource } from '@/types'
 import type { Script } from '@/types'
 import { Badge, Button, Card, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Progress, ScrollArea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
 import { Input, Label, Textarea } from '@movscript/ui'
-import { SemanticEntityInlineEditor, type SemanticEntityInlineEditorControlState } from '@/components/shared/SemanticEntityInlineEditor'
+import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
 import { AuthedImage } from '@/components/shared/AuthedImage'
-import { ResourceLibraryPicker } from '@/components/shared/ResourceLibraryPicker'
 import {
   buildContentUnitGenerationContext,
   createSemanticEntity,
@@ -112,6 +111,7 @@ import {
   semanticEntityConfig,
   updateSemanticEntity,
   type GenerationContext,
+  type SemanticEntityConfig,
   type SemanticEntityPayload,
   type SemanticEntityRecord,
 } from '@/api/semanticEntities'
@@ -624,12 +624,6 @@ interface ContentGenerationMomentRow {
   keyframes: WorkbenchRecord[]
   scriptBlocks: WorkbenchRecord[]
   previewTimelineItems: WorkbenchRecord[]
-}
-
-interface ContentWorkbenchTrackSection {
-  id: string
-  title: string
-  rows: ContentGenerationMomentRow[]
 }
 
 type ContentSnapshotDiffState = 'added' | 'changed' | 'unchanged' | 'planned'
@@ -1443,6 +1437,9 @@ function buildContentDraftReviewModel(
     const usedCurrentIds = new Set<number>()
 
     if (!row) warnings.push('草案没有指向当前情节，无法做精确当前值对比。')
+    if ('timeline_items' in proposal || 'timelineItems' in proposal || 'timeline_items' in parsed) {
+      warnings.push('草案包含 production 级 timeline_items；制作项提案不会把它作为正式时间线快照审阅。请改用 unit.timing 表达局部节奏意图。')
+    }
 
     proposedUnits.forEach((unit, index) => {
       if ('action' in unit) warnings.push(`草案制作项「${contentWorkbenchProposalUnitTitle(unit, index)}」包含旧版操作字段；snapshot 审阅不会把它当作草案语义。`)
@@ -1487,7 +1484,7 @@ function buildContentDraftReviewModel(
       `${diffs.filter((item) => item.state === 'added').length} 个快照新增`,
       `${diffs.filter((item) => item.state === 'changed').length} 个快照变更`,
       `${diffs.filter((item) => item.state === 'unchanged').length} 个快照一致`,
-    ].join('，')
+    ].filter(Boolean).join('，')
 
     return {
       draft,
@@ -1573,6 +1570,7 @@ function contentUnitSnapshot(unit: WorkbenchRecord) {
 
 function compareContentUnitFields(current: WorkbenchRecord | undefined, proposed: Record<string, unknown>): ContentSnapshotFieldDiff[] {
   const shot = isRecord(proposed.shot) ? proposed.shot : undefined
+  const timing = isRecord(proposed.timing) ? proposed.timing : undefined
   return compactFieldChanges([
     { label: '标题', before: current ? titleOfRecord(current) : undefined, after: contentWorkbenchProposalUnitTitle(proposed, 0) },
     { label: '类型', before: current?.kind, after: contentWorkbenchProposalFieldString(proposed, ['kind']) },
@@ -1582,6 +1580,10 @@ function compareContentUnitFields(current: WorkbenchRecord | undefined, proposed
     { label: '景别', before: current?.shot_size, after: contentWorkbenchProposalFieldString(shot ?? {}, ['shot_size']) },
     { label: '机位', before: current?.camera_angle, after: contentWorkbenchProposalFieldString(shot ?? {}, ['camera_angle']) },
     { label: '运动', before: current?.camera_motion, after: contentWorkbenchProposalFieldString(shot ?? {}, ['camera_movement', 'camera_motion']) },
+    { label: '局部开始', before: undefined, after: formatTimelineSeconds(timing?.local_start_sec) },
+    { label: '节奏角色', before: undefined, after: contentWorkbenchProposalFieldString(timing ?? {}, ['rhythm_role']) },
+    { label: '入场节奏', before: undefined, after: contentWorkbenchProposalFieldString(timing ?? {}, ['transition_in']) },
+    { label: '出场节奏', before: undefined, after: contentWorkbenchProposalFieldString(timing ?? {}, ['transition_out']) },
   ])
 }
 
@@ -1597,7 +1599,13 @@ function contentUnitChangeImpact(state: ContentSnapshotDiffState, current: Workb
   if (!current) return '新增或替换结构。'
   if (fields.some((field) => field.label === '标题' || field.label === '类型')) return '会改变该制作项的结构定位。'
   if (fields.some((field) => field.label === '提示词' || field.label === '描述')) return '会改变该制作项的创作意图。'
+  if (fields.some((field) => field.label.includes('节奏') || field.label === '局部开始')) return '会改变该制作项的局部节奏意图，不等同于写入 production 时间线。'
   return '会改变该制作项的执行细节。'
+}
+
+function formatTimelineSeconds(value: unknown) {
+  const next = Number(value)
+  return Number.isFinite(next) ? `${Math.round(next * 10) / 10}s` : undefined
 }
 
 function compactFieldChanges(items: Array<ContentSnapshotFieldDiff>): ContentSnapshotFieldDiff[] {
@@ -1925,10 +1933,6 @@ function numberOf(value: unknown) {
   return Number.isFinite(next) ? next : 0
 }
 
-function hasLoadedResource(record?: WorkbenchRecord | null) {
-  return numberOf(record?.resource?.ID) > 0
-}
-
 function formatDuration(value?: number) {
   const next = Number(value)
   if (!Number.isFinite(next) || next <= 0) return '未设时长'
@@ -2129,64 +2133,8 @@ function frameRoleLabel(index: number, total: number) {
   return `中间帧 ${index}`
 }
 
-function keyframeCandidatesForTargets(keyframes: WorkbenchRecord[], targets: WorkbenchRecord[]) {
-  const targetIds = new Set(targets.map((target) => target.ID))
-  return keyframes
-    .filter((keyframe) => {
-      if (!isUnresolvedCandidateStatus(keyframe.status)) return false
-      const targetId = generatedKeyframeCandidateTargetId(keyframe)
-      return targetId !== undefined && targetIds.has(targetId)
-    })
-    .slice()
-    .sort((a, b) => {
-      const aUpdated = new Date(String(a.UpdatedAt ?? a.CreatedAt ?? '')).getTime()
-      const bUpdated = new Date(String(b.UpdatedAt ?? b.CreatedAt ?? '')).getTime()
-      if (Number.isFinite(aUpdated) && Number.isFinite(bUpdated) && aUpdated !== bUpdated) return bUpdated - aUpdated
-      return b.ID - a.ID
-    })
-}
-
 function resourceFileUrl(resourceId?: number | null) {
   return resourceId ? `/api/v1/resources/${resourceId}/file` : ''
-}
-
-function keyframeResourceCandidatePayload(keyframe: WorkbenchRecord, resourceId: number, source: 'library' | 'upload'): SemanticEntityPayload {
-  const title = titleOfRecord(keyframe)
-  return {
-    production_id: nullableNumber(keyframe.production_id),
-    scene_moment_id: nullableNumber(keyframe.scene_moment_id),
-    content_unit_id: nullableNumber(keyframe.content_unit_id),
-    resource_id: resourceId,
-    canvas_id: nullableNumber(keyframe.canvas_id),
-    title: `候选：${title}`,
-    description: String(keyframe.description ?? ''),
-    prompt: String(keyframe.prompt ?? ''),
-    order: numberOf(keyframe.order),
-    status: 'candidate',
-    metadata_json: JSON.stringify({
-      source: 'ai_generated_keyframe_candidate',
-      source_origin: source === 'upload' ? 'workbench_upload' : 'workbench_resource_library',
-      target_keyframe_id: keyframe.ID,
-      target_keyframe_title: title,
-      resource_id: resourceId,
-    }),
-  }
-}
-
-function keyframeStatusPatchPayload(keyframe: WorkbenchRecord, status: string): SemanticEntityPayload {
-  return {
-    production_id: nullableNumber(keyframe.production_id),
-    scene_moment_id: nullableNumber(keyframe.scene_moment_id),
-    content_unit_id: nullableNumber(keyframe.content_unit_id),
-    resource_id: nullableNumber(keyframe.resource_id),
-    canvas_id: nullableNumber(keyframe.canvas_id),
-    title: String(keyframe.title ?? ''),
-    description: String(keyframe.description ?? ''),
-    prompt: String(keyframe.prompt ?? ''),
-    order: numberOf(keyframe.order),
-    status,
-    metadata_json: String(keyframe.metadata_json ?? ''),
-  }
 }
 
 function nullableNumber(value: unknown) {
@@ -2347,6 +2295,130 @@ function WorkbenchPanel({
   )
 }
 
+function ContentWorkbenchScenePreview({
+  row,
+  selectedUnit,
+  keyframes,
+  missingSlots,
+  previewItemCount,
+  runningJobCount,
+  onSelectUnit,
+  onEditUnit,
+  onOpenCanvas,
+}: {
+  row: ContentGenerationMomentRow | null
+  selectedUnit: WorkbenchRecord | null
+  keyframes: WorkbenchRecord[]
+  missingSlots: WorkbenchRecord[]
+  previewItemCount: number
+  runningJobCount: number
+  onSelectUnit: (unitId: number) => void
+  onEditUnit: () => void
+  onOpenCanvas: () => void
+}) {
+  const primaryKeyframe = keyframes.find((keyframe) => numberOf(keyframe.resource_id) > 0) ?? keyframes[0]
+  const unitTitle = selectedUnit ? titleOfRecord(selectedUnit) : '未选择制作项'
+  const unitKind = selectedUnit ? trackKindLabel(String(selectedUnit.kind || 'shot')) : '待选择'
+  const promptText = selectedUnit ? firstText(selectedUnit.prompt, selectedUnit.description, '暂无基础提示词') : '先在时间轴中选择一个制作项。'
+  const visibleUnits = row?.units.slice().sort(byOrder).slice(0, 5) ?? []
+  const selectedIndex = row && selectedUnit
+    ? row.units.slice().sort(byOrder).findIndex((unit) => unit.ID === selectedUnit.ID)
+    : -1
+
+  return (
+    <WorkbenchPanel
+      title="情节预览"
+      icon={Film}
+      action={(
+        <div className="flex items-center gap-1.5">
+          <Badge variant={previewItemCount > 0 ? 'secondary' : 'outline'}>{previewItemCount > 0 ? `${previewItemCount} 段预览` : '未挂载预览'}</Badge>
+          {runningJobCount > 0 ? <Badge variant="secondary">{runningJobCount} 个任务中</Badge> : null}
+        </div>
+      )}
+    >
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_230px]" data-testid="content-workbench-scene-preview">
+        <div className="min-w-0 overflow-hidden rounded-md border border-border bg-background">
+          <div className="relative aspect-[16/8] min-h-[220px] overflow-hidden bg-muted">
+            {primaryKeyframe?.resource_id ? (
+              <AuthedImage
+                src={resourceFileUrl(primaryKeyframe.resource_id)}
+                alt={titleOfRecord(primaryKeyframe)}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full flex-col justify-between bg-[radial-gradient(circle_at_26%_24%,hsl(var(--muted-foreground)/0.18),transparent_32%),linear-gradient(135deg,hsl(var(--muted)),hsl(var(--background)))] p-4">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">Preview</Badge>
+                  <span className="text-xs text-muted-foreground">{row ? titleOfRecord(row.moment) : '等待情节'}</span>
+                </div>
+                <div className="max-w-[520px]">
+                  <p className="text-xl font-semibold text-foreground">{unitTitle}</p>
+                  <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">{promptText}</p>
+                </div>
+              </div>
+            )}
+            <div className="absolute left-3 top-3 flex flex-wrap items-center gap-1.5">
+              <Badge variant="secondary" className="bg-background/90 shadow-sm">{unitKind}</Badge>
+              {selectedIndex >= 0 ? <Badge variant="outline" className="bg-background/90 shadow-sm">Shot {String(selectedIndex + 1).padStart(2, '0')}</Badge> : null}
+            </div>
+            <div className="absolute inset-x-3 bottom-3 rounded-md border border-border bg-background/92 px-3 py-2 shadow-sm backdrop-blur">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">{unitTitle}</p>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    {selectedUnit ? `${formatDuration(selectedUnit.duration_sec)} · ${missingSlots.length > 0 ? `${missingSlots.length} 个素材缺口` : '素材输入可用'} · ${keyframes.length} 个关键帧` : '选择制作项后显示预览输入'}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={onEditUnit}>
+                    编辑
+                  </Button>
+                  <Button size="sm" className="h-7 px-2 text-xs" onClick={onOpenCanvas}>
+                    生成画布
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="min-w-0 rounded-md border border-border bg-background">
+          <div className="border-b border-border px-2.5 py-2">
+            <p className="text-sm font-medium text-foreground">当前情节制作项</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{row ? `${row.units.length} 个制作项` : '等待选择情节'}</p>
+          </div>
+          <div className="max-h-[268px] space-y-1 overflow-auto p-2">
+            {visibleUnits.length > 0 ? visibleUnits.map((unit, index) => {
+              const selected = selectedUnit?.ID === unit.ID
+              return (
+                <button
+                  key={unit.ID}
+                  type="button"
+                  className={cn(
+                    'flex w-full items-start gap-2 rounded-md border px-2 py-1.5 text-left transition-colors',
+                    selected ? 'border-primary/60 bg-primary/5' : 'border-border bg-card hover:bg-primary/5',
+                  )}
+                  onClick={() => onSelectUnit(unit.ID)}
+                >
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded bg-muted text-[10px] tabular-nums text-muted-foreground">
+                    {String(index + 1).padStart(2, '0')}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-medium text-foreground">{titleOfRecord(unit)}</span>
+                    <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{trackKindLabel(String(unit.kind || 'shot'))} · {formatDuration(unit.duration_sec)}</span>
+                  </span>
+                </button>
+              )
+            }) : (
+              <p className="rounded-md border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">当前情节还没有制作项。</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </WorkbenchPanel>
+  )
+}
+
 function SpecializedQueue({
   title = '生产队列',
   items,
@@ -2496,6 +2568,69 @@ function HierarchyFilterColumn({
   value,
   testId,
   emptyText,
+  rail = false,
+  onSelect,
+}: {
+  title: string
+  options: HierarchyFilterOption[]
+  value: string
+  testId: string
+  emptyText: string
+  rail?: boolean
+  onSelect: (value: string) => void
+}) {
+  return (
+    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col rounded-md border border-border bg-background p-2', rail ? 'border-transparent bg-transparent p-0' : '')} data-testid={testId} data-sidebar-rail={rail ? 'true' : undefined}>
+      <div className={cn('mb-1.5 flex items-center justify-between gap-2 px-0.5', rail ? 'sr-only' : '')}>
+        <p className="truncate text-xs font-medium text-muted-foreground">{title}</p>
+        <Badge variant="outline">{options.length}</Badge>
+      </div>
+      {options.length > 0 ? (
+        <div className={cn('min-h-0 flex-1 space-y-1 overflow-auto', rail ? 'pr-0' : 'pr-1')} data-testid={rail ? 'content-workbench-scene-rail' : undefined}>
+          {options.map((option) => {
+            const active = option.value === value
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => onSelect(option.value)}
+                title={rail ? `${option.label} · ${option.count} 项` : undefined}
+                aria-label={rail ? `${option.label}，${option.count} 项` : undefined}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-md border text-left text-xs transition-colors',
+                  rail ? 'justify-center px-1 py-1.5' : 'px-2 py-1.5',
+                  active ? 'border-primary/60 bg-primary/5 text-foreground' : 'border-border bg-card text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-foreground',
+                )}
+                data-sidebar-rail-card={rail ? 'true' : undefined}
+              >
+                <span className={cn(
+                  'flex shrink-0 items-center justify-center rounded border font-semibold',
+                  rail ? 'h-8 w-8 text-[11px]' : 'h-8 w-8 text-[11px]',
+                  active ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border bg-muted text-muted-foreground',
+                )} data-testid="content-workbench-hierarchy-thumbnail">
+                  {hierarchyOptionInitial(option.label)}
+                </span>
+                <span className={cn('min-w-0 flex-1', rail ? 'sr-only' : '')}>
+                  <span className="block truncate font-medium">{option.label}</span>
+                  <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{option.count} 项</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <p className="rounded-md border border-dashed border-border px-2 py-4 text-center text-xs text-muted-foreground">{emptyText}</p>
+      )}
+    </div>
+  )
+}
+
+function CategoryFilterGroup({
+  title,
+  options,
+  value,
+  testId,
+  emptyText,
   onSelect,
 }: {
   title: string
@@ -2506,13 +2641,13 @@ function HierarchyFilterColumn({
   onSelect: (value: string) => void
 }) {
   return (
-    <div className="min-w-0 rounded-md border border-border bg-background p-2" data-testid={testId}>
+    <div className="rounded-md border border-border bg-background p-2" data-testid={testId}>
       <div className="mb-1.5 flex items-center justify-between gap-2 px-0.5">
         <p className="truncate text-xs font-medium text-muted-foreground">{title}</p>
         <Badge variant="outline">{options.length}</Badge>
       </div>
       {options.length > 0 ? (
-        <div className="max-h-44 space-y-1 overflow-auto pr-1">
+        <div className="flex flex-wrap gap-1">
           {options.map((option) => {
             const active = option.value === value
             return (
@@ -2521,21 +2656,157 @@ function HierarchyFilterColumn({
                 type="button"
                 onClick={() => onSelect(option.value)}
                 className={cn(
-                  'flex w-full items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-left text-xs transition-colors',
-                  active ? 'border-primary/60 bg-primary/5 text-foreground' : 'border-border bg-card text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-foreground',
+                  'inline-flex h-7 max-w-full items-center gap-1.5 rounded border px-2 text-xs transition-colors',
+                  active ? 'border-primary/60 bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-foreground',
                 )}
               >
-                <span className="min-w-0 flex-1 truncate font-medium">{option.label}</span>
-                <span className="shrink-0 text-[11px] tabular-nums">{option.count}</span>
+                <span className="truncate">{option.label}</span>
+                <span className="shrink-0 text-[10px] tabular-nums opacity-80">{option.count}</span>
               </button>
             )
           })}
         </div>
       ) : (
-        <p className="rounded-md border border-dashed border-border px-2 py-4 text-center text-xs text-muted-foreground">{emptyText}</p>
+        <p className="rounded-md border border-dashed border-border px-2 py-3 text-center text-xs text-muted-foreground">{emptyText}</p>
       )}
     </div>
   )
+}
+
+function hierarchyOptionInitial(label: string) {
+  const trimmed = label.trim()
+  if (!trimmed) return '#'
+  const alphaNumeric = trimmed.match(/[A-Za-z0-9]/)?.[0]
+  if (alphaNumeric) return alphaNumeric.toUpperCase()
+  return trimmed.slice(0, 1)
+}
+
+function ContentWorkbenchFilterSidebar({
+  productionOptions,
+  productionValue,
+  segmentOptions,
+  segmentValue,
+  sceneOptions,
+  sceneValue,
+  query,
+  resultCount,
+  unitCount,
+  collapsed,
+  onQueryChange,
+  onToggleCollapsed,
+  onSelectProduction,
+  onSelectSegment,
+  onSelectScene,
+}: {
+  productionOptions: HierarchyFilterOption[]
+  productionValue: string
+  segmentOptions: HierarchyFilterOption[]
+  segmentValue: string
+  sceneOptions: HierarchyFilterOption[]
+  sceneValue: string
+  query: string
+  resultCount: number
+  unitCount: number
+  collapsed: boolean
+  onQueryChange: (value: string) => void
+  onToggleCollapsed: () => void
+  onSelectProduction: (value: string) => void
+  onSelectSegment: (value: string) => void
+  onSelectScene: (value: string) => void
+}) {
+  return (
+    <aside className={cn('flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden rounded-lg border border-border bg-card p-2.5 transition-[width]', collapsed ? 'items-center px-2' : '')} data-testid="content-workbench-filter-sidebar" data-sidebar-collapsed={collapsed ? 'true' : undefined}>
+      <div className={cn('flex items-center gap-2 px-0.5', collapsed ? 'justify-center' : 'justify-between')}>
+        <div className={cn('min-w-0', collapsed ? 'sr-only' : '')}>
+          <p className="truncate text-sm font-semibold text-foreground">分类筛选</p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{resultCount} 个情节 · {unitCount} 个制作项</p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className={cn('h-7 shrink-0 text-xs', collapsed ? 'w-8 px-0' : 'px-2')}
+          onClick={onToggleCollapsed}
+          title={collapsed ? '展开左侧栏' : '缩略左侧栏'}
+          aria-label={collapsed ? '展开左侧栏' : '缩略左侧栏'}
+          data-testid="content-workbench-sidebar-collapse"
+        >
+          {collapsed ? <ArrowRight size={14} /> : (
+            <>
+              <ArrowLeft size={13} />
+              <span>缩略</span>
+            </>
+          )}
+        </Button>
+      </div>
+
+      <div className={cn('relative', collapsed ? 'hidden' : '')}>
+        <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="搜索情节、制作项、提示词"
+          className="h-9 pl-8 text-xs"
+          data-testid="content-workbench-sidebar-search"
+        />
+      </div>
+
+      <div className={cn('flex min-h-0 flex-1 flex-col gap-2 overflow-hidden', collapsed ? 'w-full pr-0' : 'pr-1')} data-testid="content-workbench-hierarchy-filter">
+        {collapsed ? null : (
+          <>
+            <CategoryFilterGroup
+              title="制作分类"
+              options={productionOptions}
+              value={productionValue}
+              testId="content-workbench-production-filter"
+              emptyText="暂无制作分类"
+              onSelect={onSelectProduction}
+            />
+            <CategoryFilterGroup
+              title="情绪段分类"
+              options={segmentOptions}
+              value={segmentValue}
+              testId="content-workbench-segment-filter"
+              emptyText="暂无情绪段"
+              onSelect={onSelectSegment}
+            />
+          </>
+        )}
+        <HierarchyFilterColumn
+          title={collapsed ? '情节缩略' : '情节卡片'}
+          options={sceneOptions}
+          value={sceneValue}
+          testId="content-workbench-scene-moment-filter"
+          emptyText="当前筛选没有情节"
+          rail={collapsed}
+          onSelect={onSelectScene}
+        />
+      </div>
+    </aside>
+  )
+}
+
+function contentWorkbenchRowSearchText(row: ContentGenerationMomentRow) {
+  const values: string[] = [
+    row.title,
+    row.scope,
+    titleOfRecord(row.moment),
+    row.segment ? titleOfRecord(row.segment) : '',
+    ...row.references.map((record) => `${titleOfRecord(record)} ${firstText(record.kind, record.description)}`),
+    ...row.units.map((unit) => [
+      titleOfRecord(unit),
+      firstText(unit.kind, unit.status),
+      firstText(unit.prompt, unit.description, unit.content),
+    ].join(' ')),
+    ...row.keyframes.map((keyframe) => `${titleOfRecord(keyframe)} ${firstText(keyframe.prompt, keyframe.description)}`),
+  ]
+  return values.join(' ').toLowerCase()
+}
+
+function contentWorkbenchRowMatchesSearch(row: ContentGenerationMomentRow, query: string) {
+  const normalizedQuery = query.trim().toLowerCase()
+  if (!normalizedQuery) return true
+  return contentWorkbenchRowSearchText(row).includes(normalizedQuery)
 }
 
 function ContextStack({ rows, className }: { rows: WorkbenchLinkRow[]; className?: string }) {
@@ -2995,6 +3266,8 @@ function UnitProductionTrack({
 }) {
   const [draggedUnitId, setDraggedUnitId] = useState<number | null>(null)
   const [timelineZoom, setTimelineZoom] = useState(1)
+  const [unitKindFilter, setUnitKindFilter] = useState('all')
+  const [schedulePanel, setSchedulePanel] = useState<'timeline' | 'list'>('timeline')
   const summary = buildContentWorkbenchUnitTrack((row?.units ?? []).slice().sort(byOrder).map((unit) => {
     const unitSlots = row?.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && Number(slot.owner_id) === unit.ID) ?? []
     const missingSlots = unitSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
@@ -3010,6 +3283,8 @@ function UnitProductionTrack({
       durationSec: numberOf(previewTimelineItem?.duration_sec) || numberOf(unit.duration_sec),
       status: unit.status,
       summary: firstText(unit.description, unit.prompt),
+      sceneMomentTitle: firstText(unit.__scene_moment_title, row?.title),
+      segmentTitle: firstText(unit.__segment_title, row?.segment ? titleOfRecord(row.segment) : ''),
       scriptCue: scriptBlockCue(scriptBlock),
       soundCue: unitSoundCue(unit, scriptBlock, audioSlots),
       keyframeTitles: keyframes.map(titleOfRecord),
@@ -3023,6 +3298,24 @@ function UnitProductionTrack({
       selected: selectedUnitId === unit.ID,
     }
   }))
+  const unitKindOptions = Array.from(new Set(summary.items.map((item) => String(item.kind || 'shot'))))
+    .sort((a, b) => contentUnitTimelineKindRank(a) - contentUnitTimelineKindRank(b) || trackKindLabel(a).localeCompare(trackKindLabel(b), 'zh-Hans-CN'))
+    .map((kind) => ({
+      kind,
+      label: trackKindLabel(kind),
+      count: summary.items.filter((item) => String(item.kind || 'shot') === kind).length,
+    }))
+  const filteredItems = unitKindFilter === 'all'
+    ? summary.items
+    : summary.items.filter((item) => String(item.kind || 'shot') === unitKindFilter)
+  const visibleSummary = {
+    ...summary,
+    items: filteredItems,
+    total: filteredItems.length,
+    durationSec: filteredItems.reduce((max, item) => Math.max(max, item.endSec), 0),
+    keyframeCount: filteredItems.reduce((sum, item) => sum + item.keyframeTitles.length, 0),
+    selectedId: filteredItems.find((item) => item.selected)?.id,
+  }
 
   if (!row || summary.total === 0) {
     return (
@@ -3077,25 +3370,25 @@ function UnitProductionTrack({
     )
   }
 
-  const timelineMemberItems = summary.items.filter((item) => item.timeSource === 'preview')
+  const timelineMemberItems = summary.items
   const timelineOriginSec = contentWorkbenchTimelineOriginSec(timelineMemberItems)
   const timelineContentDurationSec = Math.max(1, summary.items.reduce((max, item) => Math.max(max, item.endSec - timelineOriginSec), 0))
-  const timelineDurationSec = contentWorkbenchVisibleTimelineDurationSec(
-    timelineContentDurationSec,
-    summary.items.reduce((max, item) => Math.max(max, item.durationSec), 0),
-  )
-  const timelineTicks = buildTrackTimeTicks(timelineDurationSec)
+  const timelinePxPerSec = contentWorkbenchTimelinePxPerSec(timelineZoom)
+  const timelineRulerWidth = contentWorkbenchTimelineRulerWidth(timelineMemberItems, timelineOriginSec, timelinePxPerSec)
+  const timelineCanvasWidth = timelineRulerWidth + 124
+  const timelineDurationSec = timelineRulerWidth / timelinePxPerSec
+  const timelineTicks = buildTrackTimeTicks(timelineDurationSec, timelinePxPerSec)
+  const timelineBoundaries = buildContentWorkbenchTimelineBoundaries(timelineMemberItems, timelineOriginSec, timelinePxPerSec)
   const selectedTimelineItem = timelineMemberItems.find((item) => item.selected) ?? timelineMemberItems[0] ?? null
   const selectedTimelineItemStartSec = selectedTimelineItem ? contentWorkbenchLocalTimelineSec(selectedTimelineItem.startSec, timelineOriginSec) : 0
   const focusedTimeline = timelineOriginSec > 0
-  const canDragUnits = Boolean(row && summary.total > 0 && !isReordering)
-  const timelineCanvasWidth = Math.round(1040 * timelineZoom)
+  const canDragUnits = Boolean(row && visibleSummary.total > 0 && !isReordering)
   function handleUnitDragStart(event: DragEvent<HTMLElement>, unitId: number, source: 'card' | 'timeline' = 'card') {
     if (!canDragUnits) return
     setDraggedUnitId(unitId)
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('application/x-movscript-content-unit-id', String(unitId))
-    const item = summary.items.find((entry) => Number(entry.id) === unitId)
+    const item = visibleSummary.items.find((entry) => Number(entry.id) === unitId)
     const box = event.currentTarget.getBoundingClientRect()
     const pointerRatio = box.width > 0 ? Math.max(0, Math.min(1, (event.clientX - box.left) / box.width)) : 0
     const offsetSec = source === 'timeline' && item ? pointerRatio * item.durationSec : 0
@@ -3120,11 +3413,10 @@ function UnitProductionTrack({
     setDraggedUnitId(null)
     if (!sourceUnitId) return
     const box = event.currentTarget.getBoundingClientRect()
-    const unit = summary.items.find((item) => Number(item.id) === sourceUnitId)
+    const unit = visibleSummary.items.find((item) => Number(item.id) === sourceUnitId)
     if (!unit) return
-    const dropRatio = Math.max(0, Math.min(1, (event.clientX - box.left) / Math.max(1, box.width)))
-    const rawStartSec = dropRatio * timelineDurationSec - dragOffsetSec
-    const localStartSec = snapContentWorkbenchTimelineStartSec(rawStartSec, timelineDurationSec, unit.durationSec, timelineMemberItems.map((item) => ({
+    const rawStartSec = Math.max(0, (event.clientX - box.left) / timelinePxPerSec - dragOffsetSec)
+    const localStartSec = snapContentWorkbenchTimelineStartSec(rawStartSec, timelinePxPerSec, timelineMemberItems.map((item) => ({
       id: item.id,
       startSec: contentWorkbenchLocalTimelineSec(item.startSec, timelineOriginSec),
       endSec: contentWorkbenchLocalTimelineSec(item.endSec, timelineOriginSec),
@@ -3148,10 +3440,11 @@ function UnitProductionTrack({
           : item.scriptCue || item.soundCue || item.summary || '未补内容'
         const localStartSec = contentWorkbenchLocalTimelineSec(item.startSec, timelineOriginSec)
         const gapText = item.missingAssetTitles[0] ? `缺口：${item.missingAssetTitles[0]}` : formatTrackTimeRange(localStartSec, localStartSec + item.durationSec, item.durationSec)
+        const sceneText = item.sceneMomentTitle ? `情节：${item.sceneMomentTitle}` : ''
         return {
           item,
           title: `${String(item.order).padStart(2, '0')} ${item.title}`,
-          detail: kind === 'shot' ? `${keyframeText} · ${gapText}` : firstText(item.scriptCue, item.soundCue, item.summary, gapText),
+          detail: kind === 'shot' ? [sceneText, keyframeText, gapText].filter(Boolean).join(' · ') : firstText(sceneText, item.scriptCue, item.soundCue, item.summary, gapText),
           muted: kind === 'shot' ? item.requiresKeyframe && item.keyframeTitles.length === 0 : !item.scriptCue && !item.soundCue && !item.summary,
         }
       }),
@@ -3169,21 +3462,52 @@ function UnitProductionTrack({
           <p className="mt-1 text-xs leading-5 text-muted-foreground">{summary.detail}</p>
         </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground" data-testid="content-workbench-unit-track-summary">
-          <span>{summary.total} 制作项</span>
+          <span>{summary.total} 内容单元</span>
           <span className="text-border">/</span>
           <span>{formatTrackDuration(summary.durationSec)}</span>
-          <span className="text-border">/</span>
-          <span className={summary.blockedCount > 0 ? 'text-amber-700 dark:text-amber-300' : undefined}>{summary.blockedCount} 阻塞</span>
           <span className="text-border">/</span>
           <span className={summary.keyframeCount > 0 ? undefined : 'text-amber-700 dark:text-amber-300'}>{summary.keyframeCount} 关键帧</span>
         </div>
       </div>
 
-      <div className="mt-2.5 overflow-x-auto pb-1">
-        <div className="flex min-w-max gap-2">
-          {summary.items.map((item, index) => {
-            const previousItem = summary.items[index - 1]
-            const nextItem = summary.items[index + 1]
+      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-1" data-testid="content-workbench-unit-kind-filter">
+          <button
+            type="button"
+            className={cn(
+              'h-7 rounded border px-2 text-xs transition-colors',
+              unitKindFilter === 'all' ? 'border-primary/60 bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-foreground',
+            )}
+            onClick={() => setUnitKindFilter('all')}
+          >
+            全部 {summary.items.length}
+          </button>
+          {unitKindOptions.map((option) => (
+            <button
+              key={option.kind}
+              type="button"
+              className={cn(
+                'h-7 rounded border px-2 text-xs transition-colors',
+                unitKindFilter === option.kind ? 'border-primary/60 bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-foreground',
+              )}
+              onClick={() => setUnitKindFilter(option.kind)}
+            >
+              {option.label} {option.count}
+            </button>
+          ))}
+        </div>
+        <Button size="sm" className="h-8 gap-1.5" onClick={onCreateUnit} data-testid="content-workbench-create-unit-from-track">
+          <Plus size={13} />
+          新建
+        </Button>
+      </div>
+
+      <div className="mt-2.5 pb-1">
+        {visibleSummary.items.length > 0 ? (
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {visibleSummary.items.map((item, index) => {
+            const previousItem = visibleSummary.items[index - 1]
+            const nextItem = visibleSummary.items[index + 1]
             return (
             <div
               key={item.id}
@@ -3201,7 +3525,7 @@ function UnitProductionTrack({
               onDrop={(event) => handleUnitDrop(event, Number(item.id))}
               onDragEnd={() => setDraggedUnitId(null)}
               className={cn(
-                'w-[172px] shrink-0 rounded-md border px-2 py-1.5 text-left transition-colors',
+                'min-w-0 rounded-md border px-2 py-1.5 text-left transition-colors',
                 canDragUnits ? 'cursor-grab active:cursor-grabbing' : '',
                 item.selected
                   ? 'border-primary/60 bg-primary/5'
@@ -3254,55 +3578,92 @@ function UnitProductionTrack({
               </div>
               <button type="button" className="mt-1 block w-full text-left" onClick={() => onSelectUnit(Number(item.id))}>
                 <span className="block truncate text-[11px] text-muted-foreground">{trackKindLabel(item.kind)} · {item.labels.slice(0, 2).join(' · ') || '待补输入'}</span>
-                {item.blockers.length > 0 ? (
-                  <span className="mt-1 block truncate text-[11px] text-amber-700 dark:text-amber-300">{item.blockers[0]}{item.blockers.length > 1 ? ` · 另 ${item.blockers.length - 1}` : ''}</span>
-                ) : (
-                  <span className="mt-1 block truncate text-[11px] text-emerald-700 dark:text-emerald-300">基础输入可用</span>
-                )}
+                {item.sceneMomentTitle ? (
+                  <span className="mt-1 block truncate text-[11px] text-muted-foreground">情节：{item.sceneMomentTitle}</span>
+                ) : null}
+                <span className="mt-1 block truncate text-[11px] text-muted-foreground">
+                  {item.summary || item.scriptCue || item.soundCue || '待补输入'}
+                </span>
               </button>
             </div>
             )
           })}
-        </div>
+          </div>
+        ) : (
+          <div className="rounded-md border border-dashed border-border px-3 py-4 text-center text-sm text-muted-foreground">
+            当前类型下没有内容单元。
+          </div>
+        )}
       </div>
 
       <div className="mt-3 overflow-hidden rounded-md border border-border bg-card" data-testid="content-workbench-unit-schedule">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-2.5 py-2">
-          <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-            <Clock3 size={15} className="shrink-0 text-muted-foreground" />
-            <span className="truncate">制作项时间轴</span>
+          <div className="flex overflow-hidden rounded-md border border-border bg-background" data-testid="content-workbench-schedule-panel-switcher">
+            <button
+              type="button"
+              className={cn(
+                'inline-flex h-8 items-center gap-1.5 px-2.5 text-xs transition-colors',
+                schedulePanel === 'timeline' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-primary/5 hover:text-foreground',
+              )}
+              onClick={() => setSchedulePanel('timeline')}
+            >
+              <Clock3 size={13} />
+              制作项时间轴
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'inline-flex h-8 items-center gap-1.5 border-l border-border px-2.5 text-xs transition-colors',
+                schedulePanel === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-primary/5 hover:text-foreground',
+              )}
+              onClick={() => setSchedulePanel('list')}
+            >
+              <FileText size={13} />
+              内容编辑
+            </button>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            <div className="flex items-center overflow-hidden rounded-md border border-border bg-background" data-testid="content-workbench-timeline-zoom">
-              <button
-                type="button"
-                className="h-7 px-2 text-xs text-muted-foreground hover:bg-primary/5 hover:text-foreground disabled:opacity-40"
-                onClick={() => setTimelineZoom((value) => Math.max(0.75, Math.round((value - 0.25) * 100) / 100))}
-                disabled={timelineZoom <= 0.75}
-                aria-label="缩小时间轴"
-              >
-                -
-              </button>
-              <span className="border-x border-border px-2 text-[11px] tabular-nums text-muted-foreground">{Math.round(timelineZoom * 100)}%</span>
-              <button
-                type="button"
-                className="h-7 px-2 text-xs text-muted-foreground hover:bg-primary/5 hover:text-foreground disabled:opacity-40"
-                onClick={() => setTimelineZoom((value) => Math.min(2, Math.round((value + 0.25) * 100) / 100))}
-                disabled={timelineZoom >= 2}
-                aria-label="放大时间轴"
-              >
-                +
-              </button>
-            </div>
-            {selectedTimelineItem ? (
-              <Badge variant="secondary" data-testid="content-workbench-timeline-playhead-label">播放头 {formatTrackClock(selectedTimelineItemStartSec)}</Badge>
-            ) : null}
-            {focusedTimeline ? (
-              <Badge variant="outline" data-testid="content-workbench-timeline-focus-label">关注段 0:00 = 全局 {formatTrackClock(timelineOriginSec)}</Badge>
+            {schedulePanel === 'timeline' ? (
+              <>
+                <div className="flex items-center overflow-hidden rounded-md border border-border bg-background" data-testid="content-workbench-timeline-zoom">
+                  <button
+                    type="button"
+                    className="h-7 px-2 text-xs text-muted-foreground hover:bg-primary/5 hover:text-foreground"
+                    onClick={() => setTimelineZoom((value) => Math.max(0.05, Math.round((value / 1.25) * 1000) / 1000))}
+                    aria-label="缩小时间轴"
+                  >
+                    -
+                  </button>
+                  <span className="border-x border-border px-2 text-[11px] tabular-nums text-muted-foreground">{Math.round(timelineZoom * 100)}%</span>
+                  <button
+                    type="button"
+                    className="h-7 px-2 text-xs text-muted-foreground hover:bg-primary/5 hover:text-foreground"
+                    onClick={() => setTimelineZoom((value) => Math.round((value * 1.25) * 1000) / 1000)}
+                    aria-label="放大时间轴"
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    className="h-7 border-l border-border px-2 text-[11px] text-muted-foreground hover:bg-primary/5 hover:text-foreground"
+                    onClick={() => setTimelineZoom(1)}
+                    aria-label="重置时间轴缩放"
+                  >
+                    1:1
+                  </button>
+                </div>
+                {selectedTimelineItem ? (
+                  <Badge variant="secondary" data-testid="content-workbench-timeline-playhead-label">播放头 {formatTrackClock(selectedTimelineItemStartSec)}</Badge>
+                ) : null}
+                {focusedTimeline ? (
+                  <Badge variant="outline" data-testid="content-workbench-timeline-focus-label">关注段 0:00 = 全局 {formatTrackClock(timelineOriginSec)}</Badge>
+                ) : null}
+              </>
             ) : null}
             <Badge variant="outline">{formatTrackDuration(timelineContentDurationSec)}</Badge>
           </div>
         </div>
+        {schedulePanel === 'timeline' ? (
         <div className="overflow-x-auto">
           <div style={{ minWidth: timelineCanvasWidth }}>
             <div className="border-b border-border bg-background px-2.5 py-2.5" data-testid="content-workbench-unit-timeline">
@@ -3313,7 +3674,7 @@ function UnitProductionTrack({
                     <div
                       className="absolute top-0 z-10 h-full border-l-2 border-primary"
                       data-testid="content-workbench-timeline-playhead"
-                      style={{ left: `${trackTimelinePercent(selectedTimelineItemStartSec, timelineDurationSec)}%` }}
+                      style={{ left: trackTimelinePx(selectedTimelineItemStartSec, timelinePxPerSec) }}
                     >
                       <span className="ml-1 mt-1 block rounded bg-primary px-1 py-0.5 text-[10px] leading-none text-primary-foreground shadow-sm">
                         {formatTrackClock(selectedTimelineItemStartSec)}
@@ -3324,9 +3685,21 @@ function UnitProductionTrack({
                     <div
                       key={tick.seconds}
                       className="absolute top-0 h-full border-l border-border/80 pl-1"
-                      style={{ left: `${trackTimelinePercent(tick.seconds, timelineDurationSec)}%` }}
+                      style={{ left: trackTimelinePx(tick.seconds, timelinePxPerSec) }}
                     >
                       <span className="absolute bottom-0 text-[10px] leading-4 text-muted-foreground">{tick.label}</span>
+                    </div>
+                  ))}
+                  {timelineBoundaries.map((boundary) => (
+                    <div
+                      key={`ruler-boundary-${boundary.key}`}
+                      className="absolute top-0 h-full border-l border-dashed border-primary/50 pl-1"
+                      data-testid="content-workbench-timeline-boundary"
+                      style={{ left: boundary.leftPx }}
+                    >
+                      <span className="absolute top-0 max-w-[160px] truncate rounded bg-background/95 px-1 text-[10px] leading-4 text-primary shadow-sm">
+                        {boundary.label}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -3353,14 +3726,21 @@ function UnitProductionTrack({
                         <span
                           aria-hidden="true"
                           className="pointer-events-none absolute top-0 z-10 h-full border-l-2 border-primary/70"
-                          style={{ left: `${trackTimelinePercent(selectedTimelineItemStartSec, timelineDurationSec)}%` }}
+                          style={{ left: trackTimelinePx(selectedTimelineItemStartSec, timelinePxPerSec) }}
                         />
                       ) : null}
                       {timelineTicks.map((tick) => (
                         <span
                           key={`${lane.key}-${tick.seconds}`}
                           className="pointer-events-none absolute top-0 h-full border-l border-border/50"
-                          style={{ left: `${trackTimelinePercent(tick.seconds, timelineDurationSec)}%` }}
+                          style={{ left: trackTimelinePx(tick.seconds, timelinePxPerSec) }}
+                        />
+                      ))}
+                      {timelineBoundaries.map((boundary) => (
+                        <span
+                          key={`${lane.key}-boundary-${boundary.key}`}
+                          className="pointer-events-none absolute top-0 h-full border-l border-dashed border-primary/40"
+                          style={{ left: boundary.leftPx }}
                         />
                       ))}
                       {lane.items.map(({ item, title, detail, muted }) => (
@@ -3388,8 +3768,8 @@ function UnitProductionTrack({
                             muted ? 'opacity-60' : '',
                           )}
                           style={{
-                            left: `${trackTimelinePercent(contentWorkbenchLocalTimelineSec(item.startSec, timelineOriginSec), timelineDurationSec)}%`,
-                            width: `${trackTimelineWidthPercent(item.durationSec, timelineDurationSec)}%`,
+                            left: trackTimelinePx(contentWorkbenchLocalTimelineSec(item.startSec, timelineOriginSec), timelinePxPerSec),
+                            width: trackTimelineWidthPx(item.durationSec, timelinePxPerSec),
                           }}
                         >
                           <span className="block truncate font-medium text-foreground">{title}</span>
@@ -3401,60 +3781,117 @@ function UnitProductionTrack({
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-[64px_96px_104px_minmax(220px,1fr)_180px_160px_104px] gap-2 border-b border-border bg-muted/30 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground">
-              <span>顺序</span>
-              <span>时间</span>
-              <span>类型</span>
-              <span>内容</span>
-              <span>对白 / 声音</span>
-              <span>关键帧 / 缺口</span>
-              <span className="text-right">状态</span>
-            </div>
-            {summary.items.map((item) => (
-              <button
-                key={`schedule-${item.id}`}
-                type="button"
-                data-testid="content-workbench-schedule-row"
-                data-track-item-id={item.id}
-                onClick={() => onSelectUnit(Number(item.id))}
-                className={cn(
-                  'grid w-full grid-cols-[64px_96px_104px_minmax(220px,1fr)_180px_160px_104px] gap-2 border-b border-border/70 px-2.5 py-2 text-left text-xs transition-colors last:border-b-0 hover:bg-primary/5',
-                  item.selected ? 'bg-primary/5' : 'bg-background',
-                )}
-              >
-                <span className="tabular-nums text-muted-foreground">{String(item.order).padStart(2, '0')}</span>
-                <span className="min-w-0">
-                  <span className="block tabular-nums text-muted-foreground">
-                    {formatTrackTimeRange(contentWorkbenchLocalTimelineSec(item.startSec, timelineOriginSec), contentWorkbenchLocalTimelineSec(item.startSec, timelineOriginSec) + item.durationSec, item.durationSec)}
-                  </span>
-                  <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">{item.timeSource === 'preview' ? '预览时间线' : '待加入时间线'}</span>
-                </span>
-                <span className="truncate text-foreground">{trackKindLabel(item.kind)}</span>
-                <span className="min-w-0">
-                  <span className="block truncate font-medium text-foreground">{item.title}</span>
-                  <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{item.summary || '暂无描述或创作提示'}</span>
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-foreground">{item.scriptCue || '未绑定对白'}</span>
-                  <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{item.soundCue || '无显性声音需求'}</span>
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-foreground">{item.requiresKeyframe ? (item.keyframeTitles.length > 0 ? item.keyframeTitles.slice(0, 2).join('、') : '无关键帧') : '不要求关键帧'}</span>
-                  <span className={cn('mt-0.5 block truncate text-[11px]', item.missingAssetTitles.length > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>
-                    {item.missingAssetTitles.length > 0 ? item.missingAssetTitles.slice(0, 2).join('、') : '无素材缺口'}
-                  </span>
-                </span>
-                <span className="flex min-w-0 justify-end overflow-hidden">
-                  <Badge variant={item.tone === 'blocked' ? 'warning' : item.tone === 'ready' ? 'success' : item.tone === 'running' ? 'secondary' : 'outline'} className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[10px]">
-                    {item.blockers.length > 0 ? item.blockers[0] : item.tone === 'ready' ? '可执行' : item.tone === 'running' ? '生产中' : '待确认'}
-                  </Badge>
-                </span>
-              </button>
-            ))}
           </div>
         </div>
+        ) : (
+        <div className="min-h-[180px] bg-background" data-testid="content-workbench-schedule-blank-panel" />
+        )}
       </div>
     </div>
+  )
+}
+
+function CreateContentUnitQuickCard({
+  projectId,
+  contentUnitConfig,
+  selected,
+  selectedUnit,
+  defaults,
+  queryKey,
+  onSaved,
+  onCancel,
+}: {
+  projectId?: number
+  contentUnitConfig: SemanticEntityConfig
+  selected: ContentGenerationMomentRow
+  selectedUnit?: WorkbenchRecord | null
+  defaults?: Partial<SemanticEntityPayload> | null
+  queryKey: readonly unknown[]
+  onSaved: (record: SemanticEntityRecord) => void
+  onCancel: () => void
+}) {
+  const queryClient = useQueryClient()
+  const kindOptions = useMemo(() => contentUnitKindOptions(contentUnitConfig), [contentUnitConfig])
+  const defaultKind = firstText(defaults?.kind, 'shot')
+  const [kind, setKind] = useState(kindOptions.some((option) => option.value === defaultKind) ? defaultKind : kindOptions[0]?.value ?? 'shot')
+  const selectedKindLabel = trackKindLabel(kind)
+
+  useEffect(() => {
+    const nextKind = firstText(defaults?.kind, 'shot')
+    setKind(kindOptions.some((option) => option.value === nextKind) ? nextKind : kindOptions[0]?.value ?? 'shot')
+  }, [defaults, kindOptions])
+
+  const createUnit = useMutation({
+    mutationFn: () => {
+      if (!projectId) throw new Error('missing project id')
+      const order = selected.units.length + 1
+      const title = firstText(defaults?.title, `未命名${selectedKindLabel} ${order}`)
+      return createSemanticEntity(projectId, contentUnitConfig, {
+        ...defaults,
+        title,
+        kind,
+        status: 'candidate',
+        segment_id: selected.segment?.ID ?? null,
+        scene_moment_id: selected.moment.ID,
+        production_id: nullableNumber(selectedUnit?.production_id ?? selected.moment.production_id ?? selected.segment?.production_id ?? selected.productionIds[0]),
+        script_block_id: nullableNumber(selectedUnit?.script_block_id ?? selected.moment.script_block_id ?? selected.segment?.script_block_id),
+        order,
+      })
+    },
+    onSuccess: async (record) => {
+      await queryClient.invalidateQueries({ queryKey })
+      if (projectId) queryClient.invalidateQueries({ queryKey: [contentUnitConfig.kind, projectId] })
+      toast.success('制作项草稿已创建')
+      onSaved(record)
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '创建制作项失败'))
+    },
+  })
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-border bg-card">
+      <div className="border-b border-border bg-muted/25 px-4 py-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <Boxes size={15} className="text-muted-foreground" />
+              新建制作项
+            </div>
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+              {selected.title} · 候选草稿
+            </p>
+          </div>
+          <Badge variant="outline">仅类型</Badge>
+        </div>
+      </div>
+
+      <div className="p-4">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">类型</Label>
+          <Select value={kind} onValueChange={setKind}>
+            <SelectTrigger className="h-10 bg-background">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {kindOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={createUnit.isPending}>
+            取消
+          </Button>
+          <Button type="button" className="gap-2" onClick={() => createUnit.mutate()} loading={createUnit.isPending} disabled={!projectId || createUnit.isPending}>
+            <Plus size={14} />
+            创建
+          </Button>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -3470,27 +3907,55 @@ function formatTrackClock(seconds: number) {
   return `${minutes}:${String(rest).padStart(2, '0')}`
 }
 
-function buildTrackTimeTicks(durationSec: number) {
+function buildTrackTimeTicks(durationSec: number, pxPerSec: number) {
   const duration = Math.max(1, Math.ceil(Number(durationSec) || 1))
-  const divisions = duration <= 12 ? duration : 4
-  const ticks = Array.from({ length: divisions + 1 }, (_, index) => {
-    const seconds = index === divisions ? duration : Math.round((duration / divisions) * index)
+  const targetLabelGapPx = 72
+  const interval = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600].find((step) => step * pxPerSec >= targetLabelGapPx) ?? 900
+  const tickCount = Math.ceil(duration / interval)
+  return Array.from({ length: tickCount + 1 }, (_, index) => {
+    const seconds = index * interval
     return { seconds, label: formatTrackClock(seconds) }
   })
-  return ticks.filter((tick, index) => index === 0 || tick.seconds !== ticks[index - 1]?.seconds)
 }
 
-function trackTimelinePercent(seconds: number, durationSec: number) {
-  const duration = Math.max(1, Number(durationSec) || 1)
-  const value = Math.max(0, Math.min(duration, Number(seconds) || 0))
-  return Math.round((value / duration) * 1000) / 10
+function contentWorkbenchTimelinePxPerSec(zoom: number) {
+  return Math.max(1.8, 36 * Math.max(0.05, Number(zoom) || 1))
 }
 
-function trackTimelineWidthPercent(durationSec: number, totalDurationSec: number) {
-  const duration = Math.max(1, Number(totalDurationSec) || 1)
-  const width = Math.max(0, Number(durationSec) || 0)
-  if (width <= 0) return 0.4
-  return Math.min(100, Math.round((width / duration) * 1000) / 10)
+function contentWorkbenchTimelineRulerWidth(items: Array<{ endSec: number; durationSec: number }>, originSec: number, pxPerSec: number) {
+  const maxEndSec = items.reduce((max, item) => Math.max(max, contentWorkbenchLocalTimelineSec(item.endSec, originSec)), 0)
+  const longestItemSec = items.reduce((max, item) => Math.max(max, Number(item.durationSec) || 0), 0)
+  const visibleSeconds = Math.max(30, maxEndSec + Math.max(20, longestItemSec * 2))
+  return Math.max(1200, Math.round(visibleSeconds * pxPerSec))
+}
+
+function trackTimelinePx(seconds: number, pxPerSec: number) {
+  return Math.round(Math.max(0, Number(seconds) || 0) * pxPerSec)
+}
+
+function trackTimelineWidthPx(durationSec: number, pxPerSec: number) {
+  return Math.max(18, Math.round(Math.max(0.1, Number(durationSec) || 0.1) * pxPerSec))
+}
+
+function buildContentWorkbenchTimelineBoundaries(
+  items: Array<{ id: string; startSec: number; sceneMomentTitle: string; segmentTitle: string }>,
+  originSec: number,
+  pxPerSec: number,
+) {
+  return items
+    .map((item, index) => {
+      if (index === 0) return null
+      const previous = items[index - 1]
+      const segmentChanged = Boolean(item.segmentTitle && item.segmentTitle !== previous.segmentTitle)
+      const sceneChanged = Boolean(item.sceneMomentTitle && item.sceneMomentTitle !== previous.sceneMomentTitle)
+      if (!segmentChanged && !sceneChanged) return null
+      return {
+        key: `${item.id}-${segmentChanged ? 'segment' : 'scene'}`,
+        label: segmentChanged ? `情绪段：${item.segmentTitle}` : `情节：${item.sceneMomentTitle}`,
+        leftPx: trackTimelinePx(contentWorkbenchLocalTimelineSec(item.startSec, originSec), pxPerSec),
+      }
+    })
+    .filter((item): item is { key: string; label: string; leftPx: number } => Boolean(item))
 }
 
 function contentWorkbenchTimelineOriginSec(items: Array<{ startSec: number }>) {
@@ -3505,48 +3970,32 @@ function contentWorkbenchLocalTimelineSec(seconds: number, originSec: number) {
   return Math.max(0, Math.round(((Number(seconds) || 0) - originSec) * 10) / 10)
 }
 
-function contentWorkbenchVisibleTimelineDurationSec(contentDurationSec: number, longestItemDurationSec: number) {
-  const contentDuration = Math.max(1, Number(contentDurationSec) || 1)
-  const longestItemDuration = Math.max(1, Number(longestItemDurationSec) || 1)
-  const proportionalBuffer = contentDuration <= 30
-    ? contentDuration
-    : contentDuration <= 120
-      ? contentDuration * 0.5
-      : contentDuration * 0.25
-  const futureBuffer = Math.max(5, longestItemDuration, proportionalBuffer)
-  return Math.round((contentDuration + futureBuffer) * 10) / 10
-}
-
-function snapContentWorkbenchTimelineStartSec(rawStartSec: number, totalDurationSec: number, itemDurationSec: number, items: Array<{ id: string; startSec: number; endSec: number }>, sourceUnitId: number) {
-  const duration = Math.max(1, Number(totalDurationSec) || 1)
-  const itemDuration = Math.max(0, Number(itemDurationSec) || 0)
-  const maxStart = Math.max(0, duration - itemDuration)
-  const raw = Math.max(0, Math.min(maxStart, Number(rawStartSec) || 0))
-  const gridStep = contentWorkbenchTimelineSnapStep(duration)
+function snapContentWorkbenchTimelineStartSec(rawStartSec: number, pxPerSec: number, items: Array<{ id: string; startSec: number; endSec: number }>, sourceUnitId: number) {
+  const raw = Math.max(0, Number(rawStartSec) || 0)
+  const gridStep = contentWorkbenchTimelineSnapStep(pxPerSec)
   const gridTarget = Math.round(raw / gridStep) * gridStep
   const targets = [
     0,
-    maxStart,
     gridTarget,
     ...items
       .filter((item) => Number(item.id) !== sourceUnitId)
       .flatMap((item) => [item.startSec, item.endSec]),
   ]
-    .map((value) => Math.max(0, Math.min(maxStart, Number(value) || 0)))
-  const threshold = Math.max(gridStep / 2, duration * 0.015, 0.25)
+    .map((value) => Math.max(0, Number(value) || 0))
+  const threshold = Math.max(gridStep / 2, 12 / Math.max(1, pxPerSec))
   const nearest = targets.reduce((best, value) => {
     const bestDistance = Math.abs(raw - best)
     const distance = Math.abs(raw - value)
     return distance < bestDistance ? value : best
   }, raw)
   const snapped = Math.abs(raw - nearest) <= threshold ? nearest : raw
-  return Math.round(Math.max(0, Math.min(maxStart, snapped)) * 10) / 10
+  return Math.round(Math.max(0, snapped) * 10) / 10
 }
 
-function contentWorkbenchTimelineSnapStep(durationSec: number) {
-  if (durationSec <= 12) return 0.5
-  if (durationSec <= 60) return 1
-  if (durationSec <= 180) return 5
+function contentWorkbenchTimelineSnapStep(pxPerSec: number) {
+  if (pxPerSec >= 48) return 0.5
+  if (pxPerSec >= 18) return 1
+  if (pxPerSec >= 4) return 5
   return 10
 }
 
@@ -3554,18 +4003,20 @@ function contentUnitTimelineKindRank(kind: string) {
   switch (kind) {
     case 'shot':
       return 0
-    case 'visual_segment':
-      return 1
-    case 'product_showcase':
-      return 2
-    case 'dialogue':
-      return 3
     case 'voiceover':
-      return 4
+      return 1
+    case 'dialogue_audio':
+      return 2
     case 'sound':
-      return 5
+      return 3
+    case 'music_beat':
+      return 4
     case 'subtitle':
+      return 5
+    case 'caption_card':
       return 6
+    case 'transition':
+      return 7
     default:
       return 20
   }
@@ -3601,22 +4052,42 @@ function previewTimelineItemRank(item: WorkbenchRecord) {
   return 2
 }
 
+function contentUnitKindOptions(config: SemanticEntityConfig) {
+  const kindField = config.fields.find((field) => field.key === 'kind')
+  const options = kindField?.options?.length ? kindField.options : [
+    { value: 'shot', label: '镜头' },
+    { value: 'voiceover', label: '旁白/画外音' },
+    { value: 'dialogue_audio', label: '对白音频' },
+    { value: 'sound', label: '音效' },
+    { value: 'music_beat', label: '节拍' },
+    { value: 'subtitle', label: '字幕' },
+    { value: 'caption_card', label: '字幕卡' },
+    { value: 'transition', label: '转场' },
+  ]
+  return options
+    .filter((option) => option.value)
+    .slice()
+    .sort((a, b) => contentUnitTimelineKindRank(a.value) - contentUnitTimelineKindRank(b.value) || a.label.localeCompare(b.label, 'zh-Hans-CN'))
+}
+
 function trackKindLabel(kind: string) {
   switch (kind) {
     case 'shot':
       return '镜头'
-    case 'visual_segment':
-      return '视觉段'
-    case 'product_showcase':
-      return '产品展示'
-    case 'caption_card':
-      return '字幕卡'
-    case 'narration':
-      return '旁白'
-    case 'transition':
-      return '转场'
+    case 'voiceover':
+      return '旁白/画外音'
+    case 'dialogue_audio':
+      return '对白音频'
+    case 'sound':
+      return '音效'
     case 'music_beat':
       return '节拍'
+    case 'subtitle':
+      return '字幕'
+    case 'caption_card':
+      return '字幕卡'
+    case 'transition':
+      return '转场'
     default:
       return kind || '制作项'
   }
@@ -3635,9 +4106,11 @@ function scriptBlockCue(block?: WorkbenchRecord | null) {
 
 function unitSoundCue(unit: WorkbenchRecord, scriptBlock?: WorkbenchRecord | null, audioSlots: WorkbenchRecord[] = []) {
   const sourceText = firstText(scriptBlock?.content, unit.prompt, unit.description)
-  if (unit.kind === 'narration') return sourceText ? `配音：${summarizeText(sourceText, 34)}` : '配音'
+  if (unit.kind === 'voiceover') return sourceText ? `旁白：${summarizeText(sourceText, 34)}` : '旁白'
+  if (unit.kind === 'dialogue_audio') return sourceText ? `对白音频：${summarizeText(sourceText, 34)}` : '对白音频'
+  if (unit.kind === 'sound') return sourceText ? `音效：${summarizeText(sourceText, 34)}` : '音效'
   if (unit.kind === 'music_beat') return sourceText ? `音乐/节拍：${summarizeText(sourceText, 32)}` : '音乐/节拍'
-  if (unit.kind === 'caption_card') return sourceText ? `字幕：${summarizeText(sourceText, 34)}` : '字幕'
+  if (unit.kind === 'subtitle' || unit.kind === 'caption_card') return sourceText ? `字幕：${summarizeText(sourceText, 34)}` : '字幕'
   if (audioSlots.length > 0) return `音频：${audioSlots.slice(0, 2).map(titleOfRecord).join('、')}`
   return ''
 }
@@ -4184,7 +4657,6 @@ function ContentGenerationWorkbench() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const uploadInputRef = useRef<HTMLInputElement>(null)
-  const keyframeUploadInputRef = useRef<HTMLInputElement>(null)
   const previewMountSectionRef = useRef<HTMLDivElement>(null)
   const { data, isLoading, isError } = useQuery({
     queryKey: ['workbench', 'production', projectId],
@@ -4192,9 +4664,11 @@ function ContentGenerationWorkbench() {
     enabled: !!projectId,
   })
   const rows = useMemo(() => buildContentGenerationMomentRows(data), [data])
-  const [productionFilter, setProductionFilter] = useState('all')
-  const [segmentFilter, setSegmentFilter] = useState('all')
-  const [scopeLevel, setScopeLevel] = useState<ContentWorkbenchScopeLevel>('scene_moment')
+  const [productionFilter, setProductionFilter] = useState('')
+  const [segmentFilter, setSegmentFilter] = useState('')
+  const [sidebarQuery, setSidebarQuery] = useState('')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [scopeLevel, setScopeLevel] = useState<ContentWorkbenchScopeLevel>('production')
   const [selectedId, setSelectedId] = useState('')
   const [selectedUnitId, setSelectedUnitId] = useState<number | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -4206,10 +4680,6 @@ function ContentGenerationWorkbench() {
   const [creatingAssetSlot, setCreatingAssetSlot] = useState(false)
   const [reviewPanelCollapsed, setReviewPanelCollapsed] = useState(false)
   const [creatingKeyframe, setCreatingKeyframe] = useState(false)
-  const [keyframeLibraryTarget, setKeyframeLibraryTarget] = useState<WorkbenchRecord | null>(null)
-  const [keyframeResourceSearch, setKeyframeResourceSearch] = useState('')
-  const [keyframeResourcePage, setKeyframeResourcePage] = useState(1)
-  const [uploadKeyframeTarget, setUploadKeyframeTarget] = useState<WorkbenchRecord | null>(null)
   const linkedProductionId = numberOf(searchParams.get('productionId'))
   const linkedSceneMomentId = numberOf(searchParams.get('scene_moment_id'))
   const linkedContentUnitId = numberOf(searchParams.get('content_unit_id'))
@@ -4219,24 +4689,28 @@ function ContentGenerationWorkbench() {
     if (reviewMode) setReviewPanelCollapsed(false)
   }, [reviewMode])
   const productionFilteredRows = useMemo(() => {
-    if (productionFilter === 'all') return rows
+    if (!productionFilter) return rows
     if (productionFilter === 'unassigned') return rows.filter((row) => row.productionIds.length === 0)
     const productionId = Number(productionFilter)
     if (!Number.isFinite(productionId) || productionId <= 0) return rows
     return rows.filter((row) => row.productionIds.includes(productionId))
   }, [productionFilter, rows])
   const filteredRows = useMemo(() => {
-    if (segmentFilter === 'all') return productionFilteredRows
+    if (!segmentFilter) return productionFilteredRows
     if (segmentFilter === 'unassigned') return productionFilteredRows.filter((row) => !row.segment?.ID)
     const segmentId = Number(segmentFilter)
     if (!Number.isFinite(segmentId) || segmentId <= 0) return productionFilteredRows
     return productionFilteredRows.filter((row) => row.segment?.ID === segmentId)
   }, [productionFilteredRows, segmentFilter])
+  const visibleRows = useMemo(() => {
+    const query = sidebarQuery.trim()
+    if (!query) return filteredRows
+    return filteredRows.filter((row) => contentWorkbenchRowMatchesSearch(row, query))
+  }, [filteredRows, sidebarQuery])
   const productionFilterOptions = useMemo(() => {
     const productions = data?.productions ?? []
     const unassignedCount = rows.filter((row) => row.productionIds.length === 0).length
     return [
-      { value: 'all', label: '全部制作', count: rows.length },
       ...(unassignedCount > 0 ? [{ value: 'unassigned', label: '未绑定制作', count: unassignedCount }] : []),
       ...productions.map((production) => ({
         value: String(production.ID),
@@ -4265,48 +4739,43 @@ function ContentGenerationWorkbench() {
       else segmentMap.set(key, { value: key, label: titleOfRecord(row.segment), count: 1 })
     }
     return [
-      { value: 'all', label: '全部情绪段', count: productionFilteredRows.length },
       ...(unassignedCount > 0 ? [{ value: 'unassigned', label: '未绑定情绪段', count: unassignedCount }] : []),
       ...Array.from(segmentMap.values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'zh-Hans-CN')),
     ]
   }, [productionFilteredRows])
-  const sceneMomentFilterOptions = useMemo(() => filteredRows.map((row) => ({
+  const sceneMomentFilterOptions = useMemo(() => visibleRows.map((row) => ({
     value: row.id,
     label: row.title,
     count: row.units.length,
-  })), [filteredRows])
+  })), [visibleRows])
 
   useEffect(() => {
-    if (segmentFilter !== 'all' && segmentFilter !== 'unassigned' && !segmentFilterOptions.some((option) => option.value === segmentFilter)) {
-      setSegmentFilter('all')
+    if (segmentFilter && segmentFilter !== 'unassigned' && !segmentFilterOptions.some((option) => option.value === segmentFilter)) {
+      setSegmentFilter('')
     }
   }, [segmentFilter, segmentFilterOptions])
 
   useEffect(() => {
-    if (filteredRows.length === 0) {
+    if (visibleRows.length === 0) {
       if (selectedId) setSelectedId('')
       return
     }
-    const linkedRowId = pickContentWorkbenchRowIdForDeepLink(filteredRows, { sceneMomentId: linkedSceneMomentId, contentUnitId: linkedContentUnitId })
+    const linkedRowId = pickContentWorkbenchRowIdForDeepLink(visibleRows, { sceneMomentId: linkedSceneMomentId, contentUnitId: linkedContentUnitId })
     if (linkedRowId && selectedId !== linkedRowId) {
       setSelectedId(linkedRowId)
+      setScopeLevel('scene_moment')
       return
     }
-    if (!selectedId || !filteredRows.some((row) => row.id === selectedId)) {
-      setSelectedId(filteredRows[0].id)
+    if (scopeLevel === 'scene_moment' && (!selectedId || !visibleRows.some((row) => row.id === selectedId))) {
+      setSelectedId(visibleRows[0].id)
+      return
     }
-  }, [filteredRows, linkedContentUnitId, linkedSceneMomentId, selectedId])
+    if (scopeLevel !== 'scene_moment' && selectedId && !visibleRows.some((row) => row.id === selectedId)) {
+      setSelectedId('')
+    }
+  }, [linkedContentUnitId, linkedSceneMomentId, scopeLevel, selectedId, visibleRows])
 
-  const selected = filteredRows.find((item) => item.id === selectedId) ?? filteredRows[0] ?? null
-  const scopedTrackRows = useMemo(() => {
-    if (scopeLevel === 'production') return productionFilteredRows
-    if (scopeLevel === 'segment') return filteredRows
-    return selected ? [selected] : filteredRows.slice(0, 1)
-  }, [filteredRows, productionFilteredRows, scopeLevel, selected])
-  const scopedTrackSections = useMemo(
-    () => buildContentWorkbenchTrackSections(scopedTrackRows, scopeLevel, data),
-    [data, scopeLevel, scopedTrackRows],
-  )
+  const selected = visibleRows.find((item) => item.id === selectedId) ?? (scopeLevel === 'scene_moment' ? visibleRows[0] ?? null : null)
 
   useEffect(() => {
     if (!selected) {
@@ -4345,43 +4814,21 @@ function ContentGenerationWorkbench() {
   const selectedProduction = selected?.productionIds[0]
     ? data?.productions.find((production) => production.ID === selected.productionIds[0])
     : null
-  const [unitInspectorEditing, setUnitInspectorEditing] = useState(false)
-  const [unitInspectorControls, setUnitInspectorControls] = useState<SemanticEntityInlineEditorControlState | null>(null)
-
-  useEffect(() => {
-    setUnitInspectorEditing(false)
-  }, [selectedUnit?.ID])
-
-  const unitInspectorAction = selectedUnit ? (
-    <div className="flex items-center gap-2" data-testid="content-workbench-unit-detail-actions">
-      {unitInspectorControls?.isEditing ? (
-        <Button
-          form={unitInspectorControls.formId}
-          size="sm"
-          className="gap-2"
-          loading={unitInspectorControls.isSaving}
-          disabled={!unitInspectorControls.canSave || unitInspectorControls.isDeleting}
-        >
-          <Save size={14} />
-          保存
-        </Button>
-      ) : (
-        <Button
-          size="sm"
-          variant="outline"
-          className="gap-2"
-          onClick={() => setUnitInspectorEditing(true)}
-          disabled={Boolean(unitInspectorControls?.isDeleting || unitInspectorControls?.isImmutableRecord)}
-        >
-          <Pencil size={14} />
-          编辑
-        </Button>
-      )}
-    </div>
-  ) : <Badge variant="warning">未选择制作项</Badge>
-
   function selectSceneMoment(rowId: string, options: { replace?: boolean } = {}) {
-    const row = filteredRows.find((item) => item.id === rowId) ?? rows.find((item) => item.id === rowId)
+    const row = visibleRows.find((item) => item.id === rowId) ?? filteredRows.find((item) => item.id === rowId) ?? rows.find((item) => item.id === rowId)
+    if (scopeLevel === 'scene_moment' && selectedId === rowId) {
+      setScopeLevel(segmentFilter ? 'segment' : 'production')
+      setOptimisticSelectedUnit(null)
+      setSelectedUnitId(null)
+      setSelectedId('')
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current)
+        next.delete('scene_moment_id')
+        next.delete('content_unit_id')
+        return next
+      }, { replace: options.replace ?? true })
+      return
+    }
     setScopeLevel('scene_moment')
     setOptimisticSelectedUnit(null)
     setSelectedId(rowId)
@@ -4406,13 +4853,18 @@ function ContentGenerationWorkbench() {
     }, { replace: options.replace ?? true })
   }
 
-  function selectContentUnitFromRow(row: ContentGenerationMomentRow, unitId: number | null, options: { replace?: boolean } = {}) {
+  function selectContentUnitFromRow(row: ContentGenerationMomentRow, unitId: number | null, options: { replace?: boolean; preserveScopeLevel?: boolean } = {}) {
     if (!unitId || optimisticSelectedUnit?.ID !== unitId) setOptimisticSelectedUnit(null)
-    setScopeLevel('scene_moment')
+    if (!options.preserveScopeLevel) setScopeLevel('scene_moment')
     setSelectedId(row.id)
     setSelectedUnitId(unitId)
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
+      if (options.preserveScopeLevel) {
+        next.delete('scene_moment_id')
+        next.delete('content_unit_id')
+        return next
+      }
       next.set('scene_moment_id', String(row.moment.ID))
       if (unitId && unitId > 0) next.set('content_unit_id', String(unitId))
       else next.delete('content_unit_id')
@@ -4421,13 +4873,16 @@ function ContentGenerationWorkbench() {
   }
 
   function selectProductionFilter(value: string) {
+    const nextValue = value === productionFilter ? '' : value
     setScopeLevel('production')
     setOptimisticSelectedUnit(null)
     setSelectedUnitId(null)
-    setProductionFilter(value)
+    setSelectedId('')
+    setProductionFilter(nextValue)
+    setSegmentFilter('')
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
-      if (value !== 'all' && value !== 'unassigned' && Number(value) > 0) next.set('productionId', value)
+      if (nextValue !== 'unassigned' && Number(nextValue) > 0) next.set('productionId', nextValue)
       else next.delete('productionId')
       next.delete('scene_moment_id')
       next.delete('content_unit_id')
@@ -4436,10 +4891,12 @@ function ContentGenerationWorkbench() {
   }
 
   function selectSegmentFilter(value: string) {
-    setScopeLevel('segment')
+    const nextValue = value === segmentFilter ? '' : value
+    setScopeLevel(nextValue ? 'segment' : 'production')
     setOptimisticSelectedUnit(null)
     setSelectedUnitId(null)
-    setSegmentFilter(value)
+    setSelectedId('')
+    setSegmentFilter(nextValue)
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       next.delete('scene_moment_id')
@@ -4460,22 +4917,6 @@ function ContentGenerationWorkbench() {
     queryFn: () => buildContentUnitGenerationContext(projectId!, selectedUnit!.ID, 'video'),
     enabled: !!projectId && !!selectedUnit?.ID,
   })
-  const keyframeResourcePageSize = 8
-  const keyframeResourcesQuery = useQuery<PaginatedResponse<RawResource>>({
-    queryKey: ['resources', 'keyframe-picker', keyframeResourceSearch, keyframeResourcePage],
-    queryFn: () => api.get('/resources', {
-      params: {
-        page: keyframeResourcePage,
-        page_size: keyframeResourcePageSize,
-        type: 'image',
-        q: keyframeResourceSearch.trim() || undefined,
-      },
-    }).then((r) => r.data),
-    enabled: Boolean(keyframeLibraryTarget),
-  })
-  const keyframeResourceItems = keyframeResourcesQuery.data?.items ?? []
-  const keyframeResourceTotal = keyframeResourcesQuery.data?.total ?? 0
-  const keyframeResourcePageCount = Math.max(1, Math.ceil(keyframeResourceTotal / keyframeResourcePageSize))
   const uploadCandidate = useMutation({
     mutationFn: async ({ file, slot }: { file: File; slot: WorkbenchRecord }) => {
       if (!projectId) throw new Error('请先选择项目')
@@ -4533,61 +4974,6 @@ function ContentGenerationWorkbench() {
       toast.error(apiErrorMessage(error, '打开生成画布失败'))
     },
   })
-  const addKeyframeResourceCandidate = useMutation({
-    mutationFn: async ({ keyframe, resourceId }: { keyframe: WorkbenchRecord; resourceId: number }) => {
-      if (!projectId) throw new Error('请先选择项目')
-      return createSemanticEntity(projectId, semanticEntityConfig('keyframes'), keyframeResourceCandidatePayload(keyframe, resourceId, 'library'))
-    },
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['resources'] }),
-      ])
-      invalidateAssetCandidateConsumers(queryClient, projectId)
-      setKeyframeLibraryTarget(null)
-      toast.success('已加入画面锚点候选')
-    },
-    onError: (error) => {
-      toast.error(apiErrorMessage(error, '加入画面锚点候选失败'))
-    },
-  })
-  const uploadKeyframeResource = useMutation({
-    mutationFn: async ({ keyframe, file }: { keyframe: WorkbenchRecord; file: File }) => {
-      if (!projectId) throw new Error('请先选择项目')
-      const fd = new FormData()
-      fd.append('file', file)
-      const resource = await api.post('/resources/upload', fd).then((r) => r.data as RawResource)
-      await createSemanticEntity(projectId, semanticEntityConfig('keyframes'), keyframeResourceCandidatePayload(keyframe, resource.ID, 'upload'))
-      return resource
-    },
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['resources'] }),
-      ])
-      invalidateAssetCandidateConsumers(queryClient, projectId)
-      setUploadKeyframeTarget(null)
-      if (keyframeUploadInputRef.current) keyframeUploadInputRef.current.value = ''
-      toast.success('关键帧素材已上传并加入候选')
-    },
-    onError: (error) => {
-      toast.error(apiErrorMessage(error, '上传关键帧候选失败'))
-      setUploadKeyframeTarget(null)
-      if (keyframeUploadInputRef.current) keyframeUploadInputRef.current.value = ''
-    },
-  })
-  const rejectKeyframeCandidate = useMutation({
-    mutationFn: async (candidate: WorkbenchRecord) => {
-      if (!projectId) throw new Error('请先选择项目')
-      if (!isGeneratedKeyframeCandidateRecord(candidate)) throw new Error('只能拒绝 AI 生成的画面锚点候选')
-      return updateSemanticEntity(projectId, semanticEntityConfig('keyframes'), candidate.ID, keyframeStatusPatchPayload(candidate, 'rejected'))
-    },
-    onSuccess: () => {
-      invalidateAssetCandidateConsumers(queryClient, projectId)
-      toast.success('画面锚点候选已拒绝')
-    },
-    onError: (error) => {
-      toast.error(apiErrorMessage(error, '拒绝画面锚点候选失败'))
-    },
-  })
   const baseStandards = generationContextQuery.data
     ? buildGenerationContextStandards(generationContextQuery.data)
     : buildMomentStandards(selected, data?.jobs ?? [])
@@ -4595,10 +4981,6 @@ function ContentGenerationWorkbench() {
   const selectedUnitKeyframes = selected && selectedUnit
     ? selected.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === selectedUnit.ID).slice().sort(byOrder)
     : []
-  const selectedUnitKeyframeCandidates = data
-    ? keyframeCandidatesForTargets(data.keyframes, selectedUnitKeyframes)
-    : []
-  const selectedUnitKeyframeCandidateCount = selectedUnitKeyframeCandidates.length
   const selectedUnitAssetSlots = selected && selectedUnit
     ? selected.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && Number(slot.owner_id) === selectedUnit.ID)
     : []
@@ -4622,10 +5004,6 @@ function ContentGenerationWorkbench() {
   const selectedUnitRequiresKeyframe = selectedUnit ? contentWorkbenchUnitRequiresKeyframe(selectedUnit.kind) : true
   const selectedUnitStatus = selectedUnit ? contentUnitWorkStatus(selectedUnit, selectedUnitMissingSlots) : 'blocked'
   const selectedKeyframeSequence = selected ? buildMomentKeyframeSequence(selected) : []
-  const showMomentKeyframeContinuity = selectedKeyframeSequence.length > 0 && (!selectedUnit || selectedKeyframeSequence.some((item) => {
-    const sequenceUnitId = item.unit?.ID ?? numberOf(item.keyframe.content_unit_id)
-    return sequenceUnitId !== selectedUnit.ID
-  }))
   const keyframeConfig = useMemo(() => semanticEntityConfig('keyframes'), [])
   const assetSlotConfig = useMemo(() => semanticEntityConfig('assetSlots'), [])
   const nextKeyframeRole = frameRoleLabel(selectedUnitKeyframes.length, selectedUnitKeyframes.length + 1)
@@ -4680,22 +5058,6 @@ function ContentGenerationWorkbench() {
     if (uploadCandidate.isPending) return
     setUploading(true)
     uploadCandidate.mutate({ file, slot })
-  }
-
-  function openKeyframeUpload(keyframe: WorkbenchRecord) {
-    setUploadKeyframeTarget(keyframe)
-    keyframeUploadInputRef.current?.click()
-  }
-
-  function handleKeyframeUpload(file?: File) {
-    if (!file || !uploadKeyframeTarget || uploadKeyframeResource.isPending) return
-    uploadKeyframeResource.mutate({ keyframe: uploadKeyframeTarget, file })
-  }
-
-  function openKeyframeLibrary(keyframe: WorkbenchRecord) {
-    setKeyframeLibraryTarget(keyframe)
-    setKeyframeResourceSearch('')
-    setKeyframeResourcePage(1)
   }
 
   function openCreateKeyframe() {
@@ -4801,16 +5163,9 @@ function ContentGenerationWorkbench() {
     },
   })
 
-  const unitCandidates = useMemo(() => {
-    if (!selected) return [] as WorkbenchRecord[]
-    return selected.units.filter((unit) => {
-      const status = String(unit.status ?? '').toLowerCase()
-      return status === '' || status === 'draft' || status === 'candidate'
-    })
-  }, [selected])
-  const totalUnitCount = filteredRows.reduce((sum, row) => sum + row.units.length, 0)
-  const totalKeyframeCount = filteredRows.reduce((sum, row) => sum + row.keyframes.length, 0)
-  const totalMissingSlotCount = filteredRows.reduce((sum, row) => sum + row.missingSlots.length, 0)
+  const totalUnitCount = visibleRows.reduce((sum, row) => sum + row.units.length, 0)
+  const totalKeyframeCount = visibleRows.reduce((sum, row) => sum + row.keyframes.length, 0)
+  const totalMissingSlotCount = visibleRows.reduce((sum, row) => sum + row.missingSlots.length, 0)
   const runningJobCount = data?.jobs.filter((job) => job.status === 'pending' || job.status === 'running').length ?? 0
   const completedJobCount = data?.jobs.filter((job) => job.status === 'succeeded').length ?? 0
   const selectedProductionIdSet = new Set(selected?.productionIds ?? [])
@@ -4867,31 +5222,6 @@ function ContentGenerationWorkbench() {
     generation_plan: Play,
     preview_delivery: Film,
   }
-  const confirmCandidate = useMutation({
-    mutationFn: async ({ unitId, next }: { unitId: number; next: 'confirmed' | 'ignored' }) => {
-      if (!projectId) throw new Error('请先选择项目')
-      await updateSemanticEntity(projectId, contentUnitConfig, unitId, { status: next })
-    },
-    onSuccess: async (_data, variables) => {
-      await queryClient.invalidateQueries({ queryKey: productionWorkbenchQueryKey })
-      if (variables.next === 'confirmed') {
-        selectContentUnit(variables.unitId)
-      } else if (selectedUnit?.ID === variables.unitId) {
-        const nextUnitId = selected
-          ? pickContentWorkbenchFocusAfterIgnoredCandidate(
-            selected.units.map((unit) => ({ id: unit.ID, status: unit.status })),
-            variables.unitId,
-          )
-          : null
-        if (nextUnitId) selectContentUnit(nextUnitId)
-        else if (selected) selectSceneMoment(selected.id)
-      }
-      toast.success(variables.next === 'confirmed' ? '候选已确认' : '候选已忽略')
-    },
-    onError: (error) => {
-      toast.error(apiErrorMessage(error, '候选状态更新失败'))
-    },
-  })
   const reorderContentUnits = useMutation({
     mutationFn: async ({ row, draggedUnitId, targetUnitId, position }: {
       row: ContentGenerationMomentRow
@@ -5099,7 +5429,7 @@ function ContentGenerationWorkbench() {
   }
 
   function selectFirstSceneMoment() {
-    const firstRow = filteredRows[0]
+    const firstRow = visibleRows[0]
     if (!firstRow) {
       toast.info('暂无可选择的情节')
       return
@@ -5221,6 +5551,16 @@ function ContentGenerationWorkbench() {
       ? '阻塞'
       : '检查中'
   const showReviewPanel = reviewMode || reviewDraftsQuery.isLoading || (reviewDrafts.length > 0 && !reviewPanelCollapsed)
+  const activeProductionFilter = productionFilterOptions.find((option) => option.value === productionFilter)
+  const activeSegmentFilter = segmentFilterOptions.find((option) => option.value === segmentFilter)
+  const contentWorkbenchViewTitle = scopeLevel === 'production'
+    ? activeProductionFilter?.label ?? '全部内容'
+    : scopeLevel === 'segment'
+      ? activeSegmentFilter?.label ?? '情绪段筛选'
+      : selected ? selected.title : '暂无情节'
+  const contentWorkbenchViewDetail = scopeLevel === 'scene_moment' && selected
+    ? selected.scope
+    : `${visibleRows.length} 个情节 · ${totalUnitCount} 个制作项 · ${totalKeyframeCount} 个关键帧 · ${totalMissingSlotCount} 个缺口`
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
@@ -5230,7 +5570,7 @@ function ContentGenerationWorkbench() {
         title="内容编排工作台"
         description="把情节拆成制作项，用时间轴管理顺序、对白、声音和关键帧。"
       />
-      <main className="min-h-0 flex-1 overflow-auto p-4">
+      <main className="min-h-0 flex-1 overflow-hidden p-4">
         {!projectId ? (
           <EmptyWorkbenchState title="请先选择项目" text="当前没有可用的项目信息，无法拉取情节、制作项、素材需求和生成任务。" />
         ) : isLoading ? (
@@ -5238,528 +5578,173 @@ function ContentGenerationWorkbench() {
         ) : isError ? (
           <EmptyWorkbenchState title="内容编排数据加载失败" text="后端语义实体接口未返回可用数据，稍后重试。" />
         ) : (
-          <div className="production-workbench space-y-3">
-            <section className="overflow-hidden rounded-lg border border-border bg-card" data-testid="content-workbench-command-center">
-              <div className="border-b border-border bg-muted/25 px-3 py-2.5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                      <Wand2 size={14} />
-                      当前情节
-                    </div>
-                    <h2 className="mt-1 truncate text-lg font-semibold text-foreground">{selected ? selected.title : '暂无情节'}</h2>
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{selected ? selected.scope : '选择制作和情节后，在时间轴里编排制作项。'}</p>
-                  </div>
-                  <div className="shrink-0" data-testid="content-workbench-review-action">
-                    <button
-                      type="button"
-                      data-action-key="review_ai_drafts"
-                      className={cn(
-                        'inline-flex h-8 items-center gap-2 rounded-md border px-2.5 text-xs font-medium transition-colors hover:bg-primary/5',
-                        reviewQueueSummary.pending > 0
-                          ? 'border-amber-200 bg-amber-50/80 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-100'
-                          : 'border-border bg-background text-muted-foreground',
-                      )}
-                      onClick={openReviewQueue}
-                    >
-                      <ClipboardCheck size={14} />
-                      <span>待审草案</span>
-                      <Badge variant={reviewQueueSummary.pending > 0 ? 'warning' : 'outline'}>{reviewQueueSummary.pending}</Badge>
-                    </button>
-                  </div>
-                </div>
-              </div>
+          <div className="production-workbench h-full min-h-0">
+            <div
+              className={cn(
+                'grid h-full min-h-0 gap-3 transition-[grid-template-columns]',
+                sidebarCollapsed ? 'xl:grid-cols-[64px_minmax(0,1fr)]' : 'xl:grid-cols-[280px_minmax(0,1fr)]',
+              )}
+              data-testid="content-workbench-command-center"
+              data-sidebar-collapsed={sidebarCollapsed ? 'true' : undefined}
+            >
+              <ContentWorkbenchFilterSidebar
+                productionOptions={productionFilterOptions}
+                productionValue={productionFilter}
+                segmentOptions={segmentFilterOptions}
+                segmentValue={segmentFilter}
+                sceneOptions={sceneMomentFilterOptions}
+                sceneValue={scopeLevel === 'scene_moment' ? selected?.id ?? '' : ''}
+                query={sidebarQuery}
+                resultCount={visibleRows.length}
+                unitCount={totalUnitCount}
+                collapsed={sidebarCollapsed}
+                onQueryChange={setSidebarQuery}
+                onToggleCollapsed={() => setSidebarCollapsed((value) => !value)}
+                onSelectProduction={selectProductionFilter}
+                onSelectSegment={selectSegmentFilter}
+                onSelectScene={selectSceneMoment}
+              />
 
-              <div className="p-2.5">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                    <Settings2 size={14} />
-                    筛选与定位
+              <div className="min-h-0 min-w-0 space-y-3 overflow-auto pr-1" data-testid="content-workbench-main-scroll">
+                <section className="overflow-hidden rounded-lg border border-border bg-card">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/25 px-3 py-2.5">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                        <Wand2 size={14} />
+                        编排视图
+                      </div>
+                      <h2 className="mt-1 truncate text-lg font-semibold text-foreground">{contentWorkbenchViewTitle}</h2>
+                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{contentWorkbenchViewDetail}</p>
+                    </div>
+                    <div className="shrink-0" data-testid="content-workbench-review-action">
+                      <button
+                        type="button"
+                        data-action-key="review_ai_drafts"
+                        className={cn(
+                          'inline-flex h-8 items-center gap-2 rounded-md border px-2.5 text-xs font-medium transition-colors hover:bg-primary/5',
+                          reviewQueueSummary.pending > 0
+                            ? 'border-amber-200 bg-amber-50/80 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-100'
+                            : 'border-border bg-background text-muted-foreground',
+                        )}
+                        onClick={openReviewQueue}
+                      >
+                        <ClipboardCheck size={14} />
+                        <span>待审草案</span>
+                        <Badge variant={reviewQueueSummary.pending > 0 ? 'warning' : 'outline'}>{reviewQueueSummary.pending}</Badge>
+                      </button>
+                    </div>
                   </div>
-                  <div className="grid gap-2 lg:grid-cols-3" data-testid="content-workbench-hierarchy-filter">
-                    <HierarchyFilterColumn
-                      title="制作卡片"
-                      options={productionFilterOptions}
-                      value={productionFilter}
-                      testId="content-workbench-production-filter"
-                      emptyText="暂无制作"
-                      onSelect={selectProductionFilter}
-                    />
-                    <HierarchyFilterColumn
-                      title="情绪段卡片"
-                      options={segmentFilterOptions}
-                      value={segmentFilter}
-                      testId="content-workbench-segment-filter"
-                      emptyText="先选择制作"
-                      onSelect={selectSegmentFilter}
-                    />
-                    <HierarchyFilterColumn
-                      title="情节卡片"
-                      options={sceneMomentFilterOptions}
-                      value={scopeLevel === 'scene_moment' ? selected?.id ?? '' : ''}
-                      testId="content-workbench-scene-moment-filter"
-                      emptyText="当前范围没有情节"
-                      onSelect={selectSceneMoment}
-                    />
-                  </div>
-                  {filteredRows.length === 0 ? (
-                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
-                      <p>当前项目还没有情节入口，先完成制作编排后再进入内容编排。</p>
-                      <Button size="sm" variant="outline" className="mt-2 h-8 gap-1.5" onClick={() => navigate(ROUTES.project.productionOrchestration)}>
-                        <Route size={13} />
-                        进入制作编排
-                      </Button>
+                  {visibleRows.length === 0 ? (
+                    <div className="p-2.5">
+                      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
+                        <p>{filteredRows.length === 0 ? '当前项目还没有情节入口，先完成制作编排后再进入内容编排。' : '没有匹配当前搜索条件的情节。'}</p>
+                        {filteredRows.length === 0 ? (
+                          <Button size="sm" variant="outline" className="mt-2 h-8 gap-1.5" onClick={() => navigate(ROUTES.project.productionOrchestration)}>
+                            <Route size={13} />
+                            进入制作编排
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
                   ) : null}
-                </div>
-              </div>
-            </section>
+                </section>
 
-            {showReviewPanel ? (
-              <ContentGenerationReviewPanel
-                reviewMode={reviewMode}
-                drafts={reviewDrafts}
-                selectedDraft={selectedReviewDraft}
-                reviewModel={contentDraftReview}
-                queueSummary={reviewQueueSummary}
-                rejectingDraft={rejectContentDraft.isPending}
-                markingDraftReviewed={markContentDraftReviewed.isPending}
-                onOpenAiSuggest={openAiSuggest}
-                onSelectDraft={selectReviewDraft}
-                onCreateUnitFromProposal={openCreateUnitFromProposal}
-                onEditCurrentUnit={openEditSelectedUnit}
-                onMarkDraftReviewed={(draft) => markContentDraftReviewed.mutate(draft)}
-                onRejectDraft={(draft) => rejectContentDraft.mutate(draft)}
-                onCloseReview={closeReview}
-              />
-            ) : null}
+                {!selected ? (
+                  <div className="rounded-lg border border-dashed border-border bg-card px-4 py-10 text-center" data-testid="content-workbench-select-scene-empty">
+                    <Route size={20} className="mx-auto text-muted-foreground" />
+                    <p className="mt-3 text-sm font-medium text-foreground">请先选择情节</p>
+                    <p className="mt-1 text-xs text-muted-foreground">在左侧情节卡片中选择一个情节后，再编辑画面预览和内容单元。</p>
+                  </div>
+                ) : (
+                  <>
+                    {showReviewPanel ? (
+                      <ContentGenerationReviewPanel
+                        reviewMode={reviewMode}
+                        drafts={reviewDrafts}
+                        selectedDraft={selectedReviewDraft}
+                        reviewModel={contentDraftReview}
+                        queueSummary={reviewQueueSummary}
+                        rejectingDraft={rejectContentDraft.isPending}
+                        markingDraftReviewed={markContentDraftReviewed.isPending}
+                        onOpenAiSuggest={openAiSuggest}
+                        onSelectDraft={selectReviewDraft}
+                        onCreateUnitFromProposal={openCreateUnitFromProposal}
+                        onEditCurrentUnit={openEditSelectedUnit}
+                        onMarkDraftReviewed={(draft) => markContentDraftReviewed.mutate(draft)}
+                        onRejectDraft={(draft) => rejectContentDraft.mutate(draft)}
+                        onCloseReview={closeReview}
+                      />
+                    ) : null}
 
-            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]" data-testid="content-workbench-production-grid">
-              <div className="min-w-0 space-y-3">
-                <WorkbenchPanel
-                  title="制作项时间表"
-                  icon={Play}
-                  action={(
-                    <Button size="sm" className="h-8 gap-1.5" onClick={openCreateUnit} disabled={!selected}>
-                      <Plus size={13} />
-                      添加制作项
-                    </Button>
-                  )}
-                >
-                  <div className="flex flex-col gap-3">
-                    {scopedTrackSections.length > 0 ? (
-                      <div className="space-y-3" data-testid="content-workbench-scoped-tracks">
-                        {scopedTrackSections.map((section) => (
-                          <section key={section.id} className="space-y-2" data-testid="content-workbench-track-section">
-                            {scopedTrackSections.length > 1 || section.rows.length > 1 ? (
-                              <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 py-2">
-                                <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-                                  <Route size={14} className="shrink-0 text-muted-foreground" />
-                                  <span className="truncate">{section.title}</span>
-                                </div>
-                                <div className="flex shrink-0 items-center gap-1.5">
-                                  <Badge variant="outline">{section.rows.length} 情节</Badge>
-                                  <Badge variant="outline">{section.rows.reduce((sum, row) => sum + row.units.length, 0)} 制作项</Badge>
-                                </div>
-                              </div>
-                            ) : null}
-                            <div className="space-y-2">
-                              {section.rows.map((trackRow) => (
-                                <div key={trackRow.id} className="space-y-1.5">
-                                  {section.rows.length > 1 || scopedTrackSections.length > 1 ? (
-                                    <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-                                      <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-                                        <Route size={14} className="shrink-0 text-muted-foreground" />
-                                        <span className="truncate">{trackRow.title}</span>
-                                      </div>
-                                      <Badge variant="outline">{trackRow.units.length} 制作项</Badge>
-                                    </div>
-                                  ) : null}
-                                  <UnitProductionTrack
-                                    row={trackRow}
-                                    selectedUnitId={selected?.id === trackRow.id ? selectedUnit?.ID : undefined}
-                                    onSelectUnit={(unitId) => selectContentUnitFromRow(trackRow, unitId)}
-                                    onCreateUnit={() => openCreateUnitForRow(trackRow)}
-                                    onAiSuggest={() => openAiSuggest(trackRow)}
-                                    onSelectFirstMoment={selectFirstSceneMoment}
-                                    onReorderUnit={(draggedUnitId, targetUnitId, position) => {
-                                      if (reorderContentUnits.isPending) return
-                                      reorderContentUnits.mutate({ row: trackRow, draggedUnitId, targetUnitId, position })
-                                    }}
-                                    onMoveUnitOnTimeline={(unitId, startSec) => {
-                                      if (moveContentUnitOnTimeline.isPending) return
-                                      moveContentUnitOnTimeline.mutate({ row: trackRow, unitId, startSec })
-                                    }}
-                                    isReordering={reorderContentUnits.isPending || moveContentUnitOnTimeline.isPending}
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                          </section>
-                        ))}
-                      </div>
-                    ) : (
+                    <div className="grid gap-3">
+                      <ContentWorkbenchScenePreview
+                        row={selected}
+                        selectedUnit={selectedUnit}
+                        keyframes={selectedUnitKeyframes}
+                        missingSlots={selectedUnitMissingSlots}
+                        previewItemCount={selectedPreviewItemCount}
+                        runningJobCount={selectedUnitRunningJobCount}
+                        onSelectUnit={(unitId) => selectContentUnitFromRow(selected, unitId)}
+                        onEditUnit={() => openEditSelectedUnit()}
+                        onOpenCanvas={openSelectedUnitCanvas}
+                      />
+                    </div>
+
+                    <div className="space-y-3" data-testid="content-workbench-production-grid">
                       <UnitProductionTrack
-                        row={null}
-                        selectedUnitId={undefined}
-                        onSelectUnit={() => {}}
-                        onCreateUnit={openCreateUnit}
+                        row={selected}
+                        selectedUnitId={selectedUnit?.ID}
+                        onSelectUnit={(unitId) => selectContentUnitFromRow(selected, unitId)}
+                        onCreateUnit={() => openCreateUnitForRow(selected)}
+                        onAiSuggest={() => openAiSuggest(selected)}
                         onSelectFirstMoment={selectFirstSceneMoment}
-                        onReorderUnit={() => {}}
-                        onMoveUnitOnTimeline={() => {}}
+                        onReorderUnit={(draggedUnitId, targetUnitId, position) => {
+                          if (reorderContentUnits.isPending) return
+                          reorderContentUnits.mutate({ row: selected, draggedUnitId, targetUnitId, position })
+                        }}
+                        onMoveUnitOnTimeline={(unitId, startSec) => {
+                          if (moveContentUnitOnTimeline.isPending) return
+                          moveContentUnitOnTimeline.mutate({ row: selected, unitId, startSec })
+                        }}
                         isReordering={reorderContentUnits.isPending || moveContentUnitOnTimeline.isPending}
                       />
-                    )}
-                    {showMomentKeyframeContinuity ? (
-                      <KeyframeContinuityStrip
-                        sequence={selectedKeyframeSequence}
-                      />
-                    ) : null}
-                    {unitCandidates.length > 0 ? (
-                      <details className="overflow-hidden rounded-md border border-border bg-background" data-testid="content-workbench-candidate-queue">
-                        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <Sparkles size={15} className="shrink-0 text-muted-foreground" />
-                            <span className="truncate text-sm font-medium text-foreground">待确认候选</span>
-                            <span className="hidden truncate text-xs text-muted-foreground sm:inline">
-                              {titleOfRecord(unitCandidates[0])}
-                            </span>
-                          </div>
-                          <Badge variant="secondary">{unitCandidates.length}</Badge>
-                        </summary>
-                        <div className="border-t border-border">
-                          {unitCandidates.map((unit) => {
-                            const isDraft = String(unit.status ?? '').toLowerCase() === 'draft'
-                            return (
-                              <div key={unit.ID} className="grid gap-1.5 border-b border-border/70 px-2.5 py-2 last:border-b-0 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-1.5">
-                                    <p className="truncate text-sm font-medium text-foreground">{titleOfRecord(unit)}</p>
-                                    <Badge variant={isDraft ? 'outline' : 'secondary'} className="text-[10px]">{isDraft ? '草稿' : '候选'}</Badge>
-                                    <Badge variant="outline" className="text-[10px]">{unit.kind || 'shot'}</Badge>
-                                  </div>
-                                  <p className="mt-1 truncate text-xs text-muted-foreground">
-                                    {firstText(unit.description, unit.prompt, '暂无描述或创作提示')}
-                                  </p>
-                                  <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                                    <span>时长 {formatDuration(unit.duration_sec)}</span>
-                                    {unit.shot_size ? <span>景别 {unit.shot_size}</span> : null}
-                                    {unit.camera_angle ? <span>机位 {unit.camera_angle}</span> : null}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-1.5 md:justify-end">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-7 px-2"
-                                    onClick={() => confirmCandidate.mutate({ unitId: unit.ID, next: 'ignored' })}
-                                    disabled={confirmCandidate.isPending}
-                                  >
-                                    忽略
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    className="h-7 gap-1 px-2"
-                                    onClick={() => confirmCandidate.mutate({ unitId: unit.ID, next: 'confirmed' })}
-                                    disabled={confirmCandidate.isPending}
-                                  >
-                                    <CheckCircle2 size={13} />
-                                    确认
-                                  </Button>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </details>
-                    ) : null}
-
-                    <div className="order-first rounded-md border border-border bg-background p-2.5" data-testid="content-workbench-keyframe-track">
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                          <Image size={15} className="text-muted-foreground" />
-                          画面锚点轨道
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={selectedUnitKeyframes.length > 0 ? 'secondary' : 'warning'}>
-                            {selectedUnitKeyframes.length > 0 ? `${selectedUnitKeyframes.length} 帧` : '待补'}
-                          </Badge>
-                          {selectedUnitKeyframeCandidateCount > 0 ? (
-                            <Badge variant="outline">{selectedUnitKeyframeCandidateCount} 个候选</Badge>
-                          ) : null}
-                        </div>
-                      </div>
-                      {!selectedUnit ? (
-                        <p className="rounded-md border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">选择或创建制作项后查看画面锚点。</p>
-                      ) : selectedUnitKeyframes.length === 0 ? (
-                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed border-border bg-muted/20 px-3 py-3">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-foreground">当前制作项还没有关键帧</p>
-                            <p className="mt-1 text-xs leading-5 text-muted-foreground">建议至少补开头帧和结尾帧，用来约束视频生成的状态变化。</p>
-                          </div>
-                          <Button size="sm" className="shrink-0 gap-2" onClick={openCreateKeyframe}>
-                            <Plus size={14} />
-                            添加第一张关键帧
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="-mx-1 overflow-x-auto px-1 pb-1">
-                          <div className="flex min-w-max gap-2">
-                            {selectedUnitKeyframes.map((keyframe, index) => (
-                              <div key={keyframe.ID} className="w-[168px] shrink-0 overflow-hidden rounded-md border border-border bg-card">
-                                <div className="relative aspect-video bg-muted">
-                                  {keyframe.resource_id ? (
-                                    <AuthedImage
-                                      src={resourceFileUrl(keyframe.resource_id)}
-                                      alt={titleOfRecord(keyframe)}
-                                      className="h-full w-full object-cover"
-                                    />
-                                  ) : (
-                                    <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-muted-foreground">
-                                      <Image size={18} />
-                                      <span className="text-[11px]">文字锚点</span>
-                                    </div>
-                                  )}
-                                  <Badge variant="secondary" className="absolute left-1.5 top-1.5 bg-background/90 px-1.5 py-0 text-[10px] shadow-sm">
-                                    {frameRoleLabel(index, selectedUnitKeyframes.length)}
-                                  </Badge>
-                                  <Badge variant={keyframe.resource_id ? 'success' : 'outline'} className="absolute right-1.5 top-1.5 bg-background/90 px-1.5 py-0 text-[10px] shadow-sm">
-                                    {keyframe.resource_id ? '有素材' : '待出图'}
-                                  </Badge>
-                                  <div className="absolute bottom-1.5 right-1.5 flex gap-1">
-                                    <Button
-                                      size="sm"
-                                      variant="secondary"
-                                      aria-label="上传关键帧图片"
-                                      title="上传关键帧图片"
-                                      className="h-7 w-7 bg-background/95 p-0 shadow-sm hover:bg-background"
-                                      onClick={() => openKeyframeUpload(keyframe)}
-                                      disabled={uploadKeyframeResource.isPending || addKeyframeResourceCandidate.isPending}
-                                    >
-                                      <Upload size={12} />
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="secondary"
-                                      aria-label="从资源库选择关键帧素材"
-                                      title="从资源库选择关键帧素材"
-                                      className="h-7 w-7 bg-background/95 p-0 shadow-sm hover:bg-background"
-                                      onClick={() => openKeyframeLibrary(keyframe)}
-                                      disabled={uploadKeyframeResource.isPending || addKeyframeResourceCandidate.isPending}
-                                    >
-                                      <Library size={12} />
-                                    </Button>
-                                  </div>
-                                </div>
-                                <div className="px-2 py-1.5">
-                                  <p className="truncate text-xs font-medium text-foreground">{titleOfRecord(keyframe)}</p>
-                                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{firstText(keyframe.prompt, keyframe.description, '暂无画面描述')}</p>
-                                  {(() => {
-                                    const candidates = selectedUnitKeyframeCandidates.filter((candidate) => generatedKeyframeCandidateTargetId(candidate) === keyframe.ID)
-                                    if (candidates.length === 0) return null
-                                    const adoptableCandidates = candidates.filter(hasLoadedResource)
-                                    const previewCandidates = candidates.slice(0, 2)
-                                    return (
-                                      <div className="mt-1.5 border-t border-border pt-1.5" data-testid="content-workbench-keyframe-candidates">
-                                        <div className="mb-1 flex items-center justify-between gap-1.5">
-                                          <span className="truncate text-[10px] font-medium text-muted-foreground">候选 {candidates.length} · 可采纳 {adoptableCandidates.length}</span>
-                                          <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            className="h-5 shrink-0 px-1.5 text-[10px]"
-                                            disabled={adoptableCandidates.length === 0}
-                                            title={adoptableCandidates.length === 0 ? '暂无有资源的候选' : '查看可采纳候选'}
-                                            onClick={() => navigate(mergeSearch(ROUTES.project.tasks, '', {
-                                              create: '1',
-                                              purpose: 'accept_keyframe',
-                                              target_type: 'keyframe',
-                                              target_id: keyframe.ID,
-                                              candidate_id: adoptableCandidates[0]?.ID,
-                                            }))}
-                                          >
-                                            查看
-                                          </Button>
-                                        </div>
-                                        <div className="space-y-1">
-                                          {previewCandidates.map((candidate) => {
-                                            const candidateResourceId = hasLoadedResource(candidate) ? numberOf(candidate.resource?.ID) : 0
-                                            return (
-                                              <div key={candidate.ID} className="flex min-w-0 items-center gap-1.5 rounded border border-border bg-background px-1.5 py-1">
-                                                {candidateResourceId > 0 ? (
-                                                  <AuthedImage
-                                                    src={resourceFileUrl(candidateResourceId)}
-                                                    alt={titleOfRecord(candidate)}
-                                                    className="h-6 w-8 shrink-0 rounded object-cover"
-                                                  />
-                                                ) : (
-                                                  <div className="flex h-6 w-8 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
-                                                    <Image size={11} />
-                                                  </div>
-                                                )}
-                                                <span className="min-w-0 truncate text-[10px] text-foreground">{titleOfRecord(candidate)}</span>
-                                                {candidateResourceId > 0 ? (
-                                                  <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    className="ml-auto h-5 shrink-0 px-1.5 text-[10px]"
-                                                    onClick={() => navigate(mergeSearch(ROUTES.project.tasks, '', {
-                                                      create: '1',
-                                                      purpose: 'accept_keyframe',
-                                                      target_type: 'keyframe',
-                                                      target_id: keyframe.ID,
-                                                      candidate_id: candidate.ID,
-                                                    }))}
-                                                  >
-                                                    采纳
-                                                  </Button>
-                                                ) : (
-                                                  <span className="ml-auto shrink-0 text-[10px] text-amber-600 dark:text-amber-300">缺资源</span>
-                                                )}
-                                                <Button
-                                                  size="sm"
-                                                  variant="ghost"
-                                                  className="h-5 shrink-0 px-1.5 text-[10px] text-destructive hover:text-destructive"
-                                                  onClick={() => rejectKeyframeCandidate.mutate(candidate)}
-                                                  disabled={rejectKeyframeCandidate.isPending}
-                                                >
-                                                  拒绝
-                                                </Button>
-                                              </div>
-                                            )
-                                          })}
-                                          {candidates.length > previewCandidates.length ? (
-                                            <p className="truncate text-[10px] text-muted-foreground">另 {candidates.length - previewCandidates.length} 个候选</p>
-                                          ) : null}
-                                        </div>
-                                      </div>
-                                    )
-                                  })()}
-                                </div>
-                              </div>
-                            ))}
-                            <button
-                              type="button"
-                              onClick={openCreateKeyframe}
-                              className="flex w-[112px] shrink-0 flex-col items-center justify-center rounded-md border border-dashed border-border bg-card px-2 text-center text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-foreground"
-                            >
-                              <Plus size={16} />
-                              <span className="mt-2 font-medium">添加关键帧</span>
-                              <span className="mt-1 text-[11px] leading-4">{nextKeyframeRole}</span>
-                            </button>
-                          </div>
-                        </div>
-                      )}
                     </div>
-                  </div>
-                </WorkbenchPanel>
-              </div>
-
-              <div className="min-w-0 space-y-3">
-                <WorkbenchPanel
-                  title="详情卡片"
-                  icon={Pencil}
-                  action={unitInspectorAction}
-                >
-                  {selectedUnit ? (
-                    <div data-testid="content-workbench-current-unit-panel">
-                      <div data-testid="content-workbench-unit-inspector">
-                        <SemanticEntityInlineEditor
-                          projectId={projectId}
-                          config={contentUnitConfig}
-                          record={selectedUnit}
-                          queryKey={productionWorkbenchQueryKey}
-                          idScope={`content-workbench-unit-inspector-${selectedUnit.ID}`}
-                          hideHeaderCopy
-                          hideHeaderActions
-                          editing={unitInspectorEditing}
-                          onEditingChange={setUnitInspectorEditing}
-                          onControlStateChange={setUnitInspectorControls}
-                          className="border-border bg-card"
-                          onSaved={(record) => {
-                            selectContentUnit(record.ID)
-                            setOptimisticSelectedUnit(record)
-                            setUnitInspectorEditing(false)
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="rounded-md border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">从时间轴选择一个制作项后，在这里编辑标题、提示词、时长和状态。</p>
-                  )}
-                </WorkbenchPanel>
-              </div>
+                  </>
+                )}
+            </div>
             </div>
             <input ref={uploadInputRef} type="file" className="hidden" accept={RESOURCE_UPLOAD_ACCEPT} onChange={(e) => handleCandidateUpload(e.target.files?.[0])} />
-            <input ref={keyframeUploadInputRef} type="file" className="hidden" accept="image/*" onChange={(e) => handleKeyframeUpload(e.target.files?.[0])} />
           </div>
         )}
       </main>
-
-      <Dialog open={Boolean(keyframeLibraryTarget)} onOpenChange={(open) => { if (!open) setKeyframeLibraryTarget(null) }}>
-        <DialogContent className="max-h-[88vh] w-[min(560px,calc(100vw-32px))] overflow-auto p-0">
-          <DialogHeader className="border-b border-border px-5 py-4">
-            <DialogTitle>从资源库选择关键帧素材</DialogTitle>
-            <DialogDescription>
-              {keyframeLibraryTarget ? `加入候选：${titleOfRecord(keyframeLibraryTarget)}` : '选择一个图片资源加入画面锚点候选。'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="p-5">
-            <ResourceLibraryPicker
-              resources={keyframeResourceItems}
-              selectedResource={null}
-              search={keyframeResourceSearch}
-              type="image"
-              typeOptions={['image']}
-              page={keyframeResourcePage}
-              pageCount={keyframeResourcePageCount}
-              total={keyframeResourceTotal}
-              isLoading={keyframeResourcesQuery.isLoading || addKeyframeResourceCandidate.isPending}
-              onSearch={(value) => {
-                setKeyframeResourceSearch(value)
-                setKeyframeResourcePage(1)
-              }}
-              onType={() => {}}
-              onPage={setKeyframeResourcePage}
-              onSelect={(resource) => {
-                if (!keyframeLibraryTarget) return
-                addKeyframeResourceCandidate.mutate({ keyframe: keyframeLibraryTarget, resourceId: resource.ID })
-              }}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={creatingUnit} onOpenChange={(open) => { if (!open) { setCreatingUnit(false); setUnitDraftDefaults(null) } }}>
         <DialogContent className="max-h-[88vh] w-[min(760px,calc(100vw-32px))] overflow-auto p-0">
           <DialogHeader className="border-b border-border px-5 py-4">
             <DialogTitle>添加制作项</DialogTitle>
             <DialogDescription>
-              {selected ? `将作为候选加入当前情节：${selected.title}` : '请先选择情节再添加制作项。'}
+              {selected ? `将作为候选草稿加入当前情节：${selected.title}` : '请先选择情节再添加制作项。'}
             </DialogDescription>
           </DialogHeader>
           <div className="p-5">
             {selected ? (
-              <SemanticEntityInlineEditor
+              <CreateContentUnitQuickCard
                 projectId={projectId}
-                config={contentUnitConfig}
-                record={null}
+                contentUnitConfig={contentUnitConfig}
+                selected={selected}
+                selectedUnit={selectedUnit}
                 defaults={{
                   kind: 'shot',
-                  status: 'candidate',
                   ...unitDraftDefaults,
-                  segment_id: selected.segment?.ID ?? null,
-                  scene_moment_id: selected.moment.ID,
-                  production_id: nullableNumber(selectedUnit?.production_id ?? selected.moment.production_id ?? selected.segment?.production_id ?? selected.productionIds[0]),
-                  script_block_id: nullableNumber(selectedUnit?.script_block_id ?? selected.moment.script_block_id ?? selected.segment?.script_block_id),
-                  order: selected.units.length + 1,
                 }}
                 queryKey={productionWorkbenchQueryKey}
-                idScope="content-workbench-create-unit"
-                title="新建制作项"
-                description="填写制作项基本信息后保存，加入当前情节候选。"
                 onSaved={(record) => {
                   selectContentUnit(record.ID)
                   setOptimisticSelectedUnit(record)
+                  setCreatingUnit(false)
+                  setUnitDraftDefaults(null)
+                }}
+                onCancel={() => {
                   setCreatingUnit(false)
                   setUnitDraftDefaults(null)
                 }}
@@ -5791,7 +5776,7 @@ function ContentGenerationWorkbench() {
                 idScope={`content-workbench-edit-unit-${selectedUnit.ID}`}
                 editKey={selectedUnit.ID}
                 title="编辑制作项"
-                description="保存后会刷新制作项时间轴和右侧详情。"
+                description="保存后会刷新制作项轨道和画面预览。"
                 onSaved={(record) => {
                   selectContentUnit(record.ID)
                   setEditingUnit(false)
@@ -5856,7 +5841,7 @@ function ContentGenerationWorkbench() {
                 queryKey={productionWorkbenchQueryKey}
                 idScope={`content-workbench-create-keyframe-${selectedUnit.ID}`}
                 title="新建关键帧"
-                description="保存后会出现在画面连续性和当前制作项的画面锚点轨道中。随后可以上传图片或从资源库选择素材。"
+                description="保存后会进入当前制作项的画面输入。"
                 onSaved={(record) => {
                   setCreatingKeyframe(false)
                   selectContentUnit(Number(record.content_unit_id) || selectedUnit.ID)
@@ -5960,29 +5945,6 @@ function previewTimelineRank(item: WorkbenchRecord) {
   if (status === 'playable') return 2
   if (status === 'draft') return 3
   return 4
-}
-
-function buildContentWorkbenchTrackSections(rows: ContentGenerationMomentRow[], scopeLevel: ContentWorkbenchScopeLevel, data?: ProductionWorkbenchData): ContentWorkbenchTrackSection[] {
-  if (rows.length === 0) return []
-  if (scopeLevel === 'scene_moment') {
-    return [{ id: 'scene_moment', title: '当前情节', rows }]
-  }
-  const productionById = new Map((data?.productions ?? []).map((production) => [production.ID, production]))
-  const sections = new Map<string, ContentWorkbenchTrackSection>()
-  for (const row of rows) {
-    const productionId = row.productionIds[0] ?? 0
-    const key = scopeLevel === 'production'
-      ? `production-${productionId || 'unassigned'}`
-      : `segment-${row.segment?.ID ?? 'unassigned'}`
-    const production = productionId > 0 ? productionById.get(productionId) : undefined
-    const title = scopeLevel === 'production'
-      ? production ? `制作 · ${titleOfRecord(production)}` : '未绑定制作'
-      : row.segment ? `情绪段 · ${titleOfRecord(row.segment)}` : '未绑定情绪段'
-    const section = sections.get(key)
-    if (section) section.rows.push(row)
-    else sections.set(key, { id: key, title, rows: [row] })
-  }
-  return Array.from(sections.values())
 }
 
 function relatedSegmentIdsForWorkbenchProduction(record: WorkbenchRecord, data: ProductionWorkbenchData) {

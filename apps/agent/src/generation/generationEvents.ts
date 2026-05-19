@@ -18,6 +18,7 @@ export interface GenerationEvent {
   terminal: boolean
   progress?: number
   outputResourceId?: number
+  outputResourceIds?: number[]
   media?: JSONValue
   message: string
 }
@@ -37,7 +38,8 @@ export function buildGenerationEvent(call: ToolCall, result: JSONValue | undefin
   const status = stringField(payload.status) ?? statusFromJob(payload.job) ?? 'unknown'
   const jobId = idField(payload.jobId) ?? idField(payload.job_id) ?? idField(payload.job, 'ID') ?? idField(payload.job, 'id')
   const terminal = payload.terminal === true || isTerminalStatus(status)
-  const outputResourceId = idField(payload.output_resource_id) ?? idField(payload.outputResourceId)
+  const outputResourceIds = outputResourceIdsFromPayload(payload)
+  const outputResourceId = idField(payload.output_resource_id) ?? idField(payload.outputResourceId) ?? outputResourceIds[0]
   const progress = numberField(payload.progress)
   const jobType = stringField(payload.jobType) ?? stringField(payload.job_type) ?? stringField(payload.job, 'job_type')
   const providerName = stringField(payload.providerName) ?? stringField(payload.provider_name) ?? stringField(payload.job, 'provider_name')
@@ -58,8 +60,9 @@ export function buildGenerationEvent(call: ToolCall, result: JSONValue | undefin
     terminal,
     ...(progress !== undefined ? { progress } : {}),
     ...(outputResourceId !== undefined ? { outputResourceId } : {}),
+    ...(outputResourceIds.length > 0 ? { outputResourceIds } : {}),
     ...(isJSONValue(payload.media) ? { media: cloneJSONValue(payload.media) } : {}),
-    message: stringField(payload.message) ?? defaultMessage(call.name, jobId, status, progress, outputResourceId),
+    message: stringField(payload.message) ?? defaultMessage(call.name, jobId, status, progress, outputResourceIds.length > 0 ? outputResourceIds : outputResourceId !== undefined ? [outputResourceId] : []),
   }
 }
 
@@ -138,9 +141,9 @@ function defaultMonitorHeartbeatMs(event: GenerationEvent): number {
   return event.jobType?.startsWith('video') ? 30_000 : 15_000
 }
 
-function defaultMessage(toolName: string, jobId: number | undefined, status: string, progress: number | undefined, outputResourceId: number | undefined): string {
+function defaultMessage(toolName: string, jobId: number | undefined, status: string, progress: number | undefined, outputResourceIds: number[]): string {
   const jobLabel = jobId !== undefined ? `Job #${jobId}` : '生成任务'
-  if (status === 'succeeded') return `${jobLabel} 生成完成${outputResourceId !== undefined ? `，输出资源 #${outputResourceId}` : ''}。`
+  if (status === 'succeeded') return `${jobLabel} 生成完成${outputResourceIds.length > 0 ? `，输出资源 ${outputResourceIds.map((id) => `#${id}`).join('、')}` : ''}。`
   if (status === 'failed') return `${jobLabel} 生成失败。`
   if (status === 'cancelled') return `${jobLabel} 已取消。`
   if (toolName === 'movscript_create_generation_job') return `${jobLabel} 已创建，当前状态：${status}。`
@@ -175,6 +178,20 @@ function numberField(value: unknown, key?: string): number | undefined {
 function idField(value: unknown, key?: string): number | undefined {
   const raw = key && isRecord(value) ? value[key] : value
   return isValidAgentEntityId(raw) ? raw : undefined
+}
+
+function outputResourceIdsFromPayload(payload: Record<string, unknown>): number[] {
+  const ids = new Set<number>()
+  for (const value of [
+    ...(Array.isArray(payload.output_resource_ids) ? payload.output_resource_ids : []),
+    ...(Array.isArray(payload.outputResourceIds) ? payload.outputResourceIds : []),
+    idField(payload.output_resource_id),
+    idField(payload.outputResourceId),
+  ]) {
+    const id = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
+    if (Number.isInteger(id) && id > 0) ids.add(id)
+  }
+  return [...ids]
 }
 
 function clampNumber(value: number, min: number, max: number): number {

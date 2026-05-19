@@ -10,6 +10,7 @@ import {
   Eye,
   FileText,
   GitBranch,
+  ImagePlus,
   Layers3,
   Loader2,
   PackageCheck,
@@ -20,6 +21,7 @@ import {
   Save,
   Sparkles,
   Trash2,
+  Upload,
   Wand2,
   X,
 } from 'lucide-react'
@@ -33,15 +35,18 @@ import {
   type SemanticEntityKind,
   type SemanticEntityRecord,
 } from '@/api/semanticEntities'
+import { AuthedImage } from '@/components/shared/AuthedImage'
 import { buildCommandFirstClientInput, buildPageKey } from '@/lib/agentCommandInput'
 import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
 import { selectLatestDraftArtifact } from '@/lib/agentArtifacts'
 import { buildDefaultProjectStylePatch, buildEmptyProjectStandardsProposalDraftContent } from '@/lib/projectStandardsProposalDraft'
+import { api } from '@/lib/api'
 import { localAgentClient, type AgentDraft } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
 import { ROUTES } from '@/routes/projectRoutes'
+import type { RawResource } from '@/types'
 
 type WorkspaceRecord = SemanticEntityRecord & {
   description?: string
@@ -176,6 +181,8 @@ const emptyRuleForm: ProjectPromptRuleForm = {
   enabled: true,
   required: false,
 }
+
+const STYLE_REFERENCE_RULE_KEY = 'style_reference_images'
 
 const emptyData: WorkspaceData = {
   project: null,
@@ -331,6 +338,40 @@ function projectPromptRulePayload(rules: ProjectPromptRule[]) {
       order: rule.order || (index + 1) * 10,
     }))
     .filter((rule) => rule.key || rule.label || rule.value)
+}
+
+function extractResourceIds(value: string) {
+  const ids = new Set<number>()
+  const patterns = [
+    /resource#(\d+)/gi,
+    /reference_resource_ids\s*[:=]\s*\[?([0-9,\s]+)\]?/gi,
+  ]
+  for (const pattern of patterns) {
+    for (const match of value.matchAll(pattern)) {
+      const idText = match[1] ?? ''
+      for (const part of idText.split(',')) {
+        const id = Number(part.trim())
+        if (Number.isInteger(id) && id > 0) ids.add(id)
+      }
+    }
+  }
+  return Array.from(ids)
+}
+
+function buildStyleReferenceRule(resourceIds: number[], existing?: ProjectPromptRule): ProjectPromptRule {
+  const uniqueIds = Array.from(new Set(resourceIds.filter((id) => Number.isInteger(id) && id > 0)))
+  const resourceText = uniqueIds.map((id) => `resource#${id}`).join('、')
+  return {
+    id: existing?.id ?? 'rule_style_reference_images',
+    key: STYLE_REFERENCE_RULE_KEY,
+    label: existing?.label || '全局画风参考图',
+    category: existing?.category || '视觉',
+    value: `画风参考图片：${resourceText}；reference_resource_ids=[${uniqueIds.join(', ')}]。仅用于视觉画风、质感、色彩、线条质量和光影连续性参考；后续图片/视频生成时，将这些资源 ID 作为 reference_resource_ids 传给支持参考图的生成工具。`,
+    prompt_role: 'style',
+    enabled: true,
+    required: existing?.required ?? false,
+    order: existing?.order ?? 5,
+  }
 }
 
 function buildRuleId(key: string) {
@@ -539,6 +580,7 @@ export default function ProjectStandardsPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
   const orchestrationToolCleanupRef = useRef<(() => void) | null>(null)
+  const styleReferenceInputRef = useRef<HTMLInputElement>(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const [orchestrationPrompt, setOrchestrationPrompt] = useState('')
   const [launching, setLaunching] = useState(false)
@@ -551,6 +593,8 @@ export default function ProjectStandardsPage() {
   const [ruleForm, setRuleForm] = useState<ProjectPromptRuleForm | null>(null)
   const [savingRule, setSavingRule] = useState(false)
   const [deletingRuleId, setDeletingRuleId] = useState<string | null>(null)
+  const [uploadingStyleReferences, setUploadingStyleReferences] = useState(false)
+  const [lastUploadedStyleReferences, setLastUploadedStyleReferences] = useState<RawResource[]>([])
   const openedDraftId = searchParams.get('draftId')?.trim() || ''
 
   const queryKey = ['project-workspace', projectId] as const
@@ -658,7 +702,7 @@ export default function ProjectStandardsPage() {
       }, { replace: true })
 
       const requestId = `project_orchestrate_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
-      const userMessage = requestedPrompt || `请基于已写入 draft 的空模板，为项目「${project?.name ?? `#${projectId}`}」制定项目级制作规范。填写 proposal.project_style：保留并补齐固定字段 aspect_ratio、shot_size_system、camera_language、visual_style、lighting_style、color_palette、pacing_rules、negative_rules；也可以按项目需要新增 custom_rules，每条包含 key、label、category、value、prompt_role、enabled、required、order。不要创建设定资料或素材需求。`
+      const userMessage = requestedPrompt || `请基于已写入 draft 的空模板，为项目「${project?.name ?? `#${projectId}`}」制定项目级制作规范。填写 proposal.project_style：保留并补齐固定字段 aspect_ratio、shot_size_system、camera_language、visual_style、lighting_style、color_palette、pacing_rules、negative_rules；也可以按项目需要新增 custom_rules，每条包含 key、label、category、value、prompt_role、enabled、required、order。若项目需要用图片固定画风，请用 custom_rules 实现：新增 enabled=true、prompt_role="style" 的画风参考规则，在 value 中写明参考图片的 resource#ID 或 reference_resource_ids，并说明这些图片用于画风、质感、色彩、线条、光影参考；后续生成图片/视频时应把这些资源 ID 作为 reference_resource_ids 传给支持参考图的生成工具。不要创建设定资料或素材需求。`
 
       orchestrationToolCleanupRef.current?.()
       orchestrationToolCleanupRef.current = registerAgentPanelPageTool(requestId, async (payload) => {
@@ -782,6 +826,9 @@ export default function ProjectStandardsPage() {
   const enabledCustomRules = customRules.filter((rule) => rule.enabled)
   const enabledRuleCount = filledStandardCount + enabledCustomRules.length
   const promptPreview = useMemo(() => buildProjectPromptPreview(data.project), [data.project])
+  const styleReferenceRule = customRules.find((rule) => rule.key === STYLE_REFERENCE_RULE_KEY)
+  const styleReferenceIds = useMemo(() => extractResourceIds(styleReferenceRule?.value ?? ''), [styleReferenceRule?.value])
+  const uploadedStyleReferencesById = useMemo(() => new Map(lastUploadedStyleReferences.map((resource) => [resource.ID, resource])), [lastUploadedStyleReferences])
 
   async function saveProjectStylePatch(projectStyle: Record<string, unknown>, successMessage: string) {
     if (!projectId) return
@@ -883,6 +930,41 @@ export default function ProjectStandardsPage() {
     }
   }
 
+  async function uploadStyleReferenceImages(files: FileList | null) {
+    if (!projectId || !files || files.length === 0) return
+    const imageFiles = Array.from(files).filter((file) => file.type.startsWith('image/'))
+    if (imageFiles.length === 0) {
+      toast.error('请选择图片文件')
+      return
+    }
+    setUploadingStyleReferences(true)
+    try {
+      const uploaded: RawResource[] = []
+      for (const file of imageFiles) {
+        const fd = new FormData()
+        fd.append('file', file)
+        const resource = await api.post('/resources/upload', fd).then((r) => r.data as RawResource)
+        uploaded.push(resource)
+      }
+      const existingIds = extractResourceIds(styleReferenceRule?.value ?? '')
+      const nextRule = buildStyleReferenceRule([...existingIds, ...uploaded.map((resource) => resource.ID)], styleReferenceRule)
+      const nextRules = styleReferenceRule
+        ? customRules.map((rule) => rule.id === styleReferenceRule.id ? nextRule : rule)
+        : [nextRule, ...customRules]
+      setLastUploadedStyleReferences((current) => {
+        const byId = new Map(current.map((resource) => [resource.ID, resource]))
+        for (const resource of uploaded) byId.set(resource.ID, resource)
+        return Array.from(byId.values())
+      })
+      await saveProjectStylePatch({ custom_rules: projectPromptRulePayload(nextRules) }, `已上传 ${uploaded.length} 张画风参考图`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '上传画风参考图失败')
+    } finally {
+      setUploadingStyleReferences(false)
+      if (styleReferenceInputRef.current) styleReferenceInputRef.current.value = ''
+    }
+  }
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
       <header className="shrink-0 border-b border-border bg-card px-5 py-3">
@@ -970,7 +1052,7 @@ export default function ProjectStandardsPage() {
                             <h2 className="text-sm font-semibold text-foreground">核心规范</h2>
                             <p className="mt-1 text-xs text-muted-foreground">固定 8 项为必选规范，直接写入 Project 全局字段和 project_style。</p>
                           </div>
-                          <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => startProjectOrchestration('请为当前项目制定项目级制作规范：补齐固定 8 项，并按需要新增 custom_rules。custom_rules 每条要包含 key、label、category、value、prompt_role、enabled、required、order。不要创建设定资料或素材需求。')}>
+                          <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => startProjectOrchestration('请为当前项目制定项目级制作规范：补齐固定 8 项，并按需要新增 custom_rules。custom_rules 每条要包含 key、label、category、value、prompt_role、enabled、required、order。如果需要用图片固定画风，请新增 prompt_role="style" 的 custom_rules，在 value 中记录参考图 resource#ID 或 reference_resource_ids，并说明后续图片/视频生成要把这些 ID 作为 reference_resource_ids 用于画风参考。不要创建设定资料或素材需求。')}>
                             <Wand2 size={12} />
                             让 AI 制定
                           </Button>
@@ -1021,6 +1103,58 @@ export default function ProjectStandardsPage() {
                             )
                           })}
                         </div>
+                    </Card>
+
+                    <Card className="min-h-0 overflow-hidden rounded-lg border-border bg-card p-4 shadow-sm">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground"><ImagePlus size={14} />全局画风参考图</h2>
+                          <p className="mt-1 text-xs text-muted-foreground">上传后会写入 style_reference_images 规则，后续图片/视频生成可作为 reference_resource_ids 使用。</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            ref={styleReferenceInputRef}
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            onChange={(event) => uploadStyleReferenceImages(event.target.files)}
+                          />
+                          <Button size="sm" className="h-7 gap-1.5 text-xs" onClick={() => styleReferenceInputRef.current?.click()} loading={uploadingStyleReferences} disabled={!projectId}>
+                            <Upload size={12} />
+                            上传参考图
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="mt-3">
+                        {styleReferenceIds.length === 0 ? (
+                          <div className="rounded-md border border-dashed border-border bg-background px-3 py-4 text-xs text-muted-foreground">
+                            尚未设置画风参考图。上传图片后会自动生成全局画风规则。
+                          </div>
+                        ) : (
+                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                            {styleReferenceIds.map((id) => {
+                              const uploaded = uploadedStyleReferencesById.get(id)
+                              return (
+                                <div key={id} className="overflow-hidden rounded-md border border-border bg-background">
+                                  <div className="aspect-video bg-muted">
+                                    <AuthedImage src={`/api/v1/resources/${id}/file`} alt={uploaded?.name ?? `resource#${id}`} className="h-full w-full object-cover" />
+                                  </div>
+                                  <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+                                    <p className="min-w-0 truncate text-[10px] text-foreground">{uploaded?.name ?? `resource#${id}`}</p>
+                                    <Badge variant="secondary" className="shrink-0 text-[9px]">#{id}</Badge>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {styleReferenceRule ? (
+                        <p className="mt-3 whitespace-pre-wrap rounded-md border border-border bg-muted/20 p-2 text-[10px] leading-4 text-muted-foreground">{styleReferenceRule.value}</p>
+                      ) : null}
                     </Card>
 
                     <Card className="min-h-0 overflow-hidden rounded-lg border-border bg-card p-4 shadow-sm">

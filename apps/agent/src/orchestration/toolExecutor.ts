@@ -713,6 +713,7 @@ function buildProjectStandardsToolResult(
   const customRules = normalizeProjectStandardsRules(parsedStyle.style.custom_rules)
   const enabledCustomRules = customRules.filter((rule) => rule.enabled !== false)
   const promptSections = groupProjectStandardsRules(enabledCustomRules)
+  const styleReferenceResourceIds = collectStyleReferenceResourceIds(enabledCustomRules)
 
   return {
     loaded: true,
@@ -724,13 +725,14 @@ function buildProjectStandardsToolResult(
       custom_rules: customRules,
       enabled_custom_rules: enabledCustomRules,
       prompt_sections: promptSections,
+      style_reference_resource_ids: styleReferenceResourceIds,
       project_style: parsedStyle.style,
       ...(typeof projectStyleRaw === 'string' ? { project_style_raw: projectStyleRaw } : {}),
       ...(stringField(project.UpdatedAt) ? { updated_at: stringField(project.UpdatedAt) } : {}),
       ...(stringField(project.updated_at) ? { updated_at: stringField(project.updated_at) } : {}),
     }),
     warnings,
-    message: 'Project standards loaded. Use these standards for project-scoped creative planning, writing, prompt, asset, production, and generation work.',
+    message: 'Project standards loaded. Use these standards for project-scoped creative planning, writing, prompt, asset, production, and generation work. If standards.style_reference_resource_ids is non-empty and an image/video generation tool supports reference_resource_ids, pass those ids as visual style references.',
   }
 }
 
@@ -802,6 +804,37 @@ function groupProjectStandardsRules(rules: Array<Record<string, JSONValue>>): Re
     sections[role]!.push(rule)
   }
   return compactJSONRecord(sections)
+}
+
+function collectStyleReferenceResourceIds(rules: Array<Record<string, JSONValue>>): string[] {
+  const ids = new Set<string>()
+  for (const rule of rules) {
+    const role = normalizeProjectStandardsPromptRole(rule.prompt_role)
+    const text = [
+      stringField(rule.key),
+      stringField(rule.label),
+      stringField(rule.category),
+      projectStandardValueText(rule.value),
+    ].filter(Boolean).join('\n')
+    if (role !== 'style' && !/(style|visual|reference|参考|画风|风格)/i.test(text)) continue
+    for (const id of extractReferenceResourceIds(text)) ids.add(id)
+  }
+  return Array.from(ids)
+}
+
+function extractReferenceResourceIds(value: string): string[] {
+  const ids = new Set<string>()
+  const text = value.trim()
+  const resourcePattern = /(?:resource|resource_id|resourceId|资源)\s*#?\s*(\d+)/gi
+  for (const match of text.matchAll(resourcePattern)) {
+    if (match[1]) ids.add(match[1])
+  }
+  const listPattern = /(?:reference_resource_ids?|resource_ids?|resources?)\s*[:=]\s*([0-9,\s#]+)/gi
+  for (const match of text.matchAll(listPattern)) {
+    const list = match[1] ?? ''
+    for (const id of list.match(/\d+/g) ?? []) ids.add(id)
+  }
+  return Array.from(ids)
 }
 
 function normalizeProjectStandardsPromptRole(value: JSONValue | undefined): 'context' | 'style' | 'constraint' | 'negative' | 'quality_gate' {

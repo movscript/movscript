@@ -89,6 +89,7 @@ test('buildAgentMessage renders client input messages and rejects empty content'
 
   assert.equal(built.message.id, 'msg_1')
   assert.match(built.message.content, /from client input/)
+  assert.deepEqual(built.message.clientInput, { visibleMessage: 'from client input', attachments: [] })
   assert.ok(built.clientInput)
   assert.throws(() => buildAgentMessage({
     id: 'msg_2',

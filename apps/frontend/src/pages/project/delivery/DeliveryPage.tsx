@@ -84,7 +84,7 @@ export default function DeliveryPage() {
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-normal">交付</h1>
             <p className="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
-              交付中心追踪每个制作的交付版本、素材包、轻量成片和导出记录；具体剪辑装配与放行检查进入交付工作台完成。
+              交付中心追踪每个制作的交付版本、素材包、轻量成片和导出记录；具体成片预览、片段微调与放行检查进入交付工作台完成。
             </p>
           </div>
           <Button variant="outline" className="gap-2" onClick={() => centerQuery.refetch()} loading={centerQuery.isFetching}>
@@ -114,7 +114,7 @@ export default function DeliveryPage() {
               {centerQuery.isLoading ? (
                 <EmptyState icon={RefreshCcw} title="正在加载" detail="读取交付版本和导出记录" />
               ) : rows.length === 0 ? (
-                <EmptyState icon={Truck} title="暂无交付对象" detail="先创建制作，然后进入交付工作台创建交付版本" />
+                <EmptyState icon={Truck} title="暂无交付对象" detail="先创建制作，然后进入交付工作台查看交付版本和成片状态" />
               ) : (
                 rows.map((row) => <DeliveryProductionRow key={row.production.ID} row={row} />)
               )}
@@ -136,7 +136,7 @@ export default function DeliveryPage() {
                 <ModeCard
                   icon={Video}
                   title="轻量成片交付"
-                  detail="在交付工作台完成排序、替换、基础时间线和检查版导出。"
+                  detail="在交付工作台查看成片总览，并微调排序、替换采用资源和检查版导出。"
                 />
               </div>
             </section>
@@ -148,7 +148,7 @@ export default function DeliveryPage() {
               </div>
               <div className="mt-3 space-y-2 text-xs leading-5 text-muted-foreground">
                 <p>交付中心：项目级版本、导出和状态追踪。</p>
-                <p>交付工作台：某个制作的剪辑装配、资源锁定和放行门禁。</p>
+                <p>交付工作台：某个制作的成片总览、预览、轻量剪辑微调和放行门禁。</p>
                 <p>专业剪辑：复杂多轨、调色、混音和特效工程仍建议外部完成。</p>
               </div>
             </section>

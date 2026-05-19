@@ -66,6 +66,25 @@ export interface PreviewTimeline {
   status: string
 }
 
+export interface PreviewTimelineItem {
+  ID: number
+  project_id: number
+  preview_timeline_id: number
+  content_unit_id?: number | null
+  segment_id?: number | null
+  scene_moment_id?: number | null
+  keyframe_id?: number | null
+  kind: 'video' | 'image' | 'audio' | 'caption' | 'gap' | 'note' | string
+  order: number
+  start_sec: number
+  duration_sec: number
+  label?: string
+  status: string
+  metadata_json?: string
+  CreatedAt?: string
+  UpdatedAt?: string
+}
+
 export interface ContentUnit {
   ID: number
   project_id: number
@@ -98,7 +117,7 @@ export type DeliveryVersionPayload = Partial<Pick<
 
 export type DeliveryTimelineItemPayload = Partial<Pick<
   DeliveryTimelineItem,
-  'content_unit_id' | 'asset_slot_id' | 'resource_id' | 'kind' | 'order' | 'start_sec' | 'duration_sec' | 'label' | 'status' | 'metadata_json'
+  'content_unit_id' | 'asset_slot_id' | 'resource_id' | 'segment_id' | 'scene_moment_id' | 'keyframe_id' | 'kind' | 'order' | 'start_sec' | 'duration_sec' | 'label' | 'status' | 'metadata_json'
 >> & {
   delivery_version_id: number
 }
@@ -192,6 +211,13 @@ export async function createExportRecord(projectId: number, payload: ExportRecor
 export async function listPreviewTimelines(projectId: number, productionId?: number | null) {
   const { data } = await api.get<PreviewTimeline[]>(`/projects/${projectId}/entities/preview-timelines`, {
     params: productionId ? { production_id: productionId } : undefined,
+  })
+  return data
+}
+
+export async function listPreviewTimelineItems(projectId: number, previewTimelineId?: number | null) {
+  const { data } = await api.get<PreviewTimelineItem[]>(`/projects/${projectId}/entities/preview-timeline-items`, {
+    params: previewTimelineId ? { preview_timeline_id: previewTimelineId } : undefined,
   })
   return data
 }

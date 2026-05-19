@@ -135,3 +135,45 @@ func (h *SemanticEntityHandler) PatchSceneMoment(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, item)
 }
+
+func (h *SemanticEntityHandler) ListWritingExpressions(c *gin.Context) {
+	items, err := h.semantic.ListWritingExpressions(c.Request.Context(), semanticapp.WritingExpressionFilter{
+		ProjectID:     parseID(c.Param("id")),
+		SceneMomentID: parseID(c.Query("scene_moment_id")),
+		ScriptBlockID: parseID(c.Query("script_block_id")),
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+func (h *SemanticEntityHandler) CreateWritingExpression(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	var req semanticapp.WritingExpressionInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
+		return
+	}
+	item, err := h.semantic.CreateWritingExpression(c.Request.Context(), projectID, req)
+	if err != nil {
+		h.writeSemanticAppError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, item)
+}
+
+func (h *SemanticEntityHandler) PatchWritingExpression(c *gin.Context) {
+	var req semanticapp.WritingExpressionInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
+		return
+	}
+	item, err := h.semantic.PatchWritingExpression(c.Request.Context(), parseID(c.Param("id")), c.Param("expressionId"), req)
+	if err != nil {
+		h.writeSemanticAppError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}

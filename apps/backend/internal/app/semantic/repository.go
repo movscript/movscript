@@ -44,6 +44,10 @@ type repository interface {
 	CreateSceneMoment(ctx context.Context, item domainsemantic.SceneMoment) (domainsemantic.SceneMoment, error)
 	LoadSceneMoment(ctx context.Context, projectID uint, id string) (domainsemantic.SceneMoment, error)
 	PatchSceneMoment(ctx context.Context, item domainsemantic.SceneMoment, patch domainsemantic.SceneMomentPatch) (domainsemantic.SceneMoment, error)
+	ListWritingExpressions(ctx context.Context, filter WritingExpressionFilter) ([]domainsemantic.WritingExpression, error)
+	CreateWritingExpression(ctx context.Context, item domainsemantic.WritingExpression) (domainsemantic.WritingExpression, error)
+	LoadWritingExpression(ctx context.Context, projectID uint, id string) (domainsemantic.WritingExpression, error)
+	PatchWritingExpression(ctx context.Context, item domainsemantic.WritingExpression, patch domainsemantic.WritingExpressionPatch) (domainsemantic.WritingExpression, error)
 	ResolveSegmentOwners(ctx context.Context, projectID uint, productionID *uint, textBlockID *uint) (*uint, *uint, error)
 	ListProductions(ctx context.Context, filter ProductionFilter) ([]domainsemantic.Production, error)
 	CreateProduction(ctx context.Context, item domainsemantic.Production) (domainsemantic.Production, error)
@@ -272,6 +276,8 @@ func newDeleteItemModel(kind string) (any, error) {
 		return &persistencemodel.ProductionTextBlock{}, nil
 	case domainworkflow.EntityKindSceneMoment:
 		return &persistencemodel.SceneMoment{}, nil
+	case "writing_expression":
+		return &persistencemodel.WritingExpression{}, nil
 	case "storyboard_script":
 		return &persistencemodel.StoryboardScript{}, nil
 	case "storyboard_version":
@@ -701,6 +707,76 @@ func sceneMomentPatchColumns(patch domainsemantic.SceneMomentPatch) map[string]a
 	if strings.TrimSpace(patch.Status) != "" {
 		updates["status"] = patch.Status
 	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
+}
+
+func (r *gormRepository) ListWritingExpressions(ctx context.Context, filter WritingExpressionFilter) ([]domainsemantic.WritingExpression, error) {
+	items := make([]persistencemodel.WritingExpression, 0)
+	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
+	if filter.SceneMomentID != 0 {
+		q = q.Where("scene_moment_id = ?", filter.SceneMomentID)
+	}
+	if filter.ScriptBlockID != 0 {
+		q = q.Where("script_block_id = ?", filter.ScriptBlockID)
+	}
+	if err := q.Order(`"order", id`).Find(&items).Error; err != nil {
+		return nil, err
+	}
+	return writingExpressionsFromModels(items), nil
+}
+
+func writingExpressionsFromModels(items []persistencemodel.WritingExpression) []domainsemantic.WritingExpression {
+	result := make([]domainsemantic.WritingExpression, 0, len(items))
+	for _, item := range items {
+		result = append(result, domainsemantic.WritingExpressionFromModel(item))
+	}
+	return result
+}
+
+func (r *gormRepository) CreateWritingExpression(ctx context.Context, item domainsemantic.WritingExpression) (domainsemantic.WritingExpression, error) {
+	modelItem := item.ToModel()
+	if err := r.createItemOnly(ctx, &modelItem); err != nil {
+		return domainsemantic.WritingExpressionFromModel(modelItem), err
+	}
+	return domainsemantic.WritingExpressionFromModel(modelItem), nil
+}
+
+func (r *gormRepository) LoadWritingExpression(ctx context.Context, projectID uint, id string) (domainsemantic.WritingExpression, error) {
+	var item persistencemodel.WritingExpression
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
+		return domainsemantic.WritingExpression{}, err
+	}
+	return domainsemantic.WritingExpressionFromModel(item), nil
+}
+
+func (r *gormRepository) PatchWritingExpression(ctx context.Context, item domainsemantic.WritingExpression, patch domainsemantic.WritingExpressionPatch) (domainsemantic.WritingExpression, error) {
+	modelItem := item.ToModel()
+	if err := r.patchItemOnly(ctx, &modelItem, writingExpressionPatchColumns(patch)); err != nil {
+		return domainsemantic.WritingExpressionFromModel(modelItem), err
+	}
+	return domainsemantic.WritingExpressionFromModel(modelItem), nil
+}
+
+func writingExpressionPatchColumns(patch domainsemantic.WritingExpressionPatch) map[string]any {
+	updates := map[string]any{
+		"order": patch.Order,
+	}
+	if patch.SceneMomentID != nil {
+		updates["scene_moment_id"] = *patch.SceneMomentID
+	}
+	if patch.ScriptBlockID != nil {
+		updates["script_block_id"] = patch.ScriptBlockID
+	}
+	if strings.TrimSpace(patch.Kind) != "" {
+		updates["kind"] = patch.Kind
+	}
+	updates["speaker"] = patch.Speaker
+	updates["text"] = patch.Text
+	updates["note"] = patch.Note
+	updates["intent"] = patch.Intent
 	if strings.TrimSpace(patch.MetadataJSON) != "" {
 		updates["metadata_json"] = patch.MetadataJSON
 	}

@@ -41,6 +41,8 @@ func (w *Writer) Write(ctx context.Context, item any) error {
 		return w.writeSegment(ctx, w.loadSegment(ctx, *v))
 	case *persistencemodel.SceneMoment:
 		return w.writeSceneMoment(ctx, w.loadSceneMoment(ctx, *v))
+	case *persistencemodel.WritingExpression:
+		return w.writeWritingExpression(ctx, w.loadWritingExpression(ctx, *v))
 	case *persistencemodel.ContentUnit:
 		return w.writeContentUnit(ctx, w.loadContentUnit(ctx, *v))
 	case *persistencemodel.ScriptBlock:
@@ -122,6 +124,8 @@ func (w *Writer) expireFilters(ctx context.Context, item any) []relationapp.Edge
 		return entityExpireFilters(v.ProjectID, "segment", v.ID)
 	case *persistencemodel.SceneMoment:
 		return entityExpireFilters(v.ProjectID, "scene_moment", v.ID)
+	case *persistencemodel.WritingExpression:
+		return entityExpireFilters(v.ProjectID, "writing_expression", v.ID)
 	case *persistencemodel.ContentUnit:
 		return entityExpireFilters(v.ProjectID, "content_unit", v.ID)
 	case *persistencemodel.AssetSlot:
@@ -237,6 +241,14 @@ func (w *Writer) loadSegment(ctx context.Context, item persistencemodel.Segment)
 }
 
 func (w *Writer) loadSceneMoment(ctx context.Context, item persistencemodel.SceneMoment) persistencemodel.SceneMoment {
+	if item.ProjectID != 0 {
+		return item
+	}
+	_ = w.db.WithContext(ctx).First(&item, item.ID).Error
+	return item
+}
+
+func (w *Writer) loadWritingExpression(ctx context.Context, item persistencemodel.WritingExpression) persistencemodel.WritingExpression {
 	if item.ProjectID != 0 {
 		return item
 	}
@@ -494,6 +506,30 @@ func (w *Writer) writeSceneMoment(ctx context.Context, item persistencemodel.Sce
 		if input.Source.ID == 0 || input.Target.ID == 0 {
 			continue
 		}
+		if err := w.upsert(ctx, input); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *Writer) writeWritingExpression(ctx context.Context, item persistencemodel.WritingExpression) error {
+	for _, filter := range []relationapp.EdgeFilter{
+		{ProjectID: item.ProjectID, Category: domainrelation.CategoryStructure, Type: domainrelation.TypeContains, Target: ref("writing_expression", item.ID)},
+		{ProjectID: item.ProjectID, Category: domainrelation.CategoryStructure, Type: domainrelation.TypeBasedOn, Source: ref("writing_expression", item.ID)},
+	} {
+		if err := w.expire(ctx, filter); err != nil {
+			return err
+		}
+	}
+	for _, input := range []relationapp.EdgeInput{
+		edge(item.ProjectID, "scene_moment", item.SceneMomentID, "writing_expression", item.ID, domainrelation.CategoryStructure, domainrelation.TypeContains, item.Kind, ""),
+		optionalEdge(item.ProjectID, "writing_expression", &item.ID, "script_block", ptrValue(item.ScriptBlockID), domainrelation.TypeBasedOn, item.Order, ""),
+	} {
+		if input.Source.ID == 0 || input.Target.ID == 0 {
+			continue
+		}
+		input.Order = item.Order
 		if err := w.upsert(ctx, input); err != nil {
 			return err
 		}

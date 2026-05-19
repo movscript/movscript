@@ -15,6 +15,7 @@ export interface AgentMessage {
   threadId: string
   role: AgentMessageRole
   content: string
+  clientInput?: unknown
   runId?: string
   createdAt: string
 }
@@ -261,6 +262,7 @@ export interface AgentRun {
   taskId?: string
   progress?: number
   blockedReason?: string
+  input?: AgentRunInput
   agentManifest?: AgentManifest
   pendingApprovals?: AgentApprovalRequest[]
   pendingInputRequests?: AgentInputRequest[]
@@ -278,6 +280,22 @@ export interface AgentRun {
   steps: AgentRunStep[]
   traceEvents?: AgentTraceEvent[]
   streamPartial?: true
+}
+
+export interface AgentRunInput {
+  schema?: 'movscript.agent.run-input.v1'
+  userMessage?: string
+  sourceMessageId?: string
+  executionMode?: 'chat' | 'tool' | 'worker' | 'resume'
+  clientInput?: unknown
+  parent?: {
+    runId?: string
+    planId?: string
+    taskId?: string
+  }
+  task?: {
+    id?: string
+  }
 }
 
 export interface AgentTaskArtifact {
@@ -416,6 +434,10 @@ export interface AgentClientInput {
     }
     productionId?: number
     draftId?: string
+    agent?: {
+      key?: string
+      name?: string
+    }
     selection?: {
       entityType?: string
       entityId?: number | string
@@ -737,6 +759,17 @@ export interface RunMessageResult {
   run: AgentRun
   thread: AgentThread
   threadResolution: AgentThreadResolution
+  sourceMessage?: AgentMessage
+}
+
+export interface CreateMessageRunResult {
+  run: AgentRun
+  message: AgentMessage
+}
+
+export interface AgentThreadRuntimeSnapshot {
+  thread: AgentThread
+  runs: AgentRun[]
 }
 
 export interface AgentThreadResolution {
@@ -803,6 +836,10 @@ export type AgentRunStreamEvent =
     run: AgentRun
   }
 
+export type AgentThreadStreamEvent = AgentRunStreamEvent & {
+  threadId: string
+}
+
 export interface AgentRunTraceResponse {
   runId: string
   events: AgentTraceEvent[]
@@ -848,6 +885,11 @@ export interface RunMessageOptions {
   pollMs?: number
   agentManifest?: AgentManifest
   runPolicy?: AgentRunPolicyOverride
+  signal?: AbortSignal
+}
+
+export interface ThreadStreamOptions {
+  onStreamEvent?: (event: AgentThreadStreamEvent) => void
   signal?: AbortSignal
 }
 
@@ -913,8 +955,18 @@ export class LocalAgentClient {
     }, signal)
   }
 
-  createRun(threadId: string, input: { agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput; policy?: AgentRunPolicyOverride } = {}, signal?: AbortSignal): Promise<AgentRun> {
+  createRun(threadId: string, input: { sourceMessageId?: string; agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput; policy?: AgentRunPolicyOverride } = {}, signal?: AbortSignal): Promise<AgentRun> {
     return this.postJSON('/runs', { threadId, ...input }, signal)
+  }
+
+  createMessageRun(threadId: string, input: {
+    message: string
+    agentManifest?: AgentManifest
+    approvedToolNames?: string[]
+    clientInput?: AgentClientInput
+    policy?: AgentRunPolicyOverride
+  }, signal?: AbortSignal): Promise<CreateMessageRunResult> {
+    return this.postJSON(`/threads/${encodeURIComponent(threadId)}/runs`, input, signal)
   }
 
   listRuns(): Promise<{ runs: AgentRun[] }> {
@@ -923,6 +975,14 @@ export class LocalAgentClient {
 
   listRunsByParent(parentRunId: string, signal?: AbortSignal): Promise<{ runs: AgentRun[] }> {
     return this.getJSON(`/runs?parentRunId=${encodeURIComponent(parentRunId)}`, { signal })
+  }
+
+  listRunsByThread(threadId: string, signal?: AbortSignal): Promise<{ threadId: string; runs: AgentRun[] }> {
+    return this.getJSON(`/threads/${encodeURIComponent(threadId)}/runs`, { signal })
+  }
+
+  getThreadRuntime(threadId: string, signal?: AbortSignal): Promise<AgentThreadRuntimeSnapshot> {
+    return this.getJSON(`/threads/${encodeURIComponent(threadId)}/runtime`, { signal })
   }
 
   createToolRun(input: {
@@ -1192,6 +1252,99 @@ export class LocalAgentClient {
     }
   }
 
+  async streamThread(threadId: string, options: ThreadStreamOptions = {}): Promise<void> {
+    const res = await fetch(`${this.baseURL}/threads/${encodeURIComponent(threadId)}/stream`, {
+      headers: this.authHeaders({ Accept: 'text/event-stream' }),
+      signal: options.signal,
+    })
+    if (!res.ok) throw await localAgentResponseError(res)
+    if (!res.body) return
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    const processBlock = (block: string) => {
+      const parsed = parseSSEBlock(block)
+      if (!parsed) return
+      try {
+        options.onStreamEvent?.(JSON.parse(parsed.data) as AgentThreadStreamEvent)
+      } catch {
+        return
+      }
+    }
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      let normalized = buffer.replace(/\r\n/g, '\n')
+      let separatorIndex = normalized.indexOf('\n\n')
+      while (separatorIndex >= 0) {
+        processBlock(normalized.slice(0, separatorIndex))
+        normalized = normalized.slice(separatorIndex + 2)
+        separatorIndex = normalized.indexOf('\n\n')
+      }
+      buffer = normalized
+    }
+    const tail = decoder.decode()
+    if (tail) buffer += tail
+    if (buffer.trim()) processBlock(buffer)
+  }
+
+  private async streamRunFromThread(threadId: string, runId: string, options: RunMessageOptions, initialRun?: AgentRun): Promise<AgentRun> {
+    const externalSignal = options.signal
+    const controller = new AbortController()
+    let latestRun = initialRun
+    let settled = false
+    const abortFromExternal = () => {
+      if (!controller.signal.aborted) controller.abort(externalSignal?.reason)
+    }
+    if (externalSignal?.aborted) abortFromExternal()
+    else externalSignal?.addEventListener('abort', abortFromExternal, { once: true })
+
+    const timeoutMs = normalizePositiveTimeoutMs(options.timeoutMs) ?? 30_000
+    const timeout = globalThis.setTimeout(() => {
+      if (!controller.signal.aborted) controller.abort(createLocalAgentAbortError())
+    }, timeoutMs)
+
+    try {
+      await this.streamThread(threadId, {
+        signal: controller.signal,
+        onStreamEvent: (event) => {
+          options.onStreamEvent?.(event)
+          if (streamEventRunId(event) !== runId) return
+          if ('run' in event && event.run) {
+            latestRun = event.run
+          }
+          if ((event.type === 'run' || event.type === 'done' || event.type === 'assistant_message') && event.run) {
+            options.onRunUpdate?.(event.run)
+          }
+          if (event.type === 'assistant_delta') {
+            options.onAssistantDelta?.(event)
+          }
+          if (latestRun && TERMINAL_RUN_STATUSES.has(latestRun.status)) {
+            settled = true
+            if (!controller.signal.aborted) controller.abort(createLocalAgentAbortError())
+          }
+        },
+      })
+    } catch (error) {
+      if (externalSignal?.aborted) throw externalSignal.reason ?? createLocalAgentAbortError()
+      if (!settled) return this.streamRun(runId, options)
+    } finally {
+      globalThis.clearTimeout(timeout)
+      externalSignal?.removeEventListener('abort', abortFromExternal)
+    }
+
+    const terminalRun = latestRun
+    if (terminalRun && TERMINAL_RUN_STATUSES.has(terminalRun.status)) {
+      return terminalRun.streamPartial
+        ? await this.getRun(terminalRun.id, externalSignal).catch(() => terminalRun)
+        : terminalRun
+    }
+    return this.streamRun(runId, options)
+  }
+
   private async readRunStreamAttempt(runId: string, options: RunMessageOptions, signal: AbortSignal): Promise<{ run: AgentRun }> {
     const res = await fetch(`${this.baseURL}/runs/${encodeURIComponent(runId)}/stream`, {
       headers: this.authHeaders({ Accept: 'text/event-stream' }),
@@ -1337,12 +1490,13 @@ export class LocalAgentClient {
   async runMessage(input: { threadId?: string; message: string; title?: string; projectId?: number; clientInput?: AgentClientInput }, options: RunMessageOptions = {}): Promise<RunMessageResult> {
     const resolvedThread = await this.resolveMessageThread(input, options.signal)
     const thread = resolvedThread.thread
-    await this.addMessage(thread.id, input.message, input.clientInput, options.signal)
-    const run = await this.createRun(thread.id, {
+    const created = await this.createMessageRun(thread.id, {
+      message: input.message,
       ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
       ...(input.clientInput ? { clientInput: input.clientInput } : {}),
       ...(options.runPolicy ? { policy: options.runPolicy } : {}),
     }, options.signal)
+    const run = created.run
     options.onRunUpdate?.(run)
     const finalRun = await this.waitForRun(run.id, {
       timeoutMs: options.timeoutMs,
@@ -1351,22 +1505,23 @@ export class LocalAgentClient {
       signal: options.signal,
     })
     const finalThread = await this.getThread(thread.id)
-    return { run: finalRun, thread: finalThread, threadResolution: resolvedThread.resolution }
+    return { run: finalRun, thread: finalThread, threadResolution: resolvedThread.resolution, sourceMessage: created.message }
   }
 
   async runMessageStream(input: { threadId?: string; message: string; title?: string; projectId?: number; clientInput?: AgentClientInput }, options: RunMessageOptions = {}): Promise<RunMessageResult> {
     const resolvedThread = await this.resolveMessageThread(input, options.signal)
     const thread = resolvedThread.thread
-    await this.addMessage(thread.id, input.message, input.clientInput, options.signal)
-    const run = await this.createRun(thread.id, {
+    const created = await this.createMessageRun(thread.id, {
+      message: input.message,
       ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
       ...(input.clientInput ? { clientInput: input.clientInput } : {}),
       ...(options.runPolicy ? { policy: options.runPolicy } : {}),
     }, options.signal)
+    const run = created.run
     options.onRunUpdate?.(run)
-    const finalRun = await this.streamRun(run.id, options)
+    const finalRun = await this.streamRunFromThread(thread.id, run.id, options, run)
     const finalThread = await this.getThread(thread.id)
-    return { run: finalRun, thread: finalThread, threadResolution: resolvedThread.resolution }
+    return { run: finalRun, thread: finalThread, threadResolution: resolvedThread.resolution, sourceMessage: created.message }
   }
 
   private async resolveMessageThread(input: { threadId?: string; title?: string; projectId?: number }, signal?: AbortSignal): Promise<{
@@ -1542,6 +1697,12 @@ function parseSSEBlock(block: string): { event?: string; data: string } | undefi
   }
   if (dataLines.length === 0) return undefined
   return { event, data: dataLines.join('\n').trim() }
+}
+
+function streamEventRunId(event: AgentRunStreamEvent): string | undefined {
+  if ('run' in event && event.run) return event.run.id
+  if ('runId' in event) return event.runId
+  return undefined
 }
 
 function sleepWithAbort(ms: number, signal?: AbortSignal): Promise<void> {

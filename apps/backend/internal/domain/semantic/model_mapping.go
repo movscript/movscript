@@ -134,6 +134,46 @@ func (moment SceneMoment) ApplyToModel(target *persistencemodel.SceneMoment) {
 	target.UpdatedAt = moment.UpdatedAt
 }
 
+func WritingExpressionFromModel(expression persistencemodel.WritingExpression) WritingExpression {
+	return WritingExpression{
+		ID:            expression.ID,
+		ProjectID:     expression.ProjectID,
+		SceneMomentID: expression.SceneMomentID,
+		ScriptBlockID: expression.ScriptBlockID,
+		Order:         expression.Order,
+		Kind:          expression.Kind,
+		Speaker:       expression.Speaker,
+		Text:          expression.Text,
+		Note:          expression.Note,
+		Intent:        expression.Intent,
+		MetadataJSON:  expression.MetadataJSON,
+		CreatedAt:     expression.CreatedAt,
+		UpdatedAt:     expression.UpdatedAt,
+	}
+}
+
+func (expression WritingExpression) ToModel() persistencemodel.WritingExpression {
+	var target persistencemodel.WritingExpression
+	expression.ApplyToModel(&target)
+	return target
+}
+
+func (expression WritingExpression) ApplyToModel(target *persistencemodel.WritingExpression) {
+	target.Model.ID = expression.ID
+	target.ProjectID = expression.ProjectID
+	target.SceneMomentID = expression.SceneMomentID
+	target.ScriptBlockID = expression.ScriptBlockID
+	target.Order = expression.Order
+	target.Kind = expression.Kind
+	target.Speaker = expression.Speaker
+	target.Text = expression.Text
+	target.Note = expression.Note
+	target.Intent = expression.Intent
+	target.MetadataJSON = expression.MetadataJSON
+	target.CreatedAt = expression.CreatedAt
+	target.UpdatedAt = expression.UpdatedAt
+}
+
 func ContentUnitFromModel(unit persistencemodel.ContentUnit) ContentUnit {
 	return ContentUnit{
 		ID:               unit.ID,

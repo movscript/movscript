@@ -11,6 +11,7 @@ export function GenerationProgressCard({ state }: { state: GenerationProgressSta
   const badge = generationJobBadge(state)
   const status = generationStatusText(state.status, state.stage)
   const progress = state.progress !== undefined ? clampNumber(state.progress, 0, 100) : undefined
+  const terminalProgress = state.terminal ? (progress ?? 100) : progress
   const waitingTime = !state.terminal ? durationLabel(state.firstSeenAt, now) : ''
   const timing = generationTimingLabel({
     ...state,
@@ -48,27 +49,28 @@ export function GenerationProgressCard({ state }: { state: GenerationProgressSta
           </span>
         </div>
       </div>
-      {progress !== undefined ? (
-        <div
-          data-testid="agent-generation-progress-bar"
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={progress}
-          className="h-1.5 overflow-hidden rounded-full bg-muted"
-        >
-          <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${progress}%` }} />
-        </div>
-      ) : !state.terminal && (
-        <div
-          data-testid="agent-generation-waiting-bar"
-          role="progressbar"
-          aria-valuetext={waitingTime ? `已等待 ${waitingTime}` : '等待生成服务返回结果'}
-          className="h-1.5 overflow-hidden rounded-full bg-muted"
-        >
+      <div
+        data-testid={terminalProgress !== undefined ? 'agent-generation-progress-bar' : 'agent-generation-waiting-bar'}
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        {...(terminalProgress !== undefined
+          ? { 'aria-valuenow': terminalProgress }
+          : { 'aria-valuetext': waitingTime ? `已等待 ${waitingTime}` : '等待生成服务返回结果' })}
+        className="h-1.5 overflow-hidden rounded-full bg-muted"
+      >
+        {terminalProgress !== undefined ? (
+          <div
+            className={cn(
+              'h-full rounded-full transition-[width]',
+              badge.tone === 'failed' ? 'bg-destructive/70' : badge.tone === 'warning' ? 'bg-amber-500/70' : 'bg-primary',
+            )}
+            style={{ width: `${terminalProgress}%` }}
+          />
+        ) : (
           <div className="h-full w-1/3 rounded-full bg-primary/70 animate-pulse" />
-        </div>
-      )}
+        )}
+      </div>
       <p className="text-[11px] leading-relaxed text-muted-foreground">
         {message}
       </p>

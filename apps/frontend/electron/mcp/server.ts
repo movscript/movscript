@@ -14,7 +14,7 @@ import {
   normalizeGenerationJob,
   stringValue,
 } from './generation'
-import { getRequiredPositiveIntegerAliasParam } from './candidateParams'
+import { getRequiredPositiveIntegerAliasParam, getRequiredPositiveIntegerAliasParams } from './candidateParams'
 import { getDraftDomainModel, type DraftSeedMode } from '../../src/lib/draftDomainModel'
 import type { AgentDraftKind } from '../../src/lib/localAgentClient'
 
@@ -794,6 +794,10 @@ export function listTools(): MCPTool[] {
           resourceId: { type: 'number', minimum: 1, description: 'Alias for resource_id.' },
           output_resource_id: { type: 'number', minimum: 1, description: 'Alias for resource_id when using movscript_create_generation_job.output_resource_id directly.' },
           outputResourceId: { type: 'number', minimum: 1, description: 'Alias for output_resource_id.' },
+          resource_ids: { type: 'array', items: { type: 'number', minimum: 1 }, description: 'Existing raw resource IDs for bulk candidate attachment.' },
+          resourceIds: { type: 'array', items: { type: 'number', minimum: 1 }, description: 'Alias for resource_ids.' },
+          output_resource_ids: { type: 'array', items: { type: 'number', minimum: 1 }, description: 'Alias for resource_ids when using movscript_create_generation_job.output_resource_ids directly.' },
+          outputResourceIds: { type: 'array', items: { type: 'number', minimum: 1 }, description: 'Alias for output_resource_ids.' },
           source_type: { type: 'string', description: 'Optional audit source type. Defaults to agent.' },
           sourceType: { type: 'string', description: 'Alias for source_type.' },
           source_id: { type: 'number', description: 'Optional source entity/job/canvas ID for audit.' },
@@ -807,9 +811,13 @@ export function listTools(): MCPTool[] {
         {
           status: { type: 'string' },
           candidate: { type: 'object', description: 'Created or reused asset_slot_candidate.' },
+          candidates: { type: 'array', items: { type: 'object' }, description: 'Created or reused candidates for every resource ID.' },
           asset_slot_id: { type: 'number' },
           candidate_asset_slot_id: { type: 'number' },
+          candidate_asset_slot_ids: { type: 'array', items: { type: 'number' } },
           resource_id: { type: 'number' },
+          resource_ids: { type: 'array', items: { type: 'number' } },
+          skipped_resource_ids: { type: 'array', items: { type: 'number' }, description: 'Resource IDs already present in the target candidate set and therefore not reattached.' },
           message: { type: 'string' },
         },
         ['status', 'candidate', 'asset_slot_id', 'resource_id', 'message']
@@ -829,6 +837,10 @@ export function listTools(): MCPTool[] {
           resourceId: { type: 'number', minimum: 1, description: 'Alias for resource_id.' },
           output_resource_id: { type: 'number', minimum: 1, description: 'Alias for resource_id when using movscript_create_generation_job.output_resource_id directly.' },
           outputResourceId: { type: 'number', minimum: 1, description: 'Alias for output_resource_id.' },
+          resource_ids: { type: 'array', items: { type: 'number', minimum: 1 }, description: 'Existing raw resource IDs for bulk keyframe candidate attachment.' },
+          resourceIds: { type: 'array', items: { type: 'number', minimum: 1 }, description: 'Alias for resource_ids.' },
+          output_resource_ids: { type: 'array', items: { type: 'number', minimum: 1 }, description: 'Alias for resource_ids when using movscript_create_generation_job.output_resource_ids directly.' },
+          outputResourceIds: { type: 'array', items: { type: 'number', minimum: 1 }, description: 'Alias for output_resource_ids.' },
           source_type: { type: 'string', description: 'Optional audit source type. Defaults to agent.' },
           sourceType: { type: 'string', description: 'Alias for source_type.' },
           source_id: { type: 'number', description: 'Optional source entity/job/canvas ID for audit.' },
@@ -844,8 +856,11 @@ export function listTools(): MCPTool[] {
         {
           status: { type: 'string' },
           candidate: { type: 'object', description: 'Created or reused keyframe candidate.' },
+          candidates: { type: 'array', items: { type: 'object' }, description: 'Created or reused keyframe candidates for every resource ID.' },
           keyframe_id: { type: 'number' },
           resource_id: { type: 'number' },
+          resource_ids: { type: 'array', items: { type: 'number' } },
+          skipped_resource_ids: { type: 'array', items: { type: 'number' }, description: 'Resource IDs already present in the target candidate set and therefore not reattached.' },
           message: { type: 'string' },
         },
         ['status', 'candidate', 'keyframe_id', 'resource_id', 'message']
@@ -909,7 +924,7 @@ function objectSchema(properties: Record<string, MCPJSONValue>, required?: strin
 }
 
 function withCandidateAttachAliasRequirements(schema: ReturnType<typeof objectSchema>, targetIdAliases: string[]) {
-  const resourceIdAliases = ['resource_id', 'resourceId', 'output_resource_id', 'outputResourceId']
+  const resourceIdAliases = ['resource_id', 'resourceId', 'output_resource_id', 'outputResourceId', 'resource_ids', 'resourceIds', 'output_resource_ids', 'outputResourceIds']
   const anyRequired = (fields: string[]) => ({
     anyOf: fields.map((field) => ({ required: [field] })),
   })
@@ -2124,40 +2139,58 @@ export async function createGenerationJob(args: Record<string, unknown>): Promis
 export async function attachAssetSlotCandidate(args: Record<string, unknown>): Promise<unknown> {
   const projectId = resolveToolProjectId(args)
   const assetSlotIdAliases = ['asset_slot_id', 'assetSlotId']
-  const resourceIdAliases = ['resource_id', 'resourceId', 'output_resource_id', 'outputResourceId']
+  const resourceIdAliases = ['resource_id', 'resourceId', 'output_resource_id', 'outputResourceId', 'resource_ids', 'resourceIds', 'output_resource_ids', 'outputResourceIds']
   const assetSlotId = getRequiredPositiveIntegerAliasParam(args, assetSlotIdAliases, 'asset_slot_id')
-  const resourceId = getRequiredPositiveIntegerAliasParam(args, resourceIdAliases, 'resource_id')
+  const resourceIds = getRequiredPositiveIntegerAliasParams(args, resourceIdAliases, 'resource_id')
 
   const sourceType = getOptionalString(args, 'source_type') ?? getOptionalString(args, 'sourceType') ?? 'agent'
   const sourceId = getOptionalNumeric(args, 'source_id') ?? getOptionalNumeric(args, 'sourceId') ?? getOptionalNumeric(args, 'jobId')
   const score = getOptionalNumeric(args, 'score')
   const note = getOptionalString(args, 'note')
-  const candidate = await backendPost(`/projects/${projectId}/entities/asset-slot-candidates`, {
-    asset_slot_id: assetSlotId,
-    resource_id: resourceId,
-    source_type: sourceType,
-    ...(sourceId ? { source_id: sourceId } : {}),
-    ...(score !== undefined ? { score } : {}),
-    ...(note ? { note } : {}),
-  })
-  const candidateAssetSlotId = numericValue(isRecord(candidate) ? candidate.candidate_asset_slot_id ?? candidate.candidateAssetSlotId : undefined)
+  const existingResourceIds = await existingAssetSlotCandidateResourceIds(projectId, assetSlotId)
+  const resourceIdsToAttach = resourceIds.filter((resourceId) => !existingResourceIds.has(resourceId))
+  const skippedResourceIds = resourceIds.filter((resourceId) => existingResourceIds.has(resourceId))
+  const candidates = await Promise.all(resourceIdsToAttach.map((resourceId) => (
+    backendPost(`/projects/${projectId}/entities/asset-slot-candidates`, {
+      asset_slot_id: assetSlotId,
+      resource_id: resourceId,
+      source_type: sourceType,
+      ...(sourceId ? { source_id: sourceId } : {}),
+      ...(score !== undefined ? { score } : {}),
+      ...(note ? { note } : {}),
+    })
+  )))
+  const candidate = candidates[0]
+  const candidateAssetSlotIds = candidates
+    .map((item) => numericValue(isRecord(item) ? item.candidate_asset_slot_id ?? item.candidateAssetSlotId : undefined))
+    .filter((id): id is number => id !== undefined)
+  const candidateAssetSlotId = candidateAssetSlotIds[0]
+  const resourceId = resourceIdsToAttach[0] ?? resourceIds[0]
 
   return {
     status: 'attached',
-    candidate,
+    candidate: candidate ?? {},
+    candidates,
     asset_slot_id: assetSlotId,
     ...(candidateAssetSlotId ? { candidate_asset_slot_id: candidateAssetSlotId } : {}),
+    ...(candidateAssetSlotIds.length > 0 ? { candidate_asset_slot_ids: candidateAssetSlotIds } : {}),
     resource_id: resourceId,
-    message: `资源 #${resourceId} 已加入素材位 #${assetSlotId} 的候选集。`,
+    resource_ids: resourceIds,
+    ...(skippedResourceIds.length > 0 ? { skipped_resource_ids: skippedResourceIds } : {}),
+    message: resourceIdsToAttach.length === 0
+      ? `资源 ${resourceIds.map((id) => `#${id}`).join('、')} 已在素材位 #${assetSlotId} 的候选集中，未重复添加。`
+      : resourceIdsToAttach.length === 1 && skippedResourceIds.length === 0
+      ? `资源 #${resourceId} 已加入素材位 #${assetSlotId} 的候选集。`
+      : `资源 ${resourceIdsToAttach.map((id) => `#${id}`).join('、')} 已加入素材位 #${assetSlotId} 的候选集${skippedResourceIds.length > 0 ? `；已跳过重复资源 ${skippedResourceIds.map((id) => `#${id}`).join('、')}` : ''}。`,
   }
 }
 
 export async function attachKeyframeCandidate(args: Record<string, unknown>): Promise<unknown> {
   const projectId = resolveToolProjectId(args)
   const keyframeIdAliases = ['keyframe_id', 'keyframeId', 'target_keyframe_id', 'targetKeyframeId']
-  const resourceIdAliases = ['resource_id', 'resourceId', 'output_resource_id', 'outputResourceId']
+  const resourceIdAliases = ['resource_id', 'resourceId', 'output_resource_id', 'outputResourceId', 'resource_ids', 'resourceIds', 'output_resource_ids', 'outputResourceIds']
   const keyframeId = getRequiredPositiveIntegerAliasParam(args, keyframeIdAliases, 'keyframe_id')
-  const resourceId = getRequiredPositiveIntegerAliasParam(args, resourceIdAliases, 'resource_id')
+  const resourceIds = getRequiredPositiveIntegerAliasParams(args, resourceIdAliases, 'resource_id')
 
   const keyframes = await backendList(`/projects/${projectId}/entities/keyframes`)
   const target = keyframes.find((item) => entityId(item) === keyframeId)
@@ -2165,6 +2198,9 @@ export async function attachKeyframeCandidate(args: Record<string, unknown>): Pr
   if (isGeneratedKeyframeCandidateTarget(target)) {
     throw new Error(`keyframe ${keyframeId} is already a generated candidate; choose the original target keyframe`)
   }
+  const existingResourceIds = existingKeyframeCandidateResourceIds(keyframes, keyframeId)
+  const resourceIdsToAttach = resourceIds.filter((resourceId) => !existingResourceIds.has(resourceId))
+  const skippedResourceIds = resourceIds.filter((resourceId) => existingResourceIds.has(resourceId))
 
   const sourceType = getOptionalString(args, 'source_type') ?? getOptionalString(args, 'sourceType') ?? 'agent'
   const sourceId = getOptionalNumeric(args, 'source_id') ?? getOptionalNumeric(args, 'sourceId') ?? getOptionalNumeric(args, 'jobId')
@@ -2176,37 +2212,78 @@ export async function attachKeyframeCandidate(args: Record<string, unknown>): Pr
   const targetTitle = stringValue(target.title) ?? stringValue(target.name) ?? `画面锚点 #${keyframeId}`
   const targetDescription = stringValue(target.description)
   const targetPrompt = stringValue(target.prompt)
-  const metadata: Record<string, unknown> = {
-    source: 'ai_generated_keyframe_candidate',
-    target_keyframe_id: keyframeId,
-    resource_id: resourceId,
-    source_type: sourceType,
-    ...(sourceId ? { source_id: sourceId } : {}),
-    ...(sourceJobId ? { source_job_id: sourceJobId } : {}),
-    ...(note ? { note } : {}),
-  }
-
-  const candidate = await backendPost(`/projects/${projectId}/entities/keyframes`, {
-    production_id: numericValue(target.production_id ?? target.productionId),
-    scene_moment_id: numericValue(target.scene_moment_id ?? target.sceneMomentId),
-    content_unit_id: numericValue(target.content_unit_id ?? target.contentUnitId),
-    resource_id: resourceId,
-    canvas_id: numericValue(target.canvas_id ?? target.canvasId),
-    title: explicitTitle ?? `候选：${targetTitle}`,
-    description: explicitDescription ?? targetDescription ?? '',
-    prompt: explicitPrompt ?? targetPrompt ?? '',
-    order: numericValue(target.order ?? target.sort_order ?? target.sortOrder) ?? 0,
-    status: 'candidate',
-    metadata_json: JSON.stringify(metadata),
-  })
+  const candidates = await Promise.all(resourceIdsToAttach.map((resourceId) => {
+    const metadata: Record<string, unknown> = {
+      source: 'ai_generated_keyframe_candidate',
+      target_keyframe_id: keyframeId,
+      resource_id: resourceId,
+      source_type: sourceType,
+      ...(sourceId ? { source_id: sourceId } : {}),
+      ...(sourceJobId ? { source_job_id: sourceJobId } : {}),
+      ...(note ? { note } : {}),
+    }
+    return backendPost(`/projects/${projectId}/entities/keyframes`, {
+      production_id: numericValue(target.production_id ?? target.productionId),
+      scene_moment_id: numericValue(target.scene_moment_id ?? target.sceneMomentId),
+      content_unit_id: numericValue(target.content_unit_id ?? target.contentUnitId),
+      resource_id: resourceId,
+      canvas_id: numericValue(target.canvas_id ?? target.canvasId),
+      title: explicitTitle ?? `候选：${targetTitle}`,
+      description: explicitDescription ?? targetDescription ?? '',
+      prompt: explicitPrompt ?? targetPrompt ?? '',
+      order: numericValue(target.order ?? target.sort_order ?? target.sortOrder) ?? 0,
+      status: 'candidate',
+      metadata_json: JSON.stringify(metadata),
+    })
+  }))
+  const candidate = candidates[0]
+  const resourceId = resourceIdsToAttach[0] ?? resourceIds[0]
 
   return {
     status: 'attached',
-    candidate,
+    candidate: candidate ?? {},
+    candidates,
     keyframe_id: keyframeId,
     resource_id: resourceId,
-    message: `资源 #${resourceId} 已加入画面锚点 #${keyframeId} 的候选集。`,
+    resource_ids: resourceIds,
+    ...(skippedResourceIds.length > 0 ? { skipped_resource_ids: skippedResourceIds } : {}),
+    message: resourceIdsToAttach.length === 0
+      ? `资源 ${resourceIds.map((id) => `#${id}`).join('、')} 已在画面锚点 #${keyframeId} 的候选集中，未重复添加。`
+      : resourceIdsToAttach.length === 1 && skippedResourceIds.length === 0
+      ? `资源 #${resourceId} 已加入画面锚点 #${keyframeId} 的候选集。`
+      : `资源 ${resourceIdsToAttach.map((id) => `#${id}`).join('、')} 已加入画面锚点 #${keyframeId} 的候选集${skippedResourceIds.length > 0 ? `；已跳过重复资源 ${skippedResourceIds.map((id) => `#${id}`).join('、')}` : ''}。`,
   }
+}
+
+async function existingAssetSlotCandidateResourceIds(projectId: number, assetSlotId: number): Promise<Set<number>> {
+  try {
+    const candidates = await backendList(`/projects/${projectId}/entities/asset-slot-candidates`)
+    return new Set(candidates.flatMap((candidate) => {
+      if (!isRecord(candidate) || numericValue(candidate.asset_slot_id ?? candidate.assetSlotId) !== assetSlotId) return []
+      const resourceId = assetSlotCandidateResourceId(candidate)
+      return resourceId ? [resourceId] : []
+    }))
+  } catch {
+    return new Set()
+  }
+}
+
+function assetSlotCandidateResourceId(candidate: Record<string, unknown>): number | undefined {
+  const slot = isRecord(candidate.candidate_asset_slot) ? candidate.candidate_asset_slot : isRecord(candidate.candidateAssetSlot) ? candidate.candidateAssetSlot : undefined
+  const resource = slot && isRecord(slot.resource) ? slot.resource : undefined
+  return numericValue(candidate.resource_id ?? candidate.resourceId)
+    ?? numericValue(slot?.resource_id ?? slot?.resourceId)
+    ?? numericValue(resource?.ID ?? resource?.id)
+}
+
+function existingKeyframeCandidateResourceIds(keyframes: unknown[], targetKeyframeId: number): Set<number> {
+  return new Set(keyframes.flatMap((keyframe) => {
+    if (!isRecord(keyframe) || !isGeneratedKeyframeCandidateRecord(keyframe)) return []
+    const metadata = parseMetadataRecord(keyframe.metadata_json)
+    if (numericValue(metadata?.target_keyframe_id) !== targetKeyframeId) return []
+    const resourceId = numericValue(keyframe.resource_id ?? keyframe.resourceId ?? metadata?.resource_id)
+    return resourceId ? [resourceId] : []
+  }))
 }
 
 function isGeneratedKeyframeCandidateTarget(keyframe: Record<string, unknown>): boolean {

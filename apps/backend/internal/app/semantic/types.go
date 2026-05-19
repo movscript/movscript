@@ -169,6 +169,24 @@ type PatchSceneMomentInput struct {
 	MetadataJSON  string `json:"metadata_json"`
 }
 
+type WritingExpressionFilter struct {
+	ProjectID     uint
+	SceneMomentID uint
+	ScriptBlockID uint
+}
+
+type WritingExpressionInput struct {
+	SceneMomentID uint   `json:"scene_moment_id"`
+	ScriptBlockID *uint  `json:"script_block_id"`
+	Order         int    `json:"order"`
+	Kind          string `json:"kind"`
+	Speaker       string `json:"speaker"`
+	Text          string `json:"text"`
+	Note          string `json:"note"`
+	Intent        string `json:"intent"`
+	MetadataJSON  string `json:"metadata_json"`
+}
+
 type ProductionFilter struct {
 	ProjectID  uint
 	Status     string

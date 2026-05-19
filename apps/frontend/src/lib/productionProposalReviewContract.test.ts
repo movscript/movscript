@@ -17,7 +17,7 @@ test('production proposal review keeps internal delete markers out of apply payl
   assert.match(source, /proposalSnapshotAction\(node: \{ id\?: number \| null; __delete\?: boolean \}\)/)
 })
 
-test('production proposal entry point uses production proposal wording', () => {
-  assert.match(source, /生成制作提案/)
+test('production proposal entry point uses screenwriter-facing wording', () => {
+  assert.match(source, /生成编排提案/)
   assert.doesNotMatch(source, /生成创作方案/)
 })

@@ -1,5 +1,6 @@
 import type { AgentApprovalRequest, AgentRun, AgentTraceEvent } from './localAgentClient'
 import { isRecord } from './jsonValue'
+import { agentPermissionLabel, agentRiskLabel, agentToolNameLabel, agentToolNameWithId } from './agentToolDisplay'
 
 export type AgentTraceCategory = 'context' | 'action' | 'impact' | 'http' | 'decision' | 'attention'
 
@@ -420,27 +421,11 @@ export function agentPlanStatusLabel(status: string): string {
 }
 
 export function approvalRiskLabel(risk: string): string {
-  switch (risk) {
-    case 'low': return '低'
-    case 'medium': return '中'
-    case 'high': return '高'
-    case 'critical': return '严重'
-    case 'write': return '写入'
-    case 'destructive': return '破坏性'
-    default: return unknownLabel('风险', risk)
-  }
+  return agentRiskLabel(risk)
 }
 
 export function approvalPermissionLabel(permission: string): string {
-  switch (permission) {
-    case 'read': return '读取'
-    case 'write': return '写入'
-    case 'execute': return '执行'
-    case 'network': return '网络'
-    case 'filesystem': return '文件系统'
-    case 'shell': return '命令行'
-    default: return businessPermissionLabel(permission) ?? unknownLabel('权限', permission)
-  }
+  return agentPermissionLabel(permission)
 }
 
 export function approvalStatusLabel(status: string | undefined): string {
@@ -901,7 +886,7 @@ function debugReportPendingActions(run: AgentDebugReportInput['run']): string[] 
     .filter((approval) => approval.status === 'pending')
     .map((approval) => {
       const parts = [
-        `待审批 ${approval.toolName}`,
+        `待审批 ${agentToolNameWithId(approval.toolName)}`,
         approval.risk ? `风险 ${approvalRiskLabel(approval.risk)}` : undefined,
         approval.permission ? `权限 ${approvalPermissionLabel(approval.permission)}` : undefined,
         approval.reason ? `原因 ${approval.reason}` : undefined,
@@ -1158,8 +1143,8 @@ function traceTitle(event: AgentTraceEvent, eventType?: string, phase?: string):
   if (event.kind === 'model_call' && event.title === 'Model route selected') return '选择模型路由'
   if (event.kind === 'assistant' && event.title === 'Assistant message created') return '写入历史消息'
   if (event.kind === 'policy') return '判断工具调用权限'
-  if (event.kind === 'tool_call' && event.title.startsWith('Tool completed:')) return `执行工具：${event.toolName ?? event.title.replace(/^Tool completed:\s*/, '')}`
-  if (event.kind === 'tool_call' && event.title.startsWith('Tool call failed:')) return `工具失败：${event.toolName ?? event.title.replace(/^Tool call failed:\s*/, '')}`
+  if (event.kind === 'tool_call' && event.title.startsWith('Tool completed:')) return `执行工具：${agentToolNameLabel(event.toolName ?? event.title.replace(/^Tool completed:\s*/, ''))}`
+  if (event.kind === 'tool_call' && event.title.startsWith('Tool call failed:')) return `工具失败：${agentToolNameLabel(event.toolName ?? event.title.replace(/^Tool call failed:\s*/, ''))}`
   if (event.kind === 'tool_call' && event.title.startsWith('Generation ')) return '更新生成任务状态'
   if (event.kind === 'input') return '等待用户补充信息'
   if (event.kind === 'approval') return '等待用户审批'
@@ -1189,7 +1174,7 @@ function traceBehavior(event: AgentTraceEvent, data: Record<string, unknown> | u
   if (event.kind === 'model_call' && phase === 'response') return '解析模型网关返回结果'
   if (event.kind === 'model_call' && event.title === 'Model HTTP response received') return hasModelHTTPResponse(event) ? '解析模型网关返回结果' : '记录模型本轮输出摘要'
   if (event.kind === 'assistant' && event.title === 'Assistant message created') return '把最终回复保存为 assistant 消息'
-  if (event.kind === 'tool_call' && event.toolName) return `调用 ${event.toolName}`
+  if (event.kind === 'tool_call' && event.toolName) return `调用 ${agentToolNameLabel(event.toolName)}`
   if (event.kind === 'run' && event.title === 'Worker started') return '启动执行器运行，开始执行分配到的任务'
   if (event.kind === 'run' && event.title === 'Planner started') return '启动规划器运行，开始编排任务和子代理'
   if (event.kind === 'policy') return '根据 manifest、风险等级和审批模式判断是否允许工具执行'
@@ -1353,7 +1338,7 @@ function traceContextGroups(event: AgentTraceEvent, data: Record<string, unknown
 
   if (event.kind === 'tool_call') {
     groups.push(group('工具执行', [
-      item('工具', event.toolName),
+      item('工具', agentToolNameWithId(event.toolName)),
       item('来源', stringValue(data.source)),
       item('耗时', formatTraceEventDuration(event, data)),
       item('沙箱', booleanLabel(data.sandboxed)),
@@ -1507,7 +1492,7 @@ function traceToolDetail(event: AgentTraceEvent, data: Record<string, unknown> |
     : []
   return {
     title: event.status === 'failed' ? '工具调用失败详情' : '工具调用详情',
-    toolName: event.toolName,
+    toolName: agentToolNameWithId(event.toolName),
     status: event.status,
     statusLabel: traceEventStatusLabel(event.status),
     source: stringValue(data?.source),
@@ -1656,37 +1641,6 @@ export function formatTraceEventDuration(event: AgentTraceEvent, data: Record<st
 function nonNegativeNumberValue(value: unknown): number | undefined {
   const number = numberValue(value)
   return number !== undefined && number >= 0 ? Math.round(number) : undefined
-}
-
-function businessPermissionLabel(permission: string): string | undefined {
-  const parts = permission.split(/[.:/]/).filter(Boolean)
-  const domain = parts.includes('project')
-    ? '项目'
-    : parts.includes('draft')
-      ? '草稿'
-      : parts.includes('memory')
-        ? '记忆'
-        : parts.includes('generation')
-          ? '生成任务'
-          : undefined
-  const target = parts.includes('assets')
-    ? '素材'
-    : parts.includes('artifact') || parts.includes('artifacts')
-      ? '产物'
-      : parts.includes('thread') || parts.includes('threads')
-        ? '线程'
-        : ''
-  const action = parts.includes('write')
-    ? '写入'
-    : parts.includes('read')
-      ? '读取'
-      : parts.includes('execute')
-        ? '执行'
-        : parts.includes('delete')
-          ? '删除'
-          : undefined
-  if (!domain || !action) return undefined
-  return `${domain}${target}${action}`
 }
 
 function unknownLabel(scope: string, value: string): string {

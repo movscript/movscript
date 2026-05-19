@@ -452,9 +452,7 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
   }
   if (call.name === 'movscript_create_generation_job') {
     const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'completed'
-    const outputResourceId = isRecord(parsed) && isValidAgentEntityId(parsed.output_resource_id)
-      ? `，输出资源 #${parsed.output_resource_id}`
-      : ''
+    const outputResourceId = outputResourceSummary(parsed)
     const jobId = isRecord(parsed) && isValidAgentEntityId(parsed.jobId) ? `Job #${parsed.jobId}` : '生成任务'
     const terminal = isRecord(parsed) && parsed.terminal === true
     if (!terminal && !outputResourceId) return `${jobId} 已创建，当前状态：${status}。`
@@ -463,9 +461,7 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
   if (call.name === 'movscript_get_generation_job') {
     const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'unknown'
     const jobId = isRecord(parsed) && isValidAgentEntityId(parsed.jobId) ? `Job #${parsed.jobId}` : '生成任务'
-    const outputResourceId = isRecord(parsed) && isValidAgentEntityId(parsed.output_resource_id)
-      ? `，输出资源 #${parsed.output_resource_id}`
-      : ''
+    const outputResourceId = outputResourceSummary(parsed)
     const progress = isRecord(parsed) && typeof parsed.progress === 'number' ? `，进度 ${parsed.progress}%` : ''
     const error = isRecord(parsed) && typeof parsed.error === 'string' && parsed.error ? `：${parsed.error}` : ''
     if (status === 'succeeded') return `${jobId} 生成完成${outputResourceId}。`
@@ -484,4 +480,22 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
     return `${jobId} 已请求取消，当前状态：${status}。`
   }
   return `调用 ${call.name}。`
+}
+
+function outputResourceSummary(parsed: unknown): string {
+  if (!isRecord(parsed)) return ''
+  const ids = new Set<number>()
+  const add = (value: unknown) => {
+    if (isValidAgentEntityId(value)) ids.add(value)
+  }
+  if (Array.isArray(parsed.output_resource_ids)) {
+    for (const id of parsed.output_resource_ids) add(id)
+  }
+  if (Array.isArray(parsed.outputResourceIds)) {
+    for (const id of parsed.outputResourceIds) add(id)
+  }
+  add(parsed.output_resource_id)
+  add(parsed.outputResourceId)
+  if (ids.size === 0) return ''
+  return `，输出资源 ${[...ids].map((id) => `#${id}`).join('、')}`
 }

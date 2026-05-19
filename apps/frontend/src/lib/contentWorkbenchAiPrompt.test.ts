@@ -49,4 +49,6 @@ test('content workbench AI prompt defines the draft envelope contract', () => {
   assert.match(prompt, /content_unit_proposal/)
   assert.match(prompt, /movscript\.content_unit_proposal\.v1/)
   assert.match(prompt, /\{"scene_moment_id": 402, "proposal": \{"units": \[\.\.\.\]\}\}/)
+  assert.match(prompt, /unit\.timing/)
+  assert.match(prompt, /不要在 content_unit_proposal 里创建 production 级 preview_timeline/)
 })

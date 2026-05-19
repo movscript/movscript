@@ -199,6 +199,62 @@ func NewSceneMoment(spec SceneMomentSpec) SceneMoment {
 	}
 }
 
+type WritingExpressionSpec struct {
+	ProjectID     uint
+	SceneMomentID uint
+	ScriptBlockID *uint
+	Order         int
+	Kind          string
+	Speaker       string
+	Text          string
+	Note          string
+	Intent        string
+	MetadataJSON  string
+}
+
+type WritingExpression struct {
+	ID            uint      `json:"ID"`
+	ProjectID     uint      `json:"project_id"`
+	SceneMomentID uint      `json:"scene_moment_id"`
+	ScriptBlockID *uint     `json:"script_block_id,omitempty"`
+	Order         int       `json:"order"`
+	Kind          string    `json:"kind"`
+	Speaker       string    `json:"speaker"`
+	Text          string    `json:"text"`
+	Note          string    `json:"note"`
+	Intent        string    `json:"intent"`
+	MetadataJSON  string    `json:"metadata_json"`
+	CreatedAt     time.Time `json:"CreatedAt"`
+	UpdatedAt     time.Time `json:"UpdatedAt"`
+}
+
+type WritingExpressionPatch struct {
+	SceneMomentID *uint
+	ScriptBlockID *uint
+	Order         int
+	Kind          string
+	Speaker       string
+	Text          string
+	Note          string
+	Intent        string
+	MetadataJSON  string
+}
+
+func NewWritingExpression(spec WritingExpressionSpec) WritingExpression {
+	return WritingExpression{
+		ProjectID:     spec.ProjectID,
+		SceneMomentID: spec.SceneMomentID,
+		ScriptBlockID: spec.ScriptBlockID,
+		Order:         spec.Order,
+		Kind:          FallbackString(spec.Kind, "action"),
+		Speaker:       spec.Speaker,
+		Text:          spec.Text,
+		Note:          spec.Note,
+		Intent:        spec.Intent,
+		MetadataJSON:  spec.MetadataJSON,
+	}
+}
+
 type ContentUnitSpec struct {
 	ProjectID        uint
 	ProductionID     *uint

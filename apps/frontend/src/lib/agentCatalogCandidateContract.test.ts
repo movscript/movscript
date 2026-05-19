@@ -8,9 +8,9 @@ const deployedCatalog = resolve('movscript-agent/catalog')
 
 test('agent catalog keeps candidate generation contracts for deploy', () => {
   const visualInstruction = readFile('skills/movscript/workflow/generation/visual-generation/instruction.md')
-  assert.match(visualInstruction, /把每个可用 output_resource_id 逐个加入目标 asset slot 候选集/)
-  assert.match(visualInstruction, /把每个可用 output_resource_id 逐个加入目标 keyframe 候选集/)
-  assert.match(visualInstruction, /必须逐项写入并逐项报告成功、失败或阻塞/)
+  assert.match(visualInstruction, /把所有可用 output_resource_id 加入目标 asset slot 候选集/)
+  assert.match(visualInstruction, /把所有可用 output_resource_id 加入目标 keyframe 候选集/)
+  assert.match(visualInstruction, /必须全部写入并逐项报告成功、失败或阻塞/)
 
   const visualWorkflow = readJson('skills/movscript/workflow/generation/visual-generation/skill.workflow.json')
   assert.equal(visualWorkflow.toolRefs.includes('tool://movscript_attach_keyframe_candidate'), true)
@@ -25,6 +25,8 @@ test('agent catalog keeps candidate generation contracts for deploy', () => {
   const assetTool = readJson('tools/movscript/visual-generation/attach-asset-slot-candidate.tool.json')
   assert.equal(assetTool.inputSchema.properties.asset_slot_id.minimum, 1)
   assert.equal(assetTool.inputSchema.properties.output_resource_id.minimum, 1)
+  assert.equal(assetTool.inputSchema.properties.output_resource_ids.items.minimum, 1)
+  assert.match(JSON.stringify(assetTool.inputSchema.allOf), /outputResourceIds/)
 
   const keyframeTool = readJson('tools/movscript/visual-generation/attach-keyframe-candidate.tool.json')
   assert.match(keyframeTool.description, /原始 target keyframe|原始 keyframe|original target keyframe/)
@@ -32,7 +34,9 @@ test('agent catalog keeps candidate generation contracts for deploy', () => {
   assert.ok(keyframeTool.inputSchema.properties.target_keyframe_id)
   assert.equal(keyframeTool.inputSchema.properties.target_keyframe_id.minimum, 1)
   assert.equal(keyframeTool.inputSchema.properties.output_resource_id.minimum, 1)
+  assert.equal(keyframeTool.inputSchema.properties.output_resource_ids.items.minimum, 1)
   assert.match(JSON.stringify(keyframeTool.inputSchema.allOf), /outputResourceId/)
+  assert.match(JSON.stringify(keyframeTool.inputSchema.allOf), /outputResourceIds/)
 
   const productionContext = readJson('tools/movscript/workspace/query-production-context.tool.json')
   assert.equal(productionContext.inputSchema.properties.include.items.enum.includes('keyframes'), true)

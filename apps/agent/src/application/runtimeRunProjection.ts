@@ -16,6 +16,13 @@ export function listRuntimeRunsByParent(input: {
   return input.store.listRuns({ parentRunId: input.parentRunId }).map(toProductRun)
 }
 
+export function listRuntimeRunsByThread(input: {
+  store: Pick<AgentStore, 'listRuns'>
+  threadId: string
+}): AgentRun[] {
+  return input.store.listRuns({ threadId: input.threadId }).map(toProductRun)
+}
+
 export function getRuntimeRun(input: {
   store: Pick<AgentStore, 'getRun'>
   runId: string

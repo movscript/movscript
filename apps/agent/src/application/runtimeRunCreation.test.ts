@@ -102,6 +102,27 @@ test('buildRuntimeCreateRun falls back to the latest thread user message', () =>
   assert.equal(run.input?.executionMode, 'chat')
 })
 
+test('buildRuntimeCreateRun binds an explicit source message id even when later user messages exist', () => {
+  const thread = makeThread()
+  const run = buildRuntimeCreateRun({
+    runInput: { threadId: thread.id, sourceMessageId: 'msg_old' },
+    thread,
+    catalogSnapshot: buildRuntimeCatalogSnapshot({
+      id: 'catalog_source_message',
+      defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+      toolRegistry: new StaticToolRegistry([]),
+      layeredRegistry: buildLayeredCatalogRegistry({ manifest: DEFAULT_AGENT_MANIFEST, tools: [] }),
+    }),
+    contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
+    runId: 'run_source_message',
+    now: '2026-01-01T00:00:00.000Z',
+  })
+
+  assert.equal(run.metadata?.initialUserMessageId, 'msg_old')
+  assert.equal(run.input?.sourceMessageId, 'msg_old')
+  assert.equal(run.input?.userMessage, 'Old user message')
+})
+
 test('buildRuntimeCreateToolRun freezes forced tool calls and worker hierarchy', () => {
   const thread = makeThread()
   const sourceMessage = {

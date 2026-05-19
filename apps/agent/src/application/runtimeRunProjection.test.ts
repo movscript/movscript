@@ -7,6 +7,7 @@ import {
   getRuntimeRun,
   listRuntimeRuns,
   listRuntimeRunsByParent,
+  listRuntimeRunsByThread,
 } from './runtimeRunProjection.js'
 
 test('runtime run projection returns product-safe runs without trace events', () => {
@@ -17,6 +18,8 @@ test('runtime run projection returns product-safe runs without trace events', ()
   assert.deepEqual(listRuntimeRuns({ store }).map((run) => run.id), ['run_parent', 'run_child'])
   assert.equal(listRuntimeRuns({ store })[0]?.traceEvents?.length, 0)
   assert.deepEqual(listRuntimeRunsByParent({ store, parentRunId: 'run_parent' }).map((run) => run.id), ['run_child'])
+  assert.deepEqual(listRuntimeRunsByThread({ store, threadId: 'thread_1' }).map((run) => run.id), ['run_parent', 'run_child'])
+  assert.deepEqual(listRuntimeRunsByThread({ store, threadId: 'thread_other' }).map((run) => run.id), [])
   assert.equal(getRuntimeRun({ store, runId: 'run_parent' })?.traceEvents?.length, 0)
   assert.deepEqual(getRuntimeChildRuns({ store, parentRunId: 'run_parent' }).map((run) => run.id), ['run_child'])
 })

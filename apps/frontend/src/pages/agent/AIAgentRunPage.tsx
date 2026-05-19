@@ -7,6 +7,7 @@ import { AgentRunGenerationArtifacts } from '@/components/agent/AgentRunGenerati
 import { LocalAgentInputRequestCard } from '@/components/agent/localRuntime'
 import { agentTaskStatusLabel, buildPlanTaskViews, buildTaskArtifactViews } from '@/lib/agentPlanUi'
 import { AGENT_DEBUG_FIELD_GUIDE, agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, buildDebugAttentionEvents, buildDebugCoverageSummary, buildDebugReadinessChecklist, buildDebugReportText, buildModelCallDebugContext, buildModelCallDebugContexts, buildModelCallSummaries, buildSkillTraceSummary, buildTraceEventLink, canCancelWorkerRun, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runRoleLabel, runStatusLabel, traceCategoryLabel, traceDeepLinkMissing as isTraceDeepLinkMissing, traceEventDurationMs, traceEventIdFromHash, traceEventStatusLabel, traceKindLabel, type AgentDebugAttentionEvent, type AgentDebugCoverageSummary, type AgentDebugReadinessItem, type AgentModelCallSummary, type AgentSkillTraceSummary, type AgentTraceCategory } from '@/lib/agentRunUi'
+import { agentToolNameLabel } from '@/lib/agentToolDisplay'
 import { formatAgentTraceDebugData, redactAgentTraceDebugText } from '@/lib/agentTraceDebugData'
 import { isRecord } from '@/lib/jsonValue'
 import { localAgentClient, type AgentRun, type AgentTraceEvent, type AgentTraceEventKind } from '@/lib/localAgentClient'
@@ -622,7 +623,7 @@ export default function AIAgentRunPage() {
                   )}
                   {(runQuery.data.pendingApprovals ?? []).filter((approval) => approval.status === 'pending').map((approval) => (
                     <div key={approval.id} className="space-y-0.5">
-                      <div className="font-medium text-foreground">{approval.toolName}</div>
+                      <div className="font-medium text-foreground" title={approval.toolName}>{agentToolNameLabel(approval.toolName)}</div>
                       <p className="text-muted-foreground">{approval.reason}</p>
                       <div className="flex flex-wrap gap-1">
                         {approval.risk && <Badge variant="outline" className="text-[9px]">风险 {approvalRiskLabel(approval.risk)}</Badge>}
@@ -1011,7 +1012,7 @@ export default function AIAgentRunPage() {
                   <div className="mt-1 space-y-1">
                     <div className="flex flex-wrap gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
                       <span>{traceKindLabel(event.kind)}</span>
-                      {event.toolName && <span>工具 {event.toolName}</span>}
+                      {event.toolName && <span title={event.toolName}>工具 {agentToolNameLabel(event.toolName)}</span>}
                       {event.stepId && <span>步骤 {event.stepId}</span>}
                       <span title={event.createdAt}>创建 {formatAgentRunTimestamp(event.createdAt)}</span>
                       {event.completedAt && <span title={event.completedAt}>完成 {formatAgentRunTimestamp(event.completedAt)}</span>}

@@ -6,6 +6,7 @@ import type {
   AgentPlanStreamEvent,
   AgentRun,
   AgentRunStreamEvent,
+  AgentThreadStreamEvent,
   AgentTask,
   AgentTraceEvent,
   AgentTraceEventKind,
@@ -27,6 +28,7 @@ import {
 
 export interface RuntimeStreamBridge {
   subscribeRunStream: (run: AgentRun, listener: (event: AgentRunStreamEvent) => void) => () => void
+  subscribeThreadStream: (threadId: string, listener: (event: AgentThreadStreamEvent) => void) => () => void
   subscribePlanStream: (planId: string, listener: (event: AgentPlanStreamEvent) => void) => () => void
   recordTraceEvent: (run: AgentRun, trace: RuntimeTraceInput) => AgentTraceEvent
   emitVolatileTraceEvent: (run: AgentRun, trace: RuntimeVolatileTraceInput) => void
@@ -65,8 +67,9 @@ export interface RuntimeVolatileTraceInput {
 }
 
 export function createRuntimeStreamBridge(input: {
-  store: Pick<AgentStore, 'appendTraceEvent' | 'getRun' | 'getThread' | 'listRunTraceEvents'>
+  store: Pick<AgentStore, 'appendTraceEvent' | 'getRun' | 'getThread' | 'listRuns' | 'listRunTraceEvents'>
   runSubscribers: RuntimeEventSubscriberRegistry<AgentRunStreamEvent>
+  threadSubscribers: RuntimeEventSubscriberRegistry<AgentThreadStreamEvent>
   planSubscribers: RuntimeEventSubscriberRegistry<AgentPlanStreamEvent>
   getPlanSnapshot: (planId: string) => AgentPlanSnapshot
   createTraceId: () => string
@@ -75,6 +78,16 @@ export function createRuntimeStreamBridge(input: {
   const bridge: RuntimeStreamBridge = {
     subscribeRunStream: (run, listener) => input.runSubscribers.subscribe(run.id, listener, (target) => {
       replayRuntimeRunStream({ run, store: input.store, listener: target })
+    }),
+    subscribeThreadStream: (threadId, listener) => input.threadSubscribers.subscribe(threadId, listener, (target) => {
+      const runs = input.store.listRuns({ threadId }).sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+      for (const run of runs) {
+        replayRuntimeRunStream({
+          run,
+          store: input.store,
+          listener: (event) => target({ ...event, threadId }),
+        })
+      }
     }),
     subscribePlanStream: (planId, listener) => input.planSubscribers.subscribe(planId, listener, (target) => {
       replayRuntimePlanStream({ planId, getPlanSnapshot: input.getPlanSnapshot, listener: target })
@@ -96,6 +109,8 @@ export function createRuntimeStreamBridge(input: {
     }),
     emitRunStreamEvent: (runId, event) => {
       input.runSubscribers.emit(runId, event)
+      const threadId = threadIdForRunStreamEvent(event, (targetRunId) => input.store.getRun(targetRunId))
+      if (threadId) input.threadSubscribers.emit(threadId, { ...event, threadId })
       if (event.type === 'done') input.runSubscribers.close(runId)
       emitRuntimePlanRunStreamEvent({
         event,
@@ -138,4 +153,11 @@ export function createRuntimeStreamBridge(input: {
     },
   }
   return bridge
+}
+
+function threadIdForRunStreamEvent(event: AgentRunStreamEvent, getRun: (runId: string) => AgentRun | undefined): string | undefined {
+  if (event.type === 'thread_title') return event.threadId
+  if ('run' in event && event.run) return event.run.threadId
+  if ('runId' in event) return getRun(event.runId)?.threadId
+  return undefined
 }

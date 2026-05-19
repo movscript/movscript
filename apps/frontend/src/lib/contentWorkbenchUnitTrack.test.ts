@@ -6,8 +6,8 @@ test('content workbench unit track explains empty production track', () => {
   const summary = buildContentWorkbenchUnitTrack([])
 
   assert.equal(summary.total, 0)
-  assert.equal(summary.title, '暂无制作项轨道')
-  assert.equal(summary.detail, '先创建或让 AI 规划制作项，轨道会显示每个生成目标的准备度。')
+  assert.equal(summary.title, '暂无内容单元')
+  assert.equal(summary.detail, '先创建或让 AI 规划内容单元，这里会显示每个生成目标。')
 })
 
 test('content workbench unit track surfaces blockers across units', () => {
@@ -30,7 +30,7 @@ test('content workbench unit track surfaces blockers across units', () => {
     {
       id: 2,
       title: '旁白推进',
-      kind: 'narration',
+      kind: 'voiceover',
       durationSec: 6,
       status: 'confirmed',
       summary: '交代人物心境',
@@ -43,7 +43,7 @@ test('content workbench unit track surfaces blockers across units', () => {
     },
   ])
 
-  assert.equal(summary.title, '制作轨道存在阻塞')
+  assert.equal(summary.title, '内容单元')
   assert.equal(summary.total, 2)
   assert.equal(summary.durationSec, 10)
   assert.equal(summary.blockedCount, 2)
@@ -82,7 +82,7 @@ test('content workbench unit track reports executable track when units are ready
     },
   ])
 
-  assert.equal(summary.title, '制作轨道可执行')
+  assert.equal(summary.title, '内容单元')
   assert.equal(summary.readyCount, 1)
   assert.equal(summary.blockedCount, 0)
   assert.equal(summary.items[0].readiness, 100)
@@ -94,7 +94,7 @@ test('content workbench unit track does not require keyframes for non-visual uni
     {
       id: 'voice-1',
       title: '心声旁白',
-      kind: 'narration',
+      kind: 'voiceover',
       durationSec: 5,
       status: 'confirmed',
       hasPrompt: true,
@@ -104,7 +104,7 @@ test('content workbench unit track does not require keyframes for non-visual uni
     },
   ])
 
-  assert.equal(summary.title, '制作轨道可执行')
+  assert.equal(summary.title, '内容单元')
   assert.equal(summary.items[0].requiresKeyframe, false)
   assert.equal(summary.items[0].readiness, 100)
   assert.deepEqual(summary.items[0].blockers, [])
@@ -128,7 +128,7 @@ test('content workbench unit track prefers preview timeline timing when present'
     {
       id: 2,
       title: '后续估算项',
-      kind: 'narration',
+      kind: 'voiceover',
       durationSec: 3,
       status: 'confirmed',
       hasPrompt: true,

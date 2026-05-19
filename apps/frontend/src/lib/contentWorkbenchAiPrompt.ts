@@ -43,6 +43,7 @@ export function buildContentWorkbenchAiSuggestPrompt(input: ContentWorkbenchAiPr
     '- 草案 kind 必须是 content_unit_proposal，schema 必须是 movscript.content_unit_proposal.v1。',
     `- 使用 JSON 包络：{"scene_moment_id": ${sceneMomentId}, "proposal": {"units": [...]}}。`,
     '- 每条包含 title、kind、description、prompt、duration_sec、story_purpose、emotional_intent、shot、performance、lighting、blocking、sound、transition 等可判断字段。',
+    '- 如果需要表达节奏或局部落位，只能写进单条 unit.timing，例如 local_start_sec、rhythm_role、transition_in、transition_out；不要在 content_unit_proposal 里创建 production 级 preview_timeline 或 timeline_items。',
     '- 不要输出 action、operation、patch 等操作字段或增量指令。',
     '- 审阅时会用完整草案快照和当前快照做对比；请让每条制作项都能独立判断创作目标和生成约束。',
   ].filter(Boolean).join('\n')

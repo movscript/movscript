@@ -447,7 +447,7 @@ func TestDeleteSegmentRejectsDownstreamSceneMoments(t *testing.T) {
 	}
 }
 
-func TestPatchSceneMomentRejectsSourceChangeAfterContentUnits(t *testing.T) {
+func TestPatchSceneMomentAllowsScriptBlockChangeAfterContentUnits(t *testing.T) {
 	db := newContentUnitTestDB(t)
 	service := NewService(db)
 	_, version, firstBlock := seedContentUnitScriptSource(t, db, 1)
@@ -465,9 +465,62 @@ func TestPatchSceneMomentRejectsSourceChangeAfterContentUnits(t *testing.T) {
 	}
 	syncSemanticTestRelations(t, db, &unit)
 
-	_, err := service.PatchSceneMoment(context.Background(), 1, strconv.FormatUint(uint64(moment.ID), 10), PatchSceneMomentInput{
+	patched, err := service.PatchSceneMoment(context.Background(), 1, strconv.FormatUint(uint64(moment.ID), 10), PatchSceneMomentInput{
 		ScriptBlockID: &secondBlock.ID,
 		Title:         "Moved moment",
+	})
+	if err != nil {
+		t.Fatalf("PatchSceneMoment() error = %v", err)
+	}
+	if patched.ScriptBlockID == nil || *patched.ScriptBlockID != secondBlock.ID {
+		t.Fatalf("patched scene moment script block id = %v, want %d", patched.ScriptBlockID, secondBlock.ID)
+	}
+
+	var persisted model.SceneMoment
+	if err := db.First(&persisted, moment.ID).Error; err != nil {
+		t.Fatalf("load scene moment: %v", err)
+	}
+	if persisted.ScriptBlockID == nil || *persisted.ScriptBlockID != secondBlock.ID {
+		t.Fatalf("scene moment script block id = %v, want %d", persisted.ScriptBlockID, secondBlock.ID)
+	}
+	var persistedUnit model.ContentUnit
+	if err := db.First(&persistedUnit, unit.ID).Error; err != nil {
+		t.Fatalf("load content unit: %v", err)
+	}
+	if persistedUnit.ScriptBlockID == nil || *persistedUnit.ScriptBlockID != firstBlock.ID {
+		t.Fatalf("content unit script block changed to %v, want %d", persistedUnit.ScriptBlockID, firstBlock.ID)
+	}
+}
+
+func TestPatchSceneMomentRejectsSegmentChangeAfterContentUnits(t *testing.T) {
+	db := newContentUnitTestDB(t)
+	service := NewService(db)
+	_, version, firstBlock := seedContentUnitScriptSource(t, db, 1)
+	secondBlock := model.ScriptBlock{ProjectID: 1, ScriptID: firstBlock.ScriptID, ScriptVersionID: version.ID, Kind: "action", Content: "新的来源。", StartLine: 1, EndLine: 1, Status: "active"}
+	if err := db.Create(&secondBlock).Error; err != nil {
+		t.Fatalf("create second script block: %v", err)
+	}
+	firstSegment := model.Segment{ProjectID: 1, ScriptBlockID: &firstBlock.ID, Title: "First segment", Status: "confirmed"}
+	secondSegment := model.Segment{ProjectID: 1, ScriptBlockID: &secondBlock.ID, Title: "Second segment", Status: "confirmed"}
+	if err := db.Create(&firstSegment).Error; err != nil {
+		t.Fatalf("create first segment: %v", err)
+	}
+	if err := db.Create(&secondSegment).Error; err != nil {
+		t.Fatalf("create second segment: %v", err)
+	}
+	moment := model.SceneMoment{ProjectID: 1, SegmentID: &firstSegment.ID, ScriptBlockID: &firstBlock.ID, Title: "Moment", Status: "confirmed"}
+	if err := db.Create(&moment).Error; err != nil {
+		t.Fatalf("create scene moment: %v", err)
+	}
+	unit := model.ContentUnit{ProjectID: 1, SceneMomentID: &moment.ID, ScriptBlockID: &firstBlock.ID, Title: "Unit", Status: "draft"}
+	if err := db.Create(&unit).Error; err != nil {
+		t.Fatalf("create content unit: %v", err)
+	}
+	syncSemanticTestRelations(t, db, &unit)
+
+	_, err := service.PatchSceneMoment(context.Background(), 1, strconv.FormatUint(uint64(moment.ID), 10), PatchSceneMomentInput{
+		SegmentID: &secondSegment.ID,
+		Title:     "Moved moment",
 	})
 	var invalid ErrInvalidInput
 	if !errors.As(err, &invalid) {
@@ -478,8 +531,11 @@ func TestPatchSceneMomentRejectsSourceChangeAfterContentUnits(t *testing.T) {
 	if err := db.First(&persisted, moment.ID).Error; err != nil {
 		t.Fatalf("load scene moment: %v", err)
 	}
+	if persisted.SegmentID == nil || *persisted.SegmentID != firstSegment.ID {
+		t.Fatalf("scene moment segment id = %v, want %d", persisted.SegmentID, firstSegment.ID)
+	}
 	if persisted.ScriptBlockID == nil || *persisted.ScriptBlockID != firstBlock.ID {
-		t.Fatalf("scene moment script block changed to %v, want %d", persisted.ScriptBlockID, firstBlock.ID)
+		t.Fatalf("scene moment script block id = %v, want %d", persisted.ScriptBlockID, firstBlock.ID)
 	}
 }
 

@@ -401,6 +401,68 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
+      const threadRunMatch = url.pathname.match(/^\/threads\/([^/]+)\/runs$/)
+      if (threadRunMatch && req.method === 'GET') {
+        const thread = context.agentRuntime.getThread(threadRunMatch[1])
+        if (!thread) {
+          writeJSON(res, 404, { error: 'thread not found' })
+          return
+        }
+        writeJSON(res, 200, {
+          threadId: threadRunMatch[1],
+          runs: context.agentRuntime.listRunsByThread(threadRunMatch[1]),
+        })
+        return
+      }
+
+      const threadRuntimeMatch = url.pathname.match(/^\/threads\/([^/]+)\/runtime$/)
+      if (threadRuntimeMatch && req.method === 'GET') {
+        const thread = context.agentRuntime.getThread(threadRuntimeMatch[1])
+        if (!thread) {
+          writeJSON(res, 404, { error: 'thread not found' })
+          return
+        }
+        writeJSON(res, 200, {
+          thread,
+          runs: context.agentRuntime.listRunsByThread(threadRuntimeMatch[1]),
+        })
+        return
+      }
+
+      const threadStreamMatch = url.pathname.match(/^\/threads\/([^/]+)\/stream$/)
+      if (threadStreamMatch && req.method === 'GET') {
+        streamThreadEvents(req, res, context.agentRuntime, threadStreamMatch[1])
+        return
+      }
+
+      if (threadRunMatch && req.method === 'POST') {
+        const body = withRequestAuth(await readOptionalJSONObject(req, 'thread run body'), req)
+        const content = typeof body.message === 'string' && body.message.trim()
+          ? body.message
+          : typeof body.content === 'string' && body.content.trim()
+            ? body.content
+            : undefined
+        if (!content) throw new AgentHTTPError(400, 'thread run message is required')
+        const message = context.agentRuntime.addMessage(threadRunMatch[1], {
+          role: 'user',
+          content,
+          ...(body.clientInput !== undefined ? { clientInput: body.clientInput } : {}),
+        })
+        const {
+          message: _message,
+          content: _content,
+          sourceMessageId: _sourceMessageId,
+          ...runBody
+        } = body
+        const run = context.agentRuntime.createRun(asPlannerUserRun({
+          ...runBody,
+          threadId: threadRunMatch[1],
+          sourceMessageId: message.id,
+        }))
+        writeJSON(res, 201, { run, message })
+        return
+      }
+
       if (req.method === 'POST' && url.pathname === '/runs') {
         const body = await readOptionalJSONObject(req, 'run body')
         writeJSON(res, 201, context.agentRuntime.createRun(asPlannerUserRun(withRequestAuth(body, req))))
@@ -890,6 +952,42 @@ function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: Age
   })
   subscribed = true
   if (closeAfterSubscribe) cleanup(true)
+
+  req.on('close', () => cleanup(false))
+}
+
+function streamThreadEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntime, threadId: string): void {
+  if (!runtime.getThread(threadId)) {
+    writeJSON(res, 404, { error: 'thread not found' })
+    return
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  })
+  res.write(': connected\n\n')
+
+  let closed = false
+  let unsubscribe = () => { }
+  const heartbeat = setInterval(() => {
+    if (!closed && !res.writableEnded) res.write(': keep-alive\n\n')
+  }, 15_000)
+
+  const cleanup = (end: boolean) => {
+    if (closed) return
+    closed = true
+    clearInterval(heartbeat)
+    unsubscribe()
+    if (end && !res.writableEnded) res.end()
+  }
+
+  unsubscribe = runtime.subscribeThreadStream(threadId, (event) => {
+    if (closed || res.writableEnded) return
+    writeSSE(res, event.type, event)
+  })
 
   req.on('close', () => cleanup(false))
 }

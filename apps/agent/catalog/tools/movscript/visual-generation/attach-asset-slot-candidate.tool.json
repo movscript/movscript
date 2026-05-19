@@ -38,6 +38,38 @@
         "minimum": 1,
         "description": "output_resource_id 的别名。"
       },
+      "resource_ids": {
+        "type": "array",
+        "items": {
+          "type": "number",
+          "minimum": 1
+        },
+        "description": "批量加入候选的已有 raw resource ID 列表。"
+      },
+      "resourceIds": {
+        "type": "array",
+        "items": {
+          "type": "number",
+          "minimum": 1
+        },
+        "description": "resource_ids 的别名。"
+      },
+      "output_resource_ids": {
+        "type": "array",
+        "items": {
+          "type": "number",
+          "minimum": 1
+        },
+        "description": "resource_ids 的别名，可直接传 movscript_create_generation_job.output_resource_ids。"
+      },
+      "outputResourceIds": {
+        "type": "array",
+        "items": {
+          "type": "number",
+          "minimum": 1
+        },
+        "description": "output_resource_ids 的别名。"
+      },
       "source_type": {
         "type": "string",
         "description": "可选审计来源类型。默认 agent。"
@@ -101,6 +133,26 @@
             "required": [
               "outputResourceId"
             ]
+          },
+          {
+            "required": [
+              "resource_ids"
+            ]
+          },
+          {
+            "required": [
+              "resourceIds"
+            ]
+          },
+          {
+            "required": [
+              "output_resource_ids"
+            ]
+          },
+          {
+            "required": [
+              "outputResourceIds"
+            ]
           }
         ]
       }
@@ -123,14 +175,39 @@
       "candidate": {
         "type": "object"
       },
+      "candidates": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
       "asset_slot_id": {
         "type": "number"
       },
       "candidate_asset_slot_id": {
         "type": "number"
       },
+      "candidate_asset_slot_ids": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        }
+      },
       "resource_id": {
         "type": "number"
+      },
+      "resource_ids": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        }
+      },
+      "skipped_resource_ids": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "description": "目标候选集中已经存在、因此未重复写入的资源 ID。"
       },
       "message": {
         "type": "string"

@@ -201,7 +201,7 @@ func sourceLockFields(kind string) []string {
 	case "segment":
 		return []string{"production_id", "text_block_id", "script_block_id", "parent_segment_id"}
 	case "scene_moment":
-		return []string{"segment_id", "script_block_id"}
+		return []string{"segment_id"}
 	case "storyboard_script":
 		return []string{"script_version_id"}
 	case "content_unit":

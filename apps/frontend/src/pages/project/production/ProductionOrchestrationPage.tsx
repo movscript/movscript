@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronRight,
   Film,
+  FileText,
   GitBranch,
   ImageIcon,
   Loader2,
@@ -43,6 +44,7 @@ import {
   type ProductionProposalPreviewSemanticChange,
   type ProductionProposalPreviewWarning,
   type SemanticEntityRecord,
+  type SemanticEntityPayload,
 } from '@/api/semanticEntities'
 import { buildCommandFirstClientInput, buildPageKey } from '@/lib/agentCommandInput'
 import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
@@ -59,24 +61,32 @@ import {
 import { localAgentClient, type AgentDraft, type AgentRun, type AgentRunStep } from '@/lib/localAgentClient'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
-import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@movscript/ui'
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Textarea,
+} from '@movscript/ui'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-type EntityFilter = 'all' | 'segments' | 'sceneMoments' | 'creativeReferences' | 'assetSlots' | 'contentUnits'
+type EntityFilter = 'all' | 'segments' | 'sceneMoments' | 'writingExpressions' | 'creativeReferences' | 'assetSlots' | 'contentUnits'
 type AnalysisScope = 'production' | 'segments' | 'segmentAnalysis' | 'sceneMoments' | 'creativeReferences' | 'assetSlots' | 'contentUnits'
 type WorkspaceView = 'structure' | 'review'
-type RailItem = {
-  id: number
-  title: string
-  detail: string
-  meta: string[]
-  status: string
-}
-
+type WritingExpressionType = 'dialogue' | 'action' | 'silence' | 'narration' | 'subtitle' | 'visual'
 type SegmentRecord = SemanticEntityRecord & {
   production_id?: number
   title?: string; kind?: string; summary?: string; content?: string
@@ -84,10 +94,10 @@ type SegmentRecord = SemanticEntityRecord & {
 }
 type SceneMomentRecord = SemanticEntityRecord & {
   segment_id?: number; title?: string; time_text?: string; location_text?: string
-  action_text?: string; mood?: string; order?: number; status?: string; description?: string; script_block_id?: number
+  action_text?: string; condition_text?: string; mood?: string; order?: number; status?: string; description?: string; script_block_id?: number
 }
 type CreativeReferenceRecord = SemanticEntityRecord & {
-  name?: string; kind?: string; importance?: string; status?: string; description?: string; alias?: string
+  name?: string; kind?: string; importance?: string; status?: string; description?: string; content?: string; alias?: string
 }
 type AssetSlotRecord = SemanticEntityRecord & {
   production_id?: number; name?: string; kind?: string; priority?: string; status?: string
@@ -97,6 +107,15 @@ type ContentUnitRecord = SemanticEntityRecord & {
   production_id?: number; segment_id?: number; scene_moment_id?: number
   title?: string; kind?: string; order?: number; duration_sec?: number; description?: string
   shot_size?: string; camera_angle?: string; camera_motion?: string; status?: string; prompt?: string; script_block_id?: number
+}
+type ScriptBlockRecord = SemanticEntityRecord & {
+  script_id?: number; script_version_id?: number; parent_block_id?: number
+  kind?: string; speaker?: string; content?: string; summary?: string; title?: string
+  order?: number; status?: string; start_line?: number; end_line?: number
+}
+type WritingExpressionRecord = SemanticEntityRecord & {
+  scene_moment_id?: number; script_block_id?: number; kind?: WritingExpressionType
+  speaker?: string; text?: string; note?: string; intent?: string; order?: number
 }
 type KeyframeRecord = SemanticEntityRecord & {
   production_id?: number; scene_moment_id?: number; content_unit_id?: number
@@ -111,6 +130,8 @@ interface OrchestrationData {
   creativeReferenceUsages: SemanticEntityRecord[]
   assetSlots: AssetSlotRecord[]
   contentUnits: ContentUnitRecord[]
+  scriptBlocks: ScriptBlockRecord[]
+  writingExpressions: WritingExpressionRecord[]
   keyframes: KeyframeRecord[]
 }
 
@@ -431,7 +452,8 @@ interface ContextOverview {
 const filterDefs: { key: EntityFilter; label: string; icon: LucideIcon }[] = [
   { key: 'all', label: '全局结构', icon: LayoutList },
   { key: 'segments', label: '编排段结构', icon: GitBranch },
-  { key: 'sceneMoments', label: '情景结构', icon: Route },
+  { key: 'sceneMoments', label: '情节结构', icon: Route },
+  { key: 'writingExpressions', label: '表达条目', icon: ScrollText },
   { key: 'creativeReferences', label: '设定资料梳理', icon: Sparkles },
   { key: 'assetSlots', label: '素材需求缺口', icon: PackageCheck },
 ]
@@ -469,13 +491,14 @@ const segmentKindLabel: Record<string, string> = {
 }
 
 const contentUnitKindLabel: Record<string, string> = {
-  shot: '镜头', visual_segment: '视觉段', product_showcase: '产品展示',
-  caption_card: '字幕卡', narration: '旁白', transition: '转场', music_beat: '节拍',
-}
-
-const creativeReferenceKindLabel: Record<string, string> = {
-  person: '人物', place: '地点', prop: '道具', product: '产品',
-  brand: '品牌', style: '风格', world_rule: '世界规则', time_period: '时间段', restriction: '限制',
+  shot: '镜头',
+  voiceover: '旁白/画外音',
+  dialogue_audio: '对白音频',
+  sound: '音效',
+  music_beat: '节拍',
+  subtitle: '字幕',
+  caption_card: '字幕卡',
+  transition: '转场',
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -483,7 +506,7 @@ const creativeReferenceKindLabel: Record<string, string> = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function loadOrchestrationData(projectId: number): Promise<OrchestrationData> {
-  const [productions, segments, sceneMoments, creativeReferences, creativeReferenceUsages, assetSlots, contentUnits, keyframes] = await Promise.all([
+  const [productions, segments, sceneMoments, creativeReferences, creativeReferenceUsages, assetSlots, contentUnits, scriptBlocks, writingExpressions, keyframes] = await Promise.all([
     listSemanticEntities(projectId, semanticEntityConfig('productions')),
     listSemanticEntities(projectId, semanticEntityConfig('segments')),
     listSemanticEntities(projectId, semanticEntityConfig('sceneMoments')),
@@ -491,6 +514,8 @@ async function loadOrchestrationData(projectId: number): Promise<OrchestrationDa
     listSemanticEntities(projectId, semanticEntityConfig('creativeReferenceUsages')),
     listSemanticEntities(projectId, semanticEntityConfig('assetSlots')),
     listSemanticEntities(projectId, semanticEntityConfig('contentUnits')),
+    listSemanticEntities(projectId, semanticEntityConfig('scriptBlocks')),
+    listSemanticEntities(projectId, semanticEntityConfig('writingExpressions')),
     listSemanticEntities(projectId, semanticEntityConfig('keyframes')),
   ])
   return {
@@ -501,6 +526,8 @@ async function loadOrchestrationData(projectId: number): Promise<OrchestrationDa
     creativeReferenceUsages,
     assetSlots: assetSlots as AssetSlotRecord[],
     contentUnits: contentUnits as ContentUnitRecord[],
+    scriptBlocks: scriptBlocks as ScriptBlockRecord[],
+    writingExpressions: writingExpressions as WritingExpressionRecord[],
     keyframes: keyframes as KeyframeRecord[],
   }
 }
@@ -519,14 +546,12 @@ export default function ProductionOrchestrationPage() {
   const openedSettingDraftId = searchParams.get('settingDraftId')?.trim() || ''
   const openedAssetProposalDraftId = searchParams.get('assetProposalDraftId')?.trim() || ''
 
-  const [filter, setFilter] = useState<EntityFilter>('all')
-  const [selectedEntityId, setSelectedEntityId] = useState<number | null>(null)
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [createType, setCreateType] = useState<EntityFilter | null>(null)
   const [editEntry, setEditEntry] = useState<{ type: EntityFilter; record: SemanticEntityRecord } | null>(null)
   const [proposalPreviewDraft, setProposalPreviewDraft] = useState<ProposalDraftContent | null>(null)
   const [proposalNodeDecisions, setProposalNodeDecisions] = useState<ProposalNodeDecisions>({})
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>('structure')
+  const [selectedWritingMomentId, setSelectedWritingMomentId] = useState<number | null>(null)
   const [createSegmentId, setCreateSegmentId] = useState<number | null>(null)
   const [orchestrationStage, setOrchestrationStage] = useState<'idle' | 'production'>('idle')
   const orchestrationCleanupRef = useRef<(() => void) | null>(null)
@@ -575,7 +600,8 @@ export default function ProductionOrchestrationPage() {
     () => scriptVersions.find((version) => version.ID === Number(selectedProduction?.script_version_id)) ?? null,
     [scriptVersions, selectedProduction?.script_version_id],
   )
-  const scriptText = (selectedScriptVersion?.content || selectedScriptVersion?.raw_source || '').trim()
+  const scriptSourceText = scriptSourceTextForVersion(selectedScriptVersion)
+  const scriptText = scriptSourceText.trim()
   const canLaunchLinkedProposal = Boolean(scriptText) && !isFetchingScriptVersions
   const bindScriptVersionMutation = useMutation({
     mutationFn: async (scriptVersionId: number | null) => {
@@ -586,7 +612,7 @@ export default function ProductionOrchestrationPage() {
       })
     },
     onSuccess: () => {
-      toast.success('制作剧本来源已更新')
+      toast.success('制作剧本已更新')
       void refetch()
       queryClient.invalidateQueries({ queryKey })
       queryClient.invalidateQueries({ queryKey: scriptVersionsQueryKey })
@@ -597,7 +623,133 @@ export default function ProductionOrchestrationPage() {
       toast.error(responseData ? translateApiError(responseData, 'common.requestFailed') : error instanceof Error ? error.message : '绑定剧本失败')
     },
   })
-
+  const bindSceneMomentScriptBlockMutation = useMutation({
+    mutationFn: async ({ momentId, scriptBlockId }: { momentId: number; scriptBlockId: number | null }) => {
+      if (!projectId) throw new Error('请先选择项目')
+      return updateSemanticEntity(projectId, semanticEntityConfig('sceneMoments'), momentId, {
+        script_block_id: scriptBlockId,
+      })
+    },
+    onSuccess: () => {
+      toast.success('当前情节参考已更新')
+      void refetch()
+      queryClient.invalidateQueries({ queryKey })
+    },
+    onError: (error) => {
+      const apiErrorData = (error as { response?: { data?: unknown } })?.response?.data
+      const responseData = isRecordValue(apiErrorData) ? apiErrorData as APIErrorBody : null
+      toast.error(responseData ? translateApiError(responseData, 'common.requestFailed') : error instanceof Error ? error.message : '绑定情节参考失败')
+    },
+  })
+  const createAndBindSceneMomentScriptBlockMutation = useMutation({
+    mutationFn: async ({ momentId, startLine, endLine }: { momentId: number; startLine: number; endLine: number }) => {
+      if (!projectId) throw new Error('请先选择项目')
+      if (!selectedScriptVersion) throw new Error('请先绑定制作剧本')
+      const content = scriptBlockContentFromLines(scriptSourceText, startLine, endLine)
+      if (!content.trim()) throw new Error('请选择有正文的剧本范围')
+      const blocksForVersion = data?.scriptBlocks?.filter((block) => Number(block.script_version_id) === selectedScriptVersion.ID) ?? []
+      const inferred = inferScriptBlockKind(content)
+      const block = await createSemanticEntity(projectId, semanticEntityConfig('scriptBlocks'), {
+        script_id: selectedScriptVersion.script_id,
+        script_version_id: selectedScriptVersion.ID,
+        order: blocksForVersion.length + 1,
+        kind: inferred.kind,
+        speaker: inferred.speaker,
+        content,
+        start_line: startLine,
+        end_line: endLine,
+        start_char: 0,
+        end_char: 0,
+        status: 'active',
+      }) as ScriptBlockRecord
+      await updateSemanticEntity(projectId, semanticEntityConfig('sceneMoments'), momentId, {
+        script_block_id: block.ID,
+      })
+      return block
+    },
+    onSuccess: () => {
+      toast.success('剧本块已创建并绑定')
+      void refetch()
+      queryClient.invalidateQueries({ queryKey })
+    },
+    onError: (error) => {
+      const apiErrorData = (error as { response?: { data?: unknown } })?.response?.data
+      const responseData = isRecordValue(apiErrorData) ? apiErrorData as APIErrorBody : null
+      toast.error(responseData ? translateApiError(responseData, 'common.requestFailed') : error instanceof Error ? error.message : '创建剧本块失败')
+    },
+  })
+  const updateSceneMomentMutation = useMutation({
+    mutationFn: async ({ momentId, payload }: { momentId: number; payload: SemanticEntityPayload }) => {
+      if (!projectId) throw new Error('请先选择项目')
+      return updateSemanticEntity(projectId, semanticEntityConfig('sceneMoments'), momentId, payload)
+    },
+    onSuccess: () => {
+      toast.success('情节已更新')
+      void refetch()
+      queryClient.invalidateQueries({ queryKey })
+    },
+    onError: (error) => {
+      const apiErrorData = (error as { response?: { data?: unknown } })?.response?.data
+      const responseData = isRecordValue(apiErrorData) ? apiErrorData as APIErrorBody : null
+      toast.error(responseData ? translateApiError(responseData, 'common.requestFailed') : error instanceof Error ? error.message : '保存情节失败')
+    },
+  })
+  const updateWritingExpressionMutation = useMutation({
+    mutationFn: async ({ target, payload }: { target: WritingExpressionEditTarget; payload: WritingExpressionSavePayload }) => {
+      if (!projectId) throw new Error('请先选择项目')
+      if (target.kind === 'writingExpressions') {
+        const entityPayload = writingExpressionPayload(payload)
+        return updateSemanticEntity(projectId, semanticEntityConfig('writingExpressions'), target.id, {
+          kind: entityPayload.kind,
+          speaker: entityPayload.speaker,
+          text: entityPayload.text,
+          note: entityPayload.note,
+          intent: entityPayload.intent,
+        })
+      }
+      return createSemanticEntity(projectId, semanticEntityConfig('writingExpressions'), writingExpressionPayload({
+        ...payload,
+        scene_moment_id: target.sceneMomentId,
+        script_block_id: target.scriptBlockId ?? payload.script_block_id ?? null,
+        order: target.order,
+      }))
+    },
+    onSuccess: () => {
+      toast.success('表达条目已更新')
+      void refetch()
+      queryClient.invalidateQueries({ queryKey })
+    },
+    onError: (error) => {
+      const apiErrorData = (error as { response?: { data?: unknown } })?.response?.data
+      const responseData = isRecordValue(apiErrorData) ? apiErrorData as APIErrorBody : null
+      toast.error(responseData ? translateApiError(responseData, 'common.requestFailed') : error instanceof Error ? error.message : '保存表达条目失败')
+    },
+  })
+  const createWritingExpressionMutation = useMutation({
+    mutationFn: async ({ momentId, order, scriptBlockId }: { momentId: number; order: number; scriptBlockId?: number | null }) => {
+      if (!projectId) throw new Error('请先选择项目')
+      return createSemanticEntity(projectId, semanticEntityConfig('writingExpressions'), {
+        scene_moment_id: momentId,
+        script_block_id: scriptBlockId ?? null,
+        order,
+        kind: 'dialogue',
+        speaker: '',
+        text: '',
+        note: '',
+        intent: '',
+      })
+    },
+    onSuccess: () => {
+      toast.success('已新增表达条目')
+      void refetch()
+      queryClient.invalidateQueries({ queryKey })
+    },
+    onError: (error) => {
+      const apiErrorData = (error as { response?: { data?: unknown } })?.response?.data
+      const responseData = isRecordValue(apiErrorData) ? apiErrorData as APIErrorBody : null
+      toast.error(responseData ? translateApiError(responseData, 'common.requestFailed') : error instanceof Error ? error.message : '新增表达条目失败')
+    },
+  })
   const allSegments = useMemo(
     () => filterSegmentsForProduction(data?.segments ?? [], effectiveProductionId).sort(byOrder),
     [data?.segments, effectiveProductionId]
@@ -608,9 +760,21 @@ export default function ProductionOrchestrationPage() {
     [currentSegmentIds, data?.sceneMoments]
   )
   const currentSceneMomentIds = useMemo(() => new Set(allSceneMoments.map((moment) => moment.ID)), [allSceneMoments])
+  const allWritingExpressions = useMemo(
+    () => (data?.writingExpressions ?? [])
+      .filter((item) => item.scene_moment_id ? currentSceneMomentIds.has(Number(item.scene_moment_id)) : false)
+      .sort(byOrder),
+    [currentSceneMomentIds, data?.writingExpressions],
+  )
   const allContentUnits = useMemo(
     () => filterContentUnitsForProduction(data?.contentUnits ?? [], effectiveProductionId, currentSegmentIds, currentSceneMomentIds).sort(byOrder),
     [currentSceneMomentIds, currentSegmentIds, data?.contentUnits, effectiveProductionId]
+  )
+  const allScriptBlocks = useMemo(
+    () => (data?.scriptBlocks ?? [])
+      .filter((block) => !selectedScriptVersion || Number(block.script_version_id) === selectedScriptVersion.ID)
+      .sort(byOrder),
+    [data?.scriptBlocks, selectedScriptVersion],
   )
   const currentContentUnitIds = useMemo(() => new Set(allContentUnits.map((unit) => unit.ID)), [allContentUnits])
   const allKeyframes = useMemo(
@@ -661,8 +825,8 @@ export default function ProductionOrchestrationPage() {
   const workspaceStatusLabel = workspaceView === 'review'
     ? proposalPreviewDraft
       ? `待审节点 ${proposalReviewNodeCount}`
-      : '等待制作提案'
-    : `蓝图 ${allSegments.length} 段 · ${allSceneMoments.length} 情景`
+      : '等待 AI 草稿'
+    : `${allSegments.length} 编排段 · ${allSceneMoments.length} 情节`
   useEffect(() => {
     const draft = openedDraftQuery.data
     if (!draft || draft.kind !== 'production_proposal') {
@@ -698,12 +862,16 @@ export default function ProductionOrchestrationPage() {
     assetSlots: allAssetSlots,
     contentUnits: allContentUnits,
   }), [allAssetSlots, allCreativeReferences, allContentUnits, allSceneMoments, allSegments, data?.creativeReferenceUsages, scriptText, selectedScriptVersion?.title])
-  const selectedSegment = filter === 'segments' || filter === 'all' ? allSegments.find((segment) => segment.ID === selectedEntityId) ?? null : null
-  const selectedSceneMoment = filter === 'sceneMoments' ? allSceneMoments.find((moment) => moment.ID === selectedEntityId) ?? null : null
-  const selectedCreativeReference = filter === 'creativeReferences' ? allCreativeReferences.find((reference) => reference.ID === selectedEntityId) ?? null : null
-  const selectedAssetSlot = filter === 'assetSlots' ? allAssetSlots.find((slot) => slot.ID === selectedEntityId) ?? null : null
-  const selectedContentUnit = filter === 'contentUnits' ? allContentUnits.find((unit) => unit.ID === selectedEntityId) ?? null : null
-  const selectedRecord = selectedSegment ?? selectedSceneMoment ?? selectedCreativeReference ?? selectedAssetSlot ?? selectedContentUnit
+  useEffect(() => {
+    const requestedMomentId = Number(searchParams.get('scene_moment_id')) || 0
+    const requestedMoment = requestedMomentId ? allSceneMoments.find((moment) => moment.ID === requestedMomentId) : null
+    if (requestedMoment) {
+      setSelectedWritingMomentId(requestedMoment.ID)
+      return
+    }
+    if (selectedWritingMomentId && allSceneMoments.some((moment) => moment.ID === selectedWritingMomentId)) return
+    setSelectedWritingMomentId(allSceneMoments[0]?.ID ?? null)
+  }, [allSceneMoments, searchParams, selectedWritingMomentId])
   const productionPageKey = useMemo(
     () => buildPageKey({
       route: { pathname: ROUTES.project.productionOrchestration },
@@ -716,149 +884,6 @@ export default function ProductionOrchestrationPage() {
     }),
     [effectiveProductionId, projectId, selectedProduction],
   )
-
-  function handleFilterChange(nextFilter: EntityFilter) {
-    setFilter(nextFilter)
-    setSelectedEntityId(null)
-  }
-
-  function getSelectedRecordLabel() {
-    if (filter === 'segments') return selectedSegment ? titleOfRecord(selectedSegment) : '未选择编排段'
-    if (filter === 'sceneMoments') return selectedSceneMoment ? titleOfRecord(selectedSceneMoment) : '未选择情景'
-    if (filter === 'creativeReferences') return selectedCreativeReference ? titleOfRecord(selectedCreativeReference) : '未选择设定资料'
-    if (filter === 'assetSlots') return selectedAssetSlot ? titleOfRecord(selectedAssetSlot) : '未选择素材需求'
-    if (filter === 'contentUnits') return selectedContentUnit ? titleOfRecord(selectedContentUnit) : '未选择内容对象'
-    return filter === 'all' ? '未选择对象，正在查看全制作' : '未选择对象，正在查看分类总览'
-  }
-
-  function getSelectedRecordSummary() {
-    if (!selectedRecord) {
-      if (filter === 'all') return '展示编排段、情景、设定资料、素材需求的整体覆盖。'
-      return '点选左侧条目后，这里会切换为当前对象的上下文总览。'
-    }
-    if (filter === 'segments') return String(selectedSegment?.summary ?? selectedSegment?.content ?? '暂无摘要')
-    if (filter === 'sceneMoments') {
-      return [
-        selectedSceneMoment?.time_text ? `时间：${selectedSceneMoment.time_text}` : '',
-        selectedSceneMoment?.location_text ? `地点：${selectedSceneMoment.location_text}` : '',
-        selectedSceneMoment?.action_text ? selectedSceneMoment.action_text : '',
-      ].filter(Boolean).join(' · ') || '暂无说明'
-    }
-    if (filter === 'creativeReferences') return String(selectedCreativeReference?.description ?? '暂无说明')
-    if (filter === 'assetSlots') return String(selectedAssetSlot?.description ?? '暂无说明')
-    if (filter === 'contentUnits') {
-      return [
-        selectedContentUnit?.shot_size ? `景别：${selectedContentUnit.shot_size}` : '',
-        selectedContentUnit?.camera_angle ? `机位：${selectedContentUnit.camera_angle}` : '',
-        selectedContentUnit?.camera_motion ? `运镜：${selectedContentUnit.camera_motion}` : '',
-        selectedContentUnit?.description ? selectedContentUnit.description : '',
-      ].filter(Boolean).join(' · ') || '暂无说明'
-    }
-    return '暂无说明'
-  }
-
-  const railItems = useMemo(() => {
-    if (filter === 'all') {
-      return allSegments.map((segment) => {
-        const childMoments = allSceneMoments.filter((moment) => moment.segment_id === segment.ID)
-        const childUnits = allContentUnits.filter((unit) => unit.segment_id === segment.ID)
-        return {
-          id: segment.ID,
-          title: titleOfRecord(segment),
-          detail: String(segment.summary ?? segment.content ?? '暂无摘要'),
-          meta: [`${childMoments.length} 情景`, `${childUnits.length} 单元`],
-          status: String(segment.status ?? ''),
-        }
-      })
-    }
-    if (filter === 'segments') {
-      return allSegments.map((segment) => {
-        const childMoments = allSceneMoments.filter((moment) => moment.segment_id === segment.ID)
-        const childUnits = allContentUnits.filter((unit) => unit.segment_id === segment.ID)
-        return {
-          id: segment.ID,
-          title: titleOfRecord(segment),
-          detail: String(segment.summary ?? segment.content ?? '暂无摘要'),
-          meta: [`${childMoments.length} 情景`, `${childUnits.length} 单元`],
-          status: String(segment.status ?? ''),
-        }
-      })
-    }
-    if (filter === 'sceneMoments') {
-      return allSceneMoments.map((moment) => ({
-        id: moment.ID,
-        title: titleOfRecord(moment),
-        detail: [moment.time_text, moment.location_text, moment.action_text].filter(Boolean).join(' · ') || '暂无说明',
-        meta: [moment.segment_id ? `编排段 #${moment.segment_id}` : ''],
-        status: String(moment.status ?? ''),
-      }))
-    }
-    if (filter === 'creativeReferences') {
-      return allCreativeReferences.map((reference) => ({
-        id: reference.ID,
-        title: titleOfRecord(reference),
-        detail: String(reference.description ?? '暂无说明'),
-        meta: [reference.kind ? creativeReferenceKindLabel[String(reference.kind)] ?? String(reference.kind) : '', reference.importance ? String(reference.importance) : ''].filter(Boolean),
-        status: String(reference.status ?? ''),
-      }))
-    }
-    if (filter === 'assetSlots') {
-      return allAssetSlots.map((slot) => ({
-        id: slot.ID,
-        title: titleOfRecord(slot),
-        detail: String(slot.description ?? '暂无说明'),
-        meta: [slot.kind ? String(slot.kind) : '', slot.priority ? String(slot.priority) : ''].filter(Boolean),
-        status: String(slot.status ?? ''),
-      }))
-    }
-    return allContentUnits.map((unit) => ({
-      id: unit.ID,
-      title: titleOfRecord(unit),
-      detail: String(unit.description ?? unit.prompt ?? '暂无说明'),
-      meta: [
-        unit.shot_size ? String(unit.shot_size) : '',
-        unit.camera_angle ? String(unit.camera_angle) : '',
-        unit.duration_sec ? `${unit.duration_sec}s` : '',
-      ].filter(Boolean),
-      status: String(unit.status ?? ''),
-    }))
-  }, [allAssetSlots, allContentUnits, allCreativeReferences, allSceneMoments, allSegments, filter])
-
-  useEffect(() => {
-    const exists = filter === 'segments'
-      ? allSegments.some((item) => item.ID === selectedEntityId)
-      : filter === 'sceneMoments'
-        ? allSceneMoments.some((item) => item.ID === selectedEntityId)
-        : filter === 'creativeReferences'
-          ? allCreativeReferences.some((item) => item.ID === selectedEntityId)
-          : filter === 'assetSlots'
-            ? allAssetSlots.some((item) => item.ID === selectedEntityId)
-            : filter === 'contentUnits'
-              ? allContentUnits.some((item) => item.ID === selectedEntityId)
-              : selectedEntityId == null || allSegments.some((item) => item.ID === selectedEntityId)
-    if (!exists) setSelectedEntityId(null)
-  }, [allAssetSlots, allContentUnits, allCreativeReferences, allSceneMoments, allSegments, filter, selectedEntityId])
-
-  function toggleExpand(id: string) {
-    setExpandedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  function expandAllWorkspaceTree() {
-    setExpandedIds(new Set([
-      ...allCreativeReferences.map((reference) => `project-ref-${reference.ID}`),
-      ...allSegments.map((segment) => `segment-${segment.ID}`),
-      ...allSceneMoments.map((moment) => `scene-${moment.ID}`),
-    ]))
-  }
-
-  function collapseWorkspaceTree() {
-    setExpandedIds(new Set())
-  }
 
   function handleSelectProduction(id: string) {
     const next = new URLSearchParams(searchParams)
@@ -1014,7 +1039,7 @@ export default function ProductionOrchestrationPage() {
   }
 
   async function linkReferenceToCurrentSegment(referenceId: number, evidence?: string) {
-    await linkReferenceToOwner('segment', selectedSegment?.ID, referenceId, evidence, 'supporting')
+    await linkReferenceToOwner('segment', createSegmentId, referenceId, evidence, 'supporting')
   }
 
   return (
@@ -1074,7 +1099,7 @@ export default function ProductionOrchestrationPage() {
                       onClick={() => setWorkspaceView('structure')}
                     >
                       <Route size={13} />
-                      蓝图
+                      编排写作
                     </Button>
                     <Button
                       size="sm"
@@ -1083,7 +1108,7 @@ export default function ProductionOrchestrationPage() {
                       onClick={() => setWorkspaceView('review')}
                     >
                       <GitBranch size={13} />
-                      审阅
+                      AI 提案
                       {proposalPreviewDraft && <Badge variant="secondary" className="h-5 rounded-full px-1.5 text-[10px]">{proposalReviewNodeCount}</Badge>}
                     </Button>
                   </div>
@@ -1092,24 +1117,22 @@ export default function ProductionOrchestrationPage() {
                       {workspaceStatusLabel}
                     </Badge>
                     {workspaceView === 'review' ? (
-                      <>
-                        <span>{proposalPreviewDraft ? 'Git Diff 审阅区' : '打开制作提案后进入审阅'}</span>
-                      </>
+                      <span>{proposalPreviewDraft ? '逐条审 AI 提案' : '打开 AI 提案后逐条审阅'}</span>
                     ) : (
                       <>
-                        <span>从作品意图、情绪推进和情节树开始</span>
+                        <span>按编排段、情节和表达条目写清楚这一段戏</span>
                       </>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
                     {orchestrationStage !== 'idle' && (
                       <Badge variant="secondary" className="h-6 rounded-full px-2 text-[10px]">
-                        生成制作提案
+                        生成编排提案
                       </Badge>
                     )}
                     <Button size="sm" className="h-7 gap-1.5 text-xs" onClick={() => handleAnalyzeTarget({ scope: 'production' })} disabled={!projectId || !effectiveProductionId}>
                       <Wand2 size={13} />
-                      生成制作提案
+                      生成编排提案
                     </Button>
                   </div>
                 </div>
@@ -1158,6 +1181,7 @@ export default function ProductionOrchestrationPage() {
                     selectedScriptVersion={selectedScriptVersion}
                     scriptVersions={scriptVersions}
                     scriptText={scriptText}
+                    scriptSourceText={scriptSourceText}
                     isFetchingScriptVersions={isFetchingScriptVersions}
                     isBindingScriptVersion={bindScriptVersionMutation.isPending}
                     onBindScriptVersion={(scriptVersionId) => bindScriptVersionMutation.mutate(scriptVersionId)}
@@ -1165,13 +1189,12 @@ export default function ProductionOrchestrationPage() {
                     creativeReferences={allCreativeReferences}
                     segments={allSegments}
                     sceneMoments={allSceneMoments}
+                    writingExpressions={allWritingExpressions}
+                    scriptBlocks={allScriptBlocks}
+                    selectedMomentId={selectedWritingMomentId}
+                    isBindingSceneMomentScriptBlock={bindSceneMomentScriptBlockMutation.isPending || createAndBindSceneMomentScriptBlockMutation.isPending}
                     lookup={lookup}
-                    expandedIds={expandedIds}
-                    onToggleExpand={toggleExpand}
-                    onExpandAll={expandAllWorkspaceTree}
-                    onCollapseAll={collapseWorkspaceTree}
                     onEditSegment={(record) => setEditEntry({ type: 'segments', record })}
-                    onEditSceneMoment={(record) => setEditEntry({ type: 'sceneMoments', record })}
                     onCreateSegment={() => {
                       setCreateSegmentId(null)
                       setCreateType('segments')
@@ -1180,6 +1203,21 @@ export default function ProductionOrchestrationPage() {
                       setCreateSegmentId(segmentId)
                       setCreateType('sceneMoments')
                     }}
+                    onSelectSceneMoment={(momentId) => {
+                      setSelectedWritingMomentId(momentId)
+                      setSearchParams((current) => {
+                        const next = new URLSearchParams(current)
+                        next.set('scene_moment_id', String(momentId))
+                        return next
+                      }, { replace: true })
+                    }}
+                    onBindSceneMomentScriptBlock={(momentId, scriptBlockId) => bindSceneMomentScriptBlockMutation.mutate({ momentId, scriptBlockId })}
+                    onCreateAndBindSceneMomentScriptBlock={(momentId, startLine, endLine) => createAndBindSceneMomentScriptBlockMutation.mutate({ momentId, startLine, endLine })}
+                    onSaveSceneMoment={(momentId, payload) => updateSceneMomentMutation.mutate({ momentId, payload })}
+                    onSaveExpressionLine={(target, payload) => updateWritingExpressionMutation.mutate({ target, payload })}
+                    onAddExpressionLine={(momentId, order, scriptBlockId) => createWritingExpressionMutation.mutate({ momentId, order, scriptBlockId })}
+                    isSavingSceneMoment={updateSceneMomentMutation.isPending}
+                    isSavingExpressionLine={updateWritingExpressionMutation.isPending || createWritingExpressionMutation.isPending}
                   />
                 )}
               </div>
@@ -1195,7 +1233,7 @@ export default function ProductionOrchestrationPage() {
           mode="create"
           projectId={projectId}
           config={semanticEntityConfig(createType)}
-          defaults={createDefaultsForType(createType, effectiveProductionId, createSegmentId ?? selectedSegment?.ID, selectedSceneMoment?.ID)}
+          defaults={createDefaultsForType(createType, effectiveProductionId, createSegmentId ?? undefined, undefined)}
           queryKey={queryKey}
           title={`新增${filterDefs.find((f) => f.key === createType)?.label ?? ''}`}
           onOpenChange={(open) => {
@@ -1307,10 +1345,10 @@ function ScriptVersionBindingBar({
       <div className="min-w-0">
         <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
           <ScrollText size={12} />
-          剧本来源
+          制作剧本
         </div>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          绑定制作要使用的稳定剧本版本；当前绑定会显示版本号、ID 和正文快照。
+          制作只选择一份剧本；编排段和情节再分别引用具体剧本块。
         </p>
       </div>
       <div className="flex min-w-[260px] flex-wrap items-center justify-end gap-2">
@@ -1320,7 +1358,7 @@ function ScriptVersionBindingBar({
           disabled={disabled || isFetching || isSaving || scriptVersions.length === 0}
         >
           <SelectTrigger className="h-8 w-[260px] text-xs">
-            <SelectValue placeholder={isFetching ? '读取剧本版本...' : '选择剧本版本'} />
+            <SelectValue placeholder={isFetching ? '读取剧本...' : '选择剧本'} />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none__">不绑定剧本</SelectItem>
@@ -1345,25 +1383,26 @@ function ScriptVersionBindingBar({
   )
 }
 
-function ScriptVersionContentPreview({ scriptVersion, scriptText }: { scriptVersion: ScriptVersion | null; scriptText: string }) {
+function ProductionScriptSourceSummary({ scriptVersion, scriptText }: { scriptVersion: ScriptVersion | null; scriptText: string }) {
   if (!scriptVersion) {
     return (
       <div className="mt-3 rounded-md border border-dashed border-border bg-muted/10 px-3 py-3">
         <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
           <ScrollText size={12} />
-          未绑定剧本版本
+          未选择制作剧本
         </div>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">绑定后这里会显示该版本的正文快照，创作编排会基于这份锁定文本展开。</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">选择后，编排段和情节可以继续绑定到这份剧本下的具体剧本块。</p>
       </div>
     )
   }
+  const scriptLength = scriptText.length
   return (
     <div className="mt-3 rounded-md border border-border bg-muted/10 px-3 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
             <ScrollText size={12} />
-            绑定剧本正文
+            制作绑定剧本
           </div>
           <p className="mt-1 truncate text-xs font-medium text-foreground">{scriptVersionOptionLabel(scriptVersion)}</p>
         </div>
@@ -1371,25 +1410,395 @@ function ScriptVersionContentPreview({ scriptVersion, scriptText }: { scriptVers
           {formatVersionUpdatedAt(scriptVersion.UpdatedAt)}
         </span>
       </div>
-      {scriptText ? (
-        <div className="mt-3 max-h-44 overflow-y-auto rounded border border-border bg-background px-3 py-2">
-          <p className="whitespace-pre-wrap text-xs leading-5 text-foreground">{scriptText}</p>
-        </div>
-      ) : (
-        <p className="mt-3 rounded border border-dashed border-border bg-background px-3 py-2 text-xs text-muted-foreground">
-          这个版本没有正文内容，请回到剧本页重新快照正文。
-        </p>
-      )}
+      <p className="mt-2 text-xs leading-5 text-muted-foreground">
+        {scriptLength > 0 ? `这份剧本已作为制作级来源，约 ${scriptLength} 字。中部情节编辑区会从这里选择剧本块。` : '当前剧本没有正文内容，请回到剧本页补充正文。'}
+      </p>
     </div>
   )
 }
 
+function SceneMomentScriptBlockBinder({
+  selectedMoment,
+  momentBlock,
+  scriptBlocks,
+  scriptSourceText,
+  isSaving,
+  onBindMomentScriptBlock,
+  onCreateAndBindMomentScriptBlock,
+}: {
+  selectedMoment: SceneMomentRecord | null
+  momentBlock: ScriptBlockRecord | null
+  scriptBlocks: ScriptBlockRecord[]
+  scriptSourceText: string
+  isSaving: boolean
+  onBindMomentScriptBlock: (momentId: number, scriptBlockId: number | null) => void
+  onCreateAndBindMomentScriptBlock: (momentId: number, startLine: number, endLine: number) => void
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="rounded-md border border-border bg-muted/10 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+            <ScrollText size={12} />
+            绑定剧本块
+          </div>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">先选当前情节对应的主剧本块；弹窗里可以查看上下文并扩选范围。</p>
+        </div>
+        {isSaving ? <Loader2 size={14} className="animate-spin text-muted-foreground" /> : null}
+      </div>
+      <div className="mt-3 rounded-md border border-border bg-background p-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-foreground">{momentBlock ? scriptBlockSelectLabel(momentBlock) : '未绑定剧本块'}</p>
+            <p className={cn('mt-1 text-xs leading-5', momentBlock ? 'line-clamp-3 text-foreground' : 'text-muted-foreground')}>
+              {momentBlock ? firstText(momentBlock.content, momentBlock.summary, momentBlock.title, `剧本块 #${momentBlock.ID}`) : '选择剧本块后，下面的情节说明和表达条目会有明确文本来源。'}
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            {momentBlock && selectedMoment && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                disabled={isSaving}
+                onClick={() => onBindMomentScriptBlock(selectedMoment.ID, null)}
+              >
+                取消绑定
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1.5 px-2 text-xs"
+              disabled={!selectedMoment || isSaving}
+              onClick={() => setOpen(true)}
+            >
+              <ScrollText size={12} />
+              选择剧本块
+            </Button>
+          </div>
+        </div>
+      </div>
+      <ScriptBlockPickerDialog
+        open={open}
+        onOpenChange={setOpen}
+        selectedMoment={selectedMoment}
+        selectedBlock={momentBlock}
+        scriptBlocks={scriptBlocks}
+        scriptSourceText={scriptSourceText}
+        isSaving={isSaving}
+        onBindMomentScriptBlock={onBindMomentScriptBlock}
+        onCreateAndBindMomentScriptBlock={onCreateAndBindMomentScriptBlock}
+      />
+    </div>
+  )
+}
+
+function ScriptBlockPickerDialog({
+  open,
+  onOpenChange,
+  selectedMoment,
+  selectedBlock,
+  scriptBlocks,
+  scriptSourceText,
+  isSaving,
+  onBindMomentScriptBlock,
+  onCreateAndBindMomentScriptBlock,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  selectedMoment: SceneMomentRecord | null
+  selectedBlock: ScriptBlockRecord | null
+  scriptBlocks: ScriptBlockRecord[]
+  scriptSourceText: string
+  isSaving: boolean
+  onBindMomentScriptBlock: (momentId: number, scriptBlockId: number | null) => void
+  onCreateAndBindMomentScriptBlock: (momentId: number, startLine: number, endLine: number) => void
+}) {
+  const initialIndex = Math.max(0, scriptBlocks.findIndex((block) => block.ID === selectedBlock?.ID))
+  const [activeIndex, setActiveIndex] = useState(initialIndex)
+  const [rangeStart, setRangeStart] = useState(initialIndex)
+  const [rangeEnd, setRangeEnd] = useState(initialIndex)
+  const scriptLines = useMemo(() => scriptLineEntries(scriptSourceText), [scriptSourceText])
+  const [createStartLine, setCreateStartLine] = useState<number | null>(null)
+  const [createEndLine, setCreateEndLine] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const nextIndex = Math.max(0, scriptBlocks.findIndex((block) => block.ID === selectedBlock?.ID))
+    setActiveIndex(nextIndex)
+    setRangeStart(nextIndex)
+    setRangeEnd(nextIndex)
+    setCreateStartLine(null)
+    setCreateEndLine(null)
+  }, [open, scriptBlocks, selectedBlock?.ID])
+
+  const activeBlock = scriptBlocks[activeIndex] ?? null
+  const previewBlocks = scriptBlocks.slice(Math.min(rangeStart, rangeEnd), Math.max(rangeStart, rangeEnd) + 1)
+  const createRangeStart = Math.min(createStartLine ?? 0, createEndLine ?? createStartLine ?? 0)
+  const createRangeEnd = Math.max(createStartLine ?? 0, createEndLine ?? createStartLine ?? 0)
+  const selectedCreateLines = createStartLine ? scriptLines.filter((line) => line.number >= createRangeStart && line.number <= createRangeEnd) : []
+  const selectedCreateText = selectedCreateLines.map((line) => line.content).join('\n')
+
+  function chooseBlock(index: number) {
+    setActiveIndex(index)
+    setRangeStart(index)
+    setRangeEnd(index)
+  }
+
+  function confirmSelection() {
+    if (!selectedMoment || !activeBlock) return
+    onBindMomentScriptBlock(selectedMoment.ID, activeBlock.ID)
+    onOpenChange(false)
+  }
+
+  function chooseScriptLine(lineNumber: number) {
+    if (!createStartLine || (createStartLine && createEndLine)) {
+      setCreateStartLine(lineNumber)
+      setCreateEndLine(null)
+      return
+    }
+    setCreateEndLine(lineNumber)
+  }
+
+  function confirmCreateSelection() {
+    if (!selectedMoment || !createStartLine) return
+    onCreateAndBindMomentScriptBlock(selectedMoment.ID, createRangeStart, createRangeEnd)
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => !isSaving && onOpenChange(nextOpen)}>
+      <DialogContent className="flex max-h-[88vh] w-[min(960px,calc(100vw-32px))] flex-col overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b border-border px-5 py-4">
+          <DialogTitle>选择剧本块</DialogTitle>
+          <DialogDescription>
+            选择一个主剧本块绑定到当前情节；扩选只用于查看连续上下文，不会改变主绑定。
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid min-h-0 flex-1 gap-0 overflow-hidden lg:grid-cols-[300px_minmax(0,1fr)]">
+          <div className="min-h-0 overflow-auto border-b border-border p-3 lg:border-b-0 lg:border-r">
+            <div className="space-y-2">
+              {scriptBlocks.length === 0 ? (
+                <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-4 text-xs text-muted-foreground">
+                  当前还没有已创建的剧本块，可以在右侧从剧本正文直接创建。
+                </div>
+              ) : scriptBlocks.map((block, index) => {
+                const active = index === activeIndex
+                return (
+                  <button
+                    key={block.ID}
+                    type="button"
+                    className={cn(
+                      'w-full rounded-md border px-3 py-2 text-left transition-colors',
+                      active ? 'border-primary bg-primary/5' : 'border-border bg-background hover:border-primary/50 hover:bg-primary/5',
+                    )}
+                    onClick={() => chooseBlock(index)}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-xs font-semibold text-foreground">{scriptBlockLineLabel(block)}</span>
+                      {selectedBlock?.ID === block.ID && <Badge variant="secondary" className="h-5 rounded-full px-1.5 text-[10px]">已绑定</Badge>}
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
+                      {firstText(block.content, block.summary, block.title, `剧本块 #${block.ID}`)}
+                    </p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <div className="min-h-0 overflow-auto p-4">
+            <div className="mb-4 rounded-md border border-border bg-muted/10 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+                    <Plus size={12} />
+                    从剧本创建
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">点击剧本行选择起点，再点击另一行扩成范围；创建后会立即绑定到当前情节。</p>
+                </div>
+                <Button
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs"
+                  disabled={!selectedMoment || !createStartLine || !selectedCreateText.trim() || isSaving}
+                  onClick={confirmCreateSelection}
+                >
+                  {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                  创建并绑定
+                </Button>
+              </div>
+              {scriptLines.length === 0 ? (
+                <div className="mt-3 rounded-md border border-dashed border-border bg-background px-3 py-4 text-xs leading-5 text-muted-foreground">
+                  当前制作剧本没有正文，暂时无法创建剧本块。
+                </div>
+              ) : (
+                <>
+                  <div className="mt-3 max-h-48 space-y-1 overflow-auto rounded-md border border-border bg-background p-2">
+                    {scriptLines.map((line) => {
+                      const selected = createStartLine ? line.number >= createRangeStart && line.number <= createRangeEnd : false
+                      const anchor = line.number === createStartLine || line.number === createEndLine
+                      return (
+                        <button
+                          key={`script-create-line-${line.number}`}
+                          type="button"
+                          className={cn(
+                            'grid w-full grid-cols-[44px_minmax(0,1fr)] gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors',
+                            selected ? 'bg-primary/10 text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                            anchor ? 'ring-1 ring-primary/40' : '',
+                          )}
+                          onClick={() => chooseScriptLine(line.number)}
+                        >
+                          <span className="text-[11px] tabular-nums text-muted-foreground">{line.number}</span>
+                          <span className={cn('whitespace-pre-wrap leading-5', !line.content.trim() && 'text-muted-foreground/60')}>{line.content || ' '}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="mt-2 rounded-md border border-dashed border-border bg-background px-3 py-2">
+                    <p className="text-[11px] font-medium text-muted-foreground">
+                      {createStartLine ? `待创建：行 ${createRangeStart}-${createRangeEnd}` : '尚未选择剧本行'}
+                    </p>
+                    {selectedCreateText.trim() && (
+                      <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-foreground">{selectedCreateText}</p>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold text-foreground">{activeBlock ? scriptBlockSelectLabel(activeBlock) : '未选择剧本块'}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">当前主绑定：{activeBlock ? scriptBlockLineLabel(activeBlock) : '无'}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  disabled={rangeStart <= 0}
+                  onClick={() => setRangeStart((value) => Math.max(0, value - 1))}
+                >
+                  扩选上文
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  disabled={rangeEnd >= scriptBlocks.length - 1}
+                  onClick={() => setRangeEnd((value) => Math.min(scriptBlocks.length - 1, value + 1))}
+                >
+                  扩选下文
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs"
+                  disabled={!activeBlock}
+                  onClick={() => {
+                    setRangeStart(activeIndex)
+                    setRangeEnd(activeIndex)
+                  }}
+                >
+                  收起范围
+                </Button>
+              </div>
+            </div>
+            <div className="mt-3 space-y-2">
+              {scriptBlocks.length === 0 ? (
+                <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-6 text-sm leading-6 text-muted-foreground">
+                  当前还没有可绑定的剧本块。可以先在上方从剧本正文选择行，创建后会自动绑定到当前情节。
+                </div>
+              ) : previewBlocks.map((block) => (
+                <article
+                  key={`script-preview-${block.ID}`}
+                  className={cn('rounded-md border p-3', block.ID === activeBlock?.ID ? 'border-primary bg-primary/5' : 'border-border bg-background')}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={block.ID === activeBlock?.ID ? 'secondary' : 'outline'} className="h-5 rounded-full px-1.5 text-[10px]">
+                      {block.ID === activeBlock?.ID ? '主剧本块' : '扩选上下文'}
+                    </Badge>
+                    <span className="text-[11px] font-medium text-muted-foreground">{scriptBlockLineLabel(block)}</span>
+                    {block.speaker && <span className="text-[11px] text-muted-foreground">{String(block.speaker)}</span>}
+                  </div>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">
+                    {firstText(block.content, block.summary, block.title, `剧本块 #${block.ID}`)}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+        <DialogFooter className="shrink-0 border-t border-border px-5 py-3">
+          <Button size="sm" variant="outline" className="h-8 text-xs" disabled={isSaving} onClick={() => onOpenChange(false)}>
+            取消
+          </Button>
+          <Button size="sm" className="h-8 gap-1.5 text-xs" disabled={!selectedMoment || !activeBlock || isSaving} onClick={confirmSelection}>
+            {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+            绑定主剧本块
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function scriptVersionOptionLabel(version: ScriptVersion) {
-  return `v${version.version_number || version.ID} · ${version.title || `剧本版本 #${version.ID}`} · ID ${version.ID}`
+  return version.title || `剧本 #${version.ID}`
 }
 
 function scriptVersionContextLabel(version: ScriptVersion) {
-  return `v${version.version_number || version.ID} · ${version.title || `#${version.ID}`}`
+  return version.title || `剧本 #${version.ID}`
+}
+
+type ScriptLineEntry = {
+  number: number
+  content: string
+}
+
+function scriptSourceTextForVersion(version: ScriptVersion | null) {
+  if (!version) return ''
+  return normalizeScriptSourceText(version.content || version.raw_source || '')
+}
+
+function normalizeScriptSourceText(text: string) {
+  return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+}
+
+function scriptLineEntries(scriptSourceText: string): ScriptLineEntry[] {
+  const lines = normalizeScriptSourceText(scriptSourceText).split('\n')
+  if (lines.length === 1 && lines[0] === '') return []
+  return lines.map((content, index) => ({ number: index + 1, content }))
+}
+
+function scriptBlockContentFromLines(scriptSourceText: string, startLine: number, endLine: number) {
+  return scriptLineEntries(scriptSourceText)
+    .filter((line) => line.number >= startLine && line.number <= endLine)
+    .map((line) => line.content)
+    .join('\n')
+}
+
+function inferScriptBlockKind(text: string) {
+  const firstLine = text.trim().split(/\r?\n/)[0]?.trim() ?? ''
+  const speakerMatch = firstLine.match(/^([^：:]{1,24})[：:]\s*(.+)$/)
+  if (speakerMatch) return { kind: 'dialogue', speaker: speakerMatch[1].trim() }
+  if (/^(INT\.|EXT\.|内景|外景|场景|第.+场)/i.test(firstLine)) return { kind: 'scene_heading', speaker: '' }
+  return { kind: 'action', speaker: '' }
+}
+
+function scriptBlockLineLabel(block: ScriptBlockRecord) {
+  const startLine = Number(block.start_line)
+  const endLine = Number(block.end_line)
+  if (Number.isFinite(startLine) && startLine > 0 && Number.isFinite(endLine) && endLine > 0) return `行 ${startLine}-${endLine}`
+  if (Number.isFinite(startLine) && startLine > 0) return `行 ${startLine}`
+  return `剧本块 #${block.ID}`
+}
+
+function scriptBlockSelectLabel(block: ScriptBlockRecord) {
+  const source = scriptBlockLineLabel(block)
+  const text = summarizeText(firstText(block.content, block.summary, block.title), 18)
+  const speaker = firstText(block.speaker)
+  return [source, speaker, text].filter(Boolean).join(' · ')
 }
 
 function formatVersionUpdatedAt(value?: string) {
@@ -1405,6 +1814,7 @@ function ProductionOrchestrationWorkspace({
   selectedScriptVersion,
   scriptVersions,
   scriptText,
+  scriptSourceText,
   isFetchingScriptVersions,
   isBindingScriptVersion,
   onBindScriptVersion,
@@ -1412,21 +1822,29 @@ function ProductionOrchestrationWorkspace({
   creativeReferences,
   segments,
   sceneMoments,
+  writingExpressions,
+  scriptBlocks,
+  selectedMomentId,
+  isBindingSceneMomentScriptBlock,
   lookup,
-  expandedIds,
-  onToggleExpand,
-  onExpandAll,
-  onCollapseAll,
   onEditSegment,
-  onEditSceneMoment,
   onCreateSegment,
   onCreateSceneMoment,
+  onSelectSceneMoment,
+  onBindSceneMomentScriptBlock,
+  onCreateAndBindSceneMomentScriptBlock,
+  onSaveSceneMoment,
+  onSaveExpressionLine,
+  onAddExpressionLine,
+  isSavingSceneMoment,
+  isSavingExpressionLine,
 }: {
   projectName: string
   selectedProduction: (SemanticEntityRecord & { name?: string; status?: string }) | null
   selectedScriptVersion: ScriptVersion | null
   scriptVersions: ScriptVersion[]
   scriptText: string
+  scriptSourceText: string
   isFetchingScriptVersions: boolean
   isBindingScriptVersion: boolean
   onBindScriptVersion: (scriptVersionId: number | null) => void
@@ -1434,31 +1852,57 @@ function ProductionOrchestrationWorkspace({
   creativeReferences: CreativeReferenceRecord[]
   segments: SegmentRecord[]
   sceneMoments: SceneMomentRecord[]
+  writingExpressions: WritingExpressionRecord[]
+  scriptBlocks: ScriptBlockRecord[]
+  selectedMomentId: number | null
+  isBindingSceneMomentScriptBlock: boolean
   lookup: OrchestrationLookup
-  expandedIds: Set<string>
-  onToggleExpand: (id: string) => void
-  onExpandAll: () => void
-  onCollapseAll: () => void
   onEditSegment: (record: SemanticEntityRecord) => void
-  onEditSceneMoment: (record: SemanticEntityRecord) => void
   onCreateSegment: () => void
   onCreateSceneMoment: (segmentId: number) => void
+  onSelectSceneMoment: (momentId: number) => void
+  onBindSceneMomentScriptBlock: (momentId: number, scriptBlockId: number | null) => void
+  onCreateAndBindSceneMomentScriptBlock: (momentId: number, startLine: number, endLine: number) => void
+  onSaveSceneMoment: (momentId: number, payload: SemanticEntityPayload) => void
+  onSaveExpressionLine: (target: WritingExpressionEditTarget, payload: WritingExpressionSavePayload) => void
+  onAddExpressionLine: (momentId: number, order: number, scriptBlockId?: number | null) => void
+  isSavingSceneMoment: boolean
+  isSavingExpressionLine: boolean
 }) {
   const productionLabel = selectedProduction ? String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`) : '未选择制作'
-  const treeNodeCount = creativeReferences.length + segments.length + sceneMoments.length
+  const selectedMoment = selectedMomentId ? sceneMoments.find((moment) => moment.ID === selectedMomentId) ?? null : sceneMoments[0] ?? null
+  const selectedSegment = selectedMoment?.segment_id ? segments.find((segment) => segment.ID === Number(selectedMoment.segment_id)) ?? null : segments[0] ?? null
+  const selectedMomentScriptBlock = selectedMoment?.script_block_id ? scriptBlocks.find((block) => block.ID === Number(selectedMoment.script_block_id)) ?? null : null
+  const selectedMomentContentUnits = selectedMoment ? lookup.contentUnitById ? Array.from(lookup.contentUnitById.values()).filter((unit) => Number(unit.scene_moment_id) === selectedMoment.ID) : [] : []
+  const selectedMomentExpressions = selectedMoment ? writingExpressions.filter((item) => Number(item.scene_moment_id) === selectedMoment.ID) : []
+  const expressionLines = buildWritingExpressionLines(selectedMoment, selectedMomentScriptBlock, selectedMomentContentUnits, selectedMomentExpressions)
+  const speakerOptions = buildSpeakerOptions(selectedMoment, creativeReferences, lookup)
+  const selectedSegmentMoments = selectedSegment ? sceneMoments.filter((moment) => Number(moment.segment_id) === selectedSegment.ID) : []
+  const selectedSegmentLineCount = selectedSegmentMoments.reduce((sum, moment) => {
+    const block = moment.script_block_id ? scriptBlocks.find((item) => item.ID === Number(moment.script_block_id)) ?? null : null
+    const units = Array.from(lookup.contentUnitById.values()).filter((unit) => Number(unit.scene_moment_id) === moment.ID)
+    const expressions = writingExpressions.filter((item) => Number(item.scene_moment_id) === moment.ID)
+    return sum + buildWritingExpressionLines(moment, block, units, expressions).length
+  }, 0)
+  const writingProgressLabel = expressionLines.length === 0 ? '待补表达' : `${expressionLines.length} 条表达`
   return (
-    <div className="flex w-full flex-col gap-4 p-4">
-      <section className="rounded-lg bg-background p-4">
+    <div className="min-h-full space-y-3 p-4">
+      <section className="rounded-lg border border-border bg-background p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
-              <GitBranch size={12} />
-              制作边界
+              <Boxes size={12} />
+              制作信息
             </div>
-            <h1 className="mt-1 text-lg font-semibold text-foreground">创作蓝图</h1>
+            <h1 className="mt-1 text-lg font-semibold text-foreground">{productionLabel}</h1>
             <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
-              先把作品想表达的情绪、关系和关键画面讲清楚，再把它们拆成情节、设定资料引用和素材缺口。
+              制作在这里绑定剧本；情节编辑时再从这份剧本里选择具体剧本块。
             </p>
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Badge variant="outline" className="h-7 rounded-full px-2 text-xs">{segments.length} 编排段</Badge>
+            <Badge variant="outline" className="h-7 rounded-full px-2 text-xs">{sceneMoments.length} 情节</Badge>
+            <Badge variant="outline" className="h-7 rounded-full px-2 text-xs">{writingProgressLabel}</Badge>
           </div>
         </div>
         <ScriptVersionBindingBar
@@ -1469,338 +1913,904 @@ function ProductionOrchestrationWorkspace({
           disabled={!selectedProduction}
           onChange={onBindScriptVersion}
         />
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-4 grid gap-2 sm:grid-cols-4">
           <ContextLine icon={Layers3} label="项目" value={projectName} />
-          <ContextLine icon={Route} label="制作" value={productionLabel} />
-          <ContextLine icon={ScrollText} label="剧本版本" value={selectedScriptVersion ? scriptVersionContextLabel(selectedScriptVersion) : '未绑定'} />
-          <ContextLine icon={Eye} label="文本" value={`${scriptText.length} 字`} />
+          <ContextLine icon={ScrollText} label="制作剧本" value={selectedScriptVersion ? selectedScriptVersion.title || `剧本 #${selectedScriptVersion.ID}` : '未绑定'} />
+          <ContextLine icon={FileText} label="可选剧本块" value={`${scriptBlocks.length} 个`} />
+          <ContextLine icon={Target} label="下一步" value={overview.nextStep[0] ?? '继续写作'} />
         </div>
-        <ScriptVersionContentPreview scriptVersion={selectedScriptVersion} scriptText={scriptText} />
-        <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
-          {overview.position.map((item, index) => (
-            <span key={`${item}-${index}`} className="rounded-full border border-border bg-muted/40 px-2 py-0.5">{item}</span>
-          ))}
+        <ProductionScriptSourceSummary scriptVersion={selectedScriptVersion} scriptText={scriptText} />
+      </section>
+
+      <div className="grid min-h-0 grid-cols-1 gap-3 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <aside className="min-h-0 overflow-hidden rounded-lg border border-border bg-background lg:sticky lg:top-[76px] lg:self-start">
+        <div className="border-b border-border bg-muted/30 px-3 py-3">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">编排段列表</h2>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">按顺序查看编排段，并选择要编辑的情节。</p>
+            </div>
+            <Button size="sm" variant="outline" className="h-7 px-2 text-xs" aria-label="新增编排段" onClick={onCreateSegment}>
+              <Plus size={12} />
+            </Button>
+          </div>
         </div>
+        <div className="max-h-none overflow-visible p-2 lg:max-h-[calc(100vh-190px)] lg:overflow-auto">
+          {segments.length === 0 ? (
+            <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-4 text-xs leading-5 text-muted-foreground">
+              还没有编排段。先添加一个铺垫、发现、反转或释放段，再把情节放进去。
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {segments.map((segment, index) => {
+                const moments = sceneMoments.filter((moment) => Number(moment.segment_id) === segment.ID)
+                const active = selectedSegment?.ID === segment.ID
+                return (
+                  <section key={segment.ID} className="overflow-hidden rounded-md border border-border bg-background">
+                    <div className={cn('border-b border-border px-3 py-2.5', active ? 'bg-emerald-50/70 dark:bg-emerald-950/20' : 'bg-muted/20')}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="rounded bg-foreground px-1.5 py-0.5 text-[10px] font-semibold text-background">{String(index + 1).padStart(2, '0')}</span>
+                            <span className={cn('rounded-full px-1.5 py-0.5 text-[10px]', statusTone[String(segment.status ?? '')] ?? 'bg-muted text-muted-foreground')}>
+                              {statusLabel[String(segment.status ?? '')] ?? String(segment.status ?? '草稿')}
+                            </span>
+                          </div>
+                          <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-5 text-foreground">{titleOfRecord(segment)}</h3>
+                          <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{String(segment.summary ?? segment.content ?? '这一段还没有说明情绪功能。')}</p>
+                        </div>
+                        <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" aria-label={`编辑编排段 ${titleOfRecord(segment)}`} onClick={() => onEditSegment(segment)}>
+                          <Pencil size={11} />
+                        </Button>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <Badge variant="outline" className="h-5 rounded-full px-1.5 text-[10px]">{moments.length} 情节</Badge>
+                        <Badge variant="outline" className="h-5 rounded-full px-1.5 text-[10px]">{segmentKindLabel[String(segment.kind ?? '')] ?? '编排段'}</Badge>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5 p-2">
+                      {moments.length === 0 ? (
+                        <button
+                          type="button"
+                          className="w-full rounded border border-dashed border-border bg-muted/10 px-2 py-3 text-left text-[11px] leading-4 text-muted-foreground hover:border-primary/50 hover:bg-primary/5"
+                          onClick={() => onCreateSceneMoment(segment.ID)}
+                        >
+                          这个编排段还没有情节，点击添加。
+                        </button>
+                      ) : moments.map((moment) => {
+                        const momentActive = selectedMoment?.ID === moment.ID
+                        const lines = buildWritingExpressionLines(
+                          moment,
+                          moment.script_block_id ? scriptBlocks.find((block) => block.ID === Number(moment.script_block_id)) ?? null : null,
+                          Array.from(lookup.contentUnitById.values()).filter((unit) => Number(unit.scene_moment_id) === moment.ID),
+                          writingExpressions.filter((item) => Number(item.scene_moment_id) === moment.ID),
+                        )
+                        return (
+                          <button
+                            key={moment.ID}
+                            type="button"
+                            className={cn(
+                              'w-full rounded-md border px-2.5 py-2 text-left transition-colors',
+                              momentActive ? 'border-primary bg-primary/5' : 'border-border bg-background hover:border-primary/50 hover:bg-primary/5',
+                            )}
+                            onClick={() => onSelectSceneMoment(moment.ID)}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="truncate text-xs font-semibold text-foreground">{titleOfRecord(moment)}</p>
+                                <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{moment.action_text || moment.description || '还没有写具体发生什么。'}</p>
+                              </div>
+                              <Badge variant={lines.length === 0 ? 'warning' : 'outline'} className="h-5 rounded-full px-1.5 text-[10px]">{lines.length} 条</Badge>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </section>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </aside>
+
+      <div className="min-w-0 space-y-3">
+        <section className="rounded-lg border border-border bg-background p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+                <Route size={12} />
+                当前编排段
+              </div>
+              <h2 className="mt-1 text-sm font-semibold text-foreground">{selectedSegment ? titleOfRecord(selectedSegment) : '未选择编排段'}</h2>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                {selectedSegment ? String(selectedSegment.summary ?? selectedSegment.content ?? '这一段还没有说明编排功能。') : '选择情节后，这里会显示它所属编排段的节奏任务。'}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Badge variant="outline" className="h-6 rounded-full px-2 text-[10px]">{selectedSegmentMoments.length} 个情节 · {selectedSegmentLineCount} 条表达</Badge>
+              {selectedSegment && (
+                <Button size="sm" className="h-7 gap-1.5 text-xs" onClick={() => onCreateSceneMoment(selectedSegment.ID)}>
+                  <Plus size={12} />
+                  添加情节
+                </Button>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-border bg-background p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+              <GitBranch size={12} />
+              情节编辑
+            </div>
+            <h1 className="mt-1 text-lg font-semibold text-foreground">{selectedMoment ? titleOfRecord(selectedMoment) : '选择一个情节开始写'}</h1>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
+              情节负责具体发生什么；先绑定剧本块，再写对白、动作、旁白、字幕、沉默和画面信息。
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <ContextLine icon={Route} label="所属编排段" value={selectedSegment ? titleOfRecord(selectedSegment) : '未选择'} />
+          <ContextLine icon={Target} label="戏剧任务" value={selectedMoment?.description || selectedMoment?.action_text || selectedSegment?.summary || '待补'} />
+          <ContextLine icon={ScrollText} label="表达数量" value={writingProgressLabel} />
+        </div>
+        <InlineSceneMomentEditor
+          moment={selectedMoment}
+          momentBlock={selectedMomentScriptBlock}
+          scriptBlocks={scriptBlocks}
+          scriptSourceText={scriptSourceText}
+          isSaving={isSavingSceneMoment}
+          isBindingScriptBlock={isBindingSceneMomentScriptBlock}
+          onSave={onSaveSceneMoment}
+          onBindMomentScriptBlock={onBindSceneMomentScriptBlock}
+          onCreateAndBindMomentScriptBlock={onCreateAndBindSceneMomentScriptBlock}
+        />
       </section>
 
       <section className="rounded-lg border border-border bg-background p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
-              <Route size={12} />
-              创作编排
+              <ScrollText size={12} />
+              表达条目
             </div>
-            <h2 className="mt-1 text-sm font-semibold text-foreground">情绪流与关键情节</h2>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              按情绪变化从左到右排列，每段下面承载它要表达的情节；展开后查看支撑它的设定资料和素材线索。
-            </p>
+            <h2 className="mt-1 text-sm font-semibold text-foreground">对白、动作、沉默、旁白和画面信息</h2>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">没有对白的片段也不空白，它可以用动作、字幕、旁白、产品信息或停顿完成表达。</p>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={onExpandAll} disabled={treeNodeCount === 0}>
-              <ChevronDown size={12} />
-              展开全部
-            </Button>
-            <Button size="sm" variant="ghost" className="h-7 gap-1.5 text-xs" onClick={onCollapseAll} disabled={expandedIds.size === 0}>
-              <ChevronRight size={12} />
-              收起全部
-            </Button>
-            <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={onCreateSegment}>
-              <Plus size={12} />
-              新增编排段
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 gap-1.5 text-xs"
+            onClick={() => selectedMoment && onAddExpressionLine(selectedMoment.ID, expressionLines.length + 1, selectedMomentScriptBlock?.ID ?? null)}
+            disabled={!selectedMoment || isSavingExpressionLine}
+          >
+            <Plus size={12} />
+            新增表达
+          </Button>
         </div>
-        <div className="mt-4">
-          {segments.length === 0 ? (
-            <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-4 text-xs text-muted-foreground">
-              当前还没有创作蓝图。先从剧本、设定资料和素材需求生成一版，再在这里继续收敛作品表达。
+        <div className="mt-3 space-y-2">
+          {expressionLines.length === 0 ? (
+            <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-4 text-xs leading-5 text-muted-foreground">
+              当前情节还没有表达条目。可以先写动作、对白、旁白、字幕或沉默点。
             </div>
-          ) : (
-            <div className="overflow-x-auto pb-2">
-              <div className="relative flex min-w-max items-start gap-3 pr-1">
-                <div className="absolute left-0 right-0 top-6 h-px bg-border" />
-                {segments.map((segment, index) => {
-                  const childMoments = sceneMoments.filter((moment) => moment.segment_id === segment.ID)
-                  return (
-                    <EmotionFlowColumn
-                      key={`segment-flow-${segment.ID}`}
-                      index={index}
-                      segment={segment}
-                      moments={childMoments}
-                      lookup={lookup}
-                      expandedIds={expandedIds}
-                      onToggleExpand={onToggleExpand}
-                      onEditSegment={onEditSegment}
-                      onEditSceneMoment={onEditSceneMoment}
-                      onCreateSceneMoment={onCreateSceneMoment}
-                    />
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
-
-    </div>
-  )
-}
-
-function EmotionFlowColumn({
-  index,
-  segment,
-  moments,
-  lookup,
-  expandedIds,
-  onToggleExpand,
-  onEditSegment,
-  onEditSceneMoment,
-  onCreateSceneMoment,
-}: {
-  index: number
-  segment: SegmentRecord
-  moments: SceneMomentRecord[]
-  lookup: OrchestrationLookup
-  expandedIds: Set<string>
-  onToggleExpand: (id: string) => void
-  onEditSegment: (record: SemanticEntityRecord) => void
-  onEditSceneMoment: (record: SemanticEntityRecord) => void
-  onCreateSceneMoment: (segmentId: number) => void
-}) {
-  const segmentId = `segment-${segment.ID}`
-  const expanded = expandedIds.has(segmentId)
-  const segmentReferences = referencesForOwner('segment', segment.ID, lookup)
-  const segmentAssetSlots = lookup.assetSlotsByOwnerKey.get(ownerKey('segment', segment.ID)) ?? []
-
-  return (
-    <div className="relative z-[1] flex w-[300px] shrink-0 flex-col">
-      <div className="mb-2 flex justify-center">
-        <span className="flex h-12 min-w-12 items-center justify-center rounded-full border border-border bg-background px-3 text-xs font-semibold text-foreground shadow-sm">
-          {String(index + 1).padStart(2, '0')}
-        </span>
-      </div>
-
-      <div className="overflow-hidden rounded-md border border-border bg-background">
-        <button
-          type="button"
-          className="block w-full px-3 py-3 text-left"
-          onClick={() => onToggleExpand(segmentId)}
-        >
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
-                  {segmentKindLabel[String(segment.kind ?? '')] ?? String(segment.kind ?? '情绪段')}
-                </span>
-                <span className={cn('rounded-full px-2 py-0.5 text-[10px]', statusTone[String(segment.status ?? '')] ?? 'bg-muted text-muted-foreground')}>
-                  {statusLabel[String(segment.status ?? '')] ?? String(segment.status ?? 'draft')}
-                </span>
-              </div>
-              <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-5 text-foreground">{titleOfRecord(segment)}</h3>
-            </div>
-            <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded border border-border bg-muted/20 text-muted-foreground">
-              {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-            </span>
-          </div>
-          <p className="mt-2 line-clamp-3 text-[11px] leading-4 text-muted-foreground">
-            {String(segment.summary ?? segment.content ?? '暂无摘要')}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
-            <span className="rounded-full bg-muted/40 px-2 py-0.5">{moments.length} 情节</span>
-            <span className="rounded-full bg-muted/40 px-2 py-0.5">{segmentReferences.length} 设定</span>
-            <span className="rounded-full bg-muted/40 px-2 py-0.5">{segmentAssetSlots.length} 素材</span>
-          </div>
-        </button>
-
-        {expanded && (
-          <div className="border-t border-border/60 px-3 py-2">
-            <div className="space-y-2">
-              <TreeMiniLine label="摘要" value={String(segment.summary ?? segment.content ?? '暂无摘要')} />
-              {segment.source_range ? renderScriptExcerpt(lookup.scriptText, String(segment.source_range), segment) : null}
-              <TreeChipRow label="引用设定" items={segmentReferences.map((reference) => titleOfRecord(reference))} />
-              <TreeChipRow label="关联素材" items={segmentAssetSlots.map((slot) => formatAssetSlotLabel(slot, lookup))} />
-            </div>
-          </div>
-        )}
-
-        <div className="flex items-center justify-between gap-2 border-t border-border/60 bg-muted/20 px-3 py-2">
-          <span className="text-[11px] font-medium text-muted-foreground">情节</span>
-          <div className="flex items-center gap-1">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-2 text-[10px]"
-              onClick={() => onEditSegment(segment)}
-            >
-              <Pencil size={11} />
-              编辑段
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-6 px-2 text-[10px]"
-              onClick={() => onCreateSceneMoment(segment.ID)}
-            >
-              <Plus size={11} />
-              新增
-            </Button>
-          </div>
-        </div>
-
-        <div className="space-y-2 px-3 py-3">
-          {moments.length === 0 ? (
-            <div className="rounded border border-dashed border-border bg-muted/10 px-2 py-3 text-[11px] leading-4 text-muted-foreground">
-              这个情绪段下还没有情节。
-            </div>
-          ) : moments.map((moment) => (
-            <EmotionMomentItem
-              key={`scene-flow-${moment.ID}`}
-              moment={moment}
-              lookup={lookup}
-              expanded={expandedIds.has(`scene-${moment.ID}`)}
-              onToggle={() => onToggleExpand(`scene-${moment.ID}`)}
-              onEdit={() => onEditSceneMoment(moment)}
+          ) : expressionLines.map((line, index) => (
+            <EditableWritingExpressionLine
+              key={`${line.editTarget.kind}-${line.editTarget.id}`}
+              index={index}
+              line={line}
+              speakerOptions={speakerOptions}
+              isSaving={isSavingExpressionLine}
+              onSave={onSaveExpressionLine}
             />
           ))}
         </div>
+      </section>
+      </div>
+
       </div>
     </div>
   )
 }
 
-function EmotionMomentItem({
+function InlineSceneMomentEditor({
   moment,
-  lookup,
-  expanded,
-  onToggle,
-  onEdit,
+  momentBlock,
+  scriptBlocks,
+  scriptSourceText,
+  isSaving,
+  isBindingScriptBlock,
+  onSave,
+  onBindMomentScriptBlock,
+  onCreateAndBindMomentScriptBlock,
 }: {
-  moment: SceneMomentRecord
-  lookup: OrchestrationLookup
-  expanded: boolean
-  onToggle: () => void
-  onEdit: () => void
+  moment: SceneMomentRecord | null
+  momentBlock: ScriptBlockRecord | null
+  scriptBlocks: ScriptBlockRecord[]
+  scriptSourceText: string
+  isSaving: boolean
+  isBindingScriptBlock: boolean
+  onSave: (momentId: number, payload: SemanticEntityPayload) => void
+  onBindMomentScriptBlock: (momentId: number, scriptBlockId: number | null) => void
+  onCreateAndBindMomentScriptBlock: (momentId: number, startLine: number, endLine: number) => void
 }) {
-  const references = referencesForOwner('scene_moment', moment.ID, lookup)
-  const assetSlots = lookup.assetSlotsByOwnerKey.get(ownerKey('scene_moment', moment.ID)) ?? []
-  const detail = [moment.time_text, moment.location_text, moment.action_text].filter(Boolean).join(' · ') || '暂无说明'
+  const [draft, setDraft] = useState({
+    title: '',
+    description: '',
+    action_text: '',
+    mood: '',
+    time_text: '',
+    location_text: '',
+  })
+  useEffect(() => {
+    setDraft({
+      title: firstText(moment?.title),
+      description: firstText(moment?.description),
+      action_text: firstText(moment?.action_text),
+      mood: firstText(moment?.mood),
+      time_text: firstText(moment?.time_text),
+      location_text: firstText(moment?.location_text),
+    })
+  }, [moment?.ID, moment?.action_text, moment?.description, moment?.location_text, moment?.mood, moment?.time_text, moment?.title])
+
+  if (!moment) {
+    return (
+      <div className="mt-3 rounded-md border border-dashed border-border bg-muted/20 px-3 py-4 text-xs leading-5 text-muted-foreground">
+        先从左侧选择一个情节，再编辑具体发生的事。
+      </div>
+    )
+  }
+
+  const original = {
+    title: firstText(moment.title),
+    description: firstText(moment.description),
+    action_text: firstText(moment.action_text),
+    mood: firstText(moment.mood),
+    time_text: firstText(moment.time_text),
+    location_text: firstText(moment.location_text),
+  }
+  const changed = Object.keys(draft).some((key) => draft[key as keyof typeof draft].trim() !== original[key as keyof typeof original].trim())
 
   return (
-    <div className="rounded border border-border bg-background">
-      <button type="button" className="block w-full px-2.5 py-2 text-left" onClick={onToggle}>
-        <div className="flex items-start gap-2">
-          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border bg-muted/20 text-muted-foreground">
-            {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <p className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">{titleOfRecord(moment)}</p>
-              <span className={cn('rounded-full px-1.5 py-0.5 text-[10px]', statusTone[String(moment.status ?? '')] ?? 'bg-muted text-muted-foreground')}>
-                {statusLabel[String(moment.status ?? '')] ?? String(moment.status ?? 'draft')}
-              </span>
-            </div>
-            <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{detail}</p>
-            {moment.mood && (
-              <p className="mt-1 truncate text-[10px] text-muted-foreground">情绪：{moment.mood}</p>
-            )}
-          </div>
-        </div>
-      </button>
+    <div className="mt-3 rounded-md border border-border bg-muted/10 p-3">
+      <SceneMomentScriptBlockBinder
+        selectedMoment={moment}
+        momentBlock={momentBlock}
+        scriptBlocks={scriptBlocks}
+        scriptSourceText={scriptSourceText}
+        isSaving={isBindingScriptBlock}
+        onBindMomentScriptBlock={onBindMomentScriptBlock}
+        onCreateAndBindMomentScriptBlock={onCreateAndBindMomentScriptBlock}
+      />
+      <div className="mt-3 grid gap-2 md:grid-cols-2">
+        <label className="block text-xs text-muted-foreground">
+          情节标题
+          <Textarea
+            value={draft.title}
+            onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))}
+            className="mt-1 min-h-10 resize-none bg-background text-sm"
+            placeholder="这场戏发生了什么"
+          />
+        </label>
+        <label className="block text-xs text-muted-foreground">
+          情绪落点
+          <Textarea
+            value={draft.mood}
+            onChange={(event) => setDraft((prev) => ({ ...prev, mood: event.target.value }))}
+            className="mt-1 min-h-10 resize-none bg-background text-sm"
+            placeholder="紧张、迟疑、释然..."
+          />
+        </label>
+        <label className="block text-xs text-muted-foreground">
+          时间
+          <Textarea
+            value={draft.time_text}
+            onChange={(event) => setDraft((prev) => ({ ...prev, time_text: event.target.value }))}
+            className="mt-1 min-h-10 resize-none bg-background text-sm"
+            placeholder="清晨、夜里、发布会前..."
+          />
+        </label>
+        <label className="block text-xs text-muted-foreground">
+          地点
+          <Textarea
+            value={draft.location_text}
+            onChange={(event) => setDraft((prev) => ({ ...prev, location_text: event.target.value }))}
+            className="mt-1 min-h-10 resize-none bg-background text-sm"
+            placeholder="办公室、车内、展台..."
+          />
+        </label>
+      </div>
+      <label className="mt-2 block text-xs text-muted-foreground">
+        情节说明
+        <Textarea
+          value={draft.description}
+          onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))}
+          className="mt-1 min-h-16 resize-y bg-background text-sm leading-6"
+          placeholder="这段情节承担的推进作用"
+        />
+      </label>
+      <label className="mt-2 block text-xs text-muted-foreground">
+        可见动作
+        <Textarea
+          value={draft.action_text}
+          onChange={(event) => setDraft((prev) => ({ ...prev, action_text: event.target.value }))}
+          className="mt-1 min-h-20 resize-y bg-background text-sm leading-6"
+          placeholder="观众能看到的人物动作、场面变化或信息揭示"
+        />
+      </label>
+      <div className="mt-3 flex justify-end gap-2">
+        {changed && (
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={isSaving} onClick={() => setDraft(original)}>
+            取消
+          </Button>
+        )}
+        <Button
+          size="sm"
+          className="h-7 gap-1.5 px-2 text-xs"
+          disabled={!changed || isSaving}
+          onClick={() => onSave(moment.ID, {
+            title: draft.title.trim(),
+            description: draft.description.trim(),
+            action_text: draft.action_text.trim(),
+            mood: draft.mood.trim(),
+            time_text: draft.time_text.trim(),
+            location_text: draft.location_text.trim(),
+          })}
+        >
+          {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+          保存情节
+        </Button>
+      </div>
+    </div>
+  )
+}
 
-      {expanded && (
-        <div className="space-y-2 border-t border-border/60 px-2.5 py-2">
-          <TreeMiniLine label="时间" value={String(moment.time_text ?? '未填写')} />
-          <TreeMiniLine label="地点" value={String(moment.location_text ?? '未填写')} />
-          <TreeMiniLine label="动作" value={String(moment.action_text ?? '未填写')} />
-          <TreeMiniLine label="情绪" value={String(moment.mood ?? '未填写')} />
-          <TreeChipRow label="引用设定" items={references.map((reference) => titleOfRecord(reference))} />
-          <TreeChipRow label="关联素材" items={assetSlots.map((slot) => formatAssetSlotLabel(slot, lookup))} />
-          <div className="flex justify-end">
-            <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={onEdit}>
-              <Pencil size={11} />
-              编辑情节
+function EditableWritingExpressionLine({
+  index,
+  line,
+  speakerOptions,
+  isSaving,
+  onSave,
+}: {
+  index: number
+  line: WritingExpressionLine
+  speakerOptions: SpeakerOption[]
+  isSaving: boolean
+  onSave: (target: WritingExpressionEditTarget, payload: WritingExpressionSavePayload) => void
+}) {
+  const [draft, setDraft] = useState<WritingExpressionSavePayload>(() => writingExpressionLineDraft(line))
+  useEffect(() => {
+    setDraft(writingExpressionLineDraft(line))
+  }, [line.intent, line.note, line.speaker, line.text, line.type])
+  const original = writingExpressionLineDraft(line)
+  const changed = !writingExpressionDraftEquals(draft, original)
+  const typeLabel = writingTypeLabel(draft.kind)
+  const selectedSpeakerValue = speakerOptionValueForDraft(draft.speaker, speakerOptions)
+  return (
+    <details className="group overflow-hidden rounded-md border border-border bg-card" open={index === 0}>
+      <summary className="flex cursor-pointer list-none items-start gap-3 px-3 py-2.5 marker:hidden">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-muted text-[11px] font-semibold text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge variant="outline" className="h-5 rounded-full px-1.5 text-[10px]">{typeLabel}</Badge>
+            <Badge variant={line.persisted ? 'outline' : 'secondary'} className="h-5 rounded-full px-1.5 text-[10px]">
+              {line.persisted ? '已保存' : '参考转写'}
+            </Badge>
+            {draft.speaker.trim() && <span className="text-[11px] text-muted-foreground">{draft.speaker.trim()}</span>}
+          </div>
+          <p className="mt-1 line-clamp-2 text-sm leading-5 text-foreground">{draft.text || textPlaceholderForWritingType(draft.kind)}</p>
+          {(draft.intent || draft.note) && (
+            <p className="mt-1 line-clamp-1 text-[11px] text-muted-foreground">{[draft.intent, draft.note].filter(Boolean).join(' · ')}</p>
+          )}
+        </div>
+        <ChevronDown size={14} className="mt-2 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="border-t border-border bg-background/70 p-3">
+        <div className="grid gap-3 md:grid-cols-[150px_minmax(0,1fr)_96px]">
+          <div className="min-w-0 space-y-2">
+            <Select value={draft.kind} onValueChange={(value) => setDraft((prev) => ({ ...prev, kind: value as WritingExpressionType }))}>
+              <SelectTrigger className="h-8 w-full text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {writingExpressionTypeOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <label className="block text-[11px] text-muted-foreground">
+              {speakerLabelForWritingType(draft.kind)}
+              <Select
+                value={selectedSpeakerValue}
+                onValueChange={(value) => {
+                  if (value === '__custom__') {
+                    setDraft((prev) => ({ ...prev, speaker: speakerOptions.some((option) => option.name === prev.speaker.trim()) ? '' : prev.speaker }))
+                    return
+                  }
+                  const option = speakerOptions.find((item) => speakerOptionValue(item) === value)
+                  if (option) setDraft((prev) => ({ ...prev, speaker: option.name }))
+                }}
+              >
+                <SelectTrigger className="mt-1 h-8 w-full bg-background text-xs">
+                  <SelectValue placeholder="从设定选择" />
+                </SelectTrigger>
+                <SelectContent>
+                  {speakerOptions.map((option) => (
+                    <SelectItem key={speakerOptionValue(option)} value={speakerOptionValue(option)}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="__custom__">自定义人物 / 群众演员</SelectItem>
+                </SelectContent>
+              </Select>
+              <Textarea
+                value={draft.speaker}
+                onChange={(event) => setDraft((prev) => ({ ...prev, speaker: event.target.value }))}
+                className="mt-1 min-h-10 resize-none bg-background text-xs"
+                placeholder={speakerPlaceholderForWritingType(draft.kind)}
+              />
+            </label>
+          </div>
+          <div className="min-w-0 space-y-2">
+            <Textarea
+              value={draft.text}
+              onChange={(event) => setDraft((prev) => ({ ...prev, text: event.target.value }))}
+              className="min-h-20 resize-y text-sm leading-6"
+              placeholder={textPlaceholderForWritingType(draft.kind)}
+            />
+            <div className="grid gap-2 md:grid-cols-2">
+              <Textarea
+                value={draft.intent}
+                onChange={(event) => setDraft((prev) => ({ ...prev, intent: event.target.value }))}
+                className="min-h-12 resize-y bg-background text-xs leading-5"
+                placeholder={`${typeLabel}的目的`}
+              />
+              <Textarea
+                value={draft.note}
+                onChange={(event) => setDraft((prev) => ({ ...prev, note: event.target.value }))}
+                className="min-h-12 resize-y bg-background text-xs leading-5"
+                placeholder="潜台词 / 表演说明"
+              />
+            </div>
+          </div>
+          <div className="flex items-start justify-end gap-1.5">
+            {changed && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                disabled={isSaving}
+                onClick={() => setDraft(original)}
+              >
+                取消
+              </Button>
+            )}
+            <Button
+              size="sm"
+              className="h-7 px-2 text-xs"
+              disabled={!changed || !draft.text.trim() || isSaving}
+              onClick={() => onSave(line.editTarget, normalizeWritingExpressionDraft(draft))}
+            >
+              {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+              {line.persisted ? '保存' : '转为条目'}
             </Button>
           </div>
         </div>
-      )}
-    </div>
-  )
-}
-
-function ProductionTreeNode({
-  id,
-  level,
-  expanded,
-  onToggle,
-  title,
-  detail,
-  badges,
-  actions,
-  children,
-}: {
-  id: string
-  level: number
-  expanded: boolean
-  onToggle: () => void
-  title: string
-  detail?: string
-  badges: string[]
-  actions?: ReactNode
-  children?: ReactNode
-}) {
-  return (
-    <div className={cn('relative rounded-md border border-border bg-background', level > 0 && 'ml-4 before:absolute before:-left-4 before:top-0 before:h-full before:w-px before:bg-border/60 before:content-[""]')}>
-      <div className="flex items-start gap-2 px-3 py-2">
-        <button
-          type="button"
-          onClick={onToggle}
-          className={cn('flex min-w-0 flex-1 items-start gap-2 text-left', children ? 'cursor-pointer' : 'cursor-default')}
-        >
-          <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground">
-            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <p className="truncate text-xs font-semibold text-foreground">{title}</p>
-              {badges.map((badge) => (
-                <span key={`${id}-${badge}`} className="rounded-full border border-border bg-muted/30 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                  {badge}
-                </span>
-              ))}
-            </div>
-            {detail && <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{detail}</p>}
-          </div>
-        </button>
-        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </div>
-      {expanded && children && <div className="border-t border-border/60 px-3 pt-2">{children}</div>}
-    </div>
+    </details>
   )
 }
 
-function TreeMiniLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded bg-muted/20 px-2 py-1">
-      <p className="text-[10px] text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-[11px] leading-4 text-foreground">{value}</p>
-    </div>
-  )
+type WritingExpressionEditTarget =
+  | { kind: 'writingExpressions'; id: number }
+  | { kind: 'fallback'; id: string; sceneMomentId: number; scriptBlockId?: number | null; order: number }
+
+interface WritingExpressionSavePayload {
+  scene_moment_id?: number
+  script_block_id?: number | null
+  order?: number
+  kind: WritingExpressionType
+  speaker: string
+  text: string
+  note: string
+  intent: string
 }
 
-function TreeChipRow({ label, items }: { label: string; items: string[] }) {
-  if (items.length === 0) return null
-  return (
-    <div>
-      <p className="text-[10px] text-muted-foreground">{label}</p>
-      <div className="mt-1 flex flex-wrap gap-1.5">
-        {items.map((item) => (
-          <span key={item} className="rounded-full border border-border bg-muted/30 px-2 py-0.5 text-[10px] text-muted-foreground">
-            {item}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
+interface WritingExpressionLine {
+  type: WritingExpressionType
+  label: string
+  speaker: string
+  text: string
+  editTarget: WritingExpressionEditTarget
+  note: string
+  intent: string
+  persisted: boolean
+}
+
+interface SpeakerOption {
+  id: number
+  name: string
+  label: string
+  current: boolean
+}
+
+function firstText(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim()
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  }
+  return ''
+}
+
+function summarizeText(value: unknown, limit = 28) {
+  const text = firstText(value).replace(/\s+/g, ' ')
+  return text.length > limit ? `${text.slice(0, limit)}...` : text
+}
+
+function buildWritingExpressionLines(
+  moment: SceneMomentRecord | null | undefined,
+  scriptBlock: ScriptBlockRecord | null | undefined,
+  contentUnits: ContentUnitRecord[],
+  expressions: WritingExpressionRecord[] = [],
+): WritingExpressionLine[] {
+  if (!moment) return []
+  const persisted = expressions.slice().sort(byOrder)
+  if (persisted.length > 0) {
+    return persisted.map((item) => {
+      const type = normalizeWritingExpressionType(item.kind)
+      return {
+        type,
+        label: writingTypeLabel(type),
+        speaker: firstText(item.speaker, defaultSpeakerForWritingType(type)),
+        text: firstText(item.text),
+        editTarget: { kind: 'writingExpressions', id: item.ID },
+        note: firstText(item.note),
+        intent: firstText(item.intent),
+        persisted: true,
+      }
+    })
+  }
+  const lines: WritingExpressionLine[] = []
+  let order = 1
+  const actionText = firstText(moment.action_text, moment.description)
+  if (actionText) {
+    lines.push({
+      type: 'action',
+      label: '动作',
+      speaker: '场面',
+      text: actionText,
+      editTarget: {
+        kind: 'fallback',
+        id: `moment-action-${moment.ID}`,
+        sceneMomentId: moment.ID,
+        scriptBlockId: moment.script_block_id ?? null,
+        order: order++,
+      },
+      note: firstText(moment.condition_text, moment.location_text, '先让观众看清发生了什么。'),
+      intent: '交代事件',
+      persisted: false,
+    })
+  }
+  if (moment.mood) {
+    lines.push({
+      type: 'silence',
+      label: '情绪',
+      speaker: titleOfRecord(moment),
+      text: `情绪：${moment.mood}`,
+      editTarget: { kind: 'fallback', id: `moment-mood-${moment.ID}`, sceneMomentId: moment.ID, scriptBlockId: moment.script_block_id ?? null, order: order++ },
+      note: '这不是台词，而是写给表演和节奏的停顿提醒。',
+      intent: '情绪转折',
+      persisted: false,
+    })
+  }
+  if (scriptBlock) {
+    const type = writingTypeFromScriptBlock(scriptBlock)
+    const content = firstText(scriptBlock.content, scriptBlock.summary, scriptBlock.title)
+    if (content) {
+      lines.push({
+        type,
+        label: writingTypeLabel(type),
+        speaker: firstText(scriptBlock.speaker, type === 'dialogue' ? '未指定说话人' : writingTypeLabel(type)),
+        text: content,
+        editTarget: {
+          kind: 'fallback',
+          id: `script-block-${scriptBlock.ID}`,
+          sceneMomentId: moment.ID,
+          scriptBlockId: scriptBlock.ID,
+          order: order++,
+        },
+        note: scriptBlock.kind === 'dialogue' ? '检查这句话是否符合人物此刻的克制程度。' : '来自当前剧本稿，可在这里判断是否需要改写。',
+        intent: scriptBlock.kind === 'dialogue' ? '人物表达' : '剧本表达',
+        persisted: false,
+      })
+    }
+  }
+  for (const unit of contentUnits.slice().sort(byOrder)) {
+    const type = writingTypeFromContentUnit(unit)
+    const text = firstText(unit.description, unit.prompt, unit.title)
+    if (!text) continue
+    lines.push({
+      type,
+      label: writingTypeLabel(type),
+      speaker: type === 'narration' ? '旁白' : type === 'subtitle' ? '字幕' : type === 'visual' ? '画面' : '场面',
+      text,
+      editTarget: {
+        kind: 'fallback',
+        id: `content-unit-${unit.ID}`,
+        sceneMomentId: moment.ID,
+        scriptBlockId: unit.script_block_id ?? moment.script_block_id ?? null,
+        order: order++,
+      },
+      note: '这是已有的表达补充，可以保留为当前稿参考。',
+      intent: type === 'visual' ? '画面信息' : type === 'narration' ? '补充情绪' : '表达补充',
+      persisted: false,
+    })
+  }
+  return lines
+}
+
+function writingTypeFromScriptBlock(block: ScriptBlockRecord): WritingExpressionType {
+  switch (block.kind) {
+    case 'dialogue':
+      return 'dialogue'
+    case 'transition':
+      return 'subtitle'
+    case 'note':
+    case 'parenthetical':
+      return 'silence'
+    case 'scene_heading':
+    case 'action':
+    default:
+      return 'action'
+  }
+}
+
+function writingTypeFromContentUnit(unit: ContentUnitRecord): WritingExpressionType {
+  switch (unit.kind) {
+    case 'voiceover':
+      return 'narration'
+    case 'dialogue_audio':
+      return 'dialogue'
+    case 'subtitle':
+    case 'caption_card':
+      return 'subtitle'
+    case 'shot':
+      return 'visual'
+    case 'sound':
+    case 'music_beat':
+    case 'transition':
+    default:
+      return 'action'
+  }
+}
+
+function writingTypeLabel(type: WritingExpressionType) {
+  switch (type) {
+    case 'dialogue':
+      return '对白'
+    case 'action':
+      return '动作'
+    case 'silence':
+      return '沉默'
+    case 'narration':
+      return '旁白'
+    case 'subtitle':
+      return '字幕'
+    case 'visual':
+      return '画面信息'
+  }
+}
+
+const writingExpressionTypeOptions: { value: WritingExpressionType; label: string }[] = [
+  { value: 'dialogue', label: '对白' },
+  { value: 'action', label: '动作' },
+  { value: 'silence', label: '沉默' },
+  { value: 'narration', label: '旁白' },
+  { value: 'subtitle', label: '字幕' },
+  { value: 'visual', label: '画面信息' },
+]
+
+function normalizeWritingExpressionType(value: unknown): WritingExpressionType {
+  return writingExpressionTypeOptions.some((option) => option.value === value) ? value as WritingExpressionType : 'action'
+}
+
+function defaultSpeakerForWritingType(type: WritingExpressionType) {
+  if (type === 'dialogue') return '未指定人物'
+  if (type === 'narration') return '旁白'
+  if (type === 'subtitle') return '字幕'
+  if (type === 'visual') return '画面'
+  if (type === 'silence') return '停顿'
+  return '场面'
+}
+
+function speakerLabelForWritingType(type: WritingExpressionType) {
+  if (type === 'dialogue') return '人物'
+  if (type === 'narration') return '声源'
+  if (type === 'subtitle') return '字幕来源'
+  if (type === 'visual') return '画面主体'
+  if (type === 'silence') return '停顿主体'
+  return '动作主体'
+}
+
+function speakerPlaceholderForWritingType(type: WritingExpressionType) {
+  if (type === 'dialogue') return '谁说'
+  if (type === 'narration') return '旁白 / 画外音'
+  if (type === 'subtitle') return '屏幕文字 / 标语'
+  if (type === 'visual') return '镜头 / 产品 / 环境'
+  if (type === 'silence') return '谁停住了'
+  return '谁在做'
+}
+
+function textPlaceholderForWritingType(type: WritingExpressionType) {
+  if (type === 'dialogue') return '写下人物会说出口的话'
+  if (type === 'narration') return '写旁白'
+  if (type === 'subtitle') return '写字幕或屏幕文字'
+  if (type === 'visual') return '写需要被看见的画面信息'
+  if (type === 'silence') return '写沉默、停顿或没说出口的反应'
+  return '写动作或事件推进'
+}
+
+function writingExpressionLineDraft(line: WritingExpressionLine): WritingExpressionSavePayload {
+  return normalizeWritingExpressionDraft({
+    kind: line.type,
+    speaker: line.speaker,
+    text: line.text,
+    note: line.note,
+    intent: line.intent,
+  })
+}
+
+function normalizeWritingExpressionDraft(draft: WritingExpressionSavePayload): WritingExpressionSavePayload {
+  return {
+    scene_moment_id: draft.scene_moment_id,
+    script_block_id: draft.script_block_id ?? null,
+    order: draft.order,
+    kind: normalizeWritingExpressionType(draft.kind),
+    speaker: draft.speaker.trim(),
+    text: draft.text.trim(),
+    note: draft.note.trim(),
+    intent: draft.intent.trim(),
+  }
+}
+
+function writingExpressionDraftEquals(a: WritingExpressionSavePayload, b: WritingExpressionSavePayload) {
+  return normalizeWritingExpressionType(a.kind) === normalizeWritingExpressionType(b.kind)
+    && a.speaker.trim() === b.speaker.trim()
+    && a.text.trim() === b.text.trim()
+    && a.note.trim() === b.note.trim()
+    && a.intent.trim() === b.intent.trim()
+}
+
+function writingExpressionPayload(draft: WritingExpressionSavePayload): SemanticEntityPayload {
+  const normalized = normalizeWritingExpressionDraft(draft)
+  return {
+    scene_moment_id: normalized.scene_moment_id ?? null,
+    script_block_id: normalized.script_block_id ?? null,
+    order: normalized.order ?? 0,
+    kind: normalized.kind,
+    speaker: normalized.speaker,
+    text: normalized.text,
+    note: normalized.note,
+    intent: normalized.intent,
+  }
+}
+
+function buildSpeakerOptions(
+  moment: SceneMomentRecord | null | undefined,
+  creativeReferences: CreativeReferenceRecord[],
+  lookup: OrchestrationLookup,
+): SpeakerOption[] {
+  const currentReferences = moment ? referencesForOwner('scene_moment', moment.ID, lookup).filter(isPersonReference) : []
+  const currentIds = new Set(currentReferences.map((reference) => reference.ID))
+  const allPeople = creativeReferences.filter(isPersonReference)
+  const ordered = [...currentReferences, ...allPeople.filter((reference) => !currentIds.has(reference.ID))]
+  const seenNames = new Set<string>()
+  return ordered.flatMap((reference) => {
+    const name = titleOfRecord(reference).trim()
+    if (!name || seenNames.has(name)) return []
+    seenNames.add(name)
+    return [{
+      id: reference.ID,
+      name,
+      label: currentIds.has(reference.ID) ? `${name} · 当前情节` : `${name} · 设定`,
+      current: currentIds.has(reference.ID),
+    }]
+  })
+}
+
+function isPersonReference(reference: CreativeReferenceRecord) {
+  return String(reference.kind ?? '').trim() === 'person'
+}
+
+function isPlaceReference(reference: CreativeReferenceRecord) {
+  return String(reference.kind ?? '').trim() === 'place'
+}
+
+function speakerOptionValue(option: SpeakerOption) {
+  return `reference:${option.id}`
+}
+
+function speakerOptionValueForDraft(speaker: string, options: SpeakerOption[]) {
+  const text = speaker.trim()
+  const option = options.find((item) => item.name === text)
+  return option ? speakerOptionValue(option) : '__custom__'
+}
+
+function summarizeWritingExpressionTypes(lines: WritingExpressionLine[]) {
+  if (lines.length === 0) return '待写'
+  const labels = Array.from(new Set(lines.map((line) => line.label)))
+  return labels.slice(0, 3).join(' / ') + (labels.length > 3 ? ` +${labels.length - 3}` : '')
+}
+
+function buildWritingPeopleCards(
+  moment: SceneMomentRecord | null | undefined,
+  references: CreativeReferenceRecord[],
+  allReferences: CreativeReferenceRecord[],
+) {
+  const personReferences = references.filter((reference) => reference.kind === 'person')
+  const fallbackPeople = allReferences.filter((reference) => reference.kind === 'person').slice(0, 2)
+  const people = personReferences.length > 0 ? personReferences : fallbackPeople
+  if (people.length === 0) {
+    return [{
+      name: '人物未指定',
+      role: '待补',
+      mood: firstText(moment?.mood, '待定'),
+      note: '先补出场人物、当前目标和他们知道的信息，台词才有抓手。',
+    }]
+  }
+  return people.map((reference, index) => ({
+    name: titleOfRecord(reference),
+    role: index === 0 ? '主视角' : '对手 / 关系人物',
+    mood: firstText(moment?.mood, reference.importance, '待定'),
+    note: firstText(reference.description, reference.content, '需要补充这个人物在当前情节里的目标、信息差和说话方式。'),
+  }))
+}
+
+function buildWritingAiSuggestions(moment: SceneMomentRecord | null | undefined, lines: WritingExpressionLine[]) {
+  const dialogue = lines.find((line) => line.type === 'dialogue')
+  const action = lines.find((line) => line.type === 'action')
+  return [
+    {
+      title: '更克制的对白',
+      text: dialogue ? `把“${summarizeText(dialogue.text, 18)}”压成更短、更像人物忍住情绪的一句。` : '先补一句人物真正会说出口的短对白。',
+      tag: '减少解释',
+    },
+    {
+      title: '无对白表达',
+      text: action ? `保留“${summarizeText(action.text, 20)}”，再加一个停顿或手部动作表达潜台词。` : '把信息改成一个能被看见的动作或物件线索。',
+      tag: '动作版',
+    },
+    {
+      title: '旁白 / 字幕版',
+      text: moment?.mood ? `用一句不重复画面的旁白承接“${moment.mood}”。` : '为商业片或无对白片段准备一条更轻的旁白。',
+      tag: '可选表达',
+    },
+  ]
+}
+
+function buildWritingFeedback(moment: SceneMomentRecord | null | undefined, lines: WritingExpressionLine[]) {
+  const hasAction = lines.some((line) => line.type === 'action' || line.type === 'visual')
+  const hasDialogue = lines.some((line) => line.type === 'dialogue')
+  const hasEmotion = Boolean(moment?.mood) || lines.some((line) => line.type === 'silence')
+  return [
+    {
+      tone: hasAction ? 'ok' as const : 'warn' as const,
+      title: hasAction ? '发生了什么能看懂' : '还缺一个可见动作',
+      detail: hasAction ? '当前稿里有动作或画面信息，观众不会只听解释。' : '补一个动作、物件或环境线索，让信息能被看见。',
+    },
+    {
+      tone: hasDialogue && !hasAction ? 'warn' as const : 'ok' as const,
+      title: hasDialogue && !hasAction ? '对白可能承担太多解释' : '对白和非对白表达比较平衡',
+      detail: hasDialogue && !hasAction ? '建议把一部分信息交给动作或沉默。' : '当前情节不完全依赖台词推进。',
+    },
+    {
+      tone: hasEmotion ? 'ok' as const : 'bad' as const,
+      title: hasEmotion ? '情绪有落点' : '情绪落点还不清楚',
+      detail: hasEmotion ? '情绪或停顿已经被标出来，可以继续压台词。' : '补一句人物此刻的情绪目标，避免表达散掉。',
+    },
+  ]
 }
 
 function buildCurrentProductionProposalSnapshot(input: {
@@ -2253,8 +3263,8 @@ function ProposalReviewPanel({
         icon: CheckCircle2,
         iconClassName: 'text-emerald-500',
         label: '当前状态',
-        title: 'dry-run 已完成',
-        detail: '后端已经校验当前接受/拒绝决策，但还没有提交到项目。',
+        title: '写入预检已完成',
+        detail: '系统已经校验当前接受/拒绝决策，但还没有提交到项目。',
       }
     }
     if (simulationResult) {
@@ -2264,7 +3274,7 @@ function ProposalReviewPanel({
         iconClassName: 'text-emerald-500',
         label: '当前状态',
         title: '本地预览已完成',
-        detail: '当前结果来自本地决策计算，尚未通过后端 dry-run 校验。',
+        detail: '当前结果来自本地决策计算，尚未通过写入预检。',
       }
     }
     if (applying) {
@@ -2283,8 +3293,8 @@ function ProposalReviewPanel({
         icon: Loader2,
         iconClassName: 'animate-spin text-amber-500',
         label: '当前状态',
-        title: '正在模拟写入',
-        detail: '后端正在执行 dry-run 校验当前审阅决策。',
+        title: '正在预检影响',
+        detail: '系统正在校验当前审阅决策能否写入。',
       }
     }
     if (reviewNodes.length === 0) {
@@ -2294,7 +3304,7 @@ function ProposalReviewPanel({
         iconClassName: 'text-muted-foreground',
         label: '当前状态',
         title: '等待制作提案',
-        detail: '打开制作提案草稿后，这里会进入变更流审阅模式。',
+        detail: '打开制作提案草稿后，这里会进入提案审阅模式。',
       }
     }
     if (reviewedCount === 0) {
@@ -2314,7 +3324,7 @@ function ProposalReviewPanel({
         iconClassName: 'text-amber-500',
         label: '当前状态',
         title: '审阅进行中',
-        detail: `还有 ${unresolvedCount} 项未处理，处理完后就可以进行 dry-run。`,
+        detail: `还有 ${unresolvedCount} 项未处理，处理完后就可以进行写入预检。`,
       }
     }
     if (reviewApplyGate.status === 'blocked') {
@@ -2332,7 +3342,7 @@ function ProposalReviewPanel({
       icon: CheckCircle2,
       iconClassName: 'text-emerald-500',
       label: '当前状态',
-      title: '可以进入 dry-run',
+      title: '可以进入写入预检',
       detail: reviewApplyGate.detail,
     }
   }, [appliedCounts, applying, reviewApplyGate, reviewNodes.length, reviewedCount, simulating, simulationResult, unresolvedCount])
@@ -2563,7 +3573,7 @@ function ProposalReviewPanel({
               <span className="rounded bg-emerald-500/10 px-1.5 py-1">编排段 +{appliedCounts.segments_created}</span>
             )}
             {appliedCounts.scene_moments_created > 0 && (
-              <span className="rounded bg-emerald-500/10 px-1.5 py-1">情景 +{appliedCounts.scene_moments_created}</span>
+              <span className="rounded bg-emerald-500/10 px-1.5 py-1">情节 +{appliedCounts.scene_moments_created}</span>
             )}
             {appliedCounts.creative_references_created > 0 && (
               <span className="rounded bg-emerald-500/10 px-1.5 py-1">设定资料 +{appliedCounts.creative_references_created}</span>
@@ -2586,10 +3596,10 @@ function ProposalReviewPanel({
         <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 dark:border-emerald-800/50 dark:bg-emerald-950/30">
           <div className="flex items-center gap-2">
             <Eye size={13} className="shrink-0 text-emerald-500" />
-            <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">{simulationResult.backendPreview ? '后端预览已生成' : '本地模拟已生成'}</p>
+            <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">{simulationResult.backendPreview ? '写入预检已生成' : '本地预览已生成'}</p>
           </div>
           <p className="mt-1 text-[11px] leading-4 text-emerald-700/80 dark:text-emerald-300/80">
-            {simulationResult.backendPreview ? '后端已在事务中 dry-run 校验本次写入，不会提交到项目。' : '本次预览仅基于当前接受/拒绝决策计算，不会提交到项目。'}
+            {simulationResult.backendPreview ? '系统已校验本次写入影响，不会提交到项目。' : '本次预览仅基于当前接受/拒绝决策计算，不会提交到项目。'}
           </p>
           <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px] text-emerald-700 dark:text-emerald-300">
             <span className="rounded bg-emerald-500/10 px-1.5 py-1">已接受 {simulationResult.acceptedNodes}</span>
@@ -2599,7 +3609,7 @@ function ProposalReviewPanel({
           </div>
           <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-[10px] text-emerald-700 dark:text-emerald-300">
             <span className="rounded bg-emerald-500/10 px-1.5 py-1">编排段 +{simulationResult.counts.segments_created}</span>
-            <span className="rounded bg-emerald-500/10 px-1.5 py-1">情景 +{simulationResult.counts.scene_moments_created}</span>
+            <span className="rounded bg-emerald-500/10 px-1.5 py-1">情节 +{simulationResult.counts.scene_moments_created}</span>
             <span className="rounded bg-emerald-500/10 px-1.5 py-1">内容 +{simulationResult.counts.content_units_created}</span>
             <span className="rounded bg-emerald-500/10 px-1.5 py-1">画面锚点 +{simulationResult.counts.keyframes_created}</span>
             <span className="rounded bg-emerald-500/10 px-1.5 py-1">设定资料 +{simulationResult.counts.creative_references_created}</span>
@@ -2611,12 +3621,12 @@ function ProposalReviewPanel({
           <div className="rounded-lg border border-border bg-background p-3">
             <div className="flex items-center gap-2">
               <CheckCircle2 size={13} className="text-emerald-500" />
-              <p className="text-xs font-semibold text-foreground">后端 dry-run 结果</p>
+              <p className="text-xs font-semibold text-foreground">写入预检结果</p>
               <Badge variant="secondary" className="ml-auto h-5 rounded-full px-2 text-[10px]">未写库</Badge>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-1.5 text-center text-[10px] sm:grid-cols-3">
               <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回编排段 {simulationResult.backendPreview.returned.segments}</span>
-              <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回情景 {simulationResult.backendPreview.returned.sceneMoments}</span>
+              <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回情节 {simulationResult.backendPreview.returned.sceneMoments}</span>
               <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回内容 {simulationResult.backendPreview.returned.contentUnits}</span>
               <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回画面锚点 {simulationResult.backendPreview.returned.keyframes}</span>
               <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回素材 {simulationResult.backendPreview.returned.assetSlots}</span>
@@ -2633,9 +3643,26 @@ function ProposalReviewPanel({
         />
         {backendPreviewIssue && <ProposalBackendPreviewIssuePanel issue={backendPreviewIssue} />}
         <ProposalApplyPreviewPanel preview={simulationResult.preview} />
+        <div className="rounded-lg border border-border bg-background p-3">
+          <div className="flex items-center gap-2">
+            <GitBranch size={13} className="text-primary" />
+            <p className="text-xs font-semibold text-foreground">继续审阅提案</p>
+          </div>
+          <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+            预检结果保留在上方；如果继续调整接受或拒绝，系统会自动清除旧预检结果并回到最新决策。
+          </p>
+          <div className="mt-3">
+            <ProposalSemanticDiffPanel
+              groups={semanticDiff}
+              decisions={nodeDecisions}
+              onSetDecision={setNodeDecision}
+              onSetDecisions={setNodeDecisions}
+            />
+          </div>
+        </div>
         <div className={cn('grid gap-2', previewOnly ? 'grid-cols-1' : 'grid-cols-2')}>
           <Button size="sm" variant="outline" className="h-7 text-xs" disabled={applying} onClick={() => setSimulationResult(null)}>
-            返回审阅
+            隐藏预检结果
           </Button>
           {!previewOnly && (
             <Button
@@ -2660,12 +3687,12 @@ function ProposalReviewPanel({
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
               <GitBranch size={12} />
-              变更流
+              提案审阅
               {proposalDraft.proposedAt && <Badge variant="secondary" className="h-5 rounded-full px-2 text-[10px]">已加载提案</Badge>}
             </div>
-            <h2 className="mt-1 text-lg font-semibold text-foreground">制作提案审阅</h2>
+            <h2 className="mt-1 text-lg font-semibold text-foreground">AI 编排提案</h2>
             <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
-              这是一条按变更流组织的审阅界面。先确认结构变更，再看上下文和写入门禁，最后再做 dry-run。
+              逐条审阅 AI 提案，决定哪些编排和表达可以进入当前稿。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -2721,7 +3748,7 @@ function ProposalReviewPanel({
               <span className="rounded bg-rose-500/10 px-1.5 py-1 text-rose-700 dark:text-rose-300">删除 {actionCounts.delete}</span>
             </div>
             <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
-              制作提案按后端 snapshot 写入：带 ID 的节点会更新，缺少 ID 的节点会新增，旧 snapshot 中未保留的节点会删除。
+              写入时会按完整提案同步：已有节点会更新，新节点会创建，未保留的旧节点会进入删除候选。
             </p>
           </div>
           <ProposalContextPanel
@@ -2751,7 +3778,7 @@ function ProposalReviewPanel({
           onClick={handleSimulate}
         >
           {simulating ? <Loader2 size={11} className="animate-spin" /> : <Eye size={11} />}
-          模拟写入
+          预检影响
         </Button>
         {!previewOnly && (
           <Button
@@ -2776,16 +3803,16 @@ function ProposalReviewEmptyState({ onSwitchToStructure }: { onSwitchToStructure
         <div className="flex items-start gap-3">
           <GitBranch size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-foreground">当前没有可审阅的提案</h2>
+            <h2 className="text-sm font-semibold text-foreground">当前没有 AI 编排提案</h2>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              审阅区只显示制作提案的 GitDiff 变更流。先打开一个制作提案草稿，或者回到结构视图继续编辑情绪段和情节。
+              这里显示 AI 给出的编排提案。可以逐条接受、退回，或者回到编排写作区继续编辑编排段和情节。
             </p>
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button size="sm" className="h-7 gap-1.5 text-xs" onClick={onSwitchToStructure}>
             <Route size={12} />
-            回到结构
+            回到编排写作
           </Button>
         </div>
       </div>
@@ -3153,7 +4180,7 @@ function collectProposalContextResources(segments: ProposalSegmentNode[]): Propo
     const segmentTitle = segment.title || `编排段 ${segmentIndex + 1}`
     ;(segment.scene_moments ?? []).forEach((moment, momentIndex) => {
       const momentFallback = `${segmentId}-${momentIndex}`
-      const momentTitle = moment.title || `情景 ${momentIndex + 1}`
+      const momentTitle = moment.title || `情节 ${momentIndex + 1}`
       const parent = `${segmentTitle} / ${momentTitle}`
 
       ;(moment.creative_references ?? []).forEach((reference, referenceIndex) => {
@@ -3195,7 +4222,7 @@ function buildProposalSemanticDiff(segments: ProposalSegmentNode[]): ProposalSem
       children.push({
         key: momentKey,
         acceptKeys: [segmentKey, momentKey],
-        title: moment.title || `情景 ${momentIndex + 1}`,
+        title: moment.title || `情节 ${momentIndex + 1}`,
         detail: compactParts([moment.time_text, moment.location_text, moment.mood, moment.rationale]),
         action: proposalSnapshotAction(moment),
         kind: 'structure',
@@ -3275,7 +4302,7 @@ function buildProposalSemanticDiff(segments: ProposalSegmentNode[]): ProposalSem
       acceptKeys: [segmentKey],
       nodeKeys: [segmentKey, ...children.map((item) => item.key)],
       stats: [
-        `${moments.length} 情景`,
+        `${moments.length} 情节`,
         `${children.filter((item) => item.kind === 'content').length} 内容分镜`,
         `${children.filter((item) => item.kind === 'reference').length} 设定引用`,
         `${children.filter((item) => item.kind === 'asset').length} 素材需求`,
@@ -3331,7 +4358,7 @@ function ProposalSemanticDiffPanel({
       <div className="rounded-lg border border-border bg-background p-3">
         <div className="flex items-center gap-2">
           <GitBranch size={13} className="text-primary" />
-          <p className="text-xs font-semibold text-foreground">变更流</p>
+          <p className="text-xs font-semibold text-foreground">提案审阅</p>
           <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{filteredGroups.length}/{groups.length} 段</span>
         </div>
         <div className="mt-2 grid grid-cols-4 gap-1.5 text-center text-[10px]">
@@ -3467,7 +4494,7 @@ function buildProposalApplyPreview(segments: ProposalSegmentNode[], decisions: P
       const momentFallback = `${segmentId}-${momentIndex}`
       const momentKey = proposalNodeDecisionKey('scene_moment', moment, momentFallback)
       const momentDecision = decisions[momentKey]
-      const momentTitle = moment.title || `情景 ${momentIndex + 1}`
+      const momentTitle = moment.title || `情节 ${momentIndex + 1}`
       const momentBlocked = momentDecision === 'accepted' && segmentDecision !== 'accepted'
       pushByDecision({
         key: momentKey,
@@ -3641,7 +4668,7 @@ function buildProposalApplyGate(preview: ProposalApplyPreview, backendPreviewRea
     return {
       status: 'empty',
       title: '还没有可写入内容',
-      detail: '请先在变更队列中接受至少一个编排段和它的情景。',
+      detail: '请先在提案审阅中接受至少一个编排段和它的情节。',
     }
   }
   if (preview.blocked.length > 0) {
@@ -3654,8 +4681,8 @@ function buildProposalApplyGate(preview: ProposalApplyPreview, backendPreviewRea
   if (!backendPreviewReady) {
     return {
       status: 'needs_preview',
-      title: '需要后端预览确认',
-      detail: '当前决策还没有通过后端 dry-run。请先点击“模拟写入”完成校验。',
+      title: '需要写入预检',
+      detail: '当前决策还没有通过写入预检。请先点击“预检影响”完成校验。',
     }
   }
   if (preview.pending.length > 0) {
@@ -3668,7 +4695,7 @@ function buildProposalApplyGate(preview: ProposalApplyPreview, backendPreviewRea
   return {
     status: 'ready',
     title: '可以写入项目',
-    detail: '所有可写入项已通过后端 dry-run，本次写入不会包含已拒绝项。',
+    detail: '所有可写入项已通过写入预检，本次写入不会包含已拒绝项。',
   }
 }
 
@@ -3792,7 +4819,7 @@ function ProposalApplyPreviewGroup({
 
 function proposalApplyPreviewKindLabel(kind: ProposalApplyPreviewItem['kind']) {
   if (kind === 'segment') return '编排段'
-  if (kind === 'scene_moment') return '情景'
+  if (kind === 'scene_moment') return '情节'
   if (kind === 'content_unit') return '内容'
   if (kind === 'keyframe') return '画面锚点'
   if (kind === 'creative_reference') return '设定'
@@ -3812,7 +4839,7 @@ function ProposalDiffActionBadge({ action, compact = false }: { action: Proposal
 
 function contentOrchestrationChangeKindLabel(kind: string) {
   if (kind === 'segment') return '编排段'
-  if (kind === 'scene_moment') return '情景'
+  if (kind === 'scene_moment') return '情节'
   if (kind === 'content_unit') return '内容'
   if (kind === 'keyframe') return '画面锚点'
   if (kind === 'creative_reference') return '设定'
@@ -3966,7 +4993,7 @@ function visibleProposalSemanticDiffKeys(group: ProposalSemanticDiffGroup) {
 
 function proposalSemanticDiffGroupStats(group: ProposalSemanticDiffGroup): string[] {
   return [
-    `${group.children.filter((item) => item.kind === 'structure').length} 情景`,
+    `${group.children.filter((item) => item.kind === 'structure').length} 情节`,
     `${group.children.filter((item) => item.kind === 'content').length} 内容分镜`,
     `${group.children.filter((item) => item.kind === 'reference').length} 设定引用`,
     `${group.children.filter((item) => item.kind === 'asset').length} 素材需求`,
@@ -4212,10 +5239,10 @@ function buildProductionCurrentOverview(input: {
   const latestSegment = input.segments.at(-1) ?? null
   const latestMoment = input.sceneMoments.at(-1) ?? null
   const nextStep = !input.scriptVersion
-    ? ['先绑定一个剧本版本，才能基于现状审阅编排。']
+    ? ['先选择一份剧本正文，再继续写情节。']
     : input.segments.length === 0
-      ? ['当前还没有编排段，先准备一版制作提案草稿。']
-      : ['可继续审阅制作提案草稿，再按 Git Diff 式确认变更。']
+      ? ['当前还没有编排段，先添加一个节奏容器。']
+      : ['继续确认每个情节里的对白、动作、旁白和沉默。']
 
   return {
     position: [
@@ -4226,13 +5253,13 @@ function buildProductionCurrentOverview(input: {
     sourceLabel: input.scriptVersion?.title ?? '当前现状',
     source: [
       `编排段 ${input.segments.length}`,
-      `情景 ${input.sceneMoments.length}`,
+      `情节 ${input.sceneMoments.length}`,
       `设定资料 ${input.creativeReferences.length}`,
       `素材需求 ${input.assetSlots.length}`,
     ],
     relations: [
       latestSegment ? `最新编排段：${titleOfRecord(latestSegment)}` : '暂无编排段',
-      latestMoment ? `最新情景：${titleOfRecord(latestMoment)}` : '暂无情景',
+      latestMoment ? `最新情节：${titleOfRecord(latestMoment)}` : '暂无情节',
       input.assetSlots.length > 0 ? '素材需求已覆盖部分当前制作上下文' : '当前还没有素材需求',
     ],
     nextStep,
@@ -4411,6 +5438,7 @@ function createDefaultsForType(type: EntityFilter, productionId: number, segment
   if (type === 'contentUnits') return { status: 'draft', production_id: productionId || 0, segment_id: segmentId ?? null, scene_moment_id: sceneMomentId ?? null }
   if (type === 'segments') return { status: 'draft', kind: 'emotional_function', production_id: productionId || 0 }
   if (type === 'sceneMoments') return { status: 'draft', segment_id: segmentId ?? null }
+  if (type === 'writingExpressions') return { scene_moment_id: sceneMomentId ?? null, kind: 'dialogue', order: 1 }
   if (type === 'creativeReferences') return { status: 'draft', importance: 'main' }
   return {}
 }
@@ -4491,8 +5519,8 @@ function formatOwnerLabel(ownerType?: string, ownerId?: number, lookup?: Orchest
   if (!ownerType || !ownerId || !lookup) return ''
   const key = ownerKey(ownerType, ownerId)
   if (ownerType === 'segment') return lookup.segmentById.get(ownerId) ? `编排段 · ${titleOfRecord(lookup.segmentById.get(ownerId))}` : `编排段 #${ownerId}`
-  if (ownerType === 'scene_moment') return lookup.sceneMomentById.get(ownerId) ? `情景 · ${titleOfRecord(lookup.sceneMomentById.get(ownerId))}` : `情景 #${ownerId}`
-  if (ownerType === 'content_unit') return lookup.contentUnitById.get(ownerId) ? `下游制作项 · ${titleOfRecord(lookup.contentUnitById.get(ownerId))}` : `下游制作项 #${ownerId}`
+  if (ownerType === 'scene_moment') return lookup.sceneMomentById.get(ownerId) ? `情节 · ${titleOfRecord(lookup.sceneMomentById.get(ownerId))}` : `情节 #${ownerId}`
+  if (ownerType === 'content_unit') return lookup.contentUnitById.get(ownerId) ? `制作项 · ${titleOfRecord(lookup.contentUnitById.get(ownerId))}` : `制作项 #${ownerId}`
   if (ownerType === 'creative_reference') return lookup.creativeReferenceById.get(ownerId) ? `设定资料 · ${titleOfRecord(lookup.creativeReferenceById.get(ownerId))}` : `设定资料 #${ownerId}`
   return `${ownerType} #${ownerId}`
 }
@@ -4508,7 +5536,7 @@ function contentUnitAppearances(unit: ContentUnitRecord, lookup: OrchestrationLo
   const segment = unit.segment_id ? lookup.segmentById.get(Number(unit.segment_id)) : null
   const moment = unit.scene_moment_id ? lookup.sceneMomentById.get(Number(unit.scene_moment_id)) : null
   if (segment) items.push(`编排段 · ${titleOfRecord(segment)}`)
-  if (moment) items.push(`情景 · ${titleOfRecord(moment)}`)
+  if (moment) items.push(`情节 · ${titleOfRecord(moment)}`)
   return items
 }
 
@@ -4602,8 +5630,8 @@ function getAnalysisText(target: AnalysisTarget, input: {
       `编排段：${titleOfRecord(segment)}`,
       segment.summary ? `摘要：${segment.summary}` : '',
       segment.content ? `剧本正文：\n${segment.content}` : '',
-      moments.length > 0 ? `情景：\n${moments.map(serializeSceneMoment).join('\n\n')}` : '',
-      units.length > 0 ? `下游制作项：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
+      moments.length > 0 ? `情节：\n${moments.map(serializeSceneMoment).join('\n\n')}` : '',
+      units.length > 0 ? `制作项：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
       refs.length > 0 ? `相关设定资料：\n${refs.map(serializeCreativeReference).join('\n\n')}` : '',
       slots.length > 0 ? `相关素材需求：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')
@@ -4620,14 +5648,14 @@ function getAnalysisText(target: AnalysisTarget, input: {
       units.some((unit) => slot.owner_type === 'content_unit' && slot.owner_id === unit.ID)
     ))
     return [
-      `情景：${titleOfRecord(moment)}`,
+      `情节：${titleOfRecord(moment)}`,
       moment.description ? `描述：${moment.description}` : '',
       moment.time_text ? `时间：${moment.time_text}` : '',
       moment.location_text ? `地点：${moment.location_text}` : '',
       moment.action_text ? `动作：${moment.action_text}` : '',
       moment.mood ? `情绪：${moment.mood}` : '',
       segmentRecord ? `所属编排段：${titleOfRecord(segmentRecord)}` : '',
-      units.length > 0 ? `下游制作项：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
+      units.length > 0 ? `制作项：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
       refs.length > 0 ? `相关设定资料：\n${refs.map(serializeCreativeReference).join('\n\n')}` : '',
       slots.length > 0 ? `相关素材需求：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')
@@ -4652,7 +5680,7 @@ function getAnalysisText(target: AnalysisTarget, input: {
       reference.alias ? `别名：${reference.alias}` : '',
       reference.description ? `描述：${reference.description}` : '',
       reference.content ? `设定资料正文：\n${reference.content}` : '',
-      relatedMoments.length > 0 ? `出现情景：${relatedMoments.map((item) => titleOfRecord(item)).join(' / ')}` : '',
+      relatedMoments.length > 0 ? `出现情节：${relatedMoments.map((item) => titleOfRecord(item)).join(' / ')}` : '',
       relatedUnits.length > 0 ? `相关内容：${relatedUnits.map((item) => titleOfRecord(item)).join(' / ')}` : '',
       slots.length > 0 ? `相关素材需求：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')
@@ -4693,7 +5721,7 @@ function getAnalysisText(target: AnalysisTarget, input: {
     const refs = collectReferencesFromUnitsAndMoments(input.creativeReferences, input.assetSlots, moment ? [moment] : [], [unit])
     const slots = input.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && slot.owner_id === unit.ID)
     return [
-      `下游制作项：${titleOfRecord(unit)}`,
+      `制作项：${titleOfRecord(unit)}`,
       unit.kind ? `类型：${unit.kind}` : '',
       unit.description ? `描述：${unit.description}` : '',
       unit.prompt ? `提示：${unit.prompt}` : '',
@@ -4701,7 +5729,7 @@ function getAnalysisText(target: AnalysisTarget, input: {
       unit.camera_angle ? `机位角度：${unit.camera_angle}` : '',
       unit.camera_motion ? `运镜：${unit.camera_motion}` : '',
       segmentRecord ? `所属编排段：${titleOfRecord(segmentRecord)}` : '',
-      moment ? `所属情景：${titleOfRecord(moment)}` : '',
+      moment ? `所属情节：${titleOfRecord(moment)}` : '',
       refs.length > 0 ? `相关设定资料：\n${refs.map(serializeCreativeReference).join('\n\n')}` : '',
       slots.length > 0 ? `相关素材需求：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')

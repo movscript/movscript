@@ -25,6 +25,7 @@ export interface AgentMessage {
   threadId: string
   role: AgentMessageRole
   content: string
+  clientInput?: JSONValue
   runId?: string
   createdAt: string
 }
@@ -318,6 +319,10 @@ export type AgentRunStreamEvent =
     type: 'done'
     run: AgentRunStreamRun
   }
+
+export type AgentThreadStreamEvent = AgentRunStreamEvent & {
+  threadId: string
+}
 
 export interface AgentRunPreview {
   id: string
@@ -743,6 +748,7 @@ export interface CreateMessageInput {
 export interface CreateRunInput {
   threadId?: unknown
   userMessage?: unknown
+  sourceMessageId?: unknown
   task?: unknown
   agentManifest?: unknown
   approvedToolNames?: unknown

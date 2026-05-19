@@ -301,6 +301,7 @@ test('normalizeConvsByUser preserves historical agent messages and rewrites pers
       conversations: [{
         id: 'conv-1',
         title: 'Agent run',
+        runtimeThreadId: 'thread-1',
         createdAt: 1000,
         updatedAt: 2000,
         messages: [{
@@ -340,6 +341,7 @@ test('normalizeConvsByUser preserves historical agent messages and rewrites pers
   const draftAttachment = normalized['7'].draftsByConversation['conv-1'].attachments[0]
 
   assert.equal(normalized['7'].activeConversationId, 'conv-1')
+  assert.equal(normalized['7'].conversations[0].runtimeThreadId, 'thread-1')
   assert.equal(message.meta?.localRunActivity?.runId, 'run-1')
   assert.equal(messageAttachment?.url, '/api/v1/resources/42/file')
   assert.equal(messageAttachment?.previewUrl, undefined)

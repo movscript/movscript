@@ -259,6 +259,7 @@ function manifestFromProfile(baseManifest: AgentManifest, profile: RuntimeContex
       : {}),
     metadata: {
       ...(baseManifest.metadata ?? {}),
+      ...(profile.metadata?.promptPolicy ? { promptPolicy: profile.metadata.promptPolicy } : {}),
       profileId: baseProfile.id,
       profileVersion: baseProfile.version,
       ...(profile.limits?.systemPromptCharLimit ? { systemPromptCharLimit: profile.limits.systemPromptCharLimit } : {}),

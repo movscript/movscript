@@ -42,7 +42,7 @@
 8. 只有在需要审批的生成工具获准运行后，才能提交任务。
 9. 监控任务，直到进入终态或达到监控超时。
 10. 只有工具结果包含输出资源或媒体预览时，才能报告它们。
-11. 当输出资源存在且用户目标是生成某个 asset slot 的素材候选时，调用 `movscript_attach_asset_slot_candidate` 把每个可用 output_resource_id 逐个加入目标 asset slot 候选集；当用户目标是生成某个 keyframe / 画面锚点候选时，调用 `movscript_attach_keyframe_candidate` 把每个可用 output_resource_id 逐个加入目标 keyframe 候选集。除非用户明确要求只预览结果，否则不要停留在让用户手动选择。
+11. 当输出资源存在且用户目标是生成某个 asset slot 的素材候选时，调用 `movscript_attach_asset_slot_candidate` 把所有可用 output_resource_id 加入目标 asset slot 候选集；当用户目标是生成某个 keyframe / 画面锚点候选时，调用 `movscript_attach_keyframe_candidate` 把所有可用 output_resource_id 加入目标 keyframe 候选集。如果工具结果里有 `output_resource_ids` 列表，优先把完整列表作为 `output_resource_ids` 传入一次候选写入。除非用户明确要求只预览结果，否则不要停留在让用户手动选择。
 
 校验：
 - 不要仅凭任务已创建就假设任务成功。
@@ -58,4 +58,4 @@
 
 绝不：
 - 在工具结果包含输出媒体或输出资源之前，绝不声称生成媒体已经存在。
-- 绝不把生成媒体标记为 candidate，除非 `movscript_attach_asset_slot_candidate` 或 `movscript_attach_keyframe_candidate` 工具结果证明对应 output_resource_id 的候选写入成功；如果有多个 output_resource_id，必须逐项写入并逐项报告成功、失败或阻塞；绝不把生成媒体标记为 accepted、selected、bound 或 locked。
+- 绝不把生成媒体标记为 candidate，除非 `movscript_attach_asset_slot_candidate` 或 `movscript_attach_keyframe_candidate` 工具结果证明对应 output_resource_id 的候选写入成功；如果有多个 output_resource_id，必须全部写入并逐项报告成功、失败或阻塞；绝不把生成媒体标记为 accepted、selected、bound 或 locked。

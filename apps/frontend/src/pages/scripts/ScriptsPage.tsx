@@ -1300,9 +1300,8 @@ function titleFromScriptBlock(block: ScriptBlockRecord) {
 
 function contentUnitKindFromScriptBlock(block: ScriptBlockRecord) {
   const kind = String(block.kind ?? '')
-  if (kind === 'dialogue') return 'narration'
+  if (kind === 'dialogue') return 'dialogue_audio'
   if (kind === 'transition') return 'transition'
-  if (kind === 'scene_heading') return 'visual_segment'
   return 'shot'
 }
 

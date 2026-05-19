@@ -986,7 +986,7 @@ function validateContentUnitProposalDraft(draft: AgentDraft, issues: AgentDraftV
     issues.push({ path: '/proposal/units', message: 'Content unit proposal draft requires at least one content unit.', severity: 'error' })
     return
   }
-  const allowedKinds = new Set(['shot', 'visual_segment', 'caption_card', 'narration', 'transition', 'music_beat', 'product_showcase'])
+  const allowedKinds = new Set(['shot', 'voiceover', 'dialogue_audio', 'sound', 'music_beat', 'subtitle', 'caption_card', 'transition'])
   units.forEach((unit, index) => {
     const base = `/proposal/units/${index}`
     if (!isRecord(unit)) {
@@ -1001,9 +1001,12 @@ function validateContentUnitProposalDraft(draft: AgentDraft, issues: AgentDraftV
     }
     const kind = typeof unit.kind === 'string' ? unit.kind.trim() : ''
     if (!allowedKinds.has(kind)) {
-      issues.push({ path: `${base}/kind`, message: 'Content unit proposal unit kind must be shot, visual_segment, caption_card, narration, transition, music_beat, or product_showcase.', severity: 'error' })
+      issues.push({ path: `${base}/kind`, message: 'Content unit proposal unit kind must be shot, voiceover, dialogue_audio, sound, music_beat, subtitle, caption_card, or transition.', severity: 'error' })
     }
   })
+  if ('timeline_items' in proposal || 'timelineItems' in proposal) {
+    issues.push({ path: '/proposal/timeline_items', message: 'Content unit proposal must not own production preview timeline items; use per-unit timing intent or a production-level proposal.', severity: 'error' })
+  }
 }
 
 function validateProductionProposalDraft(draft: AgentDraft, issues: AgentDraftValidationIssue[]): void {

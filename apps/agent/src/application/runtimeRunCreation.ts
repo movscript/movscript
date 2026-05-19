@@ -38,7 +38,11 @@ export function buildRuntimeCreateRun(input: {
   const runtimeContract = contractResolver.find(agentManifest)
   const approvedToolNames = normalizeApprovedToolNames(runInput.approvedToolNames)
   const policy = defaultRunPolicy({ sandboxMode: runInput.sandboxMode === true, policy: runInput.policy })
-  const runUserInput = resolveRunCreationUserInput({ userMessage: runInput.userMessage, thread })
+  const runUserInput = resolveRunCreationUserInput({
+    userMessage: runInput.userMessage,
+    sourceMessageId: runInput.sourceMessageId,
+    thread,
+  })
   const hierarchy = normalizeRunHierarchyInput(runInput, { defaultRole: 'planner' })
   const taskSnapshot = normalizeAgentRunInputTask(runInput.task)
   const clientInputValue = clientInput ? clientInput as unknown as JSONValue : undefined

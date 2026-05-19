@@ -35,6 +35,7 @@ export interface AgentStore {
 }
 
 export interface AgentRunQuery {
+  threadId?: string
   parentRunId?: string
   planId?: string
   taskId?: string
@@ -97,6 +98,7 @@ export class InMemoryAgentStore implements AgentStore {
 
   listRuns(query: AgentRunQuery = {}): AgentRun[] {
     return Array.from(this.runs.values())
+      .filter((run) => query.threadId === undefined || run.threadId === query.threadId)
       .filter((run) => query.parentRunId === undefined || run.parentRunId === query.parentRunId)
       .filter((run) => query.planId === undefined || run.planId === query.planId)
       .filter((run) => query.taskId === undefined || run.taskId === query.taskId)
