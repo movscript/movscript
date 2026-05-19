@@ -229,6 +229,9 @@ func TestAuthRegisterWithEmailChallengeCreatesVerifiedUser(t *testing.T) {
 func TestAuthRegisterStartCodeBlockedWhenRegistrationClosed(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := testutil.OpenSQLite(t, "handler-auth-code-closed.db", &persistencemodel.AdminSetting{}, &persistencemodel.AuthChallenge{}, &persistencemodel.User{})
+	if err := db.Create(&persistencemodel.User{Username: "existing", PasswordHash: "hash", SystemRole: "user", Status: "active"}).Error; err != nil {
+		t.Fatalf("seed existing user: %v", err)
+	}
 	tokens, err := auth.NewManager("0123456789abcdef0123456789abcdef", 3600)
 	if err != nil {
 		t.Fatal(err)
