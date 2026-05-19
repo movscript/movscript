@@ -19,6 +19,7 @@ type AuthConfig = {
   require_email_verification: boolean
   email_verification_enabled: boolean
   local_bootstrap_enabled: boolean
+  bootstrap_required?: boolean
 }
 
 function PasswordInput({ placeholder, value, onChange, onKeyDown }: {
@@ -71,8 +72,9 @@ export default function AuthPage() {
   })
   const config = authConfig.data
   const localMode = isLocalLaunchMode(settings)
-  const registrationEnabled = !!config?.registration_enabled || localMode
-  const requiresEmail = tab === 'register' && !localMode && !!config?.require_email_verification
+  const bootstrapRequired = !!config?.bootstrap_required
+  const registrationEnabled = !!config?.registration_enabled || localMode || bootstrapRequired
+  const requiresEmail = tab === 'register' && !localMode && !bootstrapRequired && !!config?.require_email_verification
 
   const login = useMutation({
     mutationFn: () => api.post('/auth/login', { username, password }).then((r) => r.data as AuthSession),
@@ -86,7 +88,7 @@ export default function AuthPage() {
       password,
       challengeId,
       code,
-      localAdmin: localMode,
+      localAdmin: localMode || bootstrapRequired,
     }).then((r) => r.data as AuthSession),
     onSuccess: setSession,
     onError: (e: any) => setError(translateApiError(e.response?.data, 'auth.registerFailed'))
@@ -130,6 +132,11 @@ export default function AuthPage() {
       <div className="w-full max-w-sm">
         <h1 className="text-2xl font-bold text-foreground mb-1">Movscript</h1>
         <p className="text-sm text-muted-foreground mb-8">{t('auth.tagline')}</p>
+        {bootstrapRequired && (
+          <p className="mb-4 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            {t('auth.bootstrapRequiredHint')}
+          </p>
+        )}
 
         <div className="flex border-b border-border mb-6">
           {(['login', 'register'] as Tab[]).filter((tabName) => tabName !== 'register' || registrationEnabled).map((tabName) => (

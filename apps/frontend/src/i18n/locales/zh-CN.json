@@ -143,7 +143,8 @@
     "emailCodeRequired": "请先填写邮箱并完成验证码验证",
     "codeSendFailed": "验证码发送失败",
     "registrationClosed": "注册已关闭",
-    "registrationClosedHint": "注册已关闭，请联系管理员创建账号。"
+    "registrationClosedHint": "注册已关闭，请联系管理员创建账号。",
+    "bootstrapRequiredHint": "当前服务还没有管理员。创建的第一个账号会成为超级管理员。"
   },
   "onboarding": {
     "title": "选择使用方式",

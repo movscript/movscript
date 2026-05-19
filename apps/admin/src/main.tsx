@@ -32,9 +32,25 @@ function LoginPage() {
   const currentUser = useUserStore((s) => s.currentUser)
   const [username, setUsername] = React.useState('')
   const [password, setPassword] = React.useState('')
+  const [confirmPassword, setConfirmPassword] = React.useState('')
   const [error, setError] = React.useState('')
   const [loading, setLoading] = React.useState(false)
+  const [bootstrapRequired, setBootstrapRequired] = React.useState(false)
   const redirectTo = resolveLoginRedirect(location.state)
+
+  React.useEffect(() => {
+    let cancelled = false
+    api.get('/auth/config')
+      .then((response) => {
+        if (!cancelled) setBootstrapRequired(!!response.data?.bootstrap_required)
+      })
+      .catch(() => {
+        if (!cancelled) setBootstrapRequired(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   React.useEffect(() => {
     if (getSystemRole(currentUser) === 'super_admin') {
@@ -45,9 +61,15 @@ function LoginPage() {
   async function submit(event: React.FormEvent) {
     event.preventDefault()
     setError('')
+    if (bootstrapRequired && password !== confirmPassword) {
+      setError(t('admin.login.passwordMismatch'))
+      return
+    }
     setLoading(true)
     try {
-      const response = await api.post('/auth/login', { username, password })
+      const response = bootstrapRequired
+        ? await api.post('/auth/register', { username, password, localAdmin: true })
+        : await api.post('/auth/login', { username, password })
       const session = response.data
       if (session?.user?.system_role !== 'super_admin' && session?.user?.systemRole !== 'super_admin') {
         setError(t('admin.login.superAdminRequired'))
@@ -75,7 +97,9 @@ function LoginPage() {
               <ShieldCheck size={20} />
             </div>
             <h1 className="text-xl font-semibold">Movscript Admin</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{t('admin.login.description')}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {bootstrapRequired ? t('admin.login.bootstrapDescription') : t('admin.login.description')}
+            </p>
           </div>
           <div className="space-y-3">
             <label className="block">
@@ -96,13 +120,24 @@ function LoginPage() {
                 className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-ring"
               />
             </label>
+            {bootstrapRequired && (
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-muted-foreground">{t('admin.login.confirmPassword')}</span>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-ring"
+                />
+              </label>
+            )}
             {error && <p className="text-xs text-destructive">{error}</p>}
             <button
               type="submit"
-              disabled={loading || !username.trim() || !password}
+              disabled={loading || !username.trim() || !password || (bootstrapRequired && !confirmPassword)}
               className="h-9 w-full rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? t('admin.login.loading') : t('admin.login.submit')}
+              {loading ? t('admin.login.loading') : bootstrapRequired ? t('admin.login.bootstrapSubmit') : t('admin.login.submit')}
             </button>
           </div>
         </form>

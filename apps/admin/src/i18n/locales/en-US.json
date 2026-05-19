@@ -2148,11 +2148,15 @@
     "subtitle": "AI model configuration, user credits, and usage analytics",
     "login": {
       "description": "Standalone admin console. Super admins only.",
+      "bootstrapDescription": "This service does not have an administrator yet. The first account you create will become the super admin.",
       "username": "Username",
       "password": "Password",
+      "confirmPassword": "Confirm password",
       "submit": "Log in",
+      "bootstrapSubmit": "Create super admin",
       "loading": "Logging in",
       "failed": "Login failed.",
+      "passwordMismatch": "Passwords do not match.",
       "superAdminRequired": "This account is not a super admin."
     },
     "shell": {

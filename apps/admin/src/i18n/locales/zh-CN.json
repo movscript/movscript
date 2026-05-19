@@ -2031,11 +2031,15 @@
     "subtitle": "AI 模型配置、用户额度与用量统计",
     "login": {
       "description": "独立管理后台，只允许超级管理员访问。",
+      "bootstrapDescription": "当前服务还没有管理员。创建的第一个账号会成为超级管理员。",
       "username": "用户名",
       "password": "密码",
+      "confirmPassword": "确认密码",
       "submit": "登录",
+      "bootstrapSubmit": "创建超级管理员",
       "loading": "登录中",
       "failed": "登录失败。",
+      "passwordMismatch": "两次密码不一致。",
       "superAdminRequired": "当前账号不是超级管理员。"
     },
     "shell": {
