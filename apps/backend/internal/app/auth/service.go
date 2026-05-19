@@ -150,7 +150,7 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (domainauth
 		now := time.Now().UTC().Unix()
 		verifiedAt = &now
 	}
-	bootstrapSystemAdmin, err := s.canBootstrapSystemAdmin(ctx, input.BootstrapSystemAdmin)
+	bootstrapSystemAdmin, err := s.shouldBootstrapSystemAdmin(ctx, input.BootstrapSystemAdmin)
 	if err != nil {
 		return domainauth.UserProfile{}, err
 	}
@@ -158,7 +158,22 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (domainauth
 	return s.repo.CreateUser(ctx, &u)
 }
 
-func (s *Service) canBootstrapSystemAdmin(ctx context.Context, requested bool) (bool, error) {
+func (s *Service) BootstrapRequired(ctx context.Context) (bool, error) {
+	count, err := s.repo.UserCount(ctx)
+	if err != nil {
+		return false, err
+	}
+	return count == 0, nil
+}
+
+func (s *Service) shouldBootstrapSystemAdmin(ctx context.Context, requested bool) (bool, error) {
+	bootstrapRequired, err := s.BootstrapRequired(ctx)
+	if err != nil {
+		return false, err
+	}
+	if bootstrapRequired {
+		return true, nil
+	}
 	if !requested {
 		return false, nil
 	}

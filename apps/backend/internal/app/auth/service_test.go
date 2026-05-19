@@ -58,3 +58,30 @@ func TestLocalBootstrapDoesNotResetExistingSuperAdmin(t *testing.T) {
 		t.Fatalf("PasswordHash = %q, want old-hash", stored.PasswordHash)
 	}
 }
+
+func TestFirstRegisteredUserBecomesSuperAdminWithoutLocalMode(t *testing.T) {
+	db := testutil.OpenSQLite(t, "auth_service_first_user_admin.db", &model.User{}, &model.Organization{}, &model.OrganizationMember{})
+	service := NewService(db)
+
+	first, err := service.Register(context.Background(), RegisterInput{
+		Username: "admin",
+		Password: "secret123",
+	})
+	if err != nil {
+		t.Fatalf("Register(first) error = %v", err)
+	}
+	if first.SystemRole != domainauth.SystemRoleSuperAdmin {
+		t.Fatalf("first SystemRole = %q, want %q", first.SystemRole, domainauth.SystemRoleSuperAdmin)
+	}
+
+	second, err := service.Register(context.Background(), RegisterInput{
+		Username: "member",
+		Password: "secret123",
+	})
+	if err != nil {
+		t.Fatalf("Register(second) error = %v", err)
+	}
+	if second.SystemRole != domainauth.SystemRoleUser {
+		t.Fatalf("second SystemRole = %q, want %q", second.SystemRole, domainauth.SystemRoleUser)
+	}
+}

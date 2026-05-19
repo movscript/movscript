@@ -81,12 +81,18 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取注册设置失败"})
 		return
 	}
-	if !req.LocalAdmin && !settings.RegistrationEnabled {
+	bootstrapRequired, err := h.service.BootstrapRequired(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取初始化状态失败"})
+		return
+	}
+	bootstrapRegistration := req.LocalAdmin || bootstrapRequired
+	if !bootstrapRegistration && !settings.RegistrationEnabled {
 		c.JSON(http.StatusForbidden, gin.H{"error": "注册已关闭，请联系管理员创建账号"})
 		return
 	}
-	input := authapp.RegisterInput{Username: req.Username, Password: req.Password, BootstrapSystemAdmin: req.LocalAdmin}
-	if settings.RequireEmailVerification && !req.LocalAdmin {
+	input := authapp.RegisterInput{Username: req.Username, Password: req.Password, BootstrapSystemAdmin: bootstrapRegistration}
+	if settings.RequireEmailVerification && !bootstrapRegistration {
 		if req.ChallengeID == "" || req.Code == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "请先完成邮箱验证码验证"})
 			return
@@ -184,11 +190,17 @@ func (h *AuthHandler) Config(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取认证配置失败"})
 		return
 	}
+	bootstrapRequired, err := h.service.BootstrapRequired(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取初始化状态失败"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"registration_enabled":       settings.RegistrationEnabled,
 		"require_email_verification": settings.RequireEmailVerification,
 		"email_verification_enabled": settings.Email.Enabled,
 		"local_bootstrap_enabled":    h.localAppMode,
+		"bootstrap_required":         bootstrapRequired,
 		"providers": gin.H{
 			"email": settings.Email.Enabled,
 		},
@@ -255,8 +267,15 @@ func (h *AuthHandler) StartCode(c *gin.Context) {
 		return
 	}
 	if strings.TrimSpace(req.Purpose) == "register" && !settings.RegistrationEnabled && !h.localAppMode {
-		c.JSON(http.StatusForbidden, gin.H{"error": "注册已关闭，请联系管理员创建账号"})
-		return
+		bootstrapRequired, err := h.service.BootstrapRequired(c.Request.Context())
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "读取初始化状态失败"})
+			return
+		}
+		if !bootstrapRequired {
+			c.JSON(http.StatusForbidden, gin.H{"error": "注册已关闭，请联系管理员创建账号"})
+			return
+		}
 	}
 	if !settings.Email.Enabled {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "邮箱验证码未启用"})

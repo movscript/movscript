@@ -31,7 +31,7 @@ var mailCodePattern = regexp.MustCompile(`\b\d{6}\b`)
 
 func TestAuthConfigReflectsAdminRegistrationSettings(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	db := testutil.OpenSQLite(t, "handler-auth-config.db", &persistencemodel.AdminSetting{})
+	db := testutil.OpenSQLite(t, "handler-auth-config.db", &persistencemodel.AdminSetting{}, &persistencemodel.User{})
 	if _, err := adminsettings.NewService(db).UpdateAuthSettings(context.Background(), adminsettings.AuthSettings{
 		RegistrationEnabled:      true,
 		RequireEmailVerification: true,
@@ -62,6 +62,7 @@ func TestAuthConfigReflectsAdminRegistrationSettings(t *testing.T) {
 		RegistrationEnabled      bool `json:"registration_enabled"`
 		RequireEmailVerification bool `json:"require_email_verification"`
 		EmailVerificationEnabled bool `json:"email_verification_enabled"`
+		BootstrapRequired        bool `json:"bootstrap_required"`
 	}
 	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode config: %v", err)
@@ -69,11 +70,17 @@ func TestAuthConfigReflectsAdminRegistrationSettings(t *testing.T) {
 	if !body.RegistrationEnabled || !body.RequireEmailVerification || !body.EmailVerificationEnabled {
 		t.Fatalf("unexpected config body: %+v", body)
 	}
+	if !body.BootstrapRequired {
+		t.Fatalf("expected bootstrap_required on empty user table: %+v", body)
+	}
 }
 
 func TestAuthRegisterRequiresEnabledRegistrationAndEmailChallenge(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := testutil.OpenSQLite(t, "handler-auth-register-settings.db", &persistencemodel.User{}, &persistencemodel.Organization{}, &persistencemodel.OrganizationMember{}, &persistencemodel.AdminSetting{}, &persistencemodel.AuthChallenge{}, &persistencemodel.AuthSession{}, &persistencemodel.AuditLog{})
+	if err := db.Create(&persistencemodel.User{Username: "existing", PasswordHash: "hash", SystemRole: "user", Status: "active"}).Error; err != nil {
+		t.Fatalf("seed existing user: %v", err)
+	}
 	tokens, err := auth.NewManager("0123456789abcdef0123456789abcdef", 3600)
 	if err != nil {
 		t.Fatal(err)
@@ -120,6 +127,41 @@ func TestAuthRegisterRequiresEnabledRegistrationAndEmailChallenge(t *testing.T) 
 	}
 	if !strings.Contains(mailer.last.Text, "Movscript verification code") {
 		t.Fatalf("mail body did not include verification copy: %q", mailer.last.Text)
+	}
+}
+
+func TestAuthRegisterAllowsFirstUserWhenRegistrationClosed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := testutil.OpenSQLite(t, "handler-auth-register-bootstrap.db", &persistencemodel.User{}, &persistencemodel.Organization{}, &persistencemodel.OrganizationMember{}, &persistencemodel.AdminSetting{}, &persistencemodel.AuthSession{}, &persistencemodel.AuditLog{})
+	tokens, err := auth.NewManager("0123456789abcdef0123456789abcdef", 3600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := NewAuthHandler(db, tokens)
+	router := gin.New()
+	router.POST("/auth/register", handler.Register)
+
+	firstRes := httptest.NewRecorder()
+	firstReq := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"username":"admin","password":"secret123"}`))
+	firstReq.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(firstRes, firstReq)
+	if firstRes.Code != http.StatusCreated {
+		t.Fatalf("expected first closed-registration user accepted, got %d: %s", firstRes.Code, firstRes.Body.String())
+	}
+	var firstBody authResponse
+	if err := json.Unmarshal(firstRes.Body.Bytes(), &firstBody); err != nil {
+		t.Fatalf("decode first response: %v", err)
+	}
+	if firstBody.User.SystemRole != "super_admin" {
+		t.Fatalf("first user role = %q, want super_admin", firstBody.User.SystemRole)
+	}
+
+	secondRes := httptest.NewRecorder()
+	secondReq := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"username":"member","password":"secret123"}`))
+	secondReq.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(secondRes, secondReq)
+	if secondRes.Code != http.StatusForbidden {
+		t.Fatalf("expected second closed-registration user rejected, got %d: %s", secondRes.Code, secondRes.Body.String())
 	}
 }
 

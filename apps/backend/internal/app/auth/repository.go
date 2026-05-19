@@ -17,6 +17,7 @@ type repository interface {
 	UsernameExists(ctx context.Context, username string) (bool, error)
 	EmailExists(ctx context.Context, email string) (bool, error)
 	CreateUser(ctx context.Context, user *domainauth.RegisteredUser) (domainauth.UserProfile, error)
+	UserCount(ctx context.Context) (int64, error)
 	SuperAdminCount(ctx context.Context) (int64, error)
 	FindSuperAdmin(ctx context.Context) (domainauth.RegisteredUser, error)
 	UpdateUser(ctx context.Context, userID uint, spec domainauth.UserUpdateSpec) error
@@ -75,6 +76,14 @@ func (r *gormRepository) CreateUser(ctx context.Context, user *domainauth.Regist
 	_ = orgapp.CreatePersonalOrg(r.db.WithContext(ctx), domainorg.UserFromModel(row))
 	*user = domainauth.RegisteredUserFromModel(row)
 	return domainauth.UserProfileFromModel(row), nil
+}
+
+func (r *gormRepository) UserCount(ctx context.Context) (int64, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&persistencemodel.User{}).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func (r *gormRepository) SuperAdminCount(ctx context.Context) (int64, error) {
