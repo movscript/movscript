@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { agentPermissionLabel } from './agentToolDisplay'
 import { agentPermissionModeLabel, agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, approvalStatusLabel, buildDebugAttentionEvents, buildDebugCoverageSummary, buildDebugReadinessChecklist, buildDebugReportText, buildModelCallDebugContext, buildModelCallDebugContexts, buildModelCallSummaries, buildSkillTraceSummary, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runApprovalModeLabel, runRoleLabel, runStatusLabel, toolApprovalLabel, toolGrantModeLabel, traceCategoryLabel, traceEventDurationMs, traceEventStatusLabel, traceKindLabel } from './agentRunUi'
 import type { AgentTraceEvent } from './localAgentClient'
 
@@ -408,13 +409,15 @@ test('run trace labels localize categories and statuses', () => {
   assert.equal(approvalRiskLabel('destructive'), '破坏性')
   assert.equal(approvalPermissionLabel('filesystem'), '文件系统')
   assert.equal(approvalPermissionLabel('project.assets.write'), '项目素材写入')
+  assert.equal(approvalPermissionLabel('draft.apply'), '应用草稿变更')
   assert.equal(approvalPermissionLabel('generation.create'), '创建生成任务')
   assert.equal(approvalPermissionLabel('memory.write'), '记忆写入')
-  assert.equal(approvalPermissionLabel('custom.scope'), '未知权限 (custom.scope)')
+  assert.equal(approvalPermissionLabel('custom.scope'), '未识别权限：custom.scope')
   assert.equal(approvalStatusLabel('pending'), '待处理')
   assert.equal(approvalStatusLabel('approved'), '已同意')
   assert.equal(approvalStatusLabel('unknown_status'), '未知审批状态 (unknown_status)')
   assert.equal(approvalImpactLabel({ toolName: 'movscript_publish_assets', permission: 'project.assets.write', risk: 'write', preview: undefined }), '批准后会写入项目数据。')
+  assert.equal(approvalImpactLabel({ toolName: 'movscript_apply_draft', permission: 'draft.apply', risk: 'write', preview: undefined }), '批准后会把草稿变更应用到当前项目。')
   assert.equal(approvalImpactLabel({ toolName: 'custom_tool', permission: 'unknown', risk: 'read', preview: { review: { sideEffect: '更新素材标记' } } }), '批准后会执行预览变更：更新素材标记')
   assert.equal(agentPermissionModeLabel('suggest'), '建议后确认')
   assert.equal(runApprovalModeLabel('auto_readonly'), '只读自动')
@@ -424,6 +427,17 @@ test('run trace labels localize categories and statuses', () => {
   assert.equal(inputTypeLabel('choice'), '选择')
   assert.equal(inputTypeLabel('confirmation'), '确认')
   assert.equal(inputTypeLabel('multi_select'), '未知输入类型 (multi_select)')
+})
+
+test('agent permission display supports i18n labels and unknown fallback interpolation', () => {
+  const t = (key: string, options?: { defaultValue?: string } & Record<string, unknown>) => {
+    if (key === 'agents.tools.permissions.draft_apply') return 'Apply draft changes'
+    if (key === 'agents.tools.unknown.permission') return `Unrecognized permission: ${options?.value}`
+    return options?.defaultValue ?? key
+  }
+
+  assert.equal(agentPermissionLabel('draft.apply', t), 'Apply draft changes')
+  assert.equal(agentPermissionLabel('custom.scope', t), 'Unrecognized permission: custom.scope')
 })
 
 test('agentTraceView keeps behavior and impact separated', () => {
@@ -620,6 +634,77 @@ test('buildModelCallSummaries groups model request, response, and missing respon
   assert.equal(summaries[1]?.issue?.includes('只看到 HTTP 请求'), true)
   assert.equal(summaries[1]?.issue?.includes('旧运行'), true)
   assert.equal(summaries[1]?.issue?.includes('响应正文'), true)
+})
+
+test('buildModelCallSummaries keeps display labels unique when graph round labels repeat', () => {
+  const events = [
+    traceEvent({
+      id: 'request_1',
+      kind: 'model_call',
+      title: 'Model HTTP request sent',
+      createdAt: '2026-05-15T00:00:01.000Z',
+      roundIndex: 1,
+      roundLabel: 'Model turn 1',
+      data: { phase: 'request', request: { body: { messages: [{ role: 'user', content: 'first' }] } } },
+    }),
+    traceEvent({
+      id: 'response_1',
+      kind: 'model_call',
+      title: 'Model HTTP response received',
+      createdAt: '2026-05-15T00:00:02.000Z',
+      roundIndex: 1,
+      roundLabel: 'Model turn 1',
+      data: { phase: 'response', response: { status: 200, content: 'first', bodyText: '{"ok":true}' } },
+    }),
+    traceEvent({
+      id: 'tool_1',
+      kind: 'tool_call',
+      title: 'Tool completed: first',
+      createdAt: '2026-05-15T00:00:03.000Z',
+      roundIndex: 1,
+      toolName: 'first',
+    }),
+    traceEvent({
+      id: 'request_2',
+      kind: 'model_call',
+      title: 'Model HTTP request sent',
+      createdAt: '2026-05-15T00:00:04.000Z',
+      roundIndex: 1,
+      roundLabel: 'Model turn 1',
+      data: { phase: 'request', request: { body: { messages: [{ role: 'user', content: 'resumed' }] } } },
+    }),
+    traceEvent({
+      id: 'response_2',
+      kind: 'model_call',
+      title: 'Model HTTP response received',
+      createdAt: '2026-05-15T00:00:05.000Z',
+      roundIndex: 1,
+      roundLabel: 'Model turn 1',
+      data: { phase: 'response', response: { status: 200, content: 'resumed', bodyText: '{"ok":true}' } },
+    }),
+    traceEvent({
+      id: 'assistant_2',
+      kind: 'assistant',
+      title: 'Assistant message created',
+      createdAt: '2026-05-15T00:00:06.000Z',
+      roundIndex: 1,
+      data: { messageId: 'msg_2', source: 'model', content: 'resumed', chars: 7 },
+    }),
+  ]
+  const summaries = buildModelCallSummaries(events)
+
+  assert.deepEqual(summaries.map((summary) => summary.label), ['模型调用 1', '模型调用 2'])
+  assert.deepEqual(summaries.map((summary) => summary.id), ['round:1#1', 'round:1#2'])
+  assert.deepEqual(summaries.map((summary) => summary.roundLabel), ['Model turn 1', 'Model turn 1'])
+  assert.deepEqual(summaries.map((summary) => summary.correlateByEventWindow), [true, true])
+
+  const firstContext = buildModelCallDebugContext({ call: summaries[0]!, events })
+  const secondContext = buildModelCallDebugContext({ call: summaries[1]!, events })
+  assert.equal(firstContext.correlationLabel, '相邻事件窗口（原始轮次 Model turn 1 重复）')
+  assert.deepEqual(firstContext.toolCalls.map((event) => event.id), ['tool_1'])
+  assert.deepEqual(firstContext.messageWrites.map((event) => event.id), [])
+  assert.deepEqual(secondContext.toolCalls.map((event) => event.id), [])
+  assert.deepEqual(secondContext.messageWrites.map((event) => event.id), ['assistant_2'])
 })
 
 test('buildModelCallDebugContext relates same-round history writes and tool calls', () => {

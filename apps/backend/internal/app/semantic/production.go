@@ -193,6 +193,11 @@ func (s *Service) listContentUnitsFromRelations(ctx context.Context, filter Cont
 }
 
 func (s *Service) CreateContentUnit(ctx context.Context, projectID uint, input ContentUnitInput) (domainsemantic.ContentUnit, error) {
+	productionID, err := s.resolveContentUnitProduction(ctx, projectID, input.ProductionID, input.SegmentID, input.SceneMomentID)
+	if err != nil {
+		return domainsemantic.ContentUnit{}, err
+	}
+	input.ProductionID = productionID
 	resolvedScriptBlockID, err := s.resolveContentUnitScriptBlock(ctx, projectID, input.SegmentID, input.SceneMomentID, input.ScriptBlockID)
 	if err != nil {
 		return domainsemantic.ContentUnit{}, err
@@ -208,6 +213,13 @@ func (s *Service) CreateContentUnit(ctx context.Context, projectID uint, input C
 	var created domainsemantic.ContentUnit
 	err = s.repo.WithTx(ctx, func(txRepo repository) error {
 		txSvc := s.withRepository(txRepo)
+		if strings.TrimSpace(item.UnitCode) == "" && item.SceneMomentID != nil {
+			code, err := txSvc.repo.NextUnitCode(ctx, projectID, *item.SceneMomentID, item.Kind)
+			if err != nil {
+				return err
+			}
+			item.UnitCode = code
+		}
 		var err error
 		created, err = txSvc.repo.CreateContentUnit(ctx, item)
 		if err != nil {
@@ -226,6 +238,11 @@ func (s *Service) PatchContentUnit(ctx context.Context, projectID uint, id strin
 	if err != nil {
 		return item, err
 	}
+	productionID, err := s.resolveContentUnitProduction(ctx, projectID, input.ProductionID, input.SegmentID, input.SceneMomentID)
+	if err != nil {
+		return item, err
+	}
+	input.ProductionID = productionID
 	resolvedScriptBlockID, err := s.resolveContentUnitScriptBlock(ctx, projectID, input.SegmentID, input.SceneMomentID, input.ScriptBlockID)
 	if err != nil {
 		return item, err
@@ -244,6 +261,23 @@ func (s *Service) PatchContentUnit(ctx context.Context, projectID uint, id strin
 	var patched domainsemantic.ContentUnit
 	err = s.repo.WithTx(ctx, func(txRepo repository) error {
 		txSvc := s.withRepository(txRepo)
+		targetSceneMomentID := item.SceneMomentID
+		if patch.SceneMomentID != nil {
+			targetSceneMomentID = patch.SceneMomentID
+		}
+		targetKind := item.Kind
+		if strings.TrimSpace(patch.Kind) != "" {
+			targetKind = patch.Kind
+		}
+		sceneMomentChanged := patch.SceneMomentID != nil && (item.SceneMomentID == nil || *item.SceneMomentID != *patch.SceneMomentID)
+		kindChanged := strings.TrimSpace(patch.Kind) != "" && patch.Kind != item.Kind
+		if strings.TrimSpace(patch.UnitCode) == "" && (sceneMomentChanged || kindChanged) && targetSceneMomentID != nil {
+			code, err := txSvc.repo.NextUnitCode(ctx, projectID, *targetSceneMomentID, targetKind)
+			if err != nil {
+				return err
+			}
+			patch.UnitCode = code
+		}
 		var err error
 		patched, err = txSvc.repo.PatchContentUnit(ctx, item, patch)
 		if err != nil {
@@ -414,6 +448,40 @@ func (s *Service) validateContentUnitScriptSource(ctx context.Context, projectID
 		return err
 	}
 	return s.ensureScriptBlockCompatibleWithAncestor(ctx, projectID, scriptBlockID, sceneMoment.ScriptBlockID)
+}
+
+func (s *Service) resolveContentUnitProduction(ctx context.Context, projectID uint, productionID *uint, segmentID *uint, sceneMomentID *uint) (*uint, error) {
+	if productionID != nil {
+		if err := s.ensureProductionInProject(ctx, projectID, *productionID); err != nil {
+			return nil, err
+		}
+	}
+	resolved := productionID
+	if sceneMomentID != nil {
+		sceneMoment, err := s.repo.LoadSceneMoment(ctx, projectID, strconv.FormatUint(uint64(*sceneMomentID), 10))
+		if err != nil {
+			return nil, err
+		}
+		if err := ensureOptionalIDMatches(resolved, sceneMoment.ProductionID, "production_id must match scene_moment_id"); err != nil {
+			return nil, err
+		}
+		if resolved == nil {
+			resolved = sceneMoment.ProductionID
+		}
+	}
+	if segmentID != nil {
+		segment, err := s.repo.LoadSegment(ctx, projectID, strconv.FormatUint(uint64(*segmentID), 10))
+		if err != nil {
+			return nil, err
+		}
+		if err := ensureOptionalIDMatches(resolved, segment.ProductionID, "production_id must match segment_id"); err != nil {
+			return nil, err
+		}
+		if resolved == nil {
+			resolved = segment.ProductionID
+		}
+	}
+	return resolved, nil
 }
 
 func (s *Service) ListKeyframes(ctx context.Context, filter KeyframeFilter) ([]domainsemantic.Keyframe, error) {
@@ -1136,6 +1204,7 @@ func contentUnitFromInput(projectID uint, input ContentUnitInput) domainsemantic
 		SceneMomentID:    input.SceneMomentID,
 		ScriptBlockID:    input.ScriptBlockID,
 		Kind:             input.Kind,
+		UnitCode:         strings.TrimSpace(input.UnitCode),
 		Order:            input.Order,
 		Title:            input.Title,
 		Description:      input.Description,
@@ -1167,6 +1236,7 @@ func contentUnitPatch(input ContentUnitInput) domainsemantic.ContentUnitPatch {
 		SceneMomentID:    input.SceneMomentID,
 		ScriptBlockID:    input.ScriptBlockID,
 		Kind:             input.Kind,
+		UnitCode:         strings.TrimSpace(input.UnitCode),
 		Order:            input.Order,
 		Title:            input.Title,
 		Description:      input.Description,

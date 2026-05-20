@@ -57,6 +57,31 @@ test('buildModelToolResultContext leaves small tool results intact', () => {
   })
 })
 
+test('buildModelToolResultContext reads context budget from agent manifest metadata', () => {
+  const result = buildModelToolResultContext({
+    run: {
+      ...testRun(),
+      metadata: {},
+      agentManifest: {
+        id: 'manifest',
+        version: '1',
+        name: 'Manifest',
+        tools: [],
+        metadata: { limits: { maxRetrievedContextChars: 1000 } },
+      },
+    },
+    call: { name: 'movscript_read_project_scripts', args: { projectId: 42 } },
+    result: {
+      projectId: 42,
+      scripts: [{ id: 1, title: 'Long Script', content: '雨夜便利店。'.repeat(500) }],
+    },
+  })
+
+  assert.equal(result.dropped, true)
+  assert.equal(result.content.length <= 1000, true)
+  assert.match(result.content, /omitted_text_body/)
+})
+
 test('buildModelToolResultContext keeps script bodies up to the inline limit in summarized results', () => {
   const result = buildModelToolResultContext({
     run: {

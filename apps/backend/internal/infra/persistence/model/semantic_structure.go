@@ -77,8 +77,10 @@ type Segment struct {
 type SceneMoment struct {
 	gorm.Model
 	ProjectID     uint   `gorm:"not null;index" json:"project_id"`
+	ProductionID  *uint  `gorm:"index" json:"production_id,omitempty"`
 	SegmentID     *uint  `gorm:"index" json:"segment_id,omitempty"`
 	ScriptBlockID *uint  `gorm:"index" json:"script_block_id,omitempty"`
+	SceneCode     string `gorm:"index" json:"scene_code"`
 	Order         int    `gorm:"not null;default:0;index" json:"order"`
 	Title         string `json:"title"`
 	Description   string `gorm:"type:text" json:"description"`
@@ -146,6 +148,7 @@ type ContentUnit struct {
 	SceneMomentID    *uint   `gorm:"index" json:"scene_moment_id,omitempty"`
 	ScriptBlockID    *uint   `gorm:"index" json:"script_block_id,omitempty"`
 	Kind             string  `gorm:"not null;default:'shot';index" json:"kind"` // shot|voiceover|dialogue_audio|sound|music_beat|subtitle|caption_card|transition
+	UnitCode         string  `gorm:"index" json:"unit_code"`
 	Order            int     `gorm:"not null;default:0;index" json:"order"`
 	Title            string  `json:"title"`
 	Description      string  `gorm:"type:text" json:"description"`

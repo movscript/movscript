@@ -14,7 +14,9 @@ import { describeRuntimeModelCapabilities } from './model/modelRouter.js'
 import { isRecord } from './jsonValue.js'
 import type { JSONValue } from './types.js'
 import type { AgentTraceQuery } from './state/store.js'
-import { AGENT_TRACE_EVENT_KINDS, type AgentTraceEventKind } from './state/types.js'
+import { AGENT_TRACE_EVENT_KINDS, type AgentRun, type AgentThread, type AgentTraceEventKind } from './state/types.js'
+import { isActiveRunStatus } from './state/runStatus.js'
+import { buildRuntimeInputMessageMetadata } from './state/runtimeRunInputs.js'
 import { isValidMemoryProjectId } from './memory/types.js'
 import { isValidAgentProjectId, isValidAgentReferenceId } from './context/runtimeContext.js'
 import { installAgentSkillBundle, listAgentSkillBundlePlugins, uninstallAgentSkillBundle, type AgentSkillBundleFile } from './catalog/skillBundleInstaller.js'
@@ -422,10 +424,8 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           writeJSON(res, 404, { error: 'thread not found' })
           return
         }
-        writeJSON(res, 200, {
-          thread,
-          runs: context.agentRuntime.listRunsByThread(threadRuntimeMatch[1]),
-        })
+        const runs = context.agentRuntime.listRunsByThread(threadRuntimeMatch[1])
+        writeJSON(res, 200, buildThreadRuntimeSnapshot(thread, runs))
         return
       }
 
@@ -443,6 +443,33 @@ export function createAgentRequestListener(context: AgentServerContext, options:
             ? body.content
             : undefined
         if (!content) throw new AgentHTTPError(400, 'thread run message is required')
+        const thread = context.agentRuntime.getThread(threadRunMatch[1])
+        if (!thread) throw new AgentHTTPError(404, 'thread not found')
+        const activeRun = thread.activeRunId ? context.agentRuntime.getRun(thread.activeRunId) : undefined
+        const activeRunPolicy = body.activeRunPolicy === 'new_run' ? 'new_run' : 'runtime_input'
+        if (activeRun && isActiveRunStatus(activeRun.status) && activeRunPolicy !== 'new_run') {
+          const message = context.agentRuntime.addMessage(threadRunMatch[1], {
+            role: 'user',
+            content,
+            runId: activeRun.id,
+            metadata: buildRuntimeInputMessageMetadata({
+              targetRunId: activeRun.id,
+              mode: body.runtimeInputMode,
+            }),
+            ...(body.clientInput !== undefined ? { clientInput: body.clientInput } : {}),
+          })
+          writeJSON(res, 202, {
+            run: activeRun,
+            message,
+            runtimeInput: {
+              accepted: true,
+              runId: activeRun.id,
+              messageId: message.id,
+              status: 'accepted',
+            },
+          })
+          return
+        }
         const message = context.agentRuntime.addMessage(threadRunMatch[1], {
           role: 'user',
           content,
@@ -910,6 +937,79 @@ function logSlowRequest(method: string | undefined, pathname: string, requestSta
   const totalMs = Date.now() - requestStartedAt
   if (totalMs <= 100) return
   console.info(`[agent] request slow ${method ?? 'UNKNOWN'} ${pathname} total=${totalMs}ms handler=${Date.now() - handlerStartedAt}ms`)
+}
+
+interface ThreadRuntimeSnapshot {
+  schema: 'movscript.agent.thread-runtime-snapshot.v1'
+  updatedAt: string
+  thread: AgentThread
+  runs: AgentRun[]
+  current: {
+    runId?: string
+    threadStatus?: AgentThread['status']
+    runStatus?: AgentRun['status']
+  }
+  interactions: {
+    actionableRunIds: string[]
+    pendingApprovalRefs: Array<{ runId: string; approvalId: string }>
+    pendingInputRequestRefs: Array<{ runId: string; requestId: string }>
+  }
+}
+
+function buildThreadRuntimeSnapshot(thread: AgentThread, runs: AgentRun[]): ThreadRuntimeSnapshot {
+  const actionableRuns = runs.filter(runNeedsUserAction).sort(compareRunsByUpdatedAtDesc)
+  const currentRun = actionableRuns[0]
+    ?? findRunById(runs, thread.activeRunId)
+    ?? findRunById(runs, thread.lastRunId)
+    ?? [...runs].sort(compareRunsByUpdatedAtDesc)[0]
+  const pendingApprovalRefs = actionableRuns.flatMap((run) => (run.pendingApprovals ?? [])
+    .filter((approval) => approval.status === 'pending')
+    .map((approval) => ({ runId: run.id, approvalId: approval.id })))
+  const pendingInputRequestRefs = actionableRuns.flatMap((run) => (run.pendingInputRequests ?? [])
+    .filter((request) => request.status === 'pending')
+    .map((request) => ({ runId: run.id, requestId: request.id })))
+  return {
+    schema: 'movscript.agent.thread-runtime-snapshot.v1',
+    updatedAt: maxTimestamp([thread.updatedAt, ...runs.map((run) => run.updatedAt)]),
+    thread,
+    runs,
+    current: {
+      ...(currentRun ? { runId: currentRun.id, runStatus: currentRun.status } : {}),
+      ...(thread.status ? { threadStatus: thread.status } : {}),
+    },
+    interactions: {
+      actionableRunIds: actionableRuns.map((run) => run.id),
+      pendingApprovalRefs,
+      pendingInputRequestRefs,
+    },
+  }
+}
+
+function runNeedsUserAction(run: AgentRun): boolean {
+  return run.status === 'requires_action'
+    && (
+      (run.pendingApprovals ?? []).some((approval) => approval.status === 'pending')
+      || (run.pendingInputRequests ?? []).some((request) => request.status === 'pending')
+    )
+}
+
+function findRunById(runs: AgentRun[], runId: string | undefined): AgentRun | undefined {
+  return runId ? runs.find((run) => run.id === runId) : undefined
+}
+
+function compareRunsByUpdatedAtDesc(a: AgentRun, b: AgentRun): number {
+  return timestampMs(b.updatedAt ?? b.createdAt) - timestampMs(a.updatedAt ?? a.createdAt)
+}
+
+function maxTimestamp(values: string[]): string {
+  return values
+    .filter((value) => Number.isFinite(Date.parse(value)))
+    .sort((left, right) => timestampMs(right) - timestampMs(left))[0] ?? new Date(0).toISOString()
+}
+
+function timestampMs(value: string | undefined): number {
+  const parsed = value ? Date.parse(value) : NaN
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntime, runId: string): void {

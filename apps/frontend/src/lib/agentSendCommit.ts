@@ -181,6 +181,28 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
           updateActivityEvents,
           recordLiveTraceEvent: deps.recordLiveTraceEvent,
         })
+        if (event.type === 'trace' && event.event.title === 'Runtime input consumed') {
+          const data = event.event.data && typeof event.event.data === 'object'
+            ? event.event.data as { messageIds?: unknown }
+            : undefined
+          const messageIds = Array.isArray(data?.messageIds)
+            ? data.messageIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+            : []
+          if (messageIds.length > 0) {
+            const messages = useAgentStore.getState().getConversations(deps.userId)
+              .find((item) => item.id === deps.conversationId)?.messages ?? []
+            for (const message of messages) {
+              if (message.meta?.runtimeMessage?.messageId && messageIds.includes(message.meta.runtimeMessage.messageId)) {
+                deps.messageStore.updateMessageMeta(deps.userId, deps.conversationId, message.id, {
+                  runtimeInput: {
+                    ...(message.meta.runtimeInput ?? { status: 'accepted' }),
+                    status: 'consumed',
+                  },
+                })
+              }
+            }
+          }
+        }
       },
     })
     if (sendController.signal.aborted) throw sendController.signal.reason ?? createLocalAgentStopAbortError()

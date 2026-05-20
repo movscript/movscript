@@ -255,7 +255,7 @@ function resolvePromptProductPolicy(value: unknown): PromptProductPolicy {
   }
 }
 
-export function buildOpenAIChatTools(
+export function buildRuntimeChatTools(
   catalog: ResolvedToolCatalog,
   contract?: ReturnType<AgentRuntimeContractResolver['find']>,
 ): RuntimeModelChatTool[] {
@@ -264,12 +264,12 @@ export function buildOpenAIChatTools(
     function: {
       name: tool.name,
       ...(tool.description ? { description: tool.description } : {}),
-      ...(resolveOpenAIToolParameters(tool, contract) ? { parameters: resolveOpenAIToolParameters(tool, contract) } : {}),
+      ...(resolveRuntimeToolParameters(tool, contract) ? { parameters: resolveRuntimeToolParameters(tool, contract) } : {}),
     },
   }))
 }
 
-function resolveOpenAIToolParameters(
+function resolveRuntimeToolParameters(
   tool: ResolvedToolCatalog['available'][number],
   contract?: ReturnType<AgentRuntimeContractResolver['find']>,
 ): unknown {

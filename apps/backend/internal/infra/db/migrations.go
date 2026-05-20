@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -265,6 +266,19 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&persistencemodel.WritingExpression{})
 			},
 		},
+		{
+			Version: "000028",
+			Name:    "add_production_identifiers",
+			Up: func(db *gorm.DB) error {
+				if err := db.AutoMigrate(&persistencemodel.SceneMoment{}, &persistencemodel.ContentUnit{}); err != nil {
+					return err
+				}
+				if err := backfillProductionIdentifiers(db); err != nil {
+					return err
+				}
+				return createProductionIdentifierIndexes(db)
+			},
+		},
 	}
 	return core
 }
@@ -484,6 +498,164 @@ func createStoryboardVersionNumberUniqueIndex(db *gorm.DB) error {
 	)
 	if err := db.Exec(stmt).Error; err != nil {
 		return fmt.Errorf("create storyboard version number unique index: %w", err)
+	}
+	return nil
+}
+
+const sceneCodeUniqueIndex = "uidx_scene_moments_production_scene_code"
+const unitCodeUniqueIndex = "uidx_content_units_scene_kind_unit_code"
+
+type sceneProductionIdentifierRow struct {
+	ID           uint
+	ProjectID    uint
+	ProductionID *uint
+	SegmentID    *uint
+	SceneCode    string
+	Order        int
+}
+
+type contentUnitIdentifierRow struct {
+	ID            uint
+	ProjectID     uint
+	SceneMomentID *uint
+	Kind          string
+	UnitCode      string
+	Order         int
+}
+
+func backfillProductionIdentifiers(db *gorm.DB) error {
+	if err := backfillSceneProductionIdentifiers(db); err != nil {
+		return err
+	}
+	return backfillContentUnitIdentifiers(db)
+}
+
+func backfillSceneProductionIdentifiers(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.SceneMoment{}) {
+		return nil
+	}
+	segmentProductionIDs := map[uint]*uint{}
+	var segments []persistencemodel.Segment
+	if db.Migrator().HasTable(&persistencemodel.Segment{}) {
+		if err := db.Select("id, production_id").Find(&segments).Error; err != nil {
+			return fmt.Errorf("list segments for scene identifiers: %w", err)
+		}
+		for i := range segments {
+			segmentProductionIDs[segments[i].ID] = segments[i].ProductionID
+		}
+	}
+
+	var rows []sceneProductionIdentifierRow
+	if err := db.
+		Unscoped().
+		Model(&persistencemodel.SceneMoment{}).
+		Select("id, project_id, production_id, segment_id, scene_code, \"order\"").
+		Order("project_id, production_id, \"order\", id").
+		Find(&rows).Error; err != nil {
+		return fmt.Errorf("list scene moments for identifiers: %w", err)
+	}
+	nextByProduction := map[uint]int{}
+	for _, row := range rows {
+		productionID := row.ProductionID
+		if productionID == nil && row.SegmentID != nil {
+			productionID = segmentProductionIDs[*row.SegmentID]
+		}
+		if productionID == nil {
+			continue
+		}
+		if strings.TrimSpace(row.SceneCode) == "" {
+			nextByProduction[*productionID]++
+			if err := db.
+				Session(&gorm.Session{SkipHooks: true}).
+				Model(&persistencemodel.SceneMoment{}).
+				Where("id = ?", row.ID).
+				Updates(map[string]any{
+					"production_id": productionID,
+					"scene_code":    fmt.Sprint(nextByProduction[*productionID]),
+				}).Error; err != nil {
+				return fmt.Errorf("backfill scene identifier %d: %w", row.ID, err)
+			}
+			continue
+		}
+		if value := positiveIdentifierNumber(row.SceneCode); value > nextByProduction[*productionID] {
+			nextByProduction[*productionID] = value
+		}
+		if row.ProductionID == nil {
+			if err := db.
+				Session(&gorm.Session{SkipHooks: true}).
+				Model(&persistencemodel.SceneMoment{}).
+				Where("id = ?", row.ID).
+				Update("production_id", productionID).Error; err != nil {
+				return fmt.Errorf("backfill scene production %d: %w", row.ID, err)
+			}
+		}
+	}
+	return nil
+}
+
+func backfillContentUnitIdentifiers(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.ContentUnit{}) {
+		return nil
+	}
+	var rows []contentUnitIdentifierRow
+	if err := db.
+		Unscoped().
+		Model(&persistencemodel.ContentUnit{}).
+		Select("id, project_id, scene_moment_id, kind, unit_code, \"order\"").
+		Order("project_id, scene_moment_id, kind, \"order\", id").
+		Find(&rows).Error; err != nil {
+		return fmt.Errorf("list content units for identifiers: %w", err)
+	}
+	nextByScope := map[string]int{}
+	for _, row := range rows {
+		if row.SceneMomentID == nil {
+			continue
+		}
+		scope := fmt.Sprintf("%d:%d:%s", row.ProjectID, *row.SceneMomentID, strings.TrimSpace(row.Kind))
+		if strings.TrimSpace(row.UnitCode) != "" {
+			if value := positiveIdentifierNumber(row.UnitCode); value > nextByScope[scope] {
+				nextByScope[scope] = value
+			}
+			continue
+		}
+		nextByScope[scope]++
+		if err := db.
+			Session(&gorm.Session{SkipHooks: true}).
+			Model(&persistencemodel.ContentUnit{}).
+			Where("id = ?", row.ID).
+			Update("unit_code", fmt.Sprint(nextByScope[scope])).Error; err != nil {
+			return fmt.Errorf("backfill content unit identifier %d: %w", row.ID, err)
+		}
+	}
+	return nil
+}
+
+func positiveIdentifierNumber(code string) int {
+	value, err := strconv.Atoi(strings.TrimSpace(code))
+	if err != nil || value < 1 {
+		return 0
+	}
+	return value
+}
+
+func createProductionIdentifierIndexes(db *gorm.DB) error {
+	if err := createPartialUniqueIndex(db, &persistencemodel.SceneMoment{}, sceneCodeUniqueIndex, "scene_moments", "production_id, scene_code", "deleted_at IS NULL AND production_id IS NOT NULL AND scene_code <> ''"); err != nil {
+		return err
+	}
+	return createPartialUniqueIndex(db, &persistencemodel.ContentUnit{}, unitCodeUniqueIndex, "content_units", "scene_moment_id, kind, unit_code", "deleted_at IS NULL AND scene_moment_id IS NOT NULL AND unit_code <> ''")
+}
+
+func createPartialUniqueIndex(db *gorm.DB, model any, name string, table string, columns string, predicate string) error {
+	if !db.Migrator().HasTable(model) || db.Migrator().HasIndex(model, name) {
+		return nil
+	}
+	partial := ""
+	if db.Dialector.Name() == "postgres" || db.Dialector.Name() == "sqlite" {
+		partial = " WHERE " + predicate
+	}
+	stmt := fmt.Sprintf("CREATE UNIQUE INDEX %s ON %s (%s)%s", name, table, columns, partial)
+	if err := db.Exec(stmt).Error; err != nil {
+		return fmt.Errorf("create %s: %w", name, err)
 	}
 	return nil
 }

@@ -1,4 +1,4 @@
-export type AgentToolDisplayTranslator = (key: string, options?: { defaultValue?: string }) => string
+export type AgentToolDisplayTranslator = (key: string, options?: { defaultValue?: string } & Record<string, unknown>) => string
 
 const TOOL_NAME_LABELS_ZH: Record<string, string> = {
   movscript_apply_draft: '应用草稿',
@@ -60,12 +60,29 @@ const PERMISSION_LABELS_ZH: Record<string, string> = {
   network: '网络',
   filesystem: '文件系统',
   shell: '命令行',
+  'agent.catalog.read': '读取 Agent 工具目录',
+  'agent.input': '请求用户输入',
+  'agent.plan.read': '读取 Agent 执行计划',
+  'agent.plan.write': '更新 Agent 执行计划',
+  'agent.skills.manage': '管理 Agent 技能',
+  'agent.subagent.read': '读取子代理状态',
+  'agent.subagent.write': '管理子代理',
+  'asset.candidate.write': '写入素材候选',
+  'draft.apply': '应用草稿变更',
+  'draft.read': '读取草稿',
+  'draft.write': '写入草稿',
   'generation.create': '创建生成任务',
   'generation.read': '读取生成任务',
   'generation.cancel': '取消生成任务',
+  'keyframe.candidate.write': '写入关键帧候选',
+  'knowledge.read': '读取知识库',
+  'memory.read': '记忆读取',
+  'memory.write': '记忆写入',
   'model.generation.read': '读取生成模型',
   'model.image.generate': '生成图片',
   'model.video.generate': '生成视频',
+  'project.read': '读取项目数据',
+  'project.write': '写入项目数据',
 }
 
 export function agentToolNameLabel(toolName: string | undefined, t?: AgentToolDisplayTranslator): string {
@@ -84,13 +101,13 @@ export function agentToolNameWithId(toolName: string | undefined, t?: AgentToolD
 export function agentRiskLabel(risk: string, t?: AgentToolDisplayTranslator): string {
   const fallback = RISK_LABELS_ZH[risk]
   if (fallback) return t ? t(`agents.tools.risks.${risk}`, { defaultValue: fallback }) : fallback
-  return unknownLabel('风险', risk)
+  return unknownLabel('risk', '风险', risk, t)
 }
 
 export function agentPermissionLabel(permission: string, t?: AgentToolDisplayTranslator): string {
   const fallback = PERMISSION_LABELS_ZH[permission] ?? businessPermissionLabel(permission)
   if (fallback) return t ? t(`agents.tools.permissions.${permissionI18nKey(permission)}`, { defaultValue: fallback }) : fallback
-  return unknownLabel('权限', permission)
+  return unknownLabel('permission', '权限', permission, t)
 }
 
 function businessPermissionLabel(permission: string): string | undefined {
@@ -105,7 +122,9 @@ function businessPermissionLabel(permission: string): string | undefined {
           ? '生成任务'
           : parts.includes('model')
             ? '模型'
-            : undefined
+            : parts.includes('knowledge')
+              ? '知识库'
+              : undefined
   const target = parts.includes('assets')
     ? '素材'
     : parts.includes('artifact') || parts.includes('artifacts')
@@ -127,7 +146,9 @@ function businessPermissionLabel(permission: string): string | undefined {
               ? '删除'
               : parts.includes('generate')
                 ? '生成'
-                : undefined
+                : parts.includes('apply')
+                  ? '应用'
+                  : undefined
   if (!domain || !action) return undefined
   return `${domain}${target}${action}`
 }
@@ -140,6 +161,7 @@ function permissionI18nKey(permission: string): string {
   return permission.replace(/[^a-zA-Z0-9_]/g, '_')
 }
 
-function unknownLabel(scope: string, value: string): string {
-  return `未知${scope} (${value})`
+function unknownLabel(key: string, scope: string, value: string, t?: AgentToolDisplayTranslator): string {
+  const fallback = `未识别${scope}：${value}`
+  return t ? t(`agents.tools.unknown.${key}`, { value, defaultValue: fallback }) : fallback
 }

@@ -20,7 +20,7 @@ export function buildFinalSourceSummary(input: BuildFinalSourceSummaryInput): st
 
 export function appendFinalSourceSummary(content: string, input: BuildFinalSourceSummaryInput): string {
   const trimmed = content.trim()
-  if (!trimmed) return trimmed
+  if (!trimmed) return buildFinalSourceSummary(input)
   const bounded = omitLargeKnowledgeBodies(trimmed, input.run)
   if (/^来源[:：]/m.test(bounded) || /^Sources:/im.test(bounded)) return bounded
   const summary = buildFinalSourceSummary(input)

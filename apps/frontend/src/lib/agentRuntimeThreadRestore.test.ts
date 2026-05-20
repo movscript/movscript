@@ -120,6 +120,8 @@ function runtimeProjection(overrides: Partial<RuntimeThreadHydrationResult> = {}
   return {
     thread: runtimeThread,
     runs: overrides.runs ?? [run({ threadId: runtimeThread.id })],
+    currentRun: overrides.currentRun,
+    actionableRuns: overrides.actionableRuns ?? [],
     messages: overrides.messages ?? [message()],
   }
 }

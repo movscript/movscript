@@ -38,6 +38,7 @@ const facadeDelegates = [
   ['spawnSubagent', 'this.subagentTools.spawnSubagent(run, input)'],
   ['listSubagents', 'this.subagentTools.listSubagents(run, input)'],
   ['waitSubagent', 'this.subagentTools.waitSubagent(run, input)'],
+  ['waitGenerationJobs', 'this.generationTools.waitGenerationJobs(run, input, options)'],
   ['cancelSubagent', 'this.subagentTools.cancelSubagent(run, input)'],
   ['createThread', 'this.threads.createThread(input)'],
   ['listThreads', 'this.threads.listThreads()'],

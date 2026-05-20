@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Bot, Check, Copy, Loader2, Settings2 } from 'lucide-react'
+import { AlertCircle, Bot, Check, Copy, Loader2, Settings2 } from 'lucide-react'
 import { AgentChatMessage, Badge, Button } from '@movscript/ui'
 import { buildAgentMessagePresentation } from '@/lib/agentMessagePresentation'
 import { hydrateHistoricalGeneratedAttachments } from '@/lib/agentMessageViewModel'
@@ -152,6 +152,15 @@ export function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?
     () => buildAgentMessagePresentation(msg, historicalGeneratedAttachments),
     [historicalGeneratedAttachments, msg],
   )
+  const runtimeInput = msg.meta?.runtimeInput
+  const runtimeInputStatus = runtimeInput?.status
+  const runtimeInputLabel = runtimeInput?.status === 'pending'
+    ? '等待送达运行中任务'
+    : runtimeInput?.status === 'accepted'
+      ? '已进入运行中任务'
+      : runtimeInput?.status === 'consumed'
+        ? '已被模型读取'
+        : runtimeInput?.status === 'failed' ? '送达失败' : undefined
   const {
     contextDiagnostic,
     contextLabels,
@@ -194,8 +203,19 @@ export function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?
           {copied ? <Check size={11} /> : <Copy size={11} />}
         </Button>
       )}
-      footer={contextLabels.length > 0 && (
+      footer={(contextLabels.length > 0 || runtimeInputLabel) && (
         <div className={cn('flex flex-wrap gap-1', isUser ? 'justify-end' : 'justify-start')}>
+          {runtimeInputLabel && (
+            <Badge
+              variant={runtimeInputStatus === 'failed' ? 'destructive' : runtimeInputStatus === 'pending' ? 'secondary' : 'outline'}
+              className="text-[9px] leading-4 px-1.5 py-0"
+              title={runtimeInput?.error}
+            >
+              {runtimeInputStatus === 'pending' && <Loader2 size={9} className="mr-1 inline animate-spin" />}
+              {runtimeInputStatus === 'failed' && <AlertCircle size={9} className="mr-1 inline" />}
+              {runtimeInputLabel}
+            </Badge>
+          )}
           {contextLabels.map((label) => (
             <Badge key={label} variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">
               {label}

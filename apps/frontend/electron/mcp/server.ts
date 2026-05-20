@@ -574,7 +574,7 @@ export function listTools(): MCPTool[] {
       description: 'Return the frontend-owned DraftDomainModel contract for a draft kind and target. This is the single source for draft field ownership, seed policy, review route, apply boundary, and optional hydrated seed data.',
       inputSchema: objectSchema(
         {
-          kind: { type: 'string', enum: ['setting_proposal', 'project_standards_proposal', 'production_proposal', 'script_split_proposal', 'asset_proposal'] },
+          kind: { type: 'string', enum: ['setting_proposal', 'project_standards_proposal', 'production_proposal', 'script_split_proposal', 'asset_proposal', 'content_unit_proposal'] },
           target: { type: 'object', additionalProperties: true, description: 'Optional target entity anchor. entityType/entityId defaults come from the model and current focus when available.' },
           seedMode: { type: 'string', enum: ['empty', 'snapshot', 'editable_snapshot'], description: 'Defaults to the model seed.defaultMode.' },
           include: { type: 'array', items: { type: 'string' }, description: 'Optional subset of the model seed.include allowlist.' },
@@ -732,7 +732,7 @@ export function listTools(): MCPTool[] {
             type: 'object',
             description: 'Present when the job needs asynchronous monitoring.',
             properties: {
-              tool: { type: 'string', const: 'movscript_get_generation_job' },
+              tool: { type: 'string', enum: ['movscript_wait_generation_jobs', 'movscript_get_generation_job'] },
               args: { type: 'object' },
               message: { type: 'string' },
             },
@@ -780,6 +780,35 @@ export function listTools(): MCPTool[] {
           projectId: { type: 'number' },
         },
         ['jobId']
+      ),
+    },
+    {
+      name: 'movscript_wait_generation_jobs',
+      description: 'Wait for one or more AI image or video generation jobs to reach a terminal status, or return pending jobs when the wait times out. Use this instead of repeatedly calling movscript_get_generation_job.',
+      inputSchema: objectSchema(
+        {
+          jobIds: { type: 'array', items: { type: ['string', 'number'] }, minItems: 1, description: 'Generation job IDs to wait for.' },
+          jobId: { type: ['string', 'number'], description: 'Single-job compatibility alias. Ignored when jobIds is present.' },
+          projectId: { type: 'number' },
+          mode: { type: 'string', enum: ['all', 'any'], description: 'Defaults to all. any returns when any requested job reaches a terminal status.' },
+          timeout_ms: { type: 'number', description: 'Maximum wait time. Defaults to 180000ms.' },
+          heartbeat_ms: { type: 'number', description: 'Reserved for event stream heartbeat metadata.' },
+        },
+      ),
+      outputSchema: objectSchema(
+        {
+          status: { type: 'string', enum: ['completed', 'partial', 'timeout', 'failed', 'cancelled'] },
+          done: { type: 'boolean' },
+          jobIds: { type: 'array', items: { type: 'number' } },
+          completed: { type: 'array', items: { type: 'object' } },
+          pending: { type: 'array', items: { type: 'object' } },
+          failed: { type: 'array', items: { type: 'object' } },
+          cancelled: { type: 'array', items: { type: 'object' } },
+          output_resource_ids: { type: 'array', items: { type: 'number' } },
+          jobs: { type: 'array', items: { type: 'object' } },
+          message: { type: 'string' },
+        },
+        ['status', 'done', 'jobIds', 'completed', 'pending', 'failed', 'cancelled', 'message']
       ),
     },
     {
@@ -969,6 +998,8 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
       return toolText(await attachKeyframeCandidate(args))
     case 'movscript_get_generation_job':
       return toolText(await getGenerationJob(args))
+    case 'movscript_wait_generation_jobs':
+      return toolText(await waitGenerationJobs(args))
     case 'movscript_list_generation_jobs':
       return toolText(await listGenerationJobs(args))
     case 'movscript_cancel_generation_job':
@@ -1537,7 +1568,7 @@ export async function queryProductionContext(args: Record<string, unknown>): Pro
 }
 
 export async function getDraftModelContract(args: Record<string, unknown>): Promise<unknown> {
-  const kind = getRequiredString(args, 'kind') as AgentDraftKind
+  const kind = normalizeDraftModelKind(getRequiredString(args, 'kind'))
   const model = getDraftDomainModel(kind)
   if (!model) throw new Error(`Unsupported draft model kind: ${kind}`)
   const target = normalizeDraftModelTarget(model.targetEntityType, args.target)
@@ -1583,6 +1614,36 @@ export async function getDraftModelContract(args: Record<string, unknown>): Prom
     reviewRouteTemplate: model.routes.reviewTemplate,
     reviewRoute,
     modelRef,
+  }
+}
+
+function normalizeDraftModelKind(value: string): AgentDraftKind {
+  const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, '_')
+  switch (normalized) {
+  case 'setting_proposal':
+  case 'setting':
+    return 'setting_proposal'
+  case 'project_standards_proposal':
+  case 'project_standard_proposal':
+  case 'project_standards':
+  case 'project_standard':
+  case 'project_proposal':
+    return 'project_standards_proposal'
+  case 'production_proposal':
+  case 'production':
+    return 'production_proposal'
+  case 'script_split_proposal':
+  case 'script_split':
+    return 'script_split_proposal'
+  case 'asset_proposal':
+  case 'asset_slot_proposal':
+  case 'asset':
+    return 'asset_proposal'
+  case 'content_unit_proposal':
+  case 'content_unit':
+    return 'content_unit_proposal'
+  default:
+    throw new Error(`Unsupported draft model kind: ${value}`)
   }
 }
 
@@ -2093,14 +2154,16 @@ export async function createGenerationJob(args: Record<string, unknown>): Promis
   const initialJobId = getJobId(job)
   if (!wait) {
     const normalized = normalizeGenerationJob(job)
+    const monitorTimeoutMs = getOptionalNumeric(args, 'timeout_ms') ?? (jobType.startsWith('video') ? 600_000 : 180_000)
+    const monitorHeartbeatMs = jobType.startsWith('video') ? 30_000 : 15_000
     return {
       status: 'queued',
       job: normalized.job,
       jobId: initialJobId,
       monitor: {
-        tool: 'movscript_get_generation_job',
-        args: initialJobId ? { jobId: initialJobId, ...(projectId ? { projectId } : {}) } : undefined,
-        message: 'Generation is asynchronous. Inspect this job until it reaches a terminal status before claiming completion.',
+        tool: 'movscript_wait_generation_jobs',
+        args: initialJobId ? { jobIds: [initialJobId], timeout_ms: monitorTimeoutMs, heartbeat_ms: monitorHeartbeatMs, ...(projectId ? { projectId } : {}) } : undefined,
+        message: 'Generation is asynchronous. Wait for this job to reach a terminal status before claiming completion.',
       },
       param_validation: paramValidation,
       message: `生成任务已创建${initialJobId ? `（Job #${initialJobId}）` : ''}。`,
@@ -2331,6 +2394,128 @@ async function getGenerationJob(args: Record<string, unknown>): Promise<unknown>
   }
 }
 
+export async function waitGenerationJobs(args: Record<string, unknown>): Promise<unknown> {
+  const jobIds = normalizeWaitGenerationJobIds(args)
+  if (jobIds.length === 0) throw new Error('jobIds is required')
+  const mode = getOptionalString(args, 'mode') === 'any' ? 'any' : 'all'
+  const timeoutMs = clampNumber(getOptionalNumeric(args, 'timeout_ms') ?? getOptionalNumeric(args, 'timeoutMs') ?? 180_000, 0, 30 * 60_000)
+  const pollIntervalMs = clampNumber(getOptionalNumeric(args, 'poll_interval_ms') ?? getOptionalNumeric(args, 'pollIntervalMs') ?? 2500, 500, 15_000)
+  const heartbeatMs = clampNumber(getOptionalNumeric(args, 'heartbeat_ms') ?? getOptionalNumeric(args, 'heartbeatMs') ?? 15_000, 0, 5 * 60_000)
+  const deadline = Date.now() + timeoutMs
+  let latest = await readGenerationJobs(jobIds)
+
+  while (!waitGenerationJobsDone(latest, mode) && Date.now() < deadline) {
+    await sleep(Math.min(pollIntervalMs, Math.max(0, deadline - Date.now())))
+    latest = await readGenerationJobs(jobIds)
+  }
+
+  return buildWaitGenerationJobsResult({
+    jobIds,
+    jobs: latest,
+    mode,
+    timedOut: !waitGenerationJobsDone(latest, mode),
+    timeoutMs,
+    heartbeatMs,
+  })
+}
+
+async function readGenerationJobs(jobIds: number[]): Promise<Record<string, unknown>[]> {
+  return Promise.all(jobIds.map(async (jobId) => {
+    const normalized = normalizeGenerationJob(await backendGet(`/jobs/${jobId}`))
+    return {
+      ...normalized,
+      jobId,
+      terminal: isTerminalGenerationStatus(stringValue(normalized.status) ?? 'unknown'),
+      message: generationJobMessage(jobId, normalized),
+    }
+  }))
+}
+
+function waitGenerationJobsDone(jobs: Record<string, unknown>[], mode: 'all' | 'any'): boolean {
+  if (jobs.length === 0) return false
+  const terminal = (job: Record<string, unknown>) => job.terminal === true
+  return mode === 'any' ? jobs.some(terminal) : jobs.every(terminal)
+}
+
+function buildWaitGenerationJobsResult(input: {
+  jobIds: number[]
+  jobs: Record<string, unknown>[]
+  mode: 'all' | 'any'
+  timedOut: boolean
+  timeoutMs: number
+  heartbeatMs: number
+}): Record<string, unknown> {
+  const completed = input.jobs.filter((job) => stringValue(job.status) === 'succeeded')
+  const failed = input.jobs.filter((job) => stringValue(job.status) === 'failed')
+  const cancelled = input.jobs.filter((job) => stringValue(job.status) === 'cancelled')
+  const pending = input.jobs.filter((job) => job.terminal !== true)
+  const outputResourceIds = uniquePositiveNumberArray(input.jobs.flatMap((job) => (
+    Array.isArray(job.output_resource_ids) ? job.output_resource_ids : [job.output_resource_id]
+  )))
+  const done = !input.timedOut && waitGenerationJobsDone(input.jobs, input.mode)
+  const status = input.timedOut
+    ? 'timeout'
+    : pending.length > 0
+      ? 'partial'
+      : failed.length > 0
+        ? 'failed'
+        : cancelled.length > 0 && completed.length === 0
+          ? 'cancelled'
+          : 'completed'
+  return {
+    status,
+    done,
+    mode: input.mode,
+    jobIds: input.jobIds,
+    jobs: input.jobs,
+    completed,
+    pending,
+    failed,
+    cancelled,
+    ...(outputResourceIds.length > 0 ? { output_resource_ids: outputResourceIds } : {}),
+    timeout_ms: input.timeoutMs,
+    heartbeat_ms: input.heartbeatMs,
+    terminal: done,
+    message: waitGenerationJobsMessage({ status, completed, pending, failed, cancelled, outputResourceIds }),
+  }
+}
+
+function waitGenerationJobsMessage(input: {
+  status: string
+  completed: Record<string, unknown>[]
+  pending: Record<string, unknown>[]
+  failed: Record<string, unknown>[]
+  cancelled: Record<string, unknown>[]
+  outputResourceIds: number[]
+}): string {
+  if (input.status === 'timeout') {
+    return `等待生成任务超时，仍有 ${input.pending.length} 个任务在后台运行。`
+  }
+  if (input.status === 'failed') {
+    return `生成任务等待完成，其中 ${input.failed.length} 个失败。`
+  }
+  if (input.status === 'cancelled') {
+    return `生成任务等待完成，其中 ${input.cancelled.length} 个已取消。`
+  }
+  if (input.outputResourceIds.length > 0) {
+    return `生成任务完成，输出资源 ${input.outputResourceIds.map((id) => `#${id}`).join('、')}。`
+  }
+  return `生成任务等待完成，成功 ${input.completed.length} 个。`
+}
+
+function normalizeWaitGenerationJobIds(args: Record<string, unknown>): number[] {
+  const rawIds = Array.isArray(args.jobIds)
+    ? args.jobIds
+    : Array.isArray(args.job_ids)
+      ? args.job_ids
+      : args.jobId !== undefined
+        ? [args.jobId]
+        : args.job_id !== undefined
+          ? [args.job_id]
+          : []
+  return uniquePositiveNumberArray(rawIds)
+}
+
 async function listGenerationJobs(args: Record<string, unknown>): Promise<unknown> {
   const projectId = getOptionalNumeric(args, 'projectId') ?? contextSnapshot.project?.id
   const limit = clampNumber(Math.floor(getOptionalNumeric(args, 'limit') ?? 20), 1, 100)
@@ -2529,9 +2714,43 @@ function normalizeProjectLayerProposalPayloadForKind(value: unknown, kind: Agent
     mode: 'snapshot',
     proposal: {
       ...proposal,
-      project_style: isRecord(proposal.project_style) ? proposal.project_style : {},
+      project_style: normalizeProjectStylePatch(proposal.project_style),
     },
   }
+}
+
+function normalizeProjectStylePatch(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) return {}
+  const out: Record<string, unknown> = { ...value }
+  if (value.shot_size_system !== undefined) {
+    out.shot_size_system = normalizeProjectStyleStringList(value.shot_size_system)
+  }
+  if (value.negative_rules !== undefined) {
+    out.negative_rules = normalizeProjectStyleStringList(value.negative_rules)
+  }
+  return out
+}
+
+function normalizeProjectStyleStringList(value: unknown): string[] {
+  const items = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/\r?\n/) : [value]
+  return items
+    .map((item) => projectStyleListItemToString(item))
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function projectStyleListItemToString(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (!isRecord(value)) return ''
+  const key = stringValue(value.key)
+  const label = stringValue(value.label)
+  const usage = stringValue(value.usage)
+  const composition = stringValue(value.composition)
+  const description = stringValue(value.description)
+  const name = [key, label].filter(Boolean).join(' ')
+  const details = [usage, composition, description].filter(Boolean).join('；')
+  return [name, details].filter(Boolean).join('：')
 }
 
 function inferProjectLayerProposalDraftKind(payload: Record<string, unknown>, kind: AgentDraftKind): AgentDraftKind {
@@ -3243,6 +3462,18 @@ function getNumberArray(value: unknown): number[] {
   return rawItems
     .map((item) => typeof item === 'number' ? item : typeof item === 'string' ? Number(item) : NaN)
     .filter((item) => Number.isInteger(item) && item > 0)
+}
+
+function uniquePositiveNumberArray(value: unknown[]): number[] {
+  const seen = new Set<number>()
+  const out: number[] = []
+  for (const item of value) {
+    const parsed = numericValue(item)
+    if (parsed === undefined || !Number.isInteger(parsed) || parsed <= 0 || seen.has(parsed)) continue
+    seen.add(parsed)
+    out.push(parsed)
+  }
+  return out
 }
 
 function clampNumber(value: number, min: number, max: number): number {

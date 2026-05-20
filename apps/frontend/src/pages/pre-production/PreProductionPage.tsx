@@ -5,6 +5,7 @@ import { Bot, Check, ChevronRight, Database, FileAudio, FileText, GitBranch, Ima
 
 import { ProjectLayerProposalReviewPanel } from '@/components/proposals/ProjectLayerProposalReviewPanel'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
+import { ResourceLibraryPicker, type ResourceTypeFilter } from '@/components/shared/ResourceLibraryPicker'
 import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
 import { createSemanticEntity, listSemanticEntities, updateSemanticEntity, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
@@ -21,8 +22,8 @@ import { localAgentClient, type AgentDraft } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
-import type { Canvas, RawResource } from '@/types'
-import { Badge, Button } from '@movscript/ui'
+import type { Canvas, PaginatedResponse, RawResource } from '@/types'
+import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@movscript/ui'
 import { ROUTES } from '@/routes/projectRoutes'
 
 type SlotStatus = 'missing' | 'candidate' | 'locked' | 'waived'
@@ -237,6 +238,11 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   const [newReferenceEditKey, setNewReferenceEditKey] = useState<string | number | null>(null)
   const [uploading, setUploading] = useState(false)
   const [prepAuditLaunching, setPrepAuditLaunching] = useState(false)
+  const [resourceLibraryOpen, setResourceLibraryOpen] = useState(false)
+  const [resourceLibrarySearch, setResourceLibrarySearch] = useState('')
+  const [resourceLibraryType, setResourceLibraryType] = useState<ResourceTypeFilter>('all')
+  const [resourceLibraryPage, setResourceLibraryPage] = useState(1)
+  const [selectedLibraryResource, setSelectedLibraryResource] = useState<RawResource | null>(null)
   const selectedId = readNumberParam(searchParams, 'asset_slot_id') ?? readNumberParam(searchParams, 'selected')
   const selectedReferenceParam = readNumberParam(searchParams, 'reference_id')
   const kindParam = readStringParam(searchParams, 'kind')
@@ -265,6 +271,20 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     queryKey: ['semantic-asset-slot-candidates-page', projectId],
     queryFn: () => listSemanticEntities(projectId!, candidateConfig) as Promise<AssetSlotCandidateRecord[]>,
     enabled: !!projectId,
+  })
+
+  const resourceLibraryTypeParam = resourceLibraryType === 'all' ? 'image,video,audio,text,file' : resourceLibraryType
+  const resourceLibraryQuery = useQuery<PaginatedResponse<RawResource> | RawResource[]>({
+    queryKey: ['resources', 'pre-production-library-picker', resourceLibraryTypeParam, resourceLibrarySearch, resourceLibraryPage],
+    queryFn: () => api.get('/resources', {
+      params: {
+        page: resourceLibraryPage,
+        page_size: 18,
+        type: resourceLibraryTypeParam,
+        q: resourceLibrarySearch.trim() || undefined,
+      },
+    }).then((r) => r.data),
+    enabled: resourceLibraryOpen,
   })
 
   const assetProposalDraftsQuery = useQuery<AgentDraft[]>({
@@ -348,6 +368,30 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
       api.post(`/projects/${projectId}/entities/asset-slot-candidates`, payload).then((r) => r.data),
     onSuccess: () => {
       invalidateAssetCandidateConsumers(queryClient, projectId)
+    },
+  })
+
+  const attachLibraryCandidateMutation = useMutation({
+    mutationFn: async ({ row, resource }: { row: AssetSlotViewModel; resource: RawResource }) => {
+      if (!projectId) throw new Error('请先选择项目')
+      await api.post(`/projects/${projectId}/entities/asset-slot-candidates`, {
+        asset_slot_id: row.slot.ID,
+        resource_id: resource.ID,
+        source_type: 'manual',
+        source_id: resource.ID,
+        score: 0.7,
+        status: 'candidate',
+        note: `从资源库选择：${resource.name}`,
+      })
+    },
+    onSuccess: async () => {
+      setResourceLibraryOpen(false)
+      setSelectedLibraryResource(null)
+      invalidateAssetCandidateConsumers(queryClient, projectId)
+      toast.success('资源已加入候选')
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : '加入资源候选失败')
     },
   })
 
@@ -483,7 +527,6 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
             },
           },
         }),
-        runPolicy: { maxToolCalls: 12, maxIterations: 8 },
         timeoutMs: 300_000,
         renderMode: 'chat',
       })
@@ -581,6 +624,23 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     })
   }
 
+  function openResourceLibraryPicker() {
+    if (!selected) {
+      toast.info('请先选择素材需求')
+      return
+    }
+    setResourceLibraryType(defaultResourceTypeForAssetKind(selected.kind))
+    setResourceLibrarySearch('')
+    setResourceLibraryPage(1)
+    setSelectedLibraryResource(null)
+    setResourceLibraryOpen(true)
+  }
+
+  function attachSelectedLibraryResource() {
+    if (!selected || !selectedLibraryResource || attachLibraryCandidateMutation.isPending) return
+    attachLibraryCandidateMutation.mutate({ row: selected, resource: selectedLibraryResource })
+  }
+
   function openAssistantForSlot() {
     if (!projectId || !selected) {
       toast.info('请先选择素材需求')
@@ -652,7 +712,6 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
           selection: { entityType: 'project', entityId: projectId, label: projectLabel },
         },
       }),
-      runPolicy: { maxToolCalls: 36, maxIterations: 18 },
       timeoutMs: 240_000,
       renderMode: 'page',
     })
@@ -690,6 +749,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
       rejectCandidatePending={rejectCandidateMutation.isPending}
       addCandidateMutationPending={addCandidateMutation.isPending}
       uploadCandidatePending={uploadCandidateMutation.isPending}
+      attachLibraryCandidatePending={attachLibraryCandidateMutation.isPending}
       openCanvasPending={openCanvasMutation.isPending}
       generateCandidatePending={generateCandidateMutation.isPending}
       uploading={uploading || uploadCandidateMutation.isPending}
@@ -713,6 +773,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
       onLock={lockCandidate}
       onReject={rejectCandidate}
       onUploadCandidate={triggerUpload}
+      onOpenResourceLibrary={openResourceLibraryPicker}
       onGenerateProposal={generateCandidate}
       onGenerateMedia={generateMediaCandidate}
       onOpenAssistant={openAssistantForSlot}
@@ -761,6 +822,33 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   return (
     <>
       {mainWorkspace}
+      <AssetResourceLibraryDialog
+        open={resourceLibraryOpen}
+        row={selected}
+        resources={Array.isArray(resourceLibraryQuery.data) ? resourceLibraryQuery.data : resourceLibraryQuery.data?.items ?? []}
+        selectedResource={selectedLibraryResource}
+        search={resourceLibrarySearch}
+        type={resourceLibraryType}
+        page={resourceLibraryPage}
+        pageCount={Math.max(1, Math.ceil((Array.isArray(resourceLibraryQuery.data) ? resourceLibraryQuery.data.length : resourceLibraryQuery.data?.total ?? 0) / 18))}
+        total={Array.isArray(resourceLibraryQuery.data) ? resourceLibraryQuery.data.length : resourceLibraryQuery.data?.total ?? 0}
+        isLoading={resourceLibraryQuery.isLoading || resourceLibraryQuery.isFetching}
+        isSaving={attachLibraryCandidateMutation.isPending}
+        onOpenChange={setResourceLibraryOpen}
+        onSearch={(value) => {
+          setResourceLibrarySearch(value)
+          setResourceLibraryPage(1)
+        }}
+        onType={(value) => {
+          setResourceLibraryType(value)
+          setResourceLibraryPage(1)
+          setSelectedLibraryResource(null)
+        }}
+        onPage={setResourceLibraryPage}
+        onSelect={setSelectedLibraryResource}
+        onClear={() => setSelectedLibraryResource(null)}
+        onConfirm={attachSelectedLibraryResource}
+      />
       <input ref={uploadInputRef} type="file" className="hidden" accept={RESOURCE_UPLOAD_ACCEPT} onChange={(e) => handleUpload(e.target.files?.[0])} />
     </>
   )
@@ -796,6 +884,7 @@ function PreProductionWorkspace({
   rejectCandidatePending,
   addCandidateMutationPending,
   uploadCandidatePending,
+  attachLibraryCandidatePending,
   openCanvasPending,
   generateCandidatePending,
   uploading,
@@ -807,6 +896,7 @@ function PreProductionWorkspace({
   onLock,
   onReject,
   onUploadCandidate,
+  onOpenResourceLibrary,
   onGenerateProposal,
   onGenerateMedia,
   onOpenAssistant,
@@ -844,6 +934,7 @@ function PreProductionWorkspace({
   rejectCandidatePending: boolean
   addCandidateMutationPending: boolean
   uploadCandidatePending: boolean
+  attachLibraryCandidatePending: boolean
   openCanvasPending: boolean
   generateCandidatePending: boolean
   uploading: boolean
@@ -855,6 +946,7 @@ function PreProductionWorkspace({
   onLock: (candidate: AssetSlotCandidateRecord) => void
   onReject: (candidate: AssetSlotCandidateRecord) => void
   onUploadCandidate: () => void
+  onOpenResourceLibrary: () => void
   onGenerateProposal: (kind: CandidateGenerationKind) => void
   onGenerateMedia: (kind: CandidateGenerationKind) => void
   onOpenAssistant: () => void
@@ -864,7 +956,7 @@ function PreProductionWorkspace({
   onSelectReference: (referenceId: number) => void
 }) {
   const clusterRows = selectedCluster?.rows ?? []
-  const busy = updateSlotMutationPending || lockCandidatePending || rejectCandidatePending || addCandidateMutationPending || uploadCandidatePending || openCanvasPending || generateCandidatePending
+  const busy = updateSlotMutationPending || lockCandidatePending || rejectCandidatePending || addCandidateMutationPending || uploadCandidatePending || attachLibraryCandidatePending || openCanvasPending || generateCandidatePending
   const headerActionButtonClass = 'h-8 w-[132px] justify-center gap-1.5 text-xs'
   const creatingReference = Boolean(newReferenceEditKey)
   const [referenceEditorCollapsed, setReferenceEditorCollapsed] = useState(true)
@@ -982,6 +1074,7 @@ function PreProductionWorkspace({
                     onLock={onLock}
                     onReject={onReject}
                     onUploadCandidate={onUploadCandidate}
+                    onOpenResourceLibrary={onOpenResourceLibrary}
                     onGenerateCandidate={onGenerateProposal}
                     onGenerateMediaCandidate={onGenerateMedia}
                     onOpenAssistant={onOpenAssistant}
@@ -1461,6 +1554,7 @@ function AssetSlotDetail({
   onLock,
   onReject,
   onUploadCandidate,
+  onOpenResourceLibrary,
   onGenerateMediaCandidate,
   busy,
   uploading,
@@ -1469,6 +1563,7 @@ function AssetSlotDetail({
   onLock: (candidate: AssetSlotCandidateRecord) => void
   onReject: (candidate: AssetSlotCandidateRecord) => void
   onUploadCandidate: () => void
+  onOpenResourceLibrary: () => void
   onGenerateCandidate: (kind: CandidateGenerationKind) => void
   onGenerateMediaCandidate: (kind: CandidateGenerationKind) => void
   onOpenAssistant: () => void
@@ -1518,10 +1613,14 @@ function AssetSlotDetail({
               <Upload size={13} />
               {uploading ? '上传中' : '上传'}
             </Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={onOpenResourceLibrary}>
+              <Database size={13} />
+              资源库
+            </Button>
           </div>
         </div>
         <div className="space-y-2">
-          {row.candidates.length === 0 ? <EmptyPreview title="暂无候选" description={canGenerate ? '可以生成候选，或上传已有素材。' : '可以上传已有素材。'} /> : null}
+          {row.candidates.length === 0 ? <EmptyPreview title="暂无候选" description={canGenerate ? '可以生成候选、上传已有素材，或从资源库选择。' : '可以上传已有素材，或从资源库选择。'} /> : null}
           {row.candidates.map((candidate) => (
             <CandidateRow
               key={candidate.ID}
@@ -1535,6 +1634,84 @@ function AssetSlotDetail({
         </div>
       </section>
     </section>
+  )
+}
+
+function AssetResourceLibraryDialog({
+  open,
+  row,
+  resources,
+  selectedResource,
+  search,
+  type,
+  page,
+  pageCount,
+  total,
+  isLoading,
+  isSaving,
+  onOpenChange,
+  onSearch,
+  onType,
+  onPage,
+  onSelect,
+  onClear,
+  onConfirm,
+}: {
+  open: boolean
+  row: AssetSlotViewModel | null
+  resources: RawResource[]
+  selectedResource: RawResource | null
+  search: string
+  type: ResourceTypeFilter
+  page: number
+  pageCount: number
+  total: number
+  isLoading: boolean
+  isSaving: boolean
+  onOpenChange: (open: boolean) => void
+  onSearch: (value: string) => void
+  onType: (value: ResourceTypeFilter) => void
+  onPage: (value: number) => void
+  onSelect: (resource: RawResource) => void
+  onClear: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[86vh] w-[min(920px,92vw)] max-w-none flex-col overflow-hidden">
+        <DialogHeader>
+          <DialogTitle>从资源库选择素材</DialogTitle>
+          <DialogDescription>
+            {row ? `${row.slot.name || `素材需求 #${row.slot.ID}`} · ${assetKindLabel(row.kind)}` : '选择一个资源加入当前素材候选列表。'}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="min-h-0 flex-1">
+          <ResourceLibraryPicker
+            resources={resources}
+            selectedResource={selectedResource}
+            search={search}
+            type={type}
+            page={page}
+            pageCount={pageCount}
+            total={total}
+            isLoading={isLoading}
+            onSearch={onSearch}
+            onType={onType}
+            onPage={onPage}
+            onSelect={onSelect}
+            onClear={onClear}
+            className="flex h-[min(620px,64vh)] flex-col bg-background"
+            listClassName="max-h-none flex-1"
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>取消</Button>
+          <Button onClick={onConfirm} disabled={!row || !selectedResource || isSaving} loading={isSaving}>
+            加入候选
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -1567,7 +1744,7 @@ function CandidateRow({
       </div>
       <div className="mt-2 grid grid-cols-2 gap-1.5">
         <Button size="sm" disabled={selected || busy || !candidate.candidate_asset_slot_id || !canLock} onClick={onConfirm}>
-          {selected ? '已选定' : canLock ? '选定这个' : '缺资源'}
+          {selected ? '已选定' : canLock ? '锁定此候选' : '缺资源'}
         </Button>
         <Button size="sm" variant="outline" disabled={selected || busy || !candidate.candidate_asset_slot_id} onClick={onReject}>
           拒绝
@@ -1672,6 +1849,11 @@ function normalizeAssetKind(kind?: string): Exclude<AssetKind, 'all'> {
     return normalized
   }
   return 'other'
+}
+
+function defaultResourceTypeForAssetKind(kind: Exclude<AssetKind, 'all'>): ResourceTypeFilter {
+  if (kind === 'image' || kind === 'video' || kind === 'audio' || kind === 'text') return kind
+  return 'all'
 }
 
 function SlotStatusBadge({ status }: { status: SlotStatus }) {
@@ -1933,7 +2115,6 @@ function runMediaCandidateGeneration(
         },
       },
     }),
-    runPolicy: { maxToolCalls: 18, maxIterations: 10 },
     timeoutMs: 600_000,
     renderMode: 'chat',
   })

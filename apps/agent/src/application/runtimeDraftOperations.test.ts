@@ -150,6 +150,34 @@ test('applyRuntimeDraftFromUI marks asset planning drafts applied without backen
   assert.equal(draftStore.getDraft(draft.id)?.status, 'applied')
 })
 
+test('simulateRuntimeDraftApply rejects asset slot snapshot drafts without a hydrated base', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const draft = draftStore.createDraft({
+    kind: 'asset_proposal',
+    title: 'Asset proposal',
+    content: JSON.stringify({
+      schema: 'movscript.asset_proposal.v1',
+      scope: 'asset_proposal',
+      proposal: {
+        asset_slots: [{ name: 'Hero portrait', kind: 'image' }],
+      },
+    }),
+    target: { entityType: 'project', entityId: 7 },
+  })
+  const backend = fakeBackendApplyClient()
+
+  const result = await simulateRuntimeDraftApply({
+    draftStore,
+    backendApplyClient: backend,
+    applyInput: { draftId: draft.id },
+  }) as { ok?: boolean; stage?: string; message?: string }
+
+  assert.equal(result.ok, false)
+  assert.equal(result.stage, 'local_validation')
+  assert.match(result.message ?? '', /snapshot_base\.asset_slots/)
+  assert.equal(backend.previewCalls, 0)
+})
+
 test('applyRuntimeDraftFromUI stores setting proposal mapping from client_id to backend creative reference id', async () => {
   const draftStore = new InMemoryAgentDraftStore()
   const draft = draftStore.createDraft({
@@ -206,6 +234,7 @@ test('applyRuntimeDraftFromUI rewrites asset owner client_id using project setti
     title: 'Asset proposal',
     projectId: 7,
     content: JSON.stringify({
+      snapshot_base: { asset_slots: [] },
       proposal: {
         asset_slots: [{
           name: 'Hero portrait',
@@ -270,6 +299,7 @@ test('applyRuntimeDraftFromUI prefers latest setting proposal mapping when multi
     title: 'Asset proposal',
     projectId: 7,
     content: JSON.stringify({
+      snapshot_base: { asset_slots: [] },
       proposal: {
         asset_slots: [{
           name: 'Hero portrait',
@@ -320,6 +350,7 @@ test('applyRuntimeDraftFromUI rewrites creative_reference_id on top-level slot f
     title: 'Asset proposal',
     projectId: 7,
     content: JSON.stringify({
+      snapshot_base: { asset_slots: [] },
       proposal: {
         asset_slots: [{
           name: 'Hero portrait',
@@ -372,6 +403,7 @@ test('applyRuntimeDraftFromUI prefers mapped owner client_id over stale owner id
     title: 'Asset proposal',
     projectId: 7,
     content: JSON.stringify({
+      snapshot_base: { asset_slots: [] },
       proposal: {
         asset_slots: [{
           name: 'Hero portrait',

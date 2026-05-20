@@ -2,8 +2,10 @@ import type {
   AgentChatSendPipelineInput,
   BuildAgentChatInteractionControllerInputOptions,
 } from '@/components/agent/agentChatInteractionInputTypes'
+import { sendActiveRunRuntimeInput } from '@/lib/agentRuntimeInput'
 
 export function buildAgentChatSendPipelineInput({
+  activeLocalRun,
   buildingSendDraft,
   composer,
   context,
@@ -84,6 +86,7 @@ export function buildAgentChatSendPipelineInput({
       runtimeBuilding: store.conversationRuntime?.building,
       setLocalThreadId: store.setLocalThreadId,
       setConversationRuntimeThreadId: store.setConversationRuntimeThreadId,
+      setConversationRun: store.setConversationRun,
       updateConversationTitle: store.updateConversationTitle,
       messageStore: {
         setConversationMessages: store.messageStore.setConversationMessages,
@@ -109,6 +112,27 @@ export function buildAgentChatSendPipelineInput({
       setMentionRange: composer.setMentionRange,
       addAssistantMessage: (content) => store.messageStore.addMessage(userId, conv.id, { role: 'assistant', content }),
       setConversationBuilding: (patch) => store.setConversationRuntime(conv.id, patch),
+      sendActiveRunRuntimeInput: async ({ content, attachments }) => {
+        const run = activeLocalRun ?? store.conversationRuntime?.run
+        const threadId = store.localThreadId ?? store.conversationRuntime?.threadId ?? run?.threadId
+        if (!run || !threadId) throw new Error('active runtime run is not available')
+        await sendActiveRunRuntimeInput({
+          content,
+          attachments,
+          deps: {
+            userId,
+            conversationId: conv.id,
+            threadId,
+            run,
+            messageStore: {
+              addMessage: store.messageStore.addMessage,
+              updateMessageMeta: store.messageStore.updateMessageMeta,
+            },
+            setConversationRun: store.setConversationRun,
+            setConversationRuntime: store.setConversationRuntime,
+          },
+        })
+      },
       setPendingSendDraft: runtime.setPendingSendDraft,
     },
   }

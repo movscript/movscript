@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import { StaticAgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
-import { buildContext, buildOpenAIChatTools } from './modelContextBuilder.js'
+import { buildContext, buildRuntimeChatTools } from './modelContextBuilder.js'
 
 test('buildContext emits multiple textual system messages instead of one JSON-packed prompt', () => {
   const built = buildContext({
@@ -384,13 +384,13 @@ test('buildContext uses runtime contract for tool schemas without forcing JSON a
     userMessage: '分析剧本',
     contractResolver: resolver,
   })
-  const chatTools = buildOpenAIChatTools(tools, resolver.find(manifest))
+  const chatTools = buildRuntimeChatTools(tools, resolver.find(manifest))
 
   assert.doesNotMatch(built.systemPrompt, /Return only JSON/)
   assert.ok(chatTools.some((tool) => tool.function.name === 'movscript_structured_test_tool' && !!tool.function.parameters))
 })
 
-test('buildOpenAIChatTools exposes spawn_subagent dispatch controls', () => {
+test('buildRuntimeChatTools exposes spawn_subagent dispatch controls', () => {
   const tools = {
     discovered: [],
     blocked: [],
@@ -405,7 +405,7 @@ test('buildOpenAIChatTools exposes spawn_subagent dispatch controls', () => {
       requiresApproval: false,
     }],
   }
-  const [tool] = buildOpenAIChatTools(tools)
+  const [tool] = buildRuntimeChatTools(tools)
   const parameters = tool?.function.parameters as any
   assert.equal(parameters?.properties?.maxWorkers?.type, 'number')
   assert.equal(parameters?.properties?.retryFailed?.type, 'boolean')
@@ -421,7 +421,48 @@ test('buildOpenAIChatTools exposes spawn_subagent dispatch controls', () => {
   assert.equal(taskProperties?.workerTimeoutMs?.type, 'number')
 })
 
-test('buildOpenAIChatTools requires id for catalog detail views', () => {
+test('buildRuntimeChatTools preserves runtime schema composition for provider adapters', () => {
+  const tools = {
+    discovered: [],
+    blocked: [],
+    byName: {},
+    available: [{
+      name: 'movscript_attach_asset_slot_candidate',
+      source: 'runtime' as const,
+      registered: true,
+      granted: true,
+      available: true,
+      approval: 'never' as const,
+      requiresApproval: false,
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          asset_slot_id: { type: 'number', minimum: 1 },
+          assetSlotId: { type: 'number', minimum: 1 },
+          output_resource_id: { type: 'number', minimum: 1 },
+          output_resource_ids: { type: 'array', items: { type: 'number', minimum: 1 } },
+        },
+        allOf: [
+          { anyOf: [{ required: ['asset_slot_id'] }, { required: ['assetSlotId'] }] },
+          { anyOf: [{ required: ['output_resource_id'] }, { required: ['output_resource_ids'] }] },
+        ],
+      },
+    }],
+  }
+  const [tool] = buildRuntimeChatTools(tools)
+  const parameters = tool?.function.parameters as any
+
+  assert.equal(parameters?.type, 'object')
+  assert.deepEqual(parameters?.allOf, [
+    { anyOf: [{ required: ['asset_slot_id'] }, { required: ['assetSlotId'] }] },
+    { anyOf: [{ required: ['output_resource_id'] }, { required: ['output_resource_ids'] }] },
+  ])
+  assert.ok(parameters?.properties?.asset_slot_id)
+  assert.ok(parameters?.properties?.output_resource_ids)
+})
+
+test('buildRuntimeChatTools requires id for catalog detail views', () => {
   const tools = {
     discovered: [],
     blocked: [],
@@ -436,7 +477,7 @@ test('buildOpenAIChatTools requires id for catalog detail views', () => {
       requiresApproval: false,
     }],
   }
-  const [tool] = buildOpenAIChatTools(tools)
+  const [tool] = buildRuntimeChatTools(tools)
   const parameters = tool?.function.parameters as any
   assert.match(parameters?.properties?.id?.description ?? '', /required for detail views/)
   assert.deepEqual(parameters?.anyOf?.[0]?.properties?.view, { const: 'summary' })
@@ -445,7 +486,7 @@ test('buildOpenAIChatTools requires id for catalog detail views', () => {
   assert.equal(parameters?.anyOf?.[1]?.properties?.id?.minLength, 1)
 })
 
-test('buildOpenAIChatTools does not expose deprecated content unit media proposal creation', () => {
+test('buildRuntimeChatTools does not expose deprecated content unit media proposal creation', () => {
   const tools = {
     discovered: [],
     blocked: [],
@@ -460,14 +501,14 @@ test('buildOpenAIChatTools does not expose deprecated content unit media proposa
       requiresApproval: false,
     }],
   }
-  const [tool] = buildOpenAIChatTools(tools)
+  const [tool] = buildRuntimeChatTools(tools)
   const enumValues = ((tool?.function.parameters as any)?.properties?.kind?.enum ?? []) as string[]
 
   assert.ok(enumValues.includes('content_unit_proposal'))
   assert.equal(enumValues.includes('content_unit_media_proposal'), false)
 })
 
-test('buildOpenAIChatTools exposes cancel_subagent pending task semantics', () => {
+test('buildRuntimeChatTools exposes cancel_subagent pending task semantics', () => {
   const tools = {
     discovered: [],
     blocked: [],
@@ -482,7 +523,7 @@ test('buildOpenAIChatTools exposes cancel_subagent pending task semantics', () =
       requiresApproval: false,
     }],
   }
-  const [tool] = buildOpenAIChatTools(tools)
+  const [tool] = buildRuntimeChatTools(tools)
   const parameters = tool?.function.parameters as any
   assert.match(parameters?.properties?.subagentName?.description ?? '', /not-yet-started task/)
   assert.match(parameters?.properties?.subagentName?.description ?? '', /exact name/)

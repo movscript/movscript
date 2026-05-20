@@ -67,6 +67,8 @@ export function buildAgentMessage(input: {
       role,
       content,
       ...(clientInput ? { clientInput: cloneJSONValue(clientInput as unknown as JSONValue) } : {}),
+      ...(typeof input.messageInput.runId === 'string' && input.messageInput.runId.trim() ? { runId: input.messageInput.runId.trim() } : {}),
+      ...(isJSONRecord(input.messageInput.metadata) ? { metadata: cloneJSONValue(input.messageInput.metadata) } : {}),
       createdAt: input.now,
     },
     ...(clientInput ? { clientInput } : {}),
@@ -80,6 +82,7 @@ export function buildThreadMessage(input: {
   content: string
   now: string
   runId?: string
+  metadata?: Record<string, JSONValue>
 }): AgentMessage {
   return {
     id: input.id,
@@ -87,6 +90,7 @@ export function buildThreadMessage(input: {
     role: input.role,
     content: input.content,
     runId: input.runId,
+    ...(input.metadata ? { metadata: cloneJSONValue(input.metadata) } : {}),
     createdAt: input.now,
   }
 }

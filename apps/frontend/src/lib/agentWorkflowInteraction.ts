@@ -149,17 +149,41 @@ export function formatInputAnswerForChat(request: AgentPendingInputRequest, answ
     .map((choiceId) => request.choices.find((choice) => choice.id === choiceId))
     .filter((choice): choice is AgentPendingInputRequest['choices'][number] => Boolean(choice))
   const lines = [
-    `回答：${request.title}`,
-    ...selected.map((choice) => `选择：${choice.label}`),
-    answer.text?.trim() ? `补充：${answer.text.trim()}` : undefined,
+    '[用户补充信息]',
+    `标题：${request.title}`,
+    request.summary ? `简介：${request.summary}` : undefined,
+    `问题：${request.question}`,
   ].filter((line): line is string => Boolean(line))
+  if (selected.length > 0) {
+    lines.push('选择：')
+    for (const choice of selected) {
+      lines.push(`- ${choice.label}${choice.description ? `：${choice.description}` : ''}`)
+    }
+  }
+  const text = answer.text?.trim()
+  if (text) lines.push(`输入：${text}`)
   return lines.join('\n')
 }
 
 function inputAnswerEchoesFromRun(run: AgentRun): string[] {
   return (run.pendingInputRequests ?? [])
-    .map((request) => request.answer ? formatInputAnswerForChat(request, request.answer) : '')
+    .flatMap((request) => request.answer ? [
+      formatInputAnswerForChat(request, request.answer),
+      legacyInputAnswerEcho(request, request.answer),
+    ] : [])
     .filter((content) => content.trim().length > 0)
+}
+
+function legacyInputAnswerEcho(request: AgentPendingInputRequest, answer: AgentInputAnswer): string {
+  const selected = (answer.choiceIds ?? [])
+    .map((choiceId) => request.choices.find((choice) => choice.id === choiceId))
+    .filter((choice): choice is AgentPendingInputRequest['choices'][number] => Boolean(choice))
+  const lines = [
+    `回答：${request.title}`,
+    ...selected.map((choice) => `选择：${choice.label}`),
+    answer.text?.trim() ? `补充：${answer.text.trim()}` : undefined,
+  ].filter((line): line is string => Boolean(line))
+  return lines.join('\n')
 }
 
 function normalizedInputRequestStatus(status: string): AgentPendingInputRequest['status'] | null {

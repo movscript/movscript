@@ -133,8 +133,10 @@ func NewProductionTextBlock(spec ProductionTextBlockSpec) ProductionTextBlock {
 
 type SceneMomentSpec struct {
 	ProjectID     uint
+	ProductionID  *uint
 	SegmentID     *uint
 	ScriptBlockID *uint
+	SceneCode     string
 	Order         int
 	Title         string
 	Description   string
@@ -150,8 +152,10 @@ type SceneMomentSpec struct {
 type SceneMoment struct {
 	ID            uint      `json:"ID"`
 	ProjectID     uint      `json:"project_id"`
+	ProductionID  *uint     `json:"production_id,omitempty"`
 	SegmentID     *uint     `json:"segment_id,omitempty"`
 	ScriptBlockID *uint     `json:"script_block_id,omitempty"`
+	SceneCode     string    `json:"scene_code"`
 	Order         int       `json:"order"`
 	Title         string    `json:"title"`
 	Description   string    `json:"description"`
@@ -167,8 +171,10 @@ type SceneMoment struct {
 }
 
 type SceneMomentPatch struct {
+	ProductionID  *uint
 	SegmentID     *uint
 	ScriptBlockID *uint
+	SceneCode     string
 	Order         int
 	Title         string
 	Description   string
@@ -184,8 +190,10 @@ type SceneMomentPatch struct {
 func NewSceneMoment(spec SceneMomentSpec) SceneMoment {
 	return SceneMoment{
 		ProjectID:     spec.ProjectID,
+		ProductionID:  spec.ProductionID,
 		SegmentID:     spec.SegmentID,
 		ScriptBlockID: spec.ScriptBlockID,
+		SceneCode:     spec.SceneCode,
 		Order:         spec.Order,
 		Title:         spec.Title,
 		Description:   spec.Description,
@@ -262,6 +270,7 @@ type ContentUnitSpec struct {
 	SceneMomentID    *uint
 	ScriptBlockID    *uint
 	Kind             string
+	UnitCode         string
 	Order            int
 	Title            string
 	Description      string
@@ -293,6 +302,7 @@ type ContentUnit struct {
 	SceneMomentID    *uint     `json:"scene_moment_id,omitempty"`
 	ScriptBlockID    *uint     `json:"script_block_id,omitempty"`
 	Kind             string    `json:"kind"`
+	UnitCode         string    `json:"unit_code"`
 	Order            int       `json:"order"`
 	Title            string    `json:"title"`
 	Description      string    `json:"description"`
@@ -324,6 +334,7 @@ type ContentUnitPatch struct {
 	SceneMomentID    *uint
 	ScriptBlockID    *uint
 	Kind             string
+	UnitCode         string
 	Order            int
 	Title            string
 	Description      string
@@ -355,6 +366,7 @@ func NewContentUnit(spec ContentUnitSpec) ContentUnit {
 		SceneMomentID:    spec.SceneMomentID,
 		ScriptBlockID:    spec.ScriptBlockID,
 		Kind:             FallbackString(spec.Kind, "shot"),
+		UnitCode:         spec.UnitCode,
 		Order:            spec.Order,
 		Title:            spec.Title,
 		Description:      spec.Description,

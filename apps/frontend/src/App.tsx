@@ -91,6 +91,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function BackendBootOverlay() {
+  const { pathname } = useLocation()
   const settings = useAppSettingsStore((s) => s.settings)
   const [status, setStatus] = React.useState<BackendBootStatus | null>(null)
   const [retrying, setRetrying] = React.useState(false)
@@ -119,7 +120,9 @@ function BackendBootOverlay() {
     }
   }, [settings.apiBaseURL])
 
-  if (settings.launchMode !== 'local') return null
+  const isRecoveryRoute = pathname === ROUTES.appSettings || pathname === '/onboarding'
+
+  if (settings.launchMode !== 'local' || isRecoveryRoute) return null
   if (status?.state === 'ready') return null
 
   const displayStatus: BackendBootStatus = status ?? {

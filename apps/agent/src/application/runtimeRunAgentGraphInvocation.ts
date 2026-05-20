@@ -57,7 +57,7 @@ export async function invokeRuntimeRunAgentGraph(input: {
   setupRound: AgentRunRoundInfo
   updateState?: Parameters<typeof invokeRuntimeAgentGraph>[0]['updateState']
   signal?: AbortSignal
-  store: Pick<AgentStore, 'updateRun'>
+  store: Pick<AgentStore, 'getThread' | 'updateRun'>
   timestampMs: () => number
   now: () => string
   recordTrace: (run: AgentRun, trace: RuntimeRunAgentGraphInvocationTraceInput) => void

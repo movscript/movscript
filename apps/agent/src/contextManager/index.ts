@@ -14,7 +14,7 @@ export {
 } from './finalSourceSummary.js'
 export {
   buildContext,
-  buildOpenAIChatTools,
+  buildRuntimeChatTools,
   buildPromptPreview,
 } from './modelContextBuilder.js'
 export {

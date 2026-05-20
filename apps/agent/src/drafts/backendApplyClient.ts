@@ -329,7 +329,7 @@ function normalizeProjectLayerProposalPayloadForKind(value: JSONValue, kind: App
       mode: 'snapshot',
       proposal: {
         ...proposal,
-        project_style: isRecord(proposal.project_style) ? proposal.project_style : {},
+        project_style: normalizeProjectStylePatch(proposal.project_style),
       },
     }
   }
@@ -345,6 +345,44 @@ function normalizeProjectLayerProposalPayloadForKind(value: JSONValue, kind: App
       asset_slots: effectiveKind === 'asset_proposal' ? normalizeProjectLayerProposalSnapshotNodes(proposal.asset_slots) : [],
     },
   }
+}
+
+function normalizeProjectStylePatch(value: JSONValue | undefined): Record<string, JSONValue> {
+  if (!isRecord(value)) return {}
+  const out: Record<string, JSONValue> = { ...value }
+  if (value.shot_size_system !== undefined) {
+    out.shot_size_system = normalizeProjectStyleStringList(value.shot_size_system)
+  }
+  if (value.negative_rules !== undefined) {
+    out.negative_rules = normalizeProjectStyleStringList(value.negative_rules)
+  }
+  return out
+}
+
+function normalizeProjectStyleStringList(value: JSONValue): string[] {
+  const items = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/\r?\n/) : [value]
+  return items
+    .map((item) => projectStyleListItemToString(item))
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function projectStyleListItemToString(value: JSONValue): string {
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (!isRecord(value)) return ''
+  const key = stringFromJSONValue(value.key)
+  const label = stringFromJSONValue(value.label)
+  const usage = stringFromJSONValue(value.usage)
+  const composition = stringFromJSONValue(value.composition)
+  const description = stringFromJSONValue(value.description)
+  const name = [key, label].filter(Boolean).join(' ')
+  const details = [usage, composition, description].filter(Boolean).join('；')
+  return [name, details].filter(Boolean).join('：')
+}
+
+function stringFromJSONValue(value: JSONValue | undefined): string {
+  return typeof value === 'string' ? value.trim() : ''
 }
 
 function inferProjectLayerProposalDraftKind(payload: Record<string, JSONValue>, kind: ApplyDraftReview['draftKind']): ApplyDraftReview['draftKind'] {

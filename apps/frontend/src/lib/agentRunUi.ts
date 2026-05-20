@@ -149,6 +149,7 @@ export interface AgentModelCallSummary {
   roundId?: string
   roundIndex?: number
   roundLabel?: string
+  correlateByEventWindow?: boolean
   eventIds: string[]
   status: 'complete' | 'request_only' | 'response_only' | 'result_only' | 'failed'
   statusLabel: string
@@ -489,6 +490,7 @@ export function approvalImpactLabel(approval: Pick<AgentApprovalRequest, 'toolNa
   }
 
   const permission = approval.permission ?? ''
+  if (permission === 'draft.apply') return '批准后会把草稿变更应用到当前项目。'
   if (permission.includes('generation')) return '批准后会影响生成任务。'
   if (permission.includes('project') && permission.includes('write')) return '批准后会写入项目数据。'
   if (permission.includes('draft') && permission.includes('write')) return '批准后会写入草稿数据。'
@@ -793,6 +795,7 @@ export function buildDebugReportText(input: AgentDebugReportInput): string {
 export function buildModelCallSummaries(events: AgentTraceEvent[]): AgentModelCallSummary[] {
   const groups: InternalModelCallGroup[] = []
   const groupsByRound = new Map<string, InternalModelCallGroup>()
+  const roundKeyOccurrences = new Map<string, number>()
   let currentWithoutRound: InternalModelCallGroup | undefined
 
   for (const event of events) {
@@ -806,7 +809,14 @@ export function buildModelCallSummaries(events: AgentTraceEvent[]): AgentModelCa
     const roundKey = event.roundId ?? (event.roundIndex !== undefined ? `round:${event.roundIndex}` : undefined)
     let group = roundKey ? groupsByRound.get(roundKey) : currentWithoutRound
     if (!group || phase === 'request') {
-      group = { id: roundKey ?? `model-call-${groups.length + 1}`, events: [], retries: [] }
+      const occurrence = roundKey ? (roundKeyOccurrences.get(roundKey) ?? 0) + 1 : undefined
+      if (roundKey && occurrence !== undefined) roundKeyOccurrences.set(roundKey, occurrence)
+      group = {
+        id: roundKey ? `${roundKey}#${occurrence}` : `model-call-${groups.length + 1}`,
+        ...(roundKey ? { roundKey } : {}),
+        events: [],
+        retries: [],
+      }
       groups.push(group)
       if (roundKey) groupsByRound.set(roundKey, group)
       else currentWithoutRound = group
@@ -819,7 +829,8 @@ export function buildModelCallSummaries(events: AgentTraceEvent[]): AgentModelCa
     else if (phase === 'error') group.error = event
   }
 
-  return groups.map((group, index) => modelCallSummaryFromGroup(group, index + 1))
+  const duplicatedRoundKeys = new Set(Array.from(roundKeyOccurrences.entries()).flatMap(([key, count]) => count > 1 ? [key] : []))
+  return groups.map((group, index) => modelCallSummaryFromGroup(group, index + 1, group.roundKey ? duplicatedRoundKeys.has(group.roundKey) : false))
 }
 
 export function buildModelCallDebugContext(input: {
@@ -830,14 +841,20 @@ export function buildModelCallDebugContext(input: {
     .flatMap((eventId) => input.events.find((event) => event.id === eventId) ?? [])
   const relatedEvents = input.events.filter((event) => {
     if (event.kind !== 'assistant' && event.kind !== 'tool_call') return false
-    if (input.call.roundId && event.roundId === input.call.roundId) return true
-    if (input.call.roundIndex !== undefined && event.roundIndex === input.call.roundIndex) return true
+    if (!input.call.correlateByEventWindow) {
+      if (input.call.roundId && event.roundId === input.call.roundId) return true
+      if (input.call.roundIndex !== undefined && event.roundIndex === input.call.roundIndex) return true
+      if (input.call.roundId || input.call.roundIndex !== undefined) return false
+    }
     return eventFallsInsideModelCallWindow(event, input.call, input.events)
   })
   const messageWrites = relatedEvents.filter((event) => event.kind === 'assistant')
   const toolCalls = relatedEvents.filter((event) => event.kind === 'tool_call')
-  const correlationLabel = input.call.roundLabel
+  const roundCorrelationLabel = input.call.roundLabel
     ?? (input.call.roundIndex !== undefined ? `第 ${input.call.roundIndex} 轮` : input.call.roundId ? `轮次 ${input.call.roundId}` : '相邻事件窗口')
+  const correlationLabel = input.call.correlateByEventWindow
+    ? `相邻事件窗口（原始轮次 ${roundCorrelationLabel} 重复）`
+    : roundCorrelationLabel
   const issue = input.call.responseChars && messageWrites.length === 0
     ? '这次模型调用有回复内容，但没有找到同轮 assistant 历史写入。请加载全部事件，或检查回复是否只返回给调用方而未写入线程历史。'
     : undefined
@@ -942,6 +959,7 @@ function traceCategory(event: AgentTraceEvent, eventType?: string, phase?: strin
 
 interface InternalModelCallGroup {
   id: string
+  roundKey?: string
   events: AgentTraceEvent[]
   retries: AgentTraceEvent[]
   request?: AgentTraceEvent
@@ -950,7 +968,7 @@ interface InternalModelCallGroup {
   error?: AgentTraceEvent
 }
 
-function modelCallSummaryFromGroup(group: InternalModelCallGroup, index: number): AgentModelCallSummary {
+function modelCallSummaryFromGroup(group: InternalModelCallGroup, index: number, correlateByEventWindow = false): AgentModelCallSummary {
   const source = group.error ?? group.response ?? group.request ?? group.result ?? group.events[0]
   const requestData = recordValue(group.request?.data)
   const responseData = recordValue(group.response?.data)
@@ -969,10 +987,11 @@ function modelCallSummaryFromGroup(group: InternalModelCallGroup, index: number)
         : 'result_only'
   return {
     id: group.id,
-    label: source?.roundLabel ?? `模型调用 ${index}`,
+    label: `模型调用 ${index}`,
     ...(source?.roundId ? { roundId: source.roundId } : {}),
     ...(source?.roundIndex !== undefined ? { roundIndex: source.roundIndex } : {}),
     ...(source?.roundLabel ? { roundLabel: source.roundLabel } : {}),
+    ...(correlateByEventWindow ? { correlateByEventWindow: true } : {}),
     eventIds: group.events.map((event) => event.id),
     status,
     statusLabel: modelCallStatusLabel(status),
@@ -996,7 +1015,6 @@ function modelCallSummaryFromGroup(group: InternalModelCallGroup, index: number)
 }
 
 function eventFallsInsideModelCallWindow(event: AgentTraceEvent, call: AgentModelCallSummary, events: AgentTraceEvent[]): boolean {
-  if (call.roundId || call.roundIndex !== undefined) return false
   const modelEvents = call.eventIds
     .flatMap((eventId) => events.find((entry) => entry.id === eventId) ?? [])
     .map((entry) => ({ event: entry, time: Date.parse(entry.createdAt) }))

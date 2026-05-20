@@ -87,6 +87,10 @@ import {
   type RuntimeSubagentToolsBridge,
 } from './runtimeSubagentToolsBridge.js'
 import {
+  createRuntimeGenerationToolsBridge,
+  type RuntimeGenerationToolsBridge,
+} from './runtimeGenerationToolsBridge.js'
+import {
   createRuntimePlanDispatchBridge,
   type RuntimePlanDispatchBridge,
 } from './runtimePlanDispatchBridge.js'
@@ -340,6 +344,7 @@ export class AgentRuntime {
   private readonly agentPlanTools: RuntimeAgentPlanToolsBridge
   private readonly treeCancellation: RuntimeTreeCancellationBridge
   private readonly subagentTools: RuntimeSubagentToolsBridge
+  private readonly generationTools: RuntimeGenerationToolsBridge
   private readonly memories: RuntimeMemoryOperationsBridge
   private readonly traceReads: RuntimeTraceReadBridge
 
@@ -588,6 +593,10 @@ export class AgentRuntime {
       getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
       taskEvents: this.taskEvents,
     })
+    this.generationTools = createRuntimeGenerationToolsBridge({
+      mcpClient: this.mcpClient,
+      recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
+    })
     if (catalogInitialization.shouldReloadCatalog) this.reloadAgentCatalog()
   }
 
@@ -662,6 +671,10 @@ export class AgentRuntime {
 
   async waitSubagent(run: AgentRun, input: Record<string, JSONValue> = {}): Promise<JSONValue> {
     return await this.subagentTools.waitSubagent(run, input)
+  }
+
+  async waitGenerationJobs(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> {
+    return await this.generationTools.waitGenerationJobs(run, input, options)
   }
 
   cancelSubagent(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {

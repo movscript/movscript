@@ -93,7 +93,7 @@ export function AgentComposerSection({
   onUploadFiles,
 }: AgentComposerSectionProps) {
   const { t } = useTranslation()
-  const editorDisabled = loading || buildingSendDraft || (answeringPendingInput && !canAnswerPendingInputWithText)
+  const editorDisabled = buildingSendDraft || (answeringPendingInput && !canAnswerPendingInputWithText)
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -180,7 +180,7 @@ export function AgentComposerSection({
             </AgentComposerAction>
             <AgentComposerAction
               onClick={addMentionTrigger}
-              disabled={answeringPendingInput || loading || buildingSendDraft}
+              disabled={answeringPendingInput || buildingSendDraft}
               aria-label={t('shared.genInput.mention')}
               title={t('shared.genInput.mention')}
             >
@@ -203,21 +203,28 @@ export function AgentComposerSection({
               <Eye size={11} />
               {t('agents.chat.debugPreview')}
             </Button>
+            {canStopLocalRun && (
+              <AgentComposerAction
+                onClick={onStopLocalRun}
+                disabled={stoppingLocalRun}
+                aria-label={t('agents.chat.stop')}
+                title={t('agents.chat.stop')}
+              >
+                {stoppingLocalRun ? <Loader2 size={13} className="animate-spin" /> : <CircleStop size={13} />}
+              </AgentComposerAction>
+            )}
           </div>
           <AgentComposerSubmit
-            type={canStopLocalRun ? 'button' : 'submit'}
-            running={canStopLocalRun}
-            disabled={canStopLocalRun ? stoppingLocalRun : !canSend}
-            label={canStopLocalRun ? t('agents.chat.stop') : answeringPendingInput ? '回答' : debugBeforeSend ? t('agents.chat.preview') : t('common.send')}
-            onClick={canStopLocalRun ? onStopLocalRun : undefined}
+            type="submit"
+            running={loading || buildingSendDraft}
+            disabled={!canSend}
+            label={answeringPendingInput ? '回答' : loading ? '补充' : debugBeforeSend ? t('agents.chat.preview') : t('common.send')}
           >
             {stoppingLocalRun
               ? <Loader2 size={15} className="animate-spin" />
-              : canStopLocalRun
-                ? <CircleStop size={15} />
-                : buildingSendDraft
-                  ? <Loader2 size={15} className="animate-spin" />
-                  : debugBeforeSend ? <Eye size={15} /> : <Send size={15} />}
+              : buildingSendDraft
+                ? <Loader2 size={15} className="animate-spin" />
+                : debugBeforeSend && !loading ? <Eye size={15} /> : <Send size={15} />}
           </AgentComposerSubmit>
         </AgentComposerToolbar>
       </AgentComposer>

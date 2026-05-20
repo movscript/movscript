@@ -24,6 +24,10 @@ import {
 } from '../generation/generationEvents.js'
 import { contextManager } from '../contextManager/contextManager.js'
 import { isJSONRecord } from '../jsonValue.js'
+import {
+  appendRuntimeInputMessagesToUserMessage,
+  collectPendingRuntimeInputMessages,
+} from '../state/runtimeRunInputs.js'
 
 export interface AgentGraphTraceInput {
   kind: AgentTraceEventKind
@@ -85,6 +89,11 @@ export interface AgentGraphInput {
   }>
   onTrace: (input: AgentGraphTraceInput) => void
   onGenerationEvent?: (event: GenerationEvent, trace: Omit<AgentGraphTraceInput, 'kind' | 'title' | 'summary' | 'status' | 'data'>) => void
+  getThreadMessages?: () => AgentMessage[]
+  onRuntimeInputConsumed?: (
+    messages: AgentMessage[],
+    trace: Omit<AgentGraphTraceInput, 'kind' | 'title' | 'summary' | 'status' | 'data'>,
+  ) => void
   onStepCreate: (type: 'tool_call' | 'message', roundIndex: number, roundLabel: string, roundSource: AgentGraphTraceInput['roundSource'], toolName?: string) => string
   onStepComplete: (stepId: string, result?: JSONValue, error?: string, sandboxed?: boolean) => void
 }
@@ -227,9 +236,10 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
   throwIfAborted(input.signal)
   const currentRoundIndex = state.roundIndex
   const roundLabel = `Model turn ${currentRoundIndex}`
+  const threadMessages = input.getThreadMessages?.() ?? input.threadMessages
   const lastUser = input.rootUserMessageId
-    ? input.threadMessages.find((message) => message.id === input.rootUserMessageId && message.role === 'user')
-    : [...input.threadMessages].reverse().find((message) => message.role === 'user')
+    ? threadMessages.find((message) => message.id === input.rootUserMessageId && message.role === 'user')
+    : [...threadMessages].reverse().find((message) => message.role === 'user')
   const frozenUserMessage = typeof input.userMessage === 'string' && input.userMessage.trim().length > 0
     ? input.userMessage.trim()
     : undefined
@@ -244,11 +254,11 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     }
   }
 
-  const rootIndex = lastUser ? input.threadMessages.findIndex((message) => message.id === lastUser.id) : -1
+  const rootIndex = lastUser ? threadMessages.findIndex((message) => message.id === lastUser.id) : -1
   const supplementalUserMessages = rootIndex >= 0 && !frozenUserMessage
-    ? input.threadMessages.slice(rootIndex + 1).filter((message) => message.role === 'user')
+    ? threadMessages.slice(rootIndex + 1).filter((message) => message.role === 'user')
     : []
-  const effectiveUserMessage = frozenUserMessage ?? (supplementalUserMessages.length > 0
+  const baseEffectiveUserMessage = frozenUserMessage ?? (supplementalUserMessages.length > 0
     ? [
       lastUser!.content,
       '',
@@ -256,7 +266,16 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
       ...supplementalUserMessages.map((message) => message.content),
     ].join('\n')
     : lastUser!.content)
-  const promptHistoryInput: AgentMessage[] = input.threadMessages.filter((message, index) => (
+  const runtimeInputMessages = collectPendingRuntimeInputMessages({ run: input.run, threadMessages })
+  const effectiveUserMessage = appendRuntimeInputMessagesToUserMessage(baseEffectiveUserMessage, runtimeInputMessages)
+  if (runtimeInputMessages.length > 0) {
+    input.onRuntimeInputConsumed?.(runtimeInputMessages, {
+      roundIndex: currentRoundIndex,
+      roundLabel,
+      roundSource: 'model',
+    })
+  }
+  const promptHistoryInput: AgentMessage[] = threadMessages.filter((message, index) => (
     message.role !== 'system'
     && (!lastUser || message.id !== lastUser.id)
     && (rootIndex < 0 || index <= rootIndex || message.role !== 'user')
@@ -1069,6 +1088,10 @@ async function monitorGenerationJob(
     const nextKey = generationEventChangeKey(event)
     const now = Date.now()
     const timedOut = now >= deadline
+    if (event.stage === 'timeout') {
+      input.onGenerationEvent(event, trace)
+      return
+    }
     if (event.terminal || nextKey !== previousKey || (!timedOut && now - lastEmittedAt >= heartbeatMs)) {
       input.onGenerationEvent(event, trace)
       previousKey = nextKey

@@ -106,6 +106,7 @@ export interface ChatMessageMeta {
   permissionMode?: AgentPermissionMode
   contextLabels?: string[]
   runtimeMessage?: ChatRuntimeMessageRef
+  runtimeInput?: ChatRuntimeInputRef
   contextDiagnostic?: ChatContextDiagnostic
   generationJobs?: ChatGenerationJob[]
   generationParamAudits?: ChatGenerationParamAudit[]
@@ -118,6 +119,14 @@ export interface ChatRuntimeMessageRef {
   threadId: string
   messageId?: string
   runId?: string
+}
+
+export interface ChatRuntimeInputRef {
+  threadId?: string
+  runId?: string
+  messageId?: string
+  status: 'pending' | 'accepted' | 'consumed' | 'failed'
+  error?: string
 }
 
 export interface ChatContextDiagnostic {

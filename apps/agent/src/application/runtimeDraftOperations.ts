@@ -101,6 +101,16 @@ export async function simulateRuntimeDraftApply(input: {
       message: 'Draft failed local validation. Patch the draft and validate again before simulating backend apply.',
     } as unknown as JSONValue
   }
+  const snapshotBaseValidation = validateAssetProposalSnapshotBase(preview.draft, preparedReview)
+  if (!snapshotBaseValidation.ok) {
+    return {
+      ok: false,
+      stage: 'local_validation',
+      draftId: preview.draft.id,
+      validation,
+      message: snapshotBaseValidation.message,
+    } as unknown as JSONValue
+  }
   if (isAssetPlanningDraft(preview.draft)) {
     return {
       ok: true,
@@ -159,6 +169,8 @@ export async function applyRuntimeDraftFromUI(input: {
       backendApply: { performed: false, skippedReason: 'asset proposal contains candidate plans only' },
     } as unknown as JSONValue
   }
+  const snapshotBaseValidation = validateAssetProposalSnapshotBase(preview.draft, preparedReview)
+  if (!snapshotBaseValidation.ok) throw new Error(snapshotBaseValidation.message)
 
   let backendApply: BackendApplyResult
   try {
@@ -221,6 +233,35 @@ export function rejectRuntimeDraft(input: {
 
 function isAssetPlanningDraft(draft: AgentDraft): boolean {
   return draft.kind === 'asset_proposal' && !assetProposalContainsAssetSlots(draft.content)
+}
+
+const ASSET_PROPOSAL_SNAPSHOT_BASE_REQUIRED_MESSAGE = 'Asset proposal snapshot apply requires snapshot_base.asset_slots or a hydrated DraftDomainModel seed with data.asset_slots. Refresh the draft model/current project snapshot before applying so omitted asset slots are not treated as deletes.'
+
+function validateAssetProposalSnapshotBase(
+  draft: AgentDraft,
+  review: ApplyDraftReview,
+): { ok: true } | { ok: false; message: string } {
+  if (draft.kind !== 'asset_proposal' || review.draftKind !== 'asset_proposal') return { ok: true }
+  const proposed = parseJSONTextAsRecord(review.proposedValue)
+  const proposal = isRecord(proposed?.proposal) ? proposed.proposal : undefined
+  if (!Array.isArray(proposal?.asset_slots) || proposal.asset_slots.length === 0) return { ok: true }
+  if (hasAssetSlotSnapshotBase(proposed)) return { ok: true }
+  if (hasAssetSlotSnapshotBase(parseJSONTextAsRecord(draft.content))) return { ok: true }
+  if (hasHydratedAssetSlotSeed(draft.metadata)) return { ok: true }
+  return { ok: false, message: ASSET_PROPOSAL_SNAPSHOT_BASE_REQUIRED_MESSAGE }
+}
+
+function hasAssetSlotSnapshotBase(value: unknown): boolean {
+  if (!isRecord(value)) return false
+  const snapshotBase = isRecord(value.snapshot_base) ? value.snapshot_base : undefined
+  return Array.isArray(snapshotBase?.asset_slots)
+}
+
+function hasHydratedAssetSlotSeed(metadata: unknown): boolean {
+  if (!isRecord(metadata)) return false
+  const seed = isRecord(metadata.seed) ? metadata.seed : undefined
+  const data = isRecord(seed?.data) ? seed.data : undefined
+  return Array.isArray(data?.asset_slots)
 }
 
 function buildRuntimeProjectLayerProposalReviewForBackend(review: ApplyDraftReview, draftStore: AgentDraftStore): ApplyDraftReview {

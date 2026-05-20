@@ -57,10 +57,16 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
       },
       setLaunchMode: (launchMode) => {
         const current = useAppSettingsStore.getState().settings
+        const currentAPIBaseURL = normalizeAPIBaseURL(current.apiBaseURL)
+        const localAPIBaseURL = getLocalAPIBaseURL()
         const next = normalizeSettings({
           ...current,
           launchMode,
-          apiBaseURL: launchMode === 'local' ? getLocalAPIBaseURL() : current.apiBaseURL,
+          apiBaseURL: launchMode === 'local'
+            ? localAPIBaseURL
+            : currentAPIBaseURL === localAPIBaseURL
+              ? getDefaultAPIBaseURL()
+              : current.apiBaseURL,
         })
         set({ settings: next, savedAt: new Date().toISOString() })
         syncElectronSettings(next)

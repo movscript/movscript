@@ -17,6 +17,7 @@ import type {
   RuntimeModelAPIKind,
 } from './modelConfig.js'
 import { isJSONRecord } from '../jsonValue.js'
+import { toAnthropicToolInputSchema, toOpenAIToolParameters } from './providerToolSchema.js'
 
 export interface ModelCallInput {
   messages: RuntimeModelChatMessage[]
@@ -328,7 +329,7 @@ function buildOpenAIChatCompletionsSDKRequest(input: ModelCallInput): RuntimeMod
     messages: input.jsonMode ? ensureJSONModeMessages(input.messages) : input.messages,
     ...(typeof input.temperature === 'number' ? { temperature: input.temperature } : {}),
     ...(input.jsonMode ? { response_format: { type: 'json_object' } } : {}),
-    ...(input.tools && input.tools.length > 0 ? { tools: input.tools } : {}),
+    ...(input.tools && input.tools.length > 0 ? { tools: input.tools.map(toOpenAIChatCompletionsTool) } : {}),
     ...(input.tools && input.tools.length > 0 ? { tool_choice: input.toolChoice ?? 'auto' } : {}),
   }
   return {
@@ -336,6 +337,17 @@ function buildOpenAIChatCompletionsSDKRequest(input: ModelCallInput): RuntimeMod
     method: 'POST',
     headers: sdkTraceHeaders(input),
     body,
+  }
+}
+
+function toOpenAIChatCompletionsTool(tool: RuntimeModelChatTool): Record<string, unknown> {
+  return {
+    type: 'function',
+    function: {
+      name: tool.function.name,
+      ...(tool.function.description ? { description: tool.function.description } : {}),
+      parameters: toOpenAIToolParameters(tool.function.parameters),
+    },
   }
 }
 
@@ -524,7 +536,7 @@ function toOpenAIResponsesTool(tool: RuntimeModelChatTool): Record<string, unkno
     type: 'function',
     name: tool.function.name,
     ...(tool.function.description ? { description: tool.function.description } : {}),
-    ...(tool.function.parameters !== undefined ? { parameters: tool.function.parameters } : {}),
+    parameters: toOpenAIToolParameters(tool.function.parameters),
   }
 }
 
@@ -574,7 +586,7 @@ function toAnthropicTool(tool: RuntimeModelChatTool): Record<string, unknown> {
   return {
     name: tool.function.name,
     ...(tool.function.description ? { description: tool.function.description } : {}),
-    input_schema: tool.function.parameters ?? { type: 'object', properties: {} },
+    input_schema: toAnthropicToolInputSchema(tool.function.parameters),
   }
 }
 

@@ -1595,7 +1595,6 @@ export default function TasksPage() {
             },
           },
         }),
-        runPolicy: { maxToolCalls: 12, maxIterations: 8 },
         timeoutMs: 600_000,
         renderMode: 'chat',
       })

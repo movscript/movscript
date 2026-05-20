@@ -27,6 +27,7 @@ type ProposalSegmentNode struct {
 type ProposalSceneMomentNode struct {
 	ID                 *uint                     `json:"id"`
 	ClientID           string                    `json:"client_id"`
+	SceneCode          string                    `json:"scene_code"`
 	Title              string                    `json:"title"`
 	TimeText           string                    `json:"time_text"`
 	LocationText       string                    `json:"location_text"`
@@ -45,6 +46,7 @@ type ProposalSceneMomentNode struct {
 type ProposalContentUnitNode struct {
 	ID            *uint                  `json:"id"`
 	ClientID      string                 `json:"client_id"`
+	UnitCode      string                 `json:"unit_code"`
 	Title         string                 `json:"title"`
 	Kind          string                 `json:"kind"`
 	Description   string                 `json:"description"`
@@ -284,6 +286,7 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 				sm, err := s.PatchSceneMoment(ctx, projectID, fmt.Sprint(*smNode.ID), PatchSceneMomentInput{
 					SegmentID:     segIDPtr,
 					ScriptBlockID: smNode.ScriptBlockID,
+					SceneCode:     smNode.SceneCode,
 					Order:         smNode.Order,
 					Title:         smNode.Title,
 					Description:   smNode.Description,
@@ -302,6 +305,7 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 				sm, err := s.CreateSceneMoment(ctx, projectID, CreateSceneMomentInput{
 					SegmentID:     segIDPtr,
 					ScriptBlockID: smNode.ScriptBlockID,
+					SceneCode:     smNode.SceneCode,
 					Order:         fallbackInt(smNode.Order, j+1),
 					Title:         smNode.Title,
 					Description:   smNode.Description,
@@ -379,6 +383,7 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 						SceneMomentID: smIDPtr,
 						ScriptBlockID: cuNode.ScriptBlockID,
 						Kind:          cuNode.Kind,
+						UnitCode:      cuNode.UnitCode,
 						Order:         cuNode.Order,
 						Title:         cuNode.Title,
 						Description:   cuNode.Description,
@@ -401,6 +406,7 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 						SceneMomentID: smIDPtr,
 						ScriptBlockID: cuNode.ScriptBlockID,
 						Kind:          cuNode.Kind,
+						UnitCode:      cuNode.UnitCode,
 						Order:         fallbackInt(cuNode.Order, k+1),
 						Title:         cuNode.Title,
 						Description:   cuNode.Description,

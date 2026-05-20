@@ -146,7 +146,6 @@ export async function buildLocalAgentSendDraft(input: BuildLocalAgentSendDraftIn
   }
   const effectiveRunPolicy: AgentRunPolicyOverride = {
     ...presetRunPolicy,
-    ...(taskPayload?.runPolicy ?? {}),
     ...(options.runPolicy ?? {}),
   }
   const taskRequestId = canUseExternalTask ? input.pageToolRequestId : undefined

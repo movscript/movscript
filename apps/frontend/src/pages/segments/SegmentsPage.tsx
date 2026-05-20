@@ -44,6 +44,7 @@ import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
+import { productionIdentifier, sceneIdentifier, unitIdentifier } from '@/lib/productionIdentifiers'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
@@ -64,7 +65,9 @@ type SegmentRecord = SemanticEntityRecord & {
 }
 
 type SceneMomentRecord = SemanticEntityRecord & {
+  production_id?: number
   segment_id?: number
+  scene_code?: string
   title?: string
   description?: string
   time_text?: string
@@ -80,6 +83,7 @@ type RelatedRecord = SemanticEntityRecord & {
   segment_id?: number
   scene_moment_id?: number
   content_unit_id?: number
+  unit_code?: string
   script_block_id?: number
   owner_type?: string
   owner_id?: number
@@ -465,8 +469,8 @@ export default function SegmentsPage() {
             }]}
             chips={[
               selectedSegmentId ? { id: 'segment', label: `编排段 #${selectedSegmentId}`, onRemove: () => setFilter({ segment_id: null }) } : null,
-              selectedSceneMomentId ? { id: 'scene', label: `情景 #${selectedSceneMomentId}`, onRemove: () => setFilter({ scene_moment_id: null }) } : null,
-              selectedContentUnitId ? { id: 'content', label: `制作项 #${selectedContentUnitId}`, onRemove: () => setFilter({ content_unit_id: null }) } : null,
+              selectedSceneMomentId ? { id: 'scene', label: sceneIdentifier(selectedSceneMoment) || `情景 #${selectedSceneMomentId}`, onRemove: () => setFilter({ scene_moment_id: null }) } : null,
+              selectedContentUnitId ? { id: 'content', label: productionIdentifier(selectedSceneMoment, selectedContentUnit) || `制作项 #${selectedContentUnitId}`, onRemove: () => setFilter({ content_unit_id: null }) } : null,
               referenceFilterId ? { id: 'reference', label: `设定资料 #${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) } : null,
               assetSlotFilterId ? { id: 'asset', label: `素材需求 #${assetSlotFilterId}`, onRemove: () => setFilter({ asset_slot_id: null }) } : null,
             ].filter(Boolean) as Array<{ id: string; label: string; onRemove: () => void }>}
@@ -950,7 +954,10 @@ function SceneMomentRow({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground">{titleOf(sceneMoment)}</p>
+          <div className="flex min-w-0 items-center gap-2">
+            {sceneIdentifier(sceneMoment) ? <Badge variant="outline" className="shrink-0 text-[10px]">{sceneIdentifier(sceneMoment)}</Badge> : null}
+            <p className="truncate text-sm font-semibold text-foreground">{titleOf(sceneMoment)}</p>
+          </div>
           <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{sceneMoment.description || sceneMoment.action_text || sceneMoment.condition_text || '暂无情景描述'}</p>
         </div>
         <StatusBadge status={sceneMoment.status ?? 'draft'} />
@@ -996,14 +1003,17 @@ function ContentUnitRow({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground">{titleOf(item)}</p>
+          <div className="flex min-w-0 items-center gap-2">
+            {productionIdentifier(sceneMoment, item) ? <Badge variant="outline" className="shrink-0 text-[10px]">{productionIdentifier(sceneMoment, item)}</Badge> : null}
+            <p className="truncate text-sm font-semibold text-foreground">{titleOf(item)}</p>
+          </div>
           <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.description || item.prompt || '暂无制作项描述或提示词'}</p>
         </div>
         <StatusBadge status={item.status ?? 'draft'} />
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
         <Badge variant="outline" className="text-[10px]">{item.kind ?? '制作项'}</Badge>
-        <Badge variant="outline" className="text-[10px]">情景 {sceneMoment ? titleOf(sceneMoment) : '未绑定'}</Badge>
+        <Badge variant="outline" className="text-[10px]">情景 {sceneIdentifier(sceneMoment) || (sceneMoment ? titleOf(sceneMoment) : '未绑定')}</Badge>
         <Badge variant="outline" className="text-[10px]">素材需求 {assetCount}</Badge>
         <Badge variant="outline" className="text-[10px]">画面锚点 {keyframeCount}</Badge>
         {item.duration_sec ? <Badge variant="outline" className="text-[10px]">{formatDuration(item.duration_sec)}</Badge> : null}
@@ -1032,6 +1042,7 @@ function SceneMomentDetail({ sceneMoment, segment }: { sceneMoment: SceneMomentR
           <p className="text-sm font-semibold text-foreground">{titleOf(sceneMoment)}</p>
           <p className="mt-1 text-xs text-muted-foreground">{segment ? `来自 ${titleOf(segment)}` : '未绑定编排段'}</p>
         </div>
+        {sceneIdentifier(sceneMoment) ? <InfoBlock label="编号" value={sceneIdentifier(sceneMoment)} /> : null}
         <InfoBlock label="描述" value={sceneMoment.description || '暂无描述'} />
         <div className="grid grid-cols-2 gap-2">
           <MiniStat label="时间" value={sceneMoment.time_text || '-'} />
@@ -1057,14 +1068,18 @@ function ContentUnitDetail({ contentUnit, sceneMoment, scriptBlock }: { contentU
           <Boxes size={14} className="text-muted-foreground" />
           <p className="text-sm font-semibold text-foreground">当前制作项设计</p>
         </div>
-        <StatusBadge status={contentUnit.status ?? 'draft'} />
+        <div className="flex items-center gap-2">
+          {productionIdentifier(sceneMoment, contentUnit) ? <Badge variant="outline" className="text-[10px]">{productionIdentifier(sceneMoment, contentUnit)}</Badge> : null}
+          <StatusBadge status={contentUnit.status ?? 'draft'} />
+        </div>
       </div>
       <div className="space-y-3 p-3">
         <div>
           <p className="text-sm font-semibold text-foreground">{titleOf(contentUnit)}</p>
           <p className="mt-1 text-xs text-muted-foreground">{contentUnit.kind ?? '制作项'} · {formatDuration(contentUnit.duration_sec)}</p>
         </div>
-        <InfoBlock label="所属情景" value={sceneMoment ? titleOf(sceneMoment) : '未绑定情景'} />
+        {productionIdentifier(sceneMoment, contentUnit) ? <InfoBlock label="编号" value={productionIdentifier(sceneMoment, contentUnit)} /> : null}
+        <InfoBlock label="所属情景" value={sceneIdentifier(sceneMoment) || (sceneMoment ? titleOf(sceneMoment) : '未绑定情景')} />
         <InfoBlock label="来源剧本块" value={scriptBlock ? scriptBlockSourceLabel(scriptBlock) : contentUnit.script_block_id ? `剧本块 #${contentUnit.script_block_id}` : '未绑定剧本块'} />
         {scriptBlock ? <InfoBlock label="来源文本" value={String(scriptBlock.content ?? '').trim() || '暂无剧本块正文'} /> : null}
         <InfoBlock label="创作提示" value={contentUnit.prompt || contentUnit.description || '暂无提示词'} />
@@ -1310,6 +1325,7 @@ function RelatedPanel({
 function RelatedRow({ record, scriptBlocksById }: { record: RelatedRecord | SceneMomentRecord | SegmentRecord | ScriptBlockRecord; scriptBlocksById?: Map<number, ScriptBlockRecord> }) {
   const item = record as RelatedRecord & SceneMomentRecord & SegmentRecord & ScriptBlockRecord
   const title = isScriptBlockRecord(item) ? scriptBlockSourceLabel(item) : titleOf(item)
+  const identifier = sceneIdentifier(item) || unitIdentifier(item)
   const sourceBlock = !isScriptBlockRecord(item) && item.script_block_id ? scriptBlocksById?.get(item.script_block_id) : undefined
   const detail = isScriptBlockRecord(item)
     ? String(item.content ?? '').trim() || String(item.kind ?? `ID ${item.ID}`)
@@ -1318,7 +1334,10 @@ function RelatedRow({ record, scriptBlocksById }: { record: RelatedRecord | Scen
     <div className="rounded-md border border-border bg-background px-3 py-2">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-xs font-medium text-foreground">{title}</p>
+          <div className="flex min-w-0 items-center gap-1.5">
+            {identifier ? <Badge variant="outline" className="shrink-0 text-[10px]">{identifier}</Badge> : null}
+            <p className="truncate text-xs font-medium text-foreground">{title}</p>
+          </div>
           <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{detail}</p>
         </div>
         <StatusBadge status={item.status ?? item.priority ?? 'draft'} />

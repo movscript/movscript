@@ -12,6 +12,7 @@ Draft schema：{{schema:movscript.project_standards_proposal.v1.id}}
 
 输入：
 - 当前 focus 中的 project、production 风格需求、用户提出的全局制作规范、镜头语言或风格约束。
+- 后端项目剧本 / Script 正文。项目规范必须先基于剧本题材、人物关系、情绪曲线、场景密度、对白节奏和目标 production 语境判断风格是否适合。
 - 用户给出的画幅、镜头大小、运镜、灯光、色彩、质感、节奏、禁用规则、质检口径、命名/文本/素材/交付规则和跨 production 复用要求。
 
 边界：
@@ -33,21 +34,25 @@ Draft schema：{{schema:movscript.project_standards_proposal.v1.id}}
 
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
+- 项目剧本：{{tool:movscript_read_project_scripts}}
 - Draft 模型：{{tool:movscript_get_draft_model}}
 - Draft 读取/创建/编辑：{{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
 - 用户输入：{{tool:movscript_request_user_input}}
 
 流程：
 1. 读取当前 focus。如果 projectId 缺失且无法推断，用 movscript_request_user_input 询问。
-2. 获取 project_standards_proposal 的 draft model 契约；若暂不可用，使用 schema fallback 并在输出中说明。
-3. 如果当前会话已有 project_standards_proposal draftId，先读取它；否则用 proposal=true 创建一个，source/target 记录 project 锚点，并把 MCP 返回的 seed/modelRef 作为 movscript_create_draft.seed 传入。
-4. 修改现有 draft 前必须先读取内容。
-5. 只 patch proposal.project_style；draft 中不得出现 creative_references 或 asset_slots。
-6. Validate draft。当前 applyBoundary 若为 draft_only，不运行正式 preview apply；只报告本地 validation 状态和未决规范。
+2. 调用 movscript_read_project_scripts 读取当前 project 的剧本正文，优先读取总剧本、第一集或与当前 production 相关的剧本；需要判断风格时必须传 includeContent: true，并用足够的 contentLimit。
+3. 如果项目没有剧本、工具无法返回正文或正文被严重截断，仍可创建 draft，但风格、节奏、镜头语言只能写为待确认或用户已明确给出的规则；不要凭空选择“写实”“电影感”“赛博”等风格。
+4. 获取 project_standards_proposal 的 draft model 契约；若暂不可用，使用 schema fallback 并在输出中说明。
+5. 如果当前会话已有 project_standards_proposal draftId，先读取它；否则用 proposal=true 创建一个，source/target 记录 project 锚点，并把 MCP 返回的 seed/modelRef 作为 movscript_create_draft.seed 传入。
+6. 修改现有 draft 前必须先读取内容。
+7. 只 patch proposal.project_style；draft 中不得出现 creative_references 或 asset_slots。
+8. Validate draft。当前 applyBoundary 若为 draft_only，不运行正式 preview apply；只报告本地 validation 状态和未决规范。
 
 内容规则：
+- 所有风格、摄影语言、灯光、色彩和节奏判断必须能回指到剧本证据、用户明确要求或已读取的项目上下文；证据不足时放入 impact_notes 或未决决策。
 - project_style.aspect_ratio：项目默认画幅，例如 9:16、16:9、1:1。
-- project_style.shot_size_system：项目使用的镜头大小词表，例如 establishing、wide、medium、close-up、insert。
+- project_style.shot_size_system：字符串数组，只写项目使用的镜头大小词表或简短规则，例如 ["远景：建立空间", "中景：人物关系", "特写：情绪爆点", "插入：关键道具"]；不要写对象数组，不要在条目里使用 key/label/usage/composition 字段。
 - project_style.camera_language：机位、运镜、镜头稳定性和构图规则。
 - project_style.visual_style / lighting_style / color_palette：可执行的视觉规则，避免只写“高级感”“电影感”等空泛词。
 - project_style.pacing_rules：节奏、镜头时长、转场或信息呈现规则。
@@ -66,7 +71,7 @@ Draft schema：{{schema:movscript.project_standards_proposal.v1.id}}
 - 如果用户要求“候选图方案”“prompt”“出图方向”，切换到 asset_proposal。
 
 输出：
-回复 draftId、projectId、draft status、validation 状态、项目规范摘要和未解决的镜头/风格决策。
+回复 draftId、projectId、draft status、validation 状态、剧本依据、项目规范摘要和未解决的镜头/风格决策。
 
 绝不：
 - 绝不把本地规范 draft 描述为已正式写入 project。

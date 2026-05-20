@@ -1,6 +1,5 @@
 import {
   buildGenerationEvent,
-  buildGenerationTimeoutEvent,
   extractGenerationMonitorRequest,
   type GenerationEvent,
 } from '../generation/generationEvents.js'
@@ -54,7 +53,7 @@ export async function applyRuntimeLocalGenerationCommand(input: {
   memoryStorePath?: string
   now: () => string
   timestampMs: () => number
-  executeGenerationTool: (call: { name: 'movscript_create_generation_job' | 'movscript_get_generation_job'; args: Record<string, JSONValue> }) => Promise<ToolExecutionResult>
+  executeGenerationTool: (call: { name: 'movscript_create_generation_job' | 'movscript_get_generation_job' | 'movscript_wait_generation_jobs'; args: Record<string, JSONValue> }) => Promise<ToolExecutionResult>
   recordTrace: (run: AgentRun, trace: RuntimeLocalGenerationTraceInput) => void
   createStep: (run: AgentRun, type: AgentRunStep['type'], round?: AgentRunRoundInfo, toolName?: string) => AgentRunStep
   emitAssistantMessage: (run: AgentRun, message: AgentMessage) => void
@@ -115,19 +114,16 @@ export async function applyRuntimeLocalGenerationCommand(input: {
   })
   const createResult = await input.executeGenerationTool(forcedCall)
   let execResult = createResult
+  let finalToolCall: { name: 'movscript_create_generation_job' | 'movscript_get_generation_job' | 'movscript_wait_generation_jobs'; args: Record<string, JSONValue> } = forcedCall
   const generationEvent = buildGenerationEvent(forcedCall, createResult.result)
   if (!createResult.error && generationEvent) {
     recordLocalGenerationTrace(input, localRound, toolStep.id, generationEvent)
     const monitorRequest = extractGenerationMonitorRequest(forcedCall, createResult.result, generationEvent)
     if (monitorRequest) {
-      execResult = await monitorLocalGenerationJob({
-        ...input,
-        initialEvent: generationEvent,
-        localRound,
-        stepId: toolStep.id,
-        request: monitorRequest,
-        fallbackResult: createResult,
-      })
+      finalToolCall = { name: monitorRequest.toolName, args: monitorRequest.args }
+      execResult = await input.executeGenerationTool(finalToolCall)
+      const monitorEvent = buildGenerationEvent(finalToolCall, execResult.result)
+      if (!execResult.error && monitorEvent) recordLocalGenerationTrace(input, localRound, toolStep.id, monitorEvent)
     }
   }
   const durationMs = input.timestampMs() - startedAt
@@ -156,7 +152,7 @@ export async function applyRuntimeLocalGenerationCommand(input: {
     userMessage: input.userMessage,
     modelContent: '',
     toolResults: [{
-      call: forcedCall,
+      call: finalToolCall,
       ...(execResult.error ? { error: execResult.error } : { result: execResult.result }),
     }],
     warnings: input.warnings,
@@ -230,59 +226,4 @@ function recordLocalGenerationTrace(
     toolName: 'movscript_create_generation_job',
     data: { generation: event },
   })
-}
-
-async function monitorLocalGenerationJob(input: {
-  executeGenerationTool: Parameters<typeof applyRuntimeLocalGenerationCommand>[0]['executeGenerationTool']
-  recordTrace: Parameters<typeof applyRuntimeLocalGenerationCommand>[0]['recordTrace']
-  run: AgentRun
-  request: NonNullable<ReturnType<typeof extractGenerationMonitorRequest>>
-  initialEvent: GenerationEvent
-  fallbackResult: ToolExecutionResult
-  localRound: AgentRunRoundInfo
-  stepId: string
-}): Promise<ToolExecutionResult> {
-  if (input.request.timeoutMs <= 0) return input.fallbackResult
-  const deadline = Date.now() + input.request.timeoutMs
-  let previousKey = localGenerationEventChangeKey(input.initialEvent)
-  let lastEmittedAt = Date.now()
-  let latestResult = input.fallbackResult
-  const heartbeatMs = input.request.heartbeatMs > 0 ? input.request.heartbeatMs : Number.POSITIVE_INFINITY
-
-  while (Date.now() <= deadline) {
-    const pollResult = await input.executeGenerationTool({ name: input.request.toolName, args: input.request.args })
-    latestResult = pollResult
-    if (pollResult.error) return pollResult
-    const event = buildGenerationEvent({ name: input.request.toolName, args: input.request.args }, pollResult.result)
-    if (!event) {
-      await sleepLocalGeneration(input.request.pollIntervalMs)
-      continue
-    }
-    const now = Date.now()
-    const nextKey = localGenerationEventChangeKey(event)
-    if (event.terminal || nextKey !== previousKey || now - lastEmittedAt >= heartbeatMs) {
-      recordLocalGenerationTrace(input, input.localRound, input.stepId, event)
-      previousKey = nextKey
-      lastEmittedAt = now
-    }
-    if (event.terminal) return pollResult
-    await sleepLocalGeneration(Math.min(input.request.pollIntervalMs, Math.max(0, deadline - now)))
-  }
-
-  recordLocalGenerationTrace(input, input.localRound, input.stepId, buildGenerationTimeoutEvent(input.initialEvent))
-  return latestResult
-}
-
-function localGenerationEventChangeKey(event: GenerationEvent): string {
-  return [
-    event.stage,
-    event.status,
-    event.progress ?? '',
-    event.outputResourceId ?? '',
-    event.outputResourceIds?.join(',') ?? '',
-  ].join(':')
-}
-
-function sleepLocalGeneration(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)))
 }

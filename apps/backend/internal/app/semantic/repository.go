@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,6 +45,7 @@ type repository interface {
 	CreateSceneMoment(ctx context.Context, item domainsemantic.SceneMoment) (domainsemantic.SceneMoment, error)
 	LoadSceneMoment(ctx context.Context, projectID uint, id string) (domainsemantic.SceneMoment, error)
 	PatchSceneMoment(ctx context.Context, item domainsemantic.SceneMoment, patch domainsemantic.SceneMomentPatch) (domainsemantic.SceneMoment, error)
+	NextSceneCode(ctx context.Context, projectID uint, productionID uint) (string, error)
 	ListWritingExpressions(ctx context.Context, filter WritingExpressionFilter) ([]domainsemantic.WritingExpression, error)
 	CreateWritingExpression(ctx context.Context, item domainsemantic.WritingExpression) (domainsemantic.WritingExpression, error)
 	LoadWritingExpression(ctx context.Context, projectID uint, id string) (domainsemantic.WritingExpression, error)
@@ -57,6 +59,7 @@ type repository interface {
 	CreateContentUnit(ctx context.Context, item domainsemantic.ContentUnit) (domainsemantic.ContentUnit, error)
 	LoadContentUnit(ctx context.Context, projectID uint, id string) (domainsemantic.ContentUnit, error)
 	PatchContentUnit(ctx context.Context, item domainsemantic.ContentUnit, patch domainsemantic.ContentUnitPatch) (domainsemantic.ContentUnit, error)
+	NextUnitCode(ctx context.Context, projectID uint, sceneMomentID uint, kind string) (string, error)
 	ListKeyframes(ctx context.Context, filter KeyframeFilter) ([]domainsemantic.Keyframe, error)
 	CreateKeyframe(ctx context.Context, item domainsemantic.Keyframe) (domainsemantic.Keyframe, error)
 	LoadKeyframe(ctx context.Context, projectID uint, id string) (domainsemantic.Keyframe, error)
@@ -635,6 +638,18 @@ func productionTextBlockPatchColumns(patch domainsemantic.ProductionTextBlockPat
 func (r *gormRepository) ListSceneMoments(ctx context.Context, filter SceneMomentFilter) ([]domainsemantic.SceneMoment, error) {
 	items := make([]persistencemodel.SceneMoment, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
+	if filter.ProductionID > 0 {
+		q = q.Where("production_id = ?", filter.ProductionID)
+	}
+	if filter.SegmentID > 0 {
+		q = q.Where("segment_id = ?", filter.SegmentID)
+	}
+	if filter.ScriptBlockID > 0 {
+		q = q.Where("script_block_id = ?", filter.ScriptBlockID)
+	}
+	if len(filter.ScriptBlockIDs) > 0 {
+		q = q.Where("script_block_id IN ?", filter.ScriptBlockIDs)
+	}
 	if err := q.Order(`"order", id`).Find(&items).Error; err != nil {
 		return nil, err
 	}
@@ -677,11 +692,17 @@ func sceneMomentPatchColumns(patch domainsemantic.SceneMomentPatch) map[string]a
 	updates := map[string]any{
 		"order": patch.Order,
 	}
+	if patch.ProductionID != nil {
+		updates["production_id"] = patch.ProductionID
+	}
 	if patch.SegmentID != nil {
 		updates["segment_id"] = patch.SegmentID
 	}
 	if patch.ScriptBlockID != nil {
 		updates["script_block_id"] = patch.ScriptBlockID
+	}
+	if strings.TrimSpace(patch.SceneCode) != "" {
+		updates["scene_code"] = patch.SceneCode
 	}
 	if strings.TrimSpace(patch.Title) != "" {
 		updates["title"] = patch.Title
@@ -711,6 +732,20 @@ func sceneMomentPatchColumns(patch domainsemantic.SceneMomentPatch) map[string]a
 		updates["metadata_json"] = patch.MetadataJSON
 	}
 	return updates
+}
+
+func (r *gormRepository) NextSceneCode(ctx context.Context, projectID uint, productionID uint) (string, error) {
+	var items []persistencemodel.SceneMoment
+	if err := r.db.WithContext(ctx).
+		Unscoped().
+		Select("scene_code").
+		Where("project_id = ? AND production_id = ?", projectID, productionID).
+		Find(&items).Error; err != nil {
+		return "", err
+	}
+	return strconv.Itoa(maxPositiveCode(items, func(item persistencemodel.SceneMoment) string {
+		return item.SceneCode
+	}) + 1), nil
 }
 
 func (r *gormRepository) ListWritingExpressions(ctx context.Context, filter WritingExpressionFilter) ([]domainsemantic.WritingExpression, error) {
@@ -1186,6 +1221,21 @@ func productionPatchColumns(patch domainsemantic.ProductionPatch) map[string]any
 func (r *gormRepository) ListContentUnits(ctx context.Context, filter ContentUnitFilter) ([]domainsemantic.ContentUnit, error) {
 	items := make([]persistencemodel.ContentUnit, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
+	if filter.ProductionID > 0 {
+		q = q.Where("production_id = ?", filter.ProductionID)
+	}
+	if filter.SegmentID > 0 {
+		q = q.Where("segment_id = ?", filter.SegmentID)
+	}
+	if filter.SceneMomentID > 0 {
+		q = q.Where("scene_moment_id = ?", filter.SceneMomentID)
+	}
+	if filter.ScriptBlockID > 0 {
+		q = q.Where("script_block_id = ?", filter.ScriptBlockID)
+	}
+	if len(filter.ScriptBlockIDs) > 0 {
+		q = q.Where("script_block_id IN ?", filter.ScriptBlockIDs)
+	}
 	if err := q.Order(`"order", id`).Find(&items).Error; err != nil {
 		return nil, err
 	}
@@ -1243,6 +1293,9 @@ func contentUnitPatchColumns(patch domainsemantic.ContentUnitPatch) map[string]a
 	}
 	if strings.TrimSpace(patch.Kind) != "" {
 		updates["kind"] = patch.Kind
+	}
+	if strings.TrimSpace(patch.UnitCode) != "" {
+		updates["unit_code"] = patch.UnitCode
 	}
 	if strings.TrimSpace(patch.Title) != "" {
 		updates["title"] = patch.Title
@@ -1302,6 +1355,34 @@ func contentUnitPatchColumns(patch domainsemantic.ContentUnitPatch) map[string]a
 		updates["metadata_json"] = patch.MetadataJSON
 	}
 	return updates
+}
+
+func (r *gormRepository) NextUnitCode(ctx context.Context, projectID uint, sceneMomentID uint, kind string) (string, error) {
+	var items []persistencemodel.ContentUnit
+	if err := r.db.WithContext(ctx).
+		Unscoped().
+		Select("unit_code").
+		Where("project_id = ? AND scene_moment_id = ? AND kind = ?", projectID, sceneMomentID, domainsemantic.FallbackString(strings.TrimSpace(kind), "shot")).
+		Find(&items).Error; err != nil {
+		return "", err
+	}
+	return strconv.Itoa(maxPositiveCode(items, func(item persistencemodel.ContentUnit) string {
+		return item.UnitCode
+	}) + 1), nil
+}
+
+func maxPositiveCode[T any](items []T, code func(T) string) int {
+	max := 0
+	for _, item := range items {
+		value, err := strconv.Atoi(strings.TrimSpace(code(item)))
+		if err != nil || value < 1 {
+			continue
+		}
+		if value > max {
+			max = value
+		}
+	}
+	return max
 }
 
 func (r *gormRepository) ListKeyframes(ctx context.Context, filter KeyframeFilter) ([]domainsemantic.Keyframe, error) {

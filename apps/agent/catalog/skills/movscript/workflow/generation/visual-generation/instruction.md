@@ -27,7 +27,8 @@
 - 创建生成任务：{{tool:movscript_create_generation_job}}
 - 加入 asset slot 候选集：{{tool:movscript_attach_asset_slot_candidate}}
 - 加入 keyframe / 画面锚点候选集：{{tool:movscript_attach_keyframe_candidate}}
-- 检查和监控任务：{{tool:movscript_get_generation_job}} {{tool:movscript_list_generation_jobs}}
+- 等待生成任务：{{tool:movscript_wait_generation_jobs}}
+- 检查和补充查看任务：{{tool:movscript_get_generation_job}} {{tool:movscript_list_generation_jobs}}
 - 请求用户确认：{{tool:movscript_request_user_input}}
 - 仅在用户明确要求或 stop/cancel 流程需要时取消：{{tool:movscript_cancel_generation_job}}
 
@@ -39,8 +40,8 @@
 5. 选择模型或模型专用参数前，先使用模型发现。优先用 `model_contracts` 做紧凑规划；只有紧凑 contract 不足时，才检查对应 raw model 的 `params_schema`。
 6. 从选中的模型 contract 中选择 `model_id`。不要根据 provider 名称、内部配置 ID 或同 provider 的其他模型推断支持能力。
 7. 只提交被选中模型的 `supported_param_keys` / `supported_params` 支持的顶层参数和 `extra_params` 值；只提交图片/视频数量满足 `input_requirements` 的参考资源。遵守 enum 选项、数值范围，以及冲突、条件 enum、条件 const、必填值等紧凑跨参数规则。
-8. 只有在需要审批的生成工具获准运行后，才能提交任务。
-9. 监控任务，直到进入终态或达到监控超时。
+8. 只有在需要审批的生成工具获准运行后，才能提交任务。创建任务时优先使用异步语义（`wait: false`），让 runtime 或后续 wait 工具等待结果。
+9. 创建一个或多个任务后，调用一次 `movscript_wait_generation_jobs` 等待这些 jobId；多个任务使用同一个 `jobIds` 列表。不要通过反复调用 `movscript_get_generation_job` 自行轮询。只有在需要查看单个任务详情、wait 返回信息不足，或用户明确要求检查状态时，才使用 `movscript_get_generation_job`。
 10. 只有工具结果包含输出资源或媒体预览时，才能报告它们。
 11. 当输出资源存在且用户目标是生成某个 asset slot 的素材候选时，调用 `movscript_attach_asset_slot_candidate` 把所有可用 output_resource_id 加入目标 asset slot 候选集；当用户目标是生成某个 keyframe / 画面锚点候选时，调用 `movscript_attach_keyframe_candidate` 把所有可用 output_resource_id 加入目标 keyframe 候选集。如果工具结果里有 `output_resource_ids` 列表，优先把完整列表作为 `output_resource_ids` 传入一次候选写入。除非用户明确要求只预览结果，否则不要停留在让用户手动选择。
 

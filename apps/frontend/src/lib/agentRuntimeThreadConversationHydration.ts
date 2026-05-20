@@ -1,6 +1,7 @@
 import { loadRuntimeThreadProjection, type RuntimeThreadHydrationResult } from '@/lib/agentRuntimeThreadHydration'
 import { mergeRuntimeThreadProjectionMessages, runtimeThreadHydrationKey } from '@/lib/agentRuntimeConversationSync'
 import type { AgentConversationMessageStore } from '@/lib/agentConversationMessageStore'
+import type { AgentRun } from '@/lib/localAgentClient'
 import type { ChatMessage } from '@/store/agentStore'
 
 export type RuntimeThreadConversationHydrationStatus = 'hydrated' | 'skipped' | 'cancelled'
@@ -13,6 +14,7 @@ export interface HydrateRuntimeThreadConversationDeps {
   }) => Promise<RuntimeThreadHydrationResult>
   setLocalThreadId: (conversationId: string, threadId: string) => void
   setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
+  setConversationRun?: (conversationId: string, run: AgentRun, patch?: { loading?: boolean; building?: boolean; approving?: boolean; stopping?: boolean; stopRequested?: boolean }) => void
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
   messageStore: Pick<AgentConversationMessageStore, 'setConversationMessages'>
 }
@@ -42,6 +44,15 @@ export async function hydrateRuntimeThreadConversation(input: {
     }
     deps.setLocalThreadId(input.conversationId, projection.thread.id)
     deps.setConversationRuntimeThreadId(input.userId, input.conversationId, projection.thread.id)
+    if (projection.currentRun) {
+      deps.setConversationRun?.(input.conversationId, projection.currentRun, {
+        loading: false,
+        building: false,
+        approving: false,
+        stopping: false,
+        stopRequested: false,
+      })
+    }
     const title = projection.thread.title?.trim()
     if (title) deps.updateConversationTitle(input.userId, input.conversationId, title)
     deps.messageStore.setConversationMessages(

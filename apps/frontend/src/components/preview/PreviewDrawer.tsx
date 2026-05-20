@@ -14,6 +14,7 @@ import {
 import { Badge, Button } from '@movscript/ui'
 import { generatePreview, type PreviewContentUnit, type PreviewGenerateResponse, type PreviewKeyframe, type PreviewScope } from '@/api/preview'
 import { AuthedImage } from '@/components/shared/AuthedImage'
+import { productionIdentifier, sceneIdentifier, unitIdentifier } from '@/lib/productionIdentifiers'
 import { cn } from '@/lib/utils'
 
 interface PreviewDrawerProps {
@@ -95,7 +96,7 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
               <span className="truncate text-sm font-semibold text-foreground">{entityTitle || data?.entity.title || '内容预览'}</span>
             </div>
             <p className="mt-0.5 truncate text-xs text-muted-foreground">
-              {data?.context.scene_moment_title || data?.context.segment_title || data?.entity.description || '编排段结构驱动预览，画面流承接真实剧情。'}
+              {[sceneIdentifier({ scene_code: data?.context.scene_moment_code }), data?.context.scene_moment_title || data?.context.segment_title || data?.entity.description || '编排段结构驱动预览，画面流承接真实剧情。'].filter(Boolean).join(' · ')}
             </p>
           </div>
           <button
@@ -146,6 +147,7 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
                       key={node.unit.id}
                       node={node}
                       index={index}
+                      sceneCode={data?.context.scene_moment_code}
                       selected={selectedUnitId === node.unit.id}
                       expanded={expandedUnits.has(node.unit.id)}
                       onSelect={() => setSelectedUnitId(node.unit.id)}
@@ -191,7 +193,7 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
                       </p>
                     </div>
                     <Badge variant="outline" className="text-[10px]">
-                      {selectedNode ? selectedNode.unit.title || `制作项 #${selectedNode.unit.id}` : '全部画面'}
+                      {selectedNode ? productionIdentifier({ scene_code: data.context.scene_moment_code }, selectedNode.unit) || selectedNode.unit.title || `制作项 #${selectedNode.unit.id}` : '全部画面'}
                     </Badge>
                   </div>
 
@@ -273,6 +275,7 @@ function compareOrder<T extends { order: number; id: number }>(a: T, b: T) {
 function StoryTreeNode({
   node,
   index,
+  sceneCode,
   selected,
   expanded,
   onSelect,
@@ -280,12 +283,14 @@ function StoryTreeNode({
 }: {
   node: PreviewStoryNode
   index: number
+  sceneCode?: string
   selected: boolean
   expanded: boolean
   onSelect: () => void
   onToggle: () => void
 }) {
   const duration = formatDuration(node.unit.duration_sec)
+  const identifier = productionIdentifier({ scene_code: sceneCode }, node.unit)
   return (
     <div className={cn('rounded-lg border bg-background transition-colors', selected ? 'border-primary ring-1 ring-primary' : 'border-border')}>
       <div className="flex items-start gap-2 p-2.5">
@@ -300,6 +305,7 @@ function StoryTreeNode({
         <button type="button" onClick={onSelect} className="min-w-0 flex-1 text-left">
           <div className="flex items-center gap-2">
             <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
+            {identifier ? <Badge variant="outline" className="shrink-0 text-[10px]">{identifier}</Badge> : null}
             <p className="truncate text-sm font-semibold text-foreground">{node.unit.title || `制作项 #${node.unit.id}`}</p>
           </div>
           <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{node.unit.description || '暂无段落说明'}</p>
@@ -356,7 +362,7 @@ function StoryFrame({ keyframe, index, frameContext }: { keyframe: PreviewKeyfra
       </div>
       <div className="min-w-0 py-1">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="text-[10px]">{frameContext.unit?.title || frameContext.scopeLabel}</Badge>
+          <Badge variant="outline" className="text-[10px]">{unitIdentifier(frameContext.unit) || frameContext.unit?.title || frameContext.scopeLabel}</Badge>
           <Badge variant="secondary" className="text-[10px]">{frameRoleLabel(frameContext.localIndex, frameContext.total)}</Badge>
           <span className={cn(
             'rounded px-1.5 py-0.5 text-[10px] font-medium',
@@ -444,6 +450,7 @@ function MobileTree({ data, nodes }: { data: PreviewGenerateResponse; nodes: Pre
           <div key={node.unit.id} className="rounded-md border border-border bg-background p-3">
             <div className="flex items-center gap-2">
               <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
+              {productionIdentifier({ scene_code: data.context.scene_moment_code }, node.unit) ? <Badge variant="outline" className="shrink-0 text-[10px]">{productionIdentifier({ scene_code: data.context.scene_moment_code }, node.unit)}</Badge> : null}
               <p className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{node.unit.title || `制作项 #${node.unit.id}`}</p>
               <Badge variant="outline" className="text-[10px]">{node.keyframes.length} 帧</Badge>
             </div>

@@ -8,6 +8,7 @@ export interface ContentWorkbenchUnitTrackInput {
   startSec?: number
   status?: string
   summary?: string
+  identifier?: string
   sceneMomentTitle?: string
   segmentTitle?: string
   scriptCue?: string
@@ -36,6 +37,7 @@ export interface ContentWorkbenchUnitTrackItem {
   tone: ContentWorkbenchUnitTrackTone
   selected: boolean
   summary: string
+  identifier: string
   sceneMomentTitle: string
   segmentTitle: string
   scriptCue: string
@@ -161,6 +163,7 @@ function buildTrackItem(input: ContentWorkbenchUnitTrackInput, order: number, fa
     tone,
     selected: Boolean(input.selected),
     summary,
+    identifier: String(input.identifier ?? '').trim(),
     sceneMomentTitle: String(input.sceneMomentTitle ?? '').trim(),
     segmentTitle: String(input.segmentTitle ?? '').trim(),
     scriptCue: String(input.scriptCue ?? '').trim(),

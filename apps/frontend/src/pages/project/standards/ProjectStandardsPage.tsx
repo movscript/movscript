@@ -739,7 +739,6 @@ export default function ProjectStandardsPage() {
             selection: { entityType: 'project', entityId: projectId, label: project?.name ?? `项目 #${projectId}` },
           },
         }),
-        runPolicy: { maxToolCalls: 16, maxIterations: 10 },
         timeoutMs: 180_000,
         renderMode: 'page',
       })

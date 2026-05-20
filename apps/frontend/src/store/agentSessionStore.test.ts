@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { conversationIdForLocalThread } from './agentSessionStore'
+import { conversationIdForLocalThread, pageTaskStatusFromRuntime } from './agentSessionStore'
 
 test('conversationIdForLocalThread resolves persisted direct conversation mappings first', () => {
   assert.equal(conversationIdForLocalThread({
@@ -52,4 +52,22 @@ test('conversationIdForLocalThread returns undefined for unmapped runtime thread
       },
     },
   }), undefined)
+})
+
+test('pageTaskStatusFromRuntime settles explicit panel payload statuses', () => {
+  assert.equal(pageTaskStatusFromRuntime({ status: 'completed' }, 'running'), 'completed')
+  assert.equal(pageTaskStatusFromRuntime({ status: 'error' }, 'running'), 'error')
+  assert.equal(pageTaskStatusFromRuntime({ status: 'cancelled' }, 'running'), 'cancelled')
+})
+
+test('pageTaskStatusFromRuntime maps terminal run statuses to settled task statuses', () => {
+  assert.equal(pageTaskStatusFromRuntime({ run: { status: 'completed' } as any }, 'running'), 'completed')
+  assert.equal(pageTaskStatusFromRuntime({ run: { status: 'completed_with_warnings' } as any }, 'running'), 'completed')
+  assert.equal(pageTaskStatusFromRuntime({ run: { status: 'failed' } as any }, 'running'), 'error')
+  assert.equal(pageTaskStatusFromRuntime({ run: { status: 'cancelled' } as any }, 'running'), 'cancelled')
+})
+
+test('pageTaskStatusFromRuntime preserves active statuses while claiming queued tasks', () => {
+  assert.equal(pageTaskStatusFromRuntime({ run: { status: 'in_progress' } as any }, 'queued'), 'claimed')
+  assert.equal(pageTaskStatusFromRuntime({ run: { status: 'in_progress' } as any }, 'running'), 'running')
 })

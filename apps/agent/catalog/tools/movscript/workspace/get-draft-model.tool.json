@@ -11,10 +11,12 @@
       "kind": {
         "type": "string",
         "enum": [
+          "setting_proposal",
           "project_standards_proposal",
           "production_proposal",
           "script_split_proposal",
-          "asset_proposal"
+          "asset_proposal",
+          "content_unit_proposal"
         ]
       },
       "target": {

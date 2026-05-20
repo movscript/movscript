@@ -48,7 +48,7 @@ test('workflow echo helpers hide user answer echoes restored from run activity',
   const message: ChatMessage = {
     id: 'msg_echo',
     role: 'user',
-    content: '回答：选择方向\n选择：A',
+    content: '[用户补充信息]\n标题：选择方向\n问题：Pick\n选择：\n- A',
     timestamp: 1,
   }
   const messages: ChatMessage[] = [{
@@ -87,6 +87,20 @@ test('workflow echo helpers hide user answer echoes restored from run activity',
   assert.equal(isWorkflowAnswerEchoMessage(message, echoes), true)
 })
 
+test('workflow echo helpers keep hiding legacy user answer echoes', () => {
+  const message: ChatMessage = {
+    id: 'msg_echo',
+    role: 'user',
+    content: '回答：选择方向\n选择：A',
+    timestamp: 1,
+  }
+  const messages: ChatMessage[] = [messageWithAnsweredInput()]
+
+  const echoes = workflowAnswerEchoesForMessages(messages, [])
+
+  assert.equal(isWorkflowAnswerEchoMessage(message, echoes), true)
+})
+
 test('workflowRunFromActivity rebuilds actionable input and approval state', () => {
   const run = workflowRunFromActivity({
     runId: 'run_1',
@@ -113,8 +127,44 @@ test('upsertWorkflowRunSnapshot keeps the latest eight distinct run snapshots', 
 })
 
 test('formatInputAnswerForChat renders selected choices and custom text', () => {
-  assert.equal(formatInputAnswerForChat(inputRequest('input_1', 'pending'), { choiceIds: ['a'], text: '补充说明' }), '回答：选择方向\n选择：A\n补充：补充说明')
+  assert.equal(
+    formatInputAnswerForChat(inputRequest('input_1', 'pending'), { choiceIds: ['a'], text: '补充说明' }),
+    '[用户补充信息]\n标题：选择方向\n问题：Pick\n选择：\n- A\n输入：补充说明',
+  )
 })
+
+function messageWithAnsweredInput(): ChatMessage {
+  return {
+    id: 'assistant_result',
+    role: 'assistant',
+    content: 'done',
+    timestamp: 2,
+    meta: {
+      localRunActivity: {
+        runId: 'run_1',
+        threadId: 'thread_1',
+        status: 'completed',
+        createdAt: '2026-05-19T00:00:00.000Z',
+        updatedAt: '2026-05-19T00:00:01.000Z',
+        inputs: [{
+          id: 'input_1',
+          runId: 'run_1',
+          title: '选择方向',
+          question: 'Pick',
+          inputType: 'choice',
+          choices: [{ id: 'a', label: 'A' }],
+          allowCustomAnswer: false,
+          status: 'answered',
+          answer: { choiceIds: ['a'] },
+          createdAt: '2026-05-19T00:00:00.000Z',
+          updatedAt: '2026-05-19T00:00:01.000Z',
+        }],
+        steps: [],
+        events: [],
+      },
+    },
+  }
+}
 
 function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   return {

@@ -181,6 +181,7 @@ test('thread run endpoint appends a user message and creates a run bound to that
   const calls: Array<{ endpoint: string; input: Record<string, unknown> }> = []
   const handler = createAgentRequestListener({
     agentRuntime: {
+      getThread: (threadId: string) => ({ id: threadId, status: 'idle', createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:00.000Z', messages: [] }),
       addMessage: (threadId: string, input: Record<string, unknown>) => {
         calls.push({ endpoint: 'message', input: { threadId, ...input } })
         return { id: 'msg_bound', threadId, role: 'user', content: input.content, createdAt: '2026-05-19T00:00:00.000Z' }
@@ -233,6 +234,70 @@ test('thread run endpoint appends a user message and creates a run bound to that
   ])
 })
 
+test('thread run endpoint appends runtime input to an active run instead of creating a parallel run', async () => {
+  const calls: Array<{ endpoint: string; input: Record<string, unknown> }> = []
+  const handler = createAgentRequestListener({
+    agentRuntime: {
+      getThread: (threadId: string) => ({
+        id: threadId,
+        status: 'running',
+        activeRunId: 'run_active',
+        createdAt: '2026-05-19T00:00:00.000Z',
+        updatedAt: '2026-05-19T00:00:00.000Z',
+        messages: [],
+      }),
+      getRun: (runId: string) => ({ id: runId, threadId: 'thread_1', status: 'in_progress' }),
+      addMessage: (threadId: string, input: Record<string, unknown>) => {
+        calls.push({ endpoint: 'message', input: { threadId, ...input } })
+        return {
+          id: 'msg_runtime_input',
+          threadId,
+          role: 'user',
+          content: input.content,
+          runId: input.runId,
+          metadata: input.metadata,
+          createdAt: '2026-05-19T00:00:01.000Z',
+        }
+      },
+      createRun: (input: Record<string, unknown>) => {
+        calls.push({ endpoint: 'run', input })
+        return { id: 'unexpected_run' }
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'POST', '/threads/thread_1/runs', JSON.stringify({
+    message: '先别继续，改成图片方案',
+  }))
+
+  assert.equal(response.statusCode, 202)
+  const body = JSON.parse(response.body)
+  assert.deepEqual(body.runtimeInput, {
+    accepted: true,
+    runId: 'run_active',
+    messageId: 'msg_runtime_input',
+    status: 'accepted',
+  })
+  assert.equal(body.run.id, 'run_active')
+  assert.deepEqual(calls, [
+    {
+      endpoint: 'message',
+      input: {
+        threadId: 'thread_1',
+        role: 'user',
+        content: '先别继续，改成图片方案',
+        runId: 'run_active',
+        metadata: {
+          kind: 'runtime_input',
+          targetRunId: 'run_active',
+          mode: 'soft',
+          status: 'accepted',
+        },
+      },
+    },
+  ])
+})
+
 test('thread runs endpoint lists only runs from the requested thread', async () => {
   const handler = createAgentRequestListener({
     agentRuntime: {
@@ -274,9 +339,68 @@ test('thread runtime endpoint returns a consistent thread and run snapshot', asy
 
   assert.equal(response.statusCode, 200)
   assert.deepEqual(JSON.parse(response.body), {
+    schema: 'movscript.agent.thread-runtime-snapshot.v1',
+    updatedAt: '2026-05-19T00:00:01.000Z',
     thread,
     runs: [{ id: 'run_1', threadId: 'thread_1', status: 'completed' }],
+    current: {
+      runId: 'run_1',
+      runStatus: 'completed',
+    },
+    interactions: {
+      actionableRunIds: [],
+      pendingApprovalRefs: [],
+      pendingInputRequestRefs: [],
+    },
   })
+})
+
+test('thread runtime endpoint indexes pending interaction runs for frontend reconstruction', async () => {
+  const thread = {
+    id: 'thread_1',
+    activeRunId: 'run_completed',
+    messages: [],
+    createdAt: '2026-05-19T00:00:00.000Z',
+    updatedAt: '2026-05-19T00:00:01.000Z',
+  }
+  const pendingRun = {
+    id: 'run_pending',
+    threadId: 'thread_1',
+    status: 'requires_action',
+    updatedAt: '2026-05-19T00:00:03.000Z',
+    pendingInputRequests: [{
+      id: 'input_1',
+      runId: 'run_pending',
+      title: 'Confirm',
+      question: 'Continue?',
+      inputType: 'confirmation',
+      choices: [{ id: 'yes', label: 'Yes' }],
+      allowCustomAnswer: false,
+      status: 'pending',
+      createdAt: '2026-05-19T00:00:02.000Z',
+      updatedAt: '2026-05-19T00:00:02.000Z',
+    }],
+  }
+  const handler = createAgentRequestListener({
+    agentRuntime: {
+      getThread: (threadId: string) => threadId === 'thread_1' ? thread : undefined,
+      listRunsByThread: () => [
+        { id: 'run_completed', threadId: 'thread_1', status: 'completed', updatedAt: '2026-05-19T00:00:02.000Z' },
+        pendingRun,
+      ],
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'GET', '/threads/thread_1/runtime')
+  const body = JSON.parse(response.body)
+
+  assert.equal(response.statusCode, 200)
+  assert.equal(body.schema, 'movscript.agent.thread-runtime-snapshot.v1')
+  assert.equal(body.current.runId, 'run_pending')
+  assert.equal(body.current.runStatus, 'requires_action')
+  assert.deepEqual(body.interactions.actionableRunIds, ['run_pending'])
+  assert.deepEqual(body.interactions.pendingInputRequestRefs, [{ runId: 'run_pending', requestId: 'input_1' }])
+  assert.equal(body.updatedAt, '2026-05-19T00:00:03.000Z')
 })
 
 test('thread runs endpoint returns not found for missing threads', async () => {

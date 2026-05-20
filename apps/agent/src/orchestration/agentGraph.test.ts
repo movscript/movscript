@@ -281,6 +281,118 @@ test('runAgentGraph uses frozen run input instead of later thread user messages'
   if (result.status === 'completed') assert.equal(result.finalContent, 'seen:frozen request')
 })
 
+test('runAgentGraph appends active-run runtime input to the next model turn', async () => {
+  const run: AgentRun = {
+    id: 'run_runtime_input',
+    threadId: 'thread_1',
+    status: 'queued',
+    policy,
+    metadata: { consumedRuntimeInputMessageIds: ['msg_consumed'] },
+    createdAt: '2026-05-16T00:00:00.000Z',
+    updatedAt: '2026-05-16T00:00:00.000Z',
+    steps: [],
+    input: {
+      schema: 'movscript.agent.run-input.v1',
+      userMessage: 'base request',
+      sourceMessageId: 'msg_1',
+      executionMode: 'chat',
+      createdAt: '2026-05-16T00:00:00.000Z',
+    },
+  }
+  const seenUserMessages: string[] = []
+  const consumed: string[][] = []
+  const router: RuntimeModelRouter = {
+    resolve: () => ({
+      capability: 'reasoning',
+      provider: 'backend-model-config',
+      config: { provider: 'backend-model-config', model: 'test-model', modelConfigId: 1 } as any,
+      source: 'configured',
+    }),
+    describe: () => [],
+    analyzeMultimodal: async () => ({
+      summary: '',
+      observations: [],
+      confidence: 0,
+      route: { capability: 'multimodal', configured: true, source: 'configured' },
+    }),
+    call: async (input) => {
+      seenUserMessages.push(String([...input.messages].reverse().find((message) => message.role === 'user')?.content ?? ''))
+      return {
+        content: 'done',
+        tool_calls: [],
+        finish_reason: 'stop',
+        rawAssistantMessage: { role: 'assistant', content: 'done' },
+        trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
+      }
+    },
+  }
+
+  const result = await runAgentGraph({
+    run,
+    threadMessages: [
+      { id: 'msg_1', threadId: 'thread_1', role: 'user', content: 'base request', createdAt: '2026-05-16T00:00:00.000Z' },
+    ],
+    getThreadMessages: () => [
+      { id: 'msg_1', threadId: 'thread_1', role: 'user', content: 'base request', createdAt: '2026-05-16T00:00:00.000Z' },
+      {
+        id: 'msg_consumed',
+        threadId: 'thread_1',
+        role: 'user',
+        content: 'old correction',
+        runId: 'run_runtime_input',
+        metadata: { kind: 'runtime_input', targetRunId: 'run_runtime_input', status: 'accepted' },
+        createdAt: '2026-05-16T00:00:01.000Z',
+      },
+      {
+        id: 'msg_runtime',
+        threadId: 'thread_1',
+        role: 'user',
+        content: '改成图片方案',
+        runId: 'run_runtime_input',
+        metadata: { kind: 'runtime_input', targetRunId: 'run_runtime_input', status: 'accepted' },
+        createdAt: '2026-05-16T00:00:02.000Z',
+      },
+    ],
+    onRuntimeInputConsumed: (messages) => consumed.push(messages.map((message) => message.id)),
+    manifest: DEFAULT_AGENT_MANIFEST,
+    capabilities: emptyTools,
+    skills: [],
+    context: {
+      route: { pathname: '/' },
+      projects: [],
+      recentResources: [],
+      attachments: [],
+      memories: [],
+      labels: [],
+    },
+    memories: [],
+    warnings: [],
+    userMessage: run.input?.userMessage,
+    rootUserMessageId: run.input?.sourceMessageId,
+    config: { provider: 'backend-model-config', model: 'test-model', modelConfigId: 1 } as any,
+    modelRouter: router,
+    auth: {},
+    policy,
+    mcpClient: {
+      initialize: async () => null,
+      callTool: async () => ({}),
+    },
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    registry: DEFAULT_TOOL_REGISTRY,
+    onTrace: () => undefined,
+    onStepCreate: () => 'step_1',
+    onStepComplete: () => undefined,
+  })
+
+  assert.equal(result.status, 'completed')
+  assert.deepEqual(consumed, [['msg_runtime']])
+  assert.match(seenUserMessages[0] ?? '', /base request/)
+  assert.match(seenUserMessages[0] ?? '', /\[运行中用户补充\]/)
+  assert.match(seenUserMessages[0] ?? '', /改成图片方案/)
+  assert.doesNotMatch(seenUserMessages[0] ?? '', /old correction/)
+})
+
 test('runAgentGraph summarizes catalog skill inspection with active state and tools', async () => {
   const run: AgentRun = {
     id: 'run_catalog_summary',
@@ -395,6 +507,7 @@ test('runAgentGraph summarizes catalog skill inspection with active state and to
       spawnSubagent: () => ({}),
       listSubagents: () => ({}),
       waitSubagent: () => ({}),
+      waitGenerationJobs: () => ({}),
       cancelSubagent: () => ({}),
     },
     onTrace: (trace) => {
@@ -519,6 +632,7 @@ test('runAgentGraph summarizes catalog summary inspection with skill and pack st
       spawnSubagent: () => ({}),
       listSubagents: () => ({}),
       waitSubagent: () => ({}),
+      waitGenerationJobs: () => ({}),
       cancelSubagent: () => ({}),
     },
     onTrace: (trace) => {
@@ -722,6 +836,7 @@ test('runAgentGraph loads script reading skill when model calls project script t
       spawnSubagent: () => ({}),
       listSubagents: () => ({}),
       waitSubagent: () => ({}),
+      waitGenerationJobs: () => ({}),
       cancelSubagent: () => ({}),
     },
     onCatalogRefresh: async () => ({

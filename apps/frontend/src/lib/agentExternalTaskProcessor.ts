@@ -9,7 +9,6 @@ export interface ExternalTaskDraftOptions {
   projectId?: number
   clientInput?: AgentPageTaskState['payload']['clientInput']
   agentManifest?: AgentPageTaskState['payload']['agentManifest']
-  runPolicy?: AgentPageTaskState['payload']['runPolicy']
   requestId?: string
   timeoutMs?: number
   omitDebugArtifacts: true
@@ -81,7 +80,6 @@ export function externalTaskDraftOptions(payload: AgentPageTaskState['payload'])
     ...(payload.projectId ? { projectId: payload.projectId } : {}),
     ...(payload.clientInput ? { clientInput: payload.clientInput } : {}),
     ...(payload.agentManifest ? { agentManifest: payload.agentManifest } : {}),
-    ...(payload.runPolicy ? { runPolicy: payload.runPolicy } : {}),
     ...(payload.requestId ? { requestId: payload.requestId } : {}),
     ...(payload.timeoutMs ? { timeoutMs: payload.timeoutMs } : {}),
     omitDebugArtifacts: true,

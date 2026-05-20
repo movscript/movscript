@@ -123,6 +123,7 @@ test('buildProjectLayerDraftContentForEntries keeps unselected backend rows in s
   const payload = JSON.parse(buildProjectLayerDraftContentForEntries(sourceDraft, [view!.creativeReferences[0]!], data)) as Record<string, any>
 
   assert.equal(payload.mode, 'snapshot')
+  assert.deepEqual(payload.snapshot_base.creative_references.map((item: any) => item.id).sort(), [7, 8])
   assert.deepEqual(payload.proposal.creative_references.map((item: any) => item.id).sort(), [7, 8])
   assert.equal(payload.proposal.creative_references.find((item: any) => item.id === 7)?.description, '新的角色说明')
   assert.equal(payload.proposal.creative_references.find((item: any) => item.id === 8)?.description, '保留不动')
@@ -156,6 +157,7 @@ test('buildProjectLayerDraftContentForEntries scopes asset proposal payload to a
   const payload = JSON.parse(buildProjectLayerDraftContentForEntries(sourceDraft, [view!.assetSlots[0]!], data)) as Record<string, any>
 
   assert.equal(payload.mode, 'snapshot')
+  assert.deepEqual(payload.snapshot_base.asset_slots.map((item: any) => item.name), ['旧头像'])
   assert.deepEqual(payload.proposal.creative_references, [])
   assert.deepEqual(payload.proposal.asset_slots.map((item: any) => item.name).sort(), ['旧头像', '角色头像'])
 })

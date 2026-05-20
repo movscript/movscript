@@ -48,6 +48,7 @@ export interface AgentCatalogToolManager {
   spawnSubagent(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   listSubagents(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   waitSubagent(run: AgentRun, input?: Record<string, JSONValue>): Promise<JSONValue> | JSONValue
+  waitGenerationJobs(run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue> | JSONValue
   cancelSubagent(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
 }
 
@@ -70,7 +71,7 @@ export async function executeTool(call: ToolCall, options: ToolExecutorOptions):
   }
 
   // Runtime tools handled locally
-  const runtimeResult = await callRuntimeTool(call.name, args, run, draftStore, backendApplyClient, memoryManager, knowledgeManager, catalogManager, sandboxMode)
+  const runtimeResult = await callRuntimeTool(call.name, args, run, draftStore, backendApplyClient, memoryManager, knowledgeManager, catalogManager, sandboxMode, options.signal)
   throwIfAborted(options.signal)
   if (runtimeResult !== undefined) {
     return { call, result: runtimeResult, source: 'runtime' }
@@ -212,6 +213,7 @@ async function callRuntimeTool(
   knowledgeManager: KnowledgeManager | undefined,
   catalogManager: AgentCatalogToolManager | undefined,
   _sandboxMode: boolean,
+  signal?: AbortSignal,
 ): Promise<JSONValue | undefined> {
   if (toolName === 'movscript_inspect_agent_catalog') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
@@ -251,6 +253,11 @@ async function callRuntimeTool(
   if (toolName === 'movscript_wait_subagent') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
     return catalogManager.waitSubagent(run, args)
+  }
+
+  if (toolName === 'movscript_wait_generation_jobs') {
+    if (!catalogManager) throw new Error('agent catalog manager is not configured')
+    return catalogManager.waitGenerationJobs(run, args, { signal })
   }
 
   if (toolName === 'movscript_cancel_subagent') {

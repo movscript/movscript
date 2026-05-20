@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, CheckCircle2, RefreshCw, Server, Settings } from 'lucide-react'
 import { Button, Input, Label } from '@movscript/ui'
-import { getDefaultAPIBaseURL, isLocalLaunchMode, normalizeAPIBaseURL } from '@/lib/config'
+import { getDefaultAPIBaseURL, getLocalAPIBaseURL, isLocalLaunchMode, normalizeAPIBaseURL, type AppSettings } from '@/lib/config'
 import { adminConsoleURL, openAdminConsole } from '@/lib/adminConsole'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
 import { useUserStore } from '@/store/userStore'
@@ -42,6 +42,17 @@ export default function AppSettingsPage() {
   const isValid = /^https?:\/\/.+/i.test(normalized)
   const localMode = isLocalLaunchMode(settings)
   const adminURL = isValid ? adminConsoleURL(normalized) : ''
+
+  function chooseLaunchMode(mode: AppSettings['launchMode']) {
+    const currentLocalURL = getLocalAPIBaseURL()
+    setLaunchMode(mode)
+    setSaved(false)
+    if (mode === 'local') {
+      setAPIBaseURLInput(currentLocalURL)
+    } else if (normalizeAPIBaseURL(apiBaseURL) === currentLocalURL) {
+      setAPIBaseURLInput(getDefaultAPIBaseURL())
+    }
+  }
 
   function saveSettings() {
     if (!isValid) return
@@ -122,7 +133,7 @@ export default function AppSettingsPage() {
                   <button
                     key={mode}
                     type="button"
-                    onClick={() => setLaunchMode(mode)}
+                    onClick={() => chooseLaunchMode(mode)}
                     className={`rounded-md border px-3 py-3 text-left transition-colors ${
                       selected
                         ? 'border-primary bg-primary/10 text-foreground'

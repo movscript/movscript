@@ -416,6 +416,12 @@ test('applyReview posts project standards proposal with only project style', asy
       proposal: {
         project_style: {
           aspect_ratio: '9:16',
+          shot_size_system: [{
+            key: 'CU',
+            label: '特写',
+            usage: '用于人物表情反转。',
+            composition: '头肩构图。',
+          }],
           visual_style: '竖屏短剧写实',
           custom_rules: [{
             key: 'character_consistency',
@@ -442,7 +448,10 @@ test('applyReview posts project standards proposal with only project style', asy
       ...payload,
       scope: 'project_standards_proposal',
       proposal: {
-        project_style: payload.proposal.project_style,
+        project_style: {
+          ...payload.proposal.project_style,
+          shot_size_system: ['CU 特写：用于人物表情反转。；头肩构图。'],
+        },
       },
     })
   } finally {

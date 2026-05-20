@@ -120,7 +120,7 @@ export function AgentConversationThreadSection({
           messages,
           workflowAnswerEchoes,
           workflowRunsByResultMessageId,
-        }).map(({ beforeMessageWorkflowRuns, liveWorkflowRuns, message }) => {
+        }).map(({ beforeMessageWorkflowRuns, liveWorkflowRuns, message, showMessage }) => {
           return (
             <React.Fragment key={message.id}>
               {beforeMessageWorkflowRuns.map((run) => (
@@ -133,7 +133,7 @@ export function AgentConversationThreadSection({
                   onAnswerInput={liveWorkflowRuns ? onAnswerLocalRunInput : undefined}
                 />
               ))}
-              <MessageBubble msg={message} projectId={projectId} />
+              {showMessage && <MessageBubble msg={message} projectId={projectId} />}
             </React.Fragment>
           )
         })}

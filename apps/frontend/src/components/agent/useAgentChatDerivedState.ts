@@ -90,7 +90,7 @@ export function useAgentChatDerivedState({
     workflowState.answeringPendingInput
       ? workflowState.canAnswerPendingInputWithText && !!input.trim()
       : (!!input.trim() || composerAttachments.length > 0)
-  ) && !loading && !uploading && !buildingSendDraft
+  ) && !uploading && !buildingSendDraft
   const hasActiveLocalWork = !isTerminalAgentRun(activeLocalRun) && (loading || buildingSendDraft)
   const canStopLocalRun = !workflowState.answeringPendingInput && (isStoppableAgentRun(activeLocalRun) || hasActiveLocalWork || runtimeStopRequested)
   const composerPlaceholder = workflowState.activePendingInputRequest

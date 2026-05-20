@@ -69,8 +69,14 @@ function withContextBoundary<T extends Record<string, JSONValue>>(payload: T): T
 
 function maxRetrievedContextChars(run: AgentRun): number {
   const limits = isRecord(run.metadata?.limits) ? run.metadata.limits : undefined
-  const value = typeof limits?.maxRetrievedContextChars === 'number' && Number.isFinite(limits.maxRetrievedContextChars)
-    ? Math.floor(limits.maxRetrievedContextChars)
+  const manifestLimits = isRecord(run.agentManifest?.metadata?.limits) ? run.agentManifest.metadata.limits : undefined
+  const rawValue = typeof limits?.maxRetrievedContextChars === 'number' && Number.isFinite(limits.maxRetrievedContextChars)
+    ? limits.maxRetrievedContextChars
+    : typeof manifestLimits?.maxRetrievedContextChars === 'number' && Number.isFinite(manifestLimits.maxRetrievedContextChars)
+      ? manifestLimits.maxRetrievedContextChars
+      : undefined
+  const value = rawValue !== undefined
+    ? Math.floor(rawValue)
     : DEFAULT_MAX_RETRIEVED_CONTEXT_CHARS
   return Math.max(500, value)
 }

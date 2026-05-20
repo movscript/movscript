@@ -62,6 +62,7 @@ export default function AIAgentRunPage() {
   const [eventCopyError, setEventCopyError] = useState<{ eventId: string; message: string } | null>(null)
   const currentRunIdRef = useRef(runId)
   const initialTraceLoadRunIdRef = useRef<string | null>(null)
+  const loadingEventsRef = useRef(false)
   const runQuery = useQuery({
     queryKey: ['agent-run-detail', localAgentClient.baseURL, runId],
     queryFn: async () => {
@@ -164,6 +165,7 @@ export default function AIAgentRunPage() {
     setEvents([])
     setHasMore(false)
     setLoadingEvents(false)
+    loadingEventsRef.current = false
     setTraceLoadError(null)
     initialTraceLoadRunIdRef.current = null
     setEventKind('all')
@@ -236,8 +238,9 @@ export default function AIAgentRunPage() {
   }, [events.length, hasMore, loadingEvents, runId, traceDeepLinkEventId])
 
   async function loadEvents(mode: 'initial' | 'more' | 'all' = 'initial'): Promise<LoadedTraceEventsResult | undefined> {
-    if (!runId || loadingEvents) return undefined
+    if (!runId || loadingEventsRef.current) return undefined
     const requestedRunId = runId
+    loadingEventsRef.current = true
     setLoadingEvents(true)
     setTraceLoadError(null)
     try {
@@ -285,7 +288,10 @@ export default function AIAgentRunPage() {
     } catch (error) {
       if (currentRunIdRef.current === requestedRunId) setTraceLoadError(error instanceof Error ? error.message : String(error))
     } finally {
-      if (currentRunIdRef.current === requestedRunId) setLoadingEvents(false)
+      if (currentRunIdRef.current === requestedRunId) {
+        loadingEventsRef.current = false
+        setLoadingEvents(false)
+      }
     }
   }
 
@@ -1611,6 +1617,7 @@ function ModelCallSummaryPanel({ summaries, events, onFocusEvent }: { summaries:
                   <span className="font-medium text-foreground">{summary.label}</span>
                   <Badge variant={summary.status === 'complete' ? 'outline' : 'secondary'} className="text-[9px]">{summary.statusLabel}</Badge>
                   {summary.model && <span className="truncate text-muted-foreground">模型 {summary.model}</span>}
+                  {summary.roundLabel && <span className="truncate text-muted-foreground">原始轮次 {summary.roundLabel}</span>}
                 </div>
               </summary>
               <div className="mt-1 flex shrink-0 flex-wrap gap-1">

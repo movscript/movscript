@@ -85,6 +85,44 @@ test('executeTool retries generation once with backend suggested_fix', async () 
   })
 })
 
+test('executeTool serves generation wait through the runtime catalog manager', async () => {
+  const calls: string[] = []
+  const result = await executeTool({
+    name: 'movscript_wait_generation_jobs',
+    args: { jobIds: [42] },
+  }, {
+    ...testOptions({
+      initialize: async () => {
+        calls.push('mcp.initialize')
+        return {}
+      },
+      callTool: async () => {
+        calls.push('mcp.callTool')
+        return {}
+      },
+    }),
+    catalogManager: {
+      inspectAgentCatalog: () => ({}),
+      updateActiveSkills: () => ({}),
+      createAgentPlan: () => ({}),
+      getAgentPlan: () => ({}),
+      replanAgentPlan: () => ({}),
+      spawnSubagent: () => ({}),
+      listSubagents: () => ({}),
+      waitSubagent: () => ({}),
+      waitGenerationJobs: (_run, input) => {
+        calls.push(`runtime.wait:${(input?.jobIds as JSONValue[] | undefined)?.join(',')}`)
+        return { status: 'completed', done: true }
+      },
+      cancelSubagent: () => ({}),
+    },
+  })
+
+  assert.equal(result.source, 'runtime')
+  assert.deepEqual(result.result, { status: 'completed', done: true })
+  assert.deepEqual(calls, ['runtime.wait:42'])
+})
+
 test('executeTool serves runtime knowledge search and bounded get', async () => {
   const options = {
     ...testOptions({

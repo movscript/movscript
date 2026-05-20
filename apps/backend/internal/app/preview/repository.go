@@ -111,7 +111,7 @@ func segmentFromModel(segment persistencemodel.Segment) segmentProjection {
 }
 
 func sceneMomentFromModel(moment persistencemodel.SceneMoment) sceneMomentProjection {
-	return sceneMomentProjection{ID: moment.ID, SegmentID: moment.SegmentID, Title: moment.Title, Description: moment.Description}
+	return sceneMomentProjection{ID: moment.ID, SegmentID: moment.SegmentID, SceneCode: moment.SceneCode, Title: moment.Title, Description: moment.Description}
 }
 
 func contentUnitFromModel(unit persistencemodel.ContentUnit) contentUnitProjection {
@@ -119,6 +119,7 @@ func contentUnitFromModel(unit persistencemodel.ContentUnit) contentUnitProjecti
 		ID:            unit.ID,
 		SegmentID:     unit.SegmentID,
 		SceneMomentID: unit.SceneMomentID,
+		UnitCode:      unit.UnitCode,
 		Order:         unit.Order,
 		Title:         unit.Title,
 		Kind:          unit.Kind,

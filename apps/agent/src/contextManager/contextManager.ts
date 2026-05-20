@@ -4,7 +4,7 @@ import type { AgentDebugContextPanel, AgentMessage, AgentRun, AgentRunPolicy, Co
 import type { AgentManifest } from '../catalog/agentManifest.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { ToolSource } from '../orchestration/toolExecutor.js'
-import { buildContext, buildOpenAIChatTools, type BuiltContext } from './modelContextBuilder.js'
+import { buildContext, buildRuntimeChatTools, type BuiltContext } from './modelContextBuilder.js'
 import type { SkillDiscoverySummary } from './modelContextBuilder.js'
 import { buildModelToolResultContext, type ModelToolResultContext } from './toolResultContext.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
@@ -144,7 +144,7 @@ export class ContextManager {
       baseMessages.at(-1)!,
     ]
     const runtimeContract = input.contractResolver?.find(input.manifest)
-    const tools = buildOpenAIChatTools(input.tools, runtimeContract)
+    const tools = buildRuntimeChatTools(input.tools, runtimeContract)
     return {
       builtContext,
       messages,

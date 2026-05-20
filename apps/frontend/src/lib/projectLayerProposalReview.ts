@@ -134,15 +134,17 @@ export function buildProjectLayerDraftContentForEntries(
   const proposal = isRecord(content.proposal) ? { ...content.proposal } : {}
   const ownsCreativeReferences = draft.kind === 'setting_proposal'
   const ownsAssetSlots = draft.kind === 'asset_proposal'
+  const creativeReferenceSnapshot = data.creativeReferences.map(projectLayerCreativeReferenceSnapshot)
+  const assetSlotSnapshot = data.assetSlots.map(projectLayerAssetSlotSnapshot)
   const creativeReferences = ownsCreativeReferences
     ? applyProjectLayerEntriesToSnapshot(
-      data.creativeReferences.map(projectLayerCreativeReferenceSnapshot),
+      creativeReferenceSnapshot,
       entries.filter((entry) => entry.kind === 'creative_references'),
     )
     : []
   const assetSlots = ownsAssetSlots
     ? applyProjectLayerEntriesToSnapshot(
-      data.assetSlots.map(projectLayerAssetSlotSnapshot),
+      assetSlotSnapshot,
       entries
         .filter((entry) => entry.kind === 'asset_slots')
         .map((entry) => ({
@@ -156,6 +158,10 @@ export function buildProjectLayerDraftContentForEntries(
     ...content,
     mode: 'snapshot',
     ...(summary ? { summary } : {}),
+    snapshot_base: {
+      creative_references: creativeReferenceSnapshot,
+      asset_slots: assetSlotSnapshot,
+    },
     proposal: {
       ...proposal,
       creative_references: creativeReferences,

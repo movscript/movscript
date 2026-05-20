@@ -3,6 +3,7 @@ import { fetchResourceById } from '@/lib/agentMessageViewModel'
 import type { AgentConversationMessageStore } from '@/lib/agentConversationMessageStore'
 import { loadRuntimeThreadProjection } from '@/lib/agentRuntimeThreadHydration'
 import { hydrateRuntimeThreadConversation } from '@/lib/agentRuntimeThreadConversationHydration'
+import type { AgentRun } from '@/lib/localAgentClient'
 import { useAgentStore, type ChatMessage } from '@/store/agentStore'
 
 export interface UseAgentRuntimeThreadHydrationInput {
@@ -16,6 +17,7 @@ export interface UseAgentRuntimeThreadHydrationInput {
   runtimeBuilding?: boolean
   setLocalThreadId: (conversationId: string, threadId: string) => void
   setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
+  setConversationRun: (conversationId: string, run: AgentRun, patch?: { loading?: boolean; building?: boolean; approving?: boolean; stopping?: boolean; stopRequested?: boolean }) => void
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
   messageStore: Pick<AgentConversationMessageStore, 'setConversationMessages'>
 }
@@ -31,6 +33,7 @@ export function useAgentRuntimeThreadHydration({
   runtimeBuilding,
   setLocalThreadId,
   setConversationRuntimeThreadId,
+  setConversationRun,
   updateConversationTitle,
   messageStore,
 }: UseAgentRuntimeThreadHydrationInput) {
@@ -59,6 +62,7 @@ export function useAgentRuntimeThreadHydration({
       }),
       setLocalThreadId,
       setConversationRuntimeThreadId,
+      setConversationRun,
       updateConversationTitle,
       messageStore,
     }).catch(() => undefined)
@@ -75,6 +79,7 @@ export function useAgentRuntimeThreadHydration({
     runtimeBuilding,
     runtimeLoading,
     setConversationRuntimeThreadId,
+    setConversationRun,
     setLocalThreadId,
     updateConversationTitle,
     userId,

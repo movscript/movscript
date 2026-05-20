@@ -221,12 +221,20 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
 export function getDraftDomainModel(kind: AgentDraftKind): DraftDomainModel | null {
   const model = DRAFT_DOMAIN_MODELS[kind]
   if (!model) return null
-  const schema = model.contentSchemaId
-    ? getDraftSchemaEntry(model.contentSchemaId)?.jsonSchema ?? getActiveSchemaForKind(kind).jsonSchema
-    : undefined
+  const schema = resolveDraftContentSchema(kind, model.contentSchemaId)
   return {
     ...model,
     ...(schema ? { contentSchema: schema } : {}),
+  }
+}
+
+function resolveDraftContentSchema(kind: AgentDraftKind, schemaId?: string): JSONSchema7 | undefined {
+  const direct = schemaId ? getDraftSchemaEntry(schemaId)?.jsonSchema : undefined
+  if (direct) return direct
+  try {
+    return getActiveSchemaForKind(kind).jsonSchema
+  } catch {
+    return undefined
   }
 }
 

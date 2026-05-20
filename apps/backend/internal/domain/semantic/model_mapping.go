@@ -92,8 +92,10 @@ func SceneMomentFromModel(moment persistencemodel.SceneMoment) SceneMoment {
 	return SceneMoment{
 		ID:            moment.ID,
 		ProjectID:     moment.ProjectID,
+		ProductionID:  moment.ProductionID,
 		SegmentID:     moment.SegmentID,
 		ScriptBlockID: moment.ScriptBlockID,
+		SceneCode:     moment.SceneCode,
 		Order:         moment.Order,
 		Title:         moment.Title,
 		Description:   moment.Description,
@@ -118,8 +120,10 @@ func (moment SceneMoment) ToModel() persistencemodel.SceneMoment {
 func (moment SceneMoment) ApplyToModel(target *persistencemodel.SceneMoment) {
 	target.Model.ID = moment.ID
 	target.ProjectID = moment.ProjectID
+	target.ProductionID = moment.ProductionID
 	target.SegmentID = moment.SegmentID
 	target.ScriptBlockID = moment.ScriptBlockID
+	target.SceneCode = moment.SceneCode
 	target.Order = moment.Order
 	target.Title = moment.Title
 	target.Description = moment.Description
@@ -183,6 +187,7 @@ func ContentUnitFromModel(unit persistencemodel.ContentUnit) ContentUnit {
 		SceneMomentID:    unit.SceneMomentID,
 		ScriptBlockID:    unit.ScriptBlockID,
 		Kind:             unit.Kind,
+		UnitCode:         unit.UnitCode,
 		Order:            unit.Order,
 		Title:            unit.Title,
 		Description:      unit.Description,
@@ -223,6 +228,7 @@ func (unit ContentUnit) ApplyToModel(target *persistencemodel.ContentUnit) {
 	target.SceneMomentID = unit.SceneMomentID
 	target.ScriptBlockID = unit.ScriptBlockID
 	target.Kind = unit.Kind
+	target.UnitCode = unit.UnitCode
 	target.Order = unit.Order
 	target.Title = unit.Title
 	target.Description = unit.Description

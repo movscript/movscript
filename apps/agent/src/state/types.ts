@@ -27,6 +27,7 @@ export interface AgentMessage {
   content: string
   clientInput?: JSONValue
   runId?: string
+  metadata?: Record<string, JSONValue>
   createdAt: string
 }
 
@@ -743,6 +744,8 @@ export interface CreateMessageInput {
   role?: unknown
   content?: unknown
   clientInput?: unknown
+  runId?: unknown
+  metadata?: unknown
 }
 
 export interface CreateRunInput {

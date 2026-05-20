@@ -91,8 +91,8 @@ export function buildContentWorkbenchNextActions(input: ContentWorkbenchNextActi
   if ((input.requiresKeyframe ?? true) && input.keyframeCount === 0) {
     return [{
       key: 'add_first_keyframe',
-      title: '添加第一张关键帧',
-      detail: '视频生成前建议至少补开头帧和结尾帧，用来约束画面状态变化。',
+      title: '添加关键帧',
+      detail: '先选择首帧、中间帧或尾帧；标题可以稍后补充。',
       tone: 'warning',
     }]
   }

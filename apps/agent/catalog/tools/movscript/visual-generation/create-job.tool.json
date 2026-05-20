@@ -109,7 +109,10 @@
         "properties": {
           "tool": {
             "type": "string",
-            "const": "movscript_get_generation_job"
+            "enum": [
+              "movscript_wait_generation_jobs",
+              "movscript_get_generation_job"
+            ]
           },
           "args": {
             "type": "object"

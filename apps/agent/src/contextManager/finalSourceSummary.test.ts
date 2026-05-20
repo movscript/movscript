@@ -36,6 +36,20 @@ test('final source summary is appended once to model content', () => {
   assert.equal(alreadySourced, content)
 })
 
+test('final source summary can stand alone when model content is empty', () => {
+  const run = testRun({
+    contextLedger: {
+      retrieved: [retrieved('knowledge', 'storyboard.rhythm.basic', 'knowledge', 'advisory', '分镜节奏基础')],
+    },
+  })
+
+  const content = appendFinalSourceSummary('', { run, userMessage: '请创建内容单元分镜 proposal 草稿' })
+
+  assert.match(content, /^来源：/m)
+  assert.match(content, /通用知识建议：knowledge#storyboard\.rhythm\.basic《分镜节奏基础》/)
+  assert.match(content, /用户输入：本轮消息/)
+})
+
 test('final source summary records memory and fallback tool evidence types', () => {
   const summary = buildFinalSourceSummary({
     toolResults: [{

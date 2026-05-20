@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 
 	relationapp "github.com/movscript/movscript/internal/app/relation"
 	domainrelation "github.com/movscript/movscript/internal/domain/relation"
@@ -346,7 +347,7 @@ func segmentFilterUsesRelations(filter SegmentFilter) bool {
 }
 
 func sceneMomentFilterUsesRelations(filter SceneMomentFilter) bool {
-	return filter.SegmentID > 0 || filter.ScriptBlockID > 0 || len(filter.ScriptBlockIDs) > 0
+	return false
 }
 
 func (s *Service) listSegmentsFromRelations(ctx context.Context, filter SegmentFilter) ([]domainsemantic.Segment, error) {
@@ -454,6 +455,10 @@ func (s *Service) listSceneMomentsFromRelations(ctx context.Context, filter Scen
 }
 
 func (s *Service) CreateSceneMoment(ctx context.Context, projectID uint, input CreateSceneMomentInput) (domainsemantic.SceneMoment, error) {
+	productionID, err := s.resolveSceneMomentProduction(ctx, projectID, input.ProductionID, input.SegmentID)
+	if err != nil {
+		return domainsemantic.SceneMoment{}, err
+	}
 	resolvedScriptBlockID, err := s.resolveSceneMomentScriptBlock(ctx, projectID, input.SegmentID, input.ScriptBlockID)
 	if err != nil {
 		return domainsemantic.SceneMoment{}, err
@@ -464,8 +469,10 @@ func (s *Service) CreateSceneMoment(ctx context.Context, projectID uint, input C
 	}
 	item := domainsemantic.NewSceneMoment(domainsemantic.SceneMomentSpec{
 		ProjectID:     projectID,
+		ProductionID:  productionID,
 		SegmentID:     input.SegmentID,
 		ScriptBlockID: input.ScriptBlockID,
+		SceneCode:     strings.TrimSpace(input.SceneCode),
 		Order:         input.Order,
 		Title:         input.Title,
 		Description:   input.Description,
@@ -480,6 +487,13 @@ func (s *Service) CreateSceneMoment(ctx context.Context, projectID uint, input C
 	var created domainsemantic.SceneMoment
 	err = s.repo.WithTx(ctx, func(txRepo repository) error {
 		txSvc := s.withRepository(txRepo)
+		if strings.TrimSpace(item.SceneCode) == "" && item.ProductionID != nil {
+			code, err := txSvc.repo.NextSceneCode(ctx, projectID, *item.ProductionID)
+			if err != nil {
+				return err
+			}
+			item.SceneCode = code
+		}
 		var err error
 		created, err = txSvc.repo.CreateSceneMoment(ctx, item)
 		if err != nil {
@@ -498,6 +512,10 @@ func (s *Service) PatchSceneMoment(ctx context.Context, projectID uint, id strin
 	if err != nil {
 		return item, err
 	}
+	productionID, err := s.resolveSceneMomentProduction(ctx, projectID, input.ProductionID, input.SegmentID)
+	if err != nil {
+		return item, err
+	}
 	resolvedScriptBlockID, err := s.resolveSceneMomentScriptBlock(ctx, projectID, input.SegmentID, input.ScriptBlockID)
 	if err != nil {
 		return item, err
@@ -510,8 +528,10 @@ func (s *Service) PatchSceneMoment(ctx context.Context, projectID uint, id strin
 		return item, err
 	}
 	patch := domainsemantic.SceneMomentPatch{
+		ProductionID:  productionID,
 		SegmentID:     input.SegmentID,
 		ScriptBlockID: input.ScriptBlockID,
+		SceneCode:     strings.TrimSpace(input.SceneCode),
 		Order:         input.Order,
 		Title:         input.Title,
 		Description:   input.Description,
@@ -526,6 +546,18 @@ func (s *Service) PatchSceneMoment(ctx context.Context, projectID uint, id strin
 	var patched domainsemantic.SceneMoment
 	err = s.repo.WithTx(ctx, func(txRepo repository) error {
 		txSvc := s.withRepository(txRepo)
+		targetProductionID := item.ProductionID
+		if patch.ProductionID != nil {
+			targetProductionID = patch.ProductionID
+		}
+		productionChanged := patch.ProductionID != nil && (item.ProductionID == nil || *item.ProductionID != *patch.ProductionID)
+		if strings.TrimSpace(patch.SceneCode) == "" && productionChanged && targetProductionID != nil {
+			code, err := txSvc.repo.NextSceneCode(ctx, projectID, *targetProductionID)
+			if err != nil {
+				return err
+			}
+			patch.SceneCode = code
+		}
 		var err error
 		patched, err = txSvc.repo.PatchSceneMoment(ctx, item, patch)
 		if err != nil {
@@ -635,7 +667,8 @@ func writingExpressionPatch(input WritingExpressionInput) domainsemantic.Writing
 }
 
 func (s *Service) ensureSceneMomentSourceCanChange(ctx context.Context, projectID uint, item domainsemantic.SceneMoment, input PatchSceneMomentInput) error {
-	if optionalUintPatchPreserves(item.SegmentID, input.SegmentID) {
+	if optionalUintPatchPreserves(item.ProductionID, input.ProductionID) &&
+		optionalUintPatchPreserves(item.SegmentID, input.SegmentID) {
 		return nil
 	}
 	status, err := s.sceneMomentSourceLockStatus(ctx, projectID, item)
@@ -675,6 +708,19 @@ func (s *Service) upsertSceneMomentRelations(ctx context.Context, item domainsem
 			return err
 		}
 	}
+	if item.ProductionID != nil {
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("production", *item.ProductionID),
+			Target:    domainrelation.NewEntityRef("scene_moment", item.ID),
+			Category:  domainrelation.CategoryStructure,
+			Type:      domainrelation.TypeContains,
+			Order:     item.Order,
+			Status:    semanticRelationStatus(item.Status),
+		}); err != nil {
+			return err
+		}
+	}
 	if item.ScriptBlockID != nil {
 		return s.upsertRelationEdge(ctx, relationapp.EdgeInput{
 			ProjectID: item.ProjectID,
@@ -687,6 +733,28 @@ func (s *Service) upsertSceneMomentRelations(ctx context.Context, item domainsem
 		})
 	}
 	return nil
+}
+
+func (s *Service) resolveSceneMomentProduction(ctx context.Context, projectID uint, productionID *uint, segmentID *uint) (*uint, error) {
+	if productionID != nil {
+		if err := s.ensureProductionInProject(ctx, projectID, *productionID); err != nil {
+			return nil, err
+		}
+	}
+	if segmentID == nil {
+		return productionID, nil
+	}
+	segment, err := s.repo.LoadSegment(ctx, projectID, strconv.FormatUint(uint64(*segmentID), 10))
+	if err != nil {
+		return nil, err
+	}
+	if err := ensureOptionalIDMatches(productionID, segment.ProductionID, "production_id must match segment_id"); err != nil {
+		return nil, err
+	}
+	if productionID != nil {
+		return productionID, nil
+	}
+	return segment.ProductionID, nil
 }
 
 func (s *Service) resolveSceneMomentScriptBlock(ctx context.Context, projectID uint, segmentID *uint, scriptBlockID *uint) (*uint, error) {

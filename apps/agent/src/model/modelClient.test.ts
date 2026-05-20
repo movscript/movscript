@@ -370,7 +370,11 @@ test('callModel sends OpenAI Responses requests and normalizes function calls', 
         function: {
           name: 'movscript_search',
           description: 'Search project context.',
-          parameters: { type: 'object', properties: { query: { type: 'string' } } },
+          parameters: {
+            type: 'object',
+            properties: { query: { type: 'string' } },
+            allOf: [{ anyOf: [{ required: ['query'] }] }],
+          },
         },
       }],
       toolChoice: { type: 'function', function: { name: 'movscript_search' } },
@@ -455,7 +459,11 @@ test('callModel sends OpenAI Chat Completions requests and hides direct API keys
         type: 'function',
         function: {
           name: 'movscript_lookup',
-          parameters: { type: 'object', properties: { id: { type: 'string' } } },
+          parameters: {
+            type: 'object',
+            properties: { id: { type: 'string' } },
+            allOf: [{ anyOf: [{ required: ['id'] }] }],
+          },
         },
       }],
       jsonMode: true,
@@ -468,6 +476,9 @@ test('callModel sends OpenAI Chat Completions requests and hides direct API keys
     assert.equal(capturedBody?.response_format?.type, 'json_object')
     assert.equal(capturedBody?.tool_choice, 'auto')
     assert.deepEqual(capturedBody?.tools?.[0]?.function?.name, 'movscript_lookup')
+    assert.equal(capturedBody?.tools?.[0]?.function?.parameters?.allOf, undefined)
+    assert.equal(capturedBody?.tools?.[0]?.function?.parameters?.anyOf, undefined)
+    assert.deepEqual(capturedBody?.tools?.[0]?.function?.parameters?.properties?.id, { type: 'string' })
     assert.equal(result.content, 'chat ok')
     assert.deepEqual(result.usage, { input_tokens: 11, output_tokens: 3 })
     assert.equal(result.trace.request.headers.Authorization, undefined)
@@ -524,7 +535,11 @@ test('callModel sends Anthropic Messages requests and normalizes tool use blocks
         function: {
           name: 'movscript_lookup',
           description: 'Lookup scene data.',
-          parameters: { type: 'object', properties: { id: { type: 'string' } } },
+          parameters: {
+            type: 'object',
+            properties: { id: { type: 'string' } },
+            allOf: [{ anyOf: [{ required: ['id'] }] }],
+          },
         },
       }],
       toolChoice: { type: 'function', function: { name: 'movscript_lookup' } },
@@ -537,6 +552,7 @@ test('callModel sends Anthropic Messages requests and normalizes tool use blocks
     assert.equal(capturedBody?.system, 'Use concise answers.')
     assert.equal(capturedBody?.messages?.[0]?.role, 'user')
     assert.equal(capturedBody?.tools?.[0]?.name, 'movscript_lookup')
+    assert.deepEqual(capturedBody?.tools?.[0]?.input_schema?.allOf, [{ anyOf: [{ required: ['id'] }] }])
     assert.deepEqual(capturedBody?.tool_choice, { type: 'tool', name: 'movscript_lookup' })
     assert.equal(result.content, null)
     assert.equal(result.finish_reason, 'tool_calls')

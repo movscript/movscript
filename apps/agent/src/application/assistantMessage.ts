@@ -3,17 +3,9 @@ import { isJSONValue, isRecord } from '../jsonValue.js'
 import { isValidAgentEntityId, isValidAgentProjectId, parseToolResult } from '../context/runtimeContext.js'
 import { parseAgentCommand } from '../context/commandRouter.js'
 import { renderLocalFinalAssistantContent } from '../context/localDiagnosticCommands.js'
-import {
-  resolveRuntimeChatFileModelConfig,
-  type RuntimeModelChatMessage,
-  type RuntimeModelChatTool,
-  type RuntimeModelChatToolCall,
-  type RuntimeModelAuthContext,
-  type RuntimeModelTraceCallback,
-} from '../model/modelConfig.js'
-import { callModel } from '../model/modelClient.js'
+import type { RuntimeModelChatMessage, RuntimeModelChatToolCall } from '../model/modelConfig.js'
 import type { AgentMemory } from '../memory/types.js'
-import type { AgentMessageRole, AgentRun, ResolvedToolCatalog, ToolCall, ToolCallOutcome } from '../state/types.js'
+import type { AgentMessageRole, AgentRun, ToolCall, ToolCallOutcome } from '../state/types.js'
 import { formatToolNameForDisplay, publicToolName } from '../tools/toolNames.js'
 
 export function isMessageRole(value: unknown): value is AgentMessageRole {
@@ -92,95 +84,6 @@ export function buildAssistantContent(
     lines.push(`- ${describeToolOutcome(outcome)}`)
   }
   return lines.join('\n')
-}
-
-export async function buildConfiguredAssistantContent(
-  userMessage: string,
-  toolResults: ToolCallOutcome[],
-  warnings: string[] = [],
-  memories: AgentMemory[] = [],
-  run?: AgentRun,
-  auth: RuntimeModelAuthContext = {},
-  onModelTrace?: RuntimeModelTraceCallback,
-): Promise<string> {
-  const turn = await buildConfiguredAssistantTurn({
-    userMessage,
-    toolResults,
-    warnings,
-    memories,
-    run,
-    auth,
-    onModelTrace,
-  })
-  return turn.content
-}
-
-export interface ConfiguredAssistantTurnInput {
-  userMessage: string
-  toolResults: ToolCallOutcome[]
-  warnings?: string[]
-  memories?: AgentMemory[]
-  run?: AgentRun
-  auth?: RuntimeModelAuthContext
-  onModelTrace?: RuntimeModelTraceCallback
-  messages?: RuntimeModelChatMessage[]
-  tools?: RuntimeModelChatTool[]
-}
-
-export interface ConfiguredAssistantTurn {
-  content: string
-  assistantMessage?: RuntimeModelChatMessage
-}
-
-export async function buildConfiguredAssistantTurn(input: ConfiguredAssistantTurnInput): Promise<ConfiguredAssistantTurn> {
-  const {
-    userMessage,
-    toolResults,
-    warnings = [],
-    memories = [],
-    run,
-    auth = {},
-    onModelTrace,
-    messages,
-    tools = [],
-  } = input
-  const config = resolveRuntimeChatFileModelConfig()
-  const requiresModel = shouldRequireConfiguredModel(run)
-  if (!config) {
-    if (requiresModel) {
-      throw new Error('production orchestration requires a configured backend chat model; no local fallback is allowed')
-    }
-    return { content: buildAssistantContent(userMessage, toolResults, warnings, memories, run) }
-  }
-
-  try {
-    const result = await callModel({
-      config,
-      messages: messages ?? buildAssistantMessages(userMessage, toolResults, warnings, memories, run),
-      auth,
-      tools,
-      toolChoice: tools.length > 0 ? 'auto' : undefined,
-      onTrace: onModelTrace,
-    })
-    return { content: result.content ?? '', assistantMessage: result.rawAssistantMessage }
-  } catch (error) {
-    if (requiresModel) {
-      throw new Error(`production orchestration model call failed: ${error instanceof Error ? error.message : String(error)}`)
-    }
-    warnings.push(`model chat fallback: ${error instanceof Error ? error.message : String(error)}`)
-    return { content: buildAssistantContent(userMessage, toolResults, warnings, memories, run) }
-  }
-}
-
-export function buildOpenAIChatTools(catalog: ResolvedToolCatalog): RuntimeModelChatTool[] {
-  return catalog.available.map((tool) => ({
-    type: 'function',
-    function: {
-      name: tool.name,
-      ...(tool.description ? { description: tool.description } : {}),
-      ...(tool.inputSchema !== undefined ? { parameters: tool.inputSchema } : {}),
-    },
-  }))
 }
 
 export function appendAssistantToolExchange(
@@ -336,10 +239,6 @@ function formatMemoryBlock(memories: AgentMemory[], limit: number): string {
     .join('\n')
 }
 
-function shouldRequireConfiguredModel(run?: AgentRun): boolean {
-  return run?.metadata?.runtimeRequiresConfiguredModel === true
-}
-
 function parseAssistantJSON(content: string): unknown {
   const trimmed = content.trim()
   if (!trimmed) return undefined
@@ -468,6 +367,16 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
     if (status === 'failed') return `${jobId} 生成失败${error}。`
     if (status === 'cancelled') return `${jobId} 已取消。`
     return `${jobId} 仍在运行（${status}${progress}）。`
+  }
+  if (call.name === 'movscript_wait_generation_jobs') {
+    const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'unknown'
+    const completed = isRecord(parsed) && Array.isArray(parsed.completed) ? parsed.completed.length : 0
+    const pending = isRecord(parsed) && Array.isArray(parsed.pending) ? parsed.pending.length : 0
+    const failed = isRecord(parsed) && Array.isArray(parsed.failed) ? parsed.failed.length : 0
+    const cancelled = isRecord(parsed) && Array.isArray(parsed.cancelled) ? parsed.cancelled.length : 0
+    const outputResourceId = outputResourceSummary(parsed)
+    if (status === 'timeout') return `等待生成任务超时，仍有 ${pending} 个任务在后台运行。`
+    return `等待生成任务完成（成功 ${completed}，失败 ${failed}，取消 ${cancelled}，待完成 ${pending}${outputResourceId}）。`
   }
   if (call.name === 'movscript_list_generation_jobs') {
     const count = isRecord(parsed) && typeof parsed.count === 'number' ? parsed.count : undefined

@@ -224,7 +224,9 @@ func EntitySemanticSchemas() []EntitySemanticSchema {
 			Kind: EntityKindSceneMoment, LabelKey: "canvas.entityTypes.scene_moment", FallbackLabel: "Scene Moment",
 			Sections: []EntitySemanticSection{section("scene_moment", "entities.sceneMoments", "Scene Moment", []EntitySemanticField{
 				textField("title", "shared.title", "Title", "input", false),
+				numberField("production_id", "details.productionStatus", "Production", false),
 				numberField("segment_id", "entities.segments", "Segment", false),
+				textField("scene_code", "details.productionStatus", "Scene Code", "input", false),
 				numberField("order", "details.order", "Order", false),
 				textField("description", "shared.description", "Description", "textarea", false),
 				textField("time_text", "user.usage.time", "Time", "input", false),
@@ -283,6 +285,7 @@ func EntitySemanticSchemas() []EntitySemanticSchema {
 				mediaField("audio", "canvas.outputTypes.audio", "Audio", "audio", "audio", "output", false),
 				textField("title", "shared.title", "Title", "input", false),
 				textField("kind", "shared.type", "Kind", "input", false),
+				textField("unit_code", "details.productionStatus", "Unit Code", "input", false),
 				textField("status", "details.productionStatus", "Status", "input", false),
 				numberField("segment_id", "entities.segments", "Segment", false),
 				numberField("scene_moment_id", "entities.sceneMoments", "Scene Moment", false),

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
-import { applyDraftReview, attachAssetSlotCandidate, attachKeyframeCandidate, buildGenerationModelParamRules, buildGenerationParamValidationAudit, createGenerationJob, getDraftModelContract, listModels, listTools, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, queryCreativeReferences, queryProductionContext, readProjectScripts, setMCPAPIBaseURL, summarizeModelContractForAgent } from './server'
+import { applyDraftReview, attachAssetSlotCandidate, attachKeyframeCandidate, buildGenerationModelParamRules, buildGenerationParamValidationAudit, createGenerationJob, getDraftModelContract, listModels, listTools, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, queryCreativeReferences, queryProductionContext, readProjectScripts, setMCPAPIBaseURL, summarizeModelContractForAgent, waitGenerationJobs } from './server'
 
 test('normalizeBackendHTTPErrorForMCP preserves structured generation validation details', () => {
   const body = {
@@ -122,14 +122,17 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
   const tools = listTools()
   const listModels = tools.find((tool) => tool.name === 'movscript_list_models')
   const createJob = tools.find((tool) => tool.name === 'movscript_create_generation_job')
+  const waitJobs = tools.find((tool) => tool.name === 'movscript_wait_generation_jobs')
   const attachCandidate = tools.find((tool) => tool.name === 'movscript_attach_asset_slot_candidate')
   const attachKeyframe = tools.find((tool) => tool.name === 'movscript_attach_keyframe_candidate')
   const staticListModels = loadStaticCatalogTool('list-models.tool.json')
   const staticCreateJob = loadStaticCatalogTool('create-job.tool.json')
+  const staticWaitJobs = loadStaticCatalogTool('wait-jobs.tool.json')
   const staticAttachCandidate = loadStaticCatalogTool('attach-asset-slot-candidate.tool.json')
   const staticAttachKeyframe = loadStaticCatalogTool('attach-keyframe-candidate.tool.json')
   assert.ok(listModels)
   assert.ok(createJob)
+  assert.ok(waitJobs)
   assert.ok(attachCandidate)
   assert.ok(attachKeyframe)
   assert.match(listModels.description, /model_contracts/)
@@ -243,6 +246,16 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
   assert.ok((createJob.outputSchema?.properties?.param_validation as any)?.properties?.extra_params_parse_error)
   assert.ok((createJob.outputSchema?.properties?.param_validation as any)?.properties?.preflight_errors)
   assert.ok((createJob.outputSchema?.properties?.param_validation as any)?.properties?.input_preflight_errors)
+  assert.match(waitJobs.description, /instead of repeatedly calling movscript_get_generation_job/)
+  assert.ok(waitJobs.inputSchema.properties?.jobIds)
+  assert.ok(waitJobs.inputSchema.properties?.jobId)
+  assert.ok(waitJobs.inputSchema.properties?.mode)
+  assert.ok(waitJobs.inputSchema.properties?.timeout_ms)
+  assert.ok(waitJobs.outputSchema?.properties?.completed)
+  assert.ok(waitJobs.outputSchema?.properties?.pending)
+  assert.ok(waitJobs.outputSchema?.properties?.failed)
+  assert.ok(waitJobs.outputSchema?.properties?.cancelled)
+  assert.ok(waitJobs.outputSchema?.properties?.output_resource_ids)
 
   for (const field of ['feature_key', 'provider_variants', 'include_provider_variants']) {
     assert.deepEqual(
@@ -270,6 +283,20 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
       schemaShapeWithoutDescriptions(createJob.outputSchema?.properties?.[field]),
       schemaShapeWithoutDescriptions(staticCreateJob.outputSchema?.properties?.[field]),
       `movscript_create_generation_job ${field} output schema should match the static agent catalog`,
+    )
+  }
+  for (const field of ['jobIds', 'jobId', 'projectId', 'mode', 'timeout_ms', 'heartbeat_ms']) {
+    assert.deepEqual(
+      schemaShapeWithoutDescriptions(waitJobs.inputSchema.properties?.[field]),
+      schemaShapeWithoutDescriptions(staticWaitJobs.inputSchema.properties?.[field]),
+      `movscript_wait_generation_jobs ${field} schema should match the static agent catalog`,
+    )
+  }
+  for (const field of ['status', 'done', 'jobIds', 'completed', 'pending', 'failed', 'cancelled', 'output_resource_ids', 'jobs', 'message']) {
+    assert.deepEqual(
+      schemaShapeWithoutDescriptions(waitJobs.outputSchema?.properties?.[field]),
+      schemaShapeWithoutDescriptions(staticWaitJobs.outputSchema?.properties?.[field]),
+      `movscript_wait_generation_jobs ${field} output schema should match the static agent catalog`,
     )
   }
   for (const field of ['projectId', 'asset_slot_id', 'assetSlotId', 'resource_id', 'resourceId', 'output_resource_id', 'outputResourceId', 'resource_ids', 'resourceIds', 'output_resource_ids', 'outputResourceIds', 'source_type', 'sourceType', 'source_id', 'sourceId', 'jobId', 'score', 'note']) {
@@ -905,6 +932,21 @@ test('draft model MCP tool exposes frontend-owned field and seed contract', asyn
   assert.equal(result.modelRef, 'frontend:DraftDomainModel:production_proposal:v1')
 })
 
+test('draft model MCP tool normalizes project standards proposal aliases', async () => {
+  const result = await getDraftModelContract({
+    kind: 'project standards proposal',
+    target: { entityType: 'project', entityId: 42, projectId: 42 },
+    hydrate: false,
+  }) as Record<string, any>
+
+  assert.equal(result.kind, 'project_standards_proposal')
+  assert.equal(result.contentSchemaId, 'movscript.project_standards_proposal.v1')
+  assert.equal(result.contentSchema?.properties?.schema?.const, 'movscript.project_standards_proposal.v1')
+  assert.equal(result.applyBoundary.backendApply, 'project_standards_proposal')
+  assert.equal(result.reviewRoute, '/project/standards?draftId=:draftId')
+  assert.equal(result.modelRef, 'frontend:DraftDomainModel:project_standards_proposal:v1')
+})
+
 test('draft model MCP tool hydrates production proposal snapshot with production brief and project scripts', async () => {
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
@@ -1168,6 +1210,49 @@ test('applyDraftReview posts direct asset proposal snapshot rows to asset propos
   }
 })
 
+test('applyDraftReview normalizes project standards shot size object arrays before apply', async () => {
+  const postedBodies: Array<Record<string, unknown>> = []
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = mockFetch({
+    'POST /projects/4/entities/project-standards-proposals/apply': (body: Record<string, unknown>) => {
+      postedBodies.push(body)
+      return { counts: { project_style_updated: 1 } }
+    },
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await applyDraftReview({
+      review: {
+        draftKind: 'project_standards_proposal',
+        target: { projectId: 4, entityType: 'project', entityId: 4, field: 'proposal' },
+        proposedValue: JSON.stringify({
+          schema: 'movscript.project_standards_proposal.v1',
+          scope: 'project_standards_proposal',
+          mode: 'snapshot',
+          proposal: {
+            project_style: {
+              aspect_ratio: '9:16',
+              shot_size_system: [{
+                key: 'CU',
+                label: '特写',
+                usage: '用于人物表情反转。',
+                composition: '头肩构图。',
+              }],
+              negative_rules: ['不得出现现代手机'],
+            },
+          },
+        }),
+      },
+    }) as Record<string, any>
+
+    assert.equal(result.performed, true)
+    assert.deepEqual((postedBodies[0].proposal as any).project_style.shot_size_system, ['CU 特写：用于人物表情反转。；头肩构图。'])
+  } finally {
+    setMCPAPIBaseURL('http://localhost:8765')
+    globalThis.fetch = previousFetch
+  }
+})
+
 test('applyDraftReview rejects direct candidate resource writes for asset slots and keyframes', async () => {
   await assert.rejects(() => applyDraftReview({
     review: {
@@ -1358,9 +1443,9 @@ test('createGenerationJob returns queued monitor and param validation audit for 
     assert.equal(result.status, 'queued')
     assert.equal(result.jobId, 101)
     assert.deepEqual(result.monitor, {
-      tool: 'movscript_get_generation_job',
-      args: { jobId: 101 },
-      message: 'Generation is asynchronous. Inspect this job until it reaches a terminal status before claiming completion.',
+      tool: 'movscript_wait_generation_jobs',
+      args: { jobIds: [101], timeout_ms: 180000, heartbeat_ms: 15000 },
+      message: 'Generation is asynchronous. Wait for this job to reach a terminal status before claiming completion.',
     })
     assert.deepEqual(result.param_validation, {
       audit_version: 1,
@@ -1429,6 +1514,50 @@ test('createGenerationJob returns queued monitor and param validation audit for 
       input_resource_ids: [1, 2, 3, 4, 5],
     })
     assert.match(String(postedBodies[0]?.title), /^参考生图-\d{4}$/)
+  } finally {
+    setMCPAPIBaseURL(previousBaseURL)
+    globalThis.fetch = previousFetch
+  }
+})
+
+test('waitGenerationJobs batches terminal and pending generation jobs without model-visible polling', async () => {
+  const previousFetch = globalThis.fetch
+  const requested: string[] = []
+  globalThis.fetch = mockFetch({
+    '/jobs/101': () => {
+      requested.push('/jobs/101')
+      return {
+        id: 101,
+        status: 'succeeded',
+        output_resource_ids: [701, 702],
+      }
+    },
+    '/jobs/102': () => {
+      requested.push('/jobs/102')
+      return {
+        id: 102,
+        status: 'running',
+        progress: 0.4,
+      }
+    },
+  }) as typeof fetch
+  const previousBaseURL = 'http://localhost:8765'
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await waitGenerationJobs({
+      jobIds: [101, 102],
+      timeout_ms: 0,
+    }) as Record<string, any>
+
+    assert.equal(result.status, 'timeout')
+    assert.equal(result.done, false)
+    assert.deepEqual(result.jobIds, [101, 102])
+    assert.deepEqual(result.output_resource_ids, [701, 702])
+    assert.equal(result.completed.length, 1)
+    assert.equal(result.pending.length, 1)
+    assert.equal(result.failed.length, 0)
+    assert.equal(result.cancelled.length, 0)
+    assert.deepEqual(requested.sort(), ['/jobs/101', '/jobs/102'])
   } finally {
     setMCPAPIBaseURL(previousBaseURL)
     globalThis.fetch = previousFetch

@@ -17,6 +17,7 @@ export interface AgentMessage {
   content: string
   clientInput?: unknown
   runId?: string
+  metadata?: Record<string, unknown>
   createdAt: string
 }
 
@@ -765,11 +766,29 @@ export interface RunMessageResult {
 export interface CreateMessageRunResult {
   run: AgentRun
   message: AgentMessage
+  runtimeInput?: {
+    accepted: boolean
+    runId: string
+    messageId: string
+    status: string
+  }
 }
 
 export interface AgentThreadRuntimeSnapshot {
+  schema: 'movscript.agent.thread-runtime-snapshot.v1'
+  updatedAt: string
   thread: AgentThread
   runs: AgentRun[]
+  current: {
+    runId?: string
+    threadStatus?: AgentThreadStatus
+    runStatus?: AgentRunStatus
+  }
+  interactions: {
+    actionableRunIds: string[]
+    pendingApprovalRefs: Array<{ runId: string; approvalId: string }>
+    pendingInputRequestRefs: Array<{ runId: string; requestId: string }>
+  }
 }
 
 export interface AgentThreadResolution {
@@ -965,6 +984,8 @@ export class LocalAgentClient {
     approvedToolNames?: string[]
     clientInput?: AgentClientInput
     policy?: AgentRunPolicyOverride
+    activeRunPolicy?: 'runtime_input' | 'new_run'
+    runtimeInputMode?: 'soft' | 'hard'
   }, signal?: AbortSignal): Promise<CreateMessageRunResult> {
     return this.postJSON(`/threads/${encodeURIComponent(threadId)}/runs`, input, signal)
   }
@@ -1498,6 +1519,10 @@ export class LocalAgentClient {
     }, options.signal)
     const run = created.run
     options.onRunUpdate?.(run)
+    if (created.runtimeInput?.accepted) {
+      const finalThread = await this.getThread(thread.id)
+      return { run, thread: finalThread, threadResolution: resolvedThread.resolution, sourceMessage: created.message }
+    }
     const finalRun = await this.waitForRun(run.id, {
       timeoutMs: options.timeoutMs,
       pollMs: options.pollMs,
@@ -1519,6 +1544,10 @@ export class LocalAgentClient {
     }, options.signal)
     const run = created.run
     options.onRunUpdate?.(run)
+    if (created.runtimeInput?.accepted) {
+      const finalThread = await this.getThread(thread.id)
+      return { run, thread: finalThread, threadResolution: resolvedThread.resolution, sourceMessage: created.message }
+    }
     const finalRun = await this.streamRunFromThread(thread.id, run.id, options, run)
     const finalThread = await this.getThread(thread.id)
     return { run: finalRun, thread: finalThread, threadResolution: resolvedThread.resolution, sourceMessage: created.message }

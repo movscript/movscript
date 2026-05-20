@@ -54,6 +54,7 @@
     "tool://movscript_attach_asset_slot_candidate",
     "tool://movscript_attach_keyframe_candidate",
     "tool://movscript_get_generation_job",
+    "tool://movscript_wait_generation_jobs",
     "tool://movscript_list_generation_jobs",
     "tool://movscript_cancel_generation_job"
   ],

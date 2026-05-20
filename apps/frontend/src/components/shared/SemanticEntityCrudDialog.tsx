@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, SlidersHorizontal, Trash2 } from 'lucide-react'
+import { ChevronDown, Clapperboard, Route, SlidersHorizontal, Trash2 } from 'lucide-react'
 
 import { createSemanticEntity, deleteSemanticEntity, getSourceLockStatus, listSemanticEntities, semanticEntityConfig, updateSemanticEntity, type SemanticEntityConfig, type SemanticEntityPayload, type SemanticEntityRecord, type SourceLockStatus } from '@/api/semanticEntities'
 import { toast } from '@/store/toastStore'
@@ -39,10 +39,18 @@ export function SemanticEntityCrudDialog({
 }: SemanticEntityCrudDialogProps) {
   const queryClient = useQueryClient()
   const fields = useMemo(() => config.fields.filter((field) => mode === 'create' || !field.createOnly), [config.fields, mode])
-  const basicFields = useMemo(() => fields.filter((field) => !isAdvancedField(config.kind, field.key)), [config.kind, fields])
-  const advancedFields = useMemo(() => fields.filter((field) => isAdvancedField(config.kind, field.key)), [config.kind, fields])
+  const quickCreateFieldKeys = useMemo(() => mode === 'create' ? quickCreatePrimaryFields(config.kind) : null, [config.kind, mode])
+  const basicFields = useMemo(() => fields.filter((field) => {
+    if (!quickCreateFieldKeys) return !isAdvancedField(config.kind, field.key)
+    return field.required || quickCreateFieldKeys.has(field.key)
+  }), [config.kind, fields, quickCreateFieldKeys])
+  const advancedFields = useMemo(() => fields.filter((field) => {
+    if (!quickCreateFieldKeys) return isAdvancedField(config.kind, field.key)
+    return !field.required && !quickCreateFieldKeys.has(field.key)
+  }), [config.kind, fields, quickCreateFieldKeys])
   const [form, setForm] = useState<FormState>(() => buildInitialForm(fields, record, defaults))
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const quickCreate = Boolean(quickCreateFieldKeys)
   const enableScriptBlockLookups = (config.kind === 'contentUnits' || config.kind === 'segments' || config.kind === 'sceneMoments') && Boolean(projectId)
   const canDeleteRecord = !isDeleteProtectedKind(config.kind)
   const isImmutableRecord = mode === 'edit' && isImmutableKind(config.kind)
@@ -131,17 +139,30 @@ export function SemanticEntityCrudDialog({
     deleteMutation.mutate()
   }
 
+  const dialogTitle = title ?? (mode === 'create' ? `新建${config.label}` : `编辑${config.label}`)
+  const description = (quickCreate ? quickCreateDescription(config.kind) : null) ?? dialogDescription(config.kind, config.description)
+  const icon = quickCreateIcon(config.kind)
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[86vh] w-[720px] max-w-[calc(100vw-32px)] overflow-hidden">
+      <DialogContent className={`${quickCreate ? 'w-[560px]' : 'w-[720px]'} max-h-[86vh] max-w-[calc(100vw-32px)] overflow-hidden`}>
         <form onSubmit={submit} className="flex max-h-[82vh] flex-col">
-          <DialogHeader>
-            <DialogTitle>{title ?? (mode === 'create' ? `新建${config.label}` : `编辑${config.label}`)}</DialogTitle>
-            <DialogDescription>{dialogDescription(config.kind, config.description)}</DialogDescription>
+          <DialogHeader className={quickCreate ? 'rounded-lg border border-border bg-muted/30 p-4' : undefined}>
+            <div className="flex items-start gap-3">
+              {icon ? (
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground shadow-sm">
+                  {icon}
+                </span>
+              ) : null}
+              <div className="min-w-0">
+                <DialogTitle>{dialogTitle}</DialogTitle>
+                <DialogDescription className={quickCreate ? 'mt-1.5 leading-5' : undefined}>{description}</DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
           <div className="min-h-0 flex-1 overflow-y-auto py-4">
-            {config.requiredHint && mode === 'create' ? (
+            {config.requiredHint && mode === 'create' && !quickCreate ? (
               <p className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">{config.requiredHint}</p>
             ) : null}
             {sourceLock?.locked ? (
@@ -152,7 +173,7 @@ export function SemanticEntityCrudDialog({
                 </p>
               </div>
             ) : null}
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className={quickCreate ? 'grid gap-3' : 'grid gap-4 md:grid-cols-2'}>
               {basicFields.map((field) => (
                 <FieldControl
                   key={field.key}
@@ -167,7 +188,7 @@ export function SemanticEntityCrudDialog({
               ))}
             </div>
             {advancedFields.length > 0 ? (
-              <div className="mt-5 rounded-md border border-border bg-muted/20">
+              <div className={quickCreate ? 'mt-4 rounded-lg border border-border bg-muted/20' : 'mt-5 rounded-md border border-border bg-muted/20'}>
                 <button
                   type="button"
                   onClick={() => setShowAdvanced((value) => !value)}
@@ -175,8 +196,8 @@ export function SemanticEntityCrudDialog({
                 >
                   <span className="flex min-w-0 items-center gap-2">
                     <SlidersHorizontal size={14} className="shrink-0 text-muted-foreground" />
-                    <span className="font-medium">高级选项</span>
-                    <span className="truncate text-xs text-muted-foreground">关联 ID、状态、排序和 JSON 元数据</span>
+                    <span className="font-medium">{quickCreate ? '更多字段' : '高级选项'}</span>
+                    <span className="truncate text-xs text-muted-foreground">{advancedHint(config.kind, quickCreate)}</span>
                   </span>
                   <ChevronDown size={15} className={showAdvanced ? 'rotate-180 transition-transform' : 'transition-transform'} />
                 </button>
@@ -333,6 +354,30 @@ function isAdvancedField(kind: SemanticEntityConfig['kind'], key: string) {
   if (key === 'owner_type' || key === 'owner_id') return true
   if (key.endsWith('_id') && !basicIdFieldsByKind[kind]?.includes(key)) return true
   return advancedFieldsByKind[kind]?.includes(key) ?? false
+}
+
+function quickCreatePrimaryFields(kind: SemanticEntityConfig['kind']) {
+  if (kind === 'segments' || kind === 'sceneMoments') return new Set(['title'])
+  return null
+}
+
+function quickCreateIcon(kind: SemanticEntityConfig['kind']) {
+  if (kind === 'segments') return <Route size={16} />
+  if (kind === 'sceneMoments') return <Clapperboard size={16} />
+  return null
+}
+
+function advancedHint(kind: SemanticEntityConfig['kind'], quickCreate: boolean) {
+  if (!quickCreate) return '关联 ID、状态、排序和 JSON 元数据'
+  if (kind === 'segments') return '类型、来源、顺序和功能说明可稍后补充'
+  if (kind === 'sceneMoments') return '所属段落、时间地点、动作和情绪可稍后补充'
+  return '关联、状态、排序和 JSON 元数据'
+}
+
+function quickCreateDescription(kind: SemanticEntityConfig['kind']) {
+  if (kind === 'segments') return '先填写标题即可创建情绪段；类型、来源和功能说明可以稍后补充。'
+  if (kind === 'sceneMoments') return '先填写标题即可创建情节；所属情绪段、时空、动作和情绪可以稍后补充。'
+  return null
 }
 
 const basicIdFieldsByKind: Partial<Record<SemanticEntityConfig['kind'], string[]>> = {

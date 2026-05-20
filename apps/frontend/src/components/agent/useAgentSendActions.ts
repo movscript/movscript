@@ -28,9 +28,10 @@ export interface UseAgentSendActionsInput {
   processedExternalTaskRequestIdRef: MutableRefObject<string | null>
   inputRef: RefObject<HTMLDivElement>
   onExternalDraftConsumed?: () => void
-  updateDraft: (patch: { input: string }) => void
+  updateDraft: (patch: { input?: string; attachments?: AgentAttachment[] }) => void
   setMentionRange: (range: null) => void
   answerActiveLocalRunInput: (requestId: string, answer: AgentInputAnswer) => Promise<unknown>
+  sendActiveRunRuntimeInput: (input: { content: string; attachments: AgentAttachment[] }) => Promise<unknown>
   addAssistantMessage: (content: string) => void
   setConversationBuilding: (patch: { building: boolean; loading?: boolean; error?: string }) => void
   buildSendDraft: (options?: BuildAgentSendDraftOptions) => Promise<AgentSendDraft>
@@ -62,6 +63,7 @@ export function useAgentSendActions({
   updateDraft,
   setMentionRange,
   answerActiveLocalRunInput,
+  sendActiveRunRuntimeInput,
   addAssistantMessage,
   setConversationBuilding,
   buildSendDraft,
@@ -106,7 +108,15 @@ export function useAgentSendActions({
   ])
 
   const send = useCallback(async () => {
-    if ((!input.trim() && composerAttachments.length === 0) || loading || uploading || buildingSendDraft) return
+    if ((!input.trim() && composerAttachments.length === 0) || uploading || buildingSendDraft) return
+    if (loading && !answeringPendingInput) {
+      const text = input.trim()
+      if (!text && composerAttachments.length === 0) return
+      updateDraft({ input: '', attachments: [] })
+      setMentionRange(null)
+      await sendActiveRunRuntimeInput({ content: text, attachments: composerAttachments })
+      return
+    }
     if (answeringPendingInput && activePendingInputRequest) {
       const text = input.trim()
       if (!canAnswerPendingInputWithText || !text) return
@@ -147,6 +157,7 @@ export function useAgentSendActions({
     updateDraft,
     setMentionRange,
     answerActiveLocalRunInput,
+    sendActiveRunRuntimeInput,
     modelId,
     addAssistantMessage,
     labels,

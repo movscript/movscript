@@ -47,7 +47,9 @@ test('loadRuntimeThreadProjection prefers a combined thread runtime snapshot whe
       },
       getThreadRuntime: async () => {
         calls.push('getThreadRuntime')
-        return { thread, runs: [listedRun] }
+        return makeRuntimeSnapshot(thread, [listedRun], {
+          runId: listedRun.id,
+        })
       },
     },
     fetchRunTraceEvents: async () => [],
@@ -55,6 +57,48 @@ test('loadRuntimeThreadProjection prefers a combined thread runtime snapshot whe
 
   assert.deepEqual(calls, ['getThreadRuntime'])
   assert.deepEqual(result.runs.map((run) => run.id), ['run_listed'])
+  assert.equal(result.currentRun?.id, 'run_listed')
+})
+
+test('loadRuntimeThreadProjection derives actionable runs from the authoritative snapshot', async () => {
+  const thread = makeThread()
+  const completedRun = makeRun({ id: 'run_completed', status: 'completed' })
+  const pendingRun = makeRun({
+    id: 'run_pending',
+    status: 'requires_action',
+    updatedAt: '2026-05-19T00:00:05.000Z',
+    pendingInputRequests: [{
+      id: 'input_1',
+      runId: 'run_pending',
+      title: 'Confirm direction',
+      question: 'Which direction?',
+      inputType: 'choice',
+      choices: [{ id: 'a', label: 'A' }],
+      allowCustomAnswer: false,
+      status: 'pending',
+      createdAt: '2026-05-19T00:00:04.000Z',
+      updatedAt: '2026-05-19T00:00:04.000Z',
+    }],
+  })
+
+  const result = await loadRuntimeThreadProjection({
+    threadId: 'thread_1',
+    existingMessages: [],
+  }, {
+    client: {
+      getThread: async () => thread,
+      listRunsByThread: async () => ({ threadId: 'thread_1', runs: [] }),
+      getThreadRuntime: async () => makeRuntimeSnapshot(thread, [completedRun, pendingRun], {
+        runId: completedRun.id,
+        actionableRunIds: [pendingRun.id],
+        pendingInputRequestRefs: [{ runId: pendingRun.id, requestId: 'input_1' }],
+      }),
+    },
+    fetchRunTraceEvents: async () => [],
+  })
+
+  assert.deepEqual(result.actionableRuns.map((run) => run.id), ['run_pending'])
+  assert.equal(result.currentRun?.id, 'run_pending')
 })
 
 test('loadRuntimeThreadProjection falls back to ensured runs when thread run listing fails', async () => {
@@ -133,5 +177,33 @@ function makeRun(input: Partial<AgentRun> & { id: string }): AgentRun {
     createdAt: '2026-05-19T00:00:02.000Z',
     updatedAt: '2026-05-19T00:00:03.000Z',
     steps: [],
+  }
+}
+
+function makeRuntimeSnapshot(
+  thread: AgentThread,
+  runs: AgentRun[],
+  options: {
+    runId?: string
+    actionableRunIds?: string[]
+    pendingInputRequestRefs?: Array<{ runId: string; requestId: string }>
+  } = {},
+) {
+  const currentRun = options.runId ? runs.find((run) => run.id === options.runId) : undefined
+  return {
+    schema: 'movscript.agent.thread-runtime-snapshot.v1' as const,
+    updatedAt: thread.updatedAt,
+    thread,
+    runs,
+    current: {
+      ...(options.runId ? { runId: options.runId } : {}),
+      ...(thread.status ? { threadStatus: thread.status } : {}),
+      ...(currentRun?.status ? { runStatus: currentRun.status } : {}),
+    },
+    interactions: {
+      actionableRunIds: options.actionableRunIds ?? [],
+      pendingApprovalRefs: [],
+      pendingInputRequestRefs: options.pendingInputRequestRefs ?? [],
+    },
   }
 }

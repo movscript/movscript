@@ -134,14 +134,17 @@ type PatchProductionTextBlockInput struct {
 
 type SceneMomentFilter struct {
 	ProjectID      uint
+	ProductionID   uint
 	SegmentID      uint
 	ScriptBlockID  uint
 	ScriptBlockIDs []uint
 }
 
 type CreateSceneMomentInput struct {
+	ProductionID  *uint  `json:"production_id"`
 	SegmentID     *uint  `json:"segment_id"`
 	ScriptBlockID *uint  `json:"script_block_id"`
+	SceneCode     string `json:"scene_code"`
 	Order         int    `json:"order"`
 	Title         string `json:"title"`
 	Description   string `json:"description"`
@@ -155,8 +158,10 @@ type CreateSceneMomentInput struct {
 }
 
 type PatchSceneMomentInput struct {
+	ProductionID  *uint  `json:"production_id"`
 	SegmentID     *uint  `json:"segment_id"`
 	ScriptBlockID *uint  `json:"script_block_id"`
+	SceneCode     string `json:"scene_code"`
 	Order         int    `json:"order"`
 	Title         string `json:"title"`
 	Description   string `json:"description"`
@@ -220,6 +225,7 @@ type ContentUnitInput struct {
 	SceneMomentID    *uint   `json:"scene_moment_id"`
 	ScriptBlockID    *uint   `json:"script_block_id"`
 	Kind             string  `json:"kind"`
+	UnitCode         string  `json:"unit_code"`
 	Order            int     `json:"order"`
 	Title            string  `json:"title"`
 	Description      string  `json:"description"`

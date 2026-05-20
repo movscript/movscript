@@ -27,9 +27,45 @@ test('hydrateRuntimeThreadConversation projects runtime thread into the conversa
     'load:thread_1:1:false',
     'localThread:conv_1:thread_1',
     'runtimeThread:conv_1:thread_1',
+    'run:conv_1:run_1:completed',
     'title:conv_1:Runtime title',
     'messages:conv_1:2',
   ])
+})
+
+test('hydrateRuntimeThreadConversation restores the current run from the agent snapshot', async () => {
+  const calls: string[] = []
+  const pendingRun = run({
+    id: 'run_pending',
+    status: 'requires_action',
+    pendingApprovals: [{
+      id: 'approval_1',
+      runId: 'run_pending',
+      toolName: 'movscript_test_tool',
+      reason: 'Needs approval',
+      status: 'pending',
+      createdAt: '2026-05-19T00:00:00.000Z',
+      updatedAt: '2026-05-19T00:00:00.000Z',
+    }],
+  })
+  const status = await hydrateRuntimeThreadConversation({
+    userId: 'user_1',
+    conversationId: 'conv_1',
+    threadId: 'thread_1',
+    existingMessages: [],
+    hydratedKeys: new Set(),
+    signal: new AbortController().signal,
+  }, depsFixture(calls, {
+    projection: projection({
+      thread: thread({ id: 'thread_1' }),
+      runs: [pendingRun],
+      currentRun: pendingRun,
+      actionableRuns: [pendingRun],
+    }),
+  }))
+
+  assert.equal(status, 'hydrated')
+  assert.equal(calls.includes('run:conv_1:run_pending:requires_action'), true)
 })
 
 test('hydrateRuntimeThreadConversation skips duplicate hydration keys', async () => {
@@ -90,6 +126,9 @@ function depsFixture(
     setConversationRuntimeThreadId: (_userId, conversationId, threadId) => {
       calls.push(`runtimeThread:${conversationId}:${threadId}`)
     },
+    setConversationRun: (conversationId, run) => {
+      calls.push(`run:${conversationId}:${run.id}:${run.status}`)
+    },
     updateConversationTitle: (_userId, conversationId, title) => {
       calls.push(`title:${conversationId}:${title}`)
     },
@@ -106,6 +145,8 @@ function projection(overrides: Partial<RuntimeThreadHydrationResult> = {}): Runt
   return {
     thread: runtimeThread,
     runs: overrides.runs ?? [run({ threadId: runtimeThread.id })],
+    currentRun: overrides.currentRun ?? overrides.runs?.[0] ?? run({ threadId: runtimeThread.id }),
+    actionableRuns: overrides.actionableRuns ?? [],
     messages: overrides.messages ?? [message({ meta: { runtimeMessage: { threadId: runtimeThread.id, messageId: 'msg_1' } } })],
   }
 }

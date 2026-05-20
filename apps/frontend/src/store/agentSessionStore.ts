@@ -1,9 +1,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { AgentClientInput, AgentManifest, AgentRun, AgentRunPolicyOverride, AgentThread } from '@/lib/localAgentClient'
+import type { AgentClientInput, AgentManifest, AgentRun, AgentThread } from '@/lib/localAgentClient'
 import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
 
-export type AgentPageTaskStatus = 'queued' | 'claimed' | 'running'
+export type AgentPageTaskStatus = 'queued' | 'claimed' | 'running' | 'completed' | 'error' | 'cancelled'
 export type AgentTaskRenderMode = 'chat' | 'panel' | 'page'
 
 export interface AgentPageTaskPayload {
@@ -17,7 +17,6 @@ export interface AgentPageTaskPayload {
   projectId?: number
   clientInput?: AgentClientInput
   agentManifest?: AgentManifest
-  runPolicy?: AgentRunPolicyOverride
   timeoutMs?: number
   renderMode?: AgentTaskRenderMode
 }
@@ -255,7 +254,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
               ...state.pageTasks,
               [payload.requestId!]: {
                 ...task,
-                status: task.status === 'queued' ? 'claimed' : task.status,
+                status: pageTaskStatusFromRuntime(payload, task.status),
                 run: payload.run ?? task.run,
                 thread: payload.thread ?? task.thread,
                 runId: payload.run?.id ?? task.runId,
@@ -448,4 +447,23 @@ function isRuntimeTerminalRun(run: AgentRun): boolean {
     || run.status === 'completed_with_warnings'
     || run.status === 'failed'
     || run.status === 'cancelled'
+}
+
+export function pageTaskStatusFromRuntime(
+  payload: { status?: 'completed' | 'error' | 'cancelled'; run?: AgentRun },
+  currentStatus: AgentPageTaskStatus,
+): AgentPageTaskStatus {
+  if (payload.status) return payload.status
+  if (!payload.run) return currentStatus === 'queued' ? 'claimed' : currentStatus
+  switch (payload.run.status) {
+    case 'completed':
+    case 'completed_with_warnings':
+      return 'completed'
+    case 'failed':
+      return 'error'
+    case 'cancelled':
+      return 'cancelled'
+    default:
+      return currentStatus === 'queued' ? 'claimed' : currentStatus
+  }
 }

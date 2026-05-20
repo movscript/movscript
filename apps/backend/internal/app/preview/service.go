@@ -44,10 +44,12 @@ type EntitySummary struct {
 type Context struct {
 	SegmentTitle     string `json:"segment_title,omitempty"`
 	SceneMomentTitle string `json:"scene_moment_title,omitempty"`
+	SceneMomentCode  string `json:"scene_moment_code,omitempty"`
 }
 
 type ContentUnit struct {
 	ID          uint    `json:"id"`
+	UnitCode    string  `json:"unit_code"`
 	Order       int     `json:"order"`
 	Title       string  `json:"title"`
 	Kind        string  `json:"kind"`
@@ -94,6 +96,7 @@ type segmentProjection struct {
 type sceneMomentProjection struct {
 	ID          uint
 	SegmentID   *uint
+	SceneCode   string
 	Title       string
 	Description string
 }
@@ -102,6 +105,7 @@ type contentUnitProjection struct {
 	ID            uint
 	SegmentID     *uint
 	SceneMomentID *uint
+	UnitCode      string
 	Order         int
 	Title         string
 	Kind          string
@@ -183,6 +187,7 @@ func (s *Service) loadSceneMomentPreview(ctx context.Context, projectID, momentI
 		return err
 	}
 	resp.Entity = EntitySummary{ID: moment.ID, Title: moment.Title, Description: moment.Description}
+	resp.Context.SceneMomentCode = moment.SceneCode
 
 	segmentIDs, err := s.relatedSourceIDs(ctx, relationapp.EdgeFilter{
 		ProjectID: projectID,
@@ -253,6 +258,7 @@ func (s *Service) loadContentUnitPreview(ctx context.Context, projectID, unitID 
 	if len(momentIDs) > 0 {
 		if moment, err := s.repo.GetSceneMomentByID(ctx, momentIDs[0]); err == nil {
 			resp.Context.SceneMomentTitle = moment.Title
+			resp.Context.SceneMomentCode = moment.SceneCode
 		}
 	}
 
@@ -266,7 +272,7 @@ func contentUnitResponses(units []contentUnitProjection) []ContentUnit {
 	out := make([]ContentUnit, 0, len(units))
 	for _, u := range units {
 		out = append(out, ContentUnit{
-			ID: u.ID, Order: u.Order, Title: u.Title, Kind: u.Kind,
+			ID: u.ID, UnitCode: u.UnitCode, Order: u.Order, Title: u.Title, Kind: u.Kind,
 			Description: u.Description, DurationSec: u.DurationSec,
 		})
 	}

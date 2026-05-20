@@ -77,7 +77,8 @@ test('buildLocalAgentSendDraft uses external task payload when the composer has 
   assert.equal(draft.localRuntime?.projectId, 202)
   assert.equal(draft.localRuntime?.requestId, 'page_request')
   assert.equal(draft.localRuntime?.timeoutMs, 30_000)
-  assert.equal(draft.localRuntime?.runPolicy?.maxToolCalls, 3)
+  assert.equal(draft.localRuntime?.runPolicy?.maxToolCalls, 11)
+  assert.equal(draft.localRuntime?.runPolicy?.maxIterations, 5)
 })
 
 test('buildLocalAgentSendDraft drops saved thread for diagnostic commands and omits debug artifacts on request', async () => {
@@ -238,7 +239,6 @@ function externalTask(): AgentPageTaskState {
       projectId: 202,
       timeoutMs: 30_000,
       clientInput: { message: 'Task message' },
-      runPolicy: { maxToolCalls: 3 },
     },
     createdAt: 1,
     updatedAt: 1,

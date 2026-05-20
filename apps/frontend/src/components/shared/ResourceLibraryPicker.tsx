@@ -24,6 +24,8 @@ interface ResourceLibraryPickerProps {
   onPage: (value: number) => void
   onSelect: (resource: RawResource) => void
   onClear?: () => void
+  className?: string
+  listClassName?: string
 }
 
 export function ResourceLibraryPicker({
@@ -41,11 +43,13 @@ export function ResourceLibraryPicker({
   onPage,
   onSelect,
   onClear,
+  className,
+  listClassName,
 }: ResourceLibraryPickerProps) {
   const { t } = useTranslation()
 
   return (
-    <div className="rounded-md border border-border bg-card p-3">
+    <div className={cn('rounded-md border border-border bg-card p-3', className)}>
       <div className="mb-2 flex items-center justify-between gap-2">
         <Label className="text-xs font-medium text-muted-foreground">{t('forms.selectFromResourceLibrary')}</Label>
         {selectedResource && onClear && (
@@ -79,7 +83,7 @@ export function ResourceLibraryPicker({
         )}
       </div>
 
-      <div className="max-h-52 space-y-1 overflow-y-auto">
+      <div className={cn('max-h-52 space-y-1 overflow-y-auto', listClassName)}>
         {isLoading ? (
           <p className="py-6 text-center text-xs text-muted-foreground">{t('common.loadingShort')}</p>
         ) : resources.length === 0 ? (

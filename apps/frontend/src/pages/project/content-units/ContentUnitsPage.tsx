@@ -36,6 +36,7 @@ import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
 import { buildContentWorkbenchRouteSearch } from '@/lib/contentWorkbenchRoute'
+import { unitIdentifier } from '@/lib/productionIdentifiers'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge, Button, Progress } from '@movscript/ui'
@@ -50,6 +51,7 @@ type ContentUnitRecord = SemanticEntityRecord & {
   script_block_id?: number
   title?: string
   kind?: string
+  unit_code?: string
   order?: number
   duration_sec?: number
   description?: string
@@ -78,6 +80,7 @@ type SceneMomentRecord = SemanticEntityRecord & {
   location_text?: string
   condition_text?: string
   action_text?: string
+  scene_code?: string
   mood?: string
   status?: string
 }
@@ -689,6 +692,7 @@ function ContentUnitCard({
 }) {
   const status = String(item.unit.status ?? 'draft')
   const sceneMomentTitle = item.sceneMoment ? titleOf(item.sceneMoment) : '未绑定情景'
+  const identifier = unitIdentifier(item.unit)
 
   return (
     <button
@@ -702,7 +706,10 @@ function ContentUnitCard({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold leading-5 text-foreground">{titleOf(item.unit)}</h3>
+          <h3 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold leading-5 text-foreground">
+            {identifier ? <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{identifier}</span> : null}
+            <span className="truncate">{titleOf(item.unit)}</span>
+          </h3>
           <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{kindLabel(item.unit.kind)} · {formatDuration(item.unit.duration_sec)} · {sceneMomentTitle}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">

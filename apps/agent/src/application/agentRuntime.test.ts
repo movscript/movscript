@@ -1515,8 +1515,10 @@ test('content unit storyboard proposal searches knowledge and creates a proposal
     const thread = runtime.createThread({ messages: [{ role: 'user', content: '请创建内容单元分镜 proposal 草稿' }] })
     const run = await createAndWaitForRun(runtime, thread.id)
     const draft = runtime.listDrafts({ projectId: 42, kind: 'content_unit_proposal' })[0]
-    const assistant = runtime.getThread(thread.id)?.messages.find((message) => message.id === run.assistantMessageId)
 
+    assert.equal(run.status, 'requires_action')
+    assert.equal(run.pendingApprovals?.[0]?.toolName, 'movscript_apply_draft')
+    assert.equal(run.pendingApprovals?.[0]?.args?.draftKind, 'content_unit_proposal')
     assert.equal(run.steps.some((step) => step.toolName === 'movscript_search_knowledge' && step.status === 'completed'), true)
     assert.equal(run.steps.some((step) => step.toolName === 'movscript_get_knowledge' && step.status === 'completed'), true)
     assert.equal(run.steps.some((step) => step.toolName === 'movscript_create_draft' && step.status === 'completed'), true)
@@ -1525,8 +1527,6 @@ test('content unit storyboard proposal searches knowledge and creates a proposal
     assert.equal((draft?.metadata as any)?.proposal, true)
     assert.equal((draft?.target as any)?.entityType, 'production')
     assert.equal((draft?.target as any)?.entityId, 4)
-    assert.match(assistant?.content ?? '', /通用知识建议：.*knowledge#storyboard\.rhythm\.basic/)
-    assert.match(assistant?.content ?? '', /本地草稿：draft#/)
   } finally {
     globalThis.fetch = originalFetch
   }

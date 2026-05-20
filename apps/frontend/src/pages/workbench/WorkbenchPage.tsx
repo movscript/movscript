@@ -3,8 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
+  ArrowDown,
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   Bot,
   Boxes,
   CheckCircle2,
@@ -36,6 +38,7 @@ import {
   Scissors,
   Sparkles,
   Target,
+  Trash2,
   Upload,
   Users,
   Wand2,
@@ -93,6 +96,8 @@ import { buildContentWorkbenchRouteSearch, pickContentWorkbenchRowIdForDeepLink 
 import { buildContentWorkbenchUnitHealth, type ContentWorkbenchUnitHealth } from '@/lib/contentWorkbenchUnitHealth'
 import { buildContentWorkbenchUnitTrack, contentWorkbenchUnitRequiresKeyframe } from '@/lib/contentWorkbenchUnitTrack'
 import { pickContentWorkbenchUploadTarget } from '@/lib/contentWorkbenchUploadTarget'
+import { sceneIdentifier, unitIdentifier } from '@/lib/productionIdentifiers'
+import { publicModelId, publicModelLabel } from '@/lib/modelDisplay'
 import { cn } from '@/lib/utils'
 import { useAgentStore } from '@/store/agentStore'
 import { useAgentSessionStore } from '@/store/agentSessionStore'
@@ -107,6 +112,7 @@ import { AuthedImage } from '@/components/shared/AuthedImage'
 import {
   buildContentUnitGenerationContext,
   createSemanticEntity,
+  deleteSemanticEntity,
   listSemanticEntities,
   semanticEntityConfig,
   updateSemanticEntity,
@@ -529,6 +535,8 @@ type WorkbenchRecord = SemanticEntityRecord & {
   candidate_asset_slot_id?: number
   asset_slot_id?: number
   candidate_asset_slot?: WorkbenchRecord
+  scene_code?: string
+  unit_code?: string
   shot_size?: string
   camera_angle?: string
   camera_motion?: string
@@ -618,6 +626,7 @@ interface ContentGenerationMomentRow {
   productionIds: number[]
   segment?: WorkbenchRecord
   references: WorkbenchRecord[]
+  referenceUsages: WorkbenchRecord[]
   units: WorkbenchRecord[]
   assetSlots: WorkbenchRecord[]
   missingSlots: WorkbenchRecord[]
@@ -673,7 +682,7 @@ async function loadProductionWorkbenchData(projectId: number): Promise<Productio
     listSemanticEntities(projectId, semanticEntityConfig('previewTimelines')),
     listSemanticEntities(projectId, semanticEntityConfig('previewTimelineItems')),
     listSemanticEntities(projectId, semanticEntityConfig('deliveryVersions')),
-    loadWorkbenchJobs(projectId, ['video', 'video_i2v', 'video_v2v']),
+    loadWorkbenchJobs(projectId, ['image', 'image_edit', 'video', 'video_i2v', 'video_v2v']),
   ])
   return {
     productions: productions as WorkbenchRecord[],
@@ -808,9 +817,9 @@ function buildContentGenerationMomentRows(data?: ProductionWorkbenchData): Conte
   const assetSlotsData = data.assetSlots ?? []
   const keyframesData = (data.keyframes ?? []).filter((keyframe) => !isGeneratedKeyframeCandidateRecord(keyframe))
   const scriptBlocksData = data.scriptBlocks ?? []
-  const creativeReferences = data.creativeReferences ?? []
-  const creativeReferenceUsages = data.creativeReferenceUsages ?? []
-  const visibleAssetSlots = assetSlotsData.filter((slot) => slot.owner_type !== 'asset_slot')
+  const creativeReferences = (data.creativeReferences ?? []).filter(isVisibleWorkbenchRecord)
+  const creativeReferenceUsages = (data.creativeReferenceUsages ?? []).filter(isVisibleWorkbenchRecord)
+  const visibleAssetSlots = assetSlotsData.filter((slot) => slot.owner_type !== 'asset_slot' && isVisibleWorkbenchRecord(slot))
   return sceneMoments
     .slice()
     .sort(byOrder)
@@ -827,14 +836,14 @@ function buildContentGenerationMomentRows(data?: ProductionWorkbenchData): Conte
       units.forEach((unit) => {
         if (unit.production_id) productionIds.add(Number(unit.production_id))
       })
-      const usageReferenceIds = creativeReferenceUsages
+      const referenceUsages = creativeReferenceUsages
         .filter((usage) => (
           (usage.owner_type === 'scene_moment' && Number(usage.owner_id) === moment.ID) ||
           (usage.owner_type === 'content_unit' && usage.owner_id ? unitIds.has(Number(usage.owner_id)) : false)
         ))
+      const usageReferenceIds = referenceUsages
         .map((usage) => Number(usage.creative_reference_id))
         .filter((id) => Number.isFinite(id) && id > 0)
-      const references = dedupeRecords(creativeReferences.filter((reference) => usageReferenceIds.includes(reference.ID)))
       const scriptBlockIds = new Set([
         Number(moment.script_block_id) || 0,
         ...units.map((unit) => Number(unit.script_block_id) || 0),
@@ -847,7 +856,20 @@ function buildContentGenerationMomentRows(data?: ProductionWorkbenchData): Conte
         (slot.owner_type === 'content_unit' && slot.owner_id ? unitIds.has(Number(slot.owner_id)) : false) ||
         (slot.owner_type === 'keyframe' && slot.owner_id ? keyframeIds.has(Number(slot.owner_id)) : false)
       ))
-      const missingSlots = assetSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
+      const scopedReferenceIds = new Set(usageReferenceIds)
+      for (const slot of assetSlots) addRecordId(scopedReferenceIds, slot.creative_reference_id)
+      const scopedReferences = creativeReferences.filter((reference) => scopedReferenceIds.has(reference.ID))
+      const references = dedupeRecords(scopedReferences.length > 0 ? scopedReferences : creativeReferences)
+      const referenceIds = new Set(references.map((reference) => reference.ID))
+      const referenceAssetSlots = visibleAssetSlots.filter((slot) => (
+        (slot.creative_reference_id && referenceIds.has(Number(slot.creative_reference_id))) ||
+        (slot.owner_type === 'creative_reference' && slot.owner_id && referenceIds.has(Number(slot.owner_id)))
+      ))
+      const projectAssetSlots = assetSlots.length > 0 || referenceAssetSlots.length > 0
+        ? []
+        : visibleAssetSlots.filter((slot) => !slot.owner_type || slot.owner_type === 'creative_reference')
+      const effectiveAssetSlots = dedupeRecords([...assetSlots, ...referenceAssetSlots, ...projectAssetSlots])
+      const missingSlots = effectiveAssetSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
       const previewTimelineIds = bestPreviewTimelineIdsForProductionIds(productionIds, data)
       const previewTimelineItems = scopedPreviewTimelineItems(
         data.previewTimelineItems,
@@ -871,8 +893,9 @@ function buildContentGenerationMomentRows(data?: ProductionWorkbenchData): Conte
         productionIds: Array.from(productionIds),
         segment,
         references,
+        referenceUsages,
         units,
-        assetSlots,
+        assetSlots: effectiveAssetSlots,
         missingSlots,
         keyframes,
         scriptBlocks,
@@ -902,6 +925,10 @@ function buildMomentMetrics(rows: ContentGenerationMomentRow[], data?: Productio
     { label: '可执行', value: String(readyMoments), detail: '情节、制作项和素材输入都已接上', icon: CheckCircle2, status: readyMoments > 0 ? 'ready' : 'review' },
     { label: '待拆制作项', value: String(uncoveredMoments), detail: '还没有拆出制作项的情节', icon: Wand2, status: uncoveredMoments > 0 ? 'blocked' : 'ready' },
   ]
+}
+
+function isVisibleWorkbenchRecord(record: WorkbenchRecord) {
+  return !['ignored', 'merged'].includes(String(record.status ?? '').toLowerCase())
 }
 
 function normalizeCreativeReferenceStatus(status?: string) {
@@ -949,7 +976,10 @@ function creativeReferenceWorkStatus(status?: string): WorkStatus {
 
 function creativeReferenceKindLabel(kind?: string) {
   if (kind === 'person') return '人物'
+  if (kind === 'character') return '人物'
   if (kind === 'place') return '地点'
+  if (kind === 'location') return '地点'
+  if (kind === 'scene') return '场景'
   if (kind === 'prop') return '道具'
   if (kind === 'product') return '产品'
   if (kind === 'brand') return '品牌'
@@ -2133,6 +2163,68 @@ function frameRoleLabel(index: number, total: number) {
   return `中间帧 ${index}`
 }
 
+const keyframeFrameRoleOptions: Array<{ value: KeyframeFrameRole; label: string; detail: string }> = [
+  { value: 'first', label: '首帧', detail: '约束视频开头的构图、人物状态和主要视觉信息。' },
+  { value: 'middle', label: '中间帧', detail: '约束动作变化、情绪转折或关键过程状态。' },
+  { value: 'last', label: '尾帧', detail: '约束视频结尾的落点、画面收束和连续性。' },
+]
+
+function keyframeFrameRoleLabel(value: unknown) {
+  return keyframeFrameRoleOptions.find((option) => option.value === value)?.label ?? '关键帧'
+}
+
+function normalizeKeyframeFrameRole(value: unknown, fallback: KeyframeFrameRole): KeyframeFrameRole {
+  return value === 'first' || value === 'middle' || value === 'last' ? value : fallback
+}
+
+function maybeKeyframeFrameRole(value: unknown): KeyframeFrameRole | null {
+  return value === 'first' || value === 'middle' || value === 'last' ? value : null
+}
+
+function keyframeFrameRoleFromRecord(record?: WorkbenchRecord | null): KeyframeFrameRole {
+  const metadata = parseMetadataJSON(record?.metadata_json)
+  const role = maybeKeyframeFrameRole(metadata.frame_role)
+  if (role) return role
+  const order = numberOf(record?.order)
+  if (order <= 1) return 'first'
+  if (order >= 3) return 'last'
+  return 'middle'
+}
+
+function nextKeyframeFrameRole(keyframes: WorkbenchRecord[]): KeyframeFrameRole {
+  if (!keyframes.some((keyframe) => keyframeFrameRoleFromRecord(keyframe) === 'first')) return 'first'
+  if (!keyframes.some((keyframe) => keyframeFrameRoleFromRecord(keyframe) === 'last')) return 'last'
+  return 'middle'
+}
+
+function keyframeOrderForRole(role: KeyframeFrameRole, keyframes: WorkbenchRecord[]) {
+  const roleBaseOrder: Record<KeyframeFrameRole, number> = { first: 1, middle: 2, last: 3 }
+  const baseOrder = roleBaseOrder[role]
+  const usedOrders = new Set(keyframes.map((keyframe) => numberOf(keyframe.order)).filter((order) => order > 0))
+  if (!usedOrders.has(baseOrder)) return baseOrder
+  return Math.max(baseOrder, ...usedOrders) + 1
+}
+
+function keyframeTitleForRole(role: KeyframeFrameRole, unit: WorkbenchRecord, title?: string) {
+  return firstText(title, `${keyframeFrameRoleLabel(role)} · ${titleOfRecord(unit)}`)
+}
+
+function keyframeDisplayTitle(keyframe: WorkbenchRecord) {
+  const roleLabel = keyframeFrameRoleLabel(keyframeFrameRoleFromRecord(keyframe))
+  const title = titleOfRecord(keyframe)
+  return title.startsWith(roleLabel) ? title : `${roleLabel} · ${title}`
+}
+
+function parseMetadataJSON(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'string' || !value.trim()) return {}
+  try {
+    const parsed = JSON.parse(value) as unknown
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+  } catch {
+    return {}
+  }
+}
+
 function resourceFileUrl(resourceId?: number | null) {
   return resourceId ? `/api/v1/resources/${resourceId}/file` : ''
 }
@@ -2299,22 +2391,16 @@ function ContentWorkbenchScenePreview({
   row,
   selectedUnit,
   keyframes,
-  missingSlots,
   previewItemCount,
   runningJobCount,
   onSelectUnit,
-  onEditUnit,
-  onOpenCanvas,
 }: {
   row: ContentGenerationMomentRow | null
   selectedUnit: WorkbenchRecord | null
   keyframes: WorkbenchRecord[]
-  missingSlots: WorkbenchRecord[]
   previewItemCount: number
   runningJobCount: number
-  onSelectUnit: (unitId: number) => void
-  onEditUnit: () => void
-  onOpenCanvas: () => void
+  onSelectUnit: (unitId: number | null) => void
 }) {
   const primaryKeyframe = keyframes.find((keyframe) => numberOf(keyframe.resource_id) > 0) ?? keyframes[0]
   const unitTitle = selectedUnit ? titleOfRecord(selectedUnit) : '未选择制作项'
@@ -2360,24 +2446,6 @@ function ContentWorkbenchScenePreview({
             <div className="absolute left-3 top-3 flex flex-wrap items-center gap-1.5">
               <Badge variant="secondary" className="bg-background/90 shadow-sm">{unitKind}</Badge>
               {selectedIndex >= 0 ? <Badge variant="outline" className="bg-background/90 shadow-sm">Shot {String(selectedIndex + 1).padStart(2, '0')}</Badge> : null}
-            </div>
-            <div className="absolute inset-x-3 bottom-3 rounded-md border border-border bg-background/92 px-3 py-2 shadow-sm backdrop-blur">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-foreground">{unitTitle}</p>
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                    {selectedUnit ? `${formatDuration(selectedUnit.duration_sec)} · ${missingSlots.length > 0 ? `${missingSlots.length} 个素材缺口` : '素材输入可用'} · ${keyframes.length} 个关键帧` : '选择制作项后显示预览输入'}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={onEditUnit}>
-                    编辑
-                  </Button>
-                  <Button size="sm" className="h-7 px-2 text-xs" onClick={onOpenCanvas}>
-                    生成画布
-                  </Button>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -2559,6 +2627,7 @@ function ProductionPipeline({
 interface HierarchyFilterOption {
   value: string
   label: string
+  identifier?: string
   count: number
 }
 
@@ -2589,12 +2658,13 @@ function HierarchyFilterColumn({
         <div className={cn('min-h-0 flex-1 space-y-1 overflow-auto', rail ? 'pr-0' : 'pr-1')} data-testid={rail ? 'content-workbench-scene-rail' : undefined}>
           {options.map((option) => {
             const active = option.value === value
+            const identifier = option.identifier || hierarchyOptionInitial(option.label)
             return (
               <button
                 key={option.value}
                 type="button"
                 onClick={() => onSelect(option.value)}
-                title={rail ? `${option.label} · ${option.count} 项` : undefined}
+                title={rail ? `${identifier} · ${option.label} · ${option.count} 项` : undefined}
                 aria-label={rail ? `${option.label}，${option.count} 项` : undefined}
                 className={cn(
                   'flex w-full items-center gap-2 rounded-md border text-left text-xs transition-colors',
@@ -2604,14 +2674,17 @@ function HierarchyFilterColumn({
                 data-sidebar-rail-card={rail ? 'true' : undefined}
               >
                 <span className={cn(
-                  'flex shrink-0 items-center justify-center rounded border font-semibold',
-                  rail ? 'h-8 w-8 text-[11px]' : 'h-8 w-8 text-[11px]',
+                  'flex shrink-0 items-center justify-center whitespace-nowrap rounded border font-semibold',
+                  rail ? 'min-h-8 w-full px-1 text-[10px]' : 'h-8 min-w-8 px-1.5 text-[10px]',
                   active ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border bg-muted text-muted-foreground',
                 )} data-testid="content-workbench-hierarchy-thumbnail">
-                  {hierarchyOptionInitial(option.label)}
+                  {identifier}
                 </span>
                 <span className={cn('min-w-0 flex-1', rail ? 'sr-only' : '')}>
-                  <span className="block truncate font-medium">{option.label}</span>
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    {option.identifier ? <span className="shrink-0 whitespace-nowrap rounded bg-muted px-1 py-0.5 text-[10px] font-semibold text-muted-foreground">{option.identifier}</span> : null}
+                    <span className="truncate font-medium">{option.label}</span>
+                  </span>
                   <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{option.count} 项</span>
                 </span>
               </button>
@@ -3250,24 +3323,41 @@ function UnitProductionTrack({
   onCreateUnit,
   onAiSuggest,
   onSelectFirstMoment,
+  onCreateAssetSlot,
+  onCreateKeyframe,
+  onOpenCanvas,
+  onUploadMissingAssets,
   onReorderUnit,
   onMoveUnitOnTimeline,
+  onDeleteUnit,
+  projectId,
+  queryKey,
+  jobs = [],
   isReordering,
 }: {
   row: ContentGenerationMomentRow | null
   selectedUnitId?: number
-  onSelectUnit: (unitId: number) => void
+  onSelectUnit: (unitId: number | null) => void
   onCreateUnit: () => void
   onAiSuggest?: () => void
   onSelectFirstMoment: () => void
+  onCreateAssetSlot?: () => void
+  onCreateKeyframe?: () => void
+  onOpenCanvas?: () => void
+  onUploadMissingAssets?: () => void
   onReorderUnit: (draggedUnitId: number, targetUnitId: number, position: ContentWorkbenchDropPosition) => void
   onMoveUnitOnTimeline: (unitId: number, startSec: number) => void
+  onDeleteUnit?: (unit: WorkbenchRecord) => void
+  projectId?: number
+  queryKey?: readonly unknown[]
+  jobs?: Job[]
   isReordering?: boolean
 }) {
+  const selectedUnit = row?.units.find((unit) => unit.ID === selectedUnitId) ?? null
   const [draggedUnitId, setDraggedUnitId] = useState<number | null>(null)
   const [timelineZoom, setTimelineZoom] = useState(1)
   const [unitKindFilter, setUnitKindFilter] = useState('all')
-  const [schedulePanel, setSchedulePanel] = useState<'timeline' | 'list'>('timeline')
+  const [schedulePanel, setSchedulePanel] = useState<'timeline' | 'edit'>('timeline')
   const summary = buildContentWorkbenchUnitTrack((row?.units ?? []).slice().sort(byOrder).map((unit) => {
     const unitSlots = row?.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && Number(slot.owner_id) === unit.ID) ?? []
     const missingSlots = unitSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
@@ -3279,6 +3369,7 @@ function UnitProductionTrack({
       id: unit.ID,
       title: titleOfRecord(unit),
       kind: unit.kind,
+      identifier: unitIdentifier(unit),
       startSec: previewTimelineItem ? numberOf(previewTimelineItem.start_sec) : undefined,
       durationSec: numberOf(previewTimelineItem?.duration_sec) || numberOf(unit.duration_sec),
       status: unit.status,
@@ -3379,10 +3470,20 @@ function UnitProductionTrack({
   const timelineDurationSec = timelineRulerWidth / timelinePxPerSec
   const timelineTicks = buildTrackTimeTicks(timelineDurationSec, timelinePxPerSec)
   const timelineBoundaries = buildContentWorkbenchTimelineBoundaries(timelineMemberItems, timelineOriginSec, timelinePxPerSec)
-  const selectedTimelineItem = timelineMemberItems.find((item) => item.selected) ?? timelineMemberItems[0] ?? null
+  const selectedTimelineItem = timelineMemberItems.find((item) => item.selected) ?? null
   const selectedTimelineItemStartSec = selectedTimelineItem ? contentWorkbenchLocalTimelineSec(selectedTimelineItem.startSec, timelineOriginSec) : 0
   const focusedTimeline = timelineOriginSec > 0
   const canDragUnits = Boolean(row && visibleSummary.total > 0 && !isReordering)
+  useEffect(() => {
+    if (!selectedUnit && schedulePanel === 'edit') setSchedulePanel('timeline')
+  }, [schedulePanel, selectedUnit])
+  function selectOrClearUnit(unitId: number) {
+    if (selectedUnitId === unitId) {
+      onSelectUnit(null)
+      return
+    }
+    onSelectUnit(unitId)
+  }
   function handleUnitDragStart(event: DragEvent<HTMLElement>, unitId: number, source: 'card' | 'timeline' = 'card') {
     if (!canDragUnits) return
     setDraggedUnitId(unitId)
@@ -3538,9 +3639,9 @@ function UnitProductionTrack({
                 <button
                   type="button"
                   className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-                  onClick={() => onSelectUnit(Number(item.id))}
+                  onClick={() => selectOrClearUnit(Number(item.id))}
                 >
-                  <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
+                  <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{item.identifier || String(index + 1).padStart(2, '0')}</span>
                   <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{item.title}</span>
                 </button>
                 {canDragUnits ? (
@@ -3576,7 +3677,7 @@ function UnitProductionTrack({
                   </span>
                 ) : null}
               </div>
-              <button type="button" className="mt-1 block w-full text-left" onClick={() => onSelectUnit(Number(item.id))}>
+              <button type="button" className="mt-1 block w-full text-left" onClick={() => selectOrClearUnit(Number(item.id))}>
                 <span className="block truncate text-[11px] text-muted-foreground">{trackKindLabel(item.kind)} · {item.labels.slice(0, 2).join(' · ') || '待补输入'}</span>
                 {item.sceneMomentTitle ? (
                   <span className="mt-1 block truncate text-[11px] text-muted-foreground">情节：{item.sceneMomentTitle}</span>
@@ -3610,17 +3711,19 @@ function UnitProductionTrack({
               <Clock3 size={13} />
               制作项时间轴
             </button>
-            <button
-              type="button"
-              className={cn(
-                'inline-flex h-8 items-center gap-1.5 border-l border-border px-2.5 text-xs transition-colors',
-                schedulePanel === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-primary/5 hover:text-foreground',
-              )}
-              onClick={() => setSchedulePanel('list')}
-            >
-              <FileText size={13} />
-              内容编辑
-            </button>
+            {selectedUnit ? (
+              <button
+                type="button"
+                className={cn(
+                  'inline-flex h-8 items-center gap-1.5 border-l border-border px-2.5 text-xs transition-colors',
+                  schedulePanel === 'edit' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-primary/5 hover:text-foreground',
+                )}
+                onClick={() => setSchedulePanel('edit')}
+              >
+                <FileText size={13} />
+                内容编辑
+              </button>
+            ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             {schedulePanel === 'timeline' ? (
@@ -3663,7 +3766,7 @@ function UnitProductionTrack({
             <Badge variant="outline">{formatTrackDuration(timelineContentDurationSec)}</Badge>
           </div>
         </div>
-        {schedulePanel === 'timeline' ? (
+        {schedulePanel === 'timeline' ? (<>
         <div className="overflow-x-auto">
           <div style={{ minWidth: timelineCanvasWidth }}>
             <div className="border-b border-border bg-background px-2.5 py-2.5" data-testid="content-workbench-unit-timeline">
@@ -3760,7 +3863,7 @@ function UnitProductionTrack({
                             event.dataTransfer.dropEffect = 'move'
                           }}
                           onDragEnd={() => setDraggedUnitId(null)}
-                          onClick={() => onSelectUnit(Number(item.id))}
+                          onClick={() => selectOrClearUnit(Number(item.id))}
                           className={cn(
                             'absolute top-1 h-9 min-w-0 overflow-hidden rounded border px-1.5 py-1 text-left text-[11px] shadow-sm transition-colors hover:border-primary/60 hover:bg-primary/5',
                             canDragUnits ? 'cursor-grab active:cursor-grabbing' : '',
@@ -3783,8 +3886,114 @@ function UnitProductionTrack({
             </div>
           </div>
         </div>
-        ) : (
-        <div className="min-h-[180px] bg-background" data-testid="content-workbench-schedule-blank-panel" />
+        <details className="border-t border-border bg-background" data-testid="content-workbench-shot-list">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 text-xs font-medium text-muted-foreground marker:text-muted-foreground">
+            <span>镜头明细</span>
+            <Badge variant="outline">{visibleSummary.items.length} 项</Badge>
+          </summary>
+          <div className="overflow-x-auto">
+          <div className="min-w-[820px] divide-y divide-border">
+            <div className="grid grid-cols-[56px_96px_minmax(220px,1fr)_150px_150px_130px] gap-2 bg-muted/30 px-2.5 py-2 text-[11px] font-medium text-muted-foreground">
+              <span>顺序</span>
+              <span>类型/时间</span>
+              <span>镜头内容</span>
+              <span>关键帧</span>
+              <span>素材</span>
+              <span>状态</span>
+            </div>
+            {visibleSummary.items.map((item, index) => {
+              const previousItem = visibleSummary.items[index - 1]
+              const nextItem = visibleSummary.items[index + 1]
+              return (
+                <div
+                  key={item.id}
+                  className={cn(
+                    'grid grid-cols-[56px_96px_minmax(220px,1fr)_150px_150px_130px] gap-2 px-2.5 py-2.5 text-left text-xs transition-colors',
+                    item.selected ? 'bg-primary/5' : 'bg-card hover:bg-primary/5',
+                  )}
+                  data-testid="content-workbench-shot-list-row"
+                  data-track-item-id={item.id}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
+                  </div>
+                  <button type="button" className="min-w-0 text-left" onClick={() => selectOrClearUnit(Number(item.id))}>
+                    <span className="block truncate font-medium text-foreground">{trackKindLabel(item.kind)}</span>
+                    <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{formatTrackTimeRange(contentWorkbenchLocalTimelineSec(item.startSec, timelineOriginSec), contentWorkbenchLocalTimelineSec(item.endSec, timelineOriginSec), item.durationSec)}</span>
+                  </button>
+                  <button type="button" className="min-w-0 text-left" onClick={() => selectOrClearUnit(Number(item.id))}>
+                    <span className="block truncate font-medium text-foreground">{item.title}</span>
+                    <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{item.summary || item.scriptCue || item.soundCue || '待补输入'}</span>
+                  </button>
+                  <button type="button" className="min-w-0 text-left" onClick={() => selectOrClearUnit(Number(item.id))}>
+                    <span className={cn('block truncate text-[11px]', item.requiresKeyframe && item.keyframeTitles.length === 0 ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>
+                      {item.requiresKeyframe
+                        ? item.keyframeTitles.length > 0 ? item.keyframeTitles.slice(0, 2).join('、') : '未设置'
+                        : '非必需'}
+                    </span>
+                  </button>
+                  <button type="button" className="min-w-0 text-left" onClick={() => selectOrClearUnit(Number(item.id))}>
+                    <span className={cn('block truncate text-[11px]', item.missingAssetTitles.length > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>
+                      {item.missingAssetTitles.length > 0 ? item.missingAssetTitles.slice(0, 2).join('、') : '无显性缺口'}
+                    </span>
+                  </button>
+                  <div className="flex min-w-0 items-center justify-between gap-1.5">
+                    <Badge variant={item.tone === 'blocked' ? 'warning' : item.tone === 'ready' ? 'success' : 'outline'}>{item.tone === 'blocked' ? '待补齐' : item.tone === 'ready' ? '可生成' : '处理中'}</Badge>
+                    {canDragUnits ? (
+                      <span className="flex shrink-0 items-center gap-0.5">
+                        <button
+                          type="button"
+                          data-testid="content-workbench-shot-list-move-earlier"
+                          aria-label={`前移 ${item.title}`}
+                          title="前移"
+                          disabled={!previousItem || isReordering}
+                          onClick={() => {
+                            if (!previousItem) return
+                            onReorderUnit(Number(item.id), Number(previousItem.id), 'before')
+                          }}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded border border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground disabled:pointer-events-none disabled:opacity-35"
+                        >
+                          <ArrowLeft size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="content-workbench-shot-list-move-later"
+                          aria-label={`后移 ${item.title}`}
+                          title="后移"
+                          disabled={!nextItem || isReordering}
+                          onClick={() => {
+                            if (!nextItem) return
+                            onReorderUnit(Number(item.id), Number(nextItem.id), 'after')
+                          }}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded border border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground disabled:pointer-events-none disabled:opacity-35"
+                        >
+                          <ArrowRight size={12} />
+                        </button>
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          </div>
+        </details>
+        </>) : (
+        <ContentUnitEditCards
+          projectId={projectId}
+          queryKey={queryKey}
+          jobs={jobs}
+          row={row}
+          unit={selectedUnit}
+          onSelectUnit={onSelectUnit}
+          onCreateUnit={onCreateUnit}
+          onAiSuggest={onAiSuggest}
+          onCreateAssetSlot={onCreateAssetSlot}
+          onCreateKeyframe={onCreateKeyframe}
+          onOpenCanvas={onOpenCanvas}
+          onUploadMissingAssets={onUploadMissingAssets}
+          onDeleteUnit={onDeleteUnit}
+        />
         )}
       </div>
     </div>
@@ -3893,6 +4102,1210 @@ function CreateContentUnitQuickCard({
       </div>
     </section>
   )
+}
+
+function CreateKeyframeQuickCard({
+  projectId,
+  keyframeConfig,
+  selectedUnit,
+  defaults,
+  existingKeyframes,
+  queryKey,
+  onSaved,
+  onCancel,
+}: {
+  projectId?: number
+  keyframeConfig: SemanticEntityConfig
+  selectedUnit: WorkbenchRecord
+  defaults: Partial<SemanticEntityPayload>
+  existingKeyframes: WorkbenchRecord[]
+  queryKey: readonly unknown[]
+  onSaved: (record: SemanticEntityRecord) => void
+  onCancel: () => void
+}) {
+  const queryClient = useQueryClient()
+  const defaultRole = normalizeKeyframeFrameRole(parseMetadataJSON(defaults.metadata_json).frame_role, nextKeyframeFrameRole(existingKeyframes))
+  const [frameRole, setFrameRole] = useState<KeyframeFrameRole>(defaultRole)
+  const [title, setTitle] = useState('')
+
+  useEffect(() => {
+    setFrameRole(defaultRole)
+    setTitle('')
+  }, [defaultRole, selectedUnit.ID])
+
+  const createKeyframe = useMutation({
+    mutationFn: () => {
+      if (!projectId) throw new Error('missing project id')
+      const order = keyframeOrderForRole(frameRole, existingKeyframes)
+      return createSemanticEntity(projectId, keyframeConfig, {
+        ...defaults,
+        title: keyframeTitleForRole(frameRole, selectedUnit, title),
+        order,
+        status: firstText(defaults.status, 'candidate'),
+        metadata_json: JSON.stringify(mergeMetadataJSON(defaults.metadata_json, {
+          frame_role: frameRole,
+          frame_role_label: keyframeFrameRoleLabel(frameRole),
+        })),
+      })
+    },
+    onSuccess: async (record) => {
+      await queryClient.invalidateQueries({ queryKey })
+      if (projectId) queryClient.invalidateQueries({ queryKey: [keyframeConfig.kind, projectId] })
+      toast.success('关键帧已创建')
+      onSaved(record)
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '创建关键帧失败'))
+    },
+  })
+
+  const selectedRole = keyframeFrameRoleOptions.find((option) => option.value === frameRole) ?? keyframeFrameRoleOptions[0]
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-border bg-card" data-testid="content-workbench-create-keyframe-card">
+      <div className="border-b border-border bg-muted/25 px-4 py-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <Image size={15} className="text-muted-foreground" />
+              新建关键帧
+            </div>
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+              {titleOfRecord(selectedUnit)} · 只需先确定首帧、中间帧或尾帧。
+            </p>
+          </div>
+          <Badge variant="outline">标题可选</Badge>
+        </div>
+      </div>
+
+      <div className="space-y-4 p-4">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">分类</Label>
+          <Select value={frameRole} onValueChange={(value) => setFrameRole(normalizeKeyframeFrameRole(value, 'first'))}>
+            <SelectTrigger className="h-10 bg-background" data-testid="content-workbench-create-keyframe-role">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {keyframeFrameRoleOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {selectedRole ? <p className="text-[11px] leading-5 text-muted-foreground">{selectedRole.detail}</p> : null}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor={`create-keyframe-title-${selectedUnit.ID}`} className="text-xs text-muted-foreground">标题（可选）</Label>
+          <Input
+            id={`create-keyframe-title-${selectedUnit.ID}`}
+            value={title}
+            placeholder={`${keyframeFrameRoleLabel(frameRole)} · ${titleOfRecord(selectedUnit)}`}
+            onChange={(event) => setTitle(event.target.value)}
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={createKeyframe.isPending}>
+            取消
+          </Button>
+          <Button type="button" className="gap-2" onClick={() => createKeyframe.mutate()} loading={createKeyframe.isPending} disabled={!projectId || createKeyframe.isPending}>
+            <Plus size={14} />
+            创建
+          </Button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+type ContentUnitEditDraft = {
+  title: string
+  duration_sec: string
+  description: string
+  prompt: string
+  shot_size: string
+  camera_angle: string
+  camera_motion: string
+  status: string
+}
+
+type KeyframeEditDraft = {
+  frame_role: string
+  title: string
+  order: string
+  description: string
+  prompt: string
+  status: string
+  metadata_json: string
+}
+
+type KeyframeFrameRole = 'first' | 'middle' | 'last'
+
+type ContentUnitInputDrawerTab = 'generation' | 'keyframes' | 'storyboard' | 'blocking'
+
+function ContentUnitEditCards({
+  projectId,
+  queryKey,
+  jobs = [],
+  row,
+  unit,
+  onSelectUnit,
+  onCreateUnit,
+  onAiSuggest,
+  onCreateAssetSlot,
+  onCreateKeyframe,
+  onOpenCanvas,
+  onUploadMissingAssets,
+  onDeleteUnit,
+}: {
+  projectId?: number
+  queryKey?: readonly unknown[]
+  jobs?: Job[]
+  row: ContentGenerationMomentRow | null
+  unit: WorkbenchRecord | null
+  onSelectUnit: (unitId: number) => void
+  onCreateUnit: () => void
+  onAiSuggest?: () => void
+  onCreateAssetSlot?: () => void
+  onCreateKeyframe?: () => void
+  onOpenCanvas?: () => void
+  onUploadMissingAssets?: () => void
+  onDeleteUnit?: (unit: WorkbenchRecord) => void
+}) {
+  const queryClient = useQueryClient()
+  const contentUnitConfig = useMemo(() => semanticEntityConfig('contentUnits'), [])
+  const keyframeConfig = useMemo(() => semanticEntityConfig('keyframes'), [])
+  const [draft, setDraft] = useState<ContentUnitEditDraft>(() => contentUnitEditDraftFromRecord(unit))
+  const [activeInputDrawer, setActiveInputDrawer] = useState<ContentUnitInputDrawerTab>('generation')
+  const [keyframeModelId, setKeyframeModelId] = useState('')
+  const { data: imageModels = [] } = useQuery<PublicModel[]>({
+    queryKey: ['models', 'image', 'content-workbench-keyframe'],
+    queryFn: () => api.get('/models?capability=image&feature=ref_image_gen').then((r) => r.data),
+  })
+  useEffect(() => {
+    if (keyframeModelId && imageModels.some((model) => publicModelId(model) === keyframeModelId)) return
+    setKeyframeModelId(imageModels[0] ? publicModelId(imageModels[0]) : '')
+  }, [imageModels, keyframeModelId])
+
+  useEffect(() => {
+    setDraft(contentUnitEditDraftFromRecord(unit))
+    setActiveInputDrawer('generation')
+  }, [unit?.ID])
+
+  const assetSlots = row && unit
+    ? row.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && Number(slot.owner_id) === unit.ID)
+    : []
+  const missingSlots = assetSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
+  const keyframes = row && unit
+    ? row.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID).slice().sort(byOrder)
+    : []
+  const hasPrompt = Boolean(firstText(draft.prompt, draft.description))
+  const requiresKeyframe = unit ? contentWorkbenchUnitRequiresKeyframe(unit.kind) : true
+  const workStatus = unit ? contentUnitWorkStatus(unit, missingSlots) : 'blocked'
+  const blockers = [
+    hasPrompt ? '' : '缺提示',
+    missingSlots.length > 0 ? `${missingSlots.length} 个素材缺口` : '',
+    requiresKeyframe && keyframes.length === 0 ? '缺关键帧' : '',
+  ].filter(Boolean)
+  const unchanged = unit ? contentUnitEditDraftEqualsRecord(draft, unit) : true
+  const [selectedKeyframeId, setSelectedKeyframeId] = useState<number | null>(null)
+  const selectedKeyframe = keyframes.find((keyframe) => keyframe.ID === selectedKeyframeId) ?? keyframes[0] ?? null
+  const [keyframeDraft, setKeyframeDraft] = useState<KeyframeEditDraft>(() => keyframeEditDraftFromRecord(selectedKeyframe))
+  const selectedModel = imageModels.find((model) => publicModelId(model) === keyframeModelId) ?? imageModels[0] ?? null
+  const unfinishedKeyframes = keyframes.filter((keyframe) => !keyframeHasOutput(keyframe, jobs) && !keyframeHasRunningJob(keyframe, jobs))
+  const keyframeUnchanged = selectedKeyframe ? keyframeEditDraftEqualsRecord(keyframeDraft, selectedKeyframe) : true
+
+  useEffect(() => {
+    if (keyframes.length === 0) {
+      if (selectedKeyframeId !== null) setSelectedKeyframeId(null)
+      return
+    }
+    if (!selectedKeyframeId || !keyframes.some((keyframe) => keyframe.ID === selectedKeyframeId)) {
+      setSelectedKeyframeId(keyframes[0].ID)
+    }
+  }, [keyframes, selectedKeyframeId])
+
+  useEffect(() => {
+    setKeyframeDraft(keyframeEditDraftFromRecord(selectedKeyframe))
+  }, [selectedKeyframe?.ID])
+
+  const saveUnit = useMutation({
+    mutationFn: async () => {
+      if (!projectId || !unit) throw new Error('缺少制作项')
+      return updateSemanticEntity(projectId, contentUnitConfig, unit.ID, contentUnitEditPayload(draft))
+    },
+    onSuccess: async (saved) => {
+      if (queryKey) await queryClient.invalidateQueries({ queryKey })
+      await queryClient.invalidateQueries({ queryKey: [contentUnitConfig.kind, projectId] })
+      toast.success('制作项已保存')
+      setDraft(contentUnitEditDraftFromRecord(saved))
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '制作项保存失败'))
+    },
+  })
+
+  const deleteUnit = useMutation({
+    mutationFn: async () => {
+      if (!projectId || !unit) throw new Error('缺少制作项')
+      return deleteSemanticEntity(projectId, contentUnitConfig, unit.ID)
+    },
+    onSuccess: async () => {
+      if (queryKey) await queryClient.invalidateQueries({ queryKey })
+      await queryClient.invalidateQueries({ queryKey: [contentUnitConfig.kind, projectId] })
+      toast.success('制作项已删除')
+      if (unit) onDeleteUnit?.(unit)
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '制作项删除失败'))
+    },
+  })
+
+  const saveKeyframe = useMutation({
+    mutationFn: async () => {
+      if (!projectId || !selectedKeyframe) throw new Error('缺少关键帧')
+      return updateSemanticEntity(projectId, keyframeConfig, selectedKeyframe.ID, keyframeEditPayload(keyframeDraft))
+    },
+    onSuccess: async (saved) => {
+      if (queryKey) await queryClient.invalidateQueries({ queryKey })
+      await queryClient.invalidateQueries({ queryKey: [keyframeConfig.kind, projectId] })
+      toast.success('关键帧已保存')
+      setSelectedKeyframeId(saved.ID)
+      setKeyframeDraft(keyframeEditDraftFromRecord(saved))
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '关键帧保存失败'))
+    },
+  })
+
+  const deleteKeyframe = useMutation({
+    mutationFn: async (keyframe: WorkbenchRecord) => {
+      if (!projectId) throw new Error('缺少项目')
+      return deleteSemanticEntity(projectId, keyframeConfig, keyframe.ID)
+    },
+    onSuccess: async (_result, keyframe) => {
+      if (queryKey) await queryClient.invalidateQueries({ queryKey })
+      await queryClient.invalidateQueries({ queryKey: [keyframeConfig.kind, projectId] })
+      toast.success('关键帧已删除')
+      const next = keyframes.find((item) => item.ID !== keyframe.ID) ?? null
+      setSelectedKeyframeId(next?.ID ?? null)
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '关键帧删除失败'))
+    },
+  })
+
+  const reorderKeyframe = useMutation({
+    mutationFn: async ({ keyframe, direction }: { keyframe: WorkbenchRecord; direction: 'up' | 'down' }) => {
+      if (!projectId) throw new Error('缺少项目')
+      const ordered = keyframes.slice().sort(byOrder)
+      const index = ordered.findIndex((item) => item.ID === keyframe.ID)
+      const swapIndex = direction === 'up' ? index - 1 : index + 1
+      const swap = ordered[swapIndex]
+      if (index < 0 || !swap) return []
+      const currentOrder = numberOf(keyframe.order) || index + 1
+      const swapOrder = numberOf(swap.order) || swapIndex + 1
+      return Promise.all([
+        updateSemanticEntity(projectId, keyframeConfig, keyframe.ID, { order: swapOrder }),
+        updateSemanticEntity(projectId, keyframeConfig, swap.ID, { order: currentOrder }),
+      ])
+    },
+    onSuccess: async () => {
+      if (queryKey) await queryClient.invalidateQueries({ queryKey })
+      await queryClient.invalidateQueries({ queryKey: [keyframeConfig.kind, projectId] })
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '关键帧顺序更新失败'))
+    },
+  })
+
+  const generateKeyframes = useMutation({
+    mutationFn: async (targets: WorkbenchRecord[]) => {
+      if (!projectId || !unit || !row) throw new Error('缺少制作项上下文')
+      if (!selectedModel) throw new Error('没有可用的图像模型，请先配置图像模型')
+      if (targets.length === 0) return []
+      const modelId = publicModelId(selectedModel)
+      const ordered = keyframes.slice().sort(byOrder)
+      const created: Job[] = []
+      for (const keyframe of targets) {
+        const prompt = buildKeyframeGenerationPrompt({
+          row,
+          unit,
+          keyframe,
+          sequence: ordered,
+        })
+        const response = await api.post<Job>('/jobs', {
+          project_id: projectId,
+          model_id: modelId,
+          job_type: 'image',
+          feature_key: 'ref_image_gen',
+          title: `${titleOfRecord(keyframe)} 关键帧生成`,
+          prompt,
+          aspect_ratio: '16:9',
+          extra_params: JSON.stringify({
+            source: 'content_workbench_keyframe',
+            contentUnitId: unit.ID,
+            content_unit_id: unit.ID,
+            keyframeId: keyframe.ID,
+            keyframe_id: keyframe.ID,
+          }),
+        }).then((r) => r.data)
+        created.push(response)
+      }
+      return created
+    },
+    onSuccess: async (created) => {
+      if (queryKey) await queryClient.invalidateQueries({ queryKey })
+      toast.success(created.length > 1 ? `已创建 ${created.length} 个关键帧生成任务` : '关键帧生成任务已创建')
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '关键帧生成失败'))
+    },
+  })
+
+  function updateDraft(key: keyof ContentUnitEditDraft, value: string) {
+    setDraft((current) => ({ ...current, [key]: value }))
+  }
+
+  function updateKeyframeDraft(key: keyof KeyframeEditDraft, value: string) {
+    setKeyframeDraft((current) => ({ ...current, [key]: value }))
+  }
+
+  function removeUnit() {
+    if (!unit) return
+    if (!window.confirm(`确定删除制作项「${titleOfRecord(unit)}」吗？相关关键帧、素材需求或时间轴引用可能需要后续清理。`)) return
+    deleteUnit.mutate()
+  }
+
+  function removeKeyframe(keyframe: WorkbenchRecord) {
+    if (!window.confirm(`确定删除关键帧「${titleOfRecord(keyframe)}」吗？已生成的候选结果不会自动删除。`)) return
+    deleteKeyframe.mutate(keyframe)
+  }
+
+  if (!row) {
+    return (
+      <div className="min-h-[180px] bg-background p-3" data-testid="content-workbench-unit-edit-cards">
+        <div className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">先选择一个情节</p>
+          <p className="mt-1 text-xs leading-5">内容编辑卡片会跟随情节里的制作项显示。</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!unit) {
+    return (
+      <div className="min-h-[180px] bg-background p-3" data-testid="content-workbench-unit-edit-cards">
+        <div className="rounded-md border border-dashed border-border px-3 py-6 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">选择或创建制作项</p>
+          <p className="mt-1 text-xs leading-5">卡片内会编辑标题、时长、创作目标、prompt、素材和关键帧输入。</p>
+          {row.units.length > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {row.units.slice().sort(byOrder).slice(0, 4).map((item) => (
+                <Button key={item.ID} size="sm" variant="outline" className="h-8" onClick={() => onSelectUnit(item.ID)}>
+                  {titleOfRecord(item)}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button size="sm" className="h-8 gap-1.5" onClick={onCreateUnit}>
+              <Plus size={13} />
+              新建制作项
+            </Button>
+            {onAiSuggest ? (
+              <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={onAiSuggest}>
+                <Sparkles size={13} />
+                让 AI 规划
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-[180px] bg-background p-3" data-testid="content-workbench-unit-edit-cards">
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(300px,.95fr)]">
+        <section className="rounded-md border border-border bg-card p-3" data-testid="content-workbench-edit-summary-card">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={statusVariant(workStatus)}>{statusLabel(workStatus)}</Badge>
+                <Badge variant="outline">{trackKindLabel(String(unit.kind ?? ''))}</Badge>
+                <Badge variant={requiresKeyframe ? 'secondary' : 'outline'}>{requiresKeyframe ? `${keyframes.length} 关键帧` : '无需关键帧'}</Badge>
+              </div>
+              <h3 className="mt-2 truncate text-sm font-semibold text-foreground">{titleOfRecord(unit)}</h3>
+              <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+                {firstText(unit.__scene_moment_title, row.title)} · {formatDuration(numberOf(unit.duration_sec))}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5 text-destructive hover:text-destructive"
+                disabled={!projectId || deleteUnit.isPending || saveUnit.isPending}
+                loading={deleteUnit.isPending}
+                onClick={removeUnit}
+                data-testid="content-workbench-unit-edit-delete"
+              >
+                <Trash2 size={13} />
+                删除
+              </Button>
+              <Button
+                size="sm"
+                className="h-8 gap-1.5"
+                disabled={unchanged || saveUnit.isPending || deleteUnit.isPending || !projectId}
+                loading={saveUnit.isPending}
+                onClick={() => saveUnit.mutate()}
+                data-testid="content-workbench-unit-edit-save"
+              >
+                <CheckCircle2 size={13} />
+                保存
+              </Button>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_112px]">
+            <div className="space-y-1.5">
+              <Label htmlFor={`content-unit-title-${unit.ID}`} className="text-xs">标题</Label>
+              <Input id={`content-unit-title-${unit.ID}`} value={draft.title} onChange={(event) => updateDraft('title', event.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`content-unit-duration-${unit.ID}`} className="text-xs">时长秒</Label>
+              <Input id={`content-unit-duration-${unit.ID}`} type="number" min="0" value={draft.duration_sec} onChange={(event) => updateDraft('duration_sec', event.target.value)} />
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <ContentUnitEditSelect label="景别" value={draft.shot_size} options={contentUnitEditShotSizeOptions} onChange={(value) => updateDraft('shot_size', value)} />
+            <ContentUnitEditSelect label="机位角度" value={draft.camera_angle} options={contentUnitEditCameraAngleOptions} onChange={(value) => updateDraft('camera_angle', value)} />
+            <ContentUnitEditSelect label="运镜方式" value={draft.camera_motion} options={contentUnitEditCameraMotionOptions} onChange={(value) => updateDraft('camera_motion', value)} />
+            <ContentUnitEditSelect label="状态" value={draft.status} options={contentUnitEditStatusOptions} onChange={(value) => updateDraft('status', value)} />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {blockers.length > 0 ? blockers.map((item) => (
+              <Badge key={item} variant="warning">{item}</Badge>
+            )) : <Badge variant="success">核心输入可用</Badge>}
+          </div>
+        </section>
+
+        <section className="rounded-md border border-border bg-card p-3" data-testid="content-workbench-edit-inputs-card">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-foreground">生成输入</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">调度图、故事板、关键帧、素材需求和生成画布都绑定到当前制作项。</p>
+            </div>
+            <Badge variant={missingSlots.length > 0 ? 'warning' : 'success'}>{assetSlots.length} 素材 / {missingSlots.length} 缺口</Badge>
+          </div>
+          <div className="mt-3 grid gap-2" data-testid="content-workbench-generation-input-cards">
+            <ContentUnitGenerationInputCard
+              testId="content-workbench-blocking-input-card"
+              icon={Route}
+              title="调度图"
+              badge={requiresKeyframe ? '可选输入' : '非视觉项'}
+              badgeVariant={requiresKeyframe ? 'outline' : 'secondary'}
+              detail={requiresKeyframe ? '空间、相机路径、人物、道具、光位和停点。' : '当前制作项不强制调度图。'}
+              status="待创建"
+              tone="default"
+              onOpen={() => setActiveInputDrawer('blocking')}
+            />
+            <ContentUnitGenerationInputCard
+              testId="content-workbench-storyboard-input-card"
+              icon={Clapperboard}
+              title="故事板"
+              badge="可选输入"
+              badgeVariant="outline"
+              detail="单张叙事确认图，用于先判断画面是否讲对。"
+              status="待创建"
+              tone="default"
+              onOpen={() => setActiveInputDrawer('storyboard')}
+            />
+            <ContentUnitGenerationInputCard
+              testId="content-workbench-keyframe-input-card"
+              icon={Image}
+              title="关键帧"
+              badge={requiresKeyframe ? `${keyframes.length} 帧` : '非必需'}
+              badgeVariant={requiresKeyframe && keyframes.length === 0 ? 'warning' : 'success'}
+              detail={keyframes[0] ? keyframes.slice(0, 2).map(titleOfRecord).join('、') : requiresKeyframe ? '建议补首帧和尾帧。' : '当前类型不强制关键帧。'}
+              status={keyframes.length > 0 ? '已有锚点' : '待创建'}
+              tone={requiresKeyframe && keyframes.length === 0 ? 'warning' : 'success'}
+              onOpen={() => setActiveInputDrawer('keyframes')}
+              action={onCreateKeyframe ? (
+                <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={onCreateKeyframe}>
+                  <Plus size={13} />
+                  添加
+                </Button>
+              ) : undefined}
+            />
+            <ContentUnitGenerationInputCard
+              testId="content-workbench-asset-input-card"
+              icon={PackageCheck}
+              title="素材需求"
+              badge={`${assetSlots.length} 项`}
+              badgeVariant={missingSlots.length > 0 ? 'warning' : 'success'}
+              detail={missingSlots[0] ? `优先补齐：${titleOfRecord(missingSlots[0])}` : '没有显性素材缺口。'}
+              status={missingSlots.length > 0 ? `${missingSlots.length} 缺口` : '可用'}
+              tone={missingSlots.length > 0 ? 'warning' : 'success'}
+              onOpen={() => setActiveInputDrawer('generation')}
+              action={(
+                <span className="flex flex-wrap gap-2">
+                  {missingSlots.length > 0 && onUploadMissingAssets ? (
+                    <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={onUploadMissingAssets}>
+                      <Upload size={13} />
+                      上传
+                    </Button>
+                  ) : null}
+                  {onCreateAssetSlot ? (
+                    <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={onCreateAssetSlot}>
+                      <Plus size={13} />
+                      添加
+                    </Button>
+                  ) : null}
+                </span>
+              )}
+            />
+            <ContentUnitGenerationInputCard
+              testId="content-workbench-canvas-input-card"
+              icon={Play}
+              title="生成画布"
+              badge="执行"
+              badgeVariant="secondary"
+              detail="把当前制作项和已补输入带入生成流程。"
+              status="可打开"
+              tone="default"
+              onOpen={() => setActiveInputDrawer('generation')}
+              action={onOpenCanvas ? (
+                <Button size="sm" className="h-8 gap-1.5" onClick={onOpenCanvas}>
+                  <Play size={13} />
+                  打开
+                </Button>
+              ) : undefined}
+            />
+          </div>
+        </section>
+
+        <section className="rounded-md border border-border bg-muted/20 p-3 xl:col-span-2" data-testid="content-workbench-input-drawer">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">输入抽屉</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">在当前制作项内切换生成、关键帧、故事板和调度图，不打断上方内容编辑。</p>
+            </div>
+            <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="制作项输入类型">
+              {[
+                { key: 'generation', label: '生成' },
+                { key: 'keyframes', label: '关键帧' },
+                { key: 'storyboard', label: '故事板' },
+                { key: 'blocking', label: '调度图' },
+              ].map((tab) => (
+                <Button
+                  key={tab.key}
+                  type="button"
+                  size="sm"
+                  variant={activeInputDrawer === tab.key ? 'secondary' : 'ghost'}
+                  className="h-8"
+                  role="tab"
+                  aria-selected={activeInputDrawer === tab.key}
+                  data-testid={`content-workbench-input-drawer-tab-${tab.key}`}
+                  onClick={() => setActiveInputDrawer(tab.key as ContentUnitInputDrawerTab)}
+                >
+                  {tab.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-md border border-border bg-card p-3" data-testid={`content-workbench-input-drawer-panel-${activeInputDrawer}`}>
+            {activeInputDrawer === 'generation' ? (
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+                <div>
+                  <p className="text-xs font-medium text-foreground">生成准备</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    {blockers.length > 0 ? `先处理：${blockers.join('、')}` : '当前制作项已有可进入生成的核心输入。'}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <Badge variant={hasPrompt ? 'success' : 'warning'}>{hasPrompt ? '有提示' : '缺提示'}</Badge>
+                    <Badge variant={missingSlots.length > 0 ? 'warning' : 'success'}>{missingSlots.length > 0 ? `${missingSlots.length} 素材缺口` : '素材可用'}</Badge>
+                    <Badge variant={requiresKeyframe && keyframes.length === 0 ? 'warning' : 'success'}>{requiresKeyframe ? `${keyframes.length} 关键帧` : '无需关键帧'}</Badge>
+                  </div>
+                </div>
+                {onOpenCanvas ? (
+                  <Button size="sm" className="h-8 gap-1.5 self-start" onClick={onOpenCanvas}>
+                    <Play size={13} />
+                    打开生成画布
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+
+            {activeInputDrawer === 'keyframes' ? (
+              <div className="grid gap-3 lg:grid-cols-[minmax(240px,.8fr)_minmax(0,1.2fr)]" data-testid="content-workbench-keyframe-editor">
+                <div className="min-w-0 rounded-md border border-border bg-background">
+                  <div className="flex items-center justify-between gap-2 border-b border-border px-2.5 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium text-foreground">关键帧列表</p>
+                      <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                        {keyframes.length > 0 ? `${keyframes.length} 帧按顺序生成` : requiresKeyframe ? '建议先补首帧、尾帧。' : '可选画面输入'}
+                      </p>
+                    </div>
+                    {onCreateKeyframe ? (
+                      <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={onCreateKeyframe}>
+                        <Plus size={13} />
+                        添加
+                      </Button>
+                    ) : null}
+                  </div>
+                  <div className="max-h-[320px] space-y-1 overflow-auto p-2" data-testid="content-workbench-keyframe-list">
+                    {keyframes.length > 0 ? keyframes.map((keyframe, index) => {
+                      const active = selectedKeyframe?.ID === keyframe.ID
+                      const latestJob = latestKeyframeGenerationJob(jobs, keyframe)
+                      const outputResourceId = keyframeOutputResourceId(keyframe, jobs)
+                      const running = keyframeHasRunningJob(keyframe, jobs)
+                      return (
+                        <button
+                          key={keyframe.ID}
+                          type="button"
+                          className={cn(
+                            'grid w-full grid-cols-[28px_minmax(0,1fr)_auto] items-start gap-2 rounded-md border px-2 py-1.5 text-left transition-colors',
+                            active ? 'border-primary/60 bg-primary/5' : 'border-border bg-card hover:bg-primary/5',
+                          )}
+                          onClick={() => setSelectedKeyframeId(keyframe.ID)}
+                          data-testid="content-workbench-keyframe-list-row"
+                        >
+                          <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded bg-muted text-[10px] font-medium tabular-nums text-muted-foreground">
+                            {outputResourceId > 0 ? (
+                              <AuthedImage src={resourceFileUrl(outputResourceId)} alt={titleOfRecord(keyframe)} className="h-full w-full object-cover" />
+                            ) : String(index + 1).padStart(2, '0')}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-xs font-medium text-foreground">{keyframeDisplayTitle(keyframe)}</span>
+                            <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{firstText(keyframe.prompt, keyframe.description, '暂无提示词')}</span>
+                          </span>
+                          <span className="flex flex-col items-end gap-1">
+                            <Badge variant={running ? 'secondary' : outputResourceId > 0 ? 'success' : latestJob?.status === 'failed' ? 'danger' : 'outline'}>
+                              {running ? '生成中' : outputResourceId > 0 ? '有结果' : latestJob?.status === 'failed' ? '失败' : '待生成'}
+                            </Badge>
+                          </span>
+                        </button>
+                      )
+                    }) : (
+                      <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-xs leading-5 text-muted-foreground">
+                        当前制作项还没有关键帧。先添加首帧或尾帧，再逐帧生成。
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="min-w-0 rounded-md border border-border bg-background p-2.5">
+                  {selectedKeyframe ? (
+                    <div className="space-y-3" data-testid="content-workbench-keyframe-detail">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-foreground">当前关键帧</p>
+                          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                            {keyframeGenerationStatusLabel(selectedKeyframe, jobs)}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 w-8 px-0"
+                            title="上移关键帧"
+                            aria-label="上移关键帧"
+                            disabled={reorderKeyframe.isPending || keyframes[0]?.ID === selectedKeyframe.ID}
+                            onClick={() => reorderKeyframe.mutate({ keyframe: selectedKeyframe, direction: 'up' })}
+                          >
+                            <ArrowUp size={13} />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 w-8 px-0"
+                            title="下移关键帧"
+                            aria-label="下移关键帧"
+                            disabled={reorderKeyframe.isPending || keyframes[keyframes.length - 1]?.ID === selectedKeyframe.ID}
+                            onClick={() => reorderKeyframe.mutate({ keyframe: selectedKeyframe, direction: 'down' })}
+                          >
+                            <ArrowDown size={13} />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-1.5 text-destructive hover:text-destructive"
+                            disabled={deleteKeyframe.isPending || saveKeyframe.isPending}
+                            loading={deleteKeyframe.isPending}
+                            onClick={() => removeKeyframe(selectedKeyframe)}
+                            data-testid="content-workbench-keyframe-delete"
+                          >
+                            <Trash2 size={13} />
+                            删除
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="h-8 gap-1.5"
+                            disabled={keyframeUnchanged || saveKeyframe.isPending || deleteKeyframe.isPending}
+                            loading={saveKeyframe.isPending}
+                            onClick={() => saveKeyframe.mutate()}
+                            data-testid="content-workbench-keyframe-save"
+                          >
+                            <CheckCircle2 size={13} />
+                            保存
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-2 sm:grid-cols-[140px_minmax(0,1fr)_96px_128px]">
+                        <ContentUnitEditSelect label="分类" value={keyframeDraft.frame_role} options={keyframeFrameRoleOptions} onChange={(value) => updateKeyframeDraft('frame_role', value)} />
+                        <div className="space-y-1.5">
+                          <Label htmlFor={`keyframe-title-${selectedKeyframe.ID}`} className="text-xs">标题（可选）</Label>
+                          <Input id={`keyframe-title-${selectedKeyframe.ID}`} value={keyframeDraft.title} placeholder={`${keyframeFrameRoleLabel(keyframeDraft.frame_role)} · ${titleOfRecord(unit)}`} onChange={(event) => updateKeyframeDraft('title', event.target.value)} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor={`keyframe-order-${selectedKeyframe.ID}`} className="text-xs">顺序</Label>
+                          <Input id={`keyframe-order-${selectedKeyframe.ID}`} type="number" min="1" value={keyframeDraft.order} onChange={(event) => updateKeyframeDraft('order', event.target.value)} />
+                        </div>
+                        <ContentUnitEditSelect label="状态" value={keyframeDraft.status} options={keyframeEditStatusOptions} onChange={(value) => updateKeyframeDraft('status', value)} />
+                      </div>
+
+                      <div className="grid gap-2 lg:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label htmlFor={`keyframe-description-${selectedKeyframe.ID}`} className="text-xs">画面描述</Label>
+                          <Textarea
+                            id={`keyframe-description-${selectedKeyframe.ID}`}
+                            className="min-h-[96px]"
+                            value={keyframeDraft.description}
+                            placeholder="描述这一帧的叙事状态、人物动作、空间关系和画面重点。"
+                            onChange={(event) => updateKeyframeDraft('description', event.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor={`keyframe-prompt-${selectedKeyframe.ID}`} className="text-xs">生成提示词</Label>
+                          <Textarea
+                            id={`keyframe-prompt-${selectedKeyframe.ID}`}
+                            className="min-h-[96px]"
+                            value={keyframeDraft.prompt}
+                            placeholder="写给图像模型的关键帧提示词，包含风格、构图、角色一致性和负向约束。"
+                            onChange={(event) => updateKeyframeDraft('prompt', event.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-end justify-between gap-2 rounded-md border border-border bg-card p-2.5">
+                        <div className="min-w-[220px] flex-1 space-y-1.5">
+                          <Label htmlFor={`keyframe-model-${selectedKeyframe.ID}`} className="text-xs">图像模型</Label>
+                          <select
+                            id={`keyframe-model-${selectedKeyframe.ID}`}
+                            className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            value={keyframeModelId}
+                            onChange={(event) => setKeyframeModelId(event.target.value)}
+                            disabled={imageModels.length === 0}
+                          >
+                            {imageModels.length > 0 ? imageModels.map((model) => (
+                              <option key={publicModelId(model)} value={publicModelId(model)}>{publicModelLabel(model)}</option>
+                            )) : <option value="">没有可用图像模型</option>}
+                          </select>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-1.5"
+                            disabled={unfinishedKeyframes.length === 0 || generateKeyframes.isPending || !selectedModel}
+                            loading={generateKeyframes.isPending && unfinishedKeyframes.length > 1}
+                            onClick={() => generateKeyframes.mutate(unfinishedKeyframes)}
+                            data-testid="content-workbench-keyframe-generate-missing"
+                          >
+                            <Play size={13} />
+                            生成未完成
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="h-8 gap-1.5"
+                            disabled={generateKeyframes.isPending || !selectedModel}
+                            loading={generateKeyframes.isPending}
+                            onClick={() => generateKeyframes.mutate([selectedKeyframe])}
+                            data-testid="content-workbench-keyframe-generate-one"
+                          >
+                            <Play size={13} />
+                            生成当前帧
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-dashed border-border px-3 py-8 text-center text-xs leading-5 text-muted-foreground">
+                      选择一个关键帧后，可以编辑提示词、删除、排序或逐帧生成。
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {activeInputDrawer === 'storyboard' ? (
+              <div>
+                <p className="text-xs font-medium text-foreground">故事板</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {firstText(draft.description, draft.prompt, '先用单张叙事确认图验证画面讲述是否正确，再推进关键帧和生成。')}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Badge variant="outline">待创建</Badge>
+                  <Badge variant={hasPrompt ? 'success' : 'warning'}>{hasPrompt ? '可从提示生成' : '需要补目标'}</Badge>
+                </div>
+              </div>
+            ) : null}
+
+            {activeInputDrawer === 'blocking' ? (
+              <div>
+                <p className="text-xs font-medium text-foreground">调度图</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  用来标记空间关系、相机路径、人物停点、道具和光位。它和关键帧兼容：调度图回答“怎么走”，关键帧回答“长什么样”。
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Badge variant="outline">待创建</Badge>
+                  <Badge variant={requiresKeyframe ? 'secondary' : 'outline'}>{requiresKeyframe ? '适合视觉单元' : '可选输入'}</Badge>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="rounded-md border border-border bg-card p-3 xl:col-span-2" data-testid="content-workbench-edit-goal-card">
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor={`content-unit-description-${unit.ID}`} className="text-xs">要做什么</Label>
+              <Textarea
+                id={`content-unit-description-${unit.ID}`}
+                className="min-h-[120px]"
+                value={draft.description}
+                placeholder="描述这个内容单元要完成的叙事、动作、信息或声音目标。"
+                onChange={(event) => updateDraft('description', event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`content-unit-prompt-${unit.ID}`} className="text-xs">创作提示</Label>
+              <Textarea
+                id={`content-unit-prompt-${unit.ID}`}
+                className="min-h-[120px]"
+                value={draft.prompt}
+                placeholder="写给生成模型的提示词，包含画面、动作、风格、限制和参考。"
+                onChange={(event) => updateDraft('prompt', event.target.value)}
+              />
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function ContentUnitEditSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string
+  value: string
+  options: Array<{ value: string; label: string }>
+  onChange: (value: string) => void
+}) {
+  const unsetValue = '__unset'
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs">{label}</Label>
+      <Select value={value || unsetValue} onValueChange={(next) => onChange(next === unsetValue ? '' : next)}>
+        <SelectTrigger className="h-9">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option.value || 'unset'} value={option.value || unsetValue}>{option.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
+function ContentUnitGenerationInputCard({
+  testId,
+  icon: Icon,
+  title,
+  badge,
+  badgeVariant,
+  detail,
+  status,
+  tone,
+  action,
+  onOpen,
+}: {
+  testId: string
+  icon: LucideIcon
+  title: string
+  badge: string
+  badgeVariant: 'outline' | 'secondary' | 'success' | 'warning'
+  detail: string
+  status: string
+  tone: 'default' | 'success' | 'warning'
+  action?: ReactNode
+  onOpen?: () => void
+}) {
+  return (
+    <div
+      className={cn(
+        'grid grid-cols-[28px_minmax(0,1fr)_auto] items-start gap-2 rounded-md border border-border bg-background px-2.5 py-2 transition-colors',
+        onOpen ? 'cursor-pointer hover:border-primary/50 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : '',
+      )}
+      role={onOpen ? 'button' : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      aria-label={onOpen ? `打开${title}` : undefined}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (!onOpen) return
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onOpen()
+        }
+      }}
+      data-testid={testId}
+    >
+      <span className={cn(
+        'inline-flex h-7 w-7 items-center justify-center rounded-md',
+        tone === 'warning'
+          ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
+          : tone === 'success'
+            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+            : 'bg-muted text-muted-foreground',
+      )}>
+        <Icon size={14} />
+      </span>
+      <span className="min-w-0">
+        <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <span className="text-xs font-medium text-foreground">{title}</span>
+          <Badge variant={badgeVariant} className="text-[10px]">{badge}</Badge>
+        </span>
+        <span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{detail}</span>
+      </span>
+      <span className="flex max-w-[128px] flex-col items-end gap-2" onClick={(event) => event.stopPropagation()}>
+        <Badge variant={tone === 'warning' ? 'warning' : tone === 'success' ? 'success' : 'outline'}>{status}</Badge>
+        {action}
+      </span>
+    </div>
+  )
+}
+
+function contentUnitEditDraftFromRecord(unit?: WorkbenchRecord | null): ContentUnitEditDraft {
+  return {
+    title: firstText(unit?.title),
+    duration_sec: unit?.duration_sec === undefined || unit?.duration_sec === null ? '' : String(unit.duration_sec),
+    description: firstText(unit?.description),
+    prompt: firstText(unit?.prompt),
+    shot_size: firstText(unit?.shot_size),
+    camera_angle: firstText(unit?.camera_angle),
+    camera_motion: firstText(unit?.camera_motion),
+    status: firstText(unit?.status, 'candidate'),
+  }
+}
+
+function contentUnitEditDraftEqualsRecord(draft: ContentUnitEditDraft, unit: WorkbenchRecord) {
+  const original = contentUnitEditDraftFromRecord(unit)
+  return Object.keys(original).every((key) => {
+    const field = key as keyof ContentUnitEditDraft
+    return firstText(original[field]) === firstText(draft[field])
+  })
+}
+
+function contentUnitEditPayload(draft: ContentUnitEditDraft): SemanticEntityPayload {
+  const duration = Number(draft.duration_sec)
+  return {
+    title: firstText(draft.title, '未命名制作项'),
+    duration_sec: Number.isFinite(duration) && duration > 0 ? duration : null,
+    description: draft.description,
+    prompt: draft.prompt,
+    shot_size: draft.shot_size,
+    camera_angle: draft.camera_angle,
+    camera_motion: draft.camera_motion,
+    status: firstText(draft.status, 'candidate'),
+  }
+}
+
+function keyframeEditDraftFromRecord(keyframe?: WorkbenchRecord | null): KeyframeEditDraft {
+  return {
+    frame_role: keyframeFrameRoleFromRecord(keyframe),
+    title: firstText(keyframe?.title),
+    order: keyframe?.order === undefined || keyframe?.order === null ? '' : String(keyframe.order),
+    description: firstText(keyframe?.description),
+    prompt: firstText(keyframe?.prompt),
+    status: firstText(keyframe?.status, 'candidate'),
+    metadata_json: firstText(keyframe?.metadata_json),
+  }
+}
+
+function keyframeEditDraftEqualsRecord(draft: KeyframeEditDraft, keyframe: WorkbenchRecord) {
+  const original = keyframeEditDraftFromRecord(keyframe)
+  return Object.keys(original).every((key) => {
+    const field = key as keyof KeyframeEditDraft
+    return firstText(original[field]) === firstText(draft[field])
+  })
+}
+
+function keyframeEditPayload(draft: KeyframeEditDraft): SemanticEntityPayload {
+  const order = Number(draft.order)
+  const role = normalizeKeyframeFrameRole(draft.frame_role, 'middle')
+  return {
+    title: firstText(draft.title, keyframeFrameRoleLabel(role)),
+    order: Number.isFinite(order) && order > 0 ? order : null,
+    description: draft.description,
+    prompt: draft.prompt,
+    status: firstText(draft.status, 'candidate'),
+    metadata_json: JSON.stringify(mergeMetadataJSON(draft.metadata_json, {
+      frame_role: role,
+      frame_role_label: keyframeFrameRoleLabel(role),
+    })),
+  }
+}
+
+const contentUnitEditShotSizeOptions = [
+  { value: '', label: '未指定' },
+  { value: 'extreme_wide', label: '大远景' },
+  { value: 'wide', label: '远景' },
+  { value: 'full', label: '全景' },
+  { value: 'medium', label: '中景' },
+  { value: 'medium_close', label: '中近景' },
+  { value: 'close_up', label: '近景' },
+  { value: 'extreme_close_up', label: '特写' },
+  { value: 'detail', label: '细节' },
+]
+
+const contentUnitEditCameraAngleOptions = [
+  { value: '', label: '未指定' },
+  { value: 'eye_level', label: '平视' },
+  { value: 'high_angle', label: '俯拍' },
+  { value: 'low_angle', label: '仰拍' },
+  { value: 'top_down', label: '顶拍' },
+  { value: 'dutch_angle', label: '倾斜角' },
+  { value: 'over_shoulder', label: '过肩' },
+  { value: 'pov', label: '主观视角' },
+]
+
+const contentUnitEditCameraMotionOptions = [
+  { value: '', label: '未指定' },
+  { value: 'static', label: '固定镜头' },
+  { value: 'pan', label: '摇镜' },
+  { value: 'tilt', label: '俯仰' },
+  { value: 'dolly_in', label: '推进' },
+  { value: 'dolly_out', label: '拉远' },
+  { value: 'truck_left', label: '左移' },
+  { value: 'truck_right', label: '右移' },
+  { value: 'tracking', label: '跟拍' },
+  { value: 'orbit', label: '环绕' },
+  { value: 'crane', label: '升降' },
+  { value: 'handheld', label: '手持' },
+  { value: 'zoom', label: '变焦' },
+]
+
+const contentUnitEditStatusOptions = [
+  { value: 'draft', label: '草稿' },
+  { value: 'candidate', label: '候选' },
+  { value: 'confirmed', label: '已确认' },
+  { value: 'in_production', label: '生产中' },
+  { value: 'locked', label: '已锁定' },
+]
+
+const keyframeEditStatusOptions = [
+  { value: 'draft', label: '草稿' },
+  { value: 'candidate', label: '候选' },
+  { value: 'generated', label: '已生成' },
+  { value: 'attached', label: '已挂载' },
+  { value: 'accepted', label: '已采纳' },
+  { value: 'rejected', label: '已拒绝' },
+]
+
+function buildKeyframeGenerationPrompt({
+  row,
+  unit,
+  keyframe,
+  sequence,
+}: {
+  row: ContentGenerationMomentRow
+  unit: WorkbenchRecord
+  keyframe: WorkbenchRecord
+  sequence: WorkbenchRecord[]
+}) {
+  const index = Math.max(0, sequence.findIndex((item) => item.ID === keyframe.ID))
+  const prev = sequence[index - 1]
+  const next = sequence[index + 1]
+  return [
+    `生成影视关键帧：${titleOfRecord(keyframe)}。`,
+    `所属制作项：${titleOfRecord(unit)}。${firstText(unit.prompt, unit.description)}`,
+    `当前情节：${row.title}。${firstText(row.moment.action_text, row.moment.description, row.moment.location_text, row.moment.time_text)}`,
+    `关键帧要求：${firstText(keyframe.prompt, keyframe.description, titleOfRecord(keyframe))}`,
+    prev ? `前一帧连续性：${titleOfRecord(prev)}，${firstText(prev.prompt, prev.description)}` : '',
+    next ? `后一帧连续性：${titleOfRecord(next)}，${firstText(next.prompt, next.description)}` : '',
+    firstText(unit.shot_size, unit.camera_angle, unit.camera_motion) ? `镜头参数：${[unit.shot_size, unit.camera_angle, unit.camera_motion].filter(Boolean).join(' / ')}` : '',
+    '保持同一场景、同一人物状态、同一服装和道具连续性；只输出单张画面，不要字幕、水印或拼贴。',
+  ].filter(Boolean).join('\n')
+}
+
+function latestKeyframeGenerationJob(jobs: Job[], keyframe: WorkbenchRecord) {
+  return jobs
+    .filter((job) => jobReferencesKeyframe(job, keyframe.ID))
+    .slice()
+    .sort((a, b) => Date.parse(b.UpdatedAt ?? b.CreatedAt ?? '') - Date.parse(a.UpdatedAt ?? a.CreatedAt ?? ''))[0] ?? null
+}
+
+function keyframeOutputResourceId(keyframe: WorkbenchRecord, jobs: Job[]) {
+  const direct = numberOf(keyframe.resource_id)
+  if (direct > 0) return direct
+  const latest = latestKeyframeGenerationJob(jobs, keyframe)
+  if (!latest || latest.status !== 'succeeded') return 0
+  const output = numberOf(latest.output_resource_id)
+  if (output > 0) return output
+  const outputs = Array.isArray(latest.output_resource_ids) ? latest.output_resource_ids : []
+  return numberOf(outputs[0])
+}
+
+function keyframeHasOutput(keyframe: WorkbenchRecord, jobs: Job[]) {
+  return keyframeOutputResourceId(keyframe, jobs) > 0
+}
+
+function keyframeHasRunningJob(keyframe: WorkbenchRecord, jobs: Job[]) {
+  return jobs.some((job) => jobReferencesKeyframe(job, keyframe.ID) && (job.status === 'pending' || job.status === 'running'))
+}
+
+function keyframeGenerationStatusLabel(keyframe: WorkbenchRecord, jobs: Job[]) {
+  const latest = latestKeyframeGenerationJob(jobs, keyframe)
+  const output = keyframeOutputResourceId(keyframe, jobs)
+  if (output > 0) return `已有生成结果 #${output}`
+  if (!latest) return '还没有生成任务'
+  if (latest.status === 'pending' || latest.status === 'running') return `任务 #${latest.ID} ${latest.status === 'pending' ? '排队中' : '生成中'}`
+  if (latest.status === 'failed') return `任务 #${latest.ID} 失败：${firstText(latest.error_msg, '可重新生成')}`
+  if (latest.status === 'cancelled') return `任务 #${latest.ID} 已取消`
+  return `任务 #${latest.ID} ${latest.status}`
+}
+
+function jobReferencesKeyframe(job: Job, keyframeId: number) {
+  return [job.extra_params, job.request_context].some((value) => jsonRecordReferencesKeyframe(parseJsonRecord(value), keyframeId))
+}
+
+function jsonRecordReferencesKeyframe(value: unknown, keyframeId: number): boolean {
+  if (Array.isArray(value)) return value.some((item) => jsonRecordReferencesKeyframe(item, keyframeId))
+  if (!value || typeof value !== 'object') return false
+  const record = value as Record<string, unknown>
+  if (numberOf(record.keyframeId ?? record.keyframe_id ?? record.targetKeyframeId ?? record.target_keyframe_id) === keyframeId) return true
+  return Object.values(record).some((item) => jsonRecordReferencesKeyframe(item, keyframeId))
+}
+
+function parseJsonRecord(value: unknown) {
+  if (!value) return null
+  if (typeof value === 'object') return value
+  if (typeof value !== 'string' || !value.trim()) return null
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
 }
 
 function formatTrackTimeRange(startSec: number, endSec: number, durationSec: number) {
@@ -4746,6 +6159,7 @@ function ContentGenerationWorkbench() {
   const sceneMomentFilterOptions = useMemo(() => visibleRows.map((row) => ({
     value: row.id,
     label: row.title,
+    identifier: sceneIdentifier(row.moment) || `#${row.moment.ID}`,
     count: row.units.length,
   })), [visibleRows])
 
@@ -4805,12 +6219,11 @@ function ContentGenerationWorkbench() {
     }, { replace: true })
   }, [linkedContentUnitId, linkedSceneMomentId, selected, setSearchParams])
 
-  const fallbackSelectedUnit = selected?.units.find((unit) => firstText(unit.prompt, unit.description)) ?? selected?.units[0] ?? null
   const selectedUnitFromRows = selected?.units.find((unit) => unit.ID === selectedUnitId) ?? null
   const optimisticUnitForSelection = optimisticSelectedUnit && selectedUnitId === optimisticSelectedUnit.ID && selected?.moment.ID === Number(optimisticSelectedUnit.scene_moment_id)
     ? optimisticSelectedUnit
     : null
-  const selectedUnit = selectedUnitFromRows ?? optimisticUnitForSelection ?? (selectedUnitId ? null : fallbackSelectedUnit)
+  const selectedUnit = selectedUnitFromRows ?? optimisticUnitForSelection ?? null
   const selectedProduction = selected?.productionIds[0]
     ? data?.productions.find((production) => production.ID === selected.productionIds[0])
     : null
@@ -5006,18 +6419,21 @@ function ContentGenerationWorkbench() {
   const selectedKeyframeSequence = selected ? buildMomentKeyframeSequence(selected) : []
   const keyframeConfig = useMemo(() => semanticEntityConfig('keyframes'), [])
   const assetSlotConfig = useMemo(() => semanticEntityConfig('assetSlots'), [])
-  const nextKeyframeRole = frameRoleLabel(selectedUnitKeyframes.length, selectedUnitKeyframes.length + 1)
+  const nextKeyframeRole = nextKeyframeFrameRole(selectedUnitKeyframes)
   const keyframeDefaults = useMemo<Partial<SemanticEntityPayload> | undefined>(() => {
     if (!selected || !selectedUnit) return undefined
     return {
       production_id: nullableNumber(selectedUnit.production_id ?? selected.segment?.production_id ?? selected.moment.production_id ?? selected.productionIds[0]),
       scene_moment_id: selected.moment.ID,
       content_unit_id: selectedUnit.ID,
-      title: `${nextKeyframeRole} · ${titleOfRecord(selectedUnit)}`,
-      order: selectedUnitKeyframes.length + 1,
+      order: keyframeOrderForRole(nextKeyframeRole, selectedUnitKeyframes),
       status: 'candidate',
+      metadata_json: JSON.stringify({
+        frame_role: nextKeyframeRole,
+        frame_role_label: keyframeFrameRoleLabel(nextKeyframeRole),
+      }),
     }
-  }, [nextKeyframeRole, selected, selectedUnit, selectedUnitKeyframes.length])
+  }, [nextKeyframeRole, selected, selectedUnit, selectedUnitKeyframes])
   const assetSlotDefaults = useMemo<Partial<SemanticEntityPayload> | undefined>(() => {
     if (!selected || !selectedUnit) return undefined
     return {
@@ -5166,6 +6582,8 @@ function ContentGenerationWorkbench() {
   const totalUnitCount = visibleRows.reduce((sum, row) => sum + row.units.length, 0)
   const totalKeyframeCount = visibleRows.reduce((sum, row) => sum + row.keyframes.length, 0)
   const totalMissingSlotCount = visibleRows.reduce((sum, row) => sum + row.missingSlots.length, 0)
+  const projectReferenceCount = (data?.creativeReferences ?? []).filter(isVisibleWorkbenchRecord).length
+  const projectAssetSlotCount = (data?.assetSlots ?? []).filter((slot) => slot.owner_type !== 'asset_slot' && isVisibleWorkbenchRecord(slot)).length
   const runningJobCount = data?.jobs.filter((job) => job.status === 'pending' || job.status === 'running').length ?? 0
   const completedJobCount = data?.jobs.filter((job) => job.status === 'succeeded').length ?? 0
   const selectedProductionIdSet = new Set(selected?.productionIds ?? [])
@@ -5560,7 +6978,7 @@ function ContentGenerationWorkbench() {
       : selected ? selected.title : '暂无情节'
   const contentWorkbenchViewDetail = scopeLevel === 'scene_moment' && selected
     ? selected.scope
-    : `${visibleRows.length} 个情节 · ${totalUnitCount} 个制作项 · ${totalKeyframeCount} 个关键帧 · ${totalMissingSlotCount} 个缺口`
+    : `${visibleRows.length} 个情节 · ${totalUnitCount} 个制作项 · ${projectReferenceCount} 个设定 · ${projectAssetSlotCount} 个素材 · ${totalKeyframeCount} 个关键帧 · ${totalMissingSlotCount} 个缺口`
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
@@ -5681,12 +7099,9 @@ function ContentGenerationWorkbench() {
                         row={selected}
                         selectedUnit={selectedUnit}
                         keyframes={selectedUnitKeyframes}
-                        missingSlots={selectedUnitMissingSlots}
                         previewItemCount={selectedPreviewItemCount}
                         runningJobCount={selectedUnitRunningJobCount}
-                        onSelectUnit={(unitId) => selectContentUnitFromRow(selected, unitId)}
-                        onEditUnit={() => openEditSelectedUnit()}
-                        onOpenCanvas={openSelectedUnitCanvas}
+                        onSelectUnit={(unitId) => selectContentUnitFromRow(selected, selectedUnit?.ID === unitId ? null : unitId)}
                       />
                     </div>
 
@@ -5698,6 +7113,10 @@ function ContentGenerationWorkbench() {
                         onCreateUnit={() => openCreateUnitForRow(selected)}
                         onAiSuggest={() => openAiSuggest(selected)}
                         onSelectFirstMoment={selectFirstSceneMoment}
+                        onCreateAssetSlot={openCreateAssetSlot}
+                        onCreateKeyframe={openCreateKeyframe}
+                        onOpenCanvas={openSelectedUnitCanvas}
+                        onUploadMissingAssets={triggerCandidateUpload}
                         onReorderUnit={(draggedUnitId, targetUnitId, position) => {
                           if (reorderContentUnits.isPending) return
                           reorderContentUnits.mutate({ row: selected, draggedUnitId, targetUnitId, position })
@@ -5706,6 +7125,12 @@ function ContentGenerationWorkbench() {
                           if (moveContentUnitOnTimeline.isPending) return
                           moveContentUnitOnTimeline.mutate({ row: selected, unitId, startSec })
                         }}
+                        onDeleteUnit={(unit) => {
+                          selectContentUnitFromRow(selected, null, { replace: true })
+                        }}
+                        projectId={projectId}
+                        queryKey={productionWorkbenchQueryKey}
+                        jobs={data?.jobs ?? []}
                         isReordering={reorderContentUnits.isPending || moveContentUnitOnTimeline.isPending}
                       />
                     </div>
@@ -5833,19 +7258,18 @@ function ContentGenerationWorkbench() {
           </DialogHeader>
           <div className="p-5">
             {selected && selectedUnit && keyframeDefaults ? (
-              <SemanticEntityInlineEditor
+              <CreateKeyframeQuickCard
                 projectId={projectId}
-                config={keyframeConfig}
-                record={null}
+                keyframeConfig={keyframeConfig}
+                selectedUnit={selectedUnit}
                 defaults={keyframeDefaults}
+                existingKeyframes={selectedUnitKeyframes}
                 queryKey={productionWorkbenchQueryKey}
-                idScope={`content-workbench-create-keyframe-${selectedUnit.ID}`}
-                title="新建关键帧"
-                description="保存后会进入当前制作项的画面输入。"
                 onSaved={(record) => {
                   setCreatingKeyframe(false)
                   selectContentUnit(Number(record.content_unit_id) || selectedUnit.ID)
                 }}
+                onCancel={() => setCreatingKeyframe(false)}
               />
             ) : (
               <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">

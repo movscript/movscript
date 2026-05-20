@@ -79,6 +79,59 @@ test('generation events clone JSON media and monitor args snapshots', () => {
   assert.deepEqual(monitor.args.nested, { value: 'original' })
 })
 
+test('generation monitor requests can target the batch wait tool', () => {
+  const call: ToolCall = {
+    name: 'movscript_create_generation_job',
+    args: { projectId: 42 },
+  }
+  const result: JSONValue = {
+    data: {
+      status: 'queued',
+      jobId: 123,
+      terminal: false,
+      monitor: {
+        tool: 'movscript_wait_generation_jobs',
+        args: {
+          jobIds: [123, 124],
+          timeout_ms: 500,
+          heartbeat_ms: 50,
+        },
+      },
+    },
+  }
+
+  const event = buildGenerationEvent(call, result)
+  assert.ok(event)
+  const monitor = extractGenerationMonitorRequest(call, result, event)
+  assert.ok(monitor)
+  assert.equal(monitor.toolName, 'movscript_wait_generation_jobs')
+  assert.deepEqual(monitor.args, { jobIds: [123, 124], timeout_ms: 500, heartbeat_ms: 50, projectId: 42 })
+  assert.equal(monitor.timeoutMs, 500)
+  assert.equal(monitor.heartbeatMs, 50)
+})
+
+test('generation events summarize wait_generation_jobs batch results', () => {
+  const call: ToolCall = {
+    name: 'movscript_wait_generation_jobs',
+    args: { jobIds: [123, 124] },
+  }
+  const event = buildGenerationEvent(call, {
+    status: 'completed',
+    terminal: true,
+    jobIds: [123, 124],
+    output_resource_ids: [456, 457],
+    message: '生成任务完成，输出资源 #456、#457。',
+  })
+
+  assert.ok(event)
+  assert.equal(event.toolName, 'movscript_wait_generation_jobs')
+  assert.equal(event.jobId, 123)
+  assert.equal(event.status, 'completed')
+  assert.equal(event.stage, 'completed')
+  assert.equal(event.terminal, true)
+  assert.deepEqual(event.outputResourceIds, [456, 457])
+})
+
 test('generation monitor requests ignore invalid project ids', () => {
   const call: ToolCall = {
     name: 'movscript_create_generation_job',

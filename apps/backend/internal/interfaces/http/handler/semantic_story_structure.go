@@ -97,6 +97,7 @@ func (h *SemanticEntityHandler) PatchProductionTextBlock(c *gin.Context) {
 func (h *SemanticEntityHandler) ListSceneMoments(c *gin.Context) {
 	items, err := h.semantic.ListSceneMoments(c.Request.Context(), semanticapp.SceneMomentFilter{
 		ProjectID:     parseID(c.Param("id")),
+		ProductionID:  parseID(c.Query("production_id")),
 		SegmentID:     parseID(c.Query("segment_id")),
 		ScriptBlockID: parseID(c.Query("script_block_id")),
 	})

@@ -11,10 +11,12 @@ export type PreviewEntitySummary = {
 export type PreviewContext = {
   segment_title?: string
   scene_moment_title?: string
+  scene_moment_code?: string
 }
 
 export type PreviewContentUnit = {
   id: number
+  unit_code?: string
   order: number
   title: string
   kind: string

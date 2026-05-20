@@ -107,6 +107,73 @@ func TestCreateSceneMomentInheritsScriptBlockFromSegment(t *testing.T) {
 	}
 }
 
+func TestSceneMomentCodesAreProductionScopedAndStableAcrossReorder(t *testing.T) {
+	db := newContentUnitTestDB(t)
+	service := NewService(db)
+	production := model.Production{ProjectID: 1, Name: "Pilot", Status: "draft"}
+	if err := db.Create(&production).Error; err != nil {
+		t.Fatalf("create production: %v", err)
+	}
+	segment := model.Segment{
+		ProjectID:    1,
+		ProductionID: &production.ID,
+		Kind:         "dramatic_function",
+		Title:        "Opening",
+		Status:       "confirmed",
+	}
+	if err := db.Create(&segment).Error; err != nil {
+		t.Fatalf("create segment: %v", err)
+	}
+
+	first, err := service.CreateSceneMoment(context.Background(), 1, CreateSceneMomentInput{
+		SegmentID: &segment.ID,
+		Order:     10,
+		Title:     "First",
+	})
+	if err != nil {
+		t.Fatalf("create first scene moment: %v", err)
+	}
+	second, err := service.CreateSceneMoment(context.Background(), 1, CreateSceneMomentInput{
+		SegmentID: &segment.ID,
+		Order:     20,
+		Title:     "Second",
+	})
+	if err != nil {
+		t.Fatalf("create second scene moment: %v", err)
+	}
+	if first.ProductionID == nil || *first.ProductionID != production.ID || first.SceneCode != "1" {
+		t.Fatalf("first scene code = %q production = %v, want 1 in production %d", first.SceneCode, first.ProductionID, production.ID)
+	}
+	if second.SceneCode != "2" {
+		t.Fatalf("second scene code = %q, want 2", second.SceneCode)
+	}
+
+	patched, err := service.PatchSceneMoment(context.Background(), 1, strconv.FormatUint(uint64(first.ID), 10), PatchSceneMomentInput{
+		Order: 99,
+		Title: "First reordered",
+	})
+	if err != nil {
+		t.Fatalf("patch scene moment order: %v", err)
+	}
+	if patched.SceneCode != "1" {
+		t.Fatalf("patched scene code = %q, want stable 1", patched.SceneCode)
+	}
+	if err := db.Delete(&model.SceneMoment{}, second.ID).Error; err != nil {
+		t.Fatalf("delete second scene moment: %v", err)
+	}
+	third, err := service.CreateSceneMoment(context.Background(), 1, CreateSceneMomentInput{
+		SegmentID: &segment.ID,
+		Order:     30,
+		Title:     "Third",
+	})
+	if err != nil {
+		t.Fatalf("create third scene moment: %v", err)
+	}
+	if third.SceneCode != "3" {
+		t.Fatalf("third scene code after deletion = %q, want 3", third.SceneCode)
+	}
+}
+
 func TestCreateContentUnitPrefersSceneMomentScriptBlock(t *testing.T) {
 	db := newContentUnitTestDB(t)
 	service := NewService(db)
@@ -156,6 +223,80 @@ func TestCreateContentUnitPrefersSceneMomentScriptBlock(t *testing.T) {
 	}
 	if unit.ScriptBlockID == nil || *unit.ScriptBlockID != momentBlock.ID {
 		t.Fatalf("content unit script block id = %v, want moment block %d", unit.ScriptBlockID, momentBlock.ID)
+	}
+}
+
+func TestContentUnitCodesAreSceneAndKindScoped(t *testing.T) {
+	db := newContentUnitTestDB(t)
+	service := NewService(db)
+	production := model.Production{ProjectID: 1, Name: "Pilot", Status: "draft"}
+	if err := db.Create(&production).Error; err != nil {
+		t.Fatalf("create production: %v", err)
+	}
+	segment := model.Segment{ProjectID: 1, ProductionID: &production.ID, Title: "Opening", Status: "confirmed"}
+	if err := db.Create(&segment).Error; err != nil {
+		t.Fatalf("create segment: %v", err)
+	}
+	moment := model.SceneMoment{ProjectID: 1, ProductionID: &production.ID, SegmentID: &segment.ID, SceneCode: "1", Title: "Phone clue", Status: "confirmed"}
+	if err := db.Create(&moment).Error; err != nil {
+		t.Fatalf("create scene moment: %v", err)
+	}
+	syncSemanticTestRelations(t, db, &moment)
+
+	firstShot, err := service.CreateContentUnit(context.Background(), 1, ContentUnitInput{
+		SceneMomentID: &moment.ID,
+		Kind:          "shot",
+		Title:         "Phone close-up",
+	})
+	if err != nil {
+		t.Fatalf("create first shot: %v", err)
+	}
+	secondShot, err := service.CreateContentUnit(context.Background(), 1, ContentUnitInput{
+		SceneMomentID: &moment.ID,
+		Kind:          "shot",
+		Title:         "Hand insert",
+	})
+	if err != nil {
+		t.Fatalf("create second shot: %v", err)
+	}
+	voiceover, err := service.CreateContentUnit(context.Background(), 1, ContentUnitInput{
+		SceneMomentID: &moment.ID,
+		Kind:          "voiceover",
+		Title:         "Inner thought",
+	})
+	if err != nil {
+		t.Fatalf("create voiceover: %v", err)
+	}
+	if firstShot.UnitCode != "1" || secondShot.UnitCode != "2" || voiceover.UnitCode != "1" {
+		t.Fatalf("unit codes = shot %q/%q voiceover %q, want 1/2 and 1", firstShot.UnitCode, secondShot.UnitCode, voiceover.UnitCode)
+	}
+	if firstShot.ProductionID == nil || *firstShot.ProductionID != production.ID {
+		t.Fatalf("content unit production = %v, want %d", firstShot.ProductionID, production.ID)
+	}
+
+	patched, err := service.PatchContentUnit(context.Background(), 1, strconv.FormatUint(uint64(secondShot.ID), 10), ContentUnitInput{
+		Order: 1,
+		Title: "Hand insert reordered",
+	})
+	if err != nil {
+		t.Fatalf("patch content unit order: %v", err)
+	}
+	if patched.UnitCode != "2" {
+		t.Fatalf("patched unit code = %q, want stable 2", patched.UnitCode)
+	}
+	if err := db.Delete(&model.ContentUnit{}, secondShot.ID).Error; err != nil {
+		t.Fatalf("delete second shot: %v", err)
+	}
+	thirdShot, err := service.CreateContentUnit(context.Background(), 1, ContentUnitInput{
+		SceneMomentID: &moment.ID,
+		Kind:          "shot",
+		Title:         "Reaction",
+	})
+	if err != nil {
+		t.Fatalf("create third shot after deletion: %v", err)
+	}
+	if thirdShot.UnitCode != "3" {
+		t.Fatalf("third shot code after deletion = %q, want 3", thirdShot.UnitCode)
 	}
 }
 
@@ -820,6 +961,7 @@ func newContentUnitTestDB(t *testing.T) *gorm.DB {
 		&model.Script{},
 		&model.ScriptVersion{},
 		&model.ScriptBlock{},
+		&model.Production{},
 		&model.Segment{},
 		&model.SceneMoment{},
 		&model.StoryboardScript{},

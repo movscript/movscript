@@ -99,6 +99,7 @@ function localAgentApprovalImpactI18nText(approval: ApprovalLike, t: ReturnType<
   }
 
   const permission = approval.permission ?? ''
+  if (permission === 'draft.apply') return t('agents.chat.workflow.approvalImpact.draftApply')
   if (permission.includes('generation')) return t('agents.chat.workflow.approvalImpact.generationGeneric')
   if (permission.includes('project') && permission.includes('write')) return t('agents.chat.workflow.approvalImpact.projectWrite')
   if (permission.includes('draft') && permission.includes('write')) return t('agents.chat.workflow.approvalImpact.draftWrite')

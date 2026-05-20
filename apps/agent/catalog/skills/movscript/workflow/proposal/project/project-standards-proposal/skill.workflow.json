@@ -28,6 +28,7 @@
   ],
   "toolRefs": [
     "tool://movscript_get_focus",
+    "tool://movscript_read_project_scripts",
     "tool://movscript_get_draft_model",
     "tool://movscript_create_draft",
     "tool://movscript_update_draft",
@@ -40,5 +41,5 @@
     "schema://movscript.project_standards_proposal.v1"
   ],
   "instructionTemplatePath": "instruction.md",
-  "outputContract": "回复 draftId、projectId、draft status、项目规范摘要、validation 状态，以及尚未决定的镜头/风格约束。"
+  "outputContract": "回复 draftId、projectId、draft status、剧本依据、项目规范摘要、validation 状态，以及尚未决定的镜头/风格约束。"
 }

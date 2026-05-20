@@ -24,7 +24,7 @@ export interface GenerationEvent {
 }
 
 export interface GenerationMonitorRequest {
-  toolName: 'movscript_get_generation_job'
+  toolName: 'movscript_get_generation_job' | 'movscript_wait_generation_jobs'
   args: Record<string, JSONValue>
   timeoutMs: number
   pollIntervalMs: number
@@ -36,7 +36,8 @@ export function buildGenerationEvent(call: ToolCall, result: JSONValue | undefin
   const payload = unwrapToolPayload(result)
   if (!isRecord(payload)) return undefined
   const status = stringField(payload.status) ?? statusFromJob(payload.job) ?? 'unknown'
-  const jobId = idField(payload.jobId) ?? idField(payload.job_id) ?? idField(payload.job, 'ID') ?? idField(payload.job, 'id')
+  const jobIds = idListField(payload.jobIds) ?? idListField(payload.job_ids)
+  const jobId = idField(payload.jobId) ?? idField(payload.job_id) ?? idField(payload.job, 'ID') ?? idField(payload.job, 'id') ?? jobIds?.[0]
   const terminal = payload.terminal === true || isTerminalStatus(status)
   const outputResourceIds = outputResourceIdsFromPayload(payload)
   const outputResourceId = idField(payload.output_resource_id) ?? idField(payload.outputResourceId) ?? outputResourceIds[0]
@@ -82,20 +83,23 @@ export function extractGenerationMonitorRequest(call: ToolCall, result: JSONValu
   if (call.name !== 'movscript_create_generation_job' || event.terminal) return undefined
   const payload = unwrapToolPayload(result)
   const monitor = isRecord(payload) && isRecord(payload.monitor) ? payload.monitor : undefined
+  if (!monitor) return undefined
   const monitorArgs = isRecord(monitor?.args) ? monitor.args : undefined
+  const monitorTool = monitor?.tool === 'movscript_wait_generation_jobs' ? 'movscript_wait_generation_jobs' : 'movscript_get_generation_job'
   const jobId = event.jobId ?? idField(monitorArgs?.jobId) ?? idField(monitorArgs?.job_id)
-  if (jobId === undefined) return undefined
+  const jobIds = idListField(monitorArgs?.jobIds) ?? idListField(monitorArgs?.job_ids) ?? (jobId !== undefined ? [jobId] : [])
+  if (jobId === undefined && jobIds.length === 0) return undefined
   const args: Record<string, JSONValue> = {
     ...(isJSONRecord(monitorArgs) ? cloneJSONValue(monitorArgs) : {}),
-    jobId,
+    ...(monitorTool === 'movscript_wait_generation_jobs' ? { jobIds } : jobId !== undefined ? { jobId } : {}),
     ...(isValidAgentProjectId(call.args?.projectId) ? { projectId: call.args.projectId } : {}),
   }
   return {
-    toolName: 'movscript_get_generation_job',
+    toolName: monitorTool,
     args,
-    timeoutMs: clampNumber(numberField(monitor?.timeout_ms) ?? numberField(monitor?.timeoutMs) ?? defaultMonitorTimeoutMs(event), 0, 30 * 60_000),
-    pollIntervalMs: clampNumber(numberField(monitor?.poll_interval_ms) ?? numberField(monitor?.pollIntervalMs) ?? defaultPollIntervalMs(event), 250, 30_000),
-    heartbeatMs: clampNumber(numberField(monitor?.heartbeat_ms) ?? numberField(monitor?.heartbeatMs) ?? defaultMonitorHeartbeatMs(event), 0, 5 * 60_000),
+    timeoutMs: clampNumber(numberField(monitor?.timeout_ms) ?? numberField(monitor?.timeoutMs) ?? numberField(monitorArgs?.timeout_ms) ?? numberField(monitorArgs?.timeoutMs) ?? defaultMonitorTimeoutMs(event), 0, 30 * 60_000),
+    pollIntervalMs: clampNumber(numberField(monitor?.poll_interval_ms) ?? numberField(monitor?.pollIntervalMs) ?? numberField(monitorArgs?.poll_interval_ms) ?? numberField(monitorArgs?.pollIntervalMs) ?? defaultPollIntervalMs(event), 250, 30_000),
+    heartbeatMs: clampNumber(numberField(monitor?.heartbeat_ms) ?? numberField(monitor?.heartbeatMs) ?? numberField(monitorArgs?.heartbeat_ms) ?? numberField(monitorArgs?.heartbeatMs) ?? defaultMonitorHeartbeatMs(event), 0, 5 * 60_000),
   }
 }
 
@@ -122,6 +126,8 @@ function unwrapToolPayload(result: JSONValue | undefined): JSONValue | undefined
 }
 
 function inferStage(toolName: string, status: string, terminal: boolean): GenerationEventStage {
+  if (status === 'completed') return 'completed'
+  if (status === 'timeout') return 'timeout'
   if (status === 'succeeded') return 'completed'
   if (status === 'failed') return 'failed'
   if (status === 'cancelled') return 'cancelled'
@@ -143,6 +149,8 @@ function defaultMonitorHeartbeatMs(event: GenerationEvent): number {
 
 function defaultMessage(toolName: string, jobId: number | undefined, status: string, progress: number | undefined, outputResourceIds: number[]): string {
   const jobLabel = jobId !== undefined ? `Job #${jobId}` : '生成任务'
+  if (status === 'completed') return `${jobLabel} 生成完成${outputResourceIds.length > 0 ? `，输出资源 ${outputResourceIds.map((id) => `#${id}`).join('、')}` : ''}。`
+  if (status === 'timeout') return `${jobLabel} 仍在后台运行，已达到本次监控等待时间。`
   if (status === 'succeeded') return `${jobLabel} 生成完成${outputResourceIds.length > 0 ? `，输出资源 ${outputResourceIds.map((id) => `#${id}`).join('、')}` : ''}。`
   if (status === 'failed') return `${jobLabel} 生成失败。`
   if (status === 'cancelled') return `${jobLabel} 已取消。`
@@ -153,6 +161,7 @@ function defaultMessage(toolName: string, jobId: number | undefined, status: str
 function isGenerationTool(toolName: string): boolean {
   return toolName === 'movscript_create_generation_job'
     || toolName === 'movscript_get_generation_job'
+    || toolName === 'movscript_wait_generation_jobs'
     || toolName === 'movscript_list_generation_jobs'
     || toolName === 'movscript_cancel_generation_job'
 }
@@ -178,6 +187,12 @@ function numberField(value: unknown, key?: string): number | undefined {
 function idField(value: unknown, key?: string): number | undefined {
   const raw = key && isRecord(value) ? value[key] : value
   return isValidAgentEntityId(raw) ? raw : undefined
+}
+
+function idListField(value: unknown): number[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const ids = value.filter(isValidAgentEntityId)
+  return ids.length > 0 ? ids : undefined
 }
 
 function outputResourceIdsFromPayload(payload: Record<string, unknown>): number[] {

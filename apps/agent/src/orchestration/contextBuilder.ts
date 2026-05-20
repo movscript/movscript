@@ -1,6 +1,6 @@
 export {
   buildContext,
-  buildOpenAIChatTools,
+  buildRuntimeChatTools,
   buildPromptPreview,
 } from '../contextManager/modelContextBuilder.js'
 

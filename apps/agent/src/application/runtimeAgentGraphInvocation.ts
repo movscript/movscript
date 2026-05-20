@@ -30,6 +30,10 @@ import type { RuntimeCatalogSnapshotRegistry } from './runtimeCatalogSnapshot.js
 import { createRuntimeAgentGraphCallbacks } from './runtimeAgentGraphCallbacks.js'
 import { refreshRuntimeAgentGraphCatalog } from './runtimeAgentGraphCatalogRefresh.js'
 import type { AgentStore } from '../state/store.js'
+import {
+  cloneRuntimeInputMessagesForTrace,
+  markRuntimeInputMessagesConsumed,
+} from '../state/runtimeRunInputs.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
 import type { ToolRegistry } from '../tools/toolRegistry.js'
 import type { AgentManifest } from '../catalog/agentManifest.js'
@@ -83,7 +87,7 @@ export async function invokeRuntimeAgentGraph(input: {
   capabilityDurationMs: number
   focusTimings?: unknown
   signal?: AbortSignal
-  store: Pick<AgentStore, 'updateRun'>
+  store: Pick<AgentStore, 'getThread' | 'updateRun'>
   timestampMs: () => number
   now: () => string
   recordTrace: (run: AgentRun, trace: RuntimeAgentGraphInvocationTraceInput) => void
@@ -153,6 +157,27 @@ export async function invokeRuntimeAgentGraph(input: {
       : {}),
     ...(input.run.metadata?.forcedToolCall ? { forcedToolCalls: [normalizeToolCall(input.run.metadata.forcedToolCall) as ToolCall] } : {}),
     ...(getApprovedToolNames(input.run).length > 0 ? { approvedToolNames: getApprovedToolNames(input.run) } : {}),
+    getThreadMessages: () => input.store.getThread(input.run.threadId)?.messages ?? input.threadMessages,
+    onRuntimeInputConsumed: (messages, trace) => {
+      markRuntimeInputMessagesConsumed(input.run, messages)
+      input.store.updateRun(input.run)
+      input.recordTrace(input.run, {
+        kind: 'message',
+        title: 'Runtime input consumed',
+        summary: `${messages.length} running user message(s) added to the next model turn.`,
+        status: 'completed',
+        round: {
+          roundId: `round_${trace.roundIndex}`,
+          roundIndex: trace.roundIndex,
+          roundLabel: trace.roundLabel,
+          roundSource: trace.roundSource,
+        },
+        data: {
+          messageIds: messages.map((message) => message.id),
+          messages: cloneRuntimeInputMessagesForTrace(messages),
+        },
+      })
+    },
     ...graphCallbacks,
   })
   return result

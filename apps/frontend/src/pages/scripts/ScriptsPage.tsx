@@ -345,7 +345,6 @@ function ScriptsSection({ projectId }: { projectId: number }) {
           selection: { entityType: 'script', entityId: selected.ID, label: title },
         },
       }),
-      runPolicy: { maxToolCalls: 12, maxIterations: 8 },
       timeoutMs: 240_000,
       renderMode: 'page',
     })
