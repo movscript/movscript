@@ -48,7 +48,7 @@ function PasswordInput({ placeholder, value, onChange, onKeyDown }: {
         tabIndex={-1}
         aria-label={show ? t('auth.hidePassword') : t('auth.showPassword')}
       >
-        {show ? <EyeOff size={15} /> : <Eye size={15} />}
+        {show ? <EyeOff size={14} /> : <Eye size={14} />}
       </button>
     </div>
   )

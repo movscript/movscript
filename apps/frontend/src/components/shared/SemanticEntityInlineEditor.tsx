@@ -39,6 +39,9 @@ interface SemanticEntityInlineEditorProps {
   description?: string
   hideHeaderCopy?: boolean
   hideHeaderActions?: boolean
+  hideDeleteAction?: boolean
+  showAdvancedFields?: boolean
+  hiddenFieldKeys?: string[]
   editing?: boolean
   onEditingChange?: (editing: boolean) => void
   onControlStateChange?: (state: SemanticEntityInlineEditorControlState) => void
@@ -50,6 +53,7 @@ interface SemanticEntityInlineEditorProps {
   collapsed?: boolean
   collapsedMode?: 'vertical' | 'horizontal'
   onCollapsedChange?: (collapsed: boolean) => void
+  resetToken?: number
   idScope?: string
   editKey?: string | number | null
   onSaved?: (record: SemanticEntityRecord) => void
@@ -78,6 +82,9 @@ export function SemanticEntityInlineEditor({
   description,
   hideHeaderCopy = false,
   hideHeaderActions = false,
+  hideDeleteAction = false,
+  showAdvancedFields = true,
+  hiddenFieldKeys,
   editing,
   onEditingChange,
   onControlStateChange,
@@ -89,6 +96,7 @@ export function SemanticEntityInlineEditor({
   collapsed = false,
   collapsedMode = 'vertical',
   onCollapsedChange,
+  resetToken,
   idScope,
   editKey,
   onSaved,
@@ -96,15 +104,17 @@ export function SemanticEntityInlineEditor({
 }: SemanticEntityInlineEditorProps) {
   const queryClient = useQueryClient()
   const fields = useMemo(() => config.fields.filter((field) => !field.createOnly), [config.fields])
+  const hiddenFieldKeySet = useMemo(() => new Set(hiddenFieldKeys ?? []), [hiddenFieldKeys])
+  const visibleFields = useMemo(() => fields.filter((field) => !hiddenFieldKeySet.has(field.key)), [fields, hiddenFieldKeySet])
   const primaryFieldKeySet = useMemo(() => new Set(primaryFieldKeys ?? []), [primaryFieldKeys])
-  const basicFields = useMemo(() => fields.filter((field) => primaryFieldKeySet.has(field.key) || !isAdvancedField(config.kind, field.key)), [config.kind, fields, primaryFieldKeySet])
-  const advancedFields = useMemo(() => fields.filter((field) => !primaryFieldKeySet.has(field.key) && isAdvancedField(config.kind, field.key)), [config.kind, fields, primaryFieldKeySet])
+  const basicFields = useMemo(() => visibleFields.filter((field) => primaryFieldKeySet.has(field.key) || !isAdvancedField(config.kind, field.key)), [config.kind, primaryFieldKeySet, visibleFields])
+  const advancedFields = useMemo(() => showAdvancedFields ? visibleFields.filter((field) => !primaryFieldKeySet.has(field.key) && isAdvancedField(config.kind, field.key)) : [], [config.kind, primaryFieldKeySet, showAdvancedFields, visibleFields])
   const [form, setForm] = useState<FormState>(() => buildInitialForm(fields, record, defaults))
   const [uncontrolledIsEditing, setUncontrolledIsEditing] = useState(Boolean(!record))
   const isEditing = editing ?? uncontrolledIsEditing
   const enableCreativeReferenceLookups = config.kind === 'assetSlots' && Boolean(projectId)
   const enableScriptBlockLookups = (config.kind === 'contentUnits' || config.kind === 'segments' || config.kind === 'sceneMoments') && Boolean(projectId)
-  const canDeleteRecord = !isDeleteProtectedKind(config.kind)
+  const canDeleteRecord = !hideDeleteAction && !isDeleteProtectedKind(config.kind)
   const isImmutableRecord = Boolean(record && isImmutableKind(config.kind))
   const sourceLockEnabled = Boolean(projectId && record?.ID && sourceLockSupportedKind(config.kind))
   const editorDomScope = idScope ?? `${config.kind}-${record?.ID ?? 'new'}`
@@ -171,7 +181,7 @@ export function SemanticEntityInlineEditor({
   useEffect(() => {
     setForm(buildInitialForm(fields, record, defaults))
     setEditorEditing(Boolean(!record || editKey))
-  }, [defaults, editKey, fields, record])
+  }, [defaults, editKey, fields, record, resetToken])
 
   const missingRequiredFields = useMemo(() => fields.filter((field) => field.required && !isFieldFilled(form[field.key], field.type)), [fields, form])
   const canSave = Boolean(projectId) && !isImmutableRecord && missingRequiredFields.length === 0 && (isEditing || !record)
@@ -263,7 +273,7 @@ export function SemanticEntityInlineEditor({
           onClick={toggleCollapsed}
         >
           <span className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground">
-            <ChevronLeft size={15} />
+            <ChevronLeft size={14} />
           </span>
           <span className="flex min-h-0 flex-1 items-center justify-center">
             <span className="[writing-mode:vertical-rl] type-label font-semibold leading-none text-foreground">

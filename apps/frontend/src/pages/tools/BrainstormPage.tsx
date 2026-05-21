@@ -9,7 +9,7 @@ import { publicModelId } from '@/lib/modelDisplay'
 import type { PublicModel, RawResource } from '@/types'
 import {
   Wand2, Loader2, Bot,
-  ChevronDown, ChevronUp, History, X,
+  ChevronDown, ChevronUp, History, Paperclip, X,
 } from 'lucide-react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
 import { ResourcePanel } from '@/components/shared/ResourcePanel'
@@ -60,7 +60,7 @@ function BrainstormResultCard({
 }) {
   const { t, i18n } = useTranslation()
   return (
-    <div className="rounded-lg border border-border bg-background p-3 space-y-2 type-label">
+    <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2 type-label">
       {/* Prompt */}
       <div className="flex items-start gap-2">
         <span className="text-muted-foreground shrink-0 mt-0.5">{t('tools.brainstorm.prompt')}</span>
@@ -75,7 +75,8 @@ function BrainstormResultCard({
               key={a.id}
               className="inline-flex items-center gap-1 bg-muted text-muted-foreground rounded px-1.5 py-0.5 type-tiny"
             >
-              📎 {a.name}
+              <Paperclip size={10} />
+              {a.name}
             </span>
           ))}
         </div>
@@ -256,14 +257,6 @@ export default function BrainstormPage() {
         title={t('sidebar.items.brainstorm')}
         description={t('tools.brainstorm.description')}
         icon={Bot}
-        actions={(
-          <ModelSelector
-            capability="text"
-            value={selectedModelId}
-            onChange={setSelectedModelId}
-            onModelChange={setSelectedModel}
-          />
-        )}
       />
 
       {/* Body */}
@@ -287,15 +280,27 @@ export default function BrainstormPage() {
             if (r && !attachments.find((a) => a.ID === id)) setAttachments((a) => [...a, r])
           }}
         >
-          <Card className="max-w-2xl mx-auto shadow-md">
+          <Card className="max-w-2xl mx-auto border-border bg-card bg-none text-card-foreground shadow-sm">
             {/* CardContent: latest + input */}
             <CardContent className="p-4 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+                <div className="min-w-0">
+                  <p className="type-label font-medium text-foreground">{t('shared.modelSelector.label', { defaultValue: '模型' })}</p>
+                  <p className="type-tiny text-muted-foreground">{t('tools.brainstorm.inputHint')}</p>
+                </div>
+                <ModelSelector
+                  capability="text"
+                  value={selectedModelId}
+                  onChange={setSelectedModelId}
+                  onModelChange={setSelectedModel}
+                />
+              </div>
 
               {/* Latest result */}
               {latestEntry && (
                 <div className="space-y-1.5">
                   <p className="type-label font-medium text-muted-foreground flex items-center gap-1.5">
-                    <History size={11} />
+                    <History size={12} />
                     {t('tools.brainstorm.latestResult')}
                   </p>
                   <BrainstormResultCard
@@ -321,7 +326,8 @@ export default function BrainstormPage() {
                         key={a.ID}
                         className="inline-flex items-center gap-1 bg-muted text-muted-foreground rounded-full px-2 py-0.5 type-caption"
                       >
-                        📎 {a.name}
+                        <Paperclip size={10} />
+                        {a.name}
                         <button
                           onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
                           className="hover:text-foreground transition-colors"
@@ -363,7 +369,7 @@ export default function BrainstormPage() {
                           }}
                           className="w-full flex items-center gap-2 px-3 py-2 type-label hover:bg-muted/50 text-left transition-colors"
                         >
-                          <span className="text-muted-foreground">📎</span>
+                          <Paperclip size={12} className="text-muted-foreground" />
                           <span className="truncate text-foreground">{r.name}</span>
                         </button>
                       ))}
@@ -409,7 +415,7 @@ export default function BrainstormPage() {
                       {historyEntries.length}
                     </span>
                   </span>
-                  {historyExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                  {historyExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </button>
 
                 {historyExpanded && (
@@ -430,7 +436,7 @@ export default function BrainstormPage() {
             {history.length === 0 && (
               <CardFooter className="justify-center py-8 border-t border-border">
                 <div className="flex flex-col items-center gap-2 text-muted-foreground/40 select-none">
-                  <Bot size={28} className="opacity-30" />
+                  <Bot size={24} className="opacity-30" />
                   <p className="type-label">{t('tools.brainstorm.empty')}</p>
                   <p className="type-tiny">{t('tools.brainstorm.emptyHint')}</p>
                 </div>

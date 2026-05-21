@@ -101,8 +101,8 @@ export function CanvasGenBody({
         )}
       >
         {isRunning
-          ? <><Loader2 size={11} className="animate-spin" />{t('pages.jobs.generating')}</>
-          : <><Wand2 size={11} />{t('shared.generation.runNode')}</>
+          ? <><Loader2 size={12} className="animate-spin" />{t('pages.jobs.generating')}</>
+          : <><Wand2 size={12} />{t('shared.generation.runNode')}</>
         }
       </button>
     </div>

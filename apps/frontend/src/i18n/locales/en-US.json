@@ -2906,7 +2906,7 @@
       "output": "Output",
       "resource_sink": "Save Resource",
       "approval": "Manual Approval",
-      "text_gen": "AI Text Generation",
+      "text_gen": "Text Generation",
       "ai_gen": "AI Generation",
       "group": "Group",
       "plugin_card": "Plugin Card"
@@ -2980,7 +2980,7 @@
           "description": "Generate image, video, or text by target type."
         },
         "text_gen": {
-          "label": "AI Text Generation",
+          "label": "Text Generation",
           "description": "Expand, summarize, or rewrite from upstream content."
         },
         "ref_image_gen": {

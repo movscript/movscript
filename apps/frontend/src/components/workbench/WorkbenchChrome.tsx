@@ -53,6 +53,7 @@ export interface ProjectWorkbenchHeaderProps {
   title?: string
   description?: string
   badges?: ReactNode
+  headerBody?: ReactNode
   actions?: ReactNode
   onRefresh?: () => void
   refreshing?: boolean
@@ -62,8 +63,12 @@ export interface ProjectWorkbenchHeaderProps {
 
 export function ProjectWorkbenchHeader({
   workbenchId,
+  projectName,
+  kicker,
   title,
   description,
+  badges,
+  headerBody,
   actions,
   onRefresh,
   refreshing = false,
@@ -75,15 +80,19 @@ export function ProjectWorkbenchHeader({
   const generation = useWorkbenchCanvasLauncher(generationKind)
 
   return (
-    <header data-testid="project-workbench-header" className="shrink-0 border-b border-border bg-background px-5 py-4">
+    <header data-testid="project-workbench-header" className="shrink-0 border-b border-border bg-background px-5 py-3">
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
             <Icon size={18} />
           </span>
           <div className="min-w-0">
+            {kicker || projectName ? (
+              <p className="mb-0.5 truncate type-caption font-medium text-muted-foreground">{kicker || projectName}</p>
+            ) : null}
             <h1 className="truncate type-title-sm font-semibold text-foreground">{title || workbench.title}</h1>
             <p className="mt-1 max-w-4xl truncate type-label text-muted-foreground">{description || workbench.purpose}</p>
+            {badges ? <div className="mt-2 flex flex-wrap items-center gap-1.5">{badges}</div> : null}
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
@@ -102,6 +111,7 @@ export function ProjectWorkbenchHeader({
           ) : null}
         </div>
       </div>
+      {headerBody ? <div className="mt-3 border-t border-border pt-3">{headerBody}</div> : null}
     </header>
   )
 }
@@ -171,7 +181,7 @@ export function InfoPanel({ title, rows, icon: Icon }: { title: string; rows: st
     <Card className="rounded-lg border-border bg-card p-4">
       <div className="mb-4 flex items-center gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-          <Icon size={17} />
+          <Icon size={16} />
         </span>
         <h2 className="type-body font-semibold text-foreground">{title}</h2>
       </div>
@@ -377,7 +387,7 @@ export function GateChecklist({ rows }: { rows: WorkbenchGate[] }) {
         <div key={row.label} className="workbench-list-item px-2.5 py-2">
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-              {row.done ? <CheckCircle2 size={15} className="shrink-0 text-emerald-600" /> : <CircleDot size={15} className="shrink-0 text-amber-600" />}
+              {row.done ? <CheckCircle2 size={14} className="shrink-0 text-emerald-600" /> : <CircleDot size={14} className="shrink-0 text-amber-600" />}
               <span className="truncate type-body font-medium text-foreground">{row.label}</span>
             </div>
             <WorkbenchStatusBadge tone={row.done ? 'success' : row.tone === 'warning' ? 'warning' : 'neutral'} label={row.done ? '通过' : '待处理'} />

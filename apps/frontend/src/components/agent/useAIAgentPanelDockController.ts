@@ -13,7 +13,7 @@ export function useAIAgentPanelDockController() {
   const [pendingThreadIdToOpen, setPendingThreadIdToOpen] = useState<string | null>(null)
   const [panelWidth, setPanelWidth] = useState(() => {
     const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440
-    return viewportWidth < 1280 ? 360 : 420
+    return viewportWidth < 1280 ? 340 : 392
   })
   const [dockLayout, setDockLayout] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 960 : true)
   const panelRef = useRef<HTMLDivElement | null>(null)
@@ -43,7 +43,7 @@ export function useAIAgentPanelDockController() {
     function updateDockLayout() {
       const viewportWidth = window.innerWidth
       setDockLayout(viewportWidth >= 960)
-      setPanelWidth((current) => viewportWidth < 1280 ? Math.min(current, 360) : current)
+      setPanelWidth((current) => viewportWidth < 1280 ? Math.min(current, 340) : current)
     }
 
     updateDockLayout()
@@ -63,8 +63,8 @@ export function useAIAgentPanelDockController() {
     const startX = event.clientX
     const viewportWidth = window.innerWidth
     const maxWidth = viewportWidth >= 1440
-      ? 760
-      : Math.min(520, Math.max(320, Math.round(viewportWidth * 0.42)))
+      ? 680
+      : Math.min(480, Math.max(300, Math.round(viewportWidth * 0.4)))
     panelResizeStateRef.current = { startX, startWidth, latestWidth: startWidth, maxWidth }
     document.body.classList.add('ai-agent-panel-resizing', 'ai-agent-panel-resizing--x')
 
@@ -72,7 +72,7 @@ export function useAIAgentPanelDockController() {
       const state = panelResizeStateRef.current
       if (!state) return
       const delta = state.startX - moveEvent.clientX
-      state.latestWidth = clampNumber(state.startWidth + delta, 320, state.maxWidth)
+      state.latestWidth = clampNumber(state.startWidth + delta, 300, state.maxWidth)
       if (panelResizeFrameRef.current !== null) return
       panelResizeFrameRef.current = window.requestAnimationFrame(() => {
         panelResizeFrameRef.current = null

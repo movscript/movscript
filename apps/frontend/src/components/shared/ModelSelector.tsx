@@ -79,7 +79,7 @@ export function ModelSelector({ capability, feature, value, onChange, onModelCha
         title={t('shared.modelSelector.refresh')}
         className="text-muted-foreground/50 hover:text-muted-foreground transition-colors shrink-0"
       >
-        <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} />
+        <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
       </button>
     </div>
   )

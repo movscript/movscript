@@ -59,7 +59,7 @@ function ProductionProposalStatusCard({
   return (
     <div className={cn('rounded-lg border p-3', toneClass)}>
       <div className="flex flex-wrap items-center gap-2">
-        <Icon size={13} className={cn('shrink-0', status.iconClassName)} />
+        <Icon size={14} className={cn('shrink-0', status.iconClassName)} />
         <p className="type-label font-semibold">{status.label}</p>
         <span className="rounded-full bg-background/70 px-2 py-0.5 type-tiny font-medium">{status.title}</span>
       </div>

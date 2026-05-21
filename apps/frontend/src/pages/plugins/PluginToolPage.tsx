@@ -314,8 +314,8 @@ function NativePluginUI({ plugin }: { plugin: ClientPluginManifest }) {
             <div className="mt-4 flex justify-end">
               <Button onClick={handleRun} disabled={!canRun} size="sm">
                 {running
-                  ? <><Loader2 size={13} className="mr-1.5 animate-spin" />{t('plugins.running')}</>
-                  : <><Play size={13} className="mr-1.5" />{t('plugins.run')}</>
+                  ? <><Loader2 size={14} className="mr-1.5 animate-spin" />{t('plugins.running')}</>
+                  : <><Play size={14} className="mr-1.5" />{t('plugins.run')}</>
                 }
               </Button>
             </div>
@@ -369,7 +369,7 @@ export default function PluginToolPage() {
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <Loader2 size={20} className="animate-spin text-muted-foreground" />
+        <Loader2 size={18} className="animate-spin text-muted-foreground" />
       </div>
     )
   }
@@ -380,7 +380,7 @@ export default function PluginToolPage() {
         <AlertCircle size={24} className="text-muted-foreground" />
         <p className="type-body font-medium text-foreground">{t('plugins.notFound')}</p>
         <Button size="sm" variant="outline" onClick={() => navigate(ROUTES.plugins)}>
-          <ArrowLeft size={13} className="mr-1.5" />
+          <ArrowLeft size={14} className="mr-1.5" />
           {t('common.back')}
         </Button>
       </div>
@@ -399,7 +399,7 @@ export default function PluginToolPage() {
         metadata={plugin.version ? <span className="shrink-0 type-label text-muted-foreground">v{plugin.version}</span> : null}
         actions={isWebview ? (
           <Button size="icon-sm" variant="ghost" onClick={() => setIframeKey((k) => k + 1)} title="Reload">
-            <RefreshCw size={13} />
+            <RefreshCw size={14} />
           </Button>
         ) : null}
       />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, ChevronDown, Loader2, Plus, ScrollText, Users } from 'lucide-react'
+import { Check, ChevronDown, Loader2, Plus, ScrollText, Trash2, Users, X } from 'lucide-react'
 
 import type { SemanticEntityPayload } from '@/api/semanticEntities'
 import { SceneMomentScriptBlockBinder } from '@/components/workbench/ProductionScriptBinding'
@@ -60,6 +60,7 @@ export function SceneMomentSettingsEditor({
   lookup,
   isSaving,
   onLinkReference,
+  onUnlinkReference,
 }: {
   moment: ProductionSceneMomentRecord | null
   creativeReferences: ProductionCreativeReferenceRecord[]
@@ -67,6 +68,7 @@ export function SceneMomentSettingsEditor({
   lookup: ProductionWritingLookup
   isSaving: boolean
   onLinkReference: (momentId: number, referenceId: number, role: string) => void
+  onUnlinkReference: (usageId: number) => void
 }) {
   const [referenceValue, setReferenceValue] = useState('')
   const [roleValue, setRoleValue] = useState('supporting')
@@ -78,9 +80,19 @@ export function SceneMomentSettingsEditor({
   if (!moment) return null
 
   const linkedReferences = referencesForOwner('scene_moment', moment.ID, lookup)
+  const linkedReferenceItems = (lookup.usagesByOwnerKey.get(`scene_moment:${moment.ID}`) ?? [])
+    .map((usage) => {
+      const referenceId = Number(usage.creative_reference_id)
+      const reference = Number.isFinite(referenceId) ? lookup.creativeReferenceById.get(referenceId) : null
+      return reference ? { reference, usageId: usage.ID } : null
+    })
+    .filter((item): item is { reference: ProductionCreativeReferenceRecord; usageId: number } => Boolean(item))
   const linkedIds = new Set(linkedReferences.map((reference) => reference.ID))
   const visibleReferences = creativeReferences.filter(isVisibleOrchestrationRecord)
-  const shownReferences = linkedReferences.length > 0 ? linkedReferences : visibleReferences
+  const shownReferenceItems = linkedReferenceItems.length > 0
+    ? linkedReferenceItems
+    : visibleReferences.map((reference) => ({ reference, usageId: null }))
+  const shownReferences = shownReferenceItems.map((item) => item.reference)
   const availableReferences = visibleReferences.filter((reference) => !linkedIds.has(reference.ID))
   const selectedReference = referenceValue ? visibleReferences.find((reference) => String(reference.ID) === referenceValue) : null
   const relatedAssetSlots = assetSlots.filter((slot) => (
@@ -93,14 +105,14 @@ export function SceneMomentSettingsEditor({
     )
   ))
   const groups = [
-    { key: 'person', title: '人物', items: shownReferences.filter(isPersonReference) },
-    { key: 'place', title: '场景', items: shownReferences.filter(isPlaceReference) },
-    { key: 'prop', title: '道具 / 产品', items: shownReferences.filter((reference) => ['prop', 'product', 'brand'].includes(String(reference.kind ?? '').toLowerCase())) },
-    { key: 'style', title: '风格 / 规则', items: shownReferences.filter((reference) => ['style', 'world_rule', 'time_period', 'restriction'].includes(String(reference.kind ?? '').toLowerCase())) },
+    { key: 'person', title: '人物', items: shownReferenceItems.filter((item) => isPersonReference(item.reference)) },
+    { key: 'place', title: '场景', items: shownReferenceItems.filter((item) => isPlaceReference(item.reference)) },
+    { key: 'prop', title: '道具 / 产品', items: shownReferenceItems.filter((item) => ['prop', 'product', 'brand'].includes(String(item.reference.kind ?? '').toLowerCase())) },
+    { key: 'style', title: '风格 / 规则', items: shownReferenceItems.filter((item) => ['style', 'world_rule', 'time_period', 'restriction'].includes(String(item.reference.kind ?? '').toLowerCase())) },
   ]
 
   return (
-    <div className="mt-4 rounded-md border border-border bg-muted/10 p-3" data-testid="production-orchestration-scene-settings">
+    <section className="mt-4 border-t border-border pt-3" data-testid="production-orchestration-scene-settings">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 type-caption font-medium text-muted-foreground">
@@ -126,16 +138,30 @@ export function SceneMomentSettingsEditor({
 
       <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         {groups.map((group) => (
-          <div key={group.key} className="min-w-0 rounded-md border border-border bg-background px-2 py-2">
+          <div key={group.key} className="min-w-0 border-l border-border pl-2">
             <div className="flex items-center justify-between gap-2">
               <p className="truncate type-label font-medium text-muted-foreground">{group.title}</p>
               <Badge variant="outline" className="h-5 px-1.5 type-tiny">{group.items.length}</Badge>
             </div>
             <div className="mt-1.5 space-y-1">
-              {group.items.slice(0, 3).map((reference) => (
-                <div key={reference.ID} className="rounded bg-muted/50 px-1.5 py-1">
-                  <p className="truncate type-label font-medium text-foreground">{titleOfRecord(reference)}</p>
-                  <p className="truncate type-tiny text-muted-foreground">{creativeReferenceKindLabel(reference.kind)}</p>
+              {group.items.slice(0, 3).map((item) => (
+                <div key={`${item.reference.ID}-${item.usageId ?? 'preview'}`} className="group/reference flex items-center gap-1 rounded bg-muted/40 px-1.5 py-1">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate type-label font-medium text-foreground">{titleOfRecord(item.reference)}</p>
+                    <p className="truncate type-tiny text-muted-foreground">{creativeReferenceKindLabel(item.reference.kind)}</p>
+                  </div>
+                  {item.usageId ? (
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      className="h-5 w-5 shrink-0 self-center text-muted-foreground opacity-100 hover:text-destructive sm:opacity-0 sm:group-hover/reference:opacity-100"
+                      aria-label={`移除设定 ${titleOfRecord(item.reference)}`}
+                      disabled={isSaving}
+                      onClick={() => onUnlinkReference(item.usageId)}
+                    >
+                      <X size={11} />
+                    </Button>
+                  ) : null}
                 </div>
               ))}
               {group.items.length === 0 ? <p className="type-caption text-muted-foreground">待绑定</p> : null}
@@ -178,7 +204,7 @@ export function SceneMomentSettingsEditor({
           绑定
         </Button>
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -235,7 +261,7 @@ export function InlineSceneMomentEditor({
   const changed = Object.keys(draft).some((key) => draft[key as keyof typeof draft].trim() !== original[key as keyof typeof original].trim())
 
   return (
-    <div className="mt-3 rounded-md border border-border bg-muted/10 p-3">
+    <section className="mt-3 border-t border-border pt-3">
       <SceneMomentScriptBlockBinder
         selectedMoment={moment}
         momentBlock={momentBlock}
@@ -304,7 +330,7 @@ export function InlineSceneMomentEditor({
           保存情节
         </Button>
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -317,6 +343,7 @@ export function ProductionWritingExpressionsPanel({
   isSavingExpressionLine,
   onAddExpressionLine,
   onSaveExpressionLine,
+  onDeleteExpressionLine,
 }: {
   selectedMoment: ProductionSceneMomentRecord | null
   selectedMomentScriptBlock: ProductionScriptBlockRecord | null
@@ -326,10 +353,11 @@ export function ProductionWritingExpressionsPanel({
   isSavingExpressionLine: boolean
   onAddExpressionLine: (momentId: number, order: number, scriptBlockId?: number | null) => void
   onSaveExpressionLine: (target: ProductionWritingExpressionEditTarget, payload: ProductionWritingExpressionSavePayload) => void
+  onDeleteExpressionLine: (target: ProductionWritingExpressionEditTarget) => void
 }) {
   const speakerOptions = buildSpeakerOptions(selectedMoment, creativeReferences, lookup)
   return (
-    <section className="rounded-lg border border-border bg-background p-4">
+    <section className="border-t border-border pt-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 type-caption font-medium text-muted-foreground">
@@ -363,6 +391,7 @@ export function ProductionWritingExpressionsPanel({
             speakerOptions={speakerOptions}
             isSaving={isSavingExpressionLine}
             onSave={onSaveExpressionLine}
+            onDelete={onDeleteExpressionLine}
           />
         ))}
       </div>
@@ -376,12 +405,14 @@ function EditableWritingExpressionLine({
   speakerOptions,
   isSaving,
   onSave,
+  onDelete,
 }: {
   index: number
   line: ProductionWritingExpressionLine
   speakerOptions: ProductionSpeakerOption[]
   isSaving: boolean
   onSave: (target: ProductionWritingExpressionEditTarget, payload: ProductionWritingExpressionSavePayload) => void
+  onDelete: (target: ProductionWritingExpressionEditTarget) => void
 }) {
   const [draft, setDraft] = useState<ProductionWritingExpressionSavePayload>(() => writingExpressionLineDraft(line))
   useEffect(() => {
@@ -392,8 +423,8 @@ function EditableWritingExpressionLine({
   const typeLabel = writingTypeLabel(draft.kind)
   const selectedSpeakerValue = speakerOptionValueForDraft(draft.speaker, speakerOptions)
   return (
-    <details className="group overflow-hidden rounded-md border border-border bg-card" open={index === 0}>
-      <summary className="flex cursor-pointer list-none items-start gap-3 px-3 py-2.5 marker:hidden">
+    <details className="group border-b border-border" open={index === 0}>
+      <summary className="flex cursor-pointer list-none items-start gap-3 py-2.5 marker:hidden">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-muted type-caption font-semibold text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -408,9 +439,25 @@ function EditableWritingExpressionLine({
             <p className="mt-1 line-clamp-1 type-caption text-muted-foreground">{[draft.intent, draft.note].filter(Boolean).join(' · ')}</p>
           )}
         </div>
+        {line.persisted && line.editTarget.kind === 'writingExpressions' ? (
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            className="mt-1 shrink-0 text-muted-foreground hover:text-destructive"
+            aria-label="删除表达条目"
+            disabled={isSaving}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              onDelete(line.editTarget)
+            }}
+          >
+            <Trash2 size={13} />
+          </Button>
+        ) : null}
         <ChevronDown size={14} className="mt-2 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
       </summary>
-      <div className="border-t border-border bg-background/70 p-3">
+      <div className="border-t border-border py-3">
         <div className="grid gap-3 md:grid-cols-[150px_minmax(0,1fr)_96px]">
           <div className="min-w-0 space-y-2">
             <Select value={draft.kind} onValueChange={(value) => setDraft((prev) => ({ ...prev, kind: value as ProductionWritingExpressionType }))}>

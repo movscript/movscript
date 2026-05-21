@@ -96,7 +96,7 @@ export function CanvasEntityActionCard({
       <header className={cn('border-b px-3 py-2.5', cfg.accentSoft)}>
         <div className="flex items-start gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80">
-            <Icon size={15} className={cfg.activeColor} />
+            <Icon size={14} className={cfg.activeColor} />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
@@ -110,7 +110,7 @@ export function CanvasEntityActionCard({
             {subtitle && <p className="mt-0.5 truncate type-caption text-muted-foreground">{subtitle}</p>}
           </div>
           <Button size="icon-xs" variant="ghost" className="shrink-0" aria-label="More">
-            <MoreHorizontal size={13} />
+            <MoreHorizontal size={14} />
           </Button>
         </div>
       </header>
@@ -147,7 +147,7 @@ export function CanvasEntityActionCard({
                     data-port-id={action.outputPortId ?? `create:${action.id}`}
                     className="relative flex h-7 w-full items-center gap-1 rounded-md border border-border bg-background px-1.5 type-tiny text-foreground hover:bg-muted/60"
                   >
-                    <ActionIcon size={11} className="shrink-0 text-muted-foreground" />
+                    <ActionIcon size={12} className="shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate text-left">{action.label}</span>
                     <PortDot
                       side="right"
@@ -214,7 +214,7 @@ function BindingSlot({
         {slot.thumbnailUrl ? (
           <img src={slot.thumbnailUrl} alt="" className="h-full w-full object-cover" />
         ) : isPending ? (
-          <Loader2 size={15} className="animate-spin text-muted-foreground" />
+          <Loader2 size={14} className="animate-spin text-muted-foreground" />
         ) : (
           <Icon size={16} className="text-muted-foreground/55" />
         )}
@@ -281,7 +281,7 @@ function EmptyRow({ label }: { label: string }) {
 function SectionTitle({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
     <div className="flex items-center gap-1.5 type-tiny font-medium text-muted-foreground">
-      <Icon size={11} />
+      <Icon size={12} />
       <span>{label}</span>
     </div>
   )

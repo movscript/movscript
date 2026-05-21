@@ -1,21 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import {
-  AlertTriangle,
-  BadgeCheck,
-  CheckCircle2,
   Clock3,
-  Download,
   FileVideo,
-  ListChecks,
   Pencil,
   Plus,
-  ShieldCheck,
   X,
-  XCircle,
   Video,
-  type LucideIcon,
 } from 'lucide-react'
 
 import {
@@ -32,35 +24,42 @@ import {
 } from '@/api/deliveryEntities'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
 import { DeliveryTimelineTrack } from '@/components/workbench/DeliveryTimelineTrack'
-import { DeliveryExportPanel, DeliveryItemEditor, EmptyDeliveryTimeline } from '@/components/workbench/DeliveryWorkbenchPanels'
+import {
+  DeliveryItemEditor,
+  DeliveryOverviewPanel,
+  DeliveryResourceAdoptionPanel,
+  DeliveryVersionDetailPanel,
+  EmptyDeliveryTimeline,
+} from '@/components/workbench/DeliveryWorkbenchPanels'
 import { ProjectWorkbenchShell } from '@/components/workbench/WorkbenchChrome'
 import {
   WorkbenchEmptyState,
   WorkbenchEntityCard,
-  WorkbenchKeyValue,
   WorkbenchMetric,
   WorkbenchStatusBadge,
 } from '@/components/workbench/WorkbenchPrimitives'
-import { MediaViewer } from '@/components/shared/MediaViewer'
-import { ResourceLibraryPicker, type ResourceTypeFilter } from '@/components/shared/ResourceLibraryPicker'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import {
   buildDeliveryContentUnitMap,
   buildDeliveryGateChecks,
   buildDeliveryReadiness,
-  deliveryResourcePageCount,
   deliveryStatusLabel,
   deliveryVersionFilterLabel,
-  filterDeliveryVersions,
+  deliveryWorkbenchStatusTone,
   parsePositiveDeliveryNumber,
   pickBestDeliveryPreviewTimeline,
-  selectDeliveryResource,
   sortDeliveryContentUnits,
   sortDeliveryPreviewTimelineItems,
   sortDeliveryTimelineItems,
-  sumDeliveryTimelineDuration,
   type DeliveryVersionFilter,
 } from '@/lib/deliveryWorkbenchModel'
+import { formatDeliveryDuration } from '@/lib/deliveryWorkbenchOverviewModel'
+import {
+  readDeliveryWorkbenchProductionId,
+  useDeliveryWorkbenchTimelineSelectionController,
+  useDeliveryWorkbenchVersionController,
+} from '@/lib/deliveryWorkbenchPageController'
+import { useDeliveryWorkbenchResourceLibrary } from '@/lib/deliveryWorkbenchResourceLibrary'
 import {
   buildCreateDeliveryTimelineItemMutationOptions,
   buildCreateDeliveryVersionFromProductionTimelineMutationOptions,
@@ -69,42 +68,15 @@ import {
   buildSeedDeliveryVersionFromProductionTimelineMutationOptions,
   buildUpdateDeliveryTimelineItemMutationOptions,
 } from '@/lib/deliveryWorkbenchMutationController'
-import { api } from '@/lib/api'
-import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
-import type { PaginatedResponse, RawResource } from '@/types'
-import { Badge, Button, Label, Progress as ProgressBar } from '@movscript/ui'
-
-const statusTone: Record<string, string> = {
-  draft: 'bg-muted text-muted-foreground',
-  checking: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  approved: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  exported: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  archived: 'bg-zinc-500/10 text-zinc-700 dark:text-zinc-300',
-  confirmed: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  needs_asset: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  missing: 'bg-rose-500/10 text-rose-700 dark:text-rose-300',
-  locked: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  pending: 'bg-muted text-muted-foreground',
-  running: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  succeeded: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  failed: 'bg-rose-500/10 text-rose-700 dark:text-rose-300',
-}
+import { Badge, Button } from '@movscript/ui'
 
 export default function DeliveryWorkbenchPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
   const qc = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [filter, setFilter] = useState<DeliveryVersionFilter>('all')
-  const [search, setSearch] = useState('')
-  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
-  const [selectedItemId, setSelectedItemId] = useState<number | null>(null)
-  const [editingItem, setEditingItem] = useState(false)
-  const [resourceSearch, setResourceSearch] = useState('')
-  const [resourceType, setResourceType] = useState<ResourceTypeFilter>('video')
-  const [resourcePage, setResourcePage] = useState(1)
-  const selectedProductionId = parsePositiveDeliveryNumber(searchParams.get('productionId'))
+  const selectedProductionId = readDeliveryWorkbenchProductionId(searchParams)
 
   const versionsQuery = useQuery({
     queryKey: ['semantic-delivery-versions', projectId, selectedProductionId],
@@ -112,7 +84,17 @@ export default function DeliveryWorkbenchPage() {
     enabled: !!projectId,
   })
   const versions = versionsQuery.data ?? []
-  const selectedVersion = versions.find((item) => item.ID === selectedVersionId) ?? null
+  const {
+    filter,
+    search,
+    selectedVersionId,
+    selectedVersion,
+    visibleVersions,
+    setFilter,
+    setSearch,
+    setSelectedVersionId,
+    selectProduction,
+  } = useDeliveryWorkbenchVersionController({ searchParams, setSearchParams, versions })
 
   const productionsQuery = useQuery({
     queryKey: ['semantic-productions', projectId],
@@ -164,58 +146,14 @@ export default function DeliveryWorkbenchPage() {
     enabled: !!projectId,
   })
 
-  const resourcePageSize = 6
-  const resourcesQuery = useQuery<PaginatedResponse<RawResource>>({
-    queryKey: ['resources', 'semantic-final-library', resourceType, resourceSearch, resourcePage],
-    queryFn: () =>
-      api.get('/resources', {
-        params: {
-          page: resourcePage,
-          page_size: resourcePageSize,
-          type: resourceType === 'all' ? 'image,video,audio,text,file' : resourceType,
-          q: resourceSearch.trim() || undefined,
-        },
-      }).then((r) => r.data),
-    enabled: !!projectId,
-  })
-
-  useEffect(() => {
-    if (!selectedVersionId && versions.length > 0) {
-      setSelectedVersionId((versions.find((item) => item.is_primary) ?? versions[0]).ID)
-    }
-  }, [selectedVersionId, versions])
-
-  useEffect(() => {
-    if (selectedVersionId && !versions.some((item) => item.ID === selectedVersionId)) {
-      setSelectedVersionId(versions[0]?.ID ?? null)
-    }
-  }, [selectedVersionId, versions])
-
-  useEffect(() => {
-    setSelectedVersionId(null)
-    setSelectedItemId(null)
-    setEditingItem(false)
-  }, [selectedProductionId])
-
-  useEffect(() => {
-    setSelectedItemId(timelineItems[0]?.ID ?? null)
-    setEditingItem(false)
-  }, [selectedVersionId])
-
-  useEffect(() => {
-    setEditingItem(false)
-  }, [selectedItemId])
-
-  const visibleVersions = useMemo(
-    () => filterDeliveryVersions(versions, filter, search),
-    [filter, search, versions],
-  )
-
-  const selectedItem = timelineItems.find((item) => item.ID === selectedItemId) ?? null
-  const resources = resourcesQuery.data?.items ?? []
-  const resourceTotal = resourcesQuery.data?.total ?? 0
-  const resourcePageCount = deliveryResourcePageCount(resourceTotal, resourcePageSize)
-  const selectedResource = selectDeliveryResource(resources, selectedItem)
+  const {
+    selectedItemId,
+    selectedItem,
+    editingItem,
+    setSelectedItemId,
+    setEditingItem,
+  } = useDeliveryWorkbenchTimelineSelectionController({ selectedVersionId, timelineItems })
+  const resourceLibrary = useDeliveryWorkbenchResourceLibrary({ projectId, selectedItem })
   const versionReadiness = buildDeliveryReadiness(timelineItems)
   const sourceContentUnits = useMemo(
     () => sortDeliveryContentUnits(contentUnitsQuery.data ?? []),
@@ -299,13 +237,6 @@ export default function DeliveryWorkbenchPage() {
     productionsQuery.refetch()
   }
 
-  function selectProduction(productionId: number | null) {
-    const next = new URLSearchParams(searchParams)
-    if (productionId) next.set('productionId', String(productionId))
-    else next.delete('productionId')
-    setSearchParams(next, { replace: true })
-  }
-
   function patchSelectedItem(payload: Partial<DeliveryTimelineItem>) {
     if (!selectedItem) return
     updateItem.mutate({ id: selectedItem.ID, payload })
@@ -341,12 +272,12 @@ export default function DeliveryWorkbenchPage() {
             onChange={selectProduction}
           />
           <Button size="sm" className="gap-1.5" disabled={!selectedVersionId} onClick={() => createItem.mutate()} loading={createItem.isPending}>
-            <Plus size={15} />
+            <Plus size={14} />
             添加片段
           </Button>
           {!selectedVersionId && sourceTimelineCount > 0 ? (
             <Button size="sm" className="gap-1.5" onClick={() => createVersionFromProductionTimeline.mutate()} loading={createVersionFromProductionTimeline.isPending}>
-              <Plus size={15} />
+              <Plus size={14} />
               创建交付版
             </Button>
           ) : null}
@@ -356,20 +287,14 @@ export default function DeliveryWorkbenchPage() {
       <ContentWorkspaceLayout
         className="min-h-0 flex-1"
         overview={(
-        <div className="space-y-3">
-          <section className="grid grid-cols-4 gap-3">
-            <ReadinessCard icon={FileVideo} label="交付版本" value={versions.length} detail={`${versions.filter((item) => ['approved', 'exported'].includes(item.status)).length} 个可导出`} tone="text-indigo-600" />
-            <ReadinessCard icon={ListChecks} label="时间线片段" value={timelineItems.length} detail={`${formatDuration(sumDeliveryTimelineDuration(timelineItems))} 总时长`} tone="text-sky-600" />
-            <ReadinessCard icon={AlertTriangle} label="缺失内容" value={versionReadiness.missingCount + versionReadiness.noResourceCount} detail="missing / needs_asset / 无资源" tone="text-amber-600" />
-            <ReadinessCard icon={Download} label="导出记录" value={exportRecords.length} detail={exportRecords[0]?.status ? exportStatusLabel(exportRecords[0].status) : '尚未导出'} tone="text-emerald-600" />
-          </section>
-          {selectedVersion && (
-            <section className="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(300px,340px)]">
-              <VersionSummaryCard version={selectedVersion} items={timelineItems} readiness={versionReadiness} />
-              <GateCheckPanel checks={gateChecks} />
-            </section>
-          )}
-        </div>
+          <DeliveryOverviewPanel
+            versions={versions}
+            timelineItems={timelineItems}
+            versionReadiness={versionReadiness}
+            selectedVersion={selectedVersion}
+            exportRecords={exportRecords}
+            gateChecks={gateChecks}
+          />
       )}
       filters={(
         <ContentFilterBar
@@ -408,9 +333,9 @@ export default function DeliveryWorkbenchPage() {
 
         <div className="max-h-[700px] overflow-auto p-3">
           {versionsQuery.isLoading ? (
-            <EmptyBlock icon={Clock3} title="正在加载" detail="读取交付版本" />
+            <WorkbenchEmptyState icon={Clock3} title="正在加载" description="读取交付版本" />
           ) : visibleVersions.length === 0 ? (
-            <EmptyBlock icon={FileVideo} title="暂无版本" detail="当前范围还没有可查看的交付版本" />
+            <WorkbenchEmptyState icon={FileVideo} title="暂无版本" description="当前范围还没有可查看的交付版本" />
           ) : (
             <div className="space-y-2">
               {visibleVersions.map((version) => (
@@ -430,26 +355,7 @@ export default function DeliveryWorkbenchPage() {
       detail={(
         selectedVersion ? (
           <>
-            <section className="rounded-lg border border-border bg-card">
-              <div className="border-b border-border p-4">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <StatusPill status={selectedVersion.status ?? 'draft'} />
-                  {selectedVersion.is_primary && <span className="rounded bg-primary/10 px-2 py-1 type-label text-primary">主版本</span>}
-                  {selectedVersion.production_id && <span className="rounded bg-muted px-2 py-1 type-label text-muted-foreground">制作 #{selectedVersion.production_id}</span>}
-                  {selectedVersion.preview_timeline_id && <span className="rounded bg-muted px-2 py-1 type-label text-muted-foreground">预览 #{selectedVersion.preview_timeline_id}</span>}
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="type-body font-semibold">版本详情</h2>
-                </div>
-              </div>
-              <div className="grid gap-3 p-4 sm:grid-cols-2">
-                <ReadOnlyField label="版本名称" value={selectedVersion.name || `Delivery #${selectedVersion.ID}`} strong />
-                <ReadOnlyField label="状态" value={deliveryStatusLabel(selectedVersion.status)} />
-                <ReadOnlyField label="关联制作" value={productionLabel(selectedVersion.production_id, productions)} />
-                <ReadOnlyField label="关联预览时间线" value={selectedVersion.preview_timeline_id ? `Preview #${selectedVersion.preview_timeline_id}` : '未关联'} />
-                <ReadOnlyField label="版本说明" value={selectedVersion.description || '未填写版本说明'} className="sm:col-span-2" />
-              </div>
-            </section>
+            <DeliveryVersionDetailPanel version={selectedVersion} productions={productions} />
 
             <section className="rounded-lg border border-border bg-card">
               <div className="border-b border-border p-4">
@@ -477,17 +383,17 @@ export default function DeliveryWorkbenchPage() {
                     deleting={removeItem.isPending}
                   />
                 ) : (
-                  <EmptyBlock icon={Video} title="未选择片段" detail="从时间线选择一个片段进行编辑" />
+                  <WorkbenchEmptyState icon={Video} title="未选择片段" description="从时间线选择一个片段进行编辑" />
                 )}
               </div>
             </section>
           </>
         ) : (
           <section className="rounded-lg border border-border bg-card">
-            <EmptyBlock
+            <WorkbenchEmptyState
               icon={FileVideo}
               title="暂无交付版本"
-              detail={sourceTimelineCount > 0 ? '内容工作区已有预览/制作时间线，可以从顶部创建第一版交付装配。' : '当前范围还没有可查看的交付版本'}
+              description={sourceTimelineCount > 0 ? '内容工作区已有预览/制作时间线，可以从顶部创建第一版交付装配。' : '当前范围还没有可查看的交付版本'}
             />
           </section>
         )
@@ -499,45 +405,27 @@ export default function DeliveryWorkbenchPage() {
               <h2 className="type-body font-semibold">成片预览</h2>
               <p className="mt-1 type-label text-muted-foreground">预览当前片段资源，并可在交付层替换采用版本。</p>
             </div>
-            <div className="space-y-4 p-4">
-                  <div>
-                    <Label className="mb-2 block type-label font-medium text-muted-foreground">成片资源</Label>
-                    {selectedResource ? (
-                      <MediaViewer resource={selectedResource} fit="contain" className="mb-3 aspect-video w-full" />
-                    ) : (
-                      <div className="mb-3 flex aspect-video w-full items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                        <Video size={28} />
-                      </div>
-                    )}
-                    <ResourceLibraryPicker
-                      resources={resources}
-                      selectedResource={selectedResource}
-                      search={resourceSearch}
-                      type={resourceType}
-                      page={resourcePage}
-                      pageCount={resourcePageCount}
-                      total={resourceTotal}
-                      isLoading={resourcesQuery.isLoading || updateItem.isPending}
-                      typeOptions={['video', 'image', 'audio']}
-                      onSearch={(next) => {
-                        setResourceSearch(next)
-                        setResourcePage(1)
-                      }}
-                      onType={(next) => {
-                        setResourceType(next)
-                        setResourcePage(1)
-                      }}
-                      onPage={setResourcePage}
-                      onSelect={(resource) => patchSelectedItem({ resource_id: resource.ID, kind: resource.type, status: 'locked' })}
-                      onClear={() => patchSelectedItem({ resource_id: null, status: 'missing' })}
-                    />
-                  </div>
-                  <DeliveryExportPanel exportRecords={exportRecords} onCreate={() => createExport.mutate()} creating={createExport.isPending} />
-                </div>
+            <DeliveryResourceAdoptionPanel
+              selectedResource={resourceLibrary.selectedResource}
+              resources={resourceLibrary.resources}
+              state={resourceLibrary.state}
+              pageCount={resourceLibrary.pageCount}
+              total={resourceLibrary.total}
+              isLoading={resourceLibrary.isLoading}
+              updating={updateItem.isPending}
+              exportRecords={exportRecords}
+              creatingExport={createExport.isPending}
+              onSearch={resourceLibrary.setSearch}
+              onType={resourceLibrary.setType}
+              onPage={resourceLibrary.setPage}
+              onAdoptResource={(resource) => patchSelectedItem({ resource_id: resource.ID, kind: resource.type, status: 'locked' })}
+              onClearResource={() => patchSelectedItem({ resource_id: null, status: 'missing' })}
+              onCreateExport={() => createExport.mutate()}
+            />
           </section>
         ) : (
           <section className="rounded-lg border border-border bg-card">
-            <EmptyBlock icon={Video} title="未选择片段" detail="从底部时间线选择一个片段查看预览" />
+            <WorkbenchEmptyState icon={Video} title="未选择片段" description="从底部时间线选择一个片段查看预览" />
           </section>
         )
       )}
@@ -554,7 +442,7 @@ export default function DeliveryWorkbenchPage() {
           </div>
 
           {itemsQuery.isLoading ? (
-            <EmptyBlock icon={Clock3} title="正在加载" detail="读取成片时间线" />
+            <WorkbenchEmptyState icon={Clock3} title="正在加载" description="读取成片时间线" />
           ) : timelineItems.length === 0 ? (
             <EmptyDeliveryTimeline
               sourceCount={sourceTimelineCount}
@@ -614,109 +502,6 @@ function ProductionScopeSelect({
   )
 }
 
-type GateCheckStatus = 'passed' | 'warning' | 'blocked'
-
-const gateMeta: Record<GateCheckStatus, { className: string; icon: LucideIcon }> = {
-  passed: { className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300', icon: CheckCircle2 },
-  warning: { className: 'bg-amber-500/10 text-amber-700 dark:text-amber-300', icon: AlertTriangle },
-  blocked: { className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300', icon: XCircle },
-}
-
-function VersionSummaryCard({
-  version,
-  items,
-  readiness: r,
-}: {
-  version: DeliveryVersion
-  items: DeliveryTimelineItem[]
-  readiness: ReturnType<typeof buildDeliveryReadiness>
-}) {
-  const lockedCount = r.lockedCount
-  const total = items.length
-  const completion = total > 0 ? Math.round((lockedCount / total) * 100) : 0
-  const warningCount = items.filter((i) => !['locked', 'approved'].includes(i.status)).length
-
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <BadgeCheck size={16} className={warningCount > 0 ? 'text-amber-600' : 'text-emerald-600'} />
-            <h2 className="type-body font-semibold text-foreground">{version.name || `Delivery #${version.ID}`}</h2>
-            <Badge className={cn('type-tiny', statusTone[version.status] ?? 'bg-muted text-muted-foreground')}>
-              {deliveryStatusLabel(version.status)}
-            </Badge>
-            {version.is_primary && (
-              <Badge className="type-tiny bg-primary/10 text-primary">主版本</Badge>
-            )}
-          </div>
-          <p className="mt-2 type-body text-muted-foreground line-clamp-2">
-            {version.description || '未填写版本说明'}
-          </p>
-        </div>
-        <div className="grid grid-cols-3 gap-3 text-right shrink-0">
-          <div>
-            <p className={cn('type-title font-semibold tabular-nums', warningCount > 0 ? 'text-amber-600' : 'text-emerald-600')}>{completion}%</p>
-            <p className="mt-1 type-label text-muted-foreground">完成度</p>
-          </div>
-          <div>
-            <p className="type-title font-semibold tabular-nums">{formatDuration(sumDeliveryTimelineDuration(items))}</p>
-            <p className="mt-1 type-label text-muted-foreground">总时长</p>
-          </div>
-          <div>
-            <p className={cn('type-title font-semibold tabular-nums', warningCount > 0 ? 'text-amber-600' : 'text-foreground')}>{warningCount}</p>
-            <p className="mt-1 type-label text-muted-foreground">待处理</p>
-          </div>
-        </div>
-      </div>
-      <div className="mt-4">
-        <div className="mb-2 flex items-center justify-between type-label text-muted-foreground">
-          <span>成片片段锁定进度</span>
-          <span>{lockedCount}/{total}</span>
-        </div>
-        <ProgressBar value={completion} className="h-1.5" />
-      </div>
-    </div>
-  )
-}
-
-function GateCheckPanel({ checks }: { checks: ReadonlyArray<{ id: string; label: string; description: string; status: GateCheckStatus; count: string }> }) {
-  const warningCount = checks.filter((c) => c.status !== 'passed').length
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <ShieldCheck size={16} className="text-emerald-600" />
-          <h2 className="type-body font-semibold text-foreground">导出门禁</h2>
-        </div>
-        <Badge variant="secondary" className="type-tiny">
-          {warningCount > 0 ? `需处理 ${warningCount} 项` : '全部通过'}
-        </Badge>
-      </div>
-      <div className="mt-4 space-y-2">
-        {checks.map((check) => {
-          const meta = gateMeta[check.status]
-          const Icon = meta.icon
-          return (
-            <div key={check.id} className="flex items-start gap-3 rounded-md border border-border bg-background p-3">
-              <div className={cn('mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md', meta.className)}>
-                <Icon size={14} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate type-body font-medium text-foreground">{check.label}</p>
-                  <span className="shrink-0 type-label font-medium text-muted-foreground">{check.count}</span>
-                </div>
-                <p className="mt-1 type-label leading-relaxed text-muted-foreground">{check.description}</p>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 function VersionCard({ version, selected, itemCount, onClick }: { version: DeliveryVersion; selected: boolean; itemCount?: number; onClick: () => void }) {
   return (
     <WorkbenchEntityCard
@@ -728,58 +513,13 @@ function VersionCard({ version, selected, itemCount, onClick }: { version: Deliv
       meta={(
         <>
           <span className="type-caption text-muted-foreground">{version.is_primary ? '主版本' : `#${version.ID}`}</span>
-          <span className="type-caption text-muted-foreground">{itemCount === undefined ? formatDuration(version.duration_sec) : `${itemCount} 个片段`}</span>
+          <span className="type-caption text-muted-foreground">{itemCount === undefined ? formatDeliveryDuration(version.duration_sec) : `${itemCount} 个片段`}</span>
         </>
       )}
     />
   )
 }
 
-function ReadinessCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIcon; label: string; value: number; detail: string; tone: string }) {
-  return <WorkbenchMetric icon={Icon} label={label} value={value} detail={detail} tone={deliveryMetricTone(tone)} />
-}
-
-function ReadOnlyField({ label, value, strong, className }: { label: string; value: string; strong?: boolean; className?: string }) {
-  return <WorkbenchKeyValue label={label} value={value} strong={strong} className={className} />
-}
-
-function EmptyBlock({ icon: Icon, title, detail }: { icon: LucideIcon; title: string; detail: string }) {
-  return <WorkbenchEmptyState icon={Icon} title={title} description={detail} />
-}
-
 function StatusPill({ status, label }: { status: string; label?: string }) {
-  return <WorkbenchStatusBadge tone={deliveryStatusTone(status)} label={label ?? deliveryStatusLabel(status)} />
-}
-
-function deliveryStatusTone(status: string) {
-  if (['approved', 'exported', 'locked', 'succeeded'].includes(status)) return 'success'
-  if (['checking', 'needs_asset', 'pending', 'running'].includes(status)) return 'warning'
-  if (['confirmed'].includes(status)) return 'info'
-  if (['missing', 'failed', 'blocked'].includes(status)) return 'danger'
-  return 'neutral'
-}
-
-function deliveryMetricTone(toneClass: string) {
-  if (toneClass.includes('emerald')) return 'success'
-  if (toneClass.includes('amber')) return 'warning'
-  if (toneClass.includes('rose')) return 'danger'
-  if (toneClass.includes('sky') || toneClass.includes('indigo')) return 'info'
-  return 'neutral'
-}
-
-function formatDuration(seconds?: number) {
-  const value = Math.max(0, Math.round(seconds ?? 0))
-  const min = Math.floor(value / 60)
-  const sec = value % 60
-  return `${min}:${String(sec).padStart(2, '0')}`
-}
-
-function productionLabel(productionId: number | null | undefined, productions: Production[]) {
-  if (!productionId) return '未关联'
-  const production = productions.find((item) => item.ID === productionId)
-  return production?.name || `制作 #${productionId}`
-}
-
-function exportStatusLabel(status: string) {
-  return deliveryStatusLabel(status)
+  return <WorkbenchStatusBadge tone={deliveryWorkbenchStatusTone(status)} label={label ?? deliveryStatusLabel(status)} />
 }

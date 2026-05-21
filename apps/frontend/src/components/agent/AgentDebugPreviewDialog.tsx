@@ -56,7 +56,7 @@ export function AgentDebugPreviewDialog({
         <div className="flex items-start justify-between gap-3 border-b border-border bg-muted/20 px-4 py-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <ClipboardCheck size={15} />
+              <ClipboardCheck size={14} />
               <h2 className="type-body font-semibold text-foreground">{t('agents.chat.panel.debugPreview.title')}</h2>
               <Badge variant="secondary" className="type-tiny">{draft.route}</Badge>
               {primaryRequest && <Badge variant="outline" className="type-tiny">{primaryRequest.method}</Badge>}
@@ -323,7 +323,7 @@ export function AgentDebugPreviewDialog({
               {t('common.cancel')}
             </Button>
             <Button type="button" size="sm" onClick={onConfirm} disabled={sending}>
-              {sending ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+              {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
               {t('agents.chat.panel.debugPreview.send')}
             </Button>
           </div>

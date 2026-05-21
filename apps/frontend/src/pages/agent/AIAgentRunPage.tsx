@@ -492,13 +492,13 @@ export default function AIAgentRunPage() {
           <div className="flex flex-wrap gap-2">
             {runQuery.data?.parentRunId && (
               <Button type="button" size="sm" variant="outline" aria-label="打开上级运行" onClick={() => navigate(agentRunPath(runQuery.data!.parentRunId!))}>
-                <Route size={13} />
+                <Route size={14} />
                 上级
               </Button>
             )}
             {planQuery.data?.plan.rootRunId && planQuery.data.plan.rootRunId !== runId && (
               <Button type="button" size="sm" variant="outline" aria-label="打开计划根运行" onClick={() => navigate(agentRunPath(planQuery.data!.plan.rootRunId!))}>
-                <Route size={13} />
+                <Route size={14} />
                 根运行
               </Button>
             )}
@@ -512,16 +512,16 @@ export default function AIAgentRunPage() {
                 onClick={() => { void cancelWorkerRun() }}
                 disabled={cancelingRun || runQuery.isFetching || loadingEvents}
               >
-                {cancelingRun ? <Loader2 size={13} className="animate-spin" /> : <XCircle size={13} />}
+                {cancelingRun ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
                 取消执行器
               </Button>
             )}
             <Button type="button" size="sm" variant="outline" aria-label="返回上一页" onClick={() => navigate(-1)}>
-              <ArrowLeft size={13} />
+              <ArrowLeft size={14} />
               返回
             </Button>
             <Button type="button" size="sm" variant="outline" aria-label="刷新 AgentRun 调试页面" onClick={() => { void refreshRunPage() }} disabled={runQuery.isFetching || summaryQuery.isFetching || planQuery.isFetching || loadingEvents}>
-              <RefreshCw size={13} className={runQuery.isFetching || summaryQuery.isFetching || planQuery.isFetching || loadingEvents ? 'animate-spin' : ''} />
+              <RefreshCw size={14} className={runQuery.isFetching || summaryQuery.isFetching || planQuery.isFetching || loadingEvents ? 'animate-spin' : ''} />
               刷新
             </Button>
           </div>
@@ -707,7 +707,7 @@ export default function AIAgentRunPage() {
                                       )}
                                       {artifact.sourceRunId && (
                                         <Button type="button" size="xs" variant="ghost" className="px-1 type-min" onClick={() => navigate(agentRunPath(artifact.sourceRunId!))}>
-                                          <Route size={8} />
+                                          <Route size={10} />
                                           运行
                                         </Button>
                                       )}
@@ -856,7 +856,7 @@ export default function AIAgentRunPage() {
                 onClick={() => loadEvents('initial')}
                 disabled={loadingEvents}
               >
-                {loadingEvents ? <Loader2 size={13} className="animate-spin" /> : <History size={13} />}
+                {loadingEvents ? <Loader2 size={14} className="animate-spin" /> : <History size={14} />}
                 加载事件
               </Button>
               {summaryQuery.error && (
@@ -869,7 +869,7 @@ export default function AIAgentRunPage() {
                   onClick={() => { void summaryQuery.refetch() }}
                   disabled={summaryQuery.isFetching}
                 >
-                  {summaryQuery.isFetching ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                  {summaryQuery.isFetching ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                   重试统计
                 </Button>
               )}
@@ -883,7 +883,7 @@ export default function AIAgentRunPage() {
                   onClick={() => loadEvents('all')}
                   disabled={loadingEvents}
                 >
-                  {loadingEvents ? <Loader2 size={13} className="animate-spin" /> : <History size={13} />}
+                  {loadingEvents ? <Loader2 size={14} className="animate-spin" /> : <History size={14} />}
                   加载全部
                 </Button>
               )}
@@ -981,7 +981,7 @@ export default function AIAgentRunPage() {
                           aria-label={`复制${view.title}的原始数据`}
                           onClick={() => copyEventData(event.id, event.data)}
                         >
-                          <Copy size={9} />
+                          <Copy size={10} />
                           复制数据
                         </Button>
                       )}
@@ -993,7 +993,7 @@ export default function AIAgentRunPage() {
                         aria-label={`复制${view.title}的事件链接`}
                         onClick={() => copyEventLink(event.id)}
                       >
-                        <Copy size={9} />
+                        <Copy size={10} />
                         链接
                       </Button>
                       <Badge variant="outline" className="type-tiny">{view.categoryLabel}</Badge>
@@ -1136,7 +1136,7 @@ export default function AIAgentRunPage() {
             )}
             {traceViewMode === 'timeline' && hasMore && (
               <Button type="button" size="sm" variant="ghost" aria-label="加载更多运行事件" onClick={() => loadEvents('more')} disabled={loadingEvents}>
-                {loadingEvents ? <Loader2 size={13} className="animate-spin" /> : <History size={13} />}
+                {loadingEvents ? <Loader2 size={14} className="animate-spin" /> : <History size={14} />}
                 加载更多
               </Button>
             )}

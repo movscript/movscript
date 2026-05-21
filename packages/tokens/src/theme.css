@@ -31,18 +31,25 @@
   --ms-text-display: 30px;
   --ms-leading-display: 38px;
 
-  --ms-button-xs-height: 24px;
-  --ms-button-xs-padding-x: 8px;
-  --ms-button-sm-height: 30px;
-  --ms-button-sm-padding-x: 11px;
-  --ms-button-md-height: 38px;
-  --ms-button-md-padding-x: 16px;
-  --ms-button-lg-height: 44px;
-  --ms-button-lg-padding-x: 18px;
-  --ms-button-icon-xs-size: 24px;
-  --ms-button-icon-sm-size: 30px;
-  --ms-button-icon-md-size: 38px;
-  --ms-button-icon-lg-size: 44px;
+  --ms-button-xs-height: 22px;
+  --ms-button-xs-padding-x: 7px;
+  --ms-button-sm-height: 28px;
+  --ms-button-sm-padding-x: 9px;
+  --ms-button-md-height: 34px;
+  --ms-button-md-padding-x: 13px;
+  --ms-button-lg-height: 40px;
+  --ms-button-lg-padding-x: 16px;
+  --ms-button-icon-xs-size: 22px;
+  --ms-button-icon-sm-size: 28px;
+  --ms-button-icon-md-size: 34px;
+  --ms-button-icon-lg-size: 40px;
+
+  --ms-icon-2xs: 9px;
+  --ms-icon-xs: 11px;
+  --ms-icon-sm: 13px;
+  --ms-icon-md: 15px;
+  --ms-icon-lg: 17px;
+  --ms-icon-xl: 21px;
 
   --ms-color-background: #f5f6f2;
   --ms-color-foreground: #13161b;

@@ -2790,7 +2790,7 @@
       "output": "输出",
       "resource_sink": "保存资源",
       "approval": "人工确认",
-      "text_gen": "AI 文本生成",
+      "text_gen": "文本生成",
       "ai_gen": "AI 生成",
       "group": "分组",
       "plugin_card": "插件卡片"
@@ -2864,7 +2864,7 @@
           "description": "按目标类型生成图像、视频或文本"
         },
         "text_gen": {
-          "label": "AI 文本生成",
+          "label": "文本生成",
           "description": "根据上游内容扩写、总结或改写"
         },
         "ref_image_gen": {

@@ -142,7 +142,7 @@ export function ProductionProposalReviewPanel({
         <div className="flex min-h-0 w-full flex-col gap-3">
           {applyError && (
             <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50/60 p-3 dark:border-rose-800/50 dark:bg-rose-950/30">
-              <AlertCircle size={13} className="mt-0.5 shrink-0 text-rose-500" />
+              <AlertCircle size={14} className="mt-0.5 shrink-0 text-rose-500" />
               <p className="type-label text-rose-700 dark:text-rose-300">{applyError}</p>
             </div>
           )}

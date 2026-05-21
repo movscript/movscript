@@ -84,7 +84,7 @@ export function WorkbenchContent({ initialCategory = 'production', showCategoryT
                     active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
-                  <Icon size={15} />
+                  <Icon size={14} />
                   <span className="truncate">{item.shortTitle}</span>
                 </button>
               )

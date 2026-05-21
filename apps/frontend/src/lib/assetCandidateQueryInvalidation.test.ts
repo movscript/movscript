@@ -43,13 +43,16 @@ test('invalidateAssetCandidateConsumers skips missing projects', () => {
 
 test('candidate creation entry points share candidate consumer invalidation', () => {
   const preProduction = readFileSync(resolve('src/pages/pre-production/PreProductionPage.tsx'), 'utf8')
-  const workbench = readFileSync(resolve('src/pages/workbench/WorkbenchPage.tsx'), 'utf8')
+  const preProductionCandidateController = readFileSync(resolve('src/lib/preProductionAssetCandidateController.ts'), 'utf8')
+  const preProductionMediaCandidateController = readFileSync(resolve('src/lib/preProductionMediaCandidateController.ts'), 'utf8')
+  const contentWorkbenchUploadController = readFileSync(resolve('src/lib/contentWorkbenchUploadController.ts'), 'utf8')
   const agentBinding = readFileSync(resolve('src/lib/agentGeneratedResourceBinding.ts'), 'utf8')
   const tasks = readFileSync(resolve('src/pages/project/tasks/TasksPage.tsx'), 'utf8')
 
-  assert.match(preProduction, /invalidateAssetCandidateConsumers\(queryClient,\s*projectId\)/)
-  assert.match(preProduction, /invalidateAssetCandidateConsumers\(options\.queryClient,\s*options\.projectId\)/)
-  assert.match(workbench, /invalidateAssetCandidateConsumers\(queryClient,\s*projectId\)/)
+  assert.match(preProduction, /buildPreProductionLockCandidateMutationOptions\(\{ projectId, queryClient \}\)/)
+  assert.match(preProductionCandidateController, /invalidateAssetCandidateConsumers\(queryClient,\s*projectId\)/)
+  assert.match(preProductionMediaCandidateController, /invalidateAssetCandidateConsumers\(options\.queryClient,\s*options\.projectId\)/)
+  assert.match(contentWorkbenchUploadController, /invalidateAssetCandidateConsumers\(queryClient,\s*projectId\)/)
   assert.match(agentBinding, /invalidateAssetCandidateConsumers\(queryClient,\s*projectId\)/)
   assert.match(tasks, /invalidateAssetCandidateConsumers\(qc,\s*projectId\)/)
 })

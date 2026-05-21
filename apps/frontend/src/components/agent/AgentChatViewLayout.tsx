@@ -21,7 +21,7 @@ export function AgentChatViewLayout({
   return (
     <AgentMain className="ai-agent-panel-main">
       <AgentDebugPreviewDialog {...debugPreview} />
-      <section className="ai-agent-panel-card ai-agent-panel-content-card">
+      <section className="ai-agent-panel-content-card">
         <AgentChatHeaderSection {...header} />
         <AgentConversationThreadSection {...thread} />
       </section>

@@ -44,6 +44,14 @@ export interface PreProductionAuditAgentPayloadInput {
   projectLabel: string
 }
 
+export interface SettingPreparationAgentPayloadInput {
+  requestId: string
+  projectId: number
+  creativeReferenceId: number
+  creativeReferenceLabel: string
+  message: string
+}
+
 export interface MediaCandidateGenerationAgentPayloadInput {
   requestId: string
   projectId: number
@@ -182,6 +190,32 @@ export function buildPreProductionAuditAgentPanelDraftPayload(input: PreProducti
   }
 }
 
+export function buildSettingPreparationAgentPanelDraftPayload(input: SettingPreparationAgentPayloadInput): AgentPanelDraftPayload {
+  return {
+    requestId: input.requestId,
+    taskType: 'setting_preparation',
+    message: input.message,
+    title: `完善设定: ${input.creativeReferenceLabel}`,
+    newConversation: true,
+    autoSend: true,
+    projectId: input.projectId,
+    clientInput: buildCommandFirstClientInput({
+      message: `请完善设定资料：${input.creativeReferenceLabel}`,
+      labels: ['setting-prep-workbench', 'workbench', 'structured-output'],
+      hints: {
+        projectId: input.projectId,
+        route: { pathname: ROUTES.project.preProduction },
+        selection: {
+          entityType: 'creative_reference',
+          entityId: input.creativeReferenceId,
+          label: input.creativeReferenceLabel,
+        },
+      },
+    }),
+    renderMode: 'page',
+  }
+}
+
 export function buildMediaCandidateGenerationAgentPanelDraftPayload(input: MediaCandidateGenerationAgentPayloadInput): AgentPanelDraftPayload {
   return {
     requestId: input.requestId,
@@ -225,6 +259,10 @@ export function launchPreProductionAuditAgent(input: PreProductionAuditAgentPayl
   const cleanup = registerAgentPanelPageTool(input.requestId, input.onSettled)
   openAgentPanelDraft(buildPreProductionAuditAgentPanelDraftPayload(input))
   return cleanup
+}
+
+export function launchSettingPreparationAgent(input: SettingPreparationAgentPayloadInput) {
+  openAgentPanelDraft(buildSettingPreparationAgentPanelDraftPayload(input))
 }
 
 export function launchMediaCandidateGenerationAgent(input: MediaCandidateGenerationAgentPayloadInput & { onSettled: AgentPanelPageTool }): () => void {

@@ -7,10 +7,8 @@ import {
   AlertTriangle,
   BookOpenText,
   Boxes,
-  ChevronRight,
   Clapperboard,
   Clock3,
-  Database,
   Film,
   GitBranch,
   MapPin,
@@ -41,7 +39,7 @@ import {
 } from '@/api/semanticEntities'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
 import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
-import { AppEmptyState, AppMetricCard } from '@/components/app/AppPage'
+import { AppEmptyState, AppMetricCard, ProjectSurfaceHeader } from '@/components/app/AppPage'
 import { SemanticStatusBadge } from '@/components/app/SemanticStatusBadge'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
@@ -413,36 +411,27 @@ export default function SegmentsPage() {
     <>
       <ContentWorkspaceLayout
         header={(
-          <header className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 type-label text-muted-foreground">
-              <Database size={14} />
-              <span>{project?.name ?? '当前项目'}</span>
-              <ChevronRight size={13} />
-              <span>生产对象</span>
-              <ChevronRight size={13} />
-              <span>编排段</span>
-            </div>
-            <h1 className="mt-2 type-page-title font-semibold tracking-normal text-foreground">编排段</h1>
-            <p className="mt-1 max-w-4xl type-body leading-relaxed text-muted-foreground">
-              编排段定义本集内部的情绪、节奏和戏剧功能；一个编排段持有多个情景，并汇总制作项、设定资料、素材需求和预览画面。
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+          <ProjectSurfaceHeader
+            icon={Film}
+            title="编排段"
+            description="编排段定义本集内部的情绪、节奏和戏剧功能；一个编排段持有多个情景，并汇总制作项、设定资料、素材需求和预览画面。"
+            actions={(
+              <>
             <Button className="gap-2" onClick={startCreateSegment}>
-              <Plus size={15} />
+              <Plus size={14} />
               新建编排段
             </Button>
             <Button variant="outline" className="gap-2" onClick={refreshAll} loading={isFetching}>
-              <RefreshCcw size={15} />
+              <RefreshCcw size={14} />
               刷新
             </Button>
             <Button variant="outline" className="gap-2">
-              <GitBranch size={15} />
+              <GitBranch size={14} />
               查看关系
             </Button>
-          </div>
-          </header>
+              </>
+            )}
+          />
         )}
         overview={(
           <section className="grid grid-cols-4 gap-3">
@@ -620,7 +609,7 @@ function SegmentButton({ item, selected, onClick }: { item: SegmentWorkspace; se
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
-              <BookOpenText size={15} />
+              <BookOpenText size={14} />
             </span>
             <div className="min-w-0">
               <p className="truncate type-body font-semibold text-foreground">{titleOf(item.segment)}</p>
@@ -774,7 +763,7 @@ function SegmentDetailCard({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
-                <BookOpenText size={19} />
+                <BookOpenText size={18} />
               </span>
               <div className="min-w-0">
                 <p className="type-label text-muted-foreground">{sectionKinds[kind] ?? (kind || '编排段')} · {isNew ? '新建编排段' : sourceLabel}</p>
@@ -1337,7 +1326,7 @@ function RelatedRow({ record, scriptBlocksById }: { record: RelatedRecord | Scen
       </div>
       {item.script_block_id && !isScriptBlockRecord(item) ? (
         <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-0.5 type-tiny text-muted-foreground">
-          <ScrollText size={11} className="shrink-0" />
+          <ScrollText size={12} className="shrink-0" />
           <span className="truncate">{sourceBlock ? scriptBlockSourceLabel(sourceBlock) : `剧本块 #${item.script_block_id}`}</span>
         </div>
       ) : null}

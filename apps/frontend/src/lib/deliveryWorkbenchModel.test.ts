@@ -10,6 +10,7 @@ import {
   deliveryKindFromPreviewItem,
   deliveryResourceTypeForTimelineKind,
   deliveryStatusFromPreviewItem,
+  deliveryWorkbenchStatusTone,
   filterDeliveryVersions,
   nullableDeliveryNumber,
   parsePositiveDeliveryNumber,
@@ -154,4 +155,12 @@ test('delivery workbench model parses positive numeric identifiers', () => {
   assert.equal(parsePositiveDeliveryNumber('abc'), null)
   assert.equal(nullableDeliveryNumber(9), 9)
   assert.equal(nullableDeliveryNumber(-1), null)
+})
+
+test('delivery workbench model maps status values to shared semantic tones', () => {
+  assert.equal(deliveryWorkbenchStatusTone('approved'), 'success')
+  assert.equal(deliveryWorkbenchStatusTone('needs_asset'), 'warning')
+  assert.equal(deliveryWorkbenchStatusTone('confirmed'), 'info')
+  assert.equal(deliveryWorkbenchStatusTone('failed'), 'danger')
+  assert.equal(deliveryWorkbenchStatusTone('draft'), 'neutral')
 })

@@ -50,10 +50,12 @@ import AIAgentDebugPage from './pages/agent/AIAgentDebugPage'
 import AIAgentSettingsPage from './pages/agent/AIAgentSettingsPage'
 import i18n from './i18n'
 import { MCPContextBridge } from './mcp/MCPContextBridge'
-import { Loader2 } from 'lucide-react'
+import { ArrowLeft, BriefcaseBusiness, HardDrive, Loader2, Lightbulb, PanelLeftClose, PanelLeftOpen, Play, Save, Workflow, Zap } from 'lucide-react'
 import { runtimeRoutes } from '@runtime'
 import { getProjectWorkbenchDefinition } from './pages/project/projectSurfaces'
 import { LEGACY_ROUTES, ROUTES, mergeSearch, withSearch } from './routes/projectRoutes'
+import { useCanvasHeaderStore } from './store/canvasHeaderStore'
+import { Badge, Button } from '@movscript/ui'
 
 // ── Error boundary ───────────────────────────────────────────────────────────
 
@@ -165,7 +167,7 @@ function BackendBootOverlay() {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/92 px-6 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 text-center shadow-lg">
         <div className={`mx-auto mb-4 flex size-11 items-center justify-center rounded-md ${isError ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}>
-          {isError ? <span className="type-title-sm font-semibold">!</span> : <Loader2 size={22} className="animate-spin" />}
+          {isError ? <span className="type-title-sm font-semibold">!</span> : <Loader2 size={24} className="animate-spin" />}
         </div>
         <h2 className="type-body font-semibold">
           {isError ? i18n.t('backendBoot.errorTitle') : i18n.t('backendBoot.startingTitle')}
@@ -287,6 +289,116 @@ function LegacyRedirect({ to }: { to: string }) {
   return <Navigate to={withSearch(to, search)} replace />
 }
 
+function CanvasHeaderControls() {
+  const navigate = useNavigate()
+  const iconButtonClass = 'flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground'
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <button
+        type="button"
+        className={iconButtonClass}
+        onClick={() => navigate(ROUTES.canvases)}
+        title={i18n.t('header.titles.canvases', { defaultValue: 'Canvases' })}
+        aria-label={i18n.t('header.titles.canvases', { defaultValue: 'Canvases' })}
+      >
+        <ArrowLeft size={12} />
+      </button>
+      <button
+        type="button"
+        className={iconButtonClass}
+        onClick={() => navigate(ROUTES.resources)}
+        title={i18n.t('header.titles.resources', { defaultValue: 'Resources' })}
+        aria-label={i18n.t('header.titles.resources', { defaultValue: 'Resources' })}
+      >
+        <HardDrive size={12} />
+      </button>
+      <button
+        type="button"
+        className={iconButtonClass}
+        onClick={() => navigate(ROUTES.jobs)}
+        title={i18n.t('header.titles.jobs', { defaultValue: 'Jobs' })}
+        aria-label={i18n.t('header.titles.jobs', { defaultValue: 'Jobs' })}
+      >
+        <BriefcaseBusiness size={12} />
+      </button>
+    </div>
+  )
+}
+
+function CanvasHeaderCenter() {
+  const canvasName = useCanvasHeaderStore((s) => s.canvasName)
+  const canvasType = useCanvasHeaderStore((s) => s.canvasType)
+  const nodeCount = useCanvasHeaderStore((s) => s.nodeCount)
+  const runningCount = useCanvasHeaderStore((s) => s.runningCount)
+  const doneCount = useCanvasHeaderStore((s) => s.doneCount)
+  const inputCount = useCanvasHeaderStore((s) => s.inputCount)
+  const processorCount = useCanvasHeaderStore((s) => s.processorCount)
+  const outputCount = useCanvasHeaderStore((s) => s.outputCount)
+  const activeRunLabel = useCanvasHeaderStore((s) => s.activeRunLabel)
+  const workflowRunningCount = useCanvasHeaderStore((s) => s.workflowRunningCount)
+  const onNameChange = useCanvasHeaderStore((s) => s.onNameChange)
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <Badge variant="outline" className="h-6 shrink-0 gap-1 px-2 type-tiny font-medium">
+        {canvasType === 'workflow' ? <Zap size={12} /> : <Lightbulb size={12} />}
+        {i18n.t(`canvas.editor.canvasType.${canvasType}`)}
+      </Badge>
+      <input
+        className="app-window-no-drag min-w-[120px] max-w-[260px] flex-1 border-none bg-transparent type-label font-semibold text-foreground outline-none"
+        value={canvasName}
+        onChange={(event) => onNameChange?.(event.target.value)}
+        placeholder={i18n.t('canvas.editor.untitled')}
+      />
+      <Badge variant="outline" className="hidden h-6 shrink-0 items-center gap-1 border-border type-tiny font-medium leading-none text-muted-foreground sm:flex">
+        <Workflow size={12} />
+        {i18n.t('canvas.editor.nodesCount', { count: nodeCount })}
+      </Badge>
+      {runningCount > 0 && (
+        <Badge variant="secondary" className="h-6 shrink-0 gap-1 type-tiny">
+          <Loader2 size={12} className="animate-spin" />
+          {i18n.t('canvas.editor.runningCount', { count: runningCount })}
+        </Badge>
+      )}
+      {canvasType === 'workflow' && activeRunLabel && (
+        <Badge variant="outline" className="hidden h-6 shrink-0 gap-1 type-tiny sm:flex">{activeRunLabel}</Badge>
+      )}
+      {canvasType === 'workflow' && workflowRunningCount > 1 && (
+        <Badge variant="secondary" className="hidden h-6 shrink-0 type-tiny sm:flex">
+          {i18n.t('canvas.editor.parallelRuns', { count: workflowRunningCount })}
+        </Badge>
+      )}
+      <div className="hidden min-w-0 items-center gap-1.5 truncate type-tiny text-muted-foreground xl:flex">
+        <span>{i18n.t('canvas.editor.stats.inputs', { count: inputCount })}</span>
+        <span className="h-1 w-1 rounded-full bg-border" />
+        <span>{i18n.t('canvas.editor.stats.processors', { count: processorCount })}</span>
+        <span className="h-1 w-1 rounded-full bg-border" />
+        <span>{i18n.t('canvas.editor.stats.outputs', { count: outputCount })}</span>
+        <span className="h-1 w-1 rounded-full bg-border" />
+        <span>{i18n.t('canvas.editor.stats.done', { count: doneCount })}</span>
+      </div>
+    </div>
+  )
+}
+
+function CanvasHeaderActions() {
+  const onRun = useCanvasHeaderStore((s) => s.onRun)
+  const onSave = useCanvasHeaderStore((s) => s.onSave)
+  const saving = useCanvasHeaderStore((s) => s.saving)
+  const startingRun = useCanvasHeaderStore((s) => s.startingRun)
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <Button onClick={onRun} disabled={!onRun || startingRun} size="sm" className="h-6 rounded-md px-2 type-tiny">
+        <Play size={12} /> {startingRun ? i18n.t('canvas.editor.starting') : i18n.t('canvas.editor.startRun')}
+      </Button>
+      <Button onClick={onSave} disabled={!onSave || saving} size="sm" variant="outline" className="h-6 rounded-md px-2 type-tiny">
+        {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+        {saving ? i18n.t('common.saving') : i18n.t('common.save')}
+      </Button>
+      <CanvasHeaderControls />
+    </div>
+  )
+}
+
 function isAgentCoveredProjectRoute(pathname: string) {
   if (pathname === ROUTES.project.agent) return true
   if (pathname.startsWith('/project/')) return true
@@ -298,6 +410,32 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
   const current = useProjectStore((s) => s.current)
   const workMode = useAppSettingsStore((s) => s.settings.workMode)
   const agentMode = workMode === 'agent' && !!current && isAgentCoveredProjectRoute(pathname)
+  const [detailSidebarState, setDetailSidebarState] = React.useState<'expanded' | 'collapsed' | 'hidden'>('expanded')
+  const lastVisibleDetailSidebarState = React.useRef<'expanded' | 'collapsed'>('expanded')
+  const detailSidebarHidden = detailSidebarState === 'hidden'
+  const detailSidebarCollapsed = detailSidebarState === 'collapsed'
+  const setVisibleDetailSidebarState = React.useCallback((state: 'expanded' | 'collapsed') => {
+    lastVisibleDetailSidebarState.current = state
+    setDetailSidebarState(state)
+  }, [])
+  const toggleHiddenDetailSidebar = React.useCallback(() => {
+    setDetailSidebarState((state) => {
+      if (state === 'hidden') return lastVisibleDetailSidebarState.current
+      lastVisibleDetailSidebarState.current = state
+      return 'hidden'
+    })
+  }, [])
+  const sidebarHeaderControl = (
+    <button
+      type="button"
+      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+      onClick={toggleHiddenDetailSidebar}
+      title={detailSidebarHidden ? '展开左侧栏' : '隐藏左侧栏'}
+      aria-label={detailSidebarHidden ? '展开左侧栏' : '隐藏左侧栏'}
+    >
+      {detailSidebarHidden ? <PanelLeftOpen size={12} /> : <PanelLeftClose size={12} />}
+    </button>
+  )
 
   const shell = (
     <>
@@ -306,6 +444,8 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
         <WorkspaceShell
           sidebar={<ProjectAgentModeSidebar />}
           header={<Header titleKey="header.titles.projectAgentMode" />}
+          contentPaddingClassName="p-0"
+          contentFrameClassName="rounded-none border-0"
         >
           <RouteErrorBoundary>
             <ProjectGuard><ProjectAgentModePage embeddedInShell /></ProjectGuard>
@@ -313,8 +453,14 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
         </WorkspaceShell>
       ) : (
         <WorkspaceShell
-          sidebar={<Sidebar />}
-          header={<Header />}
+          sidebar={detailSidebarHidden ? undefined : (
+            <Sidebar
+              collapsed={detailSidebarCollapsed}
+              onCollapse={() => setVisibleDetailSidebarState('collapsed')}
+              onExpand={() => setVisibleDetailSidebarState('expanded')}
+            />
+          )}
+          header={<Header leftControls={sidebarHeaderControl} />}
           assistantPanel={<AIAgentPanel />}
         >
           <RouteErrorBoundary>{children}</RouteErrorBoundary>
@@ -383,8 +529,19 @@ export default function App() {
         <Toaster />
         <BackendBootOverlay />
         <Routes>
-          {/* Canvas editor is full-screen, no sidebar/header */}
-          <Route path={ROUTES.canvasEditor} element={<CanvasEditorPage />} />
+          <Route path={ROUTES.canvasEditor} element={
+            <OrgGuard>
+              <WorkspaceShell
+                header={<Header centerContent={<CanvasHeaderCenter />} appControls={<CanvasHeaderActions />} />}
+                contentPaddingClassName="p-0"
+                contentFrameClassName="rounded-none border-0"
+              >
+                <RouteErrorBoundary>
+                  <CanvasEditorPage embeddedInShell />
+                </RouteErrorBoundary>
+              </WorkspaceShell>
+            </OrgGuard>
+          } />
           {/* Org select - full-screen, no sidebar */}
           <Route path={ROUTES.orgSelect} element={<OrgSelectPage />} />
           {/* Invite page - accessible when logged in */}

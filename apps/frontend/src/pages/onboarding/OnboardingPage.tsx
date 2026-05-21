@@ -142,7 +142,7 @@ export default function OnboardingPage() {
               className="rounded-lg border border-border bg-card p-5 text-left transition-colors hover:border-primary hover:bg-primary/5"
             >
               <div className="mb-4 flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <HardDrive size={20} />
+                <HardDrive size={18} />
               </div>
               <h2 className="type-body-lg font-semibold">{t('onboarding.local.title')}</h2>
               <p className="mt-2 type-body leading-6 text-muted-foreground">
@@ -157,7 +157,7 @@ export default function OnboardingPage() {
               className="rounded-lg border border-border bg-card p-5 text-left transition-colors hover:border-primary hover:bg-primary/5"
             >
               <div className="mb-4 flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <Cloud size={20} />
+                <Cloud size={18} />
               </div>
               <h2 className="type-body-lg font-semibold">{t('onboarding.cloud.title')}</h2>
               <p className="mt-2 type-body leading-6 text-muted-foreground">

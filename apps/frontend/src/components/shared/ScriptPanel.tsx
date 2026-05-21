@@ -43,7 +43,7 @@ export function ScriptPanel({ projectId }: Props) {
   return (
     <div className="fixed right-0 top-0 h-full w-80 bg-background border-l border-border shadow-xl z-40 flex flex-col">
       <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/50">
-        <BookOpen size={15} className="text-muted-foreground shrink-0" />
+        <BookOpen size={14} className="text-muted-foreground shrink-0" />
         <span className="type-body font-semibold flex-1">{t('domain.scriptTypes.mainAlt')}</span>
         <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
           <ChevronRight size={16} />

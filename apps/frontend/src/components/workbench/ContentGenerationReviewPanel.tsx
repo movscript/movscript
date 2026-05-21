@@ -62,7 +62,7 @@ export function ContentGenerationReviewPanel({
             {queueSummary.pending > 0 ? `${queueSummary.pending} 待审` : `${queueSummary.total} 草案`}
           </Badge>
           <Button size="sm" variant="outline" className="gap-2" onClick={onCloseReview}>
-            <Database size={13} />
+            <Database size={14} />
             {reviewMode ? '退出审阅' : '收起审阅'}
           </Button>
         </div>
@@ -82,7 +82,7 @@ export function ContentGenerationReviewPanel({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 type-body font-medium text-foreground">
-              <Bot size={15} className="text-muted-foreground" />
+              <Bot size={14} className="text-muted-foreground" />
               {queueSummary.title}
             </div>
             <p className="mt-1 type-label leading-5 text-muted-foreground">{queueSummary.detail}</p>
@@ -94,7 +94,7 @@ export function ContentGenerationReviewPanel({
             onClick={queueSummary.total === 0 ? onOpenAiSuggest : undefined}
             disabled={queueSummary.total > 0}
           >
-            <Sparkles size={13} />
+            <Sparkles size={14} />
             {queueSummary.actionLabel}
           </Button>
         </div>
@@ -178,7 +178,7 @@ export function ContentGenerationReviewPanel({
                       loading={markingDraftReviewed}
                       disabled={markingDraftReviewed || selectedDraft.status === 'applied'}
                     >
-                      <CheckCircle2 size={13} />
+                      <CheckCircle2 size={14} />
                       {selectedDraft.status === 'applied' ? '已处理' : '标记人工已处理'}
                     </Button>
                     <Button
@@ -189,7 +189,7 @@ export function ContentGenerationReviewPanel({
                       loading={rejectingDraft}
                       disabled={rejectingDraft || selectedDraft.status === 'rejected'}
                     >
-                      <X size={13} />
+                      <X size={14} />
                       退回草案
                     </Button>
                   </div>
@@ -228,7 +228,7 @@ export function ContentGenerationReviewPanel({
                           data-testid="content-workbench-create-proposal-unit"
                           onClick={() => onCreateUnitFromProposal(change.proposal!)}
                         >
-                          <Plus size={13} />
+                          <Plus size={14} />
                           带入新建制作项
                         </Button>
                       ) : null}
@@ -242,7 +242,7 @@ export function ContentGenerationReviewPanel({
                               data-testid="content-workbench-apply-proposal-unit"
                               onClick={() => onApplyUnitProposal(change.currentUnitId!, change.proposal!)}
                             >
-                              <CheckCircle2 size={13} />
+                              <CheckCircle2 size={14} />
                               采纳草案字段
                             </Button>
                           ) : null}
@@ -253,7 +253,7 @@ export function ContentGenerationReviewPanel({
                             data-testid="content-workbench-edit-current-unit"
                             onClick={() => onEditCurrentUnit(change.currentUnitId!)}
                           >
-                            <Pencil size={13} />
+                            <Pencil size={14} />
                             手动编辑
                           </Button>
                         </div>

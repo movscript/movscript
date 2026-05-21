@@ -112,7 +112,7 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
           <aside className="hidden w-[360px] shrink-0 flex-col border-r border-border bg-muted/20 lg:flex">
             <div className="border-b border-border p-4">
               <div className="flex items-center gap-2 type-body font-semibold text-foreground">
-                <Layers3 size={15} />
+                <Layers3 size={14} />
                 编排段树
               </div>
               <p className="mt-1 type-label leading-5 text-muted-foreground">
@@ -185,7 +185,7 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
                   <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 type-body font-semibold text-foreground">
-                        <Film size={15} />
+                        <Film size={14} />
                         真实剧情流
                       </div>
                       <p className="mt-1 max-w-2xl type-label leading-5 text-muted-foreground">
@@ -438,7 +438,7 @@ function MobileTree({ data, nodes }: { data: PreviewGenerateResponse; nodes: Pre
     <section className="rounded-lg border border-border bg-muted/20 p-3 lg:hidden">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 type-body font-semibold text-foreground">
-          <Layers3 size={15} />
+          <Layers3 size={14} />
           编排段树
         </div>
         <PreviewStats data={data} />

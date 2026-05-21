@@ -26,6 +26,7 @@ import {
   type ExportRecord,
   type Production,
 } from '@/api/deliveryEntities'
+import { ProjectSurfaceHeader } from '@/components/app/AppPage'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge, Button, Progress } from '@movscript/ui'
@@ -74,24 +75,18 @@ export default function DeliveryPage() {
   return (
     <div className="h-full overflow-auto bg-background">
       <div className="min-w-[1180px] space-y-4 p-5">
-        <header className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 type-label text-muted-foreground">
-              <Truck size={14} />
-              <span>{project?.name ?? '当前项目'}</span>
-              <ArrowRight size={13} />
-              <span>交付中心</span>
-            </div>
-            <h1 className="mt-2 type-page-title font-semibold tracking-normal">交付</h1>
-            <p className="mt-1 max-w-4xl type-body leading-6 text-muted-foreground">
-              交付中心追踪每个制作的交付版本、素材包、轻量成片和导出记录；具体成片预览、片段微调与放行检查进入交付工作台完成。
-            </p>
-          </div>
-          <Button variant="outline" className="gap-2" onClick={() => centerQuery.refetch()} loading={centerQuery.isFetching}>
-            <RefreshCcw size={15} />
-            刷新
-          </Button>
-        </header>
+        <ProjectSurfaceHeader
+          icon={Truck}
+          title="交付"
+          description="交付中心追踪每个制作的交付版本、素材包、轻量成片和导出记录；具体成片预览、片段微调与放行检查进入交付工作台完成。"
+          meta={<Badge variant="outline">{rows.length} 个制作</Badge>}
+          actions={(
+            <Button variant="outline" className="gap-2" onClick={() => centerQuery.refetch()} loading={centerQuery.isFetching}>
+              <RefreshCcw size={14} />
+              刷新
+            </Button>
+          )}
+        />
 
         <section className="grid grid-cols-5 gap-3">
           <MetricCard icon={Boxes} label="制作" value={aggregate.productions} detail="当前项目制作单元" tone="text-orange-600" />
@@ -243,7 +238,7 @@ function DeliveryProductionRow({ row }: { row: DeliveryCenterRow }) {
         <Button size="sm" className="shrink-0 gap-1.5" asChild>
           <Link to={withRouteParams(ROUTES.project.deliveryWorkbench, { productionId: row.production.ID })}>
             工作台
-            <ArrowRight size={13} />
+            <ArrowRight size={14} />
           </Link>
         </Button>
       </div>
@@ -255,7 +250,7 @@ function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIc
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="mb-3 flex items-center justify-between">
-        <Icon size={17} className={tone} />
+        <Icon size={16} className={tone} />
         <span className="type-label text-muted-foreground">{label}</span>
       </div>
       <p className="type-page-title font-semibold">{value}</p>
@@ -268,7 +263,7 @@ function ModeCard({ icon: Icon, title, detail }: { icon: LucideIcon; title: stri
   return (
     <div className="rounded-md border border-border bg-background p-3">
       <div className="flex items-center gap-2">
-        <Icon size={15} className="text-muted-foreground" />
+        <Icon size={14} className="text-muted-foreground" />
         <p className="type-body font-medium">{title}</p>
       </div>
       <p className="mt-2 type-label leading-5 text-muted-foreground">{detail}</p>
@@ -279,7 +274,7 @@ function ModeCard({ icon: Icon, title, detail }: { icon: LucideIcon; title: stri
 function EmptyState({ icon: Icon, title, detail }: { icon: LucideIcon; title: string; detail: string }) {
   return (
     <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
-      <Icon size={26} className="text-muted-foreground" />
+      <Icon size={24} className="text-muted-foreground" />
       <p className="mt-3 type-body font-medium">{title}</p>
       <p className="mt-1 type-label text-muted-foreground">{detail}</p>
     </div>

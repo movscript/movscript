@@ -6,9 +6,9 @@ import { useToastStore, type ToastItem } from '@/store/toastStore'
 import { cn } from '@/lib/utils'
 
 const ICONS = {
-  success: <CheckCircle size={15} className="shrink-0 text-foreground" />,
-  error:   <AlertCircle size={15} className="shrink-0 text-destructive" />,
-  info:    <Info size={15} className="shrink-0 text-primary" />,
+  success: <CheckCircle size={14} className="shrink-0 text-foreground" />,
+  error:   <AlertCircle size={14} className="shrink-0 text-destructive" />,
+  info:    <Info size={14} className="shrink-0 text-primary" />,
 }
 
 const BORDER = {
@@ -42,12 +42,12 @@ function ToastItem({ t, onRemove }: { t: ToastItem; onRemove: () => void }) {
             className="shrink-0 text-muted-foreground hover:text-foreground transition-colors mt-0.5"
             title={translate('toast.expandDetails')}
           >
-            {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
         )}
         <Toast.Close asChild>
           <button className="shrink-0 text-muted-foreground hover:text-foreground transition-colors mt-0.5">
-            <X size={13} />
+            <X size={14} />
           </button>
         </Toast.Close>
       </div>

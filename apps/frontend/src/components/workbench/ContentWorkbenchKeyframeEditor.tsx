@@ -84,7 +84,7 @@ export function ContentWorkbenchKeyframeEditor({
           </div>
           {onCreateKeyframe ? (
             <Button size="sm" variant="outline" className="gap-1.5" onClick={onCreateKeyframe}>
-              <Plus size={13} />
+              <Plus size={14} />
               添加
             </Button>
           ) : null}
@@ -150,7 +150,7 @@ export function ContentWorkbenchKeyframeEditor({
                   disabled={reorderPending || keyframes[0]?.ID === selectedKeyframe.ID}
                   onClick={() => onMoveKeyframe(selectedKeyframe, 'up')}
                 >
-                  <ArrowUp size={13} />
+                  <ArrowUp size={14} />
                 </Button>
                 <Button
                   size="icon-sm"
@@ -161,7 +161,7 @@ export function ContentWorkbenchKeyframeEditor({
                   disabled={reorderPending || keyframes[keyframes.length - 1]?.ID === selectedKeyframe.ID}
                   onClick={() => onMoveKeyframe(selectedKeyframe, 'down')}
                 >
-                  <ArrowDown size={13} />
+                  <ArrowDown size={14} />
                 </Button>
                 <Button
                   size="sm"
@@ -172,7 +172,7 @@ export function ContentWorkbenchKeyframeEditor({
                   onClick={() => onDeleteKeyframe(selectedKeyframe)}
                   data-testid="content-workbench-keyframe-delete"
                 >
-                  <Trash2 size={13} />
+                  <Trash2 size={14} />
                   删除
                 </Button>
                 <Button
@@ -183,7 +183,7 @@ export function ContentWorkbenchKeyframeEditor({
                   onClick={onSaveKeyframe}
                   data-testid="content-workbench-keyframe-save"
                 >
-                  <CheckCircle2 size={13} />
+                  <CheckCircle2 size={14} />
                   保存
                 </Button>
               </div>
@@ -250,7 +250,7 @@ export function ContentWorkbenchKeyframeEditor({
                   onClick={() => onGenerateKeyframes(unfinishedKeyframes)}
                   data-testid="content-workbench-keyframe-generate-missing"
                 >
-                  <Play size={13} />
+                  <Play size={14} />
                   生成未完成
                 </Button>
                 <Button
@@ -261,7 +261,7 @@ export function ContentWorkbenchKeyframeEditor({
                   onClick={() => onGenerateKeyframes([selectedKeyframe])}
                   data-testid="content-workbench-keyframe-generate-one"
                 >
-                  <Play size={13} />
+                  <Play size={14} />
                   生成当前帧
                 </Button>
               </div>

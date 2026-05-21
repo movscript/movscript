@@ -452,9 +452,9 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
             <div className="flex items-center gap-2 type-label text-muted-foreground">
               <GitBranch size={14} />
               <span>{project?.name ?? '当前项目'}</span>
-              <ArrowRight size={13} />
+              <ArrowRight size={14} />
               <span>生产对象</span>
-              <ArrowRight size={13} />
+              <ArrowRight size={14} />
               <span>引用关系</span>
             </div>
             <h1 className="mt-2 type-page-title font-semibold tracking-normal text-foreground">引用关系工作台</h1>
@@ -468,11 +468,11 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
               <ViewButton active={view === 'workspace'} icon={Gauge} label="关系工作台" onClick={() => setView('workspace')} />
             </div>
             <Button variant="outline" className="gap-2" onClick={refreshAll} loading={usagesQuery.isFetching || relationshipsQuery.isFetching}>
-              <RefreshCcw size={15} />
+              <RefreshCcw size={14} />
               刷新
             </Button>
             <Button className="gap-2" onClick={startCreate}>
-              <Plus size={15} />
+              <Plus size={14} />
               新建关系
             </Button>
           </div>
@@ -590,13 +590,13 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
 
               <div className="flex items-center justify-between gap-2 border-t border-border p-4">
                 <Button type="button" variant="outline" onClick={deleteSelected} disabled={mode !== 'edit' || working} className="gap-2">
-                  <Trash2 size={15} />
+                  <Trash2 size={14} />
                   删除
                 </Button>
                 <div className="flex items-center gap-2">
                   <Button type="button" variant="outline" onClick={startCreate}>清空</Button>
                   <Button type="submit" loading={working} className="gap-2">
-                    <Save size={15} />
+                    <Save size={14} />
                     保存
                   </Button>
                 </div>
@@ -834,7 +834,7 @@ function RelationGraphOverview({
         <div className="h-[calc(100vh-330px)] min-h-[560px]">
           {nodes.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
-              <Network size={28} className="text-muted-foreground" />
+              <Network size={24} className="text-muted-foreground" />
               <p className="mt-3 type-body font-medium text-foreground">暂无可视化关系</p>
               <p className="mt-1 type-label text-muted-foreground">先在关系工作台创建使用关系或设定资料关系。</p>
             </div>
@@ -883,11 +883,11 @@ function RelationGraphOverview({
             </div>
           )}
           <Button type="button" className="w-full gap-2" onClick={() => onOpenWorkspace('usage')}>
-            <Link2 size={15} />
+            <Link2 size={14} />
             编辑对象引用设定资料
           </Button>
           <Button type="button" variant="outline" className="w-full gap-2" onClick={() => onOpenWorkspace('relationship')}>
-            <GitBranch size={15} />
+            <GitBranch size={14} />
             编辑设定资料之间关系
           </Button>
         </Panel>
@@ -962,7 +962,7 @@ function ViewButton({ active, icon: Icon, label, onClick }: { active: boolean; i
 function SegmentButton({ active, icon: Icon, label, count, onClick }: { active: boolean; icon: typeof Link2; label: string; count: number; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} className={cn('flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left type-body transition-colors', active ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground')}>
-      <Icon size={15} />
+      <Icon size={14} />
       <span className="flex-1 truncate">{label}</span>
       <span className={cn('rounded px-1.5 py-0.5 type-caption', active ? 'bg-background/15' : 'bg-muted text-muted-foreground')}>{count}</span>
     </button>
@@ -1030,7 +1030,7 @@ function ReferenceSelect({ value, onChange, references }: { value: string; onCha
 function EmptyState() {
   return (
     <div className="flex h-48 flex-col items-center justify-center rounded-lg border border-dashed border-border text-center">
-      <Link2 size={22} className="text-muted-foreground" />
+      <Link2 size={24} className="text-muted-foreground" />
       <p className="mt-2 type-body font-medium text-foreground">没有匹配的关系</p>
       <p className="mt-1 type-label text-muted-foreground">调整筛选或新建一条关系。</p>
     </div>

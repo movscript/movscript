@@ -73,7 +73,7 @@ function MembersTab({ orgId }: { orgId: number }) {
       <div className="flex items-center justify-between">
         <p className="type-body text-muted-foreground">{t('org.membersCount', { count: members.length })}</p>
         <Button size="sm" onClick={() => setShowAdd(true)}>
-          <Plus size={13} className="mr-1.5" />
+          <Plus size={14} className="mr-1.5" />
           {t('org.addMember')}
         </Button>
       </div>
@@ -108,7 +108,7 @@ function MembersTab({ orgId }: { orgId: number }) {
               onClick={() => removeMember.mutate(m.user_id)}
               title={t('org.removeMember')}
             >
-              <UserMinus size={13} />
+              <UserMinus size={14} />
             </Button>
           </div>
         ))}
@@ -225,7 +225,7 @@ function InvitationsTab({ orgId }: { orgId: number }) {
           <p className="mt-1 type-label text-muted-foreground">{t('org.codeManagementHint')}</p>
         </div>
         <Button variant="outline" size="sm" onClick={copyCode} disabled={!org?.join_code}>
-          {copied === 'code' ? <Check size={13} /> : <Copy size={13} />}
+          {copied === 'code' ? <Check size={14} /> : <Copy size={14} />}
           {t('org.copyOrgCode')}
         </Button>
       </div>
@@ -233,7 +233,7 @@ function InvitationsTab({ orgId }: { orgId: number }) {
       <div className="flex items-center justify-between">
         <p className="type-body text-muted-foreground">{t('org.invitationsCount', { count: invitations.length })}</p>
         <Button size="sm" onClick={() => setShowCreate(true)}>
-          <Plus size={13} className="mr-1.5" />
+          <Plus size={14} className="mr-1.5" />
           {t('org.createInvite')}
         </Button>
       </div>
@@ -260,7 +260,7 @@ function InvitationsTab({ orgId }: { orgId: number }) {
                     onClick={() => copyLink(inv.token)}
                     title={t('org.copyInviteLink')}
                   >
-                    {copied === `link:${inv.token}` ? <Check size={13} /> : <Copy size={13} />}
+                    {copied === `link:${inv.token}` ? <Check size={14} /> : <Copy size={14} />}
                   </Button>
                   <Button
                     variant="ghost"
@@ -269,7 +269,7 @@ function InvitationsTab({ orgId }: { orgId: number }) {
                     onClick={() => revokeInvitation.mutate(inv.ID)}
                     title={t('org.revokeInvite')}
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={14} />
                   </Button>
                 </>
               )}
@@ -350,7 +350,7 @@ function UsageTab({ orgId }: { orgId: number }) {
 
       <div className="rounded-lg border border-border bg-foreground px-4 py-3 text-background">
         <div className="flex items-center gap-2 type-label opacity-70">
-          <Coins size={13} />
+          <Coins size={14} />
           <span>{t('org.usage.totalCost')}</span>
         </div>
         <div className="mt-1 type-page-title font-semibold tabular-nums">{totalCost.toFixed(3)}</div>

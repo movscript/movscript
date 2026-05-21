@@ -63,7 +63,7 @@ function TaskHistoryItem({ task, outputType, fallbackResource }: { task: CanvasT
       )}
       {task.status === 'failed' && (
         <div className="flex items-center gap-1.5 text-destructive px-3 py-2">
-          <XCircle size={11} />
+          <XCircle size={12} />
           <span className="type-caption">{task.error ?? t('pages.jobs.generationFailed')}</span>
         </div>
       )}
@@ -185,7 +185,7 @@ export function ToolNodeFullCard({
         {latestTask && (
           <div className="space-y-1.5">
             <p className="type-caption font-medium text-muted-foreground flex items-center gap-1.5">
-              <History size={11} />
+              <History size={12} />
               {t('shared.toolNode.latestGeneration')}
             </p>
             <TaskHistoryItem task={latestTask} outputType={outputType} fallbackResource={resource} />
@@ -264,7 +264,7 @@ export function ToolNodeFullCard({
                   {historyTasks.length}
                 </span>
               </span>
-              {historyExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              {historyExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
             {historyExpanded && (
               <div className="mt-2 space-y-2 max-h-80 overflow-y-auto nowheel">

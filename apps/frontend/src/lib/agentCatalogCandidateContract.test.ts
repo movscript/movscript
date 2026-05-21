@@ -8,7 +8,7 @@ const deployedCatalog = resolve('movscript-agent/catalog')
 
 test('agent catalog keeps candidate generation contracts for deploy', () => {
   const visualInstruction = readFile('skills/movscript/workflow/generation/visual-generation/instruction.md')
-  assert.match(visualInstruction, /优先用 `mode: "any"` 让任一任务完成即可返回/)
+  assert.match(visualInstruction, /`continuationPolicy: \{ "mode": "any_completed"/)
   assert.match(visualInstruction, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `movscript_attach_asset_slot_candidate`/)
   assert.match(visualInstruction, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `movscript_attach_keyframe_candidate`/)
   assert.match(visualInstruction, /不要把 `output_resource_ids`、`resource_ids` 或多个资源 ID 合并传入同一次候选写入/)
@@ -19,12 +19,10 @@ test('agent catalog keeps candidate generation contracts for deploy', () => {
   assert.match(JSON.stringify(visualWorkflow.triggers), /关键帧候选/)
   assert.match(JSON.stringify(visualWorkflow.triggers), /visual anchor candidate/)
 
-  const createJob = readJson('tools/movscript/visual-generation/create-job.tool.json')
-  assert.match(createJob.description, /独立的单输出/)
-  assert.ok(createJob.inputSchema.properties.output_count)
-  assert.ok(createJob.outputSchema.properties.jobIds)
-  assert.ok(createJob.outputSchema.properties.output_resources)
-  assert.ok(createJob.outputSchema.properties.output_resource_ids)
+  const runtimeOperationStart = readJson('tools/agent-core/runtime-operation-start.tool.json')
+  assert.match(runtimeOperationStart.description, /kind:"generation_job"/)
+  assert.equal(runtimeOperationStart.inputSchema.properties.kind.enum.includes('generation_job'), true)
+  assert.ok(runtimeOperationStart.inputSchema.properties.request)
 
   const assetTool = readJson('tools/movscript/visual-generation/attach-asset-slot-candidate.tool.json')
   assert.equal(assetTool.inputSchema.properties.asset_slot_id.minimum, 1)

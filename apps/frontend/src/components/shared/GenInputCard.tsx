@@ -27,7 +27,7 @@ function buildChipElement(resource: RawResource): { chip: HTMLElement; media: HT
   chip.contentEditable = 'false'
   chip.dataset.resourceName = resource.name
   chip.dataset.resourceId = String(resource.ID)
-  chip.style.cssText = 'display:inline-flex;align-items:center;gap:3px;vertical-align:middle;background:var(--muted);border-radius:6px;padding:1px 5px;margin:0 2px;font-size:12px;line-height:1.4;white-space:nowrap;cursor:default;'
+  chip.style.cssText = 'display:inline-flex;align-items:center;gap:3px;vertical-align:middle;background:var(--ms-color-muted);color:var(--ms-color-foreground);border:1px solid var(--ms-color-border);border-radius:6px;padding:1px 5px;margin:0 2px;font-size:12px;line-height:1.4;white-space:nowrap;cursor:default;'
 
   let media: HTMLImageElement | HTMLVideoElement
   if (resource.type === 'video') {
@@ -35,13 +35,13 @@ function buildChipElement(resource: RawResource): { chip: HTMLElement; media: HT
     vid.muted = true
     vid.playsInline = true
     vid.preload = 'metadata'
-    vid.style.cssText = 'width:18px;height:18px;object-fit:cover;border-radius:3px;flex-shrink:0;background:var(--muted);'
+    vid.style.cssText = 'width:18px;height:18px;object-fit:cover;border-radius:3px;flex-shrink:0;background:var(--ms-color-muted);'
     chip.appendChild(vid)
     media = vid
   } else {
     const img = document.createElement('img')
     img.alt = resource.name
-    img.style.cssText = 'width:18px;height:18px;object-fit:cover;border-radius:3px;flex-shrink:0;background:var(--muted);'
+    img.style.cssText = 'width:18px;height:18px;object-fit:cover;border-radius:3px;flex-shrink:0;background:var(--ms-color-muted);'
     chip.appendChild(img)
     media = img
   }
@@ -94,7 +94,7 @@ function AttachmentTag({ resource, onRemove }: { resource: RawResource; onRemove
         </div>
         <span className="type-label text-foreground max-w-[72px] truncate">{resource.name}</span>
         <button onClick={onRemove} className="text-muted-foreground hover:text-foreground shrink-0 transition-colors">
-          <X size={11} />
+          <X size={12} />
         </button>
       </div>
 
@@ -357,7 +357,7 @@ export function GenInputCard({
                   items.length > 0
                     ? 'border-border bg-muted'
                     : slot.required
-                    ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400'
+                    ? 'border-border bg-muted/60 text-foreground'
                     : 'border-dashed border-border text-muted-foreground'
                 )}
               >
@@ -365,7 +365,7 @@ export function GenInputCard({
                   <span className="shrink-0 font-mono type-tiny text-muted-foreground w-4 text-center">{i + 1}</span>
                   <Icon size={12} className="shrink-0" />
                   <span className="font-medium text-foreground">{generationSlotLabel(slot, t)}</span>
-                  {slot.required && <span className="type-tiny text-amber-600 dark:text-amber-400">{t('shared.genInput.required')}</span>}
+                  {slot.required && <span className="type-tiny text-muted-foreground">{t('shared.genInput.required')}</span>}
                   <span className="type-tiny text-muted-foreground">{limitText}</span>
                 </div>
                 {items.length > 0 ? (
@@ -384,7 +384,7 @@ export function GenInputCard({
                   </div>
                 ) : (
                   <div className="flex items-center gap-1.5 mt-1 pl-5 text-muted-foreground">
-                    <Icon size={11} className="shrink-0" />
+                    <Icon size={12} className="shrink-0" />
                     <span>{t('shared.genInput.selectOrUploadHint')}</span>
                   </div>
                 )}
@@ -478,7 +478,7 @@ export function GenInputCard({
           <AtSign size={12} /> {t('shared.genInput.mention')}
         </button>
         <span className="hidden md:flex items-center gap-1 type-caption text-muted-foreground/60">
-          <Library size={11} /> {t('shared.genInput.libraryOnlyHint')}
+          <Library size={12} /> {t('shared.genInput.libraryOnlyHint')}
         </span>
         <div className="flex-1" />
         <span className="type-label text-muted-foreground/50 hidden sm:block">⌘ + Enter</span>
@@ -489,8 +489,8 @@ export function GenInputCard({
           className="rounded-full"
         >
           {isRunning
-            ? <><Loader2 size={13} className="animate-spin mr-1.5" />{t('pages.jobs.generating')}</>
-            : <><Wand2 size={13} className="mr-1.5" />{t('shared.genInput.generate')}</>
+            ? <><Loader2 size={14} className="animate-spin mr-1.5" />{t('pages.jobs.generating')}</>
+            : <><Wand2 size={14} className="mr-1.5" />{t('shared.genInput.generate')}</>
           }
         </Button>
       </div>

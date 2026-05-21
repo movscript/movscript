@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { File, FileText, Image, Mic, Sparkles, Video } from 'lucide-react'
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { MediaViewer } from '@/components/shared/MediaViewer'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { api } from '@/lib/api'
 import { isGeneratedResultAttachment } from '@/lib/agentGeneratedResultAttachments'
@@ -10,7 +11,6 @@ import {
   GENERATED_BINDING_TARGETS,
   type GeneratedBindingTarget,
   generatedAttachmentResourceId,
-  generatedBindingErrorMessage,
   generatedBindingTargetLabel,
   generatedCandidateAttachPayload,
   generatedCandidateAttachSummary,
@@ -26,14 +26,31 @@ import {
 } from '@/lib/agentGeneratedResourceBinding'
 import { cn } from '@/lib/utils'
 import type { AgentAttachment } from '@/store/agentStore'
-import type { AssetSlotCandidate } from '@/types'
-import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
+import type { AssetSlotCandidate, RawResource } from '@/types'
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@movscript/ui'
 
 export function GeneratedResultCard({ attachments, projectId }: { attachments: AgentAttachment[]; projectId?: number }) {
   const [copiedResourceId, setCopiedResourceId] = useState<number | null>(null)
+  const [candidateDialogAttachments, setCandidateDialogAttachments] = useState<AgentAttachment[] | null>(null)
+  const [viewerAttachment, setViewerAttachment] = useState<AgentAttachment | null>(null)
   const generated = attachments.filter(isGeneratedResultAttachment)
   if (generated.length === 0) return null
   const hasUsableGeneratedResource = generated.some((attachment) => generatedAttachmentResourceId(attachment) !== undefined)
+  const candidateAttachments = generated.filter((attachment) => generatedAttachmentResourceId(attachment) !== undefined)
 
   function copyResourceMention(resourceId: number) {
     navigator.clipboard.writeText(resourceMentionToken(resourceId))
@@ -48,48 +65,48 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
           <Sparkles size={12} className="shrink-0 text-primary" />
           <span className="truncate type-caption font-medium text-foreground">生成结果</span>
         </div>
-        <Badge variant="secondary" className="shrink-0 type-micro leading-4 px-1.5 py-0">
-          {generated.length} 个结果
-        </Badge>
+        <div className="flex shrink-0 items-center gap-1">
+          <Badge variant="secondary" className="type-micro leading-4 px-1.5 py-0">
+            {generated.length} 个结果
+          </Badge>
+          {hasUsableGeneratedResource && (
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              className="h-6 px-2 type-micro"
+              onClick={() => setCandidateDialogAttachments(candidateAttachments)}
+            >
+              批量加入候选
+            </Button>
+          )}
+        </div>
       </div>
-      {generated.length > 1 && (
-        <GeneratedBulkCandidateAttachControl attachments={generated} projectId={projectId} />
-      )}
       <div className="space-y-1.5">
         {generated.map((attachment) => {
           const resourceId = generatedAttachmentResourceId(attachment)
           return (
             <div key={attachment.id} className="rounded border border-border/70 bg-muted/20 px-2 py-1.5">
-              <GeneratedMediaPreview attachment={attachment} />
+              <GeneratedMediaPreview attachment={attachment} onPreview={() => setViewerAttachment(attachment)} />
               <div className="flex min-w-0 items-center gap-2">
                 <AttachmentIcon type={attachment.type} size={12} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate type-tiny font-medium text-foreground">{attachment.name}</p>
-                  <p className="truncate type-micro text-muted-foreground">
-                    {resourceId !== undefined ? `#${resourceId}` : '未返回资源 ID'} · {attachment.type} · {attachment.mimeType || 'unknown'} · {formatBytes(attachment.size)}
+                  <p
+                    className="truncate type-micro text-muted-foreground"
+                    title={generatedResultDetailTitle(attachment, resourceId)}
+                  >
+                    {generatedResultBreadcrumb(attachment, resourceId)}
                   </p>
-                  {attachment.generated && (
-                    <p className="truncate type-micro text-muted-foreground">
-                      {[
-                        attachment.generated.jobId !== undefined ? `Job #${attachment.generated.jobId}` : undefined,
-                        attachment.generated.jobType,
-                        attachment.generated.providerName,
-                        attachment.generated.modelDisplay ?? attachment.generated.modelIdentifier,
-                        attachment.generated.status,
-                        attachment.generated.stage,
-                      ].filter(Boolean).join(' · ')}
-                    </p>
-                  )}
                 </div>
-                {attachment.url && (
-                  <a
-                    href={attachment.url}
-                    target="_blank"
-                    rel="noreferrer"
+                {(attachment.url || resourceId !== undefined) && (
+                  <button
+                    type="button"
+                    onClick={() => setViewerAttachment(attachment)}
                     className="shrink-0 rounded px-1.5 py-1 type-micro text-muted-foreground hover:bg-background hover:text-foreground"
                   >
-                    打开
-                  </a>
+                    查看
+                  </button>
                 )}
                 <button
                   type="button"
@@ -100,7 +117,11 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
                   {resourceId === undefined ? '无资源 ID' : copiedResourceId === resourceId ? '已复制' : '复制引用'}
                 </button>
               </div>
-              <GeneratedCandidateAttachControl attachment={attachment} projectId={projectId} />
+              {resourceId === undefined && (
+                <p data-testid="agent-generated-resource-candidate-missing-id" className="mt-1.5 rounded border border-dashed border-border/70 px-2 py-1 type-micro leading-relaxed text-muted-foreground">
+                  该生成结果暂未返回资源 ID，不能加入候选。
+                </p>
+              )}
             </div>
           )
         })}
@@ -110,23 +131,41 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
           ? '可在后续消息中粘贴资源引用，或将可用的生成资源加入素材需求、画面锚点的候选列表。'
           : '这些生成结果暂未返回资源 ID，暂不能复制引用或加入候选。'}
       </p>
+      <GeneratedCandidateAttachDialog
+        attachments={candidateDialogAttachments ?? []}
+        projectId={projectId}
+        open={candidateDialogAttachments !== null}
+        onOpenChange={(open) => {
+          if (!open) setCandidateDialogAttachments(null)
+        }}
+      />
+      <GeneratedCandidateAttachDialog
+        attachments={viewerAttachment ? [viewerAttachment] : []}
+        projectId={projectId}
+        open={viewerAttachment !== null}
+        viewerAttachment={viewerAttachment}
+        copiedResourceId={copiedResourceId}
+        onCopyResourceMention={copyResourceMention}
+        onOpenChange={(open) => {
+          if (!open) setViewerAttachment(null)
+        }}
+      />
     </div>
   )
 }
 
-function GeneratedMediaPreview({ attachment }: { attachment: AgentAttachment }) {
+function GeneratedMediaPreview({ attachment, onPreview }: { attachment: AgentAttachment; onPreview: () => void }) {
   const url = attachment.previewUrl ?? attachment.url
   if (attachment.type === 'image' && url) {
     return (
-      <a
+      <button
+        type="button"
         data-testid="agent-generated-media-preview"
-        href={url}
-        target="_blank"
-        rel="noreferrer"
-        className="mb-2 block overflow-hidden rounded-md border border-border/70 bg-muted"
+        onClick={onPreview}
+        className="mb-2 block w-full overflow-hidden rounded-md border border-border/70 bg-muted text-left"
       >
         <AuthedImage src={url} alt={attachment.name} className="h-56 max-h-[45vh] w-full object-contain" />
-      </a>
+      </button>
     )
   }
   if (attachment.type === 'video' && url) {
@@ -139,7 +178,40 @@ function GeneratedMediaPreview({ attachment }: { attachment: AgentAttachment }) 
   return null
 }
 
-function GeneratedBulkCandidateAttachControl({ attachments, projectId }: { attachments: AgentAttachment[]; projectId?: number }) {
+function resourceFromGeneratedAttachment(attachment: AgentAttachment): RawResource | null {
+  const resourceId = generatedAttachmentResourceId(attachment)
+  const directUrl = attachment.url ?? attachment.previewUrl
+  const resourceUrl = directUrl ? '' : resourceId !== undefined ? `/api/v1/resources/${resourceId}/file` : ''
+  if (!directUrl && !resourceUrl) return null
+  return {
+    ID: resourceId ?? 0,
+    owner_id: 0,
+    type: attachment.type,
+    name: attachment.name,
+    url: resourceUrl,
+    size: attachment.size,
+    mime_type: attachment.mimeType,
+    ...(directUrl ? { direct_url: directUrl } : {}),
+  }
+}
+
+function GeneratedCandidateAttachDialog({
+  attachments,
+  projectId,
+  open,
+  onOpenChange,
+  viewerAttachment,
+  copiedResourceId,
+  onCopyResourceMention,
+}: {
+  attachments: AgentAttachment[]
+  projectId?: number
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  viewerAttachment?: AgentAttachment | null
+  copiedResourceId?: number | null
+  onCopyResourceMention?: (resourceId: number) => void
+}) {
   const [targetType, setTargetType] = useState<GeneratedBindingTarget>('asset_slot')
   const [targetId, setTargetId] = useState<number | undefined>(undefined)
   const [targetQuery, setTargetQuery] = useState('')
@@ -147,6 +219,7 @@ function GeneratedBulkCandidateAttachControl({ attachments, projectId }: { attac
   const [attachMessage, setAttachMessage] = useState('')
   const [attachedAttachmentIds, setAttachedAttachmentIds] = useState<Set<string>>(() => new Set())
   const queryClient = useQueryClient()
+  const attachmentKey = attachments.map((attachment) => attachment.id).join('|')
   const targetConfig = GENERATED_BINDING_TARGETS.find((target) => target.value === targetType) ?? GENERATED_BINDING_TARGETS[0]
   const candidateAttachments = attachments.filter((attachment) => generatedAttachmentResourceId(attachment) !== undefined)
   const pendingCandidateAttachments = pendingGeneratedCandidateAttachments(candidateAttachments, attachedAttachmentIds)
@@ -154,246 +227,325 @@ function GeneratedBulkCandidateAttachControl({ attachments, projectId }: { attac
   const { data: targetRecords = [], isFetching: loadingTargets } = useQuery({
     queryKey: ['agent-generated-candidate-targets', projectId, targetConfig.entityKind],
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig(targetConfig.entityKind)),
-    enabled: !!projectId && hasCandidateAttachments,
+    enabled: open && !!projectId && candidateAttachments.length > 0,
     staleTime: 30_000,
   })
   const normalizedQuery = targetQuery.trim().toLowerCase()
   const filteredTargets = targetRecords
     .filter((record) => isGeneratedCandidateTargetRecord(record, targetConfig.value))
     .filter((record) => !normalizedQuery || generatedTargetSearchText(record).includes(normalizedQuery))
-    .slice(0, 20)
+    .slice(0, 80)
   const selectedTarget = targetId !== undefined ? filteredTargets.find((record) => record.ID === targetId) : undefined
   const canAttach = !!projectId && targetId !== undefined && !!selectedTarget && hasCandidateAttachments && attachStatus !== 'attaching' && attachStatus !== 'attached'
+  const selectedTargetDescription = selectedTarget ? generatedTargetRecordDescription(selectedTarget) : ''
+  const selectedTargetMeta = selectedTarget ? generatedTargetRecordMeta(selectedTarget) : []
   const helperMessage = !projectId
     ? '请选择项目后再加入候选。'
     : candidateAttachments.length === 0
       ? '这些生成结果暂未返回可加入候选的资源 ID。'
       : pendingCandidateAttachments.length === 0
-        ? `已将 ${attachedAttachmentIds.size} 个生成资源加入当前${generatedBindingTargetLabel(targetConfig.value)}候选列表。`
-        : `将 ${pendingCandidateAttachments.length} 个生成资源加入同一个${generatedBindingTargetLabel(targetConfig.value)}候选列表。`
+        ? `已将 ${attachedAttachmentIds.size} 个生成资源加入候选。`
+        : `将 ${pendingCandidateAttachments.length} 个生成资源加入所选${generatedBindingTargetLabel(targetConfig.value)}。`
 
-  async function attachAllCandidates() {
-    if (!projectId || !canAttach || targetId === undefined) return
+  useEffect(() => {
+    if (!open) return
+    setTargetId(undefined)
+    setTargetQuery('')
+    setAttachStatus('idle')
+    setAttachMessage('')
+    setAttachedAttachmentIds(new Set())
+  }, [attachmentKey, open])
+
+  function resetSelection() {
+    setTargetId(undefined)
+    setAttachedAttachmentIds(new Set())
+    setAttachMessage('')
+    if (attachStatus !== 'attaching') setAttachStatus('idle')
+  }
+
+  async function attachCandidates() {
+    if (!projectId || !canAttach || targetId === undefined || !selectedTarget) return
     setAttachStatus('attaching')
     setAttachMessage('')
-    const targetRecord = selectedTarget
     const attemptedAttachments = pendingCandidateAttachments
-    const results = targetRecord
-      ? await Promise.allSettled(attemptedAttachments.map((attachment) => attachGeneratedCandidate(projectId, targetConfig.value, targetId, targetRecord, attachment)))
-      : []
-    const targetLabel = selectedTarget ? generatedTargetRecordLabel(selectedTarget) : `${generatedBindingTargetLabel(targetConfig.value)} #${targetId}`
+    const results = await Promise.allSettled(attemptedAttachments.map((attachment) => (
+      attachGeneratedCandidate(projectId, targetConfig.value, targetId, selectedTarget, attachment)
+    )))
+    const targetLabel = generatedTargetRecordLabel(selectedTarget)
     const summary = generatedCandidateAttachSummary(targetLabel, results)
     const nextAttachedAttachmentIds = attachedGeneratedCandidateIdsAfterResults(attachedAttachmentIds, attemptedAttachments, results)
     if (summary.createdCount > 0) {
       setAttachedAttachmentIds(nextAttachedAttachmentIds)
       invalidateGeneratedCandidateQueries(queryClient, projectId)
     }
-    const cumulativeAttachedCount = nextAttachedAttachmentIds.size
-    const allPendingAttached = cumulativeAttachedCount >= candidateAttachments.length && candidateAttachments.length > 0
-    setAttachStatus(allPendingAttached && summary.failedCount === 0 ? 'attached' : summary.status)
-    setAttachMessage(allPendingAttached && summary.failedCount === 0
-      ? `${targetLabel} 已累计加入 ${cumulativeAttachedCount} 个候选`
+    const allAttached = nextAttachedAttachmentIds.size >= candidateAttachments.length && candidateAttachments.length > 0
+    setAttachStatus(allAttached && summary.failedCount === 0 ? 'attached' : summary.status)
+    setAttachMessage(allAttached && summary.failedCount === 0
+      ? `${targetLabel} 已累计加入 ${nextAttachedAttachmentIds.size} 个候选`
       : summary.message)
   }
 
-  return (
-    <div data-testid="agent-generated-bulk-candidate" className="mb-2 grid gap-1.5 rounded border border-primary/20 bg-primary/5 p-1.5">
-      <div className="grid grid-cols-[82px_minmax(0,1fr)_auto] gap-1">
-        <Select
-          value={targetConfig.value}
-          onValueChange={(value) => {
-            setTargetType(value as typeof targetType)
-            setTargetId(undefined)
-            setAttachedAttachmentIds(new Set())
-            setAttachMessage('')
-            if (attachStatus !== 'attaching') setAttachStatus('idle')
-          }}
-          disabled={!projectId || candidateAttachments.length === 0 || attachStatus === 'attaching'}
-        >
-          <SelectTrigger className="h-7 min-w-0 type-tiny">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {GENERATED_BINDING_TARGETS.map((target) => (
-              <SelectItem key={`bulk-target-type-${target.value}`} value={target.value}>{target.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={targetId !== undefined ? String(targetId) : undefined}
-          onValueChange={(value) => {
-            setTargetId(Number(value))
-            setAttachedAttachmentIds(new Set())
-            setAttachMessage('')
-            if (attachStatus !== 'attaching') setAttachStatus('idle')
-          }}
-          disabled={!projectId || candidateAttachments.length === 0 || loadingTargets || filteredTargets.length === 0}
-        >
-          <SelectTrigger className="h-7 min-w-0 type-tiny">
-            <SelectValue placeholder={loadingTargets ? '加载中' : `选择${generatedBindingTargetLabel(targetConfig.value)}`} />
-          </SelectTrigger>
-          <SelectContent>
-            {filteredTargets.map((record) => (
-              <SelectItem key={`bulk-${targetConfig.value}-${record.ID}`} value={String(record.ID)}>
-                {generatedTargetRecordLabel(record)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button type="button" size="sm" variant="secondary" disabled={!canAttach} onClick={attachAllCandidates} className="px-2 type-tiny">
-          {attachStatus === 'attaching' ? '加入中' : attachStatus === 'attached' ? '已加入' : attachStatus === 'partial' ? '重试失败项' : '全部加入候选'}
-        </Button>
-      </div>
-      <input
-        value={targetQuery}
-        onChange={(event) => {
-          setTargetQuery(event.target.value)
-          setTargetId(undefined)
-          setAttachedAttachmentIds(new Set())
-          setAttachMessage('')
-          if (attachStatus !== 'attaching') setAttachStatus('idle')
-        }}
-        placeholder={loadingTargets ? '正在加载目标对象...' : `搜索${generatedBindingTargetLabel(targetConfig.value)}`}
-        disabled={!projectId || candidateAttachments.length === 0}
-        className="h-7 min-w-0 rounded-md border border-input bg-background px-2 type-tiny outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
-      />
-      <p className={cn('type-micro leading-relaxed', attachStatus === 'error' ? 'text-destructive' : attachStatus === 'attached' ? 'text-green-700' : attachStatus === 'partial' ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>
-        {attachMessage || helperMessage}
-      </p>
-    </div>
-  )
-}
-
-function GeneratedCandidateAttachControl({ attachment, projectId }: { attachment: AgentAttachment; projectId?: number }) {
-  const [targetType, setTargetType] = useState<GeneratedBindingTarget>('asset_slot')
-  const [targetId, setTargetId] = useState<number | undefined>(undefined)
-  const [targetQuery, setTargetQuery] = useState('')
-  const [attachStatus, setAttachStatus] = useState<'idle' | 'attaching' | 'attached' | 'error'>('idle')
-  const [attachMessage, setAttachMessage] = useState('')
-  const queryClient = useQueryClient()
-  const targetConfig = GENERATED_BINDING_TARGETS.find((target) => target.value === targetType) ?? GENERATED_BINDING_TARGETS[0]
-  const resourceId = generatedAttachmentResourceId(attachment)
-  const { data: targetRecords = [], isFetching: loadingTargets } = useQuery({
-    queryKey: ['agent-generated-candidate-targets', projectId, targetConfig.entityKind],
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig(targetConfig.entityKind)),
-    enabled: !!projectId && attachment.resourceId !== undefined && resourceId !== undefined,
-    staleTime: 30_000,
-  })
-  if (resourceId === undefined) {
+  const viewerResource = viewerAttachment ? resourceFromGeneratedAttachment(viewerAttachment) : null
+  if (viewerAttachment && viewerResource) {
+    const resourceId = generatedAttachmentResourceId(viewerAttachment)
     return (
-      <p data-testid="agent-generated-resource-candidate-missing-id" className="mt-1.5 rounded border border-dashed border-border/70 px-2 py-1 type-micro leading-relaxed text-muted-foreground">
-        该生成结果暂未返回资源 ID，不能加入候选。
-      </p>
+      <MediaViewer
+        resource={viewerResource}
+        open={open}
+        onOpenChange={onOpenChange}
+        fit="contain"
+        metadata={(
+          <p className="truncate type-caption text-muted-foreground" title={generatedResultDetailTitle(viewerAttachment, resourceId)}>
+            {generatedResultBreadcrumb(viewerAttachment, resourceId)}
+          </p>
+        )}
+        sidePanel={(
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="shrink-0 border-b border-border px-3 py-3">
+              <p className="type-caption font-medium text-foreground">资源操作</p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  disabled={resourceId === undefined}
+                  onClick={() => resourceId !== undefined && onCopyResourceMention?.(resourceId)}
+                  className="h-7 px-2 type-tiny"
+                >
+                  {resourceId === undefined ? '无资源 ID' : copiedResourceId === resourceId ? '已复制引用' : '复制引用'}
+                </Button>
+                <Badge variant="secondary" className="type-micro">
+                  {generatedAttachmentTypeLabel(viewerAttachment.type)}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-auto p-3">
+              <div className="grid gap-2">
+                <Select
+                  value={targetConfig.value}
+                  onValueChange={(value) => {
+                    setTargetType(value as typeof targetType)
+                    resetSelection()
+                  }}
+                  disabled={!projectId || candidateAttachments.length === 0 || attachStatus === 'attaching'}
+                >
+                  <SelectTrigger className="h-8 min-w-0 type-tiny">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GENERATED_BINDING_TARGETS.map((target) => (
+                      <SelectItem key={`viewer-target-type-${target.value}`} value={target.value}>{target.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <input
+                  value={targetQuery}
+                  onChange={(event) => {
+                    setTargetQuery(event.target.value)
+                    setTargetId(undefined)
+                    setAttachMessage('')
+                    if (attachStatus !== 'attaching') setAttachStatus('idle')
+                  }}
+                  placeholder={loadingTargets ? '正在加载目标对象...' : `搜索${generatedBindingTargetLabel(targetConfig.value)}`}
+                  disabled={!projectId || candidateAttachments.length === 0}
+                  className="h-8 min-w-0 rounded-md border border-input bg-background px-2 type-tiny outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
+                />
+              </div>
+
+              <div className="mt-2 max-h-[34vh] overflow-auto rounded-md border border-border bg-background">
+                {loadingTargets ? (
+                  <p className="px-3 py-6 text-center type-tiny text-muted-foreground">正在加载目标对象...</p>
+                ) : filteredTargets.length === 0 ? (
+                  <p className="px-3 py-6 text-center type-tiny text-muted-foreground">
+                    {projectId ? '没有匹配的目标对象，请调整搜索条件。' : '请选择项目后再加入候选。'}
+                  </p>
+                ) : filteredTargets.map((record) => {
+                  const selected = record.ID === targetId
+                  const meta = generatedTargetRecordMeta(record)
+                  const description = generatedTargetRecordDescription(record)
+                  return (
+                    <button
+                      key={`viewer-${targetConfig.value}-${record.ID}`}
+                      type="button"
+                      className={cn(
+                        'block w-full border-b border-border px-3 py-2 text-left last:border-b-0 hover:bg-muted/60',
+                        selected && 'bg-primary/10',
+                      )}
+                      onClick={() => {
+                        setTargetId(record.ID)
+                        setAttachMessage('')
+                        if (attachStatus !== 'attaching') setAttachStatus('idle')
+                      }}
+                    >
+                      <div className="flex min-w-0 items-center justify-between gap-3">
+                        <p className="min-w-0 truncate type-tiny font-medium text-foreground">{generatedTargetRecordLabel(record)}</p>
+                        <span className="shrink-0 type-min text-muted-foreground">#{record.ID}</span>
+                      </div>
+                      {meta.length > 0 && <p className="mt-0.5 truncate type-min text-muted-foreground">{meta.join(' · ')}</p>}
+                      {description && <p className="mt-1 line-clamp-2 type-min leading-relaxed text-muted-foreground">{description}</p>}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {selectedTarget && (
+                <div className="mt-2 rounded border border-primary/25 bg-primary/10 px-2 py-1.5">
+                  <p className="truncate type-micro font-medium text-foreground">{generatedTargetRecordLabel(selectedTarget)}</p>
+                  {selectedTargetMeta.length > 0 && <p className="mt-0.5 truncate type-min text-muted-foreground">{selectedTargetMeta.join(' · ')}</p>}
+                  {selectedTargetDescription && <p className="mt-1 line-clamp-2 type-min leading-relaxed text-muted-foreground">{selectedTargetDescription}</p>}
+                </div>
+              )}
+
+              <p className={cn('mt-2 type-micro leading-relaxed', attachStatus === 'error' ? 'text-destructive' : attachStatus === 'attached' ? 'text-primary' : 'text-muted-foreground')}>
+                {attachMessage || helperMessage}
+              </p>
+            </div>
+
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-3 py-3">
+              <Button type="button" onClick={attachCandidates} disabled={!canAttach}>
+                {attachStatus === 'attaching' ? '加入中' : attachStatus === 'attached' ? '已加入候选' : attachStatus === 'partial' ? '重试未完成项' : '加入候选'}
+              </Button>
+            </div>
+          </div>
+        )}
+      />
     )
   }
-  const normalizedQuery = targetQuery.trim().toLowerCase()
-  const filteredTargets = targetRecords
-    .filter((record) => isGeneratedCandidateTargetRecord(record, targetConfig.value))
-    .filter((record) => !normalizedQuery || generatedTargetSearchText(record).includes(normalizedQuery))
-    .slice(0, 20)
-  const selectedTarget = targetId !== undefined ? filteredTargets.find((record) => record.ID === targetId) : undefined
-  const canAttach = !!projectId && targetId !== undefined && !!selectedTarget && attachStatus !== 'attaching' && attachStatus !== 'attached'
-  const selectedTargetDescription = selectedTarget ? generatedTargetRecordDescription(selectedTarget) : ''
-  const selectedTargetMeta = selectedTarget ? generatedTargetRecordMeta(selectedTarget) : []
-
-  async function attachCandidate() {
-    if (!projectId || !canAttach || resourceId === undefined || targetId === undefined) return
-    setAttachStatus('attaching')
-    setAttachMessage('')
-    try {
-      if (!selectedTarget) throw new Error('请选择目标对象')
-      const created = await attachGeneratedCandidate(projectId, targetConfig.value, targetId, selectedTarget, attachment)
-      setAttachStatus('attached')
-      const targetLabel = selectedTarget ? generatedTargetRecordLabel(selectedTarget) : `${generatedBindingTargetLabel(targetConfig.value)} #${targetId}`
-      setAttachMessage(`${targetLabel} 已加入候选 #${created.ID}`)
-      invalidateGeneratedCandidateQueries(queryClient, projectId)
-    } catch (error) {
-      setAttachStatus('error')
-      setAttachMessage(generatedBindingErrorMessage(error, '加入候选失败'))
-    }
-  }
 
   return (
-    <div data-testid="agent-generated-resource-candidate" className="mt-1.5 grid gap-1.5 rounded border border-border/60 bg-background/50 p-1.5">
-      <div className="grid grid-cols-[82px_minmax(0,1fr)_auto] gap-1">
-        <Select
-          value={targetConfig.value}
-          onValueChange={(value) => {
-            setTargetType(value as typeof targetType)
-            setTargetId(undefined)
-            setAttachMessage('')
-            if (attachStatus !== 'attaching') setAttachStatus('idle')
-          }}
-          disabled={!projectId || attachStatus === 'attaching'}
-        >
-          <SelectTrigger className="h-7 min-w-0 type-tiny">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {GENERATED_BINDING_TARGETS.map((target) => (
-              <SelectItem key={`target-type-${target.value}`} value={target.value}>{target.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={targetId !== undefined ? String(targetId) : undefined}
-          onValueChange={(value) => {
-            setTargetId(Number(value))
-            setAttachMessage('')
-            if (attachStatus !== 'attaching') setAttachStatus('idle')
-          }}
-          disabled={!projectId || loadingTargets || filteredTargets.length === 0}
-        >
-          <SelectTrigger className="h-7 min-w-0 type-tiny">
-            <SelectValue placeholder={loadingTargets ? '加载中' : `选择${generatedBindingTargetLabel(targetConfig.value)}`} />
-          </SelectTrigger>
-          <SelectContent>
-            {filteredTargets.map((record) => (
-              <SelectItem key={`${targetConfig.value}-${record.ID}`} value={String(record.ID)}>
-                {generatedTargetRecordLabel(record)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button type="button" size="sm" variant="secondary" disabled={!canAttach} onClick={attachCandidate} className="px-2 type-tiny">
-          {attachStatus === 'attaching' ? '加入中' : attachStatus === 'attached' ? '已加入' : '加入候选'}
-        </Button>
-      </div>
-      <input
-        value={targetQuery}
-        onChange={(event) => {
-          setTargetQuery(event.target.value)
-          setTargetId(undefined)
-          setAttachMessage('')
-          if (attachStatus !== 'attaching') setAttachStatus('idle')
-        }}
-        placeholder={loadingTargets ? '正在加载目标对象...' : `搜索${generatedBindingTargetLabel(targetConfig.value)}`}
-        disabled={!projectId}
-        className="h-7 min-w-0 rounded-md border border-input bg-background px-2 type-tiny outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
-      />
-      {projectId && normalizedQuery && !loadingTargets && filteredTargets.length === 0 && (
-        <p className="rounded border border-dashed border-border/70 px-2 py-1 type-micro leading-relaxed text-muted-foreground">
-          没有匹配的目标对象，请调整搜索条件后再选择。
-        </p>
-      )}
-      {selectedTarget && (
-        <div className="rounded border border-primary/20 bg-primary/5 px-2 py-1.5">
-          <div className="flex min-w-0 items-center justify-between gap-2">
-            <p className="min-w-0 truncate type-micro font-medium text-foreground">{generatedTargetRecordLabel(selectedTarget)}</p>
-            <span className="shrink-0 type-min text-muted-foreground">#{selectedTarget.ID}</span>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[88vh] w-[min(880px,calc(100vw-32px))] overflow-hidden p-0">
+        <DialogHeader className="border-b border-border px-4 py-3">
+          <DialogTitle>加入候选</DialogTitle>
+          <DialogDescription>
+            选择生成结果和目标对象，将资源统一加入候选列表。
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid min-h-0 gap-0 md:grid-cols-[260px_minmax(0,1fr)]">
+          <div className="min-h-0 border-b border-border p-3 md:border-b-0 md:border-r">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="type-caption font-medium text-foreground">待加入资源</p>
+              <Badge variant="secondary" className="type-micro">{candidateAttachments.length}</Badge>
+            </div>
+            <div className="max-h-[48vh] space-y-1.5 overflow-auto pr-1">
+              {candidateAttachments.length === 0 ? (
+                <p className="rounded border border-dashed border-border px-2 py-2 type-tiny leading-relaxed text-muted-foreground">
+                  这些生成结果暂未返回资源 ID，不能加入候选。
+                </p>
+              ) : candidateAttachments.map((attachment) => {
+                const resourceId = generatedAttachmentResourceId(attachment)
+                const attached = attachedAttachmentIds.has(attachment.id)
+                return (
+                  <div key={attachment.id} className={cn('rounded border px-2 py-1.5', attached ? 'border-primary/30 bg-primary/10' : 'border-border bg-card')}>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <AttachmentIcon type={attachment.type} size={12} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate type-tiny font-medium text-foreground">{attachment.name}</p>
+                        <p className="truncate type-micro text-muted-foreground">{resourceId !== undefined ? `#${resourceId}` : '无资源 ID'} · {attachment.type}</p>
+                      </div>
+                      {attached && <Badge variant="outline" className="type-micro">已加入</Badge>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
-          {selectedTargetMeta.length > 0 && (
-            <p className="mt-0.5 truncate type-min text-muted-foreground">{selectedTargetMeta.join(' · ')}</p>
-          )}
-          {selectedTargetDescription && (
-            <p className="mt-1 line-clamp-2 type-min leading-relaxed text-muted-foreground">{selectedTargetDescription}</p>
-          )}
+
+          <div className="min-h-0 p-3">
+            <div className="grid gap-2 sm:grid-cols-[140px_minmax(0,1fr)]">
+              <Select
+                value={targetConfig.value}
+                onValueChange={(value) => {
+                  setTargetType(value as typeof targetType)
+                  resetSelection()
+                }}
+                disabled={!projectId || candidateAttachments.length === 0 || attachStatus === 'attaching'}
+              >
+                <SelectTrigger className="h-8 min-w-0 type-tiny">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GENERATED_BINDING_TARGETS.map((target) => (
+                    <SelectItem key={`dialog-target-type-${target.value}`} value={target.value}>{target.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <input
+                value={targetQuery}
+                onChange={(event) => {
+                  setTargetQuery(event.target.value)
+                  setTargetId(undefined)
+                  setAttachMessage('')
+                  if (attachStatus !== 'attaching') setAttachStatus('idle')
+                }}
+                placeholder={loadingTargets ? '正在加载目标对象...' : `搜索${generatedBindingTargetLabel(targetConfig.value)}，支持名称、状态、描述`}
+                disabled={!projectId || candidateAttachments.length === 0}
+                className="h-8 min-w-0 rounded-md border border-input bg-background px-2 type-tiny outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
+              />
+            </div>
+
+            <div className="mt-2 max-h-[42vh] overflow-auto rounded-md border border-border">
+              {loadingTargets ? (
+                <p className="px-3 py-6 text-center type-tiny text-muted-foreground">正在加载目标对象...</p>
+              ) : filteredTargets.length === 0 ? (
+                <p className="px-3 py-6 text-center type-tiny text-muted-foreground">
+                  {projectId ? '没有匹配的目标对象，请调整搜索条件。' : '请选择项目后再加入候选。'}
+                </p>
+              ) : filteredTargets.map((record) => {
+                const selected = record.ID === targetId
+                const meta = generatedTargetRecordMeta(record)
+                const description = generatedTargetRecordDescription(record)
+                return (
+                  <button
+                    key={`${targetConfig.value}-${record.ID}`}
+                    type="button"
+                    className={cn(
+                      'block w-full border-b border-border px-3 py-2 text-left last:border-b-0 hover:bg-muted/60',
+                      selected && 'bg-primary/10',
+                    )}
+                    onClick={() => {
+                      setTargetId(record.ID)
+                      setAttachMessage('')
+                      if (attachStatus !== 'attaching') setAttachStatus('idle')
+                    }}
+                  >
+                    <div className="flex min-w-0 items-center justify-between gap-3">
+                      <p className="min-w-0 truncate type-tiny font-medium text-foreground">{generatedTargetRecordLabel(record)}</p>
+                      <span className="shrink-0 type-min text-muted-foreground">#{record.ID}</span>
+                    </div>
+                    {meta.length > 0 && <p className="mt-0.5 truncate type-min text-muted-foreground">{meta.join(' · ')}</p>}
+                    {description && <p className="mt-1 line-clamp-2 type-min leading-relaxed text-muted-foreground">{description}</p>}
+                  </button>
+                )
+              })}
+            </div>
+
+            {selectedTarget && (
+              <div className="mt-2 rounded border border-primary/25 bg-primary/10 px-2 py-1.5">
+                <p className="truncate type-micro font-medium text-foreground">{generatedTargetRecordLabel(selectedTarget)}</p>
+                {selectedTargetMeta.length > 0 && <p className="mt-0.5 truncate type-min text-muted-foreground">{selectedTargetMeta.join(' · ')}</p>}
+                {selectedTargetDescription && <p className="mt-1 line-clamp-2 type-min leading-relaxed text-muted-foreground">{selectedTargetDescription}</p>}
+              </div>
+            )}
+
+            <p className={cn('mt-2 type-micro leading-relaxed', attachStatus === 'error' ? 'text-destructive' : attachStatus === 'attached' ? 'text-primary' : attachStatus === 'partial' ? 'text-muted-foreground' : 'text-muted-foreground')}>
+              {attachMessage || helperMessage}
+            </p>
+          </div>
         </div>
-      )}
-      <p className={cn('type-micro leading-relaxed', attachStatus === 'error' ? 'text-destructive' : attachStatus === 'attached' ? 'text-green-700' : 'text-muted-foreground')}>
-        {attachMessage || (projectId ? `选择${generatedBindingTargetLabel(targetConfig.value)}后，将生成资源加入候选列表。` : '请选择项目后再加入候选。')}
-      </p>
-    </div>
+
+        <DialogFooter className="border-t border-border px-4 py-3">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={attachStatus === 'attaching'}>
+            关闭
+          </Button>
+          <Button type="button" onClick={attachCandidates} disabled={!canAttach}>
+            {attachStatus === 'attaching' ? '加入中' : attachStatus === 'attached' ? '已全部加入' : attachStatus === 'partial' ? '重试未完成项' : `加入 ${pendingCandidateAttachments.length} 个候选`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -418,6 +570,37 @@ function AttachmentIcon({ type, size = 12 }: { type: AgentAttachment['type']; si
   if (type === 'audio') return <Mic size={size} />
   if (type === 'text') return <FileText size={size} />
   return <File size={size} />
+}
+
+function generatedResultBreadcrumb(attachment: AgentAttachment, resourceId: number | undefined) {
+  return [
+    resourceId !== undefined ? `资源 #${resourceId}` : '未返回资源 ID',
+    generatedAttachmentTypeLabel(attachment.type),
+    attachment.generated?.modelDisplay ?? attachment.generated?.modelIdentifier,
+  ].filter(Boolean).join(' · ')
+}
+
+function generatedResultDetailTitle(attachment: AgentAttachment, resourceId: number | undefined) {
+  return [
+    resourceId !== undefined ? `资源 #${resourceId}` : '未返回资源 ID',
+    generatedAttachmentTypeLabel(attachment.type),
+    attachment.mimeType,
+    attachment.size ? formatBytes(attachment.size) : undefined,
+    attachment.generated?.jobId !== undefined ? `Job #${attachment.generated.jobId}` : undefined,
+    attachment.generated?.jobType,
+    attachment.generated?.providerName,
+    attachment.generated?.modelDisplay ?? attachment.generated?.modelIdentifier,
+    attachment.generated?.status,
+    attachment.generated?.stage,
+  ].filter(Boolean).join(' · ')
+}
+
+function generatedAttachmentTypeLabel(type: AgentAttachment['type']) {
+  if (type === 'image') return '图片'
+  if (type === 'video') return '视频'
+  if (type === 'audio') return '音频'
+  if (type === 'text') return '文本'
+  return '文件'
 }
 
 function formatBytes(bytes: number) {

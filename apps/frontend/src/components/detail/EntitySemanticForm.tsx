@@ -141,7 +141,7 @@ export function EntitySemanticForm({
       {showSave && (
         <div className="sticky bottom-0 -mx-4 -mb-4 border-t border-border bg-background/95 p-3 backdrop-blur">
           <Button onClick={() => onSave(buildPayload())} disabled={isSaving || !hasSavableFields(visibleSections)} className="w-full gap-1.5" size="sm">
-            <Save size={13} /> {isSaving ? t('common.saving') : t('common.save')}
+            <Save size={14} /> {isSaving ? t('common.saving') : t('common.save')}
           </Button>
         </div>
       )}

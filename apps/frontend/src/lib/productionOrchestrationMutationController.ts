@@ -1,5 +1,6 @@
 import {
   createSemanticEntity,
+  deleteSemanticEntity,
   semanticEntityConfig,
   updateSemanticEntity,
   type SemanticEntityPayload,
@@ -160,6 +161,22 @@ export function buildLinkSceneMomentReferenceMutationOptions(input: ProductionOr
   }
 }
 
+export function buildUnlinkSceneMomentReferenceMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
+  return {
+    mutationFn: async (usageId: number) => {
+      if (!input.projectId) throw new Error('请先选择项目')
+      return deleteSemanticEntity(input.projectId, semanticEntityConfig('creativeReferenceUsages'), usageId)
+    },
+    onSuccess: () => {
+      toast.success('情节设定已移除')
+      refreshProductionOrchestration(input)
+    },
+    onError: (error: unknown) => {
+      toast.error(productionMutationErrorMessage(error, '移除情节设定失败'))
+    },
+  }
+}
+
 export function buildUpdateWritingExpressionMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
   return {
     mutationFn: async ({ target, payload }: { target: ProductionWritingExpressionEditTarget; payload: ProductionWritingExpressionSavePayload }) => {
@@ -187,6 +204,22 @@ export function buildUpdateWritingExpressionMutationOptions(input: ProductionOrc
     },
     onError: (error: unknown) => {
       toast.error(productionMutationErrorMessage(error, '保存表达条目失败'))
+    },
+  }
+}
+
+export function buildDeleteWritingExpressionMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
+  return {
+    mutationFn: async (expressionId: number) => {
+      if (!input.projectId) throw new Error('请先选择项目')
+      return deleteSemanticEntity(input.projectId, semanticEntityConfig('writingExpressions'), expressionId)
+    },
+    onSuccess: () => {
+      toast.success('表达条目已删除')
+      refreshProductionOrchestration(input)
+    },
+    onError: (error: unknown) => {
+      toast.error(productionMutationErrorMessage(error, '删除表达条目失败'))
     },
   }
 }

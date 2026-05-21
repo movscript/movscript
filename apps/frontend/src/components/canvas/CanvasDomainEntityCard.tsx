@@ -179,7 +179,7 @@ export function CanvasDomainEntityCard({
       <header className={cn('border-b px-3 py-2.5', domainToneSoftClass(meta.tone))}>
         <div className="flex items-start gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80">
-            <Icon size={15} className={domainToneTextClass(meta.tone)} />
+            <Icon size={14} className={domainToneTextClass(meta.tone)} />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
@@ -243,7 +243,7 @@ export function CanvasDomainEntityCard({
                   type="button"
                   className="relative flex h-7 w-full items-center gap-1 rounded-md border border-border bg-background px-1.5 type-tiny text-foreground hover:bg-muted/60"
                 >
-                  <ActionIcon size={11} className="shrink-0 text-muted-foreground" />
+                  <ActionIcon size={12} className="shrink-0 text-muted-foreground" />
                   <span className="min-w-0 flex-1 truncate text-left">{action.label}</span>
                   <DomainPort side="right" tone="source" label={action.label} compact handleId={action.outputPortId} handleType="source" renderPortHandle={renderPortHandle} />
                 </button>
@@ -300,7 +300,7 @@ function AssetSlotMaterialCard({
       <header className="border-b border-border bg-amber-500/10 px-3 py-2.5">
         <div className="flex items-start gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80 text-amber-600">
-            <ImagePlus size={15} />
+            <ImagePlus size={14} />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
@@ -331,7 +331,7 @@ function AssetSlotMaterialCard({
               <CandidateThumb key={`${url}-${index}`} src={url} />
             )) : (
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded border border-border bg-muted/40 text-muted-foreground">
-                <Image size={13} />
+                <Image size={14} />
               </span>
             )}
           </div>
@@ -415,7 +415,7 @@ function MaterialPortRow({
       <DomainPort side="right" tone="source" label={label} compact handleId={outputPortId} handleType="source" renderPortHandle={renderPortHandle} />
       <div className="flex min-w-0 gap-2">
         <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
-          <Icon size={13} />
+          <Icon size={14} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">

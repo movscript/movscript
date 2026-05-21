@@ -75,10 +75,10 @@ export function ContentWorkbenchUnitInspector({
 }) {
   return (
     <aside
-      className="min-w-0 overflow-hidden rounded-lg border border-border bg-background 2xl:sticky 2xl:top-0"
+      className="min-w-0 overflow-hidden border-t border-border pt-3 2xl:sticky 2xl:top-0 2xl:border-l 2xl:border-t-0 2xl:pl-3 2xl:pt-0"
       data-testid="content-workbench-unit-inspector"
     >
-      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border bg-muted/25 px-3 py-2.5">
+      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border pb-2.5">
         <div className="min-w-0">
           <div className="flex items-center gap-2 type-label font-medium text-muted-foreground">
             <FileText size={14} />
@@ -214,21 +214,21 @@ export function UnitProductionTrack({
 
   if (!row || summary.total === 0) {
     return (
-      <div className="rounded-md border border-border bg-background p-2.5" data-testid="content-workbench-unit-track">
+      <section className="border-t border-border pt-3" data-testid="content-workbench-unit-track">
         <div className="flex flex-wrap items-start justify-between gap-2.5">
           <div className="min-w-0">
             <div className="flex items-center gap-2 type-body font-medium text-foreground">
-              <Route size={15} className="text-muted-foreground" />
+              <Route size={14} className="text-muted-foreground" />
               {summary.title}
             </div>
             <p className="mt-1 type-label leading-5 text-muted-foreground">{summary.detail}</p>
           </div>
           <Badge variant="outline">{row ? '待制作项' : '待情节'}</Badge>
         </div>
-        <div className="mt-3 overflow-hidden rounded-md border border-dashed border-border bg-card" data-testid="content-workbench-unit-schedule">
+        <div className="mt-3 overflow-hidden border-t border-border" data-testid="content-workbench-unit-schedule">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-2.5 py-2">
             <div className="flex min-w-0 items-center gap-2 type-body font-medium text-foreground">
-              <Clock3 size={15} className="shrink-0 text-muted-foreground" />
+              <Clock3 size={14} className="shrink-0 text-muted-foreground" />
               <span className="truncate">制作项时间表</span>
             </div>
             <Badge variant="outline">等待输入</Badge>
@@ -243,25 +243,25 @@ export function UnitProductionTrack({
             {row ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button size="sm" className="gap-1.5" onClick={onCreateUnit}>
-                  <Plus size={13} />
+                  <Plus size={14} />
                   添加制作项
                 </Button>
                 {onAiSuggest ? (
                   <Button size="sm" variant="outline" className="gap-1.5" onClick={onAiSuggest}>
-                    <Sparkles size={13} />
+                    <Sparkles size={14} />
                     让 AI 规划制作项
                   </Button>
                 ) : null}
               </div>
             ) : (
               <Button size="sm" variant="outline" className="mt-3 gap-1.5" onClick={onSelectFirstMoment}>
-                <Route size={13} />
+                <Route size={14} />
                 选择第一个情节
               </Button>
             )}
           </div>
         </div>
-      </div>
+      </section>
     )
   }
 
@@ -357,11 +357,11 @@ export function UnitProductionTrack({
   })
 
   return (
-    <div className="rounded-md border border-border bg-background p-2.5" data-testid="content-workbench-unit-track">
+    <section className="border-t border-border pt-3" data-testid="content-workbench-unit-track">
       <div className="flex flex-wrap items-start justify-between gap-2.5">
         <div className="min-w-0">
           <div className="flex items-center gap-2 type-body font-medium text-foreground">
-            <Route size={15} className="text-muted-foreground" />
+            <Route size={14} className="text-muted-foreground" />
             {summary.title}
           </div>
           <p className="mt-1 type-label leading-5 text-muted-foreground">{summary.detail}</p>
@@ -402,7 +402,7 @@ export function UnitProductionTrack({
           ))}
         </div>
         <Button size="sm" className="gap-1.5" onClick={onCreateUnit} data-testid="content-workbench-create-unit-from-track">
-          <Plus size={13} />
+          <Plus size={14} />
           新建
         </Button>
       </div>
@@ -501,7 +501,7 @@ export function UnitProductionTrack({
         )}
       </div>
 
-      <div className="mt-3 overflow-hidden rounded-md border border-border bg-card" data-testid="content-workbench-unit-schedule">
+      <div className="mt-3 overflow-hidden border-t border-border" data-testid="content-workbench-unit-schedule">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-2.5 py-2">
           <div className="flex overflow-hidden rounded-md border border-border bg-background" data-testid="content-workbench-schedule-panel-switcher">
             <button
@@ -512,7 +512,7 @@ export function UnitProductionTrack({
               )}
               onClick={() => setSchedulePanel('timeline')}
             >
-              <Clock3 size={13} />
+              <Clock3 size={14} />
               制作项时间轴
             </button>
             {selectedUnit && showInlineEditor ? (
@@ -524,7 +524,7 @@ export function UnitProductionTrack({
                 )}
                 onClick={() => setSchedulePanel('edit')}
               >
-                <FileText size={13} />
+                <FileText size={14} />
                 内容编辑
               </button>
             ) : null}
@@ -800,7 +800,7 @@ export function UnitProductionTrack({
         />
         )}
       </div>
-    </div>
+    </section>
   )
 }
 

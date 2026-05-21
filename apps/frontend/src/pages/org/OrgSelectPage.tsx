@@ -212,7 +212,7 @@ export default function OrgSelectPage() {
                     <p className="type-body font-medium text-foreground truncate">{m.org_name}</p>
                     <p className="type-label text-muted-foreground">{roleLabel(m.role, t)}</p>
                   </div>
-                  <ChevronRight size={15} className="text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+                  <ChevronRight size={14} className="text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
                 </button>
               ))}
             </div>

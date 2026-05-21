@@ -41,6 +41,11 @@ const TOOL_NAME_LABELS_ZH: Record<string, string> = {
   movscript_spawn_subagent: '启动子代理',
   movscript_update_active_skills: '更新启用技能',
   movscript_wait_subagent: '等待子代理',
+  runtime_operation_cancel: '取消后台任务',
+  runtime_operation_get: '查看后台任务',
+  runtime_operation_list: '查看后台任务列表',
+  runtime_operation_start: '提交后台任务',
+  runtime_operation_wait: '等待后台任务',
 }
 
 const TOOL_NAME_I18N_KEYS: Record<string, string> = Object.fromEntries(
@@ -68,6 +73,8 @@ const PERMISSION_LABELS_ZH: Record<string, string> = {
   'agent.input': '请求用户输入',
   'agent.plan.read': '读取 Agent 执行计划',
   'agent.plan.write': '更新 Agent 执行计划',
+  'agent.operation.read': '读取后台任务',
+  'agent.operation.write': '提交后台任务',
   'agent.skills.manage': '管理 Agent 技能',
   'agent.subagent.read': '读取子代理状态',
   'agent.subagent.write': '管理子代理',
@@ -87,6 +94,8 @@ const PERMISSION_LABELS_ZH: Record<string, string> = {
   'model.video.generate': '生成视频',
   'project.read': '读取项目数据',
   'project.write': '写入项目数据',
+  'operation.read': '读取后台任务',
+  'operation.write': '提交后台任务',
 }
 
 export function agentToolNameLabel(toolName: string | undefined, t?: AgentToolDisplayTranslator): string {

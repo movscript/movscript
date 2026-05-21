@@ -36,7 +36,7 @@ export function GenerationProgressCard({ state }: { state: GenerationProgressSta
           ? `正在等待生成服务返回结果，已等待 ${waitingTime}。`
           : '正在等待生成服务返回结果。')
   return (
-    <div data-testid="agent-generation-progress" aria-live="polite" className="space-y-2 rounded-md border border-border bg-background/70 p-2">
+    <div data-testid="agent-generation-progress" aria-live="polite" className="space-y-2 rounded-md border border-border/80 bg-background/70 p-2 shadow-sm">
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           {icon}
@@ -100,7 +100,7 @@ function durationLabel(start: string | undefined, end: string | undefined) {
 export function GenerationJobSummaryCard({ jobs }: { jobs?: ChatGenerationJob[] }) {
   if (!jobs?.length) return null
   return (
-    <div data-testid="agent-generation-job-summary" className="mt-2 rounded-md border border-border bg-background/70 p-2">
+    <div data-testid="agent-generation-job-summary" className="mt-2 rounded-md border border-border/80 bg-background/70 p-2 shadow-sm">
       <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <Wand2 size={12} className="shrink-0 text-primary" />
@@ -117,7 +117,7 @@ export function GenerationJobSummaryCard({ jobs }: { jobs?: ChatGenerationJob[] 
           const badge = generationJobBadge(job)
           const badgeClass = generationJobBadgeClass(badge.tone)
           return (
-            <div key={job.jobId !== undefined ? `job-${job.jobId}` : `job-${index}`} className="rounded border border-border/70 bg-muted/20 px-2 py-1.5">
+            <div key={job.jobId !== undefined ? `job-${job.jobId}` : `job-${index}`} className="rounded border border-border/80 bg-muted/20 px-2 py-1.5">
               <div className="flex min-w-0 items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="truncate type-tiny font-medium text-foreground">
@@ -170,7 +170,7 @@ export function GenerationJobSummaryCard({ jobs }: { jobs?: ChatGenerationJob[] 
 export function GenerationParamAuditCard({ audits }: { audits?: ChatGenerationParamAudit[] }) {
   if (!audits?.length) return null
   return (
-    <div data-testid="agent-generation-param-audit" className="mt-2 rounded-md border border-border bg-background/70 p-2">
+    <div data-testid="agent-generation-param-audit" className="mt-2 rounded-md border border-border/80 bg-background/70 p-2 shadow-sm">
       <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <Wand2 size={12} className="shrink-0 text-primary" />
@@ -184,13 +184,13 @@ export function GenerationParamAuditCard({ audits }: { audits?: ChatGenerationPa
         {audits.map((audit, index) => {
           const droppedCount = audit.droppedExtraParams.length + audit.droppedTopLevelParams.length
           return (
-            <div key={audit.stepId ?? `audit-${index}`} className="rounded border border-border/70 bg-muted/20 px-2 py-1.5">
+            <div key={audit.stepId ?? `audit-${index}`} className="rounded border border-border/80 bg-muted/20 px-2 py-1.5">
               <div className="flex min-w-0 items-center justify-between gap-2">
                 <p className="min-w-0 truncate type-tiny font-medium text-foreground">
                   {audit.jobId !== undefined ? `Job #${audit.jobId}` : `生成提交 ${index + 1}`}
                   {audit.modelConfigId !== undefined ? ` · model #${audit.modelConfigId}` : ''}
                 </p>
-                <span className={cn('shrink-0 rounded border px-1.5 py-0 type-micro leading-4', droppedCount > 0 ? 'border-amber-500/30 bg-amber-500/10 text-amber-700' : 'border-green-500/30 bg-green-500/10 text-green-700')}>
+                <span className={cn('shrink-0 rounded border px-1.5 py-0 type-micro leading-4', droppedCount > 0 ? 'border-amber-500/30 bg-amber-500/10 text-amber-700' : 'border-green-600/50 bg-green-500/10 text-green-700')}>
                   {droppedCount > 0 ? `过滤 ${droppedCount}` : '已匹配'}
                 </span>
               </div>
@@ -256,7 +256,7 @@ export function GenerationParamAuditCard({ audits }: { audits?: ChatGenerationPa
 export function GenerationValidationErrorCard({ errors }: { errors?: ChatGenerationValidationError[] }) {
   if (!errors?.length) return null
   return (
-    <div data-testid="agent-generation-validation-errors" className="mt-2 rounded-md border border-red-500/30 bg-red-500/5 p-2">
+    <div data-testid="agent-generation-validation-errors" className="mt-2 rounded-md border border-red-500/40 bg-red-500/5 p-2 shadow-sm">
       <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <AlertCircle size={12} className="shrink-0 text-red-600" />
@@ -268,7 +268,7 @@ export function GenerationValidationErrorCard({ errors }: { errors?: ChatGenerat
       </div>
       <div className="space-y-1.5">
         {errors.map((error, index) => (
-          <div key={error.stepId ?? `generation-error-${index}`} className="rounded border border-red-500/20 bg-background/70 px-2 py-1.5">
+          <div key={error.stepId ?? `generation-error-${index}`} className="rounded border border-red-500/40 bg-background/70 px-2 py-1.5">
             <p className="truncate type-tiny font-medium text-foreground">
               {error.field ? `${error.field} · ` : ''}{error.code}
             </p>
@@ -359,7 +359,7 @@ export function GenerationTraceSummaryCard({ jobs }: { jobs?: ChatGenerationJob[
   const timeout = jobs.filter((job) => job.status === 'timeout' || job.stage === 'timeout').length
   const latest = jobs.at(-1)
   return (
-    <div data-testid="agent-generation-trace-summary" className="mt-2 rounded-md border border-border bg-background/70 p-2">
+    <div data-testid="agent-generation-trace-summary" className="mt-2 rounded-md border border-border/80 bg-background/70 p-2 shadow-sm">
       <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <Wand2 size={12} className="shrink-0 text-primary" />
@@ -378,7 +378,7 @@ export function GenerationTraceSummaryCard({ jobs }: { jobs?: ChatGenerationJob[
         <StatPill label="超时" value={timeout} />
       </div>
       {latest && (
-        <div className="mt-2 rounded border border-border/70 bg-muted/20 px-2 py-1.5">
+        <div className="mt-2 rounded border border-border/80 bg-muted/20 px-2 py-1.5">
           <p className="truncate type-tiny font-medium text-foreground">
             {latest.jobId !== undefined ? `最新 Job #${latest.jobId}` : '最新任务'}
             {latest.jobType ? ` · ${latest.jobType}` : ''}
@@ -422,7 +422,7 @@ function generationJobBadgeClass(tone: GenerationJobBadgeTone) {
     case 'warning':
       return 'border-amber-500/30 bg-amber-500/10 text-amber-700'
     case 'success':
-      return 'border-green-500/30 bg-green-500/10 text-green-700'
+      return 'border-green-600/50 bg-green-500/10 text-green-700'
     default:
       return ''
   }
@@ -430,7 +430,7 @@ function generationJobBadgeClass(tone: GenerationJobBadgeTone) {
 
 function StatPill({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded border border-border/70 bg-muted/20 px-2 py-1">
+    <div className="rounded border border-border/80 bg-muted/20 px-2 py-1">
       <p className="type-min uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="type-tiny font-medium text-foreground">{value}</p>
     </div>

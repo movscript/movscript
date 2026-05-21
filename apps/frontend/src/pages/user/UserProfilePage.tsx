@@ -28,7 +28,7 @@ function ProfileTab() {
           onClick={() => setCurrentUser(null)}
           className="flex items-center gap-2 type-body text-destructive hover:text-destructive/80 transition-colors"
         >
-          <LogOut size={15} /> {t('sidebar.logout')}
+          <LogOut size={14} /> {t('sidebar.logout')}
         </button>
       </div>
     </div>

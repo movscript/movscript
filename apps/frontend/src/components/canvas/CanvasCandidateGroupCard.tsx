@@ -62,7 +62,7 @@ export function CanvasCandidateGroupCard({
       <header className="border-b border-border bg-emerald-500/10 px-3 py-2.5">
         <div className="flex items-start gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80">
-            <Sparkles size={15} className="text-emerald-600" />
+            <Sparkles size={14} className="text-emerald-600" />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
@@ -81,7 +81,7 @@ export function CanvasCandidateGroupCard({
             </p>
           </div>
           <Button size="icon-xs" variant="ghost" className="shrink-0" aria-label="More">
-            <MoreHorizontal size={13} />
+            <MoreHorizontal size={14} />
           </Button>
         </div>
       </header>
@@ -132,7 +132,7 @@ function CandidateRow({ candidate }: { candidate: CandidateItem }) {
       <div className="flex items-start gap-2">
         <DecisionMark decision={candidate.decision} />
         <span className={cn('mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded', cfg.accentSoft)}>
-          <Icon size={11} className={cfg.activeColor} />
+          <Icon size={12} className={cfg.activeColor} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
@@ -169,13 +169,13 @@ function DecisionMark({ decision }: { decision: CandidateDecision }) {
   if (decision === 'rejected') {
     return (
       <span className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
-        <Trash2 size={9} />
+        <Trash2 size={10} />
       </span>
     )
   }
   return (
     <span className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground">
-      <Circle size={8} />
+      <Circle size={10} />
     </span>
   )
 }

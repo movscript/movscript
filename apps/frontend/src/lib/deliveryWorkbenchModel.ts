@@ -195,6 +195,16 @@ export function deliveryVersionFilterLabel(value: DeliveryVersionFilter) {
   return deliveryStatusLabel(value)
 }
 
+export type DeliveryWorkbenchStatusTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger'
+
+export function deliveryWorkbenchStatusTone(status: string): DeliveryWorkbenchStatusTone {
+  if (['approved', 'exported', 'locked', 'succeeded'].includes(status)) return 'success'
+  if (['checking', 'needs_asset', 'pending', 'running'].includes(status)) return 'warning'
+  if (status === 'confirmed') return 'info'
+  if (['missing', 'failed', 'blocked'].includes(status)) return 'danger'
+  return 'neutral'
+}
+
 export function deliveryStatusLabel(status: string) {
   const labels: Record<string, string> = {
     draft: '草稿',

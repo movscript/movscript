@@ -26,7 +26,7 @@ export function ContextDiagnosticCard({ diagnostic }: { diagnostic: ChatContextD
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 font-medium text-foreground">
-            <MessageSquareText size={13} />
+            <MessageSquareText size={14} />
             <span>运行上下文</span>
             <Badge variant="outline" className="type-micro leading-4 px-1.5 py-0">
               /context
@@ -45,7 +45,7 @@ export function ContextDiagnosticCard({ diagnostic }: { diagnostic: ChatContextD
           title="复制上下文诊断 JSON"
           className="shrink-0"
         >
-          {copied ? <Check size={11} /> : <Copy size={11} />}
+          {copied ? <Check size={12} /> : <Copy size={12} />}
         </Button>
       </div>
 

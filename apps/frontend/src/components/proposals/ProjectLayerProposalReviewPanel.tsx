@@ -259,7 +259,7 @@ export function ProjectLayerProposalReviewPanel({
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   <span className="min-w-0 break-words type-tiny font-medium text-foreground">{formatProjectLayerProposalEntry(entry)}</span>
                                   <Badge variant={entry.changeType === 'deleted' ? 'destructive' : entry.changeType === 'added' ? 'secondary' : 'outline'} className="h-5 rounded-full px-1.5 type-micro">
-                                    {entry.changeType === 'deleted' ? <Trash2 size={9} /> : null}
+                                    {entry.changeType === 'deleted' ? <Trash2 size={10} /> : null}
                                     {projectLayerProposalEntryChangeLabel(entry)}
                                   </Badge>
                                   {entry.inferred ? <Badge variant="outline" className="h-5 rounded-full px-1.5 type-micro">缺席推断</Badge> : null}
@@ -301,7 +301,7 @@ export function ProjectLayerProposalReviewPanel({
                                     <span className={cn('min-w-0 flex-1 truncate', row.before ? 'line-through text-muted-foreground' : 'text-muted-foreground')}>
                                       {row.before || '新增'}
                                     </span>
-                                    <ArrowRight size={9} className="mt-0.5 shrink-0 text-muted-foreground" />
+                                    <ArrowRight size={10} className="mt-0.5 shrink-0 text-muted-foreground" />
                                     <span className={cn(
                                       'min-w-0 flex-1 truncate',
                                       row.tone === 'added' ? 'text-emerald-700 dark:text-emerald-300' : row.tone === 'deleted' ? 'text-rose-700 dark:text-rose-300' : 'text-foreground',

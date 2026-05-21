@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { MediaViewer, downloadResource, resolveResourceUrl } from '@/components/shared/MediaViewer'
 import { ResourceListItem } from '@/components/shared/ResourcePanel'
+import { ProjectSurfaceHeader } from '@/components/app/AppPage'
 import { Button } from '@movscript/ui'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
@@ -40,11 +41,11 @@ function formatBytes(bytes: number): string {
 
 function TypeIcon({ type }: { type: string }) {
   switch (type) {
-    case 'image': return <ImageIcon size={13} />
-    case 'video': return <Video size={13} />
-    case 'audio': return <FileAudio size={13} />
-    case 'text': return <FileText size={13} />
-    default: return <FileIcon size={13} />
+    case 'image': return <ImageIcon size={14} />
+    case 'video': return <Video size={14} />
+    case 'audio': return <FileAudio size={14} />
+    case 'text': return <FileText size={14} />
+    default: return <FileIcon size={14} />
   }
 }
 
@@ -110,7 +111,7 @@ function FolderDialog({
                 onChange={e => setIsShared(e.target.checked)}
                 className="rounded"
               />
-              <Globe size={13} className="text-muted-foreground" />
+              <Globe size={14} className="text-muted-foreground" />
               {t('pages.resources.enableSharingVisible')}
             </label>
           </div>
@@ -167,7 +168,7 @@ function PermissionsDialog({ folder, onClose }: { folder: ResourceFolder; onClos
   })
 
   const PERM_LABELS = { read: t('pages.resources.permissions.read'), write: t('pages.resources.permissions.write') }
-  const PERM_ICONS = { read: <Eye size={11} />, write: <PenLine size={11} /> }
+  const PERM_ICONS = { read: <Eye size={12} />, write: <PenLine size={12} /> }
 
   return (
     <Dialog.Root open onOpenChange={v => !v && onClose()}>
@@ -175,7 +176,7 @@ function PermissionsDialog({ folder, onClose }: { folder: ResourceFolder; onClos
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
         <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-xl p-6 w-96 z-50 max-h-[80vh] flex flex-col gap-4">
           <div className="flex items-center gap-2">
-            <ShieldCheck size={15} className="text-primary" />
+            <ShieldCheck size={14} className="text-primary" />
             <Dialog.Title className="type-body font-semibold flex-1">{t('pages.resources.permissionSettingsTitle', { name: folder.name })}</Dialog.Title>
             <Dialog.Close className="text-muted-foreground hover:text-foreground">
               <XIcon size={14} />
@@ -233,7 +234,7 @@ function PermissionsDialog({ folder, onClose }: { folder: ResourceFolder; onClos
               <div className="border-t border-border pt-3 space-y-2">
                 <p className="type-caption text-muted-foreground font-medium">{t('pages.resources.addUser')}</p>
                 <div className="relative">
-                  <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <input
                     value={searchQ}
                     onChange={e => setSearchQ(e.target.value)}
@@ -881,7 +882,7 @@ function VideoClipDialog({
           <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
             <Button variant="outline" size="sm" onClick={onClose} disabled={isBusy}>{t('common.cancel')}</Button>
             <Button size="sm" onClick={() => uploadClip.mutate()} disabled={!canClip}>
-              <Scissors size={13} />
+              <Scissors size={14} />
               {uploadClip.isPending ? (phaseLabel || t('pages.resources.clipCreating')) : t('pages.resources.clipCreate')}
             </Button>
           </div>
@@ -1041,7 +1042,7 @@ function ResourceCard({
                 className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
                 onSelect={onDownload}
               >
-                <Download size={13} />
+                <Download size={14} />
                 {t('shared.mediaViewer.download')}
               </DropdownMenu.Item>
               {!isSharedView && (
@@ -1049,7 +1050,7 @@ function ResourceCard({
                   className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
                   onSelect={onRename}
                 >
-                  <Pencil size={13} />
+                  <Pencil size={14} />
                   {t('pages.resources.renameResource')}
                 </DropdownMenu.Item>
               )}
@@ -1058,7 +1059,7 @@ function ResourceCard({
                   className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
                   onSelect={onMove}
                 >
-                  <MoveRight size={13} />
+                  <MoveRight size={14} />
                   {t('pages.resources.moveToFolder')}
                 </DropdownMenu.Item>
               )}
@@ -1067,7 +1068,7 @@ function ResourceCard({
                   className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
                   onSelect={onClip}
                 >
-                  <Scissors size={13} />
+                  <Scissors size={14} />
                   {t('pages.resources.clipVideo')}
                 </DropdownMenu.Item>
               )}
@@ -1078,7 +1079,7 @@ function ResourceCard({
                     className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-destructive"
                     onSelect={onDelete}
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={14} />
                     {t('common.delete')}
                   </DropdownMenu.Item>
                 </>
@@ -1236,20 +1237,20 @@ export default function ResourcesPage() {
             className="w-5 h-5 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
             title={t('pages.resources.newFolder')}
           >
-            <FolderPlus size={13} />
+            <FolderPlus size={14} />
           </button>
         </div>
 
         <div className="overflow-y-auto py-1 border-b border-border">
           <FolderItem
             label={t('pages.resources.allResources')}
-            icon={<Folder size={13} />}
+            icon={<Folder size={14} />}
             active={selectedFolder === null && tab === 'mine'}
             onClick={() => selectMyFolder(null)}
           />
           <FolderItem
             label={t('pages.resources.unfiled')}
-            icon={<Folder size={13} />}
+            icon={<Folder size={14} />}
             active={selectedFolder === 'root' && tab === 'mine'}
             onClick={() => selectMyFolder('root')}
           />
@@ -1257,7 +1258,7 @@ export default function ResourcesPage() {
             <FolderItem
               key={f.ID}
               label={f.name}
-              icon={selectedFolder === f.ID && tab === 'mine' ? <FolderOpen size={13} /> : <Folder size={13} />}
+              icon={selectedFolder === f.ID && tab === 'mine' ? <FolderOpen size={14} /> : <Folder size={14} />}
               active={selectedFolder === f.ID && tab === 'mine'}
               onClick={() => selectMyFolder(f.ID)}
               badge={f.resource_count > 0 ? f.resource_count : undefined}
@@ -1272,7 +1273,7 @@ export default function ResourcesPage() {
         {/* Shared Folders section */}
         <div className="px-3 py-2.5 border-b border-border/50">
           <div className="flex items-center gap-1.5">
-            <Share2 size={11} className="text-muted-foreground" />
+            <Share2 size={12} className="text-muted-foreground" />
             <span className="type-label font-semibold text-foreground">{t('pages.resources.sharedFolders')}</span>
           </div>
         </div>
@@ -1285,7 +1286,7 @@ export default function ResourcesPage() {
               <FolderItem
                 key={f.ID}
                 label={f.name}
-                icon={selectedFolder === f.ID && tab === 'shared' ? <FolderOpen size={13} /> : <Folder size={13} />}
+                icon={selectedFolder === f.ID && tab === 'shared' ? <FolderOpen size={14} /> : <Folder size={14} />}
                 active={selectedFolder === f.ID && tab === 'shared'}
                 onClick={() => selectSharedFolder(f.ID)}
                 badge={f.resource_count > 0 ? f.resource_count : undefined}
@@ -1298,74 +1299,68 @@ export default function ResourcesPage() {
 
       {/* Main panel */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background shrink-0">
-          {/* Breadcrumb */}
-          <div className="flex items-center gap-1 type-body">
-            <span className="text-muted-foreground">{t('header.titles.resources')}</span>
-            {currentFolderLabel() && (
-              <>
-                <ChevronRight size={12} className="text-muted-foreground/50" />
-                <span className="font-medium text-foreground">{currentFolderLabel()}</span>
-              </>
-            )}
-          </div>
-          <div className="flex-1" />
+        <ProjectSurfaceHeader
+          icon={FolderOpen}
+          title={t('header.titles.resources')}
+          description={t('pages.resources.description', { defaultValue: '管理项目素材、生成结果、文件夹和共享资源。' })}
+          className="px-4 py-3"
+          meta={currentFolderLabel() ? <span className="type-label text-muted-foreground">{currentFolderLabel()}</span> : null}
+          actions={(
+            <>
+              <div className="flex rounded-lg border border-border overflow-hidden type-label">
+                <button
+                  onClick={() => { setTab('mine'); setPage(1); if (selectedFolderTab === 'shared') setSelectedFolder(null) }}
+                  className={`px-3 py-1 transition-colors ${tab === 'mine' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                >
+                  {t('pages.resources.mine')}
+                </button>
+                <button
+                  onClick={() => { setTab('shared'); setSelectedFolderTab('shared'); setPage(1) }}
+                  className={`px-3 py-1 flex items-center gap-1 transition-colors ${tab === 'shared' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                >
+                  <Share2 size={12} />
+                  {t('pages.resources.shared')}
+                </button>
+              </div>
 
-          {/* Tabs */}
-          <div className="flex rounded-lg border border-border overflow-hidden type-label">
-            <button
-              onClick={() => { setTab('mine'); setPage(1); if (selectedFolderTab === 'shared') setSelectedFolder(null) }}
-              className={`px-3 py-1 transition-colors ${tab === 'mine' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
-            >
-              {t('pages.resources.mine')}
-            </button>
-            <button
-              onClick={() => { setTab('shared'); setSelectedFolderTab('shared'); setPage(1) }}
-              className={`px-3 py-1 flex items-center gap-1 transition-colors ${tab === 'shared' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
-            >
-              <Share2 size={11} />
-              {t('pages.resources.shared')}
-            </button>
-          </div>
+              <div className="relative">
+                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={search}
+                  onChange={e => { setSearch(e.target.value); setPage(1) }}
+                  placeholder={t('pages.resources.searchFilesPlaceholder')}
+                  className="pl-7 pr-3 py-1.5 type-label border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring w-40"
+                />
+              </div>
 
-          <div className="relative">
-            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1) }}
-              placeholder={t('pages.resources.searchFilesPlaceholder')}
-              className="pl-7 pr-3 py-1.5 type-label border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring w-40"
-            />
-          </div>
-
-          {/* Upload button — only visible for personal folders */}
-          <Button
-            size="sm"
-            onClick={() => fileRef.current?.click()}
-            disabled={upload.isPending}
-            className={`gap-1.5 ${isSharedView ? 'invisible' : ''}`}
-          >
-            <Upload size={13} />
-            {upload.isPending ? t('pages.resources.uploading') : t('pages.resources.uploadFile')}
-          </Button>
-          {/* View toggle */}
-          <div className="flex rounded-lg border border-border overflow-hidden">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
-              title={t('pages.resources.gridTitle')}
-            >
-              <LayoutGrid size={13} />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-1.5 transition-colors ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
-              title={t('pages.resources.listTitle')}
-            >
-              <List size={13} />
-            </button>
-          </div>
+              <Button
+                size="sm"
+                onClick={() => fileRef.current?.click()}
+                disabled={upload.isPending}
+                className={`gap-1.5 ${isSharedView ? 'invisible' : ''}`}
+              >
+                <Upload size={14} />
+                {upload.isPending ? t('pages.resources.uploading') : t('pages.resources.uploadFile')}
+              </Button>
+              <div className="flex rounded-lg border border-border overflow-hidden">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                  title={t('pages.resources.gridTitle')}
+                >
+                  <LayoutGrid size={14} />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-1.5 transition-colors ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                  title={t('pages.resources.listTitle')}
+                >
+                  <List size={14} />
+                </button>
+              </div>
+            </>
+          )}
+        />
           <input
             ref={fileRef}
             type="file"
@@ -1378,7 +1373,6 @@ export default function ResourcesPage() {
               e.target.value = ''
             }}
           />
-        </div>
 
         {/* Type filter */}
         <div className="flex items-center gap-1 px-4 py-2 border-b border-border bg-background shrink-0">
@@ -1405,7 +1399,7 @@ export default function ResourcesPage() {
             <div className="flex items-center justify-center h-40 text-muted-foreground type-body">{t('common.loadingShort')}</div>
           ) : visible.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-muted-foreground/50">
-              <Upload size={32} className="mb-3 opacity-30" />
+              <Upload size={24} className="mb-3 opacity-30" />
               <p className="type-body">
                 {isSharedView ? t('pages.resources.noSharedResources') : search ? t('pages.resources.noMatchedFiles') : t('pages.resources.noResourcesUpload')}
               </p>
@@ -1446,28 +1440,28 @@ export default function ResourcesPage() {
                       <DropdownMenu.Portal>
                         <DropdownMenu.Content className="bg-background border border-border rounded-lg shadow-lg py-1 min-w-36 z-50 type-body" align="end" sideOffset={4}>
                           <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => downloadResource(resolveResourceUrl(r), r.name)}>
-                            <Download size={13} />{t('shared.mediaViewer.download')}
+                            <Download size={14} />{t('shared.mediaViewer.download')}
                           </DropdownMenu.Item>
                           {!isSharedView && (
                             <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => setRenameResource(r)}>
-                              <Pencil size={13} />{t('pages.resources.renameResource')}
+                              <Pencil size={14} />{t('pages.resources.renameResource')}
                             </DropdownMenu.Item>
                           )}
                           {!isSharedView && (
                             <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => setMoveResource(r)}>
-                              <MoveRight size={13} />{t('pages.resources.moveToFolder')}
+                              <MoveRight size={14} />{t('pages.resources.moveToFolder')}
                             </DropdownMenu.Item>
                           )}
                           {!isSharedView && r.type === 'video' && (
                             <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => setClipResource(r)}>
-                              <Scissors size={13} />{t('pages.resources.clipVideo')}
+                              <Scissors size={14} />{t('pages.resources.clipVideo')}
                             </DropdownMenu.Item>
                           )}
                           {!isSharedView && (
                             <>
                               <DropdownMenu.Separator className="my-1 border-t border-border" />
                               <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-destructive" onSelect={() => remove.mutate(r.ID)}>
-                                <Trash2 size={13} />{t('common.delete')}
+                                <Trash2 size={14} />{t('common.delete')}
                               </DropdownMenu.Item>
                             </>
                           )}
@@ -1485,12 +1479,12 @@ export default function ResourcesPage() {
           <span>{t('pages.resources.pageStatus', { page, pageCount })}</span>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}>
-              <ChevronLeft size={13} />
+              <ChevronLeft size={14} />
               {t('pages.resources.previousPage')}
             </Button>
             <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(pageCount, p + 1))} disabled={page >= pageCount}>
               {t('pages.resources.nextPage')}
-              <ChevronRight size={13} />
+              <ChevronRight size={14} />
             </Button>
           </div>
         </div>
@@ -1591,7 +1585,7 @@ function FolderItem({
               className="w-4 h-4 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-all shrink-0"
               onClick={e => e.stopPropagation()}
             >
-              <MoreHorizontal size={11} />
+              <MoreHorizontal size={12} />
             </button>
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
@@ -1613,7 +1607,7 @@ function FolderItem({
                   className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
                   onSelect={() => { onPermissions(); setMenuOpen(false) }}
                 >
-                  <ShieldCheck size={11} />
+                  <ShieldCheck size={12} />
                   {t('pages.resources.permissionSettings')}
                 </DropdownMenu.Item>
               )}

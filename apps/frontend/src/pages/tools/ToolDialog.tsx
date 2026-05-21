@@ -7,6 +7,7 @@ import type { RawResource, NodeType, Job, PublicModel, DebugCallResult, FeatureC
 import {
   Wand2,
   Bug, Copy, Check, History, ChevronLeft, ChevronRight,
+  AlertTriangle,
 } from 'lucide-react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
 import { ResourcePanel } from '@/components/shared/ResourcePanel'
@@ -39,7 +40,7 @@ function CopyButton({ text }: { text: string }) {
       onClick={copy}
       className="flex items-center gap-1 type-label text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded border border-border hover:bg-muted/50"
     >
-      {copied ? <Check size={11} className="text-green-500" /> : <Copy size={11} />}
+      {copied ? <Check size={12} className="text-[var(--ms-color-success)]" /> : <Copy size={12} />}
       {copied ? t('tools.debug.copied') : t('tools.debug.copy')}
     </button>
   )
@@ -112,7 +113,7 @@ function DebugPanel({ job }: { job: Job }) {
       {/* ── Job 基础信息 ── */}
       <div className="space-y-1">
         <KV label="Job ID" value={String(job.ID)} />
-        <KV label={t('tools.debug.status')} value={job.status} color={job.status === 'failed' ? 'text-destructive' : job.status === 'succeeded' ? 'text-green-400' : 'text-foreground'} />
+        <KV label={t('tools.debug.status')} value={job.status} color={job.status === 'failed' ? 'text-destructive' : job.status === 'succeeded' ? 'text-[var(--ms-color-success)]' : 'text-foreground'} />
         <KV label={t('tools.debug.configId')} value={String(job.model_config_id)} />
         {job.started_at && <KV label={t('tools.debug.started')} value={new Date(job.started_at).toLocaleTimeString(i18n.language)} />}
         {job.finished_at && <KV label={t('tools.debug.finished')} value={new Date(job.finished_at).toLocaleTimeString(i18n.language)} />}
@@ -149,7 +150,7 @@ function DebugPanel({ job }: { job: Job }) {
       {debug && debug.endpoint && (
         <Section title={`${t('tools.debug.request')} ${debug.latency_ms ? `· ${debug.latency_ms}ms` : ''}`}>
           <div className="flex items-center gap-1.5">
-            <span className="text-blue-400 shrink-0">{debug.method}</span>
+            <span className="text-foreground font-semibold shrink-0">{debug.method}</span>
             <span className="text-foreground break-all">{debug.endpoint}</span>
             {debug.model_id && <span className="text-muted-foreground ml-auto shrink-0">({debug.model_id})</span>}
           </div>
@@ -157,7 +158,7 @@ function DebugPanel({ job }: { job: Job }) {
             <div className="bg-background/50 rounded p-2 space-y-0.5">
               {Object.entries(debug.request_headers).map(([k, v]) => (
                 <div key={k} className="flex gap-1.5">
-                  <span className="text-purple-400 shrink-0">{k}:</span>
+                  <span className="text-muted-foreground shrink-0">{k}:</span>
                   <span className="text-foreground break-all">{v}</span>
                 </div>
               ))}
@@ -175,7 +176,7 @@ function DebugPanel({ job }: { job: Job }) {
       {/* ── HTTP 响应 ── */}
       {debug && debug.response_status > 0 && (
         <Section title={t('tools.debug.response')}>
-          <span className={debug.response_status < 400 ? 'text-green-400' : 'text-destructive'}>
+          <span className={debug.response_status < 400 ? 'text-[var(--ms-color-success)]' : 'text-destructive'}>
             {debug.response_status}
           </span>
           {debug.response_body && <JsonBlock text={debug.response_body} maxH="max-h-48" />}
@@ -443,29 +444,6 @@ export function ToolDialog({
         title={toolName}
         description={toolDescription}
         icon={Wand2}
-        actions={(
-          <>
-            <button
-              onClick={() => setDebugMode((d) => !d)}
-              title={t('tools.debug.mode')}
-              className={cn(
-                'p-1.5 rounded-md transition-colors',
-                debugMode
-                  ? 'text-amber-500 bg-amber-500/10 border border-amber-400/30'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              )}
-            >
-              <Bug size={14} />
-            </button>
-            <ModelSelector
-              capability={capability}
-              feature={_nodeType}
-              value={selectedModelId}
-              onChange={setSelectedModelId}
-              onModelChange={setSelectedModel}
-            />
-          </>
-        )}
       />
 
       {/* ── Body ────────────────────────────────────────────────────────────── */}
@@ -496,13 +474,38 @@ export function ToolDialog({
           }}
         >
           {/* ── Section 1: Generation input ─────────────────────────────────── */}
-          <Card className="max-w-2xl mx-auto shadow-md">
-            <CardContent className="p-4">
+          <Card className="max-w-2xl mx-auto border-border bg-card bg-none text-card-foreground shadow-sm">
+            <CardContent className="p-4 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+                <div className="min-w-0">
+                  <p className="type-label font-medium text-foreground">{t('shared.modelSelector.label', { defaultValue: '模型' })}</p>
+                  <p className="type-tiny text-muted-foreground">{toolDescription}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    onClick={() => setDebugMode((d) => !d)}
+                    title={t('tools.debug.mode')}
+                    className={cn(
+                      'inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
+                      debugMode && 'bg-muted text-foreground'
+                    )}
+                  >
+                    <Bug size={14} />
+                  </button>
+                  <ModelSelector
+                    capability={capability}
+                    feature={_nodeType}
+                    value={selectedModelId}
+                    onChange={setSelectedModelId}
+                    onModelChange={setSelectedModel}
+                  />
+                </div>
+              </div>
               {attachmentMismatchWarnings.length > 0 && (
                 <div className="mb-3 space-y-1.5">
                   {attachmentMismatchWarnings.map((w, i) => (
-                    <div key={i} className="flex items-start gap-2 rounded-md bg-amber-500/10 border border-amber-400/30 px-3 py-2 type-label text-amber-600 dark:text-amber-400">
-                      <span className="shrink-0 mt-0.5">⚠</span>
+                    <div key={i} className="flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2 type-label text-foreground shadow-sm">
+                      <AlertTriangle size={14} className="mt-0.5 shrink-0 text-muted-foreground" />
                       <span>{w}</span>
                     </div>
                   ))}
@@ -533,7 +536,7 @@ export function ToolDialog({
           {/* ── Section 2: Generation history ───────────────────────────────── */}
           <div className="max-w-2xl mx-auto">
             <div className="flex items-center gap-2 mb-3">
-              <History size={13} className="text-muted-foreground" />
+              <History size={14} className="text-muted-foreground" />
               <span className="type-label font-semibold text-muted-foreground uppercase tracking-wider">{t('shared.toolNode.generationHistory')}</span>
               {historyTotal > 0 && (
                 <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 type-tiny font-semibold">
@@ -547,7 +550,7 @@ export function ToolDialog({
                   disabled={historyPage <= 1}
                   onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
                 >
-                  <ChevronLeft size={13} />
+                  <ChevronLeft size={14} />
                 </button>
                 <span className="tabular-nums">{historyPage}/{historyPageCount}</span>
                 <button
@@ -555,14 +558,14 @@ export function ToolDialog({
                   disabled={historyPage >= historyPageCount}
                   onClick={() => setHistoryPage(p => Math.min(historyPageCount, p + 1))}
                 >
-                  <ChevronRight size={13} />
+                  <ChevronRight size={14} />
                 </button>
               </div>
             </div>
 
             {jobs.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground/40 select-none">
-                <Wand2 size={28} className="opacity-30" />
+                <Wand2 size={24} className="opacity-30" />
                 <p className="type-label">{t('pages.jobs.empty')}</p>
               </div>
             ) : (

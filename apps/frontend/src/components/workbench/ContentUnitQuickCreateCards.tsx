@@ -100,7 +100,7 @@ export function CreateContentUnitQuickCard({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 type-body font-semibold text-foreground">
-              <Boxes size={15} className="text-muted-foreground" />
+              <Boxes size={14} className="text-muted-foreground" />
               新建制作项
             </div>
             <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">
@@ -203,7 +203,7 @@ export function CreateKeyframeQuickCard({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 type-body font-semibold text-foreground">
-              <Image size={15} className="text-muted-foreground" />
+              <Image size={14} className="text-muted-foreground" />
               新建关键帧
             </div>
             <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">

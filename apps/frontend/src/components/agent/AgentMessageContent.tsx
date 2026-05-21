@@ -116,7 +116,7 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
       <div className="flex items-center justify-between px-3 py-1 border-b border-white/10">
         <span className="font-mono text-muted-foreground/70">{lang || 'code'}</span>
         <button onClick={copy} className="text-muted-foreground/50 hover:text-muted-foreground transition-colors">
-          {copied ? <Check size={11} /> : <Copy size={11} />}
+          {copied ? <Check size={12} /> : <Copy size={12} />}
         </button>
       </div>
       <pre className="p-3 overflow-x-auto font-mono leading-relaxed whitespace-pre-wrap break-all"><code>{code}</code></pre>
@@ -148,7 +148,7 @@ function InlineResourceMention({ attachment }: { attachment: AgentAttachment }) 
     <AuthedVideo src={url} className="h-full w-full object-cover" muted playsInline preload="metadata" />
   ) : (
     <div className="flex h-full w-full items-center justify-center bg-muted/70 text-muted-foreground">
-      <AgentAttachmentIcon type={attachment.type} size={9} />
+      <AgentAttachmentIcon type={attachment.type} size={10} />
     </div>
   )
 

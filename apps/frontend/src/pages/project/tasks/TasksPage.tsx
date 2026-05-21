@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { ProjectSurfaceHeader } from '@/components/app/AppPage'
 import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
 import { openAgentPanelDraft, openAgentPanelThread, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -1170,7 +1171,7 @@ function ManagementTab({
     <section className="rounded-lg border border-border bg-card p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 type-body font-medium">
-          <Users size={15} />
+          <Users size={14} />
           <span>项目成员</span>
         </div>
         <Badge variant="secondary" className="type-tiny">{members.length} 人</Badge>
@@ -1206,7 +1207,7 @@ function ManagementTab({
               }}
               className="gap-1"
             >
-              <Plus size={13} /> 添加
+              <Plus size={14} /> 添加
             </Button>
           </div>
         </div>
@@ -1230,7 +1231,7 @@ function ManagementTab({
                 className="text-muted-foreground hover:text-destructive"
                 aria-label="移除成员"
               >
-                <Trash2 size={13} />
+                <Trash2 size={14} />
               </Button>
             )}
           </div>
@@ -1639,29 +1640,24 @@ export default function TasksPage() {
   return (
     <div className="h-full min-w-0 overflow-auto bg-background">
       <div className="min-w-[1180px] space-y-4 p-6">
-        <header className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 type-label text-muted-foreground">
-              <span>{project?.name ?? '当前项目'}</span>
-              <ChevronRight size={13} />
-              <span>任务</span>
-            </div>
-            <h1 className="mt-2 type-page-title font-semibold tracking-normal text-foreground">任务</h1>
-            <p className="mt-1 type-body text-muted-foreground">
-              面向项目成员的任务分配、个人执行、提交审核和负责人通过。
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+        <ProjectSurfaceHeader
+          icon={ClipboardList}
+          title="任务"
+          description="面向项目成员的任务分配、个人执行、提交审核和负责人通过。"
+          meta={<Badge variant="outline">{tasks.length} 个任务</Badge>}
+          actions={(
+            <>
             <Button variant="outline" className="gap-2" onClick={() => setView('mine')}>
-              <UserCheck size={15} />
+              <UserCheck size={14} />
               我的任务
             </Button>
             <Button className="gap-2" onClick={() => setTaskDialogOpen(true)} disabled={!canManageWorkItems || memberOptions.length === 0 || workTargetOptions.length === 0}>
-              <Plus size={15} />
+              <Plus size={14} />
               新建任务
             </Button>
-          </div>
-        </header>
+            </>
+          )}
+        />
 
         <TaskCreateDialog
           open={taskDialogOpen}
@@ -1711,7 +1707,7 @@ export default function TasksPage() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="type-label text-muted-foreground">{metric.label}</span>
-                  <Icon size={15} className={metric.className} />
+                  <Icon size={14} className={metric.className} />
                 </div>
                 <p className="mt-2 font-mono type-page-title font-semibold tabular-nums">{metric.value}</p>
               </button>
@@ -1723,7 +1719,7 @@ export default function TasksPage() {
           <aside className="space-y-3">
             <section className="rounded-lg border border-border bg-card p-3">
               <div className="mb-3 flex items-center gap-2 type-body font-medium">
-                <Plus size={15} />
+                <Plus size={14} />
                 <span>任务发布</span>
               </div>
               <div className="space-y-3 rounded-md border border-border bg-background p-3">
@@ -1731,7 +1727,7 @@ export default function TasksPage() {
                   选择任务目的、关联对象和完成动作后发布。系统会自动生成底层任务结果，不需要手写 JSON。
                 </p>
                 <Button className="w-full gap-2" onClick={() => setTaskDialogOpen(true)} disabled={!canManageWorkItems || memberOptions.length === 0 || workTargetOptions.length === 0}>
-                  <UserCheck size={15} />
+                  <UserCheck size={14} />
                   新建任务
                 </Button>
               </div>
@@ -1764,7 +1760,7 @@ export default function TasksPage() {
                   </Button>
                 ))}
                 <div className="flex items-center gap-1 rounded-md border border-border bg-background px-2">
-                  <ListFilter size={13} className="text-muted-foreground" />
+                  <ListFilter size={14} className="text-muted-foreground" />
                   <select
                     value={statusFilter}
                     onChange={(event) => setStatusFilter(event.target.value as TaskStatus | 'all')}
@@ -1905,7 +1901,7 @@ export default function TasksPage() {
                         disabled={publishingAgentTaskId === selectedTask.id || selectedTaskAgentWaiting}
                         loading={publishingAgentTaskId === selectedTask.id}
                       >
-                        <Bot size={15} />
+                        <Bot size={14} />
                         {selectedTaskAgentThreadId || selectedTaskAgentRunId
                           ? '打开 AI 会话'
                           : selectedTaskAgentWaiting
@@ -1919,7 +1915,7 @@ export default function TasksPage() {
                           className="justify-start gap-2"
                           onClick={() => navigate(agentRunPath(selectedTaskAgentRunId))}
                         >
-                          <ChevronRight size={15} />
+                          <ChevronRight size={14} />
                           查看运行详情
                         </Button>
                       )}
@@ -2028,7 +2024,7 @@ export default function TasksPage() {
                     onClick={() => updateTask(selectedTask, { status: 'in_progress', deliverable: '处理中' })}
                     disabled={selectedTask.status === 'approved' || patchWorkItem.isPending}
                   >
-                    <Clock3 size={15} />
+                    <Clock3 size={14} />
                     标记进行中
                   </Button>
                   <Button
@@ -2036,7 +2032,7 @@ export default function TasksPage() {
                     onClick={() => submitTaskForReview(selectedTask)}
                     disabled={selectedTask.status === 'submitted' || selectedTask.status === 'approved' || patchWorkItem.isPending}
                   >
-                    <Send size={15} />
+                    <Send size={14} />
                     提交审核
                   </Button>
                   <Button
@@ -2045,7 +2041,7 @@ export default function TasksPage() {
                     onClick={() => reviewTask(selectedTask, 'changes_requested')}
                     disabled={selectedTask.status !== 'submitted' || !canManageWorkItems || patchWorkItem.isPending}
                   >
-                    <RefreshCcw size={15} />
+                    <RefreshCcw size={14} />
                     要求修改
                   </Button>
                   <Button
@@ -2054,7 +2050,7 @@ export default function TasksPage() {
                     onClick={() => reviewTask(selectedTask, 'approved')}
                     disabled={selectedTask.status !== 'submitted' || !canManageWorkItems || patchWorkItem.isPending}
                   >
-                    <CheckCircle2 size={15} />
+                    <CheckCircle2 size={14} />
                     通过完成
                   </Button>
                 </div>

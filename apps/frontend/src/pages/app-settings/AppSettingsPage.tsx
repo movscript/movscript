@@ -192,7 +192,7 @@ export default function AppSettingsPage() {
                     }`}
                   >
                     <span className="flex items-center gap-2 type-body font-medium">
-                      <Icon size={15} />
+                      <Icon size={14} />
                       {mode === 'agent' ? t('appSettings.agentWorkMode') : t('appSettings.detailWorkMode')}
                     </span>
                     <span className="mt-1 block type-label">

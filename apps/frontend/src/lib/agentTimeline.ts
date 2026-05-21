@@ -78,7 +78,7 @@ export function buildAgentRunTimeline(input: {
     id: `step-${step.id}`,
     type: step.type === 'tool_call' ? 'tool_call' : 'message',
     kind: step.type === 'tool_call' ? '工具调用' : '消息',
-    title: step.toolName ? agentToolNameLabel(step.toolName) : step.title ?? (step.type === 'tool_call' ? '工具调用' : '历史消息'),
+    title: step.toolName ? toolCallTimelineTitle(step.toolName, step.args) : step.title ?? (step.type === 'tool_call' ? '工具调用' : '历史消息'),
     status: step.status,
     createdAt: step.createdAt,
     completedAt: step.completedAt,
@@ -125,11 +125,23 @@ export function formatToolCallStreamDetail(event: ChatRunActivityEvent) {
   const args = typeof toolCall.argumentsBuffer === 'string' ? toolCall.argumentsBuffer : ''
   const parsedArgs = toolCall.argumentsJSON
   return {
-    label: agentToolNameLabel(name ?? id ?? 'tool'),
+    label: toolCallTimelineTitle(name ?? id ?? 'tool', parsedArgs),
     parseStatus,
     args,
     parsedArgs,
   }
+}
+
+function toolCallTimelineTitle(toolName: string, args: unknown): string {
+  if (toolName === 'runtime_operation_start') {
+    const record = recordValue(args)
+    const kind = typeof record?.kind === 'string' ? record.kind : undefined
+    if (kind === 'generation_job') return '创建生成任务'
+    return '提交后台任务'
+  }
+  if (toolName === 'runtime_operation_wait') return '等待后台任务'
+  if (toolName === 'runtime_operation_cancel') return '取消后台任务'
+  return agentToolNameLabel(toolName)
 }
 
 function displayRunActivity(input: {

@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import {
   Boxes,
-  ChevronRight,
   Clapperboard,
   Clock3,
   Film,
@@ -22,7 +21,7 @@ import {
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { SemanticEntityCrudDialog } from '@/components/shared/SemanticEntityCrudDialog'
-import { AppMetricCard, AppPageHeader, AppSection } from '@/components/app/AppPage'
+import { AppMetricCard, AppSection, ProjectSurfaceHeader } from '@/components/app/AppPage'
 import { SemanticDot, SemanticStatusBadge } from '@/components/app/SemanticStatusBadge'
 import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
 import { cn } from '@/lib/utils'
@@ -176,28 +175,21 @@ export default function ProductionPage() {
     <div className="h-full overflow-hidden bg-background">
       <div className="flex h-full min-w-[1120px] flex-col">
         <div className="shrink-0 px-5 pt-4">
-          <AppPageHeader
+          <ProjectSurfaceHeader
             icon={Boxes}
-            eyebrow={(
-              <>
-                <span>{project?.name ?? '当前项目'}</span>
-                <ChevronRight size={13} />
-                <span>制作</span>
-                <Badge variant="outline">Production</Badge>
-              </>
-            )}
             title="制作"
             description="一个项目可以包含多个制作。每个制作承载一次从剧本到成片的完整创作单元，并统一挂载编排段、情景、设定资料、素材需求、制作项和成片。"
+            meta={<Badge variant="outline">{productions.length} 个制作</Badge>}
             actions={(
               <>
                 <Button variant="outline" className="gap-2" asChild>
                   <Link to={ROUTES.project.scripts}>
-                    <Plus size={15} />
+                    <Plus size={14} />
                     去剧本创建
                   </Link>
                 </Button>
                 <Button className="gap-2" onClick={() => setCreateOpen(true)}>
-                  <Plus size={15} />
+                  <Plus size={14} />
                   直接创建制作
                 </Button>
               </>
@@ -239,12 +231,12 @@ export default function ProductionPage() {
                     <div className="mt-4 flex flex-wrap justify-center gap-2">
                       <Button variant="outline" className="gap-2" asChild>
                         <Link to={ROUTES.project.productionOrchestration}>
-                          <Route size={15} />
+                          <Route size={14} />
                           创作编排
                         </Link>
                       </Button>
                       <Button className="gap-2" onClick={() => setCreateOpen(true)}>
-                        <Plus size={15} />
+                        <Plus size={14} />
                         直接创建制作
                       </Button>
                     </div>
@@ -296,7 +288,7 @@ export default function ProductionPage() {
                 <div className="rounded-lg border border-border bg-card">
                   <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <ListChecks size={15} className="text-muted-foreground" />
+                      <ListChecks size={14} className="text-muted-foreground" />
                       <h2 className="type-body font-semibold text-foreground">预览挂载</h2>
                     </div>
                     <UnitStatusBadge status={selected.preview.status} />
@@ -326,7 +318,7 @@ export default function ProductionPage() {
               <section className="rounded-lg border border-border bg-card">
                 <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <ScrollText size={15} className="text-muted-foreground" />
+                    <ScrollText size={14} className="text-muted-foreground" />
                     <h2 className="type-body font-semibold text-foreground">制作项</h2>
                   </div>
                   <p className="type-label text-muted-foreground">制作项结构由内容编排工作台统一拆解、检查和推进。</p>
@@ -343,7 +335,7 @@ export default function ProductionPage() {
             {selected ? <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px]">
             <section className="rounded-lg border border-border bg-card">
               <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-                <Wand2 size={15} className="text-muted-foreground" />
+                <Wand2 size={14} className="text-muted-foreground" />
                 <h2 className="type-body font-semibold text-foreground">下一步</h2>
               </div>
               <div className="space-y-2 p-4">
@@ -365,7 +357,7 @@ export default function ProductionPage() {
 
             <section className="rounded-lg border border-border bg-card">
               <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-                <Clock3 size={15} className="text-muted-foreground" />
+                <Clock3 size={14} className="text-muted-foreground" />
                 <h2 className="type-body font-semibold text-foreground">最近动态</h2>
               </div>
               <div className="space-y-3 p-4">
@@ -389,13 +381,13 @@ export default function ProductionPage() {
             <div className="grid grid-cols-2 gap-2">
               <Button variant="outline" className="gap-2" asChild>
                 <Link to={mergeSearch(ROUTES.project.preProduction, '', { tab: 'assets' })}>
-                  <PackageCheck size={15} />
+                  <PackageCheck size={14} />
                   素材
                 </Link>
               </Button>
               <Button variant="outline" className="gap-2" asChild>
                 <Link to={deliveryWorkbenchHref(selected)}>
-                  <Video size={15} />
+                  <Video size={14} />
                   成片
                 </Link>
               </Button>
@@ -468,7 +460,7 @@ function AreaCard({ area, production }: { area: ProductionArea; production: Prod
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-            <Icon size={15} />
+            <Icon size={14} />
           </span>
           <div className="min-w-0">
             <p className="truncate type-body font-medium text-foreground">{area.title}</p>

@@ -199,7 +199,7 @@ export function SemanticEntityCrudDialog({
                     <span className="font-medium">{quickCreate ? '更多字段' : '高级选项'}</span>
                     <span className="truncate type-label text-muted-foreground">{advancedHint(config.kind, quickCreate)}</span>
                   </span>
-                  <ChevronDown size={15} className={showAdvanced ? 'rotate-180 transition-transform' : 'transition-transform'} />
+                  <ChevronDown size={14} className={showAdvanced ? 'rotate-180 transition-transform' : 'transition-transform'} />
                 </button>
                 {showAdvanced ? (
                   <div className="grid gap-4 border-t border-border p-3 md:grid-cols-2">

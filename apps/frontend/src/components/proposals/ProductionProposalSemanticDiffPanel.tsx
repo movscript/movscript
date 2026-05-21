@@ -83,7 +83,7 @@ export function ProductionProposalSemanticDiffPanel({
     <div className="space-y-2">
       <div className="rounded-lg border border-border bg-background p-3">
         <div className="flex items-center gap-2">
-          <GitBranch size={13} className="text-primary" />
+          <GitBranch size={14} className="text-primary" />
           <p className="type-label font-semibold text-foreground">提案审阅</p>
           <span className="ml-auto rounded bg-muted px-1.5 py-0.5 type-tiny text-muted-foreground">{filteredGroups.length}/{groups.length} 段</span>
         </div>

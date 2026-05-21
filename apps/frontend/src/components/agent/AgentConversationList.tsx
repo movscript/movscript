@@ -91,7 +91,7 @@ export function ConversationList({
           </Button>
           {showCollapse && (
             <Button size="icon-sm" variant="ghost" onClick={onCollapse} aria-label={t('agents.chat.collapseAssistant')} title={t('agents.chat.collapseAssistant')} className="ai-agent-panel-header-collapse">
-              <PanelRightClose size={15} />
+              <PanelRightClose size={14} />
             </Button>
           )}
         </AgentHeaderActions>
@@ -120,7 +120,7 @@ export function ConversationList({
                   className="absolute bottom-2 right-2 text-muted-foreground/50 opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
                   aria-label={t('agents.chat.deleteConversation')}
                 >
-                  <X size={11} />
+                  <X size={12} />
                 </Button>
               </div>
             ))}
@@ -129,7 +129,7 @@ export function ConversationList({
         <AgentSidebarSection>
           <div className="mb-1 flex items-center justify-between px-1">
             <AgentSidebarTitle className="px-0">
-              <span className="inline-flex items-center gap-1"><History size={11} /> {t('agents.chat.localRuntime')}</span>
+              <span className="inline-flex items-center gap-1"><History size={12} /> {t('agents.chat.localRuntime')}</span>
             </AgentSidebarTitle>
             <Button
               type="button"

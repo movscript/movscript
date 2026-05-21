@@ -29,7 +29,7 @@ export function AIAgentPanel() {
           )
         : cn(
             'fixed right-3 top-3 h-[calc(100vh-1.5rem)] rounded-md border border-border shadow-lg',
-            'w-[min(420px,calc(100vw-1.5rem))]',
+            'w-[min(392px,calc(100vw-1.5rem))]',
           ),
     )} style={{ ['--ai-agent-panel-width' as string]: `${panelWidth}px` }}>
       {dockLayout && (

@@ -29,7 +29,7 @@ export function ProposalReviewShell({
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 type-label font-medium text-muted-foreground">
-            <Icon size={13} />
+            <Icon size={14} />
             <span>{kind}</span>
           </div>
           <h2 className="mt-1 type-body font-semibold text-foreground">{title}</h2>

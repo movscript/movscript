@@ -19,18 +19,34 @@ import {
   Wand2,
 } from 'lucide-react'
 
-import { api } from '@/lib/api'
-import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
-import { openAgentPanelDraft } from '@/lib/agentPanelBridge'
 import { apiErrorMessage } from '@/lib/contentWorkbenchStatus'
-import { byOrder, clampProgress, dedupeRecords, firstText, titleOfRecord } from '@/lib/contentWorkbenchRecordUtils'
+import { firstText } from '@/lib/contentWorkbenchRecordUtils'
+import { launchSettingPreparationAgent } from '@/lib/preProductionAgentLaunch'
+import {
+  loadSettingPreparationData,
+  settingPreparationWorkbenchQueryKey,
+} from '@/lib/settingPreparationDataController'
+import {
+  buildSettingPrepAgentMessage,
+  buildSettingPrepEvidenceRows,
+  buildSettingPrepForm,
+  buildSettingPrepRows,
+  buildSettingPrepUsageSummary,
+  composeCreativeProfileJSON,
+  creativeReferenceKindLabel,
+  creativeReferenceStatusLabel,
+  creativeReferenceStatusVariant,
+  creativeUsageStatusLabel,
+  creativeUsageStatusVariant,
+  normalizeCreativeReferenceStatus,
+  type SettingPrepRow,
+} from '@/lib/settingPreparationModel'
 import { cn } from '@/lib/utils'
-import { workbenchScenarios, type WorkbenchScenarioPriority as Priority, type WorkbenchScenarioStatus as WorkStatus } from '@/lib/workbenchScenarios'
+import { workbenchScenarios } from '@/lib/workbenchScenarios'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
-import type { Script } from '@/types'
 import { Badge, Button, Card, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@movscript/ui'
-import { listSemanticEntities, semanticEntityConfig, updateSemanticEntity, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { semanticEntityConfig, updateSemanticEntity } from '@/api/semanticEntities'
 import { ROUTES, mergeSearch } from '@/routes/projectRoutes'
 import {
   ContextStack,
@@ -42,259 +58,7 @@ import {
   type WorkbenchMetric,
 } from './WorkbenchChrome'
 import { WorkbenchPanel } from './WorkbenchPanel'
-
-type WorkbenchRecord = SemanticEntityRecord & Record<string, any>
-
-function EmptyWorkbenchState({ title, text }: { title: string; text: string }) {
-  return (
-    <Card className="rounded-lg border-dashed border-border bg-card p-8 text-center">
-      <p className="type-body font-semibold text-foreground">{title}</p>
-      <p className="mx-auto mt-2 max-w-md type-body leading-6 text-muted-foreground">{text}</p>
-    </Card>
-  )
-}
-
-interface SettingPrepData {
-  productions: WorkbenchRecord[]
-  scripts: Script[]
-  scriptVersions: WorkbenchRecord[]
-  segments: WorkbenchRecord[]
-  sceneMoments: WorkbenchRecord[]
-  creativeReferences: WorkbenchRecord[]
-  creativeReferenceStates: WorkbenchRecord[]
-  creativeReferenceUsages: WorkbenchRecord[]
-  creativeRelationships: WorkbenchRecord[]
-  assetSlots: WorkbenchRecord[]
-  contentUnits: WorkbenchRecord[]
-}
-
-interface SettingPrepRow {
-  id: string
-  title: string
-  kind: string
-  status: WorkStatus
-  rawStatus: string
-  priority: Priority
-  progress: number
-  readinessLabel: string
-  scope: string
-  missing: string[]
-  warnings: string[]
-  record: WorkbenchRecord
-  states: WorkbenchRecord[]
-  usages: WorkbenchRecord[]
-  relationships: WorkbenchRecord[]
-  assetSlots: WorkbenchRecord[]
-  linkedSegments: WorkbenchRecord[]
-  linkedSceneMoments: WorkbenchRecord[]
-  linkedContentUnits: WorkbenchRecord[]
-  linkedProductions: WorkbenchRecord[]
-}
-
-async function safeWorkbenchList(projectId: number, kind: Parameters<typeof semanticEntityConfig>[0]): Promise<WorkbenchRecord[]> {
-  try {
-    return await listSemanticEntities(projectId, semanticEntityConfig(kind)) as WorkbenchRecord[]
-  } catch (error) {
-    console.warn(`Failed to load workbench entity: ${kind}`, error)
-    return []
-  }
-}
-
-async function loadSettingPrepData(projectId: number): Promise<SettingPrepData> {
-  const [
-    productions,
-    scripts,
-    scriptVersions,
-    segments,
-    sceneMoments,
-    creativeReferences,
-    creativeReferenceStates,
-    creativeReferenceUsages,
-    creativeRelationships,
-    assetSlots,
-    contentUnits,
-  ] = await Promise.all([
-    safeWorkbenchList(projectId, 'productions'),
-    api.get<Script[]>(`/projects/${projectId}/scripts`).then((r) => r.data).catch(() => []),
-    safeWorkbenchList(projectId, 'scriptVersions'),
-    safeWorkbenchList(projectId, 'segments'),
-    safeWorkbenchList(projectId, 'sceneMoments'),
-    safeWorkbenchList(projectId, 'creativeReferences'),
-    safeWorkbenchList(projectId, 'creativeReferenceStates'),
-    safeWorkbenchList(projectId, 'creativeReferenceUsages'),
-    safeWorkbenchList(projectId, 'creativeRelationships'),
-    safeWorkbenchList(projectId, 'assetSlots'),
-    safeWorkbenchList(projectId, 'contentUnits'),
-  ])
-  return {
-    productions,
-    scripts,
-    scriptVersions,
-    segments,
-    sceneMoments,
-    creativeReferences,
-    creativeReferenceStates,
-    creativeReferenceUsages,
-    creativeRelationships,
-    assetSlots,
-    contentUnits,
-  }
-}
-
-function normalizeCreativeReferenceStatus(status?: string) {
-  if (status === 'confirmed' || status === 'locked' || status === 'ignored' || status === 'merged') return status
-  return 'draft'
-}
-
-function creativeReferenceStatusLabel(status?: string) {
-  const normalized = normalizeCreativeReferenceStatus(status)
-  if (normalized === 'confirmed') return '已确认'
-  if (normalized === 'locked') return '已锁定'
-  if (normalized === 'ignored') return '已忽略'
-  if (normalized === 'merged') return '已合并'
-  return '草稿'
-}
-
-function creativeReferenceStatusVariant(status?: string) {
-  const normalized = normalizeCreativeReferenceStatus(status)
-  if (normalized === 'confirmed' || normalized === 'locked' || normalized === 'merged') return 'success' as const
-  if (normalized === 'ignored') return 'outline' as const
-  return 'warning' as const
-}
-
-function creativeUsageStatusLabel(status?: string) {
-  if (status === 'confirmed') return '已确认'
-  if (status === 'corrected') return '已修正'
-  if (status === 'ignored') return '已忽略'
-  if (status === 'draft') return '草稿'
-  return firstText(status, '未设置')
-}
-
-function creativeUsageStatusVariant(status?: string) {
-  if (status === 'confirmed' || status === 'corrected') return 'success' as const
-  if (status === 'ignored') return 'outline' as const
-  if (status === 'draft') return 'warning' as const
-  return 'outline' as const
-}
-
-function creativeReferenceWorkStatus(status?: string): WorkStatus {
-  const normalized = normalizeCreativeReferenceStatus(status)
-  if (normalized === 'ignored') return 'blocked'
-  if (normalized === 'draft') return 'review'
-  return 'ready'
-}
-
-function creativeReferenceKindLabel(kind?: string) {
-  if (kind === 'person') return '人物'
-  if (kind === 'character') return '人物'
-  if (kind === 'place') return '地点'
-  if (kind === 'location') return '地点'
-  if (kind === 'scene') return '场景'
-  if (kind === 'prop') return '道具'
-  if (kind === 'product') return '产品'
-  if (kind === 'brand') return '品牌'
-  if (kind === 'style') return '风格'
-  if (kind === 'world_rule') return '世界规则'
-  if (kind === 'time_period') return '时间段'
-  if (kind === 'restriction') return '限制'
-  return firstText(kind, '设定')
-}
-
-function parseCreativeProfileJSON(profileJSON?: string) {
-  const raw = firstText(profileJSON, '')
-  if (!raw) return { profileJson: '', visualIntent: '' }
-  try {
-    const parsed = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return { profileJson: raw, visualIntent: '' }
-    }
-    const data = parsed as Record<string, unknown>
-    const visualIntent = firstText(data.visual_intent, data.visualIntent, data.visual_notes, '')
-    const cleaned = { ...data }
-    delete cleaned.visual_intent
-    delete cleaned.visualIntent
-    delete cleaned.visual_notes
-    return {
-      profileJson: Object.keys(cleaned).length > 0 ? JSON.stringify(cleaned, null, 2) : '',
-      visualIntent,
-    }
-  } catch {
-    return { profileJson: raw, visualIntent: '' }
-  }
-}
-
-function composeCreativeProfileJSON(profileJson: string, visualIntent: string) {
-  const trimmedProfile = profileJson.trim()
-  const trimmedVisual = visualIntent.trim()
-  if (!trimmedProfile && !trimmedVisual) return ''
-  try {
-    const parsed = trimmedProfile ? JSON.parse(trimmedProfile) : {}
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid profile json')
-    const next = { ...(parsed as Record<string, unknown>) }
-    if (trimmedVisual) next.visual_intent = trimmedVisual
-    else {
-      delete next.visual_intent
-      delete next.visualIntent
-      delete next.visual_notes
-    }
-    return JSON.stringify(next, null, 2)
-  } catch {
-    if (!trimmedVisual) return trimmedProfile
-    return JSON.stringify({
-      raw_profile: trimmedProfile,
-      visual_intent: trimmedVisual,
-    }, null, 2)
-  }
-}
-
-function buildSettingPrepForm(record: WorkbenchRecord) {
-  const profile = parseCreativeProfileJSON(record.profile_json)
-  return {
-    name: firstText(record.name, record.title, record.label, ''),
-    alias: firstText(record.alias, ''),
-    kind: firstText(record.kind, 'person'),
-    importance: firstText(record.importance, 'supporting'),
-    status: normalizeCreativeReferenceStatus(record.status),
-    description: firstText(record.description, ''),
-    content: firstText(record.content, ''),
-    visualIntent: profile.visualIntent,
-    profileJson: profile.profileJson,
-    tagsJson: firstText(record.tags_json, ''),
-  }
-}
-
-function buildSettingPrepUsageSummary(record: SettingPrepRow | null) {
-  if (!record) return '暂无使用上下文'
-  const productions = record.linkedProductions.slice(0, 2).map((item) => titleOfRecord(item))
-  const segments = record.linkedSegments.slice(0, 2).map((item) => titleOfRecord(item))
-  const moments = record.linkedSceneMoments.slice(0, 2).map((item) => titleOfRecord(item))
-  const parts = [
-    productions.length > 0 ? `制作 ${productions.join('、')}` : null,
-    segments.length > 0 ? `编排段 ${segments.join('、')}` : null,
-    moments.length > 0 ? `情景 ${moments.join('、')}` : null,
-  ].filter(Boolean)
-  return parts.length > 0 ? parts.join(' / ') : '暂无使用上下文'
-}
-
-function buildSettingPrepEvidenceRows(record: SettingPrepRow | null) {
-  if (!record) return []
-  const lines: string[] = []
-  for (const item of record.linkedSceneMoments.slice(0, 3)) {
-    const line = [
-      titleOfRecord(item),
-      firstText(item.time_text, item.location_text, item.mood, item.description, item.action_text),
-    ].filter(Boolean).join(' · ')
-    if (line.trim()) lines.push(line)
-  }
-  for (const item of record.linkedSegments.slice(0, 2)) {
-    const line = [
-      titleOfRecord(item),
-      firstText(item.summary, item.description, item.content),
-    ].filter(Boolean).join(' · ')
-    if (line.trim()) lines.push(line)
-  }
-  return lines.length > 0 ? lines : ['当前设定暂时没有绑定到可见剧本或编排上下文。']
-}
+import { WorkbenchEmptyState } from './WorkbenchPrimitives'
 
 function buildSettingPrepContextRows(record: SettingPrepRow | null) {
   if (!record) return []
@@ -319,135 +83,6 @@ function buildSettingPrepChecklist(record: SettingPrepRow | null) {
   ]
 }
 
-function buildSettingPrepRows(data?: SettingPrepData): SettingPrepRow[] {
-  if (!data) return []
-  const segmentsById = new Map(data.segments.map((item) => [item.ID, item]))
-  const momentsById = new Map(data.sceneMoments.map((item) => [item.ID, item]))
-  const productionsById = new Map(data.productions.map((item) => [item.ID, item]))
-  const contentUnitsById = new Map(data.contentUnits.map((item) => [item.ID, item]))
-
-  return data.creativeReferences
-    .slice()
-    .sort((a, b) => byOrder(a, b))
-    .map((record) => {
-      const states = data.creativeReferenceStates.filter((state) => Number(state.creative_reference_id) === record.ID)
-      const usages = data.creativeReferenceUsages.filter((usage) => Number(usage.creative_reference_id) === record.ID)
-      const relatedAssetSlots = data.assetSlots.filter((slot) => Number(slot.creative_reference_id) === record.ID || states.some((state) => Number(slot.creative_reference_state_id) === state.ID))
-      const relationships = data.creativeRelationships.filter((relation) => Number(relation.source_creative_reference_id) === record.ID || Number(relation.target_creative_reference_id) === record.ID)
-
-      const linkedSegments = dedupeRecords([
-        ...usages
-          .filter((usage) => usage.owner_type === 'segment')
-          .map((usage) => segmentsById.get(Number(usage.owner_id)))
-          .filter((item): item is WorkbenchRecord => Boolean(item)),
-        ...relatedAssetSlots
-          .filter((slot) => slot.owner_type === 'segment')
-          .map((slot) => segmentsById.get(Number(slot.owner_id)))
-          .filter((item): item is WorkbenchRecord => Boolean(item)),
-      ])
-      const linkedSceneMoments = dedupeRecords([
-        ...usages
-          .filter((usage) => usage.owner_type === 'scene_moment')
-          .map((usage) => momentsById.get(Number(usage.owner_id)))
-          .filter((item): item is WorkbenchRecord => Boolean(item)),
-        ...relatedAssetSlots
-          .filter((slot) => slot.owner_type === 'scene_moment')
-          .map((slot) => momentsById.get(Number(slot.owner_id)))
-          .filter((item): item is WorkbenchRecord => Boolean(item)),
-      ])
-      const linkedContentUnits = dedupeRecords([
-        ...usages
-          .filter((usage) => usage.owner_type === 'content_unit')
-          .map((usage) => contentUnitsById.get(Number(usage.owner_id)))
-          .filter((item): item is WorkbenchRecord => Boolean(item)),
-        ...relatedAssetSlots
-          .filter((slot) => slot.owner_type === 'content_unit')
-          .map((slot) => contentUnitsById.get(Number(slot.owner_id)))
-          .filter((item): item is WorkbenchRecord => Boolean(item)),
-      ])
-      const linkedProductions = dedupeRecords([
-        ...linkedSegments
-          .map((segment) => segment.production_id ? productionsById.get(Number(segment.production_id)) : undefined)
-          .filter((item): item is WorkbenchRecord => Boolean(item)),
-        ...linkedSceneMoments
-          .map((moment) => moment.production_id ? productionsById.get(Number(moment.production_id)) : undefined)
-          .filter((item): item is WorkbenchRecord => Boolean(item)),
-        ...linkedContentUnits
-          .map((unit) => unit.production_id ? productionsById.get(Number(unit.production_id)) : undefined)
-          .filter((item): item is WorkbenchRecord => Boolean(item)),
-      ])
-
-      const title = firstText(record.name, record.title, record.label, record.alias, `${creativeReferenceKindLabel(record.kind)} #${record.ID}`)
-      const hasDescription = Boolean(firstText(record.description, record.content))
-      const hasVisualAnchor = Boolean(firstText(record.visual_intent, record.visual_notes, record.profile_json))
-      const hasState = states.length > 0
-      const hasUsage = usages.length > 0
-      const hasAsset = relatedAssetSlots.length > 0
-      const missing = [
-        hasDescription ? null : '缺设定正文',
-        hasVisualAnchor ? null : '缺视觉锚点',
-        hasState ? null : '缺状态记录',
-        hasUsage ? null : '缺使用上下文',
-        normalizeCreativeReferenceStatus(record.status) === 'draft' ? '待定稿' : null,
-      ].filter(Boolean) as string[]
-      const warnings = [
-        relationships.some((relation) => String(relation.category) === 'conflict') ? '存在冲突关系' : null,
-        usages.length > 0 && normalizeCreativeReferenceStatus(record.status) === 'draft' ? '下游已在使用，建议先补完再定稿' : null,
-      ].filter(Boolean) as string[]
-      const progress = clampProgress(
-        10 +
-        (hasDescription ? 18 : 0) +
-        (hasVisualAnchor ? 20 : 0) +
-        (hasState ? 18 : 0) +
-        (hasUsage ? 18 : 0) +
-        (hasAsset ? 10 : 0) +
-        (normalizeCreativeReferenceStatus(record.status) === 'confirmed' ? 8 : 0) +
-        (normalizeCreativeReferenceStatus(record.status) === 'locked' ? 12 : 0),
-      )
-      const priority: Priority = (usages.length > 0 && missing.length > 0) || warnings.length > 0
-        ? 'high'
-        : usages.length > 0
-          ? 'medium'
-          : 'low'
-      const status = creativeReferenceWorkStatus(record.status)
-      const readinessLabel = missing.length === 0
-        ? normalizeCreativeReferenceStatus(record.status) === 'locked'
-          ? '已锁定，可下游引用'
-          : normalizeCreativeReferenceStatus(record.status) === 'confirmed'
-            ? '已确认，可继续使用'
-            : '可进入确认'
-        : `${missing.length} 个缺口`
-      const scopeParts = [
-        linkedProductions.length > 0 ? `${linkedProductions.length} 个制作` : '未绑定制作',
-        linkedSegments.length > 0 ? `${linkedSegments.length} 个编排段` : '未绑定编排段',
-        linkedSceneMoments.length > 0 ? `${linkedSceneMoments.length} 个情景` : '未绑定情景',
-      ]
-
-      return {
-        id: String(record.ID),
-        title,
-        kind: creativeReferenceKindLabel(record.kind),
-        status,
-        rawStatus: normalizeCreativeReferenceStatus(record.status),
-        priority,
-        progress,
-        readinessLabel,
-        scope: scopeParts.join(' / '),
-        missing,
-        warnings,
-        record,
-        states,
-        usages,
-        relationships,
-        assetSlots: relatedAssetSlots,
-        linkedSegments,
-        linkedSceneMoments,
-        linkedContentUnits,
-        linkedProductions,
-      }
-    })
-}
-
 function buildSettingPrepMetrics(rows: SettingPrepRow[]): WorkbenchMetric[] {
   const completed = rows.filter((row) => row.missing.length === 0 && (row.rawStatus === 'confirmed' || row.rawStatus === 'locked'))
   const locked = rows.filter((row) => row.rawStatus === 'locked')
@@ -460,22 +95,6 @@ function buildSettingPrepMetrics(rows: SettingPrepRow[]): WorkbenchMetric[] {
     { label: '已锁定', value: String(locked.length), detail: '后续修改需二次确认', icon: LockKeyhole, status: locked.length > 0 ? 'ready' : 'review' },
     { label: '已使用', value: String(used.length), detail: '已经进入剧本或制作上下文', icon: GitBranch, status: used.length > 0 ? 'ready' : 'review' },
   ]
-}
-
-function buildSettingPrepAgentMessage(input: {
-  projectName?: string
-  row: SettingPrepRow
-  evidence: string[]
-  missing: string[]
-}) {
-  return [
-    `请完善设定资料：${input.row.title}`,
-    input.projectName ? `项目：${input.projectName}` : undefined,
-    `类型：${input.row.kind}`,
-    `状态：${creativeReferenceStatusLabel(input.row.rawStatus)}`,
-    input.missing.length > 0 ? `缺口：${input.missing.join('、')}` : undefined,
-    input.evidence.length > 0 ? `证据：${input.evidence.join('；')}` : undefined,
-  ].filter(Boolean).join('\n')
 }
 
 function SettingPrepStateBadge({ status }: { status?: string }) {
@@ -501,8 +120,8 @@ export function SettingPreparationWorkbench() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
-    queryKey: ['workbench', 'creative', projectId],
-    queryFn: () => loadSettingPrepData(projectId!),
+    queryKey: settingPreparationWorkbenchQueryKey(projectId),
+    queryFn: () => loadSettingPreparationData(projectId!),
     enabled: !!projectId,
   })
   const rows = useMemo(() => buildSettingPrepRows(data), [data])
@@ -567,7 +186,7 @@ export function SettingPreparationWorkbench() {
       })
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['workbench', 'creative', projectId] })
+      await queryClient.invalidateQueries({ queryKey: settingPreparationWorkbenchQueryKey(projectId) })
       await queryClient.invalidateQueries({ queryKey: ['semantic-creative-references-page', projectId] })
       toast.success('设定资料已保存')
     },
@@ -583,7 +202,7 @@ export function SettingPreparationWorkbench() {
     },
     onSuccess: async (record) => {
       setDraft((current) => current ? { ...current, status: normalizeCreativeReferenceStatus(record.status) } : current)
-      await queryClient.invalidateQueries({ queryKey: ['workbench', 'creative', projectId] })
+      await queryClient.invalidateQueries({ queryKey: settingPreparationWorkbenchQueryKey(projectId) })
       await queryClient.invalidateQueries({ queryKey: ['semantic-creative-references-page', projectId] })
       toast.success('设定状态已更新')
     },
@@ -604,28 +223,12 @@ export function SettingPreparationWorkbench() {
       missing: selected.missing,
     })
     const requestId = `setting_prep_${selected.record.ID}_${Date.now().toString(36)}`
-    openAgentPanelDraft({
+    launchSettingPreparationAgent({
       requestId,
-      taskType: 'setting_preparation',
-      message,
-      title: `完善设定: ${selected.title}`,
-      newConversation: true,
-      autoSend: true,
       projectId,
-      clientInput: buildCommandFirstClientInput({
-        message: `请完善设定资料：${selected.title}`,
-        labels: ['setting-prep-workbench', 'workbench', 'structured-output'],
-        hints: {
-          projectId,
-          route: { pathname: ROUTES.project.preProduction },
-          selection: {
-            entityType: 'creative_reference',
-            entityId: selected.record.ID,
-            label: selected.title,
-          },
-        },
-      }),
-      renderMode: 'page',
+      creativeReferenceId: selected.record.ID,
+      creativeReferenceLabel: selected.title,
+      message,
     })
     toast.success('已打开 AI 设定完善任务')
   }
@@ -650,13 +253,13 @@ export function SettingPreparationWorkbench() {
     >
       <main className="min-h-0 flex-1 overflow-auto p-5">
         {!projectId ? (
-          <EmptyWorkbenchState title="请先选择项目" text="当前没有可用项目，无法读取设定资料和制作上下文。" />
+          <WorkbenchEmptyState title="请先选择项目" description="当前没有可用项目，无法读取设定资料和制作上下文。" />
         ) : isLoading ? (
           <Card className="rounded-lg border-border bg-card p-8 text-center type-body text-muted-foreground">正在加载设定准备数据...</Card>
         ) : isError ? (
-          <EmptyWorkbenchState title="设定准备数据加载失败" text="后端语义实体接口未返回可用数据，稍后重试。" />
+          <WorkbenchEmptyState title="设定准备数据加载失败" description="后端语义实体接口未返回可用数据，稍后重试。" />
         ) : rows.length === 0 ? (
-          <EmptyWorkbenchState title="暂无设定资料" text="先从剧本拆解、创作编排或设定资料页创建人物、地点、道具、风格等设定。" />
+          <WorkbenchEmptyState title="暂无设定资料" description="先从剧本拆解、创作编排或设定资料页创建人物、地点、道具、风格等设定。" />
         ) : (
           <div className="setting-prep-workbench space-y-5">
             <section className="rounded-lg border border-border bg-card p-4">
@@ -665,11 +268,11 @@ export function SettingPreparationWorkbench() {
                   <div className="flex flex-wrap items-center gap-2 type-label font-medium text-muted-foreground">
                     <Sparkles size={14} />
                     <span>{project?.name ?? '当前项目'}</span>
-                    <ChevronRight size={13} />
+                    <ChevronRight size={14} />
                     <span>设定准备</span>
                     {selected ? (
                       <>
-                        <ChevronRight size={13} />
+                        <ChevronRight size={14} />
                         <span className="truncate text-foreground">{selected.title}</span>
                       </>
                     ) : null}
@@ -763,7 +366,7 @@ export function SettingPreparationWorkbench() {
                   ) : undefined}
                 >
                   {!selected || !draft ? (
-                    <EmptyWorkbenchState title="暂无可编辑设定" text="请选择左侧队列中的设定资料。" />
+                    <WorkbenchEmptyState title="暂无可编辑设定" description="请选择左侧队列中的设定资料。" />
                   ) : (
                     <div className="space-y-4">
                       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px_150px]">
@@ -924,7 +527,7 @@ export function SettingPreparationWorkbench() {
                   )}
                 >
                   {!selected ? (
-                    <EmptyWorkbenchState title="暂无上下文" text="选择设定资料后查看使用位置、剧本证据和 AI 补全入口。" />
+                    <WorkbenchEmptyState title="暂无上下文" description="选择设定资料后查看使用位置、剧本证据和 AI 补全入口。" />
                   ) : contextMode === 'usage' ? (
                     <div className="space-y-4">
                       <ContextStack rows={contextRows} className="grid-cols-1" />
@@ -965,7 +568,7 @@ export function SettingPreparationWorkbench() {
                           AI 会读取当前设定、缺口、使用位置和剧本证据，输出可复制回设定字段的补全建议。
                         </p>
                         <Button className="mt-3 w-full justify-start gap-2" onClick={launchAICompletion}>
-                          <Wand2 size={15} />
+                          <Wand2 size={14} />
                           生成完善建议
                         </Button>
                       </div>

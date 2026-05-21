@@ -24,6 +24,7 @@ import {
 import { Badge, Button, Card, Progress } from '@movscript/ui'
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityKind, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { ProjectSurfaceHeader } from '@/components/app/AppPage'
 import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
 import { useProjectStore } from '@/store/projectStore'
 import { projectWorkbenchDefinitions } from '@/pages/project/projectSurfaces'
@@ -263,7 +264,7 @@ function StatBlock({
           <p className="mt-1 truncate type-label text-muted-foreground">{detail}</p>
         </div>
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-          <Icon size={17} />
+          <Icon size={16} />
         </span>
       </div>
     </div>
@@ -298,7 +299,7 @@ function LaneCard({ lane }: { lane: WorkLane }) {
     <Card className="flex min-h-[236px] flex-col rounded-lg border-border bg-card p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-          <Icon size={17} />
+          <Icon size={16} />
         </span>
         <Badge variant={stateVariant(lane.state)}>{stateLabel(lane.state)}</Badge>
       </div>
@@ -345,7 +346,7 @@ function FocusRow({ item }: { item: FocusItem }) {
         <p className="truncate type-body font-medium text-foreground">{item.title}</p>
         <p className="mt-0.5 truncate type-label text-muted-foreground">{item.area} · {item.detail}</p>
       </div>
-      <ArrowRight size={15} className="shrink-0 text-muted-foreground" />
+      <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
     </Link>
   )
 }
@@ -367,7 +368,7 @@ function SurfaceLink({
       className="flex items-center gap-3 rounded-md border border-border bg-background px-3 py-2.5 transition-colors hover:bg-muted/40"
     >
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-        <Icon size={15} />
+        <Icon size={14} />
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate type-body font-medium text-foreground">{title}</p>
@@ -617,45 +618,42 @@ export default function ProjectOverviewPage() {
   return (
     <div className="h-full overflow-auto bg-background">
       <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-5 p-5">
-        <header className="flex flex-col gap-4 border-b border-border pb-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2 type-label text-muted-foreground">
-              <LayoutDashboard size={14} />
-              <span>{project?.name ?? '当前项目'}</span>
-              <ChevronRight size={13} />
-              <span>项目总览</span>
+        <ProjectSurfaceHeader
+          icon={LayoutDashboard}
+          title={project?.name ?? '项目总览'}
+          description={project?.description || '总览只负责把当前项目的制作、内容对象和工作台入口放在一起，具体生成、确认和返工决策进入对应工作台完成。'}
+          meta={(
+            <>
               <Badge variant={blockedCount > 0 ? 'warning' : 'success'}>
                 {blockedCount > 0 ? `${blockedCount} 个事项待处理` : '可继续推进'}
               </Badge>
               {isFetching ? <Badge variant="outline">同步中</Badge> : null}
-            </div>
-            <h1 className="mt-2 truncate type-page-title font-semibold tracking-normal text-foreground">{project?.name}</h1>
-            <p className="mt-1 max-w-4xl type-body leading-6 text-muted-foreground">
-              {project?.description || '总览只负责把当前项目的制作、内容对象和工作台入口放在一起，具体生成、确认和返工决策进入对应工作台完成。'}
-            </p>
-          </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
+            </>
+          )}
+          actions={(
+            <>
             <Button asChild variant="outline" className="gap-2">
               <Link to={ROUTES.projects}>
-                <Database size={15} />
+                <Database size={14} />
                 切换项目
               </Link>
             </Button>
             <Button asChild variant="outline" className="gap-2">
               <Link to={ROUTES.project.production}>
-                <Boxes size={15} />
+                <Boxes size={14} />
                 制作
               </Link>
             </Button>
-          </div>
-        </header>
+            </>
+          )}
+        />
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
           <Card className="rounded-lg border-border bg-card p-5 shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 size={17} className="text-muted-foreground" />
+                  <CheckCircle2 size={16} className="text-muted-foreground" />
                   <h2 className="type-body font-semibold text-foreground">项目生产状态</h2>
                 </div>
                 <p className="mt-1 type-label text-muted-foreground">按当前语义对象估算，不替代具体页面里的审核状态。</p>

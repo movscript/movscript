@@ -5,7 +5,13 @@ import {
   buildContentWorkbenchVisualPlanPrompt,
   type ContentWorkbenchAiPromptUnit,
 } from '@/lib/contentWorkbenchAiPrompt'
+import type { ContentGenerationMomentRow, ContentWorkbenchRecord } from '@/lib/contentWorkbenchModel'
+import { firstText, titleOfRecord } from '@/lib/contentWorkbenchRecordUtils'
 import { buildContentWorkbenchRouteSearch } from '@/lib/contentWorkbenchRoute'
+import {
+  contentUnitStoryboardBriefPromptText,
+  contentUnitVisualPlanPromptText,
+} from '@/lib/contentUnitPlanningMetadata'
 import { ROUTES } from '@/routes/projectRoutes'
 
 export interface ContentWorkbenchAiSuggestLaunchInput {
@@ -21,6 +27,78 @@ export interface ContentWorkbenchAiSuggestLaunchInput {
 export interface ContentWorkbenchVisualPlanLaunchInput extends ContentWorkbenchAiSuggestLaunchInput {
   selectedUnitId: number
   selectedUnitTitle: string
+}
+
+export function buildContentWorkbenchAiSuggestLaunchInput({
+  projectId,
+  row,
+  productions = [],
+  now = Date.now,
+}: {
+  projectId?: number
+  row: ContentGenerationMomentRow | null
+  productions?: ContentWorkbenchRecord[]
+  now?: () => number
+}): ContentWorkbenchAiSuggestLaunchInput | null {
+  if (!projectId || !row) return null
+  const targetProduction = row.productionIds[0]
+    ? productions.find((production) => production.ID === row.productionIds[0])
+    : undefined
+  return {
+    requestId: `content_unit_suggest_${row.moment.ID}_${now().toString(36)}`,
+    projectId,
+    productionId: targetProduction?.ID,
+    sceneMomentId: row.moment.ID,
+    momentTitle: row.title,
+    momentScope: row.scope,
+    existingUnits: row.units.map((unit) => ({
+      title: titleOfRecord(unit),
+      kind: unit.kind,
+      status: unit.status,
+      prompt: unit.prompt,
+      description: unit.description,
+    })),
+  }
+}
+
+export function buildContentWorkbenchVisualPlanLaunchInput({
+  projectId,
+  row,
+  unit,
+  productions = [],
+  now = Date.now,
+}: {
+  projectId?: number
+  row: ContentGenerationMomentRow | null
+  unit: ContentWorkbenchRecord | null
+  productions?: ContentWorkbenchRecord[]
+  now?: () => number
+}): ContentWorkbenchVisualPlanLaunchInput | null {
+  if (!projectId || !row || !unit) return null
+  const targetProduction = row.productionIds[0]
+    ? productions.find((production) => production.ID === row.productionIds[0])
+    : undefined
+  return {
+    requestId: `content_unit_visual_plan_${unit.ID}_${now().toString(36)}`,
+    projectId,
+    productionId: targetProduction?.ID,
+    sceneMomentId: row.moment.ID,
+    momentTitle: row.title,
+    momentScope: row.scope,
+    selectedUnitId: unit.ID,
+    selectedUnitTitle: titleOfRecord(unit),
+    existingUnits: row.units.map((item) => ({
+      id: item.ID,
+      unit_code: firstText(item.unit_code),
+      title: titleOfRecord(item),
+      kind: item.kind,
+      status: item.status,
+      prompt: item.prompt,
+      description: item.description,
+      visualPlan: contentUnitVisualPlanPromptText(item),
+      storyboardBrief: contentUnitStoryboardBriefPromptText(item),
+    })),
+  }
 }
 
 export function buildContentWorkbenchAiSuggestAgentPanelDraftPayload(input: ContentWorkbenchAiSuggestLaunchInput): AgentPanelDraftPayload {

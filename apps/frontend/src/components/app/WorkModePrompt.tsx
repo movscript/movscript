@@ -85,7 +85,7 @@ function WorkModeCard({
     >
       <div className="mb-4 flex items-start justify-between gap-4">
         <div className="flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
-          <Icon size={20} />
+          <Icon size={18} />
         </div>
         <WorkModeSwitchGuide activeMode={mode} compact />
       </div>

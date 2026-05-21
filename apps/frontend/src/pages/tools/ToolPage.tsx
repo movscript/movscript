@@ -8,8 +8,7 @@ import type { RawResource, PublicModel } from '@/types'
 import type { ToolCanvasState } from '@/hooks/useToolCanvas'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { ResourcePanel } from '@/components/shared/ResourcePanel'
-import { Button } from '@movscript/ui'
-import { Textarea } from '@movscript/ui'
+import { Button, Card, Textarea } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { IMAGE_UPLOAD_ACCEPT, MEDIA_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 import { ToolHeader } from './ToolHeader'
@@ -80,7 +79,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
 
           {/* ── Input card ── */}
-          <div className="bg-background rounded-xl border border-border shadow-sm overflow-hidden">
+          <Card className="rounded-lg border-border bg-card bg-none text-card-foreground shadow-sm">
 
             {/* Selected resource thumbnails */}
             <div className="p-3 border-b border-border">
@@ -99,7 +98,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
                     )}
                     <button
                       onClick={() => update({ inputResources: state.inputResources.filter((_, j) => j !== i) })}
-                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-background border border-border rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground hover:border-destructive"
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-card border border-border rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground hover:border-destructive"
                     >
                       <X size={10} />
                     </button>
@@ -111,7 +110,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
                 <button
                   onClick={() => fileRef.current?.click()}
                   disabled={upload.isPending}
-                  className="w-20 h-20 border border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-ring hover:text-foreground transition-colors disabled:opacity-50"
+                  className="w-20 h-20 border border-dashed border-border bg-muted/20 rounded-lg flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-ring hover:text-foreground transition-colors disabled:opacity-50"
                 >
                   {upload.isPending
                     ? <Loader2 size={16} className="animate-spin" />
@@ -146,7 +145,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
             )}
 
             {/* Actions row */}
-            <div className="flex items-center gap-3 px-3 py-2.5 bg-muted/20">
+            <div className="flex items-center gap-3 px-3 py-2.5 bg-muted/30">
               <select
                 className="border border-border rounded px-2 py-1.5 type-label bg-background text-foreground"
                 value={selectedModelValue}
@@ -169,20 +168,20 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
                 className="rounded-full"
               >
                 {isRunning
-                  ? <><Loader2 size={13} className="animate-spin mr-2" />{t('canvas.generating')}</>
-                  : <><Wand2 size={13} className="mr-2" />{t('canvas.run')}</>
+                  ? <><Loader2 size={14} className="animate-spin mr-2" />{t('canvas.generating')}</>
+                  : <><Wand2 size={14} className="mr-2" />{t('canvas.run')}</>
                 }
               </Button>
             </div>
-          </div>
+          </Card>
 
           {/* ── Output card ── */}
           {state.status !== 'idle' && (
-            <div className="bg-background rounded-xl border border-border shadow-sm overflow-hidden">
+            <Card className="rounded-lg border-border bg-card bg-none text-card-foreground shadow-sm">
               <div className="px-4 py-3 border-b border-border">
                 <p className="type-body font-medium text-foreground">{t('tools.page.result')}</p>
               </div>
-              <div className="bg-card min-h-[80px]">
+              <div className="bg-muted/20 min-h-[80px]">
                 {isRunning && (
                   <div className="flex items-center justify-center py-12">
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
@@ -218,7 +217,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
                   </div>
                 )}
               </div>
-            </div>
+            </Card>
           )}
 
         </div>

@@ -34,7 +34,7 @@ export function PreProductionReviewWorkspace({
           <div className="mb-1 flex items-center gap-2 type-label text-muted-foreground">
             <GitBranch size={14} />
             <span>前期准备</span>
-            <ChevronRight size={13} />
+            <ChevronRight size={14} />
             <span>提案审阅</span>
           </div>
           <h1 className="type-body-lg font-semibold text-foreground">前期准备审阅</h1>

@@ -5,9 +5,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   AlertTriangle,
   Boxes,
-  ChevronRight,
   Clapperboard,
-  Database,
   Film,
   GitBranch,
   Layers3,
@@ -23,7 +21,7 @@ import {
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
 import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
-import { AppEmptyState, AppMetricCard } from '@/components/app/AppPage'
+import { AppEmptyState, AppMetricCard, ProjectSurfaceHeader } from '@/components/app/AppPage'
 import { SemanticStatusBadge } from '@/components/app/SemanticStatusBadge'
 import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
@@ -311,44 +309,35 @@ export default function SceneMomentsPage() {
     <>
       <ContentWorkspaceLayout
         header={(
-          <header className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 type-label text-muted-foreground">
-              <Database size={14} />
-              <span>{project?.name ?? '当前项目'}</span>
-              <ChevronRight size={13} />
-              <span>生产对象</span>
-              <ChevronRight size={13} />
-              <span>情景</span>
-            </div>
-            <h1 className="mt-2 type-page-title font-semibold tracking-normal text-foreground">情景</h1>
-            <p className="mt-1 max-w-4xl type-body leading-relaxed text-muted-foreground">
-              情景属于某一个编排段，提供时间、地点、条件、动作和情绪上下文；设定资料和素材需求从这里向下游制作项与生产任务传递。
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+          <ProjectSurfaceHeader
+            icon={Clapperboard}
+            title="情景"
+            description="情景属于某一个编排段，提供时间、地点、条件、动作和情绪上下文；设定资料和素材需求从这里向下游制作项与生产任务传递。"
+            actions={(
+              <>
             <Button className="gap-2" onClick={startCreateMoment}>
-              <Plus size={15} />
+              <Plus size={14} />
               新建情景
             </Button>
             <Button variant="outline" className="gap-2" onClick={refreshAll} loading={isFetching}>
-              <RefreshCcw size={15} />
+              <RefreshCcw size={14} />
               刷新
             </Button>
             <Button variant="outline" className="gap-2" asChild>
               <Link to={ROUTES.project.referenceRelations}>
-                <GitBranch size={15} />
+                <GitBranch size={14} />
                 查看关系
               </Link>
             </Button>
             <Button className="gap-2" asChild>
               <Link to={`${ROUTES.project.contentUnits}${selected ? makeContentFilterSearch({ scene_moment_id: selected.moment.ID }) : ''}`}>
-                <Boxes size={15} />
+                <Boxes size={14} />
                 查看内容
               </Link>
             </Button>
-          </div>
-          </header>
+              </>
+            )}
+          />
         )}
         overview={(
           <section className="grid grid-cols-4 gap-3">
@@ -450,7 +439,7 @@ export default function SceneMomentsPage() {
               title={creatingMoment ? '新建情景' : '卡片内编辑情景'}
               description="直接维护情景标题、时空、条件、动作和情绪；引用关系不在这里重写。"
               hero={{
-                icon: <Film size={19} />,
+                icon: <Film size={18} />,
                 eyebrow: selected?.segment ? titleOf(selected.segment) : '未绑定编排段',
                 title: creatingMoment ? '新建情景' : selected ? titleOf(selected.moment) : '新建情景',
                 subtitle: creatingMoment ? '项目情景' : selected ? `情景 #${selected.moment.ID}` : '项目情景',
@@ -553,7 +542,7 @@ function MomentButton({ item, selected, onClick }: { item: MomentWorkspace; sele
       <p className="mt-2 line-clamp-2 type-label leading-5 text-muted-foreground">{item.moment.description || item.moment.action_text || '暂无情景描述'}</p>
       {item.scriptBlock ? (
         <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-0.5 type-tiny text-muted-foreground">
-          <ScrollText size={11} className="shrink-0" />
+          <ScrollText size={12} className="shrink-0" />
           <span className="truncate">{scriptBlockSourceLabel(item.scriptBlock)}</span>
         </div>
       ) : null}
@@ -597,7 +586,7 @@ function RelatedList({
                 <p className="mt-0.5 line-clamp-2 type-caption leading-4 text-muted-foreground">{record.description || record.content || record.prompt || record.prompt_hint || record.visual_intent || record.kind || `ID ${record.ID}`}</p>
                 {record.script_block_id ? (
                   <div className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-0.5 type-tiny text-muted-foreground">
-                    <ScrollText size={11} className="shrink-0" />
+                    <ScrollText size={12} className="shrink-0" />
                     <span className="truncate">{scriptBlockSourceLabel(scriptBlock) || `剧本块 #${record.script_block_id}`}</span>
                   </div>
                 ) : null}

@@ -147,7 +147,7 @@ export function ContentUnitGenerationInputsPanel({
             onOpen={() => onInputDrawerChange('keyframes')}
             action={onCreateKeyframe ? (
               <Button size="sm" variant="outline" className="gap-1.5" onClick={onCreateKeyframe}>
-                <Plus size={13} />
+                <Plus size={14} />
                 添加
               </Button>
             ) : undefined}
@@ -166,13 +166,13 @@ export function ContentUnitGenerationInputsPanel({
               <span className="flex flex-wrap gap-2">
                 {missingSlots.length > 0 && onUploadMissingAssets ? (
                   <Button size="sm" variant="outline" className="gap-1.5" onClick={onUploadMissingAssets}>
-                    <Upload size={13} />
+                    <Upload size={14} />
                     上传
                   </Button>
                 ) : null}
                 {onCreateAssetSlot ? (
                   <Button size="sm" variant="outline" className="gap-1.5" onClick={onCreateAssetSlot}>
-                    <Plus size={13} />
+                    <Plus size={14} />
                     添加
                   </Button>
                 ) : null}
@@ -191,7 +191,7 @@ export function ContentUnitGenerationInputsPanel({
             onOpen={() => onInputDrawerChange('generation')}
             action={onOpenCanvas ? (
               <Button size="sm" className="gap-1.5" onClick={onOpenCanvas}>
-                <Play size={13} />
+                <Play size={14} />
                 打开
               </Button>
             ) : undefined}
@@ -251,7 +251,7 @@ export function ContentUnitGenerationInputsPanel({
               </div>
               {onOpenCanvas ? (
                 <Button size="sm" className="gap-1.5 self-start" onClick={onOpenCanvas}>
-                  <Play size={13} />
+                  <Play size={14} />
                   打开生成画布
                 </Button>
               ) : null}

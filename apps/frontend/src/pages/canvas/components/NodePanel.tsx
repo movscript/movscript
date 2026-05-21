@@ -12,6 +12,7 @@ import { Textarea } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { IMAGE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
+import { canvasDefaultParamValues, canvasGenerationParamDefs, canvasParamValue, updateCanvasParam } from '../canvasGenerationParams'
 
 interface Props {
   nodeId: string
@@ -339,6 +340,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
       <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 type-body">
         <LabelField label={label} onUpdate={(v) => onUpdate(nodeId, { label: v } as any)} />
         <AIConfigSection
+          nodeType={nodeType}
           data={data}
           models={models}
           upstreamNodes={upstreamNodes}
@@ -503,6 +505,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
       {(source === 'ai' || isToolNode) && (
         <>
           <AIConfigSection
+            nodeType={nodeType}
             data={data}
             models={models}
             upstreamNodes={upstreamNodes}
@@ -882,11 +885,13 @@ function PluginArgField({
 }
 
 function AIConfigSection({
+  nodeType,
   data,
   models,
   upstreamNodes,
   onUpdate,
 }: {
+  nodeType: NodeType
   data: CanvasNodeData
   models: PublicModel[]
   upstreamNodes: Array<{ id: string; label: string }>
@@ -894,9 +899,11 @@ function AIConfigSection({
 }) {
   const { t } = useTranslation()
   const legacySelectedModel = models.find((model) => model.id === data.modelDbId)
-  const selectedModelValue = data.modelId
-    || (legacySelectedModel ? publicModelId(legacySelectedModel) : '')
-    || (models[0] ? publicModelId(models[0]) : '')
+  const selectedModel = models.find((model) => publicModelId(model) === data.modelId)
+    ?? legacySelectedModel
+    ?? models[0]
+    ?? null
+  const selectedModelValue = selectedModel ? publicModelId(selectedModel) : ''
   return (
     <div className="space-y-3">
       <div>
@@ -906,7 +913,11 @@ function AIConfigSection({
           value={selectedModelValue}
           onChange={(e) => {
             const model = models.find((m) => publicModelId(m) === e.target.value)
-            onUpdate({ modelId: e.target.value, modelDbId: model?.id ?? 0 })
+            onUpdate({
+              modelId: e.target.value,
+              modelDbId: model?.id ?? 0,
+              params: model ? canvasDefaultParamValues(canvasGenerationParamDefs(nodeType, data.outputType, model)) : {},
+            })
           }}
         >
           {models.length === 0 && <option value="">{t('shared.modelSelector.noModels')}</option>}
@@ -922,6 +933,93 @@ function AIConfigSection({
           onChange={(v) => onUpdate({ prompt: v })}
           upstreamNodes={upstreamNodes}
         />
+      </div>
+      <GenerationParamFields
+        nodeType={nodeType}
+        data={data}
+        selectedModel={selectedModel}
+        onUpdate={(params) => onUpdate({ params })}
+      />
+    </div>
+  )
+}
+
+function GenerationParamFields({
+  nodeType,
+  data,
+  selectedModel,
+  onUpdate,
+}: {
+  nodeType: NodeType
+  data: CanvasNodeData
+  selectedModel?: PublicModel | null
+  onUpdate: (params: Record<string, unknown>) => void
+}) {
+  const { t } = useTranslation()
+  const params = canvasGenerationParamDefs(nodeType, data.outputType, selectedModel)
+  if (params.length === 0) return null
+
+  return (
+    <div>
+      <p className="type-label text-muted-foreground mb-2">{t('plugins.parameters')}</p>
+      <div className="space-y-3">
+        {params.map((param) => {
+          const value = canvasParamValue(data, param)
+          const label = param.label || param.key
+          if (param.type === 'select' && param.options) {
+            return (
+              <div key={param.key}>
+                <Label className="type-label text-muted-foreground mb-1">{label}</Label>
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-background px-2 type-body text-foreground"
+                  value={String(value)}
+                  onChange={(event) => onUpdate(updateCanvasParam(data, param.key, event.target.value))}
+                >
+                  {param.options.map((option) => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+            )
+          }
+          if (param.type === 'number') {
+            return (
+              <div key={param.key}>
+                <Label className="type-label text-muted-foreground mb-1">{label}</Label>
+                <Input
+                  type="number"
+                  value={Number.isFinite(Number(value)) ? Number(value) : ''}
+                  min={param.min}
+                  max={param.max}
+                  step={param.step ?? 1}
+                  onChange={(event) => onUpdate(updateCanvasParam(data, param.key, event.target.value === '' ? '' : Number(event.target.value)))}
+                  className="type-body"
+                />
+              </div>
+            )
+          }
+          if (param.type === 'boolean') {
+            return (
+              <label key={param.key} className="flex items-start gap-2 rounded-md border border-border px-3 py-2 type-label">
+                <input
+                  type="checkbox"
+                  checked={value === true || value === 'true'}
+                  onChange={(event) => onUpdate(updateCanvasParam(data, param.key, event.target.checked))}
+                  className="mt-0.5"
+                />
+                <span className="font-medium text-foreground">{label}</span>
+              </label>
+            )
+          }
+          return (
+            <div key={param.key}>
+              <Label className="type-label text-muted-foreground mb-1">{label}</Label>
+              <Input
+                value={String(value)}
+                onChange={(event) => onUpdate(updateCanvasParam(data, param.key, event.target.value))}
+                className="type-body"
+              />
+            </div>
+          )
+        })}
       </div>
     </div>
   )

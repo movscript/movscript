@@ -62,14 +62,14 @@ function InstallURLDialog({ onInstalled, onClose }: {
         />
         {error && (
           <p className="type-label text-destructive mb-3 flex items-center gap-1.5">
-            <AlertCircle size={13} />
+            <AlertCircle size={14} />
             {error}
           </p>
         )}
         <div className="flex justify-end gap-2">
           <Button size="sm" variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
           <Button size="sm" onClick={handleInstall} disabled={loading || !url.trim()}>
-            {loading ? <Loader2 size={13} className="mr-1.5 animate-spin" /> : <Download size={13} className="mr-1.5" />}
+            {loading ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Download size={14} className="mr-1.5" />}
             {loading ? t('plugins.installing') : t('plugins.install')}
           </Button>
         </div>
@@ -99,12 +99,12 @@ function PluginCard({ plugin, onRemove, onOpen }: {
           {plugin.homepage && (
             <a href={plugin.homepage} target="_blank" rel="noopener noreferrer">
               <Button size="icon-sm" variant="ghost">
-                <ExternalLink size={13} />
+                <ExternalLink size={14} />
               </Button>
             </a>
           )}
           <Button size="icon-sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={onRemove}>
-            <Trash2 size={13} />
+            <Trash2 size={14} />
           </Button>
         </div>
       </div>
@@ -173,7 +173,7 @@ function MarketplaceView({ installedIds, onInstall }: {
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-[320px] gap-3 text-center">
           <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center">
-            <Store size={20} className="text-muted-foreground" />
+            <Store size={18} className="text-muted-foreground" />
           </div>
           <div>
             <p className="type-body font-medium text-foreground">{t('plugins.marketplaceEmpty')}</p>
@@ -293,12 +293,12 @@ export default function ClientPluginsPage() {
           />
           <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={fileInstalling}>
             {fileInstalling
-              ? <Loader2 size={13} className="mr-1.5 animate-spin" />
-              : <Upload size={13} className="mr-1.5" />}
+              ? <Loader2 size={14} className="mr-1.5 animate-spin" />
+              : <Upload size={14} className="mr-1.5" />}
             {t('plugins.installFromFile')}
           </Button>
           <Button size="sm" variant="outline" onClick={() => setShowURLDialog(true)}>
-            <Download size={13} className="mr-1.5" />
+            <Download size={14} className="mr-1.5" />
             {t('plugins.installFromUrl')}
           </Button>
         </div>
@@ -326,7 +326,7 @@ export default function ClientPluginsPage() {
           onClick={() => setTab('marketplace')}
           className={cn('px-3 py-2 type-body font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5', tab === 'marketplace' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')}
         >
-          <Store size={13} />
+          <Store size={14} />
           {t('plugins.marketplace')}
         </button>
       </div>
@@ -350,7 +350,7 @@ export default function ClientPluginsPage() {
           {plugins.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
               <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center">
-                <Plus size={20} className="text-muted-foreground" />
+                <Plus size={18} className="text-muted-foreground" />
               </div>
               <div>
                 <p className="type-body font-medium text-foreground">{t('plugins.empty')}</p>
@@ -358,15 +358,15 @@ export default function ClientPluginsPage() {
               </div>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>
-                  <Upload size={13} className="mr-1.5" />
+                  <Upload size={14} className="mr-1.5" />
                   {t('plugins.installFromFile')}
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => setShowURLDialog(true)}>
-                  <Download size={13} className="mr-1.5" />
+                  <Download size={14} className="mr-1.5" />
                   {t('plugins.installFromUrl')}
                 </Button>
                 <Button size="sm" onClick={() => setTab('marketplace')}>
-                  <Store size={13} className="mr-1.5" />
+                  <Store size={14} className="mr-1.5" />
                   {t('plugins.browseMarketplace')}
                 </Button>
               </div>

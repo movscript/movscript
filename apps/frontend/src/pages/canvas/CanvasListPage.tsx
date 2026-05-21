@@ -112,7 +112,7 @@ export default function CanvasListPage() {
         <p className="type-body text-muted-foreground">{t('common.loadingShort')}</p>
       ) : canvases.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <LayoutTemplate size={36} className="mb-3 opacity-40" />
+          <LayoutTemplate size={24} className="mb-3 opacity-40" />
           <p className="type-body mb-2">{t('pages.canvases.empty')}</p>
           <button
             onClick={() => setShowCreate(true)}
@@ -182,7 +182,7 @@ export default function CanvasListPage() {
                       onClick={() => navigate(`/canvases/${cv.ID}`)}
                       className="shrink-0"
                     >
-                      {t('pages.canvases.open')} <ArrowRight size={13} />
+                      {t('pages.canvases.open')} <ArrowRight size={14} />
                     </Button>
                     <Button
                       variant="ghost"

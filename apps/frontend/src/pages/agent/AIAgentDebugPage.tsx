@@ -481,24 +481,24 @@ export default function AIAgentDebugPage() {
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button asChild size="sm" variant="outline" data-testid="agent-debug-open-settings">
               <Link to={ROUTES.agentSettings}>
-                <Settings size={13} />
+                <Settings size={14} />
                 {t('agents.debug.actions.openSettings')}
               </Link>
             </Button>
             <Button type="button" size="sm" variant="outline" onClick={copyTriageSummary} data-testid="agent-debug-copy-triage">
-              <Clipboard size={13} />
+              <Clipboard size={14} />
               {triageCopied ? t('agents.debug.actions.triageCopied') : t('agents.debug.actions.copyTriage')}
             </Button>
             <Button type="button" size="sm" variant="outline" onClick={copyRawData} data-testid="agent-debug-copy-bundle">
-              <Clipboard size={13} />
+              <Clipboard size={14} />
               {copied ? t('agents.debug.actions.copied') : t('agents.debug.actions.copyJson')}
             </Button>
             <Button type="button" size="sm" variant="outline" onClick={downloadDebugBundle} data-testid="agent-debug-download-bundle">
-              <Download size={13} />
+              <Download size={14} />
               {downloaded ? t('agents.debug.actions.downloaded') : t('agents.debug.actions.downloadJson')}
             </Button>
             <Button type="button" size="sm" variant="outline" onClick={() => debugQuery.refetch()} disabled={debugQuery.isFetching} data-testid="agent-debug-refresh">
-              <RefreshCw size={13} className={debugQuery.isFetching ? 'animate-spin' : ''} />
+              <RefreshCw size={14} className={debugQuery.isFetching ? 'animate-spin' : ''} />
               {t('agents.debug.actions.refresh')}
             </Button>
           </div>
@@ -586,7 +586,7 @@ export default function AIAgentDebugPage() {
                       className="min-h-24 type-label"
                     />
                     <Button type="button" size="sm" onClick={runPreview} disabled={previewLoading}>
-                      {previewLoading ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+                      {previewLoading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
                       {t('agents.debug.actions.runPreview')}
                     </Button>
                     {previewError && (
@@ -687,12 +687,12 @@ export default function AIAgentDebugPage() {
                   </label>
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" size="sm" onClick={() => void runToolConsole()} disabled={toolRunLoading || !toolName}>
-                      {toolRunLoading ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+                      {toolRunLoading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
                       {t('agents.debug.toolConsole.run')}
                     </Button>
                     {toolRunResult?.run.id && (
                       <Button type="button" size="sm" variant="outline" onClick={() => void refreshToolRunTrace()} disabled={toolRunLoading}>
-                        <RefreshCw size={13} className={toolRunLoading ? 'animate-spin' : ''} />
+                        <RefreshCw size={14} className={toolRunLoading ? 'animate-spin' : ''} />
                         {t('agents.debug.toolConsole.refreshTrace')}
                       </Button>
                     )}
@@ -711,7 +711,7 @@ export default function AIAgentDebugPage() {
                   {toolRunResult?.run.id && (
                     <Button asChild size="sm" variant="outline">
                       <Link to={agentRunPath(toolRunResult.run.id)}>
-                        <ArrowRight size={13} />
+                        <ArrowRight size={14} />
                         {t('agents.debug.actions.viewRun')}
                       </Link>
                     </Button>
@@ -764,7 +764,7 @@ export default function AIAgentDebugPage() {
                   </label>
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" size="sm" onClick={() => void runDraftRuntimeTool()} disabled={draftToolRunLoading || !draftToolName}>
-                      {draftToolRunLoading ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+                      {draftToolRunLoading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
                       {t('agents.debug.draftRuntime.run')}
                     </Button>
                     <Button
@@ -809,14 +809,14 @@ export default function AIAgentDebugPage() {
                     </Button>
                     {draftToolRunResult?.run.id && (
                       <Button type="button" size="sm" variant="outline" onClick={() => void refreshDraftToolRunTrace()} disabled={draftToolRunLoading}>
-                        <RefreshCw size={13} className={draftToolRunLoading ? 'animate-spin' : ''} />
+                        <RefreshCw size={14} className={draftToolRunLoading ? 'animate-spin' : ''} />
                         {t('agents.debug.draftRuntime.refreshTrace')}
                       </Button>
                     )}
                     {draftToolRunResult?.run.id && (
                       <Button asChild size="sm" variant="outline">
                         <Link to={agentRunPath(draftToolRunResult.run.id)}>
-                          <ArrowRight size={13} />
+                          <ArrowRight size={14} />
                           {t('agents.debug.actions.viewRun')}
                         </Link>
                       </Button>
@@ -900,7 +900,7 @@ function RuntimeStatusBadge({ online, loading }: { online: boolean; loading: boo
   if (loading) return <Badge variant="secondary">{t('agents.debug.status.checking')}</Badge>
   return (
     <Badge variant={online ? 'success' : 'destructive'} className="gap-1">
-      {online ? <CheckCircle2 size={11} /> : <XCircle size={11} />}
+      {online ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
       {online ? t('agents.debug.status.runtimeOnline') : t('agents.debug.status.runtimeOffline')}
     </Badge>
   )
@@ -950,10 +950,10 @@ function DebugObservationRow({
   const { t } = useTranslation()
   const canRunPreview = item.id === 'preview' && item.status !== 'ready'
   const icon = item.status === 'ready'
-    ? <CheckCircle2 size={13} className="text-emerald-600" />
+    ? <CheckCircle2 size={14} className="text-emerald-600" />
     : item.status === 'action'
-      ? <XCircle size={13} className="text-destructive" />
-      : <XCircle size={13} className="text-amber-600" />
+      ? <XCircle size={14} className="text-destructive" />
+      : <XCircle size={14} className="text-amber-600" />
   return (
     <div data-testid="agent-debug-observation-item" className="flex items-start justify-between gap-2 rounded-md border border-border bg-muted/20 p-2">
       <span className="flex min-w-0 items-start gap-2">
@@ -997,7 +997,7 @@ function DebugEvidenceChecklistPanel({ items }: { items: DebugEvidenceItem[] }) 
     <div data-testid="agent-debug-evidence-checklist" className="space-y-2">
       <div className="flex justify-end">
         <Button type="button" size="sm" variant="outline" onClick={() => void copyEvidenceChecklist()} data-testid="agent-debug-copy-evidence-checklist">
-          <Clipboard size={13} />
+          <Clipboard size={14} />
           {copied ? t('agents.debug.actions.evidenceCopied') : t('agents.debug.actions.copyEvidence')}
         </Button>
       </div>
@@ -1203,7 +1203,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   return (
     <section className="rounded-md border border-border bg-background">
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-        <Bot size={13} className="text-muted-foreground" />
+        <Bot size={14} className="text-muted-foreground" />
         <h2 className="type-label font-semibold text-foreground">{title}</h2>
       </div>
       <div className="p-3">{children}</div>

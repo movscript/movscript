@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import type { LucideIcon } from 'lucide-react'
 import {
   BookOpen,
   Eye,
@@ -19,12 +18,26 @@ import {
   Wand2,
   X,
 } from 'lucide-react'
-import { Badge, Button, Card, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@movscript/ui'
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Textarea,
+} from '@movscript/ui'
 
 import { applyProjectStandardsProposal, getProject } from '@/api/semanticEntities'
 import { AuthedImage } from '@/components/shared/AuthedImage'
 import { ProjectStandardsProposalReviewPanel } from '@/components/proposals/ProjectStandardsProposalReviewPanel'
 import { ProjectWorkbenchShell } from '@/components/workbench/WorkbenchChrome'
+import { WorkbenchEmptyState, WorkbenchMetric } from '@/components/workbench/WorkbenchPrimitives'
 import { buildPageKey } from '@/lib/agentCommandInput'
 import {
   buildProjectStandardsReviewSearchParams,
@@ -37,7 +50,6 @@ import {
   STYLE_REFERENCE_RULE_KEY,
   buildProjectPromptPreview,
   buildProjectStyleApplyPayload,
-  buildStyleReferenceRule,
   coreStandardText,
   emptyData,
   emptyRuleForm,
@@ -58,7 +70,7 @@ import {
   type ProjectPromptRuleForm,
   type PromptRole,
 } from '@/lib/projectStandardsModel'
-import { api } from '@/lib/api'
+import { uploadProjectStandardsStyleReferenceImages } from '@/lib/projectStandardsStyleReferenceUpload'
 import { localAgentClient, type AgentDraft } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
@@ -66,29 +78,7 @@ import { toast } from '@/store/toastStore'
 import { ROUTES } from '@/routes/projectRoutes'
 import type { RawResource } from '@/types'
 
-interface StatCardProps {
-  title: string
-  value: string | number
-  detail: string
-  icon: LucideIcon
-}
-
-function StatCard({ title, value, detail, icon: Icon }: StatCardProps) {
-  return (
-    <Card className="rounded-lg border-border bg-card p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="type-label text-muted-foreground">{title}</p>
-          <p className="mt-2 type-page-title font-semibold tabular-nums text-foreground">{value}</p>
-          <p className="mt-1 truncate type-label text-muted-foreground">{detail}</p>
-        </div>
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-          <Icon size={17} />
-        </span>
-      </div>
-    </Card>
-  )
-}
+const PROJECT_STANDARDS_AI_PROMPT = '请为当前项目制定项目级制作规范：补齐固定 8 项，并按需要新增 custom_rules。custom_rules 每条要包含 key、label、category、value、prompt_role、enabled、required、order。如果需要用图片固定画风，请新增 prompt_role="style" 的 custom_rules，在 value 中记录参考图 resource#ID 或 reference_resource_ids，并说明后续图片/视频生成要把这些 ID 作为 reference_resource_ids 用于画风参考。不要创建设定资料或素材需求。'
 
 export default function ProjectStandardsPage() {
   const project = useProjectStore((s) => s.current)
@@ -98,7 +88,7 @@ export default function ProjectStandardsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [orchestrationPrompt, setOrchestrationPrompt] = useState('')
   const [launching, setLaunching] = useState(false)
-  const [workspaceView, setWorkspaceView] = useState<'structure' | 'review'>('structure')
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false)
   const [applyingDraftId, setApplyingDraftId] = useState<string | null>(null)
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null)
   const [editingCoreKey, setEditingCoreKey] = useState<string | null>(null)
@@ -131,7 +121,7 @@ export default function ProjectStandardsPage() {
 
   useEffect(() => {
     setActiveDraftId(openedDraftId || null)
-    if (openedDraftId) setWorkspaceView('review')
+    if (openedDraftId) setReviewDialogOpen(true)
   }, [openedDraftId])
 
   useEffect(() => {
@@ -155,14 +145,6 @@ export default function ProjectStandardsPage() {
     refetchIntervalInBackground: false,
   })
 
-  useEffect(() => {
-    if (openedDraftId || activeDraftId) return
-    const firstProjectStandardsProposalDraft = draftsQuery.data?.find((draft) => draft.kind === 'project_standards_proposal')
-    if (!firstProjectStandardsProposalDraft) return
-    setActiveDraftId(firstProjectStandardsProposalDraft.id)
-    setWorkspaceView('review')
-  }, [activeDraftId, draftsQuery.data, openedDraftId])
-
   const draftCounts = useMemo(() => {
     const drafts = (draftsQuery.data ?? []).filter((draft) => !isProjectStandardsProposalHelperDraft(draft))
     return {
@@ -182,7 +164,7 @@ export default function ProjectStandardsPage() {
         pageKey,
       })
       setActiveDraftId(draftShell.id)
-      setWorkspaceView('review')
+      setReviewDialogOpen(true)
       setSearchParams((current) => buildProjectStandardsReviewSearchParams(current, { fallbackDraftId: draftShell.id }), { replace: true })
 
       const requestId = `project_orchestrate_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -204,6 +186,7 @@ export default function ProjectStandardsPage() {
             fallbackDraftId: draftShell.id,
           })
           setActiveDraftId(nextSearch.get('draftId') || draftShell.id)
+          setReviewDialogOpen(true)
           setSearchParams((current) => buildProjectStandardsReviewSearchParams(current, {
             artifacts: payload.artifacts,
             fallbackDraftId: draftShell.id,
@@ -218,6 +201,18 @@ export default function ProjectStandardsPage() {
     } finally {
       setLaunching(false)
     }
+  }
+
+  function handleReviewDialogOpenChange(open: boolean) {
+    setReviewDialogOpen(open)
+    if (open) return
+    setActiveDraftId(null)
+    if (!openedDraftId) return
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.delete('draftId')
+      return next
+    }, { replace: true })
   }
 
   async function applyDraft(draft: AgentDraft) {
@@ -412,24 +407,17 @@ export default function ProjectStandardsPage() {
     }
     setUploadingStyleReferences(true)
     try {
-      const uploaded: RawResource[] = []
-      for (const file of imageFiles) {
-        const fd = new FormData()
-        fd.append('file', file)
-        const resource = await api.post('/resources/upload', fd).then((r) => r.data as RawResource)
-        uploaded.push(resource)
-      }
-      const existingIds = extractResourceIds(styleReferenceRule?.value ?? '')
-      const nextRule = buildStyleReferenceRule([...existingIds, ...uploaded.map((resource) => resource.ID)], styleReferenceRule)
-      const nextRules = styleReferenceRule
-        ? customRules.map((rule) => rule.id === styleReferenceRule.id ? nextRule : rule)
-        : [nextRule, ...customRules]
+      const { uploaded, patch } = await uploadProjectStandardsStyleReferenceImages({
+        files: imageFiles,
+        customRules,
+        styleReferenceRule,
+      })
       setLastUploadedStyleReferences((current) => {
         const byId = new Map(current.map((resource) => [resource.ID, resource]))
         for (const resource of uploaded) byId.set(resource.ID, resource)
         return Array.from(byId.values())
       })
-      await saveProjectStylePatch({ custom_rules: projectPromptRulePayload(nextRules) }, `已上传 ${uploaded.length} 张画风参考图`)
+      await saveProjectStylePatch(patch, `已上传 ${uploaded.length} 张画风参考图`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '上传画风参考图失败')
     } finally {
@@ -457,10 +445,17 @@ export default function ProjectStandardsPage() {
       refreshing={isFetching || draftsQuery.isFetching}
       refreshLabel="刷新"
       actions={(
-        <Button size="sm" className="gap-1.5" onClick={() => startProjectOrchestration()} loading={launching} disabled={!projectId}>
-          <Wand2 size={13} />
-          发起提案
-        </Button>
+        <>
+          <Button size="sm" variant="outline" className="h-8 w-32 gap-1.5" onClick={() => setReviewDialogOpen(true)} disabled={!projectId}>
+            <GitBranch size={14} />
+            审阅草稿
+            {draftCounts.draft > 0 ? <span className="ml-0.5 rounded-full bg-muted px-1.5 type-tiny leading-4 text-muted-foreground">{draftCounts.draft}</span> : null}
+          </Button>
+          <Button size="sm" className="h-8 w-32 gap-1.5" onClick={() => startProjectOrchestration(PROJECT_STANDARDS_AI_PROMPT)} loading={launching} disabled={!projectId}>
+            <Wand2 size={14} />
+            AI 制定规范
+          </Button>
+        </>
       )}
     >
       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -471,60 +466,21 @@ export default function ProjectStandardsPage() {
               加载项目现状…
             </div>
           ) : (
-            <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 lg:p-5">
+            <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-4 p-3 lg:p-4">
               <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <StatCard title="核心规范完成度" value={`${filledStandardCount}/8`} detail={missingStandardLabels.length > 0 ? `缺失 ${missingStandardLabels.length} 项必选规范` : '固定规范已覆盖'} icon={Route} />
-                <StatCard title="启用规范" value={enabledRuleCount} detail={`${enabledCustomRules.length} 条扩展规范会进入提示词`} icon={BookOpen} />
-                <StatCard title="扩展规范" value={customRules.length} detail="支持任意 key/value、分类和提示词角色" icon={Sparkles} />
-                <StatCard title="待审阅提案" value={draftCounts.draft} detail="AI 生成的规范变更在审阅区应用" icon={PackageCheck} />
+                <WorkbenchMetric label="核心规范完成度" value={`${filledStandardCount}/8`} detail={missingStandardLabels.length > 0 ? `缺失 ${missingStandardLabels.length} 项必选规范` : '固定规范已覆盖'} icon={Route} />
+                <WorkbenchMetric label="启用规范" value={enabledRuleCount} detail={`${enabledCustomRules.length} 条扩展规范会进入提示词`} icon={BookOpen} />
+                <WorkbenchMetric label="扩展规范" value={customRules.length} detail="支持任意 key/value、分类和提示词角色" icon={Sparkles} />
+                <WorkbenchMetric label="待审阅提案" value={draftCounts.draft} detail="AI 生成的规范变更在审阅区应用" icon={PackageCheck} />
               </section>
 
-              <div className="sticky top-0 z-10 -mx-4 border-b border-border bg-muted/90 px-4 py-3 backdrop-blur lg:-mx-5 lg:px-5">
-                <div className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-1 rounded-full border border-border bg-background p-1">
-                    <Button
-                      size="sm"
-                      variant={workspaceView === 'structure' ? 'secondary' : 'ghost'}
-                      className="gap-1.5 rounded-full px-3 type-label"
-                      onClick={() => setWorkspaceView('structure')}
-                    >
-                      <Route size={13} />
-                      主视图
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={workspaceView === 'review' ? 'secondary' : 'ghost'}
-                      className="gap-1.5 rounded-full px-3 type-label"
-                      onClick={() => setWorkspaceView('review')}
-                    >
-                      <GitBranch size={13} />
-                      审阅
-                      <Badge variant="secondary" className="h-5 rounded-full px-1.5 type-tiny">{draftCounts.draft}</Badge>
-                    </Button>
-                  </div>
-                  <div className="flex items-center gap-2 type-tiny text-muted-foreground">
-                    <Badge variant={workspaceView === 'review' ? 'secondary' : 'outline'} className="h-6 rounded-full px-2 type-tiny">
-                      {workspaceView === 'review' ? '规范审阅' : '项目规范库'}
-                    </Badge>
-                    <span>{workspaceView === 'review' ? '审阅并写入项目级固定规范和扩展规范' : '核心规范必填，扩展规范按需进入提示词'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {workspaceView === 'structure' && (
-                <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.78fr)]">
+              <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.78fr)]">
                   <div className="min-w-0 space-y-4">
-                    <Card className="min-h-0 overflow-hidden rounded-lg border-border bg-card p-4 shadow-sm">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <h2 className="type-body font-semibold text-foreground">核心规范</h2>
-                            <p className="mt-1 type-label text-muted-foreground">固定 8 项为必选规范，直接写入 Project 全局字段和 project_style。</p>
-                          </div>
-                          <Button size="sm" variant="outline" className="gap-1.5 type-label" onClick={() => startProjectOrchestration('请为当前项目制定项目级制作规范：补齐固定 8 项，并按需要新增 custom_rules。custom_rules 每条要包含 key、label、category、value、prompt_role、enabled、required、order。如果需要用图片固定画风，请新增 prompt_role="style" 的 custom_rules，在 value 中记录参考图 resource#ID 或 reference_resource_ids，并说明后续图片/视频生成要把这些 ID 作为 reference_resource_ids 用于画风参考。不要创建设定资料或素材需求。')}>
-                            <Wand2 size={12} />
-                            让 AI 制定
-                          </Button>
-                        </div>
+                    <section className="min-h-0 border-b border-border pb-4">
+                      <div className="min-w-0">
+                        <h2 className="type-body font-semibold text-foreground">核心规范</h2>
+                        <p className="mt-1 type-label text-muted-foreground">固定 8 项为必选规范，直接写入 Project 全局字段和 project_style。</p>
+                      </div>
 
                         <div className="mt-4 grid gap-2 md:grid-cols-2">
                           {CORE_STANDARD_DEFS.map((def) => {
@@ -546,7 +502,7 @@ export default function ProjectStandardsPage() {
                                     <p className="mt-1 type-tiny leading-4 text-muted-foreground">{def.helper}</p>
                                   </div>
                                   <Button size="icon-sm" variant="ghost" className="shrink-0" onClick={() => editing ? setEditingCoreKey(null) : openCoreEditor(def.key)}>
-                                    {editing ? <X size={13} /> : <Pencil size={13} />}
+                                    {editing ? <X size={14} /> : <Pencil size={14} />}
                                   </Button>
                                 </div>
                                 {editing ? (
@@ -571,9 +527,9 @@ export default function ProjectStandardsPage() {
                             )
                           })}
                         </div>
-                    </Card>
+                    </section>
 
-                    <Card className="min-h-0 overflow-hidden rounded-lg border-border bg-card p-4 shadow-sm">
+                    <section className="min-h-0 border-b border-border pb-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
                           <h2 className="flex items-center gap-2 type-body font-semibold text-foreground"><ImagePlus size={14} />全局画风参考图</h2>
@@ -623,9 +579,9 @@ export default function ProjectStandardsPage() {
                       {styleReferenceRule ? (
                         <p className="mt-3 whitespace-pre-wrap rounded-md border border-border bg-muted/20 p-2 type-tiny leading-4 text-muted-foreground">{styleReferenceRule.value}</p>
                       ) : null}
-                    </Card>
+                    </section>
 
-                    <Card className="min-h-0 overflow-hidden rounded-lg border-border bg-card p-4 shadow-sm">
+                    <section className="min-h-0">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
                           <h2 className="type-body font-semibold text-foreground">扩展规范</h2>
@@ -690,7 +646,7 @@ export default function ProjectStandardsPage() {
 
                       <div className="mt-3 space-y-2">
                         {customRules.length === 0 ? (
-                          <EmptyBlock compact title="暂无扩展规范" detail="新增一条规范后，它会按启用状态进入提示词预览。" />
+                          <WorkbenchEmptyState compact title="暂无扩展规范" description="新增一条规范后，它会按启用状态进入提示词预览。" />
                         ) : customRules.map((rule) => (
                           <div key={rule.id} className={cn('rounded-md border p-3', rule.enabled ? 'border-border bg-background' : 'border-dashed border-border bg-muted/30 opacity-80')}>
                             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -707,17 +663,17 @@ export default function ProjectStandardsPage() {
                               </div>
                               <div className="flex shrink-0 items-center gap-1">
                                 <Button size="sm" variant="outline" className="px-2 type-tiny" onClick={() => toggleRule(rule)}>{rule.enabled ? '停用' : '启用'}</Button>
-                                <Button size="icon-sm" variant="ghost" onClick={() => openEditRuleForm(rule)} title="编辑规范"><Pencil size={13} /></Button>
-                                <Button size="icon-sm" variant="ghost" className="text-destructive" loading={deletingRuleId === rule.id} onClick={() => deleteRule(rule)} title="删除规范"><Trash2 size={13} /></Button>
+                                <Button size="icon-sm" variant="ghost" onClick={() => openEditRuleForm(rule)} title="编辑规范"><Pencil size={14} /></Button>
+                                <Button size="icon-sm" variant="ghost" className="text-destructive" loading={deletingRuleId === rule.id} onClick={() => deleteRule(rule)} title="删除规范"><Trash2 size={14} /></Button>
                               </div>
                             </div>
                           </div>
                         ))}
                       </div>
-                    </Card>
+                    </section>
                   </div>
 
-                  <Card className="min-h-0 self-start overflow-hidden rounded-lg border-border bg-card p-4 shadow-sm">
+                  <aside className="min-h-0 self-start overflow-hidden border-t border-border pt-4 xl:sticky xl:top-4 xl:border-l xl:border-t-0 xl:pl-4 xl:pt-0">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h2 className="flex items-center gap-2 type-body font-semibold text-foreground"><Eye size={14} />提示词预览</h2>
@@ -726,35 +682,28 @@ export default function ProjectStandardsPage() {
                       <Badge variant="secondary" className="type-tiny">{enabledRuleCount} 条启用</Badge>
                     </div>
                     <pre className="mt-3 max-h-[620px] overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background p-3 type-label leading-5 text-foreground">{promptPreview}</pre>
-                  </Card>
-                </section>
-              )}
-
-              {workspaceView === 'review' && (
-                <section className="min-w-0 space-y-4">
-                  <ProjectStandardsProposalReviewPanel
-                    loading={draftsQuery.isLoading}
-                    draftCount={draftCounts.draft}
-                    drafts={reviewDrafts}
-                    applyingDraftId={applyingDraftId}
-                    onApplyDraft={(draft) => { void applyDraft(draft) }}
-                  />
-                </section>
-              )}
+                  </aside>
+              </section>
             </div>
           )}
         </main>
       </div>
 
-    </ProjectWorkbenchShell>
-  )
-}
+      <Dialog open={reviewDialogOpen} onOpenChange={handleReviewDialogOpenChange}>
+        <DialogContent className="flex max-h-[88vh] w-[min(1120px,calc(100vw-32px))] max-w-none flex-col overflow-hidden p-0">
+          <DialogTitle className="sr-only">项目规范审阅</DialogTitle>
+          <div className="min-h-0 flex-1 overflow-auto p-4">
+            <ProjectStandardsProposalReviewPanel
+              loading={draftsQuery.isLoading}
+              draftCount={draftCounts.draft}
+              drafts={reviewDrafts}
+              applyingDraftId={applyingDraftId}
+              onApplyDraft={(draft) => { void applyDraft(draft) }}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
 
-function EmptyBlock({ title, detail, compact = false }: { title: string; detail: string; compact?: boolean }) {
-  return (
-    <div className={cn('rounded-md border border-dashed border-border bg-background text-center', compact ? 'px-3 py-4' : 'px-4 py-6')}>
-      <p className="type-body font-medium text-foreground">{title}</p>
-      <p className="mt-1 type-label leading-5 text-muted-foreground">{detail}</p>
-    </div>
+    </ProjectWorkbenchShell>
   )
 }

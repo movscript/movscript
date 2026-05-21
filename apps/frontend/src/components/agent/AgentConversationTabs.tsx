@@ -60,7 +60,7 @@ export function AgentConversationTabs({
                 onCloseConversation(item.id)
               }}
             >
-              <MessageSquareText size={11} aria-hidden="true" />
+              <MessageSquareText size={12} aria-hidden="true" />
               <span className="ai-agent-panel-conversation-tab-title">{title}</span>
               {item.messages.length > 0 ? (
                 <span className="ai-agent-panel-conversation-tab-count" aria-label={t('agents.chat.messagesCount', { count: item.messages.length })}>

@@ -844,7 +844,7 @@ export function ScriptSplitWorkbench() {
             <div className="flex items-center gap-2 type-label text-muted-foreground">
               <Wand2 size={14} />
               <span>一键制作</span>
-              <ChevronRight size={13} />
+              <ChevronRight size={14} />
               <span>方案 · 编排 · 生成</span>
             </div>
             <h1 className="mt-1 type-title-sm font-semibold text-foreground">一键制作</h1>
@@ -876,7 +876,7 @@ export function ScriptSplitWorkbench() {
                     <p className="type-body font-semibold text-foreground">制作流</p>
                     <p className="mt-1 type-label text-muted-foreground">把分析藏到后台，把用户路径收敛成输入、确认、内容编排和生成。</p>
                   </div>
-                  {scriptsLoading ? <Loader2 size={13} className="animate-spin text-muted-foreground" /> : <Badge variant="outline">{sortedScripts.length} 个剧本 · {productions.length} 个制作</Badge>}
+                  {scriptsLoading ? <Loader2 size={14} className="animate-spin text-muted-foreground" /> : <Badge variant="outline">{sortedScripts.length} 个剧本 · {productions.length} 个制作</Badge>}
                 </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-5">
                   {oneClickFlow.map((step, index) => {
@@ -894,7 +894,7 @@ export function ScriptSplitWorkbench() {
                             'flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
                             step.done ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : step.active ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
                           )}>
-                            <Icon size={15} />
+                            <Icon size={14} />
                           </span>
                           <span className="type-caption text-muted-foreground">0{index + 1}</span>
                         </div>
@@ -1048,7 +1048,7 @@ export function ScriptSplitWorkbench() {
                       onClick={() => void refreshAgentDraft()}
                       disabled={!agentDraft || draftSyncing || createAll.isPending}
                     >
-                      <RefreshCw size={13} className={draftSyncing ? 'animate-spin' : ''} />
+                      <RefreshCw size={14} className={draftSyncing ? 'animate-spin' : ''} />
                       刷新
                     </Button>
                     <Button
@@ -1058,7 +1058,7 @@ export function ScriptSplitWorkbench() {
                       onClick={() => void syncAgentDraft()}
                       disabled={!agentDraft || !agentDraftDirty || draftSyncing || createAll.isPending || agentDraft.status !== 'draft'}
                     >
-                      <ClipboardCheck size={13} />
+                      <ClipboardCheck size={14} />
                       同步草稿
                     </Button>
                     <Button
@@ -1068,7 +1068,7 @@ export function ScriptSplitWorkbench() {
                       onClick={() => void rejectAgentDraft()}
                       disabled={!agentDraft || draftRejecting || createAll.isPending || agentDraft.status !== 'draft'}
                     >
-                      {draftRejecting ? <Loader2 size={13} className="animate-spin" /> : <AlertTriangle size={13} />}
+                      {draftRejecting ? <Loader2 size={14} className="animate-spin" /> : <AlertTriangle size={14} />}
                       删除
                     </Button>
                   </div>
@@ -1290,7 +1290,7 @@ export function ScriptSplitWorkbench() {
                 <p className="mt-2 type-label leading-5 text-foreground">进入内容编排工作台，继续检查制作项、预览挂载、素材缺口和生成记录。</p>
               </div>
               <Button size="sm" className="mt-3 w-full gap-1.5" onClick={() => navigate(ROUTES.project.contentUnitWorkbench)}>
-                <Play size={13} />
+                <Play size={14} />
                 进入内容编排
               </Button>
             </section>

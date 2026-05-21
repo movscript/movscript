@@ -50,13 +50,13 @@ type JobStateTraceEntry = {
 }
 
 const CATEGORIES: Category[] = [
-  { key: 'all',           labelKey: 'common.all',                    icon: <Wand2 size={13} /> },
-  { key: 'image',         labelKey: 'pages.jobs.categories.image',    icon: <ImageIcon size={13} /> },
-  { key: 'image_edit',    labelKey: 'pages.jobs.categories.imageEdit', icon: <ImageIcon size={13} /> },
-  { key: 'video',         labelKey: 'pages.jobs.categories.video',    icon: <Video size={13} /> },
-  { key: 'video_i2v',     labelKey: 'pages.jobs.categories.videoI2V', icon: <Video size={13} /> },
-  { key: 'video_v2v',     labelKey: 'pages.jobs.categories.videoV2V', icon: <Video size={13} /> },
-  { key: 'canvas',        labelKey: 'header.titles.canvases',         icon: <LayoutGrid size={13} /> },
+  { key: 'all',           labelKey: 'common.all',                    icon: <Wand2 size={14} /> },
+  { key: 'image',         labelKey: 'pages.jobs.categories.image',    icon: <ImageIcon size={14} /> },
+  { key: 'image_edit',    labelKey: 'pages.jobs.categories.imageEdit', icon: <ImageIcon size={14} /> },
+  { key: 'video',         labelKey: 'pages.jobs.categories.video',    icon: <Video size={14} /> },
+  { key: 'video_i2v',     labelKey: 'pages.jobs.categories.videoI2V', icon: <Video size={14} /> },
+  { key: 'video_v2v',     labelKey: 'pages.jobs.categories.videoV2V', icon: <Video size={14} /> },
+  { key: 'canvas',        labelKey: 'header.titles.canvases',         icon: <LayoutGrid size={14} /> },
 ]
 
 const STATUS_FILTERS: Array<{ key: StatusFilter; labelKey: string }> = [
@@ -148,7 +148,7 @@ function JobDetailCard({ job, onClose }: { job: Job; onClose: () => void }) {
       <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <Eye size={13} className="text-muted-foreground" />
+            <Eye size={14} className="text-muted-foreground" />
             <p className="truncate type-body font-semibold text-foreground">{getJobTitle(job)}</p>
           </div>
           {job.title && job.prompt ? (
@@ -331,7 +331,7 @@ function JobListCard({
         {isActive && (
           <div className="flex items-center justify-center w-full py-8">
             <div className="flex flex-col items-center gap-2 text-muted-foreground">
-              <Loader2 size={20} className="animate-spin" />
+              <Loader2 size={18} className="animate-spin" />
               <p className="type-label">{job.status === 'pending' ? t('pages.jobs.waitingWorker') : t('pages.jobs.aiGenerating')}</p>
             </div>
           </div>
@@ -418,7 +418,7 @@ function JobGridThumb({
           }}
           className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-1 type-tiny text-foreground shadow-sm hover:bg-background"
         >
-          <Eye size={11} /> {t('common.details')}
+          <Eye size={12} /> {t('common.details')}
         </button>
         {canCancel && (
           <button
@@ -431,7 +431,7 @@ function JobGridThumb({
             className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-1 type-tiny text-destructive shadow-sm hover:bg-background disabled:opacity-50"
             title={t('pages.jobs.cancelTask')}
           >
-            <XCircle size={11} /> {t('common.cancel')}
+            <XCircle size={12} /> {t('common.cancel')}
           </button>
         )}
         {canRetry && (
@@ -445,7 +445,7 @@ function JobGridThumb({
             className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-1 type-tiny text-foreground shadow-sm hover:bg-background disabled:opacity-50"
             title={t('common.retry')}
           >
-            <RefreshCw size={11} className={cn(retrying && 'animate-spin')} /> {t('common.retry')}
+            <RefreshCw size={12} className={cn(retrying && 'animate-spin')} /> {t('common.retry')}
           </button>
         )}
         {!isActive && job.status === 'failed' && (
@@ -643,7 +643,7 @@ export default function JobsPage() {
         <span className="type-label text-muted-foreground">{t('pages.jobs.recordsCount', { count: total })}</span>
         {hasActiveJobs(jobs) && (
           <span className="flex items-center gap-1 type-label text-blue-600">
-            <Loader2 size={11} className="animate-spin" /> {t('pages.jobs.generating')}
+            <Loader2 size={12} className="animate-spin" /> {t('pages.jobs.generating')}
           </span>
         )}
         <div className="flex-1" />
@@ -659,7 +659,7 @@ export default function JobsPage() {
             )}
             title={t('pages.resources.gridTitle')}
           >
-            <LayoutGrid size={13} />
+            <LayoutGrid size={14} />
           </button>
           <button
             onClick={() => setViewMode('list')}
@@ -671,7 +671,7 @@ export default function JobsPage() {
             )}
             title={t('pages.resources.listTitle')}
           >
-            <List size={13} />
+            <List size={14} />
           </button>
         </div>
       </div>
@@ -730,7 +730,7 @@ export default function JobsPage() {
           <div className="flex items-center justify-center h-40 text-muted-foreground type-body">{t('common.loadingShort')}</div>
         ) : total === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 text-muted-foreground/50">
-            <Wand2 size={32} className="mb-3 opacity-30" />
+            <Wand2 size={24} className="mb-3 opacity-30" />
             <p className="type-body">{t('pages.jobs.empty')}</p>
             <p className="type-label mt-1">{t('pages.jobs.emptyHint')}</p>
           </div>

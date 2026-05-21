@@ -101,7 +101,7 @@ function ProjectCard({
               onClick={() => onOpen(project)}
               className="type-label gap-1"
             >
-              {t('pages.projects.enter')} <ArrowRight size={13} />
+              {t('pages.projects.enter')} <ArrowRight size={14} />
             </Button>
             <Button
               variant="ghost"
@@ -222,7 +222,7 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
       detail={t('pages.projects.emptyHint')}
       action={(
         <Button onClick={onCreateClick} className="gap-2">
-          <Plus size={15} /> {t('pages.projects.createFirst')}
+          <Plus size={14} /> {t('pages.projects.createFirst')}
         </Button>
       )}
     />
@@ -340,7 +340,7 @@ export default function ProjectsPage() {
               className="text-muted-foreground transition-colors hover:text-foreground"
               aria-label={t('common.close')}
             >
-              <X size={15} />
+              <X size={14} />
             </button>
           </div>
         </div>

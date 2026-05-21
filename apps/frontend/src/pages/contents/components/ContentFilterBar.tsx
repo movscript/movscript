@@ -59,7 +59,7 @@ export function ContentFilterBar({
         {filters.map((filter) => (
           <label key={filter.id} className="flex h-9 items-center gap-2 rounded-md border border-border bg-background px-2.5">
             <span className="flex items-center gap-1.5 type-label text-muted-foreground">
-              <ListFilter size={13} />
+              <ListFilter size={14} />
               {filter.label}
             </span>
             <select
@@ -96,7 +96,7 @@ export function ContentFilterBar({
               className="inline-flex h-6 max-w-[240px] items-center gap-1 rounded-md bg-muted px-2 type-caption text-muted-foreground transition-colors hover:text-foreground"
             >
               <span className="truncate">{chip.label}</span>
-              <X size={11} />
+              <X size={12} />
             </button>
           ))}
           <Button

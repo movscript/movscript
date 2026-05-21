@@ -1,47 +1,28 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bot, Database, GitBranch, Plus, Sparkles } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Bot, GitBranch, PackageCheck, Pencil, Plus, Save, Sparkles, Trash2, X } from 'lucide-react'
 
-import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
-import { PreProductionAssetBoard } from '@/components/workbench/PreProductionAssetBoard'
+import { SemanticEntityInlineEditor, type SemanticEntityInlineEditorControlState } from '@/components/shared/SemanticEntityInlineEditor'
+import { PreProductionAssetBoard, type PreProductionCardContextTarget } from '@/components/workbench/PreProductionAssetBoard'
 import { AssetSlotDetail } from '@/components/workbench/PreProductionAssetDetail'
 import { PreProductionResourceLibraryDialog } from '@/components/workbench/PreProductionResourceLibraryDialog'
 import { PreProductionReviewWorkspace } from '@/components/workbench/PreProductionReviewWorkspace'
 import { ProjectWorkbenchShell } from '@/components/workbench/WorkbenchChrome'
-import { WorkbenchMetric } from '@/components/workbench/WorkbenchPrimitives'
-import { createSemanticEntity, listSemanticEntities, updateSemanticEntity, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
-import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
-import { api } from '@/lib/api'
+import { deleteSemanticEntity, type SemanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
+import type { ContentFilterKey } from '@/pages/contents/lib/contentFilters'
+import { apiErrorMessage } from '@/lib/contentWorkbenchStatus'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
-import { localAgentClient, type AgentDraft } from '@/lib/localAgentClient'
 import {
-  buildPreProductionAssetRows,
-  buildReferenceAssetClusters,
-  normalizeAssetKind,
   normalizeSlotStatus,
-  rowHasActiveAssetCandidates,
   type AssetKind,
-  type AssetSlotCandidateRecord,
   type AssetSlotRecord,
+  type AssetSlotCandidateRecord,
   type AssetSlotViewModel,
   type CreativeReferenceRecord,
   type ReferenceAssetCluster,
 } from '@/lib/preProductionAssetRows'
-import {
-  buildPreProductionAssetSlotCreatePayload,
-  initialPreProductionResourceLibraryState,
-  openPreProductionResourceLibraryState,
-  preProductionResourceLibraryPageCount,
-  preProductionResourceLibraryTotal,
-  preProductionResourceLibraryTypeParam,
-  setPreProductionResourceLibraryOpen,
-  setPreProductionResourceLibraryPage,
-  setPreProductionResourceLibrarySearch,
-  setPreProductionResourceLibrarySelection,
-  setPreProductionResourceLibraryType,
-  type PreProductionCandidateGenerationKind,
-} from '@/lib/preProductionAssetCandidateWrite'
+import type { PreProductionCandidateGenerationKind } from '@/lib/preProductionAssetCandidateWrite'
 import {
   buildPreProductionAddCandidateMutationOptions,
   buildPreProductionAttachLibraryCandidateMutationOptions,
@@ -53,33 +34,30 @@ import { buildPreProductionAssetProposalMutationOptions } from '@/lib/preProduct
 import { runPreProductionAudit } from '@/lib/preProductionAuditController'
 import { runPreProductionMediaCandidateGeneration } from '@/lib/preProductionMediaCandidateController'
 import { buildPreProductionAssetSlotCanvasMutationOptions } from '@/lib/preProductionCanvasLaunch'
+import {
+  buildCreatePreProductionAssetSlotMutationOptions,
+  buildUpdatePreProductionAssetSlotMutationOptions,
+  preProductionAssetSlotCandidatesQueryKey,
+  preProductionAssetSlotsQueryKey,
+  preProductionCreativeReferencesQueryKey,
+  usePreProductionWorkbenchData,
+} from '@/lib/preProductionDataController'
+import { usePreProductionPageController } from '@/lib/preProductionPageController'
 import { refreshPreProductionWorkbenchContext } from '@/lib/preProductionRefreshController'
+import { usePreProductionResourceLibrary } from '@/lib/preProductionResourceLibrary'
+import { usePreProductionReviewController } from '@/lib/preProductionReviewController'
 import { usePreProductionUploadInput } from '@/lib/preProductionUploadInput'
-import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
-import type { PaginatedResponse, RawResource } from '@/types'
-import { Badge, Button } from '@movscript/ui'
+import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogTitle, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
 import { ROUTES } from '@/routes/projectRoutes'
 
 type CandidateGenerationKind = PreProductionCandidateGenerationKind
-
-async function loadPreProductionReviewDrafts(
-  projectId: number,
-  kind: Extract<AgentDraft['kind'], 'setting_proposal' | 'asset_proposal'>,
-  draftIds: string[],
-): Promise<AgentDraft[]> {
-  const ids = Array.from(new Set(draftIds.map((id) => id.trim()).filter(Boolean)))
-  if (ids.length === 0) return []
-  const drafts = await Promise.all(ids.map(async (draftId) => {
-    try {
-      return await localAgentClient.getDraft(draftId)
-    } catch {
-      return null
-    }
-  }))
-  return drafts.filter((draft): draft is AgentDraft => Boolean(draft && draft.projectId === projectId && draft.kind === kind))
-}
+type InspectorMode = 'asset' | 'reference'
+type PreProductionEditRequest = { type: InspectorMode; id: number; token: number } | null
+type PreProductionDeleteTarget =
+  | { type: 'asset'; record: AssetSlotRecord }
+  | { type: 'reference'; record: CreativeReferenceRecord }
 
 export function PreProductionAssetWorkspace() {
   const projectId = useProjectStore((s) => s.current?.ID)
@@ -98,105 +76,114 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   const prepAuditCleanupRef = useRef<(() => void) | null>(null)
   const uploadInput = usePreProductionUploadInput()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [newSlotEditId, setNewSlotEditId] = useState<number | null>(null)
-  const [newReferenceEditKey, setNewReferenceEditKey] = useState<string | number | null>(null)
   const [prepAuditLaunching, setPrepAuditLaunching] = useState(false)
-  const [resourceLibraryState, setResourceLibraryState] = useState(initialPreProductionResourceLibraryState)
-  const selectedId = readNumberParam(searchParams, 'asset_slot_id') ?? readNumberParam(searchParams, 'selected')
-  const selectedReferenceParam = readNumberParam(searchParams, 'reference_id')
-  const kindParam = readStringParam(searchParams, 'kind')
-  const workspaceView = searchParams.get('view') === 'review' ? 'review' : 'main'
-  const openedDraftId = searchParams.get('draftId')?.trim() || ''
-  const openedSettingDraftId = searchParams.get('settingDraftId')?.trim() || ''
-  const openedAssetProposalDraftId = searchParams.get('assetProposalDraftId')?.trim() || ''
-  const kindFilter: AssetKind = kindParam ? normalizeAssetKind(kindParam) : 'all'
-  const slotConfig = semanticEntityConfig('assetSlots')
-  const candidateConfig = semanticEntityConfig('assetSlotCandidates')
-  const referenceConfig = semanticEntityConfig('creativeReferences')
-
-  const { data: creativeReferences = [], isFetching: creativeReferencesFetching } = useQuery({
-    queryKey: ['pre-production-creative-references', projectId],
-    queryFn: () => listSemanticEntities(projectId!, referenceConfig) as Promise<CreativeReferenceRecord[]>,
-    enabled: !!projectId,
+  const [referenceCreateOpen, setReferenceCreateOpen] = useState(false)
+  const [referenceCreateKey, setReferenceCreateKey] = useState<string | number | null>(null)
+  const [assetCreateOpen, setAssetCreateOpen] = useState(false)
+  const [assetCreateReferenceId, setAssetCreateReferenceId] = useState<string>('')
+  const resourceLibrary = usePreProductionResourceLibrary()
+  const reviewController = usePreProductionReviewController({ projectId, searchParams, setSearchParams })
+  const { workspaceView, assetProposalDraftsQuery, settingProposalDraftsQuery, setWorkspaceView, openReviewWorkspace, openMainWorkspace } = reviewController
+  const preProductionData = usePreProductionWorkbenchData(projectId)
+  const {
+    slotConfig,
+    referenceConfig,
+    creativeReferences,
+    slots,
+    visibleSlots,
+    rows,
+    referenceById,
+    clusters,
+  } = preProductionData
+  const pageController = usePreProductionPageController({
+    searchParams,
+    setSearchParams,
+    rows,
+    clusters,
+    referenceById,
   })
-
-  const { data: slots = [], isLoading, isFetching: slotsFetching } = useQuery({
-    queryKey: ['semantic-asset-slots-page', projectId],
-    queryFn: () => listSemanticEntities(projectId!, slotConfig) as Promise<AssetSlotRecord[]>,
-    enabled: !!projectId,
-  })
-
-  const { data: candidates = [], isFetching: candidatesFetching } = useQuery({
-    queryKey: ['semantic-asset-slot-candidates-page', projectId],
-    queryFn: () => listSemanticEntities(projectId!, candidateConfig) as Promise<AssetSlotCandidateRecord[]>,
-    enabled: !!projectId,
-  })
-
-  const resourceLibraryTypeParam = preProductionResourceLibraryTypeParam(resourceLibraryState.type)
-  const resourceLibraryQuery = useQuery<PaginatedResponse<RawResource> | RawResource[]>({
-    queryKey: ['resources', 'pre-production-library-picker', resourceLibraryTypeParam, resourceLibraryState.search, resourceLibraryState.page],
-    queryFn: () => api.get('/resources', {
-      params: {
-        page: resourceLibraryState.page,
-        page_size: 18,
-        type: resourceLibraryTypeParam,
-        q: resourceLibraryState.search.trim() || undefined,
-      },
-    }).then((r) => r.data),
-    enabled: resourceLibraryState.open,
-  })
-
-  const assetProposalDraftsQuery = useQuery<AgentDraft[]>({
-    queryKey: ['asset-proposal-drafts', projectId, openedAssetProposalDraftId, openedDraftId],
-    queryFn: () => loadPreProductionReviewDrafts(projectId!, 'asset_proposal', [openedAssetProposalDraftId, openedDraftId]),
-    enabled: !!projectId && workspaceView === 'review' && Boolean(openedAssetProposalDraftId || openedDraftId),
-    refetchInterval: workspaceView === 'review' ? 1500 : false,
-  })
-  const settingProposalDraftsQuery = useQuery<AgentDraft[]>({
-    queryKey: ['setting-proposal-drafts', projectId, openedSettingDraftId, openedDraftId],
-    queryFn: () => loadPreProductionReviewDrafts(projectId!, 'setting_proposal', [openedSettingDraftId, openedDraftId]),
-    enabled: !!projectId && workspaceView === 'review' && Boolean(openedSettingDraftId || openedDraftId),
-    refetchInterval: workspaceView === 'review' ? 1500 : false,
-  })
+  const {
+    selectedId,
+    selectedReferenceParam,
+    kindFilter,
+    filtered,
+    filteredClusters,
+    selected,
+    selectedReference,
+    selectedCluster,
+    newSlotEditId,
+    newReferenceEditKey,
+    setFilter,
+    handleSlotCreated,
+    handleSlotSaved,
+    handleSlotDeleted,
+    handleReferenceSaved,
+    handleReferenceDeleted,
+    selectSlot,
+    selectReference,
+    openSlot,
+    openReference,
+  } = pageController
 
   useEffect(() => () => {
     assetAssistantCleanupRef.current?.()
     prepAuditCleanupRef.current?.()
   }, [])
 
-  const updateSlotMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: Record<string, string | number | boolean | null> }) =>
-      updateSemanticEntity(projectId!, slotConfig, id, payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['semantic-asset-slots-page', projectId] }),
+  const updateSlotMutation = useMutation(buildUpdatePreProductionAssetSlotMutationOptions({ projectId, queryClient, slotConfig }))
+
+  const deletePrepEntityMutation = useMutation({
+    mutationFn: ({ type, record }: PreProductionDeleteTarget) => {
+      if (!projectId) throw new Error('请先选择项目')
+      return deleteSemanticEntity(projectId, type === 'asset' ? slotConfig : referenceConfig, record.ID)
+    },
+    onSuccess: async (_result, target) => {
+      if (target.type === 'asset') {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: preProductionAssetSlotsQueryKey(projectId) }),
+          queryClient.invalidateQueries({ queryKey: preProductionAssetSlotCandidatesQueryKey(projectId) }),
+        ])
+        if (selected?.slot.ID === target.record.ID) handleSlotDeleted()
+        toast.success('素材需求已删除')
+        return
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: preProductionCreativeReferencesQueryKey(projectId) }),
+        queryClient.invalidateQueries({ queryKey: preProductionAssetSlotsQueryKey(projectId) }),
+      ])
+      if (selectedReference?.ID === target.record.ID) handleReferenceDeleted()
+      toast.success('设定资料已删除')
+    },
+    onError: (error, target) => {
+      toast.error(apiErrorMessage(error, target.type === 'asset' ? '素材需求删除失败' : '设定资料删除失败'))
+    },
   })
 
   const lockCandidateMutation = useMutation(buildPreProductionLockCandidateMutationOptions({ projectId, queryClient }))
   const rejectCandidateMutation = useMutation(buildPreProductionRejectCandidateMutationOptions({ projectId, queryClient }))
 
-  const createSlotMutation = useMutation({
-    mutationFn: () => {
-      if (!projectId) throw new Error('请先选择项目')
-      return createSemanticEntity(projectId, slotConfig, buildPreProductionAssetSlotCreatePayload({
-        kindFilter,
-        selectedId,
-        selectedReferenceId: selectedReferenceParam,
-        slots,
-      })) as Promise<AssetSlotRecord>
+  const createSlotMutation = useMutation(buildCreatePreProductionAssetSlotMutationOptions({
+    projectId,
+    queryClient,
+    slotConfig,
+    getInput: () => ({
+      kindFilter,
+      selectedId,
+      selectedReferenceId: selectedReferenceParam,
+      slots,
+    }),
+    onCreated: (record) => {
+      setAssetCreateOpen(false)
+      handleSlotCreated(record)
     },
-    onSuccess: async (record) => {
-      await queryClient.invalidateQueries({ queryKey: ['semantic-asset-slots-page', projectId] })
-      setNewSlotEditId(record.ID)
-      setFilter({ asset_slot_id: record.ID, selected: null })
-      toast.success('素材需求已创建')
-    },
-  })
+  }))
 
   const addCandidateMutation = useMutation(buildPreProductionAddCandidateMutationOptions({ projectId, queryClient }))
 
   const attachLibraryCandidateMutation = useMutation(buildPreProductionAttachLibraryCandidateMutationOptions({
     projectId,
     queryClient,
-    onAttached: () => setResourceLibraryState((state) => setPreProductionResourceLibraryOpen(state, false)),
+    onAttached: () => resourceLibrary.setOpen(false),
   }))
 
   const uploadCandidateMutation = useMutation(buildPreProductionUploadCandidateMutationOptions({
@@ -217,51 +204,29 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     setReviewSearchParams: (updater) => setSearchParams(updater, { replace: true }),
   }))
 
-  const visibleSlots = useMemo(() => slots.filter((slot) => !isInternalCandidateSlot(slot)), [slots])
-  const slotById = useMemo(() => new Map(slots.map((slot) => [slot.ID, slot])), [slots])
-  const rows = useMemo(() => buildPreProductionAssetRows(visibleSlots, candidates, slotById), [candidates, slotById, visibleSlots])
-  const referenceById = useMemo(() => new Map(creativeReferences.map((reference) => [reference.ID, reference])), [creativeReferences])
-  const clusters = useMemo(() => buildReferenceAssetClusters(creativeReferences, rows), [creativeReferences, rows])
-  const filtered = useMemo(() => {
-    return rows.filter((row) => {
-      if (kindFilter !== 'all' && row.kind !== kindFilter) return false
-      return true
-    })
-  }, [kindFilter, rows])
-  const filteredClusters = useMemo(() => clusters.map((cluster) => ({
-    ...cluster,
-    rows: cluster.rows.filter((row) => kindFilter === 'all' || row.kind === kindFilter),
-  })), [clusters, kindFilter])
-  const selected = selectedId ? rows.find((row) => row.slot.ID === selectedId) ?? null : null
-  const selectedReferenceId = selected
-    ? selectedReferenceParam ?? selected.slot.creative_reference_id ?? null
-    : selectedReferenceParam ?? filteredClusters[0]?.reference?.ID
-  const selectedReference = selectedReferenceId ? referenceById.get(selectedReferenceId) ?? null : null
-  const selectedCluster = filteredClusters.find((cluster) => (cluster.reference?.ID ?? 0) === (selectedReferenceId ?? 0)) ?? filteredClusters[0] ?? null
-
   const missingCount = visibleSlots.filter((slot) => normalizeSlotStatus(slot.status) === 'missing').length
-  const candidateCount = rows.filter(rowHasActiveAssetCandidates).length
-  const lockedCount = visibleSlots.filter((slot) => normalizeSlotStatus(slot.status) === 'locked').length
-  const waivedCount = visibleSlots.filter((slot) => normalizeSlotStatus(slot.status) === 'waived').length
-
-  function setFilter(updates: Partial<Record<ContentFilterKey, string | number | null | undefined>>) {
-    setSearchParams(updateContentFilterParams(searchParams, updates), { replace: true })
+  function openReferenceCreateDialog() {
+    setReferenceCreateKey(`new-reference-${Date.now()}`)
+    setReferenceCreateOpen(true)
   }
 
-  function setWorkspaceView(view: 'main' | 'review') {
-    const next = new URLSearchParams(searchParams)
-    if (view === 'review') next.set('view', 'review')
-    else next.delete('view')
-    setSearchParams(next, { replace: true })
+  function openAssetCreateDialog() {
+    const defaultReferenceId = selectedReference?.ID ?? creativeReferences[0]?.ID
+    setAssetCreateReferenceId(defaultReferenceId ? String(defaultReferenceId) : '')
+    setAssetCreateOpen(true)
   }
 
-  function startCreate() {
-    createSlotMutation.mutate()
+  function startCreate(selectedReferenceId?: number | null) {
+    createSlotMutation.mutate({ selectedReferenceId })
   }
 
-  function startCreateReference() {
-    setNewReferenceEditKey(`new-reference-${Date.now()}`)
-    setFilter({ reference_id: null, asset_slot_id: null, selected: null })
+  function createAssetFromDialog() {
+    const referenceId = Number(assetCreateReferenceId)
+    if (!referenceId) {
+      toast.info('请先选择素材归属设定')
+      return
+    }
+    startCreate(referenceId)
   }
 
   function lockCandidate(candidate: AssetSlotCandidateRecord) {
@@ -306,12 +271,12 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
       toast.info('请先选择素材需求')
       return
     }
-    setResourceLibraryState(openPreProductionResourceLibraryState(selected.kind))
+    resourceLibrary.open(selected.kind)
   }
 
   function attachSelectedLibraryResource() {
-    if (!selected || !resourceLibraryState.selectedResource || attachLibraryCandidateMutation.isPending) return
-    attachLibraryCandidateMutation.mutate({ row: selected, resource: resourceLibraryState.selectedResource })
+    if (!selected || !resourceLibrary.state.selectedResource || attachLibraryCandidateMutation.isPending) return
+    attachLibraryCandidateMutation.mutate({ row: selected, resource: resourceLibrary.state.selectedResource })
   }
 
   function openAssistantForSlot() {
@@ -344,40 +309,41 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     })
   }
 
-  function openReviewWorkspace() {
-    setWorkspaceView('review')
+  function deleteSlotFromBoard(slotId: number) {
+    const row = rows.find((item) => item.slot.ID === slotId)
+    if (!row) return
+    const title = row.slot.name || `素材 #${row.slot.ID}`
+    if (!window.confirm(`确定删除素材「${title}」吗？已生成的候选素材不会自动删除。`)) return
+    deletePrepEntityMutation.mutate({ type: 'asset', record: row.slot })
   }
 
-  function openMainWorkspace() {
-    setWorkspaceView('main')
+  function deleteReferenceFromBoard(referenceId: number) {
+    const reference = referenceById.get(referenceId)
+    if (!reference) return
+    const title = reference.name || reference.alias || `设定 #${reference.ID}`
+    if (!window.confirm(`确定删除设定「${title}」吗？关联素材需求可能需要后续重新归属。`)) return
+    deletePrepEntityMutation.mutate({ type: 'reference', record: reference })
   }
 
   const mainWorkspace = (
     <PreProductionWorkspace
-      loading={isLoading}
+      loading={preProductionData.isLoading}
       clusters={filteredClusters}
       selectedCluster={selectedCluster}
       selectedReference={selectedReference}
       referenceConfig={referenceConfig}
       newReferenceEditKey={newReferenceEditKey}
       selected={selected}
-      referenceCount={creativeReferences.length}
-      visibleSlotCount={visibleSlots.length}
-      missingCount={missingCount}
-      candidateCount={candidateCount}
-      lockedCount={lockedCount}
-      waivedCount={waivedCount}
       kindFilter={kindFilter}
-      rows={rows}
+      rows={filtered}
       newSlotEditId={newSlotEditId}
       projectId={projectId}
       slotConfig={slotConfig}
       setFilter={setFilter}
-      startCreate={startCreate}
-      startCreateReference={startCreateReference}
+      startCreate={openAssetCreateDialog}
+      startCreateReference={openReferenceCreateDialog}
       createSlotPending={createSlotMutation.isPending}
       prepAuditLaunching={prepAuditLaunching}
-      setWorkspaceView={setWorkspaceView}
       updateSlotMutationPending={updateSlotMutation.isPending}
       lockCandidatePending={lockCandidateMutation.isPending}
       rejectCandidatePending={rejectCandidateMutation.isPending}
@@ -388,22 +354,10 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
       generateCandidatePending={generateCandidateMutation.isPending}
       uploading={uploadInput.uploading || uploadCandidateMutation.isPending}
       generatingKind={generateCandidateMutation.variables?.kind}
-      onSaved={(record) => {
-        setNewSlotEditId((id) => id === record.ID ? null : id)
-        setFilter({ asset_slot_id: record.ID })
-      }}
-      onDeleted={() => {
-        setNewSlotEditId(null)
-        setFilter({ asset_slot_id: null, selected: null })
-      }}
-      onReferenceSaved={(record) => {
-        setNewReferenceEditKey(null)
-        setFilter({ reference_id: record.ID, asset_slot_id: null, selected: null })
-      }}
-      onReferenceDeleted={() => {
-        setNewReferenceEditKey(null)
-        setFilter({ reference_id: null, asset_slot_id: null, selected: null })
-      }}
+      onSaved={handleSlotSaved}
+      onDeleted={handleSlotDeleted}
+      onReferenceSaved={handleReferenceSaved}
+      onReferenceDeleted={handleReferenceDeleted}
       onLock={lockCandidate}
       onReject={rejectCandidate}
       onUploadCandidate={triggerUpload}
@@ -412,38 +366,37 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
       onGenerateMedia={generateMediaCandidate}
       onOpenAssistant={openAssistantForSlot}
       onOrganizeCurrentPrep={organizeCurrentPrep}
+      onOpenReview={openReviewWorkspace}
       onOpenCanvas={() => selected && openCanvasMutation.mutate(selected.slot)}
-      onSelectSlot={(slotId) => {
-        const row = rows.find((item) => item.slot.ID === slotId)
-        setNewReferenceEditKey(null)
-        setFilter({ reference_id: row?.slot.creative_reference_id ?? null, asset_slot_id: slotId })
-      }}
-      onSelectReference={(referenceId) => {
-        setNewReferenceEditKey(null)
-        setFilter({ reference_id: referenceId, asset_slot_id: null, selected: null })
-      }}
+      onSelectSlot={selectSlot}
+      onSelectReference={selectReference}
+      onOpenSlot={openSlot}
+      onOpenReference={openReference}
+      onDeleteSlot={deleteSlotFromBoard}
+      onDeleteReference={deleteReferenceFromBoard}
+      showReviewAction={compact}
     />
   )
 
   const resourceLibraryDialog = (
     <PreProductionResourceLibraryDialog
-      open={resourceLibraryState.open}
+      open={resourceLibrary.state.open}
       row={selected}
-      resources={Array.isArray(resourceLibraryQuery.data) ? resourceLibraryQuery.data : resourceLibraryQuery.data?.items ?? []}
-      selectedResource={resourceLibraryState.selectedResource}
-      search={resourceLibraryState.search}
-      type={resourceLibraryState.type}
-      page={resourceLibraryState.page}
-      pageCount={preProductionResourceLibraryPageCount({ data: resourceLibraryQuery.data })}
-      total={preProductionResourceLibraryTotal(resourceLibraryQuery.data)}
-      isLoading={resourceLibraryQuery.isLoading || resourceLibraryQuery.isFetching}
+      resources={resourceLibrary.resources}
+      selectedResource={resourceLibrary.state.selectedResource}
+      search={resourceLibrary.state.search}
+      type={resourceLibrary.state.type}
+      page={resourceLibrary.state.page}
+      pageCount={resourceLibrary.pageCount}
+      total={resourceLibrary.total}
+      isLoading={resourceLibrary.isLoading}
       isSaving={attachLibraryCandidateMutation.isPending}
-      onOpenChange={(open) => setResourceLibraryState((state) => setPreProductionResourceLibraryOpen(state, open))}
-      onSearch={(value) => setResourceLibraryState((state) => setPreProductionResourceLibrarySearch(state, value))}
-      onType={(value) => setResourceLibraryState((state) => setPreProductionResourceLibraryType(state, value))}
-      onPage={(page) => setResourceLibraryState((state) => setPreProductionResourceLibraryPage(state, page))}
-      onSelect={(resource) => setResourceLibraryState((state) => setPreProductionResourceLibrarySelection(state, resource))}
-      onClear={() => setResourceLibraryState((state) => setPreProductionResourceLibrarySelection(state, null))}
+      onOpenChange={resourceLibrary.setOpen}
+      onSearch={resourceLibrary.setSearch}
+      onType={resourceLibrary.setType}
+      onPage={resourceLibrary.setPage}
+      onSelect={resourceLibrary.select}
+      onClear={resourceLibrary.clearSelection}
       onConfirm={attachSelectedLibraryResource}
     />
   )
@@ -462,44 +415,84 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     />
   )
 
-  if (workspaceView === 'review') {
-    if (compact) {
-      return (
-        <>
-          {reviewWorkspace}
-          <input ref={uploadInput.inputRef} type="file" className="hidden" accept={RESOURCE_UPLOAD_ACCEPT} onChange={(e) => handleUpload(e.target.files?.[0])} />
-        </>
-      )
-    }
-    return (
-      <ProjectWorkbenchShell
-        workbenchId="pre_production"
-        projectName={projectName}
-        kicker="提案审阅"
-        title="前期准备审阅"
-        description="审阅设定提案和素材需求提案，确认归属、缺口、候选素材和下游可用性。"
-        badges={<Badge variant="outline" className="type-tiny">{(settingProposalDraftsQuery.data?.length ?? 0) + (assetProposalDraftsQuery.data?.length ?? 0)} 个提案</Badge>}
-        onRefresh={() => { void refreshPreProduction() }}
-        refreshing={creativeReferencesFetching || slotsFetching || candidatesFetching || settingProposalDraftsQuery.isFetching || assetProposalDraftsQuery.isFetching}
-        refreshLabel="刷新上下文"
-        actions={(
-          <Button size="sm" variant="outline" onClick={openMainWorkspace}>
-            <Database size={14} />
-            返回工作区
-          </Button>
-        )}
-      >
+  const reviewDialog = (
+    <Dialog open={workspaceView === 'review'} onOpenChange={(open) => open ? openReviewWorkspace() : openMainWorkspace()}>
+      <DialogContent className="flex max-h-[88vh] w-[min(1120px,calc(100vw-32px))] max-w-none flex-col overflow-hidden p-0">
+        <DialogTitle className="sr-only">前期准备审阅</DialogTitle>
         {reviewWorkspace}
-        <input ref={uploadInput.inputRef} type="file" className="hidden" accept={RESOURCE_UPLOAD_ACCEPT} onChange={(e) => handleUpload(e.target.files?.[0])} />
-      </ProjectWorkbenchShell>
-    )
-  }
+      </DialogContent>
+    </Dialog>
+  )
+
+  const createDialogs = (
+    <>
+      <Dialog open={referenceCreateOpen} onOpenChange={setReferenceCreateOpen}>
+        <DialogContent className="max-h-[88vh] w-[min(640px,calc(100vw-32px))] max-w-none overflow-y-auto p-0">
+          <div className="border-b border-border px-4 py-3">
+            <DialogTitle className="type-body font-semibold">新建设定</DialogTitle>
+            <DialogDescription className="mt-1 type-label text-muted-foreground">先沉淀人物、地点、道具或风格，再为它绑定素材。</DialogDescription>
+          </div>
+          <SemanticEntityInlineEditor
+            projectId={projectId}
+            config={referenceConfig}
+            record={null}
+            defaults={{ kind: 'person', importance: 'main', status: 'draft', name: '未命名设定' }}
+            queryKey={preProductionCreativeReferencesQueryKey(projectId)}
+            editKey={referenceCreateKey}
+            title="设定字段"
+            primaryFieldKeys={['kind', 'name', 'alias', 'description', 'content', 'importance']}
+            className="rounded-none border-0 bg-transparent"
+            hideDeleteAction
+            hiddenFieldKeys={['status']}
+            showAdvancedFields={false}
+            onSaved={(record) => {
+              setReferenceCreateOpen(false)
+              handleReferenceSaved(record)
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={assetCreateOpen} onOpenChange={setAssetCreateOpen}>
+        <DialogContent className="w-[min(520px,calc(100vw-32px))] max-w-none">
+          <DialogTitle>新建素材</DialogTitle>
+          <DialogDescription>素材必须先归属到一个设定，后续候选和生成才有明确上下文。</DialogDescription>
+          <div className="space-y-2 py-3">
+            <Label htmlFor="pre-production-create-asset-reference">归属设定</Label>
+            <Select value={assetCreateReferenceId} onValueChange={setAssetCreateReferenceId}>
+              <SelectTrigger id="pre-production-create-asset-reference">
+                <SelectValue placeholder="选择人物、地点、道具或风格设定" />
+              </SelectTrigger>
+              <SelectContent>
+                {creativeReferences.map((reference) => (
+                  <SelectItem key={reference.ID} value={String(reference.ID)}>
+                    {reference.name || reference.alias || `设定 #${reference.ID}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {creativeReferences.length === 0 ? (
+              <p className="type-label text-muted-foreground">还没有设定。请先新建设定，再创建素材。</p>
+            ) : null}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setAssetCreateOpen(false)} disabled={createSlotMutation.isPending}>取消</Button>
+            <Button type="button" onClick={createAssetFromDialog} loading={createSlotMutation.isPending} disabled={!assetCreateReferenceId || createSlotMutation.isPending}>
+              创建素材
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
 
   if (compact) {
     return (
       <>
         {mainWorkspace}
         {resourceLibraryDialog}
+        {reviewDialog}
+        {createDialogs}
         <input ref={uploadInput.inputRef} type="file" className="hidden" accept={RESOURCE_UPLOAD_ACCEPT} onChange={(e) => handleUpload(e.target.files?.[0])} />
       </>
     )
@@ -519,10 +512,10 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
         </>
       )}
       onRefresh={() => { void refreshPreProduction() }}
-      refreshing={creativeReferencesFetching || slotsFetching || candidatesFetching}
+      refreshing={preProductionData.isFetching}
       refreshLabel="刷新上下文"
       actions={(
-        <Button size="sm" variant="outline" onClick={openReviewWorkspace}>
+        <Button size="sm" variant="outline" className="h-8 w-32 gap-1.5" onClick={openReviewWorkspace}>
           <GitBranch size={14} />
           审阅提案
         </Button>
@@ -530,6 +523,8 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     >
       {mainWorkspace}
       {resourceLibraryDialog}
+      {reviewDialog}
+      {createDialogs}
       <input ref={uploadInput.inputRef} type="file" className="hidden" accept={RESOURCE_UPLOAD_ACCEPT} onChange={(e) => handleUpload(e.target.files?.[0])} />
     </ProjectWorkbenchShell>
   )
@@ -543,12 +538,6 @@ function PreProductionWorkspace({
   referenceConfig,
   newReferenceEditKey,
   selected,
-  referenceCount,
-  visibleSlotCount,
-  missingCount,
-  candidateCount,
-  lockedCount,
-  waivedCount,
   kindFilter,
   rows,
   newSlotEditId,
@@ -559,7 +548,6 @@ function PreProductionWorkspace({
   startCreateReference,
   createSlotPending,
   prepAuditLaunching,
-  setWorkspaceView,
   updateSlotMutationPending,
   lockCandidatePending,
   rejectCandidatePending,
@@ -582,34 +570,33 @@ function PreProductionWorkspace({
   onGenerateMedia,
   onOpenAssistant,
   onOrganizeCurrentPrep,
+  onOpenReview,
   onOpenCanvas,
   onSelectSlot,
   onSelectReference,
+  onOpenSlot,
+  onOpenReference,
+  onDeleteSlot,
+  onDeleteReference,
+  showReviewAction = false,
 }: {
   loading: boolean
   clusters: ReferenceAssetCluster[]
   selectedCluster: ReferenceAssetCluster | null
   selectedReference: CreativeReferenceRecord | null
-  referenceConfig: ReturnType<typeof semanticEntityConfig>
+  referenceConfig: SemanticEntityConfig
   newReferenceEditKey: string | number | null
   selected: AssetSlotViewModel | null
-  referenceCount: number
-  visibleSlotCount: number
-  missingCount: number
-  candidateCount: number
-  lockedCount: number
-  waivedCount: number
   kindFilter: AssetKind
   rows: AssetSlotViewModel[]
   newSlotEditId: number | null
   projectId?: number
-  slotConfig: ReturnType<typeof semanticEntityConfig>
+  slotConfig: SemanticEntityConfig
   setFilter: (updates: Partial<Record<ContentFilterKey, string | number | null | undefined>>) => void
   startCreate: () => void
   startCreateReference: () => void
   createSlotPending: boolean
   prepAuditLaunching: boolean
-  setWorkspaceView: (view: 'main' | 'review') => void
   updateSlotMutationPending: boolean
   lockCandidatePending: boolean
   rejectCandidatePending: boolean
@@ -632,89 +619,120 @@ function PreProductionWorkspace({
   onGenerateMedia: (kind: CandidateGenerationKind) => void
   onOpenAssistant: () => void
   onOrganizeCurrentPrep: () => void
+  onOpenReview: () => void
   onOpenCanvas: () => void
   onSelectSlot: (slotId: number) => void
   onSelectReference: (referenceId: number) => void
+  onOpenSlot: (slotId: number) => void
+  onOpenReference: (referenceId: number) => void
+  onDeleteSlot: (slotId: number) => void
+  onDeleteReference: (referenceId: number) => void
+  showReviewAction?: boolean
 }) {
-  const clusterRows = selectedCluster?.rows ?? []
   const busy = updateSlotMutationPending || lockCandidatePending || rejectCandidatePending || addCandidateMutationPending || uploadCandidatePending || attachLibraryCandidatePending || openCanvasPending || generateCandidatePending
-  const headerActionButtonClass = 'w-[132px] justify-center gap-1.5'
   const creatingReference = Boolean(newReferenceEditKey)
-  const [referenceEditorCollapsed, setReferenceEditorCollapsed] = useState(true)
-  const [assetEditorCollapsed, setAssetEditorCollapsed] = useState(false)
+  const [inspectorMode, setInspectorMode] = useState<InspectorMode>('reference')
+  const [editRequest, setEditRequest] = useState<PreProductionEditRequest>(null)
+  const [cardContextMenu, setCardContextMenu] = useState<{
+    x: number
+    y: number
+    target: PreProductionCardContextTarget
+  } | null>(null)
 
   useEffect(() => {
     if (creatingReference) {
-      setReferenceEditorCollapsed(false)
-      setAssetEditorCollapsed(true)
+      setInspectorMode('reference')
       return
     }
     if (selected) {
-      setReferenceEditorCollapsed(true)
-      setAssetEditorCollapsed(false)
+      setInspectorMode('asset')
       return
     }
-    setReferenceEditorCollapsed(true)
-    setAssetEditorCollapsed(true)
-  }, [creatingReference, selected?.slot.ID])
+    setInspectorMode('reference')
+  }, [creatingReference, selected?.slot.ID, selectedReference?.ID])
 
-  function handleReferenceEditorCollapsedChange(collapsed: boolean) {
-    setReferenceEditorCollapsed(collapsed)
-    if (!collapsed) setAssetEditorCollapsed(true)
+  useEffect(() => {
+    if (!cardContextMenu) return
+    const close = () => setCardContextMenu(null)
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') close()
+    }
+    window.addEventListener('pointerdown', close)
+    window.addEventListener('resize', close)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', close)
+      window.removeEventListener('resize', close)
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [cardContextMenu])
+
+  function openCardContextMenu(event: MouseEvent, target: PreProductionCardContextTarget) {
+    event.preventDefault()
+    event.stopPropagation()
+    setCardContextMenu({ x: event.clientX, y: event.clientY, target })
   }
 
-  function handleAssetEditorCollapsedChange(collapsed: boolean) {
-    setAssetEditorCollapsed(collapsed)
-    if (!collapsed) setReferenceEditorCollapsed(true)
+  function editCardTarget(target: PreProductionCardContextTarget) {
+    setCardContextMenu(null)
+    if (target.type === 'asset') {
+      onOpenSlot(target.id)
+      setInspectorMode('asset')
+      setEditRequest({ type: 'asset', id: target.id, token: Date.now() })
+      return
+    }
+    onOpenReference(target.id)
+    setInspectorMode('reference')
+    setEditRequest({ type: 'reference', id: target.id, token: Date.now() })
   }
 
-  const detailRailCollapsed = referenceEditorCollapsed && assetEditorCollapsed
+  function deleteCardTarget(target: PreProductionCardContextTarget) {
+    setCardContextMenu(null)
+    if (target.type === 'asset') {
+      onDeleteSlot(target.id)
+      return
+    }
+    onDeleteReference(target.id)
+  }
+
+  const boardActions = (
+    <>
+      <Button size="sm" variant="outline" className="h-8 w-28 justify-center gap-1.5" onClick={startCreateReference} disabled={!projectId}>
+        <Sparkles size={14} />
+        新建设定
+      </Button>
+      <Button size="sm" variant="outline" className="h-8 w-28 justify-center gap-1.5" onClick={startCreate} loading={createSlotPending} disabled={!projectId || createSlotPending || creatingReference}>
+        <Plus size={14} />
+        新建素材
+      </Button>
+      <Button size="sm" variant="outline" className="h-8 w-36 justify-center gap-1.5" onClick={onOrganizeCurrentPrep} loading={prepAuditLaunching} disabled={!projectId || prepAuditLaunching}>
+        <Bot size={14} />
+        梳理设定+素材
+      </Button>
+      {showReviewAction ? (
+        <Button size="sm" variant="outline" className="h-8 w-28 justify-center gap-1.5" onClick={onOpenReview}>
+          <GitBranch size={14} />
+          审阅提案
+        </Button>
+      ) : null}
+    </>
+  )
+  const detailOpen = Boolean(selected || selectedReference || newReferenceEditKey)
 
   return (
-    <div className="min-h-full overflow-y-auto bg-background p-4 xl:flex xl:h-full xl:min-h-[720px] xl:flex-col xl:overflow-hidden">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 xl:shrink-0">
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-          <CompactMetric label="设定" value={referenceCount} />
-          <CompactMetric label="素材" value={visibleSlotCount} />
-          <CompactMetric label="缺少" value={missingCount} />
-          <CompactMetric label="待选择" value={candidateCount} />
-          <CompactMetric label="已选定" value={lockedCount} detail={`${waivedCount} 不需要`} />
-        </div>
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          <Button size="sm" variant="outline" className={headerActionButtonClass} onClick={startCreateReference} disabled={!projectId}>
-            <Sparkles size={14} />
-            新建设定
-          </Button>
-          <Button size="sm" variant="outline" className={headerActionButtonClass} onClick={startCreate} loading={createSlotPending} disabled={!projectId || createSlotPending || creatingReference}>
-            <Plus size={14} />
-            新建素材
-          </Button>
-          <Button size="sm" variant="outline" className={headerActionButtonClass} onClick={onOrganizeCurrentPrep} loading={prepAuditLaunching} disabled={!projectId || prepAuditLaunching}>
-            <Bot size={14} />
-            梳理设定+素材
-          </Button>
-          <Button size="sm" variant="outline" className={headerActionButtonClass} onClick={() => setWorkspaceView('review')}>
-            <GitBranch size={14} />
-            审阅提案
-          </Button>
-        </div>
-      </div>
+    <div className="relative min-h-full overflow-y-auto bg-background p-3 xl:flex xl:h-full xl:min-h-[720px] xl:flex-col xl:overflow-hidden">
 
       <main
-        className={cn(
-          'grid items-stretch gap-4 xl:min-h-0 xl:flex-1',
-          detailRailCollapsed
-            ? 'xl:grid-cols-[minmax(0,1fr)_56px] 2xl:grid-cols-[minmax(0,1fr)_60px]'
-            : 'xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_380px]',
-        )}
-        data-detail-rail-collapsed={detailRailCollapsed ? 'true' : undefined}
+        className={`grid items-stretch gap-4 xl:min-h-0 xl:flex-1 ${detailOpen ? 'xl:grid-cols-[minmax(0,1fr)_420px] 2xl:grid-cols-[minmax(0,1fr)_440px]' : ''}`}
       >
         <div className="min-w-0 xl:min-h-0">
           <PreProductionAssetBoard
             clusters={clusters}
             selectedCluster={selectedCluster}
             selectedReference={selectedReference}
-            rows={clusterRows}
+            rows={rows}
             selected={selected}
             loading={loading}
             creatingReference={creatingReference}
@@ -722,96 +740,370 @@ function PreProductionWorkspace({
             onKindChange={(value) => setFilter({ kind: value })}
             onSelectSlot={onSelectSlot}
             onSelectReference={onSelectReference}
+            onCardContextMenu={openCardContextMenu}
+            actions={boardActions}
           />
         </div>
 
-        <aside className="min-w-0 space-y-3 pr-1 xl:min-h-0 xl:overflow-y-auto">
-          {selected || newReferenceEditKey ? (
-            <>
-              <SemanticEntityInlineEditor
-                projectId={projectId}
-                config={referenceConfig}
-                record={newReferenceEditKey ? null : selectedReference}
-                defaults={newReferenceEditKey ? { kind: 'person', importance: 'main', status: 'draft', name: '未命名设定' } : undefined}
-                queryKey={['pre-production-creative-references', projectId]}
-                editKey={newReferenceEditKey}
-                title="编辑设定"
-                primaryFieldKeys={['kind', 'name', 'alias', 'description', 'content', 'importance', 'status']}
-                collapsed={referenceEditorCollapsed}
-                collapsedMode="horizontal"
-                onCollapsedChange={handleReferenceEditorCollapsedChange}
-                emptyTitle="当前素材未绑定设定"
-                emptyDescription="这个素材还没有绑定到具体设定。可以在素材字段里补充归属。"
-                onSaved={onReferenceSaved}
-                onDeleted={onReferenceDeleted}
-              />
-              {selected ? (
-                <>
-                  <SemanticEntityInlineEditor
-                    projectId={projectId}
-                    config={slotConfig}
-                    record={selected.slot}
-                    queryKey={['semantic-asset-slots-page', projectId]}
-                    editKey={selected.slot.ID === newSlotEditId ? newSlotEditId : null}
-                    title="编辑素材"
-                    description="关键字段：素材名称、类型、状态、优先级、用途说明和提示词线索。"
-                    primaryFieldKeys={['name', 'kind', 'status', 'priority', 'description', 'prompt_hint', 'creative_reference_id', 'creative_reference_state_id']}
-                    collapsed={assetEditorCollapsed}
-                    collapsedMode="horizontal"
-                    onCollapsedChange={handleAssetEditorCollapsedChange}
-                    onSaved={onSaved}
-                    onDeleted={onDeleted}
-                  />
-                  {!detailRailCollapsed ? (
-                    <AssetSlotDetail
-                      row={selected}
-                      onLock={onLock}
-                      onReject={onReject}
-                      onUploadCandidate={onUploadCandidate}
-                      onOpenResourceLibrary={onOpenResourceLibrary}
-                      onGenerateCandidate={onGenerateProposal}
-                      onGenerateMediaCandidate={onGenerateMedia}
-                      onOpenAssistant={onOpenAssistant}
-                      onOpenCanvas={onOpenCanvas}
-                      busy={busy}
-                      uploading={uploading}
-                      generatingKind={generatingKind}
-                    />
-                  ) : null}
-                </>
-              ) : null}
-            </>
-          ) : (
-            <SemanticEntityInlineEditor
-              projectId={projectId}
-              config={referenceConfig}
-              record={selectedReference}
-              queryKey={['pre-production-creative-references', projectId]}
-              title="编辑设定"
-              primaryFieldKeys={['kind', 'name', 'alias', 'description', 'content', 'importance', 'status']}
-              collapsed={referenceEditorCollapsed}
-              collapsedMode="horizontal"
-              onCollapsedChange={handleReferenceEditorCollapsedChange}
-              emptyTitle="选择或新建设定"
-              emptyDescription="点击左侧设定卡片，或点击新建设定开始准备。"
-              onSaved={onReferenceSaved}
-              onDeleted={onReferenceDeleted}
-            />
-          )}
-        </aside>
+        <PreProductionInspector
+          mode={inspectorMode}
+          onModeChange={setInspectorMode}
+          projectId={projectId}
+          referenceConfig={referenceConfig}
+          slotConfig={slotConfig}
+          selected={selected}
+          selectedReference={selectedReference}
+          newReferenceEditKey={newReferenceEditKey}
+          newSlotEditId={newSlotEditId}
+          onSaved={onSaved}
+          onDeleted={onDeleted}
+          onReferenceSaved={onReferenceSaved}
+          onReferenceDeleted={onReferenceDeleted}
+          onLock={onLock}
+          onReject={onReject}
+          onUploadCandidate={onUploadCandidate}
+          onOpenResourceLibrary={onOpenResourceLibrary}
+          onGenerateProposal={onGenerateProposal}
+          onGenerateMedia={onGenerateMedia}
+          onOpenAssistant={onOpenAssistant}
+          onOpenCanvas={onOpenCanvas}
+          busy={busy}
+          uploading={uploading}
+          generatingKind={generatingKind}
+          editRequest={editRequest}
+          onClose={() => setFilter({ reference_id: null, asset_slot_id: null, selected: null })}
+        />
       </main>
+      {cardContextMenu ? (
+        <PreProductionCardContextMenu
+          x={cardContextMenu.x}
+          y={cardContextMenu.y}
+          onEdit={() => editCardTarget(cardContextMenu.target)}
+          onDelete={() => deleteCardTarget(cardContextMenu.target)}
+        />
+      ) : null}
     </div>
   )
 }
 
-function isInternalCandidateSlot(slot: AssetSlotRecord) {
-  return slot.owner_type === 'asset_slot'
+function PreProductionCardContextMenu({
+  x,
+  y,
+  onEdit,
+  onDelete,
+}: {
+  x: number
+  y: number
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  return (
+    <div
+      role="menu"
+      aria-label="准备项操作"
+      className="ms-dropdown__content fixed z-50 min-w-32"
+      style={{ left: x, top: y }}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <button type="button" role="menuitem" className="ms-dropdown__item gap-2" onClick={onEdit}>
+        <Pencil size={14} />
+        编辑
+      </button>
+      <div className="ms-dropdown__separator" />
+      <button type="button" role="menuitem" className="ms-dropdown__item gap-2 text-destructive" onClick={onDelete}>
+        <Trash2 size={14} />
+        删除
+      </button>
+    </div>
+  )
+}
+
+function PreProductionInspector({
+  mode,
+  onModeChange,
+  projectId,
+  referenceConfig,
+  slotConfig,
+  selected,
+  selectedReference,
+  newReferenceEditKey,
+  newSlotEditId,
+  onSaved,
+  onDeleted,
+  onReferenceSaved,
+  onReferenceDeleted,
+  onLock,
+  onReject,
+  onUploadCandidate,
+  onOpenResourceLibrary,
+  onGenerateProposal,
+  onGenerateMedia,
+  onOpenAssistant,
+  onOpenCanvas,
+  busy,
+  uploading,
+  generatingKind,
+  editRequest,
+  onClose,
+}: {
+  mode: InspectorMode
+  onModeChange: (mode: InspectorMode) => void
+  projectId?: number
+  referenceConfig: SemanticEntityConfig
+  slotConfig: SemanticEntityConfig
+  selected: AssetSlotViewModel | null
+  selectedReference: CreativeReferenceRecord | null
+  newReferenceEditKey: string | number | null
+  newSlotEditId: number | null
+  onSaved: (record: SemanticEntityRecord) => void
+  onDeleted: () => void
+  onReferenceSaved: (record: SemanticEntityRecord) => void
+  onReferenceDeleted: () => void
+  onLock: (candidate: AssetSlotCandidateRecord) => void
+  onReject: (candidate: AssetSlotCandidateRecord) => void
+  onUploadCandidate: () => void
+  onOpenResourceLibrary: () => void
+  onGenerateProposal: (kind: CandidateGenerationKind) => void
+  onGenerateMedia: (kind: CandidateGenerationKind) => void
+  onOpenAssistant: () => void
+  onOpenCanvas: () => void
+  busy: boolean
+  uploading: boolean
+  generatingKind?: CandidateGenerationKind
+  editRequest: PreProductionEditRequest
+  onClose: () => void
+}) {
+  const creatingReference = Boolean(newReferenceEditKey)
+  const canShowReference = creatingReference || Boolean(selectedReference)
+  const open = Boolean(selected || canShowReference)
+  const [assetEditing, setAssetEditing] = useState(false)
+  const [referenceEditing, setReferenceEditing] = useState(creatingReference)
+  const [assetControl, setAssetControl] = useState<SemanticEntityInlineEditorControlState | null>(null)
+  const [referenceControl, setReferenceControl] = useState<SemanticEntityInlineEditorControlState | null>(null)
+  const [assetResetToken, setAssetResetToken] = useState(0)
+  const [referenceResetToken, setReferenceResetToken] = useState(0)
+  const title = mode === 'asset'
+    ? selected?.slot.name || (selected ? `素材 #${selected.slot.ID}` : '素材详情')
+    : creatingReference
+      ? '未命名设定'
+      : selectedReference?.name || selectedReference?.alias || (selectedReference ? `设定 #${selectedReference.ID}` : '设定详情')
+  const subtitle = mode === 'asset'
+    ? '维护素材字段、候选素材和最终选定结果。'
+    : creatingReference
+      ? '补充人物、地点、道具或风格设定，之后再关联素材。'
+      : '维护当前准备项的设定资料，作为素材生成和下游创作的上下文。'
+  const currentControl = mode === 'asset' ? assetControl : referenceControl
+  const hasCurrentRecord = mode === 'asset' ? Boolean(selected) : Boolean(selectedReference)
+  const isCreatingCurrentRecord = mode === 'reference' && creatingReference
+  const showSaveActions = Boolean(currentControl?.isEditing || isCreatingCurrentRecord)
+  const canUseInspectorActions = Boolean(currentControl && (hasCurrentRecord || isCreatingCurrentRecord))
+
+  useEffect(() => {
+    setAssetEditing(false)
+  }, [selected?.slot.ID])
+
+  useEffect(() => {
+    setReferenceEditing(creatingReference)
+  }, [creatingReference, selectedReference?.ID])
+
+  useEffect(() => {
+    if (!editRequest) return
+    if (editRequest.type === 'asset' && selected?.slot.ID === editRequest.id) {
+      setAssetEditing(true)
+      return
+    }
+    if (editRequest.type === 'reference' && selectedReference?.ID === editRequest.id) {
+      setReferenceEditing(true)
+    }
+  }, [editRequest, selected?.slot.ID, selectedReference?.ID])
+
+  function setCurrentEditing(nextEditing: boolean) {
+    if (mode === 'asset') setAssetEditing(nextEditing)
+    else setReferenceEditing(nextEditing)
+  }
+
+  function cancelCurrentEditing() {
+    if (mode === 'asset') {
+      setAssetResetToken((value) => value + 1)
+      setAssetEditing(false)
+      return
+    }
+    setReferenceResetToken((value) => value + 1)
+    setReferenceEditing(false)
+  }
+
+  if (!open) return null
+
+  return (
+    <aside className="flex min-w-0 flex-col border-t border-border bg-background xl:min-h-0 xl:border-l xl:border-t-0 xl:pl-4">
+      <section className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
+        <div className="shrink-0 border-b border-border pb-3">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted/30 text-muted-foreground">
+              {mode === 'asset' ? <PackageCheck size={16} /> : <Sparkles size={16} />}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate type-body font-semibold text-foreground">{title}</p>
+              <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">{subtitle}</p>
+            </div>
+            <div className="shrink-0">
+              <div className="flex items-center gap-2">
+                {showSaveActions ? (
+                  <>
+                    {hasCurrentRecord ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1.5"
+                        onClick={cancelCurrentEditing}
+                        disabled={currentControl?.isSaving}
+                      >
+                        <X size={14} />
+                        取消
+                      </Button>
+                    ) : null}
+                    <Button
+                      form={currentControl?.formId}
+                      size="sm"
+                      className="h-8 gap-1.5"
+                      loading={currentControl?.isSaving}
+                      disabled={!currentControl?.canSave}
+                    >
+                      <Save size={14} />
+                      保存
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1.5"
+                    onClick={() => setCurrentEditing(true)}
+                    disabled={!canUseInspectorActions || currentControl?.isImmutableRecord}
+                  >
+                    <Pencil size={14} />
+                    编辑
+                  </Button>
+                )}
+                <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={onClose} aria-label="关闭详情">
+                  <X size={15} />
+                </Button>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-1 rounded-md bg-muted/50 p-1">
+            <Button
+              type="button"
+              size="sm"
+              variant={mode === 'asset' ? 'secondary' : 'ghost'}
+              className="h-8 justify-center gap-1.5 type-caption"
+              disabled={!selected}
+              onClick={() => onModeChange('asset')}
+            >
+              <PackageCheck size={14} />
+              素材
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={mode === 'reference' ? 'secondary' : 'ghost'}
+              className="h-8 justify-center gap-1.5 type-caption"
+              disabled={!canShowReference}
+              onClick={() => onModeChange('reference')}
+            >
+              <Sparkles size={14} />
+              设定
+            </Button>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto py-3">
+          {mode === 'asset' ? (
+            selected ? (
+              <div className="space-y-4">
+                <SemanticEntityInlineEditor
+                  projectId={projectId}
+                  config={slotConfig}
+                  record={selected.slot}
+                  queryKey={preProductionAssetSlotsQueryKey(projectId)}
+                  editKey={selected.slot.ID === newSlotEditId ? newSlotEditId : null}
+                  title="素材字段"
+                  description="名称、类型、状态、用途说明和提示词线索。"
+                  primaryFieldKeys={['name', 'kind', 'priority', 'description', 'prompt_hint', 'creative_reference_id', 'creative_reference_state_id']}
+                  className="rounded-none border-0 bg-transparent"
+                  hideHeaderCopy
+                  hideHeaderActions
+                  hideDeleteAction
+                  hiddenFieldKeys={['status']}
+                  showAdvancedFields={false}
+                  editing={assetEditing}
+                  onEditingChange={setAssetEditing}
+                  onControlStateChange={setAssetControl}
+                  resetToken={assetResetToken}
+                  onSaved={onSaved}
+                  onDeleted={onDeleted}
+                />
+                <AssetSlotDetail
+                  row={selected}
+                  onLock={onLock}
+                  onReject={onReject}
+                  onUploadCandidate={onUploadCandidate}
+                  onOpenResourceLibrary={onOpenResourceLibrary}
+                  onGenerateCandidate={onGenerateProposal}
+                  onGenerateMediaCandidate={onGenerateMedia}
+                  onOpenAssistant={onOpenAssistant}
+                  onOpenCanvas={onOpenCanvas}
+                  busy={busy}
+                  uploading={uploading}
+                  generatingKind={generatingKind}
+                />
+              </div>
+            ) : (
+              <EmptyInspectorState title="选择素材" description="从左侧准备清单选择素材后，在这里维护字段和候选素材。" />
+            )
+          ) : (
+            <SemanticEntityInlineEditor
+              projectId={projectId}
+              config={referenceConfig}
+              record={newReferenceEditKey ? null : selectedReference}
+              defaults={newReferenceEditKey ? { kind: 'person', importance: 'main', status: 'draft', name: '未命名设定' } : undefined}
+              queryKey={preProductionCreativeReferencesQueryKey(projectId)}
+              editKey={newReferenceEditKey}
+              title="设定字段"
+              primaryFieldKeys={['kind', 'name', 'alias', 'description', 'content', 'importance']}
+              className="rounded-none border-0 bg-transparent"
+              hideHeaderCopy
+              hideHeaderActions
+              hideDeleteAction
+              hiddenFieldKeys={['status']}
+              showAdvancedFields={false}
+              editing={referenceEditing}
+              onEditingChange={setReferenceEditing}
+              onControlStateChange={setReferenceControl}
+              resetToken={referenceResetToken}
+              emptyTitle="选择或新建设定"
+              emptyDescription="从左侧准备清单选择设定，或点击新建设定开始准备。"
+              onSaved={onReferenceSaved}
+              onDeleted={onReferenceDeleted}
+            />
+          )}
+        </div>
+      </section>
+    </aside>
+  )
+}
+
+function EmptyInspectorState({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="rounded-md border border-dashed border-border bg-muted/20 p-4">
+      <p className="type-body font-semibold text-foreground">{title}</p>
+      <p className="mt-1 type-label leading-5 text-muted-foreground">{description}</p>
+    </div>
+  )
 }
 
 function referenceCountLabel(referenceCount: number, assetCount: number) {
   return `${referenceCount} 个设定 · ${assetCount} 个素材`
-}
-
-function CompactMetric({ label, value, detail }: { label: string; value: number; detail?: string }) {
-  return <WorkbenchMetric label={label} value={value} detail={detail} compact className="min-w-20" />
 }

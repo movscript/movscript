@@ -1,6 +1,8 @@
+import { useEffect, useRef, useState } from 'react'
 import { Handle, Position, NodeResizer } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
-import type { CanvasNodeData, CanvasPortDef, RawResource } from '@/types'
+import { useQuery } from '@tanstack/react-query'
+import type { CanvasNodeData, CanvasPortDef, PublicModel, RawResource } from '@/types'
 import {
   FileText, Loader2, CheckCircle2, XCircle, Play,
   LogIn, LogOut, UserCheck, Sparkles, Check, X, Share2,
@@ -9,15 +11,17 @@ import {
 	  HardDrive,
 	} from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { api } from '@/lib/api'
+import { publicModelId, publicModelLabel } from '@/lib/modelDisplay'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { useTranslation } from 'react-i18next'
 import { CANVAS_NODE_META } from '../nodeCatalog'
+import { canvasDefaultParamValues, canvasGenerationParamDefs, canvasParamValue, updateCanvasParam } from '../canvasGenerationParams'
 import { CanvasToolActionCard } from '@/components/canvas/CanvasToolActionCard'
 import type { CanvasToolSlot, CanvasToolSlotState, CanvasToolSlotType } from '@/components/canvas/CanvasToolActionCard'
 import { CanvasIOActionCard } from '@/components/canvas/CanvasIOActionCard'
 import type { CanvasIOState } from '@/components/canvas/CanvasIOActionCard'
-import { GenResultCard } from '@/components/shared/GenResultCard'
 import { MediaViewer } from '@/components/shared/MediaViewer'
 
 const targetHandleStyle: React.CSSProperties = {
@@ -309,6 +313,24 @@ function pluginConfigItems(data: NodeDataWithHandlers) {
     .map((item) => ({ id: item.id, label: item.label, value: String(item.value) }))
 }
 
+function useCanvasGenerationModels(capability?: 'text' | 'image' | 'video', featureKey?: string) {
+  const { data = [] } = useQuery<PublicModel[]>({
+    queryKey: ['models', capability, featureKey],
+    queryFn: () => capability
+      ? api.get(`/models?capability=${capability}${featureKey ? `&feature=${featureKey}` : ''}`).then((r) => r.data)
+      : Promise.resolve([]),
+    enabled: !!capability,
+  })
+  return data
+}
+
+function selectedCanvasModel(data: CanvasNodeData, models: PublicModel[]) {
+  return models.find((model) => publicModelId(model) === data.modelId)
+    ?? models.find((model) => model.id === data.modelDbId)
+    ?? models[0]
+    ?? null
+}
+
 function HiddenPortHandles({
   inputs = [],
   outputs = [],
@@ -420,6 +442,7 @@ function resourceSinkPorts(): { inputs: CanvasPortDef[]; outputs: CanvasPortDef[
 type NodeDataWithHandlers = CanvasNodeData & {
   label: string
   availableResources?: RawResource[]
+  referenceResources?: RawResource[]
   pluginInputProperties?: Record<string, { title?: string; default?: string | number | boolean }>
   onRun?: () => void
   onUpdateContent?: (content: string) => void
@@ -427,6 +450,7 @@ type NodeDataWithHandlers = CanvasNodeData & {
   onUpdateOutputType?: (type: 'image' | 'video' | 'text') => void
   onUpdateModelId?: (modelId: string, modelDbId?: number) => void
   onUpdateAttachments?: (ids: number[]) => void
+  onUpdateParams?: (params: Record<string, unknown>) => void
   onApprove?: () => void
   onReject?: () => void
   onPush?: () => void
@@ -434,9 +458,92 @@ type NodeDataWithHandlers = CanvasNodeData & {
 
 function selectedInputResources(data: NodeDataWithHandlers) {
   const byId = new Map((data.availableResources ?? []).map((resource) => [resource.ID, resource]))
-  return (data.inputResourceIds ?? [])
-    .map((id) => byId.get(id))
-    .filter((resource): resource is RawResource => !!resource)
+  const seen = new Set<number>()
+  const resources: RawResource[] = []
+  for (const id of data.inputResourceIds ?? []) {
+    const resource = byId.get(id)
+    if (!resource || seen.has(resource.ID)) continue
+    seen.add(resource.ID)
+    resources.push(resource)
+  }
+  for (const resource of data.referenceResources ?? []) {
+    if (seen.has(resource.ID)) continue
+    seen.add(resource.ID)
+    resources.push(resource)
+  }
+  return resources
+}
+
+async function fetchCanvasChipMediaUrl(resource: RawResource): Promise<string> {
+  if (resource.direct_url) return resource.direct_url
+  const src = `${API_BASE}${resource.url}`
+  const res = await api.get(src, { baseURL: '', responseType: 'blob' })
+  return URL.createObjectURL(res.data)
+}
+
+function buildCanvasChipElement(resource: RawResource): { chip: HTMLElement; media: HTMLImageElement | HTMLVideoElement } {
+  const chip = document.createElement('span')
+  chip.contentEditable = 'false'
+  chip.dataset.resourceName = resource.name
+  chip.dataset.resourceId = String(resource.ID)
+  chip.style.cssText = 'display:inline-flex;align-items:center;gap:3px;vertical-align:middle;background:hsl(var(--muted));color:hsl(var(--foreground));border:1px solid hsl(var(--border));border-radius:6px;padding:1px 5px;margin:0 2px;font-size:12px;line-height:1.4;white-space:nowrap;cursor:default;'
+
+  let media: HTMLImageElement | HTMLVideoElement
+  if (resource.type === 'video') {
+    const video = document.createElement('video')
+    video.muted = true
+    video.playsInline = true
+    video.preload = 'metadata'
+    video.style.cssText = 'width:18px;height:18px;object-fit:cover;border-radius:3px;flex-shrink:0;background:hsl(var(--muted));'
+    chip.appendChild(video)
+    media = video
+  } else {
+    const image = document.createElement('img')
+    image.alt = resource.name
+    image.style.cssText = 'width:18px;height:18px;object-fit:cover;border-radius:3px;flex-shrink:0;background:hsl(var(--muted));'
+    chip.appendChild(image)
+    media = image
+  }
+
+  const label = document.createElement('span')
+  label.textContent = resource.name
+  label.style.cssText = 'max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'
+  chip.appendChild(label)
+
+  return { chip, media }
+}
+
+function serializeCanvasPrompt(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? ''
+  const el = node as HTMLElement
+  if (el.dataset?.resourceId) return `@[resource:${el.dataset.resourceId}]`
+  return Array.from(node.childNodes).map(serializeCanvasPrompt).join('')
+}
+
+function attachCanvasChipMedia(resource: RawResource, media: HTMLImageElement | HTMLVideoElement, editor: HTMLElement | null, objectUrls: Set<string>) {
+  fetchCanvasChipMediaUrl(resource).then((mediaUrl) => {
+    let target: HTMLImageElement | HTMLVideoElement | null = media
+    if (!media.isConnected && editor) {
+      const chip = editor.querySelector(`[data-resource-id="${resource.ID}"]`)
+      target = chip?.querySelector('img, video') as HTMLImageElement | HTMLVideoElement | null
+    }
+    if (!target) {
+      if (mediaUrl.startsWith('blob:')) URL.revokeObjectURL(mediaUrl)
+      return
+    }
+    if (target.src.startsWith('blob:')) {
+      URL.revokeObjectURL(target.src)
+      objectUrls.delete(target.src)
+    }
+    target.src = mediaUrl
+    if (mediaUrl.startsWith('blob:')) objectUrls.add(mediaUrl)
+    if (resource.type === 'video') {
+      const video = target as HTMLVideoElement
+      video.addEventListener('loadedmetadata', () => { video.currentTime = 0.1 }, { once: true })
+    }
+  }).catch((error) => {
+    console.error('[canvas mention chip] fetch failed', resource.url, error?.response?.status, error?.message)
+  })
 }
 
 function CanvasGenerationInputPanel({
@@ -449,37 +556,202 @@ function CanvasGenerationInputPanel({
   placeholder?: string
 }) {
   const { t } = useTranslation()
+  const editorRef = useRef<HTMLDivElement>(null)
+  const chipObjectUrlsRef = useRef<Set<string>>(new Set())
+  const mentionRangeRef = useRef<{ node: Text; start: number; end: number } | null>(null)
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const attachments = selectedInputResources(data)
+  const explicitResourceIds = new Set(data.inputResourceIds ?? [])
+  const mentionResources = attachments
+    .filter((resource) => resource.type === 'image' || resource.type === 'video')
+    .filter((resource) => !mentionQuery || resource.name.toLowerCase().includes(mentionQuery))
+    .slice(0, 8)
+  const resourceById = new Map(attachments.map((resource) => [resource.ID, resource]))
+
+  function editorText() {
+    return editorRef.current ? serializeCanvasPrompt(editorRef.current) : ''
+  }
+
+  function handleInput() {
+    const text = editorText()
+    data.onUpdatePrompt?.(text)
+
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) {
+      setMentionQuery(null)
+      return
+    }
+    const range = selection.getRangeAt(0)
+    const node = range.startContainer
+    if (node.nodeType !== Node.TEXT_NODE) {
+      mentionRangeRef.current = null
+      setMentionQuery(null)
+      return
+    }
+    const before = (node.textContent ?? '').slice(0, range.startOffset)
+    const match = before.match(/@([^\s@]*)$/)
+    if (match) {
+      mentionRangeRef.current = {
+        node: node as Text,
+        start: range.startOffset - match[0].length,
+        end: range.startOffset,
+      }
+      setMentionQuery(match[1].toLowerCase())
+    } else {
+      mentionRangeRef.current = null
+      setMentionQuery(null)
+    }
+  }
+
+  function insertMention(resource: RawResource) {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0 || !editorRef.current) return
+    let insertRange = selection.getRangeAt(0)
+    const mentionRange = mentionRangeRef.current
+    if (mentionRange && mentionRange.node.isConnected) {
+      const deleteRange = document.createRange()
+      deleteRange.setStart(mentionRange.node, mentionRange.start)
+      deleteRange.setEnd(mentionRange.node, mentionRange.end)
+      deleteRange.deleteContents()
+      insertRange = deleteRange
+      selection.removeAllRanges()
+      selection.addRange(insertRange)
+    } else {
+      const node = insertRange.startContainer
+      if (node.nodeType === Node.TEXT_NODE) {
+        const before = (node.textContent ?? '').slice(0, insertRange.startOffset)
+        const match = before.match(/@([^\s@]*)$/)
+        if (match) {
+          const deleteRange = document.createRange()
+          deleteRange.setStart(node, insertRange.startOffset - match[0].length)
+          deleteRange.setEnd(node, insertRange.startOffset)
+          deleteRange.deleteContents()
+          insertRange = deleteRange
+          selection.removeAllRanges()
+          selection.addRange(insertRange)
+        }
+      }
+    }
+
+    const { chip, media } = buildCanvasChipElement(resource)
+    const space = document.createTextNode(' ')
+    insertRange.insertNode(space)
+    insertRange.insertNode(chip)
+
+    const nextRange = document.createRange()
+    nextRange.setStartAfter(space)
+    nextRange.collapse(true)
+    selection.removeAllRanges()
+    selection.addRange(nextRange)
+
+    setMentionQuery(null)
+    mentionRangeRef.current = null
+    data.onUpdatePrompt?.(editorText())
+    attachCanvasChipMedia(resource, media, editorRef.current, chipObjectUrlsRef.current)
+  }
+
+  useEffect(() => {
+    const editor = editorRef.current
+    if (!editor) return
+    const prompt = data.prompt ?? ''
+    if (serializeCanvasPrompt(editor) === prompt) return
+    for (const url of chipObjectUrlsRef.current) URL.revokeObjectURL(url)
+    chipObjectUrlsRef.current.clear()
+    editor.innerHTML = ''
+    const pattern = /@\[resource:(\d+)\]\s?/g
+    let lastIndex = 0
+    let match: RegExpExecArray | null
+    while ((match = pattern.exec(prompt)) !== null) {
+      const before = prompt.slice(lastIndex, match.index)
+      if (before) editor.appendChild(document.createTextNode(before))
+      const resource = resourceById.get(Number(match[1]))
+      if (resource) {
+        const { chip, media } = buildCanvasChipElement(resource)
+        editor.appendChild(chip)
+        editor.appendChild(document.createTextNode(' '))
+        attachCanvasChipMedia(resource, media, editor, chipObjectUrlsRef.current)
+      } else {
+        editor.appendChild(document.createTextNode(match[0]))
+      }
+      lastIndex = pattern.lastIndex
+    }
+    const after = prompt.slice(lastIndex)
+    if (after) editor.appendChild(document.createTextNode(after))
+  }, [data.prompt, resourceById])
+
+  useEffect(() => {
+    return () => {
+      for (const url of chipObjectUrlsRef.current) URL.revokeObjectURL(url)
+      chipObjectUrlsRef.current.clear()
+    }
+  }, [])
+
   return (
     <div
-      className="nodrag nowheel rounded-lg border border-border/80 bg-background px-2.5 py-2"
+      className="nodrag nowheel relative rounded-lg border border-border/80 bg-background px-2.5 py-2"
       onMouseDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
     >
-      <textarea
-        className="min-h-[72px] w-full resize-none bg-transparent px-1 py-1 type-body leading-relaxed text-foreground outline-none placeholder:text-muted-foreground"
-        placeholder={placeholder ?? (inputType ? t(`shared.genInput.promptPlaceholder.${inputType}`, { defaultValue: t('shared.generation.promptPlaceholder') }) : t('shared.generation.promptPlaceholder'))}
-        value={data.prompt ?? ''}
-        onChange={(event) => data.onUpdatePrompt?.(event.target.value)}
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        className="mention-editor min-h-[72px] w-full bg-transparent px-1 py-1 type-body leading-relaxed text-foreground outline-none"
+        data-placeholder={placeholder ?? (inputType ? t(`shared.genInput.promptPlaceholder.${inputType}`, { defaultValue: t('shared.generation.promptPlaceholder') }) : t('shared.generation.promptPlaceholder'))}
+        onInput={handleInput}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') setMentionQuery(null)
+        }}
       />
+      {mentionQuery !== null && (
+        <div className="absolute bottom-full left-2 right-2 z-30 mb-1 max-h-44 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg">
+          {mentionResources.length === 0 ? (
+            <p className="px-2.5 py-2 type-label text-muted-foreground">
+              {attachments.length === 0 ? t('shared.genInput.addResourcesFirst') : t('shared.genInput.noMatchedResources')}
+            </p>
+          ) : mentionResources.map((resource) => (
+              <button
+                key={resource.ID}
+                type="button"
+                className="flex w-full items-center gap-2 px-2.5 py-2 text-left type-label transition-colors hover:bg-muted/60"
+                onMouseDown={(event) => {
+                  event.preventDefault()
+                  insertMention(resource)
+                }}
+              >
+                <span className="h-7 w-7 shrink-0 overflow-hidden rounded-md bg-muted">
+                  <MediaViewer resource={resource} className="h-full w-full" lightbox={false} />
+                </span>
+                <span className="min-w-0 flex-1 truncate text-foreground">{resource.name}</span>
+                <span className="shrink-0 type-tiny text-muted-foreground">#{resource.ID}</span>
+              </button>
+            ))}
+        </div>
+      )}
       {attachments.length > 0 ? (
         <div className="flex flex-wrap gap-1.5 border-t border-border/50 pt-2">
-          {attachments.map((resource, index) => (
-            <div key={`${resource.ID}-${index}`} className="flex max-w-full items-center gap-1.5 rounded-full bg-muted px-2 py-1">
+          {attachments.map((resource) => {
+            const removable = explicitResourceIds.has(resource.ID)
+            return (
+            <div key={resource.ID} className="flex max-w-full items-center gap-1.5 rounded-full bg-muted px-2 py-1">
               <span className="h-6 w-6 shrink-0 overflow-hidden rounded-full bg-background">
                 <MediaViewer resource={resource} className="h-full w-full" lightbox={false} />
               </span>
               <span className="max-w-[140px] truncate type-label text-foreground">{resource.name}</span>
-              <button
-                type="button"
-                className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-                onClick={() => data.onUpdateAttachments?.((data.inputResourceIds ?? []).filter((_, itemIndex) => itemIndex !== index))}
-                aria-label={t('common.remove', { defaultValue: 'Remove' })}
-              >
-                <X size={10} />
-              </button>
+              {removable ? (
+                <button
+                  type="button"
+                  className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={() => data.onUpdateAttachments?.((data.inputResourceIds ?? []).filter((id) => id !== resource.ID))}
+                  aria-label={t('common.remove', { defaultValue: 'Remove' })}
+                >
+                  <X size={10} />
+                </button>
+              ) : (
+                <span className="shrink-0 type-micro text-muted-foreground">{t('canvas.editor.connected', { defaultValue: 'Connected' })}</span>
+              )}
             </div>
-          ))}
+          )})}
         </div>
       ) : (
         <div className="border-t border-border/50 pt-2 type-caption text-muted-foreground">
@@ -490,6 +762,146 @@ function CanvasGenerationInputPanel({
   )
 }
 
+function CanvasGenerationParamControls({
+  nodeType,
+  data,
+  outputType,
+  models,
+  selectedModel,
+}: {
+  nodeType: string
+  data: NodeDataWithHandlers
+  outputType?: 'image' | 'video' | 'text'
+  models?: PublicModel[]
+  selectedModel?: PublicModel | null
+}) {
+  const { t } = useTranslation()
+  const [expanded, setExpanded] = useState(false)
+  const params = canvasGenerationParamDefs(nodeType, outputType, selectedModel)
+  const visibleParams = expanded ? params : params.slice(0, 2)
+  if (params.length === 0 && (!models || models.length === 0)) return null
+
+  return (
+    <div
+      className="nodrag nowheel rounded-lg border border-border/80 bg-muted/15 px-2.5 py-2"
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div className="mb-2 flex items-center gap-1.5 type-tiny font-medium text-muted-foreground">
+        <Wrench size={12} />
+        <span>{t('plugins.parameters')}</span>
+      </div>
+      {models && models.length > 0 && (
+        <label className="mb-2 block min-w-0 type-tiny text-muted-foreground">
+          <span className="mb-1 block truncate">{t('agents.model')}</span>
+          <select
+            className="h-7 w-full rounded-md border border-border bg-background px-1.5 type-tiny text-foreground outline-none"
+            value={selectedModel ? publicModelId(selectedModel) : ''}
+            onChange={(event) => {
+              const model = models.find((item) => publicModelId(item) === event.target.value)
+              if (!model) return
+              data.onUpdateModelId?.(publicModelId(model), model.id)
+              data.onUpdateParams?.(canvasDefaultParamValues(canvasGenerationParamDefs(nodeType, outputType, model)))
+            }}
+          >
+            {models.length === 0 && <option value="">{t('shared.modelSelector.noModels')}</option>}
+            {models.map((model) => (
+              <option key={model.id} value={publicModelId(model)}>{publicModelLabel(model)}</option>
+            ))}
+          </select>
+        </label>
+      )}
+      <div className="grid grid-cols-2 gap-2">
+        {visibleParams.map((param) => {
+          const value = canvasParamValue(data, param)
+          const label = param.label || param.key
+          if (param.type === 'select' && param.options) {
+            return (
+              <label key={param.key} className="min-w-0 type-tiny text-muted-foreground">
+                <span className="mb-1 block truncate">{label}</span>
+                <select
+                  className="h-7 w-full rounded-md border border-border bg-background px-1.5 type-tiny text-foreground outline-none"
+                  value={String(value)}
+                  onChange={(event) => data.onUpdateParams?.(updateCanvasParam(data, param.key, event.target.value))}
+                >
+                  {param.options.map((option) => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </label>
+            )
+          }
+          if (param.type === 'number') {
+            return (
+              <label key={param.key} className="min-w-0 type-tiny text-muted-foreground">
+                <span className="mb-1 block truncate">{label}</span>
+                <input
+                  type="number"
+                  className="h-7 w-full rounded-md border border-border bg-background px-1.5 type-tiny text-foreground outline-none"
+                  value={Number.isFinite(Number(value)) ? Number(value) : ''}
+                  min={param.min}
+                  max={param.max}
+                  step={param.step ?? 1}
+                  onChange={(event) => data.onUpdateParams?.(updateCanvasParam(data, param.key, event.target.value === '' ? '' : Number(event.target.value)))}
+                />
+              </label>
+            )
+          }
+          if (param.type === 'boolean') {
+            return (
+              <label key={param.key} className="flex min-w-0 items-center gap-2 rounded-md border border-border bg-background px-2 py-1.5 type-tiny text-foreground">
+                <input
+                  type="checkbox"
+                  checked={value === true || value === 'true'}
+                  onChange={(event) => data.onUpdateParams?.(updateCanvasParam(data, param.key, event.target.checked))}
+                />
+                <span className="truncate">{label}</span>
+              </label>
+            )
+          }
+          return (
+            <label key={param.key} className="min-w-0 type-tiny text-muted-foreground">
+              <span className="mb-1 block truncate">{label}</span>
+              <input
+                className="h-7 w-full rounded-md border border-border bg-background px-1.5 type-tiny text-foreground outline-none"
+                value={String(value)}
+                onChange={(event) => data.onUpdateParams?.(updateCanvasParam(data, param.key, event.target.value))}
+              />
+            </label>
+          )
+        })}
+      </div>
+      {params.length > 2 && (
+        <button
+          type="button"
+          className="mt-2 w-full rounded-md border border-border bg-background px-2 py-1 type-tiny text-muted-foreground transition-colors hover:text-foreground"
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded
+            ? t('common.collapse', { defaultValue: 'Collapse' })
+            : t('common.expand', { defaultValue: `More parameters (${params.length - 2})` })}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function toolConfigItems(nodeType: string, data: CanvasNodeData, outputType?: 'image' | 'video' | 'text', selectedModel?: PublicModel | null) {
+  const params = canvasGenerationParamDefs(nodeType, outputType, selectedModel)
+  const items = [
+    { id: 'model', label: '模型', value: selectedModel ? publicModelLabel(selectedModel) : data.modelId || (data.modelDbId ? `#${data.modelDbId}` : '默认') },
+    ...params.map((param) => ({
+      id: param.key,
+      label: param.label || param.key,
+      value: formatCanvasParamValue(canvasParamValue(data, param)),
+    })),
+  ]
+  return items.filter((item) => item.value !== '').slice(0, 3)
+}
+
+function formatCanvasParamValue(value: string | number | boolean) {
+  if (value === '') return '默认'
+  return String(value)
+}
+
 function CanvasGenerationResultPanel({
   data,
   outputType,
@@ -498,17 +910,26 @@ function CanvasGenerationResultPanel({
   outputType: 'image' | 'video'
 }) {
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
+  const { t } = useTranslation()
+  const isRunning = status === 'pending' || status === 'running'
   if (status === 'idle' && !data.resource && !data.error) return null
   return (
-    <div className="nodrag nowheel">
-      <GenResultCard
-        prompt={data.prompt}
-        status={status}
-        outputResource={data.resource}
-        outputType={outputType}
-        error={data.error}
-        compact
-      />
+    <div className="nodrag nowheel overflow-hidden rounded-lg border border-border/80 bg-background shadow-sm">
+      {isRunning ? (
+        <div className="flex h-64 w-full items-center justify-center bg-muted/40 text-muted-foreground">
+          <Loader2 size={18} className="animate-spin" />
+        </div>
+      ) : status === 'failed' ? (
+        <div className="flex min-h-32 w-full items-center px-3 py-4 type-label text-destructive">
+          {data.error ?? t('pages.jobs.generationFailed')}
+        </div>
+      ) : data.resource ? (
+        <MediaViewer resource={data.resource} fit="contain" className="h-64 w-full bg-muted/40" lightbox />
+      ) : (
+        <div className="flex h-32 w-full items-center justify-center bg-muted/30 type-label text-muted-foreground">
+          {outputType === 'video' ? <Video size={20} /> : <Image size={20} />}
+        </div>
+      )}
     </div>
   )
 }
@@ -582,9 +1003,9 @@ function NodeHeader({ icon, label, status, actions, accent }: {
 }
 
 function StatusPip({ status }: { status: string }) {
-  if (status === 'running' || status === 'pending') return <Loader2 size={11} className="animate-spin text-amber-500 shrink-0" />
-  if (status === 'done') return <CheckCircle2 size={11} className="text-emerald-500 shrink-0" />
-  if (status === 'failed') return <XCircle size={11} className="text-destructive shrink-0" />
+  if (status === 'running' || status === 'pending') return <Loader2 size={12} className="animate-spin text-amber-500 shrink-0" />
+  if (status === 'done') return <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
+  if (status === 'failed') return <XCircle size={12} className="text-destructive shrink-0" />
   return null
 }
 
@@ -592,7 +1013,7 @@ function RunBtn({ onClick, disabled }: { onClick?: () => void; disabled?: boolea
   return (
     <button onClick={onClick} disabled={disabled}
       className="shrink-0 p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40">
-      <Play size={11} />
+      <Play size={12} />
     </button>
   )
 }
@@ -602,7 +1023,7 @@ function PushBtn({ onClick }: { onClick?: () => void }) {
   return (
     <button onClick={onClick} title={t('canvas.pushToEntity')}
       className="shrink-0 p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-      <Share2 size={11} />
+      <Share2 size={12} />
     </button>
   )
 }
@@ -715,6 +1136,8 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
     : Wrench
   const isRunning = status === 'pending' || status === 'running'
   const isGenerationTool = type !== 'canvas'
+  const models = useCanvasGenerationModels(isGenerationTool ? meta.capability : undefined, isGenerationTool ? meta.featureKey : undefined)
+  const selectedModel = selectedCanvasModel(data, models)
 
   return (
     <ToolCardNodeFrame nodeType={type} data={data}>
@@ -727,11 +1150,13 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
         status={nodeStatusLabel(status)}
         selected={selected}
         inputs={toolInputSlots(type, data, t)}
-        inputPanel={isGenerationTool ? <CanvasGenerationInputPanel data={data} inputType={meta.inputType} /> : undefined}
-        configs={[
-          { id: 'model', label: '模型', value: data.modelId || (data.modelDbId ? `#${data.modelDbId}` : '默认') },
-          { id: 'mode', label: '类型', value: metaLabel },
-        ]}
+        inputPanel={isGenerationTool ? (
+          <>
+            <CanvasGenerationInputPanel data={data} inputType={meta.inputType} />
+            <CanvasGenerationParamControls nodeType={type} data={data} outputType={meta.outputType} models={models} selectedModel={selectedModel} />
+          </>
+        ) : undefined}
+        configs={toolConfigItems(type, data, meta.outputType, selectedModel)}
         outputs={toolOutputSlots(type, data, t)}
         resultPanel={isGenerationTool ? <CanvasGenerationResultPanel data={data} outputType={meta.outputType} /> : undefined}
         primaryAction={data.onRun ? { id: 'run', label: isRunning ? '运行中' : '运行', icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
@@ -908,11 +1333,11 @@ export function ApprovalNode({ data, selected }: NodeProps & { data: NodeDataWit
           <div className="flex gap-1.5 mt-0.5">
             <button onMouseDown={e => { e.stopPropagation(); data.onApprove?.() }}
               className="flex-1 flex items-center justify-center gap-0.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg py-1.5 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 type-tiny transition-colors">
-              <Check size={9} /> {t('canvas.approval.approve')}
+              <Check size={10} /> {t('canvas.approval.approve')}
             </button>
             <button onMouseDown={e => { e.stopPropagation(); data.onReject?.() }}
               className="flex-1 flex items-center justify-center gap-0.5 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800 rounded-lg py-1.5 hover:bg-rose-100 dark:hover:bg-rose-900/40 type-tiny transition-colors">
-              <X size={9} /> {t('canvas.approval.reject')}
+              <X size={10} /> {t('canvas.approval.reject')}
             </button>
           </div>
         )}
@@ -925,6 +1350,8 @@ export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWith
   const { t } = useTranslation()
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
   const isRunning = status === 'pending' || status === 'running'
+  const models = useCanvasGenerationModels('text', 'canvas_text')
+  const selectedModel = selectedCanvasModel(data, models)
   return (
     <ToolCardNodeFrame nodeType="text_gen" data={data}>
       <CanvasToolActionCard
@@ -936,10 +1363,13 @@ export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWith
         status={nodeStatusLabel(status)}
         selected={selected}
         inputs={toolInputSlots('text_gen', data, t)}
-        inputPanel={<CanvasGenerationInputPanel data={data} placeholder={t('shared.generation.promptPlaceholder')} />}
-        configs={[
-          { id: 'model', label: '模型', value: data.modelId || (data.modelDbId ? `#${data.modelDbId}` : '默认') },
-        ]}
+        inputPanel={(
+          <>
+            <CanvasGenerationInputPanel data={data} placeholder={t('shared.generation.promptPlaceholder')} />
+            <CanvasGenerationParamControls nodeType="text_gen" data={data} outputType="text" models={models} selectedModel={selectedModel} />
+          </>
+        )}
+        configs={toolConfigItems('text_gen', data, 'text', selectedModel)}
         outputs={toolOutputSlots('text_gen', { ...data, resource: data.resource, status }, t)}
         resultPanel={<CanvasTextGenerationResultPanel data={data} />}
         primaryAction={data.onRun ? { id: 'run', label: isRunning ? '运行中' : '运行', icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
@@ -964,6 +1394,8 @@ export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHa
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
   const outputType = (data.outputType ?? 'image') as 'image' | 'video' | 'text'
   const isRunning = status === 'pending' || status === 'running'
+  const models = useCanvasGenerationModels(outputType, `canvas_${outputType}`)
+  const selectedModel = selectedCanvasModel(data, models)
   const outputSlots = toolOutputSlots('ai_gen', data, t).map((slot) => ({
     ...slot,
     type: outputType,
@@ -980,10 +1412,15 @@ export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHa
         status={nodeStatusLabel(status)}
         selected={selected}
         inputs={toolInputSlots('ai_gen', data, t)}
-        inputPanel={<CanvasGenerationInputPanel data={data} inputType={outputType === 'video' ? 'video' : 'image'} />}
+        inputPanel={(
+          <>
+            <CanvasGenerationInputPanel data={data} inputType={outputType === 'video' ? 'video' : 'image'} />
+            <CanvasGenerationParamControls nodeType="ai_gen" data={data} outputType={outputType} models={models} selectedModel={selectedModel} />
+          </>
+        )}
         configs={[
           { id: 'outputType', label: '输出', value: t(OUTPUT_TYPES.find((item) => item.value === outputType)?.label ?? 'canvas.outputTypes.image') },
-          { id: 'model', label: '模型', value: data.modelId || (data.modelDbId ? `#${data.modelDbId}` : '默认') },
+          ...toolConfigItems('ai_gen', data, outputType, selectedModel),
         ]}
         outputs={outputSlots}
         resultPanel={outputType === 'text' ? <CanvasTextGenerationResultPanel data={data} /> : <CanvasGenerationResultPanel data={data} outputType={outputType} />}

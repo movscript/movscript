@@ -339,7 +339,7 @@ export function ContentUnitEditCards({
 
   if (!row) {
     return (
-      <div className="min-h-[180px] bg-background p-3" data-testid="content-workbench-unit-edit-cards">
+      <div className="min-h-[180px] py-3" data-testid="content-workbench-unit-edit-cards">
         <div className="rounded-md border border-dashed border-border px-3 py-8 text-center type-body text-muted-foreground">
           <p className="font-medium text-foreground">先选择一个情节</p>
           <p className="mt-1 type-label leading-5">内容编辑卡片会跟随情节里的制作项显示。</p>
@@ -350,7 +350,7 @@ export function ContentUnitEditCards({
 
   if (!unit) {
     return (
-      <div className="min-h-[180px] bg-background p-3" data-testid="content-workbench-unit-edit-cards">
+      <div className="min-h-[180px] py-3" data-testid="content-workbench-unit-edit-cards">
         <div className="rounded-md border border-dashed border-border px-3 py-6 type-body text-muted-foreground">
           <p className="font-medium text-foreground">选择或创建制作项</p>
           <p className="mt-1 type-label leading-5">卡片内会编辑标题、时长、创作目标、prompt、素材和关键帧输入。</p>
@@ -365,12 +365,12 @@ export function ContentUnitEditCards({
           ) : null}
           <div className="mt-4 flex flex-wrap gap-2">
             <Button size="sm" className="gap-1.5" onClick={onCreateUnit}>
-              <Plus size={13} />
+              <Plus size={14} />
               新建制作项
             </Button>
             {onAiSuggest ? (
               <Button size="sm" variant="outline" className="gap-1.5" onClick={onAiSuggest}>
-                <Sparkles size={13} />
+                <Sparkles size={14} />
                 让 AI 规划
               </Button>
             ) : null}
@@ -381,9 +381,9 @@ export function ContentUnitEditCards({
   }
 
   return (
-    <div className="min-h-[180px] bg-background p-3" data-testid="content-workbench-unit-edit-cards">
+    <div className="min-h-[180px] py-3" data-testid="content-workbench-unit-edit-cards">
       <div className={cn('grid gap-3', compact ? '' : 'xl:grid-cols-[minmax(0,1.05fr)_minmax(300px,.95fr)]')}>
-        <section className="rounded-md border border-border bg-card p-3" data-testid="content-workbench-edit-summary-card">
+        <section className="border-t border-border pt-3" data-testid="content-workbench-edit-summary-card">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
@@ -406,7 +406,7 @@ export function ContentUnitEditCards({
                 onClick={removeUnit}
                 data-testid="content-workbench-unit-edit-delete"
               >
-                <Trash2 size={13} />
+                <Trash2 size={14} />
                 删除
               </Button>
               <Button
@@ -417,7 +417,7 @@ export function ContentUnitEditCards({
                 onClick={() => saveUnit.mutate()}
                 data-testid="content-workbench-unit-edit-save"
               >
-                <CheckCircle2 size={13} />
+                <CheckCircle2 size={14} />
                 保存
               </Button>
             </div>
@@ -486,7 +486,7 @@ export function ContentUnitEditCards({
           onGenerateKeyframes={(targets) => generateKeyframes.mutate(targets as ContentUnitEditRecord[])}
         />
 
-        <section className={cn('rounded-md border border-border bg-card p-3', compact ? '' : 'xl:col-span-2')} data-testid="content-workbench-edit-goal-card">
+        <section className={cn('border-t border-border pt-3', compact ? '' : 'xl:col-span-2')} data-testid="content-workbench-edit-goal-card">
           <div className={cn('grid gap-3', compact ? '' : 'lg:grid-cols-2')}>
             <div className="space-y-1.5">
               <Label htmlFor={`content-unit-description-${unit.ID}`} className="type-label">要做什么</Label>

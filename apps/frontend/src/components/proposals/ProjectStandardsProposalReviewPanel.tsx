@@ -117,7 +117,7 @@ export function ProjectStandardsProposalReviewPanel({
                         <p className="type-tiny font-medium text-muted-foreground">{row.label}</p>
                         <div className="mt-1 flex items-start gap-1.5 type-tiny leading-4">
                           <span className="min-w-0 flex-1 truncate text-muted-foreground line-through">{row.before || '未设置'}</span>
-                          <ArrowRight size={9} className="mt-0.5 shrink-0 text-muted-foreground" />
+                          <ArrowRight size={10} className="mt-0.5 shrink-0 text-muted-foreground" />
                           <span className={cn('min-w-0 flex-1 whitespace-pre-wrap', row.changed ? 'text-foreground' : 'text-muted-foreground')}>{row.after}</span>
                         </div>
                       </div>

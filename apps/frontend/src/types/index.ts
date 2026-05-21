@@ -813,6 +813,7 @@ export interface CanvasNodeData {
   modelDbId?: number    // legacy AIModelConfig primary key kept for old canvases/audit
   referencedCanvasId?: number                            // workflow canvas used by a canvas reference node
   inputResourceIds?: number[]                             // selected resource inputs for full tool cards
+  params?: Record<string, unknown>                        // generation parameters for canvas AI nodes
   status?: CanvasTaskStatus
   taskId?: number
   error?: string

@@ -582,19 +582,19 @@ export default function VideoEditPage() {
             onChange={event => void importProjectFile(event.target.files?.[0])}
           />
           <Button variant="outline" size="sm" onClick={() => importFileRef.current?.click()}>
-            <FolderOpen size={13} />
+            <FolderOpen size={14} />
             导入 JSON
           </Button>
           <Button variant="outline" size="sm" onClick={saveProject}>
-            <Save size={13} />
+            <Save size={14} />
             {savedState === 'saved' ? '已保存' : '保存'}
           </Button>
           <Button variant="outline" size="sm" onClick={exportVideo} disabled={rendering}>
-            <FileVideo size={13} />
+            <FileVideo size={14} />
             {rendering ? '渲染中' : '导出视频'}
           </Button>
           <Button size="sm" onClick={exportProject}>
-            <Download size={13} />
+            <Download size={14} />
             导出 JSON
           </Button>
         </div>
@@ -859,7 +859,7 @@ function TimelineEditor({
             aria-label="缩小时间线"
             title="缩小时间线"
           >
-            <ZoomOut size={13} />
+            <ZoomOut size={14} />
           </button>
           <button
             type="button"
@@ -869,7 +869,7 @@ function TimelineEditor({
             aria-label="放大时间线"
             title="放大时间线"
           >
-            <ZoomIn size={13} />
+            <ZoomIn size={14} />
           </button>
         </div>
       </div>
@@ -884,8 +884,8 @@ function TimelineEditor({
             ))}
           </div>
           {timeline.markers.map(marker => (
-            <div key={marker.id} className="absolute bottom-0 top-7 z-10 w-px bg-amber-500/70" style={{ left: `${marker.atMs / durationMs * 100}%` }}>
-              <span className="absolute left-1 top-0 max-w-28 truncate rounded bg-amber-500 px-1.5 py-0.5 type-tiny text-white">{marker.label}</span>
+            <div key={marker.id} className="absolute bottom-0 top-7 z-10 w-px bg-primary/70" style={{ left: `${marker.atMs / durationMs * 100}%` }}>
+              <span className="absolute left-1 top-0 max-w-28 truncate rounded bg-primary px-1.5 py-0.5 type-tiny text-primary-foreground">{marker.label}</span>
             </div>
           ))}
           <div className="space-y-2 pt-3">
@@ -1116,10 +1116,7 @@ function TrackLane({
                 'absolute top-1 flex min-w-12 flex-col items-start justify-center overflow-hidden rounded-md border px-2 text-left type-caption shadow-sm transition-colors',
                 track.collapsed ? 'h-5' : 'h-12',
                 track.locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing',
-                clip.kind === 'video' && 'border-sky-500/50 bg-sky-500/15 text-sky-800 dark:text-sky-200',
-                clip.kind === 'overlay' && 'border-violet-500/50 bg-violet-500/15 text-violet-800 dark:text-violet-200',
-                clip.kind === 'caption' && 'border-amber-500/60 bg-amber-500/15 text-amber-800 dark:text-amber-100',
-                clip.kind === 'audio' && 'border-emerald-500/50 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200',
+                clipKindClass(clip.kind),
                 selectedClipId === clip.id && 'ring-2 ring-primary',
                 drag?.clip.id === clip.id && 'z-30 ring-2 ring-primary'
               )}
@@ -1168,7 +1165,7 @@ function ClipMediaPreview({
   waveform?: number[]
 }) {
   if (clip.kind === 'caption') {
-    return <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(245,158,11,0.18)_1px,transparent_1px)] bg-[length:18px_100%]" />
+    return <div className="absolute inset-0 bg-[linear-gradient(90deg,hsl(var(--border)/0.5)_1px,transparent_1px)] bg-[length:18px_100%]" />
   }
   if (clip.kind === 'audio') {
     return <WaveformPreview peaks={waveform ?? fallbackWaveform(clip.resourceId ?? clip.id.length)} />
@@ -1188,9 +1185,23 @@ function ClipMediaPreview({
     )
   }
   if (resource?.type === 'video' || clip.kind === 'video') {
-    return <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(14,165,233,0.22)_1px,transparent_1px)] bg-[length:16px_100%]" />
+    return <div className="absolute inset-0 bg-[linear-gradient(90deg,hsl(var(--border)/0.55)_1px,transparent_1px)] bg-[length:16px_100%]" />
   }
-  return <div className="absolute inset-0 bg-white/5" />
+  return <div className="absolute inset-0 bg-muted/20" />
+}
+
+function clipKindClass(kind: VideoEditClip['kind']) {
+  switch (kind) {
+    case 'overlay':
+      return 'border-border bg-muted/60 text-foreground'
+    case 'caption':
+      return 'border-border border-dashed bg-muted/70 text-foreground'
+    case 'audio':
+      return 'border-border bg-muted/40 text-foreground'
+    case 'video':
+    default:
+      return 'border-border bg-card text-foreground'
+  }
 }
 
 function WaveformPreview({ peaks }: { peaks: number[] }) {
@@ -1319,7 +1330,7 @@ function Inspector({
           placeholder="粘贴分行文案，或粘贴 SRT 字幕"
         />
         <Button className="mt-2 w-full" size="sm" onClick={onApplyScript}>
-          <Plus size={13} />
+          <Plus size={14} />
           从当前播放头生成字幕轨
         </Button>
       </Panel>

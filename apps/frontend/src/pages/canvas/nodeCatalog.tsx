@@ -15,7 +15,6 @@ import {
   Sparkles,
   UserCheck,
   Video,
-  Wand2,
 } from 'lucide-react'
 import type { CanvasNodeData, CanvasPortDef, NodeType } from '@/types'
 
@@ -147,21 +146,8 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     defaultData: { source: 'upload', label: 'Video' },
   },
   {
-    type: 'ai_gen',
-    label: 'AI Generation',
-    labelKey: 'canvas.catalog.nodes.ai_gen.label',
-    description: 'Generate image, video, or text by target type.',
-    descriptionKey: 'canvas.catalog.nodes.ai_gen.description',
-    defaultLabelKey: 'canvas.nodeLabels.ai_gen',
-    category: 'ai',
-    icon: Wand2,
-    inputs: [port('prompt', 'text'), port('references', 'resource')],
-    outputs: [port('result', 'resource')],
-    defaultData: { source: 'ai', label: 'AI Generation', outputType: 'image' },
-  },
-  {
     type: 'text_gen',
-    label: 'AI Text Generation',
+    label: 'Text Generation',
     labelKey: 'canvas.catalog.nodes.text_gen.label',
     description: 'Expand, summarize, or rewrite from upstream content.',
     descriptionKey: 'canvas.catalog.nodes.text_gen.description',
@@ -170,7 +156,7 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     icon: Sparkles,
     inputs: [port('prompt', 'text'), port('context', 'text')],
     outputs: [port('text', 'text')],
-    defaultData: { source: 'ai', label: 'AI Text Generation' },
+    defaultData: { source: 'ai', label: 'Text Generation' },
   },
   {
     type: 'ref_image_gen',

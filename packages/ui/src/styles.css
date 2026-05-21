@@ -1,4 +1,6 @@
 .ms-button {
+  --ms-button-icon-size: var(--ms-icon-md);
+
   display: inline-flex;
   min-width: 0;
   flex-shrink: 0;
@@ -42,6 +44,8 @@
 }
 
 .ms-button--xs {
+  --ms-button-icon-size: var(--ms-icon-xs);
+
   height: var(--ms-button-xs-height);
   padding: 0 var(--ms-button-xs-padding-x);
   border-radius: var(--ms-radius-sm);
@@ -49,6 +53,8 @@
 }
 
 .ms-button--sm {
+  --ms-button-icon-size: var(--ms-icon-sm);
+
   height: var(--ms-button-sm-height);
   padding: 0 var(--ms-button-sm-padding-x);
   font-size: var(--ms-text-body-sm);
@@ -73,6 +79,8 @@
 }
 
 .ms-button--icon-xs {
+  --ms-button-icon-size: var(--ms-icon-xs);
+
   width: var(--ms-button-icon-xs-size);
   height: var(--ms-button-icon-xs-size);
   padding: 0;
@@ -80,6 +88,8 @@
 }
 
 .ms-button--icon-sm {
+  --ms-button-icon-size: var(--ms-icon-sm);
+
   width: var(--ms-button-icon-sm-size);
   height: var(--ms-button-icon-sm-size);
   padding: 0;
@@ -154,8 +164,8 @@
 }
 
 .ms-button__spinner {
-  width: 14px;
-  height: 14px;
+  width: var(--ms-button-icon-size);
+  height: var(--ms-button-icon-size);
   border: 2px solid currentColor;
   border-right-color: transparent;
   border-radius: var(--ms-radius-full);
@@ -163,8 +173,8 @@
 }
 
 .ms-button svg {
-  width: 16px;
-  height: 16px;
+  width: var(--ms-button-icon-size);
+  height: var(--ms-button-icon-size);
   flex: 0 0 auto;
 }
 
@@ -518,8 +528,8 @@
 }
 
 .ms-dialog__close svg {
-  width: 16px;
-  height: 16px;
+  width: var(--ms-icon-md);
+  height: var(--ms-icon-md);
 }
 
 .ms-dialog__header {
@@ -613,8 +623,8 @@
   position: absolute;
   right: 8px;
   display: flex;
-  width: 16px;
-  height: 16px;
+  width: var(--ms-icon-md);
+  height: var(--ms-icon-md);
   align-items: center;
   justify-content: center;
 }
@@ -623,8 +633,8 @@
 .ms-select__indicator svg,
 .ms-dropdown__chevron,
 .ms-select__icon {
-  width: 16px;
-  height: 16px;
+  width: var(--ms-icon-md);
+  height: var(--ms-icon-md);
 }
 
 .ms-dropdown__chevron {
@@ -694,8 +704,8 @@
 }
 
 .ms-select__scroll-button svg {
-  width: 16px;
-  height: 16px;
+  width: var(--ms-icon-md);
+  height: var(--ms-icon-md);
 }
 
 .ms-scroll-area {
@@ -771,9 +781,35 @@
   --ms-agent-user-foreground: var(--ms-color-primary-foreground);
   --ms-agent-accent: var(--ms-color-accent);
   --ms-agent-warm: var(--ms-color-warning);
+  --ms-agent-sidebar-min: 220px;
+  --ms-agent-sidebar-max: 280px;
+  --ms-agent-context-min: 240px;
+  --ms-agent-context-max: 320px;
+  --ms-agent-header-min-height: 60px;
+  --ms-agent-header-padding-block: 11px;
+  --ms-agent-header-padding-inline: 16px;
+  --ms-agent-sidebar-header-min-height: 60px;
+  --ms-agent-sidebar-padding: 12px;
+  --ms-agent-sidebar-section-padding: 11px;
+  --ms-agent-conversation-min-height: 54px;
+  --ms-agent-conversation-gap: 9px;
+  --ms-agent-conversation-padding: 7px 9px 7px 7px;
+  --ms-agent-thread-gap: 16px;
+  --ms-agent-thread-padding-block: 20px;
+  --ms-agent-thread-padding-inline: clamp(14px, 3.2vw, 40px);
+  --ms-agent-message-gap: 10px;
+  --ms-agent-message-avatar-size: 28px;
+  --ms-agent-message-max-width: min(720px, calc(100% - 42px));
+  --ms-agent-message-padding: 10px 12px;
+  --ms-agent-message-line-height: 21px;
+  --ms-agent-composer-margin: 0 clamp(14px, 3.2vw, 40px) 16px;
+  --ms-agent-composer-padding: 9px;
+  --ms-agent-composer-control-size: 30px;
+  --ms-agent-composer-submit-size: 32px;
+  --ms-agent-context-padding: 12px;
 
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  grid-template-columns: minmax(var(--ms-agent-sidebar-min), var(--ms-agent-sidebar-max)) minmax(0, 1fr);
   width: 100%;
   min-height: 560px;
   height: min(760px, calc(100vh - 32px));
@@ -787,7 +823,7 @@
 }
 
 .ms-agent-shell:has(.ms-agent-context) {
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(240px, 320px);
+  grid-template-columns: minmax(var(--ms-agent-sidebar-min), var(--ms-agent-sidebar-max)) minmax(0, 1fr) minmax(var(--ms-agent-context-min), var(--ms-agent-context-max));
 }
 
 .ms-agent-shell > .ms-agent-main:first-child {
@@ -795,6 +831,32 @@
 }
 
 .ms-agent-shell--compact {
+  --ms-agent-sidebar-min: 192px;
+  --ms-agent-sidebar-max: 248px;
+  --ms-agent-context-min: 216px;
+  --ms-agent-context-max: 284px;
+  --ms-agent-header-min-height: 48px;
+  --ms-agent-header-padding-block: 8px;
+  --ms-agent-header-padding-inline: 12px;
+  --ms-agent-sidebar-header-min-height: 48px;
+  --ms-agent-sidebar-padding: 10px;
+  --ms-agent-sidebar-section-padding: 9px;
+  --ms-agent-conversation-min-height: 48px;
+  --ms-agent-conversation-gap: 8px;
+  --ms-agent-conversation-padding: 6px 8px 6px 6px;
+  --ms-agent-thread-gap: 13px;
+  --ms-agent-thread-padding-block: 14px;
+  --ms-agent-thread-padding-inline: 14px;
+  --ms-agent-message-gap: 8px;
+  --ms-agent-message-avatar-size: 26px;
+  --ms-agent-message-max-width: min(680px, calc(100% - 38px));
+  --ms-agent-message-padding: 9px 11px;
+  --ms-agent-message-line-height: 20px;
+  --ms-agent-composer-margin: 0 12px 12px;
+  --ms-agent-composer-padding: 8px;
+  --ms-agent-composer-control-size: 28px;
+  --ms-agent-composer-submit-size: 30px;
+  --ms-agent-context-padding: 10px;
   min-height: 480px;
 }
 
@@ -809,19 +871,19 @@
 
 .ms-agent-sidebar__header {
   display: flex;
-  min-height: 64px;
+  min-height: var(--ms-agent-sidebar-header-min-height);
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 14px;
+  gap: 10px;
+  padding: var(--ms-agent-sidebar-padding);
   border-bottom: 1px solid var(--ms-agent-line);
 }
 
 .ms-agent-sidebar__section {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px;
+  gap: 5px;
+  padding: var(--ms-agent-sidebar-section-padding);
 }
 
 .ms-agent-sidebar__title {
@@ -838,14 +900,14 @@
   display: grid;
   grid-template-columns: 4px minmax(0, 1fr) auto;
   width: 100%;
-  min-height: 58px;
+  min-height: var(--ms-agent-conversation-min-height);
   align-items: center;
-  gap: 10px;
+  gap: var(--ms-agent-conversation-gap);
   border: 1px solid transparent;
   border-radius: var(--ms-radius-md);
   background: transparent;
   color: var(--ms-color-foreground);
-  padding: 8px 10px 8px 8px;
+  padding: var(--ms-agent-conversation-padding);
   text-align: left;
   cursor: pointer;
   transition:
@@ -925,12 +987,12 @@
 
 .ms-agent-header {
   display: flex;
-  min-height: 64px;
+  min-height: var(--ms-agent-header-min-height);
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   border-bottom: 1px solid var(--ms-agent-line);
-  padding: 12px 18px;
+  padding: var(--ms-agent-header-padding-block) var(--ms-agent-header-padding-inline);
 }
 
 .ms-agent-header__content {
@@ -985,8 +1047,8 @@
 }
 
 .ms-agent-status__icon {
-  width: 10px;
-  height: 10px;
+  width: var(--ms-icon-2xs);
+  height: var(--ms-icon-2xs);
 }
 
 .ms-agent-status--ready .ms-agent-status__icon,
@@ -1028,9 +1090,9 @@
   height: 100%;
   min-height: 0;
   flex-direction: column;
-  gap: 18px;
+  gap: var(--ms-agent-thread-gap);
   overflow-y: auto;
-  padding: 22px clamp(16px, 4vw, 48px);
+  padding: var(--ms-agent-thread-padding-block) var(--ms-agent-thread-padding-inline);
   scroll-behavior: auto;
 }
 
@@ -1049,8 +1111,8 @@
 
 .ms-agent-empty__icon {
   display: inline-flex;
-  width: 46px;
-  height: 46px;
+  width: 40px;
+  height: 40px;
   align-items: center;
   justify-content: center;
   border: 1px solid color-mix(in srgb, var(--ms-agent-accent) 34%, var(--ms-agent-line));
@@ -1060,15 +1122,15 @@
 }
 
 .ms-agent-empty__icon svg {
-  width: 22px;
-  height: 22px;
+  width: var(--ms-icon-xl);
+  height: var(--ms-icon-xl);
 }
 
 .ms-agent-message {
   display: flex;
   width: 100%;
   min-width: 0;
-  gap: 11px;
+  gap: var(--ms-agent-message-gap);
 }
 
 .ms-agent-message--user {
@@ -1081,9 +1143,9 @@
 
 .ms-agent-message__avatar {
   display: flex;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
+  width: var(--ms-agent-message-avatar-size);
+  height: var(--ms-agent-message-avatar-size);
+  flex: 0 0 var(--ms-agent-message-avatar-size);
   align-items: center;
   justify-content: center;
   border: 1px solid var(--ms-agent-line);
@@ -1114,7 +1176,7 @@
 .ms-agent-message__body {
   display: flex;
   min-width: 0;
-  max-width: min(760px, calc(100% - 44px));
+  max-width: var(--ms-agent-message-max-width);
   flex-direction: column;
   gap: 7px;
 }
@@ -1144,10 +1206,10 @@
   border-top-left-radius: var(--ms-radius-xs);
   background: var(--ms-agent-assistant);
   color: var(--ms-color-foreground);
-  padding: 12px 14px;
+  padding: var(--ms-agent-message-padding);
   box-shadow: var(--ms-shadow-sm);
   font-size: var(--ms-text-body);
-  line-height: 22px;
+  line-height: var(--ms-agent-message-line-height);
 }
 
 .ms-agent-message--user .ms-agent-message__content {
@@ -1322,7 +1384,7 @@
   overflow: auto;
   border-left: 1px solid var(--ms-agent-line);
   background: var(--ms-color-background);
-  padding: 14px;
+  padding: var(--ms-agent-context-padding);
 }
 
 .ms-agent-metric {
@@ -1367,8 +1429,8 @@
 }
 
 .ms-agent-contextchip > svg {
-  width: 12px;
-  height: 12px;
+  width: var(--ms-icon-xs);
+  height: var(--ms-icon-xs);
   flex: 0 0 auto;
 }
 
@@ -1793,11 +1855,11 @@
 .ms-agent-composer {
   display: grid;
   gap: 8px;
-  margin: 0 clamp(16px, 4vw, 48px) 18px;
+  margin: var(--ms-agent-composer-margin);
   border: 1px solid var(--ms-agent-line);
   border-radius: var(--ms-radius-lg);
   background: color-mix(in srgb, var(--ms-color-surface) 92%, transparent);
-  padding: 10px;
+  padding: var(--ms-agent-composer-padding);
   box-shadow: var(--ms-shadow-md);
 }
 
@@ -1855,8 +1917,8 @@
 }
 
 .ms-agent-composer__action {
-  width: 32px;
-  height: 32px;
+  width: var(--ms-agent-composer-control-size);
+  height: var(--ms-agent-composer-control-size);
   background: transparent;
   color: var(--ms-color-muted-foreground);
 }
@@ -1869,8 +1931,8 @@
 }
 
 .ms-agent-composer__submit {
-  width: 34px;
-  height: 34px;
+  width: var(--ms-agent-composer-submit-size);
+  height: var(--ms-agent-composer-submit-size);
   background: var(--ms-color-background);
   color: var(--ms-color-foreground);
   border-color: var(--ms-agent-line);
@@ -1895,8 +1957,8 @@
 
 .ms-agent-composer__action svg,
 .ms-agent-composer__submit svg {
-  width: 17px;
-  height: 17px;
+  width: var(--ms-icon-md);
+  height: var(--ms-icon-md);
 }
 
 @keyframes ms-spin {

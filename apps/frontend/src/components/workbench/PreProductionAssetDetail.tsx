@@ -42,7 +42,7 @@ export function AssetSlotDetail({
 }) {
   if (!row) {
     return (
-      <section className="rounded-lg border border-border bg-card p-3">
+      <section className="pt-1">
         <EmptyPreview title="选择素材" description="查看可选素材，并选择或拒绝。" />
       </section>
     )
@@ -51,7 +51,7 @@ export function AssetSlotDetail({
   const preferredKind: CandidateGenerationKind = row.kind === 'video' ? 'video' : 'image'
   const canGenerate = row.kind === 'image' || row.kind === 'video'
   return (
-    <section className="space-y-3 rounded-lg border border-border bg-card p-3">
+    <section className="space-y-3 border-t border-border pt-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="type-label font-semibold text-foreground">可选素材</p>
@@ -73,16 +73,16 @@ export function AssetSlotDetail({
           <div className="flex flex-wrap justify-end gap-1.5">
             {canGenerate ? (
               <Button size="sm" variant="secondary" disabled={busy} onClick={() => onGenerateMediaCandidate(preferredKind)}>
-                {preferredKind === 'video' ? <Video size={13} /> : <Image size={13} />}
+                {preferredKind === 'video' ? <Video size={14} /> : <Image size={14} />}
                 生成候选
               </Button>
             ) : null}
             <Button size="sm" variant="outline" disabled={busy} onClick={onUploadCandidate}>
-              <Upload size={13} />
+              <Upload size={14} />
               {uploading ? '上传中' : '上传'}
             </Button>
             <Button size="sm" variant="outline" disabled={busy} onClick={onOpenResourceLibrary}>
-              <Database size={13} />
+              <Database size={14} />
               资源库
             </Button>
           </div>

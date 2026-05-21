@@ -277,7 +277,7 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
 
       <div className="p-2 border-b border-border space-y-2 shrink-0">
         <div className="relative">
-          <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             value={keyword}
             onChange={e => { setKeyword(e.target.value); resetFilters() }}

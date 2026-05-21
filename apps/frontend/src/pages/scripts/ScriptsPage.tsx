@@ -29,6 +29,7 @@ import { ScriptCreateForm } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import { ScriptForm } from '@/components/forms/ScriptForm'
+import { ProjectSurfaceHeader } from '@/components/app/AppPage'
 import { useTranslation } from 'react-i18next'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
@@ -354,22 +355,18 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   return (
     <div className="script-workbench-shell h-full overflow-auto bg-muted/30">
       <div className="script-workbench-frame min-h-full p-4">
-        <header className="script-workbench-topbar border-b border-border bg-background px-4 py-3">
-          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 type-label font-medium text-muted-foreground">
-                <Clapperboard size={14} />
-                影视创意编排工作台
-              </div>
-              <h1 className="mt-1 truncate type-title font-semibold text-foreground">剧本协作与制作拆解</h1>
-            </div>
+        <ProjectSurfaceHeader
+          icon={Clapperboard}
+          title="剧本协作与制作拆解"
+          description="管理剧本、版本和下游拆解对象，把文本来源稳定传递到编排段、情景与制作项。"
+          actions={(
             <div className="grid grid-cols-3 gap-2">
               <WorkspaceStat icon={ScrollText} label="剧本" value={String(scripts.length)} />
               <WorkspaceStat icon={GitBranch} label="版本" value={String(scriptVersions.length)} />
               <WorkspaceStat icon={Route} label="下游" value={String(segments.length + sceneMoments.length)} />
             </div>
-          </div>
-        </header>
+          )}
+        />
 
         <div className="script-workbench-layout min-h-0 bg-background">
           <aside className="script-workbench-rail min-h-0 border-r border-border">
@@ -387,7 +384,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                 <p className="px-2 py-4 type-label text-muted-foreground">{t('common.loadingShort')}</p>
               ) : scripts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-3 py-12 text-muted-foreground">
-                  <FileText size={28} className="opacity-30" />
+                  <FileText size={24} className="opacity-30" />
                   <p className="type-label">{t('pages.scripts.empty')}</p>
                   <button onClick={() => setShowCreate(true)} className="type-label hover:text-foreground">
                     {t('pages.scripts.createOne')}
@@ -440,10 +437,10 @@ function ScriptsSection({ projectId }: { projectId: number }) {
           <main className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
         {!selected ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
-            <ScrollText size={36} className="opacity-20" />
+            <ScrollText size={24} className="opacity-20" />
             <p className="type-body">选择左侧剧本开始编辑</p>
             <Button variant="outline" size="sm" onClick={() => setShowCreate(true)}>
-              <Plus size={13} className="mr-1.5" />
+              <Plus size={14} className="mr-1.5" />
               新建剧本
             </Button>
           </div>
@@ -537,14 +534,14 @@ function ScriptsSection({ projectId }: { projectId: number }) {
 	                      disabled={createVersion.isPending || !hasDraftBody || isDraftPublished}
 	                      onClick={() => createVersion.mutate()}
 	                    >
-	                      <Plus size={13} />
+	                      <Plus size={14} />
 	                      快照当前正文
 	                    </Button>
                   </div>
 
                   {versionsForSelected.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-border bg-card py-10 text-center">
-                      <Layers size={28} className="mx-auto text-muted-foreground/30" />
+                      <Layers size={24} className="mx-auto text-muted-foreground/30" />
                       <p className="mt-3 type-body font-medium text-foreground">暂无版本</p>
 	                      <p className="mt-1 type-label text-muted-foreground">填写正文后，点击「快照当前正文」创建第一个稳定版本。</p>
 	                      <Button variant="outline" size="sm" className="mt-4" onClick={() => setDetailTab('edit')}>
@@ -639,13 +636,13 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                       loading={createProduction.isPending}
                       onClick={() => createProduction.mutate()}
                     >
-                      <Clapperboard size={15} />
+                      <Clapperboard size={14} />
                       创建制作项目
                     </Button>
                   ) : (
                     <div className="mt-5 space-y-2">
                       <Button className="w-full justify-center gap-2" disabled>
-                        <Clapperboard size={15} />
+                        <Clapperboard size={14} />
                         创建制作项目
                       </Button>
                       {versionsForSelected.length === 0 && (
@@ -749,7 +746,7 @@ function ScriptCollaborationPanel({
   if (!script) {
     return (
       <div className="flex h-full flex-col items-center justify-center rounded-md border border-dashed border-border p-6 text-center text-muted-foreground">
-        <Sparkles size={28} className="opacity-30" />
+        <Sparkles size={24} className="opacity-30" />
         <p className="mt-2 type-body">选择剧本后查看协作状态</p>
       </div>
     )
@@ -772,11 +769,11 @@ function ScriptCollaborationPanel({
           </Button>
           <div className="grid grid-cols-2 gap-2">
             <Button variant="outline" size="sm" className="justify-start gap-1.5" onClick={() => onLaunchAgent('diagnose')}>
-              <BookOpenCheck size={13} />
+              <BookOpenCheck size={14} />
               审阅
             </Button>
             <Button variant="outline" size="sm" className="justify-start gap-1.5" onClick={() => onLaunchAgent('breakdown')}>
-              <Route size={13} />
+              <Route size={14} />
               拆解
             </Button>
           </div>
@@ -804,11 +801,11 @@ function ScriptCollaborationPanel({
             disabled={!hasDraftBody || isDraftPublished}
             onClick={onCreateVersion}
           >
-            <GitBranch size={13} />
+            <GitBranch size={14} />
             锁定当前版本
           </Button>
           <Button variant="outline" size="sm" className="justify-start gap-1.5" onClick={() => onSetTab('production')}>
-            <Clapperboard size={13} />
+            <Clapperboard size={14} />
             查看制作入口
           </Button>
         </div>
@@ -1187,7 +1184,7 @@ function ScriptStageBadge({ versionCount }: { versionCount: number }) {
   const Icon = config.icon
   return (
     <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 type-caption', config.className)}>
-      <Icon size={11} />
+      <Icon size={12} />
       {stage}
     </span>
   )

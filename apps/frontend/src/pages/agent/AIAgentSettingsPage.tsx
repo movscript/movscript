@@ -1460,16 +1460,16 @@ export default function AIAgentSettingsPage() {
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button asChild size="sm" variant="outline" data-testid="agent-settings-open-debug">
               <Link to={ROUTES.agentDebug}>
-                <Terminal size={13} />
+                <Terminal size={14} />
                 {t('agents.settings.openDebug')}
               </Link>
             </Button>
             <Button type="button" size="sm" variant="outline" onClick={() => void copySettingsStatusSummary()} data-testid="agent-settings-copy-status">
-              <Clipboard size={13} />
+              <Clipboard size={14} />
               {settingsStatusCopied ? t('agents.settings.settingsStatusCopied') : t('agents.settings.copySettingsStatus')}
             </Button>
             <Button type="button" size="sm" variant="outline" onClick={() => runtimeQuery.refetch()} disabled={runtimeQuery.isFetching} data-testid="agent-settings-refresh">
-              <RefreshCw size={13} className={runtimeQuery.isFetching ? 'animate-spin' : ''} />
+              <RefreshCw size={14} className={runtimeQuery.isFetching ? 'animate-spin' : ''} />
               {t('agents.settings.refresh')}
             </Button>
           </div>
@@ -1623,11 +1623,11 @@ export default function AIAgentSettingsPage() {
 
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" size="sm" onClick={saveSettings} disabled={!canSaveModelConfig || saving || modelRouteIssues.length > 0 || modelBaseURLHasSecret}>
-                      {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                      {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                       {hasUnsavedChanges ? t('agents.settings.save') : t('agents.settings.saved')}
                     </Button>
                     <Button type="button" size="sm" variant="outline" onClick={testSettings} disabled={!canSaveModelConfig || testing || modelRouteIssues.length > 0 || modelBaseURLHasSecret}>
-                      {testing ? <Loader2 size={13} className="animate-spin" /> : <TestTube2 size={13} />}
+                      {testing ? <Loader2 size={14} className="animate-spin" /> : <TestTube2 size={14} />}
                       {t('agents.settings.test')}
                     </Button>
                     <Button
@@ -1638,7 +1638,7 @@ export default function AIAgentSettingsPage() {
                       disabled={clearingModelConfig || (!effectiveConfig?.configured && !hasUnsavedChanges)}
                       data-testid="agent-settings-clear-model-config"
                     >
-                      {clearingModelConfig ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                      {clearingModelConfig ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                       {modelConfigClearConfirming ? t('agents.settings.clearModelConfigConfirm') : t('agents.settings.clearModelConfig')}
                     </Button>
                   </div>
@@ -1690,11 +1690,11 @@ export default function AIAgentSettingsPage() {
                       <p className="mt-1 type-caption leading-4 text-muted-foreground">{t('agents.settings.runPresetsHelp')}</p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <Button type="button" size="sm" variant="outline" onClick={() => createRunPreset('blank')} data-testid="agent-run-preset-create">
-                          <Plus size={13} />
+                          <Plus size={14} />
                           {t('agents.settings.createRunPreset')}
                         </Button>
                         <Button type="button" size="sm" variant="outline" onClick={() => createRunPreset('duplicate')} data-testid="agent-run-preset-duplicate">
-                          <Copy size={13} />
+                          <Copy size={14} />
                           {t('agents.settings.duplicateRunPreset')}
                         </Button>
                         <Button
@@ -1705,11 +1705,11 @@ export default function AIAgentSettingsPage() {
                           disabled={DEFAULT_RUN_PRESET_IDS.has(activeRunPreset.id) || agentSettings.runPresets.length <= 1}
                           data-testid="agent-run-preset-delete"
                         >
-                          <Trash2 size={13} />
+                          <Trash2 size={14} />
                           {t('agents.settings.deleteRunPreset')}
                         </Button>
                         <Button type="button" size="sm" variant="outline" onClick={resetRunPresets}>
-                          <RefreshCw size={13} />
+                          <RefreshCw size={14} />
                           {t('agents.settings.resetRunPresets')}
                         </Button>
                       </div>
@@ -1873,7 +1873,7 @@ export default function AIAgentSettingsPage() {
 
                     <div className="flex flex-wrap items-center gap-2">
                       <Button type="button" size="sm" variant="outline" onClick={reloadCatalog} disabled={catalogReloading || catalogQuery.isFetching}>
-                        {catalogReloading || catalogQuery.isFetching ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                        {catalogReloading || catalogQuery.isFetching ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                         {t('agents.settings.reloadCatalog')}
                       </Button>
                       {catalogReloadedAt && <span className="type-caption text-muted-foreground">{t('agents.settings.reloadCatalogDone', { time: new Date(catalogReloadedAt).toLocaleTimeString() })}</span>}
@@ -1898,7 +1898,7 @@ export default function AIAgentSettingsPage() {
                             {t('agents.settings.loadSkillBundleFile')}
                           </Button>
                           <Button type="button" size="sm" variant="outline" onClick={installSkillBundle} disabled={skillBundleInstalling || !skillBundleDraftValidation.bundle}>
-                            {skillBundleInstalling ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                            {skillBundleInstalling ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                             {t('agents.settings.installSkillBundleAction')}
                           </Button>
                         </div>
@@ -1979,7 +1979,7 @@ export default function AIAgentSettingsPage() {
                             />
                           </div>
                           <Button type="button" size="sm" variant="outline" onClick={() => void uninstallSkillBundle()} disabled={skillBundleUninstalling || !skillBundleUninstallPluginIdValue || skillBundleUninstallPluginIdInvalid}>
-                            {skillBundleUninstalling ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                            {skillBundleUninstalling ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                             {t('agents.settings.uninstallSkillBundleAction')}
                           </Button>
                         </div>
@@ -2000,7 +2000,7 @@ export default function AIAgentSettingsPage() {
 
                     <div className="flex flex-wrap items-center gap-2">
                       <Button type="button" size="sm" onClick={saveDefaultSkillPolicy} disabled={!hasSkillPolicyChange || skillPolicySaving || skillDrafts.length === 0 || skillPolicyIssues.length > 0}>
-                        {skillPolicySaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                        {skillPolicySaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                         {hasSkillPolicyChange ? t('agents.settings.saveSkillPolicy') : t('agents.settings.skillPolicySaved')}
                       </Button>
                       <Button type="button" size="sm" variant="outline" onClick={() => setSkillDrafts(skillPolicyBaseline)} disabled={!hasSkillPolicyChange || skillPolicySaving}>
@@ -2088,7 +2088,7 @@ export default function AIAgentSettingsPage() {
                         </div>
                         <div className="flex items-end">
                           <Button type="button" size="sm" onClick={saveDefaultProfile} disabled={!hasProfileChange || profileSaving}>
-                            {profileSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                            {profileSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                             {hasProfileChange ? t('agents.settings.saveProfile') : t('agents.settings.profileSaved')}
                           </Button>
                         </div>
@@ -2141,7 +2141,7 @@ export default function AIAgentSettingsPage() {
 
                     <div className="flex flex-wrap items-center gap-2">
                       <Button type="button" size="sm" onClick={saveDefaultToolPolicy} disabled={!hasToolPolicyChange || toolPolicySaving || toolGrantDrafts.length === 0 || toolPolicyDraftIssues.length > 0}>
-                        {toolPolicySaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                        {toolPolicySaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                         {hasToolPolicyChange ? t('agents.settings.saveToolPolicy') : t('agents.settings.toolPolicySaved')}
                       </Button>
                       <Button type="button" size="sm" variant="outline" onClick={() => setToolGrantDrafts(toolGrantBaseline)} disabled={!hasToolPolicyChange || toolPolicySaving}>
@@ -2193,7 +2193,7 @@ export default function AIAgentSettingsPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="type-caption font-medium text-foreground">{t('agents.settings.toolPolicyFilterPresets')}</span>
                         <Button type="button" size="sm" variant="outline" onClick={saveToolPolicyFilterPreset}>
-                          <Plus size={13} />
+                          <Plus size={14} />
                           {t('agents.settings.saveToolPolicyFilterPreset')}
                         </Button>
                         <span className="type-tiny leading-4 text-muted-foreground">{t('agents.settings.toolPolicyFilterPresetsHelp')}</span>
@@ -2206,7 +2206,7 @@ export default function AIAgentSettingsPage() {
                                 <span className="truncate">{preset.name}</span>
                               </Button>
                               <Button type="button" size="icon" variant="ghost" aria-label={t('agents.settings.deleteToolPolicyFilterPreset')} onClick={() => deleteToolPolicyFilterPreset(preset.id)}>
-                                <Trash2 size={13} />
+                                <Trash2 size={14} />
                               </Button>
                             </div>
                           ))}
@@ -2295,27 +2295,27 @@ export default function AIAgentSettingsPage() {
                       onChange={(event) => void loadSettingsSnapshotFile(event.target.files?.[0])}
                     />
                     <Button type="button" size="sm" variant="outline" onClick={exportSettingsSnapshot}>
-                      <Save size={13} />
+                      <Save size={14} />
                       {t('agents.settings.exportSettings')}
                     </Button>
                     <Button type="button" size="sm" variant="outline" onClick={() => settingsSnapshotFileInputRef.current?.click()}>
-                      <Upload size={13} />
+                      <Upload size={14} />
                       {t('agents.settings.loadSettingsSnapshotFile')}
                     </Button>
                     <Button type="button" size="sm" variant="outline" onClick={() => void copySettingsSnapshot()}>
-                      <Clipboard size={13} />
+                      <Clipboard size={14} />
                       {t('agents.settings.copySettings')}
                     </Button>
                     <Button type="button" size="sm" variant="outline" onClick={downloadSettingsSnapshot}>
-                      <Download size={13} />
+                      <Download size={14} />
                       {t('agents.settings.downloadSettings')}
                     </Button>
                     <Button type="button" size="sm" variant="outline" onClick={previewSettingsSnapshotImport} disabled={!parsedSettingsSnapshot || Boolean(settingsSnapshotValidation.error) || !settingsSnapshotHasSelectedImportScope} data-testid="agent-settings-preview-import-dry-run">
-                      <TestTube2 size={13} />
+                      <TestTube2 size={14} />
                       {t('agents.settings.previewSettingsImportDryRun')}
                     </Button>
                     <Button type="button" size="sm" onClick={() => void importSettingsSnapshot()} disabled={settingsSnapshotImporting || !settingsSnapshotCanImport}>
-                      {settingsSnapshotImporting ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                      {settingsSnapshotImporting ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
                       {t('agents.settings.importSettings')}
                     </Button>
                   </div>
@@ -2329,15 +2329,15 @@ export default function AIAgentSettingsPage() {
                       </p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <Button type="button" size="sm" variant="outline" onClick={loadSettingsImportBackup} data-testid="agent-settings-load-import-backup">
-                          <RefreshCw size={13} />
+                          <RefreshCw size={14} />
                           {t('agents.settings.loadImportBackup')}
                         </Button>
                         <Button type="button" size="sm" variant="outline" onClick={() => void copySettingsImportBackup()} data-testid="agent-settings-copy-import-backup">
-                          <Clipboard size={13} />
+                          <Clipboard size={14} />
                           {t('agents.settings.copyImportBackup')}
                         </Button>
                         <Button type="button" size="sm" variant="outline" onClick={clearSettingsImportBackup} data-testid="agent-settings-clear-import-backup">
-                          <Trash2 size={13} />
+                          <Trash2 size={14} />
                           {t('agents.settings.clearImportBackup')}
                         </Button>
                       </div>
@@ -2427,7 +2427,7 @@ export default function AIAgentSettingsPage() {
                         >
                           <div className="flex items-start justify-between gap-2">
                             <span className="min-w-0 truncate type-label font-medium text-foreground">{publicModelLabel(model, true)}</span>
-                            {selectedModelId === publicModelId(model) && <CheckCircle2 size={13} className="shrink-0 text-primary" />}
+                            {selectedModelId === publicModelId(model) && <CheckCircle2 size={14} className="shrink-0 text-primary" />}
                           </div>
                           <p className="mt-0.5 truncate type-tiny text-muted-foreground">{model.capabilities.join(', ')}</p>
                         </button>
@@ -3613,11 +3613,11 @@ function SettingsAuditTrailPanel({ entries, onClear }: { entries: AgentSettingsA
         <span className="type-caption text-muted-foreground">{t('agents.settings.settingsAuditHelp')}</span>
         <span className="flex shrink-0 flex-wrap gap-1.5">
           <Button type="button" size="sm" variant="outline" onClick={() => void copyAuditSummary()} data-testid="agent-settings-copy-audit">
-            <Clipboard size={13} />
+            <Clipboard size={14} />
             {copied ? t('agents.settings.settingsAuditCopied') : t('agents.settings.copySettingsAudit')}
           </Button>
           <Button type="button" size="sm" variant="outline" onClick={onClear} data-testid="agent-settings-clear-audit">
-            <Trash2 size={13} />
+            <Trash2 size={14} />
             {t('agents.settings.clearSettingsAudit')}
           </Button>
         </span>
@@ -3678,7 +3678,7 @@ function SettingsSnapshotImpactPreview({ snapshot }: { snapshot: AgentSettingsSn
       <div className="flex items-center justify-between gap-2">
         <p className="type-label font-medium text-foreground">{t('agents.settings.settingsSnapshotImpactPreview')}</p>
         <Button type="button" size="sm" variant="outline" onClick={() => void copySnapshotImpactSummary()} data-testid="agent-settings-copy-snapshot-impact">
-          <Clipboard size={13} />
+          <Clipboard size={14} />
           {copied ? t('agents.settings.settingsSnapshotImpactCopied') : t('agents.settings.copySettingsSnapshotImpact')}
         </Button>
       </div>
@@ -3793,7 +3793,7 @@ function RunPresetRow({ preset, active, onSelect }: { preset: AgentRunPreset; ac
           <p className="truncate type-label font-medium text-foreground">{preset.name}</p>
           <p className="mt-0.5 line-clamp-2 type-tiny leading-4 text-muted-foreground">{preset.description}</p>
         </div>
-        {active && <CheckCircle2 size={13} className="shrink-0 text-primary" />}
+        {active && <CheckCircle2 size={14} className="shrink-0 text-primary" />}
       </div>
       <div className="mt-2 flex flex-wrap gap-1 type-tiny text-muted-foreground">
         <span className="rounded bg-muted px-1.5 py-0.5">{t('agents.settings.runPresetFields.maxToolCalls')}: {preset.maxToolCalls}</span>
@@ -3824,7 +3824,7 @@ function SettingsReadinessPanel({ items }: { items: SettingsReadinessItem[] }) {
     <div className="space-y-2">
       <div className="flex justify-end">
         <Button type="button" size="sm" variant="outline" onClick={() => void copyReadinessSummary()} data-testid="agent-settings-copy-readiness">
-          <Clipboard size={13} />
+          <Clipboard size={14} />
           {copied ? t('agents.settings.readinessCopied') : t('agents.settings.copyReadiness')}
         </Button>
       </div>
@@ -3880,7 +3880,7 @@ function SettingsActionItemsPanel({
       <div data-testid="agent-settings-action-items" className="space-y-2">
         <div className="flex justify-end">
           <Button type="button" size="sm" variant="outline" onClick={() => void copyActionItemsSummary()} data-testid="agent-settings-copy-action-items">
-            <Clipboard size={13} />
+            <Clipboard size={14} />
             {copied ? t('agents.settings.actionItemsCopied') : t('agents.settings.copyActionItems')}
           </Button>
         </div>
@@ -3899,7 +3899,7 @@ function SettingsActionItemsPanel({
           {t('agents.settings.actionItemsCountSummary', { actions: actionCount, warnings: warningCount })}
         </span>
         <Button type="button" size="sm" variant="outline" onClick={() => void copyActionItemsSummary()} data-testid="agent-settings-copy-action-items">
-          <Clipboard size={13} />
+          <Clipboard size={14} />
           {copied ? t('agents.settings.actionItemsCopied') : t('agents.settings.copyActionItems')}
         </Button>
       </div>
@@ -3987,10 +3987,10 @@ function ConfigurationMapPanel({ onJump }: { onJump: (sectionId: string) => void
 function SettingsReadinessRow({ item }: { item: SettingsReadinessItem }) {
   const { t } = useTranslation()
   const icon = item.status === 'ready'
-    ? <CheckCircle2 size={13} className="text-emerald-600" />
+    ? <CheckCircle2 size={14} className="text-emerald-600" />
     : item.status === 'action'
-      ? <XCircle size={13} className="text-destructive" />
-      : <XCircle size={13} className="text-amber-600" />
+      ? <XCircle size={14} className="text-destructive" />
+      : <XCircle size={14} className="text-amber-600" />
   return (
     <div className="flex items-start gap-2 rounded-md border border-border bg-muted/20 p-2">
       <span className="mt-0.5 shrink-0">{icon}</span>
@@ -4168,7 +4168,7 @@ function ToolPolicyDiffPreview({ items }: { items: ToolPolicyDiffItem[] }) {
           </p>
         </span>
         <Button type="button" size="sm" variant="outline" onClick={() => void copyToolPolicyDiffSummary()} data-testid="agent-settings-copy-tool-policy-diff">
-          <Clipboard size={13} />
+          <Clipboard size={14} />
           {copied ? t('agents.settings.toolPolicyDiffCopied') : t('agents.settings.copyToolPolicyDiff')}
         </Button>
       </div>
@@ -4430,7 +4430,7 @@ function ApiModeSwitchPlanPanel({ apiKind, items }: { apiKind: RuntimeModelAPIKi
           </p>
         </span>
         <Button type="button" size="sm" variant="outline" onClick={() => void copySwitchPlan()} data-testid="agent-settings-copy-api-mode-switch-plan">
-          <Clipboard size={13} />
+          <Clipboard size={14} />
           {copied ? t('agents.settings.apiModeSwitchPlanCopied') : t('agents.settings.copyApiModeSwitchPlan')}
         </Button>
       </div>
@@ -4464,7 +4464,7 @@ function Panel({ id, title, children }: { id?: string; title: string; children: 
   return (
     <section id={id} className="scroll-mt-4 rounded-md border border-border bg-background">
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-        <Bot size={13} className="text-muted-foreground" />
+        <Bot size={14} className="text-muted-foreground" />
         <h2 className="type-label font-semibold text-foreground">{title}</h2>
       </div>
       <div className="p-3">{children}</div>

@@ -29,7 +29,7 @@ export function WorkbenchSection({
       {(title || description || Icon || action) ? (
         <div className="workbench-section__header">
           <div className="flex min-w-0 items-start gap-2">
-            {Icon ? <Icon size={15} className="mt-0.5 shrink-0 text-muted-foreground" /> : null}
+            {Icon ? <Icon size={14} className="mt-0.5 shrink-0 text-muted-foreground" /> : null}
             <div className="min-w-0">
               {title ? <h2 className="workbench-section__title">{title}</h2> : null}
               {description ? <p className="workbench-section__description">{description}</p> : null}

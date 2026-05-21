@@ -90,11 +90,12 @@ export function AppTopControls({ className = '', compact = false }: AppTopContro
     if (!name || createProject.isPending) return
     createProject.mutate({ name, description: projectDescription.trim() })
   }
-  const controlSizeClass = compact ? 'h-6 w-6' : 'h-8 w-8'
+  const controlSizeClass = compact ? 'h-5 w-5' : 'h-8 w-8'
   const selectClass = compact
-    ? 'h-6 rounded-md border border-border bg-background px-1.5 type-tiny text-muted-foreground hover:text-foreground'
+    ? 'h-5 rounded-md border border-border bg-background px-1 type-min text-muted-foreground hover:text-foreground'
     : 'h-8 rounded-md border border-border bg-background px-2 type-label text-muted-foreground hover:text-foreground'
-  const iconSize = compact ? 13 : 16
+  const iconSize = compact ? 11 : 16
+  const iconClassName = compact ? 'h-3 w-3' : undefined
   const showAssistantShortcut = workMode === 'detail' && !agentPanelOpen
 
   return (
@@ -108,7 +109,7 @@ export function AppTopControls({ className = '', compact = false }: AppTopContro
           title={nextMode === 'agent' ? t('appSettings.agentWorkMode') : t('appSettings.detailWorkMode')}
           aria-label={nextMode === 'agent' ? t('appSettings.agentWorkMode') : t('appSettings.detailWorkMode')}
         >
-          <ModeIcon size={compact ? 12 : 14} />
+          <ModeIcon size={compact ? 11 : 14} className={iconClassName} />
         </Button>
       )}
       {showAssistantShortcut && (
@@ -120,7 +121,7 @@ export function AppTopControls({ className = '', compact = false }: AppTopContro
           title={t('agents.chat.aiAssistant')}
           aria-label={t('agents.chat.aiAssistant')}
         >
-          <MessageCircle size={iconSize} />
+          <MessageCircle size={iconSize} className={iconClassName} />
         </Button>
       )}
       <DropdownMenu>
@@ -132,7 +133,7 @@ export function AppTopControls({ className = '', compact = false }: AppTopContro
             title={current?.name ?? t('header.titles.projects')}
             aria-label={current?.name ?? t('header.titles.projects')}
           >
-            <FolderOpen size={iconSize} />
+            <FolderOpen size={iconSize} className={iconClassName} />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
@@ -145,16 +146,16 @@ export function AppTopControls({ className = '', compact = false }: AppTopContro
           ) : projects.map((project) => (
             <DropdownMenuItem key={project.ID} onClick={() => openProject(project)}>
               <span className="min-w-0 flex-1 truncate">{project.name}</span>
-              {current?.ID === project.ID ? <Check size={13} className="ml-2 shrink-0" /> : null}
+              {current?.ID === project.ID ? <Check size={14} className="ml-2 shrink-0" /> : null}
             </DropdownMenuItem>
           ))}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => navigate(ROUTES.projects)}>
-            <FolderOpen size={13} className="mr-2" />
+            <FolderOpen size={14} className="mr-2" />
             {t('header.titles.projects')}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setCreateOpen(true)}>
-            <Plus size={13} className="mr-2" />
+            <Plus size={14} className="mr-2" />
             {t('pages.projects.newProject')}
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -178,7 +179,7 @@ export function AppTopControls({ className = '', compact = false }: AppTopContro
         title={theme === 'dark' ? t('header.theme.light') : t('header.theme.dark')}
         aria-label={theme === 'dark' ? t('header.theme.light') : t('header.theme.dark')}
       >
-        {theme === 'dark' ? <Sun size={iconSize} /> : <Moon size={iconSize} />}
+        {theme === 'dark' ? <Sun size={iconSize} className={iconClassName} /> : <Moon size={iconSize} className={iconClassName} />}
       </Button>
       <Button
         variant="ghost"
@@ -188,7 +189,7 @@ export function AppTopControls({ className = '', compact = false }: AppTopContro
         title={t('appSettings.title')}
         aria-label={t('appSettings.title')}
       >
-        <Settings size={iconSize} />
+        <Settings size={iconSize} className={iconClassName} />
       </Button>
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-w-lg">

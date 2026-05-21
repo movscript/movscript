@@ -88,7 +88,7 @@ export default function AIDraftsPage() {
             onClick={() => draftsQuery.refetch()}
             disabled={draftsQuery.isFetching}
           >
-            <RefreshCw size={13} className={draftsQuery.isFetching ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={draftsQuery.isFetching ? 'animate-spin' : ''} />
             {t('agents.chat.panel.drafts.refresh')}
           </Button>
         </div>
@@ -184,11 +184,11 @@ export default function AIDraftsPage() {
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-1.5">
                     <Button type="button" size="sm" variant="outline" onClick={() => copyDraftId(selectedDraft)}>
-                      <Copy size={13} />
+                      <Copy size={14} />
                       {t('agents.draftHistory.copyId')}
                     </Button>
                     <Button type="button" size="sm" onClick={() => openDraftPath && navigate(openDraftPath)} disabled={!openDraftPath}>
-                      <Route size={13} />
+                      <Route size={14} />
                       {t('agents.chat.panel.drafts.openPage')}
                     </Button>
                   </div>

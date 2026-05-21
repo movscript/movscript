@@ -31,7 +31,7 @@ export function ProductionProposalAppliedResultPanel({
     <div className="flex flex-col gap-3 p-4">
       <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 dark:border-emerald-800/50 dark:bg-emerald-950/30">
         <div className="flex items-center gap-2">
-          <CheckCircle2 size={13} className="shrink-0 text-emerald-500" />
+          <CheckCircle2 size={14} className="shrink-0 text-emerald-500" />
           <p className="type-label font-medium text-emerald-700 dark:text-emerald-300">提案已写入项目</p>
         </div>
         <div className="mt-2 grid grid-cols-3 gap-1.5 text-center type-tiny text-emerald-700 dark:text-emerald-300">
@@ -87,7 +87,7 @@ export function ProductionProposalSimulationResultPanel({
     <div className="flex flex-col gap-3 p-4">
       <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 dark:border-emerald-800/50 dark:bg-emerald-950/30">
         <div className="flex items-center gap-2">
-          <Eye size={13} className="shrink-0 text-emerald-500" />
+          <Eye size={14} className="shrink-0 text-emerald-500" />
           <p className="type-label font-medium text-emerald-700 dark:text-emerald-300">{simulationResult.backendPreview ? '写入预检已生成' : '本地预览已生成'}</p>
         </div>
         <p className="mt-1 type-caption leading-4 text-emerald-700/80 dark:text-emerald-300/80">
@@ -113,7 +113,7 @@ export function ProductionProposalSimulationResultPanel({
       {simulationResult.backendPreview && (
         <div className="rounded-lg border border-border bg-background p-3">
           <div className="flex items-center gap-2">
-            <CheckCircle2 size={13} className="text-emerald-500" />
+            <CheckCircle2 size={14} className="text-emerald-500" />
             <p className="type-label font-semibold text-foreground">写入预检结果</p>
             <Badge variant="secondary" className="ml-auto h-5 rounded-full px-2 type-tiny">未写库</Badge>
           </div>
@@ -137,7 +137,7 @@ export function ProductionProposalSimulationResultPanel({
       <ProductionProposalApplyPreviewPanel preview={simulationResult.preview} />
       <div className="rounded-lg border border-border bg-background p-3">
         <div className="flex items-center gap-2">
-          <GitBranch size={13} className="text-primary" />
+          <GitBranch size={14} className="text-primary" />
           <p className="type-label font-semibold text-foreground">继续审阅提案</p>
         </div>
         <p className="mt-1 type-caption leading-4 text-muted-foreground">
@@ -163,7 +163,7 @@ export function ProductionProposalSimulationResultPanel({
             disabled={applying || !canApply}
             onClick={onApply}
           >
-            {applying ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+            {applying ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
             写入项目
           </Button>
         )}

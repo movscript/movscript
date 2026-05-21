@@ -37,6 +37,8 @@ type SceneMomentScriptBindingRecord = {
 export function ScriptVersionBindingBar({
   scriptVersions,
   selectedScriptVersion,
+  scriptText,
+  scriptBlockCount,
   isFetching,
   isSaving,
   disabled,
@@ -44,24 +46,33 @@ export function ScriptVersionBindingBar({
 }: {
   scriptVersions: ScriptVersion[]
   selectedScriptVersion: ScriptVersion | null
+  scriptText: string
+  scriptBlockCount: number
   isFetching: boolean
   isSaving: boolean
   disabled: boolean
   onChange: (scriptVersionId: number | null) => void
 }) {
   const selectedValue = selectedScriptVersion ? String(selectedScriptVersion.ID) : '__none__'
+  const scriptLength = scriptText.length
   return (
-    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/20 px-3 py-3">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2 type-caption font-medium text-muted-foreground">
-          <ScrollText size={12} />
-          制作剧本
+    <div className="mt-3 border-t border-border pt-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 type-caption font-medium text-muted-foreground">
+            <ScrollText size={12} />
+            制作剧本
+          </div>
+          <p className="mt-1 type-label leading-5 text-muted-foreground">
+            {selectedScriptVersion
+              ? `${scriptVersionOptionLabel(selectedScriptVersion)} · ${scriptBlockCount} 个剧本块 · 约 ${scriptLength} 字`
+              : '选择一份制作级剧本后，编排段和情节再引用具体剧本块。'}
+          </p>
+          {selectedScriptVersion ? (
+            <p className="mt-1 type-tiny text-muted-foreground">{formatVersionUpdatedAt(selectedScriptVersion.UpdatedAt)}</p>
+          ) : null}
         </div>
-        <p className="mt-1 type-label leading-5 text-muted-foreground">
-          制作只选择一份剧本；编排段和情节再分别引用具体剧本块。
-        </p>
-      </div>
-      <div className="flex min-w-[260px] flex-wrap items-center justify-end gap-2">
+        <div className="flex min-w-[260px] flex-wrap items-center justify-end gap-2">
         <Select
           value={selectedValue}
           onValueChange={(value) => onChange(value === '__none__' ? null : Number(value))}
@@ -88,41 +99,71 @@ export function ScriptVersionBindingBar({
             </Link>
           </Button>
         ) : null}
+        </div>
       </div>
     </div>
   )
 }
 
-export function ProductionScriptSourceSummary({ scriptVersion, scriptText }: { scriptVersion: ScriptVersion | null; scriptText: string }) {
-  if (!scriptVersion) {
-    return (
-      <div className="mt-3 rounded-md border border-dashed border-border bg-muted/10 px-3 py-3">
-        <div className="flex items-center gap-2 type-caption font-medium text-muted-foreground">
-          <ScrollText size={12} />
-          未选择制作剧本
-        </div>
-        <p className="mt-1 type-label leading-5 text-muted-foreground">选择后，编排段和情节可以继续绑定到这份剧本下的具体剧本块。</p>
-      </div>
-    )
-  }
+export function ScriptVersionBindingInline({
+  scriptVersions,
+  selectedScriptVersion,
+  scriptText,
+  scriptBlockCount,
+  isFetching,
+  isSaving,
+  disabled,
+  onChange,
+}: {
+  scriptVersions: ScriptVersion[]
+  selectedScriptVersion: ScriptVersion | null
+  scriptText: string
+  scriptBlockCount: number
+  isFetching: boolean
+  isSaving: boolean
+  disabled: boolean
+  onChange: (scriptVersionId: number | null) => void
+}) {
+  const selectedValue = selectedScriptVersion ? String(selectedScriptVersion.ID) : '__none__'
   const scriptLength = scriptText.length
   return (
-    <div className="mt-3 rounded-md border border-border bg-muted/10 px-3 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 type-caption font-medium text-muted-foreground">
-            <ScrollText size={12} />
-            制作绑定剧本
-          </div>
-          <p className="mt-1 truncate type-label font-medium text-foreground">{scriptVersionOptionLabel(scriptVersion)}</p>
-        </div>
-        <span className="shrink-0 rounded-full border border-border bg-background px-2 py-0.5 type-tiny text-muted-foreground">
-          {formatVersionUpdatedAt(scriptVersion.UpdatedAt)}
-        </span>
-      </div>
-      <p className="mt-2 type-label leading-5 text-muted-foreground">
-        {scriptLength > 0 ? `这份剧本已作为制作级来源，约 ${scriptLength} 字。中部情节编辑区会从这里选择剧本块。` : '当前剧本没有正文内容，请回到剧本页补充正文。'}
-      </p>
+    <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+      <span className="flex items-center gap-1.5 whitespace-nowrap type-caption font-medium text-muted-foreground">
+        <ScrollText size={12} />
+        制作剧本
+      </span>
+      <Select
+        value={selectedValue}
+        onValueChange={(value) => onChange(value === '__none__' ? null : Number(value))}
+        disabled={disabled || isFetching || isSaving || scriptVersions.length === 0}
+      >
+        <SelectTrigger className="h-8 w-[220px] type-label">
+          <SelectValue placeholder={isFetching ? '读取剧本...' : '选择剧本'} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">不绑定剧本</SelectItem>
+          {scriptVersions.map((version) => (
+            <SelectItem key={version.ID} value={String(version.ID)}>
+              {scriptVersionOptionLabel(version)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Badge variant={scriptText ? 'secondary' : 'warning'} className="h-6 shrink-0 rounded-full px-2 type-tiny">
+        {scriptText ? `${scriptBlockCount} 块 · 约 ${scriptLength} 字` : '待绑定'}
+      </Badge>
+      {selectedScriptVersion ? (
+        <span className="max-w-[180px] truncate type-tiny text-muted-foreground">{formatVersionUpdatedAt(selectedScriptVersion.UpdatedAt)}</span>
+      ) : null}
+      {isSaving ? <Loader2 size={14} className="animate-spin text-muted-foreground" /> : null}
+      {scriptVersions.length === 0 ? (
+        <Button asChild size="sm" variant="outline" className="h-8 gap-1.5 type-label">
+          <Link to={ROUTES.project.scripts}>
+            <Plus size={12} />
+            去创建剧本
+          </Link>
+        </Button>
+      ) : null}
     </div>
   )
 }
@@ -146,7 +187,7 @@ export function SceneMomentScriptBlockBinder({
 }) {
   const [open, setOpen] = useState(false)
   return (
-    <div className="rounded-md border border-border bg-muted/10 p-3">
+    <div className="border-t border-border pt-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2 type-caption font-medium text-muted-foreground">
@@ -157,7 +198,7 @@ export function SceneMomentScriptBlockBinder({
         </div>
         {isSaving ? <Loader2 size={14} className="animate-spin text-muted-foreground" /> : null}
       </div>
-      <div className="mt-3 rounded-md border border-border bg-background p-3">
+      <div className="mt-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="type-label font-semibold text-foreground">{momentBlock ? scriptBlockSelectLabel(momentBlock) : '未绑定剧本块'}</p>

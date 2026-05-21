@@ -106,7 +106,7 @@ export function CanvasToolActionCard({
   const toneMeta = TOOL_TONE_META[resolvedTone]
   const Icon = icon ?? (source === 'ai' ? Sparkles : Puzzle)
   const visibleInputs = inputs.slice(0, 3)
-  const visibleConfigs = configs.slice(0, 3)
+  const visibleConfigs = configs.slice(0, 5)
   const visibleOutputs = outputs.slice(0, 2)
   const PrimaryIcon = primaryAction?.icon ?? Play
   const SecondaryIcon = secondaryAction?.icon
@@ -122,7 +122,7 @@ export function CanvasToolActionCard({
       <header className="px-3 pt-3 pb-2">
         <div className="flex items-start gap-2">
           <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', toneMeta.accentSoft)}>
-            <Icon size={15} className={toneMeta.activeColor} />
+            <Icon size={14} className={toneMeta.activeColor} />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
@@ -282,7 +282,7 @@ function ToolSlotRow({
           renderPortHandle={renderPortHandle}
         />
       )}
-      <Icon size={11} className={cn('shrink-0', isFailed ? 'text-destructive' : 'text-muted-foreground')} />
+      <Icon size={12} className={cn('shrink-0', isFailed ? 'text-destructive' : 'text-muted-foreground')} />
       <span className="min-w-0 flex-1 truncate font-medium text-foreground">{slot.label}</span>
       <span className={cn('max-w-[92px] truncate text-muted-foreground', isFailed && 'text-destructive')}>
         {slot.summary ?? slotStateLabel(slot.state)}
@@ -339,7 +339,7 @@ function OutputTile({ slot, renderPortHandle }: { slot: CanvasToolSlot; renderPo
         renderPortHandle={renderPortHandle}
       />
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-t-lg bg-muted/25">
-        {isPending ? <Loader2 size={14} className="animate-spin text-muted-foreground" /> : <Icon size={15} className={cn(isFailed ? 'text-destructive' : 'text-muted-foreground/60')} />}
+        {isPending ? <Loader2 size={14} className="animate-spin text-muted-foreground" /> : <Icon size={14} className={cn(isFailed ? 'text-destructive' : 'text-muted-foreground/60')} />}
       </div>
       <div className="w-full border-t border-border/60 px-1.5 py-1">
         <div className="flex items-center gap-1">
@@ -365,7 +365,7 @@ function EmptyRow({ label }: { label: string }) {
 function SectionTitle({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
     <div className="flex items-center gap-1.5 type-tiny font-medium text-muted-foreground">
-      <Icon size={11} />
+      <Icon size={12} />
       <span>{label}</span>
     </div>
   )

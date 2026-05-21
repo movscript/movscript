@@ -44,6 +44,7 @@ type NodeData struct {
 	ModelID            string          `json:"modelId,omitempty"`
 	ModelDbID          uint            `json:"modelDbId,omitempty"`
 	InputResourceIDs   []uint          `json:"inputResourceIds,omitempty"`
+	Params             map[string]any  `json:"params,omitempty"`
 	Status             string          `json:"status,omitempty"`
 	TaskID             *uint           `json:"taskId,omitempty"`
 	Error              string          `json:"error,omitempty"`
@@ -51,6 +52,7 @@ type NodeData struct {
 	InputValue         string          `json:"inputValue,omitempty"`
 	ParamName          string          `json:"paramName,omitempty"`
 	ParamType          string          `json:"paramType,omitempty"`
+	OutputType         string          `json:"outputType,omitempty"`
 	ExecutableSpec     *ExecutableSpec `json:"executableSpec,omitempty"`
 	InputPorts         []PortDef       `json:"inputPorts,omitempty"`
 	OutputPorts        []PortDef       `json:"outputPorts,omitempty"`

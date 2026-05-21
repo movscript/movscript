@@ -66,6 +66,42 @@ export function AppPageHeader({
   )
 }
 
+export function ProjectSurfaceHeader({
+  icon: Icon,
+  title,
+  description,
+  meta,
+  actions,
+  className,
+}: {
+  icon: LucideIcon
+  title: ReactNode
+  description?: ReactNode
+  meta?: ReactNode
+  actions?: ReactNode
+  className?: string
+}) {
+  return (
+    <header className={cn('project-surface-header flex min-w-0 items-center justify-between gap-4 border-b border-border pb-4', className)}>
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="project-surface-header__icon flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Icon size={18} />
+        </span>
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
+            <h1 className="truncate type-title-sm font-semibold text-foreground">{title}</h1>
+            {meta}
+          </div>
+          {description ? (
+            <p className="mt-1 max-w-4xl truncate type-label text-muted-foreground">{description}</p>
+          ) : null}
+        </div>
+      </div>
+      {actions ? <div className="project-surface-header__actions flex shrink-0 flex-wrap items-center justify-end gap-2">{actions}</div> : null}
+    </header>
+  )
+}
+
 export function AppSection({
   children,
   title,
@@ -88,7 +124,7 @@ export function AppSection({
       {(title || description || Icon || action) ? (
         <div className="app-section__header">
           <div className="flex min-w-0 items-start gap-2.5">
-            {Icon ? <Icon size={15} className="mt-0.5 shrink-0 text-muted-foreground" /> : null}
+            {Icon ? <Icon size={14} className="mt-0.5 shrink-0 text-muted-foreground" /> : null}
             <div className="min-w-0">
               {title ? <h2 className="app-section__title">{title}</h2> : null}
               {description ? <p className="app-section__description">{description}</p> : null}

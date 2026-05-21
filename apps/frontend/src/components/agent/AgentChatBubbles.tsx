@@ -5,6 +5,7 @@ import { AlertCircle, Bot, Check, Copy, Loader2, Settings2 } from 'lucide-react'
 import { AgentChatMessage, Badge, Button } from '@movscript/ui'
 import { buildAgentMessagePresentation } from '@/lib/agentMessagePresentation'
 import { hydrateHistoricalGeneratedAttachments } from '@/lib/agentMessageViewModel'
+import { agentMessageDividerLabel, formatAgentDividerTime } from '@/lib/agentMessageDivider'
 import { toolNameFromToolCallStreamEvent } from '@/lib/agentRunActivity'
 import { openAdminConsole } from '@/lib/adminConsole'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
@@ -78,8 +79,8 @@ export function ThinkingBubble({ state = { status: 'thinking' } }: { run: AgentR
       <AgentBubbleStatusText label={label} />
       <AgentChatMessage
         role="assistant"
-        avatar={<Bot size={13} />}
-        author="MovScript Agent"
+        avatar={<Bot size={14} />}
+        data-agent-divider-label={formatAgentDividerTime(undefined)}
         footer={(
           <Badge variant="outline" className="type-micro leading-4 px-1.5 py-0">
             {label}
@@ -88,7 +89,7 @@ export function ThinkingBubble({ state = { status: 'thinking' } }: { run: AgentR
       >
         <div className="space-y-1.5">
           <div className="inline-flex items-center gap-1.5 type-tiny text-muted-foreground">
-            <Loader2 size={11} className="animate-spin" />
+            <Loader2 size={12} className="animate-spin" />
             <span>{label}</span>
           </div>
           {reasoning ? <MarkdownContent text={reasoning} /> : <div className="type-caption text-muted-foreground">...</div>}
@@ -101,7 +102,7 @@ export function ThinkingBubble({ state = { status: 'thinking' } }: { run: AgentR
 function AgentBubbleStatusText({ label }: { label?: string }) {
   if (!label) return null
   return (
-    <div className="flex justify-start pl-8">
+    <div className="flex justify-start">
       <div className="inline-flex max-w-[80%] items-center gap-1.5 type-tiny leading-4 text-muted-foreground">
         <Loader2 size={10} className="animate-spin" />
         <span className="truncate">{label}</span>
@@ -114,8 +115,8 @@ export function GenerationProgressBubble({ state }: { state: GenerationProgressS
   return (
     <AgentChatMessage
       role="assistant"
-      avatar={<Bot size={13} />}
-      author="MovScript Agent"
+      avatar={<Bot size={14} />}
+      data-agent-divider-label={formatAgentDividerTime(state.firstSeenAt ?? state.updatedAt)}
       footer={(
         <Badge variant={state.terminal ? 'outline' : 'secondary'} className="type-micro leading-4 px-1.5 py-0">
           {state.terminal ? '生成已结束' : '生成监控中'}
@@ -189,10 +190,11 @@ export function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?
   return (
     <AgentChatMessage
       role={isUser ? 'user' : 'assistant'}
-      avatar={isUser ? '我' : <Bot size={13} />}
-      author={isUser ? 'You' : 'MovScript Agent'}
-      time={time}
-      actions={(
+      avatar={isUser ? '我' : <Bot size={14} />}
+      author={isUser ? 'You' : undefined}
+      time={isUser ? time : undefined}
+      data-agent-divider-label={!isUser ? agentMessageDividerLabel(time, localRunActivity) : undefined}
+      actions={isUser ? (
         <Button
           size="icon-xs"
           variant="ghost"
@@ -200,9 +202,9 @@ export function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?
           aria-label="Copy message"
           title="Copy message"
         >
-          {copied ? <Check size={11} /> : <Copy size={11} />}
+          {copied ? <Check size={12} /> : <Copy size={12} />}
         </Button>
-      )}
+      ) : undefined}
       footer={(contextLabels.length > 0 || runtimeInputLabel) && (
         <div className={cn('flex flex-wrap gap-1', isUser ? 'justify-end' : 'justify-start')}>
           {runtimeInputLabel && (
@@ -211,8 +213,8 @@ export function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?
               className="type-micro leading-4 px-1.5 py-0"
               title={runtimeInput?.error}
             >
-              {runtimeInputStatus === 'pending' && <Loader2 size={9} className="mr-1 inline animate-spin" />}
-              {runtimeInputStatus === 'failed' && <AlertCircle size={9} className="mr-1 inline" />}
+              {runtimeInputStatus === 'pending' && <Loader2 size={10} className="mr-1 inline animate-spin" />}
+              {runtimeInputStatus === 'failed' && <AlertCircle size={10} className="mr-1 inline" />}
               {runtimeInputLabel}
             </Badge>
           )}
@@ -228,7 +230,7 @@ export function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?
       {showModelSetupAction && (
         <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2 type-tiny">
           <div className="flex items-start gap-2">
-            <Settings2 size={13} className="mt-0.5 shrink-0 text-amber-600" />
+            <Settings2 size={14} className="mt-0.5 shrink-0 text-amber-600" />
             <div className="min-w-0 flex-1">
               <p className="font-medium text-foreground">{t('agents.chat.modelSetupAction.title')}</p>
               <p className="mt-0.5 leading-relaxed text-muted-foreground">{t('agents.chat.modelSetupAction.description')}</p>
@@ -246,17 +248,17 @@ export function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?
         </div>
       )}
       {hasResultSection && (
-        <AgentMessageSection title={t('agents.chat.messageSections.result')} tone="result">
+        <div className="mt-2 space-y-2">
           {showLargeMedia && <GeneratedResultCard attachments={generatedMediaAttachments} projectId={projectId} />}
           <AgentDraftResultCards artifacts={draftArtifacts} />
           {compactAttachments.length > 0 && (
-            <div className={cn('mt-2 grid gap-1.5', compactAttachments.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
+            <div className={cn('grid gap-1.5', compactAttachments.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
               {compactAttachments.map((attachment) => (
                 <AttachmentPreview key={attachment.id} attachment={attachment} compact />
               ))}
             </div>
           )}
-        </AgentMessageSection>
+        </div>
       )}
       {hasProcessSection && (
         <AgentMessageSection title={t('agents.chat.messageSections.process')} tone="process" defaultOpen={false}>
@@ -295,8 +297,8 @@ export function StreamingAssistantBubble({ content }: { content: string }) {
   return (
     <AgentChatMessage
       role="assistant"
-      avatar={<Bot size={13} />}
-      author={t('agents.chat.agentName')}
+      avatar={<Bot size={14} />}
+      data-agent-divider-label={formatAgentDividerTime(undefined)}
       footer={(
         <div className="flex flex-wrap gap-1">
           <Badge variant="secondary" className="type-micro leading-4 px-1.5 py-0">

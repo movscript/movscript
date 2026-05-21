@@ -74,6 +74,7 @@ export interface GenResultCardProps {
   contextPanel?: React.ReactNode
   debugPanel?: React.ReactNode
   compact?: boolean
+  largePreview?: boolean
   className?: string
 }
 
@@ -87,6 +88,7 @@ export function GenResultCard({
   contextPanel,
   debugPanel,
   compact = false,
+  largePreview = false,
   className,
 }: GenResultCardProps) {
   const { t, i18n } = useTranslation()
@@ -105,8 +107,8 @@ export function GenResultCard({
   return (
     <div className={cn(
       compact
-        ? 'bg-background rounded-lg border border-border/80 shadow-sm overflow-hidden hover:border-border transition-colors'
-        : 'bg-background rounded-xl border border-border shadow-sm overflow-hidden',
+        ? 'bg-card rounded-lg border border-border/80 shadow-sm overflow-hidden hover:border-border transition-colors'
+        : 'bg-card rounded-xl border border-border shadow-sm overflow-hidden',
       className,
     )}>
       {/* Prompt */}
@@ -116,8 +118,8 @@ export function GenResultCard({
             <div className="flex items-center gap-2 min-w-0">
               <span className={cn(
                 'type-tiny px-1.5 py-0.5 rounded-full font-medium shrink-0',
-                status === 'done' && 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-                isRunning && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+                status === 'done' && 'bg-[color-mix(in_srgb,var(--ms-color-success)_14%,transparent)] text-[var(--ms-color-success)]',
+                isRunning && 'bg-primary/10 text-primary',
                 status === 'failed' && 'bg-destructive/10 text-destructive',
                 status === 'cancelled' && 'bg-muted text-muted-foreground',
                 status === 'idle' && 'bg-muted text-muted-foreground',
@@ -129,14 +131,14 @@ export function GenResultCard({
               )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              {status === 'done' && !compact && <CheckCircle2 size={12} className="text-green-500" />}
+              {status === 'done' && !compact && <CheckCircle2 size={12} className="text-[var(--ms-color-success)]" />}
               {onReuse && (
                 <button
                   onClick={onReuse}
                   title={t('shared.genResult.reusePrompt')}
                   className="text-muted-foreground/60 hover:text-foreground transition-colors p-1 rounded hover:bg-muted"
                 >
-                  <RotateCcw size={13} />
+                  <RotateCcw size={14} />
                 </button>
               )}
             </div>
@@ -159,7 +161,7 @@ export function GenResultCard({
       )}
 
       {/* Output */}
-      <div className={cn(compact ? 'px-3 pb-3 bg-background' : 'bg-card min-h-[80px]')}>
+      <div className={cn(compact ? 'px-3 pb-3 bg-card' : 'bg-muted/20 min-h-[80px]')}>
         {isRunning && (
           <div className={cn('flex items-center justify-center rounded-md bg-muted/40', compact ? 'h-24' : 'py-10')}>
             <div className="flex flex-col items-center gap-2 text-muted-foreground">
@@ -187,6 +189,7 @@ export function GenResultCard({
           <MediaCell
             outputResource={outputResource!}
             compact={compact}
+            largePreview={largePreview}
           />
         )}
       </div>
@@ -320,7 +323,7 @@ export function JobContextSummary({ job, className, includeProvider = false }: {
     <div className={cn('space-y-1.5 type-caption', className)}>
       {hasModel && (
         <div className="flex items-center gap-2 min-w-0">
-          <Cpu size={11} className="shrink-0 text-muted-foreground" />
+          <Cpu size={12} className="shrink-0 text-muted-foreground" />
           <span className="w-10 shrink-0 text-muted-foreground">{t('shared.genResult.context.model')}</span>
           <span className="truncate text-foreground">{includeProvider && model.provider ? `${model.provider} / ` : ''}{model.name}</span>
           {model.identifier && model.identifier !== model.name && (
@@ -331,7 +334,7 @@ export function JobContextSummary({ job, className, includeProvider = false }: {
 
       {resources.length > 0 && (
         <div className="flex items-start gap-2 min-w-0">
-          <Paperclip size={11} className="mt-1 shrink-0 text-muted-foreground" />
+          <Paperclip size={12} className="mt-1 shrink-0 text-muted-foreground" />
           <span className="mt-0.5 w-10 shrink-0 text-muted-foreground">{t('shared.genResult.context.resources')}</span>
           <div className="flex min-w-0 flex-1 flex-wrap gap-1">
             {resources.map((resource, index) => (
@@ -343,7 +346,7 @@ export function JobContextSummary({ job, className, includeProvider = false }: {
 
       {hasParams && (
         <div className="flex items-start gap-2 min-w-0">
-          <SlidersHorizontal size={11} className="mt-1 shrink-0 text-muted-foreground" />
+          <SlidersHorizontal size={12} className="mt-1 shrink-0 text-muted-foreground" />
           <span className="mt-0.5 w-10 shrink-0 text-muted-foreground">{t('shared.genResult.context.params')}</span>
           <div className="flex min-w-0 flex-1 flex-wrap gap-1">
             {Object.entries(params).map(([key, value]) => (
@@ -364,9 +367,11 @@ export function JobContextSummary({ job, className, includeProvider = false }: {
 function MediaCell({
   outputResource,
   compact,
+  largePreview,
 }: {
   outputResource: RawResource
   compact: boolean
+  largePreview: boolean
 }) {
   return (
     <MediaViewer
@@ -374,7 +379,7 @@ function MediaCell({
       fit="contain"
       className={cn(
         'w-full bg-muted',
-        compact ? 'aspect-video rounded-md border border-border/60' : 'aspect-[4/3] rounded-none',
+        compact ? (largePreview ? 'h-44 rounded-md border border-border/60' : 'aspect-video rounded-md border border-border/60') : 'aspect-[4/3] rounded-none',
       )}
       lightbox
     />

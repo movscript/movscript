@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { AgentChatMessage, Badge, Button } from '@movscript/ui'
 import { agentTimelineSummary, buildAgentRunTimeline, formatToolCallStreamDetail } from '@/lib/agentTimeline'
+import { formatAgentDividerTime } from '@/lib/agentMessageDivider'
 import { runStatusLabel } from '@/lib/agentRunUi'
 import { agentToolNameLabel } from '@/lib/agentToolDisplay'
 import { cn } from '@/lib/utils'
@@ -61,7 +62,7 @@ function workflowStatusClass(status: string) {
 }
 
 function workflowDotClass(status: string) {
-  if (status === 'completed' || status === 'approved' || status === 'answered') return 'border-green-500/30 bg-green-500/10 text-green-700'
+  if (status === 'completed' || status === 'approved' || status === 'answered') return 'border-green-600/50 bg-green-500/10 text-green-700'
   if (status === 'failed' || status === 'rejected' || status === 'cancelled') return 'border-destructive/30 bg-destructive/10 text-destructive'
   return 'border-blue-500/30 bg-blue-500/10 text-blue-700'
 }
@@ -112,7 +113,7 @@ export function RunActivityPanel({
 
   return (
     <details
-      className={cn('mt-2 rounded-md border border-border bg-background/70 type-label', className)}
+      className={cn('mt-2 rounded-md border border-border/80 bg-background/70 type-label shadow-sm', className)}
       open={defaultOpen}
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 marker:hidden">
@@ -135,7 +136,7 @@ export function RunActivityPanel({
                 navigate(agentRunPath(runId))
               }}
             >
-              <Route size={9} />
+              <Route size={10} />
               详情
             </Button>
           )}
@@ -145,13 +146,13 @@ export function RunActivityPanel({
           <span className="type-micro text-muted-foreground">{agentTimelineSummary(timeline)}</span>
         </span>
       </summary>
-      <div className="space-y-1.5 border-t border-border/70 px-2.5 py-2">
+      <div className="space-y-1.5 border-t border-border/80 px-2.5 py-2">
         {timeline.items.length === 0 ? (
-          <div className="rounded border border-border/70 bg-muted/20 px-2 py-1.5 type-tiny text-muted-foreground">
+          <div className="rounded border border-border/80 bg-muted/20 px-2 py-1.5 type-tiny text-muted-foreground">
             这次运行没有记录工具调用或交互。
           </div>
         ) : timeline.items.map((item) => (
-          <div key={item.id} className="rounded border border-border/70 bg-background px-2 py-1.5">
+          <div key={item.id} className="rounded border border-border/80 bg-background px-2 py-1.5">
             <div className="flex min-w-0 items-start gap-1.5">
               <span className={cn('mt-1 h-2 w-2 shrink-0 rounded-full', workflowDotClass(item.status))} />
               <div className="min-w-0 flex-1">
@@ -284,8 +285,8 @@ export function LiveRunActivityBubble({
       <AgentBubbleStatusText label={statusLabel} />
       <AgentChatMessage
         role="assistant"
-        avatar={<Bot size={13} />}
-        author="MovScript Agent"
+        avatar={<Bot size={14} />}
+        data-agent-divider-label={formatAgentDividerTime(run?.startedAt ?? events[0]?.createdAt)}
         footer={(
           <Badge variant="outline" className="type-micro leading-4 px-1.5 py-0">
             {workflowRunStatusLabel('in_progress', t)}
@@ -325,7 +326,7 @@ interface ActiveToolStatus {
 function ActiveToolStatusCard({ tool }: { tool: ActiveToolStatus }) {
   const { t } = useTranslation()
   return (
-    <div data-testid="agent-active-tool-status" className="rounded-md border border-border bg-background/70 p-2">
+    <div data-testid="agent-active-tool-status" className="rounded-md border border-border/80 bg-background/70 p-2 shadow-sm">
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <Loader2 size={12} className="shrink-0 animate-spin text-muted-foreground" />
@@ -336,7 +337,7 @@ function ActiveToolStatusCard({ tool }: { tool: ActiveToolStatus }) {
         </Badge>
       </div>
       <div className="mt-1 flex min-w-0 items-center gap-1.5 type-tiny text-muted-foreground">
-        <Wrench size={11} className="shrink-0" />
+        <Wrench size={12} className="shrink-0" />
         <span className="truncate font-mono" title={tool.name}>{agentToolNameLabel(tool.name, t)}</span>
       </div>
       {tool.detail && (

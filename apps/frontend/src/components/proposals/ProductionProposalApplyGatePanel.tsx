@@ -26,7 +26,7 @@ export function ProductionProposalApplyGatePanel({
   return (
     <div className={cn('rounded-lg border', compact ? 'p-2.5' : 'p-3', toneClass)}>
       <div className="flex items-center gap-2">
-        <Icon size={13} className="shrink-0" />
+        <Icon size={14} className="shrink-0" />
         <p className="type-label font-semibold">{gate.title}</p>
       </div>
       {!compact && <p className="mt-1 type-caption leading-4 opacity-80">{gate.detail}</p>}

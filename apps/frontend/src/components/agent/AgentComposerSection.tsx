@@ -176,7 +176,7 @@ export function AgentComposerSection({
               aria-label={t('agents.chat.uploadAttachment')}
               title={t('agents.chat.uploadAttachment')}
             >
-              {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+              {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
             </AgentComposerAction>
             <AgentComposerAction
               onClick={addMentionTrigger}
@@ -184,7 +184,7 @@ export function AgentComposerSection({
               aria-label={t('shared.genInput.mention')}
               title={t('shared.genInput.mention')}
             >
-              <AtSign size={13} />
+              <AtSign size={14} />
             </AgentComposerAction>
             {composerAttachmentsCount > 0 && (
               <Badge variant="secondary" className="max-w-24 truncate type-tiny">
@@ -200,7 +200,7 @@ export function AgentComposerSection({
               className="px-2 type-tiny"
               title={t('agents.chat.previewPayload')}
             >
-              <Eye size={11} />
+              <Eye size={12} />
               {t('agents.chat.debugPreview')}
             </Button>
             {canStopLocalRun && (
@@ -210,7 +210,7 @@ export function AgentComposerSection({
                 aria-label={t('agents.chat.stop')}
                 title={t('agents.chat.stop')}
               >
-                {stoppingLocalRun ? <Loader2 size={13} className="animate-spin" /> : <CircleStop size={13} />}
+                {stoppingLocalRun ? <Loader2 size={14} className="animate-spin" /> : <CircleStop size={14} />}
               </AgentComposerAction>
             )}
           </div>
@@ -221,10 +221,10 @@ export function AgentComposerSection({
             label={answeringPendingInput ? '回答' : loading ? '补充' : debugBeforeSend ? t('agents.chat.preview') : t('common.send')}
           >
             {stoppingLocalRun
-              ? <Loader2 size={15} className="animate-spin" />
+              ? <Loader2 size={14} className="animate-spin" />
               : buildingSendDraft
-                ? <Loader2 size={15} className="animate-spin" />
-                : debugBeforeSend && !loading ? <Eye size={15} /> : <Send size={15} />}
+                ? <Loader2 size={14} className="animate-spin" />
+                : debugBeforeSend && !loading ? <Eye size={14} /> : <Send size={14} />}
           </AgentComposerSubmit>
         </AgentComposerToolbar>
       </AgentComposer>

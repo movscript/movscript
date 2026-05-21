@@ -63,9 +63,12 @@ func (h *Service) executeTask(user *persistencemodel.User, node *persistencemode
 			return
 		}
 		textReq := ai.TextRequest{
-			PromptName: "canvas_text",
-			Messages:   []ai.Message{{Role: "user", Content: nd.Prompt}},
-			MaxTokens:  ai.DefaultTextMaxTokens,
+			PromptName:  "canvas_text",
+			Messages:    []ai.Message{{Role: "user", Content: nd.Prompt}},
+			MaxTokens:   canvasdomain.IntParam(nd.Params, "max_tokens", ai.DefaultTextMaxTokens),
+			Temperature: float32(canvasdomain.FloatParam(nd.Params, "temperature", -1)),
+			JSONMode:    canvasdomain.BoolParam(nd.Params, "json_mode", false),
+			ExtraParams: nd.Params,
 		}
 		if _, err := h.svc.PreflightText(modelDbID, &textReq); err != nil {
 			h.failTask(task, node, nd, err.Error())
@@ -85,9 +88,18 @@ func (h *Service) executeTask(user *persistencemodel.User, node *persistencemode
 			return
 		}
 		resp, err := h.svc.CallImageWithUsage(ctx, user.ID, modelDbID, ai.ImageRequest{
-			Prompt:             nd.Prompt,
-			N:                  1,
-			InputImageDataList: imageData,
+			Prompt:              nd.Prompt,
+			N:                   1,
+			Quality:             canvasdomain.StringParam(nd.Params, "quality", ""),
+			Size:                canvasdomain.StringParam(nd.Params, "size", canvasdomain.StringParam(nd.Params, "image_size", "")),
+			Style:               canvasdomain.StringParam(nd.Params, "style", ""),
+			AspectRatio:         canvasdomain.StringParam(nd.Params, "aspect_ratio", ""),
+			Seed:                canvasdomain.Int64PtrParam(nd.Params, "seed"),
+			GuidanceScale:       canvasdomain.FloatParam(nd.Params, "guidance_scale", 0),
+			Watermark:           canvasdomain.BoolPtrParam(nd.Params, "watermark"),
+			OutputFormat:        canvasdomain.StringParam(nd.Params, "output_format", ""),
+			SequentialMaxImages: canvasdomain.IntParam(nd.Params, "max_images", 0),
+			InputImageDataList:  imageData,
 		}, h.usageContextForNode(ctx, node, task))
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())
@@ -116,6 +128,24 @@ func (h *Service) executeTask(user *persistencemodel.User, node *persistencemode
 		videoReq := ai.VideoRequest{
 			Prompt:             nd.Prompt,
 			InputImageDataList: imageData,
+			Duration:           canvasdomain.IntParam(nd.Params, "duration", 0),
+			Frames:             canvasdomain.IntParam(nd.Params, "frames", 0),
+			Seed:               canvasdomain.Int64PtrParam(nd.Params, "seed"),
+			Width:              canvasdomain.IntParam(nd.Params, "width", 0),
+			Height:             canvasdomain.IntParam(nd.Params, "height", 0),
+			AspectRatio:        canvasdomain.StringParam(nd.Params, "aspect_ratio", ""),
+			Ratio:              canvasdomain.StringParam(nd.Params, "ratio", ""),
+			Quality:            canvasdomain.StringParam(nd.Params, "quality", ""),
+			Size:               canvasdomain.StringParam(nd.Params, "size", canvasdomain.StringParam(nd.Params, "image_size", "")),
+			ResolutionName:     canvasdomain.StringParam(nd.Params, "resolution", canvasdomain.StringParam(nd.Params, "resolution_name", "")),
+			Preset:             canvasdomain.StringParam(nd.Params, "preset", ""),
+			CameraFixed:        canvasdomain.BoolPtrParam(nd.Params, "camera_fixed"),
+			Watermark:          canvasdomain.BoolPtrParam(nd.Params, "watermark"),
+			GenerateAudio:      canvasdomain.BoolPtrParam(nd.Params, "generate_audio"),
+			ReturnLastFrame:    canvasdomain.BoolPtrParam(nd.Params, "return_last_frame"),
+			ServiceTier:        canvasdomain.StringParam(nd.Params, "service_tier", ""),
+			Draft:              canvasdomain.BoolPtrParam(nd.Params, "draft"),
+			WebSearch:          canvasdomain.BoolParam(nd.Params, "web_search", false),
 		}
 		if len(videoData) > 0 {
 			videoReq.InputVideoData = &videoData[0]

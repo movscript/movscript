@@ -1,7 +1,6 @@
 import React from 'react'
-import { useTranslation } from 'react-i18next'
 import { Bot } from 'lucide-react'
-import { AgentChatMessage, Badge } from '@movscript/ui'
+import { AgentChatMessage } from '@movscript/ui'
 import {
   DraftDiff,
   isDraftApplyPreview,
@@ -10,8 +9,8 @@ import {
 import {
   LocalAgentApprovalRequestCard,
   LocalAgentInputRequestCard,
-  localAgentApprovalPermissionText,
 } from '@/components/agent/localRuntime'
+import { formatAgentDividerTime } from '@/lib/agentMessageDivider'
 import type { AgentRun } from '@/lib/localAgentClient'
 import type {
   AgentInputAnswer,
@@ -36,25 +35,18 @@ export function LocalAgentWorkflowBubble({
   onReject?: (approvalIds?: string[]) => void
   onAnswerInput?: (requestId: string, answer: AgentInputAnswer) => void
 }) {
-  const { t } = useTranslation()
   if (!run) return null
   const interactions = workflowInteractions(run)
   if (interactions.length === 0) return null
   return (
     <>
       {interactions.map((interaction) => {
-        const workflowBadge = workflowInteractionBadge(interaction, t)
         return (
           <AgentChatMessage
             key={`${run.id}-${interaction.id}`}
             role="assistant"
-            avatar={<Bot size={13} />}
-            author="MovScript Agent"
-            footer={(
-              <Badge variant={workflowBadge.variant} className="type-micro leading-4 px-1.5 py-0">
-                {workflowBadge.label}
-              </Badge>
-            )}
+            avatar={<Bot size={14} />}
+            data-agent-divider-label={formatAgentDividerTime(interaction.createdAt)}
           >
             {interaction.kind === 'input' ? (
               <LocalAgentInputRequestCard
@@ -68,7 +60,7 @@ export function LocalAgentWorkflowBubble({
                 approving={approving}
                 onApprove={onApprove}
                 onReject={onReject}
-                approvalDetails={(approval) => localAgentApprovalDetails(approval, t)}
+                approvalDetails={(approval) => localAgentApprovalDetails(approval)}
               />
             )}
           </AgentChatMessage>
@@ -78,12 +70,9 @@ export function LocalAgentWorkflowBubble({
   )
 }
 
-function localAgentApprovalDetails(approval: AgentPendingApprovalRequest, t: ReturnType<typeof useTranslation>['t']) {
+function localAgentApprovalDetails(approval: AgentPendingApprovalRequest) {
   return (
     <>
-      {approval.permission && (
-        <p className="mt-0.5 truncate type-micro text-muted-foreground/70">{t('agents.chat.panel.runtime.permission')}: {localAgentApprovalPermissionText(approval.permission, t)}</p>
-      )}
       {approval.args && (
         <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-1.5 type-micro text-muted-foreground">
           {safeJSONStringify(approval.args)}
@@ -125,15 +114,4 @@ function workflowInteractions(run: AgentRun): LocalAgentWorkflowInteraction[] {
         approval,
       })),
   ].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-}
-
-function workflowInteractionBadge(interaction: LocalAgentWorkflowInteraction, t: ReturnType<typeof useTranslation>['t']): { label: string; variant: 'secondary' | 'success' | 'warning' | 'destructive' | 'outline' } {
-  if (interaction.kind === 'input') {
-    if (interaction.request.status === 'answered') return { label: t('agents.chat.workflow.inputAnswered'), variant: 'success' }
-    if (interaction.request.status === 'cancelled') return { label: t('agents.chat.workflow.cancelled'), variant: 'secondary' }
-    return { label: t('agents.chat.workflow.waitingForInput'), variant: 'warning' }
-  }
-  if (interaction.approval.status === 'approved') return { label: t('agents.chat.workflow.approvalApproved'), variant: 'success' }
-  if (interaction.approval.status === 'rejected') return { label: t('agents.chat.workflow.approvalRejected'), variant: 'destructive' }
-  return { label: t('agents.chat.workflow.waitingForApproval'), variant: 'warning' }
 }

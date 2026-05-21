@@ -42,7 +42,7 @@ export function SemanticEntityThumbCard({
       <div className={cn('border-b px-3 py-2.5', cfg.accentSoft)}>
         <div className="flex min-w-0 items-start gap-2">
           <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/85', cfg.activeColor)}>
-            <Icon size={15} />
+            <Icon size={14} />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">

@@ -99,10 +99,10 @@ export function AgentConversationThreadSection({
             </p>
             <AgentSuggestions className="grid w-full grid-cols-2 gap-2">
               {[
-                { icon: <ListChecks size={13} />, label: t('agents.chat.suggestions.planProject') },
-                { icon: <Sparkles size={13} />, label: t('agents.chat.suggestions.createContentUnit') },
-                { icon: <Search size={13} />, label: t('agents.chat.suggestions.reviewAssets') },
-                { icon: <Workflow size={13} />, label: t('agents.chat.suggestions.buildWorkflow') },
+                { icon: <ListChecks size={14} />, label: t('agents.chat.suggestions.planProject') },
+                { icon: <Sparkles size={14} />, label: t('agents.chat.suggestions.createContentUnit') },
+                { icon: <Search size={14} />, label: t('agents.chat.suggestions.reviewAssets') },
+                { icon: <Workflow size={14} />, label: t('agents.chat.suggestions.buildWorkflow') },
               ].map((item) => (
                 <AgentSuggestion
                   key={item.label}

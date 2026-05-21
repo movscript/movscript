@@ -55,7 +55,7 @@ export function ContentUnitStoryboardBriefEditor({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-1.5 type-label font-medium text-foreground">
-            <Clapperboard size={13} className="text-muted-foreground" />
+            <Clapperboard size={14} className="text-muted-foreground" />
             故事板简述
           </div>
           <p className="mt-1 type-label leading-5 text-muted-foreground">
@@ -72,7 +72,7 @@ export function ContentUnitStoryboardBriefEditor({
               onClick={onAiVisualPlan}
               data-testid="content-workbench-ai-visual-plan"
             >
-              <Sparkles size={13} />
+              <Sparkles size={14} />
               AI 起草
             </Button>
           ) : null}
@@ -171,7 +171,7 @@ export function ContentUnitVisualPlanEditor({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-1.5 type-label font-medium text-foreground">
-            <Route size={13} className="text-muted-foreground" />
+            <Route size={14} className="text-muted-foreground" />
             视觉调度计划
           </div>
           <p className="mt-1 type-label leading-5 text-muted-foreground">
@@ -188,7 +188,7 @@ export function ContentUnitVisualPlanEditor({
               onClick={onAiVisualPlan}
               data-testid="content-workbench-ai-visual-plan"
             >
-              <Sparkles size={13} />
+              <Sparkles size={14} />
               AI 起草
             </Button>
           ) : null}

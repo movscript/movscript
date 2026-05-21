@@ -6,6 +6,7 @@ import {
   buildMediaCandidateGenerationAgentPanelDraftPayload,
   buildPreProductionAuditAgentPanelDraftPayload,
   buildPreProductionAuditReviewSearchParams,
+  buildSettingPreparationAgentPanelDraftPayload,
   mediaCandidateOutputResourceIds,
 } from './preProductionAgentLaunch'
 
@@ -42,6 +43,26 @@ test('pre-production audit launch asks only for setting and asset proposals', ()
   assert.match(payload.clientInput.message, /setting_proposal/)
   assert.match(payload.clientInput.message, /asset_proposal/)
   assert.doesNotMatch(payload.clientInput.message, /production_proposal/)
+})
+
+test('setting preparation launch scopes the agent to the selected creative reference', () => {
+  const payload = buildSettingPreparationAgentPanelDraftPayload({
+    requestId: 'setting-prep',
+    projectId: 7,
+    creativeReferenceId: 31,
+    creativeReferenceLabel: '女主角',
+    message: '请补齐人物动机。',
+  })
+
+  assert.equal(payload.requestId, 'setting-prep')
+  assert.equal(payload.taskType, 'setting_preparation')
+  assert.equal(payload.renderMode, 'page')
+  assert.equal(payload.projectId, 7)
+  assert.equal(payload.message, '请补齐人物动机。')
+  assert.ok(payload.clientInput)
+  assert.equal(payload.clientInput.uiSnapshot?.selection?.entityType, 'creative_reference')
+  assert.equal(payload.clientInput.uiSnapshot?.selection?.entityId, 31)
+  assert.match(payload.clientInput.message, /女主角/)
 })
 
 test('media candidate generation launch builds real generation payload', () => {

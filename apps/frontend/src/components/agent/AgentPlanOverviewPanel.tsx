@@ -193,7 +193,7 @@ export function AgentPlanOverviewPanel({
                       </Button>
                       {entry.ownerRunId && (
                         <Button type="button" size="xs" variant="ghost" className="px-1 type-min" onClick={() => openRun(entry.ownerRunId)}>
-                          <Route size={8} />
+                          <Route size={10} />
                           运行
                         </Button>
                       )}
@@ -307,7 +307,7 @@ export function AgentPlanOverviewPanel({
                     )}
                     {artifact.sourceRunId && (
                       <Button type="button" size="xs" variant="ghost" className="px-1 type-min" onClick={() => openRun(artifact.sourceRunId)}>
-                        <Route size={8} />
+                        <Route size={10} />
                         运行
                       </Button>
                     )}
@@ -431,7 +431,7 @@ export function AgentPlanOverviewPanel({
                             className="px-1.5 type-micro"
                             onClick={() => navigate(agentRunPath(view.worker!.id))}
                           >
-                            <Route size={9} />
+                            <Route size={10} />
                             详情
                           </Button>
                           <Button
@@ -442,7 +442,7 @@ export function AgentPlanOverviewPanel({
                             disabled={loadingTraceSummaryRunId === view.worker.id}
                             onClick={() => loadTraceSummary(view.worker!.id)}
                           >
-                            {loadingTraceSummaryRunId === view.worker.id ? <Loader2 size={9} className="animate-spin" /> : <ListChecks size={9} />}
+                            {loadingTraceSummaryRunId === view.worker.id ? <Loader2 size={10} className="animate-spin" /> : <ListChecks size={10} />}
                             轨迹统计
                           </Button>
                           <Button
@@ -453,7 +453,7 @@ export function AgentPlanOverviewPanel({
                             disabled={loadingTraceEventsRunId === view.worker.id}
                             onClick={() => loadTraceEvents(view.worker!.id)}
                           >
-                            {loadingTraceEventsRunId === view.worker.id ? <Loader2 size={9} className="animate-spin" /> : <History size={9} />}
+                            {loadingTraceEventsRunId === view.worker.id ? <Loader2 size={10} className="animate-spin" /> : <History size={10} />}
                             运行事件
                           </Button>
                         </div>
@@ -553,7 +553,7 @@ export function AgentPlanOverviewPanel({
                                 disabled={loadingTraceEventsRunId === view.worker.id}
                                 onClick={() => loadTraceEvents(view.worker!.id, 'more')}
                               >
-                                {loadingTraceEventsRunId === view.worker.id ? <Loader2 size={9} className="animate-spin" /> : <History size={9} />}
+                                {loadingTraceEventsRunId === view.worker.id ? <Loader2 size={10} className="animate-spin" /> : <History size={10} />}
                                 加载更多
                               </Button>
                             )}
@@ -645,7 +645,7 @@ export function AgentPlanOverviewPanel({
                                 )}
                                 {artifact.sourceRunId && (
                                   <Button type="button" size="xs" variant="ghost" className="px-1 type-min" onClick={() => openRun(artifact.sourceRunId)}>
-                                    <Route size={8} />
+                                    <Route size={10} />
                                     运行
                                   </Button>
                                 )}

@@ -16,7 +16,7 @@ export function ProductionProposalBackendPreviewIssuePanel({ issue }: { issue: P
   return (
     <div className="rounded-lg border border-rose-200 bg-rose-50/60 p-3 text-rose-700 dark:border-rose-800/50 dark:bg-rose-950/30 dark:text-rose-300">
       <div className="flex items-start gap-2">
-        <AlertCircle size={13} className="mt-0.5 shrink-0" />
+        <AlertCircle size={14} className="mt-0.5 shrink-0" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <p className="type-label font-semibold">后端预览未通过</p>

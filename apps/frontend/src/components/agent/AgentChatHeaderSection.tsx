@@ -203,7 +203,7 @@ export function AgentChatHeaderSection({
           )}
           {showCollapse && (
             <Button size="icon-sm" variant="ghost" onClick={onCollapse} aria-label={t('agents.chat.collapseAssistant')} title={t('agents.chat.collapseAssistant')} className="ai-agent-panel-header-collapse">
-              <PanelRightClose size={15} />
+              <PanelRightClose size={14} />
             </Button>
           )}
         </div>

@@ -11,7 +11,7 @@ export function ProductionProposalWriteImpactPanel({
   return (
     <div className="rounded-lg border border-border bg-background p-3">
       <div className="flex items-center gap-2">
-        <Target size={13} className="text-primary" />
+        <Target size={14} className="text-primary" />
         <p className="type-label font-semibold text-foreground">写入影响</p>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-1.5 text-center type-tiny">
@@ -63,7 +63,7 @@ export function ProductionProposalReviewFooterActions({
         disabled={applying || simulating}
         onClick={onSimulate}
       >
-        {simulating ? <Loader2 size={11} className="animate-spin" /> : <Eye size={11} />}
+        {simulating ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />}
         预检影响
       </Button>
       {!previewOnly && (
@@ -73,7 +73,7 @@ export function ProductionProposalReviewFooterActions({
           disabled={applying || simulating || !canApply}
           onClick={onApply}
         >
-          {applying ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+          {applying ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
           写入项目
         </Button>
       )}

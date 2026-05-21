@@ -67,7 +67,7 @@ export function ScriptForm({
             }}
           />
           <Button type="button" size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} className="gap-1.5">
-            <Upload size={13} />
+            <Upload size={14} />
             导入文档
           </Button>
           {fileName && <span className="type-label text-muted-foreground">{fileName}</span>}
@@ -82,12 +82,12 @@ export function ScriptForm({
           )}
           {onCreateVersion && (
             <Button size="sm" variant="outline" onClick={onCreateVersion} disabled={isCreatingVersion || !canCreateVersion} className="gap-1.5">
-              <GitBranch size={13} />
+              <GitBranch size={14} />
               {isCreatingVersion ? '创建中…' : '保存为版本'}
             </Button>
           )}
           <Button size="sm" onClick={() => onSave(draft)} disabled={isSaving} className="gap-1.5">
-            <Save size={13} />
+            <Save size={14} />
             {isSaving ? t('common.saving') : t('common.save')}
           </Button>
         </div>

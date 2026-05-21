@@ -7,11 +7,9 @@ import {
   AlertTriangle,
   Boxes,
   CheckCircle2,
-  ChevronRight,
   Clapperboard,
   Clock3,
   Captions,
-  Database,
   Eye,
   FileAudio,
   Film,
@@ -29,6 +27,7 @@ import {
 } from 'lucide-react'
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { ProjectSurfaceHeader } from '@/components/app/AppPage'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
 import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
 import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
@@ -439,37 +438,28 @@ export default function ContentUnitsPage() {
     <>
       <ContentWorkspaceLayout
         header={(
-          <header className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 type-label text-muted-foreground">
-              <Database size={14} />
-              <span>{project?.name ?? '当前项目'}</span>
-              <ChevronRight size={13} />
-              <span>生产对象</span>
-              <ChevronRight size={13} />
-              <span>制作项</span>
-            </div>
-            <h1 className="mt-2 type-page-title font-semibold tracking-normal text-foreground">制作项</h1>
-            <p className="mt-1 max-w-4xl type-body leading-relaxed text-muted-foreground">
-              集中查看制作项的来源、输入缺口和关联对象；拆解、关键帧、素材补齐和生成决策统一在内容编排工作台完成。
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+          <ProjectSurfaceHeader
+            icon={Boxes}
+            title="制作项"
+            description="集中查看制作项的来源、输入缺口和关联对象；拆解、关键帧、素材补齐和生成决策统一在内容编排工作台完成。"
+            actions={(
+              <>
             <Button className="gap-2" asChild>
               <Link to={ROUTES.project.contentUnitWorkbench}>
-                <Wand2 size={15} />
+                <Wand2 size={14} />
                 进入内容编排
               </Link>
             </Button>
             <Button variant="outline" className="gap-2" onClick={startCreateContentUnit}>
-              <Plus size={15} />
+              <Plus size={14} />
               新建制作项
             </Button>
             <Button size="icon" variant="outline" onClick={refreshAll} loading={isFetching} aria-label="刷新制作项" title="刷新制作项">
-              <RefreshCcw size={15} />
+              <RefreshCcw size={14} />
             </Button>
-          </div>
-          </header>
+              </>
+            )}
+          />
         )}
         overview={(
           <section className="grid grid-cols-2 overflow-hidden rounded-md border border-border bg-card md:grid-cols-4" data-testid="content-units-summary-strip">
@@ -568,7 +558,7 @@ export default function ContentUnitsPage() {
               title={creatingContentUnit ? '新建制作项' : '卡片内编辑制作项'}
               description="直接维护制作项、创作提示、时长和状态。"
               hero={{
-                icon: <Boxes size={19} />,
+                icon: <Boxes size={18} />,
                 eyebrow: selected?.sceneMoment ? titleOf(selected.sceneMoment) : '未绑定情景',
                 title: creatingContentUnit ? '新建制作项' : selected ? titleOf(selected.unit) : '新建制作项',
                 subtitle: creatingContentUnit ? '制作项' : selected ? `${kindLabel(selected.unit.kind)} · 制作项 #${selected.unit.ID}` : '制作项',
@@ -762,12 +752,12 @@ function ContentUnitDetail({
           <div className="flex shrink-0 items-center gap-2">
             <StatusBadge status={item.unit.status ?? 'draft'} />
             <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setPreviewOpen(true)}>
-              <Clapperboard size={13} />
+              <Clapperboard size={14} />
               预览
             </Button>
             <Button size="sm" asChild>
               <Link to={`${ROUTES.project.contentUnitWorkbench}${workbenchSearch}`}>
-              <Wand2 size={13} />
+              <Wand2 size={14} />
               进入编排
               </Link>
             </Button>
@@ -897,7 +887,7 @@ function ContentTargetPanel({ targets }: { targets: ContentTargetViewModel[] }) 
             <div key={target.kind} className="rounded-md border border-border bg-background p-2.5">
               <div className="flex items-start gap-2">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                  <Icon size={15} />
+                  <Icon size={14} />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
@@ -923,7 +913,7 @@ function ContentTargetPanel({ targets }: { targets: ContentTargetViewModel[] }) 
 function CheckRow({ ok, label, detail }: { ok: boolean; label: string; detail: string }) {
   return (
     <div className="flex gap-2 rounded-md border border-border bg-background p-2.5">
-      {ok ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-600" /> : <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-600" />}
+      {ok ? <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-600" /> : <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-600" />}
       <div className="min-w-0">
         <p className="type-label font-medium text-foreground">{label}</p>
         <p className="mt-0.5 line-clamp-2 type-caption leading-4 text-muted-foreground">{detail}</p>

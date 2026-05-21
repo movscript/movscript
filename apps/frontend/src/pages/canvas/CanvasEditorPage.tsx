@@ -35,6 +35,7 @@ import { NodePanel, deriveCanvasReferencePorts } from './components/NodePanel'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { compileClientPlugin, loadClientPlugins, runClientPlugin, type ClientPluginManifest } from '@/lib/clientPlugins'
 import { toast } from '@/store/toastStore'
+import { useCanvasHeaderStore } from '@/store/canvasHeaderStore'
 import {
   CANVAS_NODE_CATALOG,
   CANVAS_NODE_CATEGORIES,
@@ -110,6 +111,7 @@ export interface CanvasPushTarget {
 interface CanvasWorkspaceProps {
   canvasId: number | string
   embedded?: boolean
+  useAppHeader?: boolean
   onClose?: () => void
   pushTargets?: CanvasPushTarget[]
 }
@@ -686,7 +688,7 @@ function RunStatusBadge({ status }: { status: CanvasRun['status'] }) {
   if (status === 'running' || status === 'pending') {
     return (
       <Badge variant="secondary" className="gap-1 border-transparent">
-        <Loader2 size={11} className="animate-spin" />
+        <Loader2 size={12} className="animate-spin" />
         {t(`canvas.runStatus.${status}`)}
       </Badge>
     )
@@ -694,14 +696,14 @@ function RunStatusBadge({ status }: { status: CanvasRun['status'] }) {
   if (status === 'done') {
     return (
       <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-600">
-        <CheckCircle2 size={11} />
+        <CheckCircle2 size={12} />
         {t('canvas.runStatus.done')}
       </Badge>
     )
   }
   return (
     <Badge variant="destructive" className="gap-1">
-      <XCircle size={11} />
+      <XCircle size={12} />
       {t('canvas.runStatus.failed')}
     </Badge>
   )
@@ -742,7 +744,7 @@ function WorkflowRunHistory({
       {compact ? (
         <div className="shrink-0 border-b border-border px-3 py-3">
           <div className="flex items-center gap-2">
-            <History size={15} className="text-muted-foreground" />
+            <History size={14} className="text-muted-foreground" />
             <div className="min-w-0 flex-1">
               <p className="type-label font-semibold text-foreground">{t('canvas.editor.history.title')}</p>
               <p className="type-tiny text-muted-foreground">{t('canvas.editor.history.runsCount', { count: total })}</p>
@@ -771,13 +773,13 @@ function WorkflowRunHistory({
         </div>
       ) : (
         <div className="flex h-11 items-center gap-3 border-b border-border px-4">
-          <History size={15} className="text-muted-foreground" />
+          <History size={14} className="text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <p className="type-label font-semibold text-foreground">{t('canvas.editor.history.title')}</p>
             <p className="type-tiny text-muted-foreground">{t('canvas.editor.history.description')}</p>
           </div>
           <div className="flex items-center gap-2">
-            <ListFilter size={13} className="text-muted-foreground" />
+            <ListFilter size={14} className="text-muted-foreground" />
             <select
               value={statusFilter}
               onChange={(e) => onStatusFilterChange(e.target.value as 'all' | CanvasRun['status'])}
@@ -829,7 +831,7 @@ function WorkflowRunHistory({
                     <span className="ml-auto type-tiny text-muted-foreground">{formatRunTime(run.started_at ?? run.CreatedAt, i18n.language)}</span>
                   </div>
                   <div className="mt-2 flex items-center gap-2 type-caption text-muted-foreground">
-                    <Clock3 size={11} />
+                    <Clock3 size={12} />
                     <span>{formatRunDuration(run)}</span>
                     <span className="h-1 w-1 rounded-full bg-border" />
                     <span>{t('canvas.editor.history.snapshotSummary', { nodes: run.snapshot_node_count ?? 0, edges: run.snapshot_edge_count ?? 0 })}</span>
@@ -863,7 +865,7 @@ function WorkflowRunHistory({
                   <span className="font-medium text-foreground">#{run.ID}</span>
                   <RunStatusBadge status={run.status} />
                   <span className="flex items-center gap-1 text-muted-foreground">
-                    <Clock3 size={11} />
+                    <Clock3 size={12} />
                     {formatRunDuration(run)}
                   </span>
                   <span className="min-w-0 truncate text-muted-foreground" title={run.error || undefined}>
@@ -943,7 +945,7 @@ function WorkflowSidePanel({
           onClick={() => setCollapsed(false)}
           title={t('canvas.editor.resourceShelf.title')}
         >
-          <HardDrive size={15} />
+          <HardDrive size={14} />
         </Button>
         <Button
           variant="ghost"
@@ -955,7 +957,7 @@ function WorkflowSidePanel({
           }}
           title={t('canvas.editor.history.title')}
         >
-          <History size={15} />
+          <History size={14} />
         </Button>
       </aside>
     )
@@ -1245,7 +1247,7 @@ function WorkflowRunResultsDialog({
   )
 }
 
-export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTargets = [] }: CanvasWorkspaceProps) {
+export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = false, onClose, pushTargets = [] }: CanvasWorkspaceProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -1281,6 +1283,8 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
   const pendingResultRunIdsRef = useRef<Set<number>>(new Set())
   const canvasPaneRef = useRef<HTMLDivElement>(null)
   const runHistoryPageSize = 8
+  const setCanvasHeader = useCanvasHeaderStore((s) => s.setHeader)
+  const resetCanvasHeader = useCanvasHeaderStore((s) => s.reset)
 
   // Load canvas
   const { data: canvas } = useQuery<Canvas>({
@@ -1518,7 +1522,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
       const payload = {
         name: canvasName,
         nodes: nodesToSave.map((n) => {
-          const { label, cardMode: _cardMode, pluginInputProperties: _pluginInputProperties, availableResources: _availableResources, onRun, onUpdateContent, onUpdatePrompt, onUpdateOutputType, onUpdateModelId, onUpdateAttachments, onApprove, onReject, onPush, canvasId: _canvasId, rfNodeId: _rfNodeId, pendingRuntimeInputs: _pendingRuntimeInputs, ...rest } = n.data as any
+          const { label, cardMode: _cardMode, pluginInputProperties: _pluginInputProperties, availableResources: _availableResources, referenceResources: _referenceResources, onRun, onUpdateContent, onUpdatePrompt, onUpdateOutputType, onUpdateModelId, onUpdateAttachments, onUpdateParams, onApprove, onReject, onPush, canvasId: _canvasId, rfNodeId: _rfNodeId, pendingRuntimeInputs: _pendingRuntimeInputs, ...rest } = n.data as any
           return {
             node_id: n.id,
             type: n.type,
@@ -2149,8 +2153,23 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     onNodeDragStop(event, node)
   }, [onNodeDragStop])
 
+  const nodeById = new Map(nodes.map((node) => [node.id, node]))
+  const resourceById = new Map(canvasNodeResources.map((resource) => [resource.ID, resource]))
   const nodesWithHandlers = nodes.map((n) => {
     const data = n.data as unknown as CanvasNodeData
+    const referenceResources: RawResource[] = []
+    const seenReferenceResourceIds = new Set<number>()
+    edges.forEach((edge) => {
+      if (edge.target !== n.id) return
+      const targetPort = portForHandle(n, 'target', edge.targetHandle)
+      if (!targetPort || !['resource', 'image', 'video'].includes(targetPort.type)) return
+      const sourceNode = nodeById.get(edge.source)
+      const sourceData = sourceNode?.data as Partial<CanvasNodeData> | undefined
+      const resource = sourceData?.resource ?? (sourceData?.resourceId ? resourceById.get(sourceData.resourceId) : undefined)
+      if (!resource || seenReferenceResourceIds.has(resource.ID)) return
+      seenReferenceResourceIds.add(resource.ID)
+      referenceResources.push(resource)
+    })
     const plugin = n.type === 'plugin_card' && data.pluginId
       ? clientPlugins.find((item) => item.id === data.pluginId)
       : undefined
@@ -2165,6 +2184,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
         canvasId: id,
         rfNodeId: n.id,
         availableResources: canvasNodeResources,
+        referenceResources,
         ...(plugin?.inputSchema?.properties && { pluginInputProperties: plugin.inputSchema.properties }),
         onRun: n.type === 'plugin_card' ? () => runLocalPluginNode(n.id) : n.type !== 'group' ? () => runNode(n.id) : undefined,
         onUpdateContent: (content: string) => updateNodeData(n.id, { textContent: content }),
@@ -2172,6 +2192,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
         onUpdateOutputType: (outputType: string) => updateNodeData(n.id, { outputType } as any),
         onUpdateModelId: (modelId: string, modelDbId?: number) => updateNodeData(n.id, { modelId, modelDbId }),
         onUpdateAttachments: (ids: number[]) => updateNodeData(n.id, { inputResourceIds: ids }),
+        onUpdateParams: (params: Record<string, unknown>) => updateNodeData(n.id, { params }),
         onApprove: () => handleApprove(n.id),
         onReject: () => handleReject(n.id),
         ...(hasPushableOutput && {
@@ -2207,13 +2228,42 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     ? activeRun
     : undefined
 
+  useEffect(() => {
+    if (!useAppHeader) return
+    setCanvasHeader({
+      active: true,
+      canvasName,
+      canvasType,
+      nodeCount: nodes.length,
+      runningCount,
+      doneCount,
+      inputCount: workflowStats.inputs,
+      processorCount: workflowStats.processors,
+      outputCount: workflowStats.outputs,
+      activeRunLabel: canvasType === 'workflow' && activeRun && activeRunStatusLabel
+        ? t('canvas.editor.activeRun', { id: activeRun.ID, status: activeRunStatusLabel })
+        : undefined,
+      workflowRunningCount,
+      saving: save.isPending,
+      startingRun: runAll.isPending,
+      onNameChange: setCanvasName,
+      onRun: handleRunWorkflow,
+      onSave: () => save.mutate(),
+    })
+  }, [activeRun?.ID, activeRunStatusLabel, canvasName, canvasType, doneCount, nodes.length, resetCanvasHeader, runAll.isPending, runningCount, save, setCanvasHeader, t, useAppHeader, workflowRunningCount, workflowStats.inputs, workflowStats.outputs, workflowStats.processors])
+
+  useEffect(() => {
+    if (!useAppHeader) return
+    return () => resetCanvasHeader()
+  }, [resetCanvasHeader, useAppHeader])
+
   return (
     <div className={cn('flex flex-col bg-background text-foreground', embedded ? 'h-full' : 'h-screen')}>
-      <div className={cn('shrink-0 border-b border-border bg-card/95 px-3', embedded ? 'h-11' : 'h-14')}>
+      {!useAppHeader && <div className={cn('shrink-0 border-b border-border bg-card/95 px-3', embedded ? 'h-11' : 'h-14')}>
         <div className="flex h-full items-center gap-3">
           {embedded ? (
             <Badge variant="outline" className="h-7 shrink-0 gap-1.5 px-2 type-caption font-medium">
-              {canvasType === 'workflow' ? <Zap size={11} /> : <Lightbulb size={11} />}
+              {canvasType === 'workflow' ? <Zap size={12} /> : <Lightbulb size={12} />}
               {t(`canvas.editor.canvasType.${canvasType}`)}
             </Badge>
           ) : (
@@ -2236,13 +2286,13 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
               </Badge>
               {runningCount > 0 && (
                 <Badge variant="secondary" className="shrink-0 gap-1">
-                  <Loader2 size={11} className="animate-spin" />
+                  <Loader2 size={12} className="animate-spin" />
                   {t('canvas.editor.runningCount', { count: runningCount })}
                 </Badge>
               )}
               {canvasType === 'workflow' && activeRun && activeRunStatusLabel && (
                 <Badge variant={activeRun.status === 'failed' ? 'destructive' : 'outline'} className="hidden shrink-0 gap-1 sm:flex">
-                  {(activeRun.status === 'running' || activeRun.status === 'pending') && <Loader2 size={11} className="animate-spin" />}
+                  {(activeRun.status === 'running' || activeRun.status === 'pending') && <Loader2 size={12} className="animate-spin" />}
                   {t('canvas.editor.activeRun', { id: activeRun.ID, status: activeRunStatusLabel })}
                 </Badge>
               )}
@@ -2285,7 +2335,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
             </Button>
           )}
         </div>
-      </div>
+      </div>}
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <aside className={cn(
@@ -2297,7 +2347,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
               'flex h-12 items-center border-b border-sidebar-border',
               libraryCollapsed ? 'justify-center px-0' : 'gap-2 px-3'
             )}>
-              {!libraryCollapsed && <Layers3 size={15} className="shrink-0 text-muted-foreground" />}
+              {!libraryCollapsed && <Layers3 size={14} className="shrink-0 text-muted-foreground" />}
               {!libraryCollapsed && <span className="flex-1 type-label font-semibold text-foreground">{t('canvas.editor.nodeLibrary')}</span>}
               <Button
                 variant="ghost"
@@ -2333,7 +2383,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
                                 title={t(item.labelKey)}
                                 aria-label={t(item.labelKey)}
                               >
-                                <Icon size={15} />
+                                <Icon size={14} />
                               </button>
                             )
                           })}
@@ -2358,7 +2408,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
                             title={plugin.name}
                             aria-label={plugin.name}
                           >
-                            <Puzzle size={15} />
+                            <Puzzle size={14} />
                           </button>
                         ))}
                       </div>
@@ -2396,13 +2446,13 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
                                 className="group flex min-h-[54px] items-center gap-2 rounded-md border border-border bg-card px-2.5 py-2 text-left transition-colors hover:border-foreground/25 hover:bg-background"
                               >
                                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground group-hover:text-foreground">
-                                  <Icon size={15} />
+                                  <Icon size={14} />
                                 </span>
                                 <span className="min-w-0 flex-1">
                                   <span className="block truncate type-label font-medium text-foreground">{t(item.labelKey)}</span>
                                   <span className="block truncate type-tiny text-muted-foreground">{t(item.descriptionKey)}</span>
                                 </span>
-                                <GripVertical size={13} className="shrink-0 text-muted-foreground/45" />
+                                <GripVertical size={14} className="shrink-0 text-muted-foreground/45" />
                               </button>
                             )
                           })}
@@ -2433,13 +2483,13 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
                           className="group flex min-h-[54px] items-center gap-2 rounded-md border border-border bg-card px-2.5 py-2 text-left transition-colors hover:border-foreground/25 hover:bg-background"
                         >
                           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground group-hover:text-foreground">
-                            <Puzzle size={15} />
+                            <Puzzle size={14} />
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="block truncate type-label font-medium text-foreground">{plugin.name}</span>
                             <span className="block truncate type-tiny text-muted-foreground">{plugin.description || t('canvas.pluginCard.localRuntime')}</span>
                           </span>
-                          <GripVertical size={13} className="shrink-0 text-muted-foreground/45" />
+                          <GripVertical size={14} className="shrink-0 text-muted-foreground/45" />
                         </button>
                       ))}
                     </div>
@@ -2499,7 +2549,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
           {nodes.length === 0 && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-8">
               <div className="max-w-sm rounded-lg border border-dashed border-border bg-background/80 p-5 text-center shadow-sm backdrop-blur">
-                <Sparkles size={20} className="mx-auto mb-3 text-muted-foreground" />
+                <Sparkles size={18} className="mx-auto mb-3 text-muted-foreground" />
                 <p className="type-body font-medium text-foreground">{t('canvas.editor.emptyTitle')}</p>
                 <p className="mt-1 type-label leading-relaxed text-muted-foreground">{t('canvas.editor.emptyDescription')}</p>
               </div>
@@ -2513,7 +2563,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
           )}
 
           <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-2 rounded-md border border-border bg-background/90 px-3 py-2 type-label text-muted-foreground shadow-sm backdrop-blur">
-            <MousePointer2 size={13} />
+            <MousePointer2 size={14} />
             {draggingNodeId
               ? t('canvas.editor.status.dragging')
               : selectedNode
@@ -2551,7 +2601,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
               'flex h-12 items-center border-b border-border',
               inspectorCollapsed ? 'justify-center px-0' : 'gap-2 px-3'
             )}>
-              {!inspectorCollapsed && <PanelRightClose size={15} className="shrink-0 text-muted-foreground" />}
+              {!inspectorCollapsed && <PanelRightClose size={14} className="shrink-0 text-muted-foreground" />}
               {!inspectorCollapsed && <span className="flex-1 type-label font-semibold text-foreground">{t('canvas.editor.inspector')}</span>}
               <Button
                 variant="ghost"
@@ -2806,12 +2856,12 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
   )
 }
 
-export default function CanvasEditorPage() {
+export default function CanvasEditorPage({ embeddedInShell = false }: { embeddedInShell?: boolean }) {
   const { id } = useParams<{ id: string }>()
   if (!id) return null
   return (
     <ReactFlowProvider>
-      <CanvasWorkspace canvasId={id} />
+      <CanvasWorkspace canvasId={id} embedded={embeddedInShell} useAppHeader={embeddedInShell} />
     </ReactFlowProvider>
   )
 }

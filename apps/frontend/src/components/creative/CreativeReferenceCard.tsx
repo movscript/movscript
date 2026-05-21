@@ -112,7 +112,7 @@ export function CreativeReferenceCard({
       <div className={cn('h-20 border-b border-border bg-gradient-to-br', reference.accent)}>
         <div className="flex h-full items-center justify-between px-4">
           <span className={cn('flex h-10 w-10 items-center justify-center rounded-md', meta.bg)}>
-            <Icon size={19} className={meta.text} />
+            <Icon size={18} className={meta.text} />
           </span>
           <div className="text-right">
             <p className="type-label font-medium text-muted-foreground">{reference.version}</p>

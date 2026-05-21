@@ -122,7 +122,7 @@ export function CanvasIOActionCard({
       <header className={cn('border-b px-3 py-2.5', toneMeta.accentSoft)}>
         <div className="flex items-start gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80">
-            <Icon size={15} className={toneMeta.activeColor} />
+            <Icon size={14} className={toneMeta.activeColor} />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
@@ -139,7 +139,7 @@ export function CanvasIOActionCard({
             {subtitle && <p className="mt-0.5 truncate type-caption text-muted-foreground">{subtitle}</p>}
           </div>
           <Button size="icon-xs" variant="ghost" className="shrink-0" aria-label="More">
-            <MoreHorizontal size={13} />
+            <MoreHorizontal size={14} />
           </Button>
         </div>
       </header>
@@ -147,7 +147,7 @@ export function CanvasIOActionCard({
       <div className="space-y-2 px-3 py-2.5">
         <div>
           <div className="flex items-center gap-1.5 type-tiny font-medium text-muted-foreground">
-            <Icon size={11} />
+            <Icon size={12} />
             <span>{bodyLabel}</span>
           </div>
           <div
@@ -240,9 +240,9 @@ function StateTile({ state, label }: { state: CanvasIOState; label: string }) {
     )}>
       <div className="flex min-h-0 flex-1 items-center justify-center rounded-t-md bg-muted/25">
         {isPending ? <Loader2 size={14} className="animate-spin text-muted-foreground" /> : isReady ? (
-          <CheckCircle2 size={15} className="text-emerald-600" />
+          <CheckCircle2 size={14} className="text-emerald-600" />
         ) : (
-          <Circle size={15} className={cn(isFailed ? 'text-destructive' : 'text-muted-foreground/60')} />
+          <Circle size={14} className={cn(isFailed ? 'text-destructive' : 'text-muted-foreground/60')} />
         )}
       </div>
       <div className="border-t border-border/60 px-1.5 py-1">
