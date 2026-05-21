@@ -110,6 +110,39 @@ test('generation monitor requests normalize backend monitor data to get job poll
   assert.equal(monitor.heartbeatMs, 50)
 })
 
+test('runtime operation starts emit generation events without synchronous monitor requests', () => {
+  const call: ToolCall = {
+    name: 'runtime_operation_start',
+    args: { kind: 'generation_job', request: { projectId: 42, prompt: 'image' } },
+  }
+  const result: JSONValue = {
+    status: 'started',
+    operation: {
+      id: 'op_1',
+      kind: 'generation_job',
+      status: 'waiting',
+      request: { projectId: 42, prompt: 'image' },
+      result: {
+        status: 'queued',
+        jobId: 123,
+        terminal: false,
+        monitor: {
+          tool: 'movscript_get_generation_job',
+          args: { jobId: 123, projectId: 42 },
+          timeoutMs: 200,
+          pollIntervalMs: 300,
+        },
+      },
+    },
+  }
+
+  const event = buildGenerationEvent(call, result)
+  assert.ok(event)
+  assert.equal(event.stage, 'created')
+  assert.equal(event.jobId, 123)
+  assert.equal(extractGenerationMonitorRequest(call, result, event), undefined)
+})
+
 test('generation monitor requests ignore invalid project ids', () => {
   const call: ToolCall = {
     name: 'movscript_create_generation_job',

@@ -42,16 +42,16 @@ test('every runtime application module has a focused same-name test', () => {
   )
 })
 
-test('runtime bridge modules do not depend back on AgentRuntime', () => {
+test('runtime bridge modules do not depend back on AgentRuntimeRouter', () => {
   const bridgeModules = listRuntimeBridgeModuleNames()
 
   for (const moduleName of bridgeModules) {
     const source = readFileSync(new URL(`${moduleName}.ts`, applicationDir), 'utf8')
 
     assert.equal(
-      /from ['"][^'"]*agentRuntime\.js['"]/.test(source),
+      /from ['"][^'"]*runtimeRouter\.js['"]/.test(source),
       false,
-      `${moduleName} should stay below AgentRuntime and must not import it`,
+      `${moduleName} should stay below AgentRuntimeRouter and must not import it`,
     )
   }
 })

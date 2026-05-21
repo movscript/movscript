@@ -2,12 +2,12 @@
 import { createServer, IncomingMessage, ServerResponse } from 'node:http'
 import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
-import { AgentRuntime } from './application/agentRuntime.js'
+import { AgentRuntimeRouter } from './application/runtimeRouter.js'
 import { normalizeDraftKind, normalizeDraftStatus } from './drafts/draftStore.js'
 import {
   createAgentServerContext,
   type AgentServerContext,
-  getAgentRuntimeCapabilities,
+  getAgentServerCapabilities,
   logAgentServerStartup,
 } from './bootstrap/agentServerContext.js'
 import { describeRuntimeModelCapabilities } from './model/modelRouter.js'
@@ -49,7 +49,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       if (req.method === 'GET' && url.pathname === '/health') {
         const healthStartedAt = Date.now()
         writeJSON(res, 200, {
-          ...getAgentRuntimeCapabilities(context),
+          ...getAgentServerCapabilities(context),
           ok: true,
           draftPath: context.paths.draftPath,
           modelConfigPath: context.paths.modelConfigPath,
@@ -62,8 +62,21 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       if (req.method === 'GET' && url.pathname === '/runtime/capabilities') {
         const capabilityStartedAt = Date.now()
-        writeJSON(res, 200, getAgentRuntimeCapabilities(context))
+        writeJSON(res, 200, getAgentServerCapabilities(context))
         logSlowRequest(req.method, url.pathname, requestStartedAt, capabilityStartedAt)
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/runtime/recovery/reconcile') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'runtime recovery reconcile is only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'runtime recovery reconcile rejects cross-site browser requests' })
+          return
+        }
+        writeJSON(res, 200, context.runtimeRouter.reconcileRuntimeThreads())
         return
       }
 
@@ -144,10 +157,10 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           mcpEndpoint: context.mcpEndpoint,
           resources,
           tools,
-          registeredTools: context.agentRuntime.listRegisteredTools(),
-          skills: context.agentRuntime.listSkillCatalog(),
-          profiles: context.agentRuntime.listProfileCatalog(),
-          defaultAgentManifest: context.agentRuntime.getDefaultAgentManifest(),
+          registeredTools: context.runtimeRouter.listRegisteredTools(),
+          skills: context.runtimeRouter.listSkillCatalog(),
+          profiles: context.runtimeRouter.listProfileCatalog(),
+          defaultAgentManifest: context.runtimeRouter.getDefaultAgentManifest(),
           pluginCatalog: {
             skillsDir: context.pluginCatalog.skillsDir,
             toolsDir: context.pluginCatalog.toolsDir,
@@ -167,7 +180,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         const projectId = url.searchParams.get('projectId')
         const parsedProjectId = parseOptionalProjectIdParam(projectId)
         const includeSchemas = url.searchParams.get('includeSchemas') !== 'false'
-        writeJSON(res, 200, await context.agentRuntime.getCapabilities({
+        writeJSON(res, 200, await context.runtimeRouter.getCapabilities({
           ...(parsedProjectId !== undefined ? { currentProjectId: parsedProjectId } : {}),
           includeResources: includeSchemas,
         }))
@@ -175,17 +188,17 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       }
 
       if (req.method === 'GET' && url.pathname === '/tools') {
-        writeJSON(res, 200, { tools: context.agentRuntime.listRegisteredTools() })
+        writeJSON(res, 200, { tools: context.runtimeRouter.listRegisteredTools() })
         return
       }
 
       if (req.method === 'GET' && url.pathname === '/skills') {
-        writeJSON(res, 200, { skills: context.agentRuntime.listSkillCatalog() })
+        writeJSON(res, 200, { skills: context.runtimeRouter.listSkillCatalog() })
         return
       }
 
       if (req.method === 'POST' && url.pathname === '/agent-catalog/reload') {
-        writeJSON(res, 200, context.agentRuntime.reloadAgentCatalog())
+        writeJSON(res, 200, context.runtimeRouter.reloadAgentCatalog())
         return
       }
 
@@ -200,7 +213,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         }
         const body = await readOptionalJSONObject(req, 'agent skill bundle body')
         const install = installAgentSkillBundle(normalizeAgentSkillBundleBody(body, context.pluginCatalog.skillsDir))
-        const catalogReload = context.agentRuntime.reloadAgentCatalog()
+        const catalogReload = context.runtimeRouter.reloadAgentCatalog()
         writeJSON(res, 200, {
           status: 'installed',
           ...install,
@@ -220,7 +233,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         }
         const body = await readOptionalJSONObject(req, 'agent skill bundle uninstall body')
         const uninstall = uninstallAgentSkillBundle(normalizeAgentSkillBundleUninstallBody(body, context.pluginCatalog.skillsDir))
-        const catalogReload = context.agentRuntime.reloadAgentCatalog()
+        const catalogReload = context.runtimeRouter.reloadAgentCatalog()
         writeJSON(res, 200, {
           status: 'uninstalled',
           ...uninstall,
@@ -230,7 +243,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       }
 
       if (req.method === 'GET' && url.pathname === '/agent-manifest/default') {
-        writeJSON(res, 200, context.agentRuntime.getDefaultAgentManifest())
+        writeJSON(res, 200, context.runtimeRouter.getDefaultAgentManifest())
         return
       }
 
@@ -244,7 +257,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           return
         }
         const body = await readOptionalJSONObject(req, 'default agent profile body')
-        writeJSON(res, 200, context.agentRuntime.setDefaultAgentProfile(body))
+        writeJSON(res, 200, context.runtimeRouter.setDefaultAgentProfile(body))
         return
       }
 
@@ -258,7 +271,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           return
         }
         const body = await readOptionalJSONObject(req, 'default tool policy body')
-        writeJSON(res, 200, context.agentRuntime.setDefaultToolPolicy(body))
+        writeJSON(res, 200, context.runtimeRouter.setDefaultToolPolicy(body))
         return
       }
 
@@ -272,7 +285,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           return
         }
         const body = await readOptionalJSONObject(req, 'default skill policy body')
-        writeJSON(res, 200, { skills: Array.from(context.agentRuntime.setDefaultSkillPolicy(body).skills.values()) })
+        writeJSON(res, 200, { skills: Array.from(context.runtimeRouter.setDefaultSkillPolicy(body).skills.values()) })
         return
       }
 
@@ -284,19 +297,19 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       if (req.method === 'POST' && url.pathname === '/draft') {
         const body = normalizeDraftBody(await readJSON(req))
-        const result = context.agentRuntime.createLocalDraft(body)
+        const result = context.runtimeRouter.createLocalDraft(body)
         writeJSON(res, 200, result)
         return
       }
 
       if (req.method === 'GET' && url.pathname === '/drafts') {
-        writeJSON(res, 200, { drafts: context.agentRuntime.listDrafts(normalizeDraftQuery(url)) })
+        writeJSON(res, 200, { drafts: context.runtimeRouter.listDrafts(normalizeDraftQuery(url)) })
         return
       }
 
       const draftMatch = url.pathname.match(/^\/drafts\/([^/]+)$/)
       if (draftMatch && req.method === 'GET') {
-        const draft = context.agentRuntime.getDraft(draftMatch[1])
+        const draft = context.runtimeRouter.getDraft(draftMatch[1])
         if (!draft) {
           writeJSON(res, 404, { error: 'draft not found' })
           return
@@ -306,7 +319,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       }
       if (draftMatch && req.method === 'PATCH') {
         const body = await readOptionalJSONObject(req, 'draft update body')
-        writeJSON(res, 200, context.agentRuntime.updateDraft({
+        writeJSON(res, 200, context.runtimeRouter.updateDraft({
           draftId: draftMatch[1],
           ...body,
         }))
@@ -315,14 +328,14 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const draftValidateMatch = url.pathname.match(/^\/drafts\/([^/]+)\/validate$/)
       if (draftValidateMatch && req.method === 'POST') {
-        writeJSON(res, 200, context.agentRuntime.validateDraft({ draftId: draftValidateMatch[1] }))
+        writeJSON(res, 200, context.runtimeRouter.validateDraft({ draftId: draftValidateMatch[1] }))
         return
       }
 
       const draftApplyPreviewMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply-preview$/)
       if (draftApplyPreviewMatch && req.method === 'POST') {
         const body = await readOptionalJSONObject(req, 'apply preview body')
-        writeJSON(res, 200, context.agentRuntime.previewApplyDraft({
+        writeJSON(res, 200, context.runtimeRouter.previewApplyDraft({
           draftId: draftApplyPreviewMatch[1],
           ...body,
         }))
@@ -332,7 +345,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       const draftApplySimulateMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply-simulate$/)
       if (draftApplySimulateMatch && req.method === 'POST') {
         const body = await readOptionalJSONObject(req, 'apply simulate body')
-        writeJSON(res, 200, await context.agentRuntime.simulateApplyDraft({
+        writeJSON(res, 200, await context.runtimeRouter.simulateApplyDraft({
           draftId: draftApplySimulateMatch[1],
           ...withRequestAuth(body, req),
         }))
@@ -342,7 +355,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       const draftApplyMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply$/)
       if (draftApplyMatch && req.method === 'POST') {
         const body = await readOptionalJSONObject(req, 'draft apply body')
-        writeJSON(res, 200, await context.agentRuntime.applyDraftFromUI({
+        writeJSON(res, 200, await context.runtimeRouter.applyDraftFromUI({
           draftId: draftApplyMatch[1],
           ...withRequestAuth(body, req),
         }))
@@ -352,7 +365,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       const draftRejectMatch = url.pathname.match(/^\/drafts\/([^/]+)\/reject$/)
       if (draftRejectMatch && req.method === 'POST') {
         const body = await readOptionalJSONObject(req, 'draft rejection body')
-        writeJSON(res, 200, context.agentRuntime.rejectDraft({
+        writeJSON(res, 200, context.runtimeRouter.rejectDraft({
           draftId: draftRejectMatch[1],
           reason: body.reason,
         }))
@@ -361,18 +374,18 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       if (req.method === 'POST' && url.pathname === '/threads') {
         const body = await readOptionalJSONObject(req, 'thread body')
-        writeJSON(res, 201, context.agentRuntime.createThread(body))
+        writeJSON(res, 201, context.runtimeRouter.createThread(body))
         return
       }
 
       if (req.method === 'GET' && url.pathname === '/threads') {
-        writeJSON(res, 200, { threads: context.agentRuntime.listThreadSummaries() })
+        writeJSON(res, 200, { threads: context.runtimeRouter.listThreadSummaries() })
         return
       }
 
       const threadMatch = url.pathname.match(/^\/threads\/([^/]+)$/)
       if (threadMatch && req.method === 'GET') {
-        const thread = context.agentRuntime.getThread(threadMatch[1])
+        const thread = context.runtimeRouter.getThread(threadMatch[1])
         if (!thread) {
           writeJSON(res, 404, { error: 'thread not found' })
           return
@@ -382,46 +395,46 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       }
       if (threadMatch && req.method === 'PATCH') {
         const body = await readOptionalJSONObject(req, 'thread update body')
-        writeJSON(res, 200, context.agentRuntime.updateThread(threadMatch[1], body))
+        writeJSON(res, 200, context.runtimeRouter.updateThread(threadMatch[1], body))
         return
       }
 
       const messagesMatch = url.pathname.match(/^\/threads\/([^/]+)\/messages$/)
       if (messagesMatch && req.method === 'POST') {
         const body = await readOptionalJSONObject(req, 'message body')
-        writeJSON(res, 201, context.agentRuntime.addMessage(messagesMatch[1], body))
+        writeJSON(res, 201, context.runtimeRouter.addMessage(messagesMatch[1], body))
         return
       }
 
       const threadRunMatch = url.pathname.match(/^\/threads\/([^/]+)\/runs$/)
       if (threadRunMatch && req.method === 'GET') {
-        const thread = context.agentRuntime.getThread(threadRunMatch[1])
+        const thread = context.runtimeRouter.getThread(threadRunMatch[1])
         if (!thread) {
           writeJSON(res, 404, { error: 'thread not found' })
           return
         }
         writeJSON(res, 200, {
           threadId: threadRunMatch[1],
-          runs: context.agentRuntime.listRunsByThread(threadRunMatch[1]),
+          runs: context.runtimeRouter.listRunsByThread(threadRunMatch[1]),
         })
         return
       }
 
       const threadRuntimeMatch = url.pathname.match(/^\/threads\/([^/]+)\/runtime$/)
       if (threadRuntimeMatch && req.method === 'GET') {
-        const thread = context.agentRuntime.getThread(threadRuntimeMatch[1])
+        const thread = context.runtimeRouter.getThread(threadRuntimeMatch[1])
         if (!thread) {
           writeJSON(res, 404, { error: 'thread not found' })
           return
         }
-        const runs = context.agentRuntime.listRunsByThread(threadRuntimeMatch[1])
+        const runs = context.runtimeRouter.listRunsByThread(threadRuntimeMatch[1])
         writeJSON(res, 200, buildThreadRuntimeSnapshot(thread, runs))
         return
       }
 
       const threadStreamMatch = url.pathname.match(/^\/threads\/([^/]+)\/stream$/)
       if (threadStreamMatch && req.method === 'GET') {
-        streamThreadEvents(req, res, context.agentRuntime, threadStreamMatch[1])
+        streamThreadEvents(req, res, context.runtimeRouter, threadStreamMatch[1])
         return
       }
 
@@ -433,12 +446,12 @@ export function createAgentRequestListener(context: AgentServerContext, options:
             ? body.content
             : undefined
         if (!content) throw new AgentHTTPError(400, 'thread run message is required')
-        const thread = context.agentRuntime.getThread(threadRunMatch[1])
+        const thread = context.runtimeRouter.getThread(threadRunMatch[1])
         if (!thread) throw new AgentHTTPError(404, 'thread not found')
-        const activeRun = thread.activeRunId ? context.agentRuntime.getRun(thread.activeRunId) : undefined
+        const activeRun = thread.activeRunId ? context.runtimeRouter.getRun(thread.activeRunId) : undefined
         const activeRunPolicy = body.activeRunPolicy === 'new_run' ? 'new_run' : 'runtime_input'
         if (activeRun && isActiveRunStatus(activeRun.status) && activeRunPolicy !== 'new_run') {
-          const message = context.agentRuntime.addMessage(threadRunMatch[1], {
+          const message = context.runtimeRouter.addMessage(threadRunMatch[1], {
             role: 'user',
             content,
             runId: activeRun.id,
@@ -460,7 +473,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           })
           return
         }
-        const message = context.agentRuntime.addMessage(threadRunMatch[1], {
+        const message = context.runtimeRouter.addMessage(threadRunMatch[1], {
           role: 'user',
           content,
           ...(body.clientInput !== undefined ? { clientInput: body.clientInput } : {}),
@@ -471,7 +484,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           sourceMessageId: _sourceMessageId,
           ...runBody
         } = body
-        const run = context.agentRuntime.createRun(asPlannerUserRun({
+        const run = context.runtimeRouter.createRun(asPlannerUserRun({
           ...runBody,
           threadId: threadRunMatch[1],
           sourceMessageId: message.id,
@@ -482,36 +495,36 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       if (req.method === 'POST' && url.pathname === '/runs') {
         const body = await readOptionalJSONObject(req, 'run body')
-        writeJSON(res, 201, context.agentRuntime.createRun(asPlannerUserRun(withRequestAuth(body, req))))
+        writeJSON(res, 201, context.runtimeRouter.createRun(asPlannerUserRun(withRequestAuth(body, req))))
         return
       }
 
       if (req.method === 'POST' && url.pathname === '/runs/tool') {
         const body = await readOptionalJSONObject(req, 'tool run body')
-        writeJSON(res, 201, context.agentRuntime.createToolRun(asDirectToolRun(withRequestAuth(body, req))))
+        writeJSON(res, 201, context.runtimeRouter.createToolRun(asDirectToolRun(withRequestAuth(body, req))))
         return
       }
 
       if (req.method === 'POST' && url.pathname === '/runs/preview') {
         const body = await readOptionalJSONObject(req, 'run preview body')
-        writeJSON(res, 200, await context.agentRuntime.previewRun(withRequestAuth(body, req)))
+        writeJSON(res, 200, await context.runtimeRouter.previewRun(withRequestAuth(body, req)))
         return
       }
 
       if (req.method === 'POST' && url.pathname === '/plans') {
         const body = await readOptionalJSONObject(req, 'plan body')
-        writeJSON(res, 201, await context.agentRuntime.createPlan(withRequestAuth(body, req)))
+        writeJSON(res, 201, await context.runtimeRouter.createPlan(withRequestAuth(body, req)))
         return
       }
 
       if (req.method === 'GET' && url.pathname === '/plans') {
-        writeJSON(res, 200, { plans: context.agentRuntime.listPlans() })
+        writeJSON(res, 200, { plans: context.runtimeRouter.listPlans() })
         return
       }
 
       const planMatch = url.pathname.match(/^\/plans\/([^/]+)$/)
       if (planMatch && req.method === 'GET') {
-        writeJSON(res, 200, context.agentRuntime.getPlanSnapshot(planMatch[1]))
+        writeJSON(res, 200, context.runtimeRouter.getPlanSnapshot(planMatch[1]))
         return
       }
 
@@ -519,7 +532,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       if (planTasksMatch && req.method === 'GET') {
         writeJSON(res, 200, {
           planId: planTasksMatch[1],
-          tasks: context.agentRuntime.getTaskTree(planTasksMatch[1]),
+          tasks: context.runtimeRouter.getTaskTree(planTasksMatch[1]),
         })
         return
       }
@@ -527,7 +540,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       const planDispatchMatch = url.pathname.match(/^\/plans\/([^/]+)\/dispatch$/)
       if (planDispatchMatch && req.method === 'POST') {
         const body = await readOptionalJSONObject(req, 'plan dispatch body')
-        writeJSON(res, 202, context.agentRuntime.dispatchPlan({
+        writeJSON(res, 202, context.runtimeRouter.dispatchPlan({
           ...withRequestAuth(body, req),
           planId: planDispatchMatch[1],
         }))
@@ -536,28 +549,28 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const planStreamMatch = url.pathname.match(/^\/plans\/([^/]+)\/stream$/)
       if (planStreamMatch && req.method === 'GET') {
-        streamPlanEvents(req, res, context.agentRuntime, planStreamMatch[1])
+        streamPlanEvents(req, res, context.runtimeRouter, planStreamMatch[1])
         return
       }
 
       const taskMatch = url.pathname.match(/^\/tasks\/([^/]+)$/)
       if (taskMatch && req.method === 'PATCH') {
         const body = await readOptionalJSONObject(req, 'task update body')
-        writeJSON(res, 200, context.agentRuntime.updateTask(taskMatch[1], body))
+        writeJSON(res, 200, context.runtimeRouter.updateTask(taskMatch[1], body))
         return
       }
 
       if (req.method === 'GET' && url.pathname === '/runs') {
         const parentRunId = url.searchParams.get('parentRunId')
         writeJSON(res, 200, {
-          runs: parentRunId ? context.agentRuntime.listRunsByParent(parentRunId) : context.agentRuntime.listRuns(),
+          runs: parentRunId ? context.runtimeRouter.listRunsByParent(parentRunId) : context.runtimeRouter.listRuns(),
         })
         return
       }
 
       const runMatch = url.pathname.match(/^\/runs\/([^/]+)$/)
       if (runMatch && req.method === 'GET') {
-        const run = context.agentRuntime.getRun(runMatch[1])
+        const run = context.runtimeRouter.getRun(runMatch[1])
         if (!run) {
           writeJSON(res, 404, { error: 'run not found' })
           return
@@ -568,42 +581,42 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const runTraceSummaryMatch = url.pathname.match(/^\/runs\/([^/]+)\/trace\/summary$/)
       if (runTraceSummaryMatch && req.method === 'GET') {
-        if (!context.agentRuntime.getRun(runTraceSummaryMatch[1])) {
+        if (!context.runtimeRouter.getRun(runTraceSummaryMatch[1])) {
           writeJSON(res, 404, { error: 'run not found' })
           return
         }
-        writeJSON(res, 200, context.agentRuntime.getRunTraceSummary(runTraceSummaryMatch[1]))
+        writeJSON(res, 200, context.runtimeRouter.getRunTraceSummary(runTraceSummaryMatch[1]))
         return
       }
 
       const runTraceDebugViewMatch = url.pathname.match(/^\/runs\/([^/]+)\/trace\/debug-view$/)
       if (runTraceDebugViewMatch && req.method === 'GET') {
-        if (!context.agentRuntime.getRun(runTraceDebugViewMatch[1])) {
+        if (!context.runtimeRouter.getRun(runTraceDebugViewMatch[1])) {
           writeJSON(res, 404, { error: 'run not found' })
           return
         }
-        writeJSON(res, 200, context.agentRuntime.getRunTraceDebugView(runTraceDebugViewMatch[1]))
+        writeJSON(res, 200, context.runtimeRouter.getRunTraceDebugView(runTraceDebugViewMatch[1]))
         return
       }
 
       const runDebugLedgerMatch = url.pathname.match(/^\/runs\/([^/]+)\/debug-ledger$/)
       if (runDebugLedgerMatch && req.method === 'GET') {
-        if (!context.agentRuntime.getRun(runDebugLedgerMatch[1])) {
+        if (!context.runtimeRouter.getRun(runDebugLedgerMatch[1])) {
           writeJSON(res, 404, { error: 'run not found' })
           return
         }
-        writeJSON(res, 200, context.agentRuntime.getRunDebugLedger(runDebugLedgerMatch[1]))
+        writeJSON(res, 200, context.runtimeRouter.getRunDebugLedger(runDebugLedgerMatch[1]))
         return
       }
 
       const runDebugEvidenceMatch = url.pathname.match(/^\/runs\/([^/]+)\/debug-evidence\/([^/]+)$/)
       if (runDebugEvidenceMatch && req.method === 'GET') {
-        if (!context.agentRuntime.getRun(runDebugEvidenceMatch[1])) {
+        if (!context.runtimeRouter.getRun(runDebugEvidenceMatch[1])) {
           writeJSON(res, 404, { error: 'run not found' })
           return
         }
         try {
-          writeJSON(res, 200, context.agentRuntime.getRunDebugEvidence(runDebugEvidenceMatch[1], decodeURIComponent(runDebugEvidenceMatch[2])))
+          writeJSON(res, 200, context.runtimeRouter.getRunDebugEvidence(runDebugEvidenceMatch[1], decodeURIComponent(runDebugEvidenceMatch[2])))
         } catch (error) {
           writeJSON(res, 404, { error: error instanceof Error ? error.message : String(error) })
         }
@@ -612,11 +625,11 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const runGenerationViewMatch = url.pathname.match(/^\/runs\/([^/]+)\/generation-view$/)
       if (runGenerationViewMatch && req.method === 'GET') {
-        if (!context.agentRuntime.getRun(runGenerationViewMatch[1])) {
+        if (!context.runtimeRouter.getRun(runGenerationViewMatch[1])) {
           writeJSON(res, 404, { error: 'run not found' })
           return
         }
-        writeJSON(res, 200, context.agentRuntime.getRunGenerationView(runGenerationViewMatch[1]))
+        writeJSON(res, 200, context.runtimeRouter.getRunGenerationView(runGenerationViewMatch[1]))
         return
       }
 
@@ -624,7 +637,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       if (runChildrenMatch && req.method === 'GET') {
         writeJSON(res, 200, {
           runId: runChildrenMatch[1],
-          children: context.agentRuntime.getChildRuns(runChildrenMatch[1]),
+          children: context.runtimeRouter.getChildRuns(runChildrenMatch[1]),
         })
         return
       }
@@ -636,51 +649,57 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           writeJSON(res, 400, { error: traceQuery.error })
           return
         }
-        if (!context.agentRuntime.getRun(runTraceMatch[1])) {
+        if (!context.runtimeRouter.getRun(runTraceMatch[1])) {
           writeJSON(res, 404, { error: 'run not found' })
           return
         }
-        writeJSON(res, 200, context.agentRuntime.getRunTracePage(runTraceMatch[1], traceQuery.query))
+        writeJSON(res, 200, context.runtimeRouter.getRunTracePage(runTraceMatch[1], traceQuery.query))
         return
       }
 
       const runStreamMatch = url.pathname.match(/^\/runs\/([^/]+)\/stream$/)
       if (runStreamMatch && req.method === 'GET') {
-        streamRunEvents(req, res, context.agentRuntime, runStreamMatch[1])
+        streamRunEvents(req, res, context.runtimeRouter, runStreamMatch[1])
         return
       }
 
       const runApproveMatch = url.pathname.match(/^\/runs\/([^/]+)\/approve$/)
       if (runApproveMatch && req.method === 'POST') {
         const body = await readOptionalJSONObject(req, 'approval body')
-        writeJSON(res, 202, context.agentRuntime.approveRun(runApproveMatch[1], withRequestAuth(body, req)))
+        writeJSON(res, 202, context.runtimeRouter.approveRun(runApproveMatch[1], withRequestAuth(body, req)))
         return
       }
 
       const runCancelMatch = url.pathname.match(/^\/runs\/([^/]+)\/cancel$/)
       if (runCancelMatch && req.method === 'POST') {
         const body = await readOptionalJSONObject(req, 'cancel body')
-        writeJSON(res, 200, context.agentRuntime.cancelRun(runCancelMatch[1], body))
+        writeJSON(res, 200, context.runtimeRouter.cancelRun(runCancelMatch[1], body))
+        return
+      }
+
+      const runResumeMatch = url.pathname.match(/^\/runs\/([^/]+)\/resume$/)
+      if (runResumeMatch && req.method === 'POST') {
+        writeJSON(res, 202, context.runtimeRouter.resumeInterruptedRun(runResumeMatch[1]))
         return
       }
 
       const runCancelTreeMatch = url.pathname.match(/^\/runs\/([^/]+)\/cancel-tree$/)
       if (runCancelTreeMatch && req.method === 'POST') {
         const body = await readOptionalJSONObject(req, 'cancel tree body')
-        writeJSON(res, 200, context.agentRuntime.cancelPlanTree(runCancelTreeMatch[1], body))
+        writeJSON(res, 200, context.runtimeRouter.cancelPlanTree(runCancelTreeMatch[1], body))
         return
       }
 
       const runReplanMatch = url.pathname.match(/^\/runs\/([^/]+)\/replan$/)
       if (runReplanMatch && req.method === 'POST') {
-        const run = context.agentRuntime.getRun(runReplanMatch[1])
+        const run = context.runtimeRouter.getRun(runReplanMatch[1])
         if (!run?.planId) {
           writeJSON(res, run ? 400 : 404, { error: run ? 'run is not attached to a plan' : 'run not found' })
           return
         }
-        const plan = context.agentRuntime.getPlan(run.planId)
+        const plan = context.runtimeRouter.getPlan(run.planId)
         const body = await readOptionalJSONObject(req, 'replan body')
-        writeJSON(res, 202, context.agentRuntime.replanRun(runReplanMatch[1], {
+        writeJSON(res, 202, context.runtimeRouter.replanRun(runReplanMatch[1], {
           ...withRequestAuth(body, req),
           planId: run.planId,
           plannerRunId: plan?.rootRunId ?? (run.role === 'planner' ? run.id : run.parentRunId),
@@ -691,40 +710,40 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       const runRejectMatch = url.pathname.match(/^\/runs\/([^/]+)\/reject$/)
       if (runRejectMatch && req.method === 'POST') {
         const body = await readOptionalJSONObject(req, 'rejection body')
-        writeJSON(res, 200, context.agentRuntime.rejectRun(runRejectMatch[1], body))
+        writeJSON(res, 200, context.runtimeRouter.rejectRun(runRejectMatch[1], body))
         return
       }
 
       const runInputMatch = url.pathname.match(/^\/runs\/([^/]+)\/input$/)
       if (runInputMatch && req.method === 'POST') {
         const body = await readOptionalJSONObject(req, 'input answer body')
-        writeJSON(res, 202, context.agentRuntime.answerRunInputRequest(runInputMatch[1], withRequestAuth(body, req)))
+        writeJSON(res, 202, context.runtimeRouter.answerRunInputRequest(runInputMatch[1], withRequestAuth(body, req)))
         return
       }
 
       if (req.method === 'GET' && url.pathname === '/memories') {
         const query = normalizeMemoryQuery(url)
-        writeJSON(res, 200, { memories: query ? context.agentRuntime.listMemorySummaries(query) : [] })
+        writeJSON(res, 200, { memories: query ? context.runtimeRouter.listMemorySummaries(query) : [] })
         return
       }
 
       if (req.method === 'POST' && url.pathname === '/memories') {
         const body = await readOptionalJSONObject(req, 'memory body')
-        writeJSON(res, 201, context.agentRuntime.createMemory(normalizeMemoryBody(body)))
+        writeJSON(res, 201, context.runtimeRouter.createMemory(normalizeMemoryBody(body)))
         return
       }
 
       const memoryMatch = url.pathname.match(/^\/memories\/([^/]+)$/)
       if (memoryMatch && req.method === 'GET') {
         const projectId = normalizeMemoryProjectId(url)
-        const memory = isValidMemoryProjectId(projectId) ? context.agentRuntime.getMemory(projectId, memoryMatch[1]) : undefined
+        const memory = isValidMemoryProjectId(projectId) ? context.runtimeRouter.getMemory(projectId, memoryMatch[1]) : undefined
         writeJSON(res, memory ? 200 : 404, memory ? { memory } : { error: 'memory not found' })
         return
       }
 
       if (memoryMatch && req.method === 'DELETE') {
         const projectId = normalizeMemoryProjectId(url)
-        const deleted = isValidMemoryProjectId(projectId) ? context.agentRuntime.deleteMemory(projectId, memoryMatch[1]) : false
+        const deleted = isValidMemoryProjectId(projectId) ? context.runtimeRouter.deleteMemory(projectId, memoryMatch[1]) : false
         writeJSON(res, deleted ? 200 : 404, deleted ? { deleted: true } : { error: 'memory not found' })
         return
       }
@@ -800,7 +819,7 @@ function normalizeDraftBody(body: unknown): Record<string, JSONValue> {
   }
 }
 
-function normalizeDraftQuery(url: URL): Parameters<AgentRuntime['listDrafts']>[0] {
+function normalizeDraftQuery(url: URL): Parameters<AgentRuntimeRouter['listDrafts']>[0] {
   const projectId = url.searchParams.get('projectId')
   const parsedProjectId = parseOptionalProjectIdParam(projectId)
   const kind = normalizeDraftKind(url.searchParams.get('kind'))
@@ -879,7 +898,7 @@ async function readOptionalJSONObject(req: IncomingMessage, label: string): Prom
   return normalizeOptionalObject(await readJSON(req), label)
 }
 
-function normalizeMemoryQuery(url: URL): Parameters<AgentRuntime['listMemories']>[0] | undefined {
+function normalizeMemoryQuery(url: URL): Parameters<AgentRuntimeRouter['listMemories']>[0] | undefined {
   const scope = url.searchParams.get('scope')
   if (scope === 'global' || scope === 'thread') return undefined
   const projectId = normalizeMemoryProjectId(url)
@@ -896,7 +915,7 @@ function normalizeMemoryQuery(url: URL): Parameters<AgentRuntime['listMemories']
   }
 }
 
-function normalizeMemoryBody(body: Record<string, unknown>): Parameters<AgentRuntime['createMemory']>[0] {
+function normalizeMemoryBody(body: Record<string, unknown>): Parameters<AgentRuntimeRouter['createMemory']>[0] {
   const projectId = isValidMemoryProjectId(body.projectId) ? body.projectId : undefined
   const kind = body.kind === 'preference' || body.kind === 'fact' || body.kind === 'item_ref' || body.kind === 'entity_ref' || body.kind === 'draft' || body.kind === 'decision' || body.kind === 'warning'
     ? body.kind
@@ -1046,7 +1065,7 @@ function timestampMs(value: string | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntime, runId: string): void {
+function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, runId: string): void {
   if (!runtime.getRun(runId)) {
     writeJSON(res, 404, { error: 'run not found' })
     return
@@ -1090,7 +1109,7 @@ function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: Age
   req.on('close', () => cleanup(false))
 }
 
-function streamThreadEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntime, threadId: string): void {
+function streamThreadEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, threadId: string): void {
   if (!runtime.getThread(threadId)) {
     writeJSON(res, 404, { error: 'thread not found' })
     return
@@ -1126,7 +1145,7 @@ function streamThreadEvents(req: IncomingMessage, res: ServerResponse, runtime: 
   req.on('close', () => cleanup(false))
 }
 
-function streamPlanEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntime, planId: string): void {
+function streamPlanEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, planId: string): void {
   if (!runtime.getPlan(planId)) {
     writeJSON(res, 404, { error: 'plan not found' })
     return

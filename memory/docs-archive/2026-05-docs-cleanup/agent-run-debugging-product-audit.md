@@ -34,7 +34,7 @@
 | 调试包消费契约已发布 | `docs/agent-run-debug-bundle-v1.zh-CN.md` 说明版本识别、核心字段、读取顺序、脱敏边界、旧运行限制和兼容策略；`docs/README.zh-CN.md` 已链接 | 已满足 |
 | 旧运行限制可解释 | 页面诊断清单给出缺失数据下一步；`docs/agent-run-debug-bundle-v1.zh-CN.md` 说明旧 run 缺失 request payload、response body、context、history write、tool detail 时不能事后补齐 | 已满足 |
 | 浏览器验收标准明确 | `docs/agent-run-debugging-acceptance.zh-CN.md` 定义 Playwright 命令、外部 base URL 复跑方式、CI job、通过标准、截图附件清单、调试包验收和失败处理；`docs/agent-run-debugging-acceptance-summary-v1.schema.json` 与 fixture 固化 E2E 机器可读摘要契约，并由静态 verifier 按 schema 校验；PR 模板和发布清单要求 AgentRun 调试改动跑门禁并检查 CI artifact；`docs/README.zh-CN.md` 与 `docs/README.md` 已链接 | 已满足 |
-| 后端持久化模型 HTTP 和历史写入 | `apps/agent/src/application/agentRuntime.test.ts`、`runtimeRunExecutionPreflight.test.ts` 已覆盖模型 HTTP request/response persistence 和 assistant history writes | 已满足 |
+| 后端持久化模型 HTTP 和历史写入 | `apps/agent/src/application/runtimeRouter.test.ts`、`runtimeRunExecutionPreflight.test.ts` 已覆盖模型 HTTP request/response persistence 和 assistant history writes | 已满足 |
 | 回归保护 | `localAgentClient.test.ts`、`agentRunUiView.test.ts`、`agentGenerationUiContract.test.tsx`、`agent-planner.spec.ts` 覆盖 trace 客户端读取契约、UI hook、报告、调试包、脱敏、模型详情、异常入口 | 已满足 |
 
 ## Prompt-to-artifact 检查表

@@ -715,7 +715,7 @@ export interface AgentCapabilitiesResponse {
   warnings: string[]
 }
 
-export interface AgentRuntimeOptions {
+export interface AgentRuntimeRouterOptions {
   mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
   store?: import('./store.js').AgentStore
   draftStore?: AgentDraftStore

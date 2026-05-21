@@ -1106,6 +1106,8 @@
         "manifest": "Presets",
         "skills": "Skills",
         "tools": "Tools",
+        "toolConsole": "MCP Calls",
+        "draftRuntime": "Draft Runtime",
         "prompt": "Prompt",
         "context": "Context",
         "runs": "Runs",
@@ -1152,6 +1154,14 @@
         "runIssueSummary": "Run Issue Summary",
         "effectiveManifest": "Effective Manifest",
         "defaultManifest": "Default Runtime Manifest",
+        "toolConsole": "External MCP Tool Call",
+        "toolSchema": "Tool Input Schema",
+        "toolConsoleOutput": "Tool Output Summary",
+        "toolConsoleResult": "Call Result",
+        "draftRuntime": "Draft Runtime Debug",
+        "draftRuntimeSchema": "Draft Tool Input Schema",
+        "draftRuntimeOutput": "Draft Tool Output Summary",
+        "draftRuntimeResult": "Draft Call Result",
         "activatedSkills": "Activated Skills",
         "skillCatalog": "Skill Catalog",
         "promptParts": "Prompt Parts",
@@ -1212,6 +1222,25 @@
         "permission": "Permission",
         "approval": "Approval",
         "status": "Status"
+      },
+      "toolConsole": {
+        "warning": "Only external MCP tools with source=mcp are listed here. Calls are still forwarded by Agent Runtime, but local Runtime draft / memory / plan tools are hidden.",
+        "runtimeBoundary": "Draft capabilities currently live in Agent Runtime local tools, such as movscript_get_draft_model, movscript_create_draft, and movscript_preview_draft_apply. They are not external MCP calls and should be verified in a separate Draft Runtime debug entry.",
+        "tool": "MCP tool",
+        "args": "JSON args",
+        "run": "Run Tool",
+        "refreshTrace": "Refresh Trace"
+      },
+      "draftRuntime": {
+        "boundary": "This panel calls Agent Runtime local draft tools to verify draft model seed, draft creation, validation, and preview apply. It is not external MCP.",
+        "tool": "Draft Runtime tool",
+        "args": "JSON args",
+        "run": "Run Draft Tool",
+        "assetModelPreset": "Asset proposal model",
+        "createAssetDraftPreset": "Create asset draft shell",
+        "validatePreset": "Validate draft",
+        "previewApplyPreset": "Preview apply",
+        "refreshTrace": "Refresh Trace"
       },
       "observationStatuses": {
         "ready": "Covered",
@@ -1367,6 +1396,12 @@
         "noRunIssues": "No run issues right now.",
         "noTriageItems": "No issues need triage right now.",
         "noRemediationItems": "No remediation steps are suggested right now.",
+        "noToolSelected": "No tool selected.",
+        "noMcpTools": "No external MCP tools are available.",
+        "noToolConsoleResult": "Run a tool to show the run and trace.",
+        "noDraftRuntimeTools": "No Draft Runtime tools are available.",
+        "noDraftRuntimeToolSelected": "No Draft Runtime tool selected.",
+        "noDraftRuntimeResult": "Run a Draft Runtime tool to show the run and trace.",
         "modelConfigReadFailed": "Model config could not be read: {{reason}}"
       },
       "values": {

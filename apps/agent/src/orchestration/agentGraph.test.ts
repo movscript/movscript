@@ -24,6 +24,175 @@ const emptyTools: ResolvedToolCatalog = {
   byName: {},
 }
 
+function tool(name: string, risk: AgentDebugTool['risk'] = 'read', requiresApprovalByDefault = false) {
+  return {
+    name,
+    description: `${name} tool.`,
+    permission: `tool.${name}`,
+    risk,
+    source: 'mcp' as const,
+    projectScoped: false,
+    requiresApprovalByDefault,
+  }
+}
+
+function resolvedCatalog(registry: StaticToolRegistry): ResolvedToolCatalog {
+  const available = registry.list().map((item): AgentDebugTool => ({
+    name: item.name,
+    description: item.description,
+    permission: item.permission,
+    risk: item.risk,
+    source: item.source ?? 'runtime',
+    projectScoped: item.projectScoped,
+    approval: item.requiresApprovalByDefault ? 'always' : 'never',
+    requiresApproval: item.requiresApprovalByDefault,
+    registered: true,
+    granted: true,
+    available: true,
+  }))
+  return {
+    discovered: available,
+    available,
+    blocked: [],
+    byName: Object.fromEntries(available.map((item) => [item.name, item])),
+  }
+}
+
+function emptyContext() {
+  return {
+    route: { pathname: '/' },
+    projects: [],
+    recentResources: [],
+    attachments: [],
+    memories: [],
+    labels: [],
+  }
+}
+
+test('runAgentGraph pauses again after executing one approved forced call when other approvals remain pending', async () => {
+  const run: AgentRun = {
+    id: 'run_partial_approval',
+    threadId: 'thread_1',
+    status: 'queued',
+    policy,
+    pendingApprovals: [
+      {
+        id: 'approval_1',
+        runId: 'run_partial_approval',
+        toolName: 'runtime_operation_start',
+        args: { value: 'a' },
+        reason: 'Needs approval.',
+        status: 'approved',
+        createdAt: '2026-05-16T00:00:00.000Z',
+        updatedAt: '2026-05-16T00:00:01.000Z',
+        approvedAt: '2026-05-16T00:00:01.000Z',
+      },
+      {
+        id: 'approval_2',
+        runId: 'run_partial_approval',
+        toolName: 'runtime_operation_start',
+        args: { value: 'b' },
+        reason: 'Needs approval.',
+        status: 'pending',
+        createdAt: '2026-05-16T00:00:00.000Z',
+        updatedAt: '2026-05-16T00:00:00.000Z',
+      },
+    ],
+    metadata: { approvedToolNames: ['runtime_operation_start'] },
+    createdAt: '2026-05-16T00:00:00.000Z',
+    updatedAt: '2026-05-16T00:00:00.000Z',
+    steps: [],
+    input: {
+      schema: 'movscript.agent.run-input.v1',
+      userMessage: 'run approved operation',
+      sourceMessageId: 'msg_1',
+      executionMode: 'chat',
+      createdAt: '2026-05-16T00:00:00.000Z',
+    },
+  }
+  const registry = new StaticToolRegistry([
+    tool('runtime_operation_start', 'generate', true),
+  ])
+  const capabilities = resolvedCatalog(registry)
+  const calls: string[] = []
+
+  const result = await runAgentGraph({
+    run,
+    threadMessages: [
+      { id: 'msg_1', threadId: 'thread_1', role: 'user', content: 'run approved operation', createdAt: '2026-05-16T00:00:00.000Z' },
+    ],
+    manifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      tools: [
+        { name: 'runtime_operation_start', mode: 'allow', approval: 'always' },
+      ],
+    },
+    capabilities,
+    skills: [],
+    context: emptyContext(),
+    memories: [],
+    warnings: [],
+    userMessage: run.input?.userMessage,
+    rootUserMessageId: run.input?.sourceMessageId,
+    config: { provider: 'backend-model-config', model: 'test-model', modelConfigId: 1 } as any,
+    auth: {},
+    policy,
+    mcpClient: {
+      initialize: async () => null,
+      callTool: async (name) => {
+        calls.push(`mcp:${name}`)
+        return { ok: true }
+      },
+    },
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    registry,
+    catalogManager: {
+      inspectAgentCatalog: () => ({}),
+      updateActiveSkills: () => ({}),
+      createAgentPlan: () => ({}),
+      getAgentPlan: () => ({}),
+      replanAgentPlan: () => ({}),
+      spawnSubagent: () => ({}),
+      listSubagents: () => ({}),
+      waitSubagent: () => ({}),
+      startOperation: () => {
+        calls.push('runtime_operation_start')
+        return {
+          status: 'started',
+          operation: {
+            id: 'op_1',
+            kind: 'generation_job',
+            mode: 'async',
+            status: 'waiting',
+            request: { value: 'a' },
+            result: { status: 'queued', jobId: 123, terminal: false },
+            createdAt: '2026-05-16T00:00:00.000Z',
+            updatedAt: '2026-05-16T00:00:00.000Z',
+          },
+        }
+      },
+      getOperation: () => ({}),
+      listOperation: () => ({}),
+      waitOperation: () => ({}),
+      cancelOperation: () => ({}),
+      cancelSubagent: () => ({}),
+    },
+    forcedToolCalls: [{ id: 'call_approval_1', name: 'runtime_operation_start', args: { value: 'a' } }],
+    approvedToolNames: ['runtime_operation_start'],
+    onTrace: () => undefined,
+    onStepCreate: () => 'step_1',
+    onStepComplete: () => undefined,
+  })
+
+  assert.equal(result.status, 'requires_action')
+  if (result.status === 'requires_action') {
+    assert.deepEqual(result.pendingApprovals.map((approval) => approval.id), ['approval_2'])
+    assert.deepEqual(result.toolOutcomes.map((outcome) => outcome.call.id), ['call_approval_1'])
+  }
+  assert.deepEqual(calls, ['runtime_operation_start'])
+})
+
 test('runAgentGraph queues draft apply approvals in proposal layer order when explicitly requested', async () => {
   const run: AgentRun = {
     id: 'run_default_apply',

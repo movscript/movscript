@@ -1,6 +1,6 @@
 import { DEFAULT_AGENT_MANIFEST, type AgentManifest } from '../catalog/agentManifest.js'
 import type { AgentPluginCatalog, loadAgentPluginCatalog } from '../catalog/loader.js'
-import type { AgentCapabilitiesResponse, AgentRuntimeOptions } from '../state/types.js'
+import type { AgentCapabilitiesResponse, AgentRuntimeRouterOptions } from '../state/types.js'
 import { DEFAULT_TOOL_REGISTRY, type ToolRegistry } from '../tools/toolRegistry.js'
 
 export interface RuntimeCatalogInitialization {
@@ -16,7 +16,7 @@ export function resolveRuntimeCatalogInitialization(input: {
   defaultAgentManifest?: AgentManifest
   toolRegistry?: ToolRegistry
   pluginCatalog?: AgentPluginCatalog
-  pluginCatalogLoader?: AgentRuntimeOptions['pluginCatalogLoader']
+  pluginCatalogLoader?: AgentRuntimeRouterOptions['pluginCatalogLoader']
   pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
   pluginWarnings?: string[]
   loadCatalogSnapshot: typeof loadAgentPluginCatalog

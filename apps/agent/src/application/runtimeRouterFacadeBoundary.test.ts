@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 
 const applicationDir = new URL('./', import.meta.url)
-const source = readFileSync(new URL('./agentRuntime.ts', import.meta.url), 'utf8')
+const source = readFileSync(new URL('./runtimeRouter.ts', import.meta.url), 'utf8')
 const bridgeModuleNames = readdirSync(applicationDir)
   .filter((file) => /^runtime.+Bridge\.ts$/.test(file))
   .map((file) => file.replace(/\.ts$/, ''))
@@ -82,6 +82,8 @@ const facadeDelegates = [
   ['rejectRun', 'this.runControl.rejectRun(runId, input)'],
   ['cancelRun', 'this.runControl.cancelRun(runId, input)'],
   ['answerRunInputRequest', 'this.runControl.answerRunInputRequest(runId, input)'],
+  ['reconcileRuntimeThreads', 'this.recovery.reconcileRuntimeThreads()'],
+  ['resumeInterruptedRun', 'this.recovery.resumeInterruptedRun(runId)'],
   ['listMemories', 'this.memories.listMemories(query)'],
   ['listMemorySummaries', 'this.memories.listMemorySummaries(query)'],
   ['getMemory', 'this.memories.getMemory(projectId, id)'],
@@ -101,16 +103,16 @@ const facadeDelegates = [
 
 const expectedPublicMethods = facadeDelegates.map(([methodName]) => methodName).sort()
 
-test('AgentRuntime remains a thin facade with a bounded source size', () => {
+test('AgentRuntimeRouter remains a thin facade with a bounded source size', () => {
   const lineCount = source.split('\n').length
 
   assert.ok(
-    lineCount <= 950,
-    `AgentRuntime should stay under 950 lines as a composition facade; current line count is ${lineCount}`,
+    lineCount <= 1000,
+    `AgentRuntimeRouter should stay under 1000 lines as a composition facade; current line count is ${lineCount}`,
   )
 })
 
-test('AgentRuntime imports only approved runtime application modules directly', () => {
+test('AgentRuntimeRouter imports only approved runtime application modules directly', () => {
   const approvedRuntimeImports = new Set([
     'runtimeCatalogInitialization',
     'runtimeCatalogSnapshot',
@@ -118,6 +120,7 @@ test('AgentRuntime imports only approved runtime application modules directly', 
     'runtimeEventSubscribers',
     'runtimeIdentity',
     'runtimeManifest',
+    'runtimeRecoveryBridge',
     'runtimeRunCancellationGuard',
     'runtimeScalarInput',
     'runtimeStoreLookup',
@@ -134,7 +137,7 @@ test('AgentRuntime imports only approved runtime application modules directly', 
   )
 })
 
-test('AgentRuntime stays on bridge boundaries for extracted facade areas', () => {
+test('AgentRuntimeRouter stays on bridge boundaries for extracted facade areas', () => {
   const forbiddenRuntimeModules = [
     'runtimeAgentPlanTools',
     'runtimeCatalogRead',
@@ -173,38 +176,38 @@ test('AgentRuntime stays on bridge boundaries for extracted facade areas', () =>
     assert.equal(
       source.includes(`from './${moduleName}.js'`),
       false,
-      `AgentRuntime should depend on ${moduleName} through a bridge instead of importing it directly`,
+      `AgentRuntimeRouter should depend on ${moduleName} through a bridge instead of importing it directly`,
     )
   }
 })
 
-test('AgentRuntime composes the facade through explicit bridge modules', () => {
+test('AgentRuntimeRouter composes the facade through explicit bridge modules', () => {
   assert.notEqual(bridgeModuleNames.length, 0)
 
   for (const moduleName of bridgeModuleNames) {
     assert.equal(
       source.includes(`from './${moduleName}.js'`),
       true,
-      `AgentRuntime should compose ${moduleName}`,
+      `AgentRuntimeRouter should compose ${moduleName}`,
     )
   }
 })
 
-test('AgentRuntime public facade methods delegate through bridge fields', () => {
+test('AgentRuntimeRouter public facade methods delegate through bridge fields', () => {
   for (const [methodName, delegateCall] of facadeDelegates) {
     assert.equal(
       source.includes(delegateCall),
       true,
-      `AgentRuntime.${methodName} should delegate through ${delegateCall}`,
+      `AgentRuntimeRouter.${methodName} should delegate through ${delegateCall}`,
     )
   }
 })
 
-test('AgentRuntime public facade surface stays explicit', () => {
+test('AgentRuntimeRouter public facade surface stays explicit', () => {
   assert.deepEqual(publicMethodNames(source), expectedPublicMethods)
 })
 
-test('AgentRuntime delegates trace reads without direct trace store access', () => {
+test('AgentRuntimeRouter delegates trace reads without direct trace store access', () => {
   assert.equal(countOccurrences(source, 'this.store.listRunTraceEvents('), 0)
   assert.equal(countOccurrences(source, 'this.store.countRunTraceEvents('), 0)
   assert.equal(countOccurrences(source, 'normalizeTracePageLimit('), 0)

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -35,6 +35,17 @@ type AgentDebugData = {
   lastUpdated: string
 }
 type AgentDebugProjectSnapshot = { id: number; name: string; status?: string } | null
+type AgentToolConsoleResult = {
+  run: AgentRun
+  trace?: Awaited<ReturnType<typeof localAgentClient.getRunTraceEvents>>
+}
+const DRAFT_RUNTIME_TOOL_NAMES = [
+  'movscript_get_draft_model',
+  'movscript_create_draft',
+  'movscript_get_draft',
+  'movscript_validate_draft',
+  'movscript_preview_draft_apply',
+] as const
 const AGENT_DEBUG_BUNDLE_SCHEMA = 'movscript.agent.debug.bundle.v1'
 const AGENT_DEBUG_BUNDLE_SCHEMA_VERSION = 1
 const AGENT_DEBUG_BUNDLE_SCHEMA_URL = 'https://movscript.dev/schemas/agent-debug-bundle-v1.schema.json'
@@ -115,6 +126,20 @@ export default function AIAgentDebugPage() {
   const [preview, setPreview] = useState<AgentRunPreview | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [toolName, setToolName] = useState('')
+  const [toolArgsText, setToolArgsText] = useState('{}')
+  const [toolRunLoading, setToolRunLoading] = useState(false)
+  const [toolRunError, setToolRunError] = useState<string | null>(null)
+  const [toolRunResult, setToolRunResult] = useState<AgentToolConsoleResult | null>(null)
+  const [draftToolName, setDraftToolName] = useState('movscript_get_draft_model')
+  const [draftToolArgsText, setDraftToolArgsText] = useState(formatJson({
+    kind: 'asset_proposal',
+    seedMode: 'editable_snapshot',
+    hydrate: true,
+  }))
+  const [draftToolRunLoading, setDraftToolRunLoading] = useState(false)
+  const [draftToolRunError, setDraftToolRunError] = useState<string | null>(null)
+  const [draftToolRunResult, setDraftToolRunResult] = useState<AgentToolConsoleResult | null>(null)
   const [copied, setCopied] = useState(false)
   const [triageCopied, setTriageCopied] = useState(false)
   const [downloaded, setDownloaded] = useState(false)
@@ -160,6 +185,31 @@ export default function AIAgentDebugPage() {
   const evidenceChecklist = rawData.evidenceChecklist
   const triageItems = rawData.triageItems
   const remediationPlan = rawData.remediationPlan
+  const availableTools = useMemo(() => {
+    const tools = (debugQuery.data?.capabilities.resolvedTools.available ?? [])
+      .filter((tool) => tool.source === 'mcp')
+    return [...tools].sort((a, b) => a.name.localeCompare(b.name))
+  }, [debugQuery.data?.capabilities.resolvedTools.available])
+  const selectedTool = useMemo(() => availableTools.find((tool) => tool.name === toolName) ?? null, [availableTools, toolName])
+  const draftRuntimeTools = useMemo(() => {
+    const allowed = new Set<string>(DRAFT_RUNTIME_TOOL_NAMES)
+    const tools = (debugQuery.data?.capabilities.resolvedTools.available ?? [])
+      .filter((tool) => tool.source === 'runtime' && allowed.has(tool.name))
+    return [...tools].sort((a, b) => DRAFT_RUNTIME_TOOL_NAMES.indexOf(a.name as typeof DRAFT_RUNTIME_TOOL_NAMES[number]) - DRAFT_RUNTIME_TOOL_NAMES.indexOf(b.name as typeof DRAFT_RUNTIME_TOOL_NAMES[number]))
+  }, [debugQuery.data?.capabilities.resolvedTools.available])
+  const selectedDraftTool = useMemo(() => draftRuntimeTools.find((tool) => tool.name === draftToolName) ?? null, [draftRuntimeTools, draftToolName])
+
+  useEffect(() => {
+    if (availableTools.length === 0) return
+    if (availableTools.some((tool) => tool.name === toolName)) return
+    setToolName(availableTools[0].name)
+  }, [availableTools, toolName])
+
+  useEffect(() => {
+    if (draftRuntimeTools.length === 0) return
+    if (draftRuntimeTools.some((tool) => tool.name === draftToolName)) return
+    setDraftToolName(draftRuntimeTools[0].name)
+  }, [draftRuntimeTools, draftToolName])
 
   async function runPreview() {
     setPreviewLoading(true)
@@ -193,6 +243,170 @@ export default function AIAgentDebugPage() {
       setPreviewError(redactAgentTraceDebugText(error instanceof Error ? error.message : String(error)))
     } finally {
       setPreviewLoading(false)
+    }
+  }
+
+  async function runToolConsole() {
+    setToolRunLoading(true)
+    setToolRunError(null)
+    setToolRunResult(null)
+    try {
+      const parsed = parseToolArgs(toolArgsText)
+      const run = await localAgentClient.createToolRun({
+        title: `Debug tool: ${toolName}`,
+        message: `Run ${toolName} from Agent Debug tool console.`,
+        toolCall: { name: toolName, args: parsed },
+        approvedToolNames: [toolName],
+        clientInput: {
+          message: `Run ${toolName}`,
+          uiSnapshot: {
+            route: {
+              pathname: window.location.pathname,
+              search: window.location.search,
+              hash: window.location.hash,
+            },
+            project: currentProject
+              ? {
+                id: currentProject.ID,
+                name: currentProject.name,
+                status: currentProject.status,
+                description: currentProject.description,
+              }
+              : undefined,
+            labels: ['agent-debug', 'tool-console'],
+          },
+        },
+        policy: { approvalMode: 'auto', maxToolCalls: 1, maxIterations: 2 },
+      })
+      setToolRunResult({ run })
+      const completedRun = await localAgentClient.waitForRun(run.id, {
+        timeoutMs: 90_000,
+        onRunUpdate: (latestRun) => setToolRunResult((current) => ({ ...(current ?? {}), run: latestRun })),
+      })
+      const trace = await localAgentClient.getRunTraceEvents(completedRun.id, { limit: 80 })
+      setToolRunResult({ run: completedRun, trace })
+      void debugQuery.refetch()
+    } catch (error) {
+      setToolRunError(redactAgentTraceDebugText(error instanceof Error ? error.message : String(error)))
+    } finally {
+      setToolRunLoading(false)
+    }
+  }
+
+  async function refreshToolRunTrace() {
+    if (!toolRunResult?.run.id) return
+    setToolRunLoading(true)
+    setToolRunError(null)
+    try {
+      const [run, trace] = await Promise.all([
+        localAgentClient.getRun(toolRunResult.run.id),
+        localAgentClient.getRunTraceEvents(toolRunResult.run.id, { limit: 80 }),
+      ])
+      setToolRunResult({ run, trace })
+    } catch (error) {
+      setToolRunError(redactAgentTraceDebugText(error instanceof Error ? error.message : String(error)))
+    } finally {
+      setToolRunLoading(false)
+    }
+  }
+
+  async function runDraftRuntimeTool() {
+    setDraftToolRunLoading(true)
+    setDraftToolRunError(null)
+    setDraftToolRunResult(null)
+    try {
+      const parsed = parseToolArgs(draftToolArgsText)
+      const run = await localAgentClient.createToolRun({
+        title: `Draft runtime debug: ${draftToolName}`,
+        message: `Run ${draftToolName} from Agent Debug draft runtime panel.`,
+        toolCall: { name: draftToolName, args: parsed },
+        approvedToolNames: [draftToolName],
+        clientInput: {
+          message: `Run ${draftToolName}`,
+          uiSnapshot: {
+            route: {
+              pathname: window.location.pathname,
+              search: window.location.search,
+              hash: window.location.hash,
+            },
+            project: currentProject
+              ? {
+                id: currentProject.ID,
+                name: currentProject.name,
+                status: currentProject.status,
+                description: currentProject.description,
+              }
+              : undefined,
+            labels: ['agent-debug', 'draft-runtime'],
+          },
+        },
+        policy: { approvalMode: 'auto', maxToolCalls: 1, maxIterations: 2 },
+      })
+      setDraftToolRunResult({ run })
+      const completedRun = await localAgentClient.waitForRun(run.id, {
+        timeoutMs: 90_000,
+        onRunUpdate: (latestRun) => setDraftToolRunResult((current) => ({ ...(current ?? {}), run: latestRun })),
+      })
+      const trace = await localAgentClient.getRunTraceEvents(completedRun.id, { limit: 80 })
+      setDraftToolRunResult({ run: completedRun, trace })
+      void debugQuery.refetch()
+    } catch (error) {
+      setDraftToolRunError(redactAgentTraceDebugText(error instanceof Error ? error.message : String(error)))
+    } finally {
+      setDraftToolRunLoading(false)
+    }
+  }
+
+  async function refreshDraftToolRunTrace() {
+    if (!draftToolRunResult?.run.id) return
+    setDraftToolRunLoading(true)
+    setDraftToolRunError(null)
+    try {
+      const [run, trace] = await Promise.all([
+        localAgentClient.getRun(draftToolRunResult.run.id),
+        localAgentClient.getRunTraceEvents(draftToolRunResult.run.id, { limit: 80 }),
+      ])
+      setDraftToolRunResult({ run, trace })
+    } catch (error) {
+      setDraftToolRunError(redactAgentTraceDebugText(error instanceof Error ? error.message : String(error)))
+    } finally {
+      setDraftToolRunLoading(false)
+    }
+  }
+
+  function setDraftToolPreset(nextToolName: string, args: Record<string, unknown>) {
+    setDraftToolName(nextToolName)
+    setDraftToolArgsText(formatJson(args))
+    setDraftToolRunError(null)
+  }
+
+  function defaultCreateAssetProposalDraftArgs(): Record<string, unknown> {
+    const projectId = currentProject?.ID
+    const content = {
+      schema: 'movscript.asset_proposal.v1',
+      scope: 'asset_proposal',
+      mode: 'snapshot',
+      proposal: {
+        creative_references: [],
+        asset_slots: [],
+        candidate_plans: [],
+      },
+      summary: 'Debug asset proposal draft shell. Replace proposal.asset_slots with a full hydrated snapshot before applying.',
+    }
+    return {
+      kind: 'asset_proposal',
+      title: 'Debug asset proposal',
+      ...(projectId ? { projectId } : {}),
+      content: JSON.stringify(content, null, 2),
+      ...(projectId ? {
+        target: { entityType: 'project', entityId: projectId, projectId },
+      } : {}),
+      seed: {
+        mode: 'editable_snapshot',
+        include: ['project', 'creative_references', 'asset_slots'],
+        note: 'Run movscript_get_draft_model first and use its hydrated seed for real snapshot safety checks.',
+      },
+      proposal: true,
     }
   }
 
@@ -322,6 +536,8 @@ export default function AIAgentDebugPage() {
             <TabsList className="flex flex-wrap">
               <TabsTrigger value="overview">{t('agents.debug.tabs.overview')}</TabsTrigger>
               <TabsTrigger value="manifest">{t('agents.debug.tabs.manifest')}</TabsTrigger>
+              <TabsTrigger value="toolConsole">{t('agents.debug.tabs.toolConsole')}</TabsTrigger>
+              <TabsTrigger value="draftRuntime">{t('agents.debug.tabs.draftRuntime')}</TabsTrigger>
               <TabsTrigger value="prompt">{t('agents.debug.tabs.prompt')}</TabsTrigger>
               <TabsTrigger value="context">{t('agents.debug.tabs.context')}</TabsTrigger>
               <TabsTrigger value="runs">{t('agents.debug.tabs.runs')}</TabsTrigger>
@@ -444,6 +660,179 @@ export default function AIAgentDebugPage() {
             <TabsContent value="manifest" className="grid gap-4 lg:grid-cols-2">
               <JsonPanel title={t('agents.debug.panels.effectiveManifest')} value={preview?.agentManifest ?? debugQuery.data.capabilities.defaultAgentManifest} emptyText={t('agents.debug.empty.noManifest')} />
               <JsonPanel title={t('agents.debug.panels.defaultManifest')} value={debugQuery.data.inspect.defaultAgentManifest} emptyText={t('agents.debug.empty.noDefaultManifest')} />
+            </TabsContent>
+
+            <TabsContent value="toolConsole" className="grid gap-4 lg:grid-cols-[minmax(0,420px)_1fr]">
+              <Panel title={t('agents.debug.panels.toolConsole')}>
+                <div className="space-y-3">
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] leading-4 text-amber-800 dark:text-amber-300">
+                    {t('agents.debug.toolConsole.warning')}
+                  </div>
+                  <div className="rounded-md border border-border bg-muted/20 p-2 text-[11px] leading-4 text-muted-foreground">
+                    {t('agents.debug.toolConsole.runtimeBoundary')}
+                  </div>
+                  <label className="block text-xs font-medium text-foreground">
+                    {t('agents.debug.toolConsole.tool')}
+                    <select
+                      value={toolName}
+                      onChange={(event) => setToolName(event.target.value)}
+                      className="mt-1 block w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground"
+                      disabled={availableTools.length === 0}
+                    >
+                      {availableTools.length === 0 && <option value="">{t('agents.debug.empty.noMcpTools')}</option>}
+                      {availableTools.map((tool) => (
+                        <option key={tool.name} value={tool.name}>{tool.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  {selectedTool && (
+                    <div className="grid gap-2 text-xs md:grid-cols-2">
+                      <SummaryItem label={t('agents.debug.table.source')} value={selectedTool.source} />
+                      <SummaryItem label={t('agents.debug.table.risk')} value={selectedTool.risk ?? '-'} />
+                      <SummaryItem label={t('agents.debug.table.permission')} value={selectedTool.permission ?? '-'} />
+                      <SummaryItem label={t('agents.debug.table.approval')} value={selectedTool.approval} />
+                    </div>
+                  )}
+                  <label className="block text-xs font-medium text-foreground">
+                    {t('agents.debug.toolConsole.args')}
+                    <Textarea
+                      value={toolArgsText}
+                      onChange={(event) => setToolArgsText(event.target.value)}
+                      className="mt-1 min-h-52 font-mono text-xs"
+                      spellCheck={false}
+                    />
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" onClick={() => void runToolConsole()} disabled={toolRunLoading || !toolName}>
+                      {toolRunLoading ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+                      {t('agents.debug.toolConsole.run')}
+                    </Button>
+                    {toolRunResult?.run.id && (
+                      <Button type="button" size="sm" variant="outline" onClick={() => void refreshToolRunTrace()} disabled={toolRunLoading}>
+                        <RefreshCw size={13} className={toolRunLoading ? 'animate-spin' : ''} />
+                        {t('agents.debug.toolConsole.refreshTrace')}
+                      </Button>
+                    )}
+                  </div>
+                  {toolRunError && (
+                    <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+                      {toolRunError}
+                    </div>
+                  )}
+                  {toolRunResult?.run && (
+                    <div className="grid gap-2 text-xs md:grid-cols-2">
+                      <SummaryItem label="Run ID" value={toolRunResult.run.id} />
+                      <SummaryItem label={t('agents.debug.table.status')} value={toolRunResult.run.status} />
+                    </div>
+                  )}
+                </div>
+              </Panel>
+              <div className="space-y-4">
+                <JsonPanel title={t('agents.debug.panels.toolSchema')} value={selectedTool?.inputSchema} emptyText={t('agents.debug.empty.noToolSelected')} />
+                <JsonPanel title={t('agents.debug.panels.toolConsoleOutput')} value={extractToolConsoleOutput(toolRunResult)} emptyText={t('agents.debug.empty.noToolConsoleResult')} />
+                <JsonPanel title={t('agents.debug.panels.toolConsoleResult')} value={toolRunResult} emptyText={t('agents.debug.empty.noToolConsoleResult')} />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="draftRuntime" className="grid gap-4 lg:grid-cols-[minmax(0,460px)_1fr]">
+              <Panel title={t('agents.debug.panels.draftRuntime')}>
+                <div className="space-y-3">
+                  <div className="rounded-md border border-border bg-muted/20 p-2 text-[11px] leading-4 text-muted-foreground">
+                    {t('agents.debug.draftRuntime.boundary')}
+                  </div>
+                  <label className="block text-xs font-medium text-foreground">
+                    {t('agents.debug.draftRuntime.tool')}
+                    <select
+                      value={draftToolName}
+                      onChange={(event) => setDraftToolName(event.target.value)}
+                      className="mt-1 block w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground"
+                      disabled={draftRuntimeTools.length === 0}
+                    >
+                      {draftRuntimeTools.length === 0 && <option value="">{t('agents.debug.empty.noDraftRuntimeTools')}</option>}
+                      {draftRuntimeTools.map((tool) => (
+                        <option key={tool.name} value={tool.name}>{tool.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  {selectedDraftTool && (
+                    <div className="grid gap-2 text-xs md:grid-cols-2">
+                      <SummaryItem label={t('agents.debug.table.source')} value={selectedDraftTool.source} />
+                      <SummaryItem label={t('agents.debug.table.risk')} value={selectedDraftTool.risk ?? '-'} />
+                      <SummaryItem label={t('agents.debug.table.permission')} value={selectedDraftTool.permission ?? '-'} />
+                      <SummaryItem label={t('agents.debug.table.approval')} value={selectedDraftTool.approval} />
+                    </div>
+                  )}
+                  <label className="block text-xs font-medium text-foreground">
+                    {t('agents.debug.draftRuntime.args')}
+                    <Textarea
+                      value={draftToolArgsText}
+                      onChange={(event) => setDraftToolArgsText(event.target.value)}
+                      className="mt-1 min-h-60 font-mono text-xs"
+                      spellCheck={false}
+                    />
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" onClick={() => void runDraftRuntimeTool()} disabled={draftToolRunLoading || !draftToolName}>
+                      {draftToolRunLoading ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+                      {t('agents.debug.draftRuntime.run')}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setDraftToolPreset('movscript_get_draft_model', { kind: 'asset_proposal', seedMode: 'editable_snapshot', hydrate: true })}
+                    >
+                      {t('agents.debug.draftRuntime.assetModelPreset')}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setDraftToolPreset('movscript_create_draft', defaultCreateAssetProposalDraftArgs())}
+                    >
+                      {t('agents.debug.draftRuntime.createAssetDraftPreset')}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setDraftToolPreset('movscript_validate_draft', { draftId: '' })}
+                    >
+                      {t('agents.debug.draftRuntime.validatePreset')}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setDraftToolPreset('movscript_preview_draft_apply', { draftId: '' })}
+                    >
+                      {t('agents.debug.draftRuntime.previewApplyPreset')}
+                    </Button>
+                    {draftToolRunResult?.run.id && (
+                      <Button type="button" size="sm" variant="outline" onClick={() => void refreshDraftToolRunTrace()} disabled={draftToolRunLoading}>
+                        <RefreshCw size={13} className={draftToolRunLoading ? 'animate-spin' : ''} />
+                        {t('agents.debug.draftRuntime.refreshTrace')}
+                      </Button>
+                    )}
+                  </div>
+                  {draftToolRunError && (
+                    <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+                      {draftToolRunError}
+                    </div>
+                  )}
+                  {draftToolRunResult?.run && (
+                    <div className="grid gap-2 text-xs md:grid-cols-2">
+                      <SummaryItem label="Run ID" value={draftToolRunResult.run.id} />
+                      <SummaryItem label={t('agents.debug.table.status')} value={draftToolRunResult.run.status} />
+                    </div>
+                  )}
+                </div>
+              </Panel>
+              <div className="space-y-4">
+                <JsonPanel title={t('agents.debug.panels.draftRuntimeSchema')} value={selectedDraftTool?.inputSchema} emptyText={t('agents.debug.empty.noDraftRuntimeToolSelected')} />
+                <JsonPanel title={t('agents.debug.panels.draftRuntimeOutput')} value={extractToolConsoleOutput(draftToolRunResult)} emptyText={t('agents.debug.empty.noDraftRuntimeResult')} />
+                <JsonPanel title={t('agents.debug.panels.draftRuntimeResult')} value={draftToolRunResult} emptyText={t('agents.debug.empty.noDraftRuntimeResult')} />
+              </div>
             </TabsContent>
 
             <TabsContent value="prompt" className="grid gap-4 lg:grid-cols-2">
@@ -1387,5 +1776,40 @@ function formatJson(value: unknown): string {
     return JSON.stringify(redactAgentTraceDebugData(value), null, 2)
   } catch {
     return redactAgentTraceDebugText(String(value))
+  }
+}
+
+function parseToolArgs(value: string): Record<string, unknown> {
+  const trimmed = value.trim()
+  if (!trimmed) return {}
+  const parsed = JSON.parse(trimmed) as unknown
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Tool args must be a JSON object.')
+  }
+  return parsed as Record<string, unknown>
+}
+
+function extractToolConsoleOutput(result: AgentToolConsoleResult | null): unknown {
+  if (!result) return null
+  const toolEvents = (result.trace?.events ?? [])
+    .filter((event) => event.kind === 'tool_call')
+    .map((event) => ({
+      id: event.id,
+      title: event.title,
+      status: event.status,
+      toolName: event.toolName,
+      summary: event.summary,
+      data: event.data,
+      durationMs: event.durationMs,
+      createdAt: event.createdAt,
+    }))
+  return {
+    run: {
+      id: result.run.id,
+      status: result.run.status,
+      error: result.run.error,
+      blockedReason: result.run.blockedReason,
+    },
+    toolEvents,
   }
 }

@@ -1,7 +1,7 @@
 import type { JSONValue } from '../types.js'
 
 export type RuntimeOperationKind = 'generation_job'
-export type RuntimeOperationMode = 'sync' | 'async'
+export type RuntimeOperationMode = 'async'
 export type RuntimeOperationStatus = 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled' | 'timeout'
 
 export interface RuntimeOperationExternalHandle {

@@ -969,6 +969,37 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
   }
 
   if (currentRoundIndex === 1 && input.forcedToolCalls && input.forcedToolCalls.length > 0) {
+    const remainingApprovals = remainingPendingApprovalsAfterForcedCalls(input.run, results.map((result) => result.outcome))
+    if (defaultApplyCalls.length === 0 && remainingApprovals.length > 0) {
+      input.onTrace({
+        kind: 'approval',
+        title: 'Approval still pending',
+        summary: remainingApprovals.map((approval) => approval.toolName).join(', '),
+        status: 'blocked',
+        roundIndex: currentRoundIndex,
+        roundLabel,
+        roundSource: 'approval',
+        data: {
+          eventType: 'approval.remaining',
+          approvals: remainingApprovals.map((approval) => ({
+            id: approval.id,
+            toolName: approval.toolName,
+            risk: approval.risk,
+            permission: approval.permission,
+          })),
+        },
+      })
+      return {
+        history: nextHistory,
+        toolOutcomes,
+        warnings,
+        toolCallCount: state.toolCallCount + requestedCalls.length,
+        roundIndex: currentRoundIndex + 1,
+        status: 'requires_action',
+        pendingApprovals: remainingApprovals,
+        pendingInputRequests: [],
+      }
+    }
     return {
       history: nextHistory,
       toolOutcomes,
@@ -989,6 +1020,21 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
     roundIndex: currentRoundIndex + 1,
     requestedCalls: defaultApplyCalls,
   }
+}
+
+function remainingPendingApprovalsAfterForcedCalls(run: AgentRun, outcomes: ToolCallOutcome[]): AgentApprovalRequest[] {
+  const executedApprovalIds = new Set(
+    outcomes
+      .map((outcome) => approvalIdFromForcedCall(outcome.call))
+      .filter((approvalId): approvalId is string => Boolean(approvalId)),
+  )
+  if (executedApprovalIds.size === 0) return []
+  return (run.pendingApprovals ?? []).filter((approval) => approval.status === 'pending' && !executedApprovalIds.has(approval.id))
+}
+
+function approvalIdFromForcedCall(call: ToolCall): string | undefined {
+  if (typeof call.id !== 'string') return undefined
+  return call.id.startsWith('call_approval_') ? call.id.slice('call_'.length) : undefined
 }
 
 const DEFAULT_DRAFT_APPLY_KIND_ORDER: Record<string, number> = {

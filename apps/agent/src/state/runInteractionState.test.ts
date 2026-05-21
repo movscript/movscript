@@ -247,6 +247,18 @@ test('applyRequiredRunAction keeps settled approvals as interaction history', ()
   ])
 })
 
+test('mergePendingApprovals preserves same-tool approvals with different args', () => {
+  const first = { ...approval('approval_1', 'runtime_operation_start'), args: { prompt: 'A' } }
+  const second = { ...approval('approval_2', 'runtime_operation_start'), args: { prompt: 'B' } }
+
+  const merged = mergePendingApprovals([first, second], [second], now)
+
+  assert.deepEqual(merged.map((item) => ({ id: item.id, args: item.args })), [
+    { id: 'approval_1', args: { prompt: 'A' } },
+    { id: 'approval_2', args: { prompt: 'B' } },
+  ])
+})
+
 test('formatInputAnswerMessage renders selected labels and free text', () => {
   assert.equal(formatInputAnswerMessage(inputRequest('input_1'), ['script'], '补充说明'), [
     '[用户补充信息]',

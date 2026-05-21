@@ -34,7 +34,7 @@ const files = {
   defaultProfile: 'apps/agent/catalog/profiles/default.profile.json',
   runtimeLocalDiagnosticCommandTest: 'apps/agent/src/application/runtimeLocalDiagnosticCommand.test.ts',
   runtimeRunExecutionContextTest: 'apps/agent/src/application/runtimeRunExecutionContext.test.ts',
-  agentRuntimeTest: 'apps/agent/src/application/agentRuntime.test.ts',
+  runtimeRouterTest: 'apps/agent/src/application/runtimeRouter.test.ts',
   agentStateTypes: 'apps/agent/src/state/types.ts',
   frontendStore: 'apps/frontend/src/store/agentStore.ts',
   packageJson: 'package.json',
@@ -231,8 +231,8 @@ function verifyTestsAndGates() {
   assertIncludes(errors, source.promptHygieneTest, 'rejects old schema records instead of migrating them', 'prompt hygiene tests must reject old summary schema')
   assertIncludes(errors, source.promptHygieneTest, 'thread context summary v2 fixture normalizes with provenance and compact stats', 'prompt hygiene tests must cover v2 fixture normalization')
   assertIncludes(errors, source.modelContextBuilderTest, 'built.promptStats.budget.usedChars', 'model context builder tests must assert prompt budget stats')
-  assertIncludes(errors, source.agentRuntimeTest, "movscript.local_status_diagnostic.v1", 'agent runtime tests must cover /status command path')
-  assertIncludes(errors, source.agentRuntimeTest, "movscript.thread-context-summary.v2", 'agent runtime tests must cover v2 thread summary persistence')
+  assertIncludes(errors, source.runtimeRouterTest, "movscript.local_status_diagnostic.v1", 'runtime router tests must cover /status command path')
+  assertIncludes(errors, source.runtimeRouterTest, "movscript.thread-context-summary.v2", 'runtime router tests must cover v2 thread summary persistence')
 
   const script = String(packageJson.scripts?.['test:contracts'] ?? '')
   const contractSuite = packageJson.testSuites?.contracts

@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 import test from 'node:test'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { AgentRuntime } from './application/agentRuntime.js'
+import { AgentRuntimeRouter } from './application/runtimeRouter.js'
 import { InMemoryAgentMemoryStore } from './memory/memoryStore.js'
 import { InMemoryAgentStore } from './state/store.js'
 import { InMemoryAgentDraftStore } from './drafts/draftStore.js'
@@ -53,7 +53,7 @@ class StubBackendApplyClient extends BackendApplyClient {
 }
 
 test('memories endpoints stay project-scoped', async () => {
-  const runtime = new AgentRuntime({
+  const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
     draftStore: new InMemoryAgentDraftStore(),
@@ -99,7 +99,7 @@ test('memories endpoints stay project-scoped', async () => {
 })
 
 test('memory list accepts non-project scopes without server errors', async () => {
-  const runtime = new AgentRuntime({
+  const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
     draftStore: new InMemoryAgentDraftStore(),
@@ -136,7 +136,7 @@ test('memory list accepts non-project scopes without server errors', async () =>
 })
 
 test('create memory requires projectId through the HTTP layer', async () => {
-  const runtime = new AgentRuntime({
+  const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
     draftStore: new InMemoryAgentDraftStore(),
@@ -185,7 +185,7 @@ test('create memory requires projectId through the HTTP layer', async () => {
 
 test('draft apply endpoint is an application-layer action outside agent runs', async () => {
   const backendApplyClient = new StubBackendApplyClient()
-  const runtime = new AgentRuntime({
+  const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
     draftStore: new InMemoryAgentDraftStore(),
@@ -220,7 +220,7 @@ test('draft apply endpoint is an application-layer action outside agent runs', a
 })
 
 test('run replan endpoint uses plan root planner when called on a worker run', async () => {
-  const runtime = new AgentRuntime({
+  const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
     draftStore: new InMemoryAgentDraftStore(),
@@ -263,7 +263,7 @@ test('run replan endpoint uses plan root planner when called on a worker run', a
 })
 
 test('HTTP replan rejects invalid addTasks without partial task creation', async () => {
-  const runtime = new AgentRuntime({
+  const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
     draftStore: new InMemoryAgentDraftStore(),
@@ -342,7 +342,7 @@ test('HTTP replan rejects invalid addTasks without partial task creation', async
 })
 
 test('public run endpoint always creates planner user runs', async () => {
-  const runtime = new AgentRuntime({
+  const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
     draftStore: new InMemoryAgentDraftStore(),
@@ -372,7 +372,7 @@ test('public run endpoint always creates planner user runs', async () => {
 })
 
 test('public tool run endpoint cannot impersonate a planned subagent', async () => {
-  const runtime = new AgentRuntime({
+  const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
     draftStore: new InMemoryAgentDraftStore(),
@@ -419,7 +419,7 @@ test('public tool run endpoint cannot impersonate a planned subagent', async () 
 })
 
 test('HTTP plan creation rejects invalid task graphs without writing plan state', async () => {
-  const runtime = new AgentRuntime({
+  const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
     draftStore: new InMemoryAgentDraftStore(),
@@ -486,7 +486,7 @@ test('HTTP plan creation rejects invalid task graphs without writing plan state'
 })
 
 test('HTTP plan snapshot exposes reusable summary', async () => {
-  const runtime = new AgentRuntime({
+  const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
     draftStore: new InMemoryAgentDraftStore(),
@@ -549,7 +549,7 @@ test('HTTP plan snapshot exposes reusable summary', async () => {
 
 test('HTTP cancel-tree only accepts the plan root planner run', async () => {
   const store = new InMemoryAgentStore()
-  const runtime = new AgentRuntime({
+  const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store,
     draftStore: new InMemoryAgentDraftStore(),
@@ -602,7 +602,7 @@ test('HTTP cancel-tree only accepts the plan root planner run', async () => {
 })
 
 test('HTTP task update cannot create duplicate subagent names', async () => {
-  const runtime = new AgentRuntime({
+  const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
     draftStore: new InMemoryAgentDraftStore(),
@@ -649,7 +649,7 @@ test('HTTP task update cannot create duplicate subagent names', async () => {
 })
 
 test('HTTP task update cannot corrupt the task graph', async () => {
-  const runtime = new AgentRuntime({
+  const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
     draftStore: new InMemoryAgentDraftStore(),
@@ -727,7 +727,7 @@ test('HTTP task update cannot corrupt the task graph', async () => {
 })
 
 test('runtime shutdown endpoint accepts local non-browser management requests', async () => {
-  const runtime = new AgentRuntime({
+  const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
     draftStore: new InMemoryAgentDraftStore(),
@@ -755,7 +755,7 @@ test('runtime shutdown endpoint accepts local non-browser management requests', 
 })
 
 test('runtime shutdown endpoint rejects cross-site browser requests', async () => {
-  const runtime = new AgentRuntime({
+  const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
     draftStore: new InMemoryAgentDraftStore(),
@@ -783,7 +783,7 @@ test('runtime shutdown endpoint rejects cross-site browser requests', async () =
   assert.equal(shutdownRequests, 0)
 })
 
-function buildServerContext(agentRuntime: AgentRuntime): AgentServerContext {
+function buildServerContext(runtimeRouter: AgentRuntimeRouter): AgentServerContext {
   return {
     port: 0,
     mcpEndpoint: 'http://127.0.0.1:0/mcp',
@@ -796,7 +796,7 @@ function buildServerContext(agentRuntime: AgentRuntime): AgentServerContext {
     },
     updates: buildUpdateState(),
     client: new StubMCPClient() as never,
-    agentRuntime,
+    runtimeRouter,
     backendApplyClient: new BackendApplyClient(),
     modelConfigStore: new RuntimeModelConfigStore('/tmp/model-config.json'),
     pluginCatalog: {
@@ -821,7 +821,7 @@ function buildUpdateState(): AgentServerContext['updates'] {
   } as never
 }
 
-async function waitForRun(runtime: AgentRuntime, runId: string) {
+async function waitForRun(runtime: AgentRuntimeRouter, runId: string) {
   const deadline = Date.now() + 1000
   while (true) {
     const latest = runtime.getRun(runId)

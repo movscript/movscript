@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
-import { AgentRuntime, type AgentPlanSnapshot, type AgentRun, type AgentRunStreamEvent } from './agentRuntime.js'
+import { AgentRuntimeRouter, type AgentPlanSnapshot, type AgentRun, type AgentRunStreamEvent } from './runtimeRouter.js'
 import type { JSONValue } from '../types.js'
 import { FileAgentStore } from '../state/fileStore.js'
 import { InMemoryAgentStore } from '../state/store.js'
@@ -361,8 +361,8 @@ class FakeBackendApplyClient extends BackendApplyClient {
 
 }
 
-function createTestRuntime(options: ConstructorParameters<typeof AgentRuntime>[0]): AgentRuntime {
-  return new AgentRuntime(options)
+function createTestRuntime(options: ConstructorParameters<typeof AgentRuntimeRouter>[0]): AgentRuntimeRouter {
+  return new AgentRuntimeRouter(options)
 }
 
 test('proposal-first draft requests create local agent drafts without backend writes', async () => {
@@ -2053,7 +2053,7 @@ test('oversized tool results are summarized before the next model turn', async (
   }
 })
 
-test('generation tool results emit structured generation trace events', async () => {
+test('runtime operation generation starts emit structured created trace without synchronous polling', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   client.toolResults.set('movscript_create_generation_job', {
@@ -2109,27 +2109,15 @@ test('generation tool results emit structured generation trace events', async ()
   assert.ok(run.status === 'completed' || run.status === 'completed_with_warnings')
   const generationEvents = runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
     .filter((event) => event.kind === 'tool_call' && hasGenerationTraceData(event.data))
-  assert.equal(generationEvents.length >= 2, true)
+  assert.equal(generationEvents.length >= 1, true)
   const created = (generationEvents[0]!.data as Record<string, any>).generation
   assert.equal(created.jobId, 123)
   assert.equal(created.stage, 'created')
   assert.equal(created.status, 'queued')
   assert.equal(created.terminal, false)
-  const completed = (generationEvents.at(-1)!.data as Record<string, any>).generation
-  assert.equal(inspectCount >= 2, true)
-  assert.deepEqual(client.calls.filter((call) => call.name === 'movscript_get_generation_job').map((call) => call.args), [
-    { jobId: 123, projectId: 42 },
-    { jobId: 123, projectId: 42 },
-  ])
-  assert.equal(completed.jobId, 123)
-  assert.equal(completed.stage, 'completed')
-  assert.equal(completed.status, 'succeeded')
-  assert.equal(completed.providerName, 'test-provider')
-  assert.equal(completed.modelDisplay, 'Test Image Model')
-  assert.equal(completed.modelIdentifier, 'test/image-model')
-  assert.equal(completed.modelConfigId, 9)
-  assert.equal(completed.outputResourceId, 456)
-  assert.equal(completed.terminal, true)
+  assert.equal(generationEvents.every((event) => (event.data as Record<string, any>).generation.stage === 'created'), true)
+  assert.equal(inspectCount, 0)
+  assert.deepEqual(client.calls.filter((call) => call.name === 'movscript_get_generation_job'), [])
 })
 
 test('agent uses model_contracts from list_models before generation params', async () => {
@@ -2250,7 +2238,7 @@ test('/image command forces a generation tool call and returns the generated job
   assert.match(assistant?.content ?? '', /Output resource: #654/)
 })
 
-test('generation monitor emits failed and cancelled terminal events', async () => {
+test('runtime operation generation starts do not synchronously monitor failed or cancelled jobs', async () => {
   for (const terminalStatus of ['failed', 'cancelled'] as const) {
     const client = new FakeMCPClient()
     client.projectId = 42
@@ -2287,14 +2275,17 @@ test('generation monitor emits failed and cancelled terminal events', async () =
     assert.ok(run.status === 'completed' || run.status === 'completed_with_warnings')
     const generationEvents = runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
       .filter((event) => event.kind === 'tool_call' && hasGenerationTraceData(event.data))
-    const terminal = (generationEvents.at(-1)!.data as Record<string, any>).generation
-    assert.equal(terminal.status, terminalStatus)
-    assert.equal(terminal.stage, terminalStatus)
-    assert.equal(terminal.terminal, true)
+    assert.equal(generationEvents.length >= 1, true)
+    const created = (generationEvents[0]!.data as Record<string, any>).generation
+    assert.equal(created.status, 'queued')
+    assert.equal(created.stage, 'created')
+    assert.equal(created.terminal, false)
+    assert.equal(generationEvents.every((event) => (event.data as Record<string, any>).generation.stage === 'created'), true)
+    assert.deepEqual(client.calls.filter((call) => call.name === 'movscript_get_generation_job'), [])
   }
 })
 
-test('generation monitor emits heartbeat trace updates while the job keeps running', async () => {
+test('runtime operation generation starts do not emit synchronous heartbeat monitor updates', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   client.toolResults.set('movscript_create_generation_job', {
@@ -2336,10 +2327,13 @@ test('generation monitor emits heartbeat trace updates while the job keeps runni
     const generation = (event.data as Record<string, any>).generation
     return generation.stage === 'observed' && generation.status === 'running'
   })
-  assert.equal(observedEvents.length >= 2, true)
+  assert.equal(observedEvents.length, 0)
+  assert.equal(generationEvents.length >= 1, true)
+  assert.equal(generationEvents.every((event) => (event.data as Record<string, any>).generation.stage === 'created'), true)
+  assert.deepEqual(client.calls.filter((call) => call.name === 'movscript_get_generation_job'), [])
 })
 
-test('generation monitor emits timeout when async job does not finish in time', async () => {
+test('runtime operation generation starts do not timeout while async job keeps running', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   client.toolResults.set('movscript_create_generation_job', {
@@ -2376,12 +2370,12 @@ test('generation monitor emits timeout when async job does not finish in time', 
   assert.ok(run.status === 'completed' || run.status === 'completed_with_warnings')
   const generationEvents = runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
     .filter((event) => event.kind === 'tool_call' && hasGenerationTraceData(event.data))
-  const timeout = (generationEvents.at(-1)!.data as Record<string, any>).generation
-  assert.equal(client.calls.filter((call) => call.name === 'movscript_get_generation_job').length >= 2, true)
-  assert.equal(timeout.jobId, 777)
-  assert.equal(timeout.stage, 'timeout')
-  assert.equal(timeout.status, 'timeout')
-  assert.equal(timeout.terminal, false)
+  const created = (generationEvents.at(-1)!.data as Record<string, any>).generation
+  assert.equal(client.calls.filter((call) => call.name === 'movscript_get_generation_job').length, 0)
+  assert.equal(created.jobId, 777)
+  assert.equal(created.stage, 'created')
+  assert.equal(created.status, 'queued')
+  assert.equal(created.terminal, false)
 })
 
 test('context command returns fallback diagnostics when MCP focus is unavailable', async () => {
@@ -5530,7 +5524,7 @@ test('needs_review tasks can be rejected through task update', async () => {
 })
 
 async function createAndWaitForRun(
-  runtime: AgentRuntime,
+  runtime: AgentRuntimeRouter,
   threadId: string,
   input: Record<string, unknown> = {},
 ): Promise<AgentRun> {
@@ -5538,7 +5532,7 @@ async function createAndWaitForRun(
   return waitForRun(runtime, run.id)
 }
 
-async function waitForRun(runtime: AgentRuntime, runId: string): Promise<AgentRun> {
+async function waitForRun(runtime: AgentRuntimeRouter, runId: string): Promise<AgentRun> {
   const deadline = Date.now() + 1000
   while (true) {
     const latest = runtime.getRun(runId)
@@ -5568,7 +5562,7 @@ function runHasTool(run: AgentRun, toolName: string): boolean {
   return run.steps.some((step) => step.toolName === toolName)
 }
 
-function assertRunTraceEventTypes(runtime: AgentRuntime, runId: string, expected: string[]): void {
+function assertRunTraceEventTypes(runtime: AgentRuntimeRouter, runId: string, expected: string[]): void {
   const actual = new Set(
     runtime.getRunTraceEvents(runId, { limit: Number.MAX_SAFE_INTEGER })
       .map((event) => {
@@ -5582,7 +5576,7 @@ function assertRunTraceEventTypes(runtime: AgentRuntime, runId: string, expected
   }
 }
 
-function findTraceEventByEventType(runtime: AgentRuntime, runId: string, eventType: string): { data?: Record<string, unknown> } | undefined {
+function findTraceEventByEventType(runtime: AgentRuntimeRouter, runId: string, eventType: string): { data?: Record<string, unknown> } | undefined {
   return runtime.getRunTraceEvents(runId, { limit: Number.MAX_SAFE_INTEGER })
     .map((event) => ({ data: isPlainTestRecord(event.data) ? event.data : undefined }))
     .find((event) => event.data?.eventType === eventType)

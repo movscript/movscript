@@ -140,7 +140,7 @@ apps/agent/src/
   jsonValue.ts                   Shared JSON value / JSON record guards
 
   application/
-    agentRuntime.ts              Thin facade / composition boundary
+    runtimeRouter.ts             Thin router / composition boundary
     runService.ts                Run create/start/resume/cancel
     threadService.ts             User-visible thread/message lifecycle
     threadLifecycle.ts           Thread/message input normalization and mutation helpers

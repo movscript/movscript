@@ -176,19 +176,44 @@ export function cancelPendingRunInteractions(run: AgentRun, now: string): Cancel
 }
 
 export function mergePendingApprovals(existing: AgentApprovalRequest[], next: AgentApprovalRequest[], updatedAt: string): AgentApprovalRequest[] {
+  const nextById = new Map(next.map((approval) => [approval.id, approval]))
+  const nextBySignature = new Map(next.map((approval) => [approvalSignature(approval), approval]))
   const nextByTool = new Map(next.map((approval) => [approval.toolName, approval]))
-  const existingPendingTools = new Set<string>()
+  const existingToolCounts = countPendingApprovalsByTool(existing)
+  const nextToolCounts = countPendingApprovalsByTool(next)
+  const existingPendingIds = new Set<string>()
+  const existingPendingSignatures = new Set<string>()
+  const matchedNextIds = new Set<string>()
   const merged = existing.map((approval) => {
     if (approval.status !== 'pending') return approval
-    existingPendingTools.add(approval.toolName)
-    const nextApproval = nextByTool.get(approval.toolName)
+    existingPendingIds.add(approval.id)
+    existingPendingSignatures.add(approvalSignature(approval))
+    const nextApproval = nextById.get(approval.id)
+      ?? nextBySignature.get(approvalSignature(approval))
+      ?? (existingToolCounts.get(approval.toolName) === 1 && nextToolCounts.get(approval.toolName) === 1
+        ? nextByTool.get(approval.toolName)
+        : undefined)
+    if (nextApproval) matchedNextIds.add(nextApproval.id)
     return nextApproval ? { ...approval, args: nextApproval.args, reason: nextApproval.reason, updatedAt } : approval
   })
   for (const approval of next) {
-    if (existingPendingTools.has(approval.toolName)) continue
+    if (matchedNextIds.has(approval.id) || existingPendingIds.has(approval.id) || existingPendingSignatures.has(approvalSignature(approval))) continue
     merged.push(approval)
   }
   return merged
+}
+
+function approvalSignature(approval: AgentApprovalRequest): string {
+  return `${approval.toolName}:${JSON.stringify(approval.args ?? null)}`
+}
+
+function countPendingApprovalsByTool(approvals: AgentApprovalRequest[]): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const approval of approvals) {
+    if (approval.status !== 'pending') continue
+    counts.set(approval.toolName, (counts.get(approval.toolName) ?? 0) + 1)
+  }
+  return counts
 }
 
 export function mergePendingInputRequests(existing: AgentInputRequest[], next: AgentInputRequest[], updatedAt: string): AgentInputRequest[] {

@@ -81,6 +81,7 @@ export function buildGenerationTimeoutEvent(initial: GenerationEvent): Generatio
 }
 
 export function extractGenerationMonitorRequest(call: ToolCall, result: JSONValue | undefined, event: GenerationEvent): GenerationMonitorRequest | undefined {
+  if (call.name === 'runtime_operation_start') return undefined
   const normalized = normalizeGenerationCall(call, result)
   if (!normalized || normalized.call.name !== 'movscript_create_generation_job' || event.terminal) return undefined
   const payload = unwrapToolPayload(normalized.result)

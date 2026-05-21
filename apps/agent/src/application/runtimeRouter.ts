@@ -129,6 +129,10 @@ import {
   type RuntimeRunExecutionSchedulerBridge,
 } from './runtimeRunExecutionSchedulerBridge.js'
 import {
+  createRuntimeRecoveryBridge,
+  type RuntimeRecoveryBridge,
+} from './runtimeRecoveryBridge.js'
+import {
   createRuntimeRunExecutionBridge,
   type RuntimeRunExecutionBridge,
 } from './runtimeRunExecutionBridge.js'
@@ -183,7 +187,7 @@ import type {
   AgentRunStreamEvent,
   AgentThreadStreamEvent,
   AgentRunStep,
-  AgentRuntimeOptions,
+  AgentRuntimeRouterOptions,
   AgentCapabilitiesResponse,
   AgentDebugContextPanel,
   AgentRunPolicy,
@@ -221,7 +225,7 @@ export type {
   AgentRunStatus,
   AgentRunStreamEvent,
   AgentRunStep,
-  AgentRuntimeOptions,
+  AgentRuntimeRouterOptions,
   AgentApprovalRequest,
   AgentInputRequest,
   AgentCapabilitiesResponse,
@@ -295,7 +299,7 @@ export {
   type AgentCatalogStateStore,
 } from '../catalog/state.js'
 
-export class AgentRuntime {
+export class AgentRuntimeRouter {
   private readonly mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
   private readonly store: AgentStore
   private readonly draftStore: AgentDraftStore
@@ -315,7 +319,7 @@ export class AgentRuntime {
   private readonly catalogSettings: RuntimeCatalogSettingsBridge
   private readonly entityReads: RuntimeEntityReadBridge
   private readonly catalogStateStore: AgentCatalogStateStore
-  private readonly pluginCatalogLoader?: NonNullable<AgentRuntimeOptions['pluginCatalogLoader']>
+  private readonly pluginCatalogLoader?: NonNullable<AgentRuntimeRouterOptions['pluginCatalogLoader']>
   private readonly updateState?: AgentCapabilitiesResponse['updates']
   private readonly runControllers = new RuntimeRunControllerRegistry()
   private readonly runAuth = new RuntimeRunAuthRegistry()
@@ -334,6 +338,7 @@ export class AgentRuntime {
   private readonly taskRunSync: RuntimeTaskRunSyncBridge
   private readonly runExecution: RuntimeRunExecutionBridge
   private readonly runExecutionScheduler: RuntimeRunExecutionSchedulerBridge
+  private readonly recovery: RuntimeRecoveryBridge
   private readonly runCancellationGuard: RuntimeRunCancellationGuard
   private readonly runControl: RuntimeRunControlBridge
   private readonly runCreation: RuntimeRunCreationBridge
@@ -351,7 +356,7 @@ export class AgentRuntime {
   private readonly memories: RuntimeMemoryOperationsBridge
   private readonly traceReads: RuntimeTraceReadBridge
 
-  constructor(options: AgentRuntimeOptions) {
+  constructor(options: AgentRuntimeRouterOptions) {
     this.mcpClient = options.mcpClient
     this.store = options.store ?? new InMemoryAgentStore()
     this.draftStore = options.draftStore ?? new InMemoryAgentDraftStore()
@@ -516,6 +521,11 @@ export class AgentRuntime {
       executeRun: (runId, signal) => this.runExecution.executeRun(runId, signal),
       deleteCatalogSnapshot: (runId) => this.catalogSnapshots.deleteRun(runId),
       syncTaskFromRun: (runId) => this.taskRunSync.syncTaskFromRun(runId),
+    })
+    this.recovery = createRuntimeRecoveryBridge({
+      store: this.store,
+      streams: this.streams,
+      runExecutionScheduler: this.runExecutionScheduler,
     })
     this.runControl = createRuntimeRunControlBridge({
       store: this.store,
@@ -835,6 +845,14 @@ export class AgentRuntime {
 
   answerRunInputRequest(runId: string, input: AnswerRunInputRequestInput = {}): AgentRun {
     return this.runControl.answerRunInputRequest(runId, input)
+  }
+
+  reconcileRuntimeThreads(): ReturnType<RuntimeRecoveryBridge['reconcileRuntimeThreads']> {
+    return this.recovery.reconcileRuntimeThreads()
+  }
+
+  resumeInterruptedRun(runId: string): AgentRun {
+    return this.recovery.resumeInterruptedRun(runId)
   }
 
   listMemories(query: MemoryQuery): AgentMemory[] {

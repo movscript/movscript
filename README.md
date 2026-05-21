@@ -112,7 +112,7 @@ The main agent modules are intentionally split by ownership:
 | Frontend client | `apps/frontend/src/lib/localAgentClient.ts`, `apps/frontend/src/store/agentStore.ts` | HTTP/SSE contracts, UI-facing run/thread types, user settings, local panel state. |
 | HTTP boundary | `apps/agent/src/server.ts` | Local REST endpoints, run/plan SSE streams, request parsing, response serialization. |
 | Runtime bootstrap | `apps/agent/src/bootstrap/agentServerContext.ts` | Environment resolution, state paths, file stores, MCP client, catalog loading, model config store, update state. |
-| Application facade | `apps/agent/src/application/agentRuntime.ts` | Thread/run/plan lifecycle, draft and memory APIs, stream replay, catalog refresh, subagent orchestration entrypoints. |
+| Runtime router | `apps/agent/src/application/runtimeRouter.ts` | Single application entry for HTTP/UI calls; delegates thread/run/plan lifecycle, draft and memory APIs, stream replay, catalog refresh, recovery, and subagent orchestration to focused runtime bridges. |
 | Orchestration loop | `apps/agent/src/orchestration/agentGraph.ts` | LangGraph state machine for model turns, policy checks, tool execution, finalization, cancellation, and trace events. |
 | Tool execution | `apps/agent/src/orchestration/toolExecutor.ts`, `apps/agent/src/tools/` | Runtime tools, MCP calls, sandbox interception, approval risk metadata, tool grants, capability resolution. |
 | Context and prompts | `apps/agent/src/orchestration/contextBuilder.ts`, `apps/agent/src/context/`, `apps/agent/src/contextManager/` | Prompt layers, focus context, history compaction, source boundaries, retrieved context, prompt budgeting. |

@@ -1,6 +1,6 @@
 import { dirname, relative } from 'node:path'
 import { MCPClient } from '../mcpClient.js'
-import { AgentRuntime, loadAgentPluginCatalog } from '../application/agentRuntime.js'
+import { AgentRuntimeRouter, loadAgentPluginCatalog } from '../application/runtimeRouter.js'
 import { FileAgentStore, resolveAgentMemoryPath, resolveAgentStatePath } from '../state/fileStore.js'
 import { FileAgentDraftStore, resolveAgentDraftPath } from '../drafts/draftStore.js'
 import { BackendApplyClient } from '../drafts/backendApplyClient.js'
@@ -31,13 +31,13 @@ export interface AgentServerContext {
   }
   updates: ReturnType<typeof buildAgentUpdateState>
   client: MCPClient
-  agentRuntime: AgentRuntime
+  runtimeRouter: AgentRuntimeRouter
   backendApplyClient: BackendApplyClient
   modelConfigStore: RuntimeModelConfigStore
   pluginCatalog: ReturnType<typeof loadAgentPluginCatalog>
 }
 
-export interface AgentRuntimeCapabilities {
+export interface AgentServerCapabilities {
   service: 'movscript-agent'
   mode: 'server'
   runtime: {
@@ -148,7 +148,7 @@ export function createAgentServerContext(): AgentServerContext {
   const backendApplyClient = new MCPBackendApplyClient(client)
   const runtimeContractResolver = EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER
 
-  const agentRuntime = new AgentRuntime({
+  const runtimeRouter = new AgentRuntimeRouter({
     mcpClient: client,
     store: new FileAgentStore(statePath),
     draftStore: new FileAgentDraftStore(draftPath),
@@ -171,7 +171,10 @@ export function createAgentServerContext(): AgentServerContext {
     pluginWarnings: pluginCatalog.warnings,
     updateState,
   })
-  logPhase('agent-runtime-created')
+  logPhase('runtime-router-created')
+  const recoveryReport = runtimeRouter.reconcileRuntimeThreads()
+  console.info(`[agent] runtime recovery checked=${recoveryReport.checkedRunCount} rescheduled=${recoveryReport.rescheduledRunIds.length} interrupted=${recoveryReport.interruptedRunIds.length} waiting=${recoveryReport.waitingRunIds.length}`)
+  logPhase('runtime-recovery-reconciled')
 
   return {
     port,
@@ -185,14 +188,14 @@ export function createAgentServerContext(): AgentServerContext {
     },
     updates: updateState,
     client,
-    agentRuntime,
+    runtimeRouter,
     backendApplyClient,
     modelConfigStore,
     pluginCatalog,
   }
 }
 
-export function getAgentRuntimeCapabilities(context: AgentServerContext): AgentRuntimeCapabilities {
+export function getAgentServerCapabilities(context: AgentServerContext): AgentServerCapabilities {
   const { pluginCatalog, paths, mcpEndpoint, backendApplyClient } = context
   return {
     service: 'movscript-agent',
@@ -208,6 +211,7 @@ export function getAgentRuntimeCapabilities(context: AgentServerContext): AgentR
         'memories',
         'agent-catalog-runtime-tools',
         'run-cancel',
+        'runtime-thread-recovery',
       ],
       endpoints: [
         '/health',
@@ -215,6 +219,7 @@ export function getAgentRuntimeCapabilities(context: AgentServerContext): AgentR
         '/model-config',
         '/runs',
         '/runs/{id}/cancel',
+        '/runs/{id}/resume',
         '/drafts',
         '/memories',
       ],

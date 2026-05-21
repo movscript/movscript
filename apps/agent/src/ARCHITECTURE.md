@@ -27,11 +27,25 @@ This directory is the active namespace for the agent architecture.
 4. Domain behavior enters the core agent through tools and contracts, not through manifest-id conditionals in the runtime.
 5. There is one active orchestration engine: `orchestration/agentGraph`.
 
+## Runtime Router and Thread Runtime
+
+`application/runtimeRouter.ts` is the process-wide application router. It is the only facade that the HTTP server and UI-facing entrypoints should call directly, and it should stay a composition boundary over focused runtime bridges.
+
+A user-visible thread owns its runtime state through persisted `AgentThread` and `AgentRun` records, plus the `/threads/{id}/runtime` projection. Thread recovery must start from these persisted records rather than from in-memory promises or controllers.
+
+Startup recovery follows this contract:
+
+- `queued` runs are rescheduled by the router.
+- `in_progress` runs are treated as interrupted work and projected to `requires_action` with an explicit recovery input.
+- Recovery choices are handled through the normal run input route first; `/runs/{id}/resume` remains a direct operational endpoint for explicit resume actions.
+- The frontend must not reconstruct runtime state from local chat memory alone. It should hydrate from the thread runtime projection and send answers/approvals back through runtime routes.
+
 ## Runtime Operations
 
 Runtime operations are execution objects that can outlive one tool call and can be observed, waited on, or cancelled.
 
 - Ordinary synchronous tool calls return their final result or error immediately and should not be wrapped as operations.
 - `generation_job` is an external async runtime operation backed by the MovScript backend job handle. It is managed through the `runtime_operation_start/get/list/wait/cancel` tools.
+- `runtime_operation_start` is submit-only: it creates the operation and returns the operation handle, but it does not wait for backend completion or imply success. Use `runtime_operation_wait/get/list` to observe progress and terminal output.
 - Worker subagents are internal async runtime operations backed by `AgentRun` and `AgentTask`. They are managed through `movscript_spawn_subagent/list_subagents/wait_subagent/cancel_subagent`.
 - `runtime_operation_start` currently starts only `kind: "generation_job"` operations. Do not add new public `kind` values without adding a real provider and prompt/tool-schema guidance for that lifecycle.

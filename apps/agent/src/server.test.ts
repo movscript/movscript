@@ -50,7 +50,7 @@ test('normalizeTraceQuery rejects unknown trace kind', () => {
 test('trace read endpoints return 404 for missing runs instead of surfacing facade errors', async () => {
   const calls: string[] = []
   const handler = createAgentRequestListener({
-    agentRuntime: {
+    runtimeRouter: {
       getRun: () => undefined,
       getRunTracePage: () => {
         calls.push('page')
@@ -103,7 +103,7 @@ test('trace read endpoints return 404 for missing runs instead of surfacing faca
 
 test('debug ledger endpoints return compact ledger and evidence payloads', async () => {
   const handler = createAgentRequestListener({
-    agentRuntime: {
+    runtimeRouter: {
       getRun: (runId: string) => ({ id: runId, threadId: 'thread_1', status: 'completed', steps: [], policy: {}, createdAt: '2026-05-21T00:00:00.000Z', updatedAt: '2026-05-21T00:00:00.000Z' }),
       getRunDebugLedger: (runId: string) => ({
         schema: 'movscript.agent.run-debug-ledger.v1',
@@ -252,7 +252,7 @@ test('write endpoints reject non-object request bodies before touching runtime d
 test('thread run endpoint appends a user message and creates a run bound to that message', async () => {
   const calls: Array<{ endpoint: string; input: Record<string, unknown> }> = []
   const handler = createAgentRequestListener({
-    agentRuntime: {
+    runtimeRouter: {
       getThread: (threadId: string) => ({ id: threadId, status: 'idle', createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:00.000Z', messages: [] }),
       addMessage: (threadId: string, input: Record<string, unknown>) => {
         calls.push({ endpoint: 'message', input: { threadId, ...input } })
@@ -309,7 +309,7 @@ test('thread run endpoint appends a user message and creates a run bound to that
 test('thread run endpoint appends runtime input to an active run instead of creating a parallel run', async () => {
   const calls: Array<{ endpoint: string; input: Record<string, unknown> }> = []
   const handler = createAgentRequestListener({
-    agentRuntime: {
+    runtimeRouter: {
       getThread: (threadId: string) => ({
         id: threadId,
         status: 'running',
@@ -372,7 +372,7 @@ test('thread run endpoint appends runtime input to an active run instead of crea
 
 test('thread runs endpoint lists only runs from the requested thread', async () => {
   const handler = createAgentRequestListener({
-    agentRuntime: {
+    runtimeRouter: {
       getThread: (threadId: string) => threadId === 'thread_1'
         ? { id: threadId, messages: [], createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:00.000Z' }
         : undefined,
@@ -399,7 +399,7 @@ test('thread runtime endpoint returns a consistent thread and run snapshot', asy
     updatedAt: '2026-05-19T00:00:01.000Z',
   }
   const handler = createAgentRequestListener({
-    agentRuntime: {
+    runtimeRouter: {
       getThread: (threadId: string) => threadId === 'thread_1' ? thread : undefined,
       listRunsByThread: () => [
         { id: 'run_1', threadId: 'thread_1', status: 'completed' },
@@ -454,7 +454,7 @@ test('thread runtime endpoint indexes pending interaction runs for frontend reco
     }],
   }
   const handler = createAgentRequestListener({
-    agentRuntime: {
+    runtimeRouter: {
       getThread: (threadId: string) => threadId === 'thread_1' ? thread : undefined,
       listRunsByThread: () => [
         { id: 'run_completed', threadId: 'thread_1', status: 'completed', updatedAt: '2026-05-19T00:00:02.000Z' },
@@ -477,7 +477,7 @@ test('thread runtime endpoint indexes pending interaction runs for frontend reco
 
 test('thread runs endpoint returns not found for missing threads', async () => {
   const handler = createAgentRequestListener({
-    agentRuntime: {
+    runtimeRouter: {
       getThread: () => undefined,
       listRunsByThread: () => [],
     },
@@ -491,7 +491,7 @@ test('thread runs endpoint returns not found for missing threads', async () => {
 
 test('thread runtime endpoint returns not found for missing threads', async () => {
   const handler = createAgentRequestListener({
-    agentRuntime: {
+    runtimeRouter: {
       getThread: () => undefined,
       listRunsByThread: () => [],
     },
@@ -506,7 +506,7 @@ test('thread runtime endpoint returns not found for missing threads', async () =
 test('thread stream endpoint delegates thread-scoped runtime stream events', async () => {
   const calls: string[] = []
   const handler = createAgentRequestListener({
-    agentRuntime: {
+    runtimeRouter: {
       getThread: (threadId: string) => threadId === 'thread_1'
         ? { id: threadId, messages: [], createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:00.000Z' }
         : undefined,
@@ -547,7 +547,7 @@ test('thread stream endpoint delegates thread-scoped runtime stream events', asy
 
 test('thread stream endpoint returns not found for missing threads', async () => {
   const handler = createAgentRequestListener({
-    agentRuntime: {
+    runtimeRouter: {
       getThread: () => undefined,
       subscribeThreadStream: () => {
         throw new Error('should not subscribe missing thread')
@@ -567,7 +567,7 @@ test('agent skill bundle install endpoint writes plugin skills and reloads catal
   try {
     const handler = createAgentRequestListener({
       pluginCatalog: { skillsDir: dir },
-      agentRuntime: {
+      runtimeRouter: {
         reloadAgentCatalog: () => {
           calls.push('reload')
           return { status: 'reloaded' }
@@ -602,7 +602,7 @@ test('agent skill bundle uninstall endpoint removes plugin skills and reloads ca
   try {
     const handler = createAgentRequestListener({
       pluginCatalog: { skillsDir: dir },
-      agentRuntime: {
+      runtimeRouter: {
         reloadAgentCatalog: () => {
           calls.push('reload')
           return { status: 'reloaded' }
@@ -652,7 +652,7 @@ test('inspect endpoint lists installed skill bundle plugins', async () => {
         layeredTools: [],
         warnings: [],
       },
-      agentRuntime: {
+      runtimeRouter: {
         reloadAgentCatalog: () => ({ status: 'reloaded' }),
         listRegisteredTools: () => [],
         listSkillCatalog: () => [],
@@ -685,7 +685,7 @@ test('inspect endpoint lists installed skill bundle plugins', async () => {
 test('default profile endpoint saves requested runtime profile', async () => {
   const calls: Array<Record<string, unknown>> = []
   const handler = createAgentRequestListener({
-    agentRuntime: {
+    runtimeRouter: {
       setDefaultAgentProfile: (input: Record<string, unknown>) => {
         calls.push(input)
         return { schema: 'movscript.agent.current', id: 'manifest_1', version: '1.0.0', name: 'Manifest', tools: [], metadata: { profileId: input.profileId } }
@@ -703,7 +703,7 @@ test('default profile endpoint saves requested runtime profile', async () => {
 test('default tool policy endpoint saves requested runtime tool overrides', async () => {
   const calls: Array<Record<string, unknown>> = []
   const handler = createAgentRequestListener({
-    agentRuntime: {
+    runtimeRouter: {
       setDefaultToolPolicy: (input: Record<string, unknown>) => {
         calls.push(input)
         return { schema: 'movscript.agent.current', id: 'manifest_1', version: '1.0.0', name: 'Manifest', tools: input.toolGrants, metadata: { defaultToolGrants: input.toolGrants } }
@@ -722,7 +722,7 @@ test('default tool policy endpoint saves requested runtime tool overrides', asyn
 test('default skill policy endpoint saves requested runtime skill overrides', async () => {
   const calls: Array<Record<string, unknown>> = []
   const handler = createAgentRequestListener({
-    agentRuntime: {
+    runtimeRouter: {
       setDefaultSkillPolicy: (input: Record<string, unknown>) => {
         calls.push(input)
         return { skills: new Map([['skill_a', { id: 'skill_a', enabled: false }]]) }
@@ -738,10 +738,64 @@ test('default skill policy endpoint saves requested runtime skill overrides', as
   assert.deepEqual(JSON.parse(response.body).skills, [{ id: 'skill_a', enabled: false }])
 })
 
+test('runtime recovery reconcile endpoint delegates to runtime router', async () => {
+  const calls: string[] = []
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      reconcileRuntimeThreads: () => {
+        calls.push('reconcile')
+        return {
+          checkedRunCount: 2,
+          rescheduledRunIds: ['run_queued'],
+          interruptedRunIds: ['run_interrupted'],
+          waitingRunIds: [],
+        }
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'POST', '/runtime/recovery/reconcile')
+
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(calls, ['reconcile'])
+  assert.deepEqual(JSON.parse(response.body), {
+    checkedRunCount: 2,
+    rescheduledRunIds: ['run_queued'],
+    interruptedRunIds: ['run_interrupted'],
+    waitingRunIds: [],
+  })
+})
+
+test('run resume endpoint delegates interrupted run recovery to runtime router', async () => {
+  const calls: string[] = []
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      resumeInterruptedRun: (runId: string) => {
+        calls.push(runId)
+        return {
+          id: runId,
+          threadId: 'thread_1',
+          status: 'queued',
+          policy: {},
+          createdAt: '2026-05-21T00:00:00.000Z',
+          updatedAt: '2026-05-21T00:01:00.000Z',
+          steps: [],
+        }
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'POST', '/runs/run_1/resume')
+
+  assert.equal(response.statusCode, 202)
+  assert.deepEqual(calls, ['run_1'])
+  assert.equal(JSON.parse(response.body).status, 'queued')
+})
+
 test('public agent project id boundaries reject invalid project scopes', async () => {
   const calls: Array<{ endpoint: string; input: Record<string, unknown> }> = []
   const handler = createAgentRequestListener({
-    agentRuntime: {
+    runtimeRouter: {
       getCapabilities: async (input: Record<string, unknown>) => {
         calls.push({ endpoint: 'capabilities', input })
         return { ok: true }
@@ -783,7 +837,7 @@ test('public agent project id boundaries reject invalid project scopes', async (
 test('draft creation drops invalid numeric business reference ids', async () => {
   const calls: Array<Record<string, unknown>> = []
   const handler = createAgentRequestListener({
-    agentRuntime: {
+    runtimeRouter: {
       createLocalDraft: (input: Record<string, unknown>) => {
         calls.push(input)
         return { id: 'draft_1', ...input }
@@ -814,7 +868,7 @@ test('draft creation drops invalid numeric business reference ids', async () => 
 test('public agent query limit boundaries are normalized before runtime calls', async () => {
   const calls: Array<{ endpoint: string; input: Record<string, unknown> }> = []
   const handler = createAgentRequestListener({
-    agentRuntime: {
+    runtimeRouter: {
       listDrafts: (input: Record<string, unknown>) => {
         calls.push({ endpoint: 'drafts', input })
         return []

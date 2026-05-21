@@ -1106,6 +1106,8 @@
         "manifest": "预设",
         "skills": "技能",
         "tools": "工具",
+        "toolConsole": "MCP 调用",
+        "draftRuntime": "Draft Runtime",
         "prompt": "Prompt",
         "context": "上下文",
         "runs": "运行",
@@ -1152,6 +1154,14 @@
         "runIssueSummary": "运行问题摘要",
         "effectiveManifest": "生效 Manifest",
         "defaultManifest": "默认 Runtime Manifest",
+        "toolConsole": "外部 MCP 工具调用",
+        "toolSchema": "工具入参 Schema",
+        "toolConsoleOutput": "工具输出摘要",
+        "toolConsoleResult": "调用结果",
+        "draftRuntime": "Draft Runtime 调试",
+        "draftRuntimeSchema": "Draft 工具入参 Schema",
+        "draftRuntimeOutput": "Draft 工具输出摘要",
+        "draftRuntimeResult": "Draft 调用结果",
         "activatedSkills": "已激活技能",
         "skillCatalog": "技能目录",
         "promptParts": "Prompt 片段",
@@ -1212,6 +1222,25 @@
         "permission": "权限",
         "approval": "审批",
         "status": "状态"
+      },
+      "toolConsole": {
+        "warning": "这里仅列出 source=mcp 的外部 MCP 工具。调用仍由 Agent Runtime 转发执行，但不会显示 Runtime 本地 draft / memory / plan 工具。",
+        "runtimeBoundary": "Draft 相关能力目前属于 Agent Runtime 本地工具，例如 movscript_get_draft_model、movscript_create_draft、movscript_preview_draft_apply；它们不属于外部 MCP 调用，应放在单独的 Draft Runtime 调试入口里验证。",
+        "tool": "MCP 工具",
+        "args": "JSON 参数",
+        "run": "执行工具",
+        "refreshTrace": "刷新 Trace"
+      },
+      "draftRuntime": {
+        "boundary": "这里专门调用 Agent Runtime 本地 draft 工具，用来验证 draft model seed、创建草稿、校验和 preview apply。它不是外部 MCP。",
+        "tool": "Draft Runtime 工具",
+        "args": "JSON 参数",
+        "run": "执行 Draft 工具",
+        "assetModelPreset": "Asset proposal 模型",
+        "createAssetDraftPreset": "创建 asset draft 壳",
+        "validatePreset": "Validate draft",
+        "previewApplyPreset": "Preview apply",
+        "refreshTrace": "刷新 Trace"
       },
       "observationStatuses": {
         "ready": "已覆盖",
@@ -1367,6 +1396,12 @@
         "noRunIssues": "当前没有运行问题。",
         "noTriageItems": "当前没有需要分诊的问题。",
         "noRemediationItems": "当前没有建议修复步骤。",
+        "noToolSelected": "未选择工具。",
+        "noMcpTools": "当前没有可用的外部 MCP 工具。",
+        "noToolConsoleResult": "执行工具后会显示 run 和 trace。",
+        "noDraftRuntimeTools": "当前没有可用的 Draft Runtime 工具。",
+        "noDraftRuntimeToolSelected": "未选择 Draft Runtime 工具。",
+        "noDraftRuntimeResult": "执行 Draft Runtime 工具后会显示 run 和 trace。",
         "modelConfigReadFailed": "模型配置读取失败：{{reason}}"
       },
       "values": {

@@ -1,6 +1,6 @@
 {
   "name": "runtime_operation_start",
-  "description": "启动一个可等待的 runtime operation。普通同步工具直接调用，不要通过此工具包装。当前此工具只支持 kind:\"generation_job\"，用于提交后端生成长任务并返回 operationId/externalHandle。Subagent 也是 runtime operation，但通过 movscript_spawn_subagent、movscript_wait_subagent、movscript_cancel_subagent 专用工具管理。",
+  "description": "提交一个可等待的异步 runtime operation，并立即返回 operationId/externalHandle；本工具不等待后端完成，也不代表生成成功。普通同步工具直接调用，不要通过此工具包装。当前此工具只支持 kind:\"generation_job\"，用于提交后端生成长任务；后续状态和结果必须通过 runtime_operation_wait/get/list 观察。Subagent 也是 runtime operation，但通过 movscript_spawn_subagent、movscript_wait_subagent、movscript_cancel_subagent 专用工具管理。",
   "permission": "agent.operation.write",
   "risk": "generate",
   "source": "runtime",

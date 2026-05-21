@@ -858,11 +858,11 @@ test('agent settings exposes profile work mode controls', () => {
   const source = readFileSync(resolve('src/pages/agent/AIAgentSettingsPage.tsx'), 'utf8')
   const clientSource = readFileSync(resolve('src/lib/localAgentClient.ts'), 'utf8')
   const serverSource = readFileSync(resolve('../../apps/agent/src/server.ts'), 'utf8')
-  const runtimeSource = readFileSync(resolve('../../apps/agent/src/application/agentRuntime.ts'), 'utf8')
+  const runtimeSource = readFileSync(resolve('../../apps/agent/src/application/runtimeRouter.ts'), 'utf8')
   const zh = readFileSync(resolve('src/i18n/locales/zh-CN.json'), 'utf8')
   const en = readFileSync(resolve('src/i18n/locales/en-US.json'), 'utf8')
 
-  assertIncludes(serverSource, 'profiles: context.agentRuntime.listProfileCatalog()')
+  assertIncludes(serverSource, 'profiles: context.runtimeRouter.listProfileCatalog()')
   assertIncludes(runtimeSource, 'listProfileCatalog(): ReturnType<RuntimeCatalogOperationsBridge')
   assertIncludes(runtimeSource, 'setDefaultAgentProfile(input')
   assertIncludes(clientSource, 'export interface AgentCatalogProfile')
