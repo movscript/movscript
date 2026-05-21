@@ -7,6 +7,7 @@ import {
   Plus,
   Route,
   Sparkles,
+  X,
 } from 'lucide-react'
 
 import type { ContentGenerationMomentRow, ContentWorkbenchRecord as WorkbenchRecord } from '@/lib/contentWorkbenchModel'
@@ -57,6 +58,7 @@ export function ContentWorkbenchUnitInspector({
   onOpenCanvas,
   onUploadMissingAssets,
   onDeleteUnit,
+  onClose,
 }: {
   projectId?: number
   queryKey?: readonly unknown[]
@@ -72,11 +74,13 @@ export function ContentWorkbenchUnitInspector({
   onOpenCanvas?: () => void
   onUploadMissingAssets?: () => void
   onDeleteUnit?: (unit: WorkbenchRecord) => void
+  onClose?: () => void
 }) {
   return (
     <aside
-      className="min-w-0 overflow-hidden border-t border-border pt-3 2xl:sticky 2xl:top-0 2xl:border-l 2xl:border-t-0 2xl:pl-3 2xl:pt-0"
+      className="min-w-0 overflow-hidden border-t border-border bg-background pt-3 2xl:sticky 2xl:top-0 2xl:max-h-[calc(100vh-9rem)] 2xl:overflow-y-auto 2xl:border-l 2xl:border-t-0 2xl:pl-3 2xl:pt-0"
       data-testid="content-workbench-unit-inspector"
+      data-drawer="right"
     >
       <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border pb-2.5">
         <div className="min-w-0">
@@ -95,7 +99,14 @@ export function ContentWorkbenchUnitInspector({
                 : '选择情节后再开始内容编排。'}
           </p>
         </div>
-        {unit ? <Badge variant="outline">{trackKindLabel(String(unit.kind || 'shot'))}</Badge> : null}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {unit ? <Badge variant="outline">{trackKindLabel(String(unit.kind || 'shot'))}</Badge> : null}
+          {onClose ? (
+            <Button type="button" size="icon-sm" variant="ghost" onClick={onClose} aria-label="收起当前制作项抽屉">
+              <X size={14} />
+            </Button>
+          ) : null}
+        </div>
       </div>
       <ContentUnitEditCards
         projectId={projectId}
