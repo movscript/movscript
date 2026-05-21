@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { AgentIOManager } from './agentIOManager.js'
-import { GenerationJobIOProvider } from './providers/generationJobProvider.js'
+import { RuntimeOperationManager } from './runtimeOperationManager.js'
+import { GenerationJobOperationProvider } from './providers/generationJobOperationProvider.js'
 import type { JSONValue } from '../types.js'
 import { MCPError } from '../mcpClient.js'
 
-test('AgentIOManager starts and waits generation job operations', async () => {
+test('RuntimeOperationManager starts and waits generation job operations', async () => {
   const calls: Array<{ name: string; args: Record<string, JSONValue> }> = []
   let observed = false
-  const manager = new AgentIOManager({
-    providers: [new GenerationJobIOProvider({
+  const manager = new RuntimeOperationManager({
+    providers: [new GenerationJobOperationProvider({
       initialize: async () => ({}),
       callTool: async (name, args = {}) => {
         calls.push({ name, args })
@@ -41,9 +41,9 @@ test('AgentIOManager starts and waits generation job operations', async () => {
   assert.deepEqual(calls.map((call) => call.name), ['movscript_create_generation_job', 'movscript_get_generation_job'])
 })
 
-test('AgentIOManager can cancel generation job operations', async () => {
-  const manager = new AgentIOManager({
-    providers: [new GenerationJobIOProvider({
+test('RuntimeOperationManager can cancel generation job operations', async () => {
+  const manager = new RuntimeOperationManager({
+    providers: [new GenerationJobOperationProvider({
       initialize: async () => ({}),
       callTool: async (name, args = {}) => {
         if (name === 'movscript_create_generation_job') return { data: { jobId: 77, status: 'queued', terminal: false } } as JSONValue
@@ -64,10 +64,10 @@ test('AgentIOManager can cancel generation job operations', async () => {
   assert.equal(manager.get(operation.id).status, 'cancelled')
 })
 
-test('GenerationJobIOProvider retries once with backend suggested_fix', async () => {
+test('GenerationJobOperationProvider retries once with backend suggested_fix', async () => {
   const calls: Array<{ name: string; args: Record<string, JSONValue> }> = []
-  const manager = new AgentIOManager({
-    providers: [new GenerationJobIOProvider({
+  const manager = new RuntimeOperationManager({
+    providers: [new GenerationJobOperationProvider({
       initialize: async () => ({}),
       callTool: async (name, args = {}) => {
         calls.push({ name, args })

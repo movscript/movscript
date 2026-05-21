@@ -11,6 +11,7 @@ export type ContentWorkbenchProposalDefaults = Record<string, string | number | 
   shot_size: string
   camera_angle: string
   camera_motion: string
+  metadata_json?: string
   status: 'candidate'
 }
 
@@ -46,6 +47,14 @@ export function contentWorkbenchProposalSnapshot(unit: ContentWorkbenchProposalP
 export function contentWorkbenchProposalDefaults(unit: ContentWorkbenchProposalPayload): ContentWorkbenchProposalDefaults {
   const shot = isRecord(unit.shot) ? unit.shot : {}
   const durationSec = numberOf(unit.duration_sec)
+  const visualPlan = isRecord(unit.visual_plan) ? unit.visual_plan : null
+  const storyboardBrief = isRecord(unit.storyboard_brief) ? unit.storyboard_brief : null
+  const metadata = visualPlan || storyboardBrief
+    ? {
+      ...(visualPlan ? { visual_plan: visualPlan } : {}),
+      ...(storyboardBrief ? { storyboard_brief: storyboardBrief } : {}),
+    }
+    : null
   return {
     title: contentWorkbenchProposalUnitTitle(unit, 0),
     kind: firstText(contentWorkbenchProposalFieldString(unit, ['kind']), 'shot'),
@@ -55,6 +64,7 @@ export function contentWorkbenchProposalDefaults(unit: ContentWorkbenchProposalP
     shot_size: contentWorkbenchProposalFieldString(shot, ['shot_size']),
     camera_angle: contentWorkbenchProposalFieldString(shot, ['camera_angle']),
     camera_motion: contentWorkbenchProposalFieldString(shot, ['camera_movement', 'camera_motion']),
+    ...(metadata ? { metadata_json: JSON.stringify(metadata) } : {}),
     status: 'candidate',
   }
 }

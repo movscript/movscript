@@ -23,8 +23,8 @@
 - Draft 模型或 seed：{{tool:movscript_get_draft_model}}
 - 查询设定资料、素材需求和制作上下文：{{tool:movscript_query_creative_references}} {{tool:movscript_query_asset_slots}} {{tool:movscript_query_production_context}}
 - 模型发现：{{tool:movscript_list_models}}
-- 创建异步生成 operation：{{tool:agent_io_start}}，`kind: "generation_job"`。
-- 监控异步生成 operation：{{tool:agent_io_get}} {{tool:agent_io_list}} {{tool:agent_io_wait}}
+- 创建异步生成 operation：{{tool:runtime_operation_start}}，`kind: "generation_job"`。
+- 监控异步生成 operation：{{tool:runtime_operation_get}} {{tool:runtime_operation_list}} {{tool:runtime_operation_wait}}
 - 生成成功并拿到一个或多个 output_resource_id 后，写入候选集：{{tool:movscript_attach_asset_slot_candidate}}
 - 缺少目标或引用时询问：{{tool:movscript_request_user_input}}
 

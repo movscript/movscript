@@ -8,8 +8,8 @@ export const BASE_RETRIEVAL_TOOLS = new Set([
 ])
 
 export const COMMAND_REQUIRED_TOOLS = new Set([
-  'agent_io_start',
-  'agent_io_wait',
+  'runtime_operation_start',
+  'runtime_operation_wait',
 ])
 
 export function isToolVisibleForActiveBehavior(input: {

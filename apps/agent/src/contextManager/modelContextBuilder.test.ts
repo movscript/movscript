@@ -265,7 +265,7 @@ test('buildContext summarizes declared tool output fields for model-readable res
           },
         },
         {
-          name: 'agent_io_start',
+          name: 'runtime_operation_start',
           source: 'runtime',
           registered: true,
           granted: true,
@@ -323,7 +323,7 @@ test('buildContext summarizes declared tool output fields for model-readable res
   assert.match(built.systemPrompt, /Declared tool output fields/)
   assert.match(built.systemPrompt, /movscript_list_models/)
   assert.match(built.systemPrompt, /model_contracts\[\]\.model_id\|logical_model_id\|capabilities\|input_requirements\|supported_param_keys\|supported_params/)
-  assert.match(built.systemPrompt, /agent_io_start/)
+  assert.match(built.systemPrompt, /runtime_operation_start/)
   assert.match(built.systemPrompt, /operation\.\{id\|kind\|status\|externalHandle\|result/)
   assert.doesNotMatch(built.systemPrompt, /movscript_create_generation_job/)
 })

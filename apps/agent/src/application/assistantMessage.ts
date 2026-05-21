@@ -347,21 +347,21 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
   if (call.name === 'movscript_preview_draft_apply') {
     return `草稿 apply preview${isRecord(parsed) && parsed.ok === true ? '通过' : '未通过'}。`
   }
-  if (call.name === 'agent_io_start') {
+  if (call.name === 'runtime_operation_start') {
     const operation = isRecord(parsed) && isRecord(parsed.operation) ? parsed.operation : {}
     const kind = typeof operation.kind === 'string' ? operation.kind : 'runtime'
     const status = typeof operation.status === 'string' ? operation.status : 'started'
     const operationId = typeof operation.id === 'string' ? ` ${operation.id}` : ''
     return `${kind} 操作${operationId}已提交，当前状态：${status}${outputResourceSummary(parsed)}。`
   }
-  if (call.name === 'agent_io_get') {
+  if (call.name === 'runtime_operation_get') {
     const operation = isRecord(parsed) && isRecord(parsed.operation) ? parsed.operation : {}
     const kind = typeof operation.kind === 'string' ? operation.kind : 'runtime'
     const status = typeof operation.status === 'string' ? operation.status : 'unknown'
     const operationId = typeof operation.id === 'string' ? ` ${operation.id}` : ''
     return `${kind} 操作${operationId}当前状态：${status}${outputResourceSummary(parsed)}。`
   }
-  if (call.name === 'agent_io_wait') {
+  if (call.name === 'runtime_operation_wait') {
     const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'unknown'
     const completed = isRecord(parsed) && Array.isArray(parsed.completed) ? parsed.completed.length : 0
     const pending = isRecord(parsed) && Array.isArray(parsed.pending) ? parsed.pending.length : 0
@@ -371,7 +371,7 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
     if (status === 'timeout') return `等待 runtime operation 超时，仍有 ${pending} 个操作在后台运行。`
     return `等待 runtime operation 完成（成功 ${completed}，失败 ${failed}，取消 ${cancelled}，待完成 ${pending}${outputResourceId}）。`
   }
-  if (call.name === 'agent_io_cancel') {
+  if (call.name === 'runtime_operation_cancel') {
     const operation = isRecord(parsed) && isRecord(parsed.operation) ? parsed.operation : {}
     const kind = typeof operation.kind === 'string' ? operation.kind : 'runtime'
     const status = typeof operation.status === 'string' ? operation.status : 'cancelled'

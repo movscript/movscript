@@ -1,8 +1,8 @@
 {
-  "name": "agent_io_get",
-  "description": "读取单个 runtime operation 的当前状态。兼容工具名仍为 agent_io_get；不要把它理解为通用读取工具。",
-  "permission": "agent.io.read",
-  "risk": "read",
+  "name": "runtime_operation_cancel",
+  "description": "取消一个可取消的 runtime operation。取消 subagent 请优先使用 movscript_cancel_subagent。",
+  "permission": "agent.operation.write",
+  "risk": "write",
   "source": "runtime",
   "category": "runtime-operation",
   "inputSchema": {

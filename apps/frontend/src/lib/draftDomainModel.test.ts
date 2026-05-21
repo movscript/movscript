@@ -63,6 +63,8 @@ test('draft domain model defines content unit proposal contracts', () => {
   assert.deepEqual(contentUnit?.seed.allowedModes, ['empty', 'snapshot'])
   assert.ok(contentUnit?.seed.include.includes('content_units'))
   assert.ok(contentUnit?.fieldGuide.owns.includes('content_units'))
+  assert.ok(contentUnit?.fieldGuide.owns.includes('content_units[].visual_plan'))
+  assert.ok(contentUnit?.fieldGuide.owns.includes('content_units[].storyboard_brief'))
   assert.ok(contentUnit?.fieldGuide.forbids.includes('operation_fields'))
   assert.ok(contentUnit?.fieldGuide.forbids.includes('media_generation_jobs'))
   assert.equal(contentUnit?.applyBoundary.backendApply, 'draft_only')

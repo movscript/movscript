@@ -67,8 +67,8 @@ function installDefaultModelFetch(): void {
     if (
       /按模型能力|model contract/i.test(userMsg)
       && toolMessages.length > 0
-      && toolNames.has('agent_io_start')
-      && !toolResultForCall(toolMessages, 'agent_io_start')
+      && toolNames.has('runtime_operation_start')
+      && !toolResultForCall(toolMessages, 'runtime_operation_start')
     ) {
       const modelsResult = toolResultForCall(toolMessages, 'movscript_list_models') ?? toolResultForCall(toolMessages, 'movscript.list_models')
       const contract = firstModelContract(modelsResult)
@@ -92,7 +92,7 @@ function installDefaultModelFetch(): void {
               tool_calls: [{
                 id: 'call_generation_from_contract_1',
                 type: 'function',
-                function: { name: 'agent_io_start', arguments: JSON.stringify({ kind: 'generation_job', request: args }) },
+                function: { name: 'runtime_operation_start', arguments: JSON.stringify({ kind: 'generation_job', request: args }) },
               }],
             },
             finish_reason: 'tool_calls',
@@ -147,7 +147,7 @@ function installDefaultModelFetch(): void {
         args: { capability: /视频|video/i.test(userMsg) ? 'video' : 'image' },
       })
     }
-    if (!/按模型能力|model contract/i.test(userMsg) && /生成|出图|视频|image|video/i.test(userMsg) && toolNames.has('agent_io_start')) {
+    if (!/按模型能力|model contract/i.test(userMsg) && /生成|出图|视频|image|video/i.test(userMsg) && toolNames.has('runtime_operation_start')) {
       const request = {
         prompt: '雨夜便利店，电影感，16:9',
         output_type: /视频|video/i.test(userMsg) ? 'video' : 'image',
@@ -157,7 +157,7 @@ function installDefaultModelFetch(): void {
       }
       callsToMake.push({
         id: 'call_generation_1',
-        name: 'agent_io_start',
+        name: 'runtime_operation_start',
         args: { kind: 'generation_job', request },
       })
     }
@@ -2101,7 +2101,7 @@ test('generation tool results emit structured generation trace events', async ()
       ...DEFAULT_AGENT_MANIFEST,
       tools: [
         ...DEFAULT_AGENT_MANIFEST.tools,
-        { name: 'agent_io_start', mode: 'allow', approval: 'never' },
+        { name: 'runtime_operation_start', mode: 'allow', approval: 'never' },
       ],
     },
   })
@@ -2180,9 +2180,9 @@ test('agent uses model_contracts from list_models before generation params', asy
       requiresApprovalByDefault: false,
     },
     {
-      name: 'agent_io_start',
+      name: 'runtime_operation_start',
       description: 'Start an asynchronous runtime operation.',
-      permission: 'agent.io.write',
+      permission: 'agent.operation.write',
       risk: 'generate',
       source: 'runtime',
       projectScoped: true,
@@ -2197,7 +2197,7 @@ test('agent uses model_contracts from list_models before generation params', asy
       tools: [
         ...DEFAULT_AGENT_MANIFEST.tools,
         { name: 'movscript_list_models', mode: 'allow', approval: 'never' },
-        { name: 'agent_io_start', mode: 'allow', approval: 'never' },
+        { name: 'runtime_operation_start', mode: 'allow', approval: 'never' },
       ],
     },
   })
@@ -2234,7 +2234,7 @@ test('/image command forces a generation tool call and returns the generated job
       ...DEFAULT_AGENT_MANIFEST,
       tools: [
         ...DEFAULT_AGENT_MANIFEST.tools,
-        { name: 'agent_io_start', mode: 'allow', approval: 'never' },
+        { name: 'runtime_operation_start', mode: 'allow', approval: 'never' },
       ],
     },
   })
@@ -2279,7 +2279,7 @@ test('generation monitor emits failed and cancelled terminal events', async () =
         ...DEFAULT_AGENT_MANIFEST,
         tools: [
           ...DEFAULT_AGENT_MANIFEST.tools,
-          { name: 'agent_io_start', mode: 'allow', approval: 'never' },
+          { name: 'runtime_operation_start', mode: 'allow', approval: 'never' },
         ],
       },
     })
@@ -2324,7 +2324,7 @@ test('generation monitor emits heartbeat trace updates while the job keeps runni
       ...DEFAULT_AGENT_MANIFEST,
       tools: [
         ...DEFAULT_AGENT_MANIFEST.tools,
-        { name: 'agent_io_start', mode: 'allow', approval: 'never' },
+        { name: 'runtime_operation_start', mode: 'allow', approval: 'never' },
       ],
     },
   })
@@ -2368,7 +2368,7 @@ test('generation monitor emits timeout when async job does not finish in time', 
       ...DEFAULT_AGENT_MANIFEST,
       tools: [
         ...DEFAULT_AGENT_MANIFEST.tools,
-        { name: 'agent_io_start', mode: 'allow', approval: 'never' },
+        { name: 'runtime_operation_start', mode: 'allow', approval: 'never' },
       ],
     },
   })

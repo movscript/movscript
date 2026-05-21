@@ -178,7 +178,7 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
       conflictKeys: ['production.updatedAt', 'segments[].updatedAt', 'scene_moments[].updatedAt', 'content_units[].updatedAt'],
     },
     fieldGuide: {
-      owns: ['content_units'],
+      owns: ['content_units', 'content_units[].visual_plan', 'content_units[].storyboard_brief'],
       references: ['production', 'segments', 'scene_moments', 'creative_references', 'asset_slots'],
       forbids: ['operation_fields', 'media_generation_jobs', 'generated_resource_bindings', 'project_level_creative_references', 'project_level_asset_slots'],
     },

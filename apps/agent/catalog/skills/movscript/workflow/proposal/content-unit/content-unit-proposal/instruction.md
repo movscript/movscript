@@ -12,7 +12,7 @@ Draft schema：{{schema:movscript.content_unit_proposal.v1.id}}
 - 如果 scene moment、segment 或 production context 中已有 creative reference usage，content unit 必须继承并尊重这些设定引用，不得改脸、改地点、改关系或改世界规则。
 
 边界：
-- 此 workflow 只处理 content unit 结构和制作时间线单元：shot、voiceover、dialogue_audio、sound、music_beat、subtitle、caption_card、transition，以及剧情推进、情绪推进和钩子等结构性内容。
+- 此 workflow 只处理 content unit 结构和制作时间线单元：shot、voiceover、dialogue_audio、sound、music_beat、subtitle、caption_card、transition，以及剧情推进、情绪推进、钩子、视觉调度计划和故事板简述等结构性内容。
 - 关键帧、图片、视频或内容单元视觉生成交给 visual_generation。
 - 素材候选计划交给 asset_proposal。
 
@@ -46,9 +46,10 @@ Draft schema：{{schema:movscript.content_unit_proposal.v1.id}}
 4. 如果当前会话已有 content_unit_proposal draftId，先读取它并记录 `draft.filePath`；否则创建新的 proposal draft。
 5. 将情节拆成可审阅的 content units，并写明每个 unit 的表达目标、时长、画面意图、剧情信息、情绪转折、钩子设计和文本/节奏要点；`kind` 只表达产出轨道，不表达叙事功能。
 6. 对分镜类 unit，尽量补齐可拍摄细节：`story_purpose`、`emotional_intent`、`shot`、`performance`、`lighting`、`blocking`、`sound`、`transition`。镜头参数应包括景别、机位、镜头运动、焦点/构图和建议时长；人物动作应包含表情、视线、停顿、手部或身体细节；光线应说明方向、明暗、色温或阴影关系。
-7. 通过真实文件对 draft JSON 做局部编辑，不通过 draft 工具替换完整正文。
-8. 总结前先 validate；支持 preview apply 时运行 preview apply 并修复具体错误路径。
-9. 对媒体或素材需求只留下引用和需求，不把它们写成已生成资产。
+7. 如果用户要求“视觉计划”“调度图”“blocking”“故事板简述”或当前制作项已有锚点，应在对应 unit 中补 `visual_plan` 和 `storyboard_brief`：`visual_plan` 包含 `space`、`blocking`、`camera_path`、`beats`、`props`、`lighting`、`risks`；`storyboard_brief` 包含 `purpose`、`subject`、`composition`、`action_moment`、`emotion`、`keyframe_suggestions`。这些字段是制作计划，不是已生成媒体。
+8. 通过真实文件对 draft JSON 做局部编辑，不通过 draft 工具替换完整正文。
+9. 总结前先 validate；支持 preview apply 时运行 preview apply 并修复具体错误路径。
+10. 对媒体或素材需求只留下引用和需求，不把它们写成已生成资产。
 
 校验：
 - Content unit 必须归属到明确 production 或 scene/segment 锚点。

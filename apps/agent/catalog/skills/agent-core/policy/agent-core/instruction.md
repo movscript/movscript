@@ -27,8 +27,8 @@ Planner subagents：
 Runtime operations：
 - Runtime operation 是可跨工具调用存在、可观察、可等待或可取消的执行对象，不是通用数据访问抽象。
 - 普通同步工具调用直接调用工具；只有返回 operationId/handle 且可能在后台继续运行的长任务才按 runtime operation 处理。
-- generation_job 是外部异步 runtime operation，通过 `agent_io_start/get/list/wait/cancel` 管理；当前 `agent_io_start` 只支持 `kind:"generation_job"`。
-- subagent 是 runtime 内部异步 operation，通过 `movscript_spawn_subagent/list_subagents/wait_subagent/cancel_subagent` 专用工具管理；不要用 `agent_io_start` 创建 subagent。
+- generation_job 是外部异步 runtime operation，通过 `runtime_operation_start/get/list/wait/cancel` 管理；当前 `runtime_operation_start` 只支持 `kind:"generation_job"`。
+- subagent 是 runtime 内部异步 operation，通过 `movscript_spawn_subagent/list_subagents/wait_subagent/cancel_subagent` 专用工具管理；不要用 `runtime_operation_start` 创建 subagent。
 
 审批和状态边界：
 - 正式项目写入、生成任务、catalog 变更、取消和删除都需要审批或明确工具结果支撑。

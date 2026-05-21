@@ -3,15 +3,15 @@ import { callMCPToolWithGenerationRepair } from '../../generation/generationRepa
 import type { MCPClient } from '../../mcpClient.js'
 import type { JSONValue, ToolCall } from '../../state/types.js'
 import { cloneJSONValue, isJSONRecord, isJSONValue, isRecord } from '../../jsonValue.js'
-import type { AgentIOProvider } from '../agentIOProvider.js'
-import type { AgentIOOperation, AgentIOStartInput, AgentIOOperationStatus } from '../agentIOOperation.js'
+import type { RuntimeOperationProvider } from '../runtimeOperationProvider.js'
+import type { RuntimeOperation, RuntimeOperationStartInput, RuntimeOperationStatus } from '../runtimeOperation.js'
 
-export class GenerationJobIOProvider implements AgentIOProvider {
+export class GenerationJobOperationProvider implements RuntimeOperationProvider {
   readonly kind = 'generation_job' as const
 
   constructor(private readonly mcpClient: Pick<MCPClient, 'initialize' | 'callTool'>) {}
 
-  async start(input: AgentIOStartInput): Promise<AgentIOOperation> {
+  async start(input: RuntimeOperationStartInput): Promise<RuntimeOperation> {
     await this.mcpClient.initialize({ signal: input.signal })
     const raw = await callMCPToolWithGenerationRepair(this.mcpClient, 'movscript_create_generation_job', input.request, { signal: input.signal })
     const event = buildGenerationEvent({ name: 'movscript_create_generation_job', args: input.request }, raw)
@@ -35,7 +35,7 @@ export class GenerationJobIOProvider implements AgentIOProvider {
     }
   }
 
-  async observe(operation: AgentIOOperation, options: { signal?: AbortSignal } = {}): Promise<AgentIOOperation> {
+  async observe(operation: RuntimeOperation, options: { signal?: AbortSignal } = {}): Promise<RuntimeOperation> {
     const jobId = operation.externalHandle?.id
     if (typeof jobId !== 'number') throw new Error(`generation job operation has no numeric job id: ${operation.id}`)
     const args = { jobId }
@@ -52,7 +52,7 @@ export class GenerationJobIOProvider implements AgentIOProvider {
     }
   }
 
-  async cancel(operation: AgentIOOperation, options: { signal?: AbortSignal } = {}): Promise<AgentIOOperation> {
+  async cancel(operation: RuntimeOperation, options: { signal?: AbortSignal } = {}): Promise<RuntimeOperation> {
     const jobId = operation.externalHandle?.id
     if (typeof jobId !== 'number') throw new Error(`generation job operation has no numeric job id: ${operation.id}`)
     const raw = await this.mcpClient.callTool('movscript_cancel_generation_job', { jobId }, { signal: options.signal })
@@ -67,7 +67,7 @@ export class GenerationJobIOProvider implements AgentIOProvider {
   }
 }
 
-function eventStatus(status: string | undefined, terminal: boolean | undefined): AgentIOOperationStatus {
+function eventStatus(status: string | undefined, terminal: boolean | undefined): RuntimeOperationStatus {
   if (status === 'completed' || status === 'succeeded') return 'completed'
   if (status === 'failed') return 'failed'
   if (status === 'cancelled') return 'cancelled'
@@ -101,5 +101,5 @@ function unwrapToolPayload(result: JSONValue | undefined): JSONValue | undefined
 }
 
 function makeOperationId(): string {
-  return `io_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  return `op_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 }

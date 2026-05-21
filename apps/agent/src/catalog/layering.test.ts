@@ -152,7 +152,7 @@ test('target-state pack files and the default profile are loaded as first-class 
   assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.draft-lifecycle'))
   assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.script-reading'))
   assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.production-proposal'))
-  assert.ok(resolved.profile.toolGrants.some((grant) => grant.name === 'agent_io_start' && grant.approval === 'always'))
+  assert.ok(resolved.profile.toolGrants.some((grant) => grant.name === 'runtime_operation_start' && grant.approval === 'always'))
   assert.ok(resolved.profile.toolGrants.some((grant) => grant.name === 'movscript_request_user_input' && grant.approval === 'never'))
 })
 
@@ -247,8 +247,8 @@ test('asset candidate preparation is separated from generation execution', () =>
   const assetCandidate = catalog.layeredRegistry.skills.get('movscript.workflow.asset-candidate-generation')
   const visualGeneration = catalog.layeredRegistry.skills.get('movscript.workflow.visual-generation')
   const listModelsTool = catalog.layeredRegistry.tools.get('movscript_list_models')
-  const ioStartTool = catalog.layeredRegistry.tools.get('agent_io_start')
-  const ioWaitTool = catalog.layeredRegistry.tools.get('agent_io_wait')
+  const ioStartTool = catalog.layeredRegistry.tools.get('runtime_operation_start')
+  const runtimeOperationWaitTool = catalog.layeredRegistry.tools.get('runtime_operation_wait')
   const attachCandidateTool = catalog.layeredRegistry.tools.get('movscript_attach_asset_slot_candidate')
   const attachKeyframeCandidateTool = catalog.layeredRegistry.tools.get('movscript_attach_keyframe_candidate')
   const productionContextTool = catalog.layeredRegistry.tools.get('movscript_query_production_context')
@@ -262,7 +262,7 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.match(visualGeneration.outputContract ?? '', /每个 output_resource_id 的候选集写入结果/)
   assert.ok(listModelsTool)
   assert.ok(ioStartTool)
-  assert.ok(ioWaitTool)
+  assert.ok(runtimeOperationWaitTool)
   assert.ok(attachCandidateTool)
   assert.ok(attachKeyframeCandidateTool)
   assert.ok(productionContextTool)
@@ -271,21 +271,21 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.match(JSON.stringify(visualGeneration.triggers), /keyframe candidate/)
   assert.match(JSON.stringify(visualGeneration.triggers), /visual anchor candidate/)
 
-  assert.ok(assetCandidate.toolRefs.includes('tool://agent_io_start'))
-  assert.ok(assetCandidate.toolRefs.includes('tool://agent_io_wait'))
+  assert.ok(assetCandidate.toolRefs.includes('tool://runtime_operation_start'))
+  assert.ok(assetCandidate.toolRefs.includes('tool://runtime_operation_wait'))
   assert.ok(assetCandidate.toolRefs.includes('tool://movscript_attach_asset_slot_candidate'))
   assert.equal(assetCandidate.toolRefs.includes('tool://movscript_attach_keyframe_candidate'), false)
-  assert.equal(assetCandidate.toolRefs.includes('tool://agent_io_cancel'), true)
+  assert.equal(assetCandidate.toolRefs.includes('tool://runtime_operation_cancel'), true)
   assert.ok(assetCandidate.toolRefs.includes('tool://movscript_get_focus'))
   assert.ok(assetCandidate.toolRefs.includes('tool://movscript_get_draft_model'))
   assert.ok(visualGeneration.toolRefs.includes('tool://movscript_get_focus'))
   assert.ok(visualGeneration.toolRefs.includes('tool://movscript_get_draft_model'))
   assert.ok(visualGeneration.toolRefs.includes('tool://movscript_request_user_input'))
-  assert.ok(visualGeneration.toolRefs.includes('tool://agent_io_start'))
-  assert.ok(visualGeneration.toolRefs.includes('tool://agent_io_wait'))
+  assert.ok(visualGeneration.toolRefs.includes('tool://runtime_operation_start'))
+  assert.ok(visualGeneration.toolRefs.includes('tool://runtime_operation_wait'))
   assert.ok(visualGeneration.toolRefs.includes('tool://movscript_attach_asset_slot_candidate'))
   assert.ok(visualGeneration.toolRefs.includes('tool://movscript_attach_keyframe_candidate'))
-  assert.ok(visualGeneration.toolRefs.includes('tool://agent_io_cancel'))
+  assert.ok(visualGeneration.toolRefs.includes('tool://runtime_operation_cancel'))
 
   const ctx = {
     profile,
@@ -297,18 +297,18 @@ test('asset candidate preparation is separated from generation execution', () =>
   }
   const assetTools = resolveVisibleTools({ registry: catalog.layeredRegistry, ctx, activeWorkflows: [assetCandidate] })
   const visualTools = resolveVisibleTools({ registry: catalog.layeredRegistry, ctx, activeWorkflows: [visualGeneration] })
-  assert.ok(assetTools.available.some((tool) => tool.name === 'agent_io_start'))
-  assert.ok(assetTools.available.some((tool) => tool.name === 'agent_io_wait'))
+  assert.ok(assetTools.available.some((tool) => tool.name === 'runtime_operation_start'))
+  assert.ok(assetTools.available.some((tool) => tool.name === 'runtime_operation_wait'))
   assert.ok(assetTools.available.some((tool) => tool.name === 'movscript_attach_asset_slot_candidate'))
   assert.equal(assetTools.available.some((tool) => tool.name === 'movscript_attach_keyframe_candidate'), false)
-  assert.ok(assetTools.available.some((tool) => tool.name === 'agent_io_cancel'))
+  assert.ok(assetTools.available.some((tool) => tool.name === 'runtime_operation_cancel'))
   assert.ok(assetTools.available.some((tool) => tool.name === 'movscript_get_focus'))
   assert.ok(assetTools.available.some((tool) => tool.name === 'movscript_get_draft_model'))
-  assert.ok(visualTools.available.some((tool) => tool.name === 'agent_io_start'))
-  assert.ok(visualTools.available.some((tool) => tool.name === 'agent_io_wait'))
+  assert.ok(visualTools.available.some((tool) => tool.name === 'runtime_operation_start'))
+  assert.ok(visualTools.available.some((tool) => tool.name === 'runtime_operation_wait'))
   assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_attach_asset_slot_candidate'))
   assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_attach_keyframe_candidate'))
-  assert.ok(visualTools.available.some((tool) => tool.name === 'agent_io_cancel'))
+  assert.ok(visualTools.available.some((tool) => tool.name === 'runtime_operation_cancel'))
   assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_request_user_input'))
 
   assert.match(assetCandidate.instructionTemplate, /生成任务创建、监控，以及把成功输出加入目标 asset slot 候选集/)
@@ -340,7 +340,7 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.match(visualGeneration.instructionTemplate, /`input_preflight_errors`/)
   assert.match(visualGeneration.instructionTemplate, /解释性审计数据，而不是最终后端拒绝/)
   assert.match(visualGeneration.instructionTemplate, /不要在同一次请求中自动修复 `UNSUPPORTED_OUTPUT_TYPE` 或 `INVALID_INPUT_COUNT`/)
-  assert.match(visualGeneration.instructionTemplate, /agent_io_start\(kind:"generation_job"\)/)
+  assert.match(visualGeneration.instructionTemplate, /runtime_operation_start\(kind:"generation_job"\)/)
   assert.match(listModelsTool.description, /model_contracts/)
   assert.match(listModelsTool.description, /contract_version 1/)
   assert.match(listModelsTool.description, /supported_param_keys/)
@@ -720,8 +720,8 @@ test('image edit wording with image context activates visual generation tools', 
     activeSkills: layers.skills,
     userMessage: message,
   })
-  assert.ok(tools.available.some((tool) => tool.name === 'agent_io_start'))
-  assert.notEqual(tools.byName.agent_io_start?.unavailableReason, 'workflow_scope')
+  assert.ok(tools.available.some((tool) => tool.name === 'runtime_operation_start'))
+  assert.notEqual(tools.byName.runtime_operation_start?.unavailableReason, 'workflow_scope')
 })
 
 test('asset candidate generation activates visual generation tools on asset slot pages', () => {
@@ -758,8 +758,8 @@ test('asset candidate generation activates visual generation tools on asset slot
     activeSkills: layers.skills,
     userMessage: message,
   })
-  assert.ok(tools.available.some((tool) => tool.name === 'agent_io_start'))
-  assert.notEqual(tools.byName.agent_io_start?.unavailableReason, 'workflow_scope')
+  assert.ok(tools.available.some((tool) => tool.name === 'runtime_operation_start'))
+  assert.notEqual(tools.byName.runtime_operation_start?.unavailableReason, 'workflow_scope')
 })
 
 test('pre-production prep routes to setting and asset proposal drafts without generation tools', () => {
@@ -808,7 +808,7 @@ test('pre-production prep routes to setting and asset proposal drafts without ge
   assert.ok(tools.available.some((tool) => tool.name === 'movscript_create_draft'))
   assert.ok(tools.available.some((tool) => tool.name === 'movscript_validate_draft'))
   assert.ok(tools.available.some((tool) => tool.name === 'movscript_preview_draft_apply'))
-  assert.equal(tools.byName.agent_io_start?.unavailableReason, 'workflow_scope')
+  assert.equal(tools.byName.runtime_operation_start?.unavailableReason, 'workflow_scope')
 })
 
 test('workflow skills use isolated skill directories', () => {
@@ -1066,7 +1066,7 @@ test('profile resolution, trigger selection, prompt refs, and tool scope work to
   profile.enabledPolicies = [policy.id]
   profile.toolGrants = [
     { name: 'movscript_validate_draft', mode: 'allow', approval: 'never' },
-    { name: 'agent_io_start', mode: 'allow', approval: 'always' },
+    { name: 'runtime_operation_start', mode: 'allow', approval: 'always' },
     { name: 'movscript_request_user_input', mode: 'allow', approval: 'never' },
   ]
 
@@ -1098,7 +1098,7 @@ test('profile resolution, trigger selection, prompt refs, and tool scope work to
   })
   assert.ok(tools.available.some((tool) => tool.name === 'movscript_validate_draft'))
   assert.ok(tools.available.some((tool) => tool.name === 'movscript_request_user_input'))
-  assert.equal(tools.available.some((tool) => tool.name === 'agent_io_start'), false)
+  assert.equal(tools.available.some((tool) => tool.name === 'runtime_operation_start'), false)
 })
 
 test('org and user profile overrides can only narrow runtime capability', () => {
@@ -1161,7 +1161,7 @@ test('org and user profile overrides are rejected as a whole when they add or lo
     enabledPolicies: [],
     toolGrants: [
       { name: 'movscript_validate_draft', mode: 'allow' as const, approval: 'never' as const },
-      { name: 'agent_io_start', mode: 'allow' as const, approval: 'never' as const },
+      { name: 'runtime_operation_start', mode: 'allow' as const, approval: 'never' as const },
     ],
   }
   const userProfile = {

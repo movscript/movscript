@@ -36,6 +36,7 @@ test('content workbench renders the timeline and selected item details', async (
   await page.getByTestId('content-workbench-input-drawer-tab-blocking').click()
   await expect(page.getByTestId('content-workbench-visual-plan-editor')).toBeVisible()
   await expect(page.getByTestId('content-workbench-visual-plan-space')).toBeVisible()
+  await expect(page.getByTestId('content-workbench-ai-visual-plan')).toBeVisible()
   await page.getByTestId('content-workbench-input-drawer-tab-storyboard').click()
   await expect(page.getByTestId('content-workbench-storyboard-brief-editor')).toBeVisible()
   await expect(page.getByTestId('content-workbench-storyboard-purpose')).toBeVisible()

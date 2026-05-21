@@ -343,11 +343,11 @@ function emptyCatalogManager(): AgentCatalogToolManager {
     spawnSubagent: () => ({}),
     listSubagents: () => ({}),
     waitSubagent: () => ({}),
-startIO: () => ({}),
-getIO: () => ({}),
-listIO: () => ({}),
-waitIO: () => ({}),
-cancelIO: () => ({}),
+startOperation: () => ({}),
+getOperation: () => ({}),
+listOperation: () => ({}),
+waitOperation: () => ({}),
+cancelOperation: () => ({}),
     cancelSubagent: () => ({}),
   }
 }

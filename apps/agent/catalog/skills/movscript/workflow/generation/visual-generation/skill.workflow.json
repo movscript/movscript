@@ -50,13 +50,13 @@
     "tool://movscript_get_draft_model",
     "tool://movscript_request_user_input",
     "tool://movscript_list_models",
-    "tool://agent_io_start",
-    "tool://agent_io_get",
-    "tool://agent_io_wait",
-    "tool://agent_io_cancel",
+    "tool://runtime_operation_start",
+    "tool://runtime_operation_get",
+    "tool://runtime_operation_wait",
+    "tool://runtime_operation_cancel",
     "tool://movscript_attach_asset_slot_candidate",
     "tool://movscript_attach_keyframe_candidate",
-    "tool://agent_io_list"
+    "tool://runtime_operation_list"
   ],
   "toolScope": "intersect",
   "outputContract": "返回最终任务状态、jobId、生成类型、目标实体、可用时的输出资源列表、一致性参考说明、简洁的匹配理由，以及每个 output_resource_id 的候选集写入结果。",

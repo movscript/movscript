@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { buildContentWorkbenchAiSuggestPrompt } from './contentWorkbenchAiPrompt'
+import { buildContentWorkbenchAiSuggestPrompt, buildContentWorkbenchVisualPlanPrompt } from './contentWorkbenchAiPrompt'
 
 test('content workbench AI prompt carries current scene context', () => {
   const prompt = buildContentWorkbenchAiSuggestPrompt({
@@ -51,4 +51,32 @@ test('content workbench AI prompt defines the draft envelope contract', () => {
   assert.match(prompt, /\{"scene_moment_id": 402, "proposal": \{"units": \[\.\.\.\]\}\}/)
   assert.match(prompt, /unit\.timing/)
   assert.match(prompt, /不要在 content_unit_proposal 里创建 production 级 preview_timeline/)
+})
+
+test('content workbench visual plan prompt keeps a full snapshot and selected unit focus', () => {
+  const prompt = buildContentWorkbenchVisualPlanPrompt({
+    momentTitle: '旧伞纸条滑落',
+    sceneMomentId: 402,
+    selectedUnitId: 801,
+    selectedUnitTitle: '纸条特写',
+    existingUnits: [{
+      id: 801,
+      title: '纸条特写',
+      kind: 'shot',
+      status: 'confirmed',
+      prompt: '特写纸条从伞骨滑落。',
+      visualPlan: '相机低位推进。',
+    }, {
+      id: 802,
+      title: '顾言反应',
+      kind: 'shot',
+      status: 'candidate',
+    }],
+  })
+
+  assert.match(prompt, /\[SELECTED\] 纸条特写/)
+  assert.match(prompt, /proposal\.units 必须包含当前情节的完整制作项快照/)
+  assert.match(prompt, /visual_plan/)
+  assert.match(prompt, /storyboard_brief/)
+  assert.match(prompt, /beats、props、risks、keyframe_suggestions 使用字符串数组/)
 })

@@ -1,7 +1,7 @@
 {
-  "name": "agent_io_wait",
+  "name": "runtime_operation_wait",
   "description": "等待一个或多个 runtime operations 进入终态，或直到等待超时。支持 all/any 模式。普通同步工具调用不需要 wait。",
-  "permission": "agent.io.read",
+  "permission": "agent.operation.read",
   "risk": "read",
   "source": "runtime",
   "category": "runtime-operation",

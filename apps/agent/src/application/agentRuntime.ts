@@ -87,11 +87,11 @@ import {
   type RuntimeSubagentToolsBridge,
 } from './runtimeSubagentToolsBridge.js'
 import {
-  createRuntimeIOOperationsBridge,
-  type RuntimeIOOperationsBridge,
-} from './runtimeIOOperationsBridge.js'
-import { AgentIOManager } from '../io/agentIOManager.js'
-import { GenerationJobIOProvider } from '../io/providers/generationJobProvider.js'
+  createRuntimeOperationsBridge,
+  type RuntimeOperationsBridge,
+} from './runtimeOperationsBridge.js'
+import { RuntimeOperationManager } from '../operations/runtimeOperationManager.js'
+import { GenerationJobOperationProvider } from '../operations/providers/generationJobOperationProvider.js'
 import {
   createRuntimePlanDispatchBridge,
   type RuntimePlanDispatchBridge,
@@ -346,8 +346,8 @@ export class AgentRuntime {
   private readonly agentPlanTools: RuntimeAgentPlanToolsBridge
   private readonly treeCancellation: RuntimeTreeCancellationBridge
   private readonly subagentTools: RuntimeSubagentToolsBridge
-  private readonly ioManager: AgentIOManager
-  private readonly ioOperations: RuntimeIOOperationsBridge
+  private readonly operationManager: RuntimeOperationManager
+  private readonly runtimeOperations: RuntimeOperationsBridge
   private readonly memories: RuntimeMemoryOperationsBridge
   private readonly traceReads: RuntimeTraceReadBridge
 
@@ -596,11 +596,11 @@ export class AgentRuntime {
       getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
       taskEvents: this.taskEvents,
     })
-    this.ioManager = new AgentIOManager({
-      providers: [new GenerationJobIOProvider(this.mcpClient)],
+    this.operationManager = new RuntimeOperationManager({
+      providers: [new GenerationJobOperationProvider(this.mcpClient)],
     })
-    this.ioOperations = createRuntimeIOOperationsBridge({
-      ioManager: this.ioManager,
+    this.runtimeOperations = createRuntimeOperationsBridge({
+      operationManager: this.operationManager,
       recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
     })
     if (catalogInitialization.shouldReloadCatalog) this.reloadAgentCatalog()
@@ -679,15 +679,15 @@ export class AgentRuntime {
     return await this.subagentTools.waitSubagent(run, input)
   }
 
-  async startIO(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> { return await this.ioOperations.startIO(run, input, options) }
+  async startOperation(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> { return await this.runtimeOperations.startOperation(run, input, options) }
 
-  getIO(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue { return this.ioOperations.getIO(run, input) }
+  getOperation(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue { return this.runtimeOperations.getOperation(run, input) }
 
-  listIO(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue { return this.ioOperations.listIO(run, input) }
+  listOperation(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue { return this.runtimeOperations.listOperation(run, input) }
 
-  async waitIO(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> { return await this.ioOperations.waitIO(run, input, options) }
+  async waitOperation(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> { return await this.runtimeOperations.waitOperation(run, input, options) }
 
-  async cancelIO(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> { return await this.ioOperations.cancelIO(run, input, options) }
+  async cancelOperation(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> { return await this.runtimeOperations.cancelOperation(run, input, options) }
 
   cancelSubagent(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
     return this.subagentTools.cancelSubagent(run, input)

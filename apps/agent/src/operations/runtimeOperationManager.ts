@@ -1,52 +1,52 @@
-import type { AgentIOProvider } from './agentIOProvider.js'
+import type { RuntimeOperationProvider } from './runtimeOperationProvider.js'
 import {
-  isTerminalAgentIOStatus,
-  type AgentIOOperation,
-  type AgentIOOperationKind,
-  type AgentIOStartInput,
-  type AgentIOWaitInput,
-  type AgentIOWaitResult,
-} from './agentIOOperation.js'
-import { InMemoryAgentIOStore, type AgentIOStore } from './agentIOStore.js'
+  isTerminalRuntimeOperationStatus,
+  type RuntimeOperation,
+  type RuntimeOperationKind,
+  type RuntimeOperationStartInput,
+  type RuntimeOperationWaitInput,
+  type RuntimeOperationWaitResult,
+} from './runtimeOperation.js'
+import { InMemoryRuntimeOperationStore, type RuntimeOperationStore } from './runtimeOperationStore.js'
 
-export class AgentIOManager {
-  private readonly providers = new Map<AgentIOOperationKind, AgentIOProvider>()
-  readonly store: AgentIOStore
+export class RuntimeOperationManager {
+  private readonly providers = new Map<RuntimeOperationKind, RuntimeOperationProvider>()
+  readonly store: RuntimeOperationStore
 
-  constructor(input: { store?: AgentIOStore; providers?: AgentIOProvider[] } = {}) {
-    this.store = input.store ?? new InMemoryAgentIOStore()
+  constructor(input: { store?: RuntimeOperationStore; providers?: RuntimeOperationProvider[] } = {}) {
+    this.store = input.store ?? new InMemoryRuntimeOperationStore()
     for (const provider of input.providers ?? []) this.register(provider)
   }
 
-  register(provider: AgentIOProvider): void {
+  register(provider: RuntimeOperationProvider): void {
     this.providers.set(provider.kind, provider)
   }
 
-  async start(input: AgentIOStartInput): Promise<AgentIOOperation> {
+  async start(input: RuntimeOperationStartInput): Promise<RuntimeOperation> {
     const provider = this.requireProvider(input.kind)
     const operation = await provider.start(input)
     return this.store.create(operation)
   }
 
-  get(id: string): AgentIOOperation {
+  get(id: string): RuntimeOperation {
     const operation = this.store.get(id)
     if (!operation) throw new Error(`runtime operation not found: ${id}`)
     return operation
   }
 
-  list(query: { runId?: string; status?: AgentIOOperation['status'] } = {}): AgentIOOperation[] {
+  list(query: { runId?: string; status?: RuntimeOperation['status'] } = {}): RuntimeOperation[] {
     return this.store.list(query)
   }
 
-  async observe(id: string, options: { signal?: AbortSignal } = {}): Promise<AgentIOOperation> {
+  async observe(id: string, options: { signal?: AbortSignal } = {}): Promise<RuntimeOperation> {
     const current = this.get(id)
-    if (isTerminalAgentIOStatus(current.status)) return current
+    if (isTerminalRuntimeOperationStatus(current.status)) return current
     const observed = await this.requireProvider(current.kind).observe(current, options)
     return this.store.update(observed)
   }
 
-  async wait(input: AgentIOWaitInput): Promise<AgentIOWaitResult> {
-    if (input.operationIds.length === 0) throw new Error('agent_io_wait requires operationIds')
+  async wait(input: RuntimeOperationWaitInput): Promise<RuntimeOperationWaitResult> {
+    if (input.operationIds.length === 0) throw new Error('runtime_operation_wait requires operationIds')
     const mode = input.mode === 'any' ? 'any' : 'all'
     const timeoutMs = clampNumber(input.timeoutMs ?? 180_000, 0, 30 * 60_000)
     const pollIntervalMs = clampNumber(input.pollIntervalMs ?? 2_500, 250, 30_000)
@@ -69,7 +69,7 @@ export class AgentIOManager {
     })
   }
 
-  async cancel(id: string, options: { signal?: AbortSignal } = {}): Promise<AgentIOOperation> {
+  async cancel(id: string, options: { signal?: AbortSignal } = {}): Promise<RuntimeOperation> {
     const current = this.get(id)
     const provider = this.requireProvider(current.kind)
     if (!provider.cancel) throw new Error(`runtime operation provider does not support cancel: ${current.kind}`)
@@ -77,35 +77,35 @@ export class AgentIOManager {
     return this.store.update(cancelled)
   }
 
-  private async observeMany(operationIds: string[], options: { signal?: AbortSignal }): Promise<AgentIOOperation[]> {
+  private async observeMany(operationIds: string[], options: { signal?: AbortSignal }): Promise<RuntimeOperation[]> {
     return Promise.all(operationIds.map((id) => this.observe(id, options)))
   }
 
-  private requireProvider(kind: AgentIOOperationKind): AgentIOProvider {
+  private requireProvider(kind: RuntimeOperationKind): RuntimeOperationProvider {
     const provider = this.providers.get(kind)
     if (!provider) throw new Error(`runtime operation provider not found: ${kind}`)
     return provider
   }
 }
 
-function waitDone(operations: AgentIOOperation[], mode: 'all' | 'any'): boolean {
+function waitDone(operations: RuntimeOperation[], mode: 'all' | 'any'): boolean {
   if (operations.length === 0) return false
   return mode === 'any'
-    ? operations.some((operation) => isTerminalAgentIOStatus(operation.status))
-    : operations.every((operation) => isTerminalAgentIOStatus(operation.status))
+    ? operations.some((operation) => isTerminalRuntimeOperationStatus(operation.status))
+    : operations.every((operation) => isTerminalRuntimeOperationStatus(operation.status))
 }
 
 function buildWaitResult(input: {
   operationIds: string[]
-  operations: AgentIOOperation[]
+  operations: RuntimeOperation[]
   mode: 'all' | 'any'
   timeoutMs: number
   timedOut: boolean
-}): AgentIOWaitResult {
+}): RuntimeOperationWaitResult {
   const completed = input.operations.filter((operation) => operation.status === 'completed')
   const failed = input.operations.filter((operation) => operation.status === 'failed')
   const cancelled = input.operations.filter((operation) => operation.status === 'cancelled')
-  const pending = input.operations.filter((operation) => !isTerminalAgentIOStatus(operation.status))
+  const pending = input.operations.filter((operation) => !isTerminalRuntimeOperationStatus(operation.status))
   const done = !input.timedOut && waitDone(input.operations, input.mode)
   const status = input.timedOut
     ? 'timeout'

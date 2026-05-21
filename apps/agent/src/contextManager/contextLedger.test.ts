@@ -137,11 +137,11 @@ test('context ledger extracts generation refs from runtime operation payloads', 
     runId: 'run_1',
     threadId: 'thread_1',
     catalogSnapshotId: 'catalog_1',
-    call: { name: 'agent_io_start', args: { kind: 'generation_job', request: {} } },
+    call: { name: 'runtime_operation_start', args: { kind: 'generation_job', request: {} } },
     result: {
       status: 'started',
       operation: {
-        id: 'io_99',
+        id: 'op_99',
         kind: 'generation_job',
         status: 'waiting',
         externalHandle: { provider: 'movscript', type: 'generation_job', id: 99 },

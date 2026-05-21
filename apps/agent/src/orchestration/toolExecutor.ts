@@ -51,11 +51,11 @@ export interface AgentCatalogToolManager {
   spawnSubagent(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   listSubagents(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   waitSubagent(run: AgentRun, input?: Record<string, JSONValue>): Promise<JSONValue> | JSONValue
-  startIO(run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue> | JSONValue
-  getIO(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
-  listIO(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
-  waitIO(run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue> | JSONValue
-  cancelIO(run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue> | JSONValue
+  startOperation(run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue> | JSONValue
+  getOperation(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
+  listOperation(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
+  waitOperation(run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue> | JSONValue
+  cancelOperation(run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue> | JSONValue
   cancelSubagent(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
 }
 
@@ -149,29 +149,29 @@ async function callRuntimeTool(
     return catalogManager.waitSubagent(run, args)
   }
 
-  if (toolName === 'agent_io_start') {
+  if (toolName === 'runtime_operation_start') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.startIO(run, args, { signal })
+    return catalogManager.startOperation(run, args, { signal })
   }
 
-  if (toolName === 'agent_io_get') {
+  if (toolName === 'runtime_operation_get') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.getIO(run, args)
+    return catalogManager.getOperation(run, args)
   }
 
-  if (toolName === 'agent_io_list') {
+  if (toolName === 'runtime_operation_list') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.listIO(run, args)
+    return catalogManager.listOperation(run, args)
   }
 
-  if (toolName === 'agent_io_wait') {
+  if (toolName === 'runtime_operation_wait') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.waitIO(run, args, { signal })
+    return catalogManager.waitOperation(run, args, { signal })
   }
 
-  if (toolName === 'agent_io_cancel') {
+  if (toolName === 'runtime_operation_cancel') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.cancelIO(run, args, { signal })
+    return catalogManager.cancelOperation(run, args, { signal })
   }
 
   if (toolName === 'movscript_cancel_subagent') {

@@ -72,13 +72,13 @@ test('applyRuntimeLocalCommandDispatch handles generation commands locally', asy
   })
 
   assert.equal(handled, true)
-  assert.equal(toolName, 'agent_io_start')
+  assert.equal(toolName, 'runtime_operation_start')
   assert.equal(run.status, 'completed')
-  assert.equal((run.metadata?.forcedToolCall as any)?.name, 'agent_io_start')
+  assert.equal((run.metadata?.forcedToolCall as any)?.name, 'runtime_operation_start')
 })
 
 test('normalizeRuntimeLocalGenerationToolError preserves backend generation error data', async () => {
-  const call = { name: 'agent_io_start' as const, args: { kind: 'generation_job' as JSONValue, request: { prompt: 'hello' as JSONValue } as JSONValue } }
+  const call = { name: 'runtime_operation_start' as const, args: { kind: 'generation_job' as JSONValue, request: { prompt: 'hello' as JSONValue } as JSONValue } }
   const error = new MCPError('backend rejected', -32000, {
     type: 'backend_http_error',
     status: 400,

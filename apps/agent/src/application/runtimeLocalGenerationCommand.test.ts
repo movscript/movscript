@@ -49,14 +49,14 @@ test('applyRuntimeLocalGenerationCommand forces a generation tool call and compl
     timestampMs: makeClock(1000, 1250),
     executeGenerationTool: async (call): Promise<ToolExecutionResult> => {
       calls.push(call)
-      if (call.name === 'agent_io_wait') {
+      if (call.name === 'runtime_operation_wait') {
         return {
           call,
           result: {
             status: 'completed',
             done: true,
             completed: [{
-              id: 'io_1',
+              id: 'op_1',
               kind: 'generation_job',
               status: 'completed',
               result: {
@@ -79,7 +79,7 @@ test('applyRuntimeLocalGenerationCommand forces a generation tool call and compl
         result: {
           status: 'started',
           operation: {
-            id: 'io_1',
+            id: 'op_1',
             kind: 'generation_job',
             status: 'running',
             externalHandle: {
@@ -125,11 +125,11 @@ test('applyRuntimeLocalGenerationCommand forces a generation tool call and compl
   assert.equal(run.status, 'completed')
   assert.equal(run.assistantMessageId, assistant.id)
   assert.deepEqual(run.metadata?.writtenMemoryIds, [])
-  assert.equal((run.metadata?.forcedToolCall as any)?.name, 'agent_io_start')
-  assert.equal(calls[0]?.name, 'agent_io_start')
+  assert.equal((run.metadata?.forcedToolCall as any)?.name, 'runtime_operation_start')
+  assert.equal(calls[0]?.name, 'runtime_operation_start')
   assert.equal((calls[0]?.args.request as any)?.output_type, 'image')
   assert.equal((calls[0]?.args.request as any)?.wait, false)
-  assert.equal(calls[1]?.name, 'agent_io_wait')
+  assert.equal(calls[1]?.name, 'runtime_operation_wait')
   assert.equal(thread.status, 'completed')
   assert.equal(thread.activeRunId, undefined)
   assert.equal(thread.messages.at(-1)?.id, assistant.id)
@@ -140,8 +140,8 @@ test('applyRuntimeLocalGenerationCommand forces a generation tool call and compl
   assert.equal((run.steps[1]?.result as any)?.localCommand, 'image')
   assert.deepEqual(traces.map((trace) => trace.kind), ['policy', 'tool_call', 'tool_call', 'assistant', 'run'])
   assert.equal((traces[0]?.data as any)?.modelGatewayCalled, false)
-  assert.equal(traces[1]?.title, 'Tool started: agent_io_start')
-  assert.equal(traces[2]?.toolName, 'agent_io_wait')
+  assert.equal(traces[1]?.title, 'Tool started: runtime_operation_start')
+  assert.equal(traces[2]?.toolName, 'runtime_operation_wait')
   assert.deepEqual(assistantMessages.map((message) => message.id), [assistant.id])
   assert.deepEqual(snapshots, ['completed:true'])
 })

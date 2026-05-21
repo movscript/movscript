@@ -54,3 +54,25 @@ test('content workbench proposal helpers map AI snapshot into create defaults', 
     status: 'candidate',
   })
 })
+
+test('content workbench proposal helpers preserve visual planning metadata', () => {
+  const defaults = contentWorkbenchProposalDefaults({
+    title: '纸条特写',
+    kind: 'shot',
+    description: '纸条从伞骨滑出。',
+    visual_plan: {
+      space: '伞面占据前景。',
+      beats: ['纸条滑出', '落入水洼'],
+    },
+    storyboard_brief: {
+      purpose: '确认纸条是剧情证据。',
+      keyframe_suggestions: ['首帧：伞骨夹缝', '尾帧：纸条落地'],
+    },
+  })
+
+  assert.equal(typeof defaults.metadata_json, 'string')
+  const metadata = JSON.parse(defaults.metadata_json ?? '{}')
+  assert.equal(metadata.visual_plan.space, '伞面占据前景。')
+  assert.deepEqual(metadata.visual_plan.beats, ['纸条滑出', '落入水洼'])
+  assert.equal(metadata.storyboard_brief.purpose, '确认纸条是剧情证据。')
+})

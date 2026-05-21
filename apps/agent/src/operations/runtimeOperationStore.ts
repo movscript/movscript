@@ -1,32 +1,32 @@
-import type { AgentIOOperation } from './agentIOOperation.js'
+import type { RuntimeOperation } from './runtimeOperation.js'
 
-export interface AgentIOStore {
-  create(operation: AgentIOOperation): AgentIOOperation
-  update(operation: AgentIOOperation): AgentIOOperation
-  get(id: string): AgentIOOperation | undefined
-  list(query?: { runId?: string; status?: AgentIOOperation['status'] }): AgentIOOperation[]
+export interface RuntimeOperationStore {
+  create(operation: RuntimeOperation): RuntimeOperation
+  update(operation: RuntimeOperation): RuntimeOperation
+  get(id: string): RuntimeOperation | undefined
+  list(query?: { runId?: string; status?: RuntimeOperation['status'] }): RuntimeOperation[]
 }
 
-export class InMemoryAgentIOStore implements AgentIOStore {
-  private readonly operations = new Map<string, AgentIOOperation>()
+export class InMemoryRuntimeOperationStore implements RuntimeOperationStore {
+  private readonly operations = new Map<string, RuntimeOperation>()
 
-  create(operation: AgentIOOperation): AgentIOOperation {
+  create(operation: RuntimeOperation): RuntimeOperation {
     this.operations.set(operation.id, clone(operation))
     return clone(operation)
   }
 
-  update(operation: AgentIOOperation): AgentIOOperation {
+  update(operation: RuntimeOperation): RuntimeOperation {
     if (!this.operations.has(operation.id)) throw new Error(`runtime operation not found: ${operation.id}`)
     this.operations.set(operation.id, clone(operation))
     return clone(operation)
   }
 
-  get(id: string): AgentIOOperation | undefined {
+  get(id: string): RuntimeOperation | undefined {
     const operation = this.operations.get(id)
     return operation ? clone(operation) : undefined
   }
 
-  list(query: { runId?: string; status?: AgentIOOperation['status'] } = {}): AgentIOOperation[] {
+  list(query: { runId?: string; status?: RuntimeOperation['status'] } = {}): RuntimeOperation[] {
     return Array.from(this.operations.values())
       .filter((operation) => query.runId === undefined || operation.runId === query.runId)
       .filter((operation) => query.status === undefined || operation.status === query.status)

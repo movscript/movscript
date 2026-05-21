@@ -43,8 +43,8 @@ function testOptions(mcpClient: { initialize(): Promise<JSONValue>; callTool(nam
 test('executeTool serves runtime operation wait through the runtime catalog manager', async () => {
   const calls: string[] = []
   const result = await executeTool({
-    name: 'agent_io_wait',
-    args: { operationIds: ['io_42'] },
+    name: 'runtime_operation_wait',
+    args: { operationIds: ['op_42'] },
   }, {
     ...testOptions({
       initialize: async () => {
@@ -65,21 +65,21 @@ test('executeTool serves runtime operation wait through the runtime catalog mana
       spawnSubagent: () => ({}),
       listSubagents: () => ({}),
       waitSubagent: () => ({}),
-      startIO: () => ({}),
-      getIO: () => ({}),
-      listIO: () => ({}),
-      waitIO: (_run: AgentRun, input?: Record<string, JSONValue>) => {
+      startOperation: () => ({}),
+      getOperation: () => ({}),
+      listOperation: () => ({}),
+      waitOperation: (_run: AgentRun, input?: Record<string, JSONValue>) => {
         calls.push(`runtime.wait:${(input?.operationIds as JSONValue[] | undefined)?.join(',')}`)
         return { status: 'completed', done: true }
       },
-      cancelIO: () => ({}),
+      cancelOperation: () => ({}),
       cancelSubagent: () => ({}),
     },
   })
 
   assert.equal(result.source, 'runtime')
   assert.deepEqual(result.result, { status: 'completed', done: true })
-  assert.deepEqual(calls, ['runtime.wait:io_42'])
+  assert.deepEqual(calls, ['runtime.wait:op_42'])
 })
 
 test('executeTool serves runtime knowledge search and bounded get', async () => {

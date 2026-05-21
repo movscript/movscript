@@ -90,7 +90,7 @@ export function parseAgentCommand(message: string): AgentCommandRuntime {
         payload,
         contextProfile: inferContextProfile(trimmed),
         outputMode: 'natural',
-        requiredTools: ['agent_io_start'],
+        requiredTools: ['runtime_operation_start'],
         systemContract: [
           'This is a deterministic image generation debug command.',
           'Create exactly one generation job for the supplied prompt and parameters. Do not ask follow-up questions, do not browse, do not write drafts, and do not call the model gateway unless the runtime explicitly requires it for the generation tool path.',
@@ -103,7 +103,7 @@ export function parseAgentCommand(message: string): AgentCommandRuntime {
         payload,
         contextProfile: inferContextProfile(trimmed),
         outputMode: 'natural',
-        requiredTools: ['agent_io_start'],
+        requiredTools: ['runtime_operation_start'],
         systemContract: [
           'This is a deterministic video generation debug command.',
           'Create exactly one generation job for the supplied prompt and parameters. Do not ask follow-up questions, do not browse, do not write drafts, and do not call the model gateway unless the runtime explicitly requires it for the generation tool path.',

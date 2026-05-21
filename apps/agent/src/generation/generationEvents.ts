@@ -107,7 +107,7 @@ export function extractGenerationMonitorRequest(call: ToolCall, result: JSONValu
 
 function normalizeGenerationCall(call: ToolCall, result: JSONValue | undefined): { call: ToolCall; result: JSONValue | undefined } | undefined {
   if (isGenerationTool(call.name)) return { call, result }
-  if (call.name !== 'agent_io_start') return undefined
+  if (call.name !== 'runtime_operation_start') return undefined
   const resultRecord = isRecord(result) ? result : undefined
   const operation = isRecord(resultRecord?.operation) ? resultRecord.operation : undefined
   const operationResult = isJSONValue(operation?.result) ? operation.result : undefined

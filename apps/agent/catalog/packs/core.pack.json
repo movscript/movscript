@@ -30,11 +30,11 @@
     "movscript_list_subagents",
     "movscript_wait_subagent",
     "movscript_cancel_subagent",
-    "agent_io_start",
-    "agent_io_get",
-    "agent_io_list",
-    "agent_io_wait",
-    "agent_io_cancel",
+    "runtime_operation_start",
+    "runtime_operation_get",
+    "runtime_operation_list",
+    "runtime_operation_wait",
+    "runtime_operation_cancel",
     "movscript_request_user_input"
   ],
   "skills": [

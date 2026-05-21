@@ -13,7 +13,7 @@ import type { AgentRun, JSONValue } from '../state/types.js'
 import type { ToolRegistry } from '../tools/toolRegistry.js'
 
 export type RuntimeLocalGenerationToolCall = {
-  name: 'agent_io_start' | 'agent_io_wait' | 'agent_io_get'
+  name: 'runtime_operation_start' | 'runtime_operation_wait' | 'runtime_operation_get'
   args: Record<string, JSONValue>
 }
 
