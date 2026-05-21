@@ -31,13 +31,14 @@ export function buildContentWorkbenchCanvasPayload(input: {
   title: string
   description?: string
 }): ContentWorkbenchCanvasPayload {
-  return {
+  const payload: ContentWorkbenchCanvasPayload = {
     name: `${input.title} · 内容编排`,
-    description: input.description,
     project_id: input.projectId,
     canvas_type: 'workflow',
     stage: 'generation',
     ref_type: 'content_unit',
     ref_id: input.contentUnitId,
   }
+  if (input.description) payload.description = input.description
+  return payload
 }

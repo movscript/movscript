@@ -152,26 +152,26 @@ export function AgentPlanOverviewPanel({
     }
   }
   return (
-    <div data-testid="agent-plan-overview" className="mt-2 rounded-md border border-border bg-background/70 px-2.5 py-2 text-xs">
+    <div data-testid="agent-plan-overview" className="mt-2 rounded-md border border-border bg-background/70 px-2.5 py-2 type-label">
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
             <Route size={12} />
             <span className="truncate">{snapshot.plan.title}</span>
           </div>
-          <div data-testid="agent-plan-overview-stats" className="mt-0.5 text-[9px] text-muted-foreground">
+          <div data-testid="agent-plan-overview-stats" className="mt-0.5 type-micro text-muted-foreground">
             {overviewStats.completedTaskCount}/{overviewStats.taskCount} 个任务 · {overviewStats.activeWorkerCount} 个执行器运行中
             {overviewStats.artifactCount > 0 && <> · {overviewStats.artifactCount} 个产物</>}
             {overviewStats.nameConflictCount > 0 && <> · {overviewStats.nameConflictCount} 个重名冲突</>}
           </div>
-          <p data-testid="agent-plan-status-explanation" className="mt-0.5 text-[9px] leading-relaxed text-muted-foreground">{planStatusExplanation}</p>
+          <p data-testid="agent-plan-status-explanation" className="mt-0.5 type-micro leading-relaxed text-muted-foreground">{planStatusExplanation}</p>
         </div>
-        <Badge variant={runStatusVariant(snapshot.plan.status)} className="shrink-0 text-[9px] leading-4 px-1.5 py-0">
+        <Badge variant={runStatusVariant(snapshot.plan.status)} className="shrink-0 type-micro leading-4 px-1.5 py-0">
           {agentPlanStatusLabel(snapshot.plan.status)}
         </Badge>
       </div>
       {nameConflicts.length > 0 && (
-        <div data-testid="agent-plan-name-conflicts" className="mt-2 space-y-1 rounded border border-destructive/30 bg-destructive/5 px-2 py-1.5 text-[9px] leading-relaxed text-destructive">
+        <div data-testid="agent-plan-name-conflicts" className="mt-2 space-y-1 rounded border border-destructive/30 bg-destructive/5 px-2 py-1.5 type-micro leading-relaxed text-destructive">
           {nameConflicts.map((conflict) => (
             <div key={conflict.subagentName} className="min-w-0">
               <div className="truncate font-medium">子代理重名 · {conflict.subagentName}</div>
@@ -188,11 +188,11 @@ export function AgentPlanOverviewPanel({
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => scrollToTask(entry.taskId)}>
+                      <Button type="button" size="xs" variant="ghost" className="px-1 type-min" onClick={() => scrollToTask(entry.taskId)}>
                         任务
                       </Button>
                       {entry.ownerRunId && (
-                        <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => openRun(entry.ownerRunId)}>
+                        <Button type="button" size="xs" variant="ghost" className="px-1 type-min" onClick={() => openRun(entry.ownerRunId)}>
                           <Route size={8} />
                           运行
                         </Button>
@@ -208,19 +208,19 @@ export function AgentPlanOverviewPanel({
       {(onDispatch || onReplan || onCancelTree) && (
         <div className="mt-2 flex flex-wrap items-center gap-1">
           {onDispatch && (
-            <Button type="button" size="xs" variant="outline" className="h-6 px-1.5 text-[9px]" disabled={busy || !canDispatch} onClick={onDispatch}>
+            <Button type="button" size="xs" variant="outline" className="px-1.5 type-micro" disabled={busy || !canDispatch} onClick={onDispatch}>
               {busy ? <Loader2 size={10} className="animate-spin" /> : <PlayIcon size={10} />}
               分派
             </Button>
           )}
           {onReplan && (
-            <Button type="button" size="xs" variant="outline" className="h-6 px-1.5 text-[9px]" disabled={busy || !canReplan} onClick={onReplan}>
+            <Button type="button" size="xs" variant="outline" className="px-1.5 type-micro" disabled={busy || !canReplan} onClick={onReplan}>
               {busy ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
               重新规划
             </Button>
           )}
           {onCancelTree && (
-            <Button type="button" size="xs" variant="ghost" className="h-6 px-1.5 text-[9px] text-destructive hover:text-destructive" disabled={busy || !canCancel} onClick={onCancelTree}>
+            <Button type="button" size="xs" variant="ghost" className="px-1.5 type-micro text-destructive hover:text-destructive" disabled={busy || !canCancel} onClick={onCancelTree}>
               {busy ? <Loader2 size={10} className="animate-spin" /> : <CircleStop size={10} />}
               取消树
             </Button>
@@ -230,7 +230,7 @@ export function AgentPlanOverviewPanel({
       {onDispatchSettingsChange && (
         <div className="mt-2 grid grid-cols-3 gap-1">
           <Select value={String(settings.maxWorkers)} onValueChange={(next) => updateSettings({ maxWorkers: Number(next) })}>
-            <SelectTrigger size="sm" className="h-6 min-w-0 text-[9px]" disabled={busy}>
+            <SelectTrigger size="sm" className="h-6 min-w-0 type-micro" disabled={busy}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -240,7 +240,7 @@ export function AgentPlanOverviewPanel({
             </SelectContent>
           </Select>
           <Select value={String(settings.maxTaskAttempts)} onValueChange={(next) => updateSettings({ maxTaskAttempts: Number(next) })}>
-            <SelectTrigger size="sm" className="h-6 min-w-0 text-[9px]" disabled={busy}>
+            <SelectTrigger size="sm" className="h-6 min-w-0 type-micro" disabled={busy}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -250,7 +250,7 @@ export function AgentPlanOverviewPanel({
             </SelectContent>
           </Select>
           <Select value={String(settings.workerTimeoutMs)} onValueChange={(next) => updateSettings({ workerTimeoutMs: Number(next) })}>
-            <SelectTrigger size="sm" className="h-6 min-w-0 text-[9px]" disabled={busy}>
+            <SelectTrigger size="sm" className="h-6 min-w-0 type-micro" disabled={busy}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -269,22 +269,22 @@ export function AgentPlanOverviewPanel({
       </div>
       {artifactSummary.totalCount > 0 && (
         <details data-testid="agent-plan-artifact-summary" className="mt-2 rounded border border-border/70 bg-muted/10">
-          <summary className="flex cursor-pointer list-none flex-wrap items-center gap-1 px-2 py-1.5 text-[9px] font-medium text-foreground">
+          <summary className="flex cursor-pointer list-none flex-wrap items-center gap-1 px-2 py-1.5 type-micro font-medium text-foreground">
             <FileText size={10} />
             <span>{artifactSummary.totalCount} 个计划产物</span>
             {artifactSummary.byType.slice(0, 3).map((item) => (
-              <Badge key={item.type} variant="outline" className="text-[8px] leading-3 px-1 py-0">
+              <Badge key={item.type} variant="outline" className="type-min leading-3 px-1 py-0">
                 {item.type} {item.count}
               </Badge>
             ))}
           </summary>
           <div className="space-y-1 border-t border-border/60 px-2 py-1.5">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[9px] text-muted-foreground">
+              <span className="type-micro text-muted-foreground">
                 显示 {Math.min(visiblePlanArtifacts.length, 6)}/{visiblePlanArtifacts.length}
               </span>
               <Select value={activeArtifactTypeFilter} onValueChange={(next) => setArtifactTypeFilter(next)}>
-                <SelectTrigger size="sm" className="h-6 w-32 max-w-full text-[9px]">
+                <SelectTrigger size="sm" className="h-6 w-32 max-w-full type-micro">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -296,23 +296,23 @@ export function AgentPlanOverviewPanel({
               </Select>
             </div>
             {visiblePlanArtifacts.slice(0, 6).map((artifact) => (
-              <div key={artifact.id} className="rounded bg-background/80 px-1.5 py-1 text-[9px] leading-relaxed text-muted-foreground">
+              <div key={artifact.id} className="rounded bg-background/80 px-1.5 py-1 type-micro leading-relaxed text-muted-foreground">
                 <div className="flex min-w-0 items-center justify-between gap-2">
                   <span className="truncate font-medium text-foreground">{artifact.label}</span>
                   <div className="flex shrink-0 items-center gap-1">
                     {artifact.taskId && (
-                      <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => scrollToTask(artifact.taskId)}>
+                      <Button type="button" size="xs" variant="ghost" className="px-1 type-min" onClick={() => scrollToTask(artifact.taskId)}>
                         定位
                       </Button>
                     )}
                     {artifact.sourceRunId && (
-                      <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => openRun(artifact.sourceRunId)}>
+                      <Button type="button" size="xs" variant="ghost" className="px-1 type-min" onClick={() => openRun(artifact.sourceRunId)}>
                         <Route size={8} />
                         运行
                       </Button>
                     )}
                     {artifact.sourceTaskOwnerRunId && artifact.sourceTaskOwnerRunId !== artifact.sourceRunId && (
-                      <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => openRun(artifact.sourceTaskOwnerRunId)}>
+                      <Button type="button" size="xs" variant="ghost" className="px-1 type-min" onClick={() => openRun(artifact.sourceTaskOwnerRunId)}>
                         来源
                       </Button>
                     )}
@@ -343,12 +343,12 @@ export function AgentPlanOverviewPanel({
                 <span className={cn('mt-1 h-2 w-2 shrink-0 rounded-full', workflowDotClass(task.status === 'done' ? 'completed' : task.status === 'failed' ? 'failed' : 'in_progress'))} />
                 <div className="min-w-0 flex-1">
                   <div className="flex min-w-0 items-center justify-between gap-2">
-                    <span className="truncate text-[10px] font-medium text-foreground">{task.title}</span>
-                    <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[9px]', workflowStatusClass(task.status === 'done' ? 'completed' : task.status === 'failed' ? 'failed' : task.status === 'cancelled' ? 'failed' : 'in_progress'))}>
+                    <span className="truncate type-tiny font-medium text-foreground">{task.title}</span>
+                    <span className={cn('shrink-0 rounded px-1.5 py-0.5 type-micro', workflowStatusClass(task.status === 'done' ? 'completed' : task.status === 'failed' ? 'failed' : task.status === 'cancelled' ? 'failed' : 'in_progress'))}>
                       {agentPlanStatusLabel(task.status)}
                     </span>
                   </div>
-                  <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[9px] text-muted-foreground">
+                  <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 type-micro text-muted-foreground">
                     <span>{Math.round(Math.max(0, Math.min(1, task.progress)) * 100)}%</span>
                     {view.ownerLabel ? (
                       <span className={cn('truncate', view.subagentName ? 'font-medium text-foreground' : '')}>{view.ownerLabel}</span>
@@ -363,20 +363,20 @@ export function AgentPlanOverviewPanel({
                     {view.previousOwnerRunId && <span className="truncate">上次运行 {view.previousOwnerRunId}</span>}
                     {view.artifactCount > 0 && <span>{view.artifactCount} 个产物</span>}
                   </div>
-                  <p className="mt-0.5 text-[9px] leading-relaxed text-muted-foreground">{view.statusExplanation}</p>
+                  <p className="mt-0.5 type-micro leading-relaxed text-muted-foreground">{view.statusExplanation}</p>
                   {view.blocker && (
-                    <p className="mt-1 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">{view.blocker}</p>
+                    <p className="mt-1 type-tiny leading-relaxed text-amber-700 dark:text-amber-300">{view.blocker}</p>
                   )}
                   {view.worker && (
                     <details className="mt-1 rounded border border-border/60 bg-muted/10">
-                      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-1 px-1.5 py-1 text-[9px] font-medium text-foreground">
+                      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-1 px-1.5 py-1 type-micro font-medium text-foreground">
                         <Bot size={10} />
                         <span className="truncate">执行器 {view.subagentName ?? view.worker.subagentName ?? view.worker.id}</span>
-                        <Badge variant={runStatusVariant(view.worker.status)} className="text-[8px] leading-3 px-1 py-0">
+                        <Badge variant={runStatusVariant(view.worker.status)} className="type-min leading-3 px-1 py-0">
                           {runStatusLabel(view.worker.status)}
                         </Badge>
                       </summary>
-                      <div className="space-y-1 border-t border-border/60 px-1.5 py-1 text-[9px] leading-relaxed text-muted-foreground">
+                      <div className="space-y-1 border-t border-border/60 px-1.5 py-1 type-micro leading-relaxed text-muted-foreground">
                         <div className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
                           <span className="truncate">运行 {view.worker.id}</span>
                           {view.worker.parentRunId && <span className="truncate">上级 {view.worker.parentRunId}</span>}
@@ -428,7 +428,7 @@ export function AgentPlanOverviewPanel({
                             type="button"
                             size="xs"
                             variant="ghost"
-                            className="h-5 px-1.5 text-[9px]"
+                            className="px-1.5 type-micro"
                             onClick={() => navigate(agentRunPath(view.worker!.id))}
                           >
                             <Route size={9} />
@@ -438,7 +438,7 @@ export function AgentPlanOverviewPanel({
                             type="button"
                             size="xs"
                             variant="ghost"
-                            className="h-5 px-1.5 text-[9px]"
+                            className="px-1.5 type-micro"
                             disabled={loadingTraceSummaryRunId === view.worker.id}
                             onClick={() => loadTraceSummary(view.worker!.id)}
                           >
@@ -449,7 +449,7 @@ export function AgentPlanOverviewPanel({
                             type="button"
                             size="xs"
                             variant="ghost"
-                            className="h-5 px-1.5 text-[9px]"
+                            className="px-1.5 type-micro"
                             disabled={loadingTraceEventsRunId === view.worker.id}
                             onClick={() => loadTraceEvents(view.worker!.id)}
                           >
@@ -462,7 +462,7 @@ export function AgentPlanOverviewPanel({
                             <div className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
                               <span>{traceSummaries[view.worker.id].total} 个事件</span>
                               {Object.entries(traceSummaries[view.worker.id].byKind).slice(0, 6).map(([kind, count]) => (
-                                <Badge key={kind} variant="outline" className="text-[8px] leading-3 px-1 py-0">
+                                <Badge key={kind} variant="outline" className="type-min leading-3 px-1 py-0">
                                   {traceKindLabel(kind as AgentTraceEvent['kind'])} {count}
                                 </Badge>
                               ))}
@@ -490,7 +490,7 @@ export function AgentPlanOverviewPanel({
                               const visibleEvents = activeKind === 'all' ? events : events.filter((event) => event.kind === activeKind)
                               return (
                                 <div className="flex items-center justify-between gap-2">
-                                  <span className="text-[9px] text-muted-foreground">
+                                  <span className="type-micro text-muted-foreground">
                                     显示 {visibleEvents.length}/{events.length}
                                   </span>
                                   <Select
@@ -502,7 +502,7 @@ export function AgentPlanOverviewPanel({
                                       setTraceEventKindFilters((current) => ({ ...current, [view.worker!.id]: filter }))
                                     }}
                                   >
-                                    <SelectTrigger size="sm" className="h-6 w-32 max-w-full text-[9px]">
+                                    <SelectTrigger size="sm" className="h-6 w-32 max-w-full type-micro">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -549,7 +549,7 @@ export function AgentPlanOverviewPanel({
                                 type="button"
                                 size="xs"
                                 variant="ghost"
-                                className="h-5 px-1.5 text-[9px]"
+                                className="px-1.5 type-micro"
                                 disabled={loadingTraceEventsRunId === view.worker.id}
                                 onClick={() => loadTraceEvents(view.worker!.id, 'more')}
                               >
@@ -567,13 +567,13 @@ export function AgentPlanOverviewPanel({
                   )}
                   {(view.pendingInputs.length > 0 || view.pendingApprovals.length > 0) && (
                     <details className="mt-1 rounded border border-border bg-muted/20">
-                      <summary className="flex cursor-pointer list-none items-center gap-1 px-1.5 py-1 text-[9px] font-medium text-foreground">
+                      <summary className="flex cursor-pointer list-none items-center gap-1 px-1.5 py-1 type-micro font-medium text-foreground">
                         <ClipboardCheck size={10} />
                         <span>{t('agents.chat.workflow.pendingActionCount', { count: view.pendingInputs.length + view.pendingApprovals.length })}</span>
                       </summary>
                       <div className="space-y-1 border-t border-border/70 px-1.5 py-1">
                         {view.pendingInputs.map((input) => (
-                          <div key={input.id} className="rounded bg-background/80 px-1.5 py-1 text-[9px] leading-relaxed">
+                          <div key={input.id} className="rounded bg-background/80 px-1.5 py-1 type-micro leading-relaxed">
                             <div className="flex min-w-0 items-center justify-between gap-2">
                               <span className="truncate font-medium text-foreground">{input.title}</span>
                               <span className="shrink-0 text-muted-foreground">{workflowInputTypeLabel(input.inputType, t)}</span>
@@ -582,14 +582,14 @@ export function AgentPlanOverviewPanel({
                             {input.choiceLabels.length > 0 && (
                               <div className="mt-0.5 flex flex-wrap gap-1">
                                 {input.choiceLabels.slice(0, 3).map((label) => (
-                                  <Badge key={label} variant="outline" className="max-w-full truncate text-[8px] leading-3 px-1 py-0">{label}</Badge>
+                                  <Badge key={label} variant="outline" className="max-w-full truncate type-min leading-3 px-1 py-0">{label}</Badge>
                                 ))}
                               </div>
                             )}
                           </div>
                         ))}
                         {view.pendingApprovals.map((approval) => (
-                          <div key={approval.id} className="rounded bg-background/80 px-1.5 py-1 text-[9px] leading-relaxed">
+                          <div key={approval.id} className="rounded bg-background/80 px-1.5 py-1 type-micro leading-relaxed">
                             <div className="flex min-w-0 items-center justify-between gap-2">
                               <span className="truncate font-medium text-foreground" title={approval.toolName}>{agentToolNameLabel(approval.toolName, t)}</span>
                               {approval.risk && <span className="shrink-0 text-muted-foreground">{t('agents.chat.panel.runtime.risk')}: {localAgentApprovalRiskText(approval.risk, t)}</span>}
@@ -607,17 +607,17 @@ export function AgentPlanOverviewPanel({
                   {task.status === 'needs_review' && (onAcceptReview || onReworkReview || onRejectReview) && (
                     <div className="mt-1 flex flex-wrap items-center gap-1">
                       {onAcceptReview && (
-                        <Button type="button" size="xs" variant="outline" className="h-5 px-1.5 text-[9px]" disabled={busy} onClick={() => onAcceptReview(task.id)}>
+                        <Button type="button" size="xs" variant="outline" className="px-1.5 type-micro" disabled={busy} onClick={() => onAcceptReview(task.id)}>
                           通过
                         </Button>
                       )}
                       {onReworkReview && (
-                        <Button type="button" size="xs" variant="ghost" className="h-5 px-1.5 text-[9px]" disabled={busy} onClick={() => onReworkReview(task.id)}>
+                        <Button type="button" size="xs" variant="ghost" className="px-1.5 type-micro" disabled={busy} onClick={() => onReworkReview(task.id)}>
                           返工
                         </Button>
                       )}
                       {onRejectReview && (
-                        <Button type="button" size="xs" variant="ghost" className="h-5 px-1.5 text-[9px] text-destructive hover:text-destructive" disabled={busy} onClick={() => onRejectReview(task.id)}>
+                        <Button type="button" size="xs" variant="ghost" className="px-1.5 type-micro text-destructive hover:text-destructive" disabled={busy} onClick={() => onRejectReview(task.id)}>
                           拒绝
                         </Button>
                       )}
@@ -627,30 +627,30 @@ export function AgentPlanOverviewPanel({
                     <details className="mt-1 rounded border border-border/60 bg-muted/10">
                       <summary className="flex cursor-pointer list-none flex-wrap gap-1 px-1.5 py-1">
                         {view.artifactDetails.slice(0, 2).map((artifact) => (
-                          <Badge key={artifact.id} variant="outline" className="max-w-full truncate text-[8px] leading-3 px-1 py-0">
+                          <Badge key={artifact.id} variant="outline" className="max-w-full truncate type-min leading-3 px-1 py-0">
                             {artifact.label}
                           </Badge>
                         ))}
                       </summary>
                       <div className="space-y-1 border-t border-border/60 px-1.5 py-1">
                         {view.artifactDetails.map((artifact) => (
-                          <div key={artifact.id} className="rounded bg-background/80 px-1.5 py-1 text-[9px] leading-relaxed text-muted-foreground">
+                          <div key={artifact.id} className="rounded bg-background/80 px-1.5 py-1 type-micro leading-relaxed text-muted-foreground">
                             <div className="flex min-w-0 items-center justify-between gap-2">
                               <span className="truncate font-medium text-foreground">{artifact.label}</span>
                               <div className="flex shrink-0 items-center gap-1">
                                 {artifact.sourceTaskId && (
-                                  <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => scrollToTask(artifact.sourceTaskId)}>
+                                  <Button type="button" size="xs" variant="ghost" className="px-1 type-min" onClick={() => scrollToTask(artifact.sourceTaskId)}>
                                     任务
                                   </Button>
                                 )}
                                 {artifact.sourceRunId && (
-                                  <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => openRun(artifact.sourceRunId)}>
+                                  <Button type="button" size="xs" variant="ghost" className="px-1 type-min" onClick={() => openRun(artifact.sourceRunId)}>
                                     <Route size={8} />
                                     运行
                                   </Button>
                                 )}
                                 {artifact.sourceTaskOwnerRunId && artifact.sourceTaskOwnerRunId !== artifact.sourceRunId && (
-                                  <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => openRun(artifact.sourceTaskOwnerRunId)}>
+                                  <Button type="button" size="xs" variant="ghost" className="px-1 type-min" onClick={() => openRun(artifact.sourceTaskOwnerRunId)}>
                                     来源运行
                                   </Button>
                                 )}
@@ -736,10 +736,10 @@ function ActivityJSONBlock({ label, value }: { label: string; value: unknown }) 
   const text = safeJSONStringify(value)
   return (
     <details className="mt-1 rounded border border-border/70 bg-muted/20">
-      <summary className="cursor-pointer px-2 py-1 text-[9px] font-medium text-muted-foreground">
+      <summary className="cursor-pointer px-2 py-1 type-micro font-medium text-muted-foreground">
         {label}
       </summary>
-      <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words border-t border-border/60 px-2 py-1.5 text-[9px] leading-relaxed text-muted-foreground">
+      <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words border-t border-border/60 px-2 py-1.5 type-micro leading-relaxed text-muted-foreground">
         {text}
       </pre>
     </details>

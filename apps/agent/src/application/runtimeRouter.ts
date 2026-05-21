@@ -92,6 +92,7 @@ import {
 } from './runtimeOperationsBridge.js'
 import { RuntimeOperationManager } from '../operations/runtimeOperationManager.js'
 import { GenerationJobOperationProvider } from '../operations/providers/generationJobOperationProvider.js'
+import { AgentStoreRuntimeOperationStore } from '../operations/runtimeOperationStore.js'
 import {
   createRuntimePlanDispatchBridge,
   type RuntimePlanDispatchBridge,
@@ -169,6 +170,12 @@ import {
   createRuntimeTraceReadBridge,
   type RuntimeTraceReadBridge,
 } from './runtimeTraceReadBridge.js'
+import {
+  buildRuntimeThreadSnapshotV2,
+  type RuntimeThreadSnapshotV2,
+} from './runtimeThreadSnapshot.js'
+import { RuntimeScheduler } from './runtimeScheduler.js'
+import type { RuntimeInteractionApprovalResult } from './runtimeInteractions.js'
 import { RuntimeEventSubscriberRegistry } from './runtimeEventSubscribers.js'
 import { isoNow, makeId } from './runtimeIdentity.js'
 import type {
@@ -193,7 +200,6 @@ import type {
   AgentRunPolicy,
   AgentThread,
   AgentThreadSummary,
-  ApproveRunInput,
   CancelRunInput,
   AnswerRunInputRequestInput,
   CreateMessageInput,
@@ -205,7 +211,6 @@ import type {
   DispatchPlanInput,
   DispatchPlanResult,
   PreviewRunInput,
-  RejectRunInput,
   ReplanRunInput,
   ReplanRunResult,
   ToolCallOutcome,
@@ -235,7 +240,6 @@ export type {
   AgentStepStatus,
   AgentThread,
   AgentThreadSummary,
-  ApproveRunInput,
   CancelRunInput,
   AnswerRunInputRequestInput,
   CreateMessageInput,
@@ -247,13 +251,13 @@ export type {
   DispatchPlanInput,
   DispatchPlanResult,
   PreviewRunInput,
-  RejectRunInput,
   UpdateThreadInput,
   ToolCall,
   ToolCallOutcome,
   UpdatePlanTaskInput,
 } from '../state/types.js'
 export type { AgentMemory, AgentMemoryKind, MemoryQuery } from '../memory/types.js'
+export type { RuntimeThreadSnapshotV2 } from './runtimeThreadSnapshot.js'
 export type { AgentManifest, AgentToolGrant } from '../catalog/agentManifest.js'
 export type { AgentPluginCatalog } from '../catalog/loader.js'
 export type {
@@ -341,6 +345,7 @@ export class AgentRuntimeRouter {
   private readonly recovery: RuntimeRecoveryBridge
   private readonly runCancellationGuard: RuntimeRunCancellationGuard
   private readonly runControl: RuntimeRunControlBridge
+  private readonly runtimeScheduler: RuntimeScheduler
   private readonly runCreation: RuntimeRunCreationBridge
   private readonly runPreview: RuntimeRunPreviewBridge
   private readonly taskEvents: RuntimeTaskEventBridge
@@ -521,6 +526,10 @@ export class AgentRuntimeRouter {
       executeRun: (runId, signal) => this.runExecution.executeRun(runId, signal),
       deleteCatalogSnapshot: (runId) => this.catalogSnapshots.deleteRun(runId),
       syncTaskFromRun: (runId) => this.taskRunSync.syncTaskFromRun(runId),
+      onRunSettled: (runId) => {
+        const run = this.store.getRun(runId)
+        if (run) this.runtimeScheduler.advanceThread(run.threadId)
+      },
     })
     this.recovery = createRuntimeRecoveryBridge({
       store: this.store,
@@ -534,6 +543,12 @@ export class AgentRuntimeRouter {
       streams: this.streams,
       runSteps: this.runSteps,
       runExecutionScheduler: this.runExecutionScheduler,
+    })
+    this.runtimeScheduler = new RuntimeScheduler({
+      store: this.store,
+      runControl: this.runControl,
+      continueRun: (runInput) => this.createRun(runInput),
+      now: () => isoNow(),
     })
     this.runCreation = createRuntimeRunCreationBridge({
       store: this.store,
@@ -607,10 +622,12 @@ export class AgentRuntimeRouter {
       taskEvents: this.taskEvents,
     })
     this.operationManager = new RuntimeOperationManager({
+      store: new AgentStoreRuntimeOperationStore(this.store),
       providers: [new GenerationJobOperationProvider(this.mcpClient)],
     })
     this.runtimeOperations = createRuntimeOperationsBridge({
       operationManager: this.operationManager,
+      scheduler: this.runtimeScheduler,
       recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
     })
     if (catalogInitialization.shouldReloadCatalog) this.reloadAgentCatalog()
@@ -717,6 +734,28 @@ export class AgentRuntimeRouter {
 
   getThread(id: string): AgentThread | undefined {
     return this.threads.getThread(id)
+  }
+
+  getThreadRuntimeSnapshot(threadId: string): RuntimeThreadSnapshotV2 | undefined {
+    if (!this.getThread(threadId)) return undefined
+    this.runtimeScheduler.advanceThread(threadId)
+    const thread = this.getThread(threadId)
+    if (!thread) return undefined
+    return buildRuntimeThreadSnapshotV2({
+      thread,
+      runs: this.store.listRuns({ threadId }),
+      operations: this.store.listRuntimeOperations({ threadId }),
+      interactions: this.store.listRuntimeInteractions({ threadId }),
+      continuations: this.store.listRuntimeContinuations({ threadId }),
+    })
+  }
+
+  approveInteraction(interactionId: string): RuntimeInteractionApprovalResult {
+    return this.runtimeScheduler.approveInteraction(interactionId)
+  }
+
+  rejectInteraction(interactionId: string): RuntimeInteractionApprovalResult {
+    return this.runtimeScheduler.rejectInteraction(interactionId)
   }
 
   updateThread(id: string, input: UpdateThreadInput): AgentThread {
@@ -829,14 +868,6 @@ export class AgentRuntimeRouter {
 
   subscribePlanStream(planId: string, listener: (event: AgentPlanStreamEvent) => void): () => void {
     return this.streamSubscriptions.subscribePlanStream(planId, listener)
-  }
-
-  approveRun(runId: string, input: ApproveRunInput = {}): AgentRun {
-    return this.runControl.approveRun(runId, input)
-  }
-
-  rejectRun(runId: string, input: RejectRunInput = {}): AgentRun {
-    return this.runControl.rejectRun(runId, input)
   }
 
   cancelRun(runId: string, input: CancelRunInput = {}): AgentRun {

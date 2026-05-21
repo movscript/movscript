@@ -1445,13 +1445,13 @@ export default function AIAgentSettingsPage() {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <Settings size={18} />
-              <h1 className="text-lg font-semibold text-foreground">{t('agents.settings.title')}</h1>
+              <h1 className="type-title-sm font-semibold text-foreground">{t('agents.settings.title')}</h1>
               <Badge variant={effectiveConfig?.configured ? 'success' : 'warning'}>
                 {effectiveConfig?.configured ? t('agents.settings.configured') : t('agents.settings.notConfigured')}
               </Badge>
             </div>
-            <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">{t('agents.settings.description')}</p>
-            <div data-testid="agent-settings-scope-boundary" className="mt-2 flex max-w-3xl flex-wrap gap-2 text-[11px] leading-4">
+            <p className="mt-1 max-w-3xl type-label leading-5 text-muted-foreground">{t('agents.settings.description')}</p>
+            <div data-testid="agent-settings-scope-boundary" className="mt-2 flex max-w-3xl flex-wrap gap-2 type-caption leading-4">
               <span className="rounded border border-border bg-muted/30 px-2 py-1 text-foreground">{t('agents.settings.scope.controlPlane')}</span>
               <span className="rounded border border-border bg-background px-2 py-1 text-muted-foreground">{t('agents.settings.scope.futureRuns')}</span>
               <span className="rounded border border-border bg-background px-2 py-1 text-muted-foreground">{t('agents.settings.scope.debugReadOnly')}</span>
@@ -1489,7 +1489,7 @@ export default function AIAgentSettingsPage() {
               <Panel id="agent-settings-model" title={t('agents.settings.modelPanel')}>
                 <div className="grid gap-4">
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-foreground">
+                    <label className="mb-1.5 block type-label font-medium text-foreground">
                       {usesModelCatalog ? t('agents.settings.modelLabel') : t('agents.settings.providerModelIdLabel')}
                     </label>
                     {usesModelCatalog ? (
@@ -1513,18 +1513,18 @@ export default function AIAgentSettingsPage() {
                         value={directModelId}
                         onChange={(event) => setDirectModelId(event.target.value)}
                         placeholder={apiKindModelPlaceholder(selectedApiKind)}
-                        className="text-xs"
+                        className="type-label"
                         data-testid="agent-settings-provider-model-id"
                       />
                     )}
-                    <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                    <p className="mt-1 type-caption leading-4 text-muted-foreground">
                       {usesModelCatalog ? t('agents.settings.modelHelp') : t('agents.settings.providerModelIdHelp')}
                     </p>
                     {modelValueMissing && (
-                      <p className="mt-1 text-[11px] leading-4 text-destructive">{t('agents.settings.modelRequired')}</p>
+                      <p className="mt-1 type-caption leading-4 text-destructive">{t('agents.settings.modelRequired')}</p>
                     )}
                     {directModelIdHasSecret && (
-                      <div data-testid="agent-settings-provider-model-id-secret-warning" className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-[11px] leading-4 text-destructive">
+                      <div data-testid="agent-settings-provider-model-id-secret-warning" className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 p-2 type-caption leading-4 text-destructive">
                         {t('agents.settings.modelIdSecretsBlocked')}
                       </div>
                     )}
@@ -1532,7 +1532,7 @@ export default function AIAgentSettingsPage() {
 
                   <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                     <div>
-                      <label className="mb-1.5 block text-xs font-medium text-foreground">{t('agents.settings.apiKindLabel')}</label>
+                      <label className="mb-1.5 block type-label font-medium text-foreground">{t('agents.settings.apiKindLabel')}</label>
                       <Select
                         value={selectedApiKind}
                         onValueChange={(value) => {
@@ -1551,22 +1551,22 @@ export default function AIAgentSettingsPage() {
                           ))}
                         </SelectContent>
                       </Select>
-                      <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                      <p className="mt-1 type-caption leading-4 text-muted-foreground">
                         {t(API_KIND_OPTIONS.find((option) => option.value === selectedApiKind)?.descriptionKey ?? API_KIND_OPTIONS[0].descriptionKey)}
                       </p>
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-xs font-medium text-foreground">{t('agents.settings.baseUrlLabel')}</label>
+                      <label className="mb-1.5 block type-label font-medium text-foreground">{t('agents.settings.baseUrlLabel')}</label>
                       <Input
                         value={baseURL}
                         onChange={(event) => setBaseURL(event.target.value)}
                         placeholder={apiKindBaseURLPlaceholder(selectedApiKind)}
-                        className="text-xs"
+                        className="type-label"
                       />
-                      <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{t('agents.settings.baseUrlHelp')}</p>
+                      <p className="mt-1 type-caption leading-4 text-muted-foreground">{t('agents.settings.baseUrlHelp')}</p>
                       {modelBaseURLHasSecret && (
-                        <div data-testid="agent-settings-base-url-secret-warning" className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-[11px] leading-4 text-destructive">
+                        <div data-testid="agent-settings-base-url-secret-warning" className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 p-2 type-caption leading-4 text-destructive">
                           <p>{t('agents.settings.baseUrlSecretsBlocked')}</p>
                           <Button
                             type="button"
@@ -1582,17 +1582,17 @@ export default function AIAgentSettingsPage() {
                       )}
                       {usesManualModelId && baseURLValue && !usesBackendCompatibleBaseURL && (
                         <div className="mt-3">
-                          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('agents.settings.providerApiKeyLabel')}</label>
+                          <label className="mb-1.5 block type-label font-medium text-foreground">{t('agents.settings.providerApiKeyLabel')}</label>
                           <Input
                             value={modelApiKey}
                             onChange={(event) => setModelApiKey(event.target.value)}
                             placeholder={effectiveConfig?.apiKeyConfigured ? t('agents.settings.providerApiKeyConfiguredPlaceholder') : t('agents.settings.providerApiKeyPlaceholder')}
                             type="password"
                             autoComplete="off"
-                            className="text-xs"
+                            className="type-label"
                             data-testid="agent-settings-provider-api-key"
                           />
-                          <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{t('agents.settings.providerCredentialHelp')}</p>
+                          <p className="mt-1 type-caption leading-4 text-muted-foreground">{t('agents.settings.providerCredentialHelp')}</p>
                         </div>
                       )}
                     </div>
@@ -1607,13 +1607,13 @@ export default function AIAgentSettingsPage() {
                   <ApiModeMigrationGuide apiKind={selectedApiKind} onSwitchToResponses={() => setSelectedApiKind('openai_responses')} />
                   <ApiModeSwitchPlanPanel apiKind={selectedApiKind} items={apiModeSwitchPlan} />
                   {modelRouteIssues.length > 0 && (
-                    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-800 dark:text-amber-300">
+                    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 type-label text-amber-800 dark:text-amber-300">
                       {modelRouteIssues.map((issue) => <p key={issue}>{t(`agents.settings.modelRouteIssues.${issue}`)}</p>)}
                     </div>
                   )}
 
                   {usesModelCatalog && selectedModel && (
-                    <div className="grid gap-2 text-xs sm:grid-cols-2">
+                    <div className="grid gap-2 type-label sm:grid-cols-2">
                       <SummaryItem label={t('agents.settings.fields.modelId')} value={publicModelId(selectedModel)} />
                       <SummaryItem label={t('agents.settings.fields.capabilities')} value={selectedModel.capabilities.join(', ') || '-'} />
                       <SummaryItem label={t('agents.settings.fields.provider')} value={selectedModel.provider_name || '-'} />
@@ -1652,7 +1652,7 @@ export default function AIAgentSettingsPage() {
                   <Textarea
                     value={testMessage}
                     onChange={(event) => setTestMessage(event.target.value)}
-                    className="min-h-24 text-xs"
+                    className="min-h-24 type-label"
                   />
                   {testError && <InlineError>{testError}</InlineError>}
                   {testResult && (
@@ -1661,10 +1661,10 @@ export default function AIAgentSettingsPage() {
                         <Badge variant={testResult.ok ? 'success' : 'destructive'}>
                           {testResult.ok ? t('agents.settings.testOk') : t('agents.settings.testFailed')}
                         </Badge>
-                        <span className="text-xs text-muted-foreground">{redactAgentTraceDebugText(testResult.model)}</span>
-                        <span className="text-xs text-muted-foreground">{testResult.latencyMs}ms</span>
+                        <span className="type-label text-muted-foreground">{redactAgentTraceDebugText(testResult.model)}</span>
+                        <span className="type-label text-muted-foreground">{testResult.latencyMs}ms</span>
                       </div>
-                      <pre className="mt-2 max-h-44 overflow-auto whitespace-pre-wrap rounded bg-background p-2 text-xs leading-5 text-foreground">
+                      <pre className="mt-2 max-h-44 overflow-auto whitespace-pre-wrap rounded bg-background p-2 type-label leading-5 text-foreground">
                         {testResult.content ? redactAgentTraceDebugText(testResult.content) : '-'}
                       </pre>
                     </div>
@@ -1676,7 +1676,7 @@ export default function AIAgentSettingsPage() {
                 <div className="space-y-3">
                   <div className="grid gap-3 rounded-md border border-border bg-muted/20 p-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                     <div>
-                      <label className="mb-1.5 block text-xs font-medium text-foreground">{t('agents.settings.activeRunPreset')}</label>
+                      <label className="mb-1.5 block type-label font-medium text-foreground">{t('agents.settings.activeRunPreset')}</label>
                       <Select value={agentSettings.activeRunPresetId} onValueChange={selectRunPreset}>
                         <SelectTrigger className="w-full">
                           <SelectValue />
@@ -1687,7 +1687,7 @@ export default function AIAgentSettingsPage() {
                           ))}
                         </SelectContent>
                       </Select>
-                      <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{t('agents.settings.runPresetsHelp')}</p>
+                      <p className="mt-1 type-caption leading-4 text-muted-foreground">{t('agents.settings.runPresetsHelp')}</p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <Button type="button" size="sm" variant="outline" onClick={() => createRunPreset('blank')} data-testid="agent-run-preset-create">
                           <Plus size={13} />
@@ -1714,7 +1714,7 @@ export default function AIAgentSettingsPage() {
                         </Button>
                       </div>
                     </div>
-                    <div className="grid gap-2 text-xs sm:grid-cols-2">
+                    <div className="grid gap-2 type-label sm:grid-cols-2">
                       <SummaryItem label={t('agents.settings.runPresetFields.maxToolCalls')} value={activeRunPreset.maxToolCalls} />
                       <SummaryItem label={t('agents.settings.runPresetFields.maxIterations')} value={activeRunPreset.maxIterations} />
                       <SummaryItem label={t('agents.settings.runPresetFields.permissionMode')} value={t(`agents.settings.runPresetPermissionModes.${activeRunPreset.permissionMode}`)} />
@@ -1722,50 +1722,50 @@ export default function AIAgentSettingsPage() {
                     </div>
                   </div>
                   <div data-testid="agent-run-preset-editor" className="rounded-md border border-border bg-muted/20 p-2">
-                    <p className="text-xs font-medium text-foreground">{t('agents.settings.editRunPreset')}</p>
+                    <p className="type-label font-medium text-foreground">{t('agents.settings.editRunPreset')}</p>
                     <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                       <label className="space-y-1 sm:col-span-2">
-                        <span className="block text-[10px] font-medium text-muted-foreground">{t('agents.settings.runPresetFields.name')}</span>
+                        <span className="block type-tiny font-medium text-muted-foreground">{t('agents.settings.runPresetFields.name')}</span>
                         <Input
                           value={activeRunPreset.name}
                           onChange={(event) => updateRunPreset(activeRunPreset.id, { name: event.target.value })}
-                          className="h-8 text-xs"
+                          className="h-8 type-label"
                         />
                       </label>
                       <label className="space-y-1 sm:col-span-2">
-                        <span className="block text-[10px] font-medium text-muted-foreground">{t('agents.settings.runPresetFields.description')}</span>
+                        <span className="block type-tiny font-medium text-muted-foreground">{t('agents.settings.runPresetFields.description')}</span>
                         <Input
                           value={activeRunPreset.description}
                           onChange={(event) => updateRunPreset(activeRunPreset.id, { description: event.target.value })}
-                          className="h-8 text-xs"
+                          className="h-8 type-label"
                         />
                       </label>
                       <label className="space-y-1">
-                        <span className="block text-[10px] font-medium text-muted-foreground">{t('agents.settings.runPresetFields.maxToolCalls')}</span>
+                        <span className="block type-tiny font-medium text-muted-foreground">{t('agents.settings.runPresetFields.maxToolCalls')}</span>
                         <Input
                           type="number"
                           min={1}
                           max={200}
                           value={activeRunPreset.maxToolCalls}
                           onChange={(event) => updateRunPreset(activeRunPreset.id, { maxToolCalls: Number(event.target.value) })}
-                          className="h-8 text-xs"
+                          className="h-8 type-label"
                         />
                       </label>
                       <label className="space-y-1">
-                        <span className="block text-[10px] font-medium text-muted-foreground">{t('agents.settings.runPresetFields.maxIterations')}</span>
+                        <span className="block type-tiny font-medium text-muted-foreground">{t('agents.settings.runPresetFields.maxIterations')}</span>
                         <Input
                           type="number"
                           min={1}
                           max={200}
                           value={activeRunPreset.maxIterations}
                           onChange={(event) => updateRunPreset(activeRunPreset.id, { maxIterations: Number(event.target.value) })}
-                          className="h-8 text-xs"
+                          className="h-8 type-label"
                         />
                       </label>
                       <div className="space-y-1">
-                        <span className="block text-[10px] font-medium text-muted-foreground">{t('agents.settings.runPresetFields.permissionMode')}</span>
+                        <span className="block type-tiny font-medium text-muted-foreground">{t('agents.settings.runPresetFields.permissionMode')}</span>
                         <Select value={activeRunPreset.permissionMode} onValueChange={(value) => updateRunPreset(activeRunPreset.id, { permissionMode: value as AgentRunPreset['permissionMode'] })}>
-                          <SelectTrigger className="h-8 text-xs">
+                          <SelectTrigger className="h-8 type-label">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1776,9 +1776,9 @@ export default function AIAgentSettingsPage() {
                         </Select>
                       </div>
                       <div className="space-y-1">
-                        <span className="block text-[10px] font-medium text-muted-foreground">{t('agents.settings.runPresetFields.planWorkers')}</span>
+                        <span className="block type-tiny font-medium text-muted-foreground">{t('agents.settings.runPresetFields.planWorkers')}</span>
                         <Select value={String(activeRunPreset.planMaxWorkers)} onValueChange={(value) => updateRunPreset(activeRunPreset.id, { planMaxWorkers: Number(value) })}>
-                          <SelectTrigger className="h-8 text-xs">
+                          <SelectTrigger className="h-8 type-label">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1787,9 +1787,9 @@ export default function AIAgentSettingsPage() {
                         </Select>
                       </div>
                       <div className="space-y-1">
-                        <span className="block text-[10px] font-medium text-muted-foreground">{t('agents.settings.runPresetFields.planAttempts')}</span>
+                        <span className="block type-tiny font-medium text-muted-foreground">{t('agents.settings.runPresetFields.planAttempts')}</span>
                         <Select value={String(activeRunPreset.planMaxTaskAttempts)} onValueChange={(value) => updateRunPreset(activeRunPreset.id, { planMaxTaskAttempts: Number(value) })}>
-                          <SelectTrigger className="h-8 text-xs">
+                          <SelectTrigger className="h-8 type-label">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1798,9 +1798,9 @@ export default function AIAgentSettingsPage() {
                         </Select>
                       </div>
                       <div className="space-y-1">
-                        <span className="block text-[10px] font-medium text-muted-foreground">{t('agents.settings.runPresetFields.planTimeout')}</span>
+                        <span className="block type-tiny font-medium text-muted-foreground">{t('agents.settings.runPresetFields.planTimeout')}</span>
                         <Select value={String(activeRunPreset.planWorkerTimeoutMs)} onValueChange={(value) => updateRunPreset(activeRunPreset.id, { planWorkerTimeoutMs: Number(value) })}>
-                          <SelectTrigger className="h-8 text-xs">
+                          <SelectTrigger className="h-8 type-label">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1810,7 +1810,7 @@ export default function AIAgentSettingsPage() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <label className="flex min-h-8 items-center gap-2 rounded-md border border-border bg-background px-2 text-xs">
+                      <label className="flex min-h-8 items-center gap-2 rounded-md border border-border bg-background px-2 type-label">
                         <input
                           type="checkbox"
                           checked={activeRunPreset.autoPlan}
@@ -1822,8 +1822,8 @@ export default function AIAgentSettingsPage() {
                     </div>
                   </div>
                   <div data-testid="agent-run-preset-effective-policy" className="rounded-md border border-border bg-background p-2">
-                    <p className="text-xs font-medium text-foreground">{t('agents.settings.effectiveRunPolicy')}</p>
-                    <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
+                    <p className="type-label font-medium text-foreground">{t('agents.settings.effectiveRunPolicy')}</p>
+                    <div className="mt-2 grid gap-2 type-label sm:grid-cols-2 lg:grid-cols-4">
                       <SummaryItem label={t('agents.settings.runPresetFields.maxToolCalls')} value={activeRunPreset.maxToolCalls} />
                       <SummaryItem label={t('agents.settings.runPresetFields.maxIterations')} value={activeRunPreset.maxIterations} />
                       <SummaryItem label={t('agents.settings.runPresetFields.permissionMode')} value={t(`agents.settings.runPresetPermissionModes.${activeRunPreset.permissionMode}`)} />
@@ -1853,16 +1853,16 @@ export default function AIAgentSettingsPage() {
                   <StateMessage icon={<XCircle size={16} />} tone="danger" text={settingsErrorMessage(catalogQuery.error)} />
                 ) : (
                   <div className="space-y-3">
-                    <div className="grid gap-2 text-xs sm:grid-cols-4">
+                    <div className="grid gap-2 type-label sm:grid-cols-4">
                       <SummaryItem label={t('agents.settings.skillFields.installed')} value={skillStats.installed} />
                       <SummaryItem label={t('agents.settings.skillFields.enabled')} value={skillStats.enabled} />
                       <SummaryItem label={t('agents.settings.skillFields.core')} value={skillStats.core} />
                       <SummaryItem label={t('agents.settings.skillFields.onDemand')} value={skillStats.onDemand} />
                     </div>
                     <div data-testid="agent-settings-skill-governance" className="rounded-md border border-border bg-background p-2">
-                      <p className="text-xs font-medium text-foreground">{t('agents.settings.skillGovernancePanel')}</p>
-                      <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{t('agents.settings.skillGovernanceHelp')}</p>
-                      <div className="mt-2 grid gap-2 text-xs sm:grid-cols-5">
+                      <p className="type-label font-medium text-foreground">{t('agents.settings.skillGovernancePanel')}</p>
+                      <p className="mt-0.5 type-caption leading-4 text-muted-foreground">{t('agents.settings.skillGovernanceHelp')}</p>
+                      <div className="mt-2 grid gap-2 type-label sm:grid-cols-5">
                         <SummaryItem label={t('agents.settings.skillGovernanceFields.versioned')} value={skillGovernanceStats.versioned} />
                         <SummaryItem label={t('agents.settings.skillSources.core')} value={skillGovernanceStats.core} />
                         <SummaryItem label={t('agents.settings.skillSources.plugin')} value={skillGovernanceStats.plugin} />
@@ -1876,15 +1876,15 @@ export default function AIAgentSettingsPage() {
                         {catalogReloading || catalogQuery.isFetching ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
                         {t('agents.settings.reloadCatalog')}
                       </Button>
-                      {catalogReloadedAt && <span className="text-[11px] text-muted-foreground">{t('agents.settings.reloadCatalogDone', { time: new Date(catalogReloadedAt).toLocaleTimeString() })}</span>}
+                      {catalogReloadedAt && <span className="type-caption text-muted-foreground">{t('agents.settings.reloadCatalogDone', { time: new Date(catalogReloadedAt).toLocaleTimeString() })}</span>}
                     </div>
                     {catalogReloadError && <InlineError>{catalogReloadError}</InlineError>}
 
                     <div className="rounded-md border border-border bg-muted/20 p-2">
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-xs font-medium text-foreground">{t('agents.settings.installSkillBundle')}</p>
-                          <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{t('agents.settings.installSkillBundleHelp')}</p>
+                          <p className="type-label font-medium text-foreground">{t('agents.settings.installSkillBundle')}</p>
+                          <p className="mt-0.5 type-caption leading-4 text-muted-foreground">{t('agents.settings.installSkillBundleHelp')}</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <input
@@ -1903,7 +1903,7 @@ export default function AIAgentSettingsPage() {
                           </Button>
                         </div>
                       </div>
-                      {skillBundleFileName && <p className="mt-2 text-[11px] text-muted-foreground">{t('agents.settings.skillBundleFileLoaded', { fileName: skillBundleFileName })}</p>}
+                      {skillBundleFileName && <p className="mt-2 type-caption text-muted-foreground">{t('agents.settings.skillBundleFileLoaded', { fileName: skillBundleFileName })}</p>}
                       <Textarea
                         value={skillBundleText}
                         onChange={(event) => {
@@ -1912,10 +1912,10 @@ export default function AIAgentSettingsPage() {
                           setSkillBundleInstallResult(null)
                         }}
                         placeholder={t('agents.settings.installSkillBundlePlaceholder')}
-                        className="mt-2 min-h-24 text-xs"
+                        className="mt-2 min-h-24 type-label"
                       />
                       {skillBundleDraftValidation.bundle && (
-                        <p data-testid="agent-settings-skill-bundle-draft-summary" className="mt-2 text-[11px] leading-4 text-muted-foreground">
+                        <p data-testid="agent-settings-skill-bundle-draft-summary" className="mt-2 type-caption leading-4 text-muted-foreground">
                           {t('agents.settings.skillBundleDraftSummary', {
                             pluginId: skillBundleDraftValidation.bundle.pluginId,
                             count: skillBundleDraftValidation.bundle.files.length,
@@ -1928,19 +1928,19 @@ export default function AIAgentSettingsPage() {
                       )}
                       {skillBundleInstallError && <div className="mt-2"><InlineError>{skillBundleInstallError}</InlineError></div>}
                       {skillBundleInstallResult && (
-                        <p className="mt-2 text-[11px] text-muted-foreground">
+                        <p className="mt-2 type-caption text-muted-foreground">
                           {t('agents.settings.installSkillBundleDone', { count: skillBundleInstallResult.installedFiles.length, pluginId: skillBundleInstallResult.pluginId })}
                         </p>
                       )}
                       <div className="mt-3 border-t border-border pt-3">
                         {skillBundlePlugins.length > 0 && (
                           <div className="mb-3 space-y-1.5">
-                            <p className="text-[11px] font-medium text-foreground">{t('agents.settings.installedSkillBundles')}</p>
+                            <p className="type-caption font-medium text-foreground">{t('agents.settings.installedSkillBundles')}</p>
                             {skillBundlePlugins.map((plugin) => (
                               <div key={plugin.pluginId} className="flex flex-wrap items-center justify-between gap-2 rounded bg-background px-2 py-1.5">
                                 <div className="min-w-0">
-                                  <p className="truncate text-[11px] font-medium text-foreground">{plugin.pluginId}</p>
-                                  <p className="truncate text-[10px] text-muted-foreground">{plugin.path}</p>
+                                  <p className="truncate type-caption font-medium text-foreground">{plugin.pluginId}</p>
+                                  <p className="truncate type-tiny text-muted-foreground">{plugin.path}</p>
                                 </div>
                                 <Button
                                   type="button"
@@ -1966,7 +1966,7 @@ export default function AIAgentSettingsPage() {
                         )}
                         <div className="flex flex-wrap items-end gap-2">
                           <div className="min-w-56 flex-1">
-                            <label className="mb-1 block text-[11px] font-medium text-foreground">{t('agents.settings.uninstallSkillBundle')}</label>
+                            <label className="mb-1 block type-caption font-medium text-foreground">{t('agents.settings.uninstallSkillBundle')}</label>
                             <Input
                               value={skillBundleUninstallPluginId}
                               onChange={(event) => {
@@ -1975,7 +1975,7 @@ export default function AIAgentSettingsPage() {
                                 setSkillBundleUninstallResult(null)
                               }}
                               placeholder={t('agents.settings.uninstallSkillBundlePlaceholder')}
-                              className="h-8 text-xs"
+                              className="h-8 type-label"
                             />
                           </div>
                           <Button type="button" size="sm" variant="outline" onClick={() => void uninstallSkillBundle()} disabled={skillBundleUninstalling || !skillBundleUninstallPluginIdValue || skillBundleUninstallPluginIdInvalid}>
@@ -1983,13 +1983,13 @@ export default function AIAgentSettingsPage() {
                             {t('agents.settings.uninstallSkillBundleAction')}
                           </Button>
                         </div>
-                        <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{t('agents.settings.uninstallSkillBundleHelp')}</p>
+                        <p className="mt-1 type-caption leading-4 text-muted-foreground">{t('agents.settings.uninstallSkillBundleHelp')}</p>
                         {!skillBundleUninstallError && skillBundleUninstallPluginIdInvalid && (
                           <div className="mt-2" data-testid="agent-settings-uninstall-plugin-id-error"><InlineError>{t('agents.settings.uninstallSkillBundlePluginIdInvalid')}</InlineError></div>
                         )}
                         {skillBundleUninstallError && <div className="mt-2"><InlineError>{skillBundleUninstallError}</InlineError></div>}
                         {skillBundleUninstallResult && (
-                          <p className="mt-2 text-[11px] text-muted-foreground">
+                          <p className="mt-2 type-caption text-muted-foreground">
                             {skillBundleUninstallResult.removed
                               ? t('agents.settings.uninstallSkillBundleDone', { pluginId: skillBundleUninstallResult.pluginId })
                               : t('agents.settings.uninstallSkillBundleMissing', { pluginId: skillBundleUninstallResult.pluginId })}
@@ -2006,13 +2006,13 @@ export default function AIAgentSettingsPage() {
                       <Button type="button" size="sm" variant="outline" onClick={() => setSkillDrafts(skillPolicyBaseline)} disabled={!hasSkillPolicyChange || skillPolicySaving}>
                         {t('agents.settings.resetSkillPolicy')}
                       </Button>
-                      <span className="text-[11px] text-muted-foreground">{t('agents.settings.skillPolicyEditHelp')}</span>
+                      <span className="type-caption text-muted-foreground">{t('agents.settings.skillPolicyEditHelp')}</span>
                     </div>
                     {skillPolicySaveError && <InlineError>{skillPolicySaveError}</InlineError>}
                     {skillPolicyIssues.length > 0 && (
                       <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2">
-                        <p className="text-xs font-medium text-amber-800 dark:text-amber-300">{t('agents.settings.skillPolicyIssues')}</p>
-                        <ul className="mt-1 space-y-1 text-[11px] text-muted-foreground">
+                        <p className="type-label font-medium text-amber-800 dark:text-amber-300">{t('agents.settings.skillPolicyIssues')}</p>
+                        <ul className="mt-1 space-y-1 type-caption text-muted-foreground">
                           {skillPolicyIssues.map((issue) => (
                             <li key={`${issue.type}:${issue.skillId}:${issue.relatedSkillId}`}>
                               {issue.type === 'dependency'
@@ -2029,7 +2029,7 @@ export default function AIAgentSettingsPage() {
 
                     {coreSkills.length > 0 && (
                       <div>
-                        <p className="mb-2 text-xs font-medium text-foreground">{t('agents.settings.coreSkills')}</p>
+                        <p className="mb-2 type-label font-medium text-foreground">{t('agents.settings.coreSkills')}</p>
                         <div className="flex flex-wrap gap-1.5">
                           {coreSkills.map((skill) => (
                             <Badge key={skill.id} variant="secondary">{skill.name}</Badge>
@@ -2040,7 +2040,7 @@ export default function AIAgentSettingsPage() {
 
                     <div className="space-y-2">
                       {featuredSkills.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">{t('agents.settings.noSkills')}</p>
+                        <p className="type-label text-muted-foreground">{t('agents.settings.noSkills')}</p>
                       ) : featuredSkills.map((skill) => (
                         <SkillRow
                           key={skill.id}
@@ -2061,7 +2061,7 @@ export default function AIAgentSettingsPage() {
                   <StateMessage icon={<XCircle size={16} />} tone="danger" text={settingsErrorMessage(catalogQuery.error)} />
                 ) : (
                   <div className="space-y-3">
-                    <div className="grid gap-2 text-xs sm:grid-cols-4">
+                    <div className="grid gap-2 type-label sm:grid-cols-4">
                       <SummaryItem label={t('agents.settings.profileFields.total')} value={catalogQuery.data?.profiles.length ?? 0} />
                       <SummaryItem label={t('agents.settings.profileFields.current')} value={currentProfile?.name ?? '-'} />
                       <SummaryItem label={t('agents.settings.profileFields.packs')} value={currentProfile?.enabledPacks.length ?? 0} />
@@ -2071,7 +2071,7 @@ export default function AIAgentSettingsPage() {
                     {(catalogQuery.data?.profiles.length ?? 0) > 0 && (
                       <div className="grid gap-3 rounded-md border border-border bg-muted/20 p-2 md:grid-cols-[minmax(0,1fr)_auto]">
                         <div>
-                          <label className="mb-1.5 block text-xs font-medium text-foreground">{t('agents.settings.defaultProfileLabel')}</label>
+                          <label className="mb-1.5 block type-label font-medium text-foreground">{t('agents.settings.defaultProfileLabel')}</label>
                           <Select value={selectedProfileId} onValueChange={setSelectedProfileId}>
                             <SelectTrigger className="w-full">
                               <SelectValue placeholder={t('agents.settings.selectProfile')} />
@@ -2084,7 +2084,7 @@ export default function AIAgentSettingsPage() {
                               ))}
                             </SelectContent>
                           </Select>
-                          <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{t('agents.settings.defaultProfileHelp')}</p>
+                          <p className="mt-1 type-caption leading-4 text-muted-foreground">{t('agents.settings.defaultProfileHelp')}</p>
                         </div>
                         <div className="flex items-end">
                           <Button type="button" size="sm" onClick={saveDefaultProfile} disabled={!hasProfileChange || profileSaving}>
@@ -2099,7 +2099,7 @@ export default function AIAgentSettingsPage() {
                     {selectedProfile && selectedProfile.id !== currentProfile?.id && (
                       <div className="space-y-2">
                         {selectedProfileDiff && <ProfileDiffPanel diff={selectedProfileDiff} />}
-                        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] leading-4 text-muted-foreground">
+                        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 type-caption leading-4 text-muted-foreground">
                           {t('agents.settings.profileSwitchResetsToolPolicy')}
                         </div>
                         <ProfileRow profile={selectedProfile} preview />
@@ -2109,7 +2109,7 @@ export default function AIAgentSettingsPage() {
                     {currentProfile ? (
                       <ProfileRow profile={currentProfile} current />
                     ) : (
-                      <p className="text-xs text-muted-foreground">{t('agents.settings.noProfiles')}</p>
+                      <p className="type-label text-muted-foreground">{t('agents.settings.noProfiles')}</p>
                     )}
 
                     {(catalogQuery.data?.profiles ?? []).filter((profile) => profile.id !== currentProfile?.id).slice(0, 6).map((profile) => (
@@ -2126,14 +2126,14 @@ export default function AIAgentSettingsPage() {
                   <StateMessage icon={<XCircle size={16} />} tone="danger" text={settingsErrorMessage(capabilitiesQuery.error)} />
                 ) : (
                   <div className="space-y-3">
-                    <div className="grid gap-2 text-xs sm:grid-cols-4">
+                    <div className="grid gap-2 type-label sm:grid-cols-4">
                       <SummaryItem label={t('agents.settings.toolPolicyFields.discovered')} value={toolStats.discovered} />
                       <SummaryItem label={t('agents.settings.toolPolicyFields.available')} value={toolStats.available} />
                       <SummaryItem label={t('agents.settings.toolPolicyFields.blocked')} value={toolStats.blocked} />
                       <SummaryItem label={t('agents.settings.toolPolicyFields.requiresApproval')} value={toolStats.requiresApproval} />
                     </div>
 
-                    <div className="grid gap-2 text-xs sm:grid-cols-3">
+                    <div className="grid gap-2 type-label sm:grid-cols-3">
                       <SummaryItem label={t('agents.settings.toolPolicyFields.writeRisk')} value={toolStats.writeRisk} />
                       <SummaryItem label={t('agents.settings.toolPolicyFields.projectScoped')} value={toolStats.projectScoped} />
                       <SummaryItem label={t('agents.settings.toolPolicyFields.profileGrants')} value={currentProfile?.toolGrants.length ?? 0} />
@@ -2147,14 +2147,14 @@ export default function AIAgentSettingsPage() {
                       <Button type="button" size="sm" variant="outline" onClick={() => setToolGrantDrafts(toolGrantBaseline)} disabled={!hasToolPolicyChange || toolPolicySaving}>
                         {t('agents.settings.resetToolPolicy')}
                       </Button>
-                      <span className="text-[11px] text-muted-foreground">{t('agents.settings.toolPolicyEditHelp')}</span>
+                      <span className="type-caption text-muted-foreground">{t('agents.settings.toolPolicyEditHelp')}</span>
                     </div>
                     {hasToolPolicyChange && <ToolPolicyDiffPreview items={toolPolicyDiffItems} />}
                     {toolPolicySaveError && <InlineError>{toolPolicySaveError}</InlineError>}
                     {toolPolicyDraftIssues.length > 0 && (
                       <div data-testid="agent-settings-tool-policy-draft-issues" className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2">
-                        <p className="text-xs font-medium text-amber-800 dark:text-amber-300">{t('agents.settings.toolPolicyDraftIssues')}</p>
-                        <ul className="mt-1 space-y-1 text-[11px] text-muted-foreground">
+                        <p className="type-label font-medium text-amber-800 dark:text-amber-300">{t('agents.settings.toolPolicyDraftIssues')}</p>
+                        <ul className="mt-1 space-y-1 type-caption text-muted-foreground">
                           {toolPolicyDraftIssues.slice(0, 5).map((issue) => (
                             <li key={`${issue.reasonKey}:${issue.toolName}`}>
                               {issue.toolName}: {t(issue.reasonKey, issue.values)}
@@ -2169,11 +2169,11 @@ export default function AIAgentSettingsPage() {
                         value={toolPolicySearch}
                         onChange={(event) => setToolPolicySearch(event.target.value)}
                         placeholder={t('agents.settings.toolPolicySearchPlaceholder')}
-                        className="h-8 text-xs"
+                        className="h-8 type-label"
                         data-testid="agent-settings-tool-policy-search"
                       />
                       <Select value={toolPolicyFilter} onValueChange={(value) => setToolPolicyFilter(value as ToolPolicyFilter)}>
-                        <SelectTrigger className="h-8 text-xs" data-testid="agent-settings-tool-policy-filter">
+                        <SelectTrigger className="h-8 type-label" data-testid="agent-settings-tool-policy-filter">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -2182,7 +2182,7 @@ export default function AIAgentSettingsPage() {
                           ))}
                         </SelectContent>
                       </Select>
-                      <div className="flex items-center text-[11px] leading-4 text-muted-foreground" data-testid="agent-settings-tool-policy-filter-summary">
+                      <div className="flex items-center type-caption leading-4 text-muted-foreground" data-testid="agent-settings-tool-policy-filter-summary">
                         {t('agents.settings.toolPolicyFilterSummary', {
                           shown: toolPolicyFilteredTools.length,
                           total: capabilitiesQuery.data?.resolvedTools.discovered.length ?? 0,
@@ -2191,12 +2191,12 @@ export default function AIAgentSettingsPage() {
                     </div>
                     <div data-testid="agent-settings-tool-policy-filter-presets" className="rounded-md border border-border bg-background p-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[11px] font-medium text-foreground">{t('agents.settings.toolPolicyFilterPresets')}</span>
+                        <span className="type-caption font-medium text-foreground">{t('agents.settings.toolPolicyFilterPresets')}</span>
                         <Button type="button" size="sm" variant="outline" onClick={saveToolPolicyFilterPreset}>
                           <Plus size={13} />
                           {t('agents.settings.saveToolPolicyFilterPreset')}
                         </Button>
-                        <span className="text-[10px] leading-4 text-muted-foreground">{t('agents.settings.toolPolicyFilterPresetsHelp')}</span>
+                        <span className="type-tiny leading-4 text-muted-foreground">{t('agents.settings.toolPolicyFilterPresetsHelp')}</span>
                       </div>
                       {agentSettings.toolPolicyFilterPresets.length > 0 ? (
                         <div className="mt-2 flex flex-wrap gap-2">
@@ -2212,11 +2212,11 @@ export default function AIAgentSettingsPage() {
                           ))}
                         </div>
                       ) : (
-                        <p className="mt-2 text-[10px] leading-4 text-muted-foreground">{t('agents.settings.toolPolicyFilterPresetsEmpty')}</p>
+                        <p className="mt-2 type-tiny leading-4 text-muted-foreground">{t('agents.settings.toolPolicyFilterPresetsEmpty')}</p>
                       )}
                     </div>
                     <div data-testid="agent-settings-tool-policy-bulk-actions" className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-background p-2">
-                      <span className="text-[11px] font-medium text-foreground">{t('agents.settings.toolPolicyBulkActions')}</span>
+                      <span className="type-caption font-medium text-foreground">{t('agents.settings.toolPolicyBulkActions')}</span>
                       <Button type="button" size="sm" variant="outline" onClick={() => applyToolPolicyBulkEdit('allow_available')} disabled={toolPolicyFilteredTools.length === 0}>
                         {t('agents.settings.toolPolicyBulkAllowAvailable')}
                       </Button>
@@ -2232,11 +2232,11 @@ export default function AIAgentSettingsPage() {
                       <Button type="button" size="sm" variant="outline" onClick={() => applyToolPolicyBulkEdit('approval_always')} disabled={toolPolicyFilteredTools.length === 0}>
                         {t('agents.settings.toolPolicyBulkApprovalAlways')}
                       </Button>
-                      <span className="text-[10px] leading-4 text-muted-foreground">{t('agents.settings.toolPolicyBulkHelp')}</span>
+                      <span className="type-tiny leading-4 text-muted-foreground">{t('agents.settings.toolPolicyBulkHelp')}</span>
                     </div>
 
                     {toolPolicyFilteredTools.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">{t('agents.settings.noTools')}</p>
+                      <p className="type-label text-muted-foreground">{t('agents.settings.noTools')}</p>
                     ) : (
                       <div className="space-y-2">
                         {toolPolicyFilteredTools.map((tool) => (
@@ -2261,7 +2261,7 @@ export default function AIAgentSettingsPage() {
               </Panel>
 
               <Panel title={t('agents.settings.currentRuntime')}>
-                <div className="space-y-2 text-xs">
+                <div className="space-y-2 type-label">
                   <SummaryItem label={t('agents.settings.fields.baseUrl')} value={redactAgentTraceDebugText(localAgentClient.baseURL)} />
                   <SummaryItem label={t('agents.settings.fields.configuredModel')} value={configuredModelLabel} />
                   <SummaryItem label={t('agents.settings.fields.apiKind')} value={effectiveConfig?.apiKind ?? DEFAULT_API_KIND} />
@@ -2319,12 +2319,12 @@ export default function AIAgentSettingsPage() {
                       {t('agents.settings.importSettings')}
                     </Button>
                   </div>
-                  <p className="text-[11px] leading-4 text-muted-foreground">{t('agents.settings.settingsSnapshotHelp')}</p>
-                  {settingsSnapshotFileName && <p className="text-[11px] text-muted-foreground">{t('agents.settings.settingsSnapshotFileLoaded', { fileName: settingsSnapshotFileName })}</p>}
+                  <p className="type-caption leading-4 text-muted-foreground">{t('agents.settings.settingsSnapshotHelp')}</p>
+                  {settingsSnapshotFileName && <p className="type-caption text-muted-foreground">{t('agents.settings.settingsSnapshotFileLoaded', { fileName: settingsSnapshotFileName })}</p>}
                   {settingsImportBackup && (
                     <div data-testid="agent-settings-import-backup" className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2">
-                      <p className="text-xs font-medium text-foreground">{t('agents.settings.settingsImportBackup')}</p>
-                      <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">
+                      <p className="type-label font-medium text-foreground">{t('agents.settings.settingsImportBackup')}</p>
+                      <p className="mt-0.5 type-tiny leading-4 text-muted-foreground">
                         {t('agents.settings.settingsImportBackupHelp', { time: new Date(settingsImportBackup.createdAt).toLocaleString() })}
                       </p>
                       <div className="mt-2 flex flex-wrap gap-2">
@@ -2347,7 +2347,7 @@ export default function AIAgentSettingsPage() {
                     value={settingsSnapshotText}
                     onChange={(event) => updateSettingsSnapshotText(event.target.value)}
                     placeholder={t('agents.settings.settingsSnapshotPlaceholder')}
-                    className="min-h-36 text-xs"
+                    className="min-h-36 type-label"
                   />
                   {parsedSettingsSnapshot && <SettingsSnapshotSummary snapshot={parsedSettingsSnapshot} />}
                   {parsedSettingsSnapshot && (
@@ -2378,28 +2378,28 @@ export default function AIAgentSettingsPage() {
                   {!settingsSnapshotError && settingsSnapshotReferenceIssues.length > 0 && (
                     <InlineError>{t('agents.settings.settingsSnapshotInvalid', { error: settingsSnapshotReferenceIssues.map((issue) => issue.message).join('; ') })}</InlineError>
                   )}
-                  {settingsSnapshotMessage && <p className="text-[11px] text-muted-foreground">{settingsSnapshotMessage}</p>}
+                  {settingsSnapshotMessage && <p className="type-caption text-muted-foreground">{settingsSnapshotMessage}</p>}
                 </div>
               </Panel>
 
               <Panel title={t('agents.settings.modelRoutesPanel')}>
                 {modelRoutes.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">{t('agents.settings.modelRoutesEmpty')}</p>
+                  <p className="type-label text-muted-foreground">{t('agents.settings.modelRoutesEmpty')}</p>
                 ) : (
                   <div className="space-y-2">
                     {modelRoutes.map((route) => (
                       <div key={route.capability} className="rounded-md border border-border bg-muted/20 p-2">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-medium text-foreground">{t(`agents.settings.modelCapabilities.${route.capability}`)}</span>
-                          <Badge variant={route.configured ? 'default' : 'outline'} className="text-[10px]">
+                          <span className="type-label font-medium text-foreground">{t(`agents.settings.modelCapabilities.${route.capability}`)}</span>
+                          <Badge variant={route.configured ? 'default' : 'outline'} className="type-tiny">
                             {route.configured ? t('agents.settings.modelRouteConfigured') : t('agents.settings.modelRouteUnavailable')}
                           </Badge>
                         </div>
-                        <p className="mt-1 text-[10px] text-muted-foreground">
+                        <p className="mt-1 type-tiny text-muted-foreground">
                           {t(`agents.settings.modelRouteSources.${route.source}`)}
                         </p>
                         {route.model && (
-                          <p className="mt-1 truncate text-[10px] text-muted-foreground">
+                          <p className="mt-1 truncate type-tiny text-muted-foreground">
                             {t('agents.settings.modelRouteModel')}: {redactAgentTraceDebugText(route.model)}
                           </p>
                         )}
@@ -2412,7 +2412,7 @@ export default function AIAgentSettingsPage() {
               {usesModelCatalog ? (
                 <Panel title={t('agents.settings.availableModels')}>
                   {textModels.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">{t('agents.settings.noTextModels')}</p>
+                    <p className="type-label text-muted-foreground">{t('agents.settings.noTextModels')}</p>
                   ) : (
                     <div className="space-y-2">
                       {textModels.slice(0, 12).map((model) => (
@@ -2426,10 +2426,10 @@ export default function AIAgentSettingsPage() {
                           )}
                         >
                           <div className="flex items-start justify-between gap-2">
-                            <span className="min-w-0 truncate text-xs font-medium text-foreground">{publicModelLabel(model, true)}</span>
+                            <span className="min-w-0 truncate type-label font-medium text-foreground">{publicModelLabel(model, true)}</span>
                             {selectedModelId === publicModelId(model) && <CheckCircle2 size={13} className="shrink-0 text-primary" />}
                           </div>
-                          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{model.capabilities.join(', ')}</p>
+                          <p className="mt-0.5 truncate type-tiny text-muted-foreground">{model.capabilities.join(', ')}</p>
                         </button>
                       ))}
                     </div>
@@ -2437,7 +2437,7 @@ export default function AIAgentSettingsPage() {
                 </Panel>
               ) : (
                 <Panel title={t('agents.settings.providerModelPanel')}>
-                  <p className="text-xs leading-5 text-muted-foreground">{t('agents.settings.providerModelPanelHelp')}</p>
+                  <p className="type-label leading-5 text-muted-foreground">{t('agents.settings.providerModelPanelHelp')}</p>
                 </Panel>
               )}
             </aside>
@@ -3508,10 +3508,10 @@ function SettingsSnapshotImportScopeSelector({
   const { t } = useTranslation()
   return (
     <div data-testid="agent-settings-snapshot-import-scopes" className="rounded-md border border-border bg-background p-2">
-      <p className="text-xs font-medium text-foreground">{t('agents.settings.settingsSnapshotImportScopes')}</p>
-      <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">{t('agents.settings.settingsSnapshotImportScopesHelp')}</p>
+      <p className="type-label font-medium text-foreground">{t('agents.settings.settingsSnapshotImportScopes')}</p>
+      <p className="mt-0.5 type-tiny leading-4 text-muted-foreground">{t('agents.settings.settingsSnapshotImportScopesHelp')}</p>
       <div data-testid="agent-settings-snapshot-import-presets" className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="text-[10px] font-medium text-muted-foreground">{t('agents.settings.settingsSnapshotImportPresets')}</span>
+        <span className="type-tiny font-medium text-muted-foreground">{t('agents.settings.settingsSnapshotImportPresets')}</span>
         {SETTINGS_SNAPSHOT_IMPORT_PRESETS.map((preset) => {
           const enabled = preset.scopes.some((scope) => settingsSnapshotImportScopeAvailable(snapshot, scope))
           return (
@@ -3529,7 +3529,7 @@ function SettingsSnapshotImportScopeSelector({
           )
         })}
       </div>
-      <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{t('agents.settings.settingsSnapshotImportPresetsHelp')}</p>
+      <p className="mt-1 type-tiny leading-4 text-muted-foreground">{t('agents.settings.settingsSnapshotImportPresetsHelp')}</p>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         {SETTINGS_SNAPSHOT_IMPORT_SCOPES.map((scope) => {
           const available = settingsSnapshotImportScopeAvailable(snapshot, scope)
@@ -3552,8 +3552,8 @@ function SettingsSnapshotImportScopeSelector({
                 className="mt-0.5 size-4 rounded border-input"
               />
               <span className="min-w-0">
-                <span className="block text-xs font-medium text-foreground">{t(SETTINGS_SNAPSHOT_IMPORT_SCOPE_LABEL_KEYS[scope])}</span>
-                <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">
+                <span className="block type-label font-medium text-foreground">{t(SETTINGS_SNAPSHOT_IMPORT_SCOPE_LABEL_KEYS[scope])}</span>
+                <span className="mt-0.5 block type-tiny leading-4 text-muted-foreground">
                   {t(`agents.settings.settingsSnapshotImportScopeDetails.${scope}`)}
                 </span>
               </span>
@@ -3569,8 +3569,8 @@ function SettingsSnapshotSummary({ snapshot }: { snapshot: AgentSettingsSnapshot
   const { t } = useTranslation()
   return (
     <div data-testid="agent-settings-snapshot-summary" className="rounded-md border border-border bg-muted/20 p-2">
-      <p className="text-xs font-medium text-foreground">{t('agents.settings.settingsSnapshotSummary')}</p>
-      <div className="mt-2 grid gap-2 text-[11px] sm:grid-cols-2">
+      <p className="type-label font-medium text-foreground">{t('agents.settings.settingsSnapshotSummary')}</p>
+      <div className="mt-2 grid gap-2 type-caption sm:grid-cols-2">
         <SummaryItem label={t('agents.settings.settingsSnapshotFields.exportedAt')} value={new Date(snapshot.exportedAt).toLocaleString()} />
         <SummaryItem label={t('agents.settings.settingsSnapshotFields.model')} value={snapshot.modelConfig?.model ? redactAgentTraceDebugText(snapshot.modelConfig.model) : '-'} />
         <SummaryItem label={t('agents.settings.settingsSnapshotFields.profile')} value={snapshot.defaultProfileId ?? '-'} />
@@ -3601,7 +3601,7 @@ function SettingsAuditTrailPanel({ entries, onClear }: { entries: AgentSettingsA
   if (entries.length === 0) {
     return (
       <div data-testid="agent-settings-audit-trail" className="space-y-2">
-        <div className="rounded-md border border-border bg-muted/20 p-2 text-xs text-muted-foreground">
+        <div className="rounded-md border border-border bg-muted/20 p-2 type-label text-muted-foreground">
           {t('agents.settings.settingsAuditEmpty')}
         </div>
       </div>
@@ -3610,7 +3610,7 @@ function SettingsAuditTrailPanel({ entries, onClear }: { entries: AgentSettingsA
   return (
     <div data-testid="agent-settings-audit-trail" className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] text-muted-foreground">{t('agents.settings.settingsAuditHelp')}</span>
+        <span className="type-caption text-muted-foreground">{t('agents.settings.settingsAuditHelp')}</span>
         <span className="flex shrink-0 flex-wrap gap-1.5">
           <Button type="button" size="sm" variant="outline" onClick={() => void copyAuditSummary()} data-testid="agent-settings-copy-audit">
             <Clipboard size={13} />
@@ -3637,8 +3637,8 @@ function SettingsAuditTrailPanel({ entries, onClear }: { entries: AgentSettingsA
             >
               <div className="flex items-start justify-between gap-2">
                 <span className="min-w-0">
-                  <span className="block text-[11px] font-medium text-foreground">{redactAgentTraceDebugText(entry.summary)}</span>
-                  <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">{new Date(entry.createdAt).toLocaleString()}</span>
+                  <span className="block type-caption font-medium text-foreground">{redactAgentTraceDebugText(entry.summary)}</span>
+                  <span className="mt-0.5 block type-tiny leading-4 text-muted-foreground">{new Date(entry.createdAt).toLocaleString()}</span>
                 </span>
                 <span className="flex shrink-0 flex-wrap justify-end gap-1">
                   <Badge variant="secondary">{t(`agents.settings.auditTargets.${entry.target}`)}</Badge>
@@ -3676,7 +3676,7 @@ function SettingsSnapshotImpactPreview({ snapshot }: { snapshot: AgentSettingsSn
   return (
     <div data-testid="agent-settings-snapshot-impact" className="rounded-md border border-border bg-background p-2">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-foreground">{t('agents.settings.settingsSnapshotImpactPreview')}</p>
+        <p className="type-label font-medium text-foreground">{t('agents.settings.settingsSnapshotImpactPreview')}</p>
         <Button type="button" size="sm" variant="outline" onClick={() => void copySnapshotImpactSummary()} data-testid="agent-settings-copy-snapshot-impact">
           <Clipboard size={13} />
           {copied ? t('agents.settings.settingsSnapshotImpactCopied') : t('agents.settings.copySettingsSnapshotImpact')}
@@ -3686,8 +3686,8 @@ function SettingsSnapshotImpactPreview({ snapshot }: { snapshot: AgentSettingsSn
         {items.map((item) => (
           <div key={item.id} data-testid="agent-settings-snapshot-impact-item" className="flex items-start justify-between gap-2 rounded border border-border bg-muted/20 px-2 py-1.5">
             <span className="min-w-0">
-              <span className="block text-[11px] font-medium text-foreground">{t(item.labelKey)}</span>
-              <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">{t(item.detailKey, item.detailValues)}</span>
+              <span className="block type-caption font-medium text-foreground">{t(item.labelKey)}</span>
+              <span className="mt-0.5 block type-tiny leading-4 text-muted-foreground">{t(item.detailKey, item.detailValues)}</span>
             </span>
             <Badge variant={item.scope === 'runtime' ? 'warning' : item.scope === 'local' ? 'secondary' : 'outline'} className="shrink-0">
               {t(`agents.settings.settingsSnapshotImpactScopes.${item.scope}`)}
@@ -3790,12 +3790,12 @@ function RunPresetRow({ preset, active, onSelect }: { preset: AgentRunPreset; ac
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-xs font-medium text-foreground">{preset.name}</p>
-          <p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-muted-foreground">{preset.description}</p>
+          <p className="truncate type-label font-medium text-foreground">{preset.name}</p>
+          <p className="mt-0.5 line-clamp-2 type-tiny leading-4 text-muted-foreground">{preset.description}</p>
         </div>
         {active && <CheckCircle2 size={13} className="shrink-0 text-primary" />}
       </div>
-      <div className="mt-2 flex flex-wrap gap-1 text-[10px] text-muted-foreground">
+      <div className="mt-2 flex flex-wrap gap-1 type-tiny text-muted-foreground">
         <span className="rounded bg-muted px-1.5 py-0.5">{t('agents.settings.runPresetFields.maxToolCalls')}: {preset.maxToolCalls}</span>
         <span className="rounded bg-muted px-1.5 py-0.5">{t('agents.settings.runPresetFields.maxIterations')}: {preset.maxIterations}</span>
         <span className="rounded bg-muted px-1.5 py-0.5">{t(`agents.settings.runPresetPermissionModes.${preset.permissionMode}`)}</span>
@@ -3884,7 +3884,7 @@ function SettingsActionItemsPanel({
             {copied ? t('agents.settings.actionItemsCopied') : t('agents.settings.copyActionItems')}
           </Button>
         </div>
-        <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2 text-xs text-emerald-800 dark:text-emerald-300">
+        <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2 type-label text-emerald-800 dark:text-emerald-300">
           {t('agents.settings.actionItemsEmpty')}
         </div>
         {feedback && <ActionFeedback text={feedback} />}
@@ -3895,7 +3895,7 @@ function SettingsActionItemsPanel({
     <div data-testid="agent-settings-action-items" className="space-y-2">
       {feedback && <ActionFeedback text={feedback} />}
       <div className="flex items-center justify-between gap-2">
-        <span data-testid="agent-settings-action-items-counts" className="text-[11px] text-muted-foreground">
+        <span data-testid="agent-settings-action-items-counts" className="type-caption text-muted-foreground">
           {t('agents.settings.actionItemsCountSummary', { actions: actionCount, warnings: warningCount })}
         </span>
         <Button type="button" size="sm" variant="outline" onClick={() => void copyActionItemsSummary()} data-testid="agent-settings-copy-action-items">
@@ -3916,19 +3916,19 @@ function SettingsActionItemsPanel({
         >
           <span className="flex items-start justify-between gap-2">
             <span className="min-w-0">
-              <span className="block text-xs font-medium text-foreground">{t(item.labelKey)}</span>
-              <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">{t(item.detailKey, item.detailValues)}</span>
+              <span className="block type-label font-medium text-foreground">{t(item.labelKey)}</span>
+              <span className="mt-0.5 block type-tiny leading-4 text-muted-foreground">{t(item.detailKey, item.detailValues)}</span>
               {item.reasons && item.reasons.length > 0 && (
                 <span data-testid="agent-settings-action-item-reasons" className="mt-1 flex flex-wrap gap-1">
                   {item.reasons.map((reason) => (
-                    <span key={`${reason.labelKey}:${JSON.stringify(reason.values ?? {})}`} className="rounded bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                    <span key={`${reason.labelKey}:${JSON.stringify(reason.values ?? {})}`} className="rounded bg-background px-1.5 py-0.5 type-tiny text-muted-foreground">
                       {t(reason.labelKey, reason.values)}
                     </span>
                   ))}
                 </span>
               )}
               {item.persistHintKey && (
-                <span data-testid="agent-settings-action-persist-hint" className="mt-1 block text-[10px] leading-4 text-amber-800 dark:text-amber-200">
+                <span data-testid="agent-settings-action-persist-hint" className="mt-1 block type-tiny leading-4 text-amber-800 dark:text-amber-200">
                   {t(item.persistHintKey)}
                 </span>
               )}
@@ -3959,7 +3959,7 @@ function settingsSectionLabelKey(sectionId: SettingsActionItem['targetSection'])
 
 function ActionFeedback({ text }: { text: string }) {
   return (
-    <div data-testid="agent-settings-action-feedback" role="status" className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1.5 text-[11px] leading-4 text-emerald-800 dark:text-emerald-300">
+    <div data-testid="agent-settings-action-feedback" role="status" className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1.5 type-caption leading-4 text-emerald-800 dark:text-emerald-300">
       {text}
     </div>
   )
@@ -3976,8 +3976,8 @@ function ConfigurationMapPanel({ onJump }: { onJump: (sectionId: string) => void
           onClick={() => onJump(section.id)}
           className="w-full rounded-md border border-border bg-muted/20 px-2 py-1.5 text-left transition-colors hover:bg-muted/40"
         >
-          <span className="block text-xs font-medium text-foreground">{t(section.labelKey)}</span>
-          <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">{t(section.descriptionKey)}</span>
+          <span className="block type-label font-medium text-foreground">{t(section.labelKey)}</span>
+          <span className="mt-0.5 block type-tiny leading-4 text-muted-foreground">{t(section.descriptionKey)}</span>
         </button>
       ))}
     </div>
@@ -3995,8 +3995,8 @@ function SettingsReadinessRow({ item }: { item: SettingsReadinessItem }) {
     <div className="flex items-start gap-2 rounded-md border border-border bg-muted/20 p-2">
       <span className="mt-0.5 shrink-0">{icon}</span>
       <span className="min-w-0">
-        <span className="block text-xs font-medium text-foreground">{t(item.labelKey)}</span>
-        <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">{t(item.detailKey, item.detailValues)}</span>
+        <span className="block type-label font-medium text-foreground">{t(item.labelKey)}</span>
+        <span className="mt-0.5 block type-tiny leading-4 text-muted-foreground">{t(item.detailKey, item.detailValues)}</span>
       </span>
     </div>
   )
@@ -4020,7 +4020,7 @@ function SkillRow({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
-            <p className="truncate text-xs font-medium text-foreground">{skill.name}</p>
+            <p className="truncate type-label font-medium text-foreground">{skill.name}</p>
             <Badge variant={skill.enabled === false ? 'outline' : 'success'}>{skill.enabled === false ? t('agents.settings.skillStatus.disabled') : t('agents.settings.skillStatus.enabled')}</Badge>
             <Badge variant="secondary">{skillKindLabel(skill.kind, t)}</Badge>
             <Badge variant="outline">{skillLoadModeLabel(skill.loadMode, t)}</Badge>
@@ -4028,14 +4028,14 @@ function SkillRow({
             <Badge variant="outline">{skillSourceLabel(skill, t)}</Badge>
             <Badge variant={skillTrustLevel(skill) === 'review' ? 'warning' : skillTrustLevel(skill) === 'trusted' ? 'success' : 'secondary'}>{skillTrustLabel(skill, t)}</Badge>
           </div>
-          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{skill.id}</p>
+          <p className="mt-0.5 truncate type-tiny text-muted-foreground">{skill.id}</p>
         </div>
-        {typeof skill.priority === 'number' && <span className="text-[10px] text-muted-foreground">p{skill.priority}</span>}
+        {typeof skill.priority === 'number' && <span className="type-tiny text-muted-foreground">p{skill.priority}</span>}
       </div>
-      {skill.description && <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{skill.description}</p>}
+      {skill.description && <p className="mt-1 line-clamp-2 type-caption leading-4 text-muted-foreground">{skill.description}</p>}
       {draft && (
         <label className={cn(
-          'mt-2 flex items-start gap-2 rounded bg-background px-2 py-1.5 text-[11px]',
+          'mt-2 flex items-start gap-2 rounded bg-background px-2 py-1.5 type-caption',
           isCore ? 'cursor-not-allowed opacity-70' : 'cursor-pointer',
         )}>
           <input
@@ -4056,7 +4056,7 @@ function SkillRow({
         </label>
       )}
       {(dependencyCount > 0 || conflictCount > 0 || (skill.tags?.length ?? 0) > 0) && (
-        <div className="mt-2 flex flex-wrap gap-1 text-[10px] text-muted-foreground">
+        <div className="mt-2 flex flex-wrap gap-1 type-tiny text-muted-foreground">
           {dependencyCount > 0 && <span className="rounded bg-background px-1.5 py-0.5">{t('agents.settings.skillFields.dependencies')}: {dependencyCount}</span>}
           {conflictCount > 0 && <span className="rounded bg-background px-1.5 py-0.5">{t('agents.settings.skillFields.conflicts')}: {conflictCount}</span>}
           {skill.tags?.slice(0, 4).map((tag) => <span key={tag} className="rounded bg-background px-1.5 py-0.5">{tag}</span>)}
@@ -4076,16 +4076,16 @@ function ProfileRow({ profile, current = false, preview = false }: { profile: Ag
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
-            <p className="truncate text-xs font-medium text-foreground">{profile.name}</p>
+            <p className="truncate type-label font-medium text-foreground">{profile.name}</p>
             {current && <Badge variant="success">{t('agents.settings.profileStatus.current')}</Badge>}
             {preview && <Badge variant="secondary">{t('agents.settings.profileStatus.selected')}</Badge>}
             <Badge variant="secondary">v{profile.version}</Badge>
           </div>
-          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{profile.id}</p>
+          <p className="mt-0.5 truncate type-tiny text-muted-foreground">{profile.id}</p>
         </div>
       </div>
-      {profile.description && <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{profile.description}</p>}
-      <div className="mt-2 grid gap-2 text-[10px] text-muted-foreground sm:grid-cols-2">
+      {profile.description && <p className="mt-1 line-clamp-2 type-caption leading-4 text-muted-foreground">{profile.description}</p>}
+      <div className="mt-2 grid gap-2 type-tiny text-muted-foreground sm:grid-cols-2">
         <ProfileSummaryList label={t('agents.settings.profileFields.packs')} values={profile.enabledPacks} />
         <ProfileSummaryList label={t('agents.settings.profileFields.workflows')} values={profile.enabledWorkflows} />
         <ProfileSummaryList label={t('agents.settings.profileFields.policies')} values={profile.enabledPolicies} />
@@ -4099,7 +4099,7 @@ function ProfileDiffPanel({ diff }: { diff: ProfileDiff }) {
   const { t } = useTranslation()
   return (
     <div className="rounded-md border border-border bg-muted/20 p-2">
-      <p className="text-xs font-medium text-foreground">{t('agents.settings.profileDiffTitle')}</p>
+      <p className="type-label font-medium text-foreground">{t('agents.settings.profileDiffTitle')}</p>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         <ProfileDiffSectionView label={t('agents.settings.profileFields.packs')} section={diff.packs} />
         <ProfileDiffSectionView label={t('agents.settings.profileFields.workflows')} section={diff.workflows} />
@@ -4114,7 +4114,7 @@ function ProfileDiffSectionView({ label, section }: { label: string; section: Pr
   const { t } = useTranslation()
   const hasChanges = section.added.length > 0 || section.removed.length > 0 || (section.changed?.length ?? 0) > 0
   return (
-    <div className="min-w-0 rounded bg-background px-2 py-1.5 text-[10px]">
+    <div className="min-w-0 rounded bg-background px-2 py-1.5 type-tiny">
       <p className="font-medium text-foreground">{label}</p>
       {hasChanges ? (
         <div className="mt-1 space-y-0.5 text-muted-foreground">
@@ -4162,8 +4162,8 @@ function ToolPolicyDiffPreview({ items }: { items: ToolPolicyDiffItem[] }) {
     <div data-testid="agent-settings-tool-policy-diff" className="rounded-md border border-border bg-background p-2">
       <div className="flex items-center justify-between gap-2">
         <span>
-          <p className="text-xs font-medium text-foreground">{t('agents.settings.toolPolicyDiffPreview')}</p>
-          <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">
+          <p className="type-label font-medium text-foreground">{t('agents.settings.toolPolicyDiffPreview')}</p>
+          <p className="mt-0.5 type-tiny leading-4 text-muted-foreground">
             {t('agents.settings.toolPolicyDiffSummary', { added, removed, changed })}
           </p>
         </span>
@@ -4176,8 +4176,8 @@ function ToolPolicyDiffPreview({ items }: { items: ToolPolicyDiffItem[] }) {
         {items.slice(0, 8).map((item) => (
           <div key={`${item.change}:${item.name}`} data-testid="agent-settings-tool-policy-diff-item" className="flex items-start justify-between gap-2 rounded border border-border bg-muted/20 px-2 py-1.5">
             <span className="min-w-0">
-              <span className="block text-[11px] font-medium text-foreground">{item.name}</span>
-              <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">
+              <span className="block type-caption font-medium text-foreground">{item.name}</span>
+              <span className="mt-0.5 block type-tiny leading-4 text-muted-foreground">
                 {formatToolPolicyDiffValue(t, item.beforeMode, item.beforeApproval)} {'->'} {formatToolPolicyDiffValue(t, item.afterMode, item.afterApproval)}
               </span>
             </span>
@@ -4225,23 +4225,23 @@ function ToolPolicyRow({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
-            <p className="truncate text-xs font-medium text-foreground">{tool.name}</p>
+            <p className="truncate type-label font-medium text-foreground">{tool.name}</p>
             <Badge variant={tool.available ? 'success' : 'warning'}>{tool.available ? t('agents.settings.toolPolicyStatus.available') : t('agents.settings.toolPolicyStatus.blocked')}</Badge>
             {profileGranted && <Badge variant="secondary">{t('agents.settings.toolPolicyStatus.profileGranted')}</Badge>}
           </div>
-          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+          <p className="mt-0.5 truncate type-tiny text-muted-foreground">
             {tool.source} / {tool.permission ?? t('agents.settings.toolPolicyValues.none')} / {tool.risk ?? t('agents.settings.toolPolicyValues.unknown')}
           </p>
         </div>
         <Badge variant={tool.requiresApproval ? 'warning' : 'outline'}>{tool.approval}</Badge>
       </div>
-      {tool.description && <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{tool.description}</p>}
+      {tool.description && <p className="mt-1 line-clamp-2 type-caption leading-4 text-muted-foreground">{tool.description}</p>}
       {draft && (
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-[10px] font-medium text-muted-foreground">{t('agents.settings.toolPolicyFields.mode')}</label>
+            <label className="mb-1 block type-tiny font-medium text-muted-foreground">{t('agents.settings.toolPolicyFields.mode')}</label>
             <Select value={draft.mode} onValueChange={(value) => onDraftChange(tool.name, { mode: value as ToolGrantDraft['mode'] })}>
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className="h-8 type-label">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -4250,13 +4250,13 @@ function ToolPolicyRow({
               </SelectContent>
             </Select>
             {!canAllow && (
-              <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{t('agents.settings.toolPolicyAllowDisabled')}</p>
+              <p className="mt-1 type-tiny leading-4 text-muted-foreground">{t('agents.settings.toolPolicyAllowDisabled')}</p>
             )}
           </div>
           <div>
-            <label className="mb-1 block text-[10px] font-medium text-muted-foreground">{t('agents.settings.toolPolicyFields.approval')}</label>
+            <label className="mb-1 block type-tiny font-medium text-muted-foreground">{t('agents.settings.toolPolicyFields.approval')}</label>
             <Select value={draft.approval ?? 'never'} onValueChange={(value) => onDraftChange(tool.name, { approval: value as NonNullable<ToolGrantDraft['approval']> })}>
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className="h-8 type-label">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -4268,7 +4268,7 @@ function ToolPolicyRow({
           </div>
         </div>
       )}
-      <div className="mt-2 flex flex-wrap gap-1 text-[10px] text-muted-foreground">
+      <div className="mt-2 flex flex-wrap gap-1 type-tiny text-muted-foreground">
         <span className="rounded bg-background px-1.5 py-0.5">
           {t('agents.settings.toolPolicyFields.registered')}: {tool.registered ? t('agents.settings.toolPolicyValues.yes') : t('agents.settings.toolPolicyValues.no')}
         </span>
@@ -4324,8 +4324,8 @@ function ApiModeCapabilityMatrix({ apiKind, t }: { apiKind: RuntimeModelAPIKind;
     <div data-testid="agent-settings-api-mode-capabilities" className="rounded-md border border-border bg-muted/20 p-2">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-xs font-medium text-foreground">{t('agents.settings.apiModeCapabilityPanel')}</p>
-          <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{t('agents.settings.apiModeCapabilityHelp')}</p>
+          <p className="type-label font-medium text-foreground">{t('agents.settings.apiModeCapabilityPanel')}</p>
+          <p className="mt-0.5 type-caption leading-4 text-muted-foreground">{t('agents.settings.apiModeCapabilityHelp')}</p>
         </div>
         <Badge variant={apiModeCapabilityBadgeVariant(mode.badge)} className="shrink-0">
           {t(`agents.settings.apiModeCapabilityBadges.${mode.badge}`)}
@@ -4334,8 +4334,8 @@ function ApiModeCapabilityMatrix({ apiKind, t }: { apiKind: RuntimeModelAPIKind;
       <div className="mt-2 grid gap-2 sm:grid-cols-2" data-testid="agent-settings-api-mode-capability-items">
         {mode.itemKeys.map((itemKey) => (
           <div key={itemKey} data-testid="agent-settings-api-mode-capability-item" className="rounded border border-border bg-background px-2 py-1.5">
-            <p className="text-[11px] font-medium leading-4 text-foreground">{t(`agents.settings.apiModeCapabilityItems.${itemKey}.label`)}</p>
-            <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">{t(`agents.settings.apiModeCapabilityItems.${itemKey}.detail`)}</p>
+            <p className="type-caption font-medium leading-4 text-foreground">{t(`agents.settings.apiModeCapabilityItems.${itemKey}.label`)}</p>
+            <p className="mt-0.5 type-tiny leading-4 text-muted-foreground">{t(`agents.settings.apiModeCapabilityItems.${itemKey}.detail`)}</p>
           </div>
         ))}
       </div>
@@ -4347,15 +4347,15 @@ function ModelCompatibilityProbePanel({ probes }: { probes: ModelCompatibilityPr
   const { t } = useTranslation()
   return (
     <div data-testid="agent-settings-model-compatibility-probes" className="rounded-md border border-border bg-background p-2">
-      <p className="text-xs font-medium text-foreground">{t('agents.settings.modelCompatibilityPanel')}</p>
-      <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{t('agents.settings.modelCompatibilityHelp')}</p>
+      <p className="type-label font-medium text-foreground">{t('agents.settings.modelCompatibilityPanel')}</p>
+      <p className="mt-0.5 type-caption leading-4 text-muted-foreground">{t('agents.settings.modelCompatibilityHelp')}</p>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         {probes.map((probe) => (
           <div key={probe.id} data-testid="agent-settings-model-compatibility-probe" className="rounded border border-border bg-muted/20 px-2 py-1.5">
             <div className="flex items-start justify-between gap-2">
               <span className="min-w-0">
-                <span className="block text-[11px] font-medium leading-4 text-foreground">{t(probe.labelKey)}</span>
-                <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">{t(probe.detailKey, probe.detailValues)}</span>
+                <span className="block type-caption font-medium leading-4 text-foreground">{t(probe.labelKey)}</span>
+                <span className="mt-0.5 block type-tiny leading-4 text-muted-foreground">{t(probe.detailKey, probe.detailValues)}</span>
               </span>
               <Badge variant={probe.status === 'ready' ? 'success' : probe.status === 'warning' ? 'warning' : 'destructive'} className="shrink-0">
                 {t(`agents.settings.modelCompatibilityStatuses.${probe.status}`)}
@@ -4381,8 +4381,8 @@ function ApiModeMigrationGuide({
     <div data-testid="agent-settings-api-mode-migration-guide" data-api-kind={apiKind} className="rounded-md border border-border bg-background p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <span className="min-w-0">
-          <p className="text-xs font-medium text-foreground">{t('agents.settings.apiModeMigrationGuide')}</p>
-          <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{t(`agents.settings.apiModeMigration.${apiKind}.detail`)}</p>
+          <p className="type-label font-medium text-foreground">{t('agents.settings.apiModeMigrationGuide')}</p>
+          <p className="mt-0.5 type-caption leading-4 text-muted-foreground">{t(`agents.settings.apiModeMigration.${apiKind}.detail`)}</p>
         </span>
         {apiKind === 'openai_chat_completions' && (
           <Button type="button" size="sm" variant="outline" onClick={onSwitchToResponses} data-testid="agent-settings-switch-responses-from-migration">
@@ -4393,8 +4393,8 @@ function ApiModeMigrationGuide({
       <div className="mt-2 grid gap-1.5 sm:grid-cols-3">
         {stepKeys.map((stepKey, index) => (
           <div key={stepKey} data-testid="agent-settings-api-mode-migration-step" className="rounded border border-border bg-muted/20 px-2 py-1.5">
-            <p className="text-[10px] font-medium uppercase text-muted-foreground">{t('agents.settings.apiModeMigrationStep', { index: index + 1 })}</p>
-            <p className="mt-0.5 text-[11px] leading-4 text-foreground">{t(`agents.settings.apiModeMigrationSteps.${stepKey}`)}</p>
+            <p className="type-tiny font-medium uppercase text-muted-foreground">{t('agents.settings.apiModeMigrationStep', { index: index + 1 })}</p>
+            <p className="mt-0.5 type-caption leading-4 text-foreground">{t(`agents.settings.apiModeMigrationSteps.${stepKey}`)}</p>
           </div>
         ))}
       </div>
@@ -4424,8 +4424,8 @@ function ApiModeSwitchPlanPanel({ apiKind, items }: { apiKind: RuntimeModelAPIKi
     <div data-testid="agent-settings-api-mode-switch-plan" className="rounded-md border border-border bg-background p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <span className="min-w-0">
-          <p className="text-xs font-medium text-foreground">{t('agents.settings.apiModeSwitchPlanTitle')}</p>
-          <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
+          <p className="type-label font-medium text-foreground">{t('agents.settings.apiModeSwitchPlanTitle')}</p>
+          <p className="mt-0.5 type-caption leading-4 text-muted-foreground">
             {t('agents.settings.apiModeSwitchPlanHelp', { actions: actionCount, warnings: warningCount })}
           </p>
         </span>
@@ -4439,8 +4439,8 @@ function ApiModeSwitchPlanPanel({ apiKind, items }: { apiKind: RuntimeModelAPIKi
           <div key={item.id} data-testid="agent-settings-api-mode-switch-plan-item" className="rounded border border-border bg-muted/20 px-2 py-1.5">
             <div className="flex items-start justify-between gap-2">
               <span className="min-w-0">
-                <span className="block text-[11px] font-medium leading-4 text-foreground">{t(item.labelKey)}</span>
-                <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">{t(item.detailKey, item.detailValues)}</span>
+                <span className="block type-caption font-medium leading-4 text-foreground">{t(item.labelKey)}</span>
+                <span className="mt-0.5 block type-tiny leading-4 text-muted-foreground">{t(item.detailKey, item.detailValues)}</span>
               </span>
               <Badge variant={item.status === 'ready' ? 'success' : item.status === 'warning' ? 'warning' : 'destructive'} className="shrink-0">
                 {t(`agents.settings.modelCompatibilityStatuses.${item.status}`)}
@@ -4465,7 +4465,7 @@ function Panel({ id, title, children }: { id?: string; title: string; children: 
     <section id={id} className="scroll-mt-4 rounded-md border border-border bg-background">
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
         <Bot size={13} className="text-muted-foreground" />
-        <h2 className="text-xs font-semibold text-foreground">{title}</h2>
+        <h2 className="type-label font-semibold text-foreground">{title}</h2>
       </div>
       <div className="p-3">{children}</div>
     </section>
@@ -4482,8 +4482,8 @@ function ToggleRow({ checked, onChange, title, description }: { checked: boolean
         className="mt-0.5 size-4 rounded border-input"
       />
       <span className="min-w-0">
-        <span className="block text-xs font-medium text-foreground">{title}</span>
-        <span className="mt-0.5 block text-[11px] leading-4 text-muted-foreground">{description}</span>
+        <span className="block type-label font-medium text-foreground">{title}</span>
+        <span className="mt-0.5 block type-caption leading-4 text-muted-foreground">{description}</span>
       </span>
     </label>
   )
@@ -4492,20 +4492,20 @@ function ToggleRow({ checked, onChange, title, description }: { checked: boolean
 function SummaryItem({ label, value }: { label: string; value?: string | number | null }) {
   return (
     <div className="min-w-0 rounded-md border border-border bg-muted/20 px-2 py-1.5">
-      <p className="text-[10px] text-muted-foreground">{label}</p>
-      <p className="mt-0.5 truncate text-xs font-medium text-foreground">{value ?? '-'}</p>
+      <p className="type-tiny text-muted-foreground">{label}</p>
+      <p className="mt-0.5 truncate type-label font-medium text-foreground">{value ?? '-'}</p>
     </div>
   )
 }
 
 function InlineError({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">{children}</div>
+  return <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2 type-label text-destructive">{children}</div>
 }
 
 function StateMessage({ icon, text, tone = 'muted' }: { icon: React.ReactNode; text: string; tone?: 'muted' | 'danger' }) {
   return (
     <div className={cn(
-      'flex items-center gap-2 rounded-md border p-3 text-sm',
+      'flex items-center gap-2 rounded-md border p-3 type-body',
       tone === 'danger' ? 'border-destructive/30 bg-destructive/10 text-destructive' : 'border-border bg-muted/20 text-muted-foreground',
     )}>
       {icon}

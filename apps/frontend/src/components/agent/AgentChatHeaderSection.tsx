@@ -1,16 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronRight, History, Plus } from 'lucide-react'
-import {
-  AgentHeader,
-  AgentHeaderActions,
-  AgentHeaderContent,
-  AgentSubtitle,
-  AgentTitle,
-  Button,
-} from '@movscript/ui'
+import { History, PanelRightClose, Plus } from 'lucide-react'
+import { AgentHeader, Button } from '@movscript/ui'
 import { AgentConversationTabs } from '@/components/agent/AgentConversationTabs'
-import { conversationDisplayTitle } from '@/components/agent/AgentConversationList'
 import type { Conversation } from '@/store/agentStore'
 
 type ConversationTabMenuState = {
@@ -30,6 +22,8 @@ export interface AgentChatHeaderSectionProps {
   onCloseConversation: (id: string) => void
   onCloseConversations: (ids: string[]) => void
   onCollapse: () => void
+  showCollapse?: boolean
+  showConversationControls?: boolean
   onNewConversation: () => void
   onSelectConversation: (id: string) => void
 }
@@ -41,6 +35,8 @@ export function AgentChatHeaderSection({
   onCloseConversation,
   onCloseConversations,
   onCollapse,
+  showCollapse = true,
+  showConversationControls = true,
   onNewConversation,
   onSelectConversation,
 }: AgentChatHeaderSectionProps) {
@@ -175,35 +171,43 @@ export function AgentChatHeaderSection({
     )
   })() : null
 
+  if (!showConversationControls && !showCollapse) return null
+
   return (
     <AgentHeader className="ai-agent-panel-chat-header">
-      <AgentHeaderContent className="ai-agent-panel-header-content">
-        <div className="ai-agent-panel-title-row">
-          <Button size="icon-sm" variant="ghost" onClick={onCollapse} aria-label={t('agents.chat.collapseAssistant')} title={t('agents.chat.collapseAssistant')} className="ai-agent-panel-header-collapse">
-            <ChevronRight size={14} />
-          </Button>
-          <AgentTitle>{t('agents.chat.aiAssistant')}</AgentTitle>
+      <div className="ai-agent-panel-chat-toolbar">
+        {showConversationControls && (
+          <div className="ai-agent-panel-chat-toolbar-tabs">
+            <AgentConversationTabs
+              activeConversationId={activeConversation.id}
+              conversations={conversationTabs}
+              onCloseConversation={onCloseConversation}
+              onCloseTabContextMenu={closeTabContextMenu}
+              onOpenKeyboardMenu={openConversationTabKeyboardMenu}
+              onOpenMenu={openConversationTabMenu}
+              onSelectConversation={onSelectConversation}
+            />
+          </div>
+        )}
+        {showConversationControls ? tabContextMenuNode : null}
+        <div className="ai-agent-panel-chat-toolbar-actions">
+          {showConversationControls && (
+            <>
+              <Button size="icon-sm" variant="ghost" onClick={onNewConversation} aria-label={t('agents.chat.newConversation')} title={t('agents.chat.newConversation')}>
+                <Plus size={14} />
+              </Button>
+              <Button size="icon-sm" variant="ghost" onClick={onBack} aria-label={t('agents.chat.conversationHistory')} title={t('agents.chat.conversationHistory')}>
+                <History size={14} />
+              </Button>
+            </>
+          )}
+          {showCollapse && (
+            <Button size="icon-sm" variant="ghost" onClick={onCollapse} aria-label={t('agents.chat.collapseAssistant')} title={t('agents.chat.collapseAssistant')} className="ai-agent-panel-header-collapse">
+              <PanelRightClose size={15} />
+            </Button>
+          )}
         </div>
-        <AgentConversationTabs
-          activeConversationId={activeConversation.id}
-          conversations={conversationTabs}
-          onCloseConversation={onCloseConversation}
-          onCloseTabContextMenu={closeTabContextMenu}
-          onOpenKeyboardMenu={openConversationTabKeyboardMenu}
-          onOpenMenu={openConversationTabMenu}
-          onSelectConversation={onSelectConversation}
-        />
-        {tabContextMenuNode}
-        <AgentSubtitle className="sr-only">{conversationDisplayTitle(activeConversation, t)}</AgentSubtitle>
-      </AgentHeaderContent>
-      <AgentHeaderActions>
-        <Button size="icon-sm" variant="outline" onClick={onNewConversation} aria-label={t('agents.chat.newConversation')} title={t('agents.chat.newConversation')}>
-          <Plus size={14} />
-        </Button>
-        <Button size="icon-sm" variant="ghost" onClick={onBack} aria-label={t('agents.chat.conversationHistory')} title={t('agents.chat.conversationHistory')}>
-          <History size={14} />
-        </Button>
-      </AgentHeaderActions>
+      </div>
     </AgentHeader>
   )
 }

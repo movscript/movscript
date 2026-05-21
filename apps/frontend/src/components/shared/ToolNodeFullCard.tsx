@@ -44,9 +44,9 @@ function TaskHistoryItem({ task, outputType, fallbackResource }: { task: CanvasT
   const ts = new Date(task.CreatedAt).toLocaleString(locale, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 
   return (
-    <div className="border border-border rounded-lg overflow-hidden text-xs">
+    <div className="border border-border rounded-lg overflow-hidden type-label">
       <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/30">
-        <span className={cn('text-[10px] font-medium', {
+        <span className={cn('type-tiny font-medium', {
           'text-amber-500': isRunning,
           'text-emerald-500': task.status === 'done',
           'text-destructive': task.status === 'failed',
@@ -58,13 +58,13 @@ function TaskHistoryItem({ task, outputType, fallbackResource }: { task: CanvasT
       {isRunning && (
         <div className="flex items-center justify-center py-4 text-muted-foreground gap-1.5">
           <Loader2 size={12} className="animate-spin" />
-          <span className="text-[11px]">{t('pages.jobs.generating')}</span>
+          <span className="type-caption">{t('pages.jobs.generating')}</span>
         </div>
       )}
       {task.status === 'failed' && (
         <div className="flex items-center gap-1.5 text-destructive px-3 py-2">
           <XCircle size={11} />
-          <span className="text-[11px]">{task.error ?? t('pages.jobs.generationFailed')}</span>
+          <span className="type-caption">{task.error ?? t('pages.jobs.generationFailed')}</span>
         </div>
       )}
       {task.status === 'done' && outputUrl && (
@@ -151,14 +151,14 @@ export function ToolNodeFullCard({
   const historyTasks = nodeTasks.slice(1)
 
   return (
-    <Card className={cn('w-[640px] shadow-md text-xs', className)}>
+    <Card className={cn('w-[640px] shadow-md type-label', className)}>
       {/* CardHeader */}
       <CardHeader className="pb-3 border-b border-border">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-sm font-semibold flex-1 min-w-0 truncate">{toolName}</CardTitle>
+          <CardTitle className="type-body font-semibold flex-1 min-w-0 truncate">{toolName}</CardTitle>
           {models.length > 0 && (
             <select
-              className="border border-border bg-background rounded px-2 py-1 text-[11px] text-foreground nodrag shrink-0"
+              className="border border-border bg-background rounded px-2 py-1 type-caption text-foreground nodrag shrink-0"
               value={modelDbId ?? models[0]?.id ?? ''}
               onChange={e => onUpdateModelId?.(Number(e.target.value))}
               onClick={e => e.stopPropagation()}
@@ -169,7 +169,7 @@ export function ToolNodeFullCard({
           {onCycleMode && (
             <button
               title={t('shared.toolNode.switchModeTitle')}
-              className="nodrag shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-[10px] font-medium"
+              className="nodrag shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors type-tiny font-medium"
               onPointerDown={e => e.stopPropagation()}
               onClick={e => { e.stopPropagation(); onCycleMode() }}
             >
@@ -184,7 +184,7 @@ export function ToolNodeFullCard({
         {/* Latest gen preview (from current node status or latest task) */}
         {latestTask && (
           <div className="space-y-1.5">
-            <p className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
+            <p className="type-caption font-medium text-muted-foreground flex items-center gap-1.5">
               <History size={11} />
               {t('shared.toolNode.latestGeneration')}
             </p>
@@ -210,13 +210,13 @@ export function ToolNodeFullCard({
         {!latestTask && isRunning && (
           <div className="flex items-center justify-center gap-2 py-4 text-muted-foreground">
             <Loader2 size={14} className="animate-spin" />
-            <span className="text-xs">{status === 'pending' ? t('shared.generation.waitingStart') : t('pages.jobs.generating')}</span>
+            <span className="type-label">{status === 'pending' ? t('shared.generation.waitingStart') : t('pages.jobs.generating')}</span>
           </div>
         )}
 
         {/* Error state (no task history) */}
         {!latestTask && status === 'failed' && error && (
-          <div className="flex items-center gap-2 text-destructive text-xs">
+          <div className="flex items-center gap-2 text-destructive type-label">
             <XCircle size={12} /> {error}
           </div>
         )}
@@ -255,12 +255,12 @@ export function ToolNodeFullCard({
             <button
               onMouseDown={e => e.stopPropagation()}
               onClick={e => { e.stopPropagation(); setHistoryExpanded(v => !v) }}
-              className="flex items-center justify-between w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center justify-between w-full type-label text-muted-foreground hover:text-foreground transition-colors"
             >
               <span className="flex items-center gap-1.5 font-medium">
                 <History size={12} />
                 {t('shared.toolNode.generationHistory')}
-                <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
+                <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 type-tiny font-semibold">
                   {historyTasks.length}
                 </span>
               </span>

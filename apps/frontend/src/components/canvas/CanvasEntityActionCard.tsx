@@ -88,7 +88,7 @@ export function CanvasEntityActionCard({
   return (
     <div
       className={cn(
-        'relative w-[280px] overflow-visible rounded-lg border bg-card text-xs shadow-sm transition-all',
+        'relative w-[280px] overflow-visible rounded-lg border bg-card type-label shadow-sm transition-all',
         selected ? 'border-primary shadow-lg shadow-primary/10 ring-2 ring-primary/15' : 'border-border',
         className,
       )}
@@ -100,16 +100,16 @@ export function CanvasEntityActionCard({
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
-              <p className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-foreground">{title}</p>
+              <p className="min-w-0 flex-1 truncate type-body font-semibold leading-5 text-foreground">{title}</p>
               {status && (
-                <span className="shrink-0 rounded border border-border bg-background/85 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">
+                <span className="shrink-0 rounded border border-border bg-background/85 px-1.5 py-0.5 type-tiny leading-none text-muted-foreground">
                   {status}
                 </span>
               )}
             </div>
-            {subtitle && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{subtitle}</p>}
+            {subtitle && <p className="mt-0.5 truncate type-caption text-muted-foreground">{subtitle}</p>}
           </div>
-          <Button size="icon-xs" variant="ghost" className="h-6 w-6 shrink-0" aria-label="More">
+          <Button size="icon-xs" variant="ghost" className="shrink-0" aria-label="More">
             <MoreHorizontal size={13} />
           </Button>
         </div>
@@ -145,7 +145,7 @@ export function CanvasEntityActionCard({
                     key={action.id}
                     type="button"
                     data-port-id={action.outputPortId ?? `create:${action.id}`}
-                    className="relative flex h-7 w-full items-center gap-1 rounded-md border border-border bg-background px-1.5 text-[10px] text-foreground hover:bg-muted/60"
+                    className="relative flex h-7 w-full items-center gap-1 rounded-md border border-border bg-background px-1.5 type-tiny text-foreground hover:bg-muted/60"
                   >
                     <ActionIcon size={11} className="shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate text-left">{action.label}</span>
@@ -222,9 +222,9 @@ function BindingSlot({
       <div className="w-full border-t border-border/60 px-1.5 py-1">
         <div className="flex items-center gap-1">
           {isBound ? <CheckCircle2 size={10} className="shrink-0 text-emerald-600" /> : <Circle size={10} className="shrink-0 text-muted-foreground/60" />}
-          <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-foreground">{slot.label}</span>
+          <span className="min-w-0 flex-1 truncate type-tiny font-medium text-foreground">{slot.label}</span>
         </div>
-        <p className="mt-0.5 truncate text-[9px] text-muted-foreground">
+        <p className="mt-0.5 truncate type-micro text-muted-foreground">
           {slot.resourceLabel ?? (isPending ? '生成中' : '可绑定')}
         </p>
       </div>
@@ -243,7 +243,7 @@ function RelationRow({
     <div
       data-input-port-id={relation.inputPortId ?? `relation-in:${relation.id}`}
       data-output-port-id={relation.outputPortId ?? `relation-out:${relation.id}`}
-      className="relative flex h-7 min-w-0 items-center gap-1.5 rounded-md border border-border bg-background px-1.5 text-[10px]"
+      className="relative flex h-7 min-w-0 items-center gap-1.5 rounded-md border border-border bg-background px-1.5 type-tiny"
     >
       <PortDot
         side="left"
@@ -272,7 +272,7 @@ function RelationRow({
 
 function EmptyRow({ label }: { label: string }) {
   return (
-    <div className="flex h-7 items-center rounded-md border border-dashed border-border px-1.5 text-[10px] text-muted-foreground">
+    <div className="flex h-7 items-center rounded-md border border-dashed border-border px-1.5 type-tiny text-muted-foreground">
       {label}
     </div>
   )
@@ -280,7 +280,7 @@ function EmptyRow({ label }: { label: string }) {
 
 function SectionTitle({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
-    <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
+    <div className="flex items-center gap-1.5 type-tiny font-medium text-muted-foreground">
       <Icon size={11} />
       <span>{label}</span>
     </div>

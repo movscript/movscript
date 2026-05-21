@@ -5,7 +5,7 @@ import {
   upsertWorkflowRunSnapshot,
   type AgentInputAnswer,
 } from '@/lib/agentWorkflowInteraction'
-import type { AgentRun, AgentThread } from '@/lib/localAgentClient'
+import type { AgentRun, AgentThread, RuntimeInteraction } from '@/lib/localAgentClient'
 import type { ChatMessage, ChatRunActivityEvent } from '@/store/agentStore'
 
 export type WorkflowConversationRuntimePatch = {
@@ -30,14 +30,18 @@ export interface AgentWorkflowActionDeps {
 export async function approveWorkflowRunAction(input: {
   run: AgentRun
   approvalIds?: string[]
-  approveRun: (runId: string, input: { approvalIds?: string[] }) => Promise<AgentRun>
+  approveInteraction: (interactionId: string) => Promise<{ interaction: RuntimeInteraction; run: AgentRun }>
   deps: AgentWorkflowActionDeps
 }): Promise<void> {
-  const { run, approvalIds, approveRun, deps } = input
+  const { run, approvalIds, approveInteraction, deps } = input
   deps.setSubmittedInteractionRuns((current) => upsertWorkflowRunSnapshot(current, optimisticApprovalRun(run, approvalIds, 'approved')))
   deps.setConversationRuntime({ approving: true, loading: true, error: undefined })
   try {
-    const approvedRun = await approveRun(run.id, { approvalIds })
+    const approvedRun = await resolveApprovalRun({
+      run,
+      approvalIds,
+      approveInteraction,
+    })
     deps.setSubmittedInteractionRuns((current) => upsertWorkflowRunSnapshot(current, approvedRun))
     deps.setConversationRun(approvedRun, { approving: true, loading: true })
     const finalRun = await deps.streamFollowUpRun(approvedRun.id)
@@ -60,14 +64,18 @@ export async function approveWorkflowRunAction(input: {
 export async function rejectWorkflowRunAction(input: {
   run: AgentRun
   approvalIds?: string[]
-  rejectRun: (runId: string, input: { approvalIds?: string[] }) => Promise<AgentRun>
+  rejectInteraction: (interactionId: string) => Promise<{ interaction: RuntimeInteraction; run: AgentRun }>
   deps: AgentWorkflowActionDeps
 }): Promise<void> {
-  const { run, approvalIds, rejectRun, deps } = input
+  const { run, approvalIds, rejectInteraction, deps } = input
   deps.setSubmittedInteractionRuns((current) => upsertWorkflowRunSnapshot(current, optimisticApprovalRun(run, approvalIds, 'rejected')))
   deps.setConversationRuntime({ approving: true, loading: true, error: undefined })
   try {
-    const rejectedRun = await rejectRun(run.id, { approvalIds })
+    const rejectedRun = await resolveRejectionRun({
+      run,
+      approvalIds,
+      rejectInteraction,
+    })
     deps.setSubmittedInteractionRuns((current) => upsertWorkflowRunSnapshot(current, rejectedRun))
     deps.setConversationRun(rejectedRun, { approving: true, loading: true })
     const thread = await deps.getThread(rejectedRun.threadId)
@@ -85,6 +93,41 @@ export async function rejectWorkflowRunAction(input: {
   } finally {
     deps.setConversationRuntime({ approving: false, loading: false })
   }
+}
+
+async function resolveApprovalRun(input: {
+  run: AgentRun
+  approvalIds?: string[]
+  approveInteraction: (interactionId: string) => Promise<{ interaction: RuntimeInteraction; run: AgentRun }>
+}): Promise<AgentRun> {
+  const approvals = selectedPendingApprovals(input.run, input.approvalIds)
+  const interactionIds = approvals.map((approval) => approval.interactionId).filter((id): id is string => Boolean(id))
+  if (interactionIds.length !== approvals.length || interactionIds.length === 0) {
+    throw new Error('runtime approval interaction is missing')
+  }
+  const results = await Promise.all(interactionIds.map((interactionId) => input.approveInteraction(interactionId)))
+  return results.at(-1)?.run ?? input.run
+}
+
+async function resolveRejectionRun(input: {
+  run: AgentRun
+  approvalIds?: string[]
+  rejectInteraction: (interactionId: string) => Promise<{ interaction: RuntimeInteraction; run: AgentRun }>
+}): Promise<AgentRun> {
+  const approvals = selectedPendingApprovals(input.run, input.approvalIds)
+  const interactionIds = approvals.map((approval) => approval.interactionId).filter((id): id is string => Boolean(id))
+  if (interactionIds.length !== approvals.length || interactionIds.length === 0) {
+    throw new Error('runtime rejection interaction is missing')
+  }
+  const results = await Promise.all(interactionIds.map((interactionId) => input.rejectInteraction(interactionId)))
+  return results.at(-1)?.run ?? input.run
+}
+
+function selectedPendingApprovals(run: AgentRun, approvalIds: string[] | undefined): NonNullable<AgentRun['pendingApprovals']> {
+  const pending = (run.pendingApprovals ?? []).filter((approval) => approval.status === 'pending')
+  if (!approvalIds?.length) return pending
+  const selectedIds = new Set(approvalIds)
+  return pending.filter((approval) => selectedIds.has(approval.id))
 }
 
 export async function answerWorkflowRunInputAction(input: {

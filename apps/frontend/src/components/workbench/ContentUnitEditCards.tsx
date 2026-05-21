@@ -340,9 +340,9 @@ export function ContentUnitEditCards({
   if (!row) {
     return (
       <div className="min-h-[180px] bg-background p-3" data-testid="content-workbench-unit-edit-cards">
-        <div className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-md border border-dashed border-border px-3 py-8 text-center type-body text-muted-foreground">
           <p className="font-medium text-foreground">先选择一个情节</p>
-          <p className="mt-1 text-xs leading-5">内容编辑卡片会跟随情节里的制作项显示。</p>
+          <p className="mt-1 type-label leading-5">内容编辑卡片会跟随情节里的制作项显示。</p>
         </div>
       </div>
     )
@@ -351,25 +351,25 @@ export function ContentUnitEditCards({
   if (!unit) {
     return (
       <div className="min-h-[180px] bg-background p-3" data-testid="content-workbench-unit-edit-cards">
-        <div className="rounded-md border border-dashed border-border px-3 py-6 text-sm text-muted-foreground">
+        <div className="rounded-md border border-dashed border-border px-3 py-6 type-body text-muted-foreground">
           <p className="font-medium text-foreground">选择或创建制作项</p>
-          <p className="mt-1 text-xs leading-5">卡片内会编辑标题、时长、创作目标、prompt、素材和关键帧输入。</p>
+          <p className="mt-1 type-label leading-5">卡片内会编辑标题、时长、创作目标、prompt、素材和关键帧输入。</p>
           {row.units.length > 0 ? (
             <div className="mt-3 flex flex-wrap gap-2">
               {row.units.slice().sort(byOrder).slice(0, 4).map((item) => (
-                <Button key={item.ID} size="sm" variant="outline" className="h-8" onClick={() => onSelectUnit(item.ID)}>
+                <Button key={item.ID} size="sm" variant="outline" onClick={() => onSelectUnit(item.ID)}>
                   {titleOfRecord(item)}
                 </Button>
               ))}
             </div>
           ) : null}
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button size="sm" className="h-8 gap-1.5" onClick={onCreateUnit}>
+            <Button size="sm" className="gap-1.5" onClick={onCreateUnit}>
               <Plus size={13} />
               新建制作项
             </Button>
             {onAiSuggest ? (
-              <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={onAiSuggest}>
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={onAiSuggest}>
                 <Sparkles size={13} />
                 让 AI 规划
               </Button>
@@ -391,8 +391,8 @@ export function ContentUnitEditCards({
                 <Badge variant="outline">{trackKindLabel(String(unit.kind ?? ''))}</Badge>
                 <Badge variant={requiresKeyframe ? 'secondary' : 'outline'}>{requiresKeyframe ? `${keyframes.length} 关键帧` : '无需关键帧'}</Badge>
               </div>
-              <h3 className="mt-2 truncate text-sm font-semibold text-foreground">{titleOfRecord(unit)}</h3>
-              <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+              <h3 className="mt-2 truncate type-body font-semibold text-foreground">{titleOfRecord(unit)}</h3>
+              <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">
                 {firstText(unit.__scene_moment_title, row.title)} · {formatDuration(numberOf(unit.duration_sec))}
               </p>
             </div>
@@ -400,7 +400,7 @@ export function ContentUnitEditCards({
               <Button
                 size="sm"
                 variant="outline"
-                className="h-8 gap-1.5 text-destructive hover:text-destructive"
+                className="gap-1.5 text-destructive hover:text-destructive"
                 disabled={!projectId || deleteUnit.isPending || saveUnit.isPending}
                 loading={deleteUnit.isPending}
                 onClick={removeUnit}
@@ -411,7 +411,7 @@ export function ContentUnitEditCards({
               </Button>
               <Button
                 size="sm"
-                className="h-8 gap-1.5"
+                className="gap-1.5"
                 disabled={unchanged || saveUnit.isPending || deleteUnit.isPending || !projectId}
                 loading={saveUnit.isPending}
                 onClick={() => saveUnit.mutate()}
@@ -424,11 +424,11 @@ export function ContentUnitEditCards({
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_112px]">
             <div className="space-y-1.5">
-              <Label htmlFor={`content-unit-title-${unit.ID}`} className="text-xs">标题</Label>
+              <Label htmlFor={`content-unit-title-${unit.ID}`} className="type-label">标题</Label>
               <Input id={`content-unit-title-${unit.ID}`} value={draft.title} onChange={(event) => updateDraft('title', event.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`content-unit-duration-${unit.ID}`} className="text-xs">时长秒</Label>
+              <Label htmlFor={`content-unit-duration-${unit.ID}`} className="type-label">时长秒</Label>
               <Input id={`content-unit-duration-${unit.ID}`} type="number" min="0" value={draft.duration_sec} onChange={(event) => updateDraft('duration_sec', event.target.value)} />
             </div>
           </div>
@@ -489,7 +489,7 @@ export function ContentUnitEditCards({
         <section className={cn('rounded-md border border-border bg-card p-3', compact ? '' : 'xl:col-span-2')} data-testid="content-workbench-edit-goal-card">
           <div className={cn('grid gap-3', compact ? '' : 'lg:grid-cols-2')}>
             <div className="space-y-1.5">
-              <Label htmlFor={`content-unit-description-${unit.ID}`} className="text-xs">要做什么</Label>
+              <Label htmlFor={`content-unit-description-${unit.ID}`} className="type-label">要做什么</Label>
               <Textarea
                 id={`content-unit-description-${unit.ID}`}
                 className="min-h-[120px]"
@@ -499,7 +499,7 @@ export function ContentUnitEditCards({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`content-unit-prompt-${unit.ID}`} className="text-xs">创作提示</Label>
+              <Label htmlFor={`content-unit-prompt-${unit.ID}`} className="type-label">创作提示</Label>
               <Textarea
                 id={`content-unit-prompt-${unit.ID}`}
                 className="min-h-[120px]"

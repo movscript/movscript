@@ -16,14 +16,13 @@ const (
 	LegacyFeatureAgentChat      = "agent_chat"
 
 	// Tool features — user-facing tools shown in admin feature config.
-	FeatureRefImageGen           = "ref_image_gen"
-	FeatureRefVideoGen           = "ref_video_gen"
-	FeatureMotionImitation       = "motion_imitation"
-	FeatureStyleTransfer         = "style_transfer"
-	FeatureMultiAngle            = "multi_angle"
-	FeatureVideoEdit             = "video_edit"
-	FeatureBrainstorm            = "brainstorm"
-	FeatureProductionOrchestrate = "production_orchestrate"
+	FeatureRefImageGen     = "ref_image_gen"
+	FeatureRefVideoGen     = "ref_video_gen"
+	FeatureMotionImitation = "motion_imitation"
+	FeatureStyleTransfer   = "style_transfer"
+	FeatureMultiAngle      = "multi_angle"
+	FeatureVideoEdit       = "video_edit"
+	FeatureBrainstorm      = "brainstorm"
 )
 
 // Capability constants — used in FeatureDef.RequiredCap and ModelDef.Capabilities.
@@ -202,14 +201,6 @@ var FeatureCatalog = []FeatureDef{
 		RequiredCap:  CapabilityText,
 		SystemPrompt: `你是短剧创意助手，帮助用户进行头脑风暴、创意发散和剧本构思。思维开放，给出多样化建议。`,
 		MaxTokens:    DefaultTextMaxTokens, Temperature: 0.8,
-	},
-	{
-		ID: FeatureProductionOrchestrate, DisplayName: "制作编排 AI 分析", IsInternal: true,
-		Description:  "兼容入口：项目编排提示词已迁移到前端 agent 侧",
-		RequiredCap:  CapabilityText,
-		SystemPrompt: `你是制作编排分析助手。该功能现已迁移到前端 agent 侧，后端这里只保留兼容入口。直接输出JSON对象，禁止输出JSON以外的任何内容。`,
-		OutputSchema: `{"summary":"production_orchestrate 后端提示词已废弃，请使用前端 agent 的 project_standards_proposal 草稿流程。","creative_references":[],"asset_slots":[],"warnings":["backend_prompt_deprecated"]}`,
-		MaxTokens:    DefaultTextMaxTokens, Temperature: 0,
 	},
 }
 

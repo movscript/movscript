@@ -51,9 +51,9 @@ export function ResourceLibraryPicker({
   return (
     <div className={cn('rounded-md border border-border bg-card p-3', className)}>
       <div className="mb-2 flex items-center justify-between gap-2">
-        <Label className="text-xs font-medium text-muted-foreground">{t('forms.selectFromResourceLibrary')}</Label>
+        <Label className="type-label font-medium text-muted-foreground">{t('forms.selectFromResourceLibrary')}</Label>
         {selectedResource && onClear && (
-          <button type="button" className="text-[11px] text-muted-foreground hover:text-foreground" onClick={onClear}>
+          <button type="button" className="type-caption text-muted-foreground hover:text-foreground" onClick={onClear}>
             {t('forms.clearSelection')}
           </button>
         )}
@@ -64,13 +64,13 @@ export function ResourceLibraryPicker({
           <Input
             value={search}
             onChange={(event) => onSearch(event.target.value)}
-            className="h-8 pl-7 text-xs"
+            className="h-8 pl-7 type-label"
             placeholder={t('pages.assets.searchPlaceholder')}
           />
         </div>
         {typeOptions.length > 1 && (
           <select
-            className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground"
+            className="h-8 rounded-md border border-border bg-background px-2 type-label text-foreground"
             value={type}
             onChange={(event) => onType(event.target.value as ResourceTypeFilter)}
           >
@@ -85,9 +85,9 @@ export function ResourceLibraryPicker({
 
       <div className={cn('max-h-52 space-y-1 overflow-y-auto', listClassName)}>
         {isLoading ? (
-          <p className="py-6 text-center text-xs text-muted-foreground">{t('common.loadingShort')}</p>
+          <p className="py-6 text-center type-label text-muted-foreground">{t('common.loadingShort')}</p>
         ) : resources.length === 0 ? (
-          <p className="py-6 text-center text-xs text-muted-foreground">{t('pages.resources.empty')}</p>
+          <p className="py-6 text-center type-label text-muted-foreground">{t('pages.resources.empty')}</p>
         ) : (
           resources.map((resource) => (
             <ResourcePickerRow
@@ -100,7 +100,7 @@ export function ResourceLibraryPicker({
         )}
       </div>
 
-      <div className="mt-2 flex items-center justify-between border-t border-border pt-2 text-[11px] text-muted-foreground">
+      <div className="mt-2 flex items-center justify-between border-t border-border pt-2 type-caption text-muted-foreground">
         <span>{t('common.itemsCount', { count: total })}</span>
         <div className="flex items-center gap-1">
           <button type="button" className="rounded p-1 hover:bg-muted disabled:opacity-40" disabled={page <= 1} onClick={() => onPage(Math.max(1, page - 1))}>
@@ -137,10 +137,10 @@ function ResourcePickerRow({ resource, selected, onSelect }: { resource: RawReso
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-medium text-foreground">{resource.name}</p>
-        <p className="truncate text-[11px] text-muted-foreground">{resource.type} · {formatResourceBytes(resource.size)}</p>
+        <p className="truncate type-label font-medium text-foreground">{resource.name}</p>
+        <p className="truncate type-caption text-muted-foreground">{resource.type} · {formatResourceBytes(resource.size)}</p>
       </div>
-      {selected && <span className="shrink-0 text-[11px] text-primary">{t('common.selected')}</span>}
+      {selected && <span className="shrink-0 type-caption text-primary">{t('common.selected')}</span>}
     </button>
   )
 }

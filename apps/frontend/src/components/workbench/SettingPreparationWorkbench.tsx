@@ -36,9 +36,9 @@ import {
   ContextStack,
   GateChecklist,
   MetricStrip,
+  ProjectWorkbenchShell,
   QueueMiniMetric,
   SpecializedQueue,
-  SpecializedWorkbenchHeader,
   type WorkbenchMetric,
 } from './WorkbenchChrome'
 import { WorkbenchPanel } from './WorkbenchPanel'
@@ -48,8 +48,8 @@ type WorkbenchRecord = SemanticEntityRecord & Record<string, any>
 function EmptyWorkbenchState({ title, text }: { title: string; text: string }) {
   return (
     <Card className="rounded-lg border-dashed border-border bg-card p-8 text-center">
-      <p className="text-sm font-semibold text-foreground">{title}</p>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">{text}</p>
+      <p className="type-body font-semibold text-foreground">{title}</p>
+      <p className="mx-auto mt-2 max-w-md type-body leading-6 text-muted-foreground">{text}</p>
     </Card>
   )
 }
@@ -485,14 +485,14 @@ function SettingPrepStateBadge({ status }: { status?: string }) {
 function SettingPrepHintCard({ label, text }: { label: string; text: string }) {
   return (
     <div className="rounded-md border border-border bg-background px-3 py-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-2 text-sm leading-6 text-foreground">{text}</p>
+      <p className="type-label text-muted-foreground">{label}</p>
+      <p className="mt-2 type-body leading-6 text-foreground">{text}</p>
     </div>
   )
 }
 
 function SettingPrepTag({ children }: { children: ReactNode }) {
-  return <span className="inline-flex max-w-full items-center rounded border border-border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">{children}</span>
+  return <span className="inline-flex max-w-full items-center rounded border border-border bg-muted/40 px-2 py-1 type-caption text-muted-foreground">{children}</span>
 }
 
 export function SettingPreparationWorkbench() {
@@ -500,7 +500,7 @@ export function SettingPreparationWorkbench() {
   const projectId = project?.ID
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ['workbench', 'creative', projectId],
     queryFn: () => loadSettingPrepData(projectId!),
     enabled: !!projectId,
@@ -631,18 +631,28 @@ export function SettingPreparationWorkbench() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      <SpecializedWorkbenchHeader
-        category="creative"
-        kicker="设定准备"
-        title="设定准备工作台"
-        description="围绕已经被剧本和制作使用到的设定推进完整度：先看上下文，再用 AI 补齐缺口，最后把设定状态确认或锁定。"
-      />
+    <ProjectWorkbenchShell
+      workbenchId="pre_production"
+      projectName={project?.name}
+      kicker="设定准备"
+      title="设定准备工作台"
+      description="围绕已经被剧本和制作使用到的设定推进完整度：先看上下文，再用 AI 补齐缺口，最后把设定状态确认或锁定。"
+      badges={isFetching ? <Badge variant="outline">同步中</Badge> : null}
+      onRefresh={() => { void refetch() }}
+      refreshing={isFetching}
+      refreshLabel="刷新上下文"
+      actions={(
+        <Button size="sm" className="gap-2" onClick={launchAICompletion} disabled={!selected}>
+          <Wand2 size={14} />
+          AI 完善当前设定
+        </Button>
+      )}
+    >
       <main className="min-h-0 flex-1 overflow-auto p-5">
         {!projectId ? (
           <EmptyWorkbenchState title="请先选择项目" text="当前没有可用项目，无法读取设定资料和制作上下文。" />
         ) : isLoading ? (
-          <Card className="rounded-lg border-border bg-card p-8 text-center text-sm text-muted-foreground">正在加载设定准备数据...</Card>
+          <Card className="rounded-lg border-border bg-card p-8 text-center type-body text-muted-foreground">正在加载设定准备数据...</Card>
         ) : isError ? (
           <EmptyWorkbenchState title="设定准备数据加载失败" text="后端语义实体接口未返回可用数据，稍后重试。" />
         ) : rows.length === 0 ? (
@@ -652,7 +662,7 @@ export function SettingPreparationWorkbench() {
             <section className="rounded-lg border border-border bg-card p-4">
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
                 <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-2 type-label font-medium text-muted-foreground">
                     <Sparkles size={14} />
                     <span>{project?.name ?? '当前项目'}</span>
                     <ChevronRight size={13} />
@@ -664,8 +674,8 @@ export function SettingPreparationWorkbench() {
                       </>
                     ) : null}
                   </div>
-                  <h1 className="mt-2 text-lg font-semibold text-foreground">推进被生产使用的设定完整度</h1>
-                  <p className="mt-1 max-w-4xl text-xs leading-5 text-muted-foreground">
+                  <h1 className="mt-2 type-title-sm font-semibold text-foreground">推进被生产使用的设定完整度</h1>
+                  <p className="mt-1 max-w-4xl type-label leading-5 text-muted-foreground">
                     这里按使用上下文组织设定。优先处理被制作、情景、素材需求引用但仍处于草稿或缺口状态的资料。
                   </p>
                 </div>
@@ -677,7 +687,7 @@ export function SettingPreparationWorkbench() {
               </div>
               <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[220px_220px_minmax(0,1fr)]">
                 <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground">类型</p>
+                  <p className="type-label font-medium text-muted-foreground">类型</p>
                   <Select value={kindFilter} onValueChange={setKindFilter}>
                     <SelectTrigger className="h-9">
                       <SelectValue placeholder="全部类型" />
@@ -691,7 +701,7 @@ export function SettingPreparationWorkbench() {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground">状态</p>
+                  <p className="type-label font-medium text-muted-foreground">状态</p>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="h-9">
                       <SelectValue placeholder="全部状态" />
@@ -705,15 +715,15 @@ export function SettingPreparationWorkbench() {
                   </Select>
                 </div>
                 <div className="flex flex-wrap items-end justify-end gap-2">
-                  <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => { setKindFilter('all'); setStatusFilter('all') }}>
+                  <Button variant="outline" className="gap-2" onClick={() => { setKindFilter('all'); setStatusFilter('all') }}>
                     <RefreshCw size={14} />
                     清空筛选
                   </Button>
-                  <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => navigate(mergeSearch(ROUTES.project.preProduction, '', { tab: 'settings' }))}>
+                  <Button variant="outline" className="gap-2" onClick={() => navigate(mergeSearch(ROUTES.project.preProduction, '', { tab: 'settings' }))}>
                     <ArrowRight size={14} />
                     设定资料页
                   </Button>
-                  <Button size="sm" className="h-9 gap-2" onClick={launchAICompletion} disabled={!selected}>
+                  <Button className="gap-2" onClick={launchAICompletion} disabled={!selected}>
                     <Wand2 size={14} />
                     AI 完善当前设定
                   </Button>
@@ -758,11 +768,11 @@ export function SettingPreparationWorkbench() {
                     <div className="space-y-4">
                       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px_150px]">
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">名称</Label>
+                          <Label className="type-label text-muted-foreground">名称</Label>
                           <Input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">类型</Label>
+                          <Label className="type-label text-muted-foreground">类型</Label>
                           <Select value={draft.kind} onValueChange={(value) => setDraft({ ...draft, kind: value })}>
                             <SelectTrigger className="h-9">
                               <SelectValue />
@@ -775,7 +785,7 @@ export function SettingPreparationWorkbench() {
                           </Select>
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">重要性</Label>
+                          <Label className="type-label text-muted-foreground">重要性</Label>
                           <Select value={draft.importance} onValueChange={(value) => setDraft({ ...draft, importance: value })}>
                             <SelectTrigger className="h-9">
                               <SelectValue />
@@ -791,11 +801,11 @@ export function SettingPreparationWorkbench() {
 
                       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">别名 / 识别词</Label>
+                          <Label className="type-label text-muted-foreground">别名 / 识别词</Label>
                           <Input value={draft.alias} onChange={(event) => setDraft({ ...draft, alias: event.target.value })} placeholder="可选，用于查重和 AI 识别" />
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">状态</Label>
+                          <Label className="type-label text-muted-foreground">状态</Label>
                           <Select value={draft.status} onValueChange={(value) => setDraft({ ...draft, status: value })}>
                             <SelectTrigger className="h-9">
                               <SelectValue />
@@ -813,51 +823,51 @@ export function SettingPreparationWorkbench() {
 
                       <div className="grid gap-3 xl:grid-cols-2">
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">设定摘要</Label>
+                          <Label className="type-label text-muted-foreground">设定摘要</Label>
                           <Textarea
                             value={draft.description}
                             onChange={(event) => setDraft({ ...draft, description: event.target.value })}
-                            className="min-h-32 resize-none text-sm leading-6"
+                            className="min-h-32 resize-none type-body leading-6"
                             placeholder="这个设定在故事和制作中是什么。"
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">设定正文</Label>
+                          <Label className="type-label text-muted-foreground">设定正文</Label>
                           <Textarea
                             value={draft.content}
                             onChange={(event) => setDraft({ ...draft, content: event.target.value })}
-                            className="min-h-32 resize-none text-sm leading-6"
+                            className="min-h-32 resize-none type-body leading-6"
                             placeholder="稳定事实、不可改写项、剧情作用、人物关系等。"
                           />
                         </div>
                       </div>
 
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">视觉锚点 / 生成约束</Label>
+                        <Label className="type-label text-muted-foreground">视觉锚点 / 生成约束</Label>
                         <Textarea
                           value={draft.visualIntent}
                           onChange={(event) => setDraft({ ...draft, visualIntent: event.target.value })}
-                          className="min-h-24 resize-none text-sm leading-6"
+                          className="min-h-24 resize-none type-body leading-6"
                           placeholder="外观、材质、色彩、风格、禁止项和创作约束要点。"
                         />
                       </div>
 
                       <div className="grid gap-3 xl:grid-cols-2">
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">档案 JSON</Label>
+                          <Label className="type-label text-muted-foreground">档案 JSON</Label>
                           <Textarea
                             value={draft.profileJson}
                             onChange={(event) => setDraft({ ...draft, profileJson: event.target.value })}
-                            className="min-h-24 resize-none font-mono text-xs"
+                            className="min-h-24 resize-none font-mono type-label"
                             placeholder='{"appearance":"...","rules":["..."]}'
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">标签 JSON</Label>
+                          <Label className="type-label text-muted-foreground">标签 JSON</Label>
                           <Textarea
                             value={draft.tagsJson}
                             onChange={(event) => setDraft({ ...draft, tagsJson: event.target.value })}
-                            className="min-h-24 resize-none font-mono text-xs"
+                            className="min-h-24 resize-none font-mono type-label"
                             placeholder='["主角","雨夜","关键道具"]'
                           />
                         </div>
@@ -903,7 +913,7 @@ export function SettingPreparationWorkbench() {
                           type="button"
                           onClick={() => setContextMode(value as 'usage' | 'script' | 'ai')}
                           className={cn(
-                            'rounded px-2 py-1 text-xs transition-colors',
+                            'rounded px-2 py-1 type-label transition-colors',
                             contextMode === value ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground',
                           )}
                         >
@@ -919,19 +929,19 @@ export function SettingPreparationWorkbench() {
                     <div className="space-y-4">
                       <ContextStack rows={contextRows} className="grid-cols-1" />
                       <div className="space-y-2">
-                        <p className="text-xs font-medium text-muted-foreground">使用位置</p>
+                        <p className="type-label font-medium text-muted-foreground">使用位置</p>
                         {selected.usages.length === 0 ? (
-                          <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">这个设定还没有被情景、编排段或制作项引用。</p>
+                          <p className="rounded-md border border-dashed border-border px-3 py-8 text-center type-body text-muted-foreground">这个设定还没有被情景、编排段或制作项引用。</p>
                         ) : (
                           selected.usages.slice(0, 6).map((usage) => (
                             <div key={usage.ID} className="rounded-md border border-border bg-background px-3 py-3">
                               <div className="flex items-center justify-between gap-3">
-                                <p className="truncate text-sm font-medium text-foreground">
+                                <p className="truncate type-body font-medium text-foreground">
                                   {firstText(usage.role, usage.owner_type, '引用')} · #{usage.owner_id}
                                 </p>
                                 <Badge variant={creativeUsageStatusVariant(usage.status)}>{creativeUsageStatusLabel(usage.status)}</Badge>
                               </div>
-                              <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{firstText(usage.evidence, usage.source, '暂无证据说明')}</p>
+                              <p className="mt-2 line-clamp-2 type-label leading-5 text-muted-foreground">{firstText(usage.evidence, usage.source, '暂无证据说明')}</p>
                             </div>
                           ))
                         )}
@@ -943,15 +953,15 @@ export function SettingPreparationWorkbench() {
                         <SettingPrepHintCard key={row} label="剧本 / 编排证据" text={row} />
                       ))}
                       <div className="rounded-md border border-border bg-background px-3 py-3">
-                        <p className="text-xs text-muted-foreground">制作上下文</p>
-                        <p className="mt-2 text-sm leading-6 text-foreground">{buildSettingPrepUsageSummary(selected)}</p>
+                        <p className="type-label text-muted-foreground">制作上下文</p>
+                        <p className="mt-2 type-body leading-6 text-foreground">{buildSettingPrepUsageSummary(selected)}</p>
                       </div>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-3">
-                        <p className="text-sm font-medium text-foreground">AI 完善任务</p>
-                        <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                        <p className="type-body font-medium text-foreground">AI 完善任务</p>
+                        <p className="mt-2 type-label leading-5 text-muted-foreground">
                           AI 会读取当前设定、缺口、使用位置和剧本证据，输出可复制回设定字段的补全建议。
                         </p>
                         <Button className="mt-3 w-full justify-start gap-2" onClick={launchAICompletion}>
@@ -960,13 +970,13 @@ export function SettingPreparationWorkbench() {
                         </Button>
                       </div>
                       <div className="space-y-2">
-                        <p className="text-xs font-medium text-muted-foreground">建议 AI 优先处理</p>
+                        <p className="type-label font-medium text-muted-foreground">建议 AI 优先处理</p>
                         {(selected.missing.length > 0 ? selected.missing : ['检查设定是否足够进入下游']).map((item) => (
                           <SettingPrepHintCard key={item} label="待处理" text={item} />
                         ))}
                       </div>
                       <div className="space-y-2 border-t border-border pt-4">
-                        <p className="text-xs font-medium text-muted-foreground">完成后设置状态</p>
+                        <p className="type-label font-medium text-muted-foreground">完成后设置状态</p>
                         <div className="grid grid-cols-2 gap-2">
                           {[
                             ['draft', '草稿'],
@@ -995,7 +1005,7 @@ export function SettingPreparationWorkbench() {
 
                 <WorkbenchPanel title="下游可用性" icon={ShieldCheck} action={selected ? <Badge variant={selected.progress >= 80 ? 'success' : 'warning'}>{selected.progress}%</Badge> : undefined}>
                   {!selected ? (
-                    <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无设定。</p>
+                    <p className="rounded-md border border-dashed border-border px-3 py-8 text-center type-body text-muted-foreground">暂无设定。</p>
                   ) : (
                     <div className="space-y-3">
                       <SettingPrepHintCard label="分镜 / 情节" text={selected.linkedSceneMoments.length > 0 ? `${selected.linkedSceneMoments.length} 个情景会引用这个设定` : '还没有进入情景引用'} />
@@ -1009,6 +1019,6 @@ export function SettingPreparationWorkbench() {
           </div>
         )}
       </main>
-    </div>
+    </ProjectWorkbenchShell>
   )
 }

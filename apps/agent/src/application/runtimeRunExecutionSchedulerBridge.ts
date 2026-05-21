@@ -10,6 +10,7 @@ export function createRuntimeRunExecutionSchedulerBridge(input: {
   executeRun: (runId: string, signal: AbortSignal) => Promise<void>
   deleteCatalogSnapshot: (runId: string) => void
   syncTaskFromRun: (runId: string) => void
+  onRunSettled?: (runId: string) => void
 }): RuntimeRunExecutionSchedulerBridge {
   return {
     startRunExecution: (runId) => applyRuntimeRunExecutionScheduleRequest({
@@ -18,6 +19,7 @@ export function createRuntimeRunExecutionSchedulerBridge(input: {
       executeRun: input.executeRun,
       deleteCatalogSnapshot: input.deleteCatalogSnapshot,
       syncTaskFromRun: input.syncTaskFromRun,
+      onRunSettled: input.onRunSettled,
     }),
   }
 }

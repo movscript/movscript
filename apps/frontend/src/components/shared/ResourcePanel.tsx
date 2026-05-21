@@ -84,8 +84,8 @@ export function ResourceListItem({
             </div>
           )}
         </div>
-        <span className="text-xs text-foreground truncate flex-1">{r.name}</span>
-        {selected && <span className="text-[10px] text-muted-foreground shrink-0">{t('common.selected')}</span>}
+        <span className="type-label text-foreground truncate flex-1">{r.name}</span>
+        {selected && <span className="type-tiny text-muted-foreground shrink-0">{t('common.selected')}</span>}
         {trailing}
       </div>
 
@@ -145,8 +145,8 @@ export function AssetSlotListItem({
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-foreground truncate leading-tight">{slot.name || `#${slot.ID}`}</p>
-            <p className="text-[10px] text-muted-foreground truncate">
+            <p className="type-label text-foreground truncate leading-tight">{slot.name || `#${slot.ID}`}</p>
+            <p className="type-tiny text-muted-foreground truncate">
               {slot.owner_type && slot.owner_id ? `${slot.owner_type} #${slot.owner_id}` : t('shared.resourcePanel.assetLibrary')}
               {' · '}
               {slot.kind || 'reference'}
@@ -243,7 +243,7 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
 
   function Pager({ page, pageCount, total, onPage }: { page: number; pageCount: number; total: number; onPage: (p: number) => void }) {
     return (
-      <div className="flex items-center justify-between px-2 py-2 border-t border-border text-[11px] text-muted-foreground shrink-0">
+      <div className="flex items-center justify-between px-2 py-2 border-t border-border type-caption text-muted-foreground shrink-0">
         <span>{t('common.itemsCount', { count: total })}</span>
         <div className="flex items-center gap-1">
           <button className="p-1 rounded hover:bg-muted disabled:opacity-40" disabled={page <= 1} onClick={() => onPage(Math.max(1, page - 1))}>
@@ -266,7 +266,7 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
             key={panelTab}
             onClick={() => resetFilters(panelTab)}
             className={cn(
-              'flex-1 py-2 text-xs font-medium transition-colors',
+              'flex-1 py-2 type-label font-medium transition-colors',
               tab === panelTab ? 'text-foreground border-b-2 border-primary -mb-px' : 'text-muted-foreground hover:text-foreground'
             )}
           >
@@ -282,11 +282,11 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
             value={keyword}
             onChange={e => { setKeyword(e.target.value); resetFilters() }}
             placeholder={tab === 'resources' ? t('shared.resourcePanel.searchResources') : t('shared.resourcePanel.searchAssets')}
-            className="w-full pl-6 pr-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+            className="w-full pl-6 pr-2 py-1.5 type-label rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
         {tab === 'resources' && (inputType === 'image+video' || inputType === 'media') && (
-          <div className="flex rounded-md border border-border overflow-hidden text-[11px]">
+          <div className="flex rounded-md border border-border overflow-hidden type-caption">
             {resourceTypeOptions.map(type => (
               <button
                 key={type}
@@ -302,7 +302,7 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
           <select
             value={slotKind}
             onChange={e => { setSlotKind(e.target.value as typeof slotKind); setSlotPage(1) }}
-            className="w-full px-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+            className="w-full px-2 py-1.5 type-label rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="all">{t('shared.resourcePanel.allAssets')}</option>
             {(['image', 'video', 'audio', 'text', 'reference'] as const).map((type) => <option key={type} value={type}>{type}</option>)}
@@ -314,7 +314,7 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
         {tab === 'resources' && (
           <div className="space-y-0.5">
             {resources.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center pt-8">{t('shared.resourcePanel.noResources')}</p>
+              <p className="type-label text-muted-foreground text-center pt-8">{t('shared.resourcePanel.noResources')}</p>
             )}
             {resources.map(r => (
               <ResourceListItem
@@ -331,8 +331,8 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
 
         {tab === 'assetSlots' && (
           <div className="space-y-1">
-            {!current && <p className="text-xs text-muted-foreground text-center pt-8">{t('shared.resourcePanel.selectProjectFirst')}</p>}
-            {current && slots.length === 0 && <p className="text-xs text-muted-foreground text-center pt-8">{t('shared.resourcePanel.noAssets')}</p>}
+            {!current && <p className="type-label text-muted-foreground text-center pt-8">{t('shared.resourcePanel.selectProjectFirst')}</p>}
+            {current && slots.length === 0 && <p className="type-label text-muted-foreground text-center pt-8">{t('shared.resourcePanel.noAssets')}</p>}
             {slots.map(slot => (
               <AssetSlotListItem
                 key={slot.ID}

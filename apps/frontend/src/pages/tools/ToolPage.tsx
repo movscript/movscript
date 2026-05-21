@@ -12,6 +12,7 @@ import { Button } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { IMAGE_UPLOAD_ACCEPT, MEDIA_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
+import { ToolHeader } from './ToolHeader'
 
 export interface ToolDef {
   name: string
@@ -64,11 +65,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="h-11 border-b border-border px-5 flex items-center gap-3 bg-background shrink-0">
-        <h1 className="text-sm font-semibold text-foreground">{def.name}</h1>
-        <span className="text-xs text-muted-foreground">{def.description}</span>
-      </div>
+      <ToolHeader title={def.name} description={def.description} icon={Wand2} />
 
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
@@ -87,7 +84,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
 
             {/* Selected resource thumbnails */}
             <div className="p-3 border-b border-border">
-              <p className="text-xs text-muted-foreground mb-2">{def.inputLabel}</p>
+              <p className="type-label text-muted-foreground mb-2">{def.inputLabel}</p>
               <div className="flex flex-wrap gap-2">
                 {state.inputResources.map((r, i) => (
                   <div key={r.ID} className="relative group">
@@ -97,7 +94,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
                         : <AuthedImage src={`${API_BASE}${r.url}`} alt={r.name} className="w-20 h-20 object-cover rounded-lg border border-border" />
                     ) : (
                       <div className="w-20 h-20 bg-muted rounded-lg border border-border flex items-center justify-center">
-                        <span className="text-xs text-muted-foreground">{t('canvas.paramTypes.video')}</span>
+                        <span className="type-label text-muted-foreground">{t('canvas.paramTypes.video')}</span>
                       </div>
                     )}
                     <button
@@ -106,7 +103,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
                     >
                       <X size={10} />
                     </button>
-                    <p className="text-[10px] text-muted-foreground mt-1 truncate max-w-[80px] text-center">{r.name}</p>
+                    <p className="type-tiny text-muted-foreground mt-1 truncate max-w-[80px] text-center">{r.name}</p>
                   </div>
                 ))}
 
@@ -120,11 +117,11 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
                     ? <Loader2 size={16} className="animate-spin" />
                     : state.inputResources.length === 0 ? <Upload size={16} /> : <Plus size={16} />
                   }
-                  <span className="text-[10px]">{upload.isPending ? t('canvas.nodePanel.uploading') : t('shared.attachments.upload')}</span>
+                  <span className="type-tiny">{upload.isPending ? t('canvas.nodePanel.uploading') : t('shared.attachments.upload')}</span>
                 </button>
               </div>
               {state.inputResources.length === 0 && (
-                <p className="text-[10px] text-muted-foreground mt-2">{t('tools.page.selectFromLeft')}</p>
+                <p className="type-tiny text-muted-foreground mt-2">{t('tools.page.selectFromLeft')}</p>
               )}
             </div>
             <input
@@ -143,7 +140,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
                   placeholder={def.promptPlaceholder ?? t('shared.generation.promptPlaceholder')}
                   value={state.prompt}
                   onChange={(e) => update({ prompt: e.target.value })}
-                  className="resize-none text-sm"
+                  className="resize-none type-body"
                 />
               </div>
             )}
@@ -151,7 +148,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
             {/* Actions row */}
             <div className="flex items-center gap-3 px-3 py-2.5 bg-muted/20">
               <select
-                className="border border-border rounded px-2 py-1.5 text-xs bg-background text-foreground"
+                className="border border-border rounded px-2 py-1.5 type-label bg-background text-foreground"
                 value={selectedModelValue}
                 onChange={(e) => {
                   update({ modelId: e.target.value })
@@ -183,21 +180,21 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
           {state.status !== 'idle' && (
             <div className="bg-background rounded-xl border border-border shadow-sm overflow-hidden">
               <div className="px-4 py-3 border-b border-border">
-                <p className="text-sm font-medium text-foreground">{t('tools.page.result')}</p>
+                <p className="type-body font-medium text-foreground">{t('tools.page.result')}</p>
               </div>
               <div className="bg-card min-h-[80px]">
                 {isRunning && (
                   <div className="flex items-center justify-center py-12">
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
                       <Loader2 size={24} className="animate-spin" />
-                      <p className="text-xs">{state.status === 'pending' ? t('canvas.waitingStart') : t('canvas.generating')}</p>
+                      <p className="type-label">{state.status === 'pending' ? t('canvas.waitingStart') : t('canvas.generating')}</p>
                     </div>
                   </div>
                 )}
                 {!isRunning && state.status === 'failed' && (
                   <div className="flex items-center justify-center py-8 gap-2 text-destructive">
                     <AlertCircle size={16} />
-                    <p className="text-sm">{state.error ?? t('canvas.generationFailed')}</p>
+                    <p className="type-body">{state.error ?? t('canvas.generationFailed')}</p>
                   </div>
                 )}
                 {!isRunning && state.status === 'done' && outputSrc && (
@@ -214,7 +211,7 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
                     <a
                       href={outputSrc}
                       download={state.outputResource?.name}
-                      className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-foreground/80 text-background px-3 py-1.5 rounded-full text-xs hover:bg-foreground backdrop-blur-sm transition-colors"
+                      className="absolute bottom-3 right-3 flex items-center gap-1.5 bg-foreground/80 text-background px-3 py-1.5 rounded-full type-label hover:bg-foreground backdrop-blur-sm transition-colors"
                     >
                       <Download size={12} /> {t('shared.mediaViewer.download')}
                     </a>

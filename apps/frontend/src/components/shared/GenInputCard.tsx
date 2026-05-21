@@ -92,7 +92,7 @@ function AttachmentTag({ resource, onRemove }: { resource: RawResource; onRemove
         <div className="w-6 h-6 rounded-full overflow-hidden shrink-0">
           <MediaViewer resource={resource} className="w-full h-full" lightbox={false} />
         </div>
-        <span className="text-xs text-foreground max-w-[72px] truncate">{resource.name}</span>
+        <span className="type-label text-foreground max-w-[72px] truncate">{resource.name}</span>
         <button onClick={onRemove} className="text-muted-foreground hover:text-foreground shrink-0 transition-colors">
           <X size={11} />
         </button>
@@ -106,8 +106,8 @@ function AttachmentTag({ resource, onRemove }: { resource: RawResource; onRemove
           <div className="w-48 h-48 rounded-lg overflow-hidden bg-muted">
             <MediaViewer resource={resource} className="w-full h-full" lightbox={false} />
           </div>
-          <p className="text-xs text-foreground mt-1.5 truncate max-w-[192px] px-0.5">{resource.name}</p>
-          <p className="text-[10px] text-muted-foreground px-0.5 capitalize">{t(`pages.resources.types.${resource.type}`, { defaultValue: resource.type })}</p>
+          <p className="type-label text-foreground mt-1.5 truncate max-w-[192px] px-0.5">{resource.name}</p>
+          <p className="type-tiny text-muted-foreground px-0.5 capitalize">{t(`pages.resources.types.${resource.type}`, { defaultValue: resource.type })}</p>
         </div>,
         document.body
       )}
@@ -310,7 +310,7 @@ export function GenInputCard({
             if (e.key === 'Escape') setMentionQuery(null)
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); onGenerate() }
           }}
-          className="w-full text-sm focus:outline-none bg-transparent text-foreground leading-relaxed min-h-[80px] px-1 py-1 mention-editor"
+          className="w-full type-body focus:outline-none bg-transparent text-foreground leading-relaxed min-h-[80px] px-1 py-1 mention-editor"
           data-placeholder={
             promptPlaceholder ??
             t(`shared.genInput.promptPlaceholder.${inputType}`)
@@ -320,7 +320,7 @@ export function GenInputCard({
         {mentionQuery !== null && (
           <div className="absolute bottom-full left-0 mb-1.5 bg-background border border-border rounded-xl shadow-lg z-20 w-56 overflow-hidden">
             {mentionResources.length === 0 ? (
-              <p className="text-xs text-muted-foreground px-3 py-2.5">
+              <p className="type-label text-muted-foreground px-3 py-2.5">
                 {attachments.length === 0 ? t('shared.genInput.addResourcesFirst') : t('shared.genInput.noMatchedResources')}
               </p>
             ) : (
@@ -334,7 +334,7 @@ export function GenInputCard({
                     <div className="w-6 h-6 rounded overflow-hidden shrink-0 bg-muted">
                       <MediaViewer resource={r} className="w-full h-full" lightbox={false} />
                     </div>
-                    <span className="text-xs text-foreground truncate">{r.name}</span>
+                    <span className="type-label text-foreground truncate">{r.name}</span>
                   </button>
                 ))}
               </div>
@@ -353,7 +353,7 @@ export function GenInputCard({
               <div
                 key={slot.key || i}
                 className={cn(
-                  'rounded-lg border px-2.5 py-2 text-xs transition-colors',
+                  'rounded-lg border px-2.5 py-2 type-label transition-colors',
                   items.length > 0
                     ? 'border-border bg-muted'
                     : slot.required
@@ -362,11 +362,11 @@ export function GenInputCard({
                 )}
               >
                 <div className="flex items-center gap-1.5">
-                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground w-4 text-center">{i + 1}</span>
+                  <span className="shrink-0 font-mono type-tiny text-muted-foreground w-4 text-center">{i + 1}</span>
                   <Icon size={12} className="shrink-0" />
                   <span className="font-medium text-foreground">{generationSlotLabel(slot, t)}</span>
-                  {slot.required && <span className="text-[10px] text-amber-600 dark:text-amber-400">{t('shared.genInput.required')}</span>}
-                  <span className="text-[10px] text-muted-foreground">{limitText}</span>
+                  {slot.required && <span className="type-tiny text-amber-600 dark:text-amber-400">{t('shared.genInput.required')}</span>}
+                  <span className="type-tiny text-muted-foreground">{limitText}</span>
                 </div>
                 {items.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5 mt-2 pl-5">
@@ -408,10 +408,10 @@ export function GenInputCard({
             const val = paramValues[p.key] ?? p.default ?? ''
             return (
               <div key={p.key} className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground whitespace-nowrap">{generationParamLabel(p, t)}</span>
+                <span className="type-label text-muted-foreground whitespace-nowrap">{generationParamLabel(p, t)}</span>
                 {p.type === 'select' && p.options ? (
                   <select
-                    className="border border-border rounded px-1.5 py-0.5 text-xs bg-background text-foreground"
+                    className="border border-border rounded px-1.5 py-0.5 type-label bg-background text-foreground"
                     value={String(val)}
                     onChange={(e) => onParamChange(p.key, e.target.value)}
                   >
@@ -420,7 +420,7 @@ export function GenInputCard({
                 ) : p.type === 'number' ? (
                   <input
                     type="number"
-                    className="border border-border rounded px-1.5 py-0.5 text-xs bg-background text-foreground w-16"
+                    className="border border-border rounded px-1.5 py-0.5 type-label bg-background text-foreground w-16"
                     value={Number(val)}
                     min={p.min}
                     max={p.max}
@@ -437,7 +437,7 @@ export function GenInputCard({
                 ) : p.type === 'string' ? (
                   <input
                     type="text"
-                    className="border border-border rounded px-1.5 py-0.5 text-xs bg-background text-foreground w-32"
+                    className="border border-border rounded px-1.5 py-0.5 type-label bg-background text-foreground w-32"
                     value={String(val)}
                     onChange={(e) => onParamChange(p.key, e.target.value)}
                   />
@@ -453,7 +453,7 @@ export function GenInputCard({
         <button
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-full px-3 py-1.5 transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 type-label text-muted-foreground hover:text-foreground border border-border rounded-full px-3 py-1.5 transition-colors disabled:opacity-50"
         >
           {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
           {t('shared.genInput.addToLibrary')}
@@ -473,15 +473,15 @@ export function GenInputCard({
             document.execCommand('insertText', false, '@')
             setMentionQuery('')
           }}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-full px-3 py-1.5 transition-colors"
+          className="flex items-center gap-1.5 type-label text-muted-foreground hover:text-foreground border border-border rounded-full px-3 py-1.5 transition-colors"
         >
           <AtSign size={12} /> {t('shared.genInput.mention')}
         </button>
-        <span className="hidden md:flex items-center gap-1 text-[11px] text-muted-foreground/60">
+        <span className="hidden md:flex items-center gap-1 type-caption text-muted-foreground/60">
           <Library size={11} /> {t('shared.genInput.libraryOnlyHint')}
         </span>
         <div className="flex-1" />
-        <span className="text-xs text-muted-foreground/50 hidden sm:block">⌘ + Enter</span>
+        <span className="type-label text-muted-foreground/50 hidden sm:block">⌘ + Enter</span>
         <Button
           onClick={onGenerate}
           disabled={!canGenerate}

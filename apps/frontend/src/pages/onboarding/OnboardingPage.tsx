@@ -9,6 +9,7 @@ import { translateApiError } from '@/lib/apiError'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
 import { type AuthSession, useUserStore } from '@/store/userStore'
 import { ROUTES } from '@/routes/projectRoutes'
+import { WorkModePrompt, WorkModeSwitchGuide, type WorkModeChoice } from '@/components/app/WorkModePrompt'
 
 type Mode = 'local' | 'cloud'
 
@@ -21,6 +22,7 @@ export default function OnboardingPage() {
   const setLaunchMode = useAppSettingsStore((s) => s.setLaunchMode)
   const setAPIBaseURL = useAppSettingsStore((s) => s.setAPIBaseURL)
   const setSession = useUserStore((s) => s.setSession)
+  const [workMode, setWorkMode] = useState<WorkModeChoice | null>(null)
   const [mode, setMode] = useState<Mode | null>(null)
   const [displayName, setDisplayName] = useState('')
   const [localPassword, setLocalPassword] = useState('')
@@ -51,12 +53,14 @@ export default function OnboardingPage() {
       persistOnboardingSettings({
         launchMode: 'local',
         apiBaseURL: LOCAL_API_URL,
+        workMode: workMode ?? 'detail',
         localDisplayName: displayName.trim(),
         onboardingCompleted: false,
       })
       await window.api?.setAppSettings?.({
         launchMode: 'local',
         apiBaseURL: LOCAL_API_URL,
+        workMode: workMode ?? 'detail',
         onboardingCompleted: false,
         localDisplayName: displayName.trim(),
       })
@@ -69,11 +73,13 @@ export default function OnboardingPage() {
       completeOnboarding({
         launchMode: 'local',
         apiBaseURL: LOCAL_API_URL,
+        workMode: workMode ?? 'detail',
         localDisplayName: displayName.trim(),
       })
       persistOnboardingSettings({
         launchMode: 'local',
         apiBaseURL: LOCAL_API_URL,
+        workMode: workMode ?? 'detail',
         localDisplayName: displayName.trim(),
         onboardingCompleted: true,
       })
@@ -90,10 +96,12 @@ export default function OnboardingPage() {
     completeOnboarding({
       launchMode: 'cloud',
       apiBaseURL: normalizedCloudURL,
+      workMode: workMode ?? 'detail',
     })
     persistOnboardingSettings({
       launchMode: 'cloud',
       apiBaseURL: normalizedCloudURL,
+      workMode: workMode ?? 'detail',
     })
     navigate(ROUTES.root, { replace: true })
     window.location.reload()
@@ -103,14 +111,30 @@ export default function OnboardingPage() {
     <div className="min-h-screen bg-background text-foreground">
       <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col justify-center px-6 py-10">
         <div className="mb-8 max-w-2xl">
-          <p className="mb-2 text-sm font-medium text-primary">Movscript</p>
-          <h1 className="text-3xl font-semibold tracking-normal">{t('onboarding.title')}</h1>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            {t('onboarding.description')}
+          <p className="mb-2 type-body font-medium text-primary">Movscript</p>
+          <h1 className="type-display font-semibold tracking-normal">
+            {workMode ? t('onboarding.title') : t('onboarding.workMode.title')}
+          </h1>
+          <p className="mt-3 type-body leading-6 text-muted-foreground">
+            {workMode ? t('onboarding.description') : t('onboarding.workMode.description')}
           </p>
         </div>
 
-        {!mode && (
+        {!workMode && (
+          <WorkModePrompt onSelect={setWorkMode} />
+        )}
+
+        {workMode && !mode && (
+          <>
+          <div className="mb-5 rounded-lg border border-border bg-card p-4">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="type-body font-semibold text-foreground">{t('onboarding.workMode.selected', { mode: workMode === 'agent' ? t('appSettings.agentWorkMode') : t('appSettings.detailWorkMode') })}</p>
+                <p className="mt-1 type-label leading-5 text-muted-foreground">{t('onboarding.workMode.switchHint')}</p>
+              </div>
+              <WorkModeSwitchGuide activeMode={workMode} />
+            </div>
+          </div>
           <div className="grid gap-3 md:grid-cols-2">
             <button
               type="button"
@@ -120,11 +144,11 @@ export default function OnboardingPage() {
               <div className="mb-4 flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
                 <HardDrive size={20} />
               </div>
-              <h2 className="text-base font-semibold">{t('onboarding.local.title')}</h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              <h2 className="type-body-lg font-semibold">{t('onboarding.local.title')}</h2>
+              <p className="mt-2 type-body leading-6 text-muted-foreground">
                 {t('onboarding.local.description')}
               </p>
-              <span className="mt-5 inline-flex text-sm font-medium text-primary">{t('onboarding.local.action')}</span>
+              <span className="mt-5 inline-flex type-body font-medium text-primary">{t('onboarding.local.action')}</span>
             </button>
 
             <button
@@ -135,13 +159,14 @@ export default function OnboardingPage() {
               <div className="mb-4 flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
                 <Cloud size={20} />
               </div>
-              <h2 className="text-base font-semibold">{t('onboarding.cloud.title')}</h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              <h2 className="type-body-lg font-semibold">{t('onboarding.cloud.title')}</h2>
+              <p className="mt-2 type-body leading-6 text-muted-foreground">
                 {t('onboarding.cloud.description')}
               </p>
-              <span className="mt-5 inline-flex text-sm font-medium text-primary">{t('onboarding.cloud.action')}</span>
+              <span className="mt-5 inline-flex type-body font-medium text-primary">{t('onboarding.cloud.action')}</span>
             </button>
           </div>
+          </>
         )}
 
         {mode === 'local' && (
@@ -151,8 +176,8 @@ export default function OnboardingPage() {
                 <User size={18} />
               </div>
               <div>
-                <h2 className="text-sm font-semibold">{t('onboarding.localIdentity.title')}</h2>
-                <p className="text-xs text-muted-foreground">{t('onboarding.localIdentity.description')}</p>
+                <h2 className="type-body font-semibold">{t('onboarding.localIdentity.title')}</h2>
+                <p className="type-label text-muted-foreground">{t('onboarding.localIdentity.description')}</p>
               </div>
             </div>
 
@@ -177,7 +202,7 @@ export default function OnboardingPage() {
                 placeholder={t('onboarding.localIdentity.passwordPlaceholder')}
               />
               {localPassword && !localPasswordValid && (
-                <p className="text-xs text-destructive">{t('onboarding.localIdentity.passwordHelp')}</p>
+                <p className="type-label text-destructive">{t('onboarding.localIdentity.passwordHelp')}</p>
               )}
             </div>
 
@@ -190,11 +215,11 @@ export default function OnboardingPage() {
                 onChange={(e) => setLocalPasswordConfirm(e.target.value)}
               />
               {localPasswordConfirm && !localPasswordMatches && (
-                <p className="text-xs text-destructive">{t('auth.passwordMismatch')}</p>
+                <p className="type-label text-destructive">{t('auth.passwordMismatch')}</p>
               )}
             </div>
 
-            {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
+            {error && <p className="mt-3 type-label text-destructive">{error}</p>}
 
             <div className="mt-6 flex gap-2">
               <Button onClick={startLocal} disabled={!canStartLocal || loading}>
@@ -215,8 +240,8 @@ export default function OnboardingPage() {
                 <Cloud size={18} />
               </div>
               <div>
-                <h2 className="text-sm font-semibold">{t('onboarding.cloudConnect.title')}</h2>
-                <p className="text-xs text-muted-foreground">{t('onboarding.cloudConnect.description')}</p>
+                <h2 className="type-body font-semibold">{t('onboarding.cloudConnect.title')}</h2>
+                <p className="type-label text-muted-foreground">{t('onboarding.cloudConnect.description')}</p>
               </div>
             </div>
 
@@ -231,7 +256,7 @@ export default function OnboardingPage() {
                 autoFocus
               />
               {!cloudURLValid && cloudURL.trim() && (
-                <p className="text-xs text-destructive">{t('appSettings.invalidURL')}</p>
+                <p className="type-label text-destructive">{t('appSettings.invalidURL')}</p>
               )}
             </div>
 
@@ -249,6 +274,7 @@ export default function OnboardingPage() {
 function persistOnboardingSettings(partial: {
   launchMode: 'local' | 'cloud'
   apiBaseURL: string
+  workMode?: 'detail' | 'agent'
   localDisplayName?: string
   onboardingCompleted?: boolean
 }): void {

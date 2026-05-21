@@ -91,31 +91,31 @@ function StatusBadge({ status }: { status: Job['status'] }) {
   switch (status) {
     case 'pending':
       return (
-        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+        <span className="inline-flex items-center gap-1 type-label text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
           <Clock size={10} /> {t('pages.jobs.status.pending')}
         </span>
       )
     case 'running':
       return (
-        <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded-full">
+        <span className="inline-flex items-center gap-1 type-label text-blue-600 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded-full">
           <Loader2 size={10} className="animate-spin" /> {t('pages.jobs.status.running')}
         </span>
       )
     case 'succeeded':
       return (
-        <span className="inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 dark:bg-green-950 px-2 py-0.5 rounded-full">
+        <span className="inline-flex items-center gap-1 type-label text-green-600 bg-green-50 dark:bg-green-950 px-2 py-0.5 rounded-full">
           <CheckCircle2 size={10} /> {t('pages.jobs.status.succeeded')}
         </span>
       )
     case 'failed':
       return (
-        <span className="inline-flex items-center gap-1 text-xs text-destructive bg-destructive/10 px-2 py-0.5 rounded-full">
+        <span className="inline-flex items-center gap-1 type-label text-destructive bg-destructive/10 px-2 py-0.5 rounded-full">
           <AlertCircle size={10} /> {t('pages.jobs.status.failed')}
         </span>
       )
     case 'cancelled':
       return (
-        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+        <span className="inline-flex items-center gap-1 type-label text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
           <XCircle size={10} /> {t('pages.jobs.status.cancelled')}
         </span>
       )
@@ -149,12 +149,12 @@ function JobDetailCard({ job, onClose }: { job: Job; onClose: () => void }) {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <Eye size={13} className="text-muted-foreground" />
-            <p className="truncate text-sm font-semibold text-foreground">{getJobTitle(job)}</p>
+            <p className="truncate type-body font-semibold text-foreground">{getJobTitle(job)}</p>
           </div>
           {job.title && job.prompt ? (
-            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{job.prompt}</p>
+            <p className="mt-1 line-clamp-2 type-label text-muted-foreground">{job.prompt}</p>
           ) : null}
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 type-label text-muted-foreground">
             {job.job_type} · #{job.ID} · {job.provider_name ?? job.model_display ?? t('pages.jobs.generating')}
           </p>
         </div>
@@ -163,7 +163,7 @@ function JobDetailCard({ job, onClose }: { job: Job; onClose: () => void }) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+            className="rounded-full bg-muted px-2 py-1 type-label text-muted-foreground hover:text-foreground"
           >
             {t('common.close')}
           </button>
@@ -180,16 +180,16 @@ function JobDetailCard({ job, onClose }: { job: Job; onClose: () => void }) {
 
         {stateTrace.length > 0 && (
           <div>
-            <p className="mb-2 text-xs font-semibold text-foreground">状态轨迹</p>
+            <p className="mb-2 type-label font-semibold text-foreground">状态轨迹</p>
             <div className="space-y-2">
               {stateTrace.map((entry, index) => (
                 <div key={`${entry.state}-${entry.started_at}-${index}`} className="rounded-md border border-border bg-muted/20 px-3 py-2">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-medium text-foreground">{entry.state}</p>
-                    <span className="text-[10px] text-muted-foreground">{entry.status}</span>
+                    <p className="type-label font-medium text-foreground">{entry.state}</p>
+                    <span className="type-tiny text-muted-foreground">{entry.status}</span>
                   </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground">{entry.message ?? entry.error ?? '—'}</p>
-                  <p className="mt-1 text-[10px] text-muted-foreground/70">
+                  <p className="mt-1 type-caption text-muted-foreground">{entry.message ?? entry.error ?? '—'}</p>
+                  <p className="mt-1 type-tiny text-muted-foreground/70">
                     {formatTime(entry.started_at, i18n.language, t)}
                     {entry.finished_at ? ` → ${formatTime(entry.finished_at, i18n.language, t)}` : ''}
                     {typeof entry.duration_ms === 'number' ? ` · ${entry.duration_ms}ms` : ''}
@@ -202,8 +202,8 @@ function JobDetailCard({ job, onClose }: { job: Job; onClose: () => void }) {
 
         {job.provider_task_history && (
           <div>
-            <p className="mb-2 text-xs font-semibold text-foreground">Provider 历史</p>
-            <pre className="max-h-56 overflow-auto rounded-md border border-border bg-muted/20 p-3 text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap break-all">
+            <p className="mb-2 type-label font-semibold text-foreground">Provider 历史</p>
+            <pre className="max-h-56 overflow-auto rounded-md border border-border bg-muted/20 p-3 type-caption leading-relaxed text-muted-foreground whitespace-pre-wrap break-all">
               {job.provider_task_history}
             </pre>
           </div>
@@ -216,8 +216,8 @@ function JobDetailCard({ job, onClose }: { job: Job; onClose: () => void }) {
 function KeyValue({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate text-xs text-foreground">{value}</p>
+      <p className="type-tiny uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 truncate type-label text-foreground">{value}</p>
     </div>
   )
 }
@@ -272,9 +272,9 @@ function JobListCard({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-foreground">{getJobTitle(job)}</p>
+          <p className="truncate type-body font-semibold text-foreground">{getJobTitle(job)}</p>
           {job.prompt ? (
-            <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+            <p className="mt-0.5 line-clamp-2 type-label leading-relaxed text-muted-foreground">
               <PromptText text={job.prompt} />
             </p>
           ) : null}
@@ -287,7 +287,7 @@ function JobListCard({
               event.stopPropagation()
               onSelect(job.ID)
             }}
-            className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 type-label text-muted-foreground hover:text-foreground"
           >
             <Eye size={10} /> {t('common.details')}
           </button>
@@ -299,7 +299,7 @@ function JobListCard({
                 onCancel(job.ID)
               }}
               disabled={cancelling}
-              className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive hover:bg-destructive/15 disabled:opacity-50"
+              className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 type-label text-destructive hover:bg-destructive/15 disabled:opacity-50"
               title={t('pages.jobs.cancelTask')}
             >
               <XCircle size={10} /> {t('common.cancel')}
@@ -313,13 +313,13 @@ function JobListCard({
                 onRetry(job.ID)
               }}
               disabled={retrying}
-              className="relative z-10 inline-flex items-center gap-1 rounded-full bg-foreground/5 px-2 py-0.5 text-xs text-foreground hover:bg-foreground/10 disabled:opacity-50"
+              className="relative z-10 inline-flex items-center gap-1 rounded-full bg-foreground/5 px-2 py-0.5 type-label text-foreground hover:bg-foreground/10 disabled:opacity-50"
               title={t('common.retry')}
             >
               <RefreshCw size={10} className={cn(retrying && 'animate-spin')} /> {t('common.retry')}
             </button>
           )}
-          <span className="text-xs text-muted-foreground/50">{formatTime(job.CreatedAt, i18n.language, t)}</span>
+          <span className="type-label text-muted-foreground/50">{formatTime(job.CreatedAt, i18n.language, t)}</span>
         </div>
       </div>
 
@@ -332,7 +332,7 @@ function JobListCard({
           <div className="flex items-center justify-center w-full py-8">
             <div className="flex flex-col items-center gap-2 text-muted-foreground">
               <Loader2 size={20} className="animate-spin" />
-              <p className="text-xs">{job.status === 'pending' ? t('pages.jobs.waitingWorker') : t('pages.jobs.aiGenerating')}</p>
+              <p className="type-label">{job.status === 'pending' ? t('pages.jobs.waitingWorker') : t('pages.jobs.aiGenerating')}</p>
             </div>
           </div>
         )}
@@ -340,14 +340,14 @@ function JobListCard({
         {!isActive && job.status === 'failed' && (
           <div className="flex items-center gap-2 text-destructive px-4 py-4">
             <AlertCircle size={14} />
-            <p className="text-sm">{job.error_msg || t('pages.jobs.generationFailed')}</p>
+            <p className="type-body">{job.error_msg || t('pages.jobs.generationFailed')}</p>
           </div>
         )}
 
         {!isActive && job.status === 'cancelled' && (
           <div className="flex items-center gap-2 text-muted-foreground px-4 py-4">
             <XCircle size={14} />
-            <p className="text-sm">{job.error_msg || t('pages.jobs.taskCancelled')}</p>
+            <p className="type-body">{job.error_msg || t('pages.jobs.taskCancelled')}</p>
           </div>
         )}
 
@@ -407,7 +407,7 @@ function JobGridThumb({
         {isActive && (
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-muted-foreground">
             <Loader2 size={18} className="animate-spin" />
-            <p className="text-[10px]">{job.status === 'pending' ? t('pages.jobs.status.pending') : t('pages.jobs.status.running')}</p>
+            <p className="type-tiny">{job.status === 'pending' ? t('pages.jobs.status.pending') : t('pages.jobs.status.running')}</p>
           </div>
         )}
         <button
@@ -416,7 +416,7 @@ function JobGridThumb({
             event.stopPropagation()
             onSelect(job.ID)
           }}
-          className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-1 text-[10px] text-foreground shadow-sm hover:bg-background"
+          className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-1 type-tiny text-foreground shadow-sm hover:bg-background"
         >
           <Eye size={11} /> {t('common.details')}
         </button>
@@ -428,7 +428,7 @@ function JobGridThumb({
               onCancel(job.ID)
             }}
             disabled={cancelling}
-            className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-1 text-[10px] text-destructive shadow-sm hover:bg-background disabled:opacity-50"
+            className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-1 type-tiny text-destructive shadow-sm hover:bg-background disabled:opacity-50"
             title={t('pages.jobs.cancelTask')}
           >
             <XCircle size={11} /> {t('common.cancel')}
@@ -442,7 +442,7 @@ function JobGridThumb({
               onRetry(job.ID)
             }}
             disabled={retrying}
-            className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-1 text-[10px] text-foreground shadow-sm hover:bg-background disabled:opacity-50"
+            className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-1 type-tiny text-foreground shadow-sm hover:bg-background disabled:opacity-50"
             title={t('common.retry')}
           >
             <RefreshCw size={11} className={cn(retrying && 'animate-spin')} /> {t('common.retry')}
@@ -451,13 +451,13 @@ function JobGridThumb({
         {!isActive && job.status === 'failed' && (
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 text-destructive">
             <AlertCircle size={16} />
-            <p className="text-[10px]">{t('pages.jobs.status.failed')}</p>
+            <p className="type-tiny">{t('pages.jobs.status.failed')}</p>
           </div>
         )}
         {!isActive && job.status === 'cancelled' && (
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 text-muted-foreground">
             <XCircle size={16} />
-            <p className="text-[10px]">{t('pages.jobs.status.cancelled')}</p>
+            <p className="type-tiny">{t('pages.jobs.status.cancelled')}</p>
           </div>
         )}
         {!isActive && job.status === 'succeeded' && out && (
@@ -467,14 +467,14 @@ function JobGridThumb({
 
       {/* Caption */}
       <div className="px-2 py-1.5">
-        <p className="truncate text-[10px] font-medium text-foreground">{getJobTitle(job)}</p>
+        <p className="truncate type-tiny font-medium text-foreground">{getJobTitle(job)}</p>
         {job.prompt ? (
-          <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">
+          <p className="mt-0.5 line-clamp-2 type-tiny leading-relaxed text-muted-foreground">
             <PromptText text={job.prompt} />
           </p>
         ) : null}
         <JobContextSummary job={job} className="mt-1" />
-        <p className="text-[9px] text-muted-foreground/50 mt-0.5">{formatTime(job.CreatedAt, i18n.language, t)}</p>
+        <p className="type-micro text-muted-foreground/50 mt-0.5">{formatTime(job.CreatedAt, i18n.language, t)}</p>
       </div>
     </div>
   )
@@ -509,11 +509,11 @@ function CategorySection({
     <div>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+        className="flex items-center gap-1.5 mb-2 type-label font-semibold text-muted-foreground hover:text-foreground transition-colors"
       >
         {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         {label}
-        <span className="bg-muted rounded-full px-1.5 text-[10px]">{jobs.length}</span>
+        <span className="bg-muted rounded-full px-1.5 type-tiny">{jobs.length}</span>
       </button>
 
       {open && (
@@ -639,10 +639,10 @@ export default function JobsPage() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-3 border-b border-border bg-background shrink-0">
-        <h1 className="text-sm font-semibold text-foreground">{t('header.titles.jobs')}</h1>
-        <span className="text-xs text-muted-foreground">{t('pages.jobs.recordsCount', { count: total })}</span>
+        <h1 className="type-body font-semibold text-foreground">{t('header.titles.jobs')}</h1>
+        <span className="type-label text-muted-foreground">{t('pages.jobs.recordsCount', { count: total })}</span>
         {hasActiveJobs(jobs) && (
-          <span className="flex items-center gap-1 text-xs text-blue-600">
+          <span className="flex items-center gap-1 type-label text-blue-600">
             <Loader2 size={11} className="animate-spin" /> {t('pages.jobs.generating')}
           </span>
         )}
@@ -684,7 +684,7 @@ export default function JobsPage() {
               key={filter.key}
               onClick={() => setStatusFilter(filter.key)}
               className={cn(
-                'px-2.5 py-1 rounded-full text-xs whitespace-nowrap transition-colors',
+                'px-2.5 py-1 rounded-full type-label whitespace-nowrap transition-colors',
                 statusFilter === filter.key
                   ? 'bg-foreground text-background'
                   : 'bg-muted text-muted-foreground hover:text-foreground'
@@ -702,7 +702,7 @@ export default function JobsPage() {
               key={cat.key}
               onClick={() => setActiveCategory(cat.key)}
               className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs whitespace-nowrap transition-colors shrink-0',
+                'flex items-center gap-1.5 px-2.5 py-1 rounded-full type-label whitespace-nowrap transition-colors shrink-0',
                 activeCategory === cat.key
                   ? 'bg-foreground text-background'
                   : 'bg-muted text-muted-foreground hover:text-foreground'
@@ -711,7 +711,7 @@ export default function JobsPage() {
               {cat.icon}
               {t(cat.labelKey)}
               {showCount && (
-                <span className="text-[10px] font-semibold tabular-nums opacity-70">{total}</span>
+                <span className="type-tiny font-semibold tabular-nums opacity-70">{total}</span>
               )}
             </button>
           )
@@ -727,12 +727,12 @@ export default function JobsPage() {
         )}
 
         {isLoading ? (
-          <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">{t('common.loadingShort')}</div>
+          <div className="flex items-center justify-center h-40 text-muted-foreground type-body">{t('common.loadingShort')}</div>
         ) : total === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 text-muted-foreground/50">
             <Wand2 size={32} className="mb-3 opacity-30" />
-            <p className="text-sm">{t('pages.jobs.empty')}</p>
-            <p className="text-xs mt-1">{t('pages.jobs.emptyHint')}</p>
+            <p className="type-body">{t('pages.jobs.empty')}</p>
+            <p className="type-label mt-1">{t('pages.jobs.emptyHint')}</p>
           </div>
         ) : activeCategory === 'all' ? (
           // Grouped view
@@ -787,21 +787,21 @@ export default function JobsPage() {
 
       {total > PAGE_SIZE && (
         <div className="flex items-center justify-between px-5 py-3 border-t border-border bg-background shrink-0">
-          <span className="text-xs text-muted-foreground">
+          <span className="type-label text-muted-foreground">
             {t('pages.resources.pageStatus', { page, pageCount })}
           </span>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
+              className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 type-label text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
             >
               <ChevronLeft size={12} /> {t('pages.resources.previousPage')}
             </button>
             <button
               onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
               disabled={page === pageCount}
-              className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
+              className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 type-label text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
             >
               {t('pages.resources.nextPage')} <ChevronRight size={12} />
             </button>

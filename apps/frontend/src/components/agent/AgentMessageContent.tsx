@@ -26,7 +26,7 @@ export function AgentMessageSection({
   if (!defaultOpen) {
     return (
       <details className={className}>
-        <summary className="cursor-pointer list-none text-[10px] font-medium text-muted-foreground marker:hidden">
+        <summary className="cursor-pointer list-none type-tiny font-medium text-muted-foreground marker:hidden">
           {title}
         </summary>
         <div className="mt-1.5">{children}</div>
@@ -35,7 +35,7 @@ export function AgentMessageSection({
   }
   return (
     <section className={className}>
-      <div className="mb-1.5 text-[10px] font-medium text-muted-foreground">{title}</div>
+      <div className="mb-1.5 type-tiny font-medium text-muted-foreground">{title}</div>
       {children}
     </section>
   )
@@ -78,8 +78,8 @@ export function AgentAttachmentPreview({ attachment, compact = false }: { attach
         </div>
       )}
       <div className="px-2 py-1 min-w-0">
-        <p className="truncate text-[10px] font-medium text-foreground">{attachment.name}</p>
-        <p className="text-[9px] text-muted-foreground">{formatAgentAttachmentBytes(attachment.size)}</p>
+        <p className="truncate type-tiny font-medium text-foreground">{attachment.name}</p>
+        <p className="type-micro text-muted-foreground">{formatAgentAttachmentBytes(attachment.size)}</p>
       </div>
     </div>
   )
@@ -112,7 +112,7 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
     setTimeout(() => setCopied(false), 1500)
   }
   return (
-    <div className="rounded-md overflow-hidden bg-black/20 my-2 text-xs">
+    <div className="rounded-md overflow-hidden bg-black/20 my-2 type-label">
       <div className="flex items-center justify-between px-3 py-1 border-b border-white/10">
         <span className="font-mono text-muted-foreground/70">{lang || 'code'}</span>
         <button onClick={copy} className="text-muted-foreground/50 hover:text-muted-foreground transition-colors">
@@ -153,7 +153,7 @@ function InlineResourceMention({ attachment }: { attachment: AgentAttachment }) 
   )
 
   return (
-    <span className="inline-flex max-w-full items-center gap-1 align-middle rounded-md border border-border bg-muted/60 px-1.5 py-0.5 text-[11px] leading-none text-foreground mx-0.5">
+    <span className="inline-flex max-w-full items-center gap-1 align-middle rounded-md border border-border bg-muted/60 px-1.5 py-0.5 type-caption leading-none text-foreground mx-0.5">
       <span className="h-4 w-4 shrink-0 overflow-hidden rounded bg-background/70">
         {media}
       </span>
@@ -166,7 +166,7 @@ function renderInlineText(text: string) {
   const parts = text.split(/(`[^`\n]+`|\*\*[^*\n]+\*\*)/g)
   return parts.map((part, i) => {
     if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
-      return <code key={i} className="px-1 py-0.5 rounded bg-muted/60 text-xs font-mono">{part.slice(1, -1)}</code>
+      return <code key={i} className="px-1 py-0.5 rounded bg-muted/60 type-label font-mono">{part.slice(1, -1)}</code>
     }
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) return <strong key={i}>{part.slice(2, -2)}</strong>
     return part.split('\n').map((line, j, arr) => (

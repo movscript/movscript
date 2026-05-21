@@ -67,9 +67,9 @@ function CreateOrgDialog({ onClose, onCreated }: { onClose: () => void; onCreate
               placeholder={t('org.slugPlaceholder')}
               className="mt-1"
             />
-            <p className="text-xs text-muted-foreground mt-1">{t('org.slugHint')}</p>
+            <p className="type-label text-muted-foreground mt-1">{t('org.slugHint')}</p>
           </div>
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="type-label text-destructive">{error}</p>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
@@ -110,9 +110,9 @@ function JoinOrgDialog({ onClose, onJoined }: { onClose: () => void; onJoined: (
               className="mt-1 font-mono"
               autoFocus
             />
-            <p className="text-xs text-muted-foreground mt-1">{t('org.codeHint')}</p>
+            <p className="type-label text-muted-foreground mt-1">{t('org.codeHint')}</p>
           </div>
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="type-label text-destructive">{error}</p>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
@@ -163,8 +163,8 @@ export default function OrgSelectPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-2xl">
         <div className="mb-7">
-          <h1 className="text-2xl font-bold text-foreground mb-1">{t('org.selectTitle')}</h1>
-          <p className="text-sm text-muted-foreground">{t('org.selectSubtitle')}</p>
+          <h1 className="type-page-title font-bold text-foreground mb-1">{t('org.selectTitle')}</h1>
+          <p className="type-body text-muted-foreground">{t('org.selectSubtitle')}</p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -176,9 +176,9 @@ export default function OrgSelectPage() {
               <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
                 <Plus size={16} className="text-muted-foreground" />
               </div>
-              <p className="text-sm font-semibold text-foreground">{t('org.createNew')}</p>
+              <p className="type-body font-semibold text-foreground">{t('org.createNew')}</p>
             </div>
-            <p className="mt-4 text-xs leading-5 text-muted-foreground">{t('org.createOptionDescription')}</p>
+            <p className="mt-4 type-label leading-5 text-muted-foreground">{t('org.createOptionDescription')}</p>
           </button>
 
           <button
@@ -189,15 +189,15 @@ export default function OrgSelectPage() {
               <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted">
                 <KeyRound size={16} className="text-muted-foreground" />
               </div>
-              <p className="text-sm font-semibold text-foreground">{t('org.joinWithCode')}</p>
+              <p className="type-body font-semibold text-foreground">{t('org.joinWithCode')}</p>
             </div>
-            <p className="mt-4 text-xs leading-5 text-muted-foreground">{t('org.joinOptionDescription')}</p>
+            <p className="mt-4 type-label leading-5 text-muted-foreground">{t('org.joinOptionDescription')}</p>
           </button>
         </div>
 
         {personalMembership && visibleMemberships.length > 0 && (
           <div className="mt-7">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('org.existingWorkspaces')}</p>
+            <p className="mb-3 type-label font-semibold uppercase tracking-wider text-muted-foreground">{t('org.existingWorkspaces')}</p>
             <div className="space-y-2">
               {visibleMemberships.map((m) => (
                 <button
@@ -209,8 +209,8 @@ export default function OrgSelectPage() {
                     <Building2 size={16} className="text-muted-foreground" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{m.org_name}</p>
-                    <p className="text-xs text-muted-foreground">{roleLabel(m.role, t)}</p>
+                    <p className="type-body font-medium text-foreground truncate">{m.org_name}</p>
+                    <p className="type-label text-muted-foreground">{roleLabel(m.role, t)}</p>
                   </div>
                   <ChevronRight size={15} className="text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
                 </button>

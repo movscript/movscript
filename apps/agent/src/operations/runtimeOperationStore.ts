@@ -1,4 +1,5 @@
 import type { RuntimeOperation } from './runtimeOperation.js'
+import type { AgentStore } from '../state/store.js'
 
 export interface RuntimeOperationStore {
   create(operation: RuntimeOperation): RuntimeOperation
@@ -32,6 +33,32 @@ export class InMemoryRuntimeOperationStore implements RuntimeOperationStore {
       .filter((operation) => query.status === undefined || operation.status === query.status)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .map(clone)
+  }
+}
+
+export class AgentStoreRuntimeOperationStore implements RuntimeOperationStore {
+  constructor(private readonly store: Pick<
+    AgentStore,
+    'createRuntimeOperation' | 'updateRuntimeOperation' | 'getRuntimeOperation' | 'listRuntimeOperations'
+  >) {}
+
+  create(operation: RuntimeOperation): RuntimeOperation {
+    this.store.createRuntimeOperation(operation)
+    return clone(operation)
+  }
+
+  update(operation: RuntimeOperation): RuntimeOperation {
+    if (!this.store.getRuntimeOperation(operation.id)) throw new Error(`runtime operation not found: ${operation.id}`)
+    this.store.updateRuntimeOperation(operation)
+    return clone(operation)
+  }
+
+  get(id: string): RuntimeOperation | undefined {
+    return this.store.getRuntimeOperation(id)
+  }
+
+  list(query: { runId?: string; status?: RuntimeOperation['status'] } = {}): RuntimeOperation[] {
+    return this.store.listRuntimeOperations(query)
   }
 }
 

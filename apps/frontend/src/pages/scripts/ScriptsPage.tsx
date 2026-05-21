@@ -357,11 +357,11 @@ function ScriptsSection({ projectId }: { projectId: number }) {
         <header className="script-workbench-topbar border-b border-border bg-background px-4 py-3">
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
-              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <div className="flex items-center gap-2 type-label font-medium text-muted-foreground">
                 <Clapperboard size={14} />
                 影视创意编排工作台
               </div>
-              <h1 className="mt-1 truncate text-xl font-semibold text-foreground">剧本协作与制作拆解</h1>
+              <h1 className="mt-1 truncate type-title font-semibold text-foreground">剧本协作与制作拆解</h1>
             </div>
             <div className="grid grid-cols-3 gap-2">
               <WorkspaceStat icon={ScrollText} label="剧本" value={String(scripts.length)} />
@@ -376,20 +376,20 @@ function ScriptsSection({ projectId }: { projectId: number }) {
             <div className="flex h-12 items-center justify-between border-b border-border px-3">
               <div className="flex items-center gap-2">
                 <ScrollText size={14} className="text-muted-foreground" />
-                <span className="text-sm font-semibold text-foreground">剧本库</span>
+                <span className="type-body font-semibold text-foreground">剧本库</span>
               </div>
-              <Button variant="default" size="icon" onClick={() => setShowCreate(true)} className="h-7 w-7" aria-label="新建剧本">
+              <Button variant="default" size="icon-sm" onClick={() => setShowCreate(true)} aria-label="新建剧本">
                 <Plus size={14} />
               </Button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
               {isLoading ? (
-                <p className="px-2 py-4 text-xs text-muted-foreground">{t('common.loadingShort')}</p>
+                <p className="px-2 py-4 type-label text-muted-foreground">{t('common.loadingShort')}</p>
               ) : scripts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-3 py-12 text-muted-foreground">
                   <FileText size={28} className="opacity-30" />
-                  <p className="text-xs">{t('pages.scripts.empty')}</p>
-                  <button onClick={() => setShowCreate(true)} className="text-xs hover:text-foreground">
+                  <p className="type-label">{t('pages.scripts.empty')}</p>
+                  <button onClick={() => setShowCreate(true)} className="type-label hover:text-foreground">
                     {t('pages.scripts.createOne')}
                   </button>
                 </div>
@@ -398,8 +398,8 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                   {scriptGroups.map((group) => (
                     <div key={group.category}>
                       <div className="mb-1.5 flex items-center justify-between px-1">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{group.category}</p>
-                        <span className="rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">{group.scripts.length}</span>
+                        <p className="type-caption font-semibold uppercase tracking-wide text-muted-foreground">{group.category}</p>
+                        <span className="rounded border border-border bg-muted/40 px-1.5 py-0.5 type-tiny text-muted-foreground">{group.scripts.length}</span>
                       </div>
                       <div className="space-y-1">
                         {group.scripts.map((script) => {
@@ -420,8 +420,8 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                               <div className="flex items-start gap-2">
                                 <div className={cn('mt-1 h-2 w-2 shrink-0 rounded-full', hasVersions ? 'bg-emerald-500' : bodyLength > 0 ? 'bg-amber-500' : 'bg-muted-foreground/30')} />
                                 <div className="min-w-0 flex-1">
-                                  <p className="truncate text-sm font-medium">{script.title}</p>
-                                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                  <p className="truncate type-body font-medium">{script.title}</p>
+                                  <p className="mt-0.5 type-caption text-muted-foreground">
                                     {vers.length} 版本 · {bodyLength} 字 · {hasVersions ? '可制作' : '待锁定'}
                                   </p>
                                 </div>
@@ -441,7 +441,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
         {!selected ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
             <ScrollText size={36} className="opacity-20" />
-            <p className="text-sm">选择左侧剧本开始编辑</p>
+            <p className="type-body">选择左侧剧本开始编辑</p>
             <Button variant="outline" size="sm" onClick={() => setShowCreate(true)}>
               <Plus size={13} className="mr-1.5" />
               新建剧本
@@ -456,14 +456,14 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                     <ScriptTypeBadge script={selected} />
                     <ScriptStageBadge versionCount={versionsForSelected.length} />
                     {latestVersion && (
-                      <span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">
+                      <span className="rounded-md border border-border bg-background px-2 py-0.5 type-label text-muted-foreground">
                         最新版本 v{latestVersion.version_number || latestVersion.ID}
                       </span>
                     )}
                   </div>
-                  <h2 className="mt-2 text-xl font-semibold text-foreground">{selected.title}</h2>
+                  <h2 className="mt-2 type-title font-semibold text-foreground">{selected.title}</h2>
                   {(selected.summary || selected.description) && (
-                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{selected.summary || selected.description}</p>
+                    <p className="mt-1 type-body leading-relaxed text-muted-foreground">{selected.summary || selected.description}</p>
                   )}
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
@@ -495,7 +495,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                   key={tab.key}
                   onClick={() => setDetailTab(tab.key)}
                   className={cn(
-                    'border-b-2 px-4 py-2.5 text-sm transition-colors',
+                    'border-b-2 px-4 py-2.5 type-body transition-colors',
                     detailTab === tab.key
                       ? 'border-foreground font-medium text-foreground'
                       : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -527,8 +527,8 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                 <div className="p-5">
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-foreground">版本历史</h3>
-                      <p className="mt-0.5 text-xs text-muted-foreground">版本创建后即锁定为历史快照，不支持修改、激活或归档；创建制作时默认使用最新版本。</p>
+                      <h3 className="type-body font-semibold text-foreground">版本历史</h3>
+                      <p className="mt-0.5 type-label text-muted-foreground">版本创建后即锁定为历史快照，不支持修改、激活或归档；创建制作时默认使用最新版本。</p>
                     </div>
 	                    <Button
 	                      variant="outline"
@@ -545,8 +545,8 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                   {versionsForSelected.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-border bg-card py-10 text-center">
                       <Layers size={28} className="mx-auto text-muted-foreground/30" />
-                      <p className="mt-3 text-sm font-medium text-foreground">暂无版本</p>
-	                      <p className="mt-1 text-xs text-muted-foreground">填写正文后，点击「快照当前正文」创建第一个稳定版本。</p>
+                      <p className="mt-3 type-body font-medium text-foreground">暂无版本</p>
+	                      <p className="mt-1 type-label text-muted-foreground">填写正文后，点击「快照当前正文」创建第一个稳定版本。</p>
 	                      <Button variant="outline" size="sm" className="mt-4" onClick={() => setDetailTab('edit')}>
 	                        前往编辑正文
 	                      </Button>
@@ -568,13 +568,13 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                             <div className="flex items-center gap-3 px-4 py-3">
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="text-sm font-semibold text-foreground">
+                                  <span className="type-body font-semibold text-foreground">
                                     v{version.version_number || version.ID}
                                   </span>
                                   <VersionStatusBadge status={version.status} />
-                                  <span className="text-xs text-muted-foreground">{version.title}</span>
+                                  <span className="type-label text-muted-foreground">{version.title}</span>
                                 </div>
-                                <p className="mt-0.5 text-xs text-muted-foreground">
+                                <p className="mt-0.5 type-label text-muted-foreground">
                                   {contentLength} 字 · {formatDate(version.UpdatedAt)}
                                 </p>
                               </div>
@@ -582,7 +582,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                                 {contentLength > 0 && (
                                   <button
                                     onClick={() => setExpandedVersionId(isExpanded ? null : version.ID)}
-                                    className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                                    className="rounded-md px-2.5 py-1 type-label text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
                                   >
                                     {isExpanded ? '收起' : '查看'}
                                   </button>
@@ -625,8 +625,8 @@ function ScriptsSection({ projectId }: { projectId: number }) {
               {detailTab === 'production' && (
                 <div className="p-5">
                   <div className="mb-4">
-                    <h3 className="text-sm font-semibold text-foreground">创建制作项目</h3>
-                    <p className="mt-0.5 text-xs text-muted-foreground">基于最新的剧本版本创建制作，制作将锁定该版本作为来源。</p>
+                    <h3 className="type-body font-semibold text-foreground">创建制作项目</h3>
+                    <p className="mt-0.5 type-label text-muted-foreground">基于最新的剧本版本创建制作，制作将锁定该版本作为来源。</p>
                   </div>
                   <div className="space-y-2">
                     <ReadinessRow label="剧本分类已设置" done={categoryLabel(selected.script_type) !== '未分类'} />
@@ -663,8 +663,8 @@ function ScriptsSection({ projectId }: { projectId: number }) {
 
                   {latestVersion && (
                     <div className="mt-4 rounded-lg border border-border bg-muted/40 p-3">
-                      <p className="text-xs font-medium text-foreground">将使用最新版本</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      <p className="type-label font-medium text-foreground">将使用最新版本</p>
+                      <p className="mt-1 type-label text-muted-foreground">
                         v{latestVersion.version_number || latestVersion.ID} · {latestVersion.title} · {formatDate(latestVersion.UpdatedAt)}
                       </p>
                     </div>
@@ -708,11 +708,11 @@ function ScriptsSection({ projectId }: { projectId: number }) {
 function WorkspaceStat({ icon: Icon, label, value }: { icon: typeof FileText; label: string; value: string }) {
   return (
     <div className="min-w-[86px] rounded-md border border-border bg-muted/30 px-3 py-2">
-      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+      <div className="flex items-center gap-1.5 type-caption text-muted-foreground">
         <Icon size={12} />
         {label}
       </div>
-      <p className="mt-0.5 text-base font-semibold leading-5 text-foreground">{value}</p>
+      <p className="mt-0.5 type-body-lg font-semibold leading-5 text-foreground">{value}</p>
     </div>
   )
 }
@@ -750,7 +750,7 @@ function ScriptCollaborationPanel({
     return (
       <div className="flex h-full flex-col items-center justify-center rounded-md border border-dashed border-border p-6 text-center text-muted-foreground">
         <Sparkles size={28} className="opacity-30" />
-        <p className="mt-2 text-sm">选择剧本后查看协作状态</p>
+        <p className="mt-2 type-body">选择剧本后查看协作状态</p>
       </div>
     )
   }
@@ -760,8 +760,8 @@ function ScriptCollaborationPanel({
       <section className="rounded-md border border-border bg-background p-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold text-foreground">AI 创意搭档</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">围绕当前剧本做审阅、改写和制作拆解，结果回到右侧 AI 面板继续协作。</p>
+            <p className="type-label font-semibold text-foreground">AI 创意搭档</p>
+            <p className="mt-1 type-label leading-5 text-muted-foreground">围绕当前剧本做审阅、改写和制作拆解，结果回到右侧 AI 面板继续协作。</p>
           </div>
           <Bot size={16} className="shrink-0 text-muted-foreground" />
         </div>
@@ -785,8 +785,8 @@ function ScriptCollaborationPanel({
 
       <section className="rounded-md border border-border bg-background p-3">
         <div className="mb-3 flex items-center justify-between">
-          <p className="text-xs font-semibold text-foreground">制作就绪</p>
-          <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{readiness}%</span>
+          <p className="type-label font-semibold text-foreground">制作就绪</p>
+          <span className="rounded-md bg-muted px-2 py-0.5 type-caption text-muted-foreground">{readiness}%</span>
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-muted">
           <div className="h-full rounded-full bg-primary" style={{ width: `${readiness}%` }} />
@@ -815,7 +815,7 @@ function ScriptCollaborationPanel({
       </section>
 
       <section className="rounded-md border border-border bg-background p-3">
-        <p className="text-xs font-semibold text-foreground">剧本到制作链路</p>
+        <p className="type-label font-semibold text-foreground">剧本到制作链路</p>
         <div className="mt-3 grid grid-cols-2 gap-2">
           <PipelineMetric label="版本" value={versionCount} />
           <PipelineMetric label="剧本块" value={scriptBlockCount} />
@@ -823,15 +823,15 @@ function ScriptCollaborationPanel({
           <PipelineMetric label="情景" value={linkedSceneMomentCount} />
         </div>
         <div className="mt-3 rounded-md border border-border bg-muted/30 p-2.5">
-          <p className="text-[11px] font-medium text-foreground">当前锁定源</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          <p className="type-caption font-medium text-foreground">当前锁定源</p>
+          <p className="mt-1 type-label leading-5 text-muted-foreground">
             {latestVersion ? `v${latestVersion.version_number || latestVersion.ID} · ${formatDate(latestVersion.UpdatedAt)}` : '尚无可用于制作的锁定版本'}
           </p>
         </div>
       </section>
 
       <section className="rounded-md border border-border bg-background p-3">
-        <p className="text-xs font-semibold text-foreground">专业工作流</p>
+        <p className="type-label font-semibold text-foreground">专业工作流</p>
         <div className="mt-3 space-y-2">
           <WorkflowStep index="01" title="完善正文" active={!hasDraftBody || !isDraftPublished} />
           <WorkflowStep index="02" title="锁定版本" active={hasDraftBody && versionCount === 0} />
@@ -847,8 +847,8 @@ function ScriptCollaborationPanel({
 function PipelineMetric({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-md border border-border bg-muted/30 px-2.5 py-2">
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-lg font-semibold leading-6 text-foreground">{value}</p>
+      <p className="type-caption text-muted-foreground">{label}</p>
+      <p className="mt-0.5 type-title-sm font-semibold leading-6 text-foreground">{value}</p>
     </div>
   )
 }
@@ -856,8 +856,8 @@ function PipelineMetric({ label, value }: { label: string; value: number }) {
 function WorkflowStep({ index, title, active }: { index: string; title: string; active: boolean }) {
   return (
     <div className={cn('flex items-center gap-2 rounded-md border px-2.5 py-2', active ? 'border-primary/30 bg-primary/10' : 'border-border bg-muted/20')}>
-      <span className={cn('shrink-0 font-mono text-[11px]', active ? 'text-primary' : 'text-muted-foreground')}>{index}</span>
-      <span className={cn('min-w-0 truncate text-xs', active ? 'font-medium text-foreground' : 'text-muted-foreground')}>{title}</span>
+      <span className={cn('shrink-0 font-mono type-caption', active ? 'text-primary' : 'text-muted-foreground')}>{index}</span>
+      <span className={cn('min-w-0 truncate type-label', active ? 'font-medium text-foreground' : 'text-muted-foreground')}>{title}</span>
     </div>
   )
 }
@@ -946,13 +946,13 @@ function ScriptVersionBlockPanel({
   return (
     <div className="border-t border-border bg-background px-4 py-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0 text-xs text-muted-foreground">
+        <div className="min-w-0 type-label text-muted-foreground">
           {selection ? `已选 ${selection.startLine}-${selection.endLine} 行 · ${selection.text.trim().length} 字` : `${blocks.length} 个剧本块`}
         </div>
         <Button
           size="sm"
           variant="outline"
-          className="h-7 gap-1.5 px-2 text-xs"
+          className="gap-1.5 px-2 type-label"
           disabled={!selection || isCreating}
           onClick={onCreate}
         >
@@ -961,7 +961,7 @@ function ScriptVersionBlockPanel({
         </Button>
       </div>
       <div className="relative">
-        <div className="pointer-events-none absolute bottom-px left-px top-px w-12 overflow-hidden rounded-l-md border-r border-border bg-muted/40 py-2 font-mono text-[11px] leading-5 text-muted-foreground">
+        <div className="pointer-events-none absolute bottom-px left-px top-px w-12 overflow-hidden rounded-l-md border-r border-border bg-muted/40 py-2 font-mono type-caption leading-5 text-muted-foreground">
           <div style={{ transform: `translateY(-${scrollTop}px)` }}>
             {displayLines.map((line) => (
               <div key={line.line_number} className="h-5 pr-2 text-right tabular-nums">
@@ -977,7 +977,7 @@ function ScriptVersionBlockPanel({
           onKeyUp={captureSelection}
           onMouseUp={captureSelection}
           onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
-          className="min-h-[260px] w-full resize-y rounded-md border border-border bg-card py-2 pl-14 pr-3 font-mono text-xs leading-5 text-foreground outline-none"
+          className="min-h-[260px] w-full resize-y rounded-md border border-border bg-card py-2 pl-14 pr-3 font-mono type-label leading-5 text-foreground outline-none"
         />
       </div>
       {blocks.length > 0 && (
@@ -1001,18 +1001,18 @@ function ScriptVersionBlockPanel({
             return (
               <div key={block.ID} className="rounded-md border border-border bg-card p-2">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-xs font-medium text-foreground">{scriptBlockLabel(block)}</span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">行 {block.start_line || '?'}-{block.end_line || '?'}</span>
+                  <span className="truncate type-label font-medium text-foreground">{scriptBlockLabel(block)}</span>
+                  <span className="shrink-0 type-caption text-muted-foreground">行 {block.start_line || '?'}-{block.end_line || '?'}</span>
                 </div>
-                <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{String(block.content ?? '')}</p>
+                <p className="mt-1 line-clamp-2 type-label leading-relaxed text-muted-foreground">{String(block.content ?? '')}</p>
                 <ScriptBlockUsageStrip usages={usages} onOpen={onOpenUsage} />
                 <div className="mt-2 grid gap-1.5">
-                  <label className="text-[10px] font-medium text-muted-foreground" htmlFor={`script-block-target-segment-${block.ID}`}>情景归属编排段</label>
+                  <label className="type-tiny font-medium text-muted-foreground" htmlFor={`script-block-target-segment-${block.ID}`}>情景归属编排段</label>
                   <select
                     id={`script-block-target-segment-${block.ID}`}
                     value={targetSegmentValue}
                     onChange={(event) => setTargetSegmentByBlockId((current) => ({ ...current, [block.ID]: event.target.value }))}
-                    className="h-7 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
+                    className="h-7 w-full rounded-md border border-border bg-background px-2 type-label text-foreground outline-none focus:ring-1 focus:ring-ring"
                   >
                     <option value="">不挂载到编排段</option>
                     {usages.segments.length > 0 ? (
@@ -1031,16 +1031,16 @@ function ScriptVersionBlockPanel({
                     ) : null}
                   </select>
                   {selectedTargetSegment ? (
-                    <p className="truncate text-[10px] text-muted-foreground">将创建到 {segmentOptionLabel(selectedTargetSegment)}</p>
+                    <p className="truncate type-tiny text-muted-foreground">将创建到 {segmentOptionLabel(selectedTargetSegment)}</p>
                   ) : null}
                 </div>
                 <div className="mt-2 grid gap-1.5">
-                  <label className="text-[10px] font-medium text-muted-foreground" htmlFor={`script-block-target-content-${block.ID}`}>制作项归属</label>
+                  <label className="type-tiny font-medium text-muted-foreground" htmlFor={`script-block-target-content-${block.ID}`}>制作项归属</label>
                   <select
                     id={`script-block-target-content-${block.ID}`}
                     value={targetContentValue}
                     onChange={(event) => setTargetContentByBlockId((current) => ({ ...current, [block.ID]: event.target.value }))}
-                    className="h-7 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
+                    className="h-7 w-full rounded-md border border-border bg-background px-2 type-label text-foreground outline-none focus:ring-1 focus:ring-ring"
                   >
                     <option value="">不挂载到情景或编排段</option>
                     {usages.sceneMoments.length > 0 ? (
@@ -1073,14 +1073,14 @@ function ScriptVersionBlockPanel({
                     ) : null}
                   </select>
                   {selectedContentTarget ? (
-                    <p className="truncate text-[10px] text-muted-foreground">将创建到 {contentTarget.sceneMomentId ? sceneMomentOptionLabel(selectedContentTarget) : segmentOptionLabel(selectedContentTarget)}</p>
+                    <p className="truncate type-tiny text-muted-foreground">将创建到 {contentTarget.sceneMomentId ? sceneMomentOptionLabel(selectedContentTarget) : segmentOptionLabel(selectedContentTarget)}</p>
                   ) : null}
                 </div>
                 <div className="mt-2 flex flex-wrap justify-end gap-1.5">
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 px-2 text-xs"
+                    className="px-2 type-label"
                     disabled={isCreatingSegment}
                     onClick={() => onCreateSegment(block)}
                   >
@@ -1089,7 +1089,7 @@ function ScriptVersionBlockPanel({
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 px-2 text-xs"
+                    className="px-2 type-label"
                     disabled={isCreatingSceneMoment}
                     onClick={() => onCreateSceneMoment(block, targetSegmentId > 0 ? targetSegmentId : null)}
                   >
@@ -1098,7 +1098,7 @@ function ScriptVersionBlockPanel({
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 px-2 text-xs"
+                    className="px-2 type-label"
                     disabled={isCreatingContentUnit}
                     onClick={() => onCreateContentUnit(block, contentTarget)}
                   >
@@ -1119,7 +1119,7 @@ function ScriptVersionBlockPanel({
 function VersionStatusBadge({ status }: { status: string }) {
   if (status === 'active') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[11px] text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
+      <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 type-caption text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
         <CheckCircle2 size={10} />
         已锁定
       </span>
@@ -1127,13 +1127,13 @@ function VersionStatusBadge({ status }: { status: string }) {
   }
   if (status === 'archived') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+      <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-1.5 py-0.5 type-caption text-muted-foreground">
         已归档
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground">
+    <span className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-1.5 py-0.5 type-caption text-muted-foreground">
       <Clock3 size={10} />
       草稿
     </span>
@@ -1154,7 +1154,7 @@ function ScriptBlockUsageStrip({
   ]
   const total = usages.segments.length + usages.sceneMoments.length + usages.contentUnits.length
   if (total === 0) {
-    return <p className="mt-2 text-[11px] text-muted-foreground">尚未被下游引用</p>
+    return <p className="mt-2 type-caption text-muted-foreground">尚未被下游引用</p>
   }
   return (
     <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1163,19 +1163,19 @@ function ScriptBlockUsageStrip({
           key={`${item.kind}-${item.record.ID}`}
           type="button"
           onClick={() => onOpen(item.kind, item.record.ID)}
-          className="max-w-full rounded-md border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground hover:border-primary/40 hover:text-foreground"
+          className="max-w-full rounded-md border border-border bg-background px-2 py-0.5 type-tiny text-muted-foreground hover:border-primary/40 hover:text-foreground"
         >
           <span className="font-medium">{item.label}</span>
           <span className="ml-1">{titleOfRecord(item.record)}</span>
         </button>
       ))}
-      {total > items.length ? <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">+{total - items.length}</span> : null}
+      {total > items.length ? <span className="rounded-md bg-muted px-2 py-0.5 type-tiny text-muted-foreground">+{total - items.length}</span> : null}
     </div>
   )
 }
 
 function ScriptTypeBadge({ script }: { script: Script }) {
-  return <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">{categoryLabel(script.script_type)}</span>
+  return <span className="rounded-md bg-muted px-2 py-1 type-label font-medium text-muted-foreground">{categoryLabel(script.script_type)}</span>
 }
 
 function ScriptStageBadge({ versionCount }: { versionCount: number }) {
@@ -1186,7 +1186,7 @@ function ScriptStageBadge({ versionCount }: { versionCount: number }) {
   }[stage]
   const Icon = config.icon
   return (
-    <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px]', config.className)}>
+    <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 type-caption', config.className)}>
       <Icon size={11} />
       {stage}
     </span>
@@ -1196,8 +1196,8 @@ function ScriptStageBadge({ versionCount }: { versionCount: number }) {
 function MetricBox({ label, value }: { icon: typeof FileText; label: string; value: string }) {
   return (
     <div className="rounded-md border border-border bg-background p-2.5">
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate text-base font-semibold text-foreground">{value}</p>
+      <p className="type-caption text-muted-foreground">{label}</p>
+      <p className="mt-1 truncate type-body-lg font-semibold text-foreground">{value}</p>
     </div>
   )
 }
@@ -1205,8 +1205,8 @@ function MetricBox({ label, value }: { icon: typeof FileText; label: string; val
 function ReadinessRow({ label, done }: { label: string; done: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2.5">
-      <span className="min-w-0 truncate text-sm text-foreground">{label}</span>
-      <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-xs', done ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : 'bg-muted text-muted-foreground')}>
+      <span className="min-w-0 truncate type-body text-foreground">{label}</span>
+      <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 type-label', done ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : 'bg-muted text-muted-foreground')}>
         {done ? <CheckCircle2 size={12} /> : <Clock3 size={12} />}
         {done ? '就绪' : '待处理'}
       </span>

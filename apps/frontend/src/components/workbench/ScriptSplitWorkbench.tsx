@@ -70,7 +70,7 @@ function ScriptLinePreview({
 }) {
   if (lines.length === 0) {
     return (
-      <div className="bg-muted/20 px-3 py-8 text-center text-xs text-muted-foreground">
+      <div className="bg-muted/20 px-3 py-8 text-center type-label text-muted-foreground">
         还没有可显示的行号预览
       </div>
     )
@@ -79,7 +79,7 @@ function ScriptLinePreview({
   const width = Math.max(2, String(Math.max(lines.length, highlightStartLine ?? 0, highlightEndLine ?? 0)).length)
 
   return (
-    <div className="max-h-[420px] overflow-auto bg-background font-mono text-xs leading-6">
+    <div className="max-h-[420px] overflow-auto bg-background font-mono type-label leading-6">
       {lines.map((line) => {
         const highlighted = (
           highlightStartLine !== undefined &&
@@ -841,14 +841,14 @@ export function ScriptSplitWorkbench() {
       <header className="shrink-0 border-b border-border bg-background px-5 py-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 type-label text-muted-foreground">
               <Wand2 size={14} />
               <span>一键制作</span>
               <ChevronRight size={13} />
               <span>方案 · 编排 · 生成</span>
             </div>
-            <h1 className="mt-1 text-lg font-semibold text-foreground">一键制作</h1>
-            <p className="mt-1 max-w-4xl text-xs leading-5 text-muted-foreground">
+            <h1 className="mt-1 type-title-sm font-semibold text-foreground">一键制作</h1>
+            <p className="mt-1 max-w-4xl type-label leading-5 text-muted-foreground">
               输入剧本、brief 或提示词，自动生成制作设定、素材需求线索和制作入口；确认后写入项目，并直接进入内容编排验证。
             </p>
           </div>
@@ -873,8 +873,8 @@ export function ScriptSplitWorkbench() {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-foreground">制作流</p>
-                    <p className="mt-1 text-xs text-muted-foreground">把分析藏到后台，把用户路径收敛成输入、确认、内容编排和生成。</p>
+                    <p className="type-body font-semibold text-foreground">制作流</p>
+                    <p className="mt-1 type-label text-muted-foreground">把分析藏到后台，把用户路径收敛成输入、确认、内容编排和生成。</p>
                   </div>
                   {scriptsLoading ? <Loader2 size={13} className="animate-spin text-muted-foreground" /> : <Badge variant="outline">{sortedScripts.length} 个剧本 · {productions.length} 个制作</Badge>}
                 </div>
@@ -896,10 +896,10 @@ export function ScriptSplitWorkbench() {
                           )}>
                             <Icon size={15} />
                           </span>
-                          <span className="text-[11px] text-muted-foreground">0{index + 1}</span>
+                          <span className="type-caption text-muted-foreground">0{index + 1}</span>
                         </div>
-                        <p className="mt-3 truncate text-sm font-medium text-foreground">{step.label}</p>
-                        <p className="mt-1 line-clamp-2 min-h-8 text-xs leading-4 text-muted-foreground">{step.detail}</p>
+                        <p className="mt-3 truncate type-body font-medium text-foreground">{step.label}</p>
+                        <p className="mt-1 line-clamp-2 min-h-8 type-label leading-4 text-muted-foreground">{step.detail}</p>
                       </div>
                     )
                   })}
@@ -908,29 +908,29 @@ export function ScriptSplitWorkbench() {
               <div className="rounded-md border border-border bg-background p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs text-muted-foreground">当前主动作</p>
-                    <p className="mt-1 text-sm font-semibold text-foreground">{hasPlan ? '确认方案并开始生成' : '从剧本/提示词生成方案'}</p>
+                    <p className="type-label text-muted-foreground">当前主动作</p>
+                    <p className="mt-1 type-body font-semibold text-foreground">{hasPlan ? '确认方案并开始生成' : '从剧本/提示词生成方案'}</p>
                   </div>
                   <Badge variant={hasStartedProduction ? 'success' : hasPlan ? 'warning' : 'outline'}>
                     {hasStartedProduction ? '已启动' : hasPlan ? '待确认' : '待输入'}
                   </Badge>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div className="mt-3 grid grid-cols-2 gap-2 type-label">
                   <div className="rounded-md border border-border px-2 py-2">
                     <p className="text-muted-foreground">制作入口</p>
-                    <p className="mt-1 text-lg font-semibold text-foreground">{drafts.length}</p>
+                    <p className="mt-1 type-title-sm font-semibold text-foreground">{drafts.length}</p>
                   </div>
                   <div className="rounded-md border border-border px-2 py-2">
                     <p className="text-muted-foreground">模型</p>
-                    <p className="mt-1 truncate text-sm font-medium text-foreground">{hasModel ? '可用' : '待配置'}</p>
+                    <p className="mt-1 truncate type-body font-medium text-foreground">{hasModel ? '可用' : '待配置'}</p>
                   </div>
                   <div className="rounded-md border border-border px-2 py-2">
                     <p className="text-muted-foreground">Agent Draft</p>
-                    <p className="mt-1 truncate text-sm font-medium text-foreground">{agentDraftDirty ? '待同步' : scriptSplitDraftStatusLabel(agentDraft?.status)}</p>
+                    <p className="mt-1 truncate type-body font-medium text-foreground">{agentDraftDirty ? '待同步' : scriptSplitDraftStatusLabel(agentDraft?.status)}</p>
                   </div>
                   <div className="rounded-md border border-border px-2 py-2">
                     <p className="text-muted-foreground">总稿</p>
-                    <p className="mt-1 truncate text-sm font-medium text-foreground">{saveSourceScript ? '保存' : '不保存'}</p>
+                    <p className="mt-1 truncate type-body font-medium text-foreground">{saveSourceScript ? '保存' : '不保存'}</p>
                   </div>
                 </div>
                 <Button className="mt-3 w-full justify-center gap-2" onClick={handlePrimaryProductionAction} disabled={primaryActionDisabled}>
@@ -945,8 +945,8 @@ export function ScriptSplitWorkbench() {
             <section className="rounded-lg border border-border bg-card p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">剧本 / 提示词输入</p>
-                  <p className="mt-1 text-xs text-muted-foreground">支持完整剧本、广告 brief、短片想法或一句提示词；系统会自动补齐制作方案。</p>
+                  <p className="type-body font-semibold text-foreground">剧本 / 提示词输入</p>
+                  <p className="mt-1 type-label text-muted-foreground">支持完整剧本、广告 brief、短片想法或一句提示词；系统会自动补齐制作方案。</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <Badge variant="outline">{sourceText.length} 字</Badge>
@@ -962,18 +962,18 @@ export function ScriptSplitWorkbench() {
               </div>
               <div className="mt-4 grid gap-4">
                 <div>
-                  <Label className="mb-1 text-xs text-muted-foreground">项目标题</Label>
+                  <Label className="mb-1 type-label text-muted-foreground">项目标题</Label>
                   <Input
                     value={sourceTitle}
                     onChange={(event) => setSourceTitle(event.target.value)}
                     placeholder="例如：雨夜旧伞 / 30 秒产品短片"
                   />
-                  <p className="mt-1 text-[11px] text-muted-foreground">来源: {sourceTitleLabel}</p>
+                  <p className="mt-1 type-caption text-muted-foreground">来源: {sourceTitleLabel}</p>
                 </div>
                 <div>
-                  <Label className="mb-1 text-xs text-muted-foreground">剧本或提示词</Label>
+                  <Label className="mb-1 type-label text-muted-foreground">剧本或提示词</Label>
                   <Textarea
-                    className="min-h-[420px] resize-none font-mono text-xs leading-relaxed"
+                    className="min-h-[420px] resize-none font-mono type-label leading-relaxed"
                     value={sourceText}
                     onChange={(event) => handleSourceTextChange(event.target.value)}
                     placeholder="粘贴剧本，或直接描述你想制作的视频。例如：一个 30 秒悬疑短片，主角在雨夜旧伞里发现一张来自未来的纸条。"
@@ -982,8 +982,8 @@ export function ScriptSplitWorkbench() {
                 <div className="rounded-md border border-border bg-background">
                   <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
                     <div className="min-w-0">
-                      <p className="text-xs font-medium text-foreground">来源定位</p>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">用于回看方案对应的原文范围，避免生成结果失去依据。</p>
+                      <p className="type-label font-medium text-foreground">来源定位</p>
+                      <p className="mt-0.5 type-caption text-muted-foreground">用于回看方案对应的原文范围，避免生成结果失去依据。</p>
                     </div>
                     <Badge variant={selectedDraft ? 'secondary' : 'outline'} className="shrink-0">
                       {selectedDraft ? `第 ${selectedDraft.startLine}-${selectedDraft.endLine} 行` : `${sourceLineCount} 行`}
@@ -996,7 +996,7 @@ export function ScriptSplitWorkbench() {
                   />
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-3">
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <label className="flex items-center gap-2 type-label text-muted-foreground">
                     <input
                       type="checkbox"
                       checked={saveSourceScript}
@@ -1015,15 +1015,15 @@ export function ScriptSplitWorkbench() {
                     </Button>
                   </div>
                 </div>
-                {sourceFileError && <p className="text-xs text-destructive">{sourceFileError}</p>}
+                {sourceFileError && <p className="type-label text-destructive">{sourceFileError}</p>}
               </div>
             </section>
 
             <section className="rounded-lg border border-border bg-card p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">制作方案</p>
-                  <p className="mt-1 text-xs text-muted-foreground">轻确认设定、素材线索和制作入口后，再让系统写入并进入内容编排。</p>
+                  <p className="type-body font-semibold text-foreground">制作方案</p>
+                  <p className="mt-1 type-label text-muted-foreground">轻确认设定、素材线索和制作入口后，再让系统写入并进入内容编排。</p>
                 </div>
                 <Badge variant={drafts.length > 0 ? 'success' : 'outline'}>{drafts.length || 0} 个入口</Badge>
               </div>
@@ -1031,12 +1031,12 @@ export function ScriptSplitWorkbench() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-foreground">Agent Draft</p>
+                      <p className="type-body font-medium text-foreground">Agent Draft</p>
                       <Badge variant={scriptSplitDraftStatusVariant(agentDraft?.status)}>
                         {agentDraftDirty ? '有未同步修改' : scriptSplitDraftStatusLabel(agentDraft?.status)}
                       </Badge>
                     </div>
-                    <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
+                    <p className="mt-1 truncate font-mono type-caption text-muted-foreground">
                       {agentDraft?.id ?? '一键制作后会生成可审阅的 production plan draft'}
                     </p>
                   </div>
@@ -1074,14 +1074,14 @@ export function ScriptSplitWorkbench() {
                   </div>
                 </div>
                 {validationErrors.length > 0 && (
-                  <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs leading-5 text-destructive">
+                  <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 type-label leading-5 text-destructive">
                     {validationErrors[0]?.message}
                   </div>
                 )}
               </div>
               <div className="mt-4 space-y-3">
                 {drafts.length === 0 ? (
-                  <div className="rounded-md border border-dashed border-border bg-background px-4 py-10 text-center text-xs text-muted-foreground">
+                  <div className="rounded-md border border-dashed border-border bg-background px-4 py-10 text-center type-label text-muted-foreground">
                     还没有制作方案
                   </div>
                 ) : (
@@ -1105,20 +1105,20 @@ export function ScriptSplitWorkbench() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-foreground">入口 {draft.order}</span>
+                              <span className="type-body font-medium text-foreground">入口 {draft.order}</span>
                               <Badge variant={draft.action === 'update' ? 'warning' : 'outline'}>
                                 {draft.action === 'update' ? '更新已有' : '新建'}
                               </Badge>
                               <Badge variant={productionBadgeVariant as 'warning' | 'outline' | 'success'}>
                                 {draft.productionAction === 'update' ? '更新制作' : draft.productionAction === 'skip' ? '跳过制作' : '新建制作'}
                               </Badge>
-                              <Badge variant="secondary" className="font-mono text-[10px]">
+                              <Badge variant="secondary" className="font-mono type-tiny">
                                 {draft.startLine}-{draft.endLine} 行
                               </Badge>
                             </div>
-                            <p className="mt-1 truncate text-xs text-muted-foreground">{draft.summary || '暂无摘要'}</p>
+                            <p className="mt-1 truncate type-label text-muted-foreground">{draft.summary || '暂无摘要'}</p>
                           </div>
-                          <span className="text-[11px] tabular-nums text-muted-foreground">{draft.content.length} 字</span>
+                          <span className="type-caption tabular-nums text-muted-foreground">{draft.content.length} 字</span>
                         </div>
                       </button>
                     )
@@ -1130,9 +1130,9 @@ export function ScriptSplitWorkbench() {
                 <div className="mt-4 rounded-md border border-border bg-background p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-xs text-muted-foreground">当前选中</p>
-                      <p className="mt-1 text-sm font-semibold text-foreground">{selectedAction}</p>
-                      <p className="mt-1 text-[11px] text-muted-foreground">
+                      <p className="type-label text-muted-foreground">当前选中</p>
+                      <p className="mt-1 type-body font-semibold text-foreground">{selectedAction}</p>
+                      <p className="mt-1 type-caption text-muted-foreground">
                         覆盖行号：第 {selectedDraft.startLine}-{selectedDraft.endLine} 行
                       </p>
                       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1140,7 +1140,7 @@ export function ScriptSplitWorkbench() {
                         <Badge variant={selectedDraft.productionAction === 'update' ? 'warning' : selectedDraft.productionAction === 'skip' ? 'outline' : 'success'}>
                           {selectedDraft.productionAction === 'update' ? '更新制作' : selectedDraft.productionAction === 'skip' ? '跳过制作' : '新建制作'}
                         </Badge>
-                        <Badge variant="outline" className="font-mono text-[10px]">
+                        <Badge variant="outline" className="font-mono type-tiny">
                           {selectedDraft.existingProductionId ? `制作 #${selectedDraft.existingProductionId}` : '未绑定制作'}
                         </Badge>
                       </div>
@@ -1149,31 +1149,31 @@ export function ScriptSplitWorkbench() {
                   </div>
                   <div className="mt-3 grid gap-3 md:grid-cols-2">
                     <div className="rounded-md border border-border px-3 py-3">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-2 type-label text-muted-foreground">
                         <Sparkles size={14} />
                         <span>设定线索</span>
                       </div>
                       <div className="mt-2 space-y-1.5">
                         {selectedSettingHints.length > 0 ? selectedSettingHints.map((item) => (
-                          <p key={item} className="line-clamp-2 text-xs leading-5 text-foreground">{item}</p>
-                        )) : <p className="text-xs text-muted-foreground">等待 Agent 补齐风格、世界观和连续性约束。</p>}
+                          <p key={item} className="line-clamp-2 type-label leading-5 text-foreground">{item}</p>
+                        )) : <p className="type-label text-muted-foreground">等待 Agent 补齐风格、世界观和连续性约束。</p>}
                       </div>
                     </div>
                     <div className="rounded-md border border-border px-3 py-3">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-2 type-label text-muted-foreground">
                         <PackageCheck size={14} />
                         <span>素材需求线索</span>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {selectedAssetHints.length > 0 ? selectedAssetHints.map((item) => (
                           <Badge key={item} variant="outline">{item}</Badge>
-                        )) : <p className="text-xs text-muted-foreground">方案生成后会列出角色、场景、道具等素材输入。</p>}
+                        )) : <p className="type-label text-muted-foreground">方案生成后会列出角色、场景、道具等素材输入。</p>}
                       </div>
                     </div>
                   </div>
                   <div className="mt-3 space-y-3">
                     <div>
-                      <Label className="mb-1 text-xs text-muted-foreground">制作入口标题</Label>
+                      <Label className="mb-1 type-label text-muted-foreground">制作入口标题</Label>
                       <Input
                         value={selectedDraft.title}
                         onChange={(event) => updateEpisodeDraftState(selectedDraft.id, { title: event.target.value })}
@@ -1181,9 +1181,9 @@ export function ScriptSplitWorkbench() {
                       />
                     </div>
                     <div>
-                      <Label className="mb-1 text-xs text-muted-foreground">源内容 / 分段正文</Label>
+                      <Label className="mb-1 type-label text-muted-foreground">源内容 / 分段正文</Label>
                       <Textarea
-                        className="min-h-52 resize-none font-mono text-xs leading-relaxed"
+                        className="min-h-52 resize-none font-mono type-label leading-relaxed"
                         value={selectedDraft.content}
                         onChange={(event) => updateEpisodeDraftState(selectedDraft.id, {
                           content: event.target.value,
@@ -1195,7 +1195,7 @@ export function ScriptSplitWorkbench() {
                     </div>
                     <div className="grid gap-2 md:grid-cols-2">
                       <div>
-                        <Label className="mb-1 text-xs text-muted-foreground">制作标题</Label>
+                        <Label className="mb-1 type-label text-muted-foreground">制作标题</Label>
                         <Input
                           value={selectedDraft.productionTitle}
                           onChange={(event) => updateEpisodeDraftState(selectedDraft.id, { productionTitle: event.target.value })}
@@ -1203,7 +1203,7 @@ export function ScriptSplitWorkbench() {
                         />
                       </div>
                       <div>
-                        <Label className="mb-1 text-xs text-muted-foreground">制作决策</Label>
+                        <Label className="mb-1 type-label text-muted-foreground">制作决策</Label>
                         <Select
                           value={selectedDraft.productionAction}
                           onValueChange={(value) => updateEpisodeDraftState(selectedDraft.id, { productionAction: value as ScriptSplitDraft['productionAction'] })}
@@ -1221,9 +1221,9 @@ export function ScriptSplitWorkbench() {
                       </div>
                     </div>
                     <div>
-                      <Label className="mb-1 text-xs text-muted-foreground">制作摘要与编排意图</Label>
+                      <Label className="mb-1 type-label text-muted-foreground">制作摘要与编排意图</Label>
                       <Textarea
-                        className="min-h-28 resize-none text-xs leading-relaxed"
+                        className="min-h-28 resize-none type-label leading-relaxed"
                         value={selectedDraft.productionSummary}
                         onChange={(event) => updateEpisodeDraftState(selectedDraft.id, { productionSummary: event.target.value })}
                         disabled={agentDraft?.status === 'applied' || agentDraft?.status === 'rejected' || agentDraft?.status === 'superseded'}
@@ -1239,8 +1239,8 @@ export function ScriptSplitWorkbench() {
         {result && (
           <aside className="w-80 shrink-0 overflow-y-auto border-l border-border bg-card p-4">
             <section className="rounded-md border border-border bg-background p-3">
-              <p className="text-sm font-semibold text-foreground">最近一次制作启动</p>
-              <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+              <p className="type-body font-semibold text-foreground">最近一次制作启动</p>
+              <div className="mt-2 grid grid-cols-2 gap-2 type-label">
                 <div className="rounded-md border border-border px-2 py-2">
                   <p className="text-muted-foreground">项目</p>
                   <p className="mt-1 truncate text-foreground">{result.sourceTitle}</p>
@@ -1272,22 +1272,22 @@ export function ScriptSplitWorkbench() {
                 {result.agentRunId && (
                   <div className="col-span-2 rounded-md border border-border px-2 py-2">
                     <p className="text-muted-foreground">Agent Run</p>
-                    <p className="mt-1 truncate font-mono text-[11px] text-foreground">{result.agentRunId}</p>
+                    <p className="mt-1 truncate font-mono type-caption text-foreground">{result.agentRunId}</p>
                   </div>
                 )}
                 {result.agentDraftId && (
                   <div className="col-span-2 rounded-md border border-border px-2 py-2">
                     <p className="text-muted-foreground">Agent Draft</p>
-                    <p className="mt-1 truncate font-mono text-[11px] text-foreground">{result.agentDraftId}</p>
+                    <p className="mt-1 truncate font-mono type-caption text-foreground">{result.agentDraftId}</p>
                   </div>
                 )}
               </div>
               <div className="mt-3 rounded-md border border-border px-3 py-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 type-label text-muted-foreground">
                   <Play size={14} />
                   <span>下一步</span>
                 </div>
-                <p className="mt-2 text-xs leading-5 text-foreground">进入内容编排工作台，继续检查制作项、预览挂载、素材缺口和生成记录。</p>
+                <p className="mt-2 type-label leading-5 text-foreground">进入内容编排工作台，继续检查制作项、预览挂载、素材缺口和生成记录。</p>
               </div>
               <Button size="sm" className="mt-3 w-full gap-1.5" onClick={() => navigate(ROUTES.project.contentUnitWorkbench)}>
                 <Play size={13} />

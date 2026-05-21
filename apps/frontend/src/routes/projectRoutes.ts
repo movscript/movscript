@@ -16,6 +16,7 @@ export const ROUTES = {
   agentDebug: '/agent/debug',
   agentRun: '/agent/runs/:runId',
   project: {
+    agent: '/project/agent',
     overview: '/project/overview',
     standards: '/project/standards',
     preProduction: '/project/pre-production',

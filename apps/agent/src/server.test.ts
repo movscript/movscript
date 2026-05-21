@@ -223,8 +223,6 @@ test('write endpoints reject non-object request bodies before touching runtime d
     { method: 'PATCH', path: '/threads/thread_1', label: 'thread update body' },
     { method: 'POST', path: '/threads/thread_1/messages', label: 'message body' },
     { method: 'POST', path: '/threads/thread_1/runs', label: 'thread run body' },
-    { method: 'POST', path: '/runs', label: 'run body' },
-    { method: 'POST', path: '/runs/tool', label: 'tool run body' },
     { method: 'POST', path: '/runs/preview', label: 'run preview body' },
     { method: 'POST', path: '/agent-profiles/default', label: 'default agent profile body' },
     { method: 'POST', path: '/agent-tools/default-policy', label: 'default tool policy body' },
@@ -234,10 +232,8 @@ test('write endpoints reject non-object request bodies before touching runtime d
     { method: 'POST', path: '/plans', label: 'plan body' },
     { method: 'POST', path: '/plans/plan_1/dispatch', label: 'plan dispatch body' },
     { method: 'PATCH', path: '/tasks/task_1', label: 'task update body' },
-    { method: 'POST', path: '/runs/run_1/approve', label: 'approval body' },
     { method: 'POST', path: '/runs/run_1/cancel', label: 'cancel body' },
     { method: 'POST', path: '/runs/run_1/cancel-tree', label: 'cancel tree body' },
-    { method: 'POST', path: '/runs/run_1/reject', label: 'rejection body' },
     { method: 'POST', path: '/runs/run_1/input', label: 'input answer body' },
     { method: 'POST', path: '/memories', label: 'memory body' },
   ]
@@ -247,6 +243,52 @@ test('write endpoints reject non-object request bodies before touching runtime d
     assert.equal(response.statusCode, 400, entry.path)
     assert.equal(JSON.parse(response.body).error, `${entry.label} must be an object`, entry.path)
   }
+})
+
+test('legacy direct run endpoints are not public runtime entrypoints', async () => {
+  const calls: string[] = []
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      createRun: () => {
+        calls.push('createRun')
+        return { id: 'run_unexpected' }
+      },
+      createToolRun: () => {
+        calls.push('createToolRun')
+        return { id: 'run_tool_unexpected' }
+      },
+      approveRun: () => {
+        calls.push('approveRun')
+        return { id: 'run_approve_unexpected' }
+      },
+      rejectRun: () => {
+        calls.push('rejectRun')
+        return { id: 'run_reject_unexpected' }
+      },
+    },
+    client: {
+      callTool: () => {
+        calls.push('callTool')
+        return { ok: true }
+      },
+      initialize: () => {
+        calls.push('initialize')
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const directRun = await dispatch(handler, 'POST', '/runs', JSON.stringify({ threadId: 'thread_1' }))
+  const directToolRun = await dispatch(handler, 'POST', '/runs/tool', JSON.stringify({ toolCall: { name: 'movscript_get_focus' } }))
+  const directContext = await dispatch(handler, 'GET', '/context')
+  const directApprove = await dispatch(handler, 'POST', '/runs/run_1/approve', JSON.stringify({ approvedToolNames: ['movscript_get_focus'] }))
+  const directReject = await dispatch(handler, 'POST', '/runs/run_1/reject', JSON.stringify({ approvalIds: ['approval_1'] }))
+
+  assert.equal(directRun.statusCode, 404)
+  assert.equal(directToolRun.statusCode, 404)
+  assert.equal(directContext.statusCode, 404)
+  assert.equal(directApprove.statusCode, 404)
+  assert.equal(directReject.statusCode, 404)
+  assert.deepEqual(calls, [])
 })
 
 test('thread run endpoint appends a user message and creates a run bound to that message', async () => {
@@ -304,6 +346,52 @@ test('thread run endpoint appends a user message and creates a run bound to that
       },
     },
   ])
+})
+
+test('thread run endpoint can force one diagnostic tool call without exposing a direct tool route', async () => {
+  const calls: Array<{ endpoint: string; input?: Record<string, unknown> }> = []
+  const messages = [{ id: 'msg_tool', threadId: 'thread_1', role: 'user', content: 'Run movscript_get_focus', createdAt: '2026-05-19T00:00:00.000Z' }]
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      getThread: (threadId: string) => ({ id: threadId, status: 'idle', createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:00.000Z', messages }),
+      addMessage: () => {
+        calls.push({ endpoint: 'message' })
+        return { id: 'unexpected' }
+      },
+      createToolRun: (input: Record<string, unknown>) => {
+        calls.push({ endpoint: 'toolRun', input })
+        return { id: 'run_tool', threadId: input.threadId, initialUserMessageId: 'msg_tool', status: 'queued' }
+      },
+      createRun: () => {
+        calls.push({ endpoint: 'run' })
+        return { id: 'unexpected_run' }
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'POST', '/threads/thread_1/runs', JSON.stringify({
+    message: 'Run movscript_get_focus',
+    toolCall: { name: 'movscript_get_focus', args: {} },
+    approvedToolNames: ['movscript_get_focus'],
+    policy: { approvalMode: 'auto', maxToolCalls: 1, maxIterations: 2 },
+  }))
+
+  assert.equal(response.statusCode, 201)
+  assert.deepEqual(JSON.parse(response.body), {
+    run: { id: 'run_tool', threadId: 'thread_1', initialUserMessageId: 'msg_tool', status: 'queued' },
+    message: messages[0],
+  })
+  assert.deepEqual(calls, [{
+    endpoint: 'toolRun',
+    input: {
+      toolCall: { name: 'movscript_get_focus', args: {} },
+      approvedToolNames: ['movscript_get_focus'],
+      policy: { approvalMode: 'auto', maxToolCalls: 1, maxIterations: 2 },
+      threadId: 'thread_1',
+      message: 'Run movscript_get_focus',
+      role: 'worker',
+    },
+  }])
 })
 
 test('thread run endpoint appends runtime input to an active run instead of creating a parallel run', async () => {
@@ -400,10 +488,24 @@ test('thread runtime endpoint returns a consistent thread and run snapshot', asy
   }
   const handler = createAgentRequestListener({
     runtimeRouter: {
-      getThread: (threadId: string) => threadId === 'thread_1' ? thread : undefined,
-      listRunsByThread: () => [
-        { id: 'run_1', threadId: 'thread_1', status: 'completed' },
-      ],
+      getThreadRuntimeSnapshot: (threadId: string) => threadId === 'thread_1'
+        ? {
+          schema: 'movscript.thread-runtime.v2',
+          updatedAt: '2026-05-19T00:00:01.000Z',
+          thread,
+          runs: [{ id: 'run_1', threadId: 'thread_1', status: 'completed' }],
+          operations: [],
+          interactions: [],
+          continuations: [],
+          current: {
+            activeRunIds: [],
+            waitingRunIds: [],
+            runningOperationIds: [],
+            pendingInteractionIds: [],
+            readyContinuationIds: [],
+          },
+        }
+        : undefined,
     },
   } as unknown as AgentServerContext)
 
@@ -411,18 +513,19 @@ test('thread runtime endpoint returns a consistent thread and run snapshot', asy
 
   assert.equal(response.statusCode, 200)
   assert.deepEqual(JSON.parse(response.body), {
-    schema: 'movscript.agent.thread-runtime-snapshot.v1',
+    schema: 'movscript.thread-runtime.v2',
     updatedAt: '2026-05-19T00:00:01.000Z',
     thread,
     runs: [{ id: 'run_1', threadId: 'thread_1', status: 'completed' }],
+    operations: [],
+    interactions: [],
+    continuations: [],
     current: {
-      runId: 'run_1',
-      runStatus: 'completed',
-    },
-    interactions: {
-      actionableRunIds: [],
-      pendingApprovalRefs: [],
-      pendingInputRequestRefs: [],
+      activeRunIds: [],
+      waitingRunIds: [],
+      runningOperationIds: [],
+      pendingInteractionIds: [],
+      readyContinuationIds: [],
     },
   })
 })
@@ -455,11 +558,36 @@ test('thread runtime endpoint indexes pending interaction runs for frontend reco
   }
   const handler = createAgentRequestListener({
     runtimeRouter: {
-      getThread: (threadId: string) => threadId === 'thread_1' ? thread : undefined,
-      listRunsByThread: () => [
-        { id: 'run_completed', threadId: 'thread_1', status: 'completed', updatedAt: '2026-05-19T00:00:02.000Z' },
-        pendingRun,
-      ],
+      getThreadRuntimeSnapshot: (threadId: string) => threadId === 'thread_1'
+        ? {
+          schema: 'movscript.thread-runtime.v2',
+          updatedAt: '2026-05-19T00:00:03.000Z',
+          thread,
+          runs: [
+            { id: 'run_completed', threadId: 'thread_1', status: 'completed', updatedAt: '2026-05-19T00:00:02.000Z' },
+            pendingRun,
+          ],
+          operations: [],
+          interactions: [{
+            id: 'interaction_input_1',
+            threadId: 'thread_1',
+            runId: 'run_pending',
+            kind: 'input',
+            status: 'pending',
+            payload: { requestId: 'input_1' },
+            createdAt: '2026-05-19T00:00:02.000Z',
+            updatedAt: '2026-05-19T00:00:02.000Z',
+          }],
+          continuations: [],
+          current: {
+            activeRunIds: [],
+            waitingRunIds: ['run_pending'],
+            runningOperationIds: [],
+            pendingInteractionIds: ['interaction_input_1'],
+            readyContinuationIds: [],
+          },
+        }
+        : undefined,
     },
   } as unknown as AgentServerContext)
 
@@ -467,11 +595,10 @@ test('thread runtime endpoint indexes pending interaction runs for frontend reco
   const body = JSON.parse(response.body)
 
   assert.equal(response.statusCode, 200)
-  assert.equal(body.schema, 'movscript.agent.thread-runtime-snapshot.v1')
-  assert.equal(body.current.runId, 'run_pending')
-  assert.equal(body.current.runStatus, 'requires_action')
-  assert.deepEqual(body.interactions.actionableRunIds, ['run_pending'])
-  assert.deepEqual(body.interactions.pendingInputRequestRefs, [{ runId: 'run_pending', requestId: 'input_1' }])
+  assert.equal(body.schema, 'movscript.thread-runtime.v2')
+  assert.deepEqual(body.current.waitingRunIds, ['run_pending'])
+  assert.deepEqual(body.current.pendingInteractionIds, ['interaction_input_1'])
+  assert.deepEqual(body.interactions.map((interaction: { id: string }) => interaction.id), ['interaction_input_1'])
   assert.equal(body.updatedAt, '2026-05-19T00:00:03.000Z')
 })
 
@@ -492,8 +619,7 @@ test('thread runs endpoint returns not found for missing threads', async () => {
 test('thread runtime endpoint returns not found for missing threads', async () => {
   const handler = createAgentRequestListener({
     runtimeRouter: {
-      getThread: () => undefined,
-      listRunsByThread: () => [],
+      getThreadRuntimeSnapshot: () => undefined,
     },
   } as unknown as AgentServerContext)
 

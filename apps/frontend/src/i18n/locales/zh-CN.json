@@ -135,6 +135,8 @@
     "hidePassword": "隐藏密码",
     "loginFailed": "登录失败",
     "registerFailed": "注册失败",
+    "workModeTitle": "选择本次登录的工作模式",
+    "workModeDescription": "每次登录都可以重新选择入口。之后需要切换时，使用右上角的模式图标。",
     "passwordMismatch": "两次密码不一致",
     "email": "邮箱",
     "sendCode": "发送验证码",
@@ -150,6 +152,16 @@
     "title": "选择使用方式",
     "description": "先决定数据和服务运行在哪里。之后仍然可以在应用设置里切换连接方式。",
     "localFailed": "本地工作区创建失败",
+    "workMode": {
+      "title": "先选择工作模式",
+      "description": "你可以先选一个更适合自己的入口。之后需要切换时，使用右上角的模式图标。",
+      "agentDescription": "从目标出发，让 Agent 读取项目上下文、提出计划并推进草稿、提案和生成任务。",
+      "detailDescription": "使用完整侧栏、项目对象页和专业工作台，适合手动检查、精修和批量管理。",
+      "agentAction": "先用 Agent 模式",
+      "detailAction": "先用详细模式",
+      "selected": "已选择：{{mode}}",
+      "switchHint": "进入项目后，右上角的模式图标会保留。需要时可以随时在 Agent 与详细工作台之间切换。"
+    },
     "local": {
       "title": "本地使用",
       "description": "数据保存在这台电脑上，适合个人创作、本地项目和自带模型 API key。",
@@ -183,6 +195,12 @@
     "launchMode": "启动方式",
     "launchModeTitle": "启动方式",
     "launchModeHint": "本地启动会在注册时请求初始化系统管理员；云端启动只连接远程服务。",
+    "workModeTitle": "工作模式",
+    "workModeHint": "选择进入项目后的主界面形态。详细模式保留现有工作台；Agent 模式会全屏覆盖为对话驱动入口。",
+    "detailWorkMode": "详细模式",
+    "detailWorkModeHelp": "保留现有侧栏、项目总览、对象页和工作台。",
+    "agentWorkMode": "Agent 模式",
+    "agentWorkModeHelp": "进入项目后全屏显示 Agent 工作入口，把对话和任务推进放在第一位。",
     "cloudMode": "云端启动",
     "cloudModeHelp": "连接 Movscript 云端或团队服务，不在注册时创建系统管理员。",
     "localMode": "本地启动",
@@ -2205,6 +2223,22 @@
       "modelLockedByAgent": "当前 Agent 已指定模型",
       "myAgents": "我的 Agent",
       "newConversation": "新对话",
+      "agentModeSidebar": {
+        "newConversation": "新对话",
+        "plugins": "插件",
+        "project": "项目",
+        "conversations": "对话",
+        "noProjectConversations": "暂无项目会话",
+        "startConversation": "开始一个新对话",
+        "showMoreProjects": "展开更多 {{count}} 个项目",
+        "showFewerProjects": "收起项目",
+        "showMoreConversations": "展开更多 {{count}} 个对话",
+        "showFewerConversations": "收起对话",
+        "settings": "设置",
+        "settingsUser": "设置 / 用户",
+        "defaultUser": "用户",
+        "currentProjectFallback": "当前项目"
+      },
       "conversationTabs": "当前会话标签",
       "conversationHistory": "会话历史",
       "tabActions": "右击标签打开操作",
@@ -2241,8 +2275,6 @@
       "createAndUseProject": "创建并使用",
       "resourceContext": "素材库",
       "autoPlan": "规划模式",
-      "hideContext": "隐藏上下文",
-      "showContext": "显示上下文",
       "drafts": {
         "title": "待确认建议",
         "filters": {
@@ -2733,7 +2765,6 @@
       "text": "文本",
       "image": "图片",
       "video": "视频",
-      "audio": "音频",
       "json": "JSON",
       "number": "数字",
       "boolean": "布尔",
@@ -2742,14 +2773,12 @@
     "outputTypes": {
       "image": "图",
       "video": "视频",
-      "text": "文",
-      "audio": "音"
+      "text": "文"
     },
     "nodeLabels": {
       "text": "文本",
       "image": "图片",
       "video": "视频",
-      "audio": "音频",
       "canvas": "画布引用",
       "ref_image_gen": "参考生图",
       "ref_video_gen": "参考生视频",
@@ -2764,8 +2793,7 @@
       "text_gen": "AI 文本生成",
       "ai_gen": "AI 生成",
       "group": "分组",
-      "plugin_card": "插件卡片",
-      "entity_card": "实体"
+      "plugin_card": "插件卡片"
     },
     "entityTypes": {
       "script": "剧本",
@@ -2787,7 +2815,7 @@
         },
         "media": {
           "title": "素材",
-          "description": "承载文本、图片、视频和音频资产"
+          "description": "承载文本、图片和视频资产"
         },
         "ai": {
           "title": "AI 处理",
@@ -2815,10 +2843,6 @@
           "label": "保存资源",
           "description": "把上游值写入资源库"
         },
-        "entity_card": {
-          "label": "实体",
-          "description": "引用项目实体，并把实体字段作为工作流输入或输出"
-        },
         "approval": {
           "label": "人工确认",
           "description": "让流程在关键步骤等待审核"
@@ -2835,13 +2859,9 @@
           "label": "视频",
           "description": "视频资源或生成结果"
         },
-        "audio": {
-          "label": "音频",
-          "description": "音频资源或声音结果"
-        },
         "ai_gen": {
           "label": "AI 生成",
-          "description": "按目标类型生成图像、视频、文本或音频"
+          "description": "按目标类型生成图像、视频或文本"
         },
         "text_gen": {
           "label": "AI 文本生成",
@@ -2967,7 +2987,6 @@
     "unset": "未设置",
     "textInputPlaceholder": "在此输入文本…",
     "emptyContent": "无内容",
-    "emptyAudio": "无音频",
     "noPrompt": "无提示词",
     "waitingStart": "等待开始…",
     "generating": "生成中…",
@@ -3784,6 +3803,7 @@
   "header": {
     "titles": {
       "projects": "项目",
+      "projectAgentMode": "Agent 模式",
       "projectHome": "首页",
       "projectWorkspace": "项目规范",
       "settingWorkbench": "设定工作台",
@@ -3882,6 +3902,7 @@
       "production": "生产中台",
       "creation": "处理台",
       "collaboration": "协作",
+      "projectAgentMode": "Agent 模式",
       "projectHome": "首页",
       "projectWorkspace": "项目规范",
       "settingWorkbench": "设定工作台",

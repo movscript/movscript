@@ -171,7 +171,7 @@ export function CanvasDomainEntityCard({
   return (
     <div
       className={cn(
-        'relative w-[280px] overflow-visible rounded-lg border bg-card text-xs shadow-sm transition-all',
+        'relative w-[280px] overflow-visible rounded-lg border bg-card type-label shadow-sm transition-all',
         selected ? 'border-primary shadow-lg shadow-primary/10 ring-2 ring-primary/15' : 'border-border',
         className,
       )}
@@ -183,13 +183,13 @@ export function CanvasDomainEntityCard({
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
-              <span className="shrink-0 rounded border border-border bg-background/80 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">{meta.label}</span>
-              <p className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-foreground">{title}</p>
+              <span className="shrink-0 rounded border border-border bg-background/80 px-1.5 py-0.5 type-tiny leading-none text-muted-foreground">{meta.label}</span>
+              <p className="min-w-0 flex-1 truncate type-body font-semibold leading-5 text-foreground">{title}</p>
             </div>
-            {subtitle && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{subtitle}</p>}
+            {subtitle && <p className="mt-0.5 truncate type-caption text-muted-foreground">{subtitle}</p>}
           </div>
           {status && (
-            <span className="shrink-0 rounded border border-border bg-background/85 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">
+            <span className="shrink-0 rounded border border-border bg-background/85 px-1.5 py-0.5 type-tiny leading-none text-muted-foreground">
               {status}
             </span>
           )}
@@ -203,8 +203,8 @@ export function CanvasDomainEntityCard({
               'rounded-md border px-1.5 py-1',
               metric.warning ? 'border-amber-500/30 bg-amber-500/10' : 'border-border bg-background',
             )}>
-              <p className="truncate text-[9px] text-muted-foreground">{metric.label}</p>
-              <p className={cn('mt-0.5 truncate text-[11px] font-semibold text-foreground', metric.warning && 'text-amber-700 dark:text-amber-300')}>{metric.value}</p>
+              <p className="truncate type-micro text-muted-foreground">{metric.label}</p>
+              <p className={cn('mt-0.5 truncate type-caption font-semibold text-foreground', metric.warning && 'text-amber-700 dark:text-amber-300')}>{metric.value}</p>
             </div>
           ))}
         </div>
@@ -212,8 +212,8 @@ export function CanvasDomainEntityCard({
         <div className="space-y-1">
           {resolvedFields.slice(0, 3).map((field) => (
             <div key={field.label} className="grid grid-cols-[62px_minmax(0,1fr)] gap-2 rounded-md border border-border bg-background px-2 py-1.5">
-              <span className="truncate text-[10px] text-muted-foreground">{field.label}</span>
-              <span className="truncate text-[11px] font-medium text-foreground">{field.value}</span>
+              <span className="truncate type-tiny text-muted-foreground">{field.label}</span>
+              <span className="truncate type-caption font-medium text-foreground">{field.value}</span>
             </div>
           ))}
         </div>
@@ -222,7 +222,7 @@ export function CanvasDomainEntityCard({
           <div className="space-y-1">
             {resolvedLinks.slice(0, 2).map((link) => (
               <div key={`${link.label}-${link.value}`} className={cn(
-                'relative flex h-7 min-w-0 items-center gap-1.5 rounded-md border px-1.5 text-[10px]',
+                'relative flex h-7 min-w-0 items-center gap-1.5 rounded-md border px-1.5 type-tiny',
                 link.tone === 'warning' ? 'border-amber-500/25 bg-amber-500/10' : link.tone === 'ready' ? 'border-emerald-500/25 bg-emerald-500/10' : 'border-border bg-background',
               )}>
                 <DomainPort side="left" tone="target" label={link.label} compact handleId={link.inputPortId} handleType="target" renderPortHandle={renderPortHandle} />
@@ -241,7 +241,7 @@ export function CanvasDomainEntityCard({
                 <button
                   key={action.label}
                   type="button"
-                  className="relative flex h-7 w-full items-center gap-1 rounded-md border border-border bg-background px-1.5 text-[10px] text-foreground hover:bg-muted/60"
+                  className="relative flex h-7 w-full items-center gap-1 rounded-md border border-border bg-background px-1.5 type-tiny text-foreground hover:bg-muted/60"
                 >
                   <ActionIcon size={11} className="shrink-0 text-muted-foreground" />
                   <span className="min-w-0 flex-1 truncate text-left">{action.label}</span>
@@ -292,7 +292,7 @@ function AssetSlotMaterialCard({
   return (
     <div
       className={cn(
-        'relative w-[300px] overflow-visible rounded-lg border bg-card text-xs shadow-sm transition-all',
+        'relative w-[300px] overflow-visible rounded-lg border bg-card type-label shadow-sm transition-all',
         selected ? 'border-primary shadow-lg shadow-primary/10 ring-2 ring-primary/15' : 'border-border',
         className,
       )}
@@ -304,13 +304,13 @@ function AssetSlotMaterialCard({
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
-              <span className="shrink-0 rounded border border-border bg-background/80 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">素材需求</span>
-              <p className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-foreground">{title}</p>
+              <span className="shrink-0 rounded border border-border bg-background/80 px-1.5 py-0.5 type-tiny leading-none text-muted-foreground">素材需求</span>
+              <p className="min-w-0 flex-1 truncate type-body font-semibold leading-5 text-foreground">{title}</p>
             </div>
-            {subtitle && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{subtitle}</p>}
+            {subtitle && <p className="mt-0.5 truncate type-caption text-muted-foreground">{subtitle}</p>}
           </div>
           {status && (
-            <span className="shrink-0 rounded border border-border bg-background/85 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">
+            <span className="shrink-0 rounded border border-border bg-background/85 px-1.5 py-0.5 type-tiny leading-none text-muted-foreground">
               {status}
             </span>
           )}
@@ -419,10 +419,10 @@ function MaterialPortRow({
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
-            <span className="shrink-0 text-[10px] text-muted-foreground">{label}</span>
-            <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">{value}</span>
+            <span className="shrink-0 type-tiny text-muted-foreground">{label}</span>
+            <span className="min-w-0 flex-1 truncate type-caption font-medium text-foreground">{value}</span>
           </div>
-          <p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-muted-foreground">{detail}</p>
+          <p className="mt-0.5 line-clamp-2 type-tiny leading-4 text-muted-foreground">{detail}</p>
         </div>
       </div>
       {children}

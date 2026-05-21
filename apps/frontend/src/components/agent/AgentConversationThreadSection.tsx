@@ -94,7 +94,7 @@ export function AgentConversationThreadSection({
       >
         {messages.length === 0 && (
           <AgentEmpty className="min-h-0 py-6">
-            <p className="text-sm font-medium text-foreground">
+            <p className="type-body font-medium text-foreground">
               {t('agents.chat.startChat')}
             </p>
             <AgentSuggestions className="grid w-full grid-cols-2 gap-2">
@@ -107,7 +107,7 @@ export function AgentConversationThreadSection({
                 <AgentSuggestion
                   key={item.label}
                   onClick={() => onDraftInput(item.label)}
-                  className="justify-start rounded-md text-left text-[11px]"
+                  className="justify-start rounded-md text-left type-caption"
                 >
                   {item.icon}
                   <span className="leading-tight">{item.label}</span>

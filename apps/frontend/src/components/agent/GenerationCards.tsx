@@ -40,11 +40,11 @@ export function GenerationProgressCard({ state }: { state: GenerationProgressSta
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           {icon}
-          <span className="truncate text-[11px] font-medium text-foreground">{title}</span>
+          <span className="truncate type-caption font-medium text-foreground">{title}</span>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <span className="text-[10px] text-muted-foreground">{status}</span>
-          <span className={cn('rounded border px-1.5 py-0 text-[9px] leading-4', generationJobBadgeClass(badge.tone))}>
+          <span className="type-tiny text-muted-foreground">{status}</span>
+          <span className={cn('rounded border px-1.5 py-0 type-micro leading-4', generationJobBadgeClass(badge.tone))}>
             {badge.label}
           </span>
         </div>
@@ -71,14 +71,14 @@ export function GenerationProgressCard({ state }: { state: GenerationProgressSta
           <div className="h-full w-1/3 rounded-full bg-primary/70 animate-pulse" />
         )}
       </div>
-      <p className="text-[11px] leading-relaxed text-muted-foreground">
+      <p className="type-caption leading-relaxed text-muted-foreground">
         {message}
       </p>
       {generationOutputResourceLabel(state, '输出资源') && (
-        <p className="text-[10px] text-muted-foreground/80">{generationOutputResourceLabel(state, '输出资源')}</p>
+        <p className="type-tiny text-muted-foreground/80">{generationOutputResourceLabel(state, '输出资源')}</p>
       )}
       {timing && (
-        <p className="text-[10px] text-muted-foreground/80">{timing}</p>
+        <p className="type-tiny text-muted-foreground/80">{timing}</p>
       )}
     </div>
   )
@@ -104,9 +104,9 @@ export function GenerationJobSummaryCard({ jobs }: { jobs?: ChatGenerationJob[] 
       <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <Wand2 size={12} className="shrink-0 text-primary" />
-          <span className="truncate text-[11px] font-medium text-foreground">生成任务</span>
+          <span className="truncate type-caption font-medium text-foreground">生成任务</span>
         </div>
-        <span className="shrink-0 rounded border border-transparent bg-secondary px-1.5 py-0 text-[9px] leading-4 text-secondary-foreground">
+        <span className="shrink-0 rounded border border-transparent bg-secondary px-1.5 py-0 type-micro leading-4 text-secondary-foreground">
           {jobs.length} 个任务
         </span>
       </div>
@@ -120,15 +120,15 @@ export function GenerationJobSummaryCard({ jobs }: { jobs?: ChatGenerationJob[] 
             <div key={job.jobId !== undefined ? `job-${job.jobId}` : `job-${index}`} className="rounded border border-border/70 bg-muted/20 px-2 py-1.5">
               <div className="flex min-w-0 items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-[10px] font-medium text-foreground">
+                  <p className="truncate type-tiny font-medium text-foreground">
                     {job.jobId !== undefined ? `Job #${job.jobId}` : `生成任务 ${index + 1}`}
                     {job.jobType ? ` · ${job.jobType}` : ''}
                   </p>
-                  <p className="truncate text-[9px] text-muted-foreground">
+                  <p className="truncate type-micro text-muted-foreground">
                     {[job.status, job.stage, generationOutputResourceLabel(job)].filter(Boolean).join(' · ')}
                   </p>
                   {(job.providerName || job.modelDisplay || job.modelIdentifier || job.modelConfigId !== undefined) && (
-                    <p className="truncate text-[9px] text-muted-foreground">
+                    <p className="truncate type-micro text-muted-foreground">
                       {[
                         job.providerName,
                         job.modelDisplay ?? job.modelIdentifier,
@@ -137,7 +137,7 @@ export function GenerationJobSummaryCard({ jobs }: { jobs?: ChatGenerationJob[] 
                     </p>
                   )}
                 </div>
-                <span className={cn('shrink-0 rounded border px-1.5 py-0 text-[9px] leading-4', badgeClass)}>
+                <span className={cn('shrink-0 rounded border px-1.5 py-0 type-micro leading-4', badgeClass)}>
                   {badge.label}
                 </span>
               </div>
@@ -154,10 +154,10 @@ export function GenerationJobSummaryCard({ jobs }: { jobs?: ChatGenerationJob[] 
                 </div>
               )}
               {job.message && (
-                <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{job.message}</p>
+                <p className="mt-1 type-tiny leading-relaxed text-muted-foreground">{job.message}</p>
               )}
               {timing && (
-                <p className="mt-1 text-[9px] text-muted-foreground/80">{timing}</p>
+                <p className="mt-1 type-micro text-muted-foreground/80">{timing}</p>
               )}
             </div>
           )
@@ -174,9 +174,9 @@ export function GenerationParamAuditCard({ audits }: { audits?: ChatGenerationPa
       <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <Wand2 size={12} className="shrink-0 text-primary" />
-          <span className="truncate text-[11px] font-medium text-foreground">参数校验</span>
+          <span className="truncate type-caption font-medium text-foreground">参数校验</span>
         </div>
-        <span className="shrink-0 rounded border border-transparent bg-secondary px-1.5 py-0 text-[9px] leading-4 text-secondary-foreground">
+        <span className="shrink-0 rounded border border-transparent bg-secondary px-1.5 py-0 type-micro leading-4 text-secondary-foreground">
           {audits.length} 次提交
         </span>
       </div>
@@ -186,62 +186,62 @@ export function GenerationParamAuditCard({ audits }: { audits?: ChatGenerationPa
           return (
             <div key={audit.stepId ?? `audit-${index}`} className="rounded border border-border/70 bg-muted/20 px-2 py-1.5">
               <div className="flex min-w-0 items-center justify-between gap-2">
-                <p className="min-w-0 truncate text-[10px] font-medium text-foreground">
+                <p className="min-w-0 truncate type-tiny font-medium text-foreground">
                   {audit.jobId !== undefined ? `Job #${audit.jobId}` : `生成提交 ${index + 1}`}
                   {audit.modelConfigId !== undefined ? ` · model #${audit.modelConfigId}` : ''}
                 </p>
-                <span className={cn('shrink-0 rounded border px-1.5 py-0 text-[9px] leading-4', droppedCount > 0 ? 'border-amber-500/30 bg-amber-500/10 text-amber-700' : 'border-green-500/30 bg-green-500/10 text-green-700')}>
+                <span className={cn('shrink-0 rounded border px-1.5 py-0 type-micro leading-4', droppedCount > 0 ? 'border-amber-500/30 bg-amber-500/10 text-amber-700' : 'border-green-500/30 bg-green-500/10 text-green-700')}>
                   {droppedCount > 0 ? `过滤 ${droppedCount}` : '已匹配'}
                 </span>
               </div>
-              <p className="mt-0.5 truncate text-[9px] text-muted-foreground">
+              <p className="mt-0.5 truncate type-micro text-muted-foreground">
                 模型合约：{audit.modelContractLoaded ? '已加载' : '未加载'}
                 {audit.supportedParams.length > 0 ? ` · ${audit.supportedParams.length} 个参数` : ''}
                 {audit.paramsSchemaLoaded ? ` · schema${audit.paramsSchemaRuleCount !== undefined ? ` ${audit.paramsSchemaRuleCount} 条规则` : ''}` : ''}
               </p>
               {audit.inputRequirements && (
-                <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">
+                <p className="mt-1 line-clamp-2 type-micro leading-relaxed text-muted-foreground">
                   输入需求：图片 {formatInputRequirement(audit.inputRequirements.image)} · 视频 {formatInputRequirement(audit.inputRequirements.video)}
                   {audit.submittedInputs ? ` · 已提交 图片 ${audit.submittedInputs.image}/视频 ${audit.submittedInputs.video}` : ''}
                 </p>
               )}
               {audit.submittedExtraParams.length > 0 && (
-                <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">
+                <p className="mt-1 line-clamp-2 type-micro leading-relaxed text-muted-foreground">
                   提交：{audit.submittedExtraParams.join('、')}
                 </p>
               )}
               {audit.droppedExtraParams.length > 0 && (
-                <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
+                <p className="mt-1 line-clamp-2 type-micro leading-relaxed text-amber-700 dark:text-amber-300">
                   过滤 extra_params：{audit.droppedExtraParams.map((key) => formatDroppedParam(key, audit.dropReasons)).join('、')}
                 </p>
               )}
               {audit.droppedTopLevelParams.length > 0 && (
-                <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
+                <p className="mt-1 line-clamp-2 type-micro leading-relaxed text-amber-700 dark:text-amber-300">
                   过滤顶层参数：{audit.droppedTopLevelParams.map((key) => formatDroppedParam(key, audit.dropReasons)).join('、')}
                 </p>
               )}
               {audit.renamedExtraParams && Object.keys(audit.renamedExtraParams).length > 0 && (
-                <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">
+                <p className="mt-1 line-clamp-2 type-micro leading-relaxed text-muted-foreground">
                   参数别名：{formatRenamedParams(audit.renamedExtraParams)}
                 </p>
               )}
               {audit.extraParamsParseError && (
-                <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-destructive">
+                <p className="mt-1 line-clamp-2 type-micro leading-relaxed text-destructive">
                   extra_params 解析失败：{audit.extraParamsParseError}
                 </p>
               )}
               {audit.preflightErrors && audit.preflightErrors.length > 0 && (
-                <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
+                <p className="mt-1 line-clamp-2 type-micro leading-relaxed text-amber-700 dark:text-amber-300">
                   本地预检：{audit.preflightErrors.map(formatPreflightError).join('、')}
                 </p>
               )}
               {audit.inputPreflightErrors && audit.inputPreflightErrors.length > 0 && (
-                <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
+                <p className="mt-1 line-clamp-2 type-micro leading-relaxed text-amber-700 dark:text-amber-300">
                   输入预检：{audit.inputPreflightErrors.map(formatInputPreflightError).join('、')}
                 </p>
               )}
               {audit.repairNote && (
-                <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-green-700 dark:text-green-300">
+                <p className="mt-1 line-clamp-2 type-micro leading-relaxed text-green-700 dark:text-green-300">
                   自动修复：{audit.repairNote}
                 </p>
               )}
@@ -260,31 +260,31 @@ export function GenerationValidationErrorCard({ errors }: { errors?: ChatGenerat
       <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <AlertCircle size={12} className="shrink-0 text-red-600" />
-          <span className="truncate text-[11px] font-medium text-foreground">生成校验失败</span>
+          <span className="truncate type-caption font-medium text-foreground">生成校验失败</span>
         </div>
-        <span className="shrink-0 rounded border border-red-500/30 bg-red-500/10 px-1.5 py-0 text-[9px] leading-4 text-red-700">
+        <span className="shrink-0 rounded border border-red-500/30 bg-red-500/10 px-1.5 py-0 type-micro leading-4 text-red-700">
           {errors.length} 个错误
         </span>
       </div>
       <div className="space-y-1.5">
         {errors.map((error, index) => (
           <div key={error.stepId ?? `generation-error-${index}`} className="rounded border border-red-500/20 bg-background/70 px-2 py-1.5">
-            <p className="truncate text-[10px] font-medium text-foreground">
+            <p className="truncate type-tiny font-medium text-foreground">
               {error.field ? `${error.field} · ` : ''}{error.code}
             </p>
-            <p className="mt-0.5 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">{error.message}</p>
+            <p className="mt-0.5 line-clamp-2 type-micro leading-relaxed text-muted-foreground">{error.message}</p>
             {error.allowedValues && error.allowedValues.length > 0 && (
-              <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">
+              <p className="mt-1 line-clamp-2 type-micro leading-relaxed text-muted-foreground">
                 允许值：{error.allowedValues.join('、')}
               </p>
             )}
             {error.requiredMin !== undefined && error.allowedMax !== undefined && error.actualCount !== undefined && (
-              <p className="mt-1 text-[9px] leading-relaxed text-muted-foreground">
+              <p className="mt-1 type-micro leading-relaxed text-muted-foreground">
                 输入数量：{error.actualCount}，要求 {error.requiredMin}-{error.allowedMax === -1 ? '不限' : error.allowedMax}
               </p>
             )}
             {error.suggestedFix && (
-              <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
+              <p className="mt-1 line-clamp-2 type-micro leading-relaxed text-amber-700 dark:text-amber-300">
                 建议：{formatSuggestedFix(error.suggestedFix).replace(/^，建议 /, '')}
               </p>
             )}
@@ -363,13 +363,13 @@ export function GenerationTraceSummaryCard({ jobs }: { jobs?: ChatGenerationJob[
       <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <Wand2 size={12} className="shrink-0 text-primary" />
-          <span className="truncate text-[11px] font-medium text-foreground">过程总览</span>
+          <span className="truncate type-caption font-medium text-foreground">过程总览</span>
         </div>
-        <span className="shrink-0 rounded border border-transparent bg-secondary px-1.5 py-0 text-[9px] leading-4 text-secondary-foreground">
+        <span className="shrink-0 rounded border border-transparent bg-secondary px-1.5 py-0 type-micro leading-4 text-secondary-foreground">
           {jobs.length} 个状态
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-1.5 text-[9px] text-muted-foreground">
+      <div className="grid grid-cols-3 gap-1.5 type-micro text-muted-foreground">
         <StatPill label="监控中" value={active} />
         <StatPill label="已结束" value={terminal} />
         <StatPill label="成功" value={succeeded} />
@@ -379,15 +379,15 @@ export function GenerationTraceSummaryCard({ jobs }: { jobs?: ChatGenerationJob[
       </div>
       {latest && (
         <div className="mt-2 rounded border border-border/70 bg-muted/20 px-2 py-1.5">
-          <p className="truncate text-[10px] font-medium text-foreground">
+          <p className="truncate type-tiny font-medium text-foreground">
             {latest.jobId !== undefined ? `最新 Job #${latest.jobId}` : '最新任务'}
             {latest.jobType ? ` · ${latest.jobType}` : ''}
           </p>
-          <p className="truncate text-[9px] text-muted-foreground">
+          <p className="truncate type-micro text-muted-foreground">
             {[latest.status, latest.stage, generationOutputResourceLabel(latest)].filter(Boolean).join(' · ')}
           </p>
           {(latest.providerName || latest.modelDisplay || latest.modelIdentifier) && (
-            <p className="truncate text-[9px] text-muted-foreground">
+            <p className="truncate type-micro text-muted-foreground">
               {[
                 latest.providerName,
                 latest.modelDisplay ?? latest.modelIdentifier,
@@ -431,8 +431,8 @@ function generationJobBadgeClass(tone: GenerationJobBadgeTone) {
 function StatPill({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded border border-border/70 bg-muted/20 px-2 py-1">
-      <p className="text-[8px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="text-[10px] font-medium text-foreground">{value}</p>
+      <p className="type-min uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="type-tiny font-medium text-foreground">{value}</p>
     </div>
   )
 }

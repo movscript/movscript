@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { RawResource, NodeType, Job, PublicModel, DebugCallResult, FeatureConfig, PaginatedResponse } from '@/types'
 import {
-  ArrowLeft, Wand2,
+  Wand2,
   Bug, Copy, Check, History, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
@@ -15,15 +15,13 @@ import type { InputSlotDef } from '@/components/shared/GenInputCard'
 import { GenInputCard } from '@/components/shared/GenInputCard'
 import {
   Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
   CardContent,
 } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { publicModelId } from '@/lib/modelDisplay'
 import { buildGenerationJobPayload } from '@/lib/generationJobPayload'
 import { useTranslation } from 'react-i18next'
+import { ToolHeader } from './ToolHeader'
 
 // ── CopyButton ────────────────────────────────────────────────────────────────
 
@@ -39,7 +37,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={copy}
-      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded border border-border hover:bg-muted/50"
+      className="flex items-center gap-1 type-label text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded border border-border hover:bg-muted/50"
     >
       {copied ? <Check size={11} className="text-green-500" /> : <Copy size={11} />}
       {copied ? t('tools.debug.copied') : t('tools.debug.copy')}
@@ -89,7 +87,7 @@ function DebugPanel({ job }: { job: Job }) {
   function Section({ title, children }: { title: string; children: React.ReactNode }) {
     return (
       <div className="space-y-1.5 border-t border-border/40 pt-2">
-        <span className="text-muted-foreground font-sans text-[10px] uppercase tracking-wider">{title}</span>
+        <span className="text-muted-foreground font-sans type-tiny uppercase tracking-wider">{title}</span>
         {children}
       </div>
     )
@@ -99,7 +97,7 @@ function DebugPanel({ job }: { job: Job }) {
     const pretty = (() => { try { return JSON.stringify(JSON.parse(text), null, 2) } catch { return text } })()
     return (
       <div className="relative">
-        <pre className={`bg-background/50 rounded p-2 overflow-x-auto text-foreground whitespace-pre-wrap break-all ${maxH} text-[11px]`}>
+        <pre className={`bg-background/50 rounded p-2 overflow-x-auto text-foreground whitespace-pre-wrap break-all ${maxH} type-caption`}>
           {pretty}
         </pre>
         <div className="absolute top-1 right-1"><CopyButton text={text} /></div>
@@ -108,8 +106,8 @@ function DebugPanel({ job }: { job: Job }) {
   }
 
   return (
-    <div className="bg-muted/30 rounded-lg p-3 text-xs font-mono space-y-2 border border-border">
-      <p className="text-muted-foreground font-sans font-medium text-xs">{t('tools.debug.title')}</p>
+    <div className="bg-muted/30 rounded-lg p-3 type-label font-mono space-y-2 border border-border">
+      <p className="text-muted-foreground font-sans font-medium type-label">{t('tools.debug.title')}</p>
 
       {/* ── Job 基础信息 ── */}
       <div className="space-y-1">
@@ -441,18 +439,34 @@ export function ToolDialog({
 
   return (
     <div className="flex flex-col h-full bg-muted/20">
-      {/* ── Minimal top bar ─────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-background shrink-0">
-        <button
-          onClick={() => navigate(-1)}
-          className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-        >
-          <ArrowLeft size={16} />
-        </button>
-        <span className="text-sm font-medium text-muted-foreground">{t('sidebar.sections.tools')}</span>
-        <span className="text-muted-foreground/40">/</span>
-        <span className="text-sm font-semibold text-foreground">{toolName}</span>
-      </div>
+      <ToolHeader
+        title={toolName}
+        description={toolDescription}
+        icon={Wand2}
+        actions={(
+          <>
+            <button
+              onClick={() => setDebugMode((d) => !d)}
+              title={t('tools.debug.mode')}
+              className={cn(
+                'p-1.5 rounded-md transition-colors',
+                debugMode
+                  ? 'text-amber-500 bg-amber-500/10 border border-amber-400/30'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              )}
+            >
+              <Bug size={14} />
+            </button>
+            <ModelSelector
+              capability={capability}
+              feature={_nodeType}
+              value={selectedModelId}
+              onChange={setSelectedModelId}
+              onModelChange={setSelectedModel}
+            />
+          </>
+        )}
+      />
 
       {/* ── Body ────────────────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
@@ -483,40 +497,11 @@ export function ToolDialog({
         >
           {/* ── Section 1: Generation input ─────────────────────────────────── */}
           <Card className="max-w-2xl mx-auto shadow-md">
-            <CardHeader className="pb-3 border-b border-border">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-base">{toolName}</CardTitle>
-                  <CardDescription className="mt-0.5 text-xs">{toolDescription}</CardDescription>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => setDebugMode((d) => !d)}
-                    title={t('tools.debug.mode')}
-                    className={cn(
-                      'p-1.5 rounded-md transition-colors',
-                      debugMode
-                        ? 'text-amber-500 bg-amber-500/10 border border-amber-400/30'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                    )}
-                  >
-                    <Bug size={14} />
-                  </button>
-                  <ModelSelector
-                    capability={capability}
-                    feature={_nodeType}
-                    value={selectedModelId}
-                    onChange={setSelectedModelId}
-                    onModelChange={setSelectedModel}
-                  />
-                </div>
-              </div>
-            </CardHeader>
             <CardContent className="p-4">
               {attachmentMismatchWarnings.length > 0 && (
                 <div className="mb-3 space-y-1.5">
                   {attachmentMismatchWarnings.map((w, i) => (
-                    <div key={i} className="flex items-start gap-2 rounded-md bg-amber-500/10 border border-amber-400/30 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+                    <div key={i} className="flex items-start gap-2 rounded-md bg-amber-500/10 border border-amber-400/30 px-3 py-2 type-label text-amber-600 dark:text-amber-400">
                       <span className="shrink-0 mt-0.5">⚠</span>
                       <span>{w}</span>
                     </div>
@@ -549,14 +534,14 @@ export function ToolDialog({
           <div className="max-w-2xl mx-auto">
             <div className="flex items-center gap-2 mb-3">
               <History size={13} className="text-muted-foreground" />
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('shared.toolNode.generationHistory')}</span>
+              <span className="type-label font-semibold text-muted-foreground uppercase tracking-wider">{t('shared.toolNode.generationHistory')}</span>
               {historyTotal > 0 && (
-                <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
+                <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 type-tiny font-semibold">
                   {historyTotal}
                 </span>
               )}
               <div className="flex-1" />
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1 type-label text-muted-foreground">
                 <button
                   className="p-1 rounded hover:bg-muted disabled:opacity-40"
                   disabled={historyPage <= 1}
@@ -578,7 +563,7 @@ export function ToolDialog({
             {jobs.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground/40 select-none">
                 <Wand2 size={28} className="opacity-30" />
-                <p className="text-xs">{t('pages.jobs.empty')}</p>
+                <p className="type-label">{t('pages.jobs.empty')}</p>
               </div>
             ) : (
               <div className="space-y-3">

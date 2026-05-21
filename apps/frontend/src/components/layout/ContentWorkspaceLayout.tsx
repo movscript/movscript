@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 interface ContentWorkspaceLayoutProps {
-  header: ReactNode
+  header?: ReactNode
   overview: ReactNode
   filters?: ReactNode
   list: ReactNode
@@ -46,7 +46,7 @@ export function ContentWorkspaceLayout({
   return (
     <div className={cn('content-workspace-shell bg-background', flow ? '' : 'h-full overflow-auto', className)}>
       <div className="space-y-3 p-4" style={contentStyle}>
-        <section className="content-workspace-header">{header}</section>
+        {header ? <section className="content-workspace-header">{header}</section> : null}
         <section className="content-workspace-overview">{overview}</section>
         {filters ? <section>{filters}</section> : null}
         <section className={cn('content-workspace-core grid gap-4', flow ? '' : 'h-[min(820px,82vh)] min-h-[560px] overflow-hidden')}>

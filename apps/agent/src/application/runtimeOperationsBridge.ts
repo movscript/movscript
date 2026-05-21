@@ -2,6 +2,7 @@ import type { RuntimeOperationManager } from '../operations/runtimeOperationMana
 import type { RuntimeOperation, RuntimeOperationKind } from '../operations/runtimeOperation.js'
 import type { AgentRun, AgentTraceEvent, JSONValue } from '../state/types.js'
 import { buildGenerationEvent } from '../generation/generationEvents.js'
+import type { RuntimeScheduler } from './runtimeScheduler.js'
 
 export interface RuntimeOperationsBridge {
   startOperation: (run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }) => Promise<JSONValue>
@@ -13,6 +14,7 @@ export interface RuntimeOperationsBridge {
 
 export function createRuntimeOperationsBridge(input: {
   operationManager: RuntimeOperationManager
+  scheduler?: Pick<RuntimeScheduler, 'dispatch'>
   recordTrace?: (run: AgentRun, trace: {
     kind: AgentTraceEvent['kind']
     title: string
@@ -25,13 +27,17 @@ export function createRuntimeOperationsBridge(input: {
   return {
     startOperation: async (run, request = {}, options = {}) => {
       const operation = await input.operationManager.start({
+        threadId: run.threadId,
         runId: run.id,
         kind: normalizeKind(request.kind),
         request: normalizeRequest(request.request),
+        continuationPolicy: normalizeContinuationPolicy(request.continuationPolicy ?? request.continuation_policy),
         timeoutMs: numberField(request.timeoutMs ?? request.timeout_ms),
         pollIntervalMs: numberField(request.pollIntervalMs ?? request.poll_interval_ms),
         signal: options.signal,
       })
+      input.scheduler?.dispatch({ type: 'operation.started', operation })
+      monitorOperationContinuation(input, run, operation, options.signal)
       recordOperationTrace(input.recordTrace, run, 'runtime_operation_start', operation)
       return { status: 'started', operation } as unknown as JSONValue
     },
@@ -54,7 +60,10 @@ export function createRuntimeOperationsBridge(input: {
         timeoutMs: numberField(request.timeoutMs ?? request.timeout_ms),
         pollIntervalMs: numberField(request.pollIntervalMs ?? request.poll_interval_ms),
         signal: options.signal,
-        onOperation: (operation) => recordOperationTrace(input.recordTrace, run, 'runtime_operation_wait', operation),
+        onOperation: (operation) => {
+          input.scheduler?.dispatch({ type: 'operation.observed', operation })
+          recordOperationTrace(input.recordTrace, run, 'runtime_operation_wait', operation)
+        },
       })
       input.recordTrace?.(run, {
         kind: 'tool_call',
@@ -69,10 +78,40 @@ export function createRuntimeOperationsBridge(input: {
     cancelOperation: async (run, request = {}, options = {}) => {
       const operationId = requiredString(request.operationId ?? request.operation_id, 'runtime_operation_cancel requires operationId')
       const operation = await input.operationManager.cancel(operationId, { signal: options.signal })
+      input.scheduler?.dispatch({ type: 'operation.observed', operation })
       recordOperationTrace(input.recordTrace, run, 'runtime_operation_cancel', operation)
       return { status: 'cancelled', operation } as unknown as JSONValue
     },
   }
+}
+
+function monitorOperationContinuation(
+  input: Parameters<typeof createRuntimeOperationsBridge>[0],
+  run: AgentRun,
+  operation: RuntimeOperation,
+  signal?: AbortSignal,
+): void {
+  if (!input.scheduler || !operation.continuationPolicy || operation.continuationPolicy.mode === 'none') return
+  void input.operationManager.wait({
+    operationIds: [operation.id],
+    mode: 'all',
+    timeoutMs: operation.timeoutMs ?? 30 * 60_000,
+    pollIntervalMs: operation.pollIntervalMs ?? 2_500,
+    signal,
+    onOperation: (observed) => {
+      input.scheduler?.dispatch({ type: 'operation.observed', operation: observed })
+      recordOperationTrace(input.recordTrace, run, 'runtime_operation_wait', observed)
+    },
+  }).catch((error) => {
+    input.recordTrace?.(run, {
+      kind: 'tool_call',
+      title: `Runtime operation monitor failed: ${operation.kind}`,
+      summary: error instanceof Error ? error.message : String(error),
+      status: 'failed',
+      toolName: 'runtime_operation_wait',
+      data: { runtimeOperationId: operation.id },
+    })
+  })
 }
 
 function recordOperationTrace(
@@ -133,7 +172,8 @@ function normalizeOperationIds(value: unknown): string[] {
 }
 
 function normalizeStatus(value: unknown): RuntimeOperation['status'] | undefined {
-  return value === 'queued'
+  return value === 'pending_approval'
+    || value === 'queued'
     || value === 'running'
     || value === 'waiting'
     || value === 'completed'
@@ -142,6 +182,28 @@ function normalizeStatus(value: unknown): RuntimeOperation['status'] | undefined
     || value === 'timeout'
     ? value
     : undefined
+}
+
+function normalizeContinuationPolicy(value: unknown): RuntimeOperation['continuationPolicy'] | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  const mode = record.mode
+  if (
+    mode !== 'none'
+    && mode !== 'any_completed'
+    && mode !== 'all_completed'
+    && mode !== 'all_settled'
+    && mode !== 'manual_selection'
+  ) return undefined
+  const groupId = typeof record.groupId === 'string' && record.groupId.trim()
+    ? record.groupId.trim()
+    : typeof record.group_id === 'string' && record.group_id.trim()
+      ? record.group_id.trim()
+      : undefined
+  return {
+    mode,
+    ...(groupId ? { groupId } : {}),
+  }
 }
 
 function requiredString(value: unknown, message: string): string {

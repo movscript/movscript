@@ -22,6 +22,8 @@ import {
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { SemanticEntityCrudDialog } from '@/components/shared/SemanticEntityCrudDialog'
+import { AppMetricCard, AppPageHeader, AppSection } from '@/components/app/AppPage'
+import { SemanticDot, SemanticStatusBadge } from '@/components/app/SemanticStatusBadge'
 import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
@@ -30,6 +32,8 @@ import { ROUTES, mergeSearch, withRouteParams } from '@/routes/projectRoutes'
 
 type ProductionStatus = 'planning' | 'previewing' | 'materializing' | 'producing' | 'reviewing' | 'delivered'
 type UnitStatus = 'done' | 'active' | 'waiting' | 'blocked'
+
+const PRODUCTION_STATUSES = new Set<ProductionStatus>(['planning', 'previewing', 'materializing', 'producing', 'reviewing', 'delivered'])
 
 interface ProductionArea {
   key: string
@@ -108,22 +112,6 @@ type ProductionData = {
   deliveryVersions: SemanticEntityRecord[]
 }
 
-const statusMeta: Record<ProductionStatus, { label: string; badge: string; dot: string }> = {
-  planning: { label: '筹备中', badge: 'bg-slate-500/10 text-slate-700 dark:text-slate-300', dot: 'bg-slate-500' },
-  previewing: { label: '预览中', badge: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300', dot: 'bg-cyan-500' },
-  materializing: { label: '资料推演', badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' },
-  producing: { label: '制作中', badge: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300', dot: 'bg-indigo-500' },
-  reviewing: { label: '审片中', badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' },
-  delivered: { label: '已成片', badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' },
-}
-
-const unitMeta: Record<UnitStatus, { label: string; badge: string; dot: string }> = {
-  done: { label: '已完成', badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' },
-  active: { label: '进行中', badge: 'bg-blue-500/10 text-blue-700 dark:text-blue-300', dot: 'bg-blue-500' },
-  waiting: { label: '待处理', badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' },
-  blocked: { label: '阻塞', badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' },
-}
-
 export default function ProductionPage() {
   const project = useProjectStore((s) => s.current)
   const navigate = useNavigate()
@@ -186,60 +174,53 @@ export default function ProductionPage() {
 
   return (
     <div className="h-full overflow-hidden bg-background">
-      <div className="flex h-full min-w-[1200px] flex-col">
-        <header className="border-b border-border bg-card px-5 py-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <Boxes size={14} />
+      <div className="flex h-full min-w-[1120px] flex-col">
+        <div className="shrink-0 px-5 pt-4">
+          <AppPageHeader
+            icon={Boxes}
+            eyebrow={(
+              <>
                 <span>{project?.name ?? '当前项目'}</span>
                 <ChevronRight size={13} />
                 <span>制作</span>
                 <Badge variant="outline">Production</Badge>
-              </div>
-              <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">制作</h1>
-              <p className="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
-                一个项目可以包含多个制作。每个制作承载一次从剧本到成片的完整创作单元，并统一挂载编排段、情景、设定资料、素材需求、制作项和成片。
-              </p>
-            </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
-              <Button variant="outline" className="gap-2" asChild>
-                <Link to={ROUTES.project.scripts}>
+              </>
+            )}
+            title="制作"
+            description="一个项目可以包含多个制作。每个制作承载一次从剧本到成片的完整创作单元，并统一挂载编排段、情景、设定资料、素材需求、制作项和成片。"
+            actions={(
+              <>
+                <Button variant="outline" className="gap-2" asChild>
+                  <Link to={ROUTES.project.scripts}>
+                    <Plus size={15} />
+                    去剧本创建
+                  </Link>
+                </Button>
+                <Button className="gap-2" onClick={() => setCreateOpen(true)}>
                   <Plus size={15} />
-                  去剧本创建
-                </Link>
-              </Button>
-              <Button className="gap-2" onClick={() => setCreateOpen(true)}>
-                <Plus size={15} />
-                直接创建制作
-              </Button>
-            </div>
-          </div>
-        </header>
+                  直接创建制作
+                </Button>
+              </>
+            )}
+          />
+        </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <div className="space-y-4">
-            <section className="rounded-lg border border-border bg-card p-4">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Boxes size={16} className="text-muted-foreground" />
-                  <h2 className="text-sm font-semibold text-foreground">制作</h2>
-                </div>
-                <Badge variant="outline">{productions.length} 个制作</Badge>
-              </div>
+            <AppSection title="制作" icon={Boxes} action={<Badge variant="outline">{productions.length} 个制作</Badge>}>
               <div className="grid gap-3 md:grid-cols-4">
                 <Metric label="进行中" value={aggregate.active} />
                 <Metric label="已成片" value={aggregate.delivered} />
                 <Metric label="阻塞制作" value={aggregate.blocked} />
                 <Metric label="平均进度" value={`${aggregate.avg}%`} />
               </div>
-            </section>
+            </AppSection>
 
             <section className="rounded-lg border border-border bg-card">
               <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
                 <div className="flex items-center gap-2">
                   <Clapperboard size={16} className="text-muted-foreground" />
-                  <h2 className="text-sm font-semibold text-foreground">项目制作</h2>
+                  <h2 className="type-body font-semibold text-foreground">项目制作</h2>
                 </div>
                 <Badge variant="outline">{productions.length}</Badge>
               </div>
@@ -253,8 +234,8 @@ export default function ProductionPage() {
                   />
                 )) : (
                   <div className="col-span-full rounded-md border border-dashed border-border bg-background p-8 text-center">
-                    <p className="text-sm font-medium text-foreground">暂无制作</p>
-                    <p className="mt-1 text-xs text-muted-foreground">可以直接创建制作，也可以先完成创作编排后再从剧本创建。</p>
+                    <p className="type-body font-medium text-foreground">暂无制作</p>
+                    <p className="mt-1 type-label text-muted-foreground">可以直接创建制作，也可以先完成创作编排后再从剧本创建。</p>
                     <div className="mt-4 flex flex-wrap justify-center gap-2">
                       <Button variant="outline" className="gap-2" asChild>
                         <Link to={ROUTES.project.productionOrchestration}>
@@ -278,14 +259,12 @@ export default function ProductionPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary" className={cn('text-[11px]', statusMeta[selected.status].badge)}>
-                        {statusMeta[selected.status].label}
-                      </Badge>
+                      <SemanticStatusBadge status={selected.status} />
                       <Badge variant="outline">{selected.id}</Badge>
                       <Badge variant="secondary">来源：{selected.source}</Badge>
                     </div>
-                    <h2 className="mt-3 text-xl font-semibold text-foreground">{selected.name}</h2>
-                    <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">{selected.description}</p>
+                    <h2 className="mt-3 type-title font-semibold text-foreground">{selected.name}</h2>
+                    <p className="mt-1 max-w-3xl type-body leading-6 text-muted-foreground">{selected.description}</p>
                   </div>
                 </div>
 
@@ -303,8 +282,8 @@ export default function ProductionPage() {
                 <div className="rounded-lg border border-border bg-card">
                   <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                     <div className="min-w-0">
-                      <h2 className="text-sm font-semibold text-foreground">推演对象</h2>
-                      <p className="mt-0.5 text-xs text-muted-foreground">从编排段推导出情景、设定资料、素材需求、制作项与成片。</p>
+                      <h2 className="type-body font-semibold text-foreground">推演对象</h2>
+                      <p className="mt-0.5 type-label text-muted-foreground">从编排段推导出情景、设定资料、素材需求、制作项与成片。</p>
                     </div>
                   </div>
                   <div className="grid gap-3 p-4 md:grid-cols-2">
@@ -318,17 +297,17 @@ export default function ProductionPage() {
                   <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                     <div className="flex items-center gap-2">
                       <ListChecks size={15} className="text-muted-foreground" />
-                      <h2 className="text-sm font-semibold text-foreground">预览挂载</h2>
+                      <h2 className="type-body font-semibold text-foreground">预览挂载</h2>
                     </div>
                     <UnitStatusBadge status={selected.preview.status} />
                   </div>
                   <div className="p-4">
-                    <p className="text-sm font-medium text-foreground">{selected.preview.title}</p>
-                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                    <p className="type-body font-medium text-foreground">{selected.preview.title}</p>
+                    <p className="mt-2 type-label leading-5 text-muted-foreground">
                       预览挂在制作下面，用于追踪编排段、预览画面、素材和制作项准备情况。
                     </p>
                     <Progress value={selected.preview.progress} className="mt-4 h-2" />
-                    <div className="mt-4 space-y-1 text-xs text-muted-foreground">
+                    <div className="mt-4 space-y-1 type-label text-muted-foreground">
                       <p>最近保存：{selected.preview.savedAt ? formatDateTime(selected.preview.savedAt) : '暂无'}</p>
                       <p>确认时间：{selected.preview.confirmedAt ? formatDateTime(selected.preview.confirmedAt) : '暂无'}</p>
                     </div>
@@ -348,9 +327,9 @@ export default function ProductionPage() {
                 <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                   <div className="flex items-center gap-2">
                     <ScrollText size={15} className="text-muted-foreground" />
-                    <h2 className="text-sm font-semibold text-foreground">制作项</h2>
+                    <h2 className="type-body font-semibold text-foreground">制作项</h2>
                   </div>
-                  <p className="text-xs text-muted-foreground">制作项结构由内容编排工作台统一拆解、检查和推进。</p>
+                  <p className="type-label text-muted-foreground">制作项结构由内容编排工作台统一拆解、检查和推进。</p>
                 </div>
                 <div className="divide-y divide-border">
                   {selected.units.map((unit) => (
@@ -365,7 +344,7 @@ export default function ProductionPage() {
             <section className="rounded-lg border border-border bg-card">
               <div className="flex items-center gap-2 border-b border-border px-4 py-3">
                 <Wand2 size={15} className="text-muted-foreground" />
-                <h2 className="text-sm font-semibold text-foreground">下一步</h2>
+                <h2 className="type-body font-semibold text-foreground">下一步</h2>
               </div>
               <div className="space-y-2 p-4">
                 {selected.nextActions.map((item, index) => (
@@ -375,10 +354,10 @@ export default function ProductionPage() {
                     onClick={() => navigate(productionNextActionHref(item, selected))}
                     className="flex w-full gap-3 rounded-md border border-border bg-background p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/30"
                   >
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-medium text-muted-foreground">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted type-label font-medium text-muted-foreground">
                       {index + 1}
                     </span>
-                    <p className="text-sm leading-5 text-foreground">{item}</p>
+                    <p className="type-body leading-5 text-foreground">{item}</p>
                   </button>
                 ))}
               </div>
@@ -387,7 +366,7 @@ export default function ProductionPage() {
             <section className="rounded-lg border border-border bg-card">
               <div className="flex items-center gap-2 border-b border-border px-4 py-3">
                 <Clock3 size={15} className="text-muted-foreground" />
-                <h2 className="text-sm font-semibold text-foreground">最近动态</h2>
+                <h2 className="type-body font-semibold text-foreground">最近动态</h2>
               </div>
               <div className="space-y-3 p-4">
                 {[
@@ -399,8 +378,8 @@ export default function ProductionPage() {
                   <div key={label} className="flex gap-3">
                     <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-muted-foreground" />
                     <div className="min-w-0">
-                      <p className="text-xs font-medium text-foreground">{label}</p>
-                      <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{text}</p>
+                      <p className="type-label font-medium text-foreground">{label}</p>
+                      <p className="mt-0.5 type-label leading-5 text-muted-foreground">{text}</p>
                     </div>
                   </div>
                 ))}
@@ -452,27 +431,25 @@ function ProductionListCard({ production, active, onSelect }: { production: Prod
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className={cn('h-2.5 w-2.5 rounded-full', statusMeta[production.status].dot)} />
-              <p className="truncate text-sm font-semibold text-foreground">{production.name}</p>
+              <SemanticDot status={production.status} />
+              <p className="truncate type-body font-semibold text-foreground">{production.name}</p>
             </div>
-            <p className="mt-1 truncate text-xs text-muted-foreground">{production.source}</p>
+            <p className="mt-1 truncate type-label text-muted-foreground">{production.source}</p>
           </div>
-          <Badge variant="secondary" className={cn('text-[10px]', statusMeta[production.status].badge)}>
-            {statusMeta[production.status].label}
-          </Badge>
+          <SemanticStatusBadge status={production.status} />
         </div>
-        <p className="mt-3 line-clamp-2 text-xs leading-5 text-muted-foreground">{production.description}</p>
+        <p className="mt-3 line-clamp-2 type-label leading-5 text-muted-foreground">{production.description}</p>
         <div className="mt-3 flex items-center gap-2">
           <Progress value={production.progress} className="h-1.5 flex-1" />
-          <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">{production.progress}%</span>
+          <span className="w-9 text-right type-label tabular-nums text-muted-foreground">{production.progress}%</span>
         </div>
-        <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
+        <div className="mt-3 flex items-center justify-between type-caption text-muted-foreground">
           <span>{production.owner}</span>
           <span>{production.updatedAt}</span>
         </div>
       </button>
       <div className="mt-3 border-t border-border pt-3">
-        <Button size="sm" variant={active ? 'secondary' : 'outline'} className="h-8 w-full gap-2 text-xs" asChild>
+        <Button size="sm" variant={active ? 'secondary' : 'outline'} className="w-full gap-2 type-label" asChild>
           <Link to={withRouteParams(ROUTES.project.productionOrchestration, { productionId: production.dbId })}>
             <Route size={14} />
             创作编排
@@ -494,14 +471,14 @@ function AreaCard({ area, production }: { area: ProductionArea; production: Prod
             <Icon size={15} />
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-foreground">{area.title}</p>
-            <p className="truncate text-xs text-muted-foreground">{area.description}</p>
+            <p className="truncate type-body font-medium text-foreground">{area.title}</p>
+            <p className="truncate type-label text-muted-foreground">{area.description}</p>
           </div>
         </div>
         <UnitStatusBadge status={area.status} />
       </div>
       <div className="mt-4 flex items-center gap-3">
-        <p className="w-12 shrink-0 text-lg font-semibold tabular-nums text-foreground">{area.count}</p>
+        <p className="w-12 shrink-0 type-title-sm font-semibold tabular-nums text-foreground">{area.count}</p>
         <Progress value={area.progress} className="h-1.5 flex-1" />
       </div>
     </Link>
@@ -512,47 +489,30 @@ function ProductionUnitRow({ unit }: { unit: ProductionUnit }) {
   return (
     <div className="grid grid-cols-[92px_minmax(0,1fr)_140px_140px_100px] items-center gap-3 px-4 py-3">
       <div>
-        <p className="font-mono text-xs text-muted-foreground">{unit.id}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{unit.timeRange}</p>
+        <p className="font-mono type-label text-muted-foreground">{unit.id}</p>
+        <p className="mt-1 type-label text-muted-foreground">{unit.timeRange}</p>
       </div>
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-foreground">{unit.title}</p>
-        <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{unit.summary}</p>
+        <p className="truncate type-body font-medium text-foreground">{unit.title}</p>
+        <p className="mt-1 line-clamp-1 type-label text-muted-foreground">{unit.summary}</p>
       </div>
-      <p className="truncate text-xs text-muted-foreground">{unit.assets}</p>
-      <p className="truncate text-xs text-muted-foreground">{unit.content}</p>
+      <p className="truncate type-label text-muted-foreground">{unit.assets}</p>
+      <p className="truncate type-label text-muted-foreground">{unit.content}</p>
       <UnitStatusBadge status={unit.status} />
     </div>
   )
 }
 
 function UnitStatusBadge({ status }: { status: UnitStatus }) {
-  return (
-    <Badge variant="secondary" className={cn('shrink-0 text-[10px]', unitMeta[status].badge)}>
-      {unitMeta[status].label}
-    </Badge>
-  )
+  return <SemanticStatusBadge status={status} />
 }
 
 function StatCard({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number | string }) {
-  return (
-    <div className="rounded-md border border-border bg-background p-3">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Icon size={14} />
-        <span className="truncate">{label}</span>
-      </div>
-      <p className="mt-2 text-xl font-semibold tabular-nums text-foreground">{value}</p>
-    </div>
-  )
+  return <AppMetricCard icon={Icon} label={label} value={value} compact />
 }
 
 function Metric({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-md border border-border bg-background p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{value}</p>
-    </div>
-  )
+  return <AppMetricCard label={label} value={value} compact />
 }
 
 async function loadProductionData(projectId: number): Promise<ProductionData> {
@@ -884,7 +844,7 @@ function clampProgress(value: number) {
 
 function normalizeProductionStatus(status: unknown, previewConfirmed: boolean, deliveryVersions: SemanticEntityRecord[]): ProductionStatus {
   const value = String(status ?? '')
-  if (value in statusMeta) return value as ProductionStatus
+  if (PRODUCTION_STATUSES.has(value as ProductionStatus)) return value as ProductionStatus
   if (deliveryVersions.some((item) => item.status === 'exported' || item.status === 'approved')) return 'reviewing'
   return previewConfirmed ? 'producing' : 'planning'
 }

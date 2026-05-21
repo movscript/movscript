@@ -14,6 +14,7 @@ interface AppSettingsStore {
   hydrated: boolean
   completeOnboarding: (settings: Partial<AppSettings>) => void
   setLaunchMode: (launchMode: AppSettings['launchMode']) => void
+  setWorkMode: (workMode: AppSettings['workMode']) => void
   setAPIBaseURL: (apiBaseURL: string) => void
   reset: () => void
 }
@@ -21,6 +22,7 @@ interface AppSettingsStore {
 const defaultSettings: AppSettings = {
   apiBaseURL: getDefaultAPIBaseURL(),
   launchMode: 'cloud',
+  workMode: 'detail',
   onboardingCompleted: false,
 }
 
@@ -29,6 +31,7 @@ function normalizeSettings(settings?: Partial<AppSettings> | null): AppSettings 
     ...defaultSettings,
     ...settings,
     launchMode: settings?.launchMode === 'local' ? 'local' : 'cloud',
+    workMode: settings?.workMode === 'agent' ? 'agent' : 'detail',
     onboardingCompleted: settings?.onboardingCompleted ?? defaultSettings.onboardingCompleted,
     localDisplayName: settings?.localDisplayName?.trim() || undefined,
     apiBaseURL: normalizeAPIBaseURL(settings?.apiBaseURL || (settings?.launchMode === 'local' ? getLocalAPIBaseURL() : defaultSettings.apiBaseURL)),
@@ -68,6 +71,11 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
               ? getDefaultAPIBaseURL()
               : current.apiBaseURL,
         })
+        set({ settings: next, savedAt: new Date().toISOString() })
+        syncElectronSettings(next)
+      },
+      setWorkMode: (workMode) => {
+        const next = normalizeSettings({ ...useAppSettingsStore.getState().settings, workMode })
         set({ settings: next, savedAt: new Date().toISOString() })
         syncElectronSettings(next)
       },

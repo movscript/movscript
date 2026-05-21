@@ -14,7 +14,7 @@ import { describeRuntimeModelCapabilities } from './model/modelRouter.js'
 import { isRecord } from './jsonValue.js'
 import type { JSONValue } from './types.js'
 import type { AgentTraceQuery } from './state/store.js'
-import { AGENT_TRACE_EVENT_KINDS, type AgentRun, type AgentThread, type AgentTraceEventKind } from './state/types.js'
+import { AGENT_TRACE_EVENT_KINDS, type AgentTraceEventKind } from './state/types.js'
 import { isActiveRunStatus } from './state/runStatus.js'
 import { buildRuntimeInputMessageMetadata } from './state/runtimeRunInputs.js'
 import { isValidMemoryProjectId } from './memory/types.js'
@@ -289,12 +289,6 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
-      if (req.method === 'GET' && url.pathname === '/context') {
-        await context.client.initialize()
-        writeJSON(res, 200, await context.client.callTool('movscript_get_focus'))
-        return
-      }
-
       if (req.method === 'POST' && url.pathname === '/draft') {
         const body = normalizeDraftBody(await readJSON(req))
         const result = context.runtimeRouter.createLocalDraft(body)
@@ -422,13 +416,12 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const threadRuntimeMatch = url.pathname.match(/^\/threads\/([^/]+)\/runtime$/)
       if (threadRuntimeMatch && req.method === 'GET') {
-        const thread = context.runtimeRouter.getThread(threadRuntimeMatch[1])
-        if (!thread) {
+        const snapshot = context.runtimeRouter.getThreadRuntimeSnapshot(threadRuntimeMatch[1])
+        if (!snapshot) {
           writeJSON(res, 404, { error: 'thread not found' })
           return
         }
-        const runs = context.runtimeRouter.listRunsByThread(threadRuntimeMatch[1])
-        writeJSON(res, 200, buildThreadRuntimeSnapshot(thread, runs))
+        writeJSON(res, 200, snapshot)
         return
       }
 
@@ -473,6 +466,26 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           })
           return
         }
+        if (body.toolCall !== undefined) {
+          const {
+            message: _message,
+            content: _content,
+            sourceMessageId: _sourceMessageId,
+            ...runBody
+          } = body
+          const run = context.runtimeRouter.createToolRun(asDirectToolRun({
+            ...runBody,
+            threadId: threadRunMatch[1],
+            message: content,
+          }))
+          const updatedThread = context.runtimeRouter.getThread(threadRunMatch[1])
+          const initialUserMessageId = run.input?.sourceMessageId
+            ?? (isRecord(run.metadata) && typeof run.metadata.initialUserMessageId === 'string' ? run.metadata.initialUserMessageId : undefined)
+          const message = updatedThread?.messages.find((item) => item.id === initialUserMessageId)
+            ?? updatedThread?.messages.at(-1)
+          writeJSON(res, 201, message ? { run, message } : { run })
+          return
+        }
         const message = context.runtimeRouter.addMessage(threadRunMatch[1], {
           role: 'user',
           content,
@@ -490,18 +503,6 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           sourceMessageId: message.id,
         }))
         writeJSON(res, 201, { run, message })
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/runs') {
-        const body = await readOptionalJSONObject(req, 'run body')
-        writeJSON(res, 201, context.runtimeRouter.createRun(asPlannerUserRun(withRequestAuth(body, req))))
-        return
-      }
-
-      if (req.method === 'POST' && url.pathname === '/runs/tool') {
-        const body = await readOptionalJSONObject(req, 'tool run body')
-        writeJSON(res, 201, context.runtimeRouter.createToolRun(asDirectToolRun(withRequestAuth(body, req))))
         return
       }
 
@@ -663,10 +664,15 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
-      const runApproveMatch = url.pathname.match(/^\/runs\/([^/]+)\/approve$/)
-      if (runApproveMatch && req.method === 'POST') {
-        const body = await readOptionalJSONObject(req, 'approval body')
-        writeJSON(res, 202, context.runtimeRouter.approveRun(runApproveMatch[1], withRequestAuth(body, req)))
+      const interactionApproveMatch = url.pathname.match(/^\/interactions\/([^/]+)\/approve$/)
+      if (interactionApproveMatch && req.method === 'POST') {
+        writeJSON(res, 202, context.runtimeRouter.approveInteraction(interactionApproveMatch[1]))
+        return
+      }
+
+      const interactionRejectMatch = url.pathname.match(/^\/interactions\/([^/]+)\/reject$/)
+      if (interactionRejectMatch && req.method === 'POST') {
+        writeJSON(res, 200, context.runtimeRouter.rejectInteraction(interactionRejectMatch[1]))
         return
       }
 
@@ -704,13 +710,6 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           planId: run.planId,
           plannerRunId: plan?.rootRunId ?? (run.role === 'planner' ? run.id : run.parentRunId),
         }))
-        return
-      }
-
-      const runRejectMatch = url.pathname.match(/^\/runs\/([^/]+)\/reject$/)
-      if (runRejectMatch && req.method === 'POST') {
-        const body = await readOptionalJSONObject(req, 'rejection body')
-        writeJSON(res, 200, context.runtimeRouter.rejectRun(runRejectMatch[1], body))
         return
       }
 
@@ -990,79 +989,6 @@ function logSlowRequest(method: string | undefined, pathname: string, requestSta
   const totalMs = Date.now() - requestStartedAt
   if (totalMs <= 100) return
   console.info(`[agent] request slow ${method ?? 'UNKNOWN'} ${pathname} total=${totalMs}ms handler=${Date.now() - handlerStartedAt}ms`)
-}
-
-interface ThreadRuntimeSnapshot {
-  schema: 'movscript.agent.thread-runtime-snapshot.v1'
-  updatedAt: string
-  thread: AgentThread
-  runs: AgentRun[]
-  current: {
-    runId?: string
-    threadStatus?: AgentThread['status']
-    runStatus?: AgentRun['status']
-  }
-  interactions: {
-    actionableRunIds: string[]
-    pendingApprovalRefs: Array<{ runId: string; approvalId: string }>
-    pendingInputRequestRefs: Array<{ runId: string; requestId: string }>
-  }
-}
-
-function buildThreadRuntimeSnapshot(thread: AgentThread, runs: AgentRun[]): ThreadRuntimeSnapshot {
-  const actionableRuns = runs.filter(runNeedsUserAction).sort(compareRunsByUpdatedAtDesc)
-  const currentRun = actionableRuns[0]
-    ?? findRunById(runs, thread.activeRunId)
-    ?? findRunById(runs, thread.lastRunId)
-    ?? [...runs].sort(compareRunsByUpdatedAtDesc)[0]
-  const pendingApprovalRefs = actionableRuns.flatMap((run) => (run.pendingApprovals ?? [])
-    .filter((approval) => approval.status === 'pending')
-    .map((approval) => ({ runId: run.id, approvalId: approval.id })))
-  const pendingInputRequestRefs = actionableRuns.flatMap((run) => (run.pendingInputRequests ?? [])
-    .filter((request) => request.status === 'pending')
-    .map((request) => ({ runId: run.id, requestId: request.id })))
-  return {
-    schema: 'movscript.agent.thread-runtime-snapshot.v1',
-    updatedAt: maxTimestamp([thread.updatedAt, ...runs.map((run) => run.updatedAt)]),
-    thread,
-    runs,
-    current: {
-      ...(currentRun ? { runId: currentRun.id, runStatus: currentRun.status } : {}),
-      ...(thread.status ? { threadStatus: thread.status } : {}),
-    },
-    interactions: {
-      actionableRunIds: actionableRuns.map((run) => run.id),
-      pendingApprovalRefs,
-      pendingInputRequestRefs,
-    },
-  }
-}
-
-function runNeedsUserAction(run: AgentRun): boolean {
-  return run.status === 'requires_action'
-    && (
-      (run.pendingApprovals ?? []).some((approval) => approval.status === 'pending')
-      || (run.pendingInputRequests ?? []).some((request) => request.status === 'pending')
-    )
-}
-
-function findRunById(runs: AgentRun[], runId: string | undefined): AgentRun | undefined {
-  return runId ? runs.find((run) => run.id === runId) : undefined
-}
-
-function compareRunsByUpdatedAtDesc(a: AgentRun, b: AgentRun): number {
-  return timestampMs(b.updatedAt ?? b.createdAt) - timestampMs(a.updatedAt ?? a.createdAt)
-}
-
-function maxTimestamp(values: string[]): string {
-  return values
-    .filter((value) => Number.isFinite(Date.parse(value)))
-    .sort((left, right) => timestampMs(right) - timestampMs(left))[0] ?? new Date(0).toISOString()
-}
-
-function timestampMs(value: string | undefined): number {
-  const parsed = value ? Date.parse(value) : NaN
-  return Number.isFinite(parsed) ? parsed : 0
 }
 
 function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, runId: string): void {

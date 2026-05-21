@@ -48,7 +48,7 @@ test('loadRuntimeThreadProjection prefers a combined thread runtime snapshot whe
       getThreadRuntime: async () => {
         calls.push('getThreadRuntime')
         return makeRuntimeSnapshot(thread, [listedRun], {
-          runId: listedRun.id,
+          activeRunIds: [listedRun.id],
         })
       },
     },
@@ -89,9 +89,17 @@ test('loadRuntimeThreadProjection derives actionable runs from the authoritative
       getThread: async () => thread,
       listRunsByThread: async () => ({ threadId: 'thread_1', runs: [] }),
       getThreadRuntime: async () => makeRuntimeSnapshot(thread, [completedRun, pendingRun], {
-        runId: completedRun.id,
-        actionableRunIds: [pendingRun.id],
-        pendingInputRequestRefs: [{ runId: pendingRun.id, requestId: 'input_1' }],
+        activeRunIds: [completedRun.id],
+        interactions: [{
+          id: 'interaction_input_1',
+          threadId: 'thread_1',
+          runId: pendingRun.id,
+          kind: 'input',
+          status: 'pending',
+          payload: { requestId: 'input_1' },
+          createdAt: '2026-05-19T00:00:04.000Z',
+          updatedAt: '2026-05-19T00:00:04.000Z',
+        }],
       }),
     },
     fetchRunGenerationView: async () => emptyGenerationReplay(),
@@ -184,26 +192,40 @@ function makeRuntimeSnapshot(
   thread: AgentThread,
   runs: AgentRun[],
   options: {
-    runId?: string
-    actionableRunIds?: string[]
-    pendingInputRequestRefs?: Array<{ runId: string; requestId: string }>
+    activeRunIds?: string[]
+    waitingRunIds?: string[]
+    interactions?: Array<{
+      id: string
+      threadId: string
+      runId: string
+      operationId?: string
+      kind: 'approval' | 'input' | 'selection'
+      status: 'pending' | 'approved' | 'rejected' | 'answered' | 'cancelled'
+      payload: unknown
+      result?: unknown
+      createdAt: string
+      updatedAt: string
+      resolvedAt?: string
+    }>
   } = {},
 ) {
-  const currentRun = options.runId ? runs.find((run) => run.id === options.runId) : undefined
+  const activeRunIds = options.activeRunIds ?? []
+  const waitingRunIds = options.waitingRunIds ?? []
+  const interactions = options.interactions ?? []
   return {
-    schema: 'movscript.agent.thread-runtime-snapshot.v1' as const,
+    schema: 'movscript.thread-runtime.v2' as const,
     updatedAt: thread.updatedAt,
     thread,
     runs,
+    operations: [],
+    interactions,
+    continuations: [],
     current: {
-      ...(options.runId ? { runId: options.runId } : {}),
-      ...(thread.status ? { threadStatus: thread.status } : {}),
-      ...(currentRun?.status ? { runStatus: currentRun.status } : {}),
-    },
-    interactions: {
-      actionableRunIds: options.actionableRunIds ?? [],
-      pendingApprovalRefs: [],
-      pendingInputRequestRefs: options.pendingInputRequestRefs ?? [],
+      activeRunIds,
+      waitingRunIds,
+      runningOperationIds: [],
+      pendingInteractionIds: interactions.filter((interaction) => interaction.status === 'pending').map((interaction) => interaction.id),
+      readyContinuationIds: [],
     },
   }
 }

@@ -2,7 +2,8 @@ import type { JSONValue } from '../types.js'
 
 export type RuntimeOperationKind = 'generation_job'
 export type RuntimeOperationMode = 'async'
-export type RuntimeOperationStatus = 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled' | 'timeout'
+export type RuntimeOperationStatus = 'pending_approval' | 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled' | 'timeout'
+export type RuntimeOperationContinuationMode = 'none' | 'any_completed' | 'all_completed' | 'all_settled' | 'manual_selection'
 
 export interface RuntimeOperationExternalHandle {
   provider: string
@@ -12,11 +13,16 @@ export interface RuntimeOperationExternalHandle {
 
 export interface RuntimeOperation {
   id: string
+  threadId: string
   runId: string
   kind: RuntimeOperationKind
   mode: RuntimeOperationMode
   status: RuntimeOperationStatus
   request: JSONValue
+  continuationPolicy?: {
+    mode: RuntimeOperationContinuationMode
+    groupId?: string
+  }
   externalHandle?: RuntimeOperationExternalHandle
   result?: JSONValue
   error?: string
@@ -28,9 +34,11 @@ export interface RuntimeOperation {
 }
 
 export interface RuntimeOperationStartInput {
+  threadId: string
   runId: string
   kind: RuntimeOperationKind
   request: Record<string, JSONValue>
+  continuationPolicy?: RuntimeOperation['continuationPolicy']
   timeoutMs?: number
   pollIntervalMs?: number
   signal?: AbortSignal

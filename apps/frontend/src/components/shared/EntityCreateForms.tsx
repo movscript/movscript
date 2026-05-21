@@ -35,7 +35,7 @@ export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormP
   return (
     <div className="space-y-4">
       <div>
-        <Label className="mb-1 text-xs font-medium text-muted-foreground">{t('forms.titleRequired')}</Label>
+        <Label className="mb-1 type-label font-medium text-muted-foreground">{t('forms.titleRequired')}</Label>
         <Input
           autoFocus
           placeholder={t('forms.scriptTitle')}
@@ -45,16 +45,16 @@ export function ScriptCreateForm({ projectId, onSuccess, onCancel }: EntityFormP
         />
       </div>
       <div>
-        <Label className="mb-1 text-xs font-medium text-muted-foreground">分类</Label>
+        <Label className="mb-1 type-label font-medium text-muted-foreground">分类</Label>
         <Input
           placeholder="例如：第一集、广告脚本、口播、拍摄版"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
         />
-        <p className="mt-1 text-xs text-muted-foreground">分类是自由标签，不限制固定选项。</p>
+        <p className="mt-1 type-label text-muted-foreground">分类是自由标签，不限制固定选项。</p>
       </div>
       <div>
-        <Label className="mb-1 text-xs font-medium text-muted-foreground">{t('forms.summaryOptional')}</Label>
+        <Label className="mb-1 type-label font-medium text-muted-foreground">{t('forms.summaryOptional')}</Label>
         <Textarea className="resize-none" rows={2} value={desc} onChange={(e) => setDesc(e.target.value)} />
       </div>
       <div className="flex gap-2 pt-1">

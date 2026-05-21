@@ -4,6 +4,46 @@
   --ms-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --ms-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 
+  --ms-text-min: 8px;
+  --ms-leading-min: 10px;
+  --ms-text-micro: 9px;
+  --ms-leading-micro: 12px;
+  --ms-text-tiny: 10px;
+  --ms-leading-tiny: 14px;
+  --ms-text-caption: 11px;
+  --ms-leading-caption: 16px;
+  --ms-text-label: 12px;
+  --ms-leading-label: 16px;
+  --ms-text-body-sm: 13px;
+  --ms-leading-body-sm: 18px;
+  --ms-text-body: 14px;
+  --ms-leading-body: 20px;
+  --ms-text-value: 15px;
+  --ms-leading-value: 22px;
+  --ms-text-body-lg: 16px;
+  --ms-leading-body-lg: 24px;
+  --ms-text-title-sm: 18px;
+  --ms-leading-title-sm: 28px;
+  --ms-text-title: 20px;
+  --ms-leading-title: 28px;
+  --ms-text-page-title: 22px;
+  --ms-leading-page-title: 30px;
+  --ms-text-display: 30px;
+  --ms-leading-display: 38px;
+
+  --ms-button-xs-height: 24px;
+  --ms-button-xs-padding-x: 8px;
+  --ms-button-sm-height: 30px;
+  --ms-button-sm-padding-x: 11px;
+  --ms-button-md-height: 38px;
+  --ms-button-md-padding-x: 16px;
+  --ms-button-lg-height: 44px;
+  --ms-button-lg-padding-x: 18px;
+  --ms-button-icon-xs-size: 24px;
+  --ms-button-icon-sm-size: 30px;
+  --ms-button-icon-md-size: 38px;
+  --ms-button-icon-lg-size: 44px;
+
   --ms-color-background: #f5f6f2;
   --ms-color-foreground: #13161b;
   --ms-color-surface: #fbfbf8;

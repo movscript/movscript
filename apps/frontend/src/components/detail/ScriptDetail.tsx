@@ -147,12 +147,12 @@ function ScriptVersionViewer({
       <div className="grid gap-4 p-4 lg:grid-cols-[280px_minmax(0,1fr)]">
         <div className="rounded-lg border border-border bg-card">
           <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
-            <p className="text-xs font-semibold text-foreground">版本</p>
+            <p className="type-label font-semibold text-foreground">版本</p>
             <button
               type="button"
               onClick={onCreate}
               disabled={isCreating}
-              className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+              className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2 type-caption text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
             >
               <Plus size={12} />
               {isCreating ? '新增中' : '新增快照'}
@@ -160,9 +160,9 @@ function ScriptVersionViewer({
           </div>
           <div className="space-y-2 p-3">
             {isLoading ? (
-              <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">正在读取版本</p>
+              <p className="rounded-md border border-dashed border-border px-3 py-3 type-label text-muted-foreground">正在读取版本</p>
             ) : versions.length === 0 ? (
-              <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">暂无剧本版本</p>
+              <p className="rounded-md border border-dashed border-border px-3 py-3 type-label text-muted-foreground">暂无剧本版本</p>
             ) : versions.map((version) => (
               <button
                 key={version.ID}
@@ -175,8 +175,8 @@ function ScriptVersionViewer({
                     : 'border-border bg-background hover:border-primary/50',
                 )}
               >
-                <span className="block truncate text-sm font-medium text-foreground">{version.title || `剧本版本 ${version.version_number}`}</span>
-                <span className="mt-1 block text-xs text-muted-foreground">
+                <span className="block truncate type-body font-medium text-foreground">{version.title || `剧本版本 ${version.version_number}`}</span>
+                <span className="mt-1 block type-label text-muted-foreground">
                   v{version.version_number || version.ID} · {formatScriptVersionStatus(version.status)} · {formatDate(version.UpdatedAt)}
                 </span>
               </button>
@@ -186,17 +186,17 @@ function ScriptVersionViewer({
 
         <div className="rounded-lg border border-border bg-card">
           <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
-            <p className="min-w-0 truncate text-xs font-semibold text-foreground">
+            <p className="min-w-0 truncate type-label font-semibold text-foreground">
               {selectedVersion ? `${selectedVersion.title || '未命名版本'} · v${selectedVersion.version_number || selectedVersion.ID}` : '版本正文'}
             </p>
             {selectedVersion ? (
-              <span className="shrink-0 text-xs text-muted-foreground">{formatScriptVersionStatus(selectedVersion.status)}</span>
+              <span className="shrink-0 type-label text-muted-foreground">{formatScriptVersionStatus(selectedVersion.status)}</span>
             ) : null}
           </div>
           <div className="p-3">
             <textarea
               readOnly
-              className="min-h-[260px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-sm leading-relaxed text-foreground outline-none"
+              className="min-h-[260px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono type-body leading-relaxed text-foreground outline-none"
               value={selectedText}
               placeholder="选择版本后查看正文"
             />

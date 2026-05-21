@@ -99,8 +99,8 @@ export default function CanvasListPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-base font-semibold text-foreground">{t('header.titles.canvases')}</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">{t('pages.canvases.subtitle')}</p>
+          <h1 className="type-body-lg font-semibold text-foreground">{t('header.titles.canvases')}</h1>
+          <p className="type-label text-muted-foreground mt-0.5">{t('pages.canvases.subtitle')}</p>
         </div>
         <Button onClick={() => setShowCreate(true)} size="sm">
           <Plus size={14} /> {t('pages.canvases.newCanvas')}
@@ -109,14 +109,14 @@ export default function CanvasListPage() {
 
       {/* Canvas list */}
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">{t('common.loadingShort')}</p>
+        <p className="type-body text-muted-foreground">{t('common.loadingShort')}</p>
       ) : canvases.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <LayoutTemplate size={36} className="mb-3 opacity-40" />
-          <p className="text-sm mb-2">{t('pages.canvases.empty')}</p>
+          <p className="type-body mb-2">{t('pages.canvases.empty')}</p>
           <button
             onClick={() => setShowCreate(true)}
-            className="text-xs text-muted-foreground hover:text-foreground hover:underline underline-offset-4"
+            className="type-label text-muted-foreground hover:text-foreground hover:underline underline-offset-4"
           >
             {t('pages.canvases.createFirst')}
           </button>
@@ -143,13 +143,13 @@ export default function CanvasListPage() {
                         if (e.key === 'Enter') submitRename(cv.ID)
                         if (e.key === 'Escape') cancelRename()
                       }}
-                      className="h-8 text-sm"
+                      className="h-8 type-body"
                     />
                   ) : (
-                    <p className="text-sm font-medium text-foreground truncate">{cv.name}</p>
+                    <p className="type-body font-medium text-foreground truncate">{cv.name}</p>
                   )}
                 </div>
-                <span className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border font-medium shrink-0 ${meta.color}`}>
+                <span className={`flex items-center gap-1 type-caption px-2 py-0.5 rounded-full border font-medium shrink-0 ${meta.color}`}>
                   {meta.icon}{t(meta.labelKey)}
                 </span>
                 {isEditing ? (
@@ -218,7 +218,7 @@ export default function CanvasListPage() {
       >
         <div className="space-y-4">
           <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1.5">{t('pages.canvases.nameRequired')}</Label>
+            <Label className="type-label font-medium text-muted-foreground mb-1.5">{t('pages.canvases.nameRequired')}</Label>
             <Input
               autoFocus
               placeholder={t('pages.canvases.namePlaceholder')}
@@ -243,11 +243,11 @@ export default function CanvasListPage() {
                       : 'border-border bg-muted/30 text-foreground hover:border-foreground/40'
                   }`}
                 >
-                  <span className="flex items-center gap-1.5 text-xs font-medium">
+                  <span className="flex items-center gap-1.5 type-label font-medium">
                     {meta.icon}
                     {t(meta.labelKey)}
                   </span>
-                  <span className={`mt-1 block text-[11px] leading-relaxed ${selected ? 'text-background/75' : 'text-muted-foreground'}`}>
+                  <span className={`mt-1 block type-caption leading-relaxed ${selected ? 'text-background/75' : 'text-muted-foreground'}`}>
                     {t(meta.descKey)}
                   </span>
                 </button>

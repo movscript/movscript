@@ -20,6 +20,7 @@ type MCPServerStatus = {
 declare global {
   interface Window {
     api?: {
+      platform?: NodeJS.Platform
       openFile?: () => Promise<string | null>
       saveFile?: (defaultPath?: string) => Promise<string | null>
       updateMCPContext?: (snapshot: unknown) => Promise<void>

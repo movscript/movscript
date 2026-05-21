@@ -193,10 +193,11 @@ export async function buildLocalAgentSendDraft(input: BuildLocalAgentSendDraftIn
   const debugMessages = options.omitDebugArtifacts ? [] : messages
   const warnings: string[] = []
   const threadId = diagnosticCommand ? undefined : input.localThreadId || undefined
+  const localRuntimeProjectId = options.projectId ?? taskPayload?.projectId ?? input.currentProject?.ID
   const localRuntime: AgentSendDraft['localRuntime'] = {
     ...(threadId ? { threadId } : {}),
     ...(threadId && (options.title ?? taskPayload?.title) ? { title: options.title ?? taskPayload?.title } : {}),
-    ...((options.projectId ?? taskPayload?.projectId) !== undefined ? { projectId: options.projectId ?? taskPayload?.projectId } : {}),
+    ...(localRuntimeProjectId !== undefined ? { projectId: localRuntimeProjectId } : {}),
     clientInput,
     ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
     ...(effectiveRunPolicy ? { runPolicy: effectiveRunPolicy } : {}),

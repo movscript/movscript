@@ -20,11 +20,13 @@ export class GenerationJobOperationProvider implements RuntimeOperationProvider 
     const status = eventStatus(event?.status, event?.terminal)
     return {
       id: makeOperationId(),
+      threadId: input.threadId,
       runId: input.runId,
       kind: this.kind,
       mode: 'async',
       status,
       request: cloneJSONValue(input.request),
+      ...(input.continuationPolicy ? { continuationPolicy: input.continuationPolicy } : {}),
       ...(jobId !== undefined ? { externalHandle: { provider: 'movscript', type: 'generation_job', id: jobId } } : {}),
       result: normalizePayload(raw),
       ...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),

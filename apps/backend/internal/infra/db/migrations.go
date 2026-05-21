@@ -279,6 +279,13 @@ func RegisteredMigrations() []Migration {
 				return createProductionIdentifierIndexes(db)
 			},
 		},
+		{
+			Version: "000029",
+			Name:    "remove_production_orchestrate_feature",
+			Up: func(db *gorm.DB) error {
+				return removeProductionOrchestrateFeatureConfig(db)
+			},
+		},
 	}
 	return core
 }
@@ -730,7 +737,6 @@ func seedFeatureConfigs(db *gorm.DB) error {
 		{FeatureKey: "style_transfer", DisplayName: "画风迁移", Description: "将参考图的画风迁移到目标图像", Capability: "image_edit", IsEnabled: true, AllowedModelIDs: "[]"},
 		{FeatureKey: "multi_angle", DisplayName: "多角度", Description: "从单张参考图生成多角度视图", Capability: "image_edit", IsEnabled: true, AllowedModelIDs: "[]"},
 		{FeatureKey: "brainstorm", DisplayName: "头脑风暴", Description: "AI 多轮对话，辅助创意发散与剧本构思", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "production_orchestrate", DisplayName: "制作编排 AI 分析", Description: "从剧本文本中提取五类制作编排候选：片段、情节、设定资料、素材需求、内容单元", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
 	}
 	for _, feature := range features {
 		var existing persistencemodel.FeatureConfig
@@ -744,6 +750,18 @@ func seedFeatureConfigs(db *gorm.DB) error {
 		if err := db.Create(&feature).Error; err != nil {
 			return fmt.Errorf("seed feature %s: %w", feature.FeatureKey, err)
 		}
+	}
+	return nil
+}
+
+func removeProductionOrchestrateFeatureConfig(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.FeatureConfig{}) {
+		return nil
+	}
+	if err := db.Unscoped().
+		Where("feature_key = ?", "production_orchestrate").
+		Delete(&persistencemodel.FeatureConfig{}).Error; err != nil {
+		return fmt.Errorf("delete production_orchestrate feature config: %w", err)
 	}
 	return nil
 }

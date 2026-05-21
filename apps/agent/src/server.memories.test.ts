@@ -341,7 +341,7 @@ test('HTTP replan rejects invalid addTasks without partial task creation', async
   assert.deepEqual(JSON.parse(accepted.body).updatedTaskIds, ['task_http_replan_base'])
 })
 
-test('public run endpoint always creates planner user runs', async () => {
+test('legacy public run endpoint is no longer an execution entrypoint', async () => {
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
@@ -363,15 +363,12 @@ test('public run endpoint always creates planner user runs', async () => {
     parentRunId: 'run_external_parent',
     taskId: 'task_external_worker',
   })
-  const run = JSON.parse(res.body) as { role?: string; parentRunId?: string; taskId?: string }
 
-  assert.equal(res.statusCode, 201)
-  assert.equal(run.role, 'planner')
-  assert.equal(run.parentRunId, undefined)
-  assert.equal(run.taskId, undefined)
+  assert.equal(res.statusCode, 404)
+  assert.deepEqual(runtime.listRunsByThread(thread.id), [])
 })
 
-test('public tool run endpoint cannot impersonate a planned subagent', async () => {
+test('legacy public tool run endpoint is no longer an execution entrypoint', async () => {
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
@@ -400,22 +397,9 @@ test('public tool run endpoint cannot impersonate a planned subagent', async () 
       args: { projectId: 42 },
     },
   })
-  const run = JSON.parse(res.body) as {
-    role?: string
-    parentRunId?: string
-    planId?: string
-    taskId?: string
-    progress?: number
-    blockedReason?: string
-  }
 
-  assert.equal(res.statusCode, 201)
-  assert.equal(run.role, 'worker')
-  assert.equal(run.parentRunId, undefined)
-  assert.equal(run.planId, undefined)
-  assert.equal(run.taskId, undefined)
-  assert.equal(run.progress, undefined)
-  assert.equal(run.blockedReason, undefined)
+  assert.equal(res.statusCode, 404)
+  assert.deepEqual(runtime.listRunsByThread(thread.id), [])
 })
 
 test('HTTP plan creation rejects invalid task graphs without writing plan state', async () => {

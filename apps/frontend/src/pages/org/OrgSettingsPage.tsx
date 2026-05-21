@@ -66,12 +66,12 @@ function MembersTab({ orgId }: { orgId: number }) {
 
   const roles = ['owner', 'admin', 'member', 'viewer']
 
-  if (isLoading) return <p className="text-sm text-muted-foreground py-4">{t('common.loading')}</p>
+  if (isLoading) return <p className="type-body text-muted-foreground py-4">{t('common.loading')}</p>
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{t('org.membersCount', { count: members.length })}</p>
+        <p className="type-body text-muted-foreground">{t('org.membersCount', { count: members.length })}</p>
         <Button size="sm" onClick={() => setShowAdd(true)}>
           <Plus size={13} className="mr-1.5" />
           {t('org.addMember')}
@@ -82,19 +82,19 @@ function MembersTab({ orgId }: { orgId: number }) {
         {members.map((m) => (
           <div key={m.ID} className="flex items-center gap-3 px-4 py-3">
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">{m.user?.username ?? `#${m.user_id}`}</p>
+              <p className="type-body font-medium text-foreground truncate">{m.user?.username ?? `#${m.user_id}`}</p>
             </div>
             <Select
               value={m.role}
               onValueChange={(role) => updateRole.mutate({ userId: m.user_id, role })}
               disabled={m.user_id === currentUser?.ID}
             >
-              <SelectTrigger className="w-28 h-7 text-xs">
+              <SelectTrigger className="w-28 h-7 type-label">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {roles.map((r) => (
-                  <SelectItem key={r} value={r} className="text-xs">
+                  <SelectItem key={r} value={r} className="type-label">
                     {t(`org.roles.${r}`)}
                   </SelectItem>
                 ))}
@@ -102,8 +102,8 @@ function MembersTab({ orgId }: { orgId: number }) {
             </Select>
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-destructive"
               disabled={m.user_id === currentUser?.ID}
               onClick={() => removeMember.mutate(m.user_id)}
               title={t('org.removeMember')}
@@ -145,7 +145,7 @@ function MembersTab({ orgId }: { orgId: number }) {
                   </SelectContent>
                 </Select>
               </div>
-              {addError && <p className="text-xs text-destructive">{addError}</p>}
+              {addError && <p className="type-label text-destructive">{addError}</p>}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowAdd(false)}>{t('common.cancel')}</Button>
@@ -214,15 +214,15 @@ function InvitationsTab({ orgId }: { orgId: number }) {
 
   const roles = ['admin', 'member', 'viewer']
 
-  if (isLoading) return <p className="text-sm text-muted-foreground py-4">{t('common.loading')}</p>
+  if (isLoading) return <p className="type-body text-muted-foreground py-4">{t('common.loading')}</p>
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-foreground">{t('org.code')}</p>
-          <p className="mt-1 font-mono text-sm text-foreground">{org?.join_code ?? t('common.loadingShort')}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{t('org.codeManagementHint')}</p>
+          <p className="type-body font-medium text-foreground">{t('org.code')}</p>
+          <p className="mt-1 font-mono type-body text-foreground">{org?.join_code ?? t('common.loadingShort')}</p>
+          <p className="mt-1 type-label text-muted-foreground">{t('org.codeManagementHint')}</p>
         </div>
         <Button variant="outline" size="sm" onClick={copyCode} disabled={!org?.join_code}>
           {copied === 'code' ? <Check size={13} /> : <Copy size={13} />}
@@ -231,7 +231,7 @@ function InvitationsTab({ orgId }: { orgId: number }) {
       </div>
 
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{t('org.invitationsCount', { count: invitations.length })}</p>
+        <p className="type-body text-muted-foreground">{t('org.invitationsCount', { count: invitations.length })}</p>
         <Button size="sm" onClick={() => setShowCreate(true)}>
           <Plus size={13} className="mr-1.5" />
           {t('org.createInvite')}
@@ -239,24 +239,24 @@ function InvitationsTab({ orgId }: { orgId: number }) {
       </div>
 
       {invitations.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-4 text-center">{t('org.noInvitations')}</p>
+        <p className="type-body text-muted-foreground py-4 text-center">{t('org.noInvitations')}</p>
       ) : (
         <div className="border border-border rounded-lg divide-y divide-border">
           {invitations.map((inv) => (
             <div key={inv.ID} className="flex items-center gap-3 px-4 py-3">
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-mono text-muted-foreground truncate">{inv.token}</p>
-                {inv.note && <p className="text-xs text-muted-foreground mt-0.5 truncate">{inv.note}</p>}
+                <p className="type-label font-mono text-muted-foreground truncate">{inv.token}</p>
+                {inv.note && <p className="type-label text-muted-foreground mt-0.5 truncate">{inv.note}</p>}
               </div>
-              <Badge variant="outline" className="text-xs shrink-0">{t(`org.roles.${inv.role}`)}</Badge>
+              <Badge variant="outline" className="type-label shrink-0">{t(`org.roles.${inv.role}`)}</Badge>
               {inv.used_at ? (
-                <Badge variant="secondary" className="text-xs shrink-0">{t('org.inviteUsed')}</Badge>
+                <Badge variant="secondary" className="type-label shrink-0">{t('org.inviteUsed')}</Badge>
               ) : (
                 <>
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground"
+                    size="icon-sm"
+                    className="text-muted-foreground"
                     onClick={() => copyLink(inv.token)}
                     title={t('org.copyInviteLink')}
                   >
@@ -264,8 +264,8 @@ function InvitationsTab({ orgId }: { orgId: number }) {
                   </Button>
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:text-destructive"
                     onClick={() => revokeInvitation.mutate(inv.ID)}
                     title={t('org.revokeInvite')}
                   >
@@ -308,7 +308,7 @@ function InvitationsTab({ orgId }: { orgId: number }) {
                   className="mt-1"
                 />
               </div>
-              {createError && <p className="text-xs text-destructive">{createError}</p>}
+              {createError && <p className="type-label text-destructive">{createError}</p>}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowCreate(false)}>{t('common.cancel')}</Button>
@@ -339,26 +339,26 @@ function UsageTab({ orgId }: { orgId: number }) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-lg border border-border px-4 py-3">
-          <p className="text-xs text-muted-foreground">{t('org.usage.month')}</p>
-          <p className="mt-1 text-sm font-medium text-foreground">{data?.month ?? '—'}</p>
+          <p className="type-label text-muted-foreground">{t('org.usage.month')}</p>
+          <p className="mt-1 type-body font-medium text-foreground">{data?.month ?? '—'}</p>
         </div>
         <div className="rounded-lg border border-border px-4 py-3">
-          <p className="text-xs text-muted-foreground">{t('org.usage.totalTokens')}</p>
-          <p className="mt-1 text-sm font-medium text-foreground tabular-nums">{totalTokens.toLocaleString()}</p>
+          <p className="type-label text-muted-foreground">{t('org.usage.totalTokens')}</p>
+          <p className="mt-1 type-body font-medium text-foreground tabular-nums">{totalTokens.toLocaleString()}</p>
         </div>
       </div>
 
       <div className="rounded-lg border border-border bg-foreground px-4 py-3 text-background">
-        <div className="flex items-center gap-2 text-xs opacity-70">
+        <div className="flex items-center gap-2 type-label opacity-70">
           <Coins size={13} />
           <span>{t('org.usage.totalCost')}</span>
         </div>
-        <div className="mt-1 text-2xl font-semibold tabular-nums">{totalCost.toFixed(3)}</div>
-        <div className="mt-0.5 text-xs opacity-60">{t('common.credits')}</div>
+        <div className="mt-1 type-page-title font-semibold tabular-nums">{totalCost.toFixed(3)}</div>
+        <div className="mt-0.5 type-label opacity-60">{t('common.credits')}</div>
       </div>
 
       <div className="border border-border rounded-lg overflow-hidden">
-        <table className="w-full text-xs">
+        <table className="w-full type-label">
           <thead className="bg-card border-b border-border">
             <tr>
               <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">{t('org.usage.user')}</th>
@@ -423,7 +423,7 @@ function SettingsTab({ orgId }: { orgId: number }) {
           className="mt-1"
         />
       </div>
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="type-label text-destructive">{error}</p>}
       <Button onClick={() => update.mutate()} disabled={update.isPending || !name.trim()}>
         {saved ? t('org.saved') : update.isPending ? t('common.saving') : t('common.save')}
       </Button>
@@ -447,14 +447,14 @@ export default function OrgSettingsPage() {
 
   return (
     <div className="p-6 max-w-3xl">
-      <h1 className="text-lg font-semibold text-foreground mb-6">{t('org.settingsTitle')}</h1>
+      <h1 className="type-title-sm font-semibold text-foreground mb-6">{t('org.settingsTitle')}</h1>
 
       <div className="flex gap-1 border-b border-border mb-6">
         {tabs.map(({ key, label }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
-            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            className={`px-4 py-2 type-body font-medium transition-colors border-b-2 -mb-px ${
               tab === key
                 ? 'border-foreground text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground'

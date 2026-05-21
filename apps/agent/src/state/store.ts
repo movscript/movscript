@@ -1,4 +1,14 @@
-import type { AgentPlan, AgentRun, AgentTask, AgentThread, AgentThreadSummary, AgentTraceEvent } from './types.js'
+import type { RuntimeOperation } from '../operations/runtimeOperation.js'
+import type {
+  AgentPlan,
+  AgentRun,
+  AgentTask,
+  AgentThread,
+  AgentThreadSummary,
+  AgentTraceEvent,
+  RuntimeContinuation,
+  RuntimeInteraction,
+} from './types.js'
 import type { AgentRunTraceSummary } from './runTrace.js'
 import {
   applyTraceEventToDebugLedger,
@@ -35,6 +45,18 @@ export interface AgentStore {
   updateTask(task: AgentTask): void
   listTasks(planId?: string): AgentTask[]
   getTask(id: string): AgentTask | undefined
+  createRuntimeOperation(operation: RuntimeOperation): void
+  updateRuntimeOperation(operation: RuntimeOperation): void
+  listRuntimeOperations(query?: RuntimeOperationQuery): RuntimeOperation[]
+  getRuntimeOperation(id: string): RuntimeOperation | undefined
+  createRuntimeInteraction(interaction: RuntimeInteraction): void
+  updateRuntimeInteraction(interaction: RuntimeInteraction): void
+  listRuntimeInteractions(query?: RuntimeInteractionQuery): RuntimeInteraction[]
+  getRuntimeInteraction(id: string): RuntimeInteraction | undefined
+  createRuntimeContinuation(continuation: RuntimeContinuation): void
+  updateRuntimeContinuation(continuation: RuntimeContinuation): void
+  listRuntimeContinuations(query?: RuntimeContinuationQuery): RuntimeContinuation[]
+  getRuntimeContinuation(id: string): RuntimeContinuation | undefined
   appendTraceEvent(event: AgentTraceEvent): void
   listRunTraceEvents(runId: string, query?: AgentTraceQuery): AgentTraceEvent[]
   countRunTraceEvents(runId: string, query?: Pick<AgentTraceQuery, 'kind'>): number
@@ -51,11 +73,35 @@ export interface AgentRunQuery {
   role?: AgentRun['role']
 }
 
+export interface RuntimeOperationQuery {
+  threadId?: string
+  runId?: string
+  status?: RuntimeOperation['status']
+  kind?: RuntimeOperation['kind']
+}
+
+export interface RuntimeInteractionQuery {
+  threadId?: string
+  runId?: string
+  operationId?: string
+  status?: RuntimeInteraction['status']
+  kind?: RuntimeInteraction['kind']
+}
+
+export interface RuntimeContinuationQuery {
+  threadId?: string
+  runId?: string
+  status?: RuntimeContinuation['status']
+}
+
 export class InMemoryAgentStore implements AgentStore {
   private readonly threads = new Map<string, AgentThread>()
   private readonly runs = new Map<string, AgentRun>()
   private readonly plans = new Map<string, AgentPlan>()
   private readonly tasks = new Map<string, AgentTask>()
+  private readonly runtimeOperations = new Map<string, RuntimeOperation>()
+  private readonly runtimeInteractions = new Map<string, RuntimeInteraction>()
+  private readonly runtimeContinuations = new Map<string, RuntimeContinuation>()
   private readonly traceEventsByRun = new Map<string, AgentTraceEvent[]>()
   private readonly debugLedgersByRun = new Map<string, AgentRunDebugLedger>()
 
@@ -185,6 +231,75 @@ export class InMemoryAgentStore implements AgentStore {
   getTask(id: string): AgentTask | undefined {
     const task = this.tasks.get(id)
     return task ? clone(task) : undefined
+  }
+
+  createRuntimeOperation(operation: RuntimeOperation): void {
+    this.runtimeOperations.set(operation.id, clone(operation))
+  }
+
+  updateRuntimeOperation(operation: RuntimeOperation): void {
+    this.runtimeOperations.set(operation.id, clone(operation))
+  }
+
+  listRuntimeOperations(query: RuntimeOperationQuery = {}): RuntimeOperation[] {
+    return Array.from(this.runtimeOperations.values())
+      .filter((operation) => query.threadId === undefined || operation.threadId === query.threadId)
+      .filter((operation) => query.runId === undefined || operation.runId === query.runId)
+      .filter((operation) => query.status === undefined || operation.status === query.status)
+      .filter((operation) => query.kind === undefined || operation.kind === query.kind)
+      .map((operation) => clone(operation))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  }
+
+  getRuntimeOperation(id: string): RuntimeOperation | undefined {
+    const operation = this.runtimeOperations.get(id)
+    return operation ? clone(operation) : undefined
+  }
+
+  createRuntimeInteraction(interaction: RuntimeInteraction): void {
+    this.runtimeInteractions.set(interaction.id, clone(interaction))
+  }
+
+  updateRuntimeInteraction(interaction: RuntimeInteraction): void {
+    this.runtimeInteractions.set(interaction.id, clone(interaction))
+  }
+
+  listRuntimeInteractions(query: RuntimeInteractionQuery = {}): RuntimeInteraction[] {
+    return Array.from(this.runtimeInteractions.values())
+      .filter((interaction) => query.threadId === undefined || interaction.threadId === query.threadId)
+      .filter((interaction) => query.runId === undefined || interaction.runId === query.runId)
+      .filter((interaction) => query.operationId === undefined || interaction.operationId === query.operationId)
+      .filter((interaction) => query.status === undefined || interaction.status === query.status)
+      .filter((interaction) => query.kind === undefined || interaction.kind === query.kind)
+      .map((interaction) => clone(interaction))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  }
+
+  getRuntimeInteraction(id: string): RuntimeInteraction | undefined {
+    const interaction = this.runtimeInteractions.get(id)
+    return interaction ? clone(interaction) : undefined
+  }
+
+  createRuntimeContinuation(continuation: RuntimeContinuation): void {
+    this.runtimeContinuations.set(continuation.id, clone(continuation))
+  }
+
+  updateRuntimeContinuation(continuation: RuntimeContinuation): void {
+    this.runtimeContinuations.set(continuation.id, clone(continuation))
+  }
+
+  listRuntimeContinuations(query: RuntimeContinuationQuery = {}): RuntimeContinuation[] {
+    return Array.from(this.runtimeContinuations.values())
+      .filter((continuation) => query.threadId === undefined || continuation.threadId === query.threadId)
+      .filter((continuation) => query.runId === undefined || continuation.runId === query.runId)
+      .filter((continuation) => query.status === undefined || continuation.status === query.status)
+      .map((continuation) => clone(continuation))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  }
+
+  getRuntimeContinuation(id: string): RuntimeContinuation | undefined {
+    const continuation = this.runtimeContinuations.get(id)
+    return continuation ? clone(continuation) : undefined
   }
 
   appendTraceEvent(event: AgentTraceEvent): void {

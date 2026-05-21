@@ -28,7 +28,7 @@ export interface RuntimeAgentGraphResultTraceInput {
 }
 
 export function applyRuntimeAgentGraphResult(input: {
-  store: Pick<AgentStore, 'getThread' | 'updateThread' | 'updateRun'>
+  store: Pick<AgentStore, 'getThread' | 'updateThread' | 'updateRun' | 'createRuntimeInteraction' | 'listRuntimeInteractions'>
   result: AgentGraphResult
   run: AgentRun
   thread: AgentThread

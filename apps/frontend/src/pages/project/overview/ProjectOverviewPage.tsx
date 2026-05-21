@@ -26,7 +26,7 @@ import { Badge, Button, Card, Progress } from '@movscript/ui'
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityKind, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
 import { useProjectStore } from '@/store/projectStore'
-import { workbenchSurfaces } from '@/pages/project/projectSurfaces'
+import { projectWorkbenchDefinitions } from '@/pages/project/projectSurfaces'
 import { ROUTES, mergeSearch } from '@/routes/projectRoutes'
 
 type LaneState = 'ready' | 'active' | 'blocked' | 'empty'
@@ -258,9 +258,9 @@ function StatBlock({
     <div className="rounded-lg border border-border bg-background px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs text-muted-foreground">{label}</p>
-          <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">{value}</p>
-          <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
+          <p className="type-label text-muted-foreground">{label}</p>
+          <p className="mt-2 type-page-title font-semibold tabular-nums text-foreground">{value}</p>
+          <p className="mt-1 truncate type-label text-muted-foreground">{detail}</p>
         </div>
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
           <Icon size={17} />
@@ -282,8 +282,8 @@ function PipelineStep({ lane, last = false }: { lane: WorkLane; last?: boolean }
           <Icon size={14} />
         </span>
         <div className="min-w-0">
-          <p className="truncate text-xs font-medium text-foreground">{lane.title}</p>
-          <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">{lane.progress}%</p>
+          <p className="truncate type-label font-medium text-foreground">{lane.title}</p>
+          <p className="mt-0.5 type-label tabular-nums text-muted-foreground">{lane.progress}%</p>
         </div>
       </Link>
       {!last ? <ChevronRight size={14} className="hidden shrink-0 text-muted-foreground xl:block" /> : null}
@@ -303,18 +303,18 @@ function LaneCard({ lane }: { lane: WorkLane }) {
         <Badge variant={stateVariant(lane.state)}>{stateLabel(lane.state)}</Badge>
       </div>
       <div className="mt-4 min-w-0 flex-1">
-        <h2 className="text-sm font-semibold text-foreground">{lane.title}</h2>
-        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{lane.description}</p>
+        <h2 className="type-body font-semibold text-foreground">{lane.title}</h2>
+        <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">{lane.description}</p>
         <div className="mt-4 rounded-md bg-muted/40 px-3 py-2">
-          <div className="flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center justify-between gap-3 type-label">
             <span className="truncate text-muted-foreground">{lane.primaryLabel}</span>
             <span className="shrink-0 font-semibold tabular-nums text-foreground">{lane.primaryValue}</span>
           </div>
-          <p className="mt-1 truncate text-xs text-muted-foreground">{lane.secondary}</p>
+          <p className="mt-1 truncate type-label text-muted-foreground">{lane.secondary}</p>
         </div>
       </div>
       <div className="mt-4 space-y-2">
-        <div className="flex items-center justify-between gap-3 text-xs">
+        <div className="flex items-center justify-between gap-3 type-label">
           <span className="text-muted-foreground">准备度</span>
           <span className="font-medium tabular-nums text-foreground">{lane.progress}%</span>
         </div>
@@ -342,8 +342,8 @@ function FocusRow({ item }: { item: FocusItem }) {
         {priorityLabel(item.priority)}
       </Badge>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-foreground">{item.title}</p>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.area} · {item.detail}</p>
+        <p className="truncate type-body font-medium text-foreground">{item.title}</p>
+        <p className="mt-0.5 truncate type-label text-muted-foreground">{item.area} · {item.detail}</p>
       </div>
       <ArrowRight size={15} className="shrink-0 text-muted-foreground" />
     </Link>
@@ -370,8 +370,8 @@ function SurfaceLink({
         <Icon size={15} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-foreground">{title}</p>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">{detail}</p>
+        <p className="truncate type-body font-medium text-foreground">{title}</p>
+        <p className="mt-0.5 truncate type-label text-muted-foreground">{detail}</p>
       </div>
       <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
     </Link>
@@ -619,7 +619,7 @@ export default function ProjectOverviewPage() {
       <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-5 p-5">
         <header className="flex flex-col gap-4 border-b border-border pb-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2 type-label text-muted-foreground">
               <LayoutDashboard size={14} />
               <span>{project?.name ?? '当前项目'}</span>
               <ChevronRight size={13} />
@@ -629,8 +629,8 @@ export default function ProjectOverviewPage() {
               </Badge>
               {isFetching ? <Badge variant="outline">同步中</Badge> : null}
             </div>
-            <h1 className="mt-2 truncate text-2xl font-semibold tracking-normal text-foreground">{project?.name}</h1>
-            <p className="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
+            <h1 className="mt-2 truncate type-page-title font-semibold tracking-normal text-foreground">{project?.name}</h1>
+            <p className="mt-1 max-w-4xl type-body leading-6 text-muted-foreground">
               {project?.description || '总览只负责把当前项目的制作、内容对象和工作台入口放在一起，具体生成、确认和返工决策进入对应工作台完成。'}
             </p>
           </div>
@@ -656,9 +656,9 @@ export default function ProjectOverviewPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 size={17} className="text-muted-foreground" />
-                  <h2 className="text-sm font-semibold text-foreground">项目生产状态</h2>
+                  <h2 className="type-body font-semibold text-foreground">项目生产状态</h2>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">按当前语义对象估算，不替代具体页面里的审核状态。</p>
+                <p className="mt-1 type-label text-muted-foreground">按当前语义对象估算，不替代具体页面里的审核状态。</p>
               </div>
               <Badge variant={readiness >= 70 ? 'success' : readiness > 0 ? 'secondary' : 'outline'}>{readiness}%</Badge>
             </div>
@@ -680,16 +680,16 @@ export default function ProjectOverviewPage() {
           <Card className="rounded-lg border-border bg-card p-5 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-sm font-semibold text-foreground">下一步</h2>
-                <p className="mt-1 text-xs text-muted-foreground">按阻塞、任务和素材需求缺口排序。</p>
+                <h2 className="type-body font-semibold text-foreground">下一步</h2>
+                <p className="mt-1 type-label text-muted-foreground">按阻塞、任务和素材需求缺口排序。</p>
               </div>
               <Badge variant={stateVariant(nextLane?.state ?? 'empty')}>{stateLabel(nextLane?.state ?? 'empty')}</Badge>
             </div>
 
             <div className="mt-5 rounded-md border border-border bg-background p-4">
-              <p className="text-xs text-muted-foreground">当前建议入口</p>
-              <p className="mt-1 text-base font-semibold text-foreground">{nextLane?.title ?? '暂无建议'}</p>
-              <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{nextLane?.description ?? '项目对象准备完成后会显示下一步入口。'}</p>
+              <p className="type-label text-muted-foreground">当前建议入口</p>
+              <p className="mt-1 type-body-lg font-semibold text-foreground">{nextLane?.title ?? '暂无建议'}</p>
+              <p className="mt-2 line-clamp-2 type-label leading-5 text-muted-foreground">{nextLane?.description ?? '项目对象准备完成后会显示下一步入口。'}</p>
               <Progress value={nextLane?.progress ?? 0} className="mt-4 h-1.5" />
               <Button asChild size="sm" className="mt-4 w-full justify-center gap-2">
                 <Link to={nextLane?.workbenchHref ?? ROUTES.project.contentUnitWorkbench}>
@@ -698,7 +698,7 @@ export default function ProjectOverviewPage() {
               </Button>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+            <div className="mt-4 grid grid-cols-2 gap-3 type-label">
               <div className="rounded-md bg-muted/40 p-3">
                 <p className="text-muted-foreground">更新时间</p>
                 <p className="mt-1 font-medium text-foreground">{formatDate(updatedAt)}</p>
@@ -714,8 +714,8 @@ export default function ProjectOverviewPage() {
         <section>
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
-              <h2 className="text-base font-semibold text-foreground">项目对象地图</h2>
-              <p className="mt-1 text-sm text-muted-foreground">当前项目按制作主轴组织，对象页管理事实源，工作台处理决策。</p>
+              <h2 className="type-body-lg font-semibold text-foreground">项目对象地图</h2>
+              <p className="mt-1 type-body text-muted-foreground">当前项目按制作主轴组织，对象页管理事实源，工作台处理决策。</p>
             </div>
           </div>
           <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
@@ -727,8 +727,8 @@ export default function ProjectOverviewPage() {
           <Card className="rounded-lg border-border bg-card p-5 shadow-sm">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-base font-semibold text-foreground">优先处理</h2>
-                <p className="mt-1 text-sm text-muted-foreground">只列会影响制作推进的事项。</p>
+                <h2 className="type-body-lg font-semibold text-foreground">优先处理</h2>
+                <p className="mt-1 type-body text-muted-foreground">只列会影响制作推进的事项。</p>
               </div>
               <Button asChild variant="outline" size="sm" className="gap-2">
                 <Link to={ROUTES.project.tasks}>
@@ -743,8 +743,8 @@ export default function ProjectOverviewPage() {
           </Card>
 
           <Card className="rounded-lg border-border bg-card p-5 shadow-sm">
-            <h2 className="text-base font-semibold text-foreground">对象入口</h2>
-            <p className="mt-1 text-sm text-muted-foreground">对象管理页面负责事实源和状态归档。</p>
+            <h2 className="type-body-lg font-semibold text-foreground">对象入口</h2>
+            <p className="mt-1 type-body text-muted-foreground">对象管理页面负责事实源和状态归档。</p>
             <div className="mt-4 grid gap-2">
               {contentSurfaceLinks.map((item) => <SurfaceLink key={item.href} {...item} />)}
             </div>
@@ -754,19 +754,19 @@ export default function ProjectOverviewPage() {
         <section>
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
-              <h2 className="text-base font-semibold text-foreground">工作台入口</h2>
-              <p className="mt-1 text-sm text-muted-foreground">工作台面向确认、生成、采用、返工和交付门禁。</p>
+              <h2 className="type-body-lg font-semibold text-foreground">工作台入口</h2>
+              <p className="mt-1 type-body text-muted-foreground">工作台面向确认、生成、采用、返工和交付门禁。</p>
             </div>
           </div>
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-            {workbenchSurfaces.map((item) => {
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+            {projectWorkbenchDefinitions.map((item) => {
               const Icon = item.icon
               return (
                 <SurfaceLink
-                  key={item.value}
+                  key={item.id}
                   title={item.title}
                   detail={item.decision}
-                  href={item.href}
+                  href={item.route}
                   icon={Icon}
                 />
               )

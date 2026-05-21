@@ -424,16 +424,21 @@ export default function AIAgentRunPage() {
     }
   }
 
-  async function resolveApproval(approvalId: string, action: 'approve' | 'reject') {
+  async function resolveApproval(approval: NonNullable<AgentRun['pendingApprovals']>[number], action: 'approve' | 'reject') {
     if (!runId || approvalActionId) return
+    if (!approval.interactionId) {
+      setApprovalError('缺少 runtime interaction，无法处理审批。')
+      return
+    }
+    const approvalId = approval.id
     setApprovalActionId(`${action}:${approvalId}`)
     setApprovalError(null)
     try {
       if (action === 'approve') {
-        await localAgentClient.approveRun(runId, { approvalIds: [approvalId] })
+        await localAgentClient.approveInteraction(approval.interactionId)
         await localAgentClient.waitForRun(runId, { timeoutMs: 30_000, pollMs: 300 })
       } else {
-        await localAgentClient.rejectRun(runId, { approvalIds: [approvalId] })
+        await localAgentClient.rejectInteraction(approval.interactionId)
       }
       await refreshRunPage()
     } catch (error) {
@@ -474,12 +479,12 @@ export default function AIAgentRunPage() {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <Route size={18} />
-              <h1 className="text-lg font-semibold text-foreground">Agent 运行</h1>
+              <h1 className="type-title-sm font-semibold text-foreground">Agent 运行</h1>
               {runQuery.data && <Badge variant="outline">{runStatusLabel(runQuery.data.status)}</Badge>}
             </div>
-            <p className="mt-1 break-all text-xs text-muted-foreground">{runId}</p>
+            <p className="mt-1 break-all type-label text-muted-foreground">{runId}</p>
             {cancelError && (
-              <p data-testid="agent-run-cancel-error" role="alert" className="mt-2 rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs text-destructive">
+              <p data-testid="agent-run-cancel-error" role="alert" className="mt-2 rounded border border-destructive/30 bg-destructive/10 px-2 py-1 type-label text-destructive">
                 {cancelError}
               </p>
             )}
@@ -525,16 +530,16 @@ export default function AIAgentRunPage() {
       <main className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(260px,380px)_minmax(0,1fr)] lg:overflow-hidden">
         <aside data-testid="agent-run-sidebar" className="min-h-0 border-b border-border p-4 lg:overflow-y-auto lg:border-b-0 lg:border-r">
           {runQuery.isLoading ? (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 size={12} className="animate-spin" /> 正在加载运行</div>
+            <div className="flex items-center gap-2 type-label text-muted-foreground"><Loader2 size={12} className="animate-spin" /> 正在加载运行</div>
           ) : runQuery.error ? (
-            <div data-testid="agent-run-detail-error" role="alert" className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs text-destructive">
+            <div data-testid="agent-run-detail-error" role="alert" className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1 type-label text-destructive">
               <p>{runQuery.error instanceof Error ? runQuery.error.message : String(runQuery.error)}</p>
               <Button
                 data-testid="agent-run-detail-retry"
                 type="button"
                 size="xs"
                 variant="outline"
-                className="mt-2 h-6 px-2 text-[10px]"
+                className="mt-2 px-2 type-tiny"
                 aria-label="重新加载 AgentRun 运行详情"
                 onClick={() => { void runQuery.refetch() }}
                 disabled={runQuery.isFetching}
@@ -544,7 +549,7 @@ export default function AIAgentRunPage() {
               </Button>
             </div>
           ) : runQuery.data ? (
-            <div className="space-y-3 text-xs">
+            <div className="space-y-3 type-label">
               <Info label="角色" value={runRoleLabel(runQuery.data.role)} />
               <Info label="子代理" value={subagentName ?? '-'} />
               <Info label="线程" value={runQuery.data.threadId} />
@@ -562,28 +567,28 @@ export default function AIAgentRunPage() {
               {runQuery.data.error && <p className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-destructive">{runQuery.data.error}</p>}
               {runSummary && (
                 <div data-testid="agent-run-summary" className="space-y-1 rounded border border-border/70 bg-muted/10 p-2">
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">运行摘要</div>
+                  <div className="type-tiny uppercase tracking-wide text-muted-foreground">运行摘要</div>
                   <div className="flex flex-wrap gap-1">
                     {summaryQuery.data && Object.entries(summaryQuery.data.byKind).slice(0, 8).map(([kind, count]) => (
-                      <Badge key={kind} variant="outline" className="text-[9px]">{traceKindLabel(kind as AgentTraceEventKind)} {count}</Badge>
+                      <Badge key={kind} variant="outline" className="type-micro">{traceKindLabel(kind as AgentTraceEventKind)} {count}</Badge>
                     ))}
                   </div>
                   {latestTraceView && summaryQuery.data?.latestEvent && (
-                    <div className="flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-1 type-tiny text-muted-foreground">
                       <span className="font-medium text-foreground">最新事件</span>
-                      <Badge variant="outline" className="text-[9px]">{latestTraceView.categoryLabel}</Badge>
+                      <Badge variant="outline" className="type-micro">{latestTraceView.categoryLabel}</Badge>
                       <span>{latestTraceView.title}</span>
                     </div>
                   )}
-                  <div className="text-[11px] leading-relaxed text-foreground">{runSummary.overview}</div>
-                  <div className="grid gap-1 text-[10px] text-muted-foreground">
+                  <div className="type-caption leading-relaxed text-foreground">{runSummary.overview}</div>
+                  <div className="grid gap-1 type-tiny text-muted-foreground">
                     {runSummary.bullets.map((bullet) => <div key={bullet}>• {bullet}</div>)}
                   </div>
                 </div>
               )}
               {(runQuery.data.pendingInputRequests ?? []).filter((request) => request.status === 'pending').length > 0 && (
                 <div data-testid="agent-run-pending-input" className="space-y-1 rounded border border-amber-500/30 bg-amber-500/10 p-2">
-                  <div className="text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-300">待输入</div>
+                  <div className="type-tiny uppercase tracking-wide text-amber-700 dark:text-amber-300">待输入</div>
                   {inputError && (
                     <p data-testid="agent-run-input-error" role="alert" className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-destructive">
                       {inputError}
@@ -597,14 +602,14 @@ export default function AIAgentRunPage() {
                       onAnswer={(answer) => { void answerInput(request.id, answer) }}
                       placeholder="输入答案"
                       sendLabel="发送"
-                      meta={<Badge variant="outline" className="text-[9px]">类型 {inputTypeLabel(request.inputType)}</Badge>}
+                      meta={<Badge variant="outline" className="type-micro">类型 {inputTypeLabel(request.inputType)}</Badge>}
                     />
                   ))}
                 </div>
               )}
               {(runQuery.data.pendingApprovals ?? []).filter((approval) => approval.status === 'pending').length > 0 && (
                 <div data-testid="agent-run-pending-approval" className="space-y-1 rounded border border-amber-500/30 bg-amber-500/10 p-2">
-                  <div className="text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-300">待审批</div>
+                  <div className="type-tiny uppercase tracking-wide text-amber-700 dark:text-amber-300">待审批</div>
                   {approvalError && (
                     <p data-testid="agent-run-approval-error" role="alert" className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-destructive">
                       {approvalError}
@@ -615,10 +620,10 @@ export default function AIAgentRunPage() {
                       <div className="font-medium text-foreground" title={approval.toolName}>{agentToolNameLabel(approval.toolName)}</div>
                       <p className="text-muted-foreground">{approval.reason}</p>
                       <div className="flex flex-wrap gap-1">
-                        {approval.risk && <Badge variant="outline" className="text-[9px]">风险 {approvalRiskLabel(approval.risk)}</Badge>}
-                        {approval.permission && <Badge variant="outline" className="text-[9px]">权限 {approvalPermissionLabel(approval.permission)}</Badge>}
+                        {approval.risk && <Badge variant="outline" className="type-micro">风险 {approvalRiskLabel(approval.risk)}</Badge>}
+                        {approval.permission && <Badge variant="outline" className="type-micro">权限 {approvalPermissionLabel(approval.permission)}</Badge>}
                       </div>
-                      <div className="rounded bg-amber-500/10 px-2 py-1 text-[10px] leading-relaxed text-amber-800 dark:text-amber-300">
+                      <div className="rounded bg-amber-500/10 px-2 py-1 type-tiny leading-relaxed text-amber-800 dark:text-amber-300">
                         影响：{approvalImpactLabel(approval)}
                       </div>
                       <div className="flex flex-wrap gap-1 pt-1">
@@ -627,10 +632,10 @@ export default function AIAgentRunPage() {
                           type="button"
                           size="xs"
                           variant="outline"
-                          className="h-6 px-2 text-[10px]"
+                          className="px-2 type-tiny"
                           aria-label={`同意执行${approval.toolName}`}
                           disabled={!!approvalActionId}
-                          onClick={() => { void resolveApproval(approval.id, 'approve') }}
+                          onClick={() => { void resolveApproval(approval, 'approve') }}
                         >
                           {approvalActionId === `approve:${approval.id}` && <Loader2 size={10} className="animate-spin" />}
                           同意
@@ -640,10 +645,10 @@ export default function AIAgentRunPage() {
                           type="button"
                           size="xs"
                           variant="ghost"
-                          className="h-6 px-2 text-[10px]"
+                          className="px-2 type-tiny"
                           aria-label={`拒绝执行${approval.toolName}`}
                           disabled={!!approvalActionId}
-                          onClick={() => { void resolveApproval(approval.id, 'reject') }}
+                          onClick={() => { void resolveApproval(approval, 'reject') }}
                         >
                           {approvalActionId === `reject:${approval.id}` && <Loader2 size={10} className="animate-spin" />}
                           拒绝
@@ -664,7 +669,7 @@ export default function AIAgentRunPage() {
                     type="button"
                     size="xs"
                     variant="outline"
-                    className="mt-2 h-6 px-2 text-[10px]"
+                    className="mt-2 px-2 type-tiny"
                     aria-label="重新加载计划上下文"
                     onClick={() => { void planQuery.refetch() }}
                     disabled={planQuery.isFetching}
@@ -676,7 +681,7 @@ export default function AIAgentRunPage() {
               )}
               {planQuery.data && (
                 <div data-testid="agent-run-plan-context" className="space-y-2 rounded border border-border/70 bg-muted/10 p-2">
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">计划上下文</div>
+                  <div className="type-tiny uppercase tracking-wide text-muted-foreground">计划上下文</div>
                   <Info label="计划标题" value={planQuery.data.plan.title} />
                   <Info label="计划状态" value={agentPlanStatusLabel(planQuery.data.plan.status)} />
                   {runPlanTask && (
@@ -688,20 +693,20 @@ export default function AIAgentRunPage() {
                       {runPlanTask.blockedReason && <p className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300">{runPlanTask.blockedReason}</p>}
                       {runPlanTask.artifacts.length > 0 && (
                         <div data-testid="agent-run-task-artifacts" className="space-y-1">
-                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">任务产物</div>
+                          <div className="type-tiny uppercase tracking-wide text-muted-foreground">任务产物</div>
                           {buildTaskArtifactViews(runPlanTask, 5, planQuery.data)
                             .map((artifact) => (
-                                <div key={artifact.id} className="rounded border border-border/60 bg-background px-2 py-1 text-[10px] leading-relaxed text-muted-foreground">
+                                <div key={artifact.id} className="rounded border border-border/60 bg-background px-2 py-1 type-tiny leading-relaxed text-muted-foreground">
                                   <div className="flex min-w-0 items-center justify-between gap-2">
                                     <span className="truncate font-medium text-foreground">{artifact.label}</span>
                                     <div className="flex shrink-0 items-center gap-1">
                                       {artifact.sourceTaskOwnerRunId && (
-                                        <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => navigate(agentRunPath(artifact.sourceTaskOwnerRunId!))}>
+                                        <Button type="button" size="xs" variant="ghost" className="px-1 type-min" onClick={() => navigate(agentRunPath(artifact.sourceTaskOwnerRunId!))}>
                                           来源运行
                                         </Button>
                                       )}
                                       {artifact.sourceRunId && (
-                                        <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => navigate(agentRunPath(artifact.sourceRunId!))}>
+                                        <Button type="button" size="xs" variant="ghost" className="px-1 type-min" onClick={() => navigate(agentRunPath(artifact.sourceRunId!))}>
                                           <Route size={8} />
                                           运行
                                         </Button>
@@ -726,7 +731,7 @@ export default function AIAgentRunPage() {
               )}
               {childRunsQuery.data?.children.length ? (
                 <div data-testid="agent-run-child-runs" className="space-y-1 rounded border border-border/70 bg-muted/10 p-2">
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">子运行</div>
+                  <div className="type-tiny uppercase tracking-wide text-muted-foreground">子运行</div>
                   {childRunsQuery.data.children.map((child) => {
                     const childName = typeof child.metadata?.subagentName === 'string' && child.metadata.subagentName.trim()
                       ? child.metadata.subagentName.trim()
@@ -736,7 +741,7 @@ export default function AIAgentRunPage() {
                         data-testid="agent-run-child-run"
                         key={child.id}
                         type="button"
-                        className="block w-full rounded border border-border/60 bg-background px-2 py-1 text-left text-[10px] hover:bg-muted/30"
+                        className="block w-full rounded border border-border/60 bg-background px-2 py-1 text-left type-tiny hover:bg-muted/30"
                         onClick={() => navigate(agentRunPath(child.id))}
                       >
                         <div className="flex min-w-0 items-center justify-between gap-2">
@@ -754,7 +759,7 @@ export default function AIAgentRunPage() {
         </aside>
         <section data-testid="agent-run-trace-panel" aria-busy={loadingEvents} className="min-h-0 p-4 lg:overflow-y-auto">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div data-testid="agent-run-trace-summary" className="flex flex-wrap items-center gap-1 text-xs">
+            <div data-testid="agent-run-trace-summary" className="flex flex-wrap items-center gap-1 type-label">
               <span className="font-medium text-foreground">运行轨迹</span>
               {summaryQuery.data && <span className="text-muted-foreground">{summaryQuery.data.total} 个事件</span>}
               {summaryQuery.error && (
@@ -782,15 +787,15 @@ export default function AIAgentRunPage() {
                   className="rounded focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   onClick={() => setEventCategory((current) => current === category ? 'all' : category)}
                 >
-                  <Badge variant={eventCategory === category ? 'secondary' : 'outline'} className="text-[10px]">{traceCategoryLabel(category)} {count}</Badge>
+                  <Badge variant={eventCategory === category ? 'secondary' : 'outline'} className="type-tiny">{traceCategoryLabel(category)} {count}</Badge>
                 </button>
               ))}
               {summaryQuery.data && Object.entries(summaryQuery.data.byKind).slice(0, 8).map(([kind, count]) => (
-                <Badge key={kind} variant="outline" className="text-[10px]">{traceKindLabel(kind as AgentTraceEventKind)} {count}</Badge>
+                <Badge key={kind} variant="outline" className="type-tiny">{traceKindLabel(kind as AgentTraceEventKind)} {count}</Badge>
               ))}
             </div>
             <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
-              <div data-testid="agent-run-trace-view-mode" className="flex h-8 overflow-hidden rounded-md border border-border bg-background text-xs">
+              <div data-testid="agent-run-trace-view-mode" className="flex h-8 overflow-hidden rounded-md border border-border bg-background type-label">
                 <button
                   type="button"
                   aria-pressed={traceViewMode === 'timeline'}
@@ -814,17 +819,17 @@ export default function AIAgentRunPage() {
                 onChange={(event) => setEventSearch(event.target.value)}
                 placeholder="搜索事件"
                 aria-label="搜索运行事件"
-                className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring sm:w-44 sm:flex-none"
+                className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 type-label outline-none focus-visible:ring-1 focus-visible:ring-ring sm:w-44 sm:flex-none"
               />
               <Select value={eventKind} onValueChange={(next) => setEventKind(next as 'all' | AgentTraceEventKind)}>
-                <SelectTrigger size="sm" aria-label="按事件类型筛选" className="h-8 min-w-32 flex-1 text-xs sm:w-36 sm:flex-none"><SelectValue /></SelectTrigger>
+                <SelectTrigger size="sm" aria-label="按事件类型筛选" className="h-8 min-w-32 flex-1 type-label sm:w-36 sm:flex-none"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部事件</SelectItem>
                   {eventKinds.map((kind) => <SelectItem key={kind} value={kind}>{traceKindLabel(kind as AgentTraceEventKind)}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={eventCategory} onValueChange={(next) => setEventCategory(next as 'all' | AgentTraceCategory)}>
-                <SelectTrigger size="sm" aria-label="按事件分类筛选" className="h-8 min-w-32 flex-1 text-xs sm:w-32 sm:flex-none"><SelectValue /></SelectTrigger>
+                <SelectTrigger size="sm" aria-label="按事件分类筛选" className="h-8 min-w-32 flex-1 type-label sm:w-32 sm:flex-none"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部分类</SelectItem>
                   {eventCategories.map((category) => <SelectItem key={category} value={category}>{traceCategoryLabel(category)}</SelectItem>)}
@@ -887,12 +892,12 @@ export default function AIAgentRunPage() {
           <div className="space-y-2">
             <AgentRunGenerationArtifacts run={runQuery.data} />
             {traceDeepLinkMissing && (
-              <p data-testid="agent-run-trace-deep-link-missing" role="alert" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              <p data-testid="agent-run-trace-deep-link-missing" role="alert" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 type-label text-amber-700 dark:text-amber-300">
                 这个运行里没有找到事件 {traceDeepLinkEventId}。如果刚切换运行，请先刷新或加载全部事件；如果仍然没有，说明这个事件不属于当前运行。
               </p>
             )}
             {traceLoadError && (
-              <div data-testid="agent-run-trace-load-error" role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <div data-testid="agent-run-trace-load-error" role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 type-label text-destructive">
                 <div className="font-medium">运行事件加载失败</div>
                 <p className="mt-1 break-words">{traceLoadError}</p>
                 <Button
@@ -900,7 +905,7 @@ export default function AIAgentRunPage() {
                   type="button"
                   size="xs"
                   variant="outline"
-                  className="mt-2 h-6 px-2 text-[10px]"
+                  className="mt-2 px-2 type-tiny"
                   aria-label="重新加载运行事件"
                   onClick={() => loadEvents(events.length > 0 ? 'more' : 'initial')}
                   disabled={loadingEvents}
@@ -941,13 +946,13 @@ export default function AIAgentRunPage() {
               const eventDataPanelId = `agent-trace-event-data-${event.id}`
               const eventDuration = formatTraceEventDuration(event)
               return (
-                <div data-testid="agent-run-trace-event" id={`agent-trace-event-${event.id}`} key={event.id} className={`scroll-mt-4 rounded-md border px-3 py-2 text-xs ${isLinkedEvent ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-border bg-background'}`}>
+                <div data-testid="agent-run-trace-event" id={`agent-trace-event-${event.id}`} key={event.id} className={`scroll-mt-4 rounded-md border px-3 py-2 type-label ${isLinkedEvent ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-border bg-background'}`}>
                   <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
                     <span className="min-w-40 flex-1 font-medium text-foreground">{view.title}</span>
                     <div className="flex max-w-full flex-wrap items-center justify-end gap-1">
-                      {isLinkedEvent && <Badge data-testid="agent-run-trace-linked-event" variant="secondary" className="text-[10px]">已定位</Badge>}
+                      {isLinkedEvent && <Badge data-testid="agent-run-trace-linked-event" variant="secondary" className="type-tiny">已定位</Badge>}
                       {eventCopyFeedback?.eventId === event.id && (
-                        <Badge data-testid="agent-run-trace-copy-feedback" role="status" variant="secondary" className="text-[10px]">
+                        <Badge data-testid="agent-run-trace-copy-feedback" role="status" variant="secondary" className="type-tiny">
                           {eventCopyFeedback.action === 'data' ? '数据已复制' : '链接已复制'}
                         </Badge>
                       )}
@@ -957,7 +962,7 @@ export default function AIAgentRunPage() {
                           type="button"
                           size="xs"
                           variant="ghost"
-                          className="h-5 px-1 text-[9px]"
+                          className="px-1 type-micro"
                           aria-label={`${isEventDataExpanded ? '隐藏' : '查看'}${view.title}的原始数据`}
                           aria-expanded={isEventDataExpanded}
                           aria-controls={eventDataPanelId}
@@ -972,7 +977,7 @@ export default function AIAgentRunPage() {
                           type="button"
                           size="xs"
                           variant="ghost"
-                          className="h-5 px-1 text-[9px]"
+                          className="px-1 type-micro"
                           aria-label={`复制${view.title}的原始数据`}
                           onClick={() => copyEventData(event.id, event.data)}
                         >
@@ -984,24 +989,24 @@ export default function AIAgentRunPage() {
                         type="button"
                         size="xs"
                         variant="ghost"
-                        className="h-5 px-1 text-[9px]"
+                        className="px-1 type-micro"
                         aria-label={`复制${view.title}的事件链接`}
                         onClick={() => copyEventLink(event.id)}
                       >
                         <Copy size={9} />
                         链接
                       </Button>
-                      <Badge variant="outline" className="text-[10px]">{view.categoryLabel}</Badge>
-                      <Badge variant="outline" className="text-[10px]">{traceEventStatusLabel(event.status)}</Badge>
+                      <Badge variant="outline" className="type-tiny">{view.categoryLabel}</Badge>
+                      <Badge variant="outline" className="type-tiny">{traceEventStatusLabel(event.status)}</Badge>
                     </div>
                   </div>
                   {eventCopyError?.eventId === event.id && (
-                    <p data-testid="agent-run-trace-copy-error" role="alert" className="mt-1 rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-[10px] text-destructive">
+                    <p data-testid="agent-run-trace-copy-error" role="alert" className="mt-1 rounded border border-destructive/30 bg-destructive/10 px-2 py-1 type-tiny text-destructive">
                       复制失败：{eventCopyError.message}
                     </p>
                   )}
                   <div className="mt-1 space-y-1">
-                    <div className="flex flex-wrap gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
+                    <div className="flex flex-wrap gap-x-2 gap-y-1 type-tiny text-muted-foreground">
                       <span>{traceKindLabel(event.kind)}</span>
                       {event.toolName && <span title={event.toolName}>工具 {agentToolNameLabel(event.toolName)}</span>}
                       {event.stepId && <span>步骤 {event.stepId}</span>}
@@ -1014,7 +1019,7 @@ export default function AIAgentRunPage() {
                     {view.summary && <TraceDetailLine label="摘要" value={redactAgentTraceDebugText(view.summary)} />}
                     {view.contextGroups.length > 0 && (
                       <details className="rounded border border-border/70 bg-muted/20 px-2 py-1" open={view.category === 'http'}>
-                        <summary className="flex cursor-pointer list-none items-center gap-1 text-[10px] font-medium text-foreground marker:hidden">
+                        <summary className="flex cursor-pointer list-none items-center gap-1 type-tiny font-medium text-foreground marker:hidden">
                           <ChevronRight size={10} className="open:hidden" />
                           <ChevronDown size={10} className="hidden open:block" />
                           上下文摘要
@@ -1022,10 +1027,10 @@ export default function AIAgentRunPage() {
                         <div className="mt-1 space-y-1">
                           {view.contextGroups.map((group) => (
                             <div key={group.label} className="rounded bg-background/80 px-2 py-1">
-                              <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{group.label}</div>
+                              <div className="type-micro uppercase tracking-wide text-muted-foreground">{group.label}</div>
                               <div className="mt-0.5 grid gap-0.5">
                                 {group.items.map((item) => (
-                                  <div key={`${group.label}:${item.label}`} className="flex min-w-0 items-start justify-between gap-2 text-[10px]">
+                                  <div key={`${group.label}:${item.label}`} className="flex min-w-0 items-start justify-between gap-2 type-tiny">
                                     <span className="shrink-0 text-muted-foreground">{item.label}</span>
                                     <span className="min-w-0 break-all text-right text-foreground">{redactAgentTraceDebugText(item.value)}</span>
                                   </div>
@@ -1038,7 +1043,7 @@ export default function AIAgentRunPage() {
                     )}
                     {view.promptDetail && (
                       <details data-testid="agent-run-prompt-detail" className="rounded border border-border/70 bg-muted/20 px-2 py-1" open>
-                        <summary className="flex cursor-pointer list-none items-center gap-1 text-[10px] font-medium text-foreground marker:hidden">
+                        <summary className="flex cursor-pointer list-none items-center gap-1 type-tiny font-medium text-foreground marker:hidden">
                           <ChevronRight size={10} className="open:hidden" />
                           <ChevronDown size={10} className="hidden open:block" />
                           {view.promptDetail.title}
@@ -1048,7 +1053,7 @@ export default function AIAgentRunPage() {
                     )}
                     {view.modelDetail && (
                       <details data-testid="agent-run-model-detail" className="rounded border border-border/70 bg-muted/20 px-2 py-1" open>
-                        <summary className="flex cursor-pointer list-none items-center gap-1 text-[10px] font-medium text-foreground marker:hidden">
+                        <summary className="flex cursor-pointer list-none items-center gap-1 type-tiny font-medium text-foreground marker:hidden">
                           <ChevronRight size={10} className="open:hidden" />
                           <ChevronDown size={10} className="hidden open:block" />
                           {view.modelDetail.title}
@@ -1058,7 +1063,7 @@ export default function AIAgentRunPage() {
                     )}
                     {view.messageDetail && (
                       <details data-testid="agent-run-message-detail" className="rounded border border-border/70 bg-muted/20 px-2 py-1" open>
-                        <summary className="flex cursor-pointer list-none items-center gap-1 text-[10px] font-medium text-foreground marker:hidden">
+                        <summary className="flex cursor-pointer list-none items-center gap-1 type-tiny font-medium text-foreground marker:hidden">
                           <ChevronRight size={10} className="open:hidden" />
                           <ChevronDown size={10} className="hidden open:block" />
                           {view.messageDetail.title}
@@ -1068,7 +1073,7 @@ export default function AIAgentRunPage() {
                     )}
                     {view.toolDetail && (
                       <details data-testid="agent-run-tool-detail" className="rounded border border-border/70 bg-muted/20 px-2 py-1" open>
-                        <summary className="flex cursor-pointer list-none items-center gap-1 text-[10px] font-medium text-foreground marker:hidden">
+                        <summary className="flex cursor-pointer list-none items-center gap-1 type-tiny font-medium text-foreground marker:hidden">
                           <ChevronRight size={10} className="open:hidden" />
                           <ChevronDown size={10} className="hidden open:block" />
                           {view.toolDetail.title}
@@ -1079,10 +1084,10 @@ export default function AIAgentRunPage() {
                   </div>
                   {event.data !== undefined && isEventDataExpanded && (
                     <div id={eventDataPanelId} className="mt-2 space-y-1">
-                      <div data-testid="agent-run-trace-redaction-note" className="rounded border border-border/60 bg-muted/10 px-2 py-1 text-[10px] leading-relaxed text-muted-foreground">
+                      <div data-testid="agent-run-trace-redaction-note" className="rounded border border-border/60 bg-muted/10 px-2 py-1 type-tiny leading-relaxed text-muted-foreground">
                         原始数据展示和复制时会自动脱敏 authorization、cookie、API key、token、secret 等字段。
                       </div>
-                      <pre data-testid="agent-run-trace-event-details" className="max-h-64 overflow-auto rounded border border-border/70 bg-muted/20 p-2 text-[10px] leading-relaxed text-muted-foreground">
+                      <pre data-testid="agent-run-trace-event-details" className="max-h-64 overflow-auto rounded border border-border/70 bg-muted/20 p-2 type-tiny leading-relaxed text-muted-foreground">
                         {formatAgentTraceDebugData(event.data)}
                       </pre>
                     </div>
@@ -1090,9 +1095,9 @@ export default function AIAgentRunPage() {
                 </div>
               )
             })}
-            {events.length === 0 && <p className="text-xs text-muted-foreground">尚未加载运行事件。</p>}
+            {events.length === 0 && <p className="type-label text-muted-foreground">尚未加载运行事件。</p>}
             {traceViewMode === 'timeline' && events.length > 0 && visibleEvents.length === 0 && (
-              <div data-testid="agent-run-trace-empty-state" className="rounded-md border border-border/70 bg-muted/10 px-3 py-2 text-xs">
+              <div data-testid="agent-run-trace-empty-state" className="rounded-md border border-border/70 bg-muted/10 px-3 py-2 type-label">
                 <div className="font-medium text-foreground">没有符合当前筛选条件的事件</div>
                 <p className="mt-1 text-muted-foreground">
                   当前筛选只覆盖已加载的 {events.length} 个事件{typeof traceTotal === 'number' ? `，本次运行共 ${traceTotal} 个事件` : ''}。
@@ -1104,7 +1109,7 @@ export default function AIAgentRunPage() {
                       type="button"
                       size="xs"
                       variant="outline"
-                      className="h-6 px-2 text-[10px]"
+                      className="px-2 type-tiny"
                       aria-label="加载全部运行事件后重新搜索"
                       onClick={() => loadEvents('all')}
                       disabled={loadingEvents}
@@ -1119,7 +1124,7 @@ export default function AIAgentRunPage() {
                       type="button"
                       size="xs"
                       variant="ghost"
-                      className="h-6 px-2 text-[10px]"
+                      className="px-2 type-tiny"
                       aria-label="清除运行事件筛选并返回事件列表"
                       onClick={clearTraceFilters}
                     >
@@ -1259,8 +1264,8 @@ function mergeTraceEvents(current: AgentTraceEvent[], incoming: AgentTraceEvent[
 function TraceDetailLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded border border-border/60 bg-background/80 px-2 py-1">
-      <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-0.5 text-[10px] leading-relaxed text-foreground">{value}</div>
+      <div className="type-micro uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="mt-0.5 type-tiny leading-relaxed text-foreground">{value}</div>
     </div>
   )
 }
@@ -1276,13 +1281,13 @@ function SkillTracePanel({ summary, onFocusEvent }: { summary: AgentSkillTraceSu
         <SkillTraceMetric label="目录可用" value={summary.currentAvailableSkillIds.length} />
       </div>
       {latest && (
-        <div className="rounded-md border border-border bg-background px-3 py-2 text-xs">
+        <div className="rounded-md border border-border bg-background px-3 py-2 type-label">
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
             <div>
               <div className="font-medium text-foreground">最新技能状态</div>
-              <div className="mt-0.5 text-[10px] text-muted-foreground">{formatAgentRunTimestamp(latest.createdAt)}</div>
+              <div className="mt-0.5 type-tiny text-muted-foreground">{formatAgentRunTimestamp(latest.createdAt)}</div>
             </div>
-            <Button type="button" size="xs" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => onFocusEvent(latest.eventId)}>
+            <Button type="button" size="xs" variant="ghost" className="px-2 type-tiny" onClick={() => onFocusEvent(latest.eventId)}>
               定位事件
             </Button>
           </div>
@@ -1298,26 +1303,26 @@ function SkillTracePanel({ summary, onFocusEvent }: { summary: AgentSkillTraceSu
               key={entry.eventId}
               type="button"
               data-testid="agent-run-skill-trace-event"
-              className="block w-full rounded-md border border-border bg-background px-3 py-2 text-left text-xs hover:bg-muted/20"
+              className="block w-full rounded-md border border-border bg-background px-3 py-2 text-left type-label hover:bg-muted/20"
               onClick={() => onFocusEvent(entry.eventId)}
             >
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
                 <span className="font-medium text-foreground">{entry.title}</span>
-                <span className="text-[10px] text-muted-foreground">{formatAgentRunTimestamp(entry.createdAt)}</span>
+                <span className="type-tiny text-muted-foreground">{formatAgentRunTimestamp(entry.createdAt)}</span>
               </div>
               <div className="mt-1 flex flex-wrap gap-1">
-                <Badge variant="outline" className="text-[10px]">激活 {entry.activeSkillIds.length}</Badge>
-                <Badge variant="outline" className="text-[10px]">加载 {entry.loadedSkillIds.length}</Badge>
-                <Badge variant="outline" className="text-[10px]">卸载 {entry.unloadedSkillIds.length}</Badge>
-                <Badge variant="outline" className="text-[10px]">可用 {entry.availableSkillIds.length}</Badge>
+                <Badge variant="outline" className="type-tiny">激活 {entry.activeSkillIds.length}</Badge>
+                <Badge variant="outline" className="type-tiny">加载 {entry.loadedSkillIds.length}</Badge>
+                <Badge variant="outline" className="type-tiny">卸载 {entry.unloadedSkillIds.length}</Badge>
+                <Badge variant="outline" className="type-tiny">可用 {entry.availableSkillIds.length}</Badge>
               </div>
-              {entry.summary && <div className="mt-1 break-words text-[10px] text-muted-foreground">{redactAgentTraceDebugText(entry.summary)}</div>}
+              {entry.summary && <div className="mt-1 break-words type-tiny text-muted-foreground">{redactAgentTraceDebugText(entry.summary)}</div>}
               <SkillIdList label="激活" ids={entry.activeSkillIds} compact />
             </button>
           ))}
         </div>
       ) : (
-        <p data-testid="agent-run-skill-trace-empty" className="rounded-md border border-border/70 bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
+        <p data-testid="agent-run-skill-trace-empty" className="rounded-md border border-border/70 bg-muted/10 px-3 py-2 type-label text-muted-foreground">
           已加载事件里还没有技能状态事件。
         </p>
       )}
@@ -1328,8 +1333,8 @@ function SkillTracePanel({ summary, onFocusEvent }: { summary: AgentSkillTraceSu
 function SkillTraceMetric({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-md border border-border bg-background px-3 py-2">
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className="mt-0.5 text-lg font-semibold leading-none text-foreground">{value}</div>
+      <div className="type-tiny text-muted-foreground">{label}</div>
+      <div className="mt-0.5 type-title-sm font-semibold leading-none text-foreground">{value}</div>
     </div>
   )
 }
@@ -1339,12 +1344,12 @@ function SkillIdList({ label, ids, compact = false }: { label: string; ids: stri
   const visible = compact ? ids.slice(0, 8) : ids
   return (
     <div className="mt-2">
-      <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="type-micro uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-1 flex flex-wrap gap-1">
         {visible.map((id) => (
-          <Badge key={id} variant="secondary" className="max-w-full truncate text-[10px]">{id}</Badge>
+          <Badge key={id} variant="secondary" className="max-w-full truncate type-tiny">{id}</Badge>
         ))}
-        {visible.length < ids.length && <Badge variant="outline" className="text-[10px]">+{ids.length - visible.length}</Badge>}
+        {visible.length < ids.length && <Badge variant="outline" className="type-tiny">+{ids.length - visible.length}</Badge>}
       </div>
     </div>
   )
@@ -1383,18 +1388,18 @@ function DebugCoveragePanel({
     <section data-testid="agent-run-debug-coverage" className="rounded-md border border-border bg-muted/10 px-3 py-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-xs font-medium text-foreground">调试覆盖</div>
-          <div className="mt-0.5 text-[10px] text-muted-foreground">由 Agent 服务端基于全量 trace 生成</div>
+          <div className="type-label font-medium text-foreground">调试覆盖</div>
+          <div className="mt-0.5 type-tiny text-muted-foreground">由 Agent 服务端基于全量 trace 生成</div>
         </div>
         <div className="flex items-center gap-1">
-          {summary.issues.length > 0 ? <Badge variant="secondary" className="text-[10px]">需补全</Badge> : <Badge variant="outline" className="text-[10px]">信息完整</Badge>}
+          {summary.issues.length > 0 ? <Badge variant="secondary" className="type-tiny">需补全</Badge> : <Badge variant="outline" className="type-tiny">信息完整</Badge>}
           {summary.hasUnloadedTrace && (
             <Button
               data-testid="agent-run-debug-load-all"
               type="button"
               size="xs"
               variant="outline"
-              className="h-6 px-2 text-[10px]"
+              className="px-2 type-tiny"
               aria-label="加载全部运行事件用于调试覆盖统计"
               onClick={onLoadAll}
               disabled={loadingAll}
@@ -1408,7 +1413,7 @@ function DebugCoveragePanel({
             type="button"
             size="xs"
             variant="ghost"
-            className="h-6 px-2 text-[10px]"
+            className="px-2 type-tiny"
             aria-label="复制 AgentRun 调试摘要"
             onClick={onCopy}
           >
@@ -1420,7 +1425,7 @@ function DebugCoveragePanel({
             type="button"
             size="xs"
             variant="ghost"
-            className="h-6 px-2 text-[10px]"
+            className="px-2 type-tiny"
             aria-label="复制脱敏 AgentRun 调试包"
             onClick={onCopyBundle}
             disabled={bundleCopyDisabled}
@@ -1442,13 +1447,13 @@ function DebugCoveragePanel({
         <DebugCoverageMetric label="历史写入" value={summary.messageWritesLabel} />
         <DebugCoverageMetric label="工具详情" value={summary.toolDetailsLabel} />
       </div>
-      <div data-testid="agent-run-debug-bundle-contract" className="mt-2 flex flex-wrap items-center gap-1 rounded border border-border/60 bg-background/80 px-2 py-1 text-[10px] text-muted-foreground">
+      <div data-testid="agent-run-debug-bundle-contract" className="mt-2 flex flex-wrap items-center gap-1 rounded border border-border/60 bg-background/80 px-2 py-1 type-tiny text-muted-foreground">
         <span className="font-medium text-foreground">调试包</span>
-        <Badge variant="outline" className="text-[9px]">{DEBUG_BUNDLE_SCHEMA}</Badge>
+        <Badge variant="outline" className="type-micro">{DEBUG_BUNDLE_SCHEMA}</Badge>
         <span>{DEBUG_BUNDLE_CAPABILITIES.length} 项能力</span>
         <span>脱敏复制</span>
       </div>
-      <details data-testid="agent-run-debug-field-guide" className="mt-2 rounded border border-border/60 bg-background/80 px-2 py-1 text-[10px]">
+      <details data-testid="agent-run-debug-field-guide" className="mt-2 rounded border border-border/60 bg-background/80 px-2 py-1 type-tiny">
         <summary className="cursor-pointer font-medium text-foreground">调试口径</summary>
         <div className="mt-1 grid gap-1 text-muted-foreground sm:grid-cols-2">
           {fieldGuide.map((item, index) => (
@@ -1460,32 +1465,32 @@ function DebugCoveragePanel({
       </details>
       <DebugReadinessChecklist items={readinessChecklist} />
       {summary.issues.length > 0 && (
-        <div className="mt-2 grid gap-1 text-[10px] text-amber-700 dark:text-amber-300">
+        <div className="mt-2 grid gap-1 type-tiny text-amber-700 dark:text-amber-300">
           {summary.issues.map((issue) => <div key={issue} className="rounded bg-amber-500/10 px-2 py-1">{issue}</div>)}
         </div>
       )}
       {copyError && (
-        <div data-testid="agent-run-debug-report-copy-error" role="alert" className="mt-2 rounded bg-destructive/10 px-2 py-1 text-[10px] text-destructive">
+        <div data-testid="agent-run-debug-report-copy-error" role="alert" className="mt-2 rounded bg-destructive/10 px-2 py-1 type-tiny text-destructive">
           调试摘要复制失败：{copyError}
         </div>
       )}
       {copied && !copyError && (
-        <div data-testid="agent-run-debug-report-copy-feedback" role="status" className="mt-2 rounded bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground">
+        <div data-testid="agent-run-debug-report-copy-feedback" role="status" className="mt-2 rounded bg-muted/20 px-2 py-1 type-tiny text-muted-foreground">
           调试摘要已复制
         </div>
       )}
       {bundleCopyError && (
-        <div data-testid="agent-run-debug-bundle-copy-error" role="alert" className="mt-2 rounded bg-destructive/10 px-2 py-1 text-[10px] text-destructive">
+        <div data-testid="agent-run-debug-bundle-copy-error" role="alert" className="mt-2 rounded bg-destructive/10 px-2 py-1 type-tiny text-destructive">
           调试包复制失败：{bundleCopyError}
         </div>
       )}
       {bundleCopyDisabledReason && !bundleCopyError && (
-        <div id={bundleCopyDisabledReasonId} data-testid="agent-run-debug-bundle-copy-disabled-reason" role="status" className="mt-2 rounded bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground">
+        <div id={bundleCopyDisabledReasonId} data-testid="agent-run-debug-bundle-copy-disabled-reason" role="status" className="mt-2 rounded bg-muted/20 px-2 py-1 type-tiny text-muted-foreground">
           {bundleCopyDisabledReason}
         </div>
       )}
       {bundleCopied && !bundleCopyError && !bundleCopyDisabledReason && (
-        <div data-testid="agent-run-debug-bundle-copy-feedback" role="status" className="mt-2 rounded bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground">
+        <div data-testid="agent-run-debug-bundle-copy-feedback" role="status" className="mt-2 rounded bg-muted/20 px-2 py-1 type-tiny text-muted-foreground">
           脱敏调试包已复制。
         </div>
       )}
@@ -1496,11 +1501,11 @@ function DebugCoveragePanel({
 function DebugReadinessChecklist({ items }: { items: AgentDebugReadinessItem[] }) {
   return (
     <div data-testid="agent-run-debug-readiness" className="mt-2 rounded border border-border/60 bg-background/80 px-2 py-1">
-      <div className="text-[9px] uppercase tracking-wide text-muted-foreground">诊断清单</div>
+      <div className="type-micro uppercase tracking-wide text-muted-foreground">诊断清单</div>
       <div className="mt-1 grid gap-1 sm:grid-cols-2">
         {items.map((item) => (
-          <div key={item.id} data-testid="agent-run-debug-readiness-item" className="flex min-w-0 items-start gap-2 rounded bg-muted/20 px-2 py-1 text-[10px]">
-            <Badge variant={item.status === 'ok' ? 'outline' : 'secondary'} className="mt-0.5 shrink-0 text-[9px]">
+          <div key={item.id} data-testid="agent-run-debug-readiness-item" className="flex min-w-0 items-start gap-2 rounded bg-muted/20 px-2 py-1 type-tiny">
+            <Badge variant={item.status === 'ok' ? 'outline' : 'secondary'} className="mt-0.5 shrink-0 type-micro">
               {item.status === 'ok' ? '已满足' : '需补全'}
             </Badge>
             <div className="min-w-0">
@@ -1518,8 +1523,8 @@ function DebugReadinessChecklist({ items }: { items: AgentDebugReadinessItem[] }
 function DebugCoverageMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded border border-border/60 bg-background/90 px-2 py-1">
-      <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-0.5 text-xs font-medium text-foreground">{value}</div>
+      <div className="type-micro uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="mt-0.5 type-label font-medium text-foreground">{value}</div>
     </div>
   )
 }
@@ -1529,16 +1534,16 @@ function AttentionEventsPanel({ events, onFocusEvent, onShowAttentionEvents }: {
     <section data-testid="agent-run-attention-events" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-xs font-medium text-foreground">异常/需关注事件</div>
-          <div className="mt-0.5 text-[10px] text-muted-foreground">失败、阻塞、审批和输入等待会集中显示在这里</div>
+          <div className="type-label font-medium text-foreground">异常/需关注事件</div>
+          <div className="mt-0.5 type-tiny text-muted-foreground">失败、阻塞、审批和输入等待会集中显示在这里</div>
         </div>
         <div className="flex flex-wrap items-center gap-1">
-          <Badge variant="secondary" className="text-[10px]">{events.length} 个</Badge>
+          <Badge variant="secondary" className="type-tiny">{events.length} 个</Badge>
           <Button
             type="button"
             size="xs"
             variant="outline"
-            className="h-6 px-2 text-[10px]"
+            className="px-2 type-tiny"
             aria-label="只查看需关注运行事件"
             onClick={onShowAttentionEvents}
           >
@@ -1548,11 +1553,11 @@ function AttentionEventsPanel({ events, onFocusEvent, onShowAttentionEvents }: {
       </div>
       <div className="mt-2 grid gap-1">
         {events.slice(0, 8).map((event) => (
-          <div key={event.eventId} data-testid="agent-run-attention-event" className="rounded border border-amber-500/30 bg-background/90 px-2 py-1 text-[10px]">
+          <div key={event.eventId} data-testid="agent-run-attention-event" className="rounded border border-amber-500/30 bg-background/90 px-2 py-1 type-tiny">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-1">
-                  <Badge variant="secondary" className="text-[9px]">{event.statusLabel}</Badge>
+                  <Badge variant="secondary" className="type-micro">{event.statusLabel}</Badge>
                   <span className="font-medium text-foreground">{event.title}</span>
                   <span className="text-muted-foreground">{event.kindLabel}</span>
                 </div>
@@ -1562,7 +1567,7 @@ function AttentionEventsPanel({ events, onFocusEvent, onShowAttentionEvents }: {
                 type="button"
                 size="xs"
                 variant="ghost"
-                className="h-5 px-1 text-[9px]"
+                className="px-1 type-micro"
                 aria-label={`定位需关注事件 ${event.title}`}
                 onClick={() => onFocusEvent(event.eventId)}
               >
@@ -1578,7 +1583,7 @@ function AttentionEventsPanel({ events, onFocusEvent, onShowAttentionEvents }: {
         ))}
       </div>
       {events.length > 8 && (
-        <div className="mt-1 text-[10px] text-muted-foreground">还有 {events.length - 8} 个需关注事件，请用事件筛选查看。</div>
+        <div className="mt-1 type-tiny text-muted-foreground">还有 {events.length - 8} 个需关注事件，请用事件筛选查看。</div>
       )}
     </section>
   )
@@ -1600,22 +1605,22 @@ function ModelCallSummaryPanel({
     <section data-testid="agent-run-model-call-summary" className="rounded-md border border-border bg-muted/10 px-3 py-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-xs font-medium text-foreground">大模型调用总览</div>
-          <div className="mt-0.5 text-[10px] text-muted-foreground">由 Agent 服务端归并请求、响应、历史写入和工具调用</div>
+          <div className="type-label font-medium text-foreground">大模型调用总览</div>
+          <div className="mt-0.5 type-tiny text-muted-foreground">由 Agent 服务端归并请求、响应、历史写入和工具调用</div>
         </div>
-        <Badge variant="outline" className="text-[10px]">{summaries.length} 次调用</Badge>
+        <Badge variant="outline" className="type-tiny">{summaries.length} 次调用</Badge>
       </div>
       <div className="mt-2 grid gap-1.5">
         {summaries.map((summary) => {
           const debugContext = contextsByCallId.get(summary.id) ?? fallbackModelCallContext(summary)
           return (
-            <details key={summary.id} data-testid="agent-run-model-call-summary-item" className="rounded border border-border/70 bg-background px-2 py-1.5 text-[10px]">
+            <details key={summary.id} data-testid="agent-run-model-call-summary-item" className="rounded border border-border/70 bg-background px-2 py-1.5 type-tiny">
               <summary className="flex cursor-pointer list-none flex-wrap items-center gap-1 marker:hidden">
                 <ChevronRight size={10} className="open:hidden" />
                 <ChevronDown size={10} className="hidden open:block" />
                 <div className="flex min-w-0 flex-wrap items-center gap-1">
                   <span className="font-medium text-foreground">{summary.label}</span>
-                  <Badge variant={summary.status === 'complete' ? 'outline' : 'secondary'} className="text-[9px]">{summary.statusLabel}</Badge>
+                  <Badge variant={summary.status === 'complete' ? 'outline' : 'secondary'} className="type-micro">{summary.statusLabel}</Badge>
                   {summary.model && <span className="truncate text-muted-foreground">模型 {summary.model}</span>}
                   {summary.roundLabel && <span className="truncate text-muted-foreground">原始轮次 {summary.roundLabel}</span>}
                 </div>
@@ -1626,7 +1631,7 @@ function ModelCallSummaryPanel({
                     type="button"
                     size="xs"
                     variant="ghost"
-                    className="h-5 px-1 text-[9px]"
+                    className="px-1 type-micro"
                     aria-label={`定位${summary.label}的模型请求事件`}
                     onClick={() => onFocusEvent(summary.requestEventId!)}
                   >
@@ -1638,7 +1643,7 @@ function ModelCallSummaryPanel({
                     type="button"
                     size="xs"
                     variant="ghost"
-                    className="h-5 px-1 text-[9px]"
+                    className="px-1 type-micro"
                     aria-label={`定位${summary.label}的模型响应事件`}
                     onClick={() => onFocusEvent(summary.responseEventId!)}
                   >
@@ -1650,7 +1655,7 @@ function ModelCallSummaryPanel({
                     type="button"
                     size="xs"
                     variant="ghost"
-                    className="h-5 px-1 text-[9px]"
+                    className="px-1 type-micro"
                     aria-label={`定位${summary.label}的模型结果事件`}
                     onClick={() => onFocusEvent(summary.resultEventId!)}
                   >
@@ -1720,8 +1725,8 @@ function ModelCallInlineDebug({
   return (
     <div data-testid="agent-run-model-call-inline-debug" className="mt-2 space-y-1 border-t border-border/60 pt-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-[10px] font-medium text-foreground">本轮详情</div>
-        <div className="text-[9px] text-muted-foreground">关联方式：{context.correlationLabel}</div>
+        <div className="type-tiny font-medium text-foreground">本轮详情</div>
+        <div className="type-micro text-muted-foreground">关联方式：{context.correlationLabel}</div>
       </div>
       {modelDetails.length > 0 && (
         <div className="grid gap-1">
@@ -1736,7 +1741,7 @@ function ModelCallInlineDebug({
                 type="button"
                 size="xs"
                 variant="ghost"
-                className="mt-1 h-5 px-1 text-[9px]"
+                className="mt-1 px-1 type-micro"
                 aria-label={`定位${summary.label}的${detail.title}事件`}
                 onClick={() => onFocusEvent(event.id)}
               >
@@ -1778,7 +1783,7 @@ function ModelCallRelatedItems({
     <div data-testid={`agent-run-model-call-related-${title}`} className="rounded border border-border/60 bg-muted/10 px-2 py-1">
       <div className="flex items-center justify-between gap-2">
         <div className="font-medium text-foreground">{title}</div>
-        <Badge variant="outline" className="text-[9px]">{items.length}</Badge>
+        <Badge variant="outline" className="type-micro">{items.length}</Badge>
       </div>
       {items.length === 0 ? (
         <div className="mt-1 text-muted-foreground">{emptyText}</div>
@@ -1792,7 +1797,7 @@ function ModelCallRelatedItems({
                     {item.meta && <div className="mt-0.5 text-muted-foreground">{item.meta}</div>}
                     {item.summary && <div className="mt-0.5 break-words text-muted-foreground">{redactAgentTraceDebugText(item.summary)}</div>}
                   </div>
-                  <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[9px]" onClick={() => onFocusEvent(item.eventId)}>
+                  <Button type="button" size="xs" variant="ghost" className="px-1 type-micro" onClick={() => onFocusEvent(item.eventId)}>
                     定位
                   </Button>
                 </div>
@@ -1807,7 +1812,7 @@ function ModelCallRelatedItems({
 function PromptDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentTraceView>['promptDetail']> }) {
   return (
     <div className="mt-1 space-y-1">
-      <div className="grid gap-0.5 rounded border border-border/60 bg-background/90 px-2 py-1 text-[10px]">
+      <div className="grid gap-0.5 rounded border border-border/60 bg-background/90 px-2 py-1 type-tiny">
         <div className="font-medium text-foreground">上下文包</div>
         <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-muted-foreground">
           {detail.totalChars && <span>{detail.totalChars} 字符</span>}
@@ -1830,17 +1835,17 @@ function PromptDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentT
       )}
       {detail.partGroups.length > 0 && (
         <div data-testid="agent-run-prompt-part-groups" className="rounded border border-border/60 bg-background/90 px-2 py-1">
-          <div className="text-[9px] uppercase tracking-wide text-muted-foreground">片段来源分组</div>
+          <div className="type-micro uppercase tracking-wide text-muted-foreground">片段来源分组</div>
           <div className="mt-1 grid gap-1 sm:grid-cols-2">
             {detail.partGroups.map((group) => (
               <div key={group.contextLayer} className="rounded bg-muted/20 px-2 py-1">
-                <div className="flex items-center justify-between gap-2 text-[10px]">
+                <div className="flex items-center justify-between gap-2 type-tiny">
                   <span className="font-medium text-foreground">{group.contextLayer}</span>
                   <span className="text-muted-foreground">{group.count} 段 / {group.chars} 字符</span>
                 </div>
                 <div className="mt-0.5 flex flex-wrap gap-1">
-                  {group.parts.slice(0, 6).map((part) => <Badge key={`${group.contextLayer}:${part.id}`} variant="outline" className="max-w-full truncate text-[9px]">{part.id}</Badge>)}
-                  {group.parts.length > 6 && <Badge variant="secondary" className="text-[9px]">+{group.parts.length - 6}</Badge>}
+                  {group.parts.slice(0, 6).map((part) => <Badge key={`${group.contextLayer}:${part.id}`} variant="outline" className="max-w-full truncate type-micro">{part.id}</Badge>)}
+                  {group.parts.length > 6 && <Badge variant="secondary" className="type-micro">+{group.parts.length - 6}</Badge>}
                 </div>
               </div>
             ))}
@@ -1849,10 +1854,10 @@ function PromptDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentT
       )}
       {detail.parts.length > 0 && (
         <div data-testid="agent-run-prompt-parts" className="rounded border border-border/60 bg-background/90 px-2 py-1">
-          <div className="text-[9px] uppercase tracking-wide text-muted-foreground">上下文片段</div>
+          <div className="type-micro uppercase tracking-wide text-muted-foreground">上下文片段</div>
           <div className="mt-1 grid gap-0.5">
             {detail.parts.map((part) => (
-              <div key={`${part.id}:${part.layer}:${part.contextLayer}`} className="flex min-w-0 items-start justify-between gap-2 text-[10px]">
+              <div key={`${part.id}:${part.layer}:${part.contextLayer}`} className="flex min-w-0 items-start justify-between gap-2 type-tiny">
                 <span className="min-w-0 truncate text-foreground">{part.id}</span>
                 <span className="shrink-0 text-right text-muted-foreground">
                   {[part.layer, part.contextLayer, part.chars ? `${part.chars} 字符` : undefined].filter(Boolean).join(' / ')}
@@ -1869,10 +1874,10 @@ function PromptDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentT
 function PromptMetricList({ title, metrics }: { title: string; metrics: Array<{ label: string; value: string }> }) {
   return (
     <div className="rounded border border-border/60 bg-background/90 px-2 py-1">
-      <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{title}</div>
+      <div className="type-micro uppercase tracking-wide text-muted-foreground">{title}</div>
       <div className="mt-1 grid gap-0.5">
         {metrics.map((metric) => (
-          <div key={`${title}:${metric.label}`} className="flex items-center justify-between gap-2 text-[10px]">
+          <div key={`${title}:${metric.label}`} className="flex items-center justify-between gap-2 type-tiny">
             <span className="text-muted-foreground">{metric.label}</span>
             <span className="font-medium text-foreground">{metric.value}</span>
           </div>
@@ -1885,10 +1890,10 @@ function PromptMetricList({ title, metrics }: { title: string; metrics: Array<{ 
 function PromptNameList({ title, values }: { title: string; values: string[] }) {
   return (
     <div className="rounded border border-border/60 bg-background/90 px-2 py-1">
-      <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{title}</div>
+      <div className="type-micro uppercase tracking-wide text-muted-foreground">{title}</div>
       <div className="mt-1 flex flex-wrap gap-1">
-        {values.slice(0, 12).map((value) => <Badge key={value} variant="outline" className="max-w-full truncate text-[9px]">{value}</Badge>)}
-        {values.length > 12 && <Badge variant="secondary" className="text-[9px]">+{values.length - 12}</Badge>}
+        {values.slice(0, 12).map((value) => <Badge key={value} variant="outline" className="max-w-full truncate type-micro">{value}</Badge>)}
+        {values.length > 12 && <Badge variant="secondary" className="type-micro">+{values.length - 12}</Badge>}
       </div>
     </div>
   )
@@ -1898,13 +1903,13 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
   return (
     <div className="mt-1 space-y-1">
       {detail.note && (
-        <div className="rounded bg-muted/20 px-2 py-1 text-[10px] leading-relaxed text-muted-foreground">
+        <div className="rounded bg-muted/20 px-2 py-1 type-tiny leading-relaxed text-muted-foreground">
           {detail.note}
         </div>
       )}
       {detail.request && (
         <ModelDetailSection title="HTTP 请求" testId="agent-run-model-http-request" defaultOpen>
-          <div className="mt-1 grid gap-0.5 text-[10px]">
+          <div className="mt-1 grid gap-0.5 type-tiny">
             {detail.request.method && <ModelMetaRow label="方法" value={detail.request.method} />}
             {detail.request.url && <ModelMetaRow label="地址" value={redactAgentTraceDebugText(detail.request.url)} />}
             {detail.request.model && <ModelMetaRow label="模型" value={detail.request.model} />}
@@ -1916,7 +1921,7 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
           </div>
           {detail.request.headers.length > 0 && (
             <details data-testid="agent-run-model-request-headers" className="mt-1 rounded bg-muted/20 px-2 py-1">
-              <summary className="cursor-pointer text-[10px] font-medium text-foreground">请求头</summary>
+              <summary className="cursor-pointer type-tiny font-medium text-foreground">请求头</summary>
               <div className="mt-1 grid gap-0.5">
                 {detail.request.headers.map((header) => (
                   <ModelMetaRow key={header.name} label={header.name} value={formatModelHeaderValue(header)} />
@@ -1926,8 +1931,8 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
           )}
           {detail.request.payload !== undefined && (
             <details data-testid="agent-run-model-request-payload" className="mt-1 rounded bg-muted/20 px-2 py-1">
-              <summary className="cursor-pointer text-[10px] font-medium text-foreground">完整请求负载</summary>
-              <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap break-words text-[10px] leading-relaxed text-foreground">
+              <summary className="cursor-pointer type-tiny font-medium text-foreground">完整请求负载</summary>
+              <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap break-words type-tiny leading-relaxed text-foreground">
                 {formatAgentTraceDebugData(detail.request.payload)}
               </pre>
             </details>
@@ -1940,17 +1945,17 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
             <div data-testid="agent-run-model-request-message-groups" className="mb-1 grid gap-1 sm:grid-cols-2">
               {detail.messageGroups.map((group) => (
                 <div key={group.role} className="rounded border border-border/60 bg-background/90 px-2 py-1">
-                  <div className="flex items-center justify-between gap-2 text-[10px]">
+                  <div className="flex items-center justify-between gap-2 type-tiny">
                     <span className="font-medium text-foreground">{group.roleLabel}</span>
                     <span className="text-muted-foreground">{group.count} 条 / {group.contentChars} 字符</span>
                   </div>
                   <div className="mt-0.5 flex flex-wrap gap-1">
                     {group.messages.slice(0, 6).map((message) => (
-                      <Badge key={`${group.role}:${message.index}`} variant="outline" className="text-[9px]">
+                      <Badge key={`${group.role}:${message.index}`} variant="outline" className="type-micro">
                         #{message.index}
                       </Badge>
                     ))}
-                    {group.messages.length > 6 && <Badge variant="secondary" className="text-[9px]">+{group.messages.length - 6}</Badge>}
+                    {group.messages.length > 6 && <Badge variant="secondary" className="type-micro">+{group.messages.length - 6}</Badge>}
                   </div>
                 </div>
               ))}
@@ -1958,11 +1963,11 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
           )}
           {detail.messages.map((message) => (
             <div key={`${message.index}:${message.role}`} className="rounded border border-border/60 bg-background/90 px-2 py-1">
-              <div className="flex items-center justify-between gap-2 text-[10px]">
+              <div className="flex items-center justify-between gap-2 type-tiny">
                 <span className="font-medium text-foreground">{message.index}. {message.roleLabel}</span>
                 <span className="text-muted-foreground">{message.contentChars} 字符</span>
               </div>
-              <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/20 p-2 text-[10px] leading-relaxed text-foreground">
+              <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/20 p-2 type-tiny leading-relaxed text-foreground">
                 {redactAgentTraceDebugText(message.content)}
               </pre>
             </div>
@@ -1972,7 +1977,7 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
       {detail.tools.length > 0 && (
         <ModelDetailSection title={`工具定义 (${detail.tools.length})`} testId="agent-run-model-request-tools">
           {detail.tools.map((tool) => (
-            <div key={`${tool.index}:${tool.name}`} className="rounded border border-border/60 bg-background/90 px-2 py-1 text-[10px]">
+            <div key={`${tool.index}:${tool.name}`} className="rounded border border-border/60 bg-background/90 px-2 py-1 type-tiny">
               <div className="font-medium text-foreground">{tool.index}. {tool.name}</div>
               {tool.description && <div className="mt-0.5 text-muted-foreground">{tool.description}</div>}
               {tool.parameterKeys.length > 0 && <div className="mt-0.5 text-muted-foreground">参数：{tool.parameterKeys.join(', ')}</div>}
@@ -1982,7 +1987,7 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
       )}
       {detail.response && (
         <ModelDetailSection title="HTTP 响应" testId="agent-run-model-http-response" defaultOpen>
-          <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+          <div className="flex flex-wrap gap-2 type-tiny text-muted-foreground">
             {detail.response.status && <span>状态 {detail.response.status}</span>}
             {detail.response.contentType && <span>{detail.response.contentType}</span>}
             {detail.response.headers.length > 0 && <span>响应头 {detail.response.headers.length}</span>}
@@ -1990,7 +1995,7 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
           </div>
           {detail.response.headers.length > 0 && (
             <details data-testid="agent-run-model-response-headers" className="mt-1 rounded bg-muted/20 px-2 py-1">
-              <summary className="cursor-pointer text-[10px] font-medium text-foreground">响应头</summary>
+              <summary className="cursor-pointer type-tiny font-medium text-foreground">响应头</summary>
               <div className="mt-1 grid gap-0.5">
                 {detail.response.headers.map((header) => (
                   <ModelMetaRow key={header.name} label={header.name} value={formatModelHeaderValue(header)} />
@@ -1999,20 +2004,20 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
             </details>
           )}
           {detail.response.content && (
-            <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/20 p-2 text-[10px] leading-relaxed text-foreground">
+            <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/20 p-2 type-tiny leading-relaxed text-foreground">
               {redactAgentTraceDebugText(detail.response.content)}
             </pre>
           )}
           {detail.response.bodyText && detail.response.bodyText !== detail.response.content && (
             <details className="mt-1 rounded bg-muted/20 px-2 py-1">
-              <summary className="cursor-pointer text-[10px] font-medium text-foreground">原始响应正文</summary>
-              <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words text-[10px] leading-relaxed text-foreground">
+              <summary className="cursor-pointer type-tiny font-medium text-foreground">原始响应正文</summary>
+              <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words type-tiny leading-relaxed text-foreground">
                 {redactAgentTraceDebugText(detail.response.bodyText)}
               </pre>
             </details>
           )}
           {!detail.response.content && !detail.response.bodyText && (
-            <div className="mt-1 rounded bg-muted/20 px-2 py-1 text-[10px] leading-relaxed text-muted-foreground">
+            <div className="mt-1 rounded bg-muted/20 px-2 py-1 type-tiny leading-relaxed text-muted-foreground">
               这条事件没有 HTTP 响应正文；如果是流式调用，请查看模型增量事件或最终的历史写入事件。
             </div>
           )}
@@ -2046,12 +2051,12 @@ function ModelDetailSection({
 }) {
   return (
     <details data-testid={testId} className="rounded border border-border/60 bg-background/90 px-2 py-1" open={defaultOpen}>
-      <summary className="flex cursor-pointer list-none items-center gap-1 text-[10px] font-medium text-foreground marker:hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-1 type-tiny font-medium text-foreground marker:hidden">
         <ChevronRight size={10} className="open:hidden" />
         <ChevronDown size={10} className="hidden open:block" />
         {title}
       </summary>
-      <div className="mt-1 space-y-1 text-[10px]">
+      <div className="mt-1 space-y-1 type-tiny">
         {children}
       </div>
     </details>
@@ -2076,13 +2081,13 @@ function ModelMetaRow({ label, value }: { label: string; value: string }) {
 function MessageDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentTraceView>['messageDetail']> }) {
   return (
     <div className="mt-1 rounded border border-border/60 bg-background/90 px-2 py-1">
-      <div className="text-[10px] font-medium text-foreground">{detail.title}</div>
-      <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+      <div className="type-tiny font-medium text-foreground">{detail.title}</div>
+      <div className="flex flex-wrap gap-2 type-tiny text-muted-foreground">
         {detail.messageId && <span>ID {detail.messageId}</span>}
         {detail.sourceLabel && <span>来源 {detail.sourceLabel}</span>}
         <span>{detail.contentChars} 字符</span>
       </div>
-      <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/20 p-2 text-[10px] leading-relaxed text-foreground">
+      <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/20 p-2 type-tiny leading-relaxed text-foreground">
         {redactAgentTraceDebugText(detail.content)}
       </pre>
     </div>
@@ -2092,7 +2097,7 @@ function MessageDetail({ detail }: { detail: NonNullable<ReturnType<typeof agent
 function ToolDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentTraceView>['toolDetail']> }) {
   return (
     <div className="mt-1 space-y-1">
-      <div className="grid gap-0.5 rounded border border-border/60 bg-background/90 px-2 py-1 text-[10px]">
+      <div className="grid gap-0.5 rounded border border-border/60 bg-background/90 px-2 py-1 type-tiny">
         <div className="font-medium text-foreground">{detail.title}</div>
         {detail.toolName && <ModelMetaRow label="工具" value={detail.toolName} />}
         <ModelMetaRow label="状态" value={detail.statusLabel} />
@@ -2101,13 +2106,13 @@ function ToolDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentTra
         {detail.duration && <ModelMetaRow label="耗时" value={detail.duration} />}
       </div>
       {detail.summary && (
-        <div className="rounded border border-border/60 bg-background/90 px-2 py-1 text-[10px] leading-relaxed text-foreground">
+        <div className="rounded border border-border/60 bg-background/90 px-2 py-1 type-tiny leading-relaxed text-foreground">
           {redactAgentTraceDebugText(detail.summary)}
         </div>
       )}
       {detail.fields.length > 0 && (
         <div className="rounded border border-border/60 bg-background/90 px-2 py-1">
-          <div className="text-[9px] uppercase tracking-wide text-muted-foreground">结果字段</div>
+          <div className="type-micro uppercase tracking-wide text-muted-foreground">结果字段</div>
           <div className="mt-1 grid gap-0.5">
             {detail.fields.map((field) => (
               <ModelMetaRow
@@ -2157,7 +2162,7 @@ function buildRunSummary(
 function Info({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="type-tiny uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-0.5 break-all text-foreground" title={title}>{value}</div>
     </div>
   )

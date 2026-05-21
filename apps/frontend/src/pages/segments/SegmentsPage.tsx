@@ -41,6 +41,8 @@ import {
 } from '@/api/semanticEntities'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
 import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
+import { AppEmptyState, AppMetricCard } from '@/components/app/AppPage'
+import { SemanticStatusBadge } from '@/components/app/SemanticStatusBadge'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
@@ -413,7 +415,7 @@ export default function SegmentsPage() {
         header={(
           <header className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 type-label text-muted-foreground">
               <Database size={14} />
               <span>{project?.name ?? '当前项目'}</span>
               <ChevronRight size={13} />
@@ -421,8 +423,8 @@ export default function SegmentsPage() {
               <ChevronRight size={13} />
               <span>编排段</span>
             </div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">编排段</h1>
-            <p className="mt-1 max-w-4xl text-sm leading-relaxed text-muted-foreground">
+            <h1 className="mt-2 type-page-title font-semibold tracking-normal text-foreground">编排段</h1>
+            <p className="mt-1 max-w-4xl type-body leading-relaxed text-muted-foreground">
               编排段定义本集内部的情绪、节奏和戏剧功能；一个编排段持有多个情景，并汇总制作项、设定资料、素材需求和预览画面。
             </p>
           </div>
@@ -482,10 +484,10 @@ export default function SegmentsPage() {
             <section className="rounded-lg border border-border bg-card">
               <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">编排段清单</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">以卡片方式管理本集的情绪、节奏和戏剧功能段；可选填剧本版本作为来源引用。</p>
+                  <p className="type-body font-semibold text-foreground">编排段清单</p>
+                  <p className="mt-0.5 type-label text-muted-foreground">以卡片方式管理本集的情绪、节奏和戏剧功能段；可选填剧本版本作为来源引用。</p>
                 </div>
-                <Badge variant="outline" className="text-[10px]">{visibleSegments.length} / {segmentWorkspaces.length}</Badge>
+                <Badge variant="outline" className="type-tiny">{visibleSegments.length} / {segmentWorkspaces.length}</Badge>
               </div>
 
               <div className="grid grid-cols-1 gap-3 p-4">
@@ -515,10 +517,10 @@ export default function SegmentsPage() {
             <section className="rounded-lg border border-border bg-card">
               <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">情景与制作项设计</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">选择编排段后，在这里查看它持有的多个情景，以及每个情景关联的制作项设计。</p>
+                  <p className="type-body font-semibold text-foreground">情景与制作项设计</p>
+                  <p className="mt-0.5 type-label text-muted-foreground">选择编排段后，在这里查看它持有的多个情景，以及每个情景关联的制作项设计。</p>
                 </div>
-                <Badge variant="outline" className="text-[10px]">{selectedSegment ? `${selectedSegment.sceneMoments.length} 情景 / ${selectedSegment.contentUnits.length} 制作项` : '-'}</Badge>
+                <Badge variant="outline" className="type-tiny">{selectedSegment ? `${selectedSegment.sceneMoments.length} 情景 / ${selectedSegment.contentUnits.length} 制作项` : '-'}</Badge>
               </div>
 
               {!selectedSegment ? (
@@ -621,13 +623,13 @@ function SegmentButton({ item, selected, onClick }: { item: SegmentWorkspace; se
               <BookOpenText size={15} />
             </span>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-foreground">{titleOf(item.segment)}</p>
-              <p className="truncate text-[11px] text-muted-foreground">{sectionKinds[String(item.segment.kind ?? '')] ?? item.segment.kind ?? '编排段'}</p>
+              <p className="truncate type-body font-semibold text-foreground">{titleOf(item.segment)}</p>
+              <p className="truncate type-caption text-muted-foreground">{sectionKinds[String(item.segment.kind ?? '')] ?? item.segment.kind ?? '编排段'}</p>
             </div>
           </div>
-          <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.segment.summary || item.segment.content || '暂无情绪、节奏或戏剧功能说明'}</p>
+          <p className="mt-2 line-clamp-2 type-label leading-5 text-muted-foreground">{item.segment.summary || item.segment.content || '暂无情绪、节奏或戏剧功能说明'}</p>
           {item.scriptBlock ? (
-            <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
+            <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 type-caption text-muted-foreground">
               <ScrollText size={12} className="shrink-0" />
               <span className="truncate">{scriptBlockSourceLabel(item.scriptBlock)}</span>
             </div>
@@ -642,7 +644,7 @@ function SegmentButton({ item, selected, onClick }: { item: SegmentWorkspace; se
       </div>
       <div className="mt-3 flex items-center gap-2">
         <ProgressBar value={item.readiness} className="h-1.5 flex-1" />
-        <span className="w-9 text-right text-[11px] tabular-nums text-muted-foreground">{item.readiness}%</span>
+        <span className="w-9 text-right type-caption tabular-nums text-muted-foreground">{item.readiness}%</span>
       </div>
     </button>
   )
@@ -775,7 +777,7 @@ function SegmentDetailCard({
                 <BookOpenText size={19} />
               </span>
               <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">{sectionKinds[kind] ?? (kind || '编排段')} · {isNew ? '新建编排段' : sourceLabel}</p>
+                <p className="type-label text-muted-foreground">{sectionKinds[kind] ?? (kind || '编排段')} · {isNew ? '新建编排段' : sourceLabel}</p>
                 {isEditing && fieldByKey.get('title') ? (
                   <SegmentInlineField
                     field={fieldByKey.get('title')!}
@@ -783,10 +785,10 @@ function SegmentDetailCard({
                     invalid={missingRequiredFields.some((field) => field.key === 'title')}
                     onChange={(value) => updateField('title', value)}
                     surface="plain"
-                    inputClassName="mt-1 h-10 bg-background/90 text-base font-semibold"
+                    inputClassName="mt-1 h-10 bg-background/90 type-body-lg font-semibold"
                   />
                 ) : (
-                  <h2 className="mt-1 truncate text-xl font-semibold text-foreground">{title}</h2>
+                  <h2 className="mt-1 truncate type-title font-semibold text-foreground">{title}</h2>
                 )}
               </div>
             </div>
@@ -800,7 +802,7 @@ function SegmentDetailCard({
                   label="情绪/节奏/戏剧功能"
                 />
               ) : (
-                <p className="text-sm leading-6 text-muted-foreground">{summary || '暂无情绪、节奏或戏剧功能说明。'}</p>
+                <p className="type-body leading-6 text-muted-foreground">{summary || '暂无情绪、节奏或戏剧功能说明。'}</p>
               )}
             </div>
           </div>
@@ -867,8 +869,8 @@ function SegmentDetailCard({
         {isEditing ? (
           <div className="mt-4 rounded-lg border border-white/50 bg-background/70 p-3 shadow-sm backdrop-blur">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold text-foreground">核心信息</p>
-              <p className="text-[11px] text-muted-foreground">用于列表、筛选和来源追溯</p>
+              <p className="type-label font-semibold text-foreground">核心信息</p>
+              <p className="type-caption text-muted-foreground">用于列表、筛选和来源追溯</p>
             </div>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               {compactEditFields.map((key) => fieldByKey.get(key) ? (
@@ -902,7 +904,7 @@ function SegmentDetailCard({
             ) : null}
             {advancedFields.filter((field) => !compactEditFields.includes(field.key)).length > 0 ? (
               <details className="overflow-hidden rounded-lg border border-border bg-muted/20">
-                <summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-foreground">高级字段</summary>
+                <summary className="cursor-pointer px-4 py-3 type-label font-semibold text-foreground">高级字段</summary>
                 <div className="grid gap-3 border-t border-border bg-card/60 p-3">
                   {advancedFields.filter((field) => !compactEditFields.includes(field.key)).map((field) => (
                     <SegmentInlineField key={field.key} field={field} value={form[field.key]} disabled={lockedFields.has(field.key)} lockReason={lockedFields.has(field.key) ? sourceLockReason : undefined} onChange={(value) => updateField(field.key, value)} textareaRows={field.key.endsWith('_json') ? 6 : 3} />
@@ -955,10 +957,10 @@ function SceneMomentRow({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            {sceneIdentifier(sceneMoment) ? <Badge variant="outline" className="shrink-0 text-[10px]">{sceneIdentifier(sceneMoment)}</Badge> : null}
-            <p className="truncate text-sm font-semibold text-foreground">{titleOf(sceneMoment)}</p>
+            {sceneIdentifier(sceneMoment) ? <Badge variant="outline" className="shrink-0 type-tiny">{sceneIdentifier(sceneMoment)}</Badge> : null}
+            <p className="truncate type-body font-semibold text-foreground">{titleOf(sceneMoment)}</p>
           </div>
-          <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{sceneMoment.description || sceneMoment.action_text || sceneMoment.condition_text || '暂无情景描述'}</p>
+          <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">{sceneMoment.description || sceneMoment.action_text || sceneMoment.condition_text || '暂无情景描述'}</p>
         </div>
         <StatusBadge status={sceneMoment.status ?? 'draft'} />
       </div>
@@ -967,9 +969,9 @@ function SceneMomentRow({
         <InfoChip icon={MapPin} label={sceneMoment.location_text || '地点未定'} />
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
-        <Badge variant="outline" className="text-[10px]">制作项 {contentCount}</Badge>
-        {sceneMoment.mood ? <Badge variant="outline" className="text-[10px]">{sceneMoment.mood}</Badge> : null}
-        {assetGapCount > 0 ? <Badge variant="warning" className="text-[10px]">缺口 {assetGapCount}</Badge> : null}
+        <Badge variant="outline" className="type-tiny">制作项 {contentCount}</Badge>
+        {sceneMoment.mood ? <Badge variant="outline" className="type-tiny">{sceneMoment.mood}</Badge> : null}
+        {assetGapCount > 0 ? <Badge variant="warning" className="type-tiny">缺口 {assetGapCount}</Badge> : null}
       </div>
     </button>
   )
@@ -1004,20 +1006,20 @@ function ContentUnitRow({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            {productionIdentifier(sceneMoment, item) ? <Badge variant="outline" className="shrink-0 text-[10px]">{productionIdentifier(sceneMoment, item)}</Badge> : null}
-            <p className="truncate text-sm font-semibold text-foreground">{titleOf(item)}</p>
+            {productionIdentifier(sceneMoment, item) ? <Badge variant="outline" className="shrink-0 type-tiny">{productionIdentifier(sceneMoment, item)}</Badge> : null}
+            <p className="truncate type-body font-semibold text-foreground">{titleOf(item)}</p>
           </div>
-          <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.description || item.prompt || '暂无制作项描述或提示词'}</p>
+          <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">{item.description || item.prompt || '暂无制作项描述或提示词'}</p>
         </div>
         <StatusBadge status={item.status ?? 'draft'} />
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
-        <Badge variant="outline" className="text-[10px]">{item.kind ?? '制作项'}</Badge>
-        <Badge variant="outline" className="text-[10px]">情景 {sceneIdentifier(sceneMoment) || (sceneMoment ? titleOf(sceneMoment) : '未绑定')}</Badge>
-        <Badge variant="outline" className="text-[10px]">素材需求 {assetCount}</Badge>
-        <Badge variant="outline" className="text-[10px]">画面锚点 {keyframeCount}</Badge>
-        {item.duration_sec ? <Badge variant="outline" className="text-[10px]">{formatDuration(item.duration_sec)}</Badge> : null}
-        {scriptBlock ? <Badge variant="outline" className="max-w-full truncate text-[10px]">{scriptBlockSourceLabel(scriptBlock)}</Badge> : null}
+        <Badge variant="outline" className="type-tiny">{item.kind ?? '制作项'}</Badge>
+        <Badge variant="outline" className="type-tiny">情景 {sceneIdentifier(sceneMoment) || (sceneMoment ? titleOf(sceneMoment) : '未绑定')}</Badge>
+        <Badge variant="outline" className="type-tiny">素材需求 {assetCount}</Badge>
+        <Badge variant="outline" className="type-tiny">画面锚点 {keyframeCount}</Badge>
+        {item.duration_sec ? <Badge variant="outline" className="type-tiny">{formatDuration(item.duration_sec)}</Badge> : null}
+        {scriptBlock ? <Badge variant="outline" className="max-w-full truncate type-tiny">{scriptBlockSourceLabel(scriptBlock)}</Badge> : null}
       </div>
     </button>
   )
@@ -1033,14 +1035,14 @@ function SceneMomentDetail({ sceneMoment, segment }: { sceneMoment: SceneMomentR
       <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
         <div className="flex items-center gap-2">
           <Film size={14} className="text-muted-foreground" />
-          <p className="text-sm font-semibold text-foreground">当前情景</p>
+          <p className="type-body font-semibold text-foreground">当前情景</p>
         </div>
         <StatusBadge status={sceneMoment.status ?? 'draft'} />
       </div>
       <div className="space-y-3 p-3">
         <div>
-          <p className="text-sm font-semibold text-foreground">{titleOf(sceneMoment)}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{segment ? `来自 ${titleOf(segment)}` : '未绑定编排段'}</p>
+          <p className="type-body font-semibold text-foreground">{titleOf(sceneMoment)}</p>
+          <p className="mt-1 type-label text-muted-foreground">{segment ? `来自 ${titleOf(segment)}` : '未绑定编排段'}</p>
         </div>
         {sceneIdentifier(sceneMoment) ? <InfoBlock label="编号" value={sceneIdentifier(sceneMoment)} /> : null}
         <InfoBlock label="描述" value={sceneMoment.description || '暂无描述'} />
@@ -1066,17 +1068,17 @@ function ContentUnitDetail({ contentUnit, sceneMoment, scriptBlock }: { contentU
       <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
         <div className="flex items-center gap-2">
           <Boxes size={14} className="text-muted-foreground" />
-          <p className="text-sm font-semibold text-foreground">当前制作项设计</p>
+          <p className="type-body font-semibold text-foreground">当前制作项设计</p>
         </div>
         <div className="flex items-center gap-2">
-          {productionIdentifier(sceneMoment, contentUnit) ? <Badge variant="outline" className="text-[10px]">{productionIdentifier(sceneMoment, contentUnit)}</Badge> : null}
+          {productionIdentifier(sceneMoment, contentUnit) ? <Badge variant="outline" className="type-tiny">{productionIdentifier(sceneMoment, contentUnit)}</Badge> : null}
           <StatusBadge status={contentUnit.status ?? 'draft'} />
         </div>
       </div>
       <div className="space-y-3 p-3">
         <div>
-          <p className="text-sm font-semibold text-foreground">{titleOf(contentUnit)}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{contentUnit.kind ?? '制作项'} · {formatDuration(contentUnit.duration_sec)}</p>
+          <p className="type-body font-semibold text-foreground">{titleOf(contentUnit)}</p>
+          <p className="mt-1 type-label text-muted-foreground">{contentUnit.kind ?? '制作项'} · {formatDuration(contentUnit.duration_sec)}</p>
         </div>
         {productionIdentifier(sceneMoment, contentUnit) ? <InfoBlock label="编号" value={productionIdentifier(sceneMoment, contentUnit)} /> : null}
         <InfoBlock label="所属情景" value={sceneIdentifier(sceneMoment) || (sceneMoment ? titleOf(sceneMoment) : '未绑定情景')} />
@@ -1111,13 +1113,13 @@ function SegmentReadOnlyDetails({ fields, record, scriptBlock }: { fields: Seman
       {scriptBlock ? (
         <SegmentPreviewSection title="来源剧本块">
           <div className="rounded-md border border-border/70 bg-card px-3 py-2.5">
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2 type-caption text-muted-foreground">
               <ScrollText size={12} />
               <span>{scriptBlockSourceLabel(scriptBlock)}</span>
               {scriptBlock.kind ? <span>{String(scriptBlock.kind)}</span> : null}
               {scriptBlock.speaker ? <span>{String(scriptBlock.speaker)}</span> : null}
             </div>
-            <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+            <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words type-body leading-relaxed text-foreground">
               {String(scriptBlock.content ?? '').trim() || '暂无剧本块正文'}
             </p>
           </div>
@@ -1144,7 +1146,7 @@ function SegmentReadOnlyDetails({ fields, record, scriptBlock }: { fields: Seman
 function SegmentPreviewSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="rounded-lg border border-border bg-background/70 p-3">
-      <p className="mb-3 text-xs font-semibold text-foreground">{title}</p>
+      <p className="mb-3 type-label font-semibold text-foreground">{title}</p>
       {children}
     </section>
   )
@@ -1157,10 +1159,10 @@ function SegmentPreviewValue({ field, value, prominent = false }: { field: Seman
       'rounded-md border border-border/70 bg-card px-3 py-2.5',
       prominent && 'bg-card/80',
     )}>
-      <p className="text-[11px] font-medium text-muted-foreground">{field.label}</p>
+      <p className="type-caption font-medium text-muted-foreground">{field.label}</p>
       <p className={cn(
-        'mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground',
-        field.key.endsWith('_json') && 'max-h-44 overflow-auto rounded bg-background p-2 font-mono text-xs',
+        'mt-1 whitespace-pre-wrap break-words type-body leading-relaxed text-foreground',
+        field.key.endsWith('_json') && 'max-h-44 overflow-auto rounded bg-background p-2 font-mono type-label',
       )}>
         {displayValue}
       </p>
@@ -1172,8 +1174,8 @@ function SegmentEditSection({ title, description, children }: { title: string; d
   return (
     <section className="rounded-lg border border-border bg-background/70 p-3">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold text-foreground">{title}</p>
-        {description ? <p className="text-[11px] text-muted-foreground">{description}</p> : null}
+        <p className="type-label font-semibold text-foreground">{title}</p>
+        {description ? <p className="type-caption text-muted-foreground">{description}</p> : null}
       </div>
       {children}
     </section>
@@ -1208,12 +1210,12 @@ function SegmentInlineField({
   onChange: (value: string | boolean) => void
 }) {
   const id = `segment-detail-field-${field.key}`
-  const controlClassName = cn('border-border/70 bg-background/90 shadow-none', compact && 'h-8 text-xs', inputClassName)
+  const controlClassName = cn('border-border/70 bg-background/90 shadow-none', compact && 'h-8 type-label', inputClassName)
   const options = segmentFieldOptions(field)
 
   return (
     <div className={cn('min-w-0', surface === 'card' && 'rounded-md border border-border/70 bg-card p-3')}>
-      {!hideLabel ? <Label htmlFor={id} required={field.required} className="mb-1.5 block text-xs font-medium text-muted-foreground">{label ?? field.label}</Label> : null}
+      {!hideLabel ? <Label htmlFor={id} required={field.required} className="mb-1.5 block type-label font-medium text-muted-foreground">{label ?? field.label}</Label> : null}
       {field.type === 'textarea' ? (
         <Textarea
           id={id}
@@ -1223,7 +1225,7 @@ function SegmentInlineField({
           value={String(value ?? '')}
           rows={textareaRows ?? (field.key.endsWith('_json') ? 5 : 4)}
           placeholder={field.placeholder}
-          className={cn(controlClassName, field.key.endsWith('_json') && 'font-mono text-xs')}
+          className={cn(controlClassName, field.key.endsWith('_json') && 'font-mono type-label')}
           onChange={(event) => onChange(event.target.value)}
         />
       ) : field.type === 'select' ? (
@@ -1234,7 +1236,7 @@ function SegmentInlineField({
           aria-invalid={invalid || undefined}
           value={String(value ?? '')}
           onChange={(event) => onChange(event.target.value)}
-          className={cn('w-full rounded-md border px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring', compact ? 'h-8 text-xs' : 'h-9', controlClassName)}
+          className={cn('w-full rounded-md border px-3 type-body text-foreground outline-none focus:ring-1 focus:ring-ring', compact ? 'h-8 type-label' : 'h-9', controlClassName)}
         >
           <option value="">未设置</option>
           {options.map((option) => (
@@ -1242,7 +1244,7 @@ function SegmentInlineField({
           ))}
         </select>
       ) : field.type === 'boolean' ? (
-        <label className={cn('flex items-center gap-2 rounded-md border border-border/70 bg-background/90 px-3 text-sm text-foreground', compact ? 'h-8 text-xs' : 'h-9', disabled && 'opacity-60')}>
+        <label className={cn('flex items-center gap-2 rounded-md border border-border/70 bg-background/90 px-3 type-body text-foreground', compact ? 'h-8 type-label' : 'h-9', disabled && 'opacity-60')}>
           <input type="checkbox" checked={Boolean(value)} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
           启用
         </label>
@@ -1260,7 +1262,7 @@ function SegmentInlineField({
           onChange={(event) => onChange(event.target.value)}
         />
       )}
-      {lockReason ? <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{lockReason}</p> : field.helper ? <p className="mt-1 text-[11px] text-muted-foreground">{field.helper}</p> : null}
+      {lockReason ? <p className="mt-1 type-caption font-medium text-amber-700 dark:text-amber-300">{lockReason}</p> : field.helper ? <p className="mt-1 type-caption text-muted-foreground">{field.helper}</p> : null}
     </div>
   )
 }
@@ -1273,20 +1275,7 @@ function sourceLockReasonText(status?: SourceLockStatus) {
 }
 
 function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIcon; label: string; value: string | number; detail: string; tone: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs text-muted-foreground">{label}</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{value}</p>
-        </div>
-        <span className="flex h-10 w-10 items-center justify-center rounded-md bg-muted">
-          <Icon size={18} className={tone} />
-        </span>
-      </div>
-      <p className="mt-2 truncate text-xs text-muted-foreground">{detail}</p>
-    </div>
-  )
+  return <AppMetricCard icon={Icon} label={label} value={value} detail={detail} tone={metricTone(tone)} />
 }
 
 function RelatedPanel({
@@ -1307,13 +1296,13 @@ function RelatedPanel({
       <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
         <div className="flex items-center gap-2">
           <Icon size={14} className="text-muted-foreground" />
-          <p className="text-sm font-semibold text-foreground">{title}</p>
+          <p className="type-body font-semibold text-foreground">{title}</p>
         </div>
-        <Badge variant="outline" className="text-[10px]">{records.length}</Badge>
+        <Badge variant="outline" className="type-tiny">{records.length}</Badge>
       </div>
       <div className="space-y-2 p-3">
         {records.length === 0 ? (
-          <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">{empty}</p>
+          <p className="rounded-md border border-dashed border-border px-3 py-3 type-label text-muted-foreground">{empty}</p>
         ) : (
           records.slice(0, 5).map((record) => <RelatedRow key={record.ID} record={record} scriptBlocksById={scriptBlocksById} />)
         )}
@@ -1335,19 +1324,19 @@ function RelatedRow({ record, scriptBlocksById }: { record: RelatedRecord | Scen
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-1.5">
-            {identifier ? <Badge variant="outline" className="shrink-0 text-[10px]">{identifier}</Badge> : null}
-            <p className="truncate text-xs font-medium text-foreground">{title}</p>
+            {identifier ? <Badge variant="outline" className="shrink-0 type-tiny">{identifier}</Badge> : null}
+            <p className="truncate type-label font-medium text-foreground">{title}</p>
           </div>
-          <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{detail}</p>
+          <p className="mt-0.5 line-clamp-2 type-caption leading-4 text-muted-foreground">{detail}</p>
         </div>
         <StatusBadge status={item.status ?? item.priority ?? 'draft'} />
       </div>
-      <div className="mt-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+      <div className="mt-2 flex items-center gap-1.5 type-tiny text-muted-foreground">
         {item.kind ? <span>{item.kind}</span> : null}
         {item.duration_sec ? <span>{formatDuration(item.duration_sec)}</span> : null}
       </div>
       {item.script_block_id && !isScriptBlockRecord(item) ? (
-        <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+        <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-0.5 type-tiny text-muted-foreground">
           <ScrollText size={11} className="shrink-0" />
           <span className="truncate">{sourceBlock ? scriptBlockSourceLabel(sourceBlock) : `剧本块 #${item.script_block_id}`}</span>
         </div>
@@ -1363,8 +1352,8 @@ function isScriptBlockRecord(record: RelatedRecord & SceneMomentRecord & Segment
 function MiniStat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-md border border-border bg-background px-2.5 py-2">
-      <p className="text-[10px] text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate text-xs font-semibold text-foreground">{value}</p>
+      <p className="type-tiny text-muted-foreground">{label}</p>
+      <p className="mt-1 truncate type-label font-semibold text-foreground">{value}</p>
     </div>
   )
 }
@@ -1372,11 +1361,11 @@ function MiniStat({ label, value }: { label: string; value: string | number }) {
 function HeroStat({ icon: Icon, label, value, tone = 'text-foreground' }: { icon: LucideIcon; label: string; value: string | number; tone?: string }) {
   return (
     <div className="rounded-md border border-border bg-background p-3">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="flex items-center gap-2 type-label text-muted-foreground">
         <Icon size={14} />
         <span>{label}</span>
       </div>
-      <p className={cn('mt-2 truncate text-lg font-semibold tabular-nums', tone)}>{value}</p>
+      <p className={cn('mt-2 truncate type-title-sm font-semibold tabular-nums', tone)}>{value}</p>
     </div>
   )
 }
@@ -1386,9 +1375,9 @@ function SectionTitle({ icon: Icon, title, count }: { icon: LucideIcon; title: s
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-2">
         <Icon size={14} className="text-muted-foreground" />
-        <p className="text-sm font-semibold text-foreground">{title}</p>
+        <p className="type-body font-semibold text-foreground">{title}</p>
       </div>
-      <Badge variant="outline" className="text-[10px]">{count}</Badge>
+      <Badge variant="outline" className="type-tiny">{count}</Badge>
     </div>
   )
 }
@@ -1397,7 +1386,7 @@ function InfoChip({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
     <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1.5">
       <Icon size={12} className="shrink-0 text-muted-foreground" />
-      <span className="truncate text-[11px] text-muted-foreground">{label}</span>
+      <span className="truncate type-caption text-muted-foreground">{label}</span>
     </div>
   )
 }
@@ -1405,24 +1394,25 @@ function InfoChip({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
 function InfoBlock({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs font-semibold text-muted-foreground">{label}</p>
-      <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">{value}</p>
+      <p className="type-label font-semibold text-muted-foreground">{label}</p>
+      <p className="mt-1 whitespace-pre-wrap break-words type-body leading-relaxed text-foreground">{value}</p>
     </div>
   )
 }
 
 function StatusBadge({ status }: { status: string }) {
-  return <Badge variant="secondary" className={cn('shrink-0 text-[10px]', statusTone[status] ?? 'bg-muted text-muted-foreground')}>{statusLabel(status)}</Badge>
+  return <SemanticStatusBadge status={status} label={statusLabel(status)} />
 }
 
 function EmptyState({ title, detail, compact = false }: { title: string; detail: string; compact?: boolean }) {
-  return (
-    <div className={cn('flex flex-col items-center justify-center text-center', compact ? 'min-h-32 p-4' : 'min-h-[320px] p-8')}>
-      <Film size={24} className="text-muted-foreground" />
-      <p className="mt-3 text-sm font-medium text-foreground">{title}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
-    </div>
-  )
+  return <AppEmptyState icon={Film} title={title} detail={detail} compact={compact} />
+}
+
+function metricTone(tone: string) {
+  if (tone.includes('emerald')) return 'success'
+  if (tone.includes('amber') || tone.includes('rose')) return 'warning'
+  if (tone.includes('cyan') || tone.includes('teal') || tone.includes('sky')) return 'info'
+  return 'neutral'
 }
 
 function calculateReadiness(

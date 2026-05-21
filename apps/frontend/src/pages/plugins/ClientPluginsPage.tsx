@@ -50,18 +50,18 @@ function InstallURLDialog({ onInstalled, onClose }: {
         className="bg-background border border-border rounded-xl shadow-xl w-full max-w-md mx-4 p-5"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-sm font-semibold text-foreground mb-1">{t('plugins.installFromUrlTitle')}</h2>
-        <p className="text-xs text-muted-foreground mb-4">{t('plugins.installFromUrlDescription')}</p>
+        <h2 className="type-body font-semibold text-foreground mb-1">{t('plugins.installFromUrlTitle')}</h2>
+        <p className="type-label text-muted-foreground mb-4">{t('plugins.installFromUrlDescription')}</p>
         <Input
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder={t('plugins.urlPlaceholder')}
-          className="text-sm mb-3"
+          className="type-body mb-3"
           onKeyDown={(e) => e.key === 'Enter' && handleInstall()}
           autoFocus
         />
         {error && (
-          <p className="text-xs text-destructive mb-3 flex items-center gap-1.5">
+          <p className="type-label text-destructive mb-3 flex items-center gap-1.5">
             <AlertCircle size={13} />
             {error}
           </p>
@@ -90,31 +90,31 @@ function PluginCard({ plugin, onRemove, onOpen }: {
     <div className="border border-border rounded-lg bg-background p-4 flex flex-col gap-3 hover:border-ring/50 transition-colors">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground truncate">{plugin.name}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="type-body font-semibold text-foreground truncate">{plugin.name}</p>
+          <p className="type-label text-muted-foreground mt-0.5">
             {plugin.author ? `${plugin.author} · ` : ''}v{plugin.version}
           </p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {plugin.homepage && (
             <a href={plugin.homepage} target="_blank" rel="noopener noreferrer">
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
+              <Button size="icon-sm" variant="ghost">
                 <ExternalLink size={13} />
               </Button>
             </a>
           )}
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={onRemove}>
+          <Button size="icon-sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={onRemove}>
             <Trash2 size={13} />
           </Button>
         </div>
       </div>
 
       {plugin.description && (
-        <p className="text-xs text-muted-foreground leading-relaxed">{plugin.description}</p>
+        <p className="type-label text-muted-foreground leading-relaxed">{plugin.description}</p>
       )}
 
       <div className="flex items-center justify-between mt-auto pt-1">
-        <p className="text-[11px] text-muted-foreground font-mono truncate max-w-[160px]">{plugin.id}</p>
+        <p className="type-caption text-muted-foreground font-mono truncate max-w-[160px]">{plugin.id}</p>
         <Button size="sm" onClick={onOpen}>
           <Play size={12} className="mr-1.5" />
           {t('plugins.open')}
@@ -164,10 +164,10 @@ function MarketplaceView({ installedIds, onInstall }: {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('plugins.searchPlaceholder')}
-            className="pl-8 text-sm"
+            className="pl-8 type-body"
           />
         </div>
-        <p className="text-xs text-muted-foreground">{t('plugins.marketplaceNote')}</p>
+        <p className="type-label text-muted-foreground">{t('plugins.marketplaceNote')}</p>
       </div>
 
       {filtered.length === 0 ? (
@@ -176,8 +176,8 @@ function MarketplaceView({ installedIds, onInstall }: {
             <Store size={20} className="text-muted-foreground" />
           </div>
           <div>
-            <p className="text-sm font-medium text-foreground">{t('plugins.marketplaceEmpty')}</p>
-            <p className="text-xs text-muted-foreground mt-1">{t('plugins.marketplaceEmptyHint')}</p>
+            <p className="type-body font-medium text-foreground">{t('plugins.marketplaceEmpty')}</p>
+            <p className="type-label text-muted-foreground mt-1">{t('plugins.marketplaceEmptyHint')}</p>
           </div>
         </div>
       ) : (
@@ -189,11 +189,11 @@ function MarketplaceView({ installedIds, onInstall }: {
               <div key={entry.id} className="border border-border rounded-lg bg-background p-4 flex flex-col gap-2 hover:border-ring/50 transition-colors">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground">{entry.name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{entry.author} · v{entry.version}</p>
+                    <p className="type-body font-semibold text-foreground">{entry.name}</p>
+                    <p className="type-label text-muted-foreground mt-0.5">{entry.author} · v{entry.version}</p>
                   </div>
                   {isInstalled ? (
-                    <span className="text-xs text-muted-foreground border border-border rounded px-2 py-0.5 shrink-0 whitespace-nowrap">
+                    <span className="type-label text-muted-foreground border border-border rounded px-2 py-0.5 shrink-0 whitespace-nowrap">
                       {t('plugins.alreadyInstalled')}
                     </span>
                   ) : (
@@ -205,14 +205,14 @@ function MarketplaceView({ installedIds, onInstall }: {
                     </Button>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">{entry.description}</p>
+                <p className="type-label text-muted-foreground leading-relaxed">{entry.description}</p>
                 <div className="flex items-center gap-2 mt-auto pt-1">
                   <div className="flex flex-wrap gap-1">
                     {entry.tags.map((tag) => (
-                      <span key={tag} className="text-[11px] bg-muted text-muted-foreground rounded px-1.5 py-0.5">{tag}</span>
+                      <span key={tag} className="type-caption bg-muted text-muted-foreground rounded px-1.5 py-0.5">{tag}</span>
                     ))}
                   </div>
-                  <span className="ml-auto text-[11px] text-muted-foreground whitespace-nowrap">
+                  <span className="ml-auto type-caption text-muted-foreground whitespace-nowrap">
                     {entry.downloads.toLocaleString()} {t('plugins.downloads')}
                   </span>
                 </div>
@@ -282,7 +282,7 @@ export default function ClientPluginsPage() {
       {showURLDialog && <InstallURLDialog onInstalled={handleInstalled} onClose={() => setShowURLDialog(false)} />}
 
       <div className="h-11 border-b border-border px-5 flex items-center justify-between shrink-0">
-        <h1 className="text-sm font-semibold text-foreground">{t('plugins.title')}</h1>
+        <h1 className="type-body font-semibold text-foreground">{t('plugins.title')}</h1>
         <div className="flex items-center gap-2">
           <input
             ref={fileInputRef}
@@ -305,26 +305,26 @@ export default function ClientPluginsPage() {
       </div>
 
       {fileError && (
-        <div className="px-5 py-2 bg-destructive/10 border-b border-border text-xs text-destructive flex items-center gap-2 shrink-0">
+        <div className="px-5 py-2 bg-destructive/10 border-b border-border type-label text-destructive flex items-center gap-2 shrink-0">
           <AlertCircle size={12} />
           {fileError}
-          <button className="ml-auto text-xs underline" onClick={() => setFileError(undefined)}>{t('common.close')}</button>
+          <button className="ml-auto type-label underline" onClick={() => setFileError(undefined)}>{t('common.close')}</button>
         </div>
       )}
 
       <div className="border-b border-border px-5 flex items-center gap-0 shrink-0">
         <button
           onClick={() => setTab('installed')}
-          className={cn('px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', tab === 'installed' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')}
+          className={cn('px-3 py-2 type-body font-medium border-b-2 -mb-px transition-colors', tab === 'installed' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')}
         >
           {t('plugins.myPlugins')}
           {plugins.length > 0 && (
-            <span className="ml-1.5 text-xs bg-muted text-muted-foreground rounded-full px-1.5 py-0.5">{plugins.length}</span>
+            <span className="ml-1.5 type-label bg-muted text-muted-foreground rounded-full px-1.5 py-0.5">{plugins.length}</span>
           )}
         </button>
         <button
           onClick={() => setTab('marketplace')}
-          className={cn('px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5', tab === 'marketplace' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')}
+          className={cn('px-3 py-2 type-body font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5', tab === 'marketplace' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground')}
         >
           <Store size={13} />
           {t('plugins.marketplace')}
@@ -332,10 +332,10 @@ export default function ClientPluginsPage() {
       </div>
 
       {migrationNote && (
-        <div className="px-5 py-2 bg-muted/40 border-b border-border text-xs text-muted-foreground flex items-center gap-2 shrink-0">
+        <div className="px-5 py-2 bg-muted/40 border-b border-border type-label text-muted-foreground flex items-center gap-2 shrink-0">
           <AlertCircle size={12} />
           {migrationNote}
-          <button className="ml-auto text-xs underline" onClick={() => setMigrationNote(undefined)}>{t('common.close')}</button>
+          <button className="ml-auto type-label underline" onClick={() => setMigrationNote(undefined)}>{t('common.close')}</button>
         </div>
       )}
 
@@ -353,8 +353,8 @@ export default function ClientPluginsPage() {
                 <Plus size={20} className="text-muted-foreground" />
               </div>
               <div>
-                <p className="text-sm font-medium text-foreground">{t('plugins.empty')}</p>
-                <p className="text-xs text-muted-foreground mt-1">{t('plugins.emptyHint')}</p>
+                <p className="type-body font-medium text-foreground">{t('plugins.empty')}</p>
+                <p className="type-label text-muted-foreground mt-1">{t('plugins.emptyHint')}</p>
               </div>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>

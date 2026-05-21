@@ -6,7 +6,6 @@ import {
   FileJson,
   Image,
   Loader2,
-  MoreHorizontal,
   Play,
   Puzzle,
   Settings2,
@@ -19,7 +18,7 @@ import { cn } from '@/lib/utils'
 
 export type CanvasToolSource = 'ai' | 'plugin'
 export type CanvasToolTone = 'violet' | 'cyan' | 'amber' | 'emerald'
-export type CanvasToolSlotType = 'text' | 'prompt' | 'image' | 'video' | 'audio' | 'entity' | 'json'
+export type CanvasToolSlotType = 'text' | 'prompt' | 'image' | 'video' | 'json'
 export type CanvasToolSlotState = 'empty' | 'ready' | 'pending' | 'failed'
 
 export type CanvasToolSlot = {
@@ -64,6 +63,8 @@ export interface CanvasToolActionCardProps {
   inputs?: CanvasToolSlot[]
   configs?: CanvasToolConfigItem[]
   outputs?: CanvasToolSlot[]
+  inputPanel?: ReactNode
+  resultPanel?: ReactNode
   primaryAction?: CanvasToolAction
   secondaryAction?: CanvasToolAction
   footer?: ReactNode
@@ -74,11 +75,12 @@ export interface CanvasToolActionCardProps {
 const TOOL_TONE_META: Record<CanvasToolTone, {
   accentSoft: string
   activeColor: string
+  sourceBadge: string
 }> = {
-  violet: { accentSoft: 'bg-violet-500/10', activeColor: 'text-violet-600' },
-  cyan: { accentSoft: 'bg-cyan-500/10', activeColor: 'text-cyan-600' },
-  amber: { accentSoft: 'bg-amber-500/10', activeColor: 'text-amber-600' },
-  emerald: { accentSoft: 'bg-emerald-500/10', activeColor: 'text-emerald-600' },
+  violet: { accentSoft: 'bg-violet-500/10', activeColor: 'text-violet-600', sourceBadge: 'border-violet-500/20 bg-violet-500/10 text-violet-700 dark:text-violet-300' },
+  cyan: { accentSoft: 'bg-cyan-500/10', activeColor: 'text-cyan-600', sourceBadge: 'border-cyan-500/20 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300' },
+  amber: { accentSoft: 'bg-amber-500/10', activeColor: 'text-amber-600', sourceBadge: 'border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300' },
+  emerald: { accentSoft: 'bg-emerald-500/10', activeColor: 'text-emerald-600', sourceBadge: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
 }
 
 export function CanvasToolActionCard({
@@ -92,6 +94,8 @@ export function CanvasToolActionCard({
   inputs = [],
   configs = [],
   outputs = [],
+  inputPanel,
+  resultPanel,
   primaryAction,
   secondaryAction,
   footer,
@@ -110,35 +114,30 @@ export function CanvasToolActionCard({
   return (
     <div
       className={cn(
-        'relative w-[300px] overflow-visible rounded-lg border bg-card text-xs shadow-sm transition-all',
-        selected ? 'border-primary shadow-lg shadow-primary/10 ring-2 ring-primary/15' : 'border-border',
+        'relative w-[320px] overflow-visible rounded-xl border bg-background type-label shadow-sm transition-colors',
+        selected ? 'border-primary shadow-lg shadow-primary/10 ring-2 ring-primary/15' : 'border-border/80 hover:border-border',
         className,
       )}
     >
-      <header className={cn('border-b px-3 py-2.5', toneMeta.accentSoft)}>
+      <header className="px-3 pt-3 pb-2">
         <div className="flex items-start gap-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80">
+          <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', toneMeta.accentSoft)}>
             <Icon size={15} className={toneMeta.activeColor} />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <SourceBadge source={source} />
-              <p className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-foreground">{title}</p>
+            <div className="flex min-w-0 items-center gap-2">
+              <SourceBadge source={source} className={toneMeta.sourceBadge} />
+              <p className="min-w-0 flex-1 truncate type-body font-semibold leading-5 text-foreground">{title}</p>
               {status && (
-                <span className="shrink-0 rounded border border-border bg-background/85 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">
-                  {status}
-                </span>
+                <StatusBadge label={status} />
               )}
             </div>
-            {subtitle && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{subtitle}</p>}
+            {subtitle && <p className="mt-1 truncate type-caption text-muted-foreground">{subtitle}</p>}
           </div>
-          <Button size="icon-xs" variant="ghost" className="h-6 w-6 shrink-0" aria-label="More">
-            <MoreHorizontal size={13} />
-          </Button>
         </div>
       </header>
 
-      <div className="space-y-2 px-3 py-2.5">
+      <div className="space-y-2 px-3 pb-3">
         <div>
           <SectionTitle icon={Text} label="输入" />
           <div className="mt-1 space-y-1">
@@ -149,6 +148,8 @@ export function CanvasToolActionCard({
             )}
           </div>
         </div>
+
+        {inputPanel}
 
         <div className="grid grid-cols-[1fr_112px] gap-2">
           <div className="min-w-0">
@@ -175,14 +176,16 @@ export function CanvasToolActionCard({
             </div>
           </div>
         </div>
+
+        {resultPanel}
       </div>
 
-      <footer className="border-t border-border/70 px-3 py-2">
+      <footer className="border-t border-border/50 bg-muted/20 px-3 py-2.5">
         <div className="flex items-center gap-2">
           {primaryAction && (
             <Button
-              size="xs"
-              className="h-7 flex-1 justify-center"
+              size="sm"
+              className="flex-1 justify-center rounded-full"
               disabled={primaryAction.disabled}
               onMouseDown={(event) => event.stopPropagation()}
               onClick={(event) => {
@@ -196,9 +199,9 @@ export function CanvasToolActionCard({
           )}
           {secondaryAction && (
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
-              className="h-7 shrink-0"
+              className="shrink-0 rounded-full"
               disabled={secondaryAction.disabled}
               onMouseDown={(event) => event.stopPropagation()}
               onClick={(event) => {
@@ -217,15 +220,30 @@ export function CanvasToolActionCard({
   )
 }
 
-function SourceBadge({ source }: { source: CanvasToolSource }) {
+function SourceBadge({ source, className }: { source: CanvasToolSource; className?: string }) {
   return (
     <span className={cn(
-      'shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-semibold uppercase leading-none',
-      source === 'ai'
-        ? 'border-violet-500/20 bg-violet-500/10 text-violet-700 dark:text-violet-300'
-        : 'border-cyan-500/20 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300',
+      'shrink-0 rounded border px-1.5 py-0.5 type-micro font-semibold uppercase leading-none',
+      className,
     )}>
       {source === 'ai' ? 'AI' : '插件'}
+    </span>
+  )
+}
+
+function StatusBadge({ label }: { label: string }) {
+  const running = label.includes('运行') || label.includes('等待')
+  const done = label.includes('完成') || label.includes('就绪')
+  const failed = label.includes('失败')
+  return (
+    <span className={cn(
+      'shrink-0 rounded-full px-1.5 py-0.5 type-tiny font-medium leading-none',
+      done && 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+      running && !done && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+      failed && 'bg-destructive/10 text-destructive',
+      !running && !done && !failed && 'bg-muted text-muted-foreground',
+    )}>
+      {label}
     </span>
   )
 }
@@ -248,7 +266,10 @@ function ToolSlotRow({
     <div
       data-input-port-id={direction === 'input' ? slot.inputPortId ?? `tool-in:${slot.id}` : undefined}
       data-output-port-id={direction === 'output' ? slot.outputPortId ?? `tool-out:${slot.id}` : undefined}
-      className="relative flex h-7 min-w-0 items-center gap-1.5 rounded-md border border-border bg-background px-1.5 text-[10px]"
+      className={cn(
+        'relative flex h-7 min-w-0 items-center gap-1.5 rounded-lg border bg-background px-1.5 type-tiny',
+        isFailed ? 'border-destructive/40 bg-destructive/5' : 'border-border/80',
+      )}
     >
       {direction === 'input' && (
         <PortDot
@@ -285,7 +306,7 @@ function ToolSlotRow({
 
 function ConfigPill({ item }: { item: CanvasToolConfigItem }) {
   return (
-    <div className="flex h-7 min-w-0 items-center gap-1.5 rounded-md border border-border bg-muted/25 px-1.5 text-[10px]">
+    <div className="flex h-7 min-w-0 items-center gap-1.5 rounded-lg border border-border/80 bg-muted/25 px-1.5 type-tiny">
       <span className="min-w-0 flex-1 truncate text-muted-foreground">{item.label}</span>
       <span className="max-w-[86px] truncate font-medium text-foreground">{item.value}</span>
     </div>
@@ -303,7 +324,7 @@ function OutputTile({ slot, renderPortHandle }: { slot: CanvasToolSlot; renderPo
       type="button"
       data-output-port-id={slot.outputPortId ?? `tool-out:${slot.id}`}
       className={cn(
-        'relative flex h-[58px] min-w-0 flex-col rounded-md border text-left transition-colors',
+        'relative flex h-[58px] min-w-0 flex-col rounded-lg border text-left transition-colors',
         isReady ? 'border-border bg-background' : 'border-dashed border-border bg-muted/20 hover:bg-muted/40',
         isFailed && 'border-destructive/40 bg-destructive/5',
       )}
@@ -317,15 +338,15 @@ function OutputTile({ slot, renderPortHandle }: { slot: CanvasToolSlot; renderPo
         handleType="source"
         renderPortHandle={renderPortHandle}
       />
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-t-md bg-muted/25">
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-t-lg bg-muted/25">
         {isPending ? <Loader2 size={14} className="animate-spin text-muted-foreground" /> : <Icon size={15} className={cn(isFailed ? 'text-destructive' : 'text-muted-foreground/60')} />}
       </div>
       <div className="w-full border-t border-border/60 px-1.5 py-1">
         <div className="flex items-center gap-1">
           {isReady ? <CheckCircle2 size={10} className="shrink-0 text-emerald-600" /> : <Circle size={10} className="shrink-0 text-muted-foreground/60" />}
-          <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-foreground">{slot.label}</span>
+          <span className="min-w-0 flex-1 truncate type-tiny font-medium text-foreground">{slot.label}</span>
         </div>
-        <p className={cn('mt-0.5 truncate text-[9px] text-muted-foreground', isFailed && 'text-destructive')}>
+        <p className={cn('mt-0.5 truncate type-micro text-muted-foreground', isFailed && 'text-destructive')}>
           {slot.summary ?? slotStateLabel(slot.state)}
         </p>
       </div>
@@ -335,7 +356,7 @@ function OutputTile({ slot, renderPortHandle }: { slot: CanvasToolSlot; renderPo
 
 function EmptyRow({ label }: { label: string }) {
   return (
-    <div className="flex h-7 items-center rounded-md border border-dashed border-border px-1.5 text-[10px] text-muted-foreground">
+    <div className="flex h-7 items-center rounded-lg border border-dashed border-border px-1.5 type-tiny text-muted-foreground">
       {label}
     </div>
   )
@@ -343,7 +364,7 @@ function EmptyRow({ label }: { label: string }) {
 
 function SectionTitle({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
-    <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
+    <div className="flex items-center gap-1.5 type-tiny font-medium text-muted-foreground">
       <Icon size={11} />
       <span>{label}</span>
     </div>
@@ -353,9 +374,7 @@ function SectionTitle({ icon: Icon, label }: { icon: LucideIcon; label: string }
 function slotIcon(type: CanvasToolSlotType) {
   if (type === 'image') return Image
   if (type === 'video') return Video
-  if (type === 'audio') return Video
   if (type === 'json') return FileJson
-  if (type === 'entity') return Puzzle
   return Text
 }
 

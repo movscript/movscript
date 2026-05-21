@@ -12,6 +12,8 @@ import { Label } from '@movscript/ui'
 import { translateApiError } from '@/lib/apiError'
 import type { AuthSession } from '@/store/userStore'
 import { ROUTES } from '@/routes/projectRoutes'
+import { useAppSettingsStore } from '@/store/appSettingsStore'
+import { WorkModePrompt, type WorkModeChoice } from '@/components/app/WorkModePrompt'
 
 export default function InvitePage() {
   const { t } = useTranslation()
@@ -21,11 +23,13 @@ export default function InvitePage() {
   const setSession = useUserStore((s) => s.setSession)
   const setCurrentOrg = useUserStore((s) => s.setCurrentOrg)
   const setCurrentProject = useProjectStore((s) => s.setCurrent)
+  const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
+  const [pendingSession, setPendingSession] = useState<(AuthSession & { org_id?: number }) | null>(null)
 
   const { data: invite, isLoading, isError } = useQuery({
     queryKey: ['invitation', token],
@@ -39,7 +43,8 @@ export default function InvitePage() {
       api.post(`/invitations/${token}/accept`, body).then((r) => r.data),
     onSuccess: (data: AuthSession & { org_id?: number }) => {
       if (!currentUser) {
-        setSession(data)
+        setPendingSession(data)
+        return
       }
       const orgId = data.org_id ?? invite?.org_id
       if (orgId) {
@@ -63,10 +68,22 @@ export default function InvitePage() {
     }
   }
 
+  function completeInviteLogin(mode: WorkModeChoice) {
+    if (!pendingSession) return
+    setWorkMode(mode)
+    setSession(pendingSession)
+    const orgId = pendingSession.org_id ?? invite?.org_id
+    if (orgId) {
+      setCurrentOrg(orgId)
+      setCurrentProject(null)
+    }
+    navigate(ROUTES.projects, { replace: true })
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+        <p className="type-body text-muted-foreground">{t('common.loading')}</p>
       </div>
     )
   }
@@ -75,8 +92,23 @@ export default function InvitePage() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6">
         <div className="text-center">
-          <p className="text-sm font-medium text-foreground mb-1">{t('invite.invalidTitle')}</p>
-          <p className="text-xs text-muted-foreground">{t('invite.invalidDescription')}</p>
+          <p className="type-body font-medium text-foreground mb-1">{t('invite.invalidTitle')}</p>
+          <p className="type-label text-muted-foreground">{t('invite.invalidDescription')}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (pendingSession) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6 text-foreground">
+        <div className="w-full max-w-4xl">
+          <p className="mb-2 type-body font-medium text-primary">Movscript</p>
+          <WorkModePrompt
+            title={t('auth.workModeTitle')}
+            description={t('auth.workModeDescription')}
+            onSelect={completeInviteLogin}
+          />
         </div>
       </div>
     )
@@ -90,15 +122,15 @@ export default function InvitePage() {
             <Building2 size={18} className="text-muted-foreground" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-foreground">{invite.org_name}</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="type-body font-semibold text-foreground">{invite.org_name}</p>
+            <p className="type-label text-muted-foreground">
               {t('invite.roleLabel', { role: t(`org.roles.${invite.role}`) })}
             </p>
           </div>
         </div>
 
-        <h1 className="text-xl font-bold text-foreground mb-1">{t('invite.title')}</h1>
-        <p className="text-sm text-muted-foreground mb-6">
+        <h1 className="type-title font-bold text-foreground mb-1">{t('invite.title')}</h1>
+        <p className="type-body text-muted-foreground mb-6">
           {currentUser
             ? t('invite.subtitleLoggedIn', { org: invite.org_name })
             : t('invite.subtitleRegister', { org: invite.org_name })}
@@ -139,7 +171,7 @@ export default function InvitePage() {
           </div>
         )}
 
-        {error && <p className="text-xs text-destructive mb-3">{error}</p>}
+        {error && <p className="type-label text-destructive mb-3">{error}</p>}
 
         <Button className="w-full" onClick={handleAccept} disabled={accept.isPending}>
           {accept.isPending

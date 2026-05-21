@@ -1,5 +1,5 @@
 import { fetchResourceById, type AgentMessageViewModelDeps } from '@/lib/agentMessageViewModel'
-import { localAgentClient, type AgentRun, type AgentThread, type LocalAgentClient } from '@/lib/localAgentClient'
+import { localAgentClient, type AgentRun, type AgentThread, type LocalAgentClient, type RuntimeInteraction } from '@/lib/localAgentClient'
 import { projectRuntimeThreadMessages } from '@/lib/agentThreadProjection'
 import type { ChatMessage, ChatRunActivityEvent } from '@/store/agentStore'
 import type { RawResource } from '@/types'
@@ -39,12 +39,15 @@ export async function loadRuntimeThreadProjection(input: {
       if (input.signal?.aborted) throw error
       return { threadId: thread.id, runs: [] }
     })
-  const runs = mergeRuns(runProjection.runs, input.ensureRuns ?? [])
-  const actionableRuns = resolveActionableRuns(runs, snapshot?.interactions.actionableRunIds)
+  const runs = attachRuntimeInteractionIds(mergeRuns(runProjection.runs, input.ensureRuns ?? []), snapshot?.interactions)
+  const actionableRuns = resolveActionableRuns(runs, snapshot?.interactions)
   const currentRun = resolveCurrentRun({
     runs,
     actionableRuns,
-    snapshotRunId: snapshot?.current.runId,
+    snapshotRunIds: [
+      ...(snapshot?.current.waitingRunIds ?? []),
+      ...(snapshot?.current.activeRunIds ?? []),
+    ],
     activeRunId: thread.activeRunId,
     lastRunId: thread.lastRunId,
   })
@@ -61,6 +64,28 @@ export async function loadRuntimeThreadProjection(input: {
   return { thread, runs, currentRun, actionableRuns, messages }
 }
 
+function attachRuntimeInteractionIds(runs: AgentRun[], interactions: RuntimeInteraction[] | undefined): AgentRun[] {
+  const interactionByApprovalId = new Map<string, string>()
+  for (const interaction of interactions ?? []) {
+    if (interaction.kind !== 'approval') continue
+    const payload = isRecord(interaction.payload) ? interaction.payload : undefined
+    const approvalId = typeof payload?.approvalId === 'string' ? payload.approvalId : undefined
+    if (approvalId) interactionByApprovalId.set(approvalId, interaction.id)
+  }
+  if (interactionByApprovalId.size === 0) return runs
+  return runs.map((run) => ({
+    ...run,
+    pendingApprovals: (run.pendingApprovals ?? []).map((approval) => {
+      const interactionId = interactionByApprovalId.get(approval.id)
+      return interactionId ? { ...approval, interactionId } : approval
+    }),
+  }))
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
 function mergeRuns(primary: AgentRun[], ensured: AgentRun[]): AgentRun[] {
   const byId = new Map<string, AgentRun>()
   for (const run of primary) byId.set(run.id, run)
@@ -73,20 +98,23 @@ function mergeRuns(primary: AgentRun[], ensured: AgentRun[]): AgentRun[] {
 function resolveCurrentRun(input: {
   runs: AgentRun[]
   actionableRuns: AgentRun[]
-  snapshotRunId?: string
+  snapshotRunIds?: string[]
   activeRunId?: string
   lastRunId?: string
 }): AgentRun | undefined {
   const byId = new Map(input.runs.map((run) => [run.id, run]))
   return input.actionableRuns[0]
-    ?? (input.snapshotRunId ? byId.get(input.snapshotRunId) : undefined)
+    ?? (input.snapshotRunIds ?? []).map((runId) => byId.get(runId)).find((run): run is AgentRun => !!run)
     ?? (input.activeRunId ? byId.get(input.activeRunId) : undefined)
     ?? (input.lastRunId ? byId.get(input.lastRunId) : undefined)
     ?? [...input.runs].sort(compareRunsByUpdatedAtDesc)[0]
 }
 
-function resolveActionableRuns(runs: AgentRun[], actionableRunIds: string[] | undefined): AgentRun[] {
+function resolveActionableRuns(runs: AgentRun[], interactions: Array<{ runId: string; status: string }> | undefined): AgentRun[] {
   const byId = new Map(runs.map((run) => [run.id, run]))
+  const actionableRunIds = Array.from(new Set((interactions ?? [])
+    .filter((interaction) => interaction.status === 'pending')
+    .map((interaction) => interaction.runId)))
   if (actionableRunIds?.length) {
     const indexed = actionableRunIds
       .map((runId) => byId.get(runId))

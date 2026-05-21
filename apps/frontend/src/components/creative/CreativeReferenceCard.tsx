@@ -115,8 +115,8 @@ export function CreativeReferenceCard({
             <Icon size={19} className={meta.text} />
           </span>
           <div className="text-right">
-            <p className="text-xs font-medium text-muted-foreground">{reference.version}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">引用 {reference.usage}</p>
+            <p className="type-label font-medium text-muted-foreground">{reference.version}</p>
+            <p className="mt-1 type-caption text-muted-foreground">引用 {reference.usage}</p>
           </div>
         </div>
       </div>
@@ -125,15 +125,15 @@ export function CreativeReferenceCard({
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <span className={cn('h-2 w-2 rounded-full', meta.dot)} />
-              <p className="truncate text-sm font-semibold text-foreground">{reference.title}</p>
+              <p className="truncate type-body font-semibold text-foreground">{reference.title}</p>
             </div>
-            <p className="mt-1 truncate text-xs text-muted-foreground">{reference.subtitle}</p>
+            <p className="mt-1 truncate type-label text-muted-foreground">{reference.subtitle}</p>
           </div>
-          <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium', status.className)}>{status.label}</span>
+          <span className={cn('shrink-0 rounded px-1.5 py-0.5 type-tiny font-medium', status.className)}>{status.label}</span>
         </div>
-        <p className="mt-2 line-clamp-2 min-h-9 text-xs leading-relaxed text-muted-foreground">{reference.summary}</p>
+        <p className="mt-2 line-clamp-2 min-h-9 type-label leading-relaxed text-muted-foreground">{reference.summary}</p>
         <div className="mt-3">
-          <div className="mb-1 flex items-center justify-between text-[11px]">
+          <div className="mb-1 flex items-center justify-between type-caption">
             <span className="text-muted-foreground">完整度</span>
             <span className="font-medium text-foreground">{reference.coverage}%</span>
           </div>

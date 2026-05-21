@@ -1,6 +1,5 @@
 import type { AgentChatViewLayoutProps } from '@/components/agent/AgentChatViewLayout'
 import type { useAgentChatComposerState } from '@/components/agent/useAgentChatComposerState'
-import type { useAgentChatContextState } from '@/components/agent/useAgentChatContextState'
 import type { useAgentChatInteractionController } from '@/components/agent/useAgentChatInteractionController'
 import type { useAgentChatPresentationState } from '@/components/agent/useAgentChatPresentationState'
 import type { useAgentChatRuntimeState } from '@/components/agent/useAgentChatRuntimeState'
@@ -12,7 +11,6 @@ import type { Project } from '@/types'
 interface BuildAgentChatViewLayoutPropsInput {
   activeLocalRun: AgentRun | null
   composer: ReturnType<typeof useAgentChatComposerState>
-  context: ReturnType<typeof useAgentChatContextState>
   conv: Conversation
   conversations: Conversation[]
   currentProject: Project | null
@@ -28,6 +26,8 @@ interface BuildAgentChatViewLayoutPropsInput {
   onCollapse: () => void
   onNewConversation: () => void
   onSelectConversation: (id: string) => void
+  showCollapse?: boolean
+  showConversationControls?: boolean
   updateDraft: (patch: { input: string }) => void
   updatePlanDispatchSettings: (settings: PlanDispatchSettings) => void
 }
@@ -35,7 +35,6 @@ interface BuildAgentChatViewLayoutPropsInput {
 export function buildAgentChatViewLayoutProps({
   activeLocalRun,
   composer,
-  context,
   conv,
   conversations,
   currentProject,
@@ -51,6 +50,8 @@ export function buildAgentChatViewLayoutProps({
   onCollapse,
   onNewConversation,
   onSelectConversation,
+  showCollapse,
+  showConversationControls,
   updateDraft,
   updatePlanDispatchSettings,
 }: BuildAgentChatViewLayoutPropsInput): AgentChatViewLayoutProps {
@@ -70,6 +71,8 @@ export function buildAgentChatViewLayoutProps({
       onCollapse,
       onNewConversation,
       onSelectConversation,
+      showCollapse,
+      showConversationControls,
     },
     thread: {
       activePlanSnapshot: presentation.activePlanSnapshot,
@@ -99,32 +102,6 @@ export function buildAgentChatViewLayoutProps({
       onReworkPlanReview: interaction.reworkPlanTaskReview,
       onScroll: presentation.onThreadScroll,
       onUpdatePlanDispatchSettings: updatePlanDispatchSettings,
-    },
-    context: {
-      activeConversationManifest: !!context.activeConversationManifest,
-      agentPageContext: context.agentPageContext,
-      agentRuntimeContext: context.agentRuntimeContext,
-      canAutoStartLocalAgent: context.canAutoStartLocalAgent,
-      capabilities: context.localAgentCapabilities,
-      checkingLocalAgent: context.checkingLocalAgent,
-      config: context.agentContextConfig,
-      contextPaneHeight: context.contextPaneHeight,
-      contextSubtitle: context.contextSubtitle,
-      contextThreadId: context.contextThreadId,
-      currentProject,
-      fetchingCapabilities: context.fetchingLocalAgentCapabilities,
-      fetchingInspect: context.fetchingLocalAgentInspect,
-      inspect: context.localAgentInspect,
-      localAgentErrorMessage: context.localAgentErrorMessage,
-      localAgentHealth: context.localAgentHealth,
-      localAgentOnline: context.localAgentOnline,
-      productWorkflow: context.productWorkflow,
-      showContext: context.showContext,
-      startingLocalAgent: context.startingLocalAgent,
-      onRefresh: context.refreshAgentCatalogContext,
-      onStartLocalAgent: context.startLocalAgent,
-      onToggleContext: context.toggleContext,
-      onStartResize: context.startContextPaneResize,
     },
     composer: {
       answeringPendingInput: presentation.answeringPendingInput,

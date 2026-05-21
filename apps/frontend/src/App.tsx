@@ -3,6 +3,7 @@ import { BrowserRouter, HashRouter, Routes, Route, Navigate, Link, useNavigate, 
 import { Sidebar } from './components/layout/Sidebar'
 import { Header } from './components/layout/Header'
 import { AIAgentPanel } from './components/layout/AIAgentPanel'
+import { WorkspaceShell } from './components/layout/WorkspaceShell'
 import { Toaster } from './components/ui/Toaster'
 import { useProjectStore } from './store/projectStore'
 import { useUserStore } from './store/userStore'
@@ -37,6 +38,7 @@ import PluginToolPage from './pages/plugins/PluginToolPage'
 import ProjectOverviewPage from './pages/project/overview/ProjectOverviewPage'
 import ProjectStandardsPage from './pages/project/standards/ProjectStandardsPage'
 import WorkbenchPage from './pages/workbench/WorkbenchPage'
+import ProjectAgentModePage, { ProjectAgentModeSidebar } from './pages/project/agent/ProjectAgentModePage'
 import ScriptsPage from './pages/scripts/ScriptsPage'
 import SegmentsPage from './pages/segments/SegmentsPage'
 import SceneMomentsPage from './pages/scene-moments/SceneMomentsPage'
@@ -50,9 +52,16 @@ import i18n from './i18n'
 import { MCPContextBridge } from './mcp/MCPContextBridge'
 import { Loader2 } from 'lucide-react'
 import { runtimeRoutes } from '@runtime'
+import { getProjectWorkbenchDefinition } from './pages/project/projectSurfaces'
 import { LEGACY_ROUTES, ROUTES, mergeSearch, withSearch } from './routes/projectRoutes'
 
 // ── Error boundary ───────────────────────────────────────────────────────────
+
+const projectStandardsWorkbenchRoute = getProjectWorkbenchDefinition('project_standards').route
+const preProductionWorkbenchRoute = getProjectWorkbenchDefinition('pre_production').route
+const creativePlanWorkbenchRoute = getProjectWorkbenchDefinition('creative_plan').route
+const contentOrchestrationWorkbenchRoute = getProjectWorkbenchDefinition('content_orchestration').route
+const deliveryWorkbenchRoute = getProjectWorkbenchDefinition('delivery').route
 
 interface EBState { error: Error | null }
 
@@ -69,15 +78,15 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
       return (
         <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
           <div className="w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center">
-            <span className="text-destructive text-xl">!</span>
+            <span className="text-destructive type-title">!</span>
           </div>
           <div>
-            <p className="text-sm font-medium text-foreground mb-1">{i18n.t('errorBoundary.title')}</p>
-            <p className="text-xs text-muted-foreground font-mono max-w-sm break-all">{error.message}</p>
+            <p className="type-body font-medium text-foreground mb-1">{i18n.t('errorBoundary.title')}</p>
+            <p className="type-label text-muted-foreground font-mono max-w-sm break-all">{error.message}</p>
           </div>
           <button
             onClick={() => this.setState({ error: null })}
-            className="text-xs border border-border text-muted-foreground px-4 py-2 rounded hover:bg-muted transition-colors"
+            className="type-label border border-border text-muted-foreground px-4 py-2 rounded hover:bg-muted transition-colors"
           >
             {i18n.t('common.retry')}
           </button>
@@ -156,15 +165,15 @@ function BackendBootOverlay() {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/92 px-6 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 text-center shadow-lg">
         <div className={`mx-auto mb-4 flex size-11 items-center justify-center rounded-md ${isError ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}>
-          {isError ? <span className="text-lg font-semibold">!</span> : <Loader2 size={22} className="animate-spin" />}
+          {isError ? <span className="type-title-sm font-semibold">!</span> : <Loader2 size={22} className="animate-spin" />}
         </div>
-        <h2 className="text-sm font-semibold">
+        <h2 className="type-body font-semibold">
           {isError ? i18n.t('backendBoot.errorTitle') : i18n.t('backendBoot.startingTitle')}
         </h2>
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">
+        <p className="mt-2 type-label leading-5 text-muted-foreground">
           {isError ? (displayStatus.message || i18n.t('backendBoot.errorDescription')) : i18n.t('backendBoot.startingDescription')}
         </p>
-        <p className="mt-4 truncate rounded-md bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
+        <p className="mt-4 truncate rounded-md bg-muted px-3 py-2 font-mono type-label text-muted-foreground">
           {displayStatus.baseURL}
         </p>
         {isError && (
@@ -173,13 +182,13 @@ function BackendBootOverlay() {
               type="button"
               onClick={() => void retryLocalBackend()}
               disabled={retrying}
-              className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-8 items-center rounded-md border border-border px-3 type-label font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
             >
               {retrying ? i18n.t('backendBoot.retrying') : i18n.t('backendBoot.retry')}
             </button>
             <Link
               to={ROUTES.appSettings}
-              className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+              className="inline-flex h-8 items-center rounded-md border border-border px-3 type-label font-medium text-foreground transition-colors hover:bg-muted"
             >
               {i18n.t('backendBoot.openSettings')}
             </Link>
@@ -192,7 +201,7 @@ function BackendBootOverlay() {
 
 function LoadingScreen({ fullScreen = false }: { fullScreen?: boolean }) {
   return (
-    <div className={fullScreen ? 'fixed inset-0 flex items-center justify-center bg-background text-sm text-muted-foreground' : 'flex h-full items-center justify-center text-sm text-muted-foreground'}>
+    <div className={fullScreen ? 'fixed inset-0 flex items-center justify-center bg-background type-body text-muted-foreground' : 'flex h-full items-center justify-center type-body text-muted-foreground'}>
       <Loader2 size={16} className="mr-2 animate-spin" />
       {i18n.t('common.loading')}
     </div>
@@ -230,32 +239,32 @@ function OrgGuard({ children }: { children: React.ReactNode }) {
 }
 
 function Padded({ children }: { children: React.ReactNode }) {
-  return <div className="h-full overflow-auto p-6">{children}</div>
+  return <div className="h-full overflow-auto p-5">{children}</div>
 }
 
 function LegacyDeliveryWorkbenchRedirect() {
   const { search } = useLocation()
-  return <Navigate to={withSearch(ROUTES.project.deliveryWorkbench, search)} replace />
+  return <Navigate to={withSearch(deliveryWorkbenchRoute, search)} replace />
 }
 
 function LegacyContentUnitOrchestrateRedirect() {
   const { search } = useLocation()
-  return <Navigate to={withSearch(ROUTES.project.contentUnitWorkbench, search)} replace />
+  return <Navigate to={withSearch(contentOrchestrationWorkbenchRoute, search)} replace />
 }
 
 function LegacyPreProductionRedirect() {
   const { search } = useLocation()
-  return <Navigate to={withSearch(ROUTES.project.preProduction, search)} replace />
+  return <Navigate to={withSearch(preProductionWorkbenchRoute, search)} replace />
 }
 
 function LegacyPreProductionSettingsRedirect() {
   const { search } = useLocation()
-  return <Navigate to={mergeSearch(ROUTES.project.preProduction, search, { tab: 'settings' })} replace />
+  return <Navigate to={mergeSearch(preProductionWorkbenchRoute, search, { tab: 'settings' })} replace />
 }
 
 function LegacyPreProductionAssetsRedirect() {
   const { search } = useLocation()
-  return <Navigate to={mergeSearch(ROUTES.project.preProduction, search, { tab: 'assets' })} replace />
+  return <Navigate to={mergeSearch(preProductionWorkbenchRoute, search, { tab: 'assets' })} replace />
 }
 
 function LegacyProjectOverviewRedirect() {
@@ -265,12 +274,12 @@ function LegacyProjectOverviewRedirect() {
 
 function LegacyProjectStandardsRedirect() {
   const { search } = useLocation()
-  return <Navigate to={withSearch(ROUTES.project.standards, search)} replace />
+  return <Navigate to={withSearch(projectStandardsWorkbenchRoute, search)} replace />
 }
 
 function LegacyProductionOrchestrationRedirect() {
   const { search } = useLocation()
-  return <Navigate to={withSearch(ROUTES.project.productionOrchestration, search)} replace />
+  return <Navigate to={withSearch(creativePlanWorkbenchRoute, search)} replace />
 }
 
 function LegacyRedirect({ to }: { to: string }) {
@@ -278,25 +287,40 @@ function LegacyRedirect({ to }: { to: string }) {
   return <Navigate to={withSearch(to, search)} replace />
 }
 
+function isAgentCoveredProjectRoute(pathname: string) {
+  if (pathname === ROUTES.project.agent) return true
+  if (pathname.startsWith('/project/')) return true
+  return Object.values(LEGACY_ROUTES).some((route) => pathname === route || pathname.startsWith(`${route}/`))
+}
+
 function ShellLayout({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
+  const { pathname } = useLocation()
+  const current = useProjectStore((s) => s.current)
+  const workMode = useAppSettingsStore((s) => s.settings.workMode)
+  const agentMode = workMode === 'agent' && !!current && isAgentCoveredProjectRoute(pathname)
+
   const shell = (
-    <div className="fixed inset-0 flex overflow-hidden bg-background text-foreground">
+    <>
       <RedirectListener />
-      <Sidebar />
-      <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Header />
-        <main className="relative min-w-0 flex-1 min-h-0 overflow-hidden bg-muted/20">
-          <div className="flex h-full min-h-0 min-w-0 overflow-hidden">
-            <div className="min-w-0 flex-1 overflow-hidden p-3">
-              <div className="h-full min-h-0 min-w-0 overflow-y-auto rounded-md border border-border bg-background">
-                <RouteErrorBoundary>{children}</RouteErrorBoundary>
-              </div>
-            </div>
-            <AIAgentPanel />
-          </div>
-        </main>
-      </div>
-    </div>
+      {agentMode ? (
+        <WorkspaceShell
+          sidebar={<ProjectAgentModeSidebar />}
+          header={<Header titleKey="header.titles.projectAgentMode" />}
+        >
+          <RouteErrorBoundary>
+            <ProjectGuard><ProjectAgentModePage embeddedInShell /></ProjectGuard>
+          </RouteErrorBoundary>
+        </WorkspaceShell>
+      ) : (
+        <WorkspaceShell
+          sidebar={<Sidebar />}
+          header={<Header />}
+          assistantPanel={<AIAgentPanel />}
+        >
+          <RouteErrorBoundary>{children}</RouteErrorBoundary>
+        </WorkspaceShell>
+      )}
+    </>
   )
 
   return requireOrg ? <OrgGuard>{shell}</OrgGuard> : shell
@@ -371,7 +395,7 @@ export default function App() {
             <ShellLayout>
               <Routes>
                 <Route path={ROUTES.root} element={<Navigate to={ROUTES.projects} replace />} />
-                <Route path={ROUTES.projects} element={<Padded><ProjectsPage /></Padded>} />
+                <Route path={ROUTES.projects} element={<ProjectsPage />} />
                 <Route path="/admin/*" element={<Navigate to={ROUTES.projects} replace />} />
 
               {/* 项目模块（Master-Detail 布局，无 Padded 包装） */}
@@ -415,6 +439,7 @@ export default function App() {
               <Route path={LEGACY_ROUTES.deliveryWorkbench} element={<ProjectGuard><LegacyDeliveryWorkbenchRedirect /></ProjectGuard>} />
               <Route path={LEGACY_ROUTES.deliveryWorkbenchFlat} element={<ProjectGuard><LegacyDeliveryWorkbenchRedirect /></ProjectGuard>} />
               <Route path={ROUTES.project.overview} element={<ProjectGuard><ProjectOverviewPage /></ProjectGuard>} />
+              <Route path={ROUTES.project.agent} element={<ProjectGuard><ProjectAgentModePage embeddedInShell /></ProjectGuard>} />
               <Route path={LEGACY_ROUTES.projectHome} element={<ProjectGuard><LegacyProjectOverviewRedirect /></ProjectGuard>} />
               <Route path={ROUTES.project.standards} element={<ProjectGuard><ProjectStandardsPage /></ProjectGuard>} />
               <Route path={LEGACY_ROUTES.projectWorkspace} element={<ProjectGuard><LegacyProjectStandardsRedirect /></ProjectGuard>} />

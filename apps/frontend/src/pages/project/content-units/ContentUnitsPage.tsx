@@ -441,7 +441,7 @@ export default function ContentUnitsPage() {
         header={(
           <header className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 type-label text-muted-foreground">
               <Database size={14} />
               <span>{project?.name ?? '当前项目'}</span>
               <ChevronRight size={13} />
@@ -449,8 +449,8 @@ export default function ContentUnitsPage() {
               <ChevronRight size={13} />
               <span>制作项</span>
             </div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">制作项</h1>
-            <p className="mt-1 max-w-4xl text-sm leading-relaxed text-muted-foreground">
+            <h1 className="mt-2 type-page-title font-semibold tracking-normal text-foreground">制作项</h1>
+            <p className="mt-1 max-w-4xl type-body leading-relaxed text-muted-foreground">
               集中查看制作项的来源、输入缺口和关联对象；拆解、关键帧、素材补齐和生成决策统一在内容编排工作台完成。
             </p>
           </div>
@@ -465,7 +465,7 @@ export default function ContentUnitsPage() {
               <Plus size={15} />
               新建制作项
             </Button>
-            <Button variant="outline" className="h-9 w-9 p-0" onClick={refreshAll} loading={isFetching} aria-label="刷新制作项" title="刷新制作项">
+            <Button size="icon" variant="outline" onClick={refreshAll} loading={isFetching} aria-label="刷新制作项" title="刷新制作项">
               <RefreshCcw size={15} />
             </Button>
           </div>
@@ -525,8 +525,8 @@ export default function ContentUnitsPage() {
           <section className="rounded-lg border border-border bg-card">
               <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">制作项清单</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">每一项都是可被内容编排工作台检查、复核和锁定的生产颗粒。</p>
+                  <p className="type-body font-semibold text-foreground">制作项清单</p>
+                  <p className="mt-0.5 type-label text-muted-foreground">每一项都是可被内容编排工作台检查、复核和锁定的生产颗粒。</p>
                 </div>
               </div>
 
@@ -706,19 +706,19 @@ function ContentUnitCard({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold leading-5 text-foreground">
-            {identifier ? <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{identifier}</span> : null}
+          <h3 className="flex min-w-0 items-center gap-1.5 type-body font-semibold leading-5 text-foreground">
+            {identifier ? <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 type-tiny font-semibold text-muted-foreground">{identifier}</span> : null}
             <span className="truncate">{titleOf(item.unit)}</span>
           </h3>
-          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{kindLabel(item.unit.kind)} · {formatDuration(item.unit.duration_sec)} · {sceneMomentTitle}</p>
+          <p className="mt-0.5 truncate type-caption text-muted-foreground">{kindLabel(item.unit.kind)} · {formatDuration(item.unit.duration_sec)} · {sceneMomentTitle}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <StatusBadge status={status} compact />
-          <Badge variant={item.readiness >= 70 ? 'success' : item.readiness > 0 ? 'secondary' : 'outline'} className="text-[10px]">{item.readiness}%</Badge>
+          <Badge variant={item.readiness >= 70 ? 'success' : item.readiness > 0 ? 'secondary' : 'outline'} className="type-tiny">{item.readiness}%</Badge>
         </div>
       </div>
-      <p className="mt-1.5 truncate text-xs text-muted-foreground">{item.unit.description || item.unit.prompt || '暂无内容描述或创作提示'}</p>
-      <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+      <p className="mt-1.5 truncate type-label text-muted-foreground">{item.unit.description || item.unit.prompt || '暂无内容描述或创作提示'}</p>
+      <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 type-caption text-muted-foreground">
         <span className="truncate">来源 {item.scriptBlock ? scriptBlockSourceLabel(item.scriptBlock) : item.unit.script_block_id ? `剧本块 #${item.unit.script_block_id}` : '待补'}</span>
         <span>设定 {item.references.length}</span>
         <span>素材 {item.assetSlots.length}</span>
@@ -773,12 +773,12 @@ function ContentUnitDetail({
             </Button>
           </div>
         </div>
-        <h2 className="mt-2.5 text-base font-semibold text-foreground">{titleOf(item.unit)}</h2>
-        <p className="mt-1 text-xs text-muted-foreground">{kindLabel(item.unit.kind)} · {formatDuration(item.unit.duration_sec)}</p>
+        <h2 className="mt-2.5 type-body-lg font-semibold text-foreground">{titleOf(item.unit)}</h2>
+        <p className="mt-1 type-label text-muted-foreground">{kindLabel(item.unit.kind)} · {formatDuration(item.unit.duration_sec)}</p>
       </div>
       <div className="space-y-3 p-3">
         <div>
-          <div className="mb-2 flex items-center justify-between text-xs">
+          <div className="mb-2 flex items-center justify-between type-label">
             <span className="text-muted-foreground">编排准备度</span>
             <span className="font-medium tabular-nums text-foreground">{item.readiness}%</span>
           </div>
@@ -797,9 +797,9 @@ function ContentUnitDetail({
           <MiniStat label="候选总数" value={candidateTotal(item.targets)} />
         </div>
         <details className="rounded-md border border-border bg-background" data-testid="content-unit-detail-context">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 text-sm font-medium text-foreground">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 type-body font-medium text-foreground">
             <span>详细上下文</span>
-            <Badge variant="outline" className="text-[10px]">文本 / 运镜</Badge>
+            <Badge variant="outline" className="type-tiny">文本 / 运镜</Badge>
           </summary>
           <div className="space-y-3 border-t border-border p-2.5">
             <InfoBlock label="情景" value={item.sceneMoment?.description || item.sceneMoment?.action_text || '暂无情景描述'} />
@@ -842,10 +842,10 @@ function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIc
       </span>
       <div className="min-w-0">
         <div className="flex items-baseline gap-1.5">
-          <p className="text-sm font-semibold tabular-nums text-foreground">{value}</p>
-          <p className="truncate text-[11px] text-muted-foreground">{label}</p>
+          <p className="type-body font-semibold tabular-nums text-foreground">{value}</p>
+          <p className="truncate type-caption text-muted-foreground">{label}</p>
         </div>
-        <p className="truncate text-[11px] text-muted-foreground">{detail}</p>
+        <p className="truncate type-caption text-muted-foreground">{detail}</p>
       </div>
     </div>
   )
@@ -857,21 +857,21 @@ function RelatedPanel({ title, icon: Icon, records, empty }: { title: string; ic
       <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
         <div className="flex items-center gap-2">
           <Icon size={14} className="text-muted-foreground" />
-          <p className="text-sm font-semibold text-foreground">{title}</p>
+          <p className="type-body font-semibold text-foreground">{title}</p>
         </div>
-        <Badge variant="outline" className="text-[10px]">{records.length}</Badge>
+        <Badge variant="outline" className="type-tiny">{records.length}</Badge>
       </div>
       <div className="space-y-2 p-3">
         {records.length === 0 ? (
-          <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">{empty}</p>
+          <p className="rounded-md border border-dashed border-border px-3 py-3 type-label text-muted-foreground">{empty}</p>
         ) : (
           records.slice(0, 6).map((record) => (
             <div key={record.id} className="rounded-md border border-border bg-background p-2.5">
               <div className="flex items-start justify-between gap-2">
-                <p className="min-w-0 truncate text-sm font-medium text-foreground">{record.title}</p>
+                <p className="min-w-0 truncate type-body font-medium text-foreground">{record.title}</p>
                 <StatusBadge status={record.status ?? 'draft'} compact />
               </div>
-              <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{record.subtitle}</p>
+              <p className="mt-1 line-clamp-2 type-caption leading-4 text-muted-foreground">{record.subtitle}</p>
             </div>
           ))
         )}
@@ -886,9 +886,9 @@ function ContentTargetPanel({ targets }: { targets: ContentTargetViewModel[] }) 
       <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
         <div className="flex items-center gap-2">
           <Play size={14} className="text-muted-foreground" />
-          <p className="text-sm font-semibold text-foreground">候选目标</p>
+          <p className="type-body font-semibold text-foreground">候选目标</p>
         </div>
-        <Badge variant="outline" className="text-[10px]">{targets.filter((target) => target.status !== 'missing').length}/4</Badge>
+        <Badge variant="outline" className="type-tiny">{targets.filter((target) => target.status !== 'missing').length}/4</Badge>
       </div>
       <div className="space-y-2 p-3">
         {targets.map((target) => {
@@ -901,10 +901,10 @@ function ContentTargetPanel({ targets }: { targets: ContentTargetViewModel[] }) 
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="truncate text-sm font-medium text-foreground">{target.label}</p>
+                    <p className="truncate type-body font-medium text-foreground">{target.label}</p>
                     <StatusBadge status={target.status === 'ready' ? 'locked' : target.status} compact />
                   </div>
-                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{target.description}</p>
+                  <p className="mt-0.5 line-clamp-2 type-caption leading-4 text-muted-foreground">{target.description}</p>
                   <div className="mt-2 grid grid-cols-3 gap-1.5">
                     <MiniStat label="槽" value={target.slots.length + target.keyframes.length} />
                     <MiniStat label="候选" value={target.candidateCount} />
@@ -925,8 +925,8 @@ function CheckRow({ ok, label, detail }: { ok: boolean; label: string; detail: s
     <div className="flex gap-2 rounded-md border border-border bg-background p-2.5">
       {ok ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-600" /> : <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-600" />}
       <div className="min-w-0">
-        <p className="text-xs font-medium text-foreground">{label}</p>
-        <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{detail}</p>
+        <p className="type-label font-medium text-foreground">{label}</p>
+        <p className="mt-0.5 line-clamp-2 type-caption leading-4 text-muted-foreground">{detail}</p>
       </div>
     </div>
   )
@@ -935,8 +935,8 @@ function CheckRow({ ok, label, detail }: { ok: boolean; label: string; detail: s
 function InfoBlock({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-foreground">{value}</p>
+      <p className="type-label font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 whitespace-pre-wrap break-words type-body leading-6 text-foreground">{value}</p>
     </div>
   )
 }
@@ -944,8 +944,8 @@ function InfoBlock({ label, value }: { label: string; value: string }) {
 function MiniStat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-md border border-border bg-background p-2">
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate text-sm font-semibold text-foreground">{value}</p>
+      <p className="type-caption text-muted-foreground">{label}</p>
+      <p className="mt-1 truncate type-body font-semibold text-foreground">{value}</p>
     </div>
   )
 }
@@ -953,7 +953,7 @@ function MiniStat({ label, value }: { label: string; value: string | number }) {
 function StatusBadge({ status, compact = false }: { status: string; compact?: boolean }) {
   const meta = statusMeta[status] ?? { label: status || '未知', className: 'bg-muted text-muted-foreground', dot: 'bg-muted-foreground' }
   return (
-    <Badge variant="secondary" className={cn('shrink-0', compact ? 'text-[9px]' : 'text-[10px]', meta.className)}>
+    <Badge variant="secondary" className={cn('shrink-0', compact ? 'type-micro' : 'type-tiny', meta.className)}>
       {meta.label}
     </Badge>
   )
@@ -965,8 +965,8 @@ function EmptyState({ title, detail, compact = false }: { title: string; detail:
       <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
         <Boxes size={18} />
       </div>
-      <p className="mt-3 text-sm font-semibold text-foreground">{title}</p>
-      <p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">{detail}</p>
+      <p className="mt-3 type-body font-semibold text-foreground">{title}</p>
+      <p className="mt-1 max-w-sm type-label leading-5 text-muted-foreground">{detail}</p>
     </div>
   )
 }

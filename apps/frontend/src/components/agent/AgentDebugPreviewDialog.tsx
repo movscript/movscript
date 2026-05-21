@@ -57,11 +57,11 @@ export function AgentDebugPreviewDialog({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <ClipboardCheck size={15} />
-              <h2 className="text-sm font-semibold text-foreground">{t('agents.chat.panel.debugPreview.title')}</h2>
-              <Badge variant="secondary" className="text-[10px]">{draft.route}</Badge>
-              {primaryRequest && <Badge variant="outline" className="text-[10px]">{primaryRequest.method}</Badge>}
+              <h2 className="type-body font-semibold text-foreground">{t('agents.chat.panel.debugPreview.title')}</h2>
+              <Badge variant="secondary" className="type-tiny">{draft.route}</Badge>
+              {primaryRequest && <Badge variant="outline" className="type-tiny">{primaryRequest.method}</Badge>}
             </div>
-            <p className="mt-1 truncate text-[11px] text-muted-foreground">
+            <p className="mt-1 truncate type-caption text-muted-foreground">
               {primaryRequest ? primaryRequest.url : draft.id}
             </p>
           </div>
@@ -79,9 +79,9 @@ export function AgentDebugPreviewDialog({
           </div>
 
           {draft.warnings.length > 0 && (
-            <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs">
+            <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 type-label">
               <div className="mb-1 font-medium text-amber-800 dark:text-amber-300">{t('agents.chat.panel.debugPreview.warnings')}</div>
-              <ul className="space-y-1 text-[11px] text-muted-foreground">
+              <ul className="space-y-1 type-caption text-muted-foreground">
                 {draft.warnings.map((warning) => <li key={warning}>{warning}</li>)}
               </ul>
             </div>
@@ -97,13 +97,13 @@ export function AgentDebugPreviewDialog({
 
           {preview?.context && (
             <DebugSection title={t('agents.chat.panel.debugPreview.context')}>
-              <div className="grid gap-2 text-[11px] md:grid-cols-3">
+              <div className="grid gap-2 type-caption md:grid-cols-3">
                 <DebugSummaryItem label={t('agents.chat.panel.debugPreview.route')} value={preview.context.route.pathname} />
                 <DebugSummaryItem label={t('agents.chat.panel.debugPreview.project')} value={preview.context.project ? `#${preview.context.project.id} ${preview.context.project.name ?? ''}`.trim() : t('common.emptyTitle')} />
                 <DebugSummaryItem label={t('agents.chat.panel.debugPreview.memories')} value={String(preview.context.memories.length)} />
               </div>
               {(preview.context.recentResources.length > 0 || preview.context.attachments.length > 0) && (
-                <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-muted p-1.5 text-[10px]">
+                <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-muted p-1.5 type-tiny">
                   {safeJSONStringify({
                     selection: preview.context.selection,
                     recentResources: preview.context.recentResources,
@@ -117,14 +117,14 @@ export function AgentDebugPreviewDialog({
           {preview?.skills && (
             <DebugSection title={t('agents.chat.panel.capabilities.skills')}>
               {preview.skills.length === 0 ? (
-                <div className="text-[11px] text-muted-foreground">{t('agents.chat.panel.runtime.noEnabledSkills')}</div>
+                <div className="type-caption text-muted-foreground">{t('agents.chat.panel.runtime.noEnabledSkills')}</div>
               ) : (
                 <div className="space-y-1.5">
                   {preview.skills.map((skill) => (
-                    <div key={skill.id} className="rounded-md border border-border bg-muted/20 p-2 text-[11px]">
+                    <div key={skill.id} className="rounded-md border border-border bg-muted/20 p-2 type-caption">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium text-foreground">{skill.name}</span>
-                        <Badge variant="outline" className="text-[9px]">p{skill.resolvedPriority}</Badge>
+                        <Badge variant="outline" className="type-micro">p{skill.resolvedPriority}</Badge>
                       </div>
                       <p className="mt-0.5 text-muted-foreground">{skill.description || skill.compiledInstruction || t('agents.chat.panel.runtime.noInstruction')}</p>
                     </div>
@@ -136,24 +136,24 @@ export function AgentDebugPreviewDialog({
 
           {preview?.policy && (
             <DebugSection title={t('agents.chat.panel.runtime.policy')}>
-              <div className="grid gap-2 text-[11px] md:grid-cols-4">
+              <div className="grid gap-2 type-caption md:grid-cols-4">
                 <DebugSummaryItem label={t('agents.chat.panel.runtime.approvalMode')} value={runApprovalModeLabel(preview.policy.approvalMode)} />
                 <DebugSummaryItem label={t('agents.chat.panel.runtime.maxToolCalls')} value={String(preview.policy.maxToolCalls)} />
                 <DebugSummaryItem label={t('agents.chat.panel.runtime.maxIterations')} value={String(preview.policy.maxIterations)} />
                 <DebugSummaryItem label={t('agents.chat.panel.runtime.fileBytes')} value={preview.policy.allowFileBytes ? t('agents.chat.panel.capabilities.approval.always') : t('agents.chat.panel.capabilities.approval.never')} />
               </div>
-              <div className="mt-2 grid gap-2 text-[11px] md:grid-cols-2">
+              <div className="mt-2 grid gap-2 type-caption md:grid-cols-2">
                 <div className="rounded-md border border-border bg-muted/20 p-2">
-                  <div className="mb-1 text-[10px] font-medium text-foreground">{t('agents.chat.panel.runtime.runtimeBoundaries')}</div>
-                  <div className="space-y-0.5 text-[10px] text-muted-foreground">
+                  <div className="mb-1 type-tiny font-medium text-foreground">{t('agents.chat.panel.runtime.runtimeBoundaries')}</div>
+                  <div className="space-y-0.5 type-tiny text-muted-foreground">
                     <div>{t('agents.chat.panel.runtime.network')}: {preview.policy.allowNetwork ? t('agents.chat.panel.runtime.allowed') : t('agents.chat.panel.runtime.blocked')}</div>
                     <div>{t('agents.chat.panel.runtime.fileBytes')}: {preview.policy.allowFileBytes ? t('agents.chat.panel.runtime.allowed') : t('agents.chat.panel.runtime.blocked')}</div>
                     <div>{t('agents.chat.panel.runtime.costLimit')}: {preview.policy.costLimit ? `${preview.policy.costLimit.amount} ${preview.policy.costLimit.currency}` : t('agents.chat.panel.runtime.none')}</div>
                   </div>
                 </div>
                 <div className="rounded-md border border-border bg-muted/20 p-2">
-                  <div className="mb-1 text-[10px] font-medium text-foreground">{t('agents.chat.panel.runtime.manifestGrants')}</div>
-                  <div className="space-y-0.5 text-[10px] text-muted-foreground">
+                  <div className="mb-1 type-tiny font-medium text-foreground">{t('agents.chat.panel.runtime.manifestGrants')}</div>
+                  <div className="space-y-0.5 type-tiny text-muted-foreground">
                     {(preview.agentManifest?.tools ?? []).slice(0, 8).map((grant) => (
                       <div key={grant.name}>{grant.name} · {toolGrantModeLabel(grant.mode)} · {grant.approval ? toolApprovalLabel(grant.approval) : t('agents.chat.panel.debugPreview.default')}</div>
                     ))}
@@ -173,8 +173,8 @@ export function AgentDebugPreviewDialog({
               </div>
               <div className="mt-2 grid gap-2 md:grid-cols-2">
                 <div className="rounded-md border border-border bg-muted/20 p-2">
-                  <div className="mb-1 text-[10px] font-medium text-foreground">{t('agents.chat.panel.runtime.availableTools')}</div>
-                  <div className="space-y-1 text-[10px] text-muted-foreground">
+                  <div className="mb-1 type-tiny font-medium text-foreground">{t('agents.chat.panel.runtime.availableTools')}</div>
+                  <div className="space-y-1 type-tiny text-muted-foreground">
                     {preview.tools.available.slice(0, 8).map((tool) => (
                       <div key={tool.name}>{agentToolNameLabel(tool.name, t)} · {tool.risk ? localAgentApprovalRiskText(tool.risk, t) : t('agents.chat.panel.runtime.unknown')} · {toolApprovalLabel(tool.approval)}</div>
                     ))}
@@ -182,8 +182,8 @@ export function AgentDebugPreviewDialog({
                   </div>
                 </div>
                 <div className="rounded-md border border-border bg-muted/20 p-2">
-                  <div className="mb-1 text-[10px] font-medium text-foreground">{t('agents.chat.panel.runtime.blockedTools')}</div>
-                  <div className="space-y-1 text-[10px] text-muted-foreground">
+                  <div className="mb-1 type-tiny font-medium text-foreground">{t('agents.chat.panel.runtime.blockedTools')}</div>
+                  <div className="space-y-1 type-tiny text-muted-foreground">
                     {preview.tools.blocked.slice(0, 8).map((tool) => (
                       <div key={tool.name}>{agentToolNameLabel(tool.name, t)} · {tool.unavailableReason ?? t('agents.chat.panel.runtime.blocked')}</div>
                     ))}
@@ -196,7 +196,7 @@ export function AgentDebugPreviewDialog({
 
           {preview && (
             <DebugSection title={t('agents.chat.panel.runtime.agenticLoopPreview')}>
-              <div className="space-y-2 text-[11px]">
+              <div className="space-y-2 type-caption">
                 <div className="rounded-md border border-border bg-muted/20 p-2">
                   <div className="font-medium text-foreground">{preview.message}</div>
                   <div className="mt-1 text-muted-foreground">
@@ -210,10 +210,10 @@ export function AgentDebugPreviewDialog({
                     <div key={`${call.name}-${index}`} className="rounded-md border border-border bg-background px-2 py-1.5">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium text-foreground">{index + 1}. {call.name}</span>
-                        <Badge variant="outline" className="text-[9px]">{t('agents.chat.panel.runtime.tool')}</Badge>
+                        <Badge variant="outline" className="type-micro">{t('agents.chat.panel.runtime.tool')}</Badge>
                       </div>
                       {call.args && (
-                        <pre className="mt-1 max-h-28 overflow-auto whitespace-pre-wrap rounded bg-muted p-1.5 text-[10px]">
+                        <pre className="mt-1 max-h-28 overflow-auto whitespace-pre-wrap rounded bg-muted p-1.5 type-tiny">
                           {safeJSONStringify(call.args)}
                         </pre>
                       )}
@@ -226,7 +226,7 @@ export function AgentDebugPreviewDialog({
 
           {(draft.localRuntime || pendingApprovals.length > 0) && (
             <DebugSection title={t('agents.chat.panel.prompt.approvals')}>
-              <div className="space-y-2 text-[11px]">
+              <div className="space-y-2 type-caption">
                 {draft.localRuntime && (
                   <div className="grid gap-2 md:grid-cols-3">
                     <DebugSummaryItem label={t('agents.chat.panel.status.thread')} value={draft.localRuntime.threadId ?? t('agents.chat.panel.status.newThread')} />
@@ -247,15 +247,15 @@ export function AgentDebugPreviewDialog({
                         <div key={approval.id} className="rounded border border-border/70 bg-background/70 p-2">
                           <div className="flex items-center justify-between gap-2">
                             <span className="font-medium text-foreground" title={approval.toolName}>{agentToolNameLabel(approval.toolName, t)}</span>
-                            <Badge variant="warning" className="text-[9px]">{approval.risk ? localAgentApprovalRiskText(approval.risk, t) : localAgentApprovalStatusText(approval.status, t)}</Badge>
+                            <Badge variant="warning" className="type-micro">{approval.risk ? localAgentApprovalRiskText(approval.risk, t) : localAgentApprovalStatusText(approval.status, t)}</Badge>
                           </div>
                           <p className="mt-0.5 text-muted-foreground">{approval.reason}</p>
-                          <div className="mt-1 rounded border border-border/70 bg-muted/20 px-1.5 py-1 text-[10px] leading-relaxed text-muted-foreground">
+                          <div className="mt-1 rounded border border-border/70 bg-muted/20 px-1.5 py-1 type-tiny leading-relaxed text-muted-foreground">
                             <span className="font-medium">{t('agents.chat.workflow.approvalImpact.label')}: </span>
                             {localAgentApprovalImpactText(approval, t)}
                           </div>
                           {approval.args && (
-                            <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap rounded bg-muted p-1.5 text-[10px]">
+                            <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap rounded bg-muted p-1.5 type-tiny">
                               {safeJSONStringify(approval.args)}
                             </pre>
                           )}
@@ -277,10 +277,10 @@ export function AgentDebugPreviewDialog({
               {draft.outbound.messages.map((message, index) => (
                 <div key={`${message.role}-${index}`} className="rounded-md border border-border bg-muted/20">
                   <div className="flex items-center justify-between border-b border-border/60 px-2 py-1">
-                    <Badge variant="outline" className="text-[9px]">{message.role}</Badge>
-                    <span className="text-[9px] text-muted-foreground">{countCharsLabel(t, message.content.length)}</span>
+                    <Badge variant="outline" className="type-micro">{message.role}</Badge>
+                    <span className="type-micro text-muted-foreground">{countCharsLabel(t, message.content.length)}</span>
                   </div>
-                  <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-words px-2 py-1.5 text-[10px] leading-relaxed text-foreground">
+                  <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-words px-2 py-1.5 type-tiny leading-relaxed text-foreground">
                     {message.content || emptyLabel(t)}
                   </pre>
                 </div>
@@ -294,10 +294,10 @@ export function AgentDebugPreviewDialog({
                 {preview.promptPreview.debugParts.map((part) => (
                   <div key={part.id} className="rounded-md border border-border bg-muted/20">
                     <div className="flex items-center gap-2 border-b border-border/60 px-2 py-1">
-                      <Badge variant="outline" className="text-[9px]">{part.kind}</Badge>
-                      <span className="text-[10px] font-medium text-foreground">{part.title}</span>
+                      <Badge variant="outline" className="type-micro">{part.kind}</Badge>
+                      <span className="type-tiny font-medium text-foreground">{part.title}</span>
                     </div>
-                    <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words px-2 py-1.5 text-[10px] text-muted-foreground">
+                    <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words px-2 py-1.5 type-tiny text-muted-foreground">
                       {part.content || emptyLabel(t)}
                     </pre>
                   </div>
@@ -307,14 +307,14 @@ export function AgentDebugPreviewDialog({
           )}
 
           <DebugSection title={t('agents.chat.panel.prompt.rawPayload')}>
-            <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-muted/30 p-2 text-[10px] leading-relaxed">
+            <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-muted/30 p-2 type-tiny leading-relaxed">
               {raw}
             </pre>
           </DebugSection>
         </div>
 
         <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
-          <Button type="button" size="sm" variant="ghost" onClick={copyRaw} className="h-8 text-xs">
+          <Button type="button" size="sm" variant="ghost" onClick={copyRaw} className="type-label">
             {copied ? <Check size={12} /> : <Copy size={12} />}
             {copied ? t('agents.chat.panel.debugPreview.copied') : t('agents.chat.panel.debugPreview.copyJson')}
           </Button>
@@ -336,7 +336,7 @@ export function AgentDebugPreviewDialog({
 export function DebugSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-3">
-      <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">{title}</h3>
+      <h3 className="mb-1.5 type-caption font-semibold uppercase tracking-normal text-muted-foreground">{title}</h3>
       {children}
     </section>
   )
@@ -347,35 +347,35 @@ function DebugHttpRequestCard({ request, index }: { request: DebugHttpRequest; i
   return (
     <div className="overflow-hidden rounded-md border border-border bg-background">
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-2.5 py-2">
-        <span className="flex h-5 w-5 items-center justify-center rounded bg-background text-[10px] font-medium text-muted-foreground">
+        <span className="flex h-5 w-5 items-center justify-center rounded bg-background type-tiny font-medium text-muted-foreground">
           {index + 1}
         </span>
-        <Badge variant={request.conditional ? 'secondary' : 'outline'} className="text-[9px]">
+        <Badge variant={request.conditional ? 'secondary' : 'outline'} className="type-micro">
           {request.conditional ? t('common.switch') : request.method}
         </Badge>
-        {request.conditional && <Badge variant="outline" className="text-[9px]">{request.method}</Badge>}
-        <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">{request.label}</span>
+        {request.conditional && <Badge variant="outline" className="type-micro">{request.method}</Badge>}
+        <span className="min-w-0 flex-1 truncate type-caption font-medium text-foreground">{request.label}</span>
       </div>
       <div className="space-y-2 p-2.5">
-        <div className="min-w-0 rounded border border-border/70 bg-muted/20 px-2 py-1.5 font-mono text-[10px] text-foreground">
+        <div className="min-w-0 rounded border border-border/70 bg-muted/20 px-2 py-1.5 font-mono type-tiny text-foreground">
           <span className="font-semibold">{request.method}</span> <span className="break-all">{request.url}</span>
         </div>
         {request.note && (
-          <p className="text-[10px] leading-relaxed text-muted-foreground">{request.note}</p>
+          <p className="type-tiny leading-relaxed text-muted-foreground">{request.note}</p>
         )}
         <div className="grid gap-2 md:grid-cols-2">
           {request.headers && (
             <div>
-              <div className="mb-1 text-[9px] font-medium uppercase tracking-normal text-muted-foreground">{t('agents.chat.panel.runtime.headers')}</div>
-              <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words rounded border border-border/70 bg-muted/20 p-2 text-[10px]">
+              <div className="mb-1 type-micro font-medium uppercase tracking-normal text-muted-foreground">{t('agents.chat.panel.runtime.headers')}</div>
+              <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words rounded border border-border/70 bg-muted/20 p-2 type-tiny">
                 {safeJSONStringify(request.headers)}
               </pre>
             </div>
           )}
           {request.body !== undefined && (
             <div className={request.headers ? '' : 'md:col-span-2'}>
-              <div className="mb-1 text-[9px] font-medium uppercase tracking-normal text-muted-foreground">{t('agents.chat.panel.runtime.body')}</div>
-              <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-words rounded border border-border/70 bg-muted/20 p-2 text-[10px]">
+              <div className="mb-1 type-micro font-medium uppercase tracking-normal text-muted-foreground">{t('agents.chat.panel.runtime.body')}</div>
+              <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-words rounded border border-border/70 bg-muted/20 p-2 type-tiny">
                 {safeJSONStringify(request.body)}
               </pre>
             </div>
@@ -389,8 +389,8 @@ function DebugHttpRequestCard({ request, index }: { request: DebugHttpRequest; i
 export function DebugSummaryItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0 rounded-md border border-border bg-muted/20 px-2 py-1.5">
-      <div className="text-[9px] uppercase tracking-normal text-muted-foreground">{label}</div>
-      <div className="truncate text-[11px] font-medium text-foreground" title={value}>{value}</div>
+      <div className="type-micro uppercase tracking-normal text-muted-foreground">{label}</div>
+      <div className="truncate type-caption font-medium text-foreground" title={value}>{value}</div>
     </div>
   )
 }
@@ -418,20 +418,20 @@ export function DraftDiff({ preview }: { preview: AgentDraftApplyPreview }) {
   const rows = diffRows(preview.review.currentValue, preview.review.proposedValue)
   return (
     <div className="overflow-hidden rounded-md border border-border bg-background">
-      <div className="grid border-b border-border bg-muted/30 text-[10px] font-medium text-muted-foreground md:grid-cols-2">
+      <div className="grid border-b border-border bg-muted/30 type-tiny font-medium text-muted-foreground md:grid-cols-2">
         <div className="border-b border-border px-2 py-1.5 md:border-b-0 md:border-r">{t('agents.chat.panel.drafts.current')}</div>
         <div className="px-2 py-1.5">{t('agents.chat.panel.drafts.proposed')}</div>
       </div>
       <div className="grid md:grid-cols-2">
-        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words border-b border-border bg-red-500/5 p-2 text-[10px] leading-relaxed text-red-700 md:border-b-0 md:border-r">
+        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words border-b border-border bg-red-500/5 p-2 type-tiny leading-relaxed text-red-700 md:border-b-0 md:border-r">
           {asString(preview.review.currentValue) || t('common.emptyTitle')}
         </pre>
-        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words bg-green-500/5 p-2 text-[10px] leading-relaxed text-green-700">
+        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words bg-green-500/5 p-2 type-tiny leading-relaxed text-green-700">
           {asString(preview.review.proposedValue) || t('common.emptyTitle')}
         </pre>
       </div>
       <div className="border-t border-border bg-muted/20 p-2">
-        <div className="max-h-36 overflow-auto rounded border border-border bg-background font-mono text-[10px]">
+        <div className="max-h-36 overflow-auto rounded border border-border bg-background font-mono type-tiny">
           {rows.map((row, index) => (
             <div
               key={`${row.type}-${index}`}

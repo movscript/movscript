@@ -15,7 +15,7 @@ import type { ContentDraftReviewModel, ContentSnapshotDiffKind, ContentSnapshotD
 import type { ContentWorkbenchReviewQueueSummary } from '@/lib/contentWorkbenchReviewQueue'
 import { cn } from '@/lib/utils'
 import { Badge, Button } from '@movscript/ui'
-import { WorkbenchPanel } from '@/components/workbench/WorkbenchPanel'
+import { ProposalReviewShell } from '@/components/proposals/ProposalReviewShell'
 
 export function ContentGenerationReviewPanel({
   reviewMode,
@@ -51,15 +51,17 @@ export function ContentGenerationReviewPanel({
   onCloseReview: () => void
 }) {
   return (
-    <WorkbenchPanel
+    <ProposalReviewShell
+      kind="content_unit_proposal"
       title="AI 审稿队列"
       icon={ClipboardCheck}
+      description="审阅内容编排草案，对制作项和关键帧快照执行创建、编辑、确认或退回。"
       action={(
         <div className="flex items-center gap-2">
           <Badge variant={queueSummary.tone === 'success' ? 'success' : queueSummary.tone === 'warning' ? 'warning' : 'outline'}>
             {queueSummary.pending > 0 ? `${queueSummary.pending} 待审` : `${queueSummary.total} 草案`}
           </Badge>
-          <Button size="sm" variant="outline" className="h-8 gap-2" onClick={onCloseReview}>
+          <Button size="sm" variant="outline" className="gap-2" onClick={onCloseReview}>
             <Database size={13} />
             {reviewMode ? '退出审阅' : '收起审阅'}
           </Button>
@@ -79,16 +81,16 @@ export function ContentGenerationReviewPanel({
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <div className="flex items-center gap-2 type-body font-medium text-foreground">
               <Bot size={15} className="text-muted-foreground" />
               {queueSummary.title}
             </div>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">{queueSummary.detail}</p>
+            <p className="mt-1 type-label leading-5 text-muted-foreground">{queueSummary.detail}</p>
           </div>
           <Button
             size="sm"
             variant={queueSummary.total === 0 ? 'default' : 'outline'}
-            className="h-8 gap-2"
+            className="gap-2"
             onClick={queueSummary.total === 0 ? onOpenAiSuggest : undefined}
             disabled={queueSummary.total > 0}
           >
@@ -97,7 +99,7 @@ export function ContentGenerationReviewPanel({
           </Button>
         </div>
         {queueSummary.total > 0 ? (
-          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground" data-testid="content-workbench-review-metrics">
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 type-label text-muted-foreground" data-testid="content-workbench-review-metrics">
             <span className={queueSummary.pending > 0 ? 'font-medium text-amber-700 dark:text-amber-300' : undefined}>{queueSummary.pending} 待审</span>
             <span className="text-border">/</span>
             <span>{queueSummary.addedCount} 新增</span>
@@ -110,7 +112,7 @@ export function ContentGenerationReviewPanel({
       </div>
 
       {drafts.length === 0 ? (
-        <div className="rounded-md border border-dashed border-border bg-background px-3 py-6 text-sm text-muted-foreground">
+        <div className="rounded-md border border-dashed border-border bg-background px-3 py-6 type-body text-muted-foreground">
           还没有制作项草案。先通过 AI 助手生成 snapshot 草案，审阅区会显示当前快照和草案快照的对比。
         </div>
       ) : (
@@ -130,10 +132,10 @@ export function ContentGenerationReviewPanel({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">{draft.title}</p>
-                      <p className="mt-1 truncate text-[11px] text-muted-foreground">制作项快照 · {draft.status}</p>
+                      <p className="truncate type-body font-medium text-foreground">{draft.title}</p>
+                      <p className="mt-1 truncate type-caption text-muted-foreground">制作项快照 · {draft.status}</p>
                     </div>
-                    <Badge variant={active ? 'secondary' : 'outline'} className="shrink-0 text-[10px]">
+                    <Badge variant={active ? 'secondary' : 'outline'} className="shrink-0 type-tiny">
                       结构
                     </Badge>
                   </div>
@@ -144,33 +146,33 @@ export function ContentGenerationReviewPanel({
 
           <div className="min-w-0 rounded-md border border-border bg-background p-2.5">
             {!selectedDraft || !reviewModel ? (
-              <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择一个草案后查看快照对比。</p>
+              <p className="rounded-md border border-dashed border-border px-3 py-8 text-center type-body text-muted-foreground">选择一个草案后查看快照对比。</p>
             ) : (
               <div className="space-y-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-sm font-semibold text-foreground">{selectedDraft.title}</h3>
-                      <Badge variant="secondary" className="text-[10px]">制作项快照</Badge>
+                      <h3 className="type-body font-semibold text-foreground">{selectedDraft.title}</h3>
+                      <Badge variant="secondary" className="type-tiny">制作项快照</Badge>
                     </div>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    <p className="mt-1 type-label leading-5 text-muted-foreground">
                       {reviewModel.targetLabel} · {reviewModel.summary}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {reviewModel.stats.map((stat) => (
-                      <Badge key={stat.label} variant="outline" className="text-[10px]">{stat.label} {stat.value}</Badge>
+                      <Badge key={stat.label} variant="outline" className="type-tiny">{stat.label} {stat.value}</Badge>
                     ))}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2">
-                  <p className="text-xs leading-5 text-muted-foreground">
+                  <p className="type-label leading-5 text-muted-foreground">
                     内容编排草案当前只做 snapshot 审阅；按差异创建、编辑或确认无需写入后，可标记为人工已处理，或退回草案清理待审队列。
                   </p>
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
                       size="sm"
-                      className="h-8 gap-2"
+                      className="gap-2"
                       data-testid="content-workbench-mark-draft-reviewed"
                       onClick={() => onMarkDraftReviewed(selectedDraft)}
                       loading={markingDraftReviewed}
@@ -182,7 +184,7 @@ export function ContentGenerationReviewPanel({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-8 gap-2"
+                      className="gap-2"
                       onClick={() => onRejectDraft(selectedDraft)}
                       loading={rejectingDraft}
                       disabled={rejectingDraft || selectedDraft.status === 'rejected'}
@@ -194,7 +196,7 @@ export function ContentGenerationReviewPanel({
                 </div>
 
                 {reviewModel.warnings.length > 0 ? (
-                  <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 type-label text-amber-800">
                     {reviewModel.warnings.map((warning) => (
                       <p key={warning}>{warning}</p>
                     ))}
@@ -207,22 +209,22 @@ export function ContentGenerationReviewPanel({
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant={change.state === 'added' ? 'secondary' : change.state === 'unchanged' ? 'outline' : 'default'} className="text-[10px]">
+                            <Badge variant={change.state === 'added' ? 'secondary' : change.state === 'unchanged' ? 'outline' : 'default'} className="type-tiny">
                               {contentSnapshotStateLabel(change.state)}
                             </Badge>
-                            <Badge variant="outline" className="text-[10px]">{contentSnapshotKindLabel(change.kind)}</Badge>
-                            <span className="truncate text-sm font-medium text-foreground">{change.title}</span>
+                            <Badge variant="outline" className="type-tiny">{contentSnapshotKindLabel(change.kind)}</Badge>
+                            <span className="truncate type-body font-medium text-foreground">{change.title}</span>
                           </div>
-                          <p className="mt-1 text-[11px] text-muted-foreground">{change.target}</p>
+                          <p className="mt-1 type-caption text-muted-foreground">{change.target}</p>
                         </div>
-                        <p className="text-[11px] text-muted-foreground">{change.impact}</p>
+                        <p className="type-caption text-muted-foreground">{change.impact}</p>
                       </div>
-                      {change.detail ? <p className="mt-2 text-xs leading-5 text-foreground">{change.detail}</p> : null}
+                      {change.detail ? <p className="mt-2 type-label leading-5 text-foreground">{change.detail}</p> : null}
                       {change.state === 'added' && change.proposal ? (
                         <Button
                           size="sm"
                           variant="outline"
-                          className="mt-2 h-8 gap-2"
+                          className="mt-2 gap-2"
                           data-testid="content-workbench-create-proposal-unit"
                           onClick={() => onCreateUnitFromProposal(change.proposal!)}
                         >
@@ -236,7 +238,7 @@ export function ContentGenerationReviewPanel({
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-8 gap-2"
+                              className="gap-2"
                               data-testid="content-workbench-apply-proposal-unit"
                               onClick={() => onApplyUnitProposal(change.currentUnitId!, change.proposal!)}
                             >
@@ -247,7 +249,7 @@ export function ContentGenerationReviewPanel({
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-8 gap-2"
+                            className="gap-2"
                             data-testid="content-workbench-edit-current-unit"
                             onClick={() => onEditCurrentUnit(change.currentUnitId!)}
                           >
@@ -258,14 +260,14 @@ export function ContentGenerationReviewPanel({
                       ) : null}
                       {(change.before || change.after) ? (
                         <div className="mt-2 grid gap-2 md:grid-cols-2">
-                          {change.before ? <div className="rounded bg-rose-500/10 px-2 py-1 text-xs text-rose-700 dark:text-rose-300">当前：{change.before}</div> : null}
-                          {change.after ? <div className="rounded bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700 dark:text-emerald-300">草案：{change.after}</div> : null}
+                          {change.before ? <div className="rounded bg-rose-500/10 px-2 py-1 type-label text-rose-700 dark:text-rose-300">当前：{change.before}</div> : null}
+                          {change.after ? <div className="rounded bg-emerald-500/10 px-2 py-1 type-label text-emerald-700 dark:text-emerald-300">草案：{change.after}</div> : null}
                         </div>
                       ) : null}
                       {change.fields.length > 0 ? (
                         <div className="mt-2 space-y-1">
                           {change.fields.map((field) => (
-                            <div key={field.label} className="flex flex-wrap items-center gap-2 text-xs">
+                            <div key={field.label} className="flex flex-wrap items-center gap-2 type-label">
                               <span className="w-14 shrink-0 text-muted-foreground">{field.label}</span>
                               <span className="rounded bg-muted px-2 py-1 text-muted-foreground">{field.before || '空'}</span>
                               <ArrowRight size={12} className="text-muted-foreground" />
@@ -282,7 +284,7 @@ export function ContentGenerationReviewPanel({
           </div>
         </div>
       )}
-    </WorkbenchPanel>
+    </ProposalReviewShell>
   )
 }
 

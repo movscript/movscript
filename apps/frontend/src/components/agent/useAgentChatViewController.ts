@@ -25,6 +25,8 @@ export interface AgentChatViewControllerInput {
   externalTask?: AgentPageTaskState | null
   pageToolRequestId?: string
   onExternalDraftConsumed?: () => void
+  showCollapse?: boolean
+  showConversationControls?: boolean
 }
 
 export function useAgentChatViewController({
@@ -40,6 +42,8 @@ export function useAgentChatViewController({
   externalTask,
   pageToolRequestId,
   onExternalDraftConsumed,
+  showCollapse,
+  showConversationControls,
 }: AgentChatViewControllerInput): AgentChatViewLayoutProps {
   const { t } = useTranslation()
   const store = useAgentChatStoreBindings({
@@ -69,17 +73,10 @@ export function useAgentChatViewController({
 
   const context = useAgentChatContextState({
     agentContextConfig: store.agentContextConfig,
-    activeRun: activeLocalRun,
-    pendingSendDraft: runtime.pendingSendDraft,
-    draftInput: composer.input,
-    loading,
-    building: buildingSendDraft,
-    uploading: composer.uploading,
     composerAttachmentsCount: composer.composerAttachments.length,
     includeProjectContext: store.settings.includeProjectContext,
     currentProject: store.currentProject,
     localRuntimeEnabled: store.localRuntimeEnabled,
-    messageCount: conv.messages.length,
   })
   const presentation = useAgentChatPresentationState({
     activeRun: activeLocalRun,
@@ -123,7 +120,6 @@ export function useAgentChatViewController({
   return buildAgentChatViewLayoutProps({
     activeLocalRun,
     composer,
-    context,
     conv,
     conversations,
     currentProject: store.currentProject,
@@ -139,6 +135,8 @@ export function useAgentChatViewController({
     onCollapse,
     onNewConversation,
     onSelectConversation,
+    showCollapse,
+    showConversationControls,
     updateDraft: composer.updateDraft,
     updatePlanDispatchSettings: plan.updatePlanDispatchSettings,
   })

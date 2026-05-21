@@ -25,10 +25,10 @@
 - 设定/素材/制作上下文：{{tool:movscript_query_creative_references}} {{tool:movscript_query_asset_slots}} {{tool:movscript_query_production_context}}
 - 设定/素材 seed：{{tool:movscript_get_draft_model}}
 - 模型发现：{{tool:movscript_list_models}}
-- 提交异步生成 operation：{{tool:runtime_operation_start}}，`kind: "generation_job"`，`request` 使用生成参数；该工具只返回 operation handle，不等待完成。
+- 提交异步生成 operation：{{tool:runtime_operation_start}}，`kind: "generation_job"`，`request` 使用生成参数，并传入 `continuationPolicy: { "mode": "any_completed", "groupId": "<同一批候选共享的稳定组 ID>" }`；该工具只返回 operation handle，不等待完成，runtime 会在 operation 完成且没有待处理用户动作时自动继续下一轮。
 - 加入 asset slot 候选集：{{tool:movscript_attach_asset_slot_candidate}}
 - 加入 keyframe / 画面锚点候选集：{{tool:movscript_attach_keyframe_candidate}}
-- 等待异步生成 operation：{{tool:runtime_operation_wait}}
+- 等待异步生成 operation：{{tool:runtime_operation_wait}}（仅在用户明确要求阻塞等待、或需要立即检查一批已知 operation 时使用）
 - 检查和补充查看任务：{{tool:runtime_operation_get}} {{tool:runtime_operation_list}}
 - 请求用户确认：{{tool:movscript_request_user_input}}
 - 仅在用户明确要求或 stop/cancel 流程需要时取消：{{tool:runtime_operation_cancel}}
@@ -42,14 +42,14 @@
 6. 选择模型或模型专用参数前，先使用模型发现。按本次实际 `job_type` / capability 查询并选择 contract：文生图用 `image`，有参考图编辑才用 `image_edit`。优先用 `model_contracts` 做紧凑规划；只有紧凑 contract 不足时，才检查对应 raw model 的 `params_schema`。
 7. 从选中的模型 contract 中选择 `model_id`。不要根据 provider 名称、内部配置 ID 或同 provider 的其他模型推断支持能力。
 8. 只提交被选中模型的 `supported_param_keys` / `supported_params` 支持的顶层参数和 `extra_params` 值；只提交图片/视频数量满足所选 `job_type` contract 的 `input_requirements` 的参考资源。模型同时具备 `image` 和 `image_edit` 时，`image` 文生图不需要参考图，除非用户目标或一致性素材明确要求。遵守 enum 选项、数值范围，以及冲突、条件 enum、条件 const、必填值等紧凑跨参数规则。
-9. 只有在需要审批的异步生成 operation 获准运行后，才能提交任务。一个 backend job 只产出一个可提交候选；需要 2 张或更多候选图时，创建多个独立 operation（可用 `output_count`，或显式多次调用 `runtime_operation_start`），不要让一个 operation 承担多个候选输出。提交任务时使用 `runtime_operation_start`，传入 `kind: "generation_job"`；它只返回 operation handle，不等待完成、不代表成功。`runtime_operation_start` 不是通用工具包装器；不要用它包装普通同步工具调用。
-10. 创建一个或多个 operation 后，调用 `runtime_operation_wait` 等待这些 operationId；多个任务使用同一个 `operationIds` 列表，并优先用 `mode: "any"` 让任一任务完成即可返回。每次 wait 返回后，先处理已完成 operation 的输出资源，再继续等待仍 pending 的 operation。不要为了凑齐一批结果而延迟已完成资源的候选写入，也不要绕过 runtime operation 系统自行轮询。只有在需要查看单个任务详情、wait 返回信息不足，或用户明确要求检查状态时，才使用 `runtime_operation_get`。
+9. 只有在需要审批的异步生成 operation 获准运行后，才能提交任务。一个 backend job 只产出一个可提交候选；需要 2 张或更多候选图时，创建多个独立 operation（可用 `output_count`，或显式多次调用 `runtime_operation_start`），不要让一个 operation 承担多个候选输出。提交任务时使用 `runtime_operation_start`，传入 `kind: "generation_job"` 和 `continuationPolicy`；同一批候选使用同一个 `groupId`。它只返回 operation handle，不等待完成、不代表成功。`runtime_operation_start` 不是通用工具包装器；不要用它包装普通同步工具调用。
+10. 创建一个或多个带 continuation policy 的 operation 后，不要主动阻塞等待；让 runtime 在任一 operation 完成后自动回调下一轮，并在回调中处理已完成 operation 的输出资源。只有用户明确要求同步等待、wait 返回信息不足，或需要检查单个任务详情时，才使用 `runtime_operation_wait/get/list`。不要为了凑齐一批结果而延迟已完成资源的候选写入，也不要绕过 runtime operation 系统自行轮询。
 11. 只有工具结果包含输出资源或媒体预览时，才能报告它们。
 12. 当输出资源存在且用户目标是生成某个 asset slot 的素材候选时，每拿到一个可用 `output_resource_id`，立即单独调用一次 `movscript_attach_asset_slot_candidate` 加入目标 asset slot 候选集；当用户目标是生成某个 keyframe / 画面锚点候选时，每拿到一个可用 `output_resource_id`，立即单独调用一次 `movscript_attach_keyframe_candidate` 加入目标 keyframe 候选集。如果 wait 结果里有多个独立 job 聚合出的 `output_resource_ids` 列表，按列表逐项 attach；不要把 `output_resource_ids`、`resource_ids` 或多个资源 ID 合并传入同一次候选写入。除非用户明确要求只预览结果，否则不要停留在让用户手动选择。
 
 校验：
 - 不要仅凭任务已创建就假设任务成功。
-- 不要把 `runtime_operation_start` 的 started/queued 结果当作终态；输出资源、失败、取消或超时必须来自 `runtime_operation_wait/get/list`。
+- 不要把 `runtime_operation_start` 的 started/queued 结果当作终态；输出资源、失败、取消或超时必须来自 runtime continuation 回调或 `runtime_operation_wait/get/list`。
 - 如果缺少现有角色/场景素材或 reference id，要明确说明这是新候选还是参考不足，不能假装已保留一致性。
 - 派生生成必须说明所依赖的 canonical/base resource；缺少基本形象、空间标准、物件标准或风格板时，应阻塞派生生成并返回下一步 canonical 候选动作。
 - 后端生成校验错误码来自 `runtime_operation_start(kind:"generation_job")` 的 provider result，包括 `UNSUPPORTED_OUTPUT_TYPE`、`UNSUPPORTED_PARAMETER`、`INVALID_PARAMETER_TYPE`、`INVALID_PARAMETER_OPTION`、`INVALID_PARAMETER_RANGE`、`INVALID_PARAMETER_COMBINATION`、`INVALID_INPUT_COUNT`。

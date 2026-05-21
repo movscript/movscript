@@ -78,10 +78,10 @@ function ActivityJSONBlock({ label, value }: { label: string; value: unknown }) 
   const text = safeJSONStringify(value)
   return (
     <details className="mt-1 rounded border border-border/70 bg-muted/20">
-      <summary className="cursor-pointer px-2 py-1 text-[9px] font-medium text-muted-foreground">
+      <summary className="cursor-pointer px-2 py-1 type-micro font-medium text-muted-foreground">
         {label}
       </summary>
-      <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words border-t border-border/60 px-2 py-1.5 text-[9px] leading-relaxed text-muted-foreground">
+      <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words border-t border-border/60 px-2 py-1.5 type-micro leading-relaxed text-muted-foreground">
         {text}
       </pre>
     </details>
@@ -112,7 +112,7 @@ export function RunActivityPanel({
 
   return (
     <details
-      className={cn('mt-2 rounded-md border border-border bg-background/70 text-xs', className)}
+      className={cn('mt-2 rounded-md border border-border bg-background/70 type-label', className)}
       open={defaultOpen}
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 marker:hidden">
@@ -126,7 +126,7 @@ export function RunActivityPanel({
               type="button"
               size="xs"
               variant="ghost"
-              className="h-5 px-1.5 text-[9px]"
+              className="px-1.5 type-micro"
               title="打开完整运行详情"
               aria-label="打开完整运行详情"
               onClick={(event) => {
@@ -139,15 +139,15 @@ export function RunActivityPanel({
               详情
             </Button>
           )}
-          <Badge variant={runStatusVariant(timeline.status)} className="text-[9px] leading-4 px-1.5 py-0">
+          <Badge variant={runStatusVariant(timeline.status)} className="type-micro leading-4 px-1.5 py-0">
             {genericRunStatusLabel(timeline.status)}
           </Badge>
-          <span className="text-[9px] text-muted-foreground">{agentTimelineSummary(timeline)}</span>
+          <span className="type-micro text-muted-foreground">{agentTimelineSummary(timeline)}</span>
         </span>
       </summary>
       <div className="space-y-1.5 border-t border-border/70 px-2.5 py-2">
         {timeline.items.length === 0 ? (
-          <div className="rounded border border-border/70 bg-muted/20 px-2 py-1.5 text-[10px] text-muted-foreground">
+          <div className="rounded border border-border/70 bg-muted/20 px-2 py-1.5 type-tiny text-muted-foreground">
             这次运行没有记录工具调用或交互。
           </div>
         ) : timeline.items.map((item) => (
@@ -156,18 +156,18 @@ export function RunActivityPanel({
               <span className={cn('mt-1 h-2 w-2 shrink-0 rounded-full', workflowDotClass(item.status))} />
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center justify-between gap-2">
-                  <span className="truncate text-[10px] font-medium text-foreground">{item.title}</span>
-                  <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[9px]', workflowStatusClass(item.status))}>
+                  <span className="truncate type-tiny font-medium text-foreground">{item.title}</span>
+                  <span className={cn('shrink-0 rounded px-1.5 py-0.5 type-micro', workflowStatusClass(item.status))}>
                     {item.statusLabel ?? agentStepStatusLabel(item.status)}
                   </span>
                 </div>
-                <div className="mt-0.5 flex flex-wrap gap-1.5 text-[9px] text-muted-foreground">
+                <div className="mt-0.5 flex flex-wrap gap-1.5 type-micro text-muted-foreground">
                   <span>{item.kind}</span>
                   <span>{formatActivityTime(item.createdAt, locale)}</span>
                   {durationLabel(item.createdAt, item.completedAt) && <span>{durationLabel(item.createdAt, item.completedAt)}</span>}
                 </div>
                 {item.summary && (
-                  <p className={cn('mt-1 text-[10px] leading-relaxed', item.error ? 'text-destructive' : 'text-muted-foreground')}>
+                  <p className={cn('mt-1 type-tiny leading-relaxed', item.error ? 'text-destructive' : 'text-muted-foreground')}>
                     {item.summary}
                   </p>
                 )}
@@ -178,12 +178,12 @@ export function RunActivityPanel({
           </div>
         ))}
         {timeline.warnings?.length ? (
-          <div className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[10px] leading-relaxed text-amber-800 dark:text-amber-300">
+          <div className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 type-tiny leading-relaxed text-amber-800 dark:text-amber-300">
             {timeline.warnings.map((warning) => <div key={warning}>{warning}</div>)}
           </div>
         ) : null}
         {timeline.error && (
-          <div className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-[10px] leading-relaxed text-destructive">
+          <div className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1.5 type-tiny leading-relaxed text-destructive">
             {timeline.error}
           </div>
         )}
@@ -226,7 +226,7 @@ export function RunActivityTitleBubble({
   }
 
   return (
-    <div className={cn('mt-2 text-xs', className)}>
+    <div className={cn('mt-2 type-label', className)}>
       <div className="flex w-full min-w-0 items-center gap-1 rounded-md border border-border bg-background/70 transition-colors hover:bg-muted/30">
         <button
           type="button"
@@ -243,10 +243,10 @@ export function RunActivityTitleBubble({
             <span className="truncate">{title}</span>
           </span>
           <span className="flex shrink-0 items-center gap-1.5">
-            <Badge variant={runStatusVariant(timeline.status)} className="text-[9px] leading-4 px-1.5 py-0">
+            <Badge variant={runStatusVariant(timeline.status)} className="type-micro leading-4 px-1.5 py-0">
               {genericRunStatusLabel(timeline.status)}
             </Badge>
-            <span className="text-[9px] text-muted-foreground">{agentTimelineSummary(timeline)}</span>
+            <span className="type-micro text-muted-foreground">{agentTimelineSummary(timeline)}</span>
           </span>
         </button>
         {runId && (
@@ -254,7 +254,7 @@ export function RunActivityTitleBubble({
             type="button"
             size="xs"
             variant="ghost"
-            className="mr-1 h-6 shrink-0 px-1.5 text-[9px]"
+            className="mr-1 shrink-0 px-1.5 type-micro"
             title="打开完整运行详情"
             aria-label="打开完整运行详情"
             onClick={() => navigate(agentRunPath(runId))}
@@ -287,7 +287,7 @@ export function LiveRunActivityBubble({
         avatar={<Bot size={13} />}
         author="MovScript Agent"
         footer={(
-          <Badge variant="outline" className="text-[9px] leading-4 px-1.5 py-0">
+          <Badge variant="outline" className="type-micro leading-4 px-1.5 py-0">
             {workflowRunStatusLabel('in_progress', t)}
           </Badge>
         )}
@@ -308,7 +308,7 @@ function AgentBubbleStatusText({ label }: { label?: string }) {
   if (!label) return null
   return (
     <div className="flex justify-start pl-8">
-      <div className="inline-flex max-w-[80%] items-center gap-1.5 text-[10px] leading-4 text-muted-foreground">
+      <div className="inline-flex max-w-[80%] items-center gap-1.5 type-tiny leading-4 text-muted-foreground">
         <Loader2 size={10} className="animate-spin" />
         <span className="truncate">{label}</span>
       </div>
@@ -329,18 +329,18 @@ function ActiveToolStatusCard({ tool }: { tool: ActiveToolStatus }) {
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <Loader2 size={12} className="shrink-0 animate-spin text-muted-foreground" />
-          <span className="truncate text-[11px] font-medium text-foreground">正在执行工具</span>
+          <span className="truncate type-caption font-medium text-foreground">正在执行工具</span>
         </div>
-        <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">
+        <Badge variant="secondary" className="type-micro leading-4 px-1.5 py-0">
           {tool.status}
         </Badge>
       </div>
-      <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">
+      <div className="mt-1 flex min-w-0 items-center gap-1.5 type-tiny text-muted-foreground">
         <Wrench size={11} className="shrink-0" />
         <span className="truncate font-mono" title={tool.name}>{agentToolNameLabel(tool.name, t)}</span>
       </div>
       {tool.detail && (
-        <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">{tool.detail}</p>
+        <p className="mt-1 line-clamp-2 type-tiny leading-relaxed text-muted-foreground">{tool.detail}</p>
       )}
     </div>
   )

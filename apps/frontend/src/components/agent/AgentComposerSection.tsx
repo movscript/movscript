@@ -104,7 +104,7 @@ export function AgentComposerSection({
     <section className="ai-agent-panel-card ai-agent-panel-input-card">
       <div className="ai-agent-panel-card-header ai-agent-panel-input-header">
         <p className="ai-agent-panel-card-title">{answeringPendingInput ? '回答请求' : '输入'}</p>
-        <p className="min-w-0 truncate text-right text-[10px] text-muted-foreground/40">
+        <p className="min-w-0 truncate text-right type-tiny text-muted-foreground/40">
           {activePendingInputTitle ?? t('agents.chat.inputHint')}
         </p>
       </div>
@@ -147,13 +147,13 @@ export function AgentComposerSection({
             onSubmit={onSend}
           />
           {draggingFiles && (
-            <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-md border border-dashed border-primary/40 bg-primary/8 text-[11px] text-primary">
+            <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-md border border-dashed border-primary/40 bg-primary/8 type-caption text-primary">
               {t('agents.chat.dropFilesHere')}
             </div>
           )}
           {mentionRangeActive && mentionResults.length > 0 && (
             <div className="absolute bottom-full left-0 z-30 mb-1.5 w-full overflow-hidden rounded-md border border-border bg-background shadow-lg">
-              <div className="border-b border-border px-2 py-1 text-[10px] text-muted-foreground">
+              <div className="border-b border-border px-2 py-1 type-tiny text-muted-foreground">
                 {t('shared.genInput.mention')}
               </div>
               <div className="max-h-48 overflow-auto">
@@ -187,17 +187,17 @@ export function AgentComposerSection({
               <AtSign size={13} />
             </AgentComposerAction>
             {composerAttachmentsCount > 0 && (
-              <Badge variant="secondary" className="max-w-24 truncate text-[10px]">
+              <Badge variant="secondary" className="max-w-24 truncate type-tiny">
                 {t('agents.chat.attachmentsCount', { count: composerAttachmentsCount })}
               </Badge>
             )}
             <Button
               type="button"
-              size="xs"
+              size="sm"
               variant={debugBeforeSend ? 'secondary' : 'ghost'}
               onClick={() => onDebugBeforeSendChange(!debugBeforeSend)}
               disabled={answeringPendingInput}
-              className="h-7 px-2 text-[10px]"
+              className="px-2 type-tiny"
               title={t('agents.chat.previewPayload')}
             >
               <Eye size={11} />

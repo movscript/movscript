@@ -107,8 +107,8 @@ export function ContentUnitGenerationInputsPanel({
       <section className="rounded-md border border-border bg-card p-3" data-testid="content-workbench-edit-inputs-card">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <p className="text-sm font-semibold text-foreground">生成输入</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">调度图、故事板、关键帧、素材需求和生成画布都绑定到当前制作项。</p>
+            <p className="type-body font-semibold text-foreground">生成输入</p>
+            <p className="mt-1 type-label leading-5 text-muted-foreground">调度图、故事板、关键帧、素材需求和生成画布都绑定到当前制作项。</p>
           </div>
           <Badge variant={missingSlots.length > 0 ? 'warning' : 'success'}>{assetSlots.length} 素材 / {missingSlots.length} 缺口</Badge>
         </div>
@@ -146,7 +146,7 @@ export function ContentUnitGenerationInputsPanel({
             tone={requiresKeyframe && keyframes.length === 0 ? 'warning' : 'success'}
             onOpen={() => onInputDrawerChange('keyframes')}
             action={onCreateKeyframe ? (
-              <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={onCreateKeyframe}>
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={onCreateKeyframe}>
                 <Plus size={13} />
                 添加
               </Button>
@@ -165,13 +165,13 @@ export function ContentUnitGenerationInputsPanel({
             action={(
               <span className="flex flex-wrap gap-2">
                 {missingSlots.length > 0 && onUploadMissingAssets ? (
-                  <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={onUploadMissingAssets}>
+                  <Button size="sm" variant="outline" className="gap-1.5" onClick={onUploadMissingAssets}>
                     <Upload size={13} />
                     上传
                   </Button>
                 ) : null}
                 {onCreateAssetSlot ? (
-                  <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={onCreateAssetSlot}>
+                  <Button size="sm" variant="outline" className="gap-1.5" onClick={onCreateAssetSlot}>
                     <Plus size={13} />
                     添加
                   </Button>
@@ -190,7 +190,7 @@ export function ContentUnitGenerationInputsPanel({
             tone="default"
             onOpen={() => onInputDrawerChange('generation')}
             action={onOpenCanvas ? (
-              <Button size="sm" className="h-8 gap-1.5" onClick={onOpenCanvas}>
+              <Button size="sm" className="gap-1.5" onClick={onOpenCanvas}>
                 <Play size={13} />
                 打开
               </Button>
@@ -202,8 +202,8 @@ export function ContentUnitGenerationInputsPanel({
       <section className={cn('rounded-md border border-border bg-muted/20 p-3', compact ? '' : 'xl:col-span-2')} data-testid="content-workbench-input-drawer">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-foreground">{compact ? '制作输入' : '输入抽屉'}</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            <p className="type-body font-semibold text-foreground">{compact ? '制作输入' : '输入抽屉'}</p>
+            <p className="mt-1 type-label leading-5 text-muted-foreground">
               {compact
                 ? '当前制作项的生成、关键帧、故事板和调度图都在右侧 Inspector 内编辑。'
                 : '在当前制作项内切换生成、关键帧、故事板和调度图，不打断上方内容编辑。'}
@@ -221,7 +221,7 @@ export function ContentUnitGenerationInputsPanel({
                 type="button"
                 size="sm"
                 variant={activeInputDrawer === tab.key ? 'secondary' : 'ghost'}
-                className="h-8"
+               
                 role="tab"
                 aria-selected={activeInputDrawer === tab.key}
                 data-testid={`content-workbench-input-drawer-tab-${tab.key}`}
@@ -237,8 +237,8 @@ export function ContentUnitGenerationInputsPanel({
           {activeInputDrawer === 'generation' ? (
             <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
               <div>
-                <p className="text-xs font-medium text-foreground">生成准备</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                <p className="type-label font-medium text-foreground">生成准备</p>
+                <p className="mt-1 type-label leading-5 text-muted-foreground">
                   {blockers.length > 0 ? `先处理：${blockers.join('、')}` : '当前制作项已有可进入生成的核心输入。'}
                 </p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -250,7 +250,7 @@ export function ContentUnitGenerationInputsPanel({
                 </div>
               </div>
               {onOpenCanvas ? (
-                <Button size="sm" className="h-8 gap-1.5 self-start" onClick={onOpenCanvas}>
+                <Button size="sm" className="gap-1.5 self-start" onClick={onOpenCanvas}>
                   <Play size={13} />
                   打开生成画布
                 </Button>

@@ -89,7 +89,7 @@ export function MediaViewer({ resource, className = '', fit = 'cover', lightbox 
         <Dialog.Content className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col gap-2">
             <div className="flex items-center justify-between gap-4 shrink-0">
-              <span className="text-white/80 text-sm truncate max-w-[60vw]">{resource.name}</span>
+              <span className="text-white/80 type-body truncate max-w-[60vw]">{resource.name}</span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => downloadResource(proxyUrl, resource.name)}
@@ -115,7 +115,7 @@ export function MediaViewer({ resource, className = '', fit = 'cover', lightbox 
               <div className="w-[min(640px,90vw)] rounded-lg bg-background p-5">
                 <div className="flex items-center gap-3 mb-4 text-foreground">
                   <FileAudio size={18} />
-                  <span className="text-sm truncate">{resource.name}</span>
+                  <span className="type-body truncate">{resource.name}</span>
                 </div>
                 <audio src={proxyUrl} controls autoPlay className="w-full" />
               </div>
@@ -130,7 +130,7 @@ export function MediaViewer({ resource, className = '', fit = 'cover', lightbox 
             ) : (
               <div className="w-[min(520px,90vw)] rounded-lg bg-background p-6 text-center text-muted-foreground">
                 <File size={28} className="mx-auto mb-3" />
-                <p className="text-sm">{resource.name}</p>
+                <p className="type-body">{resource.name}</p>
               </div>
             )}
           </div>
@@ -184,9 +184,9 @@ function TextThumb({ proxyUrl, name }: { proxyUrl: string; name: string }) {
     <div className="w-full h-full bg-muted/50 p-2 text-left overflow-hidden">
       <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
         <FileText size={12} />
-        <span className="text-[10px] truncate">{name}</span>
+        <span className="type-tiny truncate">{name}</span>
       </div>
-      <pre className="text-[10px] leading-4 whitespace-pre-wrap break-words text-foreground/80 font-mono">
+      <pre className="type-tiny leading-4 whitespace-pre-wrap break-words text-foreground/80 font-mono">
         {preview || name}
       </pre>
     </div>
@@ -205,9 +205,9 @@ function TextPreview({ proxyUrl }: { proxyUrl: string }) {
     <div className="w-[min(900px,90vw)] h-[min(720px,80vh)] rounded-lg bg-background border border-white/10 overflow-hidden">
       <div className="h-full overflow-auto p-4">
         {isLoading ? (
-          <div className="h-full flex items-center justify-center text-sm text-muted-foreground">{t('common.loadingShort')}</div>
+          <div className="h-full flex items-center justify-center type-body text-muted-foreground">{t('common.loadingShort')}</div>
         ) : (
-          <pre className="text-sm leading-6 whitespace-pre-wrap break-words text-foreground font-mono">{data}</pre>
+          <pre className="type-body leading-6 whitespace-pre-wrap break-words text-foreground font-mono">{data}</pre>
         )}
       </div>
     </div>

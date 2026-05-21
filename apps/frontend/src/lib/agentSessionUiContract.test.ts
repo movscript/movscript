@@ -157,26 +157,17 @@ test('agent panel keeps recent resources as mention candidates, not automatic co
   assert.match(sendDraftSource, /recentResources: \[\]/)
 })
 
-test('agent panel shows product workflow before technical context diagnostics', () => {
+test('agent panel no longer renders the context card surface', () => {
   const chatViewSource = readFileSync(resolve('src/components/agent/AgentChatView.tsx'), 'utf8')
   const chatViewControllerSource = readFileSync(resolve('src/components/agent/useAgentChatViewController.ts'), 'utf8')
   const chatViewLayoutSource = readFileSync(resolve('src/components/agent/AgentChatViewLayout.tsx'), 'utf8')
-  const contextSectionSource = readFileSync(resolve('src/components/agent/AgentContextSection.tsx'), 'utf8')
   const contextStateSource = readFileSync(resolve('src/components/agent/useAgentChatContextState.ts'), 'utf8')
-  const contextSummarySource = readFileSync(resolve('src/components/agent/useAgentContextSummary.ts'), 'utf8')
-  const productWorkflowSource = readFileSync(resolve('src/components/agent/AgentProductWorkflowCard.tsx'), 'utf8')
 
   assert.match(chatViewSource, /useAgentChatViewController\(props\)/)
   assert.match(chatViewControllerSource, /useAgentChatContextState\(\{/)
   assert.match(contextStateSource, /useAgentContextSummary\(\{/)
-  assert.match(contextSummarySource, /buildAgentProductWorkflow/)
   assert.match(chatViewSource, /<AgentChatViewLayout/)
-  assert.match(chatViewLayoutSource, /<AgentContextSection/)
-  assert.match(productWorkflowSource, /function AgentProductWorkflowCard/)
-  assert.match(productWorkflowSource, /data-testid="agent-product-workflow-card"/)
-
-  const productCard = contextSectionSource.indexOf('<AgentProductWorkflowCard summary={productWorkflow} />')
-  const technicalRuntime = contextSectionSource.indexOf('localAgentOnline ? t')
-  assert.ok(productCard > 0, 'product workflow card must be rendered in the context section')
-  assert.ok(technicalRuntime > productCard, 'product workflow should appear before runtime/MCP diagnostics')
+  assert.doesNotMatch(chatViewLayoutSource, /AgentContextSection/)
+  assert.doesNotMatch(chatViewLayoutSource, /context:/)
+  assert.doesNotMatch(contextStateSource, /useAgentContextPaneController/)
 })

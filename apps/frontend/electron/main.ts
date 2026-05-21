@@ -21,10 +21,17 @@ function resolveAppIconPath(): string {
 }
 
 function createWindow(): void {
+  const titleBarHeight = 34
+  const macTrafficLightVisualSize = 14
+  const isMacOS = process.platform === 'darwin'
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
     icon: resolveAppIconPath(),
+    titleBarStyle: isMacOS ? 'hiddenInset' : 'hidden',
+    ...(isMacOS
+      ? { trafficLightPosition: { x: 14, y: Math.round((titleBarHeight - macTrafficLightVisualSize) / 2) } }
+      : { titleBarOverlay: { height: titleBarHeight } }),
     webPreferences: {
       preload: resolvePreloadPath(),
       sandbox: false

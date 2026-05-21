@@ -1,5 +1,6 @@
+import { type ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { ArrowRight, CheckCircle2, ChevronRight, CircleDot, Database, ListChecks, RefreshCw } from 'lucide-react'
+import { ArrowRight, CheckCircle2, ChevronRight, CircleDot, ListChecks, RefreshCw } from 'lucide-react'
 
 import { decisionVariant, priorityLabel, statusLabel, statusVariant } from '@/lib/contentWorkbenchStatus'
 import { cn } from '@/lib/utils'
@@ -10,9 +11,19 @@ import type {
   WorkbenchScenarioPriority,
   WorkbenchScenarioStatus,
 } from '@/lib/workbenchScenarios'
-import { getWorkbenchSurface, type WorkbenchCategory } from '@/pages/project/projectSurfaces'
+import {
+  getProjectWorkbenchDefinition,
+  type ProjectWorkbenchId,
+} from '@/pages/project/projectSurfaces'
 import { Badge, Button, Card, Progress, ScrollArea } from '@movscript/ui'
 import { WorkbenchPanel } from './WorkbenchPanel'
+import {
+  WorkbenchKeyValue,
+  WorkbenchList,
+  WorkbenchListItem,
+  WorkbenchMetric as WorkbenchPrimitiveMetric,
+  WorkbenchStatusBadge,
+} from './WorkbenchPrimitives'
 
 export interface WorkbenchMetric {
   label: string
@@ -35,45 +46,54 @@ export interface WorkbenchLinkRow {
   icon: LucideIcon
 }
 
-export function SpecializedWorkbenchHeader({
-  category,
-  kicker,
+export interface ProjectWorkbenchHeaderProps {
+  workbenchId: ProjectWorkbenchId
+  projectName?: string
+  kicker?: string
+  title?: string
+  description?: string
+  badges?: ReactNode
+  actions?: ReactNode
+  onRefresh?: () => void
+  refreshing?: boolean
+  refreshLabel?: string
+  generationKind?: CanvasWorkbenchKind
+}
+
+export function ProjectWorkbenchHeader({
+  workbenchId,
   title,
   description,
+  actions,
+  onRefresh,
+  refreshing = false,
+  refreshLabel = '刷新上下文',
   generationKind,
-}: {
-  category: WorkbenchCategory
-  kicker: string
-  title: string
-  description: string
-  generationKind?: CanvasWorkbenchKind
-}) {
-  const surface = getWorkbenchSurface(category)
+}: ProjectWorkbenchHeaderProps) {
+  const workbench = getProjectWorkbenchDefinition(workbenchId)
+  const Icon = workbench.icon
   const generation = useWorkbenchCanvasLauncher(generationKind)
 
   return (
-    <header className="shrink-0 border-b border-border bg-background px-5 py-4">
+    <header data-testid="project-workbench-header" className="shrink-0 border-b border-border bg-background px-5 py-4">
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-            <surface.icon size={18} />
+            <Icon size={18} />
           </span>
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Database size={14} />
-              <span>当前项目</span>
-              <ChevronRight size={13} />
-              <span>{kicker}</span>
-            </div>
-            <h1 className="mt-1 truncate text-lg font-semibold text-foreground">{title}</h1>
-            <p className="mt-1 max-w-4xl truncate text-xs text-muted-foreground">{description}</p>
+            <h1 className="truncate type-title-sm font-semibold text-foreground">{title || workbench.title}</h1>
+            <p className="mt-1 max-w-4xl truncate type-label text-muted-foreground">{description || workbench.purpose}</p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button variant="outline" size="sm">
-            <RefreshCw size={14} />
-            刷新上下文
-          </Button>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {onRefresh ? (
+            <Button variant="outline" size="sm" onClick={onRefresh}>
+              <RefreshCw size={14} className={refreshing ? 'animate-spin' : undefined} />
+              {refreshLabel}
+            </Button>
+          ) : null}
+          {actions}
           {generationKind ? (
             <Button size="sm" disabled={generation.disabled} loading={generation.loading} onClick={generation.open}>
               <ArrowRight size={14} />
@@ -83,6 +103,26 @@ export function SpecializedWorkbenchHeader({
         </div>
       </div>
     </header>
+  )
+}
+
+export function ProjectWorkbenchShell({
+  children,
+  className,
+  ...headerProps
+}: ProjectWorkbenchHeaderProps & {
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div
+      data-testid="project-workbench-shell"
+      data-workbench-id={headerProps.workbenchId}
+      className={cn('flex h-full min-h-0 flex-col overflow-hidden bg-background', className)}
+    >
+      <ProjectWorkbenchHeader {...headerProps} />
+      {children}
+    </div>
   )
 }
 
@@ -98,34 +138,30 @@ export function QueueList({
   return (
     <Card className="rounded-lg border-border bg-card p-4">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-foreground">待处理队列</h2>
+        <h2 className="type-body font-semibold text-foreground">待处理队列</h2>
         <Badge variant="secondary">{items.length}</Badge>
       </div>
-      <div className="space-y-2">
+      <WorkbenchList>
         {items.map((item) => (
-          <button
+          <WorkbenchListItem
             key={item.id}
-            type="button"
             onClick={() => onSelect(item.id)}
-            className={cn(
-              'w-full rounded-md border px-3 py-3 text-left transition-colors',
-              selectedId === item.id ? 'border-primary/60 bg-primary/5' : 'border-border bg-background hover:bg-muted/30',
-            )}
+            active={selectedId === item.id}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="min-w-0 truncate text-sm font-medium text-foreground">{item.title}</span>
-              <Badge variant={statusVariant(item.status)}>{statusLabel(item.status)}</Badge>
+              <span className="min-w-0 truncate type-body font-medium text-foreground">{item.title}</span>
+              <WorkbenchStatusBadge tone={statusTone(item.status)} label={statusLabel(item.status)} />
             </div>
-            <p className="mt-1 truncate text-xs text-muted-foreground">{item.subtitle}</p>
+            <p className="mt-1 truncate type-label text-muted-foreground">{item.subtitle}</p>
             <div className="mt-3 flex items-center gap-2">
               <Badge variant={item.priority === 'high' ? 'danger' : item.priority === 'medium' ? 'warning' : 'outline'} className="shrink-0">
                 {priorityLabel(item.priority)}
               </Badge>
               <Progress value={item.progress} className="h-1.5" />
             </div>
-          </button>
+          </WorkbenchListItem>
         ))}
-      </div>
+      </WorkbenchList>
     </Card>
   )
 }
@@ -137,11 +173,11 @@ export function InfoPanel({ title, rows, icon: Icon }: { title: string; rows: st
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
           <Icon size={17} />
         </span>
-        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        <h2 className="type-body font-semibold text-foreground">{title}</h2>
       </div>
       <div className="space-y-2">
         {rows.map((row) => (
-          <div key={row} className="rounded-md border border-border bg-background px-3 py-2 text-sm leading-6 text-foreground">
+          <div key={row} className="rounded-md border border-border bg-background px-3 py-2 type-body leading-6 text-foreground">
             {row}
           </div>
         ))}
@@ -153,15 +189,15 @@ export function InfoPanel({ title, rows, icon: Icon }: { title: string; rows: st
 export function DecisionPanel({ title, rows }: { title: string; rows: WorkbenchDecisionRow[] }) {
   return (
     <Card className="rounded-lg border-border bg-card p-4">
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+      <h2 className="type-body font-semibold text-foreground">{title}</h2>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {rows.map((row) => (
           <div key={`${row.label}:${row.value}`} className="rounded-md border border-border bg-background p-3">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground">{row.label}</p>
+              <p className="type-label text-muted-foreground">{row.label}</p>
               <Badge variant={decisionVariant(row.tone)}>{row.tone === 'warning' ? '需处理' : row.tone === 'success' ? '可用' : '信息'}</Badge>
             </div>
-            <p className="mt-2 text-sm font-medium leading-6 text-foreground">{row.value}</p>
+            <p className="mt-2 type-body font-medium leading-6 text-foreground">{row.value}</p>
           </div>
         ))}
       </div>
@@ -173,14 +209,14 @@ export function ActionRail({ actions, outputTitle, outputs }: { actions: string[
   return (
     <aside className="w-80 shrink-0 overflow-auto border-l border-border bg-muted/20 p-4">
       <section className="mb-5">
-        <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">可执行动作</h3>
+        <h3 className="mb-2 type-label font-semibold uppercase text-muted-foreground">可执行动作</h3>
         <div className="space-y-2">
           {actions.map((action, index) => (
             <button
               key={action}
               type="button"
               className={cn(
-                'flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors',
+                'flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left type-body transition-colors',
                 index === 0 ? 'border-primary/50 bg-primary/10 text-foreground' : 'border-border bg-background text-foreground hover:bg-muted/40',
               )}
             >
@@ -191,15 +227,15 @@ export function ActionRail({ actions, outputTitle, outputs }: { actions: string[
         </div>
       </section>
       <section>
-        <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{outputTitle}</h3>
+        <h3 className="mb-2 type-label font-semibold uppercase text-muted-foreground">{outputTitle}</h3>
         <div className="space-y-2">
           {outputs.map((row) => (
             <div key={`${row.label}:${row.value}`} className="rounded-md border border-border bg-background px-3 py-2">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs text-muted-foreground">{row.label}</p>
+                <p className="type-label text-muted-foreground">{row.label}</p>
                 <Badge variant={decisionVariant(row.tone)}>{row.tone === 'success' ? '输出' : '记录'}</Badge>
               </div>
-              <p className="mt-1 text-sm leading-5 text-foreground">{row.value}</p>
+              <p className="mt-1 type-body leading-5 text-foreground">{row.value}</p>
             </div>
           ))}
         </div>
@@ -212,19 +248,20 @@ export function MetricStrip({ metrics }: { metrics: WorkbenchMetric[] }) {
   return (
     <section className="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
       {metrics.map((metric) => {
-        const Icon = metric.icon
         return (
-          <div key={metric.label} className="rounded-lg border border-border bg-card p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-                <Icon size={15} />
+          <WorkbenchPrimitiveMetric
+            key={metric.label}
+            icon={metric.icon}
+            label={(
+              <span className="flex min-w-0 items-center justify-between gap-2">
                 <span className="truncate">{metric.label}</span>
-              </div>
-              <Badge variant={statusVariant(metric.status)}>{statusLabel(metric.status)}</Badge>
-            </div>
-            <p className="mt-3 text-2xl font-semibold text-foreground">{metric.value}</p>
-            <p className="mt-1 truncate text-xs text-muted-foreground">{metric.detail}</p>
-          </div>
+                <WorkbenchStatusBadge tone={statusTone(metric.status)} label={statusLabel(metric.status)} />
+              </span>
+            )}
+            value={metric.value}
+            detail={metric.detail}
+            tone={statusTone(metric.status)}
+          />
         )
       })}
     </section>
@@ -257,30 +294,26 @@ export function SpecializedQueue({
   return (
     <WorkbenchPanel title={title} icon={ListChecks} action={<Badge variant="secondary">{items.length}</Badge>} className={className} bodyClassName={bodyClassName}>
       <ScrollArea className="h-full min-h-0">
-        <div className="space-y-2 pr-2">
+        <WorkbenchList className="pr-2">
           {items.map((item) => (
-            <button
+            <WorkbenchListItem
               key={item.id}
-              type="button"
               onClick={() => onSelect(item.id)}
-              className={cn(
-                'w-full rounded-md border px-3 py-3 text-left transition-colors',
-                selectedId === item.id ? 'border-primary/60 bg-primary/5' : 'border-border bg-background hover:bg-muted/30',
-              )}
+              active={selectedId === item.id}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="min-w-0 truncate text-sm font-medium text-foreground">{item.title}</span>
-                <Badge variant={statusVariant(item.status)}>{statusLabel(item.status)}</Badge>
+                <span className="min-w-0 truncate type-body font-medium text-foreground">{item.title}</span>
+                <WorkbenchStatusBadge tone={statusTone(item.status)} label={statusLabel(item.status)} />
               </div>
-              <p className="mt-1 truncate text-xs text-muted-foreground">{item.scope}</p>
-              {item.need ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.need}</p> : null}
+              <p className="mt-1 truncate type-label text-muted-foreground">{item.scope}</p>
+              {item.need ? <p className="mt-2 line-clamp-2 type-label leading-5 text-muted-foreground">{item.need}</p> : null}
               <div className="mt-3 flex items-center gap-2">
                 <Badge variant={item.priority === 'high' ? 'danger' : item.priority === 'medium' ? 'warning' : 'outline'}>{priorityLabel(item.priority)}</Badge>
                 <Progress value={item.progress} className="h-1.5" />
               </div>
-            </button>
+            </WorkbenchListItem>
           ))}
-        </div>
+        </WorkbenchList>
       </ScrollArea>
     </WorkbenchPanel>
   )
@@ -299,26 +332,23 @@ export function QueueMiniMetric({
 }) {
   const content = (
     <>
-      <p className="text-[10px] text-muted-foreground">{label}</p>
-      <p className={cn('mt-0.5 text-sm font-semibold tabular-nums', tone === 'warning' ? 'text-amber-700 dark:text-amber-300' : 'text-foreground')}>{value}</p>
+      <p className="type-tiny text-muted-foreground">{label}</p>
+      <p className={cn('mt-0.5 type-body font-semibold tabular-nums', tone === 'warning' ? 'text-amber-700 dark:text-amber-300' : 'text-foreground')}>{value}</p>
     </>
   )
   if (onClick) {
     return (
-      <button
+      <WorkbenchListItem
         type="button"
         onClick={onClick}
-        className="min-w-14 rounded-md border border-border bg-background px-2 py-1.5 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
+        density="compact"
+        className="min-w-14"
       >
         {content}
-      </button>
+      </WorkbenchListItem>
     )
   }
-  return (
-    <div className="min-w-14 rounded-md border border-border bg-background px-2 py-1.5">
-      {content}
-    </div>
-  )
+  return <WorkbenchKeyValue label={label} value={value} className="min-w-14 px-2 py-1.5" />
 }
 
 export function ContextStack({ rows, className }: { rows: WorkbenchLinkRow[]; className?: string }) {
@@ -328,11 +358,11 @@ export function ContextStack({ rows, className }: { rows: WorkbenchLinkRow[]; cl
         const Icon = row.icon
         return (
           <div key={row.label} className="grid grid-cols-[104px_minmax(0,1fr)] gap-2 border-b border-border/70 px-2.5 py-2 last:border-b-0">
-            <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex min-w-0 items-center gap-2 type-label text-muted-foreground">
               <Icon size={14} className="shrink-0" />
               <span className="truncate">{row.label}</span>
             </div>
-            <p className="min-w-0 truncate text-sm text-foreground">{row.value}</p>
+            <p className="min-w-0 truncate type-body text-foreground">{row.value}</p>
           </div>
         )
       })}
@@ -342,19 +372,26 @@ export function ContextStack({ rows, className }: { rows: WorkbenchLinkRow[]; cl
 
 export function GateChecklist({ rows }: { rows: WorkbenchGate[] }) {
   return (
-    <div className="space-y-1.5">
+    <WorkbenchList className="gap-1.5">
       {rows.map((row) => (
-        <div key={row.label} className="rounded-md border border-border bg-background px-2.5 py-2">
+        <div key={row.label} className="workbench-list-item px-2.5 py-2">
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
               {row.done ? <CheckCircle2 size={15} className="shrink-0 text-emerald-600" /> : <CircleDot size={15} className="shrink-0 text-amber-600" />}
-              <span className="truncate text-sm font-medium text-foreground">{row.label}</span>
+              <span className="truncate type-body font-medium text-foreground">{row.label}</span>
             </div>
-            <Badge variant={row.done ? 'success' : row.tone === 'warning' ? 'warning' : 'outline'}>{row.done ? '通过' : '待处理'}</Badge>
+            <WorkbenchStatusBadge tone={row.done ? 'success' : row.tone === 'warning' ? 'warning' : 'neutral'} label={row.done ? '通过' : '待处理'} />
           </div>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">{row.detail}</p>
+          <p className="mt-1 type-label leading-5 text-muted-foreground">{row.detail}</p>
         </div>
       ))}
-    </div>
+    </WorkbenchList>
   )
+}
+
+function statusTone(status: WorkbenchScenarioStatus) {
+  if (status === 'blocked') return 'warning'
+  if (status === 'ready') return 'success'
+  if (status === 'running') return 'info'
+  return 'neutral'
 }

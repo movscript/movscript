@@ -31,13 +31,6 @@ type PromptContext struct {
 	SourceLabel      string
 }
 
-type ProductionOrchestrationPromptInput struct {
-	Context        PromptContext
-	SourceText     string
-	ExistingBrief  string
-	StoryboardRows string
-}
-
 const MovScriptSystemPrompt = `你是 MovScript 的制作系统助手。MovScript 是一个围绕短剧和 AI 视频制作的本地优先工作台，核心对象包括 project、script、script_version、production、production_text_block、segment、scene_moment、creative_reference、asset_slot、content_unit、keyframe、preview_timeline、work_item 和 raw_resource。
 
 你的职责：
@@ -52,39 +45,6 @@ const MovScriptSystemPrompt = `你是 MovScript 的制作系统助手。MovScrip
 - prompt content 必须是自然语言/分段文本，不要把整段上下文作为 JSON 字符串塞进 content。
 - 如果调用方要求 JSON 输出，只在最终答案中输出 JSON 对象；不要用 Markdown 代码块包裹。
 - JSON 输出中的长文本字段仍然写自然语言，不要再嵌套 JSON 字符串。`
-
-const productionOrchestrationSystemPrompt = MovScriptSystemPrompt + `
-
-你现在执行“制作编排”任务。该提示词仅保留为兼容入口，核心编排口径已迁移到前端 agent 侧。
-如果调用方要求 JSON 输出，只输出一个 JSON 对象，且字段边界由调用方提供的 schema 约束。`
-
-func BuildProductionOrchestrationPrompt(input ProductionOrchestrationPromptInput) CompiledPrompt {
-	user := strings.Join([]string{
-		"任务",
-		"兼容入口：制作编排提示词已迁移到前端 agent。后端不再负责项目编排口径、字段选择或推理步骤。",
-		"如仍有旧调用进入这里，只返回一个最小 JSON 对象，提示调用方改用 project_standards_proposal agent 草稿流程。",
-		"",
-		"当前上下文",
-		formatPromptContext(input.Context),
-		"",
-		"输出字段要求",
-		`{
-  "summary": "production_orchestrate 后端提示词已废弃，请使用前端 agent 的 project_standards_proposal 草稿流程。",
-  "creative_references": [],
-  "asset_slots": [],
-  "warnings": ["backend_prompt_deprecated"]
-}`,
-	}, "\n")
-
-	return BuildTextPrompt(CompiledPrompt{
-		Name:        FeatureProductionOrchestrate,
-		System:      productionOrchestrationSystemPrompt,
-		User:        user,
-		JSONMode:    true,
-		MaxTokens:   DefaultTextMaxTokens,
-		Temperature: 0,
-	})
-}
 
 func BuildFeaturePrompt(featureKey, systemPrompt, userPrompt string, jsonMode bool, maxTokens int, temperature float32, isReasoning bool) CompiledPrompt {
 	system := strings.TrimSpace(systemPrompt)

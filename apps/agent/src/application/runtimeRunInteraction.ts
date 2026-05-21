@@ -33,6 +33,7 @@ import { appendThreadMessage } from './threadLifecycle.js'
 import { createRuntimeMessage } from './runtimeMessageFactory.js'
 import { requireRuntimeRun, requireRuntimeThread } from './runtimeStoreLookup.js'
 import { updateRuntimeThreadRunStatus } from './runtimeThreadProjection.js'
+import { materializeRuntimeApprovalInteractions } from './runtimeInteractions.js'
 
 export interface RuntimeRunInteractionTraceInput {
   kind: AgentTraceEventKind
@@ -68,7 +69,7 @@ export interface RuntimeRunRejectionResult {
 }
 
 export function applyRuntimeRunRequiredActionFlow(input: {
-  store: Pick<AgentStore, 'getThread' | 'updateThread' | 'updateRun'>
+  store: Pick<AgentStore, 'getThread' | 'updateThread' | 'updateRun' | 'createRuntimeInteraction' | 'listRuntimeInteractions'>
   run: AgentRun
   pendingApprovals: AgentApprovalRequest[]
   pendingInputRequests?: AgentInputRequest[]
@@ -99,6 +100,13 @@ export function applyRuntimeRunRequiredActionFlow(input: {
       data: { approvals: input.pendingApprovals, inputRequests: input.run.pendingInputRequests },
     })
   }
+  input.store.updateRun(input.run)
+  materializeRuntimeApprovalInteractions({
+    store: input.store,
+    run: input.run,
+    approvals: input.pendingApprovals,
+    now: input.now,
+  })
   input.store.updateRun(input.run)
   updateRuntimeThreadRunStatus({
     store: input.store,
@@ -145,6 +153,7 @@ export function applyRuntimeRunApprovalFlow(input: {
     },
   })
   input.emitRunSnapshot(run)
+  if (hasPendingApprovals(run)) return run
   input.rememberRunAuth(run.id, input.approvalInput ?? {})
   input.startRunExecution(run.id)
   return run
@@ -244,6 +253,7 @@ export function applyRuntimeRunRejectionFlow(input: {
   recordTrace: (run: AgentRun, trace: RuntimeRunInteractionTraceInput) => void
   createStep: (run: AgentRun, type: AgentRunStep['type'], round?: AgentRunRoundInfo, toolName?: string) => AgentRunStep
   emitRunSnapshot: (run: AgentRun, options: { done?: boolean }) => void
+  startRunExecution?: (runId: string) => void
 }): AgentRun {
   const { run } = rejectRuntimeRunInteraction({
     store: input.store,
@@ -273,7 +283,8 @@ export function applyRuntimeRunRejectionFlow(input: {
       })
     },
   })
-  input.emitRunSnapshot(run, { done: true })
+  input.emitRunSnapshot(run, { done: run.status !== 'requires_action' && run.status !== 'queued' })
+  if (run.status === 'queued') input.startRunExecution?.(run.id)
   return run
 }
 
@@ -286,6 +297,7 @@ export function applyRuntimeRunRejectionRequest(input: {
   recordTrace: (run: AgentRun, trace: RuntimeRunInteractionTraceInput) => void
   createStep: (run: AgentRun, type: AgentRunStep['type'], round?: AgentRunRoundInfo, toolName?: string) => AgentRunStep
   emitRunSnapshot: (run: AgentRun, options: { done?: boolean }) => void
+  startRunExecution?: (runId: string) => void
 }): AgentRun {
   return applyRuntimeRunRejectionFlow({
     store: input.store,
@@ -297,6 +309,7 @@ export function applyRuntimeRunRejectionRequest(input: {
     recordTrace: input.recordTrace,
     createStep: input.createStep,
     emitRunSnapshot: input.emitRunSnapshot,
+    startRunExecution: input.startRunExecution,
   })
 }
 
@@ -311,6 +324,10 @@ export function approveRuntimeRunInteraction(input: {
   const run = requireRuntimeRun(input.store, input.runId)
   const approval = approveRunInteraction(run, input.approvalInput ?? {}, input.now)
   applyApprovedRunInteraction(run, approval, input.now)
+  if (hasPendingApprovals(run)) {
+    run.status = 'requires_action'
+    run.updatedAt = input.now
+  }
   input.beforePersist?.(run, approval)
   input.store.updateRun(run)
   updateRuntimeThreadRunStatus({
@@ -321,6 +338,18 @@ export function approveRuntimeRunInteraction(input: {
     now: input.projectionNow ?? input.now,
   })
   return { run, approval }
+}
+
+function hasPendingApprovals(run: AgentRun): boolean {
+  return hasPendingApprovalItems(run.pendingApprovals ?? [])
+}
+
+function hasPendingApprovalItems(approvals: AgentApprovalRequest[]): boolean {
+  return approvals.some((approval) => approval.status === 'pending')
+}
+
+function hasApprovedApprovalItems(approvals: AgentApprovalRequest[]): boolean {
+  return approvals.some((approval) => approval.status === 'approved')
 }
 
 export function answerRuntimeRunInputRequest(input: {
@@ -375,21 +404,40 @@ export function rejectRuntimeRunInteraction(input: {
   const message = createRuntimeMessage({
     threadId: thread.id,
     role: 'assistant',
-    content: `已取消需要确认的工具调用。\n\n${warning}`,
+    content: rejectionMessageContent(rejection, warning),
     runId: run.id,
     id: input.messageId,
     now: input.now,
   })
   appendThreadMessage({ thread, message })
-  applyRejectedRunInteraction(run, rejection, {
-    now: input.now,
-    assistantMessageId: message.id,
-    warning,
-  })
+  if (hasPendingApprovalItems(rejection.pendingApprovals) || hasApprovedApprovalItems(rejection.pendingApprovals)) {
+    run.pendingApprovals = rejection.pendingApprovals
+    run.warnings = Array.from(new Set([...(run.warnings ?? []), warning]))
+    run.status = hasPendingApprovalItems(rejection.pendingApprovals) ? 'requires_action' : 'queued'
+    run.updatedAt = input.now
+  } else {
+    applyRejectedRunInteraction(run, rejection, {
+      now: input.now,
+      assistantMessageId: message.id,
+      warning,
+    })
+  }
   projectRunOntoThread(thread, run)
-  applyRuntimeThreadContextSummary({ thread, run, now: input.summaryNow ?? input.now })
+  if (run.status !== 'requires_action' && run.status !== 'queued') {
+    applyRuntimeThreadContextSummary({ thread, run, now: input.summaryNow ?? input.now })
+  }
   input.beforePersist?.(run, rejection, message, warning)
   input.store.updateThread(thread)
   input.store.updateRun(run)
   return { run, rejection, warning, message }
+}
+
+function rejectionMessageContent(rejection: RejectedRunInteraction, warning: string): string {
+  if (hasPendingApprovalItems(rejection.pendingApprovals)) {
+    return `已记录被拒绝的工具调用，仍有其他工具调用等待确认。\n\n${warning}`
+  }
+  if (hasApprovedApprovalItems(rejection.pendingApprovals)) {
+    return `已记录被拒绝的工具调用，将继续执行已批准的工具调用。\n\n${warning}`
+  }
+  return `已取消需要确认的工具调用。\n\n${warning}`
 }

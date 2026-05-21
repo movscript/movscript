@@ -37,7 +37,7 @@ export function DetailHero({
         <button
           type="button"
           onClick={onDelete}
-          className="text-xs text-muted-foreground transition-colors hover:text-destructive"
+          className="type-label text-muted-foreground transition-colors hover:text-destructive"
         >
           {deleteLabel}
         </button>
@@ -70,16 +70,16 @@ export function DetailHero({
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           {eyebrow && (
-            <div className="flex max-w-[38%] shrink-0 items-center gap-1.5 overflow-hidden text-xs text-muted-foreground">
+            <div className="flex max-w-[38%] shrink-0 items-center gap-1.5 overflow-hidden type-label text-muted-foreground">
               {eyebrow}
             </div>
           )}
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-baseline gap-2">
-              <h2 className="truncate text-base font-semibold leading-6 text-foreground">{title}</h2>
-              {body && <p className="hidden min-w-0 flex-1 truncate text-xs text-muted-foreground lg:block">{body}</p>}
+              <h2 className="truncate type-body-lg font-semibold leading-6 text-foreground">{title}</h2>
+              {body && <p className="hidden min-w-0 flex-1 truncate type-label text-muted-foreground lg:block">{body}</p>}
             </div>
-            {meta && <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">{meta}</div>}
+            {meta && <div className="mt-1 flex flex-wrap items-center gap-1.5 type-caption text-muted-foreground">{meta}</div>}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -92,7 +92,7 @@ export function DetailHero({
 
 export function HeroPill({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <span className={cn('inline-flex max-w-full items-center rounded border border-border/70 bg-background/80 px-1.5 py-0.5 text-[11px] font-medium leading-5 text-foreground', className)}>
+    <span className={cn('inline-flex max-w-full items-center rounded border border-border/70 bg-background/80 px-1.5 py-0.5 type-caption font-medium leading-5 text-foreground', className)}>
       <span className="truncate">{children}</span>
     </span>
   )

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { AlertCircle, ArrowLeft, Loader2, Play, RefreshCw } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Loader2, Play, Plug, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   loadClientPlugins,
@@ -15,6 +15,7 @@ import type { PublicModel, RawResource } from '@/types'
 import { Button } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { ROUTES } from '@/routes/projectRoutes'
+import { ToolHeader } from '@/pages/tools/ToolHeader'
 
 // ── Webview iframe (bundleUrl plugins) ────────────────────────────────────────
 
@@ -98,8 +99,8 @@ function ParamField({
     const capability = (prop['x-capability'] as 'image' | 'video' | 'text') ?? 'image'
     return (
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-foreground">{label}</label>
-        {prop.description && <p className="text-[11px] text-muted-foreground">{prop.description}</p>}
+        <label className="type-label font-medium text-foreground">{label}</label>
+        {prop.description && <p className="type-caption text-muted-foreground">{prop.description}</p>}
         <ModelSelector
           capability={capability}
           value={modelValues[name] ?? null}
@@ -115,12 +116,12 @@ function ParamField({
   if (prop.enum && prop.enum.length > 0) {
     return (
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-foreground">{label}</label>
-        {prop.description && <p className="text-[11px] text-muted-foreground">{prop.description}</p>}
+        <label className="type-label font-medium text-foreground">{label}</label>
+        {prop.description && <p className="type-caption text-muted-foreground">{prop.description}</p>}
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="px-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+          className="px-2 py-1.5 type-label rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
         >
           {prop.enum.map((opt) => (
             <option key={String(opt)} value={String(opt)}>{String(opt)}</option>
@@ -133,13 +134,13 @@ function ParamField({
   if (prop.type === 'number') {
     return (
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-foreground">{label}</label>
-        {prop.description && <p className="text-[11px] text-muted-foreground">{prop.description}</p>}
+        <label className="type-label font-medium text-foreground">{label}</label>
+        {prop.description && <p className="type-caption text-muted-foreground">{prop.description}</p>}
         <input
           type="number"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="px-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+          className="px-2 py-1.5 type-label rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
         />
       </div>
     )
@@ -149,21 +150,21 @@ function ParamField({
   const isLong = name === 'prompt' || name.includes('prompt') || name.includes('description')
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-foreground">{label}</label>
-      {prop.description && <p className="text-[11px] text-muted-foreground">{prop.description}</p>}
+      <label className="type-label font-medium text-foreground">{label}</label>
+      {prop.description && <p className="type-caption text-muted-foreground">{prop.description}</p>}
       {isLong ? (
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
           rows={3}
-          className="px-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+          className="px-2 py-1.5 type-label rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring resize-none"
         />
       ) : (
         <input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="px-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+          className="px-2 py-1.5 type-label rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
         />
       )}
     </div>
@@ -252,12 +253,12 @@ function NativePluginUI({ plugin }: { plugin: ClientPluginManifest }) {
           <div className="border border-border rounded-lg bg-background p-4">
             <div className="flex items-start justify-between gap-3 mb-3">
               <div>
-                <p className="text-sm font-semibold text-foreground">{plugin.name}</p>
+                <p className="type-body font-semibold text-foreground">{plugin.name}</p>
                 {plugin.description && (
-                  <p className="text-xs text-muted-foreground mt-0.5">{plugin.description}</p>
+                  <p className="type-label text-muted-foreground mt-0.5">{plugin.description}</p>
                 )}
               </div>
-              <span className="text-xs text-muted-foreground shrink-0">v{plugin.version}</span>
+              <span className="type-label text-muted-foreground shrink-0">v{plugin.version}</span>
             </div>
 
             {/* Selected resources badge */}
@@ -266,7 +267,7 @@ function NativePluginUI({ plugin }: { plugin: ClientPluginManifest }) {
                 {selectedResources.map((r) => (
                   <span
                     key={r.ID}
-                    className="inline-flex items-center gap-1 text-[11px] bg-muted text-muted-foreground rounded px-2 py-0.5"
+                    className="inline-flex items-center gap-1 type-caption bg-muted text-muted-foreground rounded px-2 py-0.5"
                   >
                     {r.name}
                     <button
@@ -323,12 +324,12 @@ function NativePluginUI({ plugin }: { plugin: ClientPluginManifest }) {
           {/* Result */}
           {result && (
             <div className={cn(
-              'border rounded-lg p-4 text-xs font-mono whitespace-pre-wrap break-all',
+              'border rounded-lg p-4 type-label font-mono whitespace-pre-wrap break-all',
               result.isError
                 ? 'border-destructive/40 bg-destructive/5 text-destructive'
                 : 'border-border bg-muted/30 text-foreground'
             )}>
-              <p className="text-[10px] font-sans font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              <p className="type-tiny font-sans font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                 {t('plugins.result')}
               </p>
               {result.text}
@@ -377,7 +378,7 @@ export default function PluginToolPage() {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-3 text-center">
         <AlertCircle size={24} className="text-muted-foreground" />
-        <p className="text-sm font-medium text-foreground">{t('plugins.notFound')}</p>
+        <p className="type-body font-medium text-foreground">{t('plugins.notFound')}</p>
         <Button size="sm" variant="outline" onClick={() => navigate(ROUTES.plugins)}>
           <ArrowLeft size={13} className="mr-1.5" />
           {t('common.back')}
@@ -391,22 +392,17 @@ export default function PluginToolPage() {
 
   return (
     <div className="h-full flex flex-col bg-background">
-      <div className="h-11 border-b border-border px-4 flex items-center gap-3 shrink-0">
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => navigate(ROUTES.plugins)}>
-          <ArrowLeft size={14} />
-        </Button>
-        <span className="text-muted-foreground text-sm">{t('sidebar.sections.tools')}</span>
-        <span className="text-muted-foreground/40">/</span>
-        <span className="text-sm font-semibold text-foreground">{plugin.name}</span>
-        {plugin.version && <span className="text-xs text-muted-foreground">v{plugin.version}</span>}
-        {isWebview && (
-          <div className="ml-auto">
-            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setIframeKey((k) => k + 1)} title="Reload">
-              <RefreshCw size={13} />
-            </Button>
-          </div>
-        )}
-      </div>
+      <ToolHeader
+        title={plugin.name}
+        description={plugin.description}
+        icon={Plug}
+        metadata={plugin.version ? <span className="shrink-0 type-label text-muted-foreground">v{plugin.version}</span> : null}
+        actions={isWebview ? (
+          <Button size="icon-sm" variant="ghost" onClick={() => setIframeKey((k) => k + 1)} title="Reload">
+            <RefreshCw size={13} />
+          </Button>
+        ) : null}
+      />
 
       {isWebview ? (
         <div className="flex-1 min-h-0">

@@ -194,6 +194,52 @@ test('applyRuntimeRunApprovalFlow records trace, emits snapshot, remembers auth,
   assert.deepEqual(events, ['snapshot:queued', 'auth:run_1:true', 'start:run_1'])
 })
 
+test('applyRuntimeRunApprovalFlow keeps run waiting until all approvals resolve', () => {
+  const store = new InMemoryAgentStore()
+  store.createThread(makeThread({ status: 'requires_action', activeRunId: 'run_1' }))
+  store.createRun(makeRun({
+    status: 'requires_action',
+    pendingApprovals: [
+      approval('approval_1', 'tool_a'),
+      approval('approval_2', 'tool_b'),
+    ],
+  }))
+  const events: string[] = []
+
+  const first = applyRuntimeRunApprovalFlow({
+    store,
+    runId: 'run_1',
+    approvalInput: { approvalIds: ['approval_1'] },
+    now,
+    recordTrace: (_run, trace) => events.push(`trace:${trace.status}`),
+    emitRunSnapshot: (targetRun) => events.push(`snapshot:${targetRun.status}`),
+    rememberRunAuth: (targetRunId) => events.push(`auth:${targetRunId}`),
+    startRunExecution: (targetRunId) => events.push(`start:${targetRunId}`),
+  })
+  const second = applyRuntimeRunApprovalFlow({
+    store,
+    runId: 'run_1',
+    approvalInput: { approvalIds: ['approval_2'] },
+    now,
+    recordTrace: (_run, trace) => events.push(`trace:${trace.status}`),
+    emitRunSnapshot: (targetRun) => events.push(`snapshot:${targetRun.status}`),
+    rememberRunAuth: (targetRunId) => events.push(`auth:${targetRunId}`),
+    startRunExecution: (targetRunId) => events.push(`start:${targetRunId}`),
+  })
+
+  assert.equal(first.status, 'requires_action')
+  assert.equal(second.status, 'queued')
+  assert.deepEqual(store.getRun('run_1')?.pendingApprovals?.map((item) => item.status), ['approved', 'approved'])
+  assert.deepEqual(events, [
+    'trace:completed',
+    'snapshot:requires_action',
+    'trace:completed',
+    'snapshot:queued',
+    'auth:run_1',
+    'start:run_1',
+  ])
+})
+
 test('applyRuntimeRunApprovalRequest allocates timestamps and delegates approval flow callbacks', () => {
   const store = new InMemoryAgentStore()
   store.createThread(makeThread({ status: 'requires_action', activeRunId: 'run_1' }))
@@ -312,6 +358,38 @@ test('applyRuntimeRunRejectionFlow records trace, completes rejection message st
   assert.deepEqual(events, ['snapshot:completed_with_warnings:true'])
 })
 
+test('applyRuntimeRunRejectionFlow keeps run waiting after partial rejection', () => {
+  const store = new InMemoryAgentStore()
+  store.createThread(makeThread({ status: 'requires_action', activeRunId: 'run_1' }))
+  store.createRun(makeRun({
+    status: 'requires_action',
+    pendingApprovals: [
+      approval('approval_1', 'tool_a'),
+      approval('approval_2', 'tool_b'),
+    ],
+  }))
+  const events: string[] = []
+
+  const run = applyRuntimeRunRejectionFlow({
+    store,
+    runId: 'run_1',
+    rejectionInput: { approvalIds: ['approval_1'] },
+    messageId: 'msg_rejected',
+    now,
+    recordTrace: (_run, trace) => events.push(`trace:${trace.status}`),
+    createStep: (targetRun, type) => {
+      events.push(`step:${targetRun.status}:${type}`)
+      return step('step_rejected')
+    },
+    emitRunSnapshot: (targetRun, options) => events.push(`snapshot:${targetRun.status}:${options.done === true}`),
+    startRunExecution: (targetRunId) => events.push(`start:${targetRunId}`),
+  })
+
+  assert.equal(run.status, 'requires_action')
+  assert.deepEqual(store.getRun('run_1')?.pendingApprovals?.map((item) => item.status), ['rejected', 'pending'])
+  assert.deepEqual(events, ['trace:blocked', 'step:requires_action:message', 'snapshot:requires_action:false'])
+})
+
 test('applyRuntimeRunRejectionRequest allocates message and timestamps for rejection flow', () => {
   const store = new InMemoryAgentStore()
   store.createThread(makeThread({ status: 'requires_action', activeRunId: 'run_1' }))
@@ -403,5 +481,15 @@ function inputRequest(id: string): AgentInputRequest {
     status: 'pending',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+  }
+}
+
+function step(id: string): AgentRunStep {
+  return {
+    id,
+    runId: 'run_1',
+    type: 'message',
+    status: 'in_progress',
+    createdAt: now,
   }
 }

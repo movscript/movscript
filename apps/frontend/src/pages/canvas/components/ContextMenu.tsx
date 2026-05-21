@@ -5,7 +5,7 @@ import { CANVAS_NODE_CATALOG, CANVAS_NODE_CATEGORIES } from '../nodeCatalog'
 import { Boxes, Trash2 } from 'lucide-react'
 
 const CONTEXT_MENU_NODE_CATEGORIES = CANVAS_NODE_CATEGORIES.filter((category) => category.id !== 'media')
-const CONTEXT_MENU_HIDDEN_NODE_TYPES = new Set<NodeType>(['entity_card', 'approval'])
+const CONTEXT_MENU_HIDDEN_NODE_TYPES = new Set<NodeType>(['approval'])
 
 interface Props {
   x: number
@@ -33,7 +33,7 @@ function Section({
   const nodes = CANVAS_NODE_CATALOG.filter((node) => node.category === category && !CONTEXT_MENU_HIDDEN_NODE_TYPES.has(node.type))
   return (
     <>
-      <p className="px-3 pt-2 pb-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{title}</p>
+      <p className="px-3 pt-2 pb-1 type-tiny font-semibold text-muted-foreground uppercase tracking-wider">{title}</p>
       {nodes.map(({ type, labelKey, descriptionKey, icon: Icon }) => (
         <button
           key={type}
@@ -44,8 +44,8 @@ function Section({
             <Icon size={14} />
           </span>
           <span className="min-w-0">
-            <span className="block text-xs font-medium">{t(labelKey)}</span>
-            <span className="block truncate text-[10px] text-muted-foreground">{t(descriptionKey)}</span>
+            <span className="block type-label font-medium">{t(labelKey)}</span>
+            <span className="block truncate type-tiny text-muted-foreground">{t(descriptionKey)}</span>
           </span>
         </button>
       ))}
@@ -88,7 +88,7 @@ export function ContextMenu({ x, y, onAdd, onClose, selectedCount, onGroupSelect
         <>
           <button
             onClick={() => { onGroupSelected(); onClose() }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted/50 text-left transition-colors text-foreground"
+            className="w-full flex items-center gap-2.5 px-3 py-2 type-body hover:bg-muted/50 text-left transition-colors text-foreground"
           >
             <Boxes size={14} className="text-muted-foreground" />
             <span>{t('canvas.contextMenu.groupSelected', { count: selectedNodeCount })}</span>
@@ -100,7 +100,7 @@ export function ContextMenu({ x, y, onAdd, onClose, selectedCount, onGroupSelect
         <>
           <button
             onClick={() => { onDeleteSelected(); onClose() }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-destructive/10 text-left transition-colors text-destructive"
+            className="w-full flex items-center gap-2.5 px-3 py-2 type-body hover:bg-destructive/10 text-left transition-colors text-destructive"
           >
             <Trash2 size={14} />
             <span>{t('canvas.contextMenu.deleteSelected')}</span>

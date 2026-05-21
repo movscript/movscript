@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { isLocalAgentNotFoundError, LocalAgentClient, LocalAgentHTTPError, type AgentMessage, type AgentRun, type AgentThread } from './localAgentClient'
 
-test('runMessage reports when a saved thread id is reused', async () => {
+test('runMessageStream reports when a saved thread id is reused', async () => {
   const requests: string[] = []
   const thread = threadFixture('thread_existing')
   await withFetch(async (input, init) => {
@@ -11,10 +11,15 @@ test('runMessage reports when a saved thread id is reused', async () => {
     requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
     if (url.pathname === '/threads/thread_existing') return jsonResponse(thread)
     if (url.pathname === '/threads/thread_existing/runs') return jsonResponse(messageRunFixture('run_1', 'thread_existing', 'completed'))
-    if (url.pathname === '/runs/run_1') return jsonResponse(runFixture('run_1', 'thread_existing', 'completed'))
+    if (url.pathname === '/threads/thread_existing/stream') {
+      return new Response(`data: ${JSON.stringify({ type: 'done', threadId: 'thread_existing', run: runFixture('run_1', 'thread_existing', 'completed') })}\n\n`, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    }
     return new Response('not found', { status: 404 })
   }, async () => {
-    const result = await new LocalAgentClient('http://local.test').runMessage({
+    const result = await new LocalAgentClient('http://local.test').runMessageStream({
       threadId: 'thread_existing',
       message: 'continue',
     }, { timeoutMs: 1, pollMs: 1 })
@@ -31,12 +36,12 @@ test('runMessage reports when a saved thread id is reused', async () => {
     assert.deepEqual(requests.slice(0, 3), [
       'GET /threads/thread_existing',
       'POST /threads/thread_existing/runs',
-      'GET /runs/run_1',
+      'GET /threads/thread_existing/stream',
     ])
   })
 })
 
-test('runMessage reports when a missing saved thread id is replaced by a new thread', async () => {
+test('runMessageStream reports when a missing saved thread id is replaced by a new thread', async () => {
   const requests: string[] = []
   const thread = threadFixture('thread_new')
   await withFetch(async (input, init) => {
@@ -46,10 +51,15 @@ test('runMessage reports when a missing saved thread id is replaced by a new thr
     if (url.pathname === '/threads' && init?.method === 'POST') return jsonResponse(thread)
     if (url.pathname === '/threads/thread_new') return jsonResponse(thread)
     if (url.pathname === '/threads/thread_new/runs') return jsonResponse(messageRunFixture('run_1', 'thread_new', 'completed'))
-    if (url.pathname === '/runs/run_1') return jsonResponse(runFixture('run_1', 'thread_new', 'completed'))
+    if (url.pathname === '/threads/thread_new/stream') {
+      return new Response(`data: ${JSON.stringify({ type: 'done', threadId: 'thread_new', run: runFixture('run_1', 'thread_new', 'completed') })}\n\n`, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    }
     return new Response('not found', { status: 404 })
   }, async () => {
-    const result = await new LocalAgentClient('http://local.test').runMessage({
+    const result = await new LocalAgentClient('http://local.test').runMessageStream({
       threadId: 'thread_missing',
       message: 'continue',
       title: 'Recovered thread',
@@ -67,12 +77,12 @@ test('runMessage reports when a missing saved thread id is replaced by a new thr
       'GET /threads/thread_missing',
       'POST /threads',
       'POST /threads/thread_new/runs',
-      'GET /runs/run_1',
+      'GET /threads/thread_new/stream',
     ])
   })
 })
 
-test('runMessage only replaces saved thread ids for not-found responses', async () => {
+test('runMessageStream only replaces saved thread ids for not-found responses', async () => {
   const requests: string[] = []
   await withFetch(async (input, init) => {
     const url = new URL(String(input))
@@ -82,7 +92,7 @@ test('runMessage only replaces saved thread ids for not-found responses', async 
     return new Response('not found', { status: 404 })
   }, async () => {
     await assert.rejects(
-      () => new LocalAgentClient('http://local.test').runMessage({
+      () => new LocalAgentClient('http://local.test').runMessageStream({
         threadId: 'thread_broken',
         message: 'continue',
       }, { timeoutMs: 1, pollMs: 1 }),

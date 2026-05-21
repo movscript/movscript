@@ -116,6 +116,37 @@ func TestRunMigrationsAcceptsLegacyNoopChecksum(t *testing.T) {
 	}
 }
 
+func TestRemoveProductionOrchestrateFeatureConfig(t *testing.T) {
+	db := testutil.OpenSQLite(t, "remove_production_orchestrate_feature_config.db", &model.FeatureConfig{})
+	features := []model.FeatureConfig{
+		{FeatureKey: "production_orchestrate", DisplayName: "制作编排 AI 分析", Capability: "text", IsEnabled: true},
+		{FeatureKey: "brainstorm", DisplayName: "头脑风暴", Capability: "text", IsEnabled: true},
+	}
+	if err := db.Create(&features).Error; err != nil {
+		t.Fatalf("create feature configs: %v", err)
+	}
+
+	if err := removeProductionOrchestrateFeatureConfig(db); err != nil {
+		t.Fatalf("removeProductionOrchestrateFeatureConfig() error = %v", err)
+	}
+
+	var removed int64
+	if err := db.Unscoped().Model(&model.FeatureConfig{}).Where("feature_key = ?", "production_orchestrate").Count(&removed).Error; err != nil {
+		t.Fatalf("count removed feature: %v", err)
+	}
+	if removed != 0 {
+		t.Fatalf("production_orchestrate rows = %d, want 0", removed)
+	}
+
+	var kept int64
+	if err := db.Model(&model.FeatureConfig{}).Where("feature_key = ?", "brainstorm").Count(&kept).Error; err != nil {
+		t.Fatalf("count kept feature: %v", err)
+	}
+	if kept != 1 {
+		t.Fatalf("brainstorm rows = %d, want 1", kept)
+	}
+}
+
 func TestMigration000020ResequencesAndEnforcesScriptVersionNumbers(t *testing.T) {
 	db := testutil.OpenSQLiteWithConfig(t, "migration_000020_script_version_number.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,

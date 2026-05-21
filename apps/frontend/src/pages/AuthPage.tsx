@@ -8,6 +8,7 @@ import { getAPIBaseURL, isLocalLaunchMode } from '@/lib/config'
 import { translateApiError } from '@/lib/apiError'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
 import { type AuthSession, useUserStore } from '@/store/userStore'
+import { WorkModePrompt, type WorkModeChoice } from '@/components/app/WorkModePrompt'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
@@ -57,6 +58,7 @@ export default function AuthPage() {
   const { t } = useTranslation()
   const setSession = useUserStore((s) => s.setSession)
   const settings = useAppSettingsStore((s) => s.settings)
+  const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
   const [tab, setTab] = useState<Tab>('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -65,6 +67,7 @@ export default function AuthPage() {
   const [code, setCode] = useState('')
   const [challengeId, setChallengeId] = useState('')
   const [error, setError] = useState('')
+  const [pendingSession, setPendingSession] = useState<AuthSession | null>(null)
 
   const authConfig = useQuery<AuthConfig>({
     queryKey: ['auth', 'config'],
@@ -78,7 +81,7 @@ export default function AuthPage() {
 
   const login = useMutation({
     mutationFn: () => api.post('/auth/login', { username, password }).then((r) => r.data as AuthSession),
-    onSuccess: setSession,
+    onSuccess: setPendingSession,
     onError: (e: any) => setError(translateApiError(e.response?.data, 'auth.loginFailed'))
   })
 
@@ -90,7 +93,7 @@ export default function AuthPage() {
       code,
       localAdmin: localMode || bootstrapRequired,
     }).then((r) => r.data as AuthSession),
-    onSuccess: setSession,
+    onSuccess: setPendingSession,
     onError: (e: any) => setError(translateApiError(e.response?.data, 'auth.registerFailed'))
   })
   const startCode = useMutation({
@@ -119,6 +122,27 @@ export default function AuthPage() {
   const loading = login.isPending || register.isPending
   const onEnter = (e: React.KeyboardEvent) => e.key === 'Enter' && handleSubmit()
 
+  function completeLogin(mode: WorkModeChoice) {
+    if (!pendingSession) return
+    setWorkMode(mode)
+    setSession(pendingSession)
+  }
+
+  if (pendingSession) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6 text-foreground">
+        <div className="w-full max-w-4xl">
+          <p className="mb-2 type-body font-medium text-primary">Movscript</p>
+          <WorkModePrompt
+            title={t('auth.workModeTitle')}
+            description={t('auth.workModeDescription')}
+            onSelect={completeLogin}
+          />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <Link
@@ -130,10 +154,10 @@ export default function AuthPage() {
         <Settings size={16} />
       </Link>
       <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-foreground mb-1">Movscript</h1>
-        <p className="text-sm text-muted-foreground mb-8">{t('auth.tagline')}</p>
+        <h1 className="type-page-title font-bold text-foreground mb-1">Movscript</h1>
+        <p className="type-body text-muted-foreground mb-8">{t('auth.tagline')}</p>
         {bootstrapRequired && (
-          <p className="mb-4 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          <p className="mb-4 rounded-md border border-border bg-muted/30 px-3 py-2 type-label text-muted-foreground">
             {t('auth.bootstrapRequiredHint')}
           </p>
         )}
@@ -143,7 +167,7 @@ export default function AuthPage() {
             <button
               key={tabName}
               onClick={() => { setTab(tabName); setError('') }}
-              className={`flex-1 pb-2 text-sm font-medium transition-colors ${
+              className={`flex-1 pb-2 type-body font-medium transition-colors ${
                 tab === tabName
                   ? 'border-b-2 border-primary text-primary'
                   : 'text-muted-foreground hover:text-foreground'
@@ -200,7 +224,7 @@ export default function AuthPage() {
             </>
           )}
 
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="type-label text-destructive">{error}</p>}
 
           <Button
             onClick={handleSubmit}
@@ -211,15 +235,15 @@ export default function AuthPage() {
           </Button>
         </div>
 
-        <p className="mt-4 truncate text-center text-xs text-muted-foreground">
+        <p className="mt-4 truncate text-center type-label text-muted-foreground">
           {t('appSettings.currentApi')}: <span className="font-mono">{getAPIBaseURL()}</span>
         </p>
-        <p className="mt-2 text-center text-xs text-muted-foreground">
+        <p className="mt-2 text-center type-label text-muted-foreground">
           {t('appSettings.launchMode')}: {isLocalLaunchMode(settings) ? t('appSettings.localMode') : t('appSettings.cloudMode')}
         </p>
 
         {tab === 'login' && (
-          <p className="text-xs text-muted-foreground text-center mt-5">
+          <p className="type-label text-muted-foreground text-center mt-5">
             {registrationEnabled ? (
               <>
                 {t('auth.noAccount')}

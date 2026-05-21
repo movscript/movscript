@@ -51,7 +51,7 @@ export function LocalAgentWorkflowBubble({
             avatar={<Bot size={13} />}
             author="MovScript Agent"
             footer={(
-              <Badge variant={workflowBadge.variant} className="text-[9px] leading-4 px-1.5 py-0">
+              <Badge variant={workflowBadge.variant} className="type-micro leading-4 px-1.5 py-0">
                 {workflowBadge.label}
               </Badge>
             )}
@@ -82,10 +82,10 @@ function localAgentApprovalDetails(approval: AgentPendingApprovalRequest, t: Ret
   return (
     <>
       {approval.permission && (
-        <p className="mt-0.5 truncate text-[9px] text-muted-foreground/70">{t('agents.chat.panel.runtime.permission')}: {localAgentApprovalPermissionText(approval.permission, t)}</p>
+        <p className="mt-0.5 truncate type-micro text-muted-foreground/70">{t('agents.chat.panel.runtime.permission')}: {localAgentApprovalPermissionText(approval.permission, t)}</p>
       )}
       {approval.args && (
-        <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-1.5 text-[9px] text-muted-foreground">
+        <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-1.5 type-micro text-muted-foreground">
           {safeJSONStringify(approval.args)}
         </pre>
       )}
@@ -93,7 +93,7 @@ function localAgentApprovalDetails(approval: AgentPendingApprovalRequest, t: Ret
         const applyPreview = isDraftApplyPreview(approval.preview) ? approval.preview : null
         return applyPreview ? (
           <div className="mt-1 space-y-1">
-            <div className="rounded border border-border/70 bg-muted/20 p-1.5 text-[9px] leading-relaxed text-muted-foreground">
+            <div className="rounded border border-border/70 bg-muted/20 p-1.5 type-micro leading-relaxed text-muted-foreground">
               {applyPreview.review.sideEffect}
             </div>
             <DraftDiff preview={applyPreview} />

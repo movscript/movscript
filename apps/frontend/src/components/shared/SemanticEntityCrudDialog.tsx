@@ -163,12 +163,12 @@ export function SemanticEntityCrudDialog({
 
           <div className="min-h-0 flex-1 overflow-y-auto py-4">
             {config.requiredHint && mode === 'create' && !quickCreate ? (
-              <p className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">{config.requiredHint}</p>
+              <p className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 type-label text-amber-700 dark:text-amber-300">{config.requiredHint}</p>
             ) : null}
             {sourceLock?.locked ? (
               <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
-                <p className="text-xs font-medium text-amber-800 dark:text-amber-200">来源已锁定</p>
-                <p className="mt-1 text-xs leading-5 text-amber-700 dark:text-amber-300">
+                <p className="type-label font-medium text-amber-800 dark:text-amber-200">来源已锁定</p>
+                <p className="mt-1 type-label leading-5 text-amber-700 dark:text-amber-300">
                   {sourceLockReason}。已锁定字段：{sourceLock.locked_fields.map((key) => fieldLabel(fields, key)).join('、')}；标题、描述、状态等非来源内容仍可继续编辑。
                 </p>
               </div>
@@ -192,12 +192,12 @@ export function SemanticEntityCrudDialog({
                 <button
                   type="button"
                   onClick={() => setShowAdvanced((value) => !value)}
-                  className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm text-foreground"
+                  className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left type-body text-foreground"
                 >
                   <span className="flex min-w-0 items-center gap-2">
                     <SlidersHorizontal size={14} className="shrink-0 text-muted-foreground" />
                     <span className="font-medium">{quickCreate ? '更多字段' : '高级选项'}</span>
-                    <span className="truncate text-xs text-muted-foreground">{advancedHint(config.kind, quickCreate)}</span>
+                    <span className="truncate type-label text-muted-foreground">{advancedHint(config.kind, quickCreate)}</span>
                   </span>
                   <ChevronDown size={15} className={showAdvanced ? 'rotate-180 transition-transform' : 'transition-transform'} />
                 </button>
@@ -273,7 +273,7 @@ function FieldControl({
             value={String(value ?? '')}
             rows={field.key.endsWith('_json') ? 5 : advanced ? 3 : 4}
             placeholder={field.placeholder}
-            className={field.key.endsWith('_json') ? 'font-mono text-xs' : undefined}
+            className={field.key.endsWith('_json') ? 'font-mono type-label' : undefined}
             onChange={(event) => onChange(event.target.value)}
           />
         ) : field.type === 'select' || optionsOverride ? (
@@ -281,7 +281,7 @@ function FieldControl({
             {...common}
             value={String(value ?? '')}
             onChange={(event) => onChange(event.target.value)}
-            className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+            className="h-9 w-full rounded-md border border-border bg-background px-3 type-body text-foreground outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="">未设置</option>
             {(optionsOverride ?? field.options)?.map((option) => (
@@ -289,7 +289,7 @@ function FieldControl({
             ))}
           </select>
         ) : field.type === 'boolean' ? (
-          <label className="flex h-9 items-center gap-2 rounded-md border border-border bg-background px-3 text-sm text-foreground">
+          <label className="flex h-9 items-center gap-2 rounded-md border border-border bg-background px-3 type-body text-foreground">
             <input
               type="checkbox"
               checked={Boolean(value)}
@@ -310,9 +310,9 @@ function FieldControl({
         )}
       </div>
       {locked && lockReason ? (
-        <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{lockReason}</p>
+        <p className="mt-1 type-caption font-medium text-amber-700 dark:text-amber-300">{lockReason}</p>
       ) : field.helper ? (
-        <p className="mt-1 text-[11px] text-muted-foreground">{field.helper}</p>
+        <p className="mt-1 type-caption text-muted-foreground">{field.helper}</p>
       ) : null}
     </div>
   )

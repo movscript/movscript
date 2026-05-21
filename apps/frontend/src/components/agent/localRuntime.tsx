@@ -137,15 +137,15 @@ export function LocalAgentInputRequestCard({
         <div className="font-medium text-foreground">{request.title}</div>
         {meta}
         {request.status !== 'pending' && (
-          <Badge variant={request.status === 'answered' ? 'success' : 'outline'} className="h-4 shrink-0 px-1 text-[9px]">
+          <Badge variant={request.status === 'answered' ? 'success' : 'outline'} className="h-4 shrink-0 px-1 type-micro">
             {inputWorkflowStatusLabel(request.status, t)}
           </Badge>
         )}
       </div>
-      <p className={cn('mt-0.5 min-h-4 text-[10px] leading-relaxed text-muted-foreground', !request.summary && 'invisible')} aria-hidden={!request.summary}>
+      <p className={cn('mt-0.5 min-h-4 type-tiny leading-relaxed text-muted-foreground', !request.summary && 'invisible')} aria-hidden={!request.summary}>
         {request.summary ?? ''}
       </p>
-      <p className="mt-1 text-[10px] leading-relaxed text-foreground">{request.question}</p>
+      <p className="mt-1 type-tiny leading-relaxed text-foreground">{request.question}</p>
       {request.choices.length > 0 && (
         <div className="mt-1.5 grid gap-1">
           {request.choices.map((choice) => (
@@ -158,11 +158,11 @@ export function LocalAgentInputRequestCard({
               onClick={() => onAnswer({ choiceIds: [choice.id] })}
               data-testid="agent-run-input-choice"
               aria-label={t('agents.chat.workflow.answerChoiceAria', { title: request.title, choice: choice.label })}
-              className={cn('h-auto justify-start whitespace-normal px-2 py-1 text-left text-[10px]', selectedChoiceIds.has(choice.id) && 'border-green-500/30 bg-green-500/10 text-green-900 dark:text-green-200')}
+              className={cn('h-auto justify-start whitespace-normal px-2 py-1 text-left type-tiny', selectedChoiceIds.has(choice.id) && 'border-green-500/30 bg-green-500/10 text-green-900 dark:text-green-200')}
             >
               <span className="min-w-0">
                 <span className="block font-medium">{choice.label}</span>
-                {choice.description && <span className="block text-[9px] leading-relaxed text-muted-foreground">{choice.description}</span>}
+                {choice.description && <span className="block type-micro leading-relaxed text-muted-foreground">{choice.description}</span>}
               </span>
             </Button>
           ))}
@@ -177,24 +177,24 @@ export function LocalAgentInputRequestCard({
             placeholder={placeholder ?? t('common.inputPlaceholder')}
             data-testid="agent-run-input-text"
             aria-label={t('agents.chat.workflow.answerCustomAria', { title: request.title })}
-            className="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-2 type-tiny outline-none focus-visible:ring-1 focus-visible:ring-ring"
           />
           <Button
             type="button"
-            size="xs"
+            size="sm"
             variant="secondary"
             disabled={controlsDisabled || !text.trim()}
             onClick={() => onAnswer({ text: text.trim() })}
             data-testid="agent-run-input-submit"
             aria-label={t('agents.chat.workflow.submitCustomAria', { title: request.title })}
-            className="h-7 px-2 text-[10px]"
+            className="px-2 type-tiny"
           >
             {sendLabel ?? t('common.send')}
           </Button>
         </div>
       )}
       {answered && inputAnswerSummaryText(request, t) && (
-        <p className="mt-1.5 rounded border border-green-500/20 bg-green-500/10 px-2 py-1 text-[10px] leading-relaxed text-green-800 dark:text-green-300">
+        <p className="mt-1.5 rounded border border-green-500/20 bg-green-500/10 px-2 py-1 type-tiny leading-relaxed text-green-800 dark:text-green-300">
           {inputAnswerSummaryText(request, t)}
         </p>
       )}
@@ -213,17 +213,17 @@ export function LocalAgentApprovalRequestCard({
   const { t } = useTranslation()
   const isPending = approval.status === 'pending'
   return (
-    <div className={cn('rounded border bg-background/70 px-2 py-1.5', workflowApprovalItemClass(approval.status), className)}>
+    <div data-runtime-approving={approving ? 'true' : undefined} className={cn('rounded border bg-background/70 px-2 py-1.5', workflowApprovalItemClass(approval.status), className)}>
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="truncate font-medium text-foreground" title={approval.toolName}>{agentToolNameLabel(approval.toolName, t)}</span>
           {approval.risk && (
-            <Badge variant="outline" className="h-4 shrink-0 px-1 text-[9px]">
+            <Badge variant="outline" className="h-4 shrink-0 px-1 type-micro">
               {localAgentApprovalRiskText(approval.risk, t)}
             </Badge>
           )}
           {approval.permission && (
-            <Badge variant="outline" className="h-4 shrink-0 px-1 text-[9px]">
+            <Badge variant="outline" className="h-4 shrink-0 px-1 type-micro">
               {localAgentApprovalPermissionText(approval.permission, t)}
             </Badge>
           )}
@@ -232,25 +232,25 @@ export function LocalAgentApprovalRequestCard({
           {isPending ? (
             <>
               {onReject && (
-                <Button type="button" size="xs" variant="outline" onClick={() => onReject([approval.id])} disabled={approving} className="h-5 px-1.5 text-[9px]">
+                <Button type="button" size="xs" variant="outline" onClick={() => onReject([approval.id])} className="px-1.5 type-micro">
                   {t('agents.chat.workflow.reject')}
                 </Button>
               )}
               {onApprove && (
-                <Button type="button" size="xs" onClick={() => onApprove([approval.id])} disabled={approving} className="h-5 px-1.5 text-[9px]">
+                <Button type="button" size="xs" onClick={() => onApprove([approval.id])} className="px-1.5 type-micro">
                   {t('agents.chat.workflow.approve')}
                 </Button>
               )}
             </>
           ) : (
-            <Badge variant={approval.status === 'approved' ? 'success' : 'destructive'} className="h-5 shrink-0 px-1.5 text-[9px]">
+            <Badge variant={approval.status === 'approved' ? 'success' : 'destructive'} className="h-5 shrink-0 px-1.5 type-micro">
               {approval.status === 'approved' ? t('agents.chat.workflow.approvalApproved') : t('agents.chat.workflow.approvalRejected')}
             </Badge>
           )}
         </div>
       </div>
-      <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{approval.reason}</p>
-      <div className={cn('mt-1 rounded border px-1.5 py-1 text-[10px] leading-relaxed', workflowApprovalImpactClass(approval.status))}>
+      <p className="mt-1 type-tiny leading-relaxed text-muted-foreground">{approval.reason}</p>
+      <div className={cn('mt-1 rounded border px-1.5 py-1 type-tiny leading-relaxed', workflowApprovalImpactClass(approval.status))}>
         <span className="font-medium">{t('agents.chat.workflow.approvalImpact.label')}: </span>
         {localAgentApprovalImpactText(approval, t)}
       </div>
@@ -303,13 +303,13 @@ export function LocalAgentWorkflowPanel({
   const showBulkApprovalActions = pendingApprovals.length > 1
 
   return (
-    <div className={cn('mx-1 my-2 rounded-md border border-border bg-background/70 p-2.5 text-xs', className)}>
+    <div className={cn('mx-1 my-2 rounded-md border border-border bg-background/70 p-2.5 type-label', className)}>
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
           <Workflow size={13} />
           <span className="truncate">{title ?? t('agents.chat.workflow.panelTitle')}</span>
         </div>
-        <Badge variant={run.status === 'failed' ? 'destructive' : run.status === 'requires_action' ? 'warning' : run.status === 'in_progress' || run.status === 'cancelled' ? 'secondary' : 'outline'} className="shrink-0 text-[9px]">
+        <Badge variant={run.status === 'failed' ? 'destructive' : run.status === 'requires_action' ? 'warning' : run.status === 'in_progress' || run.status === 'cancelled' ? 'secondary' : 'outline'} className="shrink-0 type-micro">
           {statusLabel}
         </Badge>
       </div>
@@ -347,7 +347,7 @@ export function LocalAgentWorkflowPanel({
                 variant="ghost"
                 onClick={() => onReject?.(pendingApprovals.map((approval) => approval.id))}
                 disabled={!showBulkApprovalActions || approving || !onReject}
-                className="h-6 shrink-0 px-2 text-[10px] text-muted-foreground hover:text-destructive"
+                className="shrink-0 px-2 type-tiny text-muted-foreground hover:text-destructive"
               >
                 <X size={10} />
                 {t('agents.chat.workflow.rejectAll')}
@@ -358,7 +358,7 @@ export function LocalAgentWorkflowPanel({
                 variant="secondary"
                 onClick={() => onApprove?.(pendingApprovals.map((approval) => approval.id))}
                 disabled={!showBulkApprovalActions || approving || !onApprove}
-                className="h-6 shrink-0 px-2 text-[10px]"
+                className="shrink-0 px-2 type-tiny"
               >
                 {approving ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
                 {t('agents.chat.workflow.approveAll')}
@@ -413,13 +413,13 @@ export function LocalAgentWorkflowPanel({
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate font-medium text-foreground">{event.title}</span>
                     {durationMs !== undefined && (
-                      <Badge variant="outline" className="shrink-0 text-[9px]">
+                      <Badge variant="outline" className="shrink-0 type-micro">
                         {Math.round(durationMs)}ms
                       </Badge>
                     )}
                   </div>
-                  {event.summary && <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{event.summary}</p>}
-                  {focusMs !== undefined && <p className="mt-0.5 text-[9px] text-muted-foreground/80">{t('agents.chat.workflow.focusTotal', { ms: Math.round(focusMs) })}</p>}
+                  {event.summary && <p className="mt-0.5 type-tiny leading-relaxed text-muted-foreground">{event.summary}</p>}
+                  {focusMs !== undefined && <p className="mt-0.5 type-micro text-muted-foreground/80">{t('agents.chat.workflow.focusTotal', { ms: Math.round(focusMs) })}</p>}
                 </div>
               )
             })}
@@ -436,13 +436,13 @@ function WorkflowActionHistoryItem({ item }: { item: AgentTimelineItem }) {
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', workflowActionDotClass(item.status))} />
-          <span className="truncate text-[10px] font-medium text-foreground">{item.title}</span>
+          <span className="truncate type-tiny font-medium text-foreground">{item.title}</span>
         </div>
-        <Badge variant={workflowActionBadgeVariant(item.status)} className="shrink-0 text-[9px]">
+        <Badge variant={workflowActionBadgeVariant(item.status)} className="shrink-0 type-micro">
           {item.statusLabel ?? item.status}
         </Badge>
       </div>
-      {item.summary && <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{item.summary}</p>}
+      {item.summary && <p className="mt-0.5 type-tiny leading-relaxed text-muted-foreground">{item.summary}</p>}
     </div>
   )
 }

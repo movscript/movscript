@@ -3,14 +3,12 @@ import {
   Boxes,
   Brush,
   Camera,
-  Database,
   FileText,
   HardDrive,
   Image,
   Layers3,
   LogIn,
   LogOut,
-  Music,
   Palette,
   PersonStanding,
   RotateCw,
@@ -19,7 +17,7 @@ import {
   Video,
   Wand2,
 } from 'lucide-react'
-import type { CanvasNodeData, CanvasPortDef, EntityWorkflowSchema, NodeType } from '@/types'
+import type { CanvasNodeData, CanvasPortDef, NodeType } from '@/types'
 
 export type CanvasNodeCategory = 'flow' | 'media' | 'ai' | 'organization'
 
@@ -45,7 +43,7 @@ export const CANVAS_NODE_CATEGORIES: Array<{
   descriptionKey: string
 }> = [
   { id: 'flow', title: 'Input / Output', titleKey: 'canvas.catalog.categories.flow.title', description: 'Define workflow entry, exit, and approval gates.', descriptionKey: 'canvas.catalog.categories.flow.description' },
-  { id: 'media', title: 'Media', titleKey: 'canvas.catalog.categories.media.title', description: 'Hold text, image, video, and audio assets.', descriptionKey: 'canvas.catalog.categories.media.description' },
+  { id: 'media', title: 'Media', titleKey: 'canvas.catalog.categories.media.title', description: 'Hold text, image, and video assets.', descriptionKey: 'canvas.catalog.categories.media.description' },
   { id: 'ai', title: 'AI Processing', titleKey: 'canvas.catalog.categories.ai.title', description: 'Transform upstream input into generated results.', descriptionKey: 'canvas.catalog.categories.ai.description' },
   { id: 'organization', title: 'Organization', titleKey: 'canvas.catalog.categories.organization.title', description: 'Organize complex canvases with regions and semantic groups.', descriptionKey: 'canvas.catalog.categories.organization.description' },
 ]
@@ -55,29 +53,6 @@ const port = (id: string, type: CanvasPortDef['type'], extra?: Omit<CanvasPortDe
   type,
   ...extra,
 })
-
-export function portsForEntitySchema(schema?: EntityWorkflowSchema): { inputs: CanvasPortDef[]; outputs: CanvasPortDef[] } | undefined {
-  if (!schema) return undefined
-  const inputs: CanvasPortDef[] = []
-  const outputs: CanvasPortDef[] = []
-  schema.sections.forEach((section) => {
-    section.fields.forEach((field) => {
-      const port: CanvasPortDef = {
-        id: field.workflow.portId,
-        aliases: field.workflow.aliases ?? field.aliases,
-        label: field.fallbackLabel,
-        labelKey: field.labelKey,
-        type: field.valueType,
-        required: field.workflow.required,
-        maxCount: field.workflow.maxCount,
-        deprecated: field.deprecated,
-      }
-      if (field.workflow.writable) inputs.push(port)
-      if (field.workflow.readable) outputs.push(port)
-    })
-  })
-  return { inputs, outputs }
-}
 
 export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
   {
@@ -172,23 +147,10 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     defaultData: { source: 'upload', label: 'Video' },
   },
   {
-    type: 'audio',
-    label: 'Audio',
-    labelKey: 'canvas.catalog.nodes.audio.label',
-    description: 'Audio resource or sound result.',
-    descriptionKey: 'canvas.catalog.nodes.audio.description',
-    defaultLabelKey: 'canvas.nodeLabels.audio',
-    category: 'media',
-    icon: Music,
-    inputs: [port('input', 'audio')],
-    outputs: [port('audio', 'audio')],
-    defaultData: { source: 'upload', label: 'Audio' },
-  },
-  {
     type: 'ai_gen',
     label: 'AI Generation',
     labelKey: 'canvas.catalog.nodes.ai_gen.label',
-    description: 'Generate image, video, text, or audio by target type.',
+    description: 'Generate image, video, or text by target type.',
     descriptionKey: 'canvas.catalog.nodes.ai_gen.description',
     defaultLabelKey: 'canvas.nodeLabels.ai_gen',
     category: 'ai',
@@ -287,19 +249,6 @@ export const CANVAS_NODE_CATALOG: CanvasNodeCatalogItem[] = [
     inputs: [],
     outputs: [port('result', 'resource')],
     defaultData: { source: 'ai', label: 'Canvas Reference', outputType: 'image' },
-  },
-  {
-    type: 'entity_card',
-    label: 'Entity',
-    labelKey: 'canvas.catalog.nodes.entity_card.label',
-    description: 'Reference a project entity and use its fields as workflow inputs or outputs.',
-    descriptionKey: 'canvas.catalog.nodes.entity_card.description',
-    defaultLabelKey: 'canvas.nodeLabels.entity_card',
-    category: 'flow',
-    icon: Database,
-    inputs: [port('input', 'resource')],
-    outputs: [port('result', 'resource')],
-    defaultData: { source: 'manual', label: 'Entity' },
   },
   {
     type: 'group',

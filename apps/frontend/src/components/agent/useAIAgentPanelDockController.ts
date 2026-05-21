@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
 import { AGENT_PANEL_DRAFT_EVENT, AGENT_PANEL_THREAD_EVENT, type AgentPanelThreadPayload } from '@/lib/agentPanelBridge'
+import { useAgentPanelUiStore } from '@/store/agentPanelUiStore'
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
 
 export function useAIAgentPanelDockController() {
-  const [open, setOpen] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 960 : true)
+  const open = useAgentPanelUiStore((state) => state.open)
+  const setOpen = useAgentPanelUiStore((state) => state.setOpen)
+  const toggleOpen = useAgentPanelUiStore((state) => state.toggleOpen)
   const [pendingThreadIdToOpen, setPendingThreadIdToOpen] = useState<string | null>(null)
   const [panelWidth, setPanelWidth] = useState(() => {
     const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440
@@ -46,10 +49,6 @@ export function useAIAgentPanelDockController() {
     updateDockLayout()
     window.addEventListener('resize', updateDockLayout)
     return () => window.removeEventListener('resize', updateDockLayout)
-  }, [])
-
-  const toggleOpen = useCallback(() => {
-    setOpen((value) => !value)
   }, [])
 
   const handlePendingThreadHandled = useCallback((threadId: string) => {

@@ -449,7 +449,7 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
       <div className={cn(embedded ? 'min-w-[1180px] p-4' : 'min-w-[1240px] p-5', 'space-y-5')}>
         <header className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 type-label text-muted-foreground">
               <GitBranch size={14} />
               <span>{project?.name ?? '当前项目'}</span>
               <ArrowRight size={13} />
@@ -457,8 +457,8 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
               <ArrowRight size={13} />
               <span>引用关系</span>
             </div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">引用关系工作台</h1>
-            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+            <h1 className="mt-2 type-page-title font-semibold tracking-normal text-foreground">引用关系工作台</h1>
+            <p className="mt-1 max-w-3xl type-body leading-relaxed text-muted-foreground">
               校正 AI 提取的设定资料引用，维护情景、制作项、画面锚点与人物、地点、道具、风格之间的关系。
             </p>
           </div>
@@ -509,7 +509,7 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
                 <Search size={14} className="pointer-events-none absolute left-2.5 top-2.5 text-muted-foreground" />
                 <Input value={query} onChange={(event) => setQuery(event.target.value)} className="pl-8" placeholder="搜索对象、设定资料、证据" />
               </div>
-              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm">
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-2 type-body">
                 <option value="all">全部状态</option>
                 {statuses.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
@@ -528,8 +528,8 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
           <main className="min-w-0 rounded-lg border border-border bg-card">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <div>
-                <h2 className="text-sm font-semibold text-foreground">{tab === 'usage' ? '对象引用设定资料' : '设定资料之间关系'}</h2>
-                <p className="text-xs text-muted-foreground">{tab === 'usage' ? '描述某个结构对象引用了哪个设定资料和状态' : '描述人物、地点、道具、风格之间的语义关系'}</p>
+                <h2 className="type-body font-semibold text-foreground">{tab === 'usage' ? '对象引用设定资料' : '设定资料之间关系'}</h2>
+                <p className="type-label text-muted-foreground">{tab === 'usage' ? '描述某个结构对象引用了哪个设定资料和状态' : '描述人物、地点、道具、风格之间的语义关系'}</p>
               </div>
               <Badge variant="outline">{tab === 'usage' ? filteredUsages.length : filteredRelationships.length} 条</Badge>
             </div>
@@ -559,8 +559,8 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
               <div className="border-b border-border px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-sm font-semibold text-foreground">{mode === 'edit' ? '修改关系' : '新建关系'}</h2>
-                    <p className="text-xs text-muted-foreground">AI 写错时直接修正字段，并把状态改为 corrected。</p>
+                    <h2 className="type-body font-semibold text-foreground">{mode === 'edit' ? '修改关系' : '新建关系'}</h2>
+                    <p className="type-label text-muted-foreground">AI 写错时直接修正字段，并把状态改为 corrected。</p>
                   </div>
                   {mode === 'edit' && <Badge variant="outline">#{selectedId}</Badge>}
                 </div>
@@ -575,7 +575,7 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
 
                 {mode === 'edit' && (
                   <div className="rounded-lg border border-border bg-muted/20 p-3">
-                    <p className="text-xs font-semibold text-foreground">快速审阅</p>
+                    <p className="type-label font-semibold text-foreground">快速审阅</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={() => quickStatus('confirmed')}>
                         <CheckCircle2 size={14} />
@@ -632,7 +632,7 @@ function UsageForm({ draft, setDraft, references, states }: {
         <ReferenceSelect value={draft.creative_reference_id} onChange={(value) => setDraft({ ...draft, creative_reference_id: value, creative_reference_state_id: '' })} references={references} />
       </Field>
       <Field label="设定资料状态">
-        <select value={draft.creative_reference_state_id} onChange={(event) => setDraft({ ...draft, creative_reference_state_id: event.target.value })} className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm">
+        <select value={draft.creative_reference_state_id} onChange={(event) => setDraft({ ...draft, creative_reference_state_id: event.target.value })} className="h-9 w-full rounded-md border border-input bg-background px-2 type-body">
           <option value="">不指定状态</option>
           {availableStates.map((state) => (
             <option key={state.ID} value={state.ID}>{state.name} · {state.scope_type}{state.scope_id ? ` #${state.scope_id}` : ''}</option>
@@ -652,7 +652,7 @@ function UsageForm({ draft, setDraft, references, states }: {
         <Textarea value={draft.evidence} onChange={(event) => setDraft({ ...draft, evidence: event.target.value })} className="min-h-[88px]" />
       </Field>
       <Field label="元数据 JSON">
-        <Textarea value={draft.metadata_json} onChange={(event) => setDraft({ ...draft, metadata_json: event.target.value })} className="min-h-[72px] font-mono text-xs" />
+        <Textarea value={draft.metadata_json} onChange={(event) => setDraft({ ...draft, metadata_json: event.target.value })} className="min-h-[72px] font-mono type-label" />
       </Field>
     </div>
   )
@@ -698,7 +698,7 @@ function RelationshipForm({ draft, setDraft, references }: {
         <Textarea value={draft.evidence} onChange={(event) => setDraft({ ...draft, evidence: event.target.value })} className="min-h-[76px]" />
       </Field>
       <Field label="元数据 JSON">
-        <Textarea value={draft.metadata_json} onChange={(event) => setDraft({ ...draft, metadata_json: event.target.value })} className="min-h-[72px] font-mono text-xs" />
+        <Textarea value={draft.metadata_json} onChange={(event) => setDraft({ ...draft, metadata_json: event.target.value })} className="min-h-[72px] font-mono type-label" />
       </Field>
     </div>
   )
@@ -727,16 +727,16 @@ function UsageRow({ record, active, onClick }: { record: CreativeReferenceUsage;
     <button type="button" onClick={onClick} className={cn('w-full rounded-lg border p-3 text-left transition-colors', active ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/40')}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <div className="flex items-center gap-2 type-body font-medium text-foreground">
             <span className="truncate">{record.owner_type} #{record.owner_id}</span>
             <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
             <span className="truncate">{referenceName(record.creative_reference)}</span>
           </div>
-          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{record.creative_reference_state?.name ?? record.evidence ?? '未填写状态或证据'}</p>
+          <p className="mt-1 line-clamp-2 type-label text-muted-foreground">{record.creative_reference_state?.name ?? record.evidence ?? '未填写状态或证据'}</p>
         </div>
         <RelationBadges source={record.source} status={record.status} />
       </div>
-      <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="mt-3 flex items-center gap-2 type-label text-muted-foreground">
         <Badge variant="outline">{record.role || 'role'}</Badge>
         <span>order {record.order ?? 0}</span>
       </div>
@@ -749,16 +749,16 @@ function RelationshipRow({ record, active, onClick }: { record: CreativeRelation
     <button type="button" onClick={onClick} className={cn('w-full rounded-lg border p-3 text-left transition-colors', active ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/40')}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <div className="flex items-center gap-2 type-body font-medium text-foreground">
             <span className="truncate">{referenceName(record.source_creative_reference)}</span>
             <ArrowRight size={14} className="shrink-0 text-muted-foreground" />
             <span className="truncate">{referenceName(record.target_creative_reference)}</span>
           </div>
-          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{record.label || record.description || record.evidence || '未填写描述'}</p>
+          <p className="mt-1 line-clamp-2 type-label text-muted-foreground">{record.label || record.description || record.evidence || '未填写描述'}</p>
         </div>
         <RelationBadges source={record.source} status={record.status} />
       </div>
-      <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="mt-3 flex items-center gap-2 type-label text-muted-foreground">
         <Badge variant="outline">{record.category || 'relationship'}</Badge>
         {record.type && <span>{record.type}</span>}
         {record.scope_type && <span>{record.scope_type}{record.scope_id ? ` #${record.scope_id}` : ''}</span>}
@@ -770,8 +770,8 @@ function RelationshipRow({ record, active, onClick }: { record: CreativeRelation
 function RelationBadges({ source, status }: { source?: string; status?: string }) {
   return (
     <div className="flex shrink-0 flex-col items-end gap-1">
-      <span className={cn('rounded px-1.5 py-0.5 text-[11px]', sourceTone[source ?? 'manual'] ?? sourceTone.manual)}>{source || 'manual'}</span>
-      <span className={cn('rounded px-1.5 py-0.5 text-[11px]', statusTone[status ?? 'draft'] ?? statusTone.draft)}>{status || 'draft'}</span>
+      <span className={cn('rounded px-1.5 py-0.5 type-caption', sourceTone[source ?? 'manual'] ?? sourceTone.manual)}>{source || 'manual'}</span>
+      <span className={cn('rounded px-1.5 py-0.5 type-caption', statusTone[status ?? 'draft'] ?? statusTone.draft)}>{status || 'draft'}</span>
     </div>
   )
 }
@@ -822,8 +822,8 @@ function RelationGraphOverview({
       <div className="relative overflow-hidden rounded-lg border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
-            <h2 className="text-sm font-semibold text-foreground">引用关系图形全览</h2>
-            <p className="text-xs text-muted-foreground">设定资料节点、结构对象和关系边的全局分布。</p>
+            <h2 className="type-body font-semibold text-foreground">引用关系图形全览</h2>
+            <p className="type-label text-muted-foreground">设定资料节点、结构对象和关系边的全局分布。</p>
           </div>
           <div className="flex items-center gap-2">
             {isDemo && <Badge variant="outline">Demo</Badge>}
@@ -835,8 +835,8 @@ function RelationGraphOverview({
           {nodes.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <Network size={28} className="text-muted-foreground" />
-              <p className="mt-3 text-sm font-medium text-foreground">暂无可视化关系</p>
-              <p className="mt-1 text-xs text-muted-foreground">先在关系工作台创建使用关系或设定资料关系。</p>
+              <p className="mt-3 type-body font-medium text-foreground">暂无可视化关系</p>
+              <p className="mt-1 type-label text-muted-foreground">先在关系工作台创建使用关系或设定资料关系。</p>
             </div>
           ) : (
             <ReactFlowProvider>
@@ -878,7 +878,7 @@ function RelationGraphOverview({
       <aside className="space-y-3">
         <Panel title="全览操作">
           {isDemo && (
-            <div className="rounded-md border border-dashed border-border bg-muted/30 p-2 text-xs text-muted-foreground">
+            <div className="rounded-md border border-dashed border-border bg-muted/30 p-2 type-label text-muted-foreground">
               当前没有真实关系数据，图中显示示例节点。创建第一条关系后会自动切换为项目数据。
             </div>
           )}
@@ -903,7 +903,7 @@ function RelationGraphOverview({
 
         <Panel title="高连接设定资料">
           {denseReferences.length === 0 ? (
-            <p className="text-xs text-muted-foreground">暂无已连接设定资料。</p>
+            <p className="type-label text-muted-foreground">暂无已连接设定资料。</p>
           ) : (
             <div className="space-y-2">
               {denseReferences.map(({ reference, total, usageCount, relationshipCount }) => (
@@ -914,10 +914,10 @@ function RelationGraphOverview({
                   className="w-full rounded-md border border-border bg-background p-2 text-left transition-colors hover:bg-muted/40"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-xs font-medium text-foreground">{reference.name}</span>
+                    <span className="truncate type-label font-medium text-foreground">{reference.name}</span>
                     <Badge variant="outline">{total}</Badge>
                   </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
+                  <p className="mt-1 type-caption text-muted-foreground">
                     使用 {usageCount} · 关系 {relationshipCount}
                   </p>
                 </button>
@@ -935,10 +935,10 @@ function Metric({ icon: Icon, label, value, detail, tone }: { icon: typeof Link2
     <div className="rounded-lg border border-border bg-card p-3">
       <div className="flex items-center gap-2">
         <Icon size={16} className={tone} />
-        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className="type-label text-muted-foreground">{label}</span>
       </div>
-      <p className="mt-2 text-2xl font-semibold text-foreground">{value}</p>
-      <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
+      <p className="mt-2 type-page-title font-semibold text-foreground">{value}</p>
+      <p className="mt-1 truncate type-label text-muted-foreground">{detail}</p>
     </div>
   )
 }
@@ -949,7 +949,7 @@ function ViewButton({ active, icon: Icon, label, onClick }: { active: boolean; i
       type="button"
       onClick={onClick}
       className={cn(
-        'flex h-9 items-center gap-1.5 rounded px-3 text-xs font-medium transition-colors',
+        'flex h-9 items-center gap-1.5 rounded px-3 type-label font-medium transition-colors',
         active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
       )}
     >
@@ -961,10 +961,10 @@ function ViewButton({ active, icon: Icon, label, onClick }: { active: boolean; i
 
 function SegmentButton({ active, icon: Icon, label, count, onClick }: { active: boolean; icon: typeof Link2; label: string; count: number; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className={cn('flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors', active ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground')}>
+    <button type="button" onClick={onClick} className={cn('flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left type-body transition-colors', active ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground')}>
       <Icon size={15} />
       <span className="flex-1 truncate">{label}</span>
-      <span className={cn('rounded px-1.5 py-0.5 text-[11px]', active ? 'bg-background/15' : 'bg-muted text-muted-foreground')}>{count}</span>
+      <span className={cn('rounded px-1.5 py-0.5 type-caption', active ? 'bg-background/15' : 'bg-muted text-muted-foreground')}>{count}</span>
     </button>
   )
 }
@@ -974,8 +974,8 @@ function LegendItem({ tone, label, detail }: { tone: string; label: string; deta
     <div className="flex items-start gap-2">
       <span className={cn('mt-1 h-2.5 w-2.5 shrink-0 rounded-full', tone)} />
       <div className="min-w-0">
-        <p className="text-xs font-medium text-foreground">{label}</p>
-        <p className="text-[11px] text-muted-foreground">{detail}</p>
+        <p className="type-label font-medium text-foreground">{label}</p>
+        <p className="type-caption text-muted-foreground">{detail}</p>
       </div>
     </div>
   )
@@ -984,7 +984,7 @@ function LegendItem({ tone, label, detail }: { tone: string; label: string; deta
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-border bg-card p-3">
-      <p className="mb-3 text-xs font-semibold text-foreground">{title}</p>
+      <p className="mb-3 type-label font-semibold text-foreground">{title}</p>
       <div className="space-y-3">{children}</div>
     </div>
   )
@@ -993,8 +993,8 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 function MiniStat({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-md bg-muted/40 p-2">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-foreground">{value}</p>
+      <p className="type-label text-muted-foreground">{label}</p>
+      <p className="mt-1 type-title-sm font-semibold text-foreground">{value}</p>
     </div>
   )
 }
@@ -1002,7 +1002,7 @@ function MiniStat({ label, value }: { label: string; value: number }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block space-y-1.5">
-      <Label className="text-xs">{label}</Label>
+      <Label className="type-label">{label}</Label>
       {children}
     </label>
   )
@@ -1010,7 +1010,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function Select({ value, onChange, options, labels }: { value: string; onChange: (value: string) => void; options: string[]; labels?: Record<string, string> }) {
   return (
-    <select value={value} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm">
+    <select value={value} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-2 type-body">
       {options.map((item) => <option key={item || 'empty'} value={item}>{labels?.[item] ?? item}</option>)}
     </select>
   )
@@ -1018,7 +1018,7 @@ function Select({ value, onChange, options, labels }: { value: string; onChange:
 
 function ReferenceSelect({ value, onChange, references }: { value: string; onChange: (value: string) => void; references: CreativeReference[] }) {
   return (
-    <select value={value} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm" required>
+    <select value={value} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-2 type-body" required>
       <option value="">选择设定资料</option>
       {references.map((reference) => (
         <option key={reference.ID} value={reference.ID}>{reference.name} · {reference.kind} #{reference.ID}</option>
@@ -1031,8 +1031,8 @@ function EmptyState() {
   return (
     <div className="flex h-48 flex-col items-center justify-center rounded-lg border border-dashed border-border text-center">
       <Link2 size={22} className="text-muted-foreground" />
-      <p className="mt-2 text-sm font-medium text-foreground">没有匹配的关系</p>
-      <p className="mt-1 text-xs text-muted-foreground">调整筛选或新建一条关系。</p>
+      <p className="mt-2 type-body font-medium text-foreground">没有匹配的关系</p>
+      <p className="mt-1 type-label text-muted-foreground">调整筛选或新建一条关系。</p>
     </div>
   )
 }
@@ -1297,14 +1297,14 @@ function relationGraphNode(
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-1.5">
-            <p className="truncate text-xs font-semibold text-foreground">{nodeData.title}</p>
-            {isDemo && <span className="rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">Demo</span>}
+            <p className="truncate type-label font-semibold text-foreground">{nodeData.title}</p>
+            {isDemo && <span className="rounded bg-muted px-1 py-0.5 type-tiny text-muted-foreground">Demo</span>}
           </div>
-          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{nodeData.subtitle}</p>
+          <p className="mt-0.5 truncate type-caption text-muted-foreground">{nodeData.subtitle}</p>
         </div>
         <span className={cn('mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full', isReference ? 'bg-sky-500' : 'bg-zinc-500')} />
       </div>
-      <p className="mt-2 truncate text-[11px] text-muted-foreground">{nodeMeta}</p>
+      <p className="mt-2 truncate type-caption text-muted-foreground">{nodeMeta}</p>
     </div>
   )
   const data: RelationNodeData = {
@@ -1333,7 +1333,7 @@ function RelationReferenceCardNode({ data }: NodeProps<Node<RelationNodeData>>) 
   return (
     <div className="relative w-[280px]">
       <CreativeReferenceCard reference={data.referenceCard} className="shadow-sm" />
-      {data.isDemo && <span className="absolute right-2 top-2 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Demo</span>}
+      {data.isDemo && <span className="absolute right-2 top-2 rounded bg-muted px-1.5 py-0.5 type-tiny text-muted-foreground">Demo</span>}
     </div>
   )
 }

@@ -19,7 +19,7 @@ export function ContentUnitEditSelect({
   const unsetValue = '__unset'
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs">{label}</Label>
+      <Label className="type-label">{label}</Label>
       <Select value={value || unsetValue} onValueChange={(next) => onChange(next === unsetValue ? '' : next)}>
         <SelectTrigger className="h-9">
           <SelectValue />
@@ -88,10 +88,10 @@ export function ContentUnitGenerationInputCard({
       </span>
       <span className="min-w-0">
         <span className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <span className="text-xs font-medium text-foreground">{title}</span>
-          <Badge variant={badgeVariant} className="text-[10px]">{badge}</Badge>
+          <span className="type-label font-medium text-foreground">{title}</span>
+          <Badge variant={badgeVariant} className="type-tiny">{badge}</Badge>
         </span>
-        <span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{detail}</span>
+        <span className="mt-1 block type-caption leading-4 text-muted-foreground">{detail}</span>
       </span>
       <span className="flex max-w-[128px] flex-col items-end gap-2" onClick={(event) => event.stopPropagation()}>
         <Badge variant={tone === 'warning' ? 'warning' : tone === 'success' ? 'success' : 'outline'}>{status}</Badge>

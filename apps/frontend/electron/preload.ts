@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { AppSettings } from '../src/lib/config'
 
 contextBridge.exposeInMainWorld('api', {
+  platform: process.platform,
   openFile: () => ipcRenderer.invoke('dialog:openFile'),
   saveFile: (defaultPath?: string) => ipcRenderer.invoke('dialog:saveFile', defaultPath),
   updateMCPContext: (snapshot: unknown) => ipcRenderer.invoke('mcp:update-context', snapshot),

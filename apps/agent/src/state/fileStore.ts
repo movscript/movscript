@@ -1,18 +1,30 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
-import type { AgentPlan, AgentRun, AgentTask, AgentThread, AgentTraceEvent } from './types.js'
+import type { RuntimeOperation } from '../operations/runtimeOperation.js'
+import type {
+  AgentPlan,
+  AgentRun,
+  AgentTask,
+  AgentThread,
+  AgentTraceEvent,
+  RuntimeContinuation,
+  RuntimeInteraction,
+} from './types.js'
 import { InMemoryAgentStore, type AgentStore } from './store.js'
 import type { AgentRunDebugLedger } from './runDebugLedger.js'
 import { isRecord } from '../jsonValue.js'
 import { isValidAgentProjectId } from '../context/runtimeContext.js'
 
 interface AgentStateFile {
-  version: 1 | 2 | 3
+  version: 1 | 2 | 3 | 4
   threads: AgentThread[]
   runs: AgentRun[]
   plans?: AgentPlan[]
   tasks?: AgentTask[]
+  runtimeOperations?: RuntimeOperation[]
+  runtimeInteractions?: RuntimeInteraction[]
+  runtimeContinuations?: RuntimeContinuation[]
   traceEvents?: AgentTraceEvent[]
   debugLedgers?: AgentRunDebugLedger[]
 }
@@ -73,6 +85,36 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
     this.schedulePersist()
   }
 
+  override createRuntimeOperation(operation: RuntimeOperation): void {
+    super.createRuntimeOperation(operation)
+    this.schedulePersist()
+  }
+
+  override updateRuntimeOperation(operation: RuntimeOperation): void {
+    super.updateRuntimeOperation(operation)
+    this.schedulePersist()
+  }
+
+  override createRuntimeInteraction(interaction: RuntimeInteraction): void {
+    super.createRuntimeInteraction(interaction)
+    this.schedulePersist()
+  }
+
+  override updateRuntimeInteraction(interaction: RuntimeInteraction): void {
+    super.updateRuntimeInteraction(interaction)
+    this.schedulePersist()
+  }
+
+  override createRuntimeContinuation(continuation: RuntimeContinuation): void {
+    super.createRuntimeContinuation(continuation)
+    this.schedulePersist()
+  }
+
+  override updateRuntimeContinuation(continuation: RuntimeContinuation): void {
+    super.updateRuntimeContinuation(continuation)
+    this.schedulePersist()
+  }
+
   override appendTraceEvent(event: AgentTraceEvent): void {
     super.appendTraceEvent(event)
     this.schedulePersist()
@@ -124,6 +166,18 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
       if (!isRecord(task)) continue
       super.createTask(task as unknown as AgentTask)
     }
+    for (const operation of arrayValue(parsed.runtimeOperations)) {
+      if (!isRecord(operation)) continue
+      super.createRuntimeOperation(operation as unknown as RuntimeOperation)
+    }
+    for (const interaction of arrayValue(parsed.runtimeInteractions)) {
+      if (!isRecord(interaction)) continue
+      super.createRuntimeInteraction(interaction as unknown as RuntimeInteraction)
+    }
+    for (const continuation of arrayValue(parsed.runtimeContinuations)) {
+      if (!isRecord(continuation)) continue
+      super.createRuntimeContinuation(continuation as unknown as RuntimeContinuation)
+    }
     for (const event of arrayValue(parsed.traceEvents)) {
       if (!isRecord(event)) continue
       super.appendTraceEvent(event as unknown as AgentTraceEvent)
@@ -147,11 +201,14 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
   private persist(): void {
     const runs = this.listRuns()
     const state: AgentStateFile = {
-      version: 3,
+      version: 4,
       threads: this.listThreads(),
       runs,
       plans: this.listPlans(),
       tasks: this.listTasks(),
+      runtimeOperations: this.listRuntimeOperations(),
+      runtimeInteractions: this.listRuntimeInteractions(),
+      runtimeContinuations: this.listRuntimeContinuations(),
       traceEvents: runs.flatMap((run) => this.listRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })),
       debugLedgers: runs.flatMap((run) => this.getRunDebugLedger(run.id) ?? []),
     }

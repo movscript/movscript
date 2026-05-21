@@ -31,6 +31,10 @@ Health check:
 curl http://127.0.0.1:28765/health
 ```
 
+## Packaging
+
+`apps/agent` is the canonical source tree. The Electron frontend build runs `apps/frontend/scripts/prepare-agent-deploy.mjs`, which builds this package and copies only `dist/`, `catalog/`, and a minimal `package.json` into `apps/frontend/movscript-agent`. Treat that frontend directory as a generated packaged-runtime artifact, not a second implementation.
+
 ## Environment
 
 | Variable | Default | Description |
@@ -52,7 +56,6 @@ curl http://127.0.0.1:28765/health
 | `GET` | `/tools` | Registered tool metadata. |
 | `GET` | `/skills` | Loaded skill catalog. |
 | `GET` | `/agent-manifest/default` | Legacy built-in/default manifest. |
-| `GET` | `/context` | Current MovScript focus from MCP. |
 | `POST` | `/draft` | Create a local draft/candidate artifact. |
 | `GET` | `/drafts` | List local draft/candidate artifacts. |
 | `GET` | `/drafts/:id` | Read one local draft/candidate artifact. |
@@ -63,12 +66,13 @@ curl http://127.0.0.1:28765/health
 | `GET` | `/threads/:id` | Read one agent thread. |
 | `PATCH` | `/threads/:id` | Update agent thread metadata. |
 | `POST` | `/threads/:id/messages` | Add agent thread message. |
-| `POST` | `/runs` | Create and execute an agent run. |
-| `POST` | `/runs/preview` | Preview context, prompt, first tool calls, and approval gates without executing tools. |
+| `POST` | `/threads/:id/runs` | The only public entrypoint that creates and executes an agent run for a thread. Diagnostic single-tool runs also enter here through `toolCall`. |
+| `POST` | `/runs/preview` | Read-only preview of context, prompt, first tool calls, and approval gates without creating or executing a run. |
 | `GET` | `/runs` | List runs. |
 | `GET` | `/runs/:id` | Read one run. |
-| `POST` | `/runs/:id/approve` | Approve pending tool calls and resume. |
-| `POST` | `/runs/:id/reject` | Reject pending tool calls. |
+| `POST` | `/runs/:id/resume` | Explicit operational resume endpoint for persisted interrupted runs. Normal recovery should use the thread runtime input route first. |
+| `POST` | `/interactions/:id/approve` | Approve a pending interaction and resume through runtime control. |
+| `POST` | `/interactions/:id/reject` | Reject a pending interaction. |
 | `GET` | `/memories` | List memories. |
 | `POST` | `/memories` | Create memory. |
 | `DELETE` | `/memories/:id` | Delete memory. |

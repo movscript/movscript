@@ -19,6 +19,7 @@ export function applyRuntimeRunExecutionScheduleRequest(input: {
   executeRun: (runId: string, signal: AbortSignal) => Promise<void>
   deleteCatalogSnapshot: (runId: string) => void
   syncTaskFromRun: (runId: string) => void
+  onRunSettled?: (runId: string) => void
 }): void {
   startRuntimeRunExecution({
     runId: input.runId,
@@ -27,6 +28,7 @@ export function applyRuntimeRunExecutionScheduleRequest(input: {
     onRunSettled: (runId) => {
       input.deleteCatalogSnapshot(runId)
       input.syncTaskFromRun(runId)
+      input.onRunSettled?.(runId)
     },
   })
 }

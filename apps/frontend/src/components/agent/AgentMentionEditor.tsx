@@ -2,6 +2,7 @@ import React from 'react'
 import { X } from 'lucide-react'
 import { api } from '@/lib/api'
 import { placeholderAttachment } from '@/lib/agentAttachments'
+import { acquireCachedResourceMediaUrl } from '@/lib/resourceMediaCache'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import {
   AgentAttachmentIcon as AttachmentIcon,
@@ -13,6 +14,8 @@ import type { AgentAttachment } from '@/store/agentStore'
 
 export const RESOURCE_MENTION_RE = /@\[resource:(\d+)\]/g
 export const RESOURCE_MENTION_TRIGGER_RE = /(?:^|[\s(])@([^\s@\[]*)$/u
+
+const mentionChipMediaReleases = new WeakMap<HTMLImageElement | HTMLVideoElement, () => void>()
 
 export function resourceMentionToken(resourceId: number) {
   return `@[resource:${resourceId}]`
@@ -57,6 +60,7 @@ function isImeComposing(event: React.KeyboardEvent): boolean {
 }
 
 export function renderMentionEditorValue(editor: HTMLElement, value: string, attachmentsById: Map<number, AgentAttachment>) {
+  releaseMentionEditorMedia(editor)
   editor.replaceChildren()
   let lastIndex = 0
   for (const match of value.matchAll(RESOURCE_MENTION_RE)) {
@@ -78,21 +82,31 @@ export function hydrateMentionEditorMedia(editor: HTMLElement) {
   for (const media of mediaItems) {
     const src = media.dataset.src
     if (!src || media.dataset.loadedSrc === src) continue
-    const existingObjectUrl = media.dataset.objectUrl
-    if (existingObjectUrl) URL.revokeObjectURL(existingObjectUrl)
+    mentionChipMediaReleases.get(media)?.()
+    mentionChipMediaReleases.delete(media)
     media.dataset.loadedSrc = src
     if (!mentionChipMediaNeedsAuth(src)) {
       media.src = src
       continue
     }
-    api.get(src, { baseURL: '', responseType: 'blob' })
-      .then((response) => {
-        if (!media.isConnected || media.dataset.loadedSrc !== src) return
-        const objectUrl = URL.createObjectURL(response.data)
-        media.dataset.objectUrl = objectUrl
-        media.src = objectUrl
+    acquireCachedResourceMediaUrl(src, () => api.get(src, { baseURL: '', responseType: 'blob' }).then((response) => response.data))
+      .then((cached) => {
+        if (!media.isConnected || media.dataset.loadedSrc !== src) {
+          cached.release()
+          return
+        }
+        mentionChipMediaReleases.set(media, cached.release)
+        media.src = cached.url
       })
       .catch(() => {})
+  }
+}
+
+function releaseMentionEditorMedia(editor: HTMLElement) {
+  const mediaItems = Array.from(editor.querySelectorAll<HTMLImageElement | HTMLVideoElement>('.ai-agent-mention-chip__media'))
+  for (const media of mediaItems) {
+    mentionChipMediaReleases.get(media)?.()
+    mentionChipMediaReleases.delete(media)
   }
 }
 
@@ -150,7 +164,7 @@ export function ComposerAttachmentChip({
   )
 
   return (
-    <div className="flex min-w-0 items-center gap-2 rounded-md border border-border bg-background/70 px-2 py-1 text-[11px]">
+    <div className="flex min-w-0 items-center gap-2 rounded-md border border-border bg-background/70 px-2 py-1 type-caption">
       <span className="h-7 w-7 shrink-0 overflow-hidden rounded bg-muted/60">
         {preview}
       </span>
@@ -158,7 +172,7 @@ export function ComposerAttachmentChip({
         <div className="flex min-w-0 items-center gap-1">
           <span className="truncate text-foreground">{attachment.name}</span>
         </div>
-        <p className="truncate text-[9px] text-muted-foreground">{formatAgentAttachmentBytes(attachment.size)}</p>
+        <p className="truncate type-micro text-muted-foreground">{formatAgentAttachmentBytes(attachment.size)}</p>
       </div>
       <button type="button" className="shrink-0 text-muted-foreground hover:text-destructive" onClick={onRemove} aria-label={`Remove ${attachment.name}`}>
         <X size={10} />
@@ -176,7 +190,7 @@ export function MentionResourceOption({ attachment, onSelect }: { attachment: Ag
         e.preventDefault()
         onSelect()
       }}
-      className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-[11px] hover:bg-muted/60"
+      className="flex w-full items-center gap-2 px-2 py-1.5 text-left type-caption hover:bg-muted/60"
     >
       <span className="h-7 w-7 shrink-0 overflow-hidden rounded bg-muted">
         {attachment.type === 'image' && url ? (
@@ -190,7 +204,7 @@ export function MentionResourceOption({ attachment, onSelect }: { attachment: Ag
         )}
       </span>
       <span className="min-w-0 flex-1 truncate text-foreground">{attachment.name}</span>
-      <span className="shrink-0 text-[9px] text-muted-foreground">
+      <span className="shrink-0 type-micro text-muted-foreground">
         {attachment.resourceId ? `#${attachment.resourceId}` : ''}
       </span>
     </button>

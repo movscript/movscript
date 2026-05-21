@@ -114,7 +114,7 @@ export function CanvasIOActionCard({
   return (
     <div
       className={cn(
-        'relative w-[260px] overflow-visible rounded-lg border bg-card text-xs shadow-sm transition-all',
+        'relative w-[260px] overflow-visible rounded-lg border bg-card type-label shadow-sm transition-all',
         selected ? 'border-primary shadow-lg shadow-primary/10 ring-2 ring-primary/15' : 'border-border',
         className,
       )}
@@ -126,19 +126,19 @@ export function CanvasIOActionCard({
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
-              <span className={cn('shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-semibold uppercase leading-none', toneMeta.badgeClass)}>
+              <span className={cn('shrink-0 rounded border px-1.5 py-0.5 type-micro font-semibold uppercase leading-none', toneMeta.badgeClass)}>
                 {port.type === 'source' ? 'INPUT' : 'OUTPUT'}
               </span>
-              <p className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-foreground">{title}</p>
+              <p className="min-w-0 flex-1 truncate type-body font-semibold leading-5 text-foreground">{title}</p>
               {status && (
-                <span className="shrink-0 rounded border border-border bg-background/85 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">
+                <span className="shrink-0 rounded border border-border bg-background/85 px-1.5 py-0.5 type-tiny leading-none text-muted-foreground">
                   {status}
                 </span>
               )}
             </div>
-            {subtitle && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{subtitle}</p>}
+            {subtitle && <p className="mt-0.5 truncate type-caption text-muted-foreground">{subtitle}</p>}
           </div>
-          <Button size="icon-xs" variant="ghost" className="h-6 w-6 shrink-0" aria-label="More">
+          <Button size="icon-xs" variant="ghost" className="shrink-0" aria-label="More">
             <MoreHorizontal size={13} />
           </Button>
         </div>
@@ -146,14 +146,14 @@ export function CanvasIOActionCard({
 
       <div className="space-y-2 px-3 py-2.5">
         <div>
-          <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
+          <div className="flex items-center gap-1.5 type-tiny font-medium text-muted-foreground">
             <Icon size={11} />
             <span>{bodyLabel}</span>
           </div>
           <div
             data-input-port-id={port.type === 'target' ? port.id : undefined}
             data-output-port-id={port.type === 'source' ? port.id : undefined}
-            className="relative mt-1 flex h-8 min-w-0 items-center gap-1.5 rounded-md border border-border bg-background px-2 text-[10px]"
+            className="relative mt-1 flex h-8 min-w-0 items-center gap-1.5 rounded-md border border-border bg-background px-2 type-tiny"
           >
             <PortDot
               side={port.side}
@@ -182,7 +182,7 @@ export function CanvasIOActionCard({
         </div>
 
         <div className={cn(
-          'min-h-12 rounded-md border px-2 py-1.5 text-[10px]',
+          'min-h-12 rounded-md border px-2 py-1.5 type-tiny',
           bodyValue ? 'border-border bg-muted/20 text-foreground' : 'border-dashed border-border bg-muted/10 text-muted-foreground',
           isFailed && 'border-destructive/40 bg-destructive/5 text-destructive',
         )}>
@@ -198,8 +198,8 @@ export function CanvasIOActionCard({
         <footer className="border-t border-border/70 px-3 py-2">
           {primaryAction && (
             <Button
-              size="xs"
-              className="h-7 w-full justify-center"
+              size="sm"
+              className="w-full justify-center"
               disabled={primaryAction.disabled}
               onMouseDown={(event) => event.stopPropagation()}
               onClick={(event) => {
@@ -220,7 +220,7 @@ export function CanvasIOActionCard({
 
 function MetaPill({ item }: { item: CanvasIOMetaItem }) {
   return (
-    <div className="flex h-7 min-w-0 items-center gap-1.5 rounded-md border border-border bg-muted/25 px-1.5 text-[10px]">
+    <div className="flex h-7 min-w-0 items-center gap-1.5 rounded-md border border-border bg-muted/25 px-1.5 type-tiny">
       <span className="min-w-0 flex-1 truncate text-muted-foreground">{item.label}</span>
       <span className="max-w-[82px] truncate font-medium text-foreground">{item.value}</span>
     </div>
@@ -246,7 +246,7 @@ function StateTile({ state, label }: { state: CanvasIOState; label: string }) {
         )}
       </div>
       <div className="border-t border-border/60 px-1.5 py-1">
-        <p className={cn('truncate text-[10px] font-medium', isFailed ? 'text-destructive' : 'text-foreground')}>{label}</p>
+        <p className={cn('truncate type-tiny font-medium', isFailed ? 'text-destructive' : 'text-foreground')}>{label}</p>
       </div>
     </div>
   )
@@ -254,7 +254,7 @@ function StateTile({ state, label }: { state: CanvasIOState; label: string }) {
 
 function EmptyRow({ label }: { label: string }) {
   return (
-    <div className="flex h-7 items-center rounded-md border border-dashed border-border px-1.5 text-[10px] text-muted-foreground">
+    <div className="flex h-7 items-center rounded-md border border-dashed border-border px-1.5 type-tiny text-muted-foreground">
       {label}
     </div>
   )

@@ -114,7 +114,7 @@ export function EntitySemanticForm({
           {visibleSections.length > 1 && (
             <div className="mb-3 flex items-center gap-2">
               <span className="h-3 w-0.5 rounded-full bg-primary/60" />
-              <p className="text-xs font-semibold text-foreground">
+              <p className="type-label font-semibold text-foreground">
                 {t(section.labelKey, { defaultValue: section.fallbackLabel })}
               </p>
             </div>
@@ -253,9 +253,9 @@ function renderDefaultSemanticField({
         <Textarea
           className={cn(
             'resize-none border-border/70 bg-background/80 shadow-none transition-colors focus-visible:ring-2',
-            field.control === 'json_editor' && 'font-mono text-xs leading-5',
+            field.control === 'json_editor' && 'font-mono type-label leading-5',
             field.control !== 'json_editor' && 'leading-6',
-            isProminentTextField(field) && 'min-h-36 text-[15px] leading-7',
+            isProminentTextField(field) && 'min-h-36 type-value leading-7',
           )}
           rows={semanticTextareaRows(field)}
           value={stringValue(value)}
@@ -280,7 +280,7 @@ function renderDefaultSemanticField({
 
   if (field.valueType === 'boolean' || field.control === 'checkbox') {
     return (
-      <label className="flex items-center gap-2 rounded-md border border-border/70 bg-background/80 px-3 py-2 text-sm text-foreground">
+      <label className="flex items-center gap-2 rounded-md border border-border/70 bg-background/80 px-3 py-2 type-body text-foreground">
         <input
           type="checkbox"
           checked={Boolean(value)}
@@ -296,7 +296,7 @@ function renderDefaultSemanticField({
     return (
       <FieldBlock label={label}>
         <select
-          className="h-9 w-full rounded-md border border-border/70 bg-background/80 px-3 text-sm text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-9 w-full rounded-md border border-border/70 bg-background/80 px-3 type-body text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
           value={stringValue(value)}
           onChange={(event) => onChange(event.target.value)}
         >
@@ -326,7 +326,7 @@ function FieldBlock({ label, children, prominent = false }: { label: string; chi
       'rounded-md border border-border/60 bg-background/65 p-3 transition-colors focus-within:border-primary/50 focus-within:bg-background',
       prominent && 'bg-background',
     )}>
-      <Label className="mb-2 text-xs font-semibold text-muted-foreground">{label}</Label>
+      <Label className="mb-2 type-label font-semibold text-muted-foreground">{label}</Label>
       {children}
     </div>
   )
@@ -346,7 +346,7 @@ function ReadonlySemanticField({
   return (
     <div className="rounded-md border border-border/70 bg-background/65 px-3 py-2.5">
       <div className="mb-1 flex items-center justify-between gap-2">
-        <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
+        <Label className="type-label font-medium text-muted-foreground">{label}</Label>
         <FieldStateBadge field={field} t={t} />
       </div>
       <ReadonlyValue value={value} emptyLabel={t('common.emptyDescription')} />
@@ -369,8 +369,8 @@ function RelatedEntityListField({
   return (
     <div className="rounded-md border border-border/70 bg-background/65 px-3 py-2.5">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
-        <span className="inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+        <Label className="type-label font-medium text-muted-foreground">{label}</Label>
+        <span className="inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 type-tiny text-muted-foreground">
           <Link2 size={10} />
           {t('common.related', { defaultValue: 'related' })}
         </span>
@@ -381,13 +381,13 @@ function RelatedEntityListField({
             <RelatedEntityCard key={relatedEntityKey(item, index)} item={item} index={index} kind={field.layout?.nestedKind} />
           ))}
           {items.length > 8 && (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="type-caption text-muted-foreground">
               {t('common.itemsCount', { count: items.length })}
             </p>
           )}
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">{t('common.emptyDescription')}</p>
+        <p className="type-label text-muted-foreground">{t('common.emptyDescription')}</p>
       )}
     </div>
   )
@@ -401,15 +401,15 @@ function RelatedEntityCard({ item, index, kind }: { item: unknown; index: number
   const meta = relatedEntityMeta(record, kind)
 
   return (
-    <div className="rounded-md border border-border/70 bg-card px-2.5 py-2 text-xs">
+    <div className="rounded-md border border-border/70 bg-card px-2.5 py-2 type-label">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate font-medium text-foreground">{title}</p>
-          {meta && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{meta}</p>}
+          {meta && <p className="mt-0.5 truncate type-caption text-muted-foreground">{meta}</p>}
         </div>
-        {status && <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{status}</span>}
+        {status && <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 type-tiny text-muted-foreground">{status}</span>}
       </div>
-      {description && <p className="mt-1.5 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{description}</p>}
+      {description && <p className="mt-1.5 line-clamp-2 type-caption leading-4 text-muted-foreground">{description}</p>}
     </div>
   )
 }
@@ -417,14 +417,14 @@ function RelatedEntityCard({ item, index, kind }: { item: unknown; index: number
 function FieldStateBadge({ field, t }: { field: EntitySemanticSchemaField; t: (key: string, options?: Record<string, unknown>) => string }) {
   if (field.control === 'computed') {
     return (
-      <span className="inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+      <span className="inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 type-tiny text-muted-foreground">
         <Calculator size={10} />
         {t('common.computed', { defaultValue: 'computed' })}
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+    <span className="inline-flex items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 type-tiny text-muted-foreground">
       <Lock size={10} />
       {t('common.readonly', { defaultValue: 'read-only' })}
     </span>
@@ -433,16 +433,16 @@ function FieldStateBadge({ field, t }: { field: EntitySemanticSchemaField; t: (k
 
 function ReadonlyValue({ value, emptyLabel }: { value: unknown; emptyLabel: string }) {
   if (value === null || value === undefined || value === '') {
-    return <p className="text-xs text-muted-foreground">{emptyLabel}</p>
+    return <p className="type-label text-muted-foreground">{emptyLabel}</p>
   }
   if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
     return (
-      <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-background px-2 py-1.5 text-xs text-foreground">
+      <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-background px-2 py-1.5 type-label text-foreground">
         {stringValue(value)}
       </pre>
     )
   }
-  return <p className="whitespace-pre-wrap break-words text-sm text-foreground">{stringValue(value)}</p>
+  return <p className="whitespace-pre-wrap break-words type-body text-foreground">{stringValue(value)}</p>
 }
 
 function isSemanticDisplayField(field: EntitySemanticSchemaField) {

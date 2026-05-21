@@ -79,3 +79,40 @@ test('runtime operation bridge rejects unsupported start kinds with guidance', a
     /supports only kind "generation_job"/,
   )
 })
+
+test('runtime operation bridge monitors continuation operations in the background', async () => {
+  const events: string[] = []
+  const operation = {
+    id: 'op_monitor',
+    threadId: 'thread_1',
+    runId: 'run_1',
+    kind: 'generation_job' as const,
+    mode: 'async' as const,
+    status: 'waiting' as const,
+    request: { prompt: 'image' },
+    continuationPolicy: { mode: 'any_completed' as const },
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  }
+  const bridge = createRuntimeOperationsBridge({
+    operationManager: {
+      start: async () => operation,
+      wait: async (input: { onOperation?: (item: any) => void }) => {
+        events.push('wait')
+        input.onOperation?.({ ...operation, status: 'completed' })
+        return { status: 'completed', done: true, completed: [{ ...operation, status: 'completed' }], failed: [], cancelled: [], pending: [] }
+      },
+    } as never,
+    scheduler: {
+      dispatch: (event) => {
+        events.push(event.type)
+        return undefined
+      },
+    },
+  })
+
+  await bridge.startOperation({ id: 'run_1', threadId: 'thread_1' } as AgentRun, { kind: 'generation_job', request: { prompt: 'image' } })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  assert.deepEqual(events, ['operation.started', 'wait', 'operation.observed'])
+})

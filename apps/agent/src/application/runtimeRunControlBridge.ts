@@ -68,6 +68,7 @@ export function createRuntimeRunControlBridge(input: {
       recordTrace: (targetRun, trace) => input.streams.recordTraceEvent(targetRun, trace),
       createStep: (targetRun, type, round, toolName) => input.runSteps.createStep(targetRun, type, round, toolName),
       emitRunSnapshot: (targetRun, options) => input.streams.emitRunSnapshot(targetRun, options),
+      startRunExecution: (targetRunId) => input.runExecutionScheduler.startRunExecution(targetRunId),
     }),
     cancelRun: (runId, cancelInput = {}) => {
       const controller = input.controllers.get(runId)

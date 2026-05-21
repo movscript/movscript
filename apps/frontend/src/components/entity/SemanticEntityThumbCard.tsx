@@ -46,28 +46,28 @@ export function SemanticEntityThumbCard({
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
-              <Badge variant="outline" className="shrink-0 bg-background/70 text-[10px] leading-none">
+              <Badge variant="outline" className="shrink-0 bg-background/70 type-tiny leading-none">
                 {kindLabel(kind)}
               </Badge>
               {status ? (
-                <span className="shrink-0 rounded border border-border bg-background/75 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">
+                <span className="shrink-0 rounded border border-border bg-background/75 px-1.5 py-0.5 type-tiny leading-none text-muted-foreground">
                   {status}
                 </span>
               ) : null}
             </div>
-            <p className="mt-1 line-clamp-2 min-h-9 text-sm font-semibold leading-[18px] text-foreground">{title}</p>
+            <p className="mt-1 line-clamp-2 min-h-9 type-body font-semibold leading-[18px] text-foreground">{title}</p>
           </div>
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col px-3 py-2.5">
-        <p className="line-clamp-2 min-h-9 text-[11px] leading-[18px] text-muted-foreground">
+        <p className="line-clamp-2 min-h-9 type-caption leading-[18px] text-muted-foreground">
           {description || '暂无内容'}
         </p>
         <div className="mt-auto flex min-w-0 flex-wrap gap-1.5 pt-2">
           {meta.slice(0, 3).map((item, index) => (
             <span
               key={index}
-              className="max-w-full truncate rounded border border-border bg-background px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground"
+              className="max-w-full truncate rounded border border-border bg-background px-1.5 py-0.5 type-tiny leading-none text-muted-foreground"
             >
               {item}
             </span>

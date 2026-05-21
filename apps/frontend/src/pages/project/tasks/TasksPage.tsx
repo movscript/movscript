@@ -727,7 +727,7 @@ function StatusPill({ status }: { status: TaskStatus }) {
   const meta = statusMeta[status]
   const Icon = meta.icon
   return (
-    <span className={cn('inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium', meta.className)}>
+    <span className={cn('inline-flex items-center gap-1 rounded-md border px-2 py-1 type-label font-medium', meta.className)}>
       <Icon size={12} />
       {meta.label}
     </span>
@@ -736,7 +736,7 @@ function StatusPill({ status }: { status: TaskStatus }) {
 
 function PriorityPill({ priority }: { priority: TaskPriority }) {
   const meta = priorityMeta[priority]
-  return <span className={cn('rounded-md px-2 py-1 text-xs font-medium', meta.className)}>{meta.label}优先级</span>
+  return <span className={cn('rounded-md px-2 py-1 type-label font-medium', meta.className)}>{meta.label}优先级</span>
 }
 
 function TaskCreateDialog({
@@ -914,7 +914,7 @@ function TaskCreateDialog({
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="grid gap-4 p-5">
             <section>
-              <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+              <div className="mb-2 flex items-center gap-2 type-label font-semibold text-muted-foreground">
                 <ClipboardList size={14} />
                 <span>任务目的</span>
               </div>
@@ -931,8 +931,8 @@ function TaskCreateDialog({
                         active ? 'border-primary bg-primary/5' : 'border-border bg-background hover:border-primary/40'
                       )}
                     >
-                      <p className="text-sm font-semibold text-foreground">{meta.label}</p>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{meta.description}</p>
+                      <p className="type-body font-semibold text-foreground">{meta.label}</p>
+                      <p className="mt-1 type-label leading-5 text-muted-foreground">{meta.description}</p>
                     </button>
                   )
                 })}
@@ -942,28 +942,28 @@ function TaskCreateDialog({
             <section className="grid grid-cols-[minmax(0,1fr)_280px] gap-4">
               <div className="space-y-3">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">关联对象</label>
+                  <label className="mb-1 block type-label font-medium text-muted-foreground">关联对象</label>
                   <select
                     value={selectedTarget?.key ?? ''}
                     onChange={(event) => setTargetKey(event.target.value)}
-                    className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                    className="h-10 w-full rounded-md border border-border bg-background px-3 type-body text-foreground outline-none focus:border-primary"
                   >
                     {availableTargets.map((target) => (
                       <option key={target.key} value={target.key}>{target.label}</option>
                     ))}
                   </select>
                   {availableTargets.length === 0 && (
-                    <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">当前任务目的没有可用对象。</p>
+                    <p className="mt-2 type-label text-rose-600 dark:text-rose-300">当前任务目的没有可用对象。</p>
                   )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-muted-foreground">执行成员</label>
+                    <label className="mb-1 block type-label font-medium text-muted-foreground">执行成员</label>
                     <select
                       value={selectedAssignee ? String(selectedAssignee.id) : ''}
                       onChange={(event) => setAssigneeId(event.target.value)}
-                      className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                      className="h-10 w-full rounded-md border border-border bg-background px-3 type-body text-foreground outline-none focus:border-primary"
                     >
                       {memberOptions.map((member) => (
                         <option key={member.id} value={member.id}>{member.name} · {member.role}</option>
@@ -971,11 +971,11 @@ function TaskCreateDialog({
                     </select>
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-muted-foreground">截止时间</label>
+                    <label className="mb-1 block type-label font-medium text-muted-foreground">截止时间</label>
                     <select
                       value={due}
                       onChange={(event) => setDue(event.target.value)}
-                      className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                      className="h-10 w-full rounded-md border border-border bg-background px-3 type-body text-foreground outline-none focus:border-primary"
                     >
                       <option value="今天 18:00">今天 18:00</option>
                       <option value="明天 18:00">明天 18:00</option>
@@ -987,19 +987,19 @@ function TaskCreateDialog({
 
                 <div className="grid grid-cols-[minmax(0,1fr)_150px] gap-3">
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-muted-foreground">任务标题</label>
+                    <label className="mb-1 block type-label font-medium text-muted-foreground">任务标题</label>
                     <input
                       value={title}
                       onChange={(event) => setTitle(event.target.value)}
-                      className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+                      className="h-10 w-full rounded-md border border-border bg-background px-3 type-body outline-none focus:border-primary"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-muted-foreground">优先级</label>
+                    <label className="mb-1 block type-label font-medium text-muted-foreground">优先级</label>
                     <select
                       value={priority}
                       onChange={(event) => setPriority(event.target.value as TaskPriority)}
-                      className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                      className="h-10 w-full rounded-md border border-border bg-background px-3 type-body text-foreground outline-none focus:border-primary"
                     >
                       <option value="high">高</option>
                       <option value="medium">中</option>
@@ -1009,22 +1009,22 @@ function TaskCreateDialog({
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">任务说明</label>
+                  <label className="mb-1 block type-label font-medium text-muted-foreground">任务说明</label>
                   <textarea
                     value={description}
                     onChange={(event) => setDescription(event.target.value)}
                     placeholder="可补充交付要求、审核重点或上下文"
-                    className="min-h-[82px] w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                    className="min-h-[82px] w-full resize-none rounded-md border border-border bg-background px-3 py-2 type-body outline-none focus:border-primary"
                   />
                 </div>
 
                 {resultType === 'status_change' && (
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-muted-foreground">通过后目标状态</label>
+                    <label className="mb-1 block type-label font-medium text-muted-foreground">通过后目标状态</label>
                     <select
                       value={targetStatus}
                       onChange={(event) => setTargetStatus(event.target.value)}
-                      className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                      className="h-10 w-full rounded-md border border-border bg-background px-3 type-body text-foreground outline-none focus:border-primary"
                     >
                       <option value="confirmed">confirmed</option>
                       <option value="locked">locked</option>
@@ -1036,12 +1036,12 @@ function TaskCreateDialog({
 
                 {resultType === 'lock_asset_candidate' && (
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-muted-foreground">候选素材</label>
+                    <label className="mb-1 block type-label font-medium text-muted-foreground">候选素材</label>
                     <select
                       value={selectedCandidate ? String(selectedCandidate.ID) : ''}
                       onChange={(event) => setCandidateID(event.target.value)}
                       disabled={!candidateOptions.length}
-                      className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+                      className="h-10 w-full rounded-md border border-border bg-background px-3 type-body outline-none focus:border-primary"
                     >
                       {requestedAssetCandidateUnavailable && <option value="">指定候选不可采纳</option>}
                       {candidateOptions.map((candidate) => (
@@ -1049,24 +1049,24 @@ function TaskCreateDialog({
                       ))}
                     </select>
                     {!candidateOptions.length && (
-                      <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">
+                      <p className="mt-2 type-label text-rose-600 dark:text-rose-300">
                         {requestedAssetCandidateUnavailable ? '指定素材候选缺少资源或已不可采纳，请回预制作或 AI 助手重新加入候选。' : '当前素材需求暂无可采纳候选，请先在预制作或 AI 助手中加入带资源的候选。'}
                       </p>
                     )}
                     {candidateOptions.length > 0 && requestedAssetCandidateUnavailable && (
-                      <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">指定素材候选缺少资源或已不可采纳，请重新选择一个可采纳候选，或回预制作/AI 助手重新加入候选。</p>
+                      <p className="mt-2 type-label text-rose-600 dark:text-rose-300">指定素材候选缺少资源或已不可采纳，请重新选择一个可采纳候选，或回预制作/AI 助手重新加入候选。</p>
                     )}
                   </div>
                 )}
 
                 {resultType === 'accept_keyframe' && (
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-muted-foreground">候选画面锚点</label>
+                    <label className="mb-1 block type-label font-medium text-muted-foreground">候选画面锚点</label>
                     <select
                       value={selectedKeyframeCandidate ? String(selectedKeyframeCandidate.ID) : ''}
                       onChange={(event) => setCandidateID(event.target.value)}
                       disabled={!keyframeCandidateOptions.length}
-                      className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+                      className="h-10 w-full rounded-md border border-border bg-background px-3 type-body outline-none focus:border-primary"
                     >
                       {requestedKeyframeCandidateUnavailable && <option value="">指定候选不可采纳</option>}
                       {keyframeCandidateOptions.map((candidate) => (
@@ -1074,12 +1074,12 @@ function TaskCreateDialog({
                       ))}
                     </select>
                     {!keyframeCandidateOptions.length && (
-                      <p className={cn('mt-2 text-xs', requestedKeyframeCandidateUnavailable ? 'text-rose-600 dark:text-rose-300' : 'text-muted-foreground')}>
+                      <p className={cn('mt-2 type-label', requestedKeyframeCandidateUnavailable ? 'text-rose-600 dark:text-rose-300' : 'text-muted-foreground')}>
                         {requestedKeyframeCandidateUnavailable ? '指定候选缺少资源或已不可采纳，请回工作台拒绝该候选或重新加入候选。' : '当前画面锚点暂无 AI 候选，通过后会直接采纳当前画面锚点。'}
                       </p>
                     )}
                     {keyframeCandidateOptions.length > 0 && requestedKeyframeCandidateUnavailable && (
-                      <p className="mt-2 text-xs text-rose-600 dark:text-rose-300">指定候选缺少资源或已不可采纳，请重新选择一个可采纳候选，或回工作台拒绝该候选后重新加入候选。</p>
+                      <p className="mt-2 type-label text-rose-600 dark:text-rose-300">指定候选缺少资源或已不可采纳，请重新选择一个可采纳候选，或回工作台拒绝该候选后重新加入候选。</p>
                     )}
                   </div>
                 )}
@@ -1087,40 +1087,40 @@ function TaskCreateDialog({
 
               <aside className="space-y-4 rounded-md border border-border bg-background p-3">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground">对象摘要</p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">{selectedTarget?.label ?? '未选择对象'}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{selectedTarget?.subtitle || projectName}</p>
+                  <p className="type-label font-medium text-muted-foreground">对象摘要</p>
+                  <p className="mt-1 type-body font-semibold text-foreground">{selectedTarget?.label ?? '未选择对象'}</p>
+                  <p className="mt-1 type-label text-muted-foreground">{selectedTarget?.subtitle || projectName}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="grid grid-cols-2 gap-2 type-label">
                   <Info label="任务类型" value={taskTypeMeta[purposeMeta.taskType].label} />
                   <Info label="完成动作" value={resultTypeMeta[resultType].label} />
                   <Info label="执行成员" value={selectedAssignee?.name ?? '未选择'} />
                   <Info label="截止时间" value={due} />
                 </div>
                 <div className="space-y-2 border-t border-border pt-3">
-                  <label className="block text-xs font-medium text-muted-foreground">AI 助手</label>
+                  <label className="block type-label font-medium text-muted-foreground">AI 助手</label>
                   <select
                     value={agentKey}
                     onChange={(event) => setAgentKey(event.target.value as TaskAgentKey | '')}
-                    className="h-10 w-full rounded-md border border-border bg-card px-3 text-sm text-foreground outline-none focus:border-primary"
+                    className="h-10 w-full rounded-md border border-border bg-card px-3 type-body text-foreground outline-none focus:border-primary"
                   >
                     <option value="">不发送给 AI 助手</option>
                     {taskAgentOptions.map((agent) => (
                       <option key={agent.key} value={agent.key}>{agent.name}</option>
                     ))}
                   </select>
-                  <p className="text-xs leading-5 text-muted-foreground">
+                  <p className="type-label leading-5 text-muted-foreground">
                     {selectedAgent ? selectedAgent.description : '仅创建人工任务，之后仍可在任务详情中交给 AI 助手。'}
                   </p>
                 </div>
                 <div className="border-t border-border pt-3">
-                  <p className="text-xs font-medium text-muted-foreground">发布摘要</p>
-                  <p className="mt-2 text-sm leading-6 text-foreground">
+                  <p className="type-label font-medium text-muted-foreground">发布摘要</p>
+                  <p className="mt-2 type-body leading-6 text-foreground">
                     将任务“{title.trim() || purposeMeta.defaultTitle}”分配给{selectedAssignee?.name ?? '成员'}。
                   </p>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">{resultSummary(resultType, resultJSON)}</p>
+                  <p className="mt-1 type-label leading-5 text-muted-foreground">{resultSummary(resultType, resultJSON)}</p>
                   {selectedAgent && (
-                    <p className="mt-2 inline-flex items-center gap-1 rounded-md bg-sky-500/10 px-2 py-1 text-xs font-medium text-sky-700 dark:text-sky-300">
+                    <p className="mt-2 inline-flex items-center gap-1 rounded-md bg-sky-500/10 px-2 py-1 type-label font-medium text-sky-700 dark:text-sky-300">
                       <Bot size={12} />
                       发布后交给{selectedAgent.name}
                     </p>
@@ -1169,17 +1169,17 @@ function ManagementTab({
   return (
     <section className="rounded-lg border border-border bg-card p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-sm font-medium">
+        <div className="flex items-center gap-2 type-body font-medium">
           <Users size={15} />
           <span>项目成员</span>
         </div>
-        <Badge variant="secondary" className="text-[10px]">{members.length} 人</Badge>
+        <Badge variant="secondary" className="type-tiny">{members.length} 人</Badge>
       </div>
 
       {canManageMembers && (
         <div className="mb-3 grid gap-2 rounded-md border border-border bg-background p-2">
           <select
-            className="h-9 rounded-md border border-border bg-card px-2 text-xs text-foreground"
+            className="h-9 rounded-md border border-border bg-card px-2 type-label text-foreground"
             value={selectedUser}
             onChange={(event) => setSelectedUser(event.target.value)}
           >
@@ -1188,7 +1188,7 @@ function ManagementTab({
           </select>
           <div className="flex gap-2">
             <select
-              className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-xs text-foreground"
+              className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 type-label text-foreground"
               value={role}
               onChange={(event) => setRole(event.target.value)}
             >
@@ -1215,19 +1215,19 @@ function ManagementTab({
       <div className="space-y-2">
         {members.slice(0, 6).map((member) => (
           <div key={member.ID} className="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-2">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted type-label font-medium">
               {memberDisplayName(member)[0]?.toUpperCase() ?? '?'}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-medium">{memberDisplayName(member)}</p>
-              <p className="text-[11px] text-muted-foreground">{ROLE_LABELS[member.role] ?? member.role}</p>
+              <p className="truncate type-label font-medium">{memberDisplayName(member)}</p>
+              <p className="type-caption text-muted-foreground">{ROLE_LABELS[member.role] ?? member.role}</p>
             </div>
             {canManageMembers && member.role !== 'owner' && (
               <Button
                 variant="ghost"
-                size="icon"
+                size="icon-sm"
                 onClick={() => removeMember.mutate(member.ID)}
-                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                className="text-muted-foreground hover:text-destructive"
                 aria-label="移除成员"
               >
                 <Trash2 size={13} />
@@ -1235,7 +1235,7 @@ function ManagementTab({
             )}
           </div>
         ))}
-        {members.length === 0 && <p className="text-xs text-muted-foreground">暂无项目成员。先添加成员后即可分配任务。</p>}
+        {members.length === 0 && <p className="type-label text-muted-foreground">暂无项目成员。先添加成员后即可分配任务。</p>}
       </div>
     </section>
   )
@@ -1641,13 +1641,13 @@ export default function TasksPage() {
       <div className="min-w-[1180px] space-y-4 p-6">
         <header className="flex items-start justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 type-label text-muted-foreground">
               <span>{project?.name ?? '当前项目'}</span>
               <ChevronRight size={13} />
               <span>任务</span>
             </div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">任务</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <h1 className="mt-2 type-page-title font-semibold tracking-normal text-foreground">任务</h1>
+            <p className="mt-1 type-body text-muted-foreground">
               面向项目成员的任务分配、个人执行、提交审核和负责人通过。
             </p>
           </div>
@@ -1686,8 +1686,8 @@ export default function TasksPage() {
                     <Icon size={16} />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold">{index + 1}. {step.title}</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.detail}</p>
+                    <p className="type-body font-semibold">{index + 1}. {step.title}</p>
+                    <p className="mt-1 type-label leading-5 text-muted-foreground">{step.detail}</p>
                   </div>
                 </div>
               </div>
@@ -1710,10 +1710,10 @@ export default function TasksPage() {
                 className="rounded-lg border border-border bg-card p-3 text-left transition-colors hover:border-primary/40"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">{metric.label}</span>
+                  <span className="type-label text-muted-foreground">{metric.label}</span>
                   <Icon size={15} className={metric.className} />
                 </div>
-                <p className="mt-2 font-mono text-2xl font-semibold tabular-nums">{metric.value}</p>
+                <p className="mt-2 font-mono type-page-title font-semibold tabular-nums">{metric.value}</p>
               </button>
             )
           })}
@@ -1722,12 +1722,12 @@ export default function TasksPage() {
         <section className="grid grid-cols-[260px_minmax(0,1fr)_360px] gap-4">
           <aside className="space-y-3">
             <section className="rounded-lg border border-border bg-card p-3">
-              <div className="mb-3 flex items-center gap-2 text-sm font-medium">
+              <div className="mb-3 flex items-center gap-2 type-body font-medium">
                 <Plus size={15} />
                 <span>任务发布</span>
               </div>
               <div className="space-y-3 rounded-md border border-border bg-background p-3">
-                <p className="text-xs leading-5 text-muted-foreground">
+                <p className="type-label leading-5 text-muted-foreground">
                   选择任务目的、关联对象和完成动作后发布。系统会自动生成底层任务结果，不需要手写 JSON。
                 </p>
                 <Button className="w-full gap-2" onClick={() => setTaskDialogOpen(true)} disabled={!canManageWorkItems || memberOptions.length === 0 || workTargetOptions.length === 0}>
@@ -1749,8 +1749,8 @@ export default function TasksPage() {
             <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
               <div className="flex items-center gap-2">
                 <ListTodo size={16} />
-                <h2 className="text-sm font-semibold">任务列表</h2>
-                <Badge variant="secondary" className="text-[10px]">{visibleTasks.length} 项</Badge>
+                <h2 className="type-body font-semibold">任务列表</h2>
+                <Badge variant="secondary" className="type-tiny">{visibleTasks.length} 项</Badge>
               </div>
               <div className="flex items-center gap-2">
                 {(['all', 'mine', 'review'] as const).map((mode) => (
@@ -1768,7 +1768,7 @@ export default function TasksPage() {
                   <select
                     value={statusFilter}
                     onChange={(event) => setStatusFilter(event.target.value as TaskStatus | 'all')}
-                    className="h-8 bg-transparent text-xs outline-none"
+                    className="h-8 bg-transparent type-label outline-none"
                     aria-label="状态筛选"
                   >
                     <option value="all">全部状态</option>
@@ -1798,19 +1798,19 @@ export default function TasksPage() {
                         <div className="flex flex-wrap items-center gap-2">
                           <StatusPill status={task.status} />
                           <PriorityPill priority={task.priority} />
-                          <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">{taskTypeMeta[task.taskType].label}</span>
+                          <span className="rounded-md bg-muted px-2 py-1 type-label font-medium text-muted-foreground">{taskTypeMeta[task.taskType].label}</span>
                           {task.metadata.agent_request_id && (
-                            <span className="inline-flex items-center gap-1 rounded-md bg-sky-500/10 px-2 py-1 text-xs font-medium text-sky-700 dark:text-sky-300">
+                            <span className="inline-flex items-center gap-1 rounded-md bg-sky-500/10 px-2 py-1 type-label font-medium text-sky-700 dark:text-sky-300">
                               <Bot size={12} />
                               AI
                             </span>
                           )}
-                          <span className="font-mono text-xs text-muted-foreground">{task.id}</span>
+                          <span className="font-mono type-label text-muted-foreground">{task.id}</span>
                         </div>
-                        <p className="mt-2 truncate text-sm font-semibold">{task.title}</p>
-                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{task.description}</p>
+                        <p className="mt-2 truncate type-body font-semibold">{task.title}</p>
+                        <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">{task.description}</p>
                       </div>
-                      <div className="grid w-[260px] shrink-0 grid-cols-2 gap-2 text-xs">
+                      <div className="grid w-[260px] shrink-0 grid-cols-2 gap-2 type-label">
                         <Info label="执行成员" value={task.assigneeName} />
                         <Info label="截止时间" value={task.due} />
                         <Info label="关联对象" value={task.target} />
@@ -1824,8 +1824,8 @@ export default function TasksPage() {
                 <div className="grid min-h-[260px] place-items-center rounded-lg border border-dashed border-border text-center">
                   <div>
                     <Clock3 size={24} className="mx-auto text-muted-foreground" />
-                    <p className="mt-3 text-sm font-medium">正在加载任务</p>
-                    <p className="mt-1 text-xs text-muted-foreground">从项目 WorkItem 列表读取分配记录。</p>
+                    <p className="mt-3 type-body font-medium">正在加载任务</p>
+                    <p className="mt-1 type-label text-muted-foreground">从项目 WorkItem 列表读取分配记录。</p>
                   </div>
                 </div>
               )}
@@ -1833,8 +1833,8 @@ export default function TasksPage() {
                 <div className="grid min-h-[260px] place-items-center rounded-lg border border-dashed border-border text-center">
                   <div>
                     <ClipboardList size={24} className="mx-auto text-muted-foreground" />
-                    <p className="mt-3 text-sm font-medium">没有符合条件的任务</p>
-                    <p className="mt-1 text-xs text-muted-foreground">调整筛选条件，或在左侧快速分配新任务。</p>
+                    <p className="mt-3 type-body font-medium">没有符合条件的任务</p>
+                    <p className="mt-1 type-label text-muted-foreground">调整筛选条件，或在左侧快速分配新任务。</p>
                   </div>
                 </div>
               )}
@@ -1843,11 +1843,11 @@ export default function TasksPage() {
 
           <aside className="rounded-lg border border-border bg-card">
             <div className="border-b border-border px-4 py-3">
-              <div className="flex items-center gap-2 text-sm font-semibold">
+              <div className="flex items-center gap-2 type-body font-semibold">
                 <ClipboardCheck size={16} />
                 <span>任务详情</span>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">任务可声明完成后的实体变更；负责人通过时由后端应用并记录事件。</p>
+              <p className="mt-1 type-label text-muted-foreground">任务可声明完成后的实体变更；负责人通过时由后端应用并记录事件。</p>
             </div>
 
             {selectedTask && (
@@ -1857,12 +1857,12 @@ export default function TasksPage() {
                     <StatusPill status={selectedTask.status} />
                     <PriorityPill priority={selectedTask.priority} />
                   </div>
-                  <h3 className="mt-3 text-base font-semibold">{selectedTask.title}</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">{selectedTask.id} · {selectedTask.target}</p>
+                  <h3 className="mt-3 type-body-lg font-semibold">{selectedTask.title}</h3>
+                  <p className="mt-1 type-label text-muted-foreground">{selectedTask.id} · {selectedTask.target}</p>
                 </div>
 
                 <DetailBlock title="分配信息" icon={UserCheck}>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="grid grid-cols-2 gap-2 type-label">
                     <Info label="任务类型" value={taskTypeMeta[selectedTask.taskType].label} />
                     <Info label="执行成员" value={selectedTask.assigneeName} />
                     <Info label="审核人" value={selectedTask.reviewerName} />
@@ -1872,11 +1872,11 @@ export default function TasksPage() {
                 </DetailBlock>
 
                 <DetailBlock title="任务说明" icon={ListChecks}>
-                  <p className="text-sm leading-relaxed text-muted-foreground">{selectedTask.description}</p>
+                  <p className="type-body leading-relaxed text-muted-foreground">{selectedTask.description}</p>
                 </DetailBlock>
 
                 <DetailBlock title="AI 助手" icon={Bot}>
-                  <div className="space-y-2 rounded-md border border-border bg-background p-3 text-xs">
+                  <div className="space-y-2 rounded-md border border-border bg-background p-3 type-label">
                     <div className="grid grid-cols-2 gap-2">
                       <Info label="执行 Agent" value={selectedTask.metadata.agent_name ?? taskAgentOptionByKey(selectedTask.metadata.agent_key).name} />
                       <Info label="会话状态" value={agentWorkStatusLabel(selectedTaskAgentStatus, selectedTask.metadata.agent_request_id)} />
@@ -1928,13 +1928,13 @@ export default function TasksPage() {
                 </DetailBlock>
 
                 <DetailBlock title="完成动作" icon={ClipboardCheck}>
-                  <div className="space-y-2 rounded-md border border-border bg-background p-3 text-xs">
+                  <div className="space-y-2 rounded-md border border-border bg-background p-3 type-label">
                     <div className="grid grid-cols-2 gap-2">
                       <Info label="动作" value={resultTypeMeta[(selectedTask.resultType as WorkItemResultType) || 'none']?.label ?? selectedTask.resultType} />
                       <Info label="应用状态" value={applyStatusLabel(selectedTask.applyStatus)} />
                     </div>
                     {selectedTask.resultJSON && (
-                      <pre className="max-h-28 overflow-auto rounded-md bg-muted p-2 font-mono text-[11px] text-muted-foreground">{selectedTask.resultJSON}</pre>
+                      <pre className="max-h-28 overflow-auto rounded-md bg-muted p-2 font-mono type-caption text-muted-foreground">{selectedTask.resultJSON}</pre>
                     )}
                     {selectedTask.applyError && <p className="text-rose-600 dark:text-rose-300">{selectedTask.applyError}</p>}
                     {selectedTask.appliedAt && <p className="text-muted-foreground">应用时间：{formatDateTime(selectedTask.appliedAt)}</p>}
@@ -1944,13 +1944,13 @@ export default function TasksPage() {
                 <DetailBlock title="提交内容" icon={FileCheck2}>
                   <div className="space-y-2">
                     <div className="rounded-md border border-border bg-background p-3">
-                      <p className="text-sm text-foreground">{selectedTask.deliverable ?? '成员尚未提交交付物。'}</p>
-                      <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                      <p className="type-body text-foreground">{selectedTask.deliverable ?? '成员尚未提交交付物。'}</p>
+                      <div className="mt-2 grid grid-cols-2 gap-2 type-label text-muted-foreground">
                         <span>提交时间：{formatDateTime(selectedTask.submittedAt)}</span>
                         <span>通过时间：{formatDateTime(selectedTask.approvedAt)}</span>
                       </div>
                       {(selectedTask.sourceJobID || selectedTask.sourceCanvasID) && (
-                        <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+                        <div className="mt-2 flex flex-wrap gap-2 type-tiny text-muted-foreground">
                           {selectedTask.sourceJobID && <span className="rounded bg-muted px-2 py-1">Job #{selectedTask.sourceJobID}</span>}
                           {selectedTask.sourceCanvasID && <span className="rounded bg-muted px-2 py-1">Canvas #{selectedTask.sourceCanvasID}</span>}
                         </div>
@@ -1962,7 +1962,7 @@ export default function TasksPage() {
                           value={submitDeliverable}
                           onChange={(event) => setSubmitDeliverable(event.target.value)}
                           placeholder="填写交付说明，例如已上传的资源、生成结果、处理范围或待审核重点"
-                          className="min-h-[76px] w-full resize-none rounded-md border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary"
+                          className="min-h-[76px] w-full resize-none rounded-md border border-border bg-card px-3 py-2 type-body outline-none focus:border-primary"
                         />
                         <div className="grid grid-cols-2 gap-2">
                           <input
@@ -1970,14 +1970,14 @@ export default function TasksPage() {
                             onChange={(event) => setSubmitJobId(event.target.value)}
                             placeholder="关联 Job ID"
                             inputMode="numeric"
-                            className="h-8 rounded-md border border-border bg-card px-2 text-xs outline-none focus:border-primary"
+                            className="h-8 rounded-md border border-border bg-card px-2 type-label outline-none focus:border-primary"
                           />
                           <input
                             value={submitCanvasId}
                             onChange={(event) => setSubmitCanvasId(event.target.value)}
                             placeholder="关联 Canvas ID"
                             inputMode="numeric"
-                            className="h-8 rounded-md border border-border bg-card px-2 text-xs outline-none focus:border-primary"
+                            className="h-8 rounded-md border border-border bg-card px-2 type-label outline-none focus:border-primary"
                           />
                         </div>
                       </div>
@@ -1987,7 +1987,7 @@ export default function TasksPage() {
 
                 <DetailBlock title="审核意见" icon={MessageSquareText}>
                   <div className="space-y-2">
-                    <div className="rounded-md border border-border bg-background p-3 text-sm leading-relaxed text-muted-foreground">
+                    <div className="rounded-md border border-border bg-background p-3 type-body leading-relaxed text-muted-foreground">
                       {selectedTask.reviewNote ?? '暂无审核意见。'}
                     </div>
                     {selectedTaskReviews.length > 0 && (
@@ -1995,15 +1995,15 @@ export default function TasksPage() {
                         {selectedTaskReviews.map((review) => (
                           <div key={review.ID} className="rounded-md border border-border bg-background p-3">
                             <div className="flex items-center justify-between gap-2">
-                              <span className={cn('rounded px-2 py-0.5 text-[10px] font-medium', reviewStatusClassName(review.status))}>
+                              <span className={cn('rounded px-2 py-0.5 type-tiny font-medium', reviewStatusClassName(review.status))}>
                                 {reviewStatusLabel(review.status)}
                               </span>
-                              <span className="text-[10px] text-muted-foreground">{formatDateTime(review.CreatedAt)}</span>
+                              <span className="type-tiny text-muted-foreground">{formatDateTime(review.CreatedAt)}</span>
                             </div>
-                            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                            <p className="mt-2 type-label leading-5 text-muted-foreground">
                               {review.comment || '无文字意见'}
                             </p>
-                            <p className="mt-1 text-[10px] text-muted-foreground">
+                            <p className="mt-1 type-tiny text-muted-foreground">
                               审核人：{review.reviewer?.username || (review.reviewer_id ? `成员 ${review.reviewer_id}` : selectedTask.reviewerName)}
                             </p>
                           </div>
@@ -2015,7 +2015,7 @@ export default function TasksPage() {
                         value={reviewComment}
                         onChange={(event) => setReviewComment(event.target.value)}
                         placeholder="填写审核意见，会同步写入任务审核记录"
-                        className="min-h-[76px] w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                        className="min-h-[76px] w-full resize-none rounded-md border border-border bg-background px-3 py-2 type-body outline-none focus:border-primary"
                       />
                     )}
                   </div>
@@ -2060,7 +2060,7 @@ export default function TasksPage() {
                 </div>
 
                 {!canManageWorkItems && selectedTask.status === 'submitted' && (
-                  <div className="flex gap-2 rounded-md border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
+                  <div className="flex gap-2 rounded-md border border-amber-500/25 bg-amber-500/10 p-3 type-label text-amber-700 dark:text-amber-300">
                     <AlertTriangle size={14} className="mt-0.5 shrink-0" />
                     <span>只有项目负责人或具备成员管理权限的用户可以通过任务或要求修改。</span>
                   </div>
@@ -2085,7 +2085,7 @@ function DetailBlock({
 }) {
   return (
     <section>
-      <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+      <div className="mb-2 flex items-center gap-2 type-label font-semibold text-muted-foreground">
         <Icon size={14} />
         <span>{title}</span>
       </div>

@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
-import { ArrowRight, CheckCircle2, GitBranch, Trash2 } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Trash2 } from 'lucide-react'
 import { Badge, Button } from '@movscript/ui'
 
 import { localAgentClient, type AgentDraft, type AgentDraftKind } from '@/lib/localAgentClient'
+import { ProposalReviewShell } from '@/components/proposals/ProposalReviewShell'
 import { isRecord } from '@/lib/jsonValue'
 import {
   buildProjectLayerDraftContentForEntries,
@@ -168,22 +169,15 @@ export function ProjectLayerProposalReviewPanel({
   }
 
   return (
-    <section className="min-w-0 rounded-lg border border-border bg-card p-4">
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <GitBranch size={13} />
-            <span>{kind}</span>
-          </div>
-          <h2 className="mt-1 text-sm font-semibold text-foreground">{title}</h2>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">{description}</p>
-        </div>
-        <Badge variant="secondary" className="shrink-0">{reviewableDrafts.length} 项</Badge>
-      </div>
-
+    <ProposalReviewShell
+      kind={kind}
+      title={title}
+      description={description}
+      countLabel={`${reviewableDrafts.length} 项`}
+    >
       <div className="mt-3 grid min-w-0 gap-3">
-        {loading ? <p className="rounded-md border border-border bg-background px-3 py-3 text-xs text-muted-foreground">读取审阅草稿...</p> : null}
-        {!loading && reviewableDrafts.length === 0 ? <p className="rounded-md border border-dashed border-border bg-background px-3 py-3 text-xs text-muted-foreground">{emptyMessage}</p> : null}
+        {loading ? <p className="rounded-md border border-border bg-background px-3 py-3 type-label text-muted-foreground">读取审阅草稿...</p> : null}
+        {!loading && reviewableDrafts.length === 0 ? <p className="rounded-md border border-dashed border-border bg-background px-3 py-3 type-label text-muted-foreground">{emptyMessage}</p> : null}
         {reviewableDrafts.map((draft) => {
           const view = parseProjectLayerProposalDraft(draft, data, { includeCreativeReferences, includeAssetSlots })
           const entries = view ? [...view.creativeReferences, ...view.assetSlots] : []
@@ -197,12 +191,12 @@ export function ProjectLayerProposalReviewPanel({
             <div key={draft.id} className="min-w-0 rounded-md border border-border bg-background p-3">
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-xs font-semibold text-foreground">{draft.title}</p>
-                  <p className="mt-1 break-all text-[10px] text-muted-foreground">{formatDate(draft.updatedAt)} · {draft.id}</p>
+                  <p className="truncate type-label font-semibold text-foreground">{draft.title}</p>
+                  <p className="mt-1 break-all type-tiny text-muted-foreground">{formatDate(draft.updatedAt)} · {draft.id}</p>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                  <Badge variant={draft.status === 'applied' ? 'success' : 'outline'} className="text-[10px]">{draft.status}</Badge>
-                  <Badge variant="outline" className="text-[10px]">{entries.length} 条变更</Badge>
+                  <Badge variant={draft.status === 'applied' ? 'success' : 'outline'} className="type-tiny">{draft.status}</Badge>
+                  <Badge variant="outline" className="type-tiny">{entries.length} 条变更</Badge>
                 </div>
               </div>
 
@@ -210,20 +204,20 @@ export function ProjectLayerProposalReviewPanel({
                 <div className="mt-3 space-y-3">
                   <div className="rounded-md border border-sky-500/20 bg-sky-500/5 p-2.5">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-[10px] leading-4 text-muted-foreground">{view.summary}</p>
+                      <p className="type-tiny leading-4 text-muted-foreground">{view.summary}</p>
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <Badge variant="secondary" className="h-5 rounded-full px-1.5 text-[10px]">{addedEntries.length} 新增</Badge>
-                        <Badge variant="outline" className="h-5 rounded-full px-1.5 text-[10px]">{modifiedEntries.length} 修改</Badge>
-                        <Badge variant="destructive" className="h-5 rounded-full px-1.5 text-[10px]">{deletedEntries.length} 删除</Badge>
-                        <Badge variant="success" className="h-5 rounded-full px-1.5 text-[10px]">{submittedEntries.length} 已提交</Badge>
-                        {rejectedEntries.length > 0 ? <Badge variant="destructive" className="h-5 rounded-full px-1.5 text-[10px]">{rejectedEntries.length} 已忽略</Badge> : null}
+                        <Badge variant="secondary" className="h-5 rounded-full px-1.5 type-tiny">{addedEntries.length} 新增</Badge>
+                        <Badge variant="outline" className="h-5 rounded-full px-1.5 type-tiny">{modifiedEntries.length} 修改</Badge>
+                        <Badge variant="destructive" className="h-5 rounded-full px-1.5 type-tiny">{deletedEntries.length} 删除</Badge>
+                        <Badge variant="success" className="h-5 rounded-full px-1.5 type-tiny">{submittedEntries.length} 已提交</Badge>
+                        {rejectedEntries.length > 0 ? <Badge variant="destructive" className="h-5 rounded-full px-1.5 type-tiny">{rejectedEntries.length} 已忽略</Badge> : null}
                       </div>
                     </div>
                     <div className="mt-2 flex flex-wrap justify-end gap-1.5">
                       <Button
-                        size="sm"
+                        size="xs"
                         variant="outline"
-                        className="h-6 px-2 text-[10px]"
+                        className="px-2 type-tiny"
                         onClick={() => setDecisions((current) => {
                           const next = { ...current }
                           for (const entry of entries) delete next[entry.key]
@@ -233,8 +227,8 @@ export function ProjectLayerProposalReviewPanel({
                         重置状态
                       </Button>
                       <Button
-                        size="sm"
-                        className="h-6 px-2 text-[10px]"
+                        size="xs"
+                        className="px-2 type-tiny"
                         loading={applyingDraftId === draft.id}
                         disabled={draft.status === 'applied' || pendingEntries.length === 0}
                         onClick={() => void applyDraft(draft, view)}
@@ -263,23 +257,23 @@ export function ProjectLayerProposalReviewPanel({
                             <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
                               <div className="min-w-0 flex-1 basis-64">
                                 <div className="flex flex-wrap items-center gap-1.5">
-                                  <span className="min-w-0 break-words text-[10px] font-medium text-foreground">{formatProjectLayerProposalEntry(entry)}</span>
-                                  <Badge variant={entry.changeType === 'deleted' ? 'destructive' : entry.changeType === 'added' ? 'secondary' : 'outline'} className="h-5 rounded-full px-1.5 text-[9px]">
+                                  <span className="min-w-0 break-words type-tiny font-medium text-foreground">{formatProjectLayerProposalEntry(entry)}</span>
+                                  <Badge variant={entry.changeType === 'deleted' ? 'destructive' : entry.changeType === 'added' ? 'secondary' : 'outline'} className="h-5 rounded-full px-1.5 type-micro">
                                     {entry.changeType === 'deleted' ? <Trash2 size={9} /> : null}
                                     {projectLayerProposalEntryChangeLabel(entry)}
                                   </Badge>
-                                  {entry.inferred ? <Badge variant="outline" className="h-5 rounded-full px-1.5 text-[9px]">缺席推断</Badge> : null}
-                                  <Badge variant="outline" className="h-5 rounded-full px-1.5 text-[9px]">{projectLayerProposalEntryLabel(entry)}</Badge>
-                                  {isSubmitted ? <Badge variant="success" className="h-5 rounded-full px-1.5 text-[9px]">已提交</Badge> : null}
-                                  {isRejected ? <Badge variant="destructive" className="h-5 rounded-full px-1.5 text-[9px]">已忽略</Badge> : null}
+                                  {entry.inferred ? <Badge variant="outline" className="h-5 rounded-full px-1.5 type-micro">缺席推断</Badge> : null}
+                                  <Badge variant="outline" className="h-5 rounded-full px-1.5 type-micro">{projectLayerProposalEntryLabel(entry)}</Badge>
+                                  {isSubmitted ? <Badge variant="success" className="h-5 rounded-full px-1.5 type-micro">已提交</Badge> : null}
+                                  {isRejected ? <Badge variant="destructive" className="h-5 rounded-full px-1.5 type-micro">已忽略</Badge> : null}
                                 </div>
-                                <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{entry.detail}</p>
+                                <p className="mt-1 type-tiny leading-4 text-muted-foreground">{entry.detail}</p>
                               </div>
                               <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">
                                 {isSubmitted ? null : (
                                   <Button
-                                    size="sm"
-                                    className="h-6 px-2 text-[10px]"
+                                    size="xs"
+                                    className="px-2 type-tiny"
                                     loading={applyingDraftId === draft.id}
                                     disabled={draft.status === 'applied' || entry.changeType === 'unchanged'}
                                     onClick={() => void applyEntry(draft, entry)}
@@ -288,11 +282,11 @@ export function ProjectLayerProposalReviewPanel({
                                   </Button>
                                 )}
                                 {isRejected ? (
-                                  <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => clearDecision(entry.key)}>
+                                  <Button size="xs" variant="outline" className="px-2 type-tiny" onClick={() => clearDecision(entry.key)}>
                                     恢复
                                   </Button>
                                 ) : (
-                                  <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => markDecision(entry.key, 'rejected')}>
+                                  <Button size="xs" variant="outline" className="px-2 type-tiny" onClick={() => markDecision(entry.key, 'rejected')}>
                                     忽略
                                   </Button>
                                 )}
@@ -302,7 +296,7 @@ export function ProjectLayerProposalReviewPanel({
                             {rows.length > 0 ? (
                               <div className="mt-2 space-y-1 rounded border border-dashed border-border/60 bg-muted/20 px-2 py-1">
                                 {rows.map((row, index) => (
-                                  <div key={`${entry.key}-${row.label}-${index}`} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-1.5 text-[10px] leading-4">
+                                  <div key={`${entry.key}-${row.label}-${index}`} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-1.5 type-tiny leading-4">
                                     <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-muted-foreground">{row.label}</span>
                                     <span className={cn('min-w-0 flex-1 truncate', row.before ? 'line-through text-muted-foreground' : 'text-muted-foreground')}>
                                       {row.before || '新增'}
@@ -318,7 +312,7 @@ export function ProjectLayerProposalReviewPanel({
                                 ))}
                               </div>
                             ) : (
-                              <div className="mt-2 rounded border border-dashed border-border/60 bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground">
+                              <div className="mt-2 rounded border border-dashed border-border/60 bg-muted/20 px-2 py-1 type-tiny text-muted-foreground">
                                 没有可展示的字段差异。
                               </div>
                             )}
@@ -327,22 +321,22 @@ export function ProjectLayerProposalReviewPanel({
                       })}
                     </div>
                   ) : (
-                    <div className="rounded-md border border-dashed border-border bg-background px-3 py-4 text-[10px] text-muted-foreground">
+                    <div className="rounded-md border border-dashed border-border bg-background px-3 py-4 type-tiny text-muted-foreground">
                       这份草稿没有可展示的 diff。
                     </div>
                   )}
 
                   {view.impactNotes.length > 0 ? (
                     <div className="space-y-1 rounded-md border border-border bg-background/70 p-2">
-                      <p className="text-[10px] font-medium text-foreground">影响说明</p>
+                      <p className="type-tiny font-medium text-foreground">影响说明</p>
                       {view.impactNotes.slice(0, 4).map((note, index) => (
-                        <p key={`${draft.id}-impact-${index}`} className="text-[10px] leading-4 text-muted-foreground">{note}</p>
+                        <p key={`${draft.id}-impact-${index}`} className="type-tiny leading-4 text-muted-foreground">{note}</p>
                       ))}
                     </div>
                   ) : null}
                 </div>
               ) : (
-                <div className="mt-3 rounded-md border border-dashed border-border bg-background px-3 py-4 text-[10px] text-muted-foreground">
+                <div className="mt-3 rounded-md border border-dashed border-border bg-background px-3 py-4 type-tiny text-muted-foreground">
                   无法解析这份草稿的差异。
                 </div>
               )}
@@ -351,7 +345,7 @@ export function ProjectLayerProposalReviewPanel({
         })}
 
       </div>
-    </section>
+    </ProposalReviewShell>
   )
 }
 

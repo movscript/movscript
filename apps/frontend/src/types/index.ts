@@ -588,16 +588,16 @@ export interface Job {
 }
 
 // Canvas
-export type MediaNodeType = 'text' | 'image' | 'video' | 'audio'
+export type MediaNodeType = 'text' | 'image' | 'video'
 export type ToolNodeType = 'canvas' | 'ref_image_gen' | 'ref_video_gen' | 'multi_angle' | 'style_transfer' | 'motion_imitation' | 'video_edit'
 export type CanvasEntityKind = 'script' | 'segment' | 'scene_moment' | 'creative_reference' | 'asset_slot' | 'content_unit'
-export type SpecialNodeType = 'input' | 'output' | 'resource_sink' | 'approval' | 'text_gen' | 'ai_gen' | 'group' | 'plugin_card' | 'entity_card'
+export type SpecialNodeType = 'input' | 'output' | 'resource_sink' | 'approval' | 'text_gen' | 'ai_gen' | 'group' | 'plugin_card'
 export type PluginNodeType = string & { readonly __pluginNodeType?: unique symbol }
 export type NodeType = MediaNodeType | ToolNodeType | SpecialNodeType | PluginNodeType
 export type NodeSource = 'upload' | 'ai' | 'manual'
 export type CanvasTaskStatus = 'idle' | 'pending' | 'running' | 'done' | 'failed'
 export type CanvasType = 'inspiration' | 'workflow'
-export type CanvasParamType = 'text' | 'image' | 'video' | 'audio' | 'json' | 'number' | 'boolean' | 'resource'
+export type CanvasParamType = 'text' | 'image' | 'video' | 'json' | 'number' | 'boolean' | 'resource'
 export type CanvasRunStatus = 'pending' | 'running' | 'done' | 'failed'
 export type CanvasPortType = CanvasParamType
 
@@ -823,7 +823,7 @@ export interface CanvasNodeData {
   approvalStatus?: 'waiting' | 'approved' | 'rejected'    // approval nodes
   // ai_gen node fields
   refNodeIds?: string[]                                    // referenced node IDs for @mentions
-  outputType?: 'image' | 'video' | 'text' | 'audio'       // what to auto-generate after
+  outputType?: 'image' | 'video' | 'text'                 // what to auto-generate after
   // group node fields
   groupId?: string                                         // which group this node belongs to
   isGroup?: boolean                                        // true for group container nodes

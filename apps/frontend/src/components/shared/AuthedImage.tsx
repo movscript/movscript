@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
+import { acquireCachedResourceMediaUrl } from '@/lib/resourceMediaCache'
 import { cn } from '@/lib/utils'
 
 const HEIC_MIME_TYPES = new Set([
@@ -22,21 +23,20 @@ function useAuthBlobUrl(src: string | undefined): string | undefined {
       return
     }
     let active = true
-    let objectUrl: string | undefined
-    fetchMediaBlob(src)
-      .then((res) => {
-        if (!active) return
-        return displayableImageBlob(res)
-      })
-      .then((blob) => {
-        if (!active || !blob) return
-        objectUrl = URL.createObjectURL(blob)
-        setBlobUrl(objectUrl)
+    let releaseObjectUrl: (() => void) | undefined
+    acquireCachedResourceMediaUrl(src, async () => displayableImageBlob(await fetchMediaBlob(src)))
+      .then((cached) => {
+        releaseObjectUrl = cached.release
+        if (!active) {
+          cached.release()
+          return
+        }
+        setBlobUrl(cached.url)
       })
       .catch(() => {})
     return () => {
       active = false
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
+      releaseObjectUrl?.()
       setBlobUrl(undefined)
     }
   }, [src])

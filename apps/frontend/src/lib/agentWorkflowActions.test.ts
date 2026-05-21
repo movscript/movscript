@@ -22,9 +22,9 @@ test('approveWorkflowRunAction applies optimistic approval, streams follow-up, a
   await approveWorkflowRunAction({
     run,
     approvalIds: ['approval_1'],
-    approveRun: async () => {
+    approveInteraction: async () => {
       calls.push('approve')
-      return approvedRun
+      return { interaction: {} as never, run: approvedRun }
     },
     deps,
   })
@@ -43,9 +43,9 @@ test('rejectWorkflowRunAction writes a rejection assistant message without strea
 
   await rejectWorkflowRunAction({
     run: makeRun({ id: 'run_requires_action', pendingApprovals: [approval('approval_1', 'pending')] }),
-    rejectRun: async () => {
+    rejectInteraction: async () => {
       calls.push('reject')
-      return rejectedRun
+      return { interaction: {} as never, run: rejectedRun }
     },
     deps,
   })
@@ -145,6 +145,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
 function approval(id: string, status: 'pending' | 'approved' | 'rejected') {
   return {
     id,
+    interactionId: `interaction_${id}`,
     runId: 'run_requires_action',
     toolName: 'movscript_test_tool',
     reason: 'Needs confirmation',

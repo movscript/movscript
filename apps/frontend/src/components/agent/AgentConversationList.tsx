@@ -1,18 +1,16 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ChevronRight, History, Plus, RefreshCw, X } from 'lucide-react'
+import { History, PanelRightClose, Plus, RefreshCw, X } from 'lucide-react'
 import {
   AgentBody,
   AgentConversationItem,
   AgentEmpty,
   AgentHeader,
   AgentHeaderActions,
-  AgentHeaderContent,
   AgentMain,
   AgentSidebarSection,
   AgentSidebarTitle,
-  AgentTitle,
   Button,
   ScrollArea,
 } from '@movscript/ui'
@@ -46,6 +44,7 @@ export function ConversationList({
   onNew,
   onDelete,
   onCollapse,
+  showCollapse = true,
   onRestoreLocalThread,
 }: {
   conversations: Conversation[]
@@ -53,6 +52,7 @@ export function ConversationList({
   onNew: () => void
   onDelete: (id: string) => void
   onCollapse: () => void
+  showCollapse?: boolean
   onRestoreLocalThread: (threadId: string) => Promise<void>
 }) {
   const { t, i18n } = useTranslation()
@@ -84,26 +84,23 @@ export function ConversationList({
 
   return (
     <AgentMain>
-      <AgentHeader>
-        <AgentHeaderContent>
-          <div className="ai-agent-panel-title-row">
-            <Button size="icon-sm" variant="ghost" onClick={onCollapse} aria-label={t('agents.chat.collapseAssistant')} title={t('agents.chat.collapseAssistant')} className="ai-agent-panel-header-collapse">
-              <ChevronRight size={14} />
-            </Button>
-            <AgentTitle>{t('agents.chat.aiAssistant')}</AgentTitle>
-          </div>
-        </AgentHeaderContent>
-        <AgentHeaderActions>
-          <Button size="sm" variant="outline" onClick={onNew} className="shrink-0">
-            <Plus size={13} /> {t('agents.chat.newConversation')}
+      <AgentHeader className="ai-agent-panel-list-header">
+        <AgentHeaderActions className="ai-agent-panel-list-header-actions">
+          <Button size="icon-sm" variant="ghost" onClick={onNew} aria-label={t('agents.chat.newConversation')} title={t('agents.chat.newConversation')} className="shrink-0">
+            <Plus size={14} />
           </Button>
+          {showCollapse && (
+            <Button size="icon-sm" variant="ghost" onClick={onCollapse} aria-label={t('agents.chat.collapseAssistant')} title={t('agents.chat.collapseAssistant')} className="ai-agent-panel-header-collapse">
+              <PanelRightClose size={15} />
+            </Button>
+          )}
         </AgentHeaderActions>
       </AgentHeader>
       <AgentBody>
         <ScrollArea className="h-full">
         {conversations.length === 0 ? (
           <AgentEmpty className="min-h-0 py-12">
-            <p className="text-sm font-medium text-foreground">{t('agents.chat.noConversations')}</p>
+            <p className="type-body font-medium text-foreground">{t('agents.chat.noConversations')}</p>
           </AgentEmpty>
         ) : (
           <AgentSidebarSection>
@@ -120,7 +117,7 @@ export function ConversationList({
                   size="icon-xs"
                   variant="ghost"
                   onClick={(e) => { e.stopPropagation(); onDelete(conv.id) }}
-                  className="absolute bottom-2 right-2 h-5 w-5 text-muted-foreground/50 opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                  className="absolute bottom-2 right-2 text-muted-foreground/50 opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
                   aria-label={t('agents.chat.deleteConversation')}
                 >
                   <X size={11} />
@@ -139,13 +136,13 @@ export function ConversationList({
               variant="ghost"
               size="xs"
               onClick={() => refetchLocalThreads()}
-              className="h-5 px-1 text-[10px] text-muted-foreground"
+              className="px-1 type-tiny text-muted-foreground"
             >
               <RefreshCw size={10} className={fetchingLocalThreads ? 'animate-spin' : ''} />
             </Button>
           </div>
           {localThreads.length === 0 ? (
-            <p className="px-1 text-[10px] text-muted-foreground">{t('agents.chat.localRuntimeThreadsEmpty')}</p>
+            <p className="px-1 type-tiny text-muted-foreground">{t('agents.chat.localRuntimeThreadsEmpty')}</p>
           ) : localThreads.map((thread) => (
             <AgentConversationItem
               key={thread.id}

@@ -1,90 +1,113 @@
-import { useLocation } from 'react-router-dom'
-import { Sun, Moon } from 'lucide-react'
+import { NavLink, useNavigate } from 'react-router-dom'
+import { Building2, Check, CircleUserRound, LogOut, Settings } from 'lucide-react'
+import { AppTopControls } from '@/components/layout/AppTopControls'
 import { useTranslation } from 'react-i18next'
 import { useProjectStore } from '@/store/projectStore'
-import { useTheme } from '@/hooks/useTheme'
-import { Button } from '@movscript/ui'
-import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/i18n'
-import { runtimeTitleKeys } from '@runtime'
-import { LEGACY_ROUTES, ROUTES } from '@/routes/projectRoutes'
+import { useUserStore } from '@/store/userStore'
+import { ROUTES } from '@/routes/projectRoutes'
+import {
+  Avatar,
+  AvatarFallback,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@movscript/ui'
 
-const titleKeys: Record<string, string> = {
-  [ROUTES.projects]: 'header.titles.projects',
-  [ROUTES.project.overview]: 'header.titles.projectHome',
-  [ROUTES.project.standards]: 'header.titles.projectWorkspace',
-  [ROUTES.project.preProduction]: 'header.titles.preProduction',
-  [ROUTES.project.contentUnitWorkbench]: 'header.titles.workbenchContentGeneration',
-  [ROUTES.project.deliveryWorkbench]: 'header.titles.deliveryWorkbench',
-  [ROUTES.project.referenceRelationsWorkbench]: 'header.titles.workbenchReferenceRelations',
-  [ROUTES.project.scripts]: 'header.titles.scripts',
-  [ROUTES.project.segments]: 'header.titles.segments',
-  [ROUTES.project.sceneMoments]: 'header.titles.sceneMoments',
-  [ROUTES.project.contentUnits]: 'header.titles.contentUnits',
-  [ROUTES.project.referenceRelations]: 'header.titles.referenceRelations',
-  [ROUTES.project.production]: 'header.titles.production',
-  [ROUTES.canvases]: 'header.titles.canvases',
-  [ROUTES.resources]: 'header.titles.resources',
-  [ROUTES.jobs]: 'header.titles.jobs',
-  [ROUTES.plugins]: 'header.titles.plugins',
-  [ROUTES.project.tasks]: 'header.titles.collaboration',
-  [ROUTES.project.delivery]: 'header.titles.delivery',
-  [ROUTES.user]: 'header.titles.user',
-  [LEGACY_ROUTES.projectHome]: 'header.titles.projectHome',
-  [LEGACY_ROUTES.projectWorkspace]: 'header.titles.projectWorkspace',
-  [LEGACY_ROUTES.creation]: 'header.titles.creation',
-  [LEGACY_ROUTES.workbenchCreative]: 'header.titles.workbenchCreative',
-  [LEGACY_ROUTES.workbenchAssets]: 'header.titles.assetProposalWorkbench',
-  [LEGACY_ROUTES.preProduction]: 'header.titles.preProduction',
-  [LEGACY_ROUTES.contentUnitOrchestrate]: 'header.titles.workbenchContentGeneration',
-  [LEGACY_ROUTES.workbenchProduction]: 'header.titles.workbenchContentGeneration',
-  [LEGACY_ROUTES.workbenchDelivery]: 'header.titles.workbenchDelivery',
-  [LEGACY_ROUTES.deliveryWorkbench]: 'header.titles.deliveryWorkbench',
-  [LEGACY_ROUTES.workbenchReferenceRelations]: 'header.titles.workbenchReferenceRelations',
-  [LEGACY_ROUTES.scripts]: 'header.titles.scripts',
-  [LEGACY_ROUTES.segments]: 'header.titles.segments',
-  [LEGACY_ROUTES.sceneMoments]: 'header.titles.sceneMoments',
-  [LEGACY_ROUTES.contents]: 'header.titles.contentUnits',
-  [LEGACY_ROUTES.finalVideos]: 'header.titles.finalVideos',
-  [LEGACY_ROUTES.assetSlots]: 'header.titles.assetSlots',
-  [LEGACY_ROUTES.creativeReferences]: 'header.titles.creativeReferences',
-  '/production': 'header.titles.production',
-  [LEGACY_ROUTES.collaboration]: 'header.titles.collaboration',
-  [LEGACY_ROUTES.delivery]: 'header.titles.delivery',
-}
+function UserMenu() {
+  const navigate = useNavigate()
+  const { t } = useTranslation()
+  const setCurrentProject = useProjectStore((s) => s.setCurrent)
+  const currentUser = useUserStore((s) => s.currentUser)
+  const setCurrentUser = useUserStore((s) => s.setCurrentUser)
+  const currentOrgID = useUserStore((s) => s.currentOrgID)
+  const orgMemberships = useUserStore((s) => s.orgMemberships)
+  const setCurrentOrg = useUserStore((s) => s.setCurrentOrg)
+  const currentMembership = orgMemberships.find((membership) => membership.org_id === currentOrgID)
 
-export function Header() {
-  const { pathname } = useLocation()
-  const current = useProjectStore((s) => s.current)
-  const { theme, toggleTheme } = useTheme()
-  const { t, i18n } = useTranslation()
-  const title = t(runtimeTitleKeys[pathname] ?? titleKeys[pathname] ?? 'header.titles.default')
+  if (!currentUser) return null
 
   return (
-    <header className="h-14 border-b border-border flex items-center px-6 bg-background gap-2 shrink-0">
-      <h1 className="text-sm font-semibold text-foreground flex-1">{title}</h1>
-      {current && pathname !== ROUTES.projects && (
-        <span className="text-sm text-muted-foreground mr-2">- {current.name}</span>
-      )}
-      <label className="sr-only" htmlFor="language-select">{t('header.language')}</label>
-      <select
-        id="language-select"
-        value={i18n.language}
-        onChange={(e) => i18n.changeLanguage(e.target.value as SupportedLanguage)}
-        className="h-8 rounded-md border border-border bg-background px-2 text-xs text-muted-foreground hover:text-foreground"
-      >
-        {SUPPORTED_LANGUAGES.map((language) => (
-          <option key={language} value={language}>{language}</option>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md hover:bg-muted/50"
+          title={currentUser.username}
+          aria-label={currentUser.username}
+        >
+          <Avatar className="h-5 w-5">
+            <AvatarFallback className="bg-muted type-tiny font-semibold text-muted-foreground">
+              {currentUser.username[0]?.toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel>
+          <span className="block truncate type-label font-medium">{currentUser.username}</span>
+          <span className="mt-0.5 block truncate type-caption text-muted-foreground">
+            {currentMembership
+              ? t(`org.roles.${currentMembership.role}`, { defaultValue: currentMembership.role })
+              : currentUser.system_role === 'super_admin' ? t('sidebar.roles.superAdmin') : t('sidebar.roles.user')}
+          </span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => navigate(ROUTES.user)}>
+          <CircleUserRound size={13} className="mr-2" />
+          {t('header.titles.user')}
+        </DropdownMenuItem>
+        {orgMemberships.map((membership) => (
+          <DropdownMenuItem
+            key={membership.org_id}
+            onClick={() => {
+              setCurrentOrg(membership.org_id)
+              setCurrentProject(null)
+              navigate(ROUTES.projects)
+            }}
+          >
+            {membership.is_personal ? <CircleUserRound size={13} className="mr-2 shrink-0" /> : <Building2 size={13} className="mr-2 shrink-0" />}
+            <span className="min-w-0 flex-1 truncate">{membership.org_name}</span>
+            {membership.org_id === currentOrgID ? <Check size={13} className="ml-2 shrink-0" /> : null}
+          </DropdownMenuItem>
         ))}
-      </select>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={toggleTheme}
-        className="text-muted-foreground hover:text-foreground h-8 w-8"
-        title={theme === 'dark' ? t('header.theme.light') : t('header.theme.dark')}
+        <DropdownMenuItem onClick={() => navigate(ROUTES.orgSelect)}>
+          <Settings size={13} className="mr-2" />
+          {t('org.switchOrg')}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => setCurrentUser(null)}>
+          <LogOut size={13} className="mr-2" />
+          {t('sidebar.logout')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+export function Header({ titleKey: _titleKey }: { titleKey?: string }) {
+  const platform = typeof window === 'undefined' ? undefined : window.api?.platform
+  const isMacOS = platform === undefined || platform === 'darwin'
+  const controls = (
+    <div className="app-window-no-drag flex shrink-0 items-center gap-1">
+      <AppTopControls compact />
+      <UserMenu />
+    </div>
+  )
+
+  return (
+    <header className={`app-window-header ${isMacOS ? 'app-window-header--mac' : 'app-window-header--controls-right'} relative flex h-[34px] shrink-0 items-center gap-2 border-b border-border bg-background px-2`}>
+      {!isMacOS && controls}
+      <div className="min-w-0 flex-1" />
+      <NavLink
+        to={ROUTES.projects}
+        className="app-window-no-drag absolute left-1/2 top-1/2 flex h-7 -translate-x-1/2 -translate-y-1/2 items-center rounded-md px-2 type-caption font-semibold uppercase tracking-widest text-foreground hover:bg-muted/50"
       >
-        {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-      </Button>
+        Movscript
+      </NavLink>
+      {isMacOS && controls}
     </header>
   )
 }

@@ -1,6 +1,6 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, ChevronRight, Pencil, Save, Trash2, X } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, Pencil, Save, Trash2, X } from 'lucide-react'
 
 import {
   createSemanticEntity,
@@ -48,6 +48,7 @@ interface SemanticEntityInlineEditorProps {
   hero?: SemanticEntityInlineEditorHero
   primaryFieldKeys?: string[]
   collapsed?: boolean
+  collapsedMode?: 'vertical' | 'horizontal'
   onCollapsedChange?: (collapsed: boolean) => void
   idScope?: string
   editKey?: string | number | null
@@ -86,6 +87,7 @@ export function SemanticEntityInlineEditor({
   hero,
   primaryFieldKeys,
   collapsed = false,
+  collapsedMode = 'vertical',
   onCollapsedChange,
   idScope,
   editKey,
@@ -242,8 +244,36 @@ export function SemanticEntityInlineEditor({
   if (!record && !defaults) {
     return (
       <section className={cn('rounded-lg border border-border bg-card p-4', className)}>
-        <p className="text-sm font-semibold text-foreground">{emptyTitle}</p>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">{emptyDescription}</p>
+        <p className="type-body font-semibold text-foreground">{emptyTitle}</p>
+        <p className="mt-1 type-label leading-5 text-muted-foreground">{emptyDescription}</p>
+      </section>
+    )
+  }
+
+  if (collapsed && collapsedMode === 'horizontal' && onCollapsedChange) {
+    const railTitle = title ?? `${record ? '编辑' : '新建'}${config.label}`
+    const railSubtitle = record ? record.name || record.title || record.label || `#${record.ID}` : config.label
+    return (
+      <section className={cn('overflow-hidden rounded-lg border border-border bg-card', className)} data-inline-editor-collapsed-mode="horizontal">
+        <button
+          type="button"
+          className="flex min-h-[168px] w-full flex-col items-center justify-between gap-3 px-2 py-3 text-center transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          title={`展开${typeof railTitle === 'string' ? railTitle : config.label}`}
+          aria-label={`展开${typeof railTitle === 'string' ? railTitle : config.label}`}
+          onClick={toggleCollapsed}
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground">
+            <ChevronLeft size={15} />
+          </span>
+          <span className="flex min-h-0 flex-1 items-center justify-center">
+            <span className="[writing-mode:vertical-rl] type-label font-semibold leading-none text-foreground">
+              {railTitle}
+            </span>
+          </span>
+          <span className="max-h-24 [writing-mode:vertical-rl] overflow-hidden type-tiny leading-none text-muted-foreground">
+            {String(railSubtitle)}
+          </span>
+        </button>
       </section>
     )
   }
@@ -265,14 +295,14 @@ export function SemanticEntityInlineEditor({
                   </span>
                 ) : null}
                 <div className="min-w-0">
-                  {hero.eyebrow ? <div className="text-xs text-muted-foreground">{hero.eyebrow}</div> : null}
-                  <h2 className={cn('mt-1 truncate font-semibold text-foreground', compactHero ? 'text-base' : 'text-xl')}>
+                  {hero.eyebrow ? <div className="type-label text-muted-foreground">{hero.eyebrow}</div> : null}
+                  <h2 className={cn('mt-1 truncate font-semibold text-foreground', compactHero ? 'type-body-lg' : 'type-title')}>
                     {hero.title ?? title ?? `${record ? '编辑' : '新建'}${config.label}`}
                   </h2>
-                  {hero.subtitle ? <div className="mt-1 text-xs text-muted-foreground">{hero.subtitle}</div> : null}
+                  {hero.subtitle ? <div className="mt-1 type-label text-muted-foreground">{hero.subtitle}</div> : null}
                 </div>
               </div>
-              {hero.summary ? <div className={cn('max-w-4xl text-muted-foreground', compactHero ? 'mt-2 line-clamp-2 text-xs leading-5' : 'mt-4 text-sm leading-6')}>{hero.summary}</div> : null}
+              {hero.summary ? <div className={cn('max-w-4xl text-muted-foreground', compactHero ? 'mt-2 line-clamp-2 type-label leading-5' : 'mt-4 type-body leading-6')}>{hero.summary}</div> : null}
             </div>
             <div className="flex shrink-0 flex-col items-end gap-2 text-right">
               {hero.status}
@@ -324,15 +354,15 @@ export function SemanticEntityInlineEditor({
               )}
             </div>
           </div>
-          {description ? <p className={cn('text-xs leading-5 text-muted-foreground', compactHero ? 'mt-2' : 'mt-4')}>{description}</p> : null}
+          {description ? <p className={cn('type-label leading-5 text-muted-foreground', compactHero ? 'mt-2' : 'mt-4')}>{description}</p> : null}
         </div>
 
         {!collapsed && hero.stats?.length ? (
           <div className={cn('grid grid-cols-2 lg:grid-cols-4', compactHero ? 'gap-2 p-3' : 'gap-3 p-4')}>
             {hero.stats.map((stat) => (
               <div key={stat.label} className={cn('rounded-md border border-border bg-background px-3', compactHero ? 'py-2' : 'py-2.5')}>
-                <p className="text-[10px] text-muted-foreground">{stat.label}</p>
-                <div className="mt-1 truncate text-sm font-semibold text-foreground">{stat.value}</div>
+                <p className="type-tiny text-muted-foreground">{stat.label}</p>
+                <div className="mt-1 truncate type-body font-semibold text-foreground">{stat.value}</div>
               </div>
             ))}
           </div>
@@ -358,7 +388,7 @@ export function SemanticEntityInlineEditor({
           </div>
           {advancedFields.length > 0 ? (
             <details className="overflow-hidden rounded-md border border-border bg-muted/20">
-              <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground">全部字段</summary>
+              <summary className="cursor-pointer px-3 py-2 type-label font-medium text-muted-foreground">全部字段</summary>
               <div className="grid gap-3 border-t border-border bg-card/50 p-3 md:grid-cols-2">
                 {advancedFields.map((field) => (
                   <FieldControl
@@ -388,15 +418,15 @@ export function SemanticEntityInlineEditor({
       {(!hideHeaderCopy || !hideHeaderActions) ? <div className={cn('flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-start sm:gap-3', hideHeaderCopy ? 'sm:justify-end' : 'sm:justify-between')}>
         {hideHeaderCopy ? null : (
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-foreground">{title ?? `${record ? '编辑' : '新建'}${config.label}`}</p>
-            {description ? <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{description}</p> : null}
-            {(!isEditing || isImmutableRecord) && record && config.requiredHint ? <p className="mt-1 text-[11px] text-muted-foreground">{config.requiredHint}</p> : null}
+            <p className="type-body font-semibold text-foreground">{title ?? `${record ? '编辑' : '新建'}${config.label}`}</p>
+            {description ? <p className="mt-0.5 type-label leading-5 text-muted-foreground">{description}</p> : null}
+            {(!isEditing || isImmutableRecord) && record && config.requiredHint ? <p className="mt-1 type-caption text-muted-foreground">{config.requiredHint}</p> : null}
           </div>
         )}
         {hideHeaderActions ? null : record && (!isEditing || isImmutableRecord) ? (
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             {onCollapsedChange ? <Button type="button" size="sm" variant="outline" className="gap-2" onClick={toggleCollapsed}>
-              {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+              {collapsed ? <ChevronRight size={14} /> : collapsedMode === 'horizontal' ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
               {collapsed ? '展开' : '收起'}
             </Button> : null}
             {isImmutableRecord ? null : <Button size="sm" variant="outline" className="gap-2" onClick={() => setEditorEditing(true)} disabled={deleteMutation.isPending}>
@@ -411,7 +441,7 @@ export function SemanticEntityInlineEditor({
         ) : (
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             {onCollapsedChange ? <Button type="button" size="sm" variant="outline" className="gap-2" onClick={toggleCollapsed}>
-              {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+              {collapsed ? <ChevronRight size={14} /> : collapsedMode === 'horizontal' ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
               {collapsed ? '展开' : '收起'}
             </Button> : null}
             {record && canDeleteRecord ? (
@@ -468,7 +498,7 @@ export function SemanticEntityInlineEditor({
         </div>
         {advancedFields.length > 0 ? (
           <details className="rounded-md border border-border bg-muted/20">
-            <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground">高级字段</summary>
+            <summary className="cursor-pointer px-3 py-2 type-label font-medium text-muted-foreground">高级字段</summary>
             <div className="grid gap-3 border-t border-border p-3">
               {advancedFields.map((field) => (
                 <FieldControl
@@ -530,7 +560,7 @@ function FieldControl({
             value={String(value ?? '')}
             rows={field.key.endsWith('_json') ? 5 : advanced ? 3 : 4}
             placeholder={field.placeholder}
-            className={field.key.endsWith('_json') ? 'font-mono text-xs' : undefined}
+            className={field.key.endsWith('_json') ? 'font-mono type-label' : undefined}
             onChange={(event) => onChange(event.target.value)}
           />
         ) : field.type === 'select' || optionsOverride ? (
@@ -541,7 +571,7 @@ function FieldControl({
             aria-invalid={invalid || undefined}
             value={String(value ?? '')}
             onChange={(event) => onChange(event.target.value)}
-            className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+            className="h-9 w-full rounded-md border border-border bg-background px-3 type-body text-foreground outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="">未设置</option>
             {(optionsOverride ?? field.options)?.map((option) => (
@@ -549,7 +579,7 @@ function FieldControl({
             ))}
           </select>
         ) : field.type === 'boolean' ? (
-          <label className={cn('flex h-9 items-center gap-2 rounded-md border bg-background px-3 text-sm text-foreground', disabled ? 'border-border opacity-60' : 'border-border')}>
+          <label className={cn('flex h-9 items-center gap-2 rounded-md border bg-background px-3 type-body text-foreground', disabled ? 'border-border opacity-60' : 'border-border')}>
             <input type="checkbox" disabled={disabled} checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} />
             启用
           </label>
@@ -568,9 +598,9 @@ function FieldControl({
         )}
       </div>
       {lockReason ? (
-        <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{lockReason}</p>
+        <p className="mt-1 type-caption font-medium text-amber-700 dark:text-amber-300">{lockReason}</p>
       ) : field.helper ? (
-        <p className="mt-1 text-[11px] text-muted-foreground">{field.helper}</p>
+        <p className="mt-1 type-caption text-muted-foreground">{field.helper}</p>
       ) : null}
     </div>
   )
@@ -579,8 +609,8 @@ function FieldControl({
 function SourceLockNotice({ fields, sourceLock, reason }: { fields: SemanticEntityConfig['fields']; sourceLock: SourceLockStatus; reason?: string }) {
   return (
     <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
-      <p className="text-xs font-medium text-amber-800 dark:text-amber-200">来源已锁定</p>
-      <p className="mt-1 text-xs leading-5 text-amber-700 dark:text-amber-300">
+      <p className="type-label font-medium text-amber-800 dark:text-amber-200">来源已锁定</p>
+      <p className="mt-1 type-label leading-5 text-amber-700 dark:text-amber-300">
         {reason ?? '已有下游对象引用当前记录'}。已锁定字段：{sourceLock.locked_fields.map((key) => fieldLabel(fields, key)).join('、')}；其他内容仍可继续编辑。
       </p>
     </div>

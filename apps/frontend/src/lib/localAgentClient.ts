@@ -534,6 +534,7 @@ export interface AgentInspectResponse {
 export interface AgentApprovalRequest {
   id: string
   runId: string
+  interactionId?: string
   toolName: string
   args?: Record<string, unknown>
   preview?: unknown
@@ -763,20 +764,76 @@ export interface CreateMessageRunResult {
 }
 
 export interface AgentThreadRuntimeSnapshot {
-  schema: 'movscript.agent.thread-runtime-snapshot.v1'
+  schema: 'movscript.thread-runtime.v2'
   updatedAt: string
   thread: AgentThread
   runs: AgentRun[]
+  operations: RuntimeOperation[]
+  interactions: RuntimeInteraction[]
+  continuations: RuntimeContinuation[]
   current: {
-    runId?: string
-    threadStatus?: AgentThreadStatus
-    runStatus?: AgentRunStatus
+    activeRunIds: string[]
+    waitingRunIds: string[]
+    runningOperationIds: string[]
+    pendingInteractionIds: string[]
+    readyContinuationIds: string[]
   }
-  interactions: {
-    actionableRunIds: string[]
-    pendingApprovalRefs: Array<{ runId: string; approvalId: string }>
-    pendingInputRequestRefs: Array<{ runId: string; requestId: string }>
+}
+
+export interface RuntimeOperation {
+  id: string
+  threadId: string
+  runId: string
+  kind: 'generation_job'
+  mode: 'async'
+  status: 'pending_approval' | 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled' | 'timeout'
+  request: unknown
+  continuationPolicy?: {
+    mode: 'none' | 'any_completed' | 'all_completed' | 'all_settled' | 'manual_selection'
+    groupId?: string
   }
+  externalHandle?: { provider: string; type: string; id: string | number }
+  result?: unknown
+  error?: string
+  timeoutMs?: number
+  pollIntervalMs?: number
+  createdAt: string
+  updatedAt: string
+  completedAt?: string
+}
+
+export interface RuntimeInteraction {
+  id: string
+  threadId: string
+  runId: string
+  operationId?: string
+  kind: 'approval' | 'input' | 'selection'
+  status: 'pending' | 'approved' | 'rejected' | 'answered' | 'cancelled'
+  payload: unknown
+  result?: unknown
+  createdAt: string
+  updatedAt: string
+  resolvedAt?: string
+}
+
+export interface RuntimeContinuation {
+  id: string
+  threadId: string
+  runId: string
+  status: 'waiting' | 'ready' | 'consumed' | 'cancelled'
+  trigger:
+    | { type: 'operation_completed'; operationIds: string[]; mode: 'any' | 'all' }
+    | { type: 'interaction_resolved'; interactionIds: string[]; mode: 'any' | 'all' }
+    | { type: 'manual' }
+  nextInput?: {
+    operationResults?: string[]
+    interactionResults?: string[]
+    message?: string
+  }
+  createdAt: string
+  updatedAt: string
+  consumedAt?: string
+  cancelledAt?: string
 }
 
 export interface AgentThreadResolution {
@@ -1193,12 +1250,9 @@ export class LocalAgentClient {
     }, signal)
   }
 
-  createRun(threadId: string, input: { sourceMessageId?: string; agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput; policy?: AgentRunPolicyOverride } = {}, signal?: AbortSignal): Promise<AgentRun> {
-    return this.postJSON('/runs', { threadId, ...input }, signal)
-  }
-
   createMessageRun(threadId: string, input: {
     message: string
+    toolCall?: AgentToolCall
     agentManifest?: AgentManifest
     approvedToolNames?: string[]
     clientInput?: AgentClientInput
@@ -1223,19 +1277,6 @@ export class LocalAgentClient {
 
   getThreadRuntime(threadId: string, signal?: AbortSignal): Promise<AgentThreadRuntimeSnapshot> {
     return this.getJSON(`/threads/${encodeURIComponent(threadId)}/runtime`, { signal })
-  }
-
-  createToolRun(input: {
-    threadId?: string
-    title?: string
-    message?: string
-    toolCall: AgentToolCall
-    agentManifest?: AgentManifest
-    approvedToolNames?: string[]
-    clientInput?: AgentClientInput
-    policy?: AgentRunPolicyOverride
-  }, signal?: AbortSignal): Promise<AgentRun> {
-    return this.postJSON('/runs/tool', input, signal)
   }
 
   previewRun(input: { threadId?: string; message?: string; agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput; policy?: AgentRunPolicyOverride }, signal?: AbortSignal): Promise<AgentRunPreview> {
@@ -1305,20 +1346,20 @@ export class LocalAgentClient {
     return withRuntimeModelConfigError(this.postJSON('/model-config/test', input))
   }
 
-  approveRun(runId: string, input: { approvedToolNames?: string[]; approvalIds?: string[] } = {}, signal?: AbortSignal): Promise<AgentRun> {
-    return this.postJSON(`/runs/${encodeURIComponent(runId)}/approve`, input, signal)
-  }
-
-  rejectRun(runId: string, input: { approvalIds?: string[] } = {}, signal?: AbortSignal): Promise<AgentRun> {
-    return this.postJSON(`/runs/${encodeURIComponent(runId)}/reject`, input, signal)
-  }
-
   cancelRun(runId: string, input: { reason?: string } = {}, signal?: AbortSignal): Promise<AgentRun> {
     return this.postJSON(`/runs/${encodeURIComponent(runId)}/cancel`, input, signal)
   }
 
   getRun(runId: string, signal?: AbortSignal): Promise<AgentRun> {
     return this.getJSON(`/runs/${encodeURIComponent(runId)}`, { signal })
+  }
+
+  approveInteraction(interactionId: string, signal?: AbortSignal): Promise<{ interaction: RuntimeInteraction; run: AgentRun }> {
+    return this.postJSON(`/interactions/${encodeURIComponent(interactionId)}/approve`, {}, signal)
+  }
+
+  rejectInteraction(interactionId: string, signal?: AbortSignal): Promise<{ interaction: RuntimeInteraction; run: AgentRun }> {
+    return this.postJSON(`/interactions/${encodeURIComponent(interactionId)}/reject`, {}, signal)
   }
 
   getPlanSnapshot(planId: string, signal?: AbortSignal): Promise<AgentPlanSnapshot> {
@@ -1739,37 +1780,22 @@ export class LocalAgentClient {
     return this.deleteJSON(`/memories/${encodeURIComponent(memoryId)}`, signal)
   }
 
-  async runMessage(input: { threadId?: string; message: string; title?: string; projectId?: number; clientInput?: AgentClientInput }, options: RunMessageOptions = {}): Promise<RunMessageResult> {
+  async runMessageStream(input: {
+    threadId?: string
+    message: string
+    title?: string
+    projectId?: number
+    clientInput?: AgentClientInput
+    toolCall?: AgentToolCall
+    approvedToolNames?: string[]
+  }, options: RunMessageOptions = {}): Promise<RunMessageResult> {
     const resolvedThread = await this.resolveMessageThread(input, options.signal)
     const thread = resolvedThread.thread
     const created = await this.createMessageRun(thread.id, {
       message: input.message,
+      ...(input.toolCall ? { toolCall: input.toolCall } : {}),
       ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
-      ...(input.clientInput ? { clientInput: input.clientInput } : {}),
-      ...(options.runPolicy ? { policy: options.runPolicy } : {}),
-    }, options.signal)
-    const run = created.run
-    options.onRunUpdate?.(run)
-    if (created.runtimeInput?.accepted) {
-      const finalThread = await this.getThread(thread.id)
-      return { run, thread: finalThread, threadResolution: resolvedThread.resolution, sourceMessage: created.message }
-    }
-    const finalRun = await this.waitForRun(run.id, {
-      timeoutMs: options.timeoutMs,
-      pollMs: options.pollMs,
-      onRunUpdate: options.onRunUpdate,
-      signal: options.signal,
-    })
-    const finalThread = await this.getThread(thread.id)
-    return { run: finalRun, thread: finalThread, threadResolution: resolvedThread.resolution, sourceMessage: created.message }
-  }
-
-  async runMessageStream(input: { threadId?: string; message: string; title?: string; projectId?: number; clientInput?: AgentClientInput }, options: RunMessageOptions = {}): Promise<RunMessageResult> {
-    const resolvedThread = await this.resolveMessageThread(input, options.signal)
-    const thread = resolvedThread.thread
-    const created = await this.createMessageRun(thread.id, {
-      message: input.message,
-      ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
+      ...(input.approvedToolNames?.length ? { approvedToolNames: input.approvedToolNames } : {}),
       ...(input.clientInput ? { clientInput: input.clientInput } : {}),
       ...(options.runPolicy ? { policy: options.runPolicy } : {}),
     }, options.signal)

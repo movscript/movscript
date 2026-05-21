@@ -135,6 +135,8 @@
     "hidePassword": "Hide password",
     "loginFailed": "Login failed",
     "registerFailed": "Registration failed",
+    "workModeTitle": "Choose the work mode for this session",
+    "workModeDescription": "You can choose a fresh entry point each time you sign in. Use the mode icon in the top right whenever you need to switch later.",
     "passwordMismatch": "Passwords do not match",
     "email": "Email",
     "sendCode": "Send code",
@@ -150,6 +152,16 @@
     "title": "Choose How to Use Movscript",
     "description": "Choose where your data and services run. You can change the connection later in App Settings.",
     "localFailed": "Failed to create local workspace",
+    "workMode": {
+      "title": "Choose a Work Mode First",
+      "description": "Pick the entry point that fits how you work. You can switch later with the mode icon in the top right.",
+      "agentDescription": "Start from a goal. Let Agent read project context, propose plans, and move drafts, proposals, and generation work forward.",
+      "detailDescription": "Use the full sidebar, project object pages, and focused workbenches for manual review, refinement, and batch management.",
+      "agentAction": "Start with Agent mode",
+      "detailAction": "Start with Detail mode",
+      "selected": "Selected: {{mode}}",
+      "switchHint": "After you enter a project, the mode icon stays in the top right. Use it whenever you need to switch between Agent and detailed workbenches."
+    },
     "local": {
       "title": "Use Locally",
       "description": "Keep data on this computer. Best for personal projects and your own model API keys.",
@@ -183,6 +195,12 @@
     "launchMode": "Launch mode",
     "launchModeTitle": "Launch Mode",
     "launchModeHint": "Local launch requests system admin initialization during registration. Cloud launch only connects to the remote service.",
+    "workModeTitle": "Work Mode",
+    "workModeHint": "Choose the main project workspace. Detail mode keeps the current workbench; Agent mode uses a fullscreen conversation-first entry.",
+    "detailWorkMode": "Detail Mode",
+    "detailWorkModeHelp": "Keep the existing sidebar, project overview, object pages, and workbenches.",
+    "agentWorkMode": "Agent Mode",
+    "agentWorkModeHelp": "Open projects in a fullscreen Agent workspace that puts conversation and task progress first.",
     "cloudMode": "Cloud Launch",
     "cloudModeHelp": "Connect to Movscript Cloud or a team service without creating a system admin during registration.",
     "localMode": "Local Launch",
@@ -2205,6 +2223,22 @@
       "modelLockedByAgent": "This Agent has a pinned model",
       "myAgents": "My Agents",
       "newConversation": "New Conversation",
+      "agentModeSidebar": {
+        "newConversation": "New Chat",
+        "plugins": "Plugins",
+        "project": "Project",
+        "conversations": "Chats",
+        "noProjectConversations": "No project chats yet",
+        "startConversation": "Start a new chat",
+        "showMoreProjects": "Show {{count}} more projects",
+        "showFewerProjects": "Show fewer projects",
+        "showMoreConversations": "Show {{count}} more chats",
+        "showFewerConversations": "Show fewer chats",
+        "settings": "Settings",
+        "settingsUser": "Settings / User",
+        "defaultUser": "User",
+        "currentProjectFallback": "Current project"
+      },
       "conversationTabs": "Open conversation tabs",
       "conversationHistory": "Conversation history",
       "tabActions": "Right-click tab for actions",
@@ -2241,8 +2275,6 @@
       "createAndUseProject": "Create and use",
       "resourceContext": "Asset library",
       "autoPlan": "Planning mode",
-      "hideContext": "Hide context",
-      "showContext": "Show context",
       "drafts": {
         "title": "Review Items",
         "filters": {
@@ -2849,7 +2881,6 @@
       "text": "Text",
       "image": "Image",
       "video": "Video",
-      "audio": "Audio",
       "json": "JSON",
       "number": "Number",
       "boolean": "Boolean",
@@ -2858,14 +2889,12 @@
     "outputTypes": {
       "image": "Image",
       "video": "Video",
-      "text": "Text",
-      "audio": "Audio"
+      "text": "Text"
     },
     "nodeLabels": {
       "text": "Text",
       "image": "Image",
       "video": "Video",
-      "audio": "Audio",
       "canvas": "Canvas Reference",
       "ref_image_gen": "Reference Image",
       "ref_video_gen": "Reference Video",
@@ -2880,8 +2909,7 @@
       "text_gen": "AI Text Generation",
       "ai_gen": "AI Generation",
       "group": "Group",
-      "plugin_card": "Plugin Card",
-      "entity_card": "Entity"
+      "plugin_card": "Plugin Card"
     },
     "entityTypes": {
       "script": "Script",
@@ -2903,7 +2931,7 @@
         },
         "media": {
           "title": "Media",
-          "description": "Hold text, image, video, and audio assets."
+          "description": "Hold text, image, and video assets."
         },
         "ai": {
           "title": "AI Processing",
@@ -2931,10 +2959,6 @@
           "label": "Save Resource",
           "description": "Persist an upstream value to the resource library."
         },
-        "entity_card": {
-          "label": "Entity",
-          "description": "Reference a project entity and use its fields as workflow inputs or outputs."
-        },
         "approval": {
           "label": "Manual Approval",
           "description": "Pause the workflow at key steps for review."
@@ -2951,13 +2975,9 @@
           "label": "Video",
           "description": "Video resource or generated result."
         },
-        "audio": {
-          "label": "Audio",
-          "description": "Audio resource or sound result."
-        },
         "ai_gen": {
           "label": "AI Generation",
-          "description": "Generate image, video, text, or audio by target type."
+          "description": "Generate image, video, or text by target type."
         },
         "text_gen": {
           "label": "AI Text Generation",
@@ -3083,7 +3103,6 @@
     "unset": "Not set",
     "textInputPlaceholder": "Enter text here...",
     "emptyContent": "No content",
-    "emptyAudio": "No audio",
     "noPrompt": "No prompt",
     "waitingStart": "Waiting to start...",
     "generating": "Generating...",
@@ -3900,6 +3919,7 @@
   "header": {
     "titles": {
       "projects": "Projects",
+      "projectAgentMode": "Agent Mode",
       "projectHome": "Home",
       "projectWorkspace": "Project Standards",
       "settingWorkbench": "Setting Workbench",
@@ -3998,6 +4018,7 @@
       "production": "Production Hub",
       "creation": "Triage Desk",
       "collaboration": "Collaboration",
+      "projectAgentMode": "Agent Mode",
       "projectHome": "Home",
       "projectWorkspace": "Project Standards",
       "settingWorkbench": "Setting Workbench",

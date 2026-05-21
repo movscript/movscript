@@ -81,17 +81,17 @@ export function ThinkingBubble({ state = { status: 'thinking' } }: { run: AgentR
         avatar={<Bot size={13} />}
         author="MovScript Agent"
         footer={(
-          <Badge variant="outline" className="text-[9px] leading-4 px-1.5 py-0">
+          <Badge variant="outline" className="type-micro leading-4 px-1.5 py-0">
             {label}
           </Badge>
         )}
       >
         <div className="space-y-1.5">
-          <div className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground">
+          <div className="inline-flex items-center gap-1.5 type-tiny text-muted-foreground">
             <Loader2 size={11} className="animate-spin" />
             <span>{label}</span>
           </div>
-          {reasoning ? <MarkdownContent text={reasoning} /> : <div className="text-[11px] text-muted-foreground">...</div>}
+          {reasoning ? <MarkdownContent text={reasoning} /> : <div className="type-caption text-muted-foreground">...</div>}
         </div>
       </AgentChatMessage>
     </div>
@@ -102,7 +102,7 @@ function AgentBubbleStatusText({ label }: { label?: string }) {
   if (!label) return null
   return (
     <div className="flex justify-start pl-8">
-      <div className="inline-flex max-w-[80%] items-center gap-1.5 text-[10px] leading-4 text-muted-foreground">
+      <div className="inline-flex max-w-[80%] items-center gap-1.5 type-tiny leading-4 text-muted-foreground">
         <Loader2 size={10} className="animate-spin" />
         <span className="truncate">{label}</span>
       </div>
@@ -117,7 +117,7 @@ export function GenerationProgressBubble({ state }: { state: GenerationProgressS
       avatar={<Bot size={13} />}
       author="MovScript Agent"
       footer={(
-        <Badge variant={state.terminal ? 'outline' : 'secondary'} className="text-[9px] leading-4 px-1.5 py-0">
+        <Badge variant={state.terminal ? 'outline' : 'secondary'} className="type-micro leading-4 px-1.5 py-0">
           {state.terminal ? '生成已结束' : '生成监控中'}
         </Badge>
       )}
@@ -208,7 +208,7 @@ export function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?
           {runtimeInputLabel && (
             <Badge
               variant={runtimeInputStatus === 'failed' ? 'destructive' : runtimeInputStatus === 'pending' ? 'secondary' : 'outline'}
-              className="text-[9px] leading-4 px-1.5 py-0"
+              className="type-micro leading-4 px-1.5 py-0"
               title={runtimeInput?.error}
             >
               {runtimeInputStatus === 'pending' && <Loader2 size={9} className="mr-1 inline animate-spin" />}
@@ -217,7 +217,7 @@ export function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?
             </Badge>
           )}
           {contextLabels.map((label) => (
-            <Badge key={label} variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">
+            <Badge key={label} variant="secondary" className="type-micro leading-4 px-1.5 py-0">
               {label}
             </Badge>
           ))}
@@ -226,7 +226,7 @@ export function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?
     >
       {displayContent && <MarkdownContent text={displayContent} attachments={messageAttachments} />}
       {showModelSetupAction && (
-        <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2 text-[10px]">
+        <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2 type-tiny">
           <div className="flex items-start gap-2">
             <Settings2 size={13} className="mt-0.5 shrink-0 text-amber-600" />
             <div className="min-w-0 flex-1">
@@ -299,7 +299,7 @@ export function StreamingAssistantBubble({ content }: { content: string }) {
       author={t('agents.chat.agentName')}
       footer={(
         <div className="flex flex-wrap gap-1">
-          <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">
+          <Badge variant="secondary" className="type-micro leading-4 px-1.5 py-0">
             {t('agents.chat.streaming')}
           </Badge>
         </div>

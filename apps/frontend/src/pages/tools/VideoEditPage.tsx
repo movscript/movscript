@@ -569,8 +569,8 @@ export default function VideoEditPage() {
     <div className="flex h-full min-h-0 flex-col bg-background">
       <div className="flex h-11 shrink-0 items-center gap-3 border-b border-border px-5">
         <Scissors size={16} className="text-primary" />
-        <h1 className="text-sm font-semibold text-foreground">剪辑工作台</h1>
-        <span className="truncate text-xs text-muted-foreground">非破坏式时间线、素材装配、字幕/脚本粗剪和项目交付 JSON</span>
+        <h1 className="type-body font-semibold text-foreground">剪辑工作台</h1>
+        <span className="truncate type-label text-muted-foreground">非破坏式时间线、素材装配、字幕/脚本粗剪和项目交付 JSON</span>
         <div className="ml-auto flex items-center gap-2">
           <ToolbarButton icon={<Undo2 size={14} />} label="撤销" onClick={undo} disabled={past.length === 0} />
           <ToolbarButton icon={<Redo2 size={14} />} label="重做" onClick={redo} disabled={future.length === 0} />
@@ -694,14 +694,14 @@ export default function VideoEditPage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="flex aspect-video items-center justify-center text-sm text-white/55">从左侧素材库选择视频开始装配</div>
+                    <div className="flex aspect-video items-center justify-center type-body text-white/55">从左侧素材库选择视频开始装配</div>
                   )}
                 </div>
 
                 <div className="rounded-lg border border-border bg-card p-3">
                   <div className="mb-3 flex items-center justify-between">
-                    <p className="text-sm font-medium text-foreground">预览控制</p>
-                    <span className="text-xs tabular-nums text-muted-foreground">{formatTime(playheadMs)}</span>
+                    <p className="type-body font-medium text-foreground">预览控制</p>
+                    <span className="type-label tabular-nums text-muted-foreground">{formatTime(playheadMs)}</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <ToolbarButton icon={<StepBack size={14} />} label="-1s" onClick={() => nudgePlayhead(-1000)} />
@@ -728,17 +728,17 @@ export default function VideoEditPage() {
                       value={markerLabel}
                       onChange={event => setMarkerLabel(event.target.value)}
                       placeholder="标记名称"
-                      className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-ring"
+                      className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1.5 type-label outline-none focus:ring-1 focus:ring-ring"
                     />
                     <ToolbarButton icon={<BookmarkPlus size={14} />} label="标记" onClick={addTimelineMarker} />
                   </div>
                   {renderError && (
-                    <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs leading-5 text-destructive">
+                    <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 type-label leading-5 text-destructive">
                       {renderError}
                     </div>
                   )}
                   {projectError && (
-                    <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs leading-5 text-destructive">
+                    <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 type-label leading-5 text-destructive">
                       {projectError}
                     </div>
                   )}
@@ -827,7 +827,7 @@ function TimelineEditor({
     <div className="mt-4 overflow-hidden rounded-lg border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-medium text-foreground">时间线</p>
+          <p className="type-body font-medium text-foreground">时间线</p>
           <div className="flex items-center gap-1">
             {[
               ['V', 'video', '添加视频轨'],
@@ -838,7 +838,7 @@ function TimelineEditor({
               <button
                 key={kind}
                 type="button"
-                className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 type-caption text-muted-foreground hover:bg-muted hover:text-foreground"
                 title={title}
                 aria-label={title}
                 onClick={() => onAddTrack(kind as VideoEditTrack['kind'])}
@@ -850,7 +850,7 @@ function TimelineEditor({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs tabular-nums text-muted-foreground">总时长 {formatTime(timelineDurationMs(timeline))}</span>
+          <span className="type-label tabular-nums text-muted-foreground">总时长 {formatTime(timelineDurationMs(timeline))}</span>
           <button
             type="button"
             className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
@@ -876,7 +876,7 @@ function TimelineEditor({
       <div className="relative overflow-x-auto p-3">
         <div className="relative min-w-[760px]" style={{ width: timelineWidth }}>
           <div className="absolute bottom-0 top-0 z-20 w-px bg-primary" style={{ left: `${playheadPct}%` }} />
-          <div className="relative h-7 border-b border-border/70 text-[10px] tabular-nums text-muted-foreground">
+          <div className="relative h-7 border-b border-border/70 type-tiny tabular-nums text-muted-foreground">
             {ticks.map(tick => (
               <div key={tick.atMs} className="absolute bottom-0 top-1 border-l border-border/80 pl-1" style={{ left: `${tick.atMs / durationMs * 100}%` }}>
                 <span>{tick.label}</span>
@@ -885,7 +885,7 @@ function TimelineEditor({
           </div>
           {timeline.markers.map(marker => (
             <div key={marker.id} className="absolute bottom-0 top-7 z-10 w-px bg-amber-500/70" style={{ left: `${marker.atMs / durationMs * 100}%` }}>
-              <span className="absolute left-1 top-0 max-w-28 truncate rounded bg-amber-500 px-1.5 py-0.5 text-[10px] text-white">{marker.label}</span>
+              <span className="absolute left-1 top-0 max-w-28 truncate rounded bg-amber-500 px-1.5 py-0.5 type-tiny text-white">{marker.label}</span>
             </div>
           ))}
           <div className="space-y-2 pt-3">
@@ -1038,7 +1038,7 @@ function TrackLane({
 
   return (
     <div className="grid grid-cols-[160px_minmax(0,1fr)] items-stretch gap-2">
-      <div className="flex items-center gap-1 rounded-md border border-border bg-background px-1.5 text-xs font-medium text-muted-foreground">
+      <div className="flex items-center gap-1 rounded-md border border-border bg-background px-1.5 type-label font-medium text-muted-foreground">
         <button
           type="button"
           className={cn('inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted hover:text-foreground', track.locked && 'text-primary')}
@@ -1059,7 +1059,7 @@ function TrackLane({
         </button>
         <button
           type="button"
-          className={cn('inline-flex h-6 min-w-6 items-center justify-center rounded px-1 text-[10px] hover:bg-muted hover:text-foreground', track.solo && 'bg-primary/15 text-primary')}
+          className={cn('inline-flex h-6 min-w-6 items-center justify-center rounded px-1 type-tiny hover:bg-muted hover:text-foreground', track.solo && 'bg-primary/15 text-primary')}
           title={track.solo ? '取消独奏轨道' : '独奏轨道'}
           aria-label={track.solo ? '取消独奏轨道' : '独奏轨道'}
           onClick={() => onPatchTrack(track.id, { solo: !track.solo })}
@@ -1113,7 +1113,7 @@ function TrackLane({
               onPointerUp={finishDrag}
               onPointerCancel={cancelDrag}
               className={cn(
-                'absolute top-1 flex min-w-12 flex-col items-start justify-center overflow-hidden rounded-md border px-2 text-left text-[11px] shadow-sm transition-colors',
+                'absolute top-1 flex min-w-12 flex-col items-start justify-center overflow-hidden rounded-md border px-2 text-left type-caption shadow-sm transition-colors',
                 track.collapsed ? 'h-5' : 'h-12',
                 track.locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing',
                 clip.kind === 'video' && 'border-sky-500/50 bg-sky-500/15 text-sky-800 dark:text-sky-200',
@@ -1141,7 +1141,7 @@ function TrackLane({
                 />
               )}
               <span className="relative z-10 w-full truncate font-medium drop-shadow-sm">{clip.text || clip.resourceName || clip.kind}</span>
-              {!track.collapsed && <span className="relative z-10 text-[10px] opacity-80 drop-shadow-sm">{formatTime(draft.startMs)} · {formatTime(draft.durationMs)}</span>}
+              {!track.collapsed && <span className="relative z-10 type-tiny opacity-80 drop-shadow-sm">{formatTime(draft.startMs)} · {formatTime(draft.durationMs)}</span>}
               {!track.locked && !track.collapsed && (
                 <span
                   className="absolute bottom-0 right-0 top-0 w-2 cursor-ew-resize bg-white/0 hover:bg-white/25"
@@ -1239,7 +1239,7 @@ function Inspector({
           <div className="space-y-3">
             <Readout label="类型" value={selectedClip.kind} />
             <Readout label="素材" value={selectedClip.resourceName || selectedClip.text || '手动片段'} />
-            <label className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 text-xs">
+            <label className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 type-label">
               <span className="text-muted-foreground">轨道</span>
               <select
                 value={selectedClip.trackId}
@@ -1261,7 +1261,7 @@ function Inspector({
             {(selectedClip.kind === 'video' || selectedClip.kind === 'audio') && (
               <>
                 <NumberField label="音量 %" value={selectedClip.volume ?? 100} onChange={value => onPatchClip({ volume: value })} />
-                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <label className="flex items-center gap-2 type-label text-muted-foreground">
                   <input type="checkbox" checked={selectedClip.muted === true} onChange={event => onPatchClip({ muted: event.target.checked })} />
                   静音
                 </label>
@@ -1297,7 +1297,7 @@ function Inspector({
                 <textarea
                   value={selectedClip.text ?? ''}
                   onChange={event => onPatchClip({ text: event.target.value })}
-                  className="h-24 w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
+                  className="h-24 w-full resize-none rounded-md border border-border bg-background px-3 py-2 type-body outline-none focus:ring-1 focus:ring-ring"
                 />
                 <NumberField label="字号" value={selectedClip.captionFontSize ?? 42} min={12} step={1} onChange={value => onPatchClip({ captionFontSize: value })} />
                 <NumberField label="位置 Y %" value={selectedClip.captionYPercent ?? 88} min={5} step={1} onChange={value => onPatchClip({ captionYPercent: value })} />
@@ -1307,7 +1307,7 @@ function Inspector({
             )}
           </div>
         ) : (
-          <p className="text-xs leading-5 text-muted-foreground">选择时间线片段后可微调入点、时长、音量和字幕文本。</p>
+          <p className="type-label leading-5 text-muted-foreground">选择时间线片段后可微调入点、时长、音量和字幕文本。</p>
         )}
       </Panel>
 
@@ -1315,7 +1315,7 @@ function Inspector({
         <textarea
           value={scriptDraft}
           onChange={event => onScriptDraftChange(event.target.value)}
-          className="h-32 w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-xs leading-5 outline-none focus:ring-1 focus:ring-ring"
+          className="h-32 w-full resize-none rounded-md border border-border bg-background px-3 py-2 type-label leading-5 outline-none focus:ring-1 focus:ring-ring"
           placeholder="粘贴分行文案，或粘贴 SRT 字幕"
         />
         <Button className="mt-2 w-full" size="sm" onClick={onApplyScript}>
@@ -1326,11 +1326,11 @@ function Inspector({
 
       <Panel title="标记点" icon={<BookmarkPlus size={14} />}>
         <div className="space-y-2">
-          {timeline.markers.length === 0 && <p className="text-xs text-muted-foreground">暂无标记，当前播放头 {formatTime(playheadMs)}。</p>}
+          {timeline.markers.length === 0 && <p className="type-label text-muted-foreground">暂无标记，当前播放头 {formatTime(playheadMs)}。</p>}
           {timeline.markers.map(marker => (
             <div key={marker.id} className="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-1.5">
-              <span className="w-14 shrink-0 text-xs tabular-nums text-muted-foreground">{formatTime(marker.atMs)}</span>
-              <span className="min-w-0 flex-1 truncate text-xs text-foreground">{marker.label}</span>
+              <span className="w-14 shrink-0 type-label tabular-nums text-muted-foreground">{formatTime(marker.atMs)}</span>
+              <span className="min-w-0 flex-1 truncate type-label text-foreground">{marker.label}</span>
               <button className="text-muted-foreground hover:text-destructive" onClick={() => onDeleteMarker(marker.id)} aria-label="删除标记">
                 <Trash2 size={12} />
               </button>
@@ -1345,7 +1345,7 @@ function Inspector({
 function Panel({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
   return (
     <section className="rounded-lg border border-border bg-card p-3">
-      <div className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
+      <div className="mb-3 flex items-center gap-2 type-body font-medium text-foreground">
         {icon}
         {title}
       </div>
@@ -1362,7 +1362,7 @@ function ToolbarButton({ icon, label, onClick, disabled }: { icon: ReactNode; la
       disabled={disabled}
       title={label}
       aria-label={label}
-      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 type-label text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
     >
       {icon}
       <span>{label}</span>
@@ -1372,7 +1372,7 @@ function ToolbarButton({ icon, label, onClick, disabled }: { icon: ReactNode; la
 
 function Readout({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 text-xs">
+    <div className="flex items-center justify-between gap-3 type-label">
       <span className="text-muted-foreground">{label}</span>
       <span className="min-w-0 truncate text-foreground">{value}</span>
     </div>
@@ -1393,7 +1393,7 @@ function NumberField({
   step?: number
 }) {
   return (
-    <label className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 text-xs">
+    <label className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 type-label">
       <span className="text-muted-foreground">{label}</span>
       <input
         type="number"
@@ -1409,7 +1409,7 @@ function NumberField({
 
 function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
-    <label className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 text-xs">
+    <label className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 type-label">
       <span className="text-muted-foreground">{label}</span>
       <input
         type="color"

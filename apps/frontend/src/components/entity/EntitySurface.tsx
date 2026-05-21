@@ -82,17 +82,17 @@ export function EntitySurfaceHeader({
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="shrink-0 rounded border border-border bg-background/80 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">
+            <span className="shrink-0 rounded border border-border bg-background/80 px-1.5 py-0.5 type-tiny leading-none text-muted-foreground">
               {t(cfg.labelKey)}
             </span>
             {eyebrow}
-            <h1 className={cn('min-w-0 truncate font-semibold text-foreground', isWorkbench ? 'text-sm' : 'text-base leading-6')}>
+            <h1 className={cn('min-w-0 truncate font-semibold text-foreground', isWorkbench ? 'type-body' : 'type-body-lg leading-6')}>
               {title}
             </h1>
             {nodeBadge}
           </div>
           {(description || meta) && (
-            <div className={cn('mt-1 flex min-w-0 items-center gap-2 text-muted-foreground', isWorkbench ? 'text-xs' : 'text-[11px]')}>
+            <div className={cn('mt-1 flex min-w-0 items-center gap-2 text-muted-foreground', isWorkbench ? 'type-label' : 'type-caption')}>
               {description && <p className="min-w-0 truncate">{description}</p>}
               {meta && <div className="flex shrink-0 flex-wrap items-center gap-1.5">{meta}</div>}
             </div>
@@ -167,20 +167,20 @@ export function EntityPreviewFieldList({
   className?: string
 }) {
   if (fields.length === 0) {
-    return <p className="text-xs italic text-muted-foreground/45">{emptyText}</p>
+    return <p className="type-label italic text-muted-foreground/45">{emptyText}</p>
   }
 
   return (
     <div className={cn('divide-y divide-border/60 border-t border-border/60', className)}>
       {fields.map((field) => (
         <div key={field.id} className="py-1.5">
-          <div className="flex items-center gap-1.5 text-[10px]">
+          <div className="flex items-center gap-1.5 type-tiny">
             <span className="min-w-0 flex-1 truncate font-medium text-foreground">{field.label}</span>
             {field.readable && <span className="rounded border border-border bg-muted/50 px-1 py-0.5 leading-none text-muted-foreground">out</span>}
             {field.writable && <span className="rounded border border-border bg-muted/50 px-1 py-0.5 leading-none text-muted-foreground">in</span>}
           </div>
           <p className={cn(
-            'mt-0.5 text-[11px] leading-snug',
+            'mt-0.5 type-caption leading-snug',
             field.hasValue ? 'line-clamp-1 text-muted-foreground' : 'italic text-muted-foreground/45'
           )}>
             {field.summary}

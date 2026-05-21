@@ -2,6 +2,7 @@ import { getActiveSchemaForKind, getDraftSchemaEntry, type JSONSchema7 } from '@
 import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
 import { isRecord } from '@/lib/jsonValue'
 import type { AgentDraft, AgentDraftKind } from '@/lib/localAgentClient'
+import { buildProjectWorkbenchReviewPath, getProjectWorkbenchDefinitionForProposalKind, type ProjectWorkbenchDefinition } from '@/pages/project/projectSurfaces'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 
 export type DraftSeedMode = 'empty' | 'snapshot' | 'editable_snapshot'
@@ -247,17 +248,18 @@ export function buildDraftReviewPath(draft: AgentDraft): string | null {
   const sourceEntityId = numberValue(source?.entityId)
   const targetEntityId = numberValue(target?.entityId)
 
+  const workbenchReviewPath = buildWorkbenchProposalReviewPath({
+    kind: draft.kind,
+    draftId: draft.id,
+    sourceEntityType,
+    sourceEntityId,
+    targetEntityType,
+    targetEntityId,
+  })
+  if (workbenchReviewPath) return workbenchReviewPath
+
   if (draft.kind === 'script_split_proposal') {
     return withRouteParams(ROUTES.project.scripts, { draftId: draft.id })
-  }
-
-  if (draft.kind === 'setting_proposal') {
-    return withRouteParams(ROUTES.project.preProduction, { view: 'review', draftId: draft.id })
-  }
-
-  if (draft.kind === 'asset_proposal') {
-    const assetSlotId = sourceEntityId ?? targetEntityId
-    return withRouteParams(ROUTES.project.preProduction, { view: 'review', draftId: draft.id, asset_slot_id: assetSlotId })
   }
 
   if (sourceEntityType === 'asset_slot' || targetEntityType === 'asset_slot') {
@@ -265,21 +267,8 @@ export function buildDraftReviewPath(draft: AgentDraft): string | null {
     return withRouteParams(ROUTES.project.preProduction, { draftId: draft.id, asset_slot_id: assetSlotId })
   }
 
-  if (draft.kind === 'project_standards_proposal' || sourceEntityType === 'project' || targetEntityType === 'project') {
+  if (sourceEntityType === 'project' || targetEntityType === 'project') {
     return withRouteParams(ROUTES.project.standards, { draftId: draft.id })
-  }
-
-  if (draft.kind === 'content_unit_proposal') {
-    const targetId = sourceEntityId ?? targetEntityId
-    const params: Record<string, string | number | undefined> = { view: 'review', draftId: draft.id }
-    if ((sourceEntityType === 'scene_moment' || targetEntityType === 'scene_moment') && targetId !== undefined) {
-      params.scene_moment_id = targetId
-    } else if ((sourceEntityType === 'content_unit' || targetEntityType === 'content_unit') && targetId !== undefined) {
-      params.content_unit_id = targetId
-    } else if ((sourceEntityType === 'production' || targetEntityType === 'production') && targetId !== undefined) {
-      params.productionId = targetId
-    }
-    return withRouteParams(ROUTES.project.contentUnitWorkbench, params)
   }
 
   if (targetEntityType === 'content_unit' || sourceEntityType === 'content_unit') {
@@ -301,6 +290,43 @@ export function buildDraftReviewPath(draft: AgentDraft): string | null {
     return withRouteParams(ROUTES.project.productionOrchestration, { productionId, draftId: draft.id })
   }
 
+  return null
+}
+
+function buildWorkbenchProposalReviewPath(input: {
+  kind: AgentDraftKind
+  draftId: string
+  sourceEntityType?: string
+  sourceEntityId?: number
+  targetEntityType?: string
+  targetEntityId?: number
+}) {
+  const definition = getProjectWorkbenchDefinitionForProposalKind(input.kind)
+  if (!definition) return null
+  const entity = pickWorkbenchReviewEntity(definition, input)
+  return buildProjectWorkbenchReviewPath(definition, {
+    draftId: input.draftId,
+    entityType: entity?.entityType,
+    entityId: entity?.entityId,
+  })
+}
+
+function pickWorkbenchReviewEntity(
+  definition: ProjectWorkbenchDefinition,
+  input: {
+    sourceEntityType?: string
+    sourceEntityId?: number
+    targetEntityType?: string
+    targetEntityId?: number
+  },
+) {
+  const entityParams = definition.reviewQuery.entityParams ?? {}
+  if (input.sourceEntityType && input.sourceEntityId !== undefined && entityParams[input.sourceEntityType]) {
+    return { entityType: input.sourceEntityType, entityId: input.sourceEntityId }
+  }
+  if (input.targetEntityType && input.targetEntityId !== undefined && entityParams[input.targetEntityType]) {
+    return { entityType: input.targetEntityType, entityId: input.targetEntityId }
+  }
   return null
 }
 

@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, CheckCircle2, RefreshCw, Server, Settings } from 'lucide-react'
+import { ArrowLeft, Bot, CheckCircle2, LayoutDashboard, RefreshCw, Server, Settings } from 'lucide-react'
 import { Button, Input, Label } from '@movscript/ui'
 import { getDefaultAPIBaseURL, getLocalAPIBaseURL, isLocalLaunchMode, normalizeAPIBaseURL, type AppSettings } from '@/lib/config'
 import { adminConsoleURL, openAdminConsole } from '@/lib/adminConsole'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
+import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
 import { ROUTES } from '@/routes/projectRoutes'
 
@@ -23,8 +24,10 @@ export default function AppSettingsPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const user = useUserStore((s) => s.currentUser)
+  const currentProject = useProjectStore((s) => s.current)
   const settings = useAppSettingsStore((s) => s.settings)
   const setLaunchMode = useAppSettingsStore((s) => s.setLaunchMode)
+  const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
   const setAPIBaseURL = useAppSettingsStore((s) => s.setAPIBaseURL)
   const resetSettings = useAppSettingsStore((s) => s.reset)
   const [apiBaseURL, setAPIBaseURLInput] = useState(settings.apiBaseURL)
@@ -52,6 +55,16 @@ export default function AppSettingsPage() {
     } else if (normalizeAPIBaseURL(apiBaseURL) === currentLocalURL) {
       setAPIBaseURLInput(getDefaultAPIBaseURL())
     }
+  }
+
+  function chooseWorkMode(mode: AppSettings['workMode']) {
+    setWorkMode(mode)
+    if (!user) return
+    if (!currentProject) {
+      navigate(ROUTES.projects)
+      return
+    }
+    navigate(mode === 'agent' ? ROUTES.project.agent : ROUTES.project.overview)
   }
 
   function saveSettings() {
@@ -95,13 +108,13 @@ export default function AppSettingsPage() {
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-5">
           <button
             type="button"
-            onClick={() => user ? navigate(ROUTES.projects) : navigate(ROUTES.root)}
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            onClick={() => user ? navigate(currentProject ? (settings.workMode === 'agent' ? ROUTES.project.agent : ROUTES.project.overview) : ROUTES.projects) : navigate(ROUTES.root)}
+            className="inline-flex items-center gap-2 type-body text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft size={16} />
             {t('common.back')}
           </button>
-          <div className="inline-flex items-center gap-2 text-sm font-medium">
+          <div className="inline-flex items-center gap-2 type-body font-medium">
             <Settings size={16} />
             {t('appSettings.title')}
           </div>
@@ -111,8 +124,8 @@ export default function AppSettingsPage() {
       <main className="mx-auto max-w-3xl px-5 py-8">
         <section className="space-y-6">
           <div>
-            <h1 className="text-xl font-semibold">{t('appSettings.title')}</h1>
-            <p className="mt-2 text-sm text-muted-foreground">{t('appSettings.description')}</p>
+            <h1 className="type-title font-semibold">{t('appSettings.title')}</h1>
+            <p className="mt-2 type-body text-muted-foreground">{t('appSettings.description')}</p>
           </div>
 
           <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
@@ -121,8 +134,8 @@ export default function AppSettingsPage() {
                 <Settings size={18} />
               </div>
               <div>
-                <h2 className="text-sm font-semibold">{t('appSettings.launchModeTitle')}</h2>
-                <p className="text-xs text-muted-foreground">{t('appSettings.launchModeHint')}</p>
+                <h2 className="type-body font-semibold">{t('appSettings.launchModeTitle')}</h2>
+                <p className="type-label text-muted-foreground">{t('appSettings.launchModeHint')}</p>
               </div>
             </div>
 
@@ -140,11 +153,50 @@ export default function AppSettingsPage() {
                         : 'border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground'
                     }`}
                   >
-                    <span className="block text-sm font-medium">
+                    <span className="block type-body font-medium">
                       {mode === 'cloud' ? t('appSettings.cloudMode') : t('appSettings.localMode')}
                     </span>
-                    <span className="mt-1 block text-xs">
+                    <span className="mt-1 block type-label">
                       {mode === 'cloud' ? t('appSettings.cloudModeHelp') : t('appSettings.localModeHelp')}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <Bot size={18} />
+              </div>
+              <div>
+                <h2 className="type-body font-semibold">{t('appSettings.workModeTitle')}</h2>
+                <p className="type-label text-muted-foreground">{t('appSettings.workModeHint')}</p>
+              </div>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(['detail', 'agent'] as const).map((mode) => {
+                const selected = settings.workMode === mode
+                const Icon = mode === 'agent' ? Bot : LayoutDashboard
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => chooseWorkMode(mode)}
+                    className={`rounded-md border px-3 py-3 text-left transition-colors ${
+                      selected
+                        ? 'border-primary bg-primary/10 text-foreground'
+                        : 'border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 type-body font-medium">
+                      <Icon size={15} />
+                      {mode === 'agent' ? t('appSettings.agentWorkMode') : t('appSettings.detailWorkMode')}
+                    </span>
+                    <span className="mt-1 block type-label">
+                      {mode === 'agent' ? t('appSettings.agentWorkModeHelp') : t('appSettings.detailWorkModeHelp')}
                     </span>
                   </button>
                 )
@@ -158,8 +210,8 @@ export default function AppSettingsPage() {
                 <Server size={18} />
               </div>
               <div>
-                <h2 className="text-sm font-semibold">{t('appSettings.cloudApiTitle')}</h2>
-                <p className="text-xs text-muted-foreground">{t('appSettings.cloudApiHint')}</p>
+                <h2 className="type-body font-semibold">{t('appSettings.cloudApiTitle')}</h2>
+                <p className="type-label text-muted-foreground">{t('appSettings.cloudApiHint')}</p>
               </div>
             </div>
 
@@ -175,18 +227,18 @@ export default function AppSettingsPage() {
                 placeholder="https://api.example.com"
                 spellCheck={false}
               />
-              <p className="text-xs text-muted-foreground">{t('appSettings.apiBaseURLHelp')}</p>
+              <p className="type-label text-muted-foreground">{t('appSettings.apiBaseURLHelp')}</p>
               {!isValid && apiBaseURL.trim() && (
-                <p className="text-xs text-destructive">{t('appSettings.invalidURL')}</p>
+                <p className="type-label text-destructive">{t('appSettings.invalidURL')}</p>
               )}
             </div>
 
-            <div className="mt-5 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+            <div className="mt-5 rounded-md bg-muted px-3 py-2 type-label text-muted-foreground">
               {t('appSettings.effectiveEndpoint')}: <span className="font-mono text-foreground">{isValid ? `${normalized}/api/v1` : '-'}</span>
             </div>
 
             {localMode && isValid && (
-              <div className="mt-3 rounded-md border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+              <div className="mt-3 rounded-md border border-border bg-background px-3 py-2 type-label text-muted-foreground">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span>
                     {t('appSettings.adminConsole')}: <span className="font-mono text-foreground">{adminURL}</span>
@@ -205,13 +257,13 @@ export default function AppSettingsPage() {
             )}
 
             {testState.message && (
-              <p className={`mt-3 text-xs ${testState.status === 'error' ? 'text-destructive' : testState.status === 'success' ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+              <p className={`mt-3 type-label ${testState.status === 'error' ? 'text-destructive' : testState.status === 'success' ? 'text-emerald-600' : 'text-muted-foreground'}`}>
                 {testState.message}
               </p>
             )}
 
             {saved && (
-              <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-emerald-600">
+              <p className="mt-3 inline-flex items-center gap-1.5 type-label text-emerald-600">
                 <CheckCircle2 size={14} />
                 {t('appSettings.savedReloading')}
               </p>
@@ -232,7 +284,7 @@ export default function AppSettingsPage() {
           </div>
 
           {!user && (
-            <p className="text-center text-sm text-muted-foreground">
+            <p className="text-center type-body text-muted-foreground">
               <Link to={ROUTES.root} className="text-foreground underline-offset-4 hover:underline">{t('appSettings.returnToLogin')}</Link>
             </p>
           )}

@@ -29,6 +29,7 @@ export function compactRunActivity(run: AgentRun): ChatRunActivity {
           approvals: run.pendingApprovals.map((approval) => ({
             id: approval.id,
             runId: approval.runId,
+            ...(approval.interactionId ? { interactionId: approval.interactionId } : {}),
             toolName: approval.toolName,
             ...(approval.args ? { args: approval.args } : {}),
             ...(approval.preview !== undefined ? { preview: approval.preview } : {}),

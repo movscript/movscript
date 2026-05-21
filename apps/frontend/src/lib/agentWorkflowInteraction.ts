@@ -116,6 +116,7 @@ export function workflowRunFromActivity(activity: ChatRunActivity | undefined): 
       return {
         id: approval.id,
         runId: approval.runId ?? activity.runId,
+        ...(approval.interactionId ? { interactionId: approval.interactionId } : {}),
         toolName: approval.toolName,
         ...(approval.args ? { args: approval.args } : {}),
         ...(approval.preview !== undefined ? { preview: approval.preview } : {}),

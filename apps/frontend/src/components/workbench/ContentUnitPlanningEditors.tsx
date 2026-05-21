@@ -54,11 +54,11 @@ export function ContentUnitStoryboardBriefEditor({
     <div className="space-y-3" data-testid="content-workbench-storyboard-brief-editor">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+          <div className="flex items-center gap-1.5 type-label font-medium text-foreground">
             <Clapperboard size={13} className="text-muted-foreground" />
             故事板简述
           </div>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          <p className="mt-1 type-label leading-5 text-muted-foreground">
             先用结构化说明确认画面要讲什么，再推进关键帧或单张故事板图。
           </p>
         </div>
@@ -68,7 +68,7 @@ export function ContentUnitStoryboardBriefEditor({
             <Button
               size="sm"
               variant="outline"
-              className="h-8 gap-1.5"
+              className="gap-1.5"
               onClick={onAiVisualPlan}
               data-testid="content-workbench-ai-visual-plan"
             >
@@ -80,7 +80,7 @@ export function ContentUnitStoryboardBriefEditor({
       </div>
       <div className="grid gap-2">
         <div className="space-y-1.5">
-          <Label htmlFor={`storyboard-purpose-${unitId}`} className="text-xs">画面目的</Label>
+          <Label htmlFor={`storyboard-purpose-${unitId}`} className="type-label">画面目的</Label>
           <Textarea
             id={`storyboard-purpose-${unitId}`}
             className="min-h-[72px]"
@@ -92,7 +92,7 @@ export function ContentUnitStoryboardBriefEditor({
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor={`storyboard-subject-${unitId}`} className="text-xs">主体</Label>
+            <Label htmlFor={`storyboard-subject-${unitId}`} className="type-label">主体</Label>
             <Textarea
               id={`storyboard-subject-${unitId}`}
               className="min-h-[72px]"
@@ -102,7 +102,7 @@ export function ContentUnitStoryboardBriefEditor({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor={`storyboard-composition-${unitId}`} className="text-xs">构图</Label>
+            <Label htmlFor={`storyboard-composition-${unitId}`} className="type-label">构图</Label>
             <Textarea
               id={`storyboard-composition-${unitId}`}
               className="min-h-[72px]"
@@ -115,7 +115,7 @@ export function ContentUnitStoryboardBriefEditor({
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor={`storyboard-action-${unitId}`} className="text-xs">动作瞬间</Label>
+            <Label htmlFor={`storyboard-action-${unitId}`} className="type-label">动作瞬间</Label>
             <Textarea
               id={`storyboard-action-${unitId}`}
               className="min-h-[72px]"
@@ -125,7 +125,7 @@ export function ContentUnitStoryboardBriefEditor({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor={`storyboard-emotion-${unitId}`} className="text-xs">情绪状态</Label>
+            <Label htmlFor={`storyboard-emotion-${unitId}`} className="type-label">情绪状态</Label>
             <Textarea
               id={`storyboard-emotion-${unitId}`}
               className="min-h-[72px]"
@@ -136,7 +136,7 @@ export function ContentUnitStoryboardBriefEditor({
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={`storyboard-keyframes-${unitId}`} className="text-xs">建议关键帧</Label>
+          <Label htmlFor={`storyboard-keyframes-${unitId}`} className="type-label">建议关键帧</Label>
           <Textarea
             id={`storyboard-keyframes-${unitId}`}
             className="min-h-[88px]"
@@ -170,11 +170,11 @@ export function ContentUnitVisualPlanEditor({
     <div className="space-y-3" data-testid="content-workbench-visual-plan-editor">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+          <div className="flex items-center gap-1.5 type-label font-medium text-foreground">
             <Route size={13} className="text-muted-foreground" />
             视觉调度计划
           </div>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          <p className="mt-1 type-label leading-5 text-muted-foreground">
             调度图回答空间关系、相机路径和人物怎么走；关键帧回答最终画面长什么样。
           </p>
         </div>
@@ -184,7 +184,7 @@ export function ContentUnitVisualPlanEditor({
             <Button
               size="sm"
               variant="outline"
-              className="h-8 gap-1.5"
+              className="gap-1.5"
               onClick={onAiVisualPlan}
               data-testid="content-workbench-ai-visual-plan"
             >
@@ -196,7 +196,7 @@ export function ContentUnitVisualPlanEditor({
       </div>
       <div className="grid gap-2">
         <div className="space-y-1.5">
-          <Label htmlFor={`visual-plan-space-${unitId}`} className="text-xs">空间关系</Label>
+          <Label htmlFor={`visual-plan-space-${unitId}`} className="type-label">空间关系</Label>
           <Textarea
             id={`visual-plan-space-${unitId}`}
             className="min-h-[76px]"
@@ -207,7 +207,7 @@ export function ContentUnitVisualPlanEditor({
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={`visual-plan-blocking-${unitId}`} className="text-xs">人物走位 / 调度</Label>
+          <Label htmlFor={`visual-plan-blocking-${unitId}`} className="type-label">人物走位 / 调度</Label>
           <Textarea
             id={`visual-plan-blocking-${unitId}`}
             className="min-h-[76px]"
@@ -218,7 +218,7 @@ export function ContentUnitVisualPlanEditor({
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={`visual-plan-camera-${unitId}`} className="text-xs">摄影机路径</Label>
+          <Label htmlFor={`visual-plan-camera-${unitId}`} className="type-label">摄影机路径</Label>
           <Textarea
             id={`visual-plan-camera-${unitId}`}
             className="min-h-[76px]"
@@ -230,7 +230,7 @@ export function ContentUnitVisualPlanEditor({
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor={`visual-plan-beats-${unitId}`} className="text-xs">停点 / 节奏</Label>
+            <Label htmlFor={`visual-plan-beats-${unitId}`} className="type-label">停点 / 节奏</Label>
             <Textarea
               id={`visual-plan-beats-${unitId}`}
               className="min-h-[88px]"
@@ -241,7 +241,7 @@ export function ContentUnitVisualPlanEditor({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor={`visual-plan-props-${unitId}`} className="text-xs">道具位置</Label>
+            <Label htmlFor={`visual-plan-props-${unitId}`} className="type-label">道具位置</Label>
             <Textarea
               id={`visual-plan-props-${unitId}`}
               className="min-h-[88px]"
@@ -253,7 +253,7 @@ export function ContentUnitVisualPlanEditor({
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor={`visual-plan-lighting-${unitId}`} className="text-xs">光线意图</Label>
+            <Label htmlFor={`visual-plan-lighting-${unitId}`} className="type-label">光线意图</Label>
             <Textarea
               id={`visual-plan-lighting-${unitId}`}
               className="min-h-[76px]"
@@ -264,7 +264,7 @@ export function ContentUnitVisualPlanEditor({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor={`visual-plan-risks-${unitId}`} className="text-xs">风险备注</Label>
+            <Label htmlFor={`visual-plan-risks-${unitId}`} className="type-label">风险备注</Label>
             <Textarea
               id={`visual-plan-risks-${unitId}`}
               className="min-h-[76px]"

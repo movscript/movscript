@@ -157,6 +157,45 @@ export interface AgentRun {
   traceEvents?: AgentTraceEvent[]
 }
 
+export type RuntimeInteractionKind = 'approval' | 'input' | 'selection'
+export type RuntimeInteractionStatus = 'pending' | 'approved' | 'rejected' | 'answered' | 'cancelled'
+
+export interface RuntimeInteraction {
+  id: string
+  threadId: string
+  runId: string
+  operationId?: string
+  kind: RuntimeInteractionKind
+  status: RuntimeInteractionStatus
+  payload: JSONValue
+  result?: JSONValue
+  createdAt: string
+  updatedAt: string
+  resolvedAt?: string
+}
+
+export type RuntimeContinuationStatus = 'waiting' | 'ready' | 'consumed' | 'cancelled'
+
+export interface RuntimeContinuation {
+  id: string
+  threadId: string
+  runId: string
+  status: RuntimeContinuationStatus
+  trigger:
+    | { type: 'operation_completed'; operationIds: string[]; mode: 'any' | 'all' }
+    | { type: 'interaction_resolved'; interactionIds: string[]; mode: 'any' | 'all' }
+    | { type: 'manual' }
+  nextInput?: {
+    operationResults?: string[]
+    interactionResults?: string[]
+    message?: string
+  }
+  createdAt: string
+  updatedAt: string
+  consumedAt?: string
+  cancelledAt?: string
+}
+
 export interface AgentRunInput {
   schema: 'movscript.agent.run-input.v1'
   userMessage: string
@@ -349,6 +388,7 @@ export interface AgentRunPreview {
 export interface AgentApprovalRequest {
   id: string
   runId: string
+  interactionId?: string
   toolName: string
   args?: Record<string, JSONValue>
   preview?: JSONValue

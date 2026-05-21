@@ -1,5 +1,6 @@
 import { ArrowLeft, ArrowRight, Search } from 'lucide-react'
 
+import { WorkbenchEmptyState, WorkbenchList, WorkbenchListItem, WorkbenchThumbnail } from '@/components/workbench/WorkbenchPrimitives'
 import { cn } from '@/lib/utils'
 import { Badge, Button, Input } from '@movscript/ui'
 
@@ -68,14 +69,14 @@ export function ContentWorkbenchFilterSidebar({
     <aside className={cn('flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden rounded-lg border border-border bg-card p-2.5 transition-[width]', collapsed ? 'items-center px-2' : '')} data-testid="content-workbench-filter-sidebar" data-sidebar-collapsed={collapsed ? 'true' : undefined}>
       <div className={cn('flex items-center gap-2 px-0.5', collapsed ? 'justify-center' : 'justify-between')}>
         <div className={cn('min-w-0', collapsed ? 'sr-only' : '')}>
-          <p className="truncate text-sm font-semibold text-foreground">分类筛选</p>
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">{resultCount} 个情节 · {unitCount} 个制作项</p>
+          <p className="truncate type-body font-semibold text-foreground">分类筛选</p>
+          <p className="mt-0.5 truncate type-label text-muted-foreground">{resultCount} 个情节 · {unitCount} 个制作项</p>
         </div>
         <Button
           type="button"
-          size="sm"
+          size={collapsed ? 'icon-sm' : 'sm'}
           variant="ghost"
-          className={cn('h-7 shrink-0 text-xs', collapsed ? 'w-8 px-0' : 'px-2')}
+          className="shrink-0 type-label"
           onClick={onToggleCollapsed}
           title={collapsed ? '展开左侧栏' : '缩略左侧栏'}
           aria-label={collapsed ? '展开左侧栏' : '缩略左侧栏'}
@@ -96,7 +97,7 @@ export function ContentWorkbenchFilterSidebar({
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
           placeholder="搜索情节、制作项、提示词"
-          className="h-9 pl-8 text-xs"
+          className="h-9 pl-8 type-label"
           data-testid="content-workbench-sidebar-search"
         />
       </div>
@@ -162,48 +163,43 @@ function HierarchyFilterColumn({
   return (
     <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col rounded-md border border-border bg-background p-2', rail ? 'border-transparent bg-transparent p-0' : '')} data-testid={testId} data-sidebar-rail={rail ? 'true' : undefined}>
       <div className={cn('mb-1.5 flex items-center justify-between gap-2 px-0.5', rail ? 'sr-only' : '')}>
-        <p className="truncate text-xs font-medium text-muted-foreground">{title}</p>
+        <p className="truncate type-label font-medium text-muted-foreground">{title}</p>
         <Badge variant="outline">{options.length}</Badge>
       </div>
       {options.length > 0 ? (
-        <div className={cn('min-h-0 flex-1 space-y-1 overflow-auto', rail ? 'pr-0' : 'pr-1')} data-testid={rail ? 'content-workbench-scene-rail' : undefined}>
+        <WorkbenchList className={cn('min-h-0 flex-1 gap-1 overflow-auto', rail ? 'pr-0' : 'pr-1')} data-testid={rail ? 'content-workbench-scene-rail' : undefined}>
           {options.map((option) => {
             const active = option.value === value
             const identifier = option.identifier || hierarchyOptionInitial(option.label)
             return (
-              <button
+              <WorkbenchListItem
                 key={option.value}
-                type="button"
                 onClick={() => onSelect(option.value)}
+                active={active}
                 title={rail ? `${identifier} · ${option.label} · ${option.count} 项` : undefined}
                 aria-label={rail ? `${option.label}，${option.count} 项` : undefined}
                 className={cn(
-                  'flex w-full items-center gap-2 rounded-md border text-left text-xs transition-colors',
+                  'flex items-center gap-2 type-label',
                   rail ? 'justify-center px-1 py-1.5' : 'px-2 py-1.5',
-                  active ? 'border-primary/60 bg-primary/5 text-foreground' : 'border-border bg-card text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-foreground',
                 )}
                 data-sidebar-rail-card={rail ? 'true' : undefined}
               >
-                <span className={cn(
-                  'flex shrink-0 items-center justify-center whitespace-nowrap rounded border font-semibold',
-                  rail ? 'min-h-8 w-full px-1 text-[10px]' : 'h-8 min-w-8 px-1.5 text-[10px]',
-                  active ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border bg-muted text-muted-foreground',
-                )} data-testid="content-workbench-hierarchy-thumbnail">
-                  {identifier}
-                </span>
+                <WorkbenchThumbnail className={cn('shrink-0 font-semibold', rail ? 'min-h-8 w-full' : 'h-8 min-w-8')} data-testid="content-workbench-hierarchy-thumbnail">
+                  <span className="flex h-full w-full items-center justify-center px-1 type-tiny">{identifier}</span>
+                </WorkbenchThumbnail>
                 <span className={cn('min-w-0 flex-1', rail ? 'sr-only' : '')}>
                   <span className="flex min-w-0 items-center gap-1.5">
-                    {option.identifier ? <span className="shrink-0 whitespace-nowrap rounded bg-muted px-1 py-0.5 text-[10px] font-semibold text-muted-foreground">{option.identifier}</span> : null}
+                    {option.identifier ? <span className="shrink-0 whitespace-nowrap rounded bg-muted px-1 py-0.5 type-tiny font-semibold text-muted-foreground">{option.identifier}</span> : null}
                     <span className="truncate font-medium">{option.label}</span>
                   </span>
-                  <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{option.count} 项</span>
+                  <span className="mt-0.5 block truncate type-caption text-muted-foreground">{option.count} 项</span>
                 </span>
-              </button>
+              </WorkbenchListItem>
             )
           })}
-        </div>
+        </WorkbenchList>
       ) : (
-        <p className="rounded-md border border-dashed border-border px-2 py-4 text-center text-xs text-muted-foreground">{emptyText}</p>
+        <WorkbenchEmptyState title={emptyText} compact />
       )}
     </div>
   )
@@ -227,7 +223,7 @@ function CategoryFilterGroup({
   return (
     <div className="rounded-md border border-border bg-background p-2" data-testid={testId}>
       <div className="mb-1.5 flex items-center justify-between gap-2 px-0.5">
-        <p className="truncate text-xs font-medium text-muted-foreground">{title}</p>
+        <p className="truncate type-label font-medium text-muted-foreground">{title}</p>
         <Badge variant="outline">{options.length}</Badge>
       </div>
       {options.length > 0 ? (
@@ -240,18 +236,18 @@ function CategoryFilterGroup({
                 type="button"
                 onClick={() => onSelect(option.value)}
                 className={cn(
-                  'inline-flex h-7 max-w-full items-center gap-1.5 rounded border px-2 text-xs transition-colors',
+                  'inline-flex h-7 max-w-full items-center gap-1.5 rounded border px-2 type-label transition-colors',
                   active ? 'border-primary/60 bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-foreground',
                 )}
               >
                 <span className="truncate">{option.label}</span>
-                <span className="shrink-0 text-[10px] tabular-nums opacity-80">{option.count}</span>
+                <span className="shrink-0 type-tiny tabular-nums opacity-80">{option.count}</span>
               </button>
             )
           })}
         </div>
       ) : (
-        <p className="rounded-md border border-dashed border-border px-2 py-3 text-center text-xs text-muted-foreground">{emptyText}</p>
+        <WorkbenchEmptyState title={emptyText} compact />
       )}
     </div>
   )

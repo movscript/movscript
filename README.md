@@ -136,8 +136,8 @@ sequenceDiagram
   participant Backend as Go backend
 
   UI->>Client: Submit message or command
-  Client->>Server: POST /threads, POST /runs
-  Server->>Runtime: createThread(), createRun()
+  Client->>Server: POST /threads, POST /threads/{id}/runs
+  Server->>Runtime: createThread(), create message run
   Runtime->>Catalog: Resolve manifest, profile, packs, skills, tools
   Runtime->>Catalog: Build focus context, memories, history summary
   Runtime->>Graph: runAgentGraph(run setup)

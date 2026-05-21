@@ -80,7 +80,7 @@ export function WorkbenchContent({ initialCategory = 'production', showCategoryT
                     setSearchParams(next, { replace: true })
                   }}
                   className={cn(
-                    'flex h-9 min-w-[104px] items-center justify-center gap-1.5 rounded px-3 text-sm font-medium transition-colors',
+                    'flex h-9 min-w-[104px] items-center justify-center gap-1.5 rounded px-3 type-body font-medium transition-colors',
                     active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
                   )}
                 >
@@ -90,7 +90,7 @@ export function WorkbenchContent({ initialCategory = 'production', showCategoryT
               )
             })}
           </div>
-          <div className="ml-3 hidden shrink-0 items-center gap-2 text-xs text-muted-foreground xl:flex">
+          <div className="ml-3 hidden shrink-0 items-center gap-2 type-label text-muted-foreground xl:flex">
             <Clock3 size={14} />
             <span>{summary}</span>
           </div>

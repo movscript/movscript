@@ -89,21 +89,21 @@ function FolderDialog({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
         <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-xl p-6 w-80 z-50">
-          <Dialog.Title className="text-sm font-semibold mb-4">
+          <Dialog.Title className="type-body font-semibold mb-4">
             {editFolder ? t('pages.resources.editFolder') : t('pages.resources.newFolder')}
           </Dialog.Title>
           <div className="space-y-3">
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">{t('forms.name')}</label>
+              <label className="type-label text-muted-foreground mb-1 block">{t('forms.name')}</label>
               <input
                 autoFocus
                 value={name}
                 onChange={e => setName(e.target.value)}
-                className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                className="w-full px-3 py-1.5 type-body border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-ring"
                 placeholder={t('pages.resources.folderNamePlaceholder')}
               />
             </div>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <label className="flex items-center gap-2 type-body cursor-pointer">
               <input
                 type="checkbox"
                 checked={isShared}
@@ -176,7 +176,7 @@ function PermissionsDialog({ folder, onClose }: { folder: ResourceFolder; onClos
         <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-xl p-6 w-96 z-50 max-h-[80vh] flex flex-col gap-4">
           <div className="flex items-center gap-2">
             <ShieldCheck size={15} className="text-primary" />
-            <Dialog.Title className="text-sm font-semibold flex-1">{t('pages.resources.permissionSettingsTitle', { name: folder.name })}</Dialog.Title>
+            <Dialog.Title className="type-body font-semibold flex-1">{t('pages.resources.permissionSettingsTitle', { name: folder.name })}</Dialog.Title>
             <Dialog.Close className="text-muted-foreground hover:text-foreground">
               <XIcon size={14} />
             </Dialog.Close>
@@ -185,8 +185,8 @@ function PermissionsDialog({ folder, onClose }: { folder: ResourceFolder; onClos
           {/* Sharing toggle */}
           <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
             <div>
-              <p className="text-xs font-medium">{t('pages.resources.enableSharing')}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">{t('pages.resources.enableSharingHint')}</p>
+              <p className="type-label font-medium">{t('pages.resources.enableSharing')}</p>
+              <p className="type-caption text-muted-foreground mt-0.5">{t('pages.resources.enableSharingHint')}</p>
             </div>
             <button
               onClick={() => toggleShared.mutate(!localIsShared)}
@@ -200,17 +200,17 @@ function PermissionsDialog({ folder, onClose }: { folder: ResourceFolder; onClos
             <>
               {/* Current permission list */}
               <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
-                <p className="text-[11px] text-muted-foreground font-medium mb-1">{t('pages.resources.authorizedUsers')}</p>
+                <p className="type-caption text-muted-foreground font-medium mb-1">{t('pages.resources.authorizedUsers')}</p>
                 {perms.length === 0 ? (
-                  <p className="text-xs text-muted-foreground/60 py-2 text-center">{t('pages.resources.noAuthorizedUsers')}</p>
+                  <p className="type-label text-muted-foreground/60 py-2 text-center">{t('pages.resources.noAuthorizedUsers')}</p>
                 ) : (
                   perms.map(p => (
                     <div key={p.ID} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-background">
-                      <span className="text-xs font-medium flex-1 truncate">{p.user?.username ?? t('pages.resources.userFallback', { id: p.user_id })}</span>
+                      <span className="type-label font-medium flex-1 truncate">{p.user?.username ?? t('pages.resources.userFallback', { id: p.user_id })}</span>
                       {/* Toggle permission */}
                       <button
                         onClick={() => grant.mutate({ userId: p.user_id, permission: p.permission === 'read' ? 'write' : 'read' })}
-                        className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-border hover:bg-muted transition-colors"
+                        className="flex items-center gap-1 type-caption px-2 py-0.5 rounded-full border border-border hover:bg-muted transition-colors"
                         title={t('pages.resources.togglePermissionTitle')}
                       >
                         {PERM_ICONS[p.permission]}
@@ -231,14 +231,14 @@ function PermissionsDialog({ folder, onClose }: { folder: ResourceFolder; onClos
 
               {/* Add user */}
               <div className="border-t border-border pt-3 space-y-2">
-                <p className="text-[11px] text-muted-foreground font-medium">{t('pages.resources.addUser')}</p>
+                <p className="type-caption text-muted-foreground font-medium">{t('pages.resources.addUser')}</p>
                 <div className="relative">
                   <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <input
                     value={searchQ}
                     onChange={e => setSearchQ(e.target.value)}
                     placeholder={t('pages.resources.searchUsersPlaceholder')}
-                    className="w-full pl-7 pr-3 py-1.5 text-xs border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="w-full pl-7 pr-3 py-1.5 type-label border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>
                 {searchResults.length > 0 && (
@@ -246,21 +246,21 @@ function PermissionsDialog({ folder, onClose }: { folder: ResourceFolder; onClos
                     {searchResults.map(u => {
                       const already = existingUserIds.has(u.ID)
                       return (
-                        <div key={u.ID} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-background text-xs">
+                        <div key={u.ID} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-background type-label">
                           <span className="flex-1 truncate">{u.username}</span>
                           {already ? (
-                            <span className="text-muted-foreground text-[11px]">{t('pages.resources.alreadyAdded')}</span>
+                            <span className="text-muted-foreground type-caption">{t('pages.resources.alreadyAdded')}</span>
                           ) : (
                             <div className="flex gap-1">
                               <button
                                 onClick={() => { grant.mutate({ userId: u.ID, permission: 'read' }); setSearchQ('') }}
-                                className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-muted hover:bg-primary hover:text-primary-foreground transition-colors"
+                                className="flex items-center gap-1 type-caption px-2 py-0.5 rounded-full bg-muted hover:bg-primary hover:text-primary-foreground transition-colors"
                               >
                                 <Eye size={10} /> {t('pages.resources.permissions.read')}
                               </button>
                               <button
                                 onClick={() => { grant.mutate({ userId: u.ID, permission: 'write' }); setSearchQ('') }}
-                                className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-muted hover:bg-primary hover:text-primary-foreground transition-colors"
+                                className="flex items-center gap-1 type-caption px-2 py-0.5 rounded-full bg-muted hover:bg-primary hover:text-primary-foreground transition-colors"
                               >
                                 <PenLine size={10} /> {t('pages.resources.permissions.write')}
                               </button>
@@ -309,8 +309,8 @@ function MoveDialog({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
         <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-xl p-6 w-72 z-50">
-          <Dialog.Title className="text-sm font-semibold mb-4">{t('pages.resources.moveToFolder')}</Dialog.Title>
-          <p className="text-xs text-muted-foreground mb-3 truncate" title={resource.name}>{resource.name}</p>
+          <Dialog.Title className="type-body font-semibold mb-4">{t('pages.resources.moveToFolder')}</Dialog.Title>
+          <p className="type-label text-muted-foreground mb-3 truncate" title={resource.name}>{resource.name}</p>
           <div className="space-y-1 max-h-56 overflow-y-auto">
             <FolderOption
               label={t('pages.resources.unfiledRoot')}
@@ -364,9 +364,9 @@ function RenameResourceDialog({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
         <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background border border-border rounded-xl shadow-xl p-6 w-80 z-50">
-          <Dialog.Title className="text-sm font-semibold mb-4">{t('pages.resources.renameResource')}</Dialog.Title>
+          <Dialog.Title className="type-body font-semibold mb-4">{t('pages.resources.renameResource')}</Dialog.Title>
           <div>
-            <label className="text-xs text-muted-foreground mb-1 block">{t('forms.name')}</label>
+            <label className="type-label text-muted-foreground mb-1 block">{t('forms.name')}</label>
             <input
               autoFocus
               value={name}
@@ -374,7 +374,7 @@ function RenameResourceDialog({
               onKeyDown={e => {
                 if (e.key === 'Enter' && name.trim()) rename.mutate()
               }}
-              className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full px-3 py-1.5 type-body border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
           <div className="flex justify-end gap-2 mt-5">
@@ -644,7 +644,7 @@ function VideoClipDialog({
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[min(880px,94vw)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-xl">
           <div className="flex items-center gap-3 border-b border-border px-4 py-3">
             <Scissors size={16} className="text-primary" />
-            <Dialog.Title className="min-w-0 flex-1 truncate text-sm font-semibold">{t('pages.resources.clipVideoTitle')}</Dialog.Title>
+            <Dialog.Title className="min-w-0 flex-1 truncate type-body font-semibold">{t('pages.resources.clipVideoTitle')}</Dialog.Title>
             <Dialog.Close
               disabled={isBusy}
               className="text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
@@ -658,24 +658,24 @@ function VideoClipDialog({
             <div className="min-h-0 overflow-auto p-4">
               <div className="aspect-video overflow-hidden rounded-lg bg-black">
                 {loadingSource ? (
-                  <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-sm text-white/70">
+                  <div className="flex h-full flex-col items-center justify-center gap-3 px-8 type-body text-white/70">
                     <span>{t('pages.resources.clipLoadingSource')}</span>
                     <div className="h-1.5 w-full max-w-72 overflow-hidden rounded-full bg-white/15">
                       <div className="h-full rounded-full bg-white/70" style={{ width: `${sourceProgressPct}%` }} />
                     </div>
-                    <span className="text-xs text-white/50">
+                    <span className="type-label text-white/50">
                       {sourceProgress.total
                         ? t('pages.resources.clipLoadProgress', { loaded: formatBytes(sourceProgress.loaded), total: formatBytes(sourceProgress.total) })
                         : formatBytes(sourceProgress.loaded)}
                     </span>
                   </div>
                 ) : sourceError ? (
-                  <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-sm text-white/70">
+                  <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center type-body text-white/70">
                     <span>{sourceError}</span>
                     {sourceErrorRetryable && (
                       <button
                         onClick={() => setSourceLoadAttempt(attempt => attempt + 1)}
-                        className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
+                        className="rounded-lg border border-white/20 px-3 py-1.5 type-label text-white/80 hover:bg-white/10"
                         aria-label={t('pages.resources.clipRetryLoad')}
                       >
                         {t('pages.resources.clipRetryLoad')}
@@ -718,7 +718,7 @@ function VideoClipDialog({
                   <button
                     onClick={() => seekTo(startMs)}
                     disabled={!sourceBlob || isBusy}
-                    className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50"
+                    className="rounded-lg border border-border px-3 py-1.5 type-label text-muted-foreground hover:bg-muted disabled:opacity-50"
                     aria-label={t('pages.resources.clipGoStart')}
                   >
                     {t('pages.resources.clipGoStart')}
@@ -726,7 +726,7 @@ function VideoClipDialog({
                   <button
                     onClick={setStartFromCurrent}
                     disabled={!sourceBlob || isBusy}
-                    className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50"
+                    className="rounded-lg border border-border px-3 py-1.5 type-label text-muted-foreground hover:bg-muted disabled:opacity-50"
                     aria-label={t('pages.resources.clipSetStart')}
                   >
                     {t('pages.resources.clipSetStart')}
@@ -734,7 +734,7 @@ function VideoClipDialog({
                   <button
                     onClick={setEndFromCurrent}
                     disabled={!sourceBlob || isBusy}
-                    className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50"
+                    className="rounded-lg border border-border px-3 py-1.5 type-label text-muted-foreground hover:bg-muted disabled:opacity-50"
                     aria-label={t('pages.resources.clipSetEnd')}
                   >
                     {t('pages.resources.clipSetEnd')}
@@ -745,7 +745,7 @@ function VideoClipDialog({
                       <div className="absolute top-1/2 h-4 w-0.5 -translate-y-1/2 bg-primary" style={{ left: `${progressPct}%` }} />
                     </div>
                   </div>
-                  <span className="w-24 text-right text-xs tabular-nums text-muted-foreground">{formatTime(currentMs)} / {formatTime(durationMs)}</span>
+                  <span className="w-24 text-right type-label tabular-nums text-muted-foreground">{formatTime(currentMs)} / {formatTime(durationMs)}</span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -772,17 +772,17 @@ function VideoClipDialog({
             <div className="border-l border-border p-4 max-lg:border-l-0 max-lg:border-t">
               <div className="space-y-4">
                 <div>
-                  <label className="mb-1 block text-xs text-muted-foreground">{t('pages.resources.clipOutputName')}</label>
+                  <label className="mb-1 block type-label text-muted-foreground">{t('pages.resources.clipOutputName')}</label>
                   <input
                     value={outputName}
                     onChange={event => setOutputName(event.target.value)}
                     disabled={isBusy}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-1.5 type-body focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs text-muted-foreground">{t('pages.resources.clipMode')}</label>
-                  <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-border text-xs">
+                  <label className="mb-1 block type-label text-muted-foreground">{t('pages.resources.clipMode')}</label>
+                  <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-border type-label">
                     <button disabled={isBusy} onClick={() => setMode('accurate')} className={`px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-60 ${mode === 'accurate' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}>
                       {t('pages.resources.clipAccurate')}
                     </button>
@@ -791,7 +791,7 @@ function VideoClipDialog({
                     </button>
                   </div>
                 </div>
-                <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+                <div className="rounded-lg border border-border bg-muted/30 p-3 type-label text-muted-foreground">
                   <div className="flex items-center justify-between">
                     <span>{t('pages.resources.clipDuration')}</span>
                     <span className="font-medium text-foreground">{formatTime(selectedDurationMs)}</span>
@@ -814,27 +814,27 @@ function VideoClipDialog({
                   </div>
                 </div>
                 {phaseLabel && (
-                  <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-xs text-primary">
+                  <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 type-label text-primary">
                     {phaseLabel}
                   </div>
                 )}
                 {isBusy && (
-                  <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+                  <div className="rounded-lg border border-border bg-muted/30 p-3 type-label text-muted-foreground">
                     {t('pages.resources.clipBusyHint')}
                   </div>
                 )}
                 {rangeError && (
-                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 type-label text-destructive">
                     {rangeError === 'too_long' ? t('pages.resources.clipTooLong') : t('pages.resources.clipInvalidRange')}
                   </div>
                 )}
                 {sourceSizeError && (
-                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 type-label text-destructive">
                     {sourceErrorMessage(sourceSizeError, sourceBlob?.size ?? resource.size, t)}
                   </div>
                 )}
                 {outputNameError && (
-                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 type-label text-destructive">
                     {outputNameError === 'unsupported_extension'
                       ? t('pages.resources.clipOutputNameMp4')
                       : outputNameError === 'invalid_filename'
@@ -844,10 +844,10 @@ function VideoClipDialog({
                         : t('pages.resources.clipOutputNameRequired')}
                   </div>
                 )}
-                <p className="text-xs leading-5 text-muted-foreground">
+                <p className="type-label leading-5 text-muted-foreground">
                   {t('pages.resources.clipLocalHint')}
                 </p>
-                <div className={`rounded-lg border p-3 text-xs ${
+                <div className={`rounded-lg border p-3 type-label ${
                   clipStatus.loading
                     ? 'border-border bg-muted/30 text-muted-foreground'
                     : clipStatus.available
@@ -862,7 +862,7 @@ function VideoClipDialog({
                         <span>
                           {clipStatus.error || t('pages.resources.clipFFmpegMissing')}
                           {clipStatus.expectedBundledPath && (
-                            <span className="mt-1 block break-all font-mono text-[11px] leading-4">
+                            <span className="mt-1 block break-all font-mono type-caption leading-4">
                               {t('pages.resources.clipFFmpegExpectedPath', { path: clipStatus.expectedBundledPath })}
                             </span>
                           )}
@@ -870,7 +870,7 @@ function VideoClipDialog({
                       )}
                 </div>
                 {(clipError || !window.api?.clipVideo) && (
-                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 type-label text-destructive">
                     {clipError || t('pages.resources.clipDesktopOnly')}
                   </div>
                 )}
@@ -913,7 +913,7 @@ function RangeField({ label, value, max, onChange, onTimecodeCommit, disabled = 
   return (
     <div>
       <div className="mb-1 flex items-center justify-between gap-2">
-        <label className="text-xs text-muted-foreground">{label}</label>
+        <label className="type-label text-muted-foreground">{label}</label>
         <input
           value={timecode}
           onChange={event => setTimecode(event.target.value)}
@@ -926,7 +926,7 @@ function RangeField({ label, value, max, onChange, onTimecodeCommit, disabled = 
               event.currentTarget.blur()
             }
           }}
-          className="h-7 w-20 rounded-md border border-border bg-background px-2 text-right text-xs tabular-nums text-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-7 w-20 rounded-md border border-border bg-background px-2 text-right type-label tabular-nums text-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
           aria-label={label}
         />
       </div>
@@ -968,7 +968,7 @@ function FolderOption({ label, selected, isShared, onClick }: {
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg transition-colors text-left ${
+      className={`w-full flex items-center gap-2 px-3 py-2 type-label rounded-lg transition-colors text-left ${
         selected ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-foreground'
       }`}
     >
@@ -1033,7 +1033,7 @@ function ResourceCard({
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content
-              className="bg-background border border-border rounded-lg shadow-lg py-1 min-w-36 z-50 text-sm"
+              className="bg-background border border-border rounded-lg shadow-lg py-1 min-w-36 z-50 type-body"
               align="end"
               sideOffset={4}
             >
@@ -1098,12 +1098,12 @@ function ResourceCard({
       {/* Meta */}
       <div className="flex items-center gap-1 text-muted-foreground/70">
         <TypeIcon type={resource.type} />
-        <span className="text-xs truncate flex-1" title={resource.name}>{resource.name}</span>
+        <span className="type-label truncate flex-1" title={resource.name}>{resource.name}</span>
       </div>
       <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground/50">{formatBytes(resource.size)}</span>
+        <span className="type-label text-muted-foreground/50">{formatBytes(resource.size)}</span>
         {isSharedView && resource.owner && (
-          <span className="text-xs text-muted-foreground/50 truncate ml-1">{resource.owner.username}</span>
+          <span className="type-label text-muted-foreground/50 truncate ml-1">{resource.owner.username}</span>
         )}
       </div>
     </div>
@@ -1230,7 +1230,7 @@ export default function ResourcesPage() {
       <div className="w-52 shrink-0 border-r border-border flex flex-col bg-background">
         {/* My Folders section */}
         <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/50">
-          <span className="text-xs font-semibold text-foreground">{t('pages.resources.myFolders')}</span>
+          <span className="type-label font-semibold text-foreground">{t('pages.resources.myFolders')}</span>
           <button
             onClick={() => setFolderDialog({ open: true, folder: null })}
             className="w-5 h-5 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
@@ -1273,13 +1273,13 @@ export default function ResourcesPage() {
         <div className="px-3 py-2.5 border-b border-border/50">
           <div className="flex items-center gap-1.5">
             <Share2 size={11} className="text-muted-foreground" />
-            <span className="text-xs font-semibold text-foreground">{t('pages.resources.sharedFolders')}</span>
+            <span className="type-label font-semibold text-foreground">{t('pages.resources.sharedFolders')}</span>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto py-1">
           {sharedFolders.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-muted-foreground/50">{t('pages.resources.noSharedFolders')}</p>
+            <p className="px-3 py-2 type-label text-muted-foreground/50">{t('pages.resources.noSharedFolders')}</p>
           ) : (
             sharedFolders.map(f => (
               <FolderItem
@@ -1301,7 +1301,7 @@ export default function ResourcesPage() {
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background shrink-0">
           {/* Breadcrumb */}
-          <div className="flex items-center gap-1 text-sm">
+          <div className="flex items-center gap-1 type-body">
             <span className="text-muted-foreground">{t('header.titles.resources')}</span>
             {currentFolderLabel() && (
               <>
@@ -1313,7 +1313,7 @@ export default function ResourcesPage() {
           <div className="flex-1" />
 
           {/* Tabs */}
-          <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+          <div className="flex rounded-lg border border-border overflow-hidden type-label">
             <button
               onClick={() => { setTab('mine'); setPage(1); if (selectedFolderTab === 'shared') setSelectedFolder(null) }}
               className={`px-3 py-1 transition-colors ${tab === 'mine' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
@@ -1335,7 +1335,7 @@ export default function ResourcesPage() {
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }}
               placeholder={t('pages.resources.searchFilesPlaceholder')}
-              className="pl-7 pr-3 py-1.5 text-xs border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring w-40"
+              className="pl-7 pr-3 py-1.5 type-label border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring w-40"
             />
           </div>
 
@@ -1386,7 +1386,7 @@ export default function ResourcesPage() {
             <button
               key={tabItem.value}
               onClick={() => { setFilter(tabItem.value); setPage(1) }}
-              className={`px-3 py-1 text-xs rounded-full transition-colors ${
+              className={`px-3 py-1 type-label rounded-full transition-colors ${
                 filter === tabItem.value
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -1396,17 +1396,17 @@ export default function ResourcesPage() {
             </button>
           ))}
           <div className="flex-1" />
-          <span className="text-xs text-muted-foreground">{t('pages.resources.filesCount', { count: total })}</span>
+          <span className="type-label text-muted-foreground">{t('pages.resources.filesCount', { count: total })}</span>
         </div>
 
         {/* Grid / List */}
         <div className="flex-1 overflow-y-auto p-4">
           {isLoading ? (
-            <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">{t('common.loadingShort')}</div>
+            <div className="flex items-center justify-center h-40 text-muted-foreground type-body">{t('common.loadingShort')}</div>
           ) : visible.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-muted-foreground/50">
               <Upload size={32} className="mb-3 opacity-30" />
-              <p className="text-sm">
+              <p className="type-body">
                 {isSharedView ? t('pages.resources.noSharedResources') : search ? t('pages.resources.noMatchedFiles') : t('pages.resources.noResourcesUpload')}
               </p>
             </div>
@@ -1444,7 +1444,7 @@ export default function ResourcesPage() {
                         </button>
                       </DropdownMenu.Trigger>
                       <DropdownMenu.Portal>
-                        <DropdownMenu.Content className="bg-background border border-border rounded-lg shadow-lg py-1 min-w-36 z-50 text-sm" align="end" sideOffset={4}>
+                        <DropdownMenu.Content className="bg-background border border-border rounded-lg shadow-lg py-1 min-w-36 z-50 type-body" align="end" sideOffset={4}>
                           <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => downloadResource(resolveResourceUrl(r), r.name)}>
                             <Download size={13} />{t('shared.mediaViewer.download')}
                           </DropdownMenu.Item>
@@ -1481,7 +1481,7 @@ export default function ResourcesPage() {
           )}
         </div>
 
-        <div className="flex items-center justify-between px-4 py-2 border-t border-border bg-background shrink-0 text-xs text-muted-foreground">
+        <div className="flex items-center justify-between px-4 py-2 border-t border-border bg-background shrink-0 type-label text-muted-foreground">
           <span>{t('pages.resources.pageStatus', { page, pageCount })}</span>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}>
@@ -1567,7 +1567,7 @@ function FolderItem({
 
   return (
     <div
-      className={`group flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer transition-colors ${
+      className={`group flex items-center gap-2 px-3 py-1.5 type-label cursor-pointer transition-colors ${
         active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
       }`}
       onClick={onClick}
@@ -1575,13 +1575,13 @@ function FolderItem({
       <span className="shrink-0">{icon}</span>
       <div className="flex-1 min-w-0">
         <div className="truncate">{label}</div>
-        {subtitle && <div className="text-[10px] text-muted-foreground/60 truncate">{subtitle}</div>}
+        {subtitle && <div className="type-tiny text-muted-foreground/60 truncate">{subtitle}</div>}
       </div>
 
       {isShared && <span title={t('pages.resources.sharedTitle')}><Globe size={10} className="text-blue-400 shrink-0" /></span>}
 
       {badge != null && (
-        <span className="bg-muted text-muted-foreground rounded-full px-1.5 text-[10px]">{badge}</span>
+        <span className="bg-muted text-muted-foreground rounded-full px-1.5 type-tiny">{badge}</span>
       )}
 
       {(onEdit || onDelete || onPermissions) && (
@@ -1596,7 +1596,7 @@ function FolderItem({
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content
-              className="bg-background border border-border rounded-lg shadow-lg py-1 min-w-28 z-50 text-xs"
+              className="bg-background border border-border rounded-lg shadow-lg py-1 min-w-28 z-50 type-label"
               align="end"
               sideOffset={4}
             >

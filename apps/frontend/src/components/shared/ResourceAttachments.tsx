@@ -142,7 +142,7 @@ export function ResourceAttachments({
             )}
             {variant === 'gallery' && (
               <div className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b border-x border-b border-border bg-background/90 px-2 py-1">
-                <p className="truncate text-[11px] text-foreground">{resource.name}</p>
+                <p className="truncate type-caption text-foreground">{resource.name}</p>
               </div>
             )}
             <button
@@ -163,7 +163,7 @@ export function ResourceAttachments({
               className={`${tileClass} rounded border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-ring hover:text-muted-foreground transition-colors`}
             >
               <Upload size={14} />
-              <span className="text-xs">{upload.isPending ? '...' : t('shared.attachments.upload')}</span>
+              <span className="type-label">{upload.isPending ? '...' : t('shared.attachments.upload')}</span>
             </button>
             {allowLibrarySelect && (
               <button
@@ -173,7 +173,7 @@ export function ResourceAttachments({
                 className={`${tileClass} rounded border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-ring hover:text-muted-foreground transition-colors`}
               >
                 <Library size={14} />
-                <span className="text-xs">{t('forms.selectResource')}</span>
+                <span className="type-label">{t('forms.selectResource')}</span>
               </button>
             )}
           </>

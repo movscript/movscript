@@ -76,14 +76,14 @@ export default function DeliveryPage() {
       <div className="min-w-[1180px] space-y-4 p-5">
         <header className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 type-label text-muted-foreground">
               <Truck size={14} />
               <span>{project?.name ?? '当前项目'}</span>
               <ArrowRight size={13} />
               <span>交付中心</span>
             </div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-normal">交付</h1>
-            <p className="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
+            <h1 className="mt-2 type-page-title font-semibold tracking-normal">交付</h1>
+            <p className="mt-1 max-w-4xl type-body leading-6 text-muted-foreground">
               交付中心追踪每个制作的交付版本、素材包、轻量成片和导出记录；具体成片预览、片段微调与放行检查进入交付工作台完成。
             </p>
           </div>
@@ -105,8 +105,8 @@ export default function DeliveryPage() {
           <div className="rounded-lg border border-border bg-card">
             <div className="flex items-center justify-between gap-3 border-b border-border p-4">
               <div>
-                <h2 className="text-sm font-semibold">制作交付状态</h2>
-                <p className="mt-1 text-xs text-muted-foreground">按 Production 汇总交付对象，进入工作台后处理装配、检查和导出。</p>
+                <h2 className="type-body font-semibold">制作交付状态</h2>
+                <p className="mt-1 type-label text-muted-foreground">按 Production 汇总交付对象，进入工作台后处理装配、检查和导出。</p>
               </div>
               <Badge variant="outline">{rows.length} 个制作</Badge>
             </div>
@@ -125,7 +125,7 @@ export default function DeliveryPage() {
             <section className="rounded-lg border border-border bg-card p-4">
               <div className="flex items-center gap-2">
                 <PackageCheck size={16} className="text-lime-600" />
-                <h2 className="text-sm font-semibold">交付形态</h2>
+                <h2 className="type-body font-semibold">交付形态</h2>
               </div>
               <div className="mt-4 space-y-3">
                 <ModeCard
@@ -144,9 +144,9 @@ export default function DeliveryPage() {
             <section className="rounded-lg border border-border bg-card p-4">
               <div className="flex items-center gap-2">
                 <ShieldCheck size={16} className="text-emerald-600" />
-                <h2 className="text-sm font-semibold">边界</h2>
+                <h2 className="type-body font-semibold">边界</h2>
               </div>
-              <div className="mt-3 space-y-2 text-xs leading-5 text-muted-foreground">
+              <div className="mt-3 space-y-2 type-label leading-5 text-muted-foreground">
                 <p>交付中心：项目级版本、导出和状态追踪。</p>
                 <p>交付工作台：某个制作的成片总览、预览、轻量剪辑微调和放行门禁。</p>
                 <p>专业剪辑：复杂多轨、调色、混音和特效工程仍建议外部完成。</p>
@@ -211,36 +211,36 @@ function DeliveryProductionRow({ row }: { row: DeliveryCenterRow }) {
     <article className="grid grid-cols-[minmax(0,1.2fr)_120px_130px_130px_150px] items-center gap-4 p-4">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-semibold">{row.production.name || `制作 #${row.production.ID}`}</p>
-          <Badge className={cn('text-[10px]', row.mode === 'assembly' ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300' : 'bg-lime-500/10 text-lime-700 dark:text-lime-300')}>
+          <p className="truncate type-body font-semibold">{row.production.name || `制作 #${row.production.ID}`}</p>
+          <Badge className={cn('type-tiny', row.mode === 'assembly' ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300' : 'bg-lime-500/10 text-lime-700 dark:text-lime-300')}>
             {row.mode === 'assembly' ? '轻量成片' : '素材包'}
           </Badge>
         </div>
-        <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{row.production.description || '暂无制作说明'}</p>
+        <p className="mt-1 line-clamp-1 type-label text-muted-foreground">{row.production.description || '暂无制作说明'}</p>
       </div>
       <div>
-        <p className="text-sm font-medium">{row.versions.length}</p>
-        <p className="mt-1 text-xs text-muted-foreground">交付版本</p>
+        <p className="type-body font-medium">{row.versions.length}</p>
+        <p className="mt-1 type-label text-muted-foreground">交付版本</p>
       </div>
       <div>
-        <p className="text-sm font-medium">{row.items.length}</p>
-        <p className="mt-1 text-xs text-muted-foreground">时间线项</p>
+        <p className="type-body font-medium">{row.items.length}</p>
+        <p className="mt-1 type-label text-muted-foreground">时间线项</p>
       </div>
       <div>
-        <Badge className={cn('text-[10px]', statusTone[latestVersion?.status ?? 'draft'] ?? 'bg-muted text-muted-foreground')}>
+        <Badge className={cn('type-tiny', statusTone[latestVersion?.status ?? 'draft'] ?? 'bg-muted text-muted-foreground')}>
           {deliveryStatusLabel(latestVersion?.status ?? 'draft')}
         </Badge>
-        <p className="mt-1 truncate text-xs text-muted-foreground">{latestExport ? exportStatusLabel(latestExport.status) : '未导出'}</p>
+        <p className="mt-1 truncate type-label text-muted-foreground">{latestExport ? exportStatusLabel(latestExport.status) : '未导出'}</p>
       </div>
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
-          <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+          <div className="mb-1 flex items-center justify-between type-label text-muted-foreground">
             <span>就绪</span>
             <span>{row.readiness}%</span>
           </div>
           <Progress value={row.readiness} className="h-1.5" />
         </div>
-        <Button size="sm" className="h-8 shrink-0 gap-1.5" asChild>
+        <Button size="sm" className="shrink-0 gap-1.5" asChild>
           <Link to={withRouteParams(ROUTES.project.deliveryWorkbench, { productionId: row.production.ID })}>
             工作台
             <ArrowRight size={13} />
@@ -256,10 +256,10 @@ function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIc
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="mb-3 flex items-center justify-between">
         <Icon size={17} className={tone} />
-        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className="type-label text-muted-foreground">{label}</span>
       </div>
-      <p className="text-2xl font-semibold">{value}</p>
-      <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
+      <p className="type-page-title font-semibold">{value}</p>
+      <p className="mt-1 truncate type-label text-muted-foreground">{detail}</p>
     </div>
   )
 }
@@ -269,9 +269,9 @@ function ModeCard({ icon: Icon, title, detail }: { icon: LucideIcon; title: stri
     <div className="rounded-md border border-border bg-background p-3">
       <div className="flex items-center gap-2">
         <Icon size={15} className="text-muted-foreground" />
-        <p className="text-sm font-medium">{title}</p>
+        <p className="type-body font-medium">{title}</p>
       </div>
-      <p className="mt-2 text-xs leading-5 text-muted-foreground">{detail}</p>
+      <p className="mt-2 type-label leading-5 text-muted-foreground">{detail}</p>
     </div>
   )
 }
@@ -280,8 +280,8 @@ function EmptyState({ icon: Icon, title, detail }: { icon: LucideIcon; title: st
   return (
     <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
       <Icon size={26} className="text-muted-foreground" />
-      <p className="mt-3 text-sm font-medium">{title}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+      <p className="mt-3 type-body font-medium">{title}</p>
+      <p className="mt-1 type-label text-muted-foreground">{detail}</p>
     </div>
   )
 }

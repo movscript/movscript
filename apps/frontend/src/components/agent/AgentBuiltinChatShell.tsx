@@ -6,6 +6,8 @@ import { useAgentBuiltinChatController } from '@/components/agent/useAgentBuilti
 export interface AgentBuiltinChatShellProps {
   userId: string
   onCollapse: () => void
+  showCollapse?: boolean
+  surface?: 'panel' | 'page'
   pendingThreadIdToOpen?: string | null
   onPendingThreadHandled?: (threadId: string) => void
 }
@@ -13,6 +15,8 @@ export interface AgentBuiltinChatShellProps {
 export function AgentBuiltinChatShell({
   userId,
   onCollapse,
+  showCollapse = true,
+  surface = 'panel',
   pendingThreadIdToOpen,
   onPendingThreadHandled,
 }: AgentBuiltinChatShellProps) {
@@ -33,7 +37,7 @@ export function AgentBuiltinChatShell({
   })
 
   return (
-    <AgentShell density="compact" className="ai-agent-panel-shell">
+    <AgentShell density="compact" className={surface === 'page' ? 'ai-agent-panel-shell project-agent-chat-shell' : 'ai-agent-panel-shell'}>
       {activeConversation ? (
         <AgentChatView
           key={activeConversation.id}
@@ -42,12 +46,14 @@ export function AgentBuiltinChatShell({
           userId={userId}
           onBack={clearActiveConversation}
           onCollapse={onCollapse}
+          showCollapse={showCollapse}
           onSelectConversation={selectConversation}
           onNewConversation={newConversation}
           onCloseConversation={deleteConversation}
           onCloseConversations={deleteConversations}
           externalTask={activeTask}
           pageToolRequestId={activeTask?.requestId}
+          showConversationControls={surface !== 'page'}
         />
       ) : (
         <ConversationList
@@ -56,6 +62,7 @@ export function AgentBuiltinChatShell({
           onNew={newConversation}
           onDelete={deleteConversation}
           onCollapse={onCollapse}
+          showCollapse={showCollapse}
           onRestoreLocalThread={restoreLocalThread}
         />
       )}

@@ -54,7 +54,7 @@ export function CanvasCandidateGroupCard({
   return (
     <div
       className={cn(
-        'relative w-[330px] overflow-visible rounded-lg border bg-card text-xs shadow-sm transition-all',
+        'relative w-[330px] overflow-visible rounded-lg border bg-card type-label shadow-sm transition-all',
         selected ? 'border-primary shadow-lg shadow-primary/10 ring-2 ring-primary/15' : 'border-border',
         className,
       )}
@@ -66,21 +66,21 @@ export function CanvasCandidateGroupCard({
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
-              <span className="shrink-0 rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase leading-none text-emerald-700 dark:text-emerald-300">
+              <span className="shrink-0 rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 type-micro font-semibold uppercase leading-none text-emerald-700 dark:text-emerald-300">
                 候选
               </span>
-              <p className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-foreground">{title}</p>
+              <p className="min-w-0 flex-1 truncate type-body font-semibold leading-5 text-foreground">{title}</p>
               {status && (
-                <span className="shrink-0 rounded border border-border bg-background/85 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground">
+                <span className="shrink-0 rounded border border-border bg-background/85 px-1.5 py-0.5 type-tiny leading-none text-muted-foreground">
                   {status}
                 </span>
               )}
             </div>
-            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+            <p className="mt-0.5 truncate type-caption text-muted-foreground">
               {subtitle ?? sourceLabel}
             </p>
           </div>
-          <Button size="icon-xs" variant="ghost" className="h-6 w-6 shrink-0" aria-label="More">
+          <Button size="icon-xs" variant="ghost" className="shrink-0" aria-label="More">
             <MoreHorizontal size={13} />
           </Button>
         </div>
@@ -102,11 +102,11 @@ export function CanvasCandidateGroupCard({
 
       <footer className="border-t border-border/70 px-3 py-2">
         <div className="flex items-center gap-2">
-          <Button size="xs" className="h-7 flex-1 justify-center" disabled={selectedCount === 0}>
+          <Button size="sm" className="flex-1 justify-center" disabled={selectedCount === 0}>
             <Check size={12} />
             {primaryActionLabel}
           </Button>
-          <Button size="xs" variant="outline" className="h-7 shrink-0">
+          <Button size="sm" variant="outline" className="shrink-0">
             <RefreshCw size={12} />
             {secondaryActionLabel}
           </Button>
@@ -136,18 +136,18 @@ function CandidateRow({ candidate }: { candidate: CandidateItem }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
-            <p className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground">{candidate.title}</p>
+            <p className="min-w-0 flex-1 truncate type-caption font-semibold text-foreground">{candidate.title}</p>
             {candidate.confidence !== undefined && (
-              <span className="shrink-0 rounded border border-border bg-card px-1 py-0.5 text-[9px] leading-none text-muted-foreground">
+              <span className="shrink-0 rounded border border-border bg-card px-1 py-0.5 type-micro leading-none text-muted-foreground">
                 {Math.round(candidate.confidence * 100)}%
               </span>
             )}
           </div>
-          <p className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-muted-foreground">{candidate.summary}</p>
+          <p className="mt-0.5 line-clamp-2 type-tiny leading-snug text-muted-foreground">{candidate.summary}</p>
           {(candidate.tags?.length ?? 0) > 0 && (
             <div className="mt-1 flex flex-wrap gap-1">
               {candidate.tags?.slice(0, 3).map((tag) => (
-                <span key={tag} className="rounded border border-border bg-card px-1 py-0.5 text-[9px] leading-none text-muted-foreground">{tag}</span>
+                <span key={tag} className="rounded border border-border bg-card px-1 py-0.5 type-micro leading-none text-muted-foreground">{tag}</span>
               ))}
             </div>
           )}
@@ -188,8 +188,8 @@ function Metric({ label, value, tone }: { label: string; value: number; tone: 's
       tone === 'pending' && 'border-border bg-background',
       tone === 'rejected' && 'border-border bg-muted/30',
     )}>
-      <p className="text-[9px] text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-sm font-semibold text-foreground">{value}</p>
+      <p className="type-micro text-muted-foreground">{label}</p>
+      <p className="mt-0.5 type-body font-semibold text-foreground">{value}</p>
     </div>
   )
 }

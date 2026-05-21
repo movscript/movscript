@@ -659,7 +659,7 @@ test('explicit write agent can create_project without a current project after ap
     'approval.requested',
   ])
 
-  runtime.approveRun(run.id)
+  runtime.approveInteraction(run.pendingApprovals![0].interactionId!)
   const resumed = await waitForRun(runtime, run.id)
   const call = client.calls.find((item) => item.name === 'movscript_create_project')
 
@@ -800,7 +800,7 @@ test('run requiring approval pauses before tool execution and resumes after appr
   assert.equal(run.pendingApprovals?.[0].toolName, 'movscript_create_project')
   assert.equal(client.calls.some((call) => call.name === 'movscript_create_project'), false)
 
-  runtime.approveRun(run.id)
+  runtime.approveInteraction(run.pendingApprovals![0].interactionId!)
   const resumed = await waitForRun(runtime, run.id)
   const projectCall = client.calls.find((call) => call.name === 'movscript_create_project')
 
@@ -855,7 +855,7 @@ test('run requiring approval can be rejected without executing the tool', async 
   const run = await createAndWaitForRun(runtime, thread.id, {
     agentManifest: WRITE_AGENT_MANIFEST,
   })
-  const rejected = runtime.rejectRun(run.id)
+  const rejected = runtime.rejectInteraction(run.pendingApprovals![0].interactionId!).run
   const finalThread = runtime.getThread(thread.id)
   const assistant = finalThread?.messages.find((message) => message.id === rejected.assistantMessageId)
 
@@ -1298,7 +1298,7 @@ test('file store writes valid JSON atomically enough to recover state', () => {
     store.flush()
 
     const parsed = JSON.parse(readFileSync(statePath, 'utf8'))
-    assert.equal(parsed.version, 3)
+    assert.equal(parsed.version, 4)
     assert.equal(parsed.threads[0].id, 'thread_atomic')
     assert.deepEqual(parsed.traceEvents, [])
     assert.equal(new FileAgentStore(statePath).getThread('thread_atomic')?.id, 'thread_atomic')

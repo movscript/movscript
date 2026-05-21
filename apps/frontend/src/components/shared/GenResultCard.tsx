@@ -17,7 +17,7 @@ function ResourceChip({ id }: { id: number }) {
 
   if (!resource) {
     return (
-      <span className="inline-flex items-center gap-1 align-middle bg-muted rounded px-1.5 py-0.5 text-[11px] text-muted-foreground mx-0.5">
+      <span className="inline-flex items-center gap-1 align-middle bg-muted rounded px-1.5 py-0.5 type-caption text-muted-foreground mx-0.5">
         #{id}
       </span>
     )
@@ -25,7 +25,7 @@ function ResourceChip({ id }: { id: number }) {
 
   const url = resource.direct_url ?? `${API_BASE}${resource.url}`
   return (
-    <span className="inline-flex items-center gap-1 align-middle bg-muted rounded-md px-1.5 py-0.5 mx-0.5 text-[11px] text-foreground whitespace-nowrap">
+    <span className="inline-flex items-center gap-1 align-middle bg-muted rounded-md px-1.5 py-0.5 mx-0.5 type-caption text-foreground whitespace-nowrap">
       <span className="w-4 h-4 rounded overflow-hidden shrink-0 bg-muted-foreground/20 inline-block">
         {resource.type === 'video' ? (
           resource.direct_url
@@ -115,7 +115,7 @@ export function GenResultCard({
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2 min-w-0">
               <span className={cn(
-                'text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0',
+                'type-tiny px-1.5 py-0.5 rounded-full font-medium shrink-0',
                 status === 'done' && 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
                 isRunning && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
                 status === 'failed' && 'bg-destructive/10 text-destructive',
@@ -125,7 +125,7 @@ export function GenResultCard({
                 {statusLabel[status]}
               </span>
               {timestamp && (
-                <span className="text-[11px] text-muted-foreground/60 truncate">{formatGenTime(timestamp, t, locale)}</span>
+                <span className="type-caption text-muted-foreground/60 truncate">{formatGenTime(timestamp, t, locale)}</span>
               )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
@@ -142,12 +142,12 @@ export function GenResultCard({
             </div>
           </div>
           <div className="flex items-start justify-between gap-2">
-            <p className={cn('text-foreground flex-1 leading-relaxed whitespace-pre-wrap', compact ? 'text-xs line-clamp-3' : 'text-sm')}>
+            <p className={cn('text-foreground flex-1 leading-relaxed whitespace-pre-wrap', compact ? 'type-label line-clamp-3' : 'type-body')}>
               <PromptText text={prompt} />
             </p>
           </div>
           {timestamp && !compact && (
-            <span className="text-xs text-muted-foreground/50">{formatGenTime(timestamp, t, locale)}</span>
+            <span className="type-label text-muted-foreground/50">{formatGenTime(timestamp, t, locale)}</span>
           )}
         </div>
       )}
@@ -164,7 +164,7 @@ export function GenResultCard({
           <div className={cn('flex items-center justify-center rounded-md bg-muted/40', compact ? 'h-24' : 'py-10')}>
             <div className="flex flex-col items-center gap-2 text-muted-foreground">
               <Loader2 size={compact ? 16 : 22} className="animate-spin" />
-              <p className="text-xs">{status === 'pending' ? t('shared.generation.waitingStart') : t('pages.jobs.generating')}</p>
+              <p className="type-label">{status === 'pending' ? t('shared.generation.waitingStart') : t('pages.jobs.generating')}</p>
             </div>
           </div>
         )}
@@ -172,14 +172,14 @@ export function GenResultCard({
         {!isRunning && status === 'failed' && (
           <div className={cn('flex items-center justify-center gap-2 text-destructive rounded-md bg-destructive/5', compact ? 'min-h-20 px-3 py-4' : 'py-6')}>
             <AlertCircle size={compact ? 12 : 16} />
-            <p className={compact ? 'text-xs' : 'text-sm'}>{error ?? t('pages.jobs.generationFailed')}</p>
+            <p className={compact ? 'type-label' : 'type-body'}>{error ?? t('pages.jobs.generationFailed')}</p>
           </div>
         )}
 
         {!isRunning && status === 'cancelled' && (
           <div className={cn('flex items-center justify-center gap-2 text-muted-foreground rounded-md bg-muted/40', compact ? 'min-h-20 px-3 py-4' : 'py-6')}>
             <X size={compact ? 12 : 16} />
-            <p className={compact ? 'text-xs' : 'text-sm'}>{error ?? t('pages.jobs.taskCancelled')}</p>
+            <p className={compact ? 'type-label' : 'type-body'}>{error ?? t('pages.jobs.taskCancelled')}</p>
           </div>
         )}
 
@@ -292,7 +292,7 @@ function getModelLabel(job: Job, snapshot: JobContextSnapshot | null) {
 function ResourceContextChip({ resource }: { resource: ContextResource }) {
   const hasURL = 'url' in resource && !!resource.url
   return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-foreground min-w-0">
+    <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 type-caption text-foreground min-w-0">
       <span className="h-4 w-4 shrink-0 overflow-hidden rounded bg-muted-foreground/20">
         {hasURL ? (
           <MediaViewer resource={resource as RawResource} className="h-full w-full" lightbox={false} />
@@ -317,14 +317,14 @@ export function JobContextSummary({ job, className, includeProvider = false }: {
   if (!hasModel && resources.length === 0 && !hasParams) return null
 
   return (
-    <div className={cn('space-y-1.5 text-[11px]', className)}>
+    <div className={cn('space-y-1.5 type-caption', className)}>
       {hasModel && (
         <div className="flex items-center gap-2 min-w-0">
           <Cpu size={11} className="shrink-0 text-muted-foreground" />
           <span className="w-10 shrink-0 text-muted-foreground">{t('shared.genResult.context.model')}</span>
           <span className="truncate text-foreground">{includeProvider && model.provider ? `${model.provider} / ` : ''}{model.name}</span>
           {model.identifier && model.identifier !== model.name && (
-            <span className="shrink-0 rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground">{model.identifier}</span>
+            <span className="shrink-0 rounded bg-muted px-1 py-0.5 font-mono type-tiny text-muted-foreground">{model.identifier}</span>
           )}
         </div>
       )}
@@ -347,7 +347,7 @@ export function JobContextSummary({ job, className, includeProvider = false }: {
           <span className="mt-0.5 w-10 shrink-0 text-muted-foreground">{t('shared.genResult.context.params')}</span>
           <div className="flex min-w-0 flex-1 flex-wrap gap-1">
             {Object.entries(params).map(([key, value]) => (
-              <span key={key} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+              <span key={key} className="rounded bg-muted px-1.5 py-0.5 font-mono type-tiny text-muted-foreground">
                 {key}: {String(value)}
               </span>
             ))}

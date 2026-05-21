@@ -8,21 +8,19 @@ import { formatLocalAgentAssistantContent } from '@/components/agent/localRuntim
 import { publicModelId } from '@/lib/modelDisplay'
 import type { PublicModel, RawResource } from '@/types'
 import {
-  ArrowLeft, Wand2, Loader2, Bot,
+  Wand2, Loader2, Bot,
   ChevronDown, ChevronUp, History, X,
 } from 'lucide-react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
 import { ResourcePanel } from '@/components/shared/ResourcePanel'
 import {
   Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
   CardContent,
   CardFooter,
 } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
+import { ToolHeader } from './ToolHeader'
 
 const HISTORY_KEY = 'tool_history_brainstorm'
 const MAX_HISTORY = 50
@@ -62,7 +60,7 @@ function BrainstormResultCard({
 }) {
   const { t, i18n } = useTranslation()
   return (
-    <div className="rounded-lg border border-border bg-background p-3 space-y-2 text-xs">
+    <div className="rounded-lg border border-border bg-background p-3 space-y-2 type-label">
       {/* Prompt */}
       <div className="flex items-start gap-2">
         <span className="text-muted-foreground shrink-0 mt-0.5">{t('tools.brainstorm.prompt')}</span>
@@ -75,7 +73,7 @@ function BrainstormResultCard({
           {entry.attachments.map((a) => (
             <span
               key={a.id}
-              className="inline-flex items-center gap-1 bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px]"
+              className="inline-flex items-center gap-1 bg-muted text-muted-foreground rounded px-1.5 py-0.5 type-tiny"
             >
               📎 {a.name}
             </span>
@@ -101,13 +99,13 @@ function BrainstormResultCard({
 
       {/* Footer */}
       <div className="flex items-center justify-between pt-0.5">
-        <span className="text-muted-foreground/60 text-[10px]">
+        <span className="text-muted-foreground/60 type-tiny">
           {new Date(entry.timestamp).toLocaleString(i18n.language, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
         </span>
         {entry.status === 'done' && (
           <button
             onClick={onReuse}
-            className="text-[10px] text-primary hover:underline"
+            className="type-tiny text-primary hover:underline"
           >
             {t('shared.genResult.reusePrompt')}
           </button>
@@ -254,18 +252,19 @@ export default function BrainstormPage() {
 
   return (
     <div className="flex flex-col h-full bg-muted/20">
-      {/* Top bar */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-background shrink-0">
-        <button
-          onClick={() => navigate(-1)}
-          className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-        >
-          <ArrowLeft size={16} />
-        </button>
-        <span className="text-sm font-medium text-muted-foreground">{t('sidebar.sections.tools')}</span>
-        <span className="text-muted-foreground/40">/</span>
-        <span className="text-sm font-semibold text-foreground">{t('sidebar.items.brainstorm')}</span>
-      </div>
+      <ToolHeader
+        title={t('sidebar.items.brainstorm')}
+        description={t('tools.brainstorm.description')}
+        icon={Bot}
+        actions={(
+          <ModelSelector
+            capability="text"
+            value={selectedModelId}
+            onChange={setSelectedModelId}
+            onModelChange={setSelectedModel}
+          />
+        )}
+      />
 
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
@@ -289,35 +288,13 @@ export default function BrainstormPage() {
           }}
         >
           <Card className="max-w-2xl mx-auto shadow-md">
-
-            {/* CardHeader */}
-            <CardHeader className="pb-3 border-b border-border">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Bot size={16} className="text-violet-500" />
-                    {t('sidebar.items.brainstorm')}
-                  </CardTitle>
-                  <CardDescription className="mt-0.5 text-xs">
-                    {t('tools.brainstorm.description')}
-                  </CardDescription>
-                </div>
-                <ModelSelector
-                  capability="text"
-                  value={selectedModelId}
-                  onChange={setSelectedModelId}
-                  onModelChange={setSelectedModel}
-                />
-              </div>
-            </CardHeader>
-
             {/* CardContent: latest + input */}
             <CardContent className="p-4 space-y-4">
 
               {/* Latest result */}
               {latestEntry && (
                 <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <p className="type-label font-medium text-muted-foreground flex items-center gap-1.5">
                     <History size={11} />
                     {t('tools.brainstorm.latestResult')}
                   </p>
@@ -332,7 +309,7 @@ export default function BrainstormPage() {
 
               {/* Input */}
               <div className="space-y-1.5">
-                <p className="text-xs font-medium text-muted-foreground">
+                <p className="type-label font-medium text-muted-foreground">
                   {latestEntry ? t('tools.brainstorm.newQuestion') : t('tools.brainstorm.startQuestion')}
                 </p>
 
@@ -342,7 +319,7 @@ export default function BrainstormPage() {
                     {attachments.map((a, i) => (
                       <span
                         key={a.ID}
-                        className="inline-flex items-center gap-1 bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px]"
+                        className="inline-flex items-center gap-1 bg-muted text-muted-foreground rounded-full px-2 py-0.5 type-caption"
                       >
                         📎 {a.name}
                         <button
@@ -360,7 +337,7 @@ export default function BrainstormPage() {
                 <div className="relative">
                   <textarea
                     ref={textareaRef}
-                    className="w-full border border-border rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed bg-background text-foreground min-h-[80px] max-h-[160px]"
+                    className="w-full border border-border rounded-xl px-3 py-2.5 type-body resize-none focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed bg-background text-foreground min-h-[80px] max-h-[160px]"
                     rows={3}
                     placeholder={t('tools.brainstorm.promptPlaceholder')}
                     value={prompt}
@@ -384,7 +361,7 @@ export default function BrainstormPage() {
                             e.preventDefault()
                             insertMention(r)
                           }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted/50 text-left transition-colors"
+                          className="w-full flex items-center gap-2 px-3 py-2 type-label hover:bg-muted/50 text-left transition-colors"
                         >
                           <span className="text-muted-foreground">📎</span>
                           <span className="truncate text-foreground">{r.name}</span>
@@ -396,14 +373,14 @@ export default function BrainstormPage() {
 
                 {/* Actions */}
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="type-tiny text-muted-foreground">
                     {!selectedModelId ? t('tools.brainstorm.selectModelFirst') : t('tools.brainstorm.inputHint')}
                   </p>
                   <button
                     onClick={generate}
                     disabled={!canGenerate}
                     className={cn(
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg type-label font-medium transition-colors',
                       canGenerate
                         ? 'bg-primary text-primary-foreground hover:bg-primary/90'
                         : 'bg-muted text-muted-foreground cursor-not-allowed'
@@ -423,12 +400,12 @@ export default function BrainstormPage() {
               <CardFooter className="flex-col items-stretch p-0 border-t border-border">
                 <button
                   onClick={() => setHistoryExpanded((e) => !e)}
-                  className="flex items-center justify-between w-full px-4 py-3 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
+                  className="flex items-center justify-between w-full px-4 py-3 type-label text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
                 >
                   <span className="flex items-center gap-1.5 font-medium">
                     <History size={12} />
                     {t('tools.brainstorm.history')}
-                    <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
+                    <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 type-tiny font-semibold">
                       {historyEntries.length}
                     </span>
                   </span>
@@ -454,8 +431,8 @@ export default function BrainstormPage() {
               <CardFooter className="justify-center py-8 border-t border-border">
                 <div className="flex flex-col items-center gap-2 text-muted-foreground/40 select-none">
                   <Bot size={28} className="opacity-30" />
-                  <p className="text-xs">{t('tools.brainstorm.empty')}</p>
-                  <p className="text-[10px]">{t('tools.brainstorm.emptyHint')}</p>
+                  <p className="type-label">{t('tools.brainstorm.empty')}</p>
+                  <p className="type-tiny">{t('tools.brainstorm.emptyHint')}</p>
                 </div>
               </CardFooter>
             )}

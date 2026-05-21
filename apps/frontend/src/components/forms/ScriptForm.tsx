@@ -70,14 +70,14 @@ export function ScriptForm({
             <Upload size={13} />
             导入文档
           </Button>
-          {fileName && <span className="text-xs text-muted-foreground">{fileName}</span>}
-          {fileError && <span className="text-xs text-destructive">{fileError}</span>}
+          {fileName && <span className="type-label text-muted-foreground">{fileName}</span>}
+          {fileError && <span className="type-label text-destructive">{fileError}</span>}
         </div>
         <div className="flex items-center gap-2">
           {versionStateLabel && (
             <div className="hidden text-right sm:block">
-              <p className="text-[11px] font-medium text-foreground">{versionStateLabel}</p>
-              {latestVersionLabel && <p className="text-[10px] text-muted-foreground">{latestVersionLabel}</p>}
+              <p className="type-caption font-medium text-foreground">{versionStateLabel}</p>
+              {latestVersionLabel && <p className="type-tiny text-muted-foreground">{latestVersionLabel}</p>}
             </div>
           )}
           {onCreateVersion && (
@@ -96,9 +96,9 @@ export function ScriptForm({
       {/* Body */}
       <div className="grid min-h-0 flex-1 gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_220px]">
         <div className="flex min-h-0 flex-col">
-          <Label className="mb-1.5 text-xs font-medium text-muted-foreground">{t('details.scriptBody')}</Label>
+          <Label className="mb-1.5 type-label font-medium text-muted-foreground">{t('details.scriptBody')}</Label>
           <Textarea
-            className="min-h-[400px] flex-1 resize-none font-mono text-sm leading-relaxed"
+            className="min-h-[400px] flex-1 resize-none font-mono type-body leading-relaxed"
             placeholder={t('details.scriptBodyPlaceholder')}
             value={draft.raw_source ?? draft.content ?? ''}
             onChange={(event) => updateRawSource(event.target.value)}
@@ -107,20 +107,20 @@ export function ScriptForm({
 
         <aside className="space-y-3">
           <div className="rounded-lg border border-border bg-card p-3">
-            <Label className="text-xs font-semibold text-foreground">分类标签</Label>
+            <Label className="type-label font-semibold text-foreground">分类标签</Label>
             <Input
               className="mt-2"
               placeholder="未分类"
               value={draft.script_type === 'uncategorized' ? '' : draft.script_type ?? ''}
               onChange={(event) => onChange({ ...draft, script_type: event.target.value })}
             />
-            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">自由标签，如：第一集、广告脚本、拍摄版。</p>
+            <p className="mt-2 type-label leading-relaxed text-muted-foreground">自由标签，如：第一集、广告脚本、拍摄版。</p>
           </div>
 
           <div className="rounded-lg border border-border bg-card p-3">
-            <Label className="text-xs font-semibold text-foreground">摘要</Label>
+            <Label className="type-label font-semibold text-foreground">摘要</Label>
             <Textarea
-              className="mt-2 min-h-[80px] resize-none text-xs"
+              className="mt-2 min-h-[80px] resize-none type-label"
               placeholder="剧本简介或备注…"
               value={draft.summary ?? ''}
               onChange={(event) => onChange({ ...draft, summary: event.target.value })}
@@ -128,7 +128,7 @@ export function ScriptForm({
           </div>
 
           <div className="rounded-lg border border-border bg-muted/40 p-3">
-            <p className="text-xs leading-relaxed text-muted-foreground">
+            <p className="type-label leading-relaxed text-muted-foreground">
               <strong className="font-medium text-foreground">保存</strong> — 更新剧本正文草稿。<br />
               <strong className="font-medium text-foreground">保存为版本</strong> — 基于当前正文创建锁定快照，可直接用于制作。
             </p>

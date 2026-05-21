@@ -290,6 +290,7 @@ export interface ChatRunActivity {
 export interface ChatRunActivityApproval {
   id: string
   runId?: string
+  interactionId?: string
   toolName: string
   args?: Record<string, unknown>
   preview?: unknown

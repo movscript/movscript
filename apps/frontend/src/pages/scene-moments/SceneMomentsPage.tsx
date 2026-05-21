@@ -23,6 +23,8 @@ import {
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
 import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
+import { AppEmptyState, AppMetricCard } from '@/components/app/AppPage'
+import { SemanticStatusBadge } from '@/components/app/SemanticStatusBadge'
 import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { makeContentFilterSearch, readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
@@ -311,7 +313,7 @@ export default function SceneMomentsPage() {
         header={(
           <header className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 type-label text-muted-foreground">
               <Database size={14} />
               <span>{project?.name ?? '当前项目'}</span>
               <ChevronRight size={13} />
@@ -319,8 +321,8 @@ export default function SceneMomentsPage() {
               <ChevronRight size={13} />
               <span>情景</span>
             </div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">情景</h1>
-            <p className="mt-1 max-w-4xl text-sm leading-relaxed text-muted-foreground">
+            <h1 className="mt-2 type-page-title font-semibold tracking-normal text-foreground">情景</h1>
+            <p className="mt-1 max-w-4xl type-body leading-relaxed text-muted-foreground">
               情景属于某一个编排段，提供时间、地点、条件、动作和情绪上下文；设定资料和素材需求从这里向下游制作项与生产任务传递。
             </p>
           </div>
@@ -485,11 +487,11 @@ export default function SceneMomentsPage() {
             <Panel title="来源剧本块" icon={ScrollText}>
               {selected?.scriptBlock ? (
                 <div className="rounded-md border border-border bg-background px-3 py-2">
-                  <p className="truncate text-xs font-medium text-foreground">{scriptBlockSourceLabel(selected.scriptBlock)}</p>
-                  <p className="mt-1 line-clamp-4 text-[11px] leading-4 text-muted-foreground">{String(selected.scriptBlock.content ?? '').trim() || '暂无剧本块正文'}</p>
+                  <p className="truncate type-label font-medium text-foreground">{scriptBlockSourceLabel(selected.scriptBlock)}</p>
+                  <p className="mt-1 line-clamp-4 type-caption leading-4 text-muted-foreground">{String(selected.scriptBlock.content ?? '').trim() || '暂无剧本块正文'}</p>
                 </div>
               ) : (
-                <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">当前情景暂无稳定剧本块来源</p>
+                <p className="rounded-md border border-dashed border-border px-3 py-3 type-label text-muted-foreground">当前情景暂无稳定剧本块来源</p>
               )}
             </Panel>
             <Panel title="涉及到的设定资料" icon={Sparkles}>
@@ -543,14 +545,14 @@ function MomentButton({ item, selected, onClick }: { item: MomentWorkspace; sele
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground">{titleOf(item.moment)}</p>
-          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{item.segment ? titleOf(item.segment) : '未绑定编排段'}</p>
+          <p className="truncate type-body font-semibold text-foreground">{titleOf(item.moment)}</p>
+          <p className="mt-0.5 truncate type-caption text-muted-foreground">{item.segment ? titleOf(item.segment) : '未绑定编排段'}</p>
         </div>
         <StatusBadge status={item.moment.status ?? 'draft'} />
       </div>
-      <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.moment.description || item.moment.action_text || '暂无情景描述'}</p>
+      <p className="mt-2 line-clamp-2 type-label leading-5 text-muted-foreground">{item.moment.description || item.moment.action_text || '暂无情景描述'}</p>
       {item.scriptBlock ? (
-        <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+        <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-0.5 type-tiny text-muted-foreground">
           <ScrollText size={11} className="shrink-0" />
           <span className="truncate">{scriptBlockSourceLabel(item.scriptBlock)}</span>
         </div>
@@ -562,7 +564,7 @@ function MomentButton({ item, selected, onClick }: { item: MomentWorkspace; sele
       </div>
       <div className="mt-3 flex items-center gap-2">
         <Progress value={item.readiness} className="h-1.5 flex-1" />
-        <span className="w-9 text-right text-[11px] tabular-nums text-muted-foreground">{item.readiness}%</span>
+        <span className="w-9 text-right type-caption tabular-nums text-muted-foreground">{item.readiness}%</span>
       </div>
     </button>
   )
@@ -580,7 +582,7 @@ function RelatedList({
   onSelect?: (record: RelatedRecord) => void
 }) {
   if (records.length === 0) {
-    return <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">{empty}</p>
+    return <p className="rounded-md border border-dashed border-border px-3 py-3 type-label text-muted-foreground">{empty}</p>
   }
 
   return (
@@ -591,16 +593,16 @@ function RelatedList({
           <>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="truncate text-xs font-medium text-foreground">{titleOf(record)}</p>
-                <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{record.description || record.content || record.prompt || record.prompt_hint || record.visual_intent || record.kind || `ID ${record.ID}`}</p>
+                <p className="truncate type-label font-medium text-foreground">{titleOf(record)}</p>
+                <p className="mt-0.5 line-clamp-2 type-caption leading-4 text-muted-foreground">{record.description || record.content || record.prompt || record.prompt_hint || record.visual_intent || record.kind || `ID ${record.ID}`}</p>
                 {record.script_block_id ? (
-                  <div className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+                  <div className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-0.5 type-tiny text-muted-foreground">
                     <ScrollText size={11} className="shrink-0" />
                     <span className="truncate">{scriptBlockSourceLabel(scriptBlock) || `剧本块 #${record.script_block_id}`}</span>
                   </div>
                 ) : null}
                 {scriptBlock?.content ? (
-                  <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{String(scriptBlock.content)}</p>
+                  <p className="mt-1 line-clamp-2 type-caption leading-4 text-muted-foreground">{String(scriptBlock.content)}</p>
                 ) : null}
               </div>
               <StatusBadge status={record.status ?? 'draft'} />
@@ -622,20 +624,7 @@ function RelatedList({
 }
 
 function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIcon; label: string; value: string | number; detail: string; tone: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs text-muted-foreground">{label}</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{value}</p>
-        </div>
-        <span className="flex h-10 w-10 items-center justify-center rounded-md bg-muted">
-          <Icon size={18} className={tone} />
-        </span>
-      </div>
-      <p className="mt-2 truncate text-xs text-muted-foreground">{detail}</p>
-    </div>
-  )
+  return <AppMetricCard icon={Icon} label={label} value={value} detail={detail} tone={metricTone(tone)} />
 }
 
 function Panel({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: React.ReactNode }) {
@@ -643,7 +632,7 @@ function Panel({ title, icon: Icon, children }: { title: string; icon: LucideIco
     <section className="rounded-lg border border-border bg-card">
       <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
         <Icon size={14} className="text-muted-foreground" />
-        <p className="text-sm font-semibold text-foreground">{title}</p>
+        <p className="type-body font-semibold text-foreground">{title}</p>
       </div>
       <div className="p-3">{children}</div>
     </section>
@@ -653,24 +642,25 @@ function Panel({ title, icon: Icon, children }: { title: string; icon: LucideIco
 function MiniStat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-md border border-border bg-background px-2.5 py-2">
-      <p className="text-[10px] text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate text-xs font-semibold text-foreground">{value}</p>
+      <p className="type-tiny text-muted-foreground">{label}</p>
+      <p className="mt-1 truncate type-label font-semibold text-foreground">{value}</p>
     </div>
   )
 }
 
 function StatusBadge({ status }: { status: string }) {
-  return <Badge variant="secondary" className={cn('shrink-0 text-[10px]', statusTone[status] ?? 'bg-muted text-muted-foreground')}>{statusLabel(status)}</Badge>
+  return <SemanticStatusBadge status={status} label={statusLabel(status)} />
 }
 
 function EmptyState({ title, detail, compact = false }: { title: string; detail: string; compact?: boolean }) {
-  return (
-    <div className={cn('flex flex-col items-center justify-center text-center', compact ? 'min-h-32 p-4' : 'min-h-[320px] p-8')}>
-      <Film size={24} className="text-muted-foreground" />
-      <p className="mt-3 text-sm font-medium text-foreground">{title}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
-    </div>
-  )
+  return <AppEmptyState icon={Film} title={title} detail={detail} compact={compact} />
+}
+
+function metricTone(tone: string) {
+  if (tone.includes('emerald')) return 'success'
+  if (tone.includes('amber') || tone.includes('rose')) return 'warning'
+  if (tone.includes('cyan') || tone.includes('teal') || tone.includes('sky')) return 'info'
+  return 'neutral'
 }
 
 function normalizeStatusFilter(value: string): StatusFilter {

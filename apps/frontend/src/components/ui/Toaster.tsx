@@ -25,7 +25,7 @@ function ToastItem({ t, onRemove }: { t: ToastItem; onRemove: () => void }) {
       open
       onOpenChange={(open) => { if (!open) onRemove() }}
       className={cn(
-        'flex flex-col gap-1.5 bg-popover border rounded-xl shadow-lg px-4 py-3 text-sm',
+        'flex flex-col gap-1.5 bg-popover border rounded-xl shadow-lg px-4 py-3 type-body',
         'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-right-5',
         'data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
         BORDER[t.type],
@@ -52,7 +52,7 @@ function ToastItem({ t, onRemove }: { t: ToastItem; onRemove: () => void }) {
         </Toast.Close>
       </div>
       {t.detail && expanded && (
-        <pre className="text-[11px] font-mono text-muted-foreground bg-muted/50 rounded-lg p-2 overflow-x-auto whitespace-pre-wrap break-all max-h-48">
+        <pre className="type-caption font-mono text-muted-foreground bg-muted/50 rounded-lg p-2 overflow-x-auto whitespace-pre-wrap break-all max-h-48">
           {t.detail}
         </pre>
       )}

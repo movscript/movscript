@@ -99,11 +99,11 @@ export function CreateContentUnitQuickCard({
       <div className="border-b border-border bg-muted/25 px-4 py-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <div className="flex items-center gap-2 type-body font-semibold text-foreground">
               <Boxes size={15} className="text-muted-foreground" />
               新建制作项
             </div>
-            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+            <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">
               {selected.title} · 候选草稿
             </p>
           </div>
@@ -113,7 +113,7 @@ export function CreateContentUnitQuickCard({
 
       <div className="p-4">
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">类型</Label>
+          <Label className="type-label text-muted-foreground">类型</Label>
           <Select value={kind} onValueChange={setKind}>
             <SelectTrigger className="h-10 bg-background">
               <SelectValue />
@@ -202,11 +202,11 @@ export function CreateKeyframeQuickCard({
       <div className="border-b border-border bg-muted/25 px-4 py-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <div className="flex items-center gap-2 type-body font-semibold text-foreground">
               <Image size={15} className="text-muted-foreground" />
               新建关键帧
             </div>
-            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+            <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">
               {titleOfRecord(selectedUnit)} · 只需先确定首帧、中间帧或尾帧。
             </p>
           </div>
@@ -216,7 +216,7 @@ export function CreateKeyframeQuickCard({
 
       <div className="space-y-4 p-4">
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">分类</Label>
+          <Label className="type-label text-muted-foreground">分类</Label>
           <Select value={frameRole} onValueChange={(value) => setFrameRole(normalizeKeyframeFrameRole(value, 'first'))}>
             <SelectTrigger className="h-10 bg-background" data-testid="content-workbench-create-keyframe-role">
               <SelectValue />
@@ -227,11 +227,11 @@ export function CreateKeyframeQuickCard({
               ))}
             </SelectContent>
           </Select>
-          {selectedRole ? <p className="text-[11px] leading-5 text-muted-foreground">{selectedRole.detail}</p> : null}
+          {selectedRole ? <p className="type-caption leading-5 text-muted-foreground">{selectedRole.detail}</p> : null}
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor={`create-keyframe-title-${selectedUnit.ID}`} className="text-xs text-muted-foreground">标题（可选）</Label>
+          <Label htmlFor={`create-keyframe-title-${selectedUnit.ID}`} className="type-label text-muted-foreground">标题（可选）</Label>
           <Input
             id={`create-keyframe-title-${selectedUnit.ID}`}
             value={title}

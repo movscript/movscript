@@ -46,9 +46,9 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
       <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <Sparkles size={12} className="shrink-0 text-primary" />
-          <span className="truncate text-[11px] font-medium text-foreground">生成结果</span>
+          <span className="truncate type-caption font-medium text-foreground">生成结果</span>
         </div>
-        <Badge variant="secondary" className="shrink-0 text-[9px] leading-4 px-1.5 py-0">
+        <Badge variant="secondary" className="shrink-0 type-micro leading-4 px-1.5 py-0">
           {generated.length} 个结果
         </Badge>
       </div>
@@ -64,12 +64,12 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
               <div className="flex min-w-0 items-center gap-2">
                 <AttachmentIcon type={attachment.type} size={12} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[10px] font-medium text-foreground">{attachment.name}</p>
-                  <p className="truncate text-[9px] text-muted-foreground">
+                  <p className="truncate type-tiny font-medium text-foreground">{attachment.name}</p>
+                  <p className="truncate type-micro text-muted-foreground">
                     {resourceId !== undefined ? `#${resourceId}` : '未返回资源 ID'} · {attachment.type} · {attachment.mimeType || 'unknown'} · {formatBytes(attachment.size)}
                   </p>
                   {attachment.generated && (
-                    <p className="truncate text-[9px] text-muted-foreground">
+                    <p className="truncate type-micro text-muted-foreground">
                       {[
                         attachment.generated.jobId !== undefined ? `Job #${attachment.generated.jobId}` : undefined,
                         attachment.generated.jobType,
@@ -86,7 +86,7 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
                     href={attachment.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="shrink-0 rounded px-1.5 py-1 text-[9px] text-muted-foreground hover:bg-background hover:text-foreground"
+                    className="shrink-0 rounded px-1.5 py-1 type-micro text-muted-foreground hover:bg-background hover:text-foreground"
                   >
                     打开
                   </a>
@@ -95,7 +95,7 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
                   type="button"
                   onClick={() => resourceId !== undefined && copyResourceMention(resourceId)}
                   disabled={resourceId === undefined}
-                  className="shrink-0 rounded px-1.5 py-1 text-[9px] text-muted-foreground hover:bg-background hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                  className="shrink-0 rounded px-1.5 py-1 type-micro text-muted-foreground hover:bg-background hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
                 >
                   {resourceId === undefined ? '无资源 ID' : copiedResourceId === resourceId ? '已复制' : '复制引用'}
                 </button>
@@ -105,7 +105,7 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
           )
         })}
       </div>
-      <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+      <p className="mt-2 type-tiny leading-relaxed text-muted-foreground">
         {hasUsableGeneratedResource
           ? '可在后续消息中粘贴资源引用，或将可用的生成资源加入素材需求、画面锚点的候选列表。'
           : '这些生成结果暂未返回资源 ID，暂不能复制引用或加入候选。'}
@@ -210,7 +210,7 @@ function GeneratedBulkCandidateAttachControl({ attachments, projectId }: { attac
           }}
           disabled={!projectId || candidateAttachments.length === 0 || attachStatus === 'attaching'}
         >
-          <SelectTrigger className="h-7 min-w-0 text-[10px]">
+          <SelectTrigger className="h-7 min-w-0 type-tiny">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -229,7 +229,7 @@ function GeneratedBulkCandidateAttachControl({ attachments, projectId }: { attac
           }}
           disabled={!projectId || candidateAttachments.length === 0 || loadingTargets || filteredTargets.length === 0}
         >
-          <SelectTrigger className="h-7 min-w-0 text-[10px]">
+          <SelectTrigger className="h-7 min-w-0 type-tiny">
             <SelectValue placeholder={loadingTargets ? '加载中' : `选择${generatedBindingTargetLabel(targetConfig.value)}`} />
           </SelectTrigger>
           <SelectContent>
@@ -240,7 +240,7 @@ function GeneratedBulkCandidateAttachControl({ attachments, projectId }: { attac
             ))}
           </SelectContent>
         </Select>
-        <Button type="button" size="xs" variant="secondary" disabled={!canAttach} onClick={attachAllCandidates} className="h-7 px-2 text-[10px]">
+        <Button type="button" size="sm" variant="secondary" disabled={!canAttach} onClick={attachAllCandidates} className="px-2 type-tiny">
           {attachStatus === 'attaching' ? '加入中' : attachStatus === 'attached' ? '已加入' : attachStatus === 'partial' ? '重试失败项' : '全部加入候选'}
         </Button>
       </div>
@@ -255,9 +255,9 @@ function GeneratedBulkCandidateAttachControl({ attachments, projectId }: { attac
         }}
         placeholder={loadingTargets ? '正在加载目标对象...' : `搜索${generatedBindingTargetLabel(targetConfig.value)}`}
         disabled={!projectId || candidateAttachments.length === 0}
-        className="h-7 min-w-0 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
+        className="h-7 min-w-0 rounded-md border border-input bg-background px-2 type-tiny outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
       />
-      <p className={cn('text-[9px] leading-relaxed', attachStatus === 'error' ? 'text-destructive' : attachStatus === 'attached' ? 'text-green-700' : attachStatus === 'partial' ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>
+      <p className={cn('type-micro leading-relaxed', attachStatus === 'error' ? 'text-destructive' : attachStatus === 'attached' ? 'text-green-700' : attachStatus === 'partial' ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>
         {attachMessage || helperMessage}
       </p>
     </div>
@@ -281,7 +281,7 @@ function GeneratedCandidateAttachControl({ attachment, projectId }: { attachment
   })
   if (resourceId === undefined) {
     return (
-      <p data-testid="agent-generated-resource-candidate-missing-id" className="mt-1.5 rounded border border-dashed border-border/70 px-2 py-1 text-[9px] leading-relaxed text-muted-foreground">
+      <p data-testid="agent-generated-resource-candidate-missing-id" className="mt-1.5 rounded border border-dashed border-border/70 px-2 py-1 type-micro leading-relaxed text-muted-foreground">
         该生成结果暂未返回资源 ID，不能加入候选。
       </p>
     )
@@ -326,7 +326,7 @@ function GeneratedCandidateAttachControl({ attachment, projectId }: { attachment
           }}
           disabled={!projectId || attachStatus === 'attaching'}
         >
-          <SelectTrigger className="h-7 min-w-0 text-[10px]">
+          <SelectTrigger className="h-7 min-w-0 type-tiny">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -344,7 +344,7 @@ function GeneratedCandidateAttachControl({ attachment, projectId }: { attachment
           }}
           disabled={!projectId || loadingTargets || filteredTargets.length === 0}
         >
-          <SelectTrigger className="h-7 min-w-0 text-[10px]">
+          <SelectTrigger className="h-7 min-w-0 type-tiny">
             <SelectValue placeholder={loadingTargets ? '加载中' : `选择${generatedBindingTargetLabel(targetConfig.value)}`} />
           </SelectTrigger>
           <SelectContent>
@@ -355,7 +355,7 @@ function GeneratedCandidateAttachControl({ attachment, projectId }: { attachment
             ))}
           </SelectContent>
         </Select>
-        <Button type="button" size="xs" variant="secondary" disabled={!canAttach} onClick={attachCandidate} className="h-7 px-2 text-[10px]">
+        <Button type="button" size="sm" variant="secondary" disabled={!canAttach} onClick={attachCandidate} className="px-2 type-tiny">
           {attachStatus === 'attaching' ? '加入中' : attachStatus === 'attached' ? '已加入' : '加入候选'}
         </Button>
       </div>
@@ -369,28 +369,28 @@ function GeneratedCandidateAttachControl({ attachment, projectId }: { attachment
         }}
         placeholder={loadingTargets ? '正在加载目标对象...' : `搜索${generatedBindingTargetLabel(targetConfig.value)}`}
         disabled={!projectId}
-        className="h-7 min-w-0 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
+        className="h-7 min-w-0 rounded-md border border-input bg-background px-2 type-tiny outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
       />
       {projectId && normalizedQuery && !loadingTargets && filteredTargets.length === 0 && (
-        <p className="rounded border border-dashed border-border/70 px-2 py-1 text-[9px] leading-relaxed text-muted-foreground">
+        <p className="rounded border border-dashed border-border/70 px-2 py-1 type-micro leading-relaxed text-muted-foreground">
           没有匹配的目标对象，请调整搜索条件后再选择。
         </p>
       )}
       {selectedTarget && (
         <div className="rounded border border-primary/20 bg-primary/5 px-2 py-1.5">
           <div className="flex min-w-0 items-center justify-between gap-2">
-            <p className="min-w-0 truncate text-[9px] font-medium text-foreground">{generatedTargetRecordLabel(selectedTarget)}</p>
-            <span className="shrink-0 text-[8px] text-muted-foreground">#{selectedTarget.ID}</span>
+            <p className="min-w-0 truncate type-micro font-medium text-foreground">{generatedTargetRecordLabel(selectedTarget)}</p>
+            <span className="shrink-0 type-min text-muted-foreground">#{selectedTarget.ID}</span>
           </div>
           {selectedTargetMeta.length > 0 && (
-            <p className="mt-0.5 truncate text-[8px] text-muted-foreground">{selectedTargetMeta.join(' · ')}</p>
+            <p className="mt-0.5 truncate type-min text-muted-foreground">{selectedTargetMeta.join(' · ')}</p>
           )}
           {selectedTargetDescription && (
-            <p className="mt-1 line-clamp-2 text-[8px] leading-relaxed text-muted-foreground">{selectedTargetDescription}</p>
+            <p className="mt-1 line-clamp-2 type-min leading-relaxed text-muted-foreground">{selectedTargetDescription}</p>
           )}
         </div>
       )}
-      <p className={cn('text-[9px] leading-relaxed', attachStatus === 'error' ? 'text-destructive' : attachStatus === 'attached' ? 'text-green-700' : 'text-muted-foreground')}>
+      <p className={cn('type-micro leading-relaxed', attachStatus === 'error' ? 'text-destructive' : attachStatus === 'attached' ? 'text-green-700' : 'text-muted-foreground')}>
         {attachMessage || (projectId ? `选择${generatedBindingTargetLabel(targetConfig.value)}后，将生成资源加入候选列表。` : '请选择项目后再加入候选。')}
       </p>
     </div>

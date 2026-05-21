@@ -23,6 +23,9 @@ import { isLocalLaunchMode } from '@/lib/config'
 import { openAdminConsole } from '@/lib/adminConsole'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
 import { useUserStore } from '@/store/userStore'
+import { AppEmptyState, AppMetricCard, AppPage, AppPageHeader, AppSection } from '@/components/app/AppPage'
+import { SemanticStatusBadge } from '@/components/app/SemanticStatusBadge'
+import { semanticStatusLabel } from '@/components/app/semantic'
 
 type ProjectStatus = 'planning' | 'script_analysis' | 'asset_prep' | 'production' | 'editing' | 'done'
 
@@ -34,15 +37,6 @@ const STATUS_STEPS: { status: ProjectStatus; labelKey: string }[] = [
   { status: 'editing', labelKey: 'pages.projects.status.editing' },
   { status: 'done', labelKey: 'pages.projects.status.done' },
 ]
-
-const STATUS_BADGE_VARIANT: Record<ProjectStatus, 'secondary' | 'default' | 'outline'> = {
-  planning:        'secondary',
-  script_analysis: 'secondary',
-  asset_prep:      'secondary',
-  production:      'secondary',
-  editing:         'secondary',
-  done:            'default',
-}
 
 const LOCAL_ADMIN_PROMPT_DISMISSED_KEY = 'movscript-local-admin-prompt-dismissed'
 
@@ -96,24 +90,24 @@ function ProjectCard({
           <div className="flex-1 min-w-0">
             <p className="font-medium text-foreground truncate">{project.name}</p>
             {project.description && (
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">{project.description}</p>
+              <p className="type-label text-muted-foreground mt-0.5 truncate">{project.description}</p>
             )}
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            <Badge variant={STATUS_BADGE_VARIANT[status]}>{statusLabelKey ? t(statusLabelKey) : status}</Badge>
+            <SemanticStatusBadge status={status} label={statusLabelKey ? t(statusLabelKey) : semanticStatusLabel(status)} />
             <Button
               variant="outline"
               size="sm"
               onClick={() => onOpen(project)}
-              className="h-7 text-xs gap-1"
+              className="type-label gap-1"
             >
               {t('pages.projects.enter')} <ArrowRight size={13} />
             </Button>
             <Button
               variant="ghost"
-              size="icon"
+              size="icon-sm"
               onClick={() => onDelete(project.ID)}
-              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+              className="text-muted-foreground hover:text-destructive"
             >
               <Trash2 size={14} />
             </Button>
@@ -136,17 +130,14 @@ function ProjectCard({
 
         {/* Stats */}
         {progress && (
-          <div className="grid grid-cols-4 gap-2 text-center">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[
               { label: t('entities.scripts'), value: progress.scripts },
               { label: t('entities.segments'), value: progress.segments },
               { label: t('entities.assetSlots'), value: progress.asset_slots },
               { label: t('pages.projects.members'), value: progress.members },
             ].map((s) => (
-              <div key={s.label}>
-                <p className="text-base font-semibold text-foreground tabular-nums">{s.value}</p>
-                <p className="text-xs text-muted-foreground">{s.label}</p>
-              </div>
+              <AppMetricCard key={s.label} label={s.label} value={s.value} compact />
             ))}
           </div>
         )}
@@ -154,7 +145,7 @@ function ProjectCard({
         {/* Content unit progress */}
         {contentUnits && contentUnits.total > 0 && (
           <div className="space-y-1">
-            <div className="flex justify-between text-xs text-muted-foreground">
+            <div className="flex justify-between type-label text-muted-foreground">
               <span>{t('pages.projects.contentUnitProgress')}</span>
               <span className="tabular-nums">{t('pages.projects.approvedCount', { approved: contentUnits.approved, total: contentUnits.total })}</span>
             </div>
@@ -225,18 +216,16 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
   const { t } = useTranslation()
 
   return (
-    <div className="flex flex-col items-center justify-center py-24 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
-        <FolderOpen size={28} className="text-muted-foreground" />
-      </div>
-      <h3 className="text-base font-medium text-foreground mb-1">{t('pages.projects.empty')}</h3>
-      <p className="text-sm text-muted-foreground mb-6 max-w-xs">
-        {t('pages.projects.emptyHint')}
-      </p>
-      <Button onClick={onCreateClick} className="gap-2">
-        <Plus size={15} /> {t('pages.projects.createFirst')}
-      </Button>
-    </div>
+    <AppEmptyState
+      icon={FolderOpen}
+      title={t('pages.projects.empty')}
+      detail={t('pages.projects.emptyHint')}
+      action={(
+        <Button onClick={onCreateClick} className="gap-2">
+          <Plus size={15} /> {t('pages.projects.createFirst')}
+        </Button>
+      )}
+    />
   )
 }
 
@@ -311,16 +300,27 @@ export default function ProjectsPage() {
     && !adminPromptDismissed
 
   return (
-    <div className="max-w-3xl">
+    <AppPage width="normal">
+      <AppPageHeader
+        icon={FolderOpen}
+        title={t('pages.projects.myProjects')}
+        description={t('pages.projects.emptyHint')}
+        actions={!isLoading && projects.length > 0 ? (
+          <Button onClick={() => setShowCreate(true)} className="gap-1.5">
+            <Plus size={14} /> {t('pages.projects.newProject')}
+          </Button>
+        ) : null}
+      />
+
       {showAdminPrompt && (
-        <div className="mb-5 rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm">
+        <div className="mb-5 rounded-lg border border-primary/30 bg-primary/5 p-4 type-body">
           <div className="flex items-start gap-3">
             <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
               <Settings2 size={16} />
             </div>
             <div className="min-w-0 flex-1">
               <p className="font-medium text-foreground">{t('pages.projects.localAdminPrompt.title')}</p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">{t('pages.projects.localAdminPrompt.description')}</p>
+              <p className="mt-1 type-label leading-5 text-muted-foreground">{t('pages.projects.localAdminPrompt.description')}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button
                   type="button"
@@ -346,32 +346,25 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-lg font-semibold text-foreground">{t('pages.projects.myProjects')}</h1>
-        {!isLoading && projects.length > 0 && (
-          <Button onClick={() => setShowCreate(true)} className="gap-1.5">
-            <Plus size={14} /> {t('pages.projects.newProject')}
-          </Button>
+      <AppSection title={t('pages.projects.myProjects')} action={<Badge variant="outline">{projects.length}</Badge>}>
+        {isLoading ? (
+          <p className="type-body text-muted-foreground">{t('common.loadingShort')}</p>
+        ) : projects.length === 0 ? (
+          <EmptyState onCreateClick={() => setShowCreate(true)} />
+        ) : (
+          <div className="space-y-3">
+            {projects.map((p) => (
+              <ProjectCard
+                key={p.ID}
+                project={p}
+                onOpen={handleOpen}
+                onDelete={(id) => remove.mutate(id)}
+                onStatusChange={(id, status) => updateStatus.mutate({ id, status })}
+              />
+            ))}
+          </div>
         )}
-      </div>
-
-      {isLoading ? (
-        <p className="text-sm text-muted-foreground">{t('common.loadingShort')}</p>
-      ) : projects.length === 0 ? (
-        <EmptyState onCreateClick={() => setShowCreate(true)} />
-      ) : (
-        <div className="space-y-3">
-          {projects.map((p) => (
-            <ProjectCard
-              key={p.ID}
-              project={p}
-              onOpen={handleOpen}
-              onDelete={(id) => remove.mutate(id)}
-              onStatusChange={(id, status) => updateStatus.mutate({ id, status })}
-            />
-          ))}
-        </div>
-      )}
+      </AppSection>
 
       {showCreate && (
         <CreateProjectModal
@@ -379,6 +372,6 @@ export default function ProjectsPage() {
           onCreate={(name, desc) => handleCreate(name, desc)}
         />
       )}
-    </div>
+    </AppPage>
   )
 }

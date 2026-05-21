@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { createRuntimePackageJson } from '../../../apps/frontend/scripts/prepare-agent-deploy.mjs'
+import {
+  createRuntimePackageJson,
+  createRuntimeReadme,
+} from '../../../apps/frontend/scripts/prepare-agent-deploy.mjs'
 
 test('prepare-agent-deploy writes a runtime-only agent package manifest', () => {
   const runtimePackage = createRuntimePackageJson({
@@ -37,4 +40,12 @@ test('prepare-agent-deploy writes a runtime-only agent package manifest', () => 
       'movscript-agent': './dist/cli.js',
     },
   })
+})
+
+test('prepare-agent-deploy writes a generated artifact readme', () => {
+  const readme = createRuntimeReadme()
+
+  assert.match(readme, /packaged runtime artifact/)
+  assert.match(readme, /canonical agent implementation lives in `apps\/agent`/)
+  assert.match(readme, /Do not edit files here as source/)
 })

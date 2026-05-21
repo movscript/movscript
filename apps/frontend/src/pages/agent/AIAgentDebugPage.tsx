@@ -46,6 +46,15 @@ const DRAFT_RUNTIME_TOOL_NAMES = [
   'movscript_validate_draft',
   'movscript_preview_draft_apply',
 ] as const
+const DRAFT_ID_REQUIRED_TOOLS = new Set<string>([
+  'movscript_get_draft',
+  'movscript_validate_draft',
+  'movscript_preview_draft_apply',
+])
+const DEBUG_SUMMARY_MAX_DEPTH = 5
+const DEBUG_SUMMARY_MAX_FIELDS = 32
+const DEBUG_SUMMARY_MAX_ARRAY_ITEMS = 8
+const DEBUG_SUMMARY_MAX_STRING_CHARS = 1400
 const AGENT_DEBUG_BUNDLE_SCHEMA = 'movscript.agent.debug.bundle.v1'
 const AGENT_DEBUG_BUNDLE_SCHEMA_VERSION = 1
 const AGENT_DEBUG_BUNDLE_SCHEMA_URL = 'https://movscript.dev/schemas/agent-debug-bundle-v1.schema.json'
@@ -252,7 +261,7 @@ export default function AIAgentDebugPage() {
     setToolRunResult(null)
     try {
       const parsed = parseToolArgs(toolArgsText)
-      const run = await localAgentClient.createToolRun({
+      const result = await localAgentClient.runMessageStream({
         title: `Debug tool: ${toolName}`,
         message: `Run ${toolName} from Agent Debug tool console.`,
         toolCall: { name: toolName, args: parsed },
@@ -276,13 +285,12 @@ export default function AIAgentDebugPage() {
             labels: ['agent-debug', 'tool-console'],
           },
         },
-        policy: { approvalMode: 'auto', maxToolCalls: 1, maxIterations: 2 },
-      })
-      setToolRunResult({ run })
-      const completedRun = await localAgentClient.waitForRun(run.id, {
+      }, {
+        runPolicy: { approvalMode: 'auto', maxToolCalls: 1, maxIterations: 2 },
         timeoutMs: 90_000,
         onRunUpdate: (latestRun) => setToolRunResult((current) => ({ ...(current ?? {}), run: latestRun })),
       })
+      const completedRun = result.run
       const trace = await localAgentClient.getRunTraceEvents(completedRun.id, { limit: 80 })
       setToolRunResult({ run: completedRun, trace })
       void debugQuery.refetch()
@@ -316,7 +324,8 @@ export default function AIAgentDebugPage() {
     setDraftToolRunResult(null)
     try {
       const parsed = parseToolArgs(draftToolArgsText)
-      const run = await localAgentClient.createToolRun({
+      validateDraftRuntimeToolArgs(draftToolName, parsed)
+      const result = await localAgentClient.runMessageStream({
         title: `Draft runtime debug: ${draftToolName}`,
         message: `Run ${draftToolName} from Agent Debug draft runtime panel.`,
         toolCall: { name: draftToolName, args: parsed },
@@ -340,13 +349,12 @@ export default function AIAgentDebugPage() {
             labels: ['agent-debug', 'draft-runtime'],
           },
         },
-        policy: { approvalMode: 'auto', maxToolCalls: 1, maxIterations: 2 },
-      })
-      setDraftToolRunResult({ run })
-      const completedRun = await localAgentClient.waitForRun(run.id, {
+      }, {
+        runPolicy: { approvalMode: 'auto', maxToolCalls: 1, maxIterations: 2 },
         timeoutMs: 90_000,
         onRunUpdate: (latestRun) => setDraftToolRunResult((current) => ({ ...(current ?? {}), run: latestRun })),
       })
+      const completedRun = result.run
       const trace = await localAgentClient.getRunTraceEvents(completedRun.id, { limit: 80 })
       setDraftToolRunResult({ run: completedRun, trace })
       void debugQuery.refetch()
@@ -380,34 +388,9 @@ export default function AIAgentDebugPage() {
     setDraftToolRunError(null)
   }
 
-  function defaultCreateAssetProposalDraftArgs(): Record<string, unknown> {
-    const projectId = currentProject?.ID
-    const content = {
-      schema: 'movscript.asset_proposal.v1',
-      scope: 'asset_proposal',
-      mode: 'snapshot',
-      proposal: {
-        creative_references: [],
-        asset_slots: [],
-        candidate_plans: [],
-      },
-      summary: 'Debug asset proposal draft shell. Replace proposal.asset_slots with a full hydrated snapshot before applying.',
-    }
-    return {
-      kind: 'asset_proposal',
-      title: 'Debug asset proposal',
-      ...(projectId ? { projectId } : {}),
-      content: JSON.stringify(content, null, 2),
-      ...(projectId ? {
-        target: { entityType: 'project', entityId: projectId, projectId },
-      } : {}),
-      seed: {
-        mode: 'editable_snapshot',
-        include: ['project', 'creative_references', 'asset_slots'],
-        note: 'Run movscript_get_draft_model first and use its hydrated seed for real snapshot safety checks.',
-      },
-      proposal: true,
-    }
+  function draftRuntimeToolPresetArgs(toolName: string): Record<string, unknown> {
+    if (toolName === 'movscript_create_draft') return defaultCreateAssetProposalDraftArgs(currentProject?.ID)
+    return defaultDraftRuntimeToolArgs(toolName)
   }
 
   async function copyRawData() {
@@ -485,11 +468,11 @@ export default function AIAgentDebugPage() {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <Terminal size={18} />
-              <h1 className="text-lg font-semibold text-foreground">{t('agents.debug.title')}</h1>
+              <h1 className="type-title-sm font-semibold text-foreground">{t('agents.debug.title')}</h1>
               <RuntimeStatusBadge online={runtimeOnline} loading={debugQuery.isLoading || debugQuery.isFetching} />
             </div>
-            <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">{t('agents.debug.description')}</p>
-            <div data-testid="agent-debug-scope-boundary" className="mt-2 flex max-w-3xl flex-wrap gap-2 text-[11px] leading-4">
+            <p className="mt-1 max-w-3xl type-label leading-5 text-muted-foreground">{t('agents.debug.description')}</p>
+            <div data-testid="agent-debug-scope-boundary" className="mt-2 flex max-w-3xl flex-wrap gap-2 type-caption leading-4">
               <span className="rounded border border-border bg-muted/30 px-2 py-1 text-foreground">{t('agents.debug.scope.observabilityPlane')}</span>
               <span className="rounded border border-border bg-background px-2 py-1 text-muted-foreground">{t('agents.debug.scope.noPersistentWrites')}</span>
               <span className="rounded border border-border bg-background px-2 py-1 text-muted-foreground">{t('agents.debug.scope.runDiagnosticsInDetails')}</span>
@@ -554,7 +537,7 @@ export default function AIAgentDebugPage() {
 
               <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
                 <Panel title={t('agents.debug.panels.runtime')}>
-                  <div className="grid gap-2 text-xs md:grid-cols-2">
+                  <div className="grid gap-2 type-label md:grid-cols-2">
                     <SummaryItem label={t('agents.debug.fields.baseUrl')} value={redactAgentTraceDebugText(localAgentClient.baseURL)} />
                     <SummaryItem label={t('agents.debug.fields.lastUpdated')} value={debugQuery.data.lastUpdated ? new Date(debugQuery.data.lastUpdated).toLocaleString() : '-'} />
                     <SummaryItem label="MCP" value={debugQuery.data.capabilities.mcp.connected ? t('agents.debug.status.online') : t('agents.debug.status.offline')} />
@@ -562,9 +545,9 @@ export default function AIAgentDebugPage() {
                     <SummaryItem label={t('agents.debug.fields.toolsDir')} value={debugQuery.data.inspect.pluginCatalog?.toolsDir ?? t('agents.debug.values.unknown')} />
                   </div>
                   <div data-testid="agent-debug-runtime-model-config" className="mt-3 rounded-md border border-border bg-muted/20 p-2">
-                    <p className="text-xs font-medium text-foreground">{t('agents.debug.panels.runtimeModelConfig')}</p>
+                    <p className="type-label font-medium text-foreground">{t('agents.debug.panels.runtimeModelConfig')}</p>
                     {debugQuery.data.modelConfig ? (
-                      <div className="mt-2 grid gap-2 text-xs md:grid-cols-2">
+                      <div className="mt-2 grid gap-2 type-label md:grid-cols-2">
                         <SummaryItem label={t('agents.debug.fields.modelConfigured')} value={debugQuery.data.modelConfig.configured ? t('agents.debug.status.enabled') : t('agents.debug.status.disabled')} />
                         <SummaryItem label={t('agents.debug.fields.model')} value={debugModelConfigValue(debugQuery.data.modelConfig)} />
                         <SummaryItem label={t('agents.debug.fields.apiKind')} value={debugQuery.data.modelConfig.apiKind ?? 'openai_chat_completions'} />
@@ -573,19 +556,19 @@ export default function AIAgentDebugPage() {
                         <SummaryItem label={t('agents.debug.fields.modelSource')} value={debugQuery.data.modelConfig.source} />
                       </div>
                     ) : (
-                      <div data-testid="agent-debug-model-config-read-error" className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] leading-4 text-amber-800 dark:text-amber-300">
+                      <div data-testid="agent-debug-model-config-read-error" className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 type-caption leading-4 text-amber-800 dark:text-amber-300">
                         {t('agents.debug.empty.modelConfigReadFailed', { reason: debugQuery.data.modelConfigError ?? '-' })}
                       </div>
                     )}
                   </div>
                   {warningGroups.length > 0 && (
                     <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-2">
-                      <p className="text-xs font-medium text-amber-800 dark:text-amber-300">{t('agents.debug.panels.warnings')}</p>
+                      <p className="type-label font-medium text-amber-800 dark:text-amber-300">{t('agents.debug.panels.warnings')}</p>
                       <div data-testid="agent-debug-warning-groups" className="mt-2 space-y-2">
                         {warningGroups.map((group) => (
                           <div key={group.source} data-testid="agent-debug-warning-group" className="rounded bg-background/70 px-2 py-1.5">
-                            <p className="text-[10px] font-medium text-foreground">{t(group.labelKey)}</p>
-                            <ul className="mt-1 space-y-1 text-[11px] text-muted-foreground">
+                            <p className="type-tiny font-medium text-foreground">{t(group.labelKey)}</p>
+                            <ul className="mt-1 space-y-1 type-caption text-muted-foreground">
                               {group.warnings.map((warning, index) => <li key={`${group.source}-${warning}-${index}`}>{warning}</li>)}
                             </ul>
                           </div>
@@ -600,14 +583,14 @@ export default function AIAgentDebugPage() {
                     <Textarea
                       value={previewMessage}
                       onChange={(event) => setPreviewMessage(event.target.value)}
-                      className="min-h-24 text-xs"
+                      className="min-h-24 type-label"
                     />
                     <Button type="button" size="sm" onClick={runPreview} disabled={previewLoading}>
                       {previewLoading ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
                       {t('agents.debug.actions.runPreview')}
                     </Button>
                     {previewError && (
-                      <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+                      <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2 type-label text-destructive">
                         {previewError}
                       </div>
                     )}
@@ -665,18 +648,18 @@ export default function AIAgentDebugPage() {
             <TabsContent value="toolConsole" className="grid gap-4 lg:grid-cols-[minmax(0,420px)_1fr]">
               <Panel title={t('agents.debug.panels.toolConsole')}>
                 <div className="space-y-3">
-                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] leading-4 text-amber-800 dark:text-amber-300">
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 type-caption leading-4 text-amber-800 dark:text-amber-300">
                     {t('agents.debug.toolConsole.warning')}
                   </div>
-                  <div className="rounded-md border border-border bg-muted/20 p-2 text-[11px] leading-4 text-muted-foreground">
+                  <div className="rounded-md border border-border bg-muted/20 p-2 type-caption leading-4 text-muted-foreground">
                     {t('agents.debug.toolConsole.runtimeBoundary')}
                   </div>
-                  <label className="block text-xs font-medium text-foreground">
+                  <label className="block type-label font-medium text-foreground">
                     {t('agents.debug.toolConsole.tool')}
                     <select
                       value={toolName}
                       onChange={(event) => setToolName(event.target.value)}
-                      className="mt-1 block w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground"
+                      className="mt-1 block w-full rounded-md border border-input bg-background px-2 py-1.5 type-label text-foreground"
                       disabled={availableTools.length === 0}
                     >
                       {availableTools.length === 0 && <option value="">{t('agents.debug.empty.noMcpTools')}</option>}
@@ -686,19 +669,19 @@ export default function AIAgentDebugPage() {
                     </select>
                   </label>
                   {selectedTool && (
-                    <div className="grid gap-2 text-xs md:grid-cols-2">
+                    <div className="grid gap-2 type-label md:grid-cols-2">
                       <SummaryItem label={t('agents.debug.table.source')} value={selectedTool.source} />
                       <SummaryItem label={t('agents.debug.table.risk')} value={selectedTool.risk ?? '-'} />
                       <SummaryItem label={t('agents.debug.table.permission')} value={selectedTool.permission ?? '-'} />
                       <SummaryItem label={t('agents.debug.table.approval')} value={selectedTool.approval} />
                     </div>
                   )}
-                  <label className="block text-xs font-medium text-foreground">
+                  <label className="block type-label font-medium text-foreground">
                     {t('agents.debug.toolConsole.args')}
                     <Textarea
                       value={toolArgsText}
                       onChange={(event) => setToolArgsText(event.target.value)}
-                      className="mt-1 min-h-52 font-mono text-xs"
+                      className="mt-1 min-h-52 font-mono type-label"
                       spellCheck={false}
                     />
                   </label>
@@ -715,37 +698,45 @@ export default function AIAgentDebugPage() {
                     )}
                   </div>
                   {toolRunError && (
-                    <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+                    <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2 type-label text-destructive">
                       {toolRunError}
                     </div>
                   )}
                   {toolRunResult?.run && (
-                    <div className="grid gap-2 text-xs md:grid-cols-2">
+                    <div className="grid gap-2 type-label md:grid-cols-2">
                       <SummaryItem label="Run ID" value={toolRunResult.run.id} />
                       <SummaryItem label={t('agents.debug.table.status')} value={toolRunResult.run.status} />
                     </div>
+                  )}
+                  {toolRunResult?.run.id && (
+                    <Button asChild size="sm" variant="outline">
+                      <Link to={agentRunPath(toolRunResult.run.id)}>
+                        <ArrowRight size={13} />
+                        {t('agents.debug.actions.viewRun')}
+                      </Link>
+                    </Button>
                   )}
                 </div>
               </Panel>
               <div className="space-y-4">
                 <JsonPanel title={t('agents.debug.panels.toolSchema')} value={selectedTool?.inputSchema} emptyText={t('agents.debug.empty.noToolSelected')} />
                 <JsonPanel title={t('agents.debug.panels.toolConsoleOutput')} value={extractToolConsoleOutput(toolRunResult)} emptyText={t('agents.debug.empty.noToolConsoleResult')} />
-                <JsonPanel title={t('agents.debug.panels.toolConsoleResult')} value={toolRunResult} emptyText={t('agents.debug.empty.noToolConsoleResult')} />
+                <JsonPanel title={t('agents.debug.panels.toolConsoleResult')} value={buildToolConsoleResultSummary(toolRunResult)} emptyText={t('agents.debug.empty.noToolConsoleResult')} />
               </div>
             </TabsContent>
 
             <TabsContent value="draftRuntime" className="grid gap-4 lg:grid-cols-[minmax(0,460px)_1fr]">
               <Panel title={t('agents.debug.panels.draftRuntime')}>
                 <div className="space-y-3">
-                  <div className="rounded-md border border-border bg-muted/20 p-2 text-[11px] leading-4 text-muted-foreground">
+                  <div className="rounded-md border border-border bg-muted/20 p-2 type-caption leading-4 text-muted-foreground">
                     {t('agents.debug.draftRuntime.boundary')}
                   </div>
-                  <label className="block text-xs font-medium text-foreground">
+                  <label className="block type-label font-medium text-foreground">
                     {t('agents.debug.draftRuntime.tool')}
                     <select
                       value={draftToolName}
-                      onChange={(event) => setDraftToolName(event.target.value)}
-                      className="mt-1 block w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs text-foreground"
+                      onChange={(event) => setDraftToolPreset(event.target.value, draftRuntimeToolPresetArgs(event.target.value))}
+                      className="mt-1 block w-full rounded-md border border-input bg-background px-2 py-1.5 type-label text-foreground"
                       disabled={draftRuntimeTools.length === 0}
                     >
                       {draftRuntimeTools.length === 0 && <option value="">{t('agents.debug.empty.noDraftRuntimeTools')}</option>}
@@ -755,19 +746,19 @@ export default function AIAgentDebugPage() {
                     </select>
                   </label>
                   {selectedDraftTool && (
-                    <div className="grid gap-2 text-xs md:grid-cols-2">
+                    <div className="grid gap-2 type-label md:grid-cols-2">
                       <SummaryItem label={t('agents.debug.table.source')} value={selectedDraftTool.source} />
                       <SummaryItem label={t('agents.debug.table.risk')} value={selectedDraftTool.risk ?? '-'} />
                       <SummaryItem label={t('agents.debug.table.permission')} value={selectedDraftTool.permission ?? '-'} />
                       <SummaryItem label={t('agents.debug.table.approval')} value={selectedDraftTool.approval} />
                     </div>
                   )}
-                  <label className="block text-xs font-medium text-foreground">
+                  <label className="block type-label font-medium text-foreground">
                     {t('agents.debug.draftRuntime.args')}
                     <Textarea
                       value={draftToolArgsText}
                       onChange={(event) => setDraftToolArgsText(event.target.value)}
-                      className="mt-1 min-h-60 font-mono text-xs"
+                      className="mt-1 min-h-60 font-mono type-label"
                       spellCheck={false}
                     />
                   </label>
@@ -788,9 +779,17 @@ export default function AIAgentDebugPage() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() => setDraftToolPreset('movscript_create_draft', defaultCreateAssetProposalDraftArgs())}
+                      onClick={() => setDraftToolPreset('movscript_create_draft', defaultCreateAssetProposalDraftArgs(currentProject?.ID))}
                     >
                       {t('agents.debug.draftRuntime.createAssetDraftPreset')}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setDraftToolPreset('movscript_get_draft', { draftId: '' })}
+                    >
+                      {t('agents.debug.draftRuntime.getDraftPreset')}
                     </Button>
                     <Button
                       type="button"
@@ -814,14 +813,22 @@ export default function AIAgentDebugPage() {
                         {t('agents.debug.draftRuntime.refreshTrace')}
                       </Button>
                     )}
+                    {draftToolRunResult?.run.id && (
+                      <Button asChild size="sm" variant="outline">
+                        <Link to={agentRunPath(draftToolRunResult.run.id)}>
+                          <ArrowRight size={13} />
+                          {t('agents.debug.actions.viewRun')}
+                        </Link>
+                      </Button>
+                    )}
                   </div>
                   {draftToolRunError && (
-                    <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+                    <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2 type-label text-destructive">
                       {draftToolRunError}
                     </div>
                   )}
                   {draftToolRunResult?.run && (
-                    <div className="grid gap-2 text-xs md:grid-cols-2">
+                    <div className="grid gap-2 type-label md:grid-cols-2">
                       <SummaryItem label="Run ID" value={draftToolRunResult.run.id} />
                       <SummaryItem label={t('agents.debug.table.status')} value={draftToolRunResult.run.status} />
                     </div>
@@ -831,7 +838,7 @@ export default function AIAgentDebugPage() {
               <div className="space-y-4">
                 <JsonPanel title={t('agents.debug.panels.draftRuntimeSchema')} value={selectedDraftTool?.inputSchema} emptyText={t('agents.debug.empty.noDraftRuntimeToolSelected')} />
                 <JsonPanel title={t('agents.debug.panels.draftRuntimeOutput')} value={extractToolConsoleOutput(draftToolRunResult)} emptyText={t('agents.debug.empty.noDraftRuntimeResult')} />
-                <JsonPanel title={t('agents.debug.panels.draftRuntimeResult')} value={draftToolRunResult} emptyText={t('agents.debug.empty.noDraftRuntimeResult')} />
+                <JsonPanel title={t('agents.debug.panels.draftRuntimeResult')} value={buildToolConsoleResultSummary(draftToolRunResult)} emptyText={t('agents.debug.empty.noDraftRuntimeResult')} />
               </div>
             </TabsContent>
 
@@ -841,9 +848,9 @@ export default function AIAgentDebugPage() {
                   <div className="space-y-2">
                     {preview.promptPreview.debugParts.map((part) => (
                       <div key={part.id} className="rounded-md border border-border bg-muted/20 p-2">
-                        <p className="text-xs font-medium text-foreground">{part.title}</p>
-                        <p className="mt-0.5 text-[10px] text-muted-foreground">{part.kind} / {t('agents.debug.values.chars', { count: part.content.length })}</p>
-                        <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-background p-2 text-[10px] leading-4">{part.content ? redactAgentTraceDebugText(part.content) : t('agents.debug.empty.emptyValue')}</pre>
+                        <p className="type-label font-medium text-foreground">{part.title}</p>
+                        <p className="mt-0.5 type-tiny text-muted-foreground">{part.kind} / {t('agents.debug.values.chars', { count: part.content.length })}</p>
+                        <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-background p-2 type-tiny leading-4">{part.content ? redactAgentTraceDebugText(part.content) : t('agents.debug.empty.emptyValue')}</pre>
                       </div>
                     ))}
                   </div>
@@ -855,7 +862,7 @@ export default function AIAgentDebugPage() {
             <TabsContent value="context" className="grid gap-4 lg:grid-cols-2">
               <Panel title={t('agents.debug.panels.currentProject')}>
                 {currentProject ? (
-                  <div className="space-y-2 text-xs">
+                  <div className="space-y-2 type-label">
                     <SummaryItem label={t('agents.debug.fields.project')} value={`#${currentProject.ID} ${currentProject.name}`} />
                     <SummaryItem label={t('agents.debug.fields.route')} value={window.location.pathname} />
                   </div>
@@ -902,8 +909,8 @@ function RuntimeStatusBadge({ online, loading }: { online: boolean; loading: boo
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-border bg-background p-3">
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate text-lg font-semibold text-foreground">{value}</p>
+      <p className="type-caption text-muted-foreground">{label}</p>
+      <p className="mt-1 truncate type-title-sm font-semibold text-foreground">{value}</p>
     </div>
   )
 }
@@ -952,8 +959,8 @@ function DebugObservationRow({
       <span className="flex min-w-0 items-start gap-2">
         <span className="mt-0.5 shrink-0">{icon}</span>
         <span className="min-w-0">
-          <span className="block text-xs font-medium text-foreground">{t(item.labelKey)}</span>
-          <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">{t(item.detailKey, item.detailValues)}</span>
+          <span className="block type-label font-medium text-foreground">{t(item.labelKey)}</span>
+          <span className="mt-0.5 block type-tiny leading-4 text-muted-foreground">{t(item.detailKey, item.detailValues)}</span>
         </span>
       </span>
       <span className="flex shrink-0 flex-col items-end gap-1">
@@ -997,8 +1004,8 @@ function DebugEvidenceChecklistPanel({ items }: { items: DebugEvidenceItem[] }) 
       {items.map((item) => (
         <div key={item.id} data-testid="agent-debug-evidence-item" className="flex items-start justify-between gap-2 rounded-md border border-border bg-muted/20 p-2">
           <span className="min-w-0">
-            <span className="block text-xs font-medium text-foreground">{t(item.labelKey)}</span>
-            <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">{t(item.detailKey, item.detailValues)}</span>
+            <span className="block type-label font-medium text-foreground">{t(item.labelKey)}</span>
+            <span className="mt-0.5 block type-tiny leading-4 text-muted-foreground">{t(item.detailKey, item.detailValues)}</span>
           </span>
           <Badge variant={item.status === 'ready' ? 'success' : item.status === 'action' ? 'destructive' : 'warning'} className="shrink-0">
             {t(`agents.debug.observationStatuses.${item.status}`)}
@@ -1018,10 +1025,10 @@ function RunIssueSummary({ groups }: { groups: DebugRunIssueGroup[] }) {
         <div key={group.id} data-testid="agent-debug-run-issue-group" className="rounded-md border border-border bg-muted/20 p-2">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-xs font-medium text-foreground">{t(group.labelKey)}</p>
-              {group.sampleReason && <p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-muted-foreground">{group.sampleReason}</p>}
+              <p className="type-label font-medium text-foreground">{t(group.labelKey)}</p>
+              {group.sampleReason && <p className="mt-0.5 line-clamp-2 type-tiny leading-4 text-muted-foreground">{group.sampleReason}</p>}
               {group.sampleRunId && (
-                <Link to={agentRunPath(group.sampleRunId)} data-testid="agent-debug-run-issue-link" className="mt-1 inline-flex text-[10px] font-medium text-primary hover:underline">
+                <Link to={agentRunPath(group.sampleRunId)} data-testid="agent-debug-run-issue-link" className="mt-1 inline-flex type-tiny font-medium text-primary hover:underline">
                   {t('agents.debug.actions.viewRun')}
                 </Link>
               )}
@@ -1060,17 +1067,17 @@ function DebugTriagePanel({ items }: { items: DebugTriageItem[] }) {
         >
           <div className="flex items-start justify-between gap-2">
             <span className="min-w-0">
-              <span className="block text-xs font-medium text-foreground">{t(item.titleKey, item.detailValues)}</span>
-              <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">
+              <span className="block type-label font-medium text-foreground">{t(item.titleKey, item.detailValues)}</span>
+              <span className="mt-0.5 block type-tiny leading-4 text-muted-foreground">
                 {t(item.detailKey, item.detailValues)}
               </span>
               {item.signalLabelKey && (
-                <span className="mt-1 block text-[10px] leading-4 text-muted-foreground">
+                <span className="mt-1 block type-tiny leading-4 text-muted-foreground">
                   {t('agents.debug.triage.signal', { signal: t(item.signalLabelKey) })}
                 </span>
               )}
               {item.runId && (
-                <Link to={agentRunPath(item.runId)} data-testid="agent-debug-triage-run-link" className="mt-1 inline-flex text-[10px] font-medium text-primary hover:underline">
+                <Link to={agentRunPath(item.runId)} data-testid="agent-debug-triage-run-link" className="mt-1 inline-flex type-tiny font-medium text-primary hover:underline">
                   {t('agents.debug.actions.viewRun')}
                 </Link>
               )}
@@ -1108,8 +1115,8 @@ function DebugRemediationPlan({
         <div key={item.id} data-testid="agent-debug-remediation-item" className="rounded-md border border-border bg-muted/20 p-2">
           <div className="flex items-start justify-between gap-3">
             <span className="min-w-0">
-              <span className="block text-xs font-medium text-foreground">{t(item.titleKey, item.detailValues)}</span>
-              <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">{t(item.detailKey, item.detailValues)}</span>
+              <span className="block type-label font-medium text-foreground">{t(item.titleKey, item.detailValues)}</span>
+              <span className="mt-0.5 block type-tiny leading-4 text-muted-foreground">{t(item.detailKey, item.detailValues)}</span>
             </span>
             <Badge variant={item.severity === 'action' ? 'destructive' : item.severity === 'warning' ? 'warning' : 'secondary'} className="shrink-0">
               {t(`agents.debug.triageSeverities.${item.severity}`)}
@@ -1136,7 +1143,7 @@ function DebugRemediationPlan({
                 {t(item.actionKey)}
               </Button>
             ) : (
-              <span className="inline-flex items-center rounded border border-border bg-background px-2 py-1 text-[10px] font-medium text-muted-foreground" data-testid="agent-debug-remediation-observe-only">
+              <span className="inline-flex items-center rounded border border-border bg-background px-2 py-1 type-tiny font-medium text-muted-foreground" data-testid="agent-debug-remediation-observe-only">
                 {t(item.actionKey)}
               </span>
             )}
@@ -1150,7 +1157,7 @@ function DebugRemediationPlan({
 function DebugBundleRedactionNotice() {
   const { t } = useTranslation()
   return (
-    <div data-testid="agent-debug-bundle-redaction-notice" className="flex items-start gap-2 rounded-md border border-border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">
+    <div data-testid="agent-debug-bundle-redaction-notice" className="flex items-start gap-2 rounded-md border border-border bg-muted/20 p-3 type-label leading-5 text-muted-foreground">
       <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-success" />
       <div className="min-w-0">
         <p className="font-medium text-foreground">{t('agents.debug.redactionNotice.title')}</p>
@@ -1180,11 +1187,11 @@ function DebugBundleFieldGuide() {
   ] as const
   return (
     <Panel title={t('agents.debug.panels.debugBundleFieldGuide')}>
-      <div data-testid="agent-debug-bundle-field-guide" className="grid gap-2 text-xs md:grid-cols-2">
+      <div data-testid="agent-debug-bundle-field-guide" className="grid gap-2 type-label md:grid-cols-2">
         {fields.map((field) => (
           <div key={field} data-testid="agent-debug-bundle-field-guide-item" className="rounded-md border border-border bg-muted/20 p-2">
             <p className="font-medium text-foreground">{field}</p>
-            <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">{t(`agents.debug.bundleFields.${field}`)}</p>
+            <p className="mt-0.5 type-tiny leading-4 text-muted-foreground">{t(`agents.debug.bundleFields.${field}`)}</p>
           </div>
         ))}
       </div>
@@ -1197,7 +1204,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
     <section className="rounded-md border border-border bg-background">
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
         <Bot size={13} className="text-muted-foreground" />
-        <h2 className="text-xs font-semibold text-foreground">{title}</h2>
+        <h2 className="type-label font-semibold text-foreground">{title}</h2>
       </div>
       <div className="p-3">{children}</div>
     </section>
@@ -1207,8 +1214,8 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 function SummaryItem({ label, value }: { label: string; value?: string | number | null }) {
   return (
     <div className="min-w-0 rounded-md border border-border bg-muted/20 px-2 py-1.5">
-      <p className="text-[10px] text-muted-foreground">{label}</p>
-      <p className="mt-0.5 truncate text-xs font-medium text-foreground">{value ?? '-'}</p>
+      <p className="type-tiny text-muted-foreground">{label}</p>
+      <p className="mt-0.5 truncate type-label font-medium text-foreground">{value ?? '-'}</p>
     </div>
   )
 }
@@ -1227,9 +1234,9 @@ function ListRow({
   return (
     <div className="flex items-start justify-between gap-3 rounded-md border border-border bg-muted/20 p-2">
       <div className="min-w-0">
-        <p className="truncate text-xs font-medium text-foreground">{title}</p>
-        {meta && <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{meta}</p>}
-        {description && <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{description}</p>}
+        <p className="truncate type-label font-medium text-foreground">{title}</p>
+        {meta && <p className="mt-0.5 truncate type-tiny text-muted-foreground">{meta}</p>}
+        {description && <p className="mt-1 line-clamp-2 type-caption leading-4 text-muted-foreground">{description}</p>}
       </div>
       {trailing && <div className="shrink-0">{trailing}</div>}
     </div>
@@ -1244,12 +1251,12 @@ function RunListRow({ run }: { run: AgentRun }) {
       className="flex items-start justify-between gap-3 rounded-md border border-border bg-muted/20 p-2 transition-colors hover:bg-muted/40"
     >
       <div className="min-w-0">
-        <p className="truncate text-xs font-medium text-foreground">{run.id}</p>
-        <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+        <p className="truncate type-label font-medium text-foreground">{run.id}</p>
+        <p className="mt-0.5 truncate type-tiny text-muted-foreground">
           {redactAgentTraceDebugText([run.status, run.role, run.planId].filter(Boolean).join(' / '))}
         </p>
         {(run.error || run.blockedReason || run.agentManifest?.name) && (
-          <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
+          <p className="mt-1 line-clamp-2 type-caption leading-4 text-muted-foreground">
             {redactAgentTraceDebugText(run.error || run.blockedReason || run.agentManifest?.name || '')}
           </p>
         )}
@@ -1263,7 +1270,7 @@ function PreviewSummary({ preview }: { preview: AgentRunPreview }) {
   const { t } = useTranslation()
   return (
     <div className="space-y-3">
-      <div className="grid gap-2 text-xs md:grid-cols-3">
+      <div className="grid gap-2 type-label md:grid-cols-3">
         <SummaryItem label={t('agents.debug.fields.project')} value={preview.currentProjectId ?? t('agents.debug.values.none')} />
         <SummaryItem label={t('agents.debug.fields.memoryCount')} value={preview.memoryCount} />
         <SummaryItem label={t('agents.debug.fields.toolCalls')} value={preview.toolCalls.length} />
@@ -1300,7 +1307,7 @@ function JsonPanel({ title, value, emptyText }: { title: string; value?: unknown
       {value === undefined || value === null ? (
         <EmptyText>{emptyText ?? '-'}</EmptyText>
       ) : (
-        <pre className="max-h-[68vh] overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-xs leading-5 text-foreground">
+        <pre className="max-h-[68vh] overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 type-label leading-5 text-foreground">
           {formatJson(value)}
         </pre>
       )}
@@ -1309,13 +1316,13 @@ function JsonPanel({ title, value, emptyText }: { title: string; value?: unknown
 }
 
 function EmptyText({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs leading-5 text-muted-foreground">{children}</p>
+  return <p className="type-label leading-5 text-muted-foreground">{children}</p>
 }
 
 function StateMessage({ icon, text, tone = 'muted' }: { icon: React.ReactNode; text: string; tone?: 'muted' | 'danger' }) {
   return (
     <div className={cn(
-      'flex items-center gap-2 rounded-md border p-3 text-sm',
+      'flex items-center gap-2 rounded-md border p-3 type-body',
       tone === 'danger' ? 'border-destructive/30 bg-destructive/10 text-destructive' : 'border-border bg-muted/20 text-muted-foreground',
     )}>
       {icon}
@@ -1789,6 +1796,53 @@ function parseToolArgs(value: string): Record<string, unknown> {
   return parsed as Record<string, unknown>
 }
 
+function validateDraftRuntimeToolArgs(toolName: string, args: Record<string, unknown>): void {
+  if (!DRAFT_ID_REQUIRED_TOOLS.has(toolName)) return
+  if (typeof args.draftId === 'string' && args.draftId.trim()) return
+  throw new Error(`${toolName} requires draftId. Create a draft first, or paste an existing local draftId.`)
+}
+
+function defaultCreateAssetProposalDraftArgs(projectId?: number): Record<string, unknown> {
+  const content = {
+    schema: 'movscript.asset_proposal.v1',
+    scope: 'asset_proposal',
+    mode: 'snapshot',
+    proposal: {
+      creative_references: [],
+      asset_slots: [],
+      candidate_plans: [],
+    },
+    summary: 'Debug asset proposal draft shell. Replace proposal.asset_slots with a full hydrated snapshot before applying.',
+  }
+  return {
+    kind: 'asset_proposal',
+    title: 'Debug asset proposal',
+    ...(projectId ? { projectId } : {}),
+    content: JSON.stringify(content, null, 2),
+    ...(projectId ? {
+      target: { entityType: 'project', entityId: projectId, projectId },
+    } : {}),
+    seed: {
+      mode: 'editable_snapshot',
+      include: ['project', 'creative_references', 'asset_slots'],
+      note: 'Run movscript_get_draft_model first and use its hydrated seed for real snapshot safety checks.',
+    },
+    proposal: true,
+  }
+}
+
+function defaultDraftRuntimeToolArgs(toolName: string): Record<string, unknown> {
+  if (toolName === 'movscript_get_draft_model') {
+    return {
+      kind: 'asset_proposal',
+      seedMode: 'editable_snapshot',
+      hydrate: true,
+    }
+  }
+  if (DRAFT_ID_REQUIRED_TOOLS.has(toolName)) return { draftId: '' }
+  return {}
+}
+
 function extractToolConsoleOutput(result: AgentToolConsoleResult | null): unknown {
   if (!result) return null
   const toolEvents = (result.trace?.events ?? [])
@@ -1799,7 +1853,7 @@ function extractToolConsoleOutput(result: AgentToolConsoleResult | null): unknow
       status: event.status,
       toolName: event.toolName,
       summary: event.summary,
-      data: event.data,
+      data: summarizeDebugValue(event.data),
       durationMs: event.durationMs,
       createdAt: event.createdAt,
     }))
@@ -1811,5 +1865,92 @@ function extractToolConsoleOutput(result: AgentToolConsoleResult | null): unknow
       blockedReason: result.run.blockedReason,
     },
     toolEvents,
+  }
+}
+
+function buildToolConsoleResultSummary(result: AgentToolConsoleResult | null): unknown {
+  if (!result) return null
+  return {
+    run: {
+      id: result.run.id,
+      threadId: result.run.threadId,
+      status: result.run.status,
+      role: result.run.role,
+      createdAt: result.run.createdAt,
+      updatedAt: result.run.updatedAt,
+      completedAt: result.run.completedAt,
+      error: result.run.error,
+      blockedReason: result.run.blockedReason,
+      warnings: result.run.warnings,
+      stepCount: result.run.steps.length,
+      steps: result.run.steps.map((step) => ({
+        id: step.id,
+        type: step.type,
+        status: step.status,
+        toolName: step.toolName,
+        error: step.error,
+        durationMs: step.durationMs,
+        result: summarizeDebugValue(step.result),
+      })),
+    },
+    trace: result.trace
+      ? {
+        total: result.trace.total,
+        hasMore: result.trace.hasMore,
+        eventCount: result.trace.events.length,
+        events: result.trace.events.map((event) => ({
+          id: event.id,
+          kind: event.kind,
+          title: event.title,
+          status: event.status,
+          toolName: event.toolName,
+          summary: event.summary,
+          durationMs: event.durationMs,
+          data: summarizeDebugValue(event.data),
+        })),
+      }
+      : null,
+    detail: 'Full run details are available from the Run details link.',
+  }
+}
+
+function summarizeDebugValue(value: unknown, depth = 0, seen = new WeakSet<object>()): unknown {
+  if (value === null || value === undefined || typeof value === 'number' || typeof value === 'boolean') return value
+  if (typeof value === 'string') return summarizeDebugString(value)
+  if (typeof value !== 'object') return String(value)
+  if (seen.has(value)) return '[循环引用]'
+  seen.add(value)
+
+  if (Array.isArray(value)) {
+    const sample = value
+      .slice(0, DEBUG_SUMMARY_MAX_ARRAY_ITEMS)
+      .map((item) => summarizeDebugValue(item, depth + 1, seen))
+    return value.length > DEBUG_SUMMARY_MAX_ARRAY_ITEMS
+      ? { type: 'array', count: value.length, sample, omittedItems: value.length - sample.length }
+      : sample
+  }
+
+  const entries = Object.entries(value)
+  if (depth >= DEBUG_SUMMARY_MAX_DEPTH) {
+    return { type: 'object', fieldCount: entries.length, omittedBecause: 'depth_limit' }
+  }
+
+  const out: Record<string, unknown> = {}
+  for (const [key, item] of entries.slice(0, DEBUG_SUMMARY_MAX_FIELDS)) {
+    out[key] = summarizeDebugValue(item, depth + 1, seen)
+  }
+  const omittedFields = entries.length - Object.keys(out).length
+  if (omittedFields > 0) out.omittedFieldCount = omittedFields
+  return out
+}
+
+function summarizeDebugString(value: string): unknown {
+  if (value.length <= DEBUG_SUMMARY_MAX_STRING_CHARS) return value
+  const compact = value.replace(/\s+/g, ' ').trim()
+  return {
+    type: 'text',
+    charCount: value.length,
+    excerpt: compact.slice(0, DEBUG_SUMMARY_MAX_STRING_CHARS),
+    truncated: true,
   }
 }

@@ -1,26 +1,24 @@
 import { Handle, Position, NodeResizer } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
-import { useQuery } from '@tanstack/react-query'
-import type { CanvasNodeData, CanvasPortDef, EntitySemanticValues } from '@/types'
+import type { CanvasNodeData, CanvasPortDef, RawResource } from '@/types'
 import {
   FileText, Loader2, CheckCircle2, XCircle, Play,
   LogIn, LogOut, UserCheck, Sparkles, Check, X, Share2,
-  Image, Video, Music, Brush, Camera, Layers3, ImagePlus,
+  Image, Video, Brush, Camera, Layers3, ImagePlus,
 	  Palette, PersonStanding, RotateCw, Wrench, Puzzle,
 	  HardDrive,
 	} from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { AuthedImage, AuthedVideo, AuthedAudio } from '@/components/shared/AuthedImage'
+import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { useTranslation } from 'react-i18next'
 import { CANVAS_NODE_META } from '../nodeCatalog'
-import { api } from '@/lib/api'
 import { CanvasToolActionCard } from '@/components/canvas/CanvasToolActionCard'
 import type { CanvasToolSlot, CanvasToolSlotState, CanvasToolSlotType } from '@/components/canvas/CanvasToolActionCard'
-import { CanvasDomainEntityCard } from '@/components/canvas/CanvasDomainEntityCard'
-import type { CanvasDomainEntityKind } from '@/components/canvas/CanvasDomainEntityCard'
 import { CanvasIOActionCard } from '@/components/canvas/CanvasIOActionCard'
 import type { CanvasIOState } from '@/components/canvas/CanvasIOActionCard'
+import { GenResultCard } from '@/components/shared/GenResultCard'
+import { MediaViewer } from '@/components/shared/MediaViewer'
 
 const targetHandleStyle: React.CSSProperties = {
   width: 14, height: 14, borderRadius: '50%',
@@ -50,26 +48,7 @@ const semanticSourceHandleStyle: React.CSSProperties = {
 const semanticInputHandleId = (portId: string) => `in:${portId}`
 const semanticOutputHandleId = (portId: string) => `out:${portId}`
 
-const MEDIA_NODE_TYPES = new Set(['text', 'image', 'video', 'audio'])
-
-function semanticPreviewFields(kind?: CanvasDomainEntityKind) {
-  if (kind === 'segment') {
-    return ['title', 'kind', 'order', 'summary', 'content', 'source_range', 'status']
-  }
-  if (kind === 'scene_moment') {
-    return ['title', 'segment_id', 'order', 'description', 'time_text', 'location_text', 'condition_text', 'action_text', 'mood', 'status']
-  }
-  if (kind === 'creative_reference') {
-    return ['name', 'kind', 'alias', 'description', 'content', 'importance', 'status', 'profile_json', 'tags_json']
-  }
-  if (kind === 'asset_slot') {
-    return ['name', 'kind', 'status', 'priority', 'description', 'slot_key', 'prompt_hint', 'candidates', 'creative_reference_id', 'image', 'video', 'audio', 'reference']
-  }
-  if (kind === 'content_unit') {
-    return ['title', 'kind', 'status', 'segment_id', 'scene_moment_id', 'order', 'duration_sec', 'description', 'prompt', 'generated_media', 'result', 'image', 'video', 'audio']
-  }
-  return []
-}
+const MEDIA_NODE_TYPES = new Set(['text', 'image', 'video'])
 
 function mediaNodeInputPorts(nodeType: string, data: CanvasNodeData): CanvasNodeData['inputPorts'] {
   if (!MEDIA_NODE_TYPES.has(nodeType)) return data.inputPorts
@@ -80,7 +59,6 @@ const PARAM_TYPE_LABELS: Record<string, string> = {
   text: 'canvas.paramTypes.text',
   image: 'canvas.paramTypes.image',
   video: 'canvas.paramTypes.video',
-  audio: 'canvas.paramTypes.audio',
   json: 'canvas.paramTypes.json',
   number: 'canvas.paramTypes.number',
   boolean: 'canvas.paramTypes.boolean',
@@ -185,7 +163,7 @@ function SemanticPortRow({ inputPort, outputPort }: { inputPort?: CanvasPortDef;
     <div
       title={title}
       className={cn(
-        'relative flex min-h-[30px] items-center gap-1.5 rounded-md border border-border bg-background/85 px-3 py-1.5 text-[10px] shadow-sm',
+        'relative flex min-h-[30px] items-center gap-1.5 rounded-md border border-border bg-background/85 px-3 py-1.5 type-tiny shadow-sm',
         isOutputOnly && 'justify-end text-right',
         isInputOnly && 'justify-start',
         inputPort && outputPort && 'justify-center text-center'
@@ -264,7 +242,7 @@ function portLabelText(port: CanvasPortDef, t: (key: string, options?: any) => s
 }
 
 function slotTypeFromPortType(type?: string): CanvasToolSlotType {
-  if (type === 'image' || type === 'video' || type === 'audio' || type === 'json' || type === 'entity' || type === 'prompt' || type === 'text') return type
+  if (type === 'image' || type === 'video' || type === 'json' || type === 'prompt' || type === 'text') return type
   return 'text'
 }
 
@@ -441,11 +419,12 @@ function resourceSinkPorts(): { inputs: CanvasPortDef[]; outputs: CanvasPortDef[
 
 type NodeDataWithHandlers = CanvasNodeData & {
   label: string
+  availableResources?: RawResource[]
   pluginInputProperties?: Record<string, { title?: string; default?: string | number | boolean }>
   onRun?: () => void
   onUpdateContent?: (content: string) => void
   onUpdatePrompt?: (prompt: string) => void
-  onUpdateOutputType?: (type: 'image' | 'video' | 'text' | 'audio') => void
+  onUpdateOutputType?: (type: 'image' | 'video' | 'text') => void
   onUpdateModelId?: (modelId: string, modelDbId?: number) => void
   onUpdateAttachments?: (ids: number[]) => void
   onApprove?: () => void
@@ -453,12 +432,130 @@ type NodeDataWithHandlers = CanvasNodeData & {
   onPush?: () => void
 }
 
+function selectedInputResources(data: NodeDataWithHandlers) {
+  const byId = new Map((data.availableResources ?? []).map((resource) => [resource.ID, resource]))
+  return (data.inputResourceIds ?? [])
+    .map((id) => byId.get(id))
+    .filter((resource): resource is RawResource => !!resource)
+}
+
+function CanvasGenerationInputPanel({
+  data,
+  inputType,
+  placeholder,
+}: {
+  data: NodeDataWithHandlers
+  inputType?: 'image' | 'video' | 'image+video'
+  placeholder?: string
+}) {
+  const { t } = useTranslation()
+  const attachments = selectedInputResources(data)
+  return (
+    <div
+      className="nodrag nowheel rounded-lg border border-border/80 bg-background px-2.5 py-2"
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <textarea
+        className="min-h-[72px] w-full resize-none bg-transparent px-1 py-1 type-body leading-relaxed text-foreground outline-none placeholder:text-muted-foreground"
+        placeholder={placeholder ?? (inputType ? t(`shared.genInput.promptPlaceholder.${inputType}`, { defaultValue: t('shared.generation.promptPlaceholder') }) : t('shared.generation.promptPlaceholder'))}
+        value={data.prompt ?? ''}
+        onChange={(event) => data.onUpdatePrompt?.(event.target.value)}
+      />
+      {attachments.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5 border-t border-border/50 pt-2">
+          {attachments.map((resource, index) => (
+            <div key={`${resource.ID}-${index}`} className="flex max-w-full items-center gap-1.5 rounded-full bg-muted px-2 py-1">
+              <span className="h-6 w-6 shrink-0 overflow-hidden rounded-full bg-background">
+                <MediaViewer resource={resource} className="h-full w-full" lightbox={false} />
+              </span>
+              <span className="max-w-[140px] truncate type-label text-foreground">{resource.name}</span>
+              <button
+                type="button"
+                className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                onClick={() => data.onUpdateAttachments?.((data.inputResourceIds ?? []).filter((_, itemIndex) => itemIndex !== index))}
+                aria-label={t('common.remove', { defaultValue: 'Remove' })}
+              >
+                <X size={10} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="border-t border-border/50 pt-2 type-caption text-muted-foreground">
+          {t('shared.genInput.selectOrUploadHint', { defaultValue: 'Select or upload resources' })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CanvasGenerationResultPanel({
+  data,
+  outputType,
+}: {
+  data: NodeDataWithHandlers
+  outputType: 'image' | 'video'
+}) {
+  const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
+  if (status === 'idle' && !data.resource && !data.error) return null
+  return (
+    <div className="nodrag nowheel">
+      <GenResultCard
+        prompt={data.prompt}
+        status={status}
+        outputResource={data.resource}
+        outputType={outputType}
+        error={data.error}
+        compact
+      />
+    </div>
+  )
+}
+
+function CanvasTextGenerationResultPanel({ data }: { data: NodeDataWithHandlers }) {
+  const { t } = useTranslation()
+  const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
+  const isRunning = status === 'pending' || status === 'running'
+  if (status === 'idle' && !data.textContent && !data.error) return null
+  return (
+    <div className="nodrag nowheel overflow-hidden rounded-lg border border-border/80 bg-background shadow-sm">
+      <div className="px-3 pt-3 pb-2">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className={cn(
+            'rounded-full px-1.5 py-0.5 type-tiny font-medium',
+            status === 'done' && 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+            isRunning && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+            status === 'failed' && 'bg-destructive/10 text-destructive',
+          )}>
+            {nodeStatusLabel(status)}
+          </span>
+        </div>
+        {data.prompt && <p className="line-clamp-3 whitespace-pre-wrap type-label leading-relaxed text-foreground">{data.prompt}</p>}
+      </div>
+      <div className="px-3 pb-3">
+        {isRunning ? (
+          <div className="flex h-20 items-center justify-center rounded-md bg-muted/40 text-muted-foreground">
+            <Loader2 size={16} className="animate-spin" />
+          </div>
+        ) : status === 'failed' ? (
+          <div className="rounded-md bg-destructive/5 px-3 py-4 type-label text-destructive">{data.error ?? t('pages.jobs.generationFailed')}</div>
+        ) : data.textContent ? (
+          <p className="max-h-24 overflow-y-auto whitespace-pre-wrap rounded-md bg-muted/40 p-2 type-label leading-relaxed text-foreground">
+            {data.textContent}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 // ── Shared primitives ──────────────────────────────────────────────────────────
 
 function NodeCard({ selected, children, className }: { selected?: boolean; children: React.ReactNode; className?: string }) {
   return (
     <div className={cn(
-      'canvas-node-card rounded-lg border bg-card/95 shadow-sm text-xs transition-all flex flex-col backdrop-blur',
+      'canvas-node-card rounded-lg border bg-card/95 shadow-sm type-label transition-all flex flex-col backdrop-blur',
       selected ? 'border-primary ring-2 ring-primary/15 shadow-lg shadow-primary/10' : 'border-border hover:border-foreground/20 hover:shadow-md',
       className
     )}>
@@ -526,7 +623,7 @@ export function TextNode({ data, selected }: NodeProps & { data: NodeDataWithHan
       <SemanticPortRows nodeType="text" inputPorts={mediaNodeInputPorts('text', data)} />
       {data.source === 'manual' ? (
         <textarea
-          className="flex-1 w-full px-3 py-2 text-xs resize-none focus:outline-none bg-transparent nodrag nowheel text-foreground placeholder:text-muted-foreground/50 rounded-b-xl min-h-[60px]"
+          className="flex-1 w-full px-3 py-2 type-label resize-none focus:outline-none bg-transparent nodrag nowheel text-foreground placeholder:text-muted-foreground/50 rounded-b-xl min-h-[60px]"
           placeholder={t('canvas.textInputPlaceholder')}
           value={data.textContent ?? ''}
           onChange={e => data.onUpdateContent?.(e.target.value)}
@@ -593,28 +690,6 @@ export function VideoNode({ data, selected }: NodeProps & { data: NodeDataWithHa
   )
 }
 
-export function AudioNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
-  const { t } = useTranslation()
-  const status = data.status ?? 'idle'
-  const audioUrl = data.resource?.url ? `${API_BASE}${data.resource.url}` : null
-  return (
-    <NodeCard selected={selected}>
-      <NodeHeader
-        icon={<Music size={12} />}
-        label={data.label || t('canvas.nodeLabels.audio')}
-        status={status}
-        actions={status !== 'pending' && status !== 'running' && data.onRun ? <RunBtn onClick={data.onRun} /> : undefined}
-      />
-      <SemanticPortRows nodeType="audio" inputPorts={mediaNodeInputPorts('audio', data)} />
-      <div className="flex-1 px-3 py-3 rounded-b-xl flex items-center">
-        {audioUrl
-          ? <AuthedAudio src={audioUrl} controls className="w-full h-6" />
-          : <span className="text-muted-foreground/40 italic">{t('canvas.emptyAudio')}</span>}
-      </div>
-    </NodeCard>
-  )
-}
-
 // ── Tool nodes ─────────────────────────────────────────────────────────────────
 
 const TOOL_META: Record<string, { icon: React.ReactNode; labelKey: string; outputType: 'image' | 'video'; capability: 'image' | 'video'; featureKey: string; inputType: 'image' | 'video' | 'image+video' }> = {
@@ -639,6 +714,7 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
     : type === 'motion_imitation' ? PersonStanding
     : Wrench
   const isRunning = status === 'pending' || status === 'running'
+  const isGenerationTool = type !== 'canvas'
 
   return (
     <ToolCardNodeFrame nodeType={type} data={data}>
@@ -651,15 +727,16 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
         status={nodeStatusLabel(status)}
         selected={selected}
         inputs={toolInputSlots(type, data, t)}
+        inputPanel={isGenerationTool ? <CanvasGenerationInputPanel data={data} inputType={meta.inputType} /> : undefined}
         configs={[
           { id: 'model', label: '模型', value: data.modelId || (data.modelDbId ? `#${data.modelDbId}` : '默认') },
           { id: 'mode', label: '类型', value: metaLabel },
-          ...(data.prompt ? [{ id: 'prompt', label: '提示词', value: data.prompt }] : []),
         ]}
         outputs={toolOutputSlots(type, data, t)}
+        resultPanel={isGenerationTool ? <CanvasGenerationResultPanel data={data} outputType={meta.outputType} /> : undefined}
         primaryAction={data.onRun ? { id: 'run', label: isRunning ? '运行中' : '运行', icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
         secondaryAction={data.onPush && status === 'done' ? { id: 'push', label: '加入候选', icon: Share2, onClick: data.onPush } : { id: 'variant', label: '变体', icon: ImagePlus, disabled: true }}
-        footer={data.error ? <p className="line-clamp-2 text-[10px] text-destructive">{data.error}</p> : undefined}
+        footer={data.error ? <p className="line-clamp-2 type-tiny text-destructive">{data.error}</p> : undefined}
         renderPortHandle={(handle) => <CanvasCardPortHandle {...handle} />}
       />
     </ToolCardNodeFrame>
@@ -689,7 +766,7 @@ export function PluginCardNode({ data, selected }: NodeProps & { data: NodeDataW
         outputs={toolOutputSlots('plugin_card', data, t)}
         primaryAction={data.onRun ? { id: 'run', label: isRunning ? '运行中' : '运行', icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
         secondaryAction={{ id: 'config', label: '配置', icon: Wrench, disabled: true }}
-        footer={data.pluginResultText ? <p className="line-clamp-2 whitespace-pre-wrap text-[10px] text-muted-foreground">{data.pluginResultText}</p> : undefined}
+        footer={data.pluginResultText ? <p className="line-clamp-2 whitespace-pre-wrap type-tiny text-muted-foreground">{data.pluginResultText}</p> : undefined}
         renderPortHandle={(handle) => <CanvasCardPortHandle {...handle} />}
       />
     </ToolCardNodeFrame>
@@ -821,7 +898,7 @@ export function ApprovalNode({ data, selected }: NodeProps & { data: NodeDataWit
         icon={<UserCheck size={12} />}
         label={data.label || t('canvas.nodeLabels.approval')}
         accent="bg-amber-50 dark:bg-amber-950/30"
-        actions={approvalStatus === 'waiting' ? <span className="text-[9px] text-amber-600 shrink-0">{t('canvas.approval.waiting')}</span> : undefined}
+        actions={approvalStatus === 'waiting' ? <span className="type-micro text-amber-600 shrink-0">{t('canvas.approval.waiting')}</span> : undefined}
       />
       <SemanticPortRows nodeType="approval" />
       <div className="flex-1 px-3 py-2 rounded-b-xl">
@@ -830,11 +907,11 @@ export function ApprovalNode({ data, selected }: NodeProps & { data: NodeDataWit
         {approvalStatus === 'waiting' && (
           <div className="flex gap-1.5 mt-0.5">
             <button onMouseDown={e => { e.stopPropagation(); data.onApprove?.() }}
-              className="flex-1 flex items-center justify-center gap-0.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg py-1.5 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-[10px] transition-colors">
+              className="flex-1 flex items-center justify-center gap-0.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg py-1.5 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 type-tiny transition-colors">
               <Check size={9} /> {t('canvas.approval.approve')}
             </button>
             <button onMouseDown={e => { e.stopPropagation(); data.onReject?.() }}
-              className="flex-1 flex items-center justify-center gap-0.5 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800 rounded-lg py-1.5 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-[10px] transition-colors">
+              className="flex-1 flex items-center justify-center gap-0.5 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800 rounded-lg py-1.5 hover:bg-rose-100 dark:hover:bg-rose-900/40 type-tiny transition-colors">
               <X size={9} /> {t('canvas.approval.reject')}
             </button>
           </div>
@@ -859,14 +936,15 @@ export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWith
         status={nodeStatusLabel(status)}
         selected={selected}
         inputs={toolInputSlots('text_gen', data, t)}
+        inputPanel={<CanvasGenerationInputPanel data={data} placeholder={t('shared.generation.promptPlaceholder')} />}
         configs={[
           { id: 'model', label: '模型', value: data.modelId || (data.modelDbId ? `#${data.modelDbId}` : '默认') },
-          ...(data.prompt ? [{ id: 'prompt', label: '提示词', value: data.prompt }] : []),
         ]}
         outputs={toolOutputSlots('text_gen', { ...data, resource: data.resource, status }, t)}
+        resultPanel={<CanvasTextGenerationResultPanel data={data} />}
         primaryAction={data.onRun ? { id: 'run', label: isRunning ? '运行中' : '运行', icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
         secondaryAction={undefined}
-        footer={data.textContent ? <p className="line-clamp-2 whitespace-pre-wrap text-[10px] text-muted-foreground">{data.textContent}</p> : undefined}
+        footer={undefined}
         renderPortHandle={(handle) => <CanvasCardPortHandle {...handle} />}
       />
     </ToolCardNodeFrame>
@@ -875,17 +953,16 @@ export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWith
 
 // ── AI Gen node ────────────────────────────────────────────────────────────────
 
-const OUTPUT_TYPES: Array<{ value: 'image' | 'video' | 'text' | 'audio'; icon: React.ReactNode; label: string }> = [
+const OUTPUT_TYPES: Array<{ value: 'image' | 'video' | 'text'; icon: React.ReactNode; label: string }> = [
   { value: 'image', icon: <Image size={10} />, label: 'canvas.outputTypes.image' },
   { value: 'video', icon: <Video size={10} />, label: 'canvas.outputTypes.video' },
   { value: 'text',  icon: <FileText size={10} />, label: 'canvas.outputTypes.text' },
-  { value: 'audio', icon: <Music size={10} />, label: 'canvas.outputTypes.audio' },
 ]
 
 export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
   const { t } = useTranslation()
   const status = (data.status ?? 'idle') as 'idle' | 'pending' | 'running' | 'done' | 'failed'
-  const outputType = (data.outputType ?? 'image') as 'image' | 'video'
+  const outputType = (data.outputType ?? 'image') as 'image' | 'video' | 'text'
   const isRunning = status === 'pending' || status === 'running'
   const outputSlots = toolOutputSlots('ai_gen', data, t).map((slot) => ({
     ...slot,
@@ -903,15 +980,16 @@ export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHa
         status={nodeStatusLabel(status)}
         selected={selected}
         inputs={toolInputSlots('ai_gen', data, t)}
+        inputPanel={<CanvasGenerationInputPanel data={data} inputType={outputType === 'video' ? 'video' : 'image'} />}
         configs={[
           { id: 'outputType', label: '输出', value: t(OUTPUT_TYPES.find((item) => item.value === outputType)?.label ?? 'canvas.outputTypes.image') },
           { id: 'model', label: '模型', value: data.modelId || (data.modelDbId ? `#${data.modelDbId}` : '默认') },
-          ...(data.prompt ? [{ id: 'prompt', label: '提示词', value: data.prompt }] : []),
         ]}
         outputs={outputSlots}
+        resultPanel={outputType === 'text' ? <CanvasTextGenerationResultPanel data={data} /> : <CanvasGenerationResultPanel data={data} outputType={outputType} />}
         primaryAction={data.onRun ? { id: 'run', label: isRunning ? '运行中' : '运行', icon: isRunning ? Loader2 : Play, onClick: data.onRun, disabled: isRunning } : undefined}
         secondaryAction={data.onPush && status === 'done' ? { id: 'push', label: '加入候选', icon: Share2, onClick: data.onPush } : { id: 'variant', label: '类型', icon: ImagePlus, disabled: true }}
-        footer={data.error ? <p className="line-clamp-2 text-[10px] text-destructive">{data.error}</p> : undefined}
+        footer={data.error ? <p className="line-clamp-2 type-tiny text-destructive">{data.error}</p> : undefined}
         renderPortHandle={(handle) => <CanvasCardPortHandle {...handle} />}
       />
     </ToolCardNodeFrame>
@@ -934,60 +1012,8 @@ export function GroupNode({ data, selected }: NodeProps & { data: NodeDataWithHa
       />
       <div className="flex items-center gap-2 px-3 py-2">
         <span className="h-1.5 w-1.5 rounded-full bg-primary/60" />
-        <span className="text-xs font-medium text-muted-foreground">{data.groupLabel || data.label || t('canvas.nodeLabels.group')}</span>
+        <span className="type-label font-medium text-muted-foreground">{data.groupLabel || data.label || t('canvas.nodeLabels.group')}</span>
       </div>
-    </div>
-  )
-}
-
-export function EntityCardNode({ data, selected }: NodeProps & { data: NodeDataWithHandlers }) {
-  const { t } = useTranslation()
-  const kind = data.entityKind
-  const label = data.label || data.entityTitle || t('canvas.nodeLabels.entity_card')
-  const kindLabel = kind ? t(`canvas.entityTypes.${kind}`, { defaultValue: kind }) : t('canvas.nodeLabels.entity_card')
-  const inputPorts = data.inputPorts
-  const outputPorts = data.outputPorts
-  const previewFields = semanticPreviewFields(kind as CanvasDomainEntityKind | undefined)
-  const { data: semanticValues } = useQuery<EntitySemanticValues>({
-    queryKey: ['entity-semantic-values', kind, data.entityId, previewFields.join(',')],
-    queryFn: () => api.get(`/entities/${kind}/${data.entityId}/semantic-values`, {
-      params: previewFields.length > 0 ? { fields: previewFields.join(',') } : undefined,
-    }).then((r) => r.data),
-    enabled: !!kind && !!data.entityId && previewFields.length > 0,
-  })
-  const resolvedKind = kind ?? 'script'
-  const domainKind: CanvasDomainEntityKind = resolvedKind === 'script' ? 'segment' : resolvedKind
-  const title = data.entityTitle || label
-  const subtitle = [
-    kindLabel,
-    data.entityId ? `#${data.entityId}` : null,
-  ].filter(Boolean).join(' · ')
-  const { resolvedInputs, resolvedOutputs } = resolvePorts({
-    nodeType: 'entity_card',
-    inputPorts,
-    outputPorts,
-  })
-
-  return (
-    <div className="relative">
-      <HiddenPortHandles
-        inputs={resolvedInputs}
-        outputs={resolvedOutputs}
-        visibleInputIds={resolvedInputs.map((port) => port.id)}
-        visibleOutputIds={resolvedOutputs.map((port) => port.id)}
-      />
-      <CanvasDomainEntityCard
-        kind={domainKind}
-        title={title}
-        subtitle={subtitle || data.textContent || t('canvas.entityCard.noPreview')}
-        status={data.entityId ? '已绑定' : '未绑定'}
-        selected={selected}
-        semanticValues={semanticValues}
-        fallbackText={data.textContent}
-        inputPortIds={resolvedInputs.map((port) => port.id)}
-        outputPortIds={resolvedOutputs.map((port) => port.id)}
-        renderPortHandle={(handle) => <CanvasCardPortHandle {...handle} />}
-      />
     </div>
   )
 }

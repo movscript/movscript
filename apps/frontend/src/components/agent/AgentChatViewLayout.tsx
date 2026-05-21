@@ -3,12 +3,10 @@ import { AgentMain } from '@movscript/ui'
 import { AgentDebugPreviewDialog } from '@/components/agent/AgentDebugPreviewDialog'
 import { AgentChatHeaderSection, type AgentChatHeaderSectionProps } from '@/components/agent/AgentChatHeaderSection'
 import { AgentConversationThreadSection, type AgentConversationThreadSectionProps } from '@/components/agent/AgentConversationThreadSection'
-import { AgentContextSection, type AgentContextSectionProps } from '@/components/agent/AgentContextSection'
 import { AgentComposerSection, type AgentComposerSectionProps } from '@/components/agent/AgentComposerSection'
 
 export interface AgentChatViewLayoutProps {
   composer: AgentComposerSectionProps
-  context: AgentContextSectionProps
   debugPreview: ComponentProps<typeof AgentDebugPreviewDialog>
   header: AgentChatHeaderSectionProps
   thread: AgentConversationThreadSectionProps
@@ -16,7 +14,6 @@ export interface AgentChatViewLayoutProps {
 
 export function AgentChatViewLayout({
   composer,
-  context,
   debugPreview,
   header,
   thread,
@@ -28,7 +25,6 @@ export function AgentChatViewLayout({
         <AgentChatHeaderSection {...header} />
         <AgentConversationThreadSection {...thread} />
       </section>
-      <AgentContextSection {...context} />
       <AgentComposerSection {...composer} />
     </AgentMain>
   )

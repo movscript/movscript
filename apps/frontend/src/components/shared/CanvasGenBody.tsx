@@ -53,7 +53,7 @@ export function CanvasGenBody({
       {/* Model selector — native select avoids Radix portal issues inside canvas */}
       {models.length > 0 && (
         <select
-          className="w-full border border-border bg-background rounded px-2 py-1 text-[11px] text-foreground nodrag"
+          className="w-full border border-border bg-background rounded px-2 py-1 type-caption text-foreground nodrag"
           value={modelDbId ?? models[0]?.id ?? ''}
           onChange={e => onUpdateModelId?.(Number(e.target.value))}
           onClick={e => e.stopPropagation()}
@@ -64,7 +64,7 @@ export function CanvasGenBody({
 
       {/* Prompt textarea */}
       <textarea
-        className="w-full border border-border rounded px-2 py-1.5 text-[11px] resize-none focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground nodrag nowheel"
+        className="w-full border border-border rounded px-2 py-1.5 type-caption resize-none focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground nodrag nowheel"
         rows={3}
         placeholder={t('shared.generation.promptPlaceholder')}
         value={prompt ?? ''}
@@ -73,7 +73,7 @@ export function CanvasGenBody({
       />
 
       {/* Error */}
-      {error && <p className="text-[10px] text-destructive">{error}</p>}
+      {error && <p className="type-tiny text-destructive">{error}</p>}
 
       {/* Output preview */}
       {status === 'done' && outputUrl && outputType !== 'text' && (
@@ -89,7 +89,7 @@ export function CanvasGenBody({
         </div>
       )}
       {status === 'done' && outputType === 'text' && textContent && (
-        <p className="text-[11px] text-foreground bg-muted/40 rounded p-2 max-h-24 overflow-y-auto nowheel">{textContent}</p>
+        <p className="type-caption text-foreground bg-muted/40 rounded p-2 max-h-24 overflow-y-auto nowheel">{textContent}</p>
       )}
 
       {/* Run button */}
@@ -97,7 +97,7 @@ export function CanvasGenBody({
         onMouseDown={e => { e.stopPropagation(); onRun?.() }}
         disabled={isRunning}
         className={cn(
-          'w-full flex items-center justify-center gap-1.5 bg-primary text-primary-foreground rounded-lg py-1.5 text-[11px] hover:bg-primary/90 transition-colors disabled:opacity-50 nodrag'
+          'w-full flex items-center justify-center gap-1.5 bg-primary text-primary-foreground rounded-lg py-1.5 type-caption hover:bg-primary/90 transition-colors disabled:opacity-50 nodrag'
         )}
       >
         {isRunning

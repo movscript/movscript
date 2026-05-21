@@ -29,10 +29,10 @@ export function ScenarioWorkspace({ category, generationKind }: { category: Work
           </span>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="truncate text-base font-semibold text-foreground">{surface.title}</h1>
+              <h1 className="truncate type-body-lg font-semibold text-foreground">{surface.title}</h1>
               <Badge variant="outline">{surface.shortTitle}</Badge>
             </div>
-            <p className="mt-1 truncate text-xs text-muted-foreground">{surface.purpose}</p>
+            <p className="mt-1 truncate type-label text-muted-foreground">{surface.purpose}</p>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -57,9 +57,9 @@ export function ScenarioWorkspace({ category, generationKind }: { category: Work
                 <Card className="rounded-lg border-border bg-card p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-xs text-muted-foreground">当前对象</p>
-                      <h2 className="mt-1 truncate text-lg font-semibold text-foreground">{selected.title}</h2>
-                      <p className="mt-1 truncate text-sm text-muted-foreground">{selected.subtitle}</p>
+                      <p className="type-label text-muted-foreground">当前对象</p>
+                      <h2 className="mt-1 truncate type-title-sm font-semibold text-foreground">{selected.title}</h2>
+                      <p className="mt-1 truncate type-body text-muted-foreground">{selected.subtitle}</p>
                     </div>
                     <Badge variant={statusVariant(selected.status)}>{statusLabel(selected.status)}</Badge>
                   </div>
@@ -73,7 +73,7 @@ export function ScenarioWorkspace({ category, generationKind }: { category: Work
               </div>
 
               <Card className="rounded-lg border-border bg-card p-4">
-                <h2 className="text-sm font-semibold text-foreground">工作台定位</h2>
+                <h2 className="type-body font-semibold text-foreground">工作台定位</h2>
                 <div className="mt-4 grid gap-3 md:grid-cols-3">
                   {[
                     ['目的', surface.purpose, Target],
@@ -81,11 +81,11 @@ export function ScenarioWorkspace({ category, generationKind }: { category: Work
                     ['产出', surface.output, CheckCircle2],
                   ].map(([label, text, Icon]) => (
                     <div key={label as string} className="rounded-md border border-border bg-background p-3">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-2 type-label text-muted-foreground">
                         <Icon size={14} />
                         <span>{label as string}</span>
                       </div>
-                      <p className="mt-2 text-sm leading-6 text-foreground">{text as string}</p>
+                      <p className="mt-2 type-body leading-6 text-foreground">{text as string}</p>
                     </div>
                   ))}
                 </div>

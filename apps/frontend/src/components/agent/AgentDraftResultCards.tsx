@@ -45,16 +45,16 @@ export function AgentDraftResultCards({ artifacts }: { artifacts?: AgentTaskArti
         const updatedAt = draft?.updatedAt ?? artifact?.updatedAt
         const openPath = draft ? buildDraftReviewPath(draft) : artifact ? buildDraftArtifactReviewPath(artifact) : null
         return (
-          <div key={draftId} className="rounded-md border border-border bg-background/70 px-2.5 py-2 text-xs">
+          <div key={draftId} className="rounded-md border border-border bg-background/70 px-2.5 py-2 type-label">
             <div className="flex min-w-0 items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
                   <ClipboardCheck size={12} />
                   <span className="truncate">{title}</span>
                 </div>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[9px] text-muted-foreground">
-                  {kind && <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">{t(`agents.chat.drafts.kinds.${kind}`)}</Badge>}
-                  {draft?.status && <Badge variant={draftStatusVariant(draft.status)} className="text-[9px] leading-4 px-1.5 py-0">{t(`agents.chat.drafts.status.${draft.status}`)}</Badge>}
+                <div className="mt-1 flex flex-wrap items-center gap-1.5 type-micro text-muted-foreground">
+                  {kind && <Badge variant="secondary" className="type-micro leading-4 px-1.5 py-0">{t(`agents.chat.drafts.kinds.${kind}`)}</Badge>}
+                  {draft?.status && <Badge variant={draftStatusVariant(draft.status)} className="type-micro leading-4 px-1.5 py-0">{t(`agents.chat.drafts.status.${draft.status}`)}</Badge>}
                   {updatedAt && <span>{formatAgentDate(updatedAt, locale)}</span>}
                 </div>
               </div>
@@ -62,7 +62,7 @@ export function AgentDraftResultCards({ artifacts }: { artifacts?: AgentTaskArti
                 type="button"
                 size="xs"
                 variant="outline"
-                className="h-6 shrink-0 px-1.5 text-[10px]"
+                className="shrink-0 px-1.5 type-tiny"
                 disabled={!openPath && draftsQuery.isLoading && !draft}
                 onClick={() => navigate(openPath ?? ROUTES.agentDrafts)}
               >

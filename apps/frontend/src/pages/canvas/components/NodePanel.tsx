@@ -4,7 +4,7 @@ import type { Node, Edge } from '@xyflow/react'
 import { api } from '@/lib/api'
 import { publicModelId, publicModelLabel } from '@/lib/modelDisplay'
 import { loadClientPlugins, type ClientPluginInputProperty, type ClientPluginManifest } from '@/lib/clientPlugins'
-import type { Canvas, CanvasNodeData, CanvasParamType, CanvasPortDef, EntityWorkflowSchema, NodeType, RawResource, PublicModel } from '@/types'
+import type { Canvas, CanvasNodeData, CanvasParamType, CanvasPortDef, NodeType, RawResource, PublicModel } from '@/types'
 import { Wand2, Check, X, Loader2 } from 'lucide-react'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
@@ -82,7 +82,7 @@ function PromptTextarea({
     <div className="relative">
       <textarea
         ref={ref}
-        className="w-full border border-border rounded px-2 py-1.5 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground"
+        className="w-full border border-border rounded px-2 py-1.5 type-label resize-none focus:outline-none focus:ring-1 focus:ring-ring bg-background text-foreground"
         rows={rows}
         placeholder={placeholder ?? t('canvas.nodePanel.promptPlaceholder')}
         value={value}
@@ -95,7 +95,7 @@ function PromptTextarea({
             <button
               key={n.id}
               onMouseDown={(e) => { e.preventDefault(); insertMention(n.label) }}
-              className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted/50 flex items-center gap-1.5"
+              className="w-full text-left px-3 py-1.5 type-label hover:bg-muted/50 flex items-center gap-1.5"
             >
               <span className="text-muted-foreground font-medium">@</span>
               <span className="text-foreground">{n.label}</span>
@@ -104,7 +104,7 @@ function PromptTextarea({
         </div>
       )}
       {mention && filtered.length === 0 && upstreamNodes.length === 0 && (
-        <div className="absolute left-0 right-0 bottom-full mb-1 bg-popover border border-border rounded-lg shadow-sm px-3 py-2 text-xs text-muted-foreground z-20">
+        <div className="absolute left-0 right-0 bottom-full mb-1 bg-popover border border-border rounded-lg shadow-sm px-3 py-2 type-label text-muted-foreground z-20">
           {t('canvas.nodePanel.noUpstreamNodes')}
         </div>
       )}
@@ -154,12 +154,6 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
     queryFn: () => api.get('/canvases', { params: { type: 'workflow' } }).then((r) => r.data),
     enabled: nodeType === 'canvas',
     select: (items) => items.filter((canvas) => canvas.canvas_type === 'workflow' && canvas.ID !== canvasId),
-  })
-
-  const { data: entitySchema } = useQuery<EntityWorkflowSchema>({
-    queryKey: ['workflow-entity-schema', data.entityKind],
-    queryFn: () => api.get(`/workflow/entity-schemas/${data.entityKind}`).then((r) => r.data),
-    enabled: nodeType === 'entity_card' && !!data.entityKind,
   })
 
   const selectedReferencedCanvasId = nodeType === 'canvas' && data.referencedCanvasId ? data.referencedCanvasId : undefined
@@ -215,7 +209,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
 
   if (nodeType === 'input') {
     return (
-      <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 text-sm">
+      <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 type-body">
         <LabelField label={label} onUpdate={(v) => onUpdate(nodeId, { label: v } as any)} />
         <ParamFields
           name={data.paramName ?? 'input'}
@@ -223,7 +217,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
           onUpdate={(patch) => onUpdate(nodeId, patch)}
         />
         <div>
-          <p className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.inputContent')}</p>
+          <p className="type-label text-muted-foreground mb-1">{t('canvas.nodePanel.inputContent')}</p>
           <Textarea
             rows={6}
             placeholder={t('canvas.nodePanel.inputDefaultPlaceholder')}
@@ -231,7 +225,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
             onChange={(e) => onUpdate(nodeId, { inputValue: e.target.value, source: 'manual' })}
           />
         </div>
-        <p className="text-xs text-muted-foreground bg-muted rounded px-2 py-1.5">
+        <p className="type-label text-muted-foreground bg-muted rounded px-2 py-1.5">
           {t('canvas.nodePanel.inputHint')}
         </p>
       </div>
@@ -240,14 +234,14 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
 
   if (nodeType === 'output') {
     return (
-      <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 text-sm">
+      <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 type-body">
         <LabelField label={label} onUpdate={(v) => onUpdate(nodeId, { label: v } as any)} />
         <ParamFields
           name={data.paramName ?? 'output'}
           type={data.paramType ?? 'resource'}
           onUpdate={(patch) => onUpdate(nodeId, patch)}
         />
-        <p className="text-xs text-muted-foreground bg-muted rounded px-2 py-1.5">
+        <p className="type-label text-muted-foreground bg-muted rounded px-2 py-1.5">
           {t('canvas.nodePanel.outputHint')}
         </p>
       </div>
@@ -256,22 +250,22 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
 
   if (nodeType === 'resource_sink') {
     return (
-      <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 text-sm">
+      <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 type-body">
         <LabelField label={label} onUpdate={(v) => onUpdate(nodeId, { label: v } as any)} />
         <FileNameField
           value={data.paramName ?? ''}
           onUpdate={(value) => onUpdate(nodeId, { paramName: value, paramType: undefined })}
         />
-        <p className="text-xs text-muted-foreground bg-muted rounded px-2 py-1.5">
+        <p className="type-label text-muted-foreground bg-muted rounded px-2 py-1.5">
           {t('canvas.nodePanel.resourceSinkHint')}
         </p>
         {data.resource && (
           <div>
-            <p className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.currentOutput')}</p>
-            <p className="text-xs text-foreground">{data.resource.name}</p>
+            <p className="type-label text-muted-foreground mb-1">{t('canvas.nodePanel.currentOutput')}</p>
+            <p className="type-label text-foreground">{data.resource.name}</p>
           </div>
         )}
-        {data.error && <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
+        {data.error && <p className="type-label text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
         {allowRun && (
           <Button
             onClick={() => onRun(nodeId)}
@@ -290,24 +284,24 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
   if (nodeType === 'approval') {
     const approvalStatus = data.approvalStatus ?? 'waiting'
     return (
-      <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 text-sm">
+      <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 type-body">
         <LabelField label={label} onUpdate={(v) => onUpdate(nodeId, { label: v } as any)} />
-        <p className="text-xs text-muted-foreground bg-muted rounded px-2 py-1.5">
+        <p className="type-label text-muted-foreground bg-muted rounded px-2 py-1.5">
           {t('canvas.nodePanel.approvalHint')}
         </p>
         <div>
-          <p className="text-xs text-muted-foreground mb-2">{t('canvas.nodePanel.currentStatus')}</p>
+          <p className="type-label text-muted-foreground mb-2">{t('canvas.nodePanel.currentStatus')}</p>
           {approvalStatus === 'waiting' && (
             <div className="flex gap-2">
               <button
                 onClick={() => onUpdate(nodeId, { approvalStatus: 'approved' })}
-                className="flex-1 flex items-center justify-center gap-1 bg-foreground text-background rounded py-2 text-xs hover:bg-foreground/90 transition-colors"
+                className="flex-1 flex items-center justify-center gap-1 bg-foreground text-background rounded py-2 type-label hover:bg-foreground/90 transition-colors"
               >
                 <Check size={12} /> {t('canvas.approval.approve')}
               </button>
               <button
                 onClick={() => onUpdate(nodeId, { approvalStatus: 'rejected' })}
-                className="flex-1 flex items-center justify-center gap-1 bg-destructive text-destructive-foreground rounded py-2 text-xs hover:bg-destructive/90 transition-colors"
+                className="flex-1 flex items-center justify-center gap-1 bg-destructive text-destructive-foreground rounded py-2 type-label hover:bg-destructive/90 transition-colors"
               >
                 <X size={12} /> {t('canvas.approval.reject')}
               </button>
@@ -315,10 +309,10 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
           )}
           {approvalStatus === 'approved' && (
             <div className="space-y-2">
-              <p className="text-foreground text-xs">{t('canvas.approval.approvedMark')}</p>
+              <p className="text-foreground type-label">{t('canvas.approval.approvedMark')}</p>
               <button
                 onClick={() => onUpdate(nodeId, { approvalStatus: 'waiting' })}
-                className="text-xs text-muted-foreground hover:text-foreground underline"
+                className="type-label text-muted-foreground hover:text-foreground underline"
               >
                 {t('canvas.approval.resetWaiting')}
               </button>
@@ -326,10 +320,10 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
           )}
           {approvalStatus === 'rejected' && (
             <div className="space-y-2">
-              <p className="text-destructive text-xs">{t('canvas.approval.rejectedMark')}</p>
+              <p className="text-destructive type-label">{t('canvas.approval.rejectedMark')}</p>
               <button
                 onClick={() => onUpdate(nodeId, { approvalStatus: 'waiting' })}
-                className="text-xs text-muted-foreground hover:text-foreground underline"
+                className="type-label text-muted-foreground hover:text-foreground underline"
               >
                 {t('canvas.approval.resetWaiting')}
               </button>
@@ -342,7 +336,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
 
   if (nodeType === 'text_gen') {
     return (
-      <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 text-sm">
+      <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 type-body">
         <LabelField label={label} onUpdate={(v) => onUpdate(nodeId, { label: v } as any)} />
         <AIConfigSection
           data={data}
@@ -350,7 +344,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
           upstreamNodes={upstreamNodes}
           onUpdate={(patch) => onUpdate(nodeId, patch)}
         />
-        {data.error && <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
+        {data.error && <p className="type-label text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
         {allowRun && (
           <Button
             onClick={() => onRun(nodeId)}
@@ -368,12 +362,12 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
 
   if (nodeType === 'canvas') {
     return (
-      <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 text-sm">
+      <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 type-body">
         <LabelField label={label} onUpdate={(v) => onUpdate(nodeId, { label: v } as any)} />
         <div>
-          <p className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.referenceWorkflow')}</p>
+          <p className="type-label text-muted-foreground mb-1">{t('canvas.nodePanel.referenceWorkflow')}</p>
           <select
-            className="w-full border border-border bg-background rounded-md px-2 py-1.5 text-xs text-foreground"
+            className="w-full border border-border bg-background rounded-md px-2 py-1.5 type-label text-foreground"
             value={data.referencedCanvasId ?? ''}
             onChange={(e) => {
               const referencedCanvasId = Number(e.target.value) || undefined
@@ -391,13 +385,13 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
             ))}
           </select>
         </div>
-        <p className="text-xs text-muted-foreground bg-muted rounded px-2 py-1.5">
+        <p className="type-label text-muted-foreground bg-muted rounded px-2 py-1.5">
           {t('canvas.nodePanel.referenceWorkflowHint')}
         </p>
         {((data.inputPorts?.length ?? 0) > 0 || (data.outputPorts?.length ?? 0) > 0) && (
           <PortSummary inputPorts={data.inputPorts ?? []} outputPorts={data.outputPorts ?? []} />
         )}
-        {data.error && <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
+        {data.error && <p className="type-label text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
         {allowRun && (
           <Button
             onClick={() => onRun(nodeId)}
@@ -410,20 +404,6 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
           </Button>
         )}
       </div>
-    )
-  }
-
-  if (nodeType === 'entity_card') {
-    return (
-      <EntityCardPanel
-        data={data}
-        label={label}
-        schema={entitySchema}
-        isRunning={isRunning}
-        allowRun={allowRun}
-        onUpdate={(patch) => onUpdate(nodeId, patch)}
-        onRun={() => onRun(nodeId)}
-      />
     )
   }
 
@@ -449,18 +429,18 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
     nodeType === 'text' ? ['upload', 'ai', 'manual'] : ['upload', 'ai']
 
   return (
-    <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 text-sm">
+    <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 type-body">
       <LabelField label={label} onUpdate={(v) => onUpdate(nodeId, { label: v } as any)} />
 
       {!isToolNode && (
         <div>
-          <p className="text-xs text-muted-foreground mb-2">{t('canvas.nodePanel.source')}</p>
+          <p className="type-label text-muted-foreground mb-2">{t('canvas.nodePanel.source')}</p>
           <div className="flex gap-1">
             {sourceOptions.map((s) => (
               <button
                 key={s}
                 onClick={() => { setSource(s); onUpdate(nodeId, { ...readOnlyMediaPortPatch(s), source: s }) }}
-                className={`flex-1 py-1.5 rounded border text-xs transition-colors ${
+                className={`flex-1 py-1.5 rounded border type-label transition-colors ${
                   source === s ? 'bg-foreground text-background border-foreground' : 'border-border text-muted-foreground hover:border-border/80'
                 }`}
               >
@@ -477,21 +457,21 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
             ref={fileRef}
             type="file"
             className="hidden"
-            accept={nodeType === 'image' ? IMAGE_UPLOAD_ACCEPT : nodeType === 'video' ? 'video/*' : nodeType === 'audio' ? 'audio/*' : '*'}
+            accept={nodeType === 'image' ? IMAGE_UPLOAD_ACCEPT : nodeType === 'video' ? 'video/*' : '*'}
             onChange={(e) => e.target.files?.[0] && upload.mutate(e.target.files[0])}
           />
           <button
             onClick={() => fileRef.current?.click()}
             disabled={upload.isPending}
-            className="w-full border border-dashed border-border rounded px-3 py-3 text-xs text-muted-foreground hover:text-foreground hover:border-border/80 transition-colors"
+            className="w-full border border-dashed border-border rounded px-3 py-3 type-label text-muted-foreground hover:text-foreground hover:border-border/80 transition-colors"
           >
             {upload.isPending ? t('canvas.nodePanel.uploading') : data.resource ? t('canvas.nodePanel.uploaded', { name: data.resource.name }) : t('canvas.nodePanel.selectFile')}
           </button>
           {resources.filter((r) => r.type === nodeType).length > 0 && (
             <div>
-              <p className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.selectFromResources')}</p>
+              <p className="type-label text-muted-foreground mb-1">{t('canvas.nodePanel.selectFromResources')}</p>
               <select
-                className="w-full border border-border bg-background rounded-md px-2 py-1.5 text-xs text-foreground"
+                className="w-full border border-border bg-background rounded-md px-2 py-1.5 type-label text-foreground"
                 value={data.resourceId ?? ''}
                 onChange={(e) => {
                   const r = resources.find((r) => r.ID === Number(e.target.value))
@@ -510,7 +490,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
 
       {source === 'manual' && nodeType === 'text' && (
         <div>
-          <p className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.textContent')}</p>
+          <p className="type-label text-muted-foreground mb-1">{t('canvas.nodePanel.textContent')}</p>
           <Textarea
             rows={8}
             placeholder={t('canvas.nodePanel.textContentPlaceholder')}
@@ -528,7 +508,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
             upstreamNodes={upstreamNodes}
             onUpdate={(patch) => onUpdate(nodeId, patch)}
           />
-          {data.error && <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
+          {data.error && <p className="type-label text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
           {allowRun && (
             <Button
               onClick={() => onRun(nodeId)}
@@ -589,13 +569,13 @@ export function deriveCanvasReferencePorts(canvas: Canvas): { inputs: CanvasPort
 function PortSummary({ inputPorts, outputPorts }: { inputPorts: CanvasPortDef[]; outputPorts: CanvasPortDef[] }) {
   const { t } = useTranslation()
   return (
-    <div className="rounded-md border border-border bg-muted/10 px-3 py-2 text-xs">
+    <div className="rounded-md border border-border bg-muted/10 px-3 py-2 type-label">
       {inputPorts.length > 0 && (
         <div>
-          <p className="mb-1 text-[11px] font-medium text-muted-foreground">{t('canvas.nodePanel.inputs', { defaultValue: 'Inputs' })}</p>
+          <p className="mb-1 type-caption font-medium text-muted-foreground">{t('canvas.nodePanel.inputs', { defaultValue: 'Inputs' })}</p>
           <div className="flex flex-wrap gap-1.5">
             {inputPorts.map((port) => (
-              <span key={port.id} className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              <span key={port.id} className="rounded border border-border bg-background px-1.5 py-0.5 type-tiny text-muted-foreground">
                 {port.labelKey ? t(port.labelKey, { defaultValue: port.label ?? port.id }) : (port.label ?? port.id)} · {port.type}
               </span>
             ))}
@@ -604,185 +584,15 @@ function PortSummary({ inputPorts, outputPorts }: { inputPorts: CanvasPortDef[];
       )}
       {outputPorts.length > 0 && (
         <div className={inputPorts.length > 0 ? 'mt-2' : ''}>
-          <p className="mb-1 text-[11px] font-medium text-muted-foreground">{t('canvas.nodePanel.outputs', { defaultValue: 'Outputs' })}</p>
+          <p className="mb-1 type-caption font-medium text-muted-foreground">{t('canvas.nodePanel.outputs', { defaultValue: 'Outputs' })}</p>
           <div className="flex flex-wrap gap-1.5">
             {outputPorts.map((port) => (
-              <span key={port.id} className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              <span key={port.id} className="rounded border border-border bg-background px-1.5 py-0.5 type-tiny text-muted-foreground">
                 {port.labelKey ? t(port.labelKey, { defaultValue: port.label ?? port.id }) : (port.label ?? port.id)} · {port.type}
               </span>
             ))}
           </div>
         </div>
-      )}
-    </div>
-  )
-}
-
-function EntityCardPanel({
-  data,
-  label,
-  schema,
-  isRunning,
-  allowRun,
-  onUpdate,
-  onRun,
-}: {
-  data: CanvasNodeData
-  label: string
-  schema?: EntityWorkflowSchema
-  isRunning: boolean
-  allowRun: boolean
-  onUpdate: (patch: Partial<CanvasNodeData & { label: string }>) => void
-  onRun: () => void
-}) {
-  const { t } = useTranslation()
-  const compatibility = schema?.compatibility
-  const migrations = compatibility?.migrations ?? []
-  const aliasCount = compatibility?.fieldAliases
-    ? Object.values(compatibility.fieldAliases).reduce((sum, aliases) => sum + aliases.length, 0)
-    : 0
-  const deprecatedCount = compatibility?.deprecatedFields?.length ?? 0
-  const kindLabel = data.entityKind
-    ? t(schema?.labelKey ?? `canvas.entityTypes.${data.entityKind}`, { defaultValue: schema?.fallbackLabel ?? data.entityKind })
-    : t('canvas.nodeLabels.entity_card')
-  return (
-    <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 text-sm">
-      <LabelField label={label} onUpdate={(v) => onUpdate({ label: v } as any)} />
-      <div className="rounded-md border border-border bg-muted/10 px-3 py-2 text-xs">
-        <div className="flex items-center justify-between gap-2">
-          <span className="font-medium text-foreground">{kindLabel}</span>
-          <div className="flex shrink-0 items-center gap-1.5">
-            {schema?.schemaVersion && <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">v{schema.schemaVersion}</span>}
-            {compatibility && compatibility.minCompatibleVersion < compatibility.currentVersion && (
-              <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                v{compatibility.minCompatibleVersion}+
-              </span>
-            )}
-            {data.entityId && <span className="font-mono text-muted-foreground">#{data.entityId}</span>}
-          </div>
-        </div>
-        {data.entityTitle && <p className="mt-1 truncate text-muted-foreground">{data.entityTitle}</p>}
-      </div>
-      {schema && (
-        <div className="rounded-md border border-border bg-muted/10 px-3 py-2 text-xs">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
-              {t('canvas.nodePanel.schemaProjection', { defaultValue: 'projection' })}: {schema.projection ?? 'workflow'}
-            </span>
-            <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
-              {t('canvas.nodePanel.schemaAliases', { defaultValue: 'aliases' })}: {aliasCount}
-            </span>
-            <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
-              {t('canvas.nodePanel.schemaMigrations', { defaultValue: 'migrations' })}: {migrations.length}
-            </span>
-            {deprecatedCount > 0 && (
-              <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">
-                {t('common.deprecated', { defaultValue: 'deprecated' })}: {deprecatedCount}
-              </span>
-            )}
-          </div>
-          {migrations.length > 0 && (
-            <div className="mt-2 space-y-1">
-              {migrations.map((migration, index) => (
-                <p key={`${migration.kind}-${migration.fieldId ?? migration.fromFieldId ?? index}`} className="text-[10px] text-muted-foreground">
-                  <span className="font-medium text-foreground">{migration.kind}</span>
-                  {migration.fromFieldId || migration.toFieldId ? ` · ${migration.fromFieldId ?? '?'} -> ${migration.toFieldId ?? '?'}` : ''}
-                  {migration.description ? ` · ${migration.description}` : ''}
-                </p>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-      {schema ? (
-        <div className="space-y-3">
-          {schema.sections.map((section) => (
-            <div key={section.id} className="rounded-md border border-border bg-card">
-              <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 text-xs">
-                <span className="font-medium text-foreground">{t(section.labelKey, { defaultValue: section.fallbackLabel })}</span>
-                {section.layout?.columns && (
-                  <span className="text-[10px] text-muted-foreground">
-                    {t('canvas.nodePanel.schemaColumns', { count: section.layout.columns, defaultValue: `${section.layout.columns} col` })}
-                  </span>
-                )}
-              </div>
-              <div className="divide-y divide-border/60">
-                {section.fields.map((field) => {
-                  const aliases = field.workflow.aliases ?? field.aliases ?? []
-                  const migrationForField = migrations.find((migration) =>
-                    migration.fieldId === field.id
-                    || migration.fromFieldId === field.id
-                    || migration.toFieldId === field.id
-                    || migration.fromFieldId === field.workflow.portId
-                    || migration.toFieldId === field.workflow.portId
-                  )
-                  return (
-                  <div key={field.id} className={field.deprecated ? 'bg-amber-500/5 px-3 py-2' : 'px-3 py-2'}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-medium text-foreground">
-                          {t(field.labelKey, { defaultValue: field.fallbackLabel })}
-                        </p>
-                        <p className="mt-0.5 text-[10px] text-muted-foreground">
-                          {field.workflow.portId} · {field.valueType} · {field.control}
-                        </p>
-                        {aliases.length > 0 && (
-                          <p className="mt-1 break-words text-[10px] text-muted-foreground">
-                            {t('canvas.nodePanel.schemaFieldAliases', { defaultValue: 'aliases' })}: {aliases.join(', ')}
-                          </p>
-                        )}
-                        {(field.validation || field.binding || migrationForField) && (
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {field.validation?.required && (
-                              <span className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                                {t('common.required', { defaultValue: 'required' })}
-                              </span>
-                            )}
-                            {field.validation?.enum?.map((value) => (
-                              <span key={value} className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{value}</span>
-                            ))}
-                            {field.binding && (
-                              <span className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                                {field.binding.role}/{field.binding.slot}{field.binding.isPrimary ? ' primary' : ''}
-                              </span>
-                            )}
-                            {migrationForField && (
-                              <span className="rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[10px] text-sky-700 dark:text-sky-300">
-                                {migrationForField.kind}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 gap-1">
-                        {field.workflow.readable && <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">out</span>}
-                        {field.workflow.writable && <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">in</span>}
-                        {field.workflow.maxCount ? <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">max {field.workflow.maxCount}</span> : null}
-                        {field.readonly && <span className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{t('common.readonly', { defaultValue: 'read-only' })}</span>}
-                        {field.deprecated && <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">{t('common.deprecated', { defaultValue: 'deprecated' })}</span>}
-                      </div>
-                    </div>
-                  </div>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <PortSummary inputPorts={data.inputPorts ?? []} outputPorts={data.outputPorts ?? []} />
-      )}
-      {data.error && <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
-      {allowRun && (
-        <Button
-          onClick={onRun}
-          disabled={isRunning || !data.entityKind || !data.entityId}
-          className="w-full"
-          size="sm"
-        >
-          <Wand2 size={12} />
-          {isRunning ? t('canvas.running') : t('shared.generation.runNode')}
-        </Button>
       )}
     </div>
   )
@@ -792,11 +602,11 @@ function LabelField({ label, onUpdate }: { label: string; onUpdate: (v: string) 
   const { t } = useTranslation()
   return (
     <div>
-      <Label className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.label')}</Label>
+      <Label className="type-label text-muted-foreground mb-1">{t('canvas.nodePanel.label')}</Label>
       <Input
         value={label}
         onChange={(e) => onUpdate(e.target.value)}
-        className="text-sm"
+        className="type-body"
       />
     </div>
   )
@@ -806,11 +616,11 @@ function FileNameField({ value, onUpdate }: { value: string; onUpdate: (v: strin
   const { t } = useTranslation()
   return (
     <div>
-      <Label className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.fileName')}</Label>
+      <Label className="type-label text-muted-foreground mb-1">{t('canvas.nodePanel.fileName')}</Label>
       <Input
         value={value}
         onChange={(e) => onUpdate(e.target.value)}
-        className="text-sm"
+        className="type-body"
         placeholder={t('canvas.nodePanel.fileNamePlaceholder')}
       />
     </div>
@@ -821,7 +631,6 @@ const PARAM_TYPE_OPTIONS: Array<{ value: CanvasParamType; label: string }> = [
   { value: 'text', label: 'canvas.paramTypes.text' },
   { value: 'image', label: 'canvas.paramTypes.image' },
   { value: 'video', label: 'canvas.paramTypes.video' },
-  { value: 'audio', label: 'canvas.paramTypes.audio' },
   { value: 'json', label: 'canvas.paramTypes.json' },
   { value: 'number', label: 'canvas.paramTypes.number' },
   { value: 'boolean', label: 'canvas.paramTypes.boolean' },
@@ -841,18 +650,18 @@ function ParamFields({
   return (
     <div className="grid grid-cols-[1fr_auto] gap-2">
       <div>
-        <Label className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.paramName')}</Label>
+        <Label className="type-label text-muted-foreground mb-1">{t('canvas.nodePanel.paramName')}</Label>
         <Input
           value={name}
           onChange={(e) => onUpdate({ paramName: e.target.value })}
-          className="text-sm"
+          className="type-body"
           placeholder={t('canvas.nodePanel.paramNamePlaceholder')}
         />
       </div>
       <div className="w-28">
-        <Label className="text-xs text-muted-foreground mb-1">{t('canvas.nodePanel.paramType')}</Label>
+        <Label className="type-label text-muted-foreground mb-1">{t('canvas.nodePanel.paramType')}</Label>
         <select
-          className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground"
+          className="h-9 w-full rounded-md border border-input bg-background px-2 type-body text-foreground"
           value={type}
           onChange={(e) => onUpdate({ paramType: e.target.value as CanvasParamType })}
         >
@@ -897,29 +706,29 @@ function PluginCardPanel({
   }
 
   return (
-    <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 text-sm">
+    <div className="w-full bg-background h-full overflow-y-auto p-4 space-y-4 type-body">
       <LabelField label={label} onUpdate={(v) => onUpdate({ label: v } as any)} />
 
       <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
-        <p className="text-xs font-medium text-foreground">{data.pluginName || plugin?.name || t('plugins.notFound')}</p>
-        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="type-label font-medium text-foreground">{data.pluginName || plugin?.name || t('plugins.notFound')}</p>
+        <p className="mt-1 type-caption leading-relaxed text-muted-foreground">
           {plugin?.description || t('canvas.pluginCard.localRuntimeDescription')}
         </p>
         {data.pluginRuntime && (
-          <p className="mt-1 text-[10px] text-muted-foreground">
+          <p className="mt-1 type-tiny text-muted-foreground">
             {t('canvas.pluginCard.runtime', { runtime: data.pluginRuntime, defaultValue: `runtime: ${data.pluginRuntime}` })}
           </p>
         )}
       </div>
 
       {((data.inputPorts?.length ?? 0) > 0 || (data.outputPorts?.length ?? 0) > 0) && (
-        <div className="rounded-md border border-border bg-muted/10 px-3 py-2 text-xs">
+        <div className="rounded-md border border-border bg-muted/10 px-3 py-2 type-label">
           {(data.inputPorts?.length ?? 0) > 0 && (
             <div>
-              <p className="mb-1 text-[11px] font-medium text-muted-foreground">{t('canvas.nodePanel.inputs', { defaultValue: 'Inputs' })}</p>
+              <p className="mb-1 type-caption font-medium text-muted-foreground">{t('canvas.nodePanel.inputs', { defaultValue: 'Inputs' })}</p>
               <div className="flex flex-wrap gap-1.5">
                 {data.inputPorts?.map((port) => (
-                  <span key={port.id} className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  <span key={port.id} className="rounded border border-border bg-background px-1.5 py-0.5 type-tiny text-muted-foreground">
                     {port.label ?? port.id} · {port.type}
                   </span>
                 ))}
@@ -928,10 +737,10 @@ function PluginCardPanel({
           )}
           {(data.outputPorts?.length ?? 0) > 0 && (
             <div className={(data.inputPorts?.length ?? 0) > 0 ? 'mt-2' : ''}>
-              <p className="mb-1 text-[11px] font-medium text-muted-foreground">{t('canvas.nodePanel.outputs', { defaultValue: 'Outputs' })}</p>
+              <p className="mb-1 type-caption font-medium text-muted-foreground">{t('canvas.nodePanel.outputs', { defaultValue: 'Outputs' })}</p>
               <div className="flex flex-wrap gap-1.5">
                 {data.outputPorts?.map((port) => (
-                  <span key={port.id} className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  <span key={port.id} className="rounded border border-border bg-background px-1.5 py-0.5 type-tiny text-muted-foreground">
                     {port.label ?? port.id} · {port.type}
                   </span>
                 ))}
@@ -942,12 +751,12 @@ function PluginCardPanel({
       )}
 
       {!plugin && (
-        <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">{t('canvas.pluginCard.missingPlugin')}</p>
+        <p className="type-label text-destructive bg-destructive/10 rounded px-2 py-1">{t('canvas.pluginCard.missingPlugin')}</p>
       )}
 
       {Object.entries(properties).length > 0 && (
         <div className="space-y-3">
-          <p className="text-xs font-medium text-muted-foreground">{t('plugins.parameters')}</p>
+          <p className="type-label font-medium text-muted-foreground">{t('plugins.parameters')}</p>
           {Object.entries(properties).map(([name, prop]) => (
             <PluginArgField
               key={name}
@@ -960,7 +769,7 @@ function PluginCardPanel({
         </div>
       )}
 
-      {data.error && <p className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
+      {data.error && <p className="type-label text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
 
       <Button onClick={onRun} disabled={!canRun} className="w-full" size="sm">
         {isRunning ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
@@ -969,15 +778,15 @@ function PluginCardPanel({
 
       {data.pluginResultText && (
         <div className="rounded-md border border-border bg-muted/25 p-3">
-          <p className="mb-2 text-[10px] font-semibold uppercase text-muted-foreground">{t('plugins.result')}</p>
-          <p className="whitespace-pre-wrap break-words text-xs text-foreground">{data.pluginResultText}</p>
+          <p className="mb-2 type-tiny font-semibold uppercase text-muted-foreground">{t('plugins.result')}</p>
+          <p className="whitespace-pre-wrap break-words type-label text-foreground">{data.pluginResultText}</p>
         </div>
       )}
 
       {data.executableSpec && (
         <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3">
-          <p className="text-[10px] font-semibold uppercase text-emerald-700">{t('canvas.pluginCard.executableReady')}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{data.executableSpec.capability}</p>
+          <p className="type-tiny font-semibold uppercase text-emerald-700">{t('canvas.pluginCard.executableReady')}</p>
+          <p className="mt-1 type-label text-muted-foreground">{data.executableSpec.capability}</p>
         </div>
       )}
     </div>
@@ -1001,9 +810,9 @@ function PluginArgField({
   if (prop.enum && prop.enum.length > 0) {
     return (
       <div>
-        <Label className="text-xs text-muted-foreground mb-1">{label}</Label>
+        <Label className="type-label text-muted-foreground mb-1">{label}</Label>
         <select
-          className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground"
+          className="h-9 w-full rounded-md border border-input bg-background px-2 type-body text-foreground"
           value={stringValue}
           onChange={(e) => onChange(e.target.value)}
         >
@@ -1012,7 +821,7 @@ function PluginArgField({
             <option key={String(option)} value={String(option)}>{String(option)}</option>
           ))}
         </select>
-        {prop.description && <p className="mt-1 text-[11px] text-muted-foreground">{prop.description}</p>}
+        {prop.description && <p className="mt-1 type-caption text-muted-foreground">{prop.description}</p>}
       </div>
     )
   }
@@ -1020,21 +829,21 @@ function PluginArgField({
   if (prop.type === 'number') {
     return (
       <div>
-        <Label className="text-xs text-muted-foreground mb-1">{label}</Label>
+        <Label className="type-label text-muted-foreground mb-1">{label}</Label>
         <Input
           type="number"
           value={stringValue}
           onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))}
-          className="text-sm"
+          className="type-body"
         />
-        {prop.description && <p className="mt-1 text-[11px] text-muted-foreground">{prop.description}</p>}
+        {prop.description && <p className="mt-1 type-caption text-muted-foreground">{prop.description}</p>}
       </div>
     )
   }
 
   if (prop.type === 'boolean') {
     return (
-      <label className="flex items-start gap-2 rounded-md border border-border px-3 py-2 text-xs">
+      <label className="flex items-start gap-2 rounded-md border border-border px-3 py-2 type-label">
         <input
           type="checkbox"
           checked={value === true || value === 'true'}
@@ -1043,7 +852,7 @@ function PluginArgField({
         />
         <span>
           <span className="block font-medium text-foreground">{label}</span>
-          {prop.description && <span className="mt-1 block text-[11px] text-muted-foreground">{prop.description}</span>}
+          {prop.description && <span className="mt-1 block type-caption text-muted-foreground">{prop.description}</span>}
         </span>
       </label>
     )
@@ -1052,22 +861,22 @@ function PluginArgField({
   const isLong = name === 'prompt' || name.includes('prompt') || name.includes('description')
   return (
     <div>
-      <Label className="text-xs text-muted-foreground mb-1">{label}</Label>
+      <Label className="type-label text-muted-foreground mb-1">{label}</Label>
       {isLong ? (
         <Textarea
           rows={4}
           value={stringValue}
           onChange={(e) => onChange(e.target.value)}
-          className="text-sm"
+          className="type-body"
         />
       ) : (
         <Input
           value={stringValue}
           onChange={(e) => onChange(e.target.value)}
-          className="text-sm"
+          className="type-body"
         />
       )}
-      {prop.description && <p className="mt-1 text-[11px] text-muted-foreground">{prop.description}</p>}
+      {prop.description && <p className="mt-1 type-caption text-muted-foreground">{prop.description}</p>}
     </div>
   )
 }
@@ -1091,9 +900,9 @@ function AIConfigSection({
   return (
     <div className="space-y-3">
       <div>
-        <p className="text-xs text-muted-foreground mb-1">{t('agents.model')}</p>
+        <p className="type-label text-muted-foreground mb-1">{t('agents.model')}</p>
         <select
-          className="w-full border border-border bg-background rounded-md px-2 py-1.5 text-xs text-foreground"
+          className="w-full border border-border bg-background rounded-md px-2 py-1.5 type-label text-foreground"
           value={selectedModelValue}
           onChange={(e) => {
             const model = models.find((m) => publicModelId(m) === e.target.value)
@@ -1107,7 +916,7 @@ function AIConfigSection({
         </select>
       </div>
       <div>
-        <p className="text-xs text-muted-foreground mb-1">{t('details.prompt')}</p>
+        <p className="type-label text-muted-foreground mb-1">{t('details.prompt')}</p>
         <PromptTextarea
           value={data.prompt ?? ''}
           onChange={(v) => onUpdate({ prompt: v })}

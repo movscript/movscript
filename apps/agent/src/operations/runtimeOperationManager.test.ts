@@ -23,6 +23,7 @@ test('RuntimeOperationManager starts and waits generation job operations', async
   })
 
   const operation = await manager.start({
+    threadId: 'thread_1',
     runId: 'run_1',
     kind: 'generation_job',
     request: { prompt: 'make image', job_type: 'image' },
@@ -54,6 +55,7 @@ test('RuntimeOperationManager can cancel generation job operations', async () =>
   })
 
   const operation = await manager.start({
+    threadId: 'thread_1',
     runId: 'run_1',
     kind: 'generation_job',
     request: { prompt: 'make image' },
@@ -85,6 +87,7 @@ test('GenerationJobOperationProvider retries once with backend suggested_fix', a
   })
 
   const operation = await manager.start({
+    threadId: 'thread_1',
     runId: 'run_1',
     kind: 'generation_job',
     request: { prompt: 'make image', aspect_ratio: 'bad' },

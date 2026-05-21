@@ -75,25 +75,25 @@ export function useAgentWorkflowActionBindings({
 
   const approveLocalRun = useCallback(async (runId: string, approvalIds?: string[]) => {
     const run = runById.get(runId)
-    if (!run || run.status !== 'requires_action' || approving) return
+    if (!run || run.status !== 'requires_action') return
     await approveWorkflowRunAction({
       run,
       approvalIds,
-      approveRun: (runId, input) => localAgentClient.approveRun(runId, input),
+      approveInteraction: (interactionId) => localAgentClient.approveInteraction(interactionId),
       deps,
     })
-  }, [approving, deps, runById])
+  }, [deps, runById])
 
   const rejectLocalRun = useCallback(async (runId: string, approvalIds?: string[]) => {
     const run = runById.get(runId)
-    if (!run || run.status !== 'requires_action' || approving) return
+    if (!run || run.status !== 'requires_action') return
     await rejectWorkflowRunAction({
       run,
       approvalIds,
-      rejectRun: (runId, input) => localAgentClient.rejectRun(runId, input),
+      rejectInteraction: (interactionId) => localAgentClient.rejectInteraction(interactionId),
       deps,
     })
-  }, [approving, deps, runById])
+  }, [deps, runById])
 
   const answerLocalRunInput = useCallback(async (runId: string, requestId: string, answer: AgentInputAnswer) => {
     const run = runById.get(runId)

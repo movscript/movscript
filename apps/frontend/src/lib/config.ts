@@ -5,6 +5,7 @@ export const APP_SETTINGS_STORAGE_KEY = 'movscript-app-settings'
 export interface AppSettings {
   apiBaseURL: string
   launchMode: 'cloud' | 'local'
+  workMode: 'detail' | 'agent'
   onboardingCompleted: boolean
   localDisplayName?: string
 }
