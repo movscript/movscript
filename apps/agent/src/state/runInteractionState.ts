@@ -95,9 +95,13 @@ export function approveRunInteraction(run: AgentRun, input: ApproveRunInput, now
   const selectedApprovalIdSet = new Set(selectedApprovalIds)
   const selectedToolNameSet = new Set(selectedToolNames)
   const approvingAll = selectedApprovalIds.length === 0 && selectedToolNames.length === 0
-  const approvedToolNames = new Set(getApprovedToolNames(run))
+  const approvedToolNames = new Set([
+    ...getApprovedToolNames(run),
+    ...(run.pendingApprovals ?? []).filter((approval) => approval.status === 'approved').map((approval) => approval.toolName),
+  ])
   const pendingApprovals = (run.pendingApprovals ?? []).map((approval) => {
-    const approve = approvingAll || selectedApprovalIdSet.has(approval.id) || selectedToolNameSet.has(approval.toolName)
+    const approve = approval.status === 'pending'
+      && (approvingAll || selectedApprovalIdSet.has(approval.id) || selectedToolNameSet.has(approval.toolName))
     if (!approve) return approval
     approvedToolNames.add(approval.toolName)
     return { ...approval, status: 'approved' as const, approvedAt: now, updatedAt: now }
@@ -172,15 +176,19 @@ export function cancelPendingRunInteractions(run: AgentRun, now: string): Cancel
 }
 
 export function mergePendingApprovals(existing: AgentApprovalRequest[], next: AgentApprovalRequest[], updatedAt: string): AgentApprovalRequest[] {
-  const byTool = new Map<string, AgentApprovalRequest>()
-  for (const approval of existing) {
-    if (approval.status === 'pending') byTool.set(approval.toolName, approval)
-  }
+  const nextByTool = new Map(next.map((approval) => [approval.toolName, approval]))
+  const existingPendingTools = new Set<string>()
+  const merged = existing.map((approval) => {
+    if (approval.status !== 'pending') return approval
+    existingPendingTools.add(approval.toolName)
+    const nextApproval = nextByTool.get(approval.toolName)
+    return nextApproval ? { ...approval, args: nextApproval.args, reason: nextApproval.reason, updatedAt } : approval
+  })
   for (const approval of next) {
-    const current = byTool.get(approval.toolName)
-    byTool.set(approval.toolName, current ? { ...current, args: approval.args, reason: approval.reason, updatedAt } : approval)
+    if (existingPendingTools.has(approval.toolName)) continue
+    merged.push(approval)
   }
-  return Array.from(byTool.values()).sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  return merged
 }
 
 export function mergePendingInputRequests(existing: AgentInputRequest[], next: AgentInputRequest[], updatedAt: string): AgentInputRequest[] {

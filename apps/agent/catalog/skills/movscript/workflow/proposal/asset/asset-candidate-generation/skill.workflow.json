@@ -29,12 +29,14 @@
     "tool://movscript_get_draft_model",
     "tool://movscript_request_user_input",
     "tool://movscript_list_models",
-    "tool://movscript_create_generation_job",
+    "tool://agent_io_start",
+    "tool://agent_io_get",
+    "tool://agent_io_wait",
+    "tool://agent_io_list",
     "tool://movscript_attach_asset_slot_candidate",
-    "tool://movscript_get_generation_job",
-    "tool://movscript_list_generation_jobs"
+    "tool://agent_io_cancel"
   ],
   "toolScope": "intersect",
-  "outputContract": "返回已选 asset target、候选 prompt 方向、已有设定/素材检查结果、所需模型能力、生成 jobId、output_resource_id 列表、每个 output_resource_id 的候选写入结果、阻塞项和下一步动作。",
+  "outputContract": "返回已选 asset target、候选 prompt 方向、已有设定/素材检查结果、所需模型能力、生成 operationId、output_resource_id 列表、每个 output_resource_id 的候选写入结果、阻塞项和下一步动作。",
   "instructionTemplatePath": "instruction.md"
 }

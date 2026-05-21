@@ -693,6 +693,7 @@ export interface AgentMemory {
 
 export interface AgentDraft {
   id: string
+  filePath?: string
   projectId?: number
   kind: AgentDraftKind
   title: string
@@ -730,12 +731,6 @@ export interface AgentDraftApplyPreview {
   backendApply?: Record<string, unknown>
 }
 
-export interface AgentDraftPatchOp {
-  op: 'add' | 'replace' | 'remove'
-  path: string
-  value?: unknown
-}
-
 export interface AgentDraftValidationIssue {
   path: string
   message: string
@@ -747,13 +742,6 @@ export interface AgentDraftValidationResult {
   draftId: string
   kind: AgentDraftKind
   issues: AgentDraftValidationIssue[]
-}
-
-export interface AgentDraftPatchResult {
-  status: 'patched'
-  draft: AgentDraft
-  changedPaths: string[]
-  validation: AgentDraftValidationResult
 }
 
 export interface RunMessageResult {
@@ -872,6 +860,237 @@ export interface AgentRunTraceSummary {
   total: number
   byKind: Partial<Record<AgentTraceEventKind, number>>
   latestEvent?: AgentTraceEvent
+}
+
+export interface AgentRunDebugLedger {
+  schema: 'movscript.agent.run-debug-ledger.v1'
+  runId: string
+  generatedAt: string
+  budget: { maxChars: number; estimatedChars: number; truncated: boolean }
+  run: {
+    status: AgentRunStatus
+    role?: AgentRunRole
+    objective?: string
+    currentRound?: number
+    error?: string
+    warnings: string[]
+  }
+  context: {
+    promptChars?: number
+    messageCount?: number
+    systemMessageCount?: number
+    activeSkillIds: string[]
+    availableToolNames: string[]
+    blockedToolCount?: number
+    droppedSummary: {
+      count: number
+      totalOriginalChars: number
+      totalRenderedChars: number
+      samples: Array<{ eventId: string; originalChars: number; renderedChars: number; reason?: string }>
+    }
+    layers: Array<{ label: string; chars: number }>
+  }
+  modelCalls: Array<{
+    callId: string
+    roundIndex?: number
+    status: 'request_only' | 'complete' | 'failed' | 'result_only'
+    model?: string
+    messageCount?: number
+    toolCount?: number
+    httpStatus?: number
+    latencyMs?: number
+    inputTokens?: number
+    outputTokens?: number
+    responseChars?: number
+    retryCount?: number
+    evidenceRefs: string[]
+    issue?: string
+  }>
+  toolCalls: Array<{
+    eventId: string
+    roundIndex?: number
+    toolName: string
+    status: AgentTraceEvent['status']
+    durationMs?: number
+    summary?: string
+    resultEvidenceRef?: string
+    issue?: string
+  }>
+  decisions: Array<{ eventId: string; kind: 'policy' | 'approval' | 'input' | 'skill' | 'context'; summary: string; impact?: string }>
+  attention: Array<{ eventId: string; severity: 'info' | 'warning' | 'error' | 'blocked'; title: string; summary?: string; nextAction?: string }>
+  evidenceIndex: Array<{
+    evidenceId: string
+    eventId: string
+    kind: 'model_request' | 'model_response' | 'tool_result' | 'raw_event'
+    label: string
+    chars: number
+    preview: string
+    fetchPath: string
+  }>
+}
+
+export interface AgentRunDebugEvidence {
+  schema: 'movscript.agent.run-debug-evidence.v1'
+  runId: string
+  evidenceId: string
+  eventId: string
+  kind: 'model_request' | 'model_response' | 'tool_result' | 'raw_event'
+  chars: number
+  value: unknown
+}
+
+export interface AgentTraceDebugView {
+  schema: 'movscript.agent-trace-debug-view.v1'
+  generatedAt: string
+  runId: string
+  run: AgentRun
+  trace: { loaded: number; total: number; hasMore: false }
+  coverage: {
+    loadedLabel: string
+    hasUnloadedTrace: boolean
+    modelCallsLabel: string
+    promptDetailsLabel: string
+    messageWritesLabel: string
+    toolDetailsLabel: string
+    httpResponsesLabel: string
+    requestPayloadsLabel: string
+    httpResponseBodiesLabel: string
+    issues: string[]
+  }
+  readinessChecklist: Array<{ id: string; label: string; status: 'ok' | 'warning'; detail: string; action: string }>
+  modelCalls: Array<{
+    id: string
+    label: string
+    roundId?: string
+    roundIndex?: number
+    roundLabel?: string
+    correlateByEventWindow?: boolean
+    eventIds: string[]
+    status: 'complete' | 'request_only' | 'response_only' | 'result_only' | 'failed'
+    statusLabel: string
+    requestEventId?: string
+    responseEventId?: string
+    resultEventId?: string
+    model?: string
+    messageCount?: string
+    toolCount?: string
+    httpStatus?: string
+    latency?: string
+    responseChars?: string
+    inputTokens?: string
+    outputTokens?: string
+    retryCount?: string
+    error?: string
+    issue?: string
+    hasRequestPayload: boolean
+    hasResponseBody: boolean
+  }>
+  modelCallContexts: Array<{
+    callId: string
+    label: string
+    status: 'complete' | 'request_only' | 'response_only' | 'result_only' | 'failed'
+    statusLabel: string
+    correlationLabel: string
+    requestEventId?: string
+    responseEventId?: string
+    resultEventId?: string
+    modelEventIds: string[]
+    toolCalls: Array<{ eventId: string; toolName?: string; status: string; statusLabel: string; summary?: string }>
+    messageWrites: Array<{ eventId: string; messageId?: string; source?: string; sourceLabel?: string; contentChars: number; contentPreview?: string }>
+    issue?: string
+  }>
+  skillTimeline: {
+    timeline: Array<{
+      eventId: string
+      createdAt: string
+      eventType: string
+      title: string
+      summary?: string
+      activeSkillIds: string[]
+      loadedSkillIds: string[]
+      unloadedSkillIds: string[]
+      availableSkillIds: string[]
+    }>
+    currentActiveSkillIds: string[]
+    currentLoadedSkillIds: string[]
+    currentUnloadedSkillIds: string[]
+    currentAvailableSkillIds: string[]
+  }
+  promptDetails: unknown[]
+  messageWrites: unknown[]
+  toolCalls: unknown[]
+  attentionEvents: Array<{
+    eventId: string
+    createdAt: string
+    kind: AgentTraceEventKind
+    kindLabel: string
+    status: AgentTraceEvent['status']
+    statusLabel: string
+    title: string
+    summary?: string
+    behavior?: string
+    impact?: string
+    error?: string
+  }>
+  pendingActions: unknown[]
+  fieldGuide: Array<{ id: string; label: string; description: string }>
+  events: AgentTraceEvent[]
+  reportText: string
+  bundle: Record<string, unknown>
+}
+
+export interface AgentRunGenerationView {
+  schema: 'movscript.agent-run-generation-view.v1'
+  generatedAt: string
+  runId: string
+  jobs: Array<{
+    jobId?: number
+    jobType?: string
+    providerName?: string
+    modelDisplay?: string
+    modelIdentifier?: string
+    modelConfigId?: number
+    status: string
+    stage?: string
+    progress?: number
+    terminal: boolean
+    outputResourceId?: number
+    outputResourceIds?: number[]
+    message?: string
+    firstSeenAt?: string
+    updatedAt?: string
+    completedAt?: string
+  }>
+  latestJob: AgentRunGenerationView['jobs'][number] | null
+  outputResourceIds: number[]
+  outputResources: Array<{
+    ID: number
+    owner_id: number
+    type: 'image' | 'video' | 'audio' | 'text' | 'file'
+    name: string
+    url: string
+    size: number
+    mime_type: string
+    direct_url?: string
+    storage_backend?: string
+    storage_key?: string
+  }>
+  metadataByResourceId: Record<string, {
+    jobId?: number
+    jobType?: string
+    providerName?: string
+    modelDisplay?: string
+    modelIdentifier?: string
+    modelConfigId?: number
+    status?: string
+    stage?: string
+  }>
+  active: number
+  terminal: number
+  succeeded: number
+  failed: number
+  cancelled: number
+  timeout: number
 }
 
 export interface AgentSkillBundleFile {
@@ -1180,6 +1399,22 @@ export class LocalAgentClient {
     return this.getJSON(`/runs/${encodeURIComponent(runId)}/trace/summary`)
   }
 
+  getRunTraceDebugView(runId: string): Promise<AgentTraceDebugView> {
+    return this.getJSON(`/runs/${encodeURIComponent(runId)}/trace/debug-view`)
+  }
+
+  getRunDebugLedger(runId: string): Promise<AgentRunDebugLedger> {
+    return this.getJSON(`/runs/${encodeURIComponent(runId)}/debug-ledger`)
+  }
+
+  getRunDebugEvidence(runId: string, evidenceId: string): Promise<AgentRunDebugEvidence> {
+    return this.getJSON(`/runs/${encodeURIComponent(runId)}/debug-evidence/${encodeURIComponent(evidenceId)}`)
+  }
+
+  getRunGenerationView(runId: string): Promise<AgentRunGenerationView> {
+    return this.getJSON(`/runs/${encodeURIComponent(runId)}/generation-view`)
+  }
+
   answerRunInput(runId: string, input: { requestId?: string; choiceIds?: string[]; text?: string }, signal?: AbortSignal): Promise<AgentRun> {
     return this.postJSON(`/runs/${encodeURIComponent(runId)}/input`, input, signal)
   }
@@ -1478,10 +1713,6 @@ export class LocalAgentClient {
 
   updateDraft(draftId: string, input: { status?: AgentDraftStatus; title?: string; content?: string; target?: Record<string, unknown>; metadata?: Record<string, unknown> }): Promise<AgentDraft> {
     return this.patchJSON(`/drafts/${encodeURIComponent(draftId)}`, input)
-  }
-
-  patchDraft(draftId: string, input: { ops: AgentDraftPatchOp[]; expectedUpdatedAt?: string; metadata?: Record<string, unknown> }): Promise<AgentDraftPatchResult> {
-    return this.postJSON(`/drafts/${encodeURIComponent(draftId)}/patch`, input)
   }
 
   validateDraft(draftId: string): Promise<AgentDraftValidationResult> {

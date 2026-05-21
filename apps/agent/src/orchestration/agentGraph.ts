@@ -305,7 +305,7 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     input.onTrace({
       kind: 'policy',
       title: 'Forced tool calls injected',
-      summary: `${forcedToolCalls.length} forced call(s) from createToolRun`,
+      summary: `${forcedToolCalls.length} forced runtime tool call(s)`,
       status: 'info',
       roundIndex: currentRoundIndex,
       roundLabel,
@@ -1003,6 +1003,7 @@ function buildDefaultDraftApplyCalls(outcomes: ToolCallOutcome[], input: AgentGr
   if (!input.registry.get('movscript_apply_draft')) return []
   const grant = findToolGrant(input.manifest, 'movscript_apply_draft')
   if (!grant || grant.mode === 'deny') return []
+  if (!hasExplicitDraftApplyIntent(input.userMessage)) return []
   const candidates = outcomes.flatMap((outcome, index) => {
     if (outcome.call.name !== 'movscript_create_draft') return []
     const result = isJSONRecord(outcome.result) ? outcome.result : undefined
@@ -1030,6 +1031,13 @@ function buildDefaultDraftApplyCalls(outcomes: ToolCallOutcome[], input: AgentGr
         ...(candidate.draftKind ? { draftKind: candidate.draftKind } : {}),
       },
     }))
+}
+
+function hasExplicitDraftApplyIntent(message: string | undefined): boolean {
+  const text = typeof message === 'string' ? message.trim().toLowerCase() : ''
+  if (!text) return false
+  return /\b(apply|apply\s+draft|apply\s+proposal|commit\s+draft|write\s+to\s+backend)\b/i.test(text)
+    || /(应用|套用|正式写入|写入项目|写入正式|提交应用|批准应用|通过并应用|落库|生效)/.test(text)
 }
 
 function updateRunContextLedger(input: AgentGraphInput, call: ToolCall, result: JSONValue | undefined, source: 'runtime' | 'mcp' | 'sandbox'): ReturnType<typeof contextManager.recordToolResult> {

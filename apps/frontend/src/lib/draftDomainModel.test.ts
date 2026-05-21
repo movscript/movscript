@@ -44,6 +44,7 @@ test('draft domain model separates project standards, settings, and asset slots'
   assert.deepEqual(production?.seed.allowedModes, ['empty', 'snapshot', 'editable_snapshot'])
   assert.ok(production?.seed.include.includes('production_script_brief'))
   assert.ok(production?.seed.include.includes('project_scripts'))
+  assert.ok(production?.seed.include.includes('creative_references'))
   assert.ok(production?.seed.include.includes('segments'))
   assert.ok(production?.seed.include.includes('scene_moments'))
   assert.equal(production?.targetEntityType, 'production')

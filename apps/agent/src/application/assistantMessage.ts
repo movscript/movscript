@@ -341,70 +341,69 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
     const isProposal = isRecord(parsed) && typeof parsed.proposalRef === 'string'
     return isProposal ? `创建对话提案草稿${label}。` : `创建本地草稿${label}。`
   }
-  if (call.name === 'movscript_update_draft') {
-    const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : undefined
-    const count = isRecord(parsed) && typeof parsed.replacementCount === 'number' ? `，替换 ${parsed.replacementCount} 处` : ''
-    if (status === 'validated') return '校验本地草稿。'
-    if (status === 'patched') return '更新本地草稿 JSON。'
-    if (isRecord(parsed) && 'ok' in parsed) return `草稿 apply preview${parsed.ok === true ? '通过' : '未通过'}。`
-    return `更新本地草稿${count}。`
+  if (call.name === 'movscript_validate_draft') {
+    return '校验本地草稿。'
   }
-  if (call.name === 'movscript_create_generation_job') {
-    const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'completed'
-    const outputResourceId = outputResourceSummary(parsed)
-    const jobId = isRecord(parsed) && isValidAgentEntityId(parsed.jobId) ? `Job #${parsed.jobId}` : '生成任务'
-    const terminal = isRecord(parsed) && parsed.terminal === true
-    if (!terminal && !outputResourceId) return `${jobId} 已创建，当前状态：${status}。`
-    return `${jobId} 已执行（${status}${outputResourceId}）。`
+  if (call.name === 'movscript_preview_draft_apply') {
+    return `草稿 apply preview${isRecord(parsed) && parsed.ok === true ? '通过' : '未通过'}。`
   }
-  if (call.name === 'movscript_get_generation_job') {
-    const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'unknown'
-    const jobId = isRecord(parsed) && isValidAgentEntityId(parsed.jobId) ? `Job #${parsed.jobId}` : '生成任务'
-    const outputResourceId = outputResourceSummary(parsed)
-    const progress = isRecord(parsed) && typeof parsed.progress === 'number' ? `，进度 ${parsed.progress}%` : ''
-    const error = isRecord(parsed) && typeof parsed.error === 'string' && parsed.error ? `：${parsed.error}` : ''
-    if (status === 'succeeded') return `${jobId} 生成完成${outputResourceId}。`
-    if (status === 'failed') return `${jobId} 生成失败${error}。`
-    if (status === 'cancelled') return `${jobId} 已取消。`
-    return `${jobId} 仍在运行（${status}${progress}）。`
+  if (call.name === 'agent_io_start') {
+    const operation = isRecord(parsed) && isRecord(parsed.operation) ? parsed.operation : {}
+    const kind = typeof operation.kind === 'string' ? operation.kind : 'runtime'
+    const status = typeof operation.status === 'string' ? operation.status : 'started'
+    const operationId = typeof operation.id === 'string' ? ` ${operation.id}` : ''
+    return `${kind} 操作${operationId}已提交，当前状态：${status}${outputResourceSummary(parsed)}。`
   }
-  if (call.name === 'movscript_wait_generation_jobs') {
+  if (call.name === 'agent_io_get') {
+    const operation = isRecord(parsed) && isRecord(parsed.operation) ? parsed.operation : {}
+    const kind = typeof operation.kind === 'string' ? operation.kind : 'runtime'
+    const status = typeof operation.status === 'string' ? operation.status : 'unknown'
+    const operationId = typeof operation.id === 'string' ? ` ${operation.id}` : ''
+    return `${kind} 操作${operationId}当前状态：${status}${outputResourceSummary(parsed)}。`
+  }
+  if (call.name === 'agent_io_wait') {
     const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'unknown'
     const completed = isRecord(parsed) && Array.isArray(parsed.completed) ? parsed.completed.length : 0
     const pending = isRecord(parsed) && Array.isArray(parsed.pending) ? parsed.pending.length : 0
     const failed = isRecord(parsed) && Array.isArray(parsed.failed) ? parsed.failed.length : 0
     const cancelled = isRecord(parsed) && Array.isArray(parsed.cancelled) ? parsed.cancelled.length : 0
     const outputResourceId = outputResourceSummary(parsed)
-    if (status === 'timeout') return `等待生成任务超时，仍有 ${pending} 个任务在后台运行。`
-    return `等待生成任务完成（成功 ${completed}，失败 ${failed}，取消 ${cancelled}，待完成 ${pending}${outputResourceId}）。`
+    if (status === 'timeout') return `等待 runtime operation 超时，仍有 ${pending} 个操作在后台运行。`
+    return `等待 runtime operation 完成（成功 ${completed}，失败 ${failed}，取消 ${cancelled}，待完成 ${pending}${outputResourceId}）。`
   }
-  if (call.name === 'movscript_list_generation_jobs') {
-    const count = isRecord(parsed) && typeof parsed.count === 'number' ? parsed.count : undefined
-    const active = isRecord(parsed) && typeof parsed.active === 'number' ? parsed.active : undefined
-    return `查看生成任务${count === undefined ? '' : `，返回 ${count} 条`}${active === undefined ? '' : `，运行中 ${active} 条`}。`
-  }
-  if (call.name === 'movscript_cancel_generation_job') {
-    const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'unknown'
-    const jobId = isRecord(parsed) && isValidAgentEntityId(parsed.jobId) ? `Job #${parsed.jobId}` : '生成任务'
-    return `${jobId} 已请求取消，当前状态：${status}。`
+  if (call.name === 'agent_io_cancel') {
+    const operation = isRecord(parsed) && isRecord(parsed.operation) ? parsed.operation : {}
+    const kind = typeof operation.kind === 'string' ? operation.kind : 'runtime'
+    const status = typeof operation.status === 'string' ? operation.status : 'cancelled'
+    const operationId = typeof operation.id === 'string' ? ` ${operation.id}` : ''
+    return `${kind} 操作${operationId}已请求取消，当前状态：${status}。`
   }
   return `调用 ${call.name}。`
 }
 
 function outputResourceSummary(parsed: unknown): string {
-  if (!isRecord(parsed)) return ''
   const ids = new Set<number>()
   const add = (value: unknown) => {
     if (isValidAgentEntityId(value)) ids.add(value)
   }
-  if (Array.isArray(parsed.output_resource_ids)) {
-    for (const id of parsed.output_resource_ids) add(id)
+  const visit = (value: unknown) => {
+    if (!isRecord(value)) return
+    if (Array.isArray(value.output_resource_ids)) {
+      for (const id of value.output_resource_ids) add(id)
+    }
+    if (Array.isArray(value.outputResourceIds)) {
+      for (const id of value.outputResourceIds) add(id)
+    }
+    add(value.output_resource_id)
+    add(value.outputResourceId)
+    if (isRecord(value.operation)) visit(value.operation)
+    if (isRecord(value.result)) visit(value.result)
+    for (const key of ['completed', 'failed', 'cancelled', 'pending']) {
+      const items = value[key]
+      if (Array.isArray(items)) for (const item of items) visit(item)
+    }
   }
-  if (Array.isArray(parsed.outputResourceIds)) {
-    for (const id of parsed.outputResourceIds) add(id)
-  }
-  add(parsed.output_resource_id)
-  add(parsed.outputResourceId)
+  visit(parsed)
   if (ids.size === 0) return ''
   return `，输出资源 ${[...ids].map((id) => `#${id}`).join('、')}`
 }

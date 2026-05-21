@@ -85,6 +85,10 @@ test('resolveRuntimePlanCreationTasks builds planner generation input from a goa
         tasks: [{ id: 'task_generated', title: 'Generated task' }],
         source: 'model',
         warnings: ['used planner model'],
+        assessment: {
+          difficulty: 'moderate',
+          parallelStrategy: 'planner_with_sidecars',
+        },
       }
     },
   })
@@ -93,6 +97,10 @@ test('resolveRuntimePlanCreationTasks builds planner generation input from a goa
     taskInputs: [{ id: 'task_generated', title: 'Generated task' }],
     plannerSource: 'model',
     plannerWarnings: ['used planner model'],
+    plannerAssessment: {
+      difficulty: 'moderate',
+      parallelStrategy: 'planner_with_sidecars',
+    },
   })
   assert.deepEqual(calls, [{
     goal: 'Ship the feature',
@@ -117,6 +125,10 @@ test('createRuntimePlanWithTasks persists a plan and validated tasks', () => {
     goal: 'Launch',
     plannerSource: 'fallback',
     plannerWarnings: ['limited context'],
+    plannerAssessment: {
+      difficulty: 'simple',
+      parallelStrategy: 'planner_only',
+    },
   })
 
   assert.equal(result.plan.id, 'plan_1')
@@ -124,6 +136,10 @@ test('createRuntimePlanWithTasks persists a plan and validated tasks', () => {
   assert.equal(result.plan.metadata?.goal, 'Launch')
   assert.equal(result.plan.metadata?.plannerSource, 'fallback')
   assert.deepEqual(result.plan.metadata?.plannerWarnings, ['limited context'])
+  assert.deepEqual(result.plan.metadata?.plannerAssessment, {
+    difficulty: 'simple',
+    parallelStrategy: 'planner_only',
+  })
   assert.equal(result.tasks.length, 1)
   assert.equal(result.tasks[0]?.id, 'task_1')
   assert.equal(store.getPlan('plan_1')?.title, 'Launch plan')

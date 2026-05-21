@@ -26,7 +26,7 @@ function baseRun(patch: Partial<AgentRun> = {}): AgentRun {
   } as AgentRun
 }
 
-test('assistantResultPayloadForRun builds the same structured payload from run and fetched trace events', async () => {
+test('assistantResultPayloadForRun builds the same structured payload from run generation view data', async () => {
   const run = baseRun({
     steps: [{
       id: 'step_draft',
@@ -46,31 +46,52 @@ test('assistantResultPayloadForRun builds the same structured payload from run a
   })
 
   const payload = await assistantResultPayloadForRun(run, [], 'Output resources: #88', {
-    fetchRunTraceEvents: async () => [{
-      data: {
-        generation: {
-          jobId: 50,
-          jobType: 'image',
-          providerName: 'Provider C',
-          modelDisplay: 'Replay Model',
-          status: 'succeeded',
-          stage: 'completed',
-          terminal: true,
-          outputResourceId: 88,
-          media: {
-            ID: 88,
-            owner_id: 1,
-            type: 'image',
-            name: 'result.png',
-            url: '/api/v1/resources/88/file',
-            size: 1234,
-            mime_type: 'image/png',
-          },
-        },
+    fetchRunGenerationView: async () => ({
+      jobs: [{
+        jobId: 50,
+        jobType: 'image',
+        providerName: 'Provider C',
+        modelDisplay: 'Replay Model',
+        status: 'succeeded',
+        stage: 'completed',
+        terminal: true,
+        outputResourceId: 88,
+      }],
+      latestJob: {
+        jobId: 50,
+        jobType: 'image',
+        providerName: 'Provider C',
+        modelDisplay: 'Replay Model',
+        status: 'succeeded',
+        stage: 'completed',
+        terminal: true,
+        outputResourceId: 88,
       },
-      createdAt: '2026-05-09T08:00:03.000Z',
-      completedAt: '2026-05-09T08:00:04.000Z',
-    }],
+      outputResourceIds: [88],
+      outputResources: [{
+        ID: 88,
+        owner_id: 1,
+        type: 'image',
+        name: 'result.png',
+        url: '/api/v1/resources/88/file',
+        size: 1234,
+        mime_type: 'image/png',
+      }],
+      metadataByResourceId: new Map([[88, {
+        jobId: 50,
+        jobType: 'image',
+        providerName: 'Provider C',
+        modelDisplay: 'Replay Model',
+        status: 'succeeded',
+        stage: 'completed',
+      }]]),
+      active: 0,
+      terminal: 1,
+      succeeded: 1,
+      failed: 0,
+      cancelled: 0,
+      timeout: 0,
+    }),
   })
 
   assert.equal(payload.attachments?.[0]?.id, 'generated-88')
@@ -115,6 +136,65 @@ test('assistantResultPayloadForRun reads context diagnostics from message steps'
 
   const payload = await assistantResultPayloadForRun(run, [], '')
   assert.equal(payload.meta.contextDiagnostic?.schema, 'movscript.local_context_diagnostic.v1')
+})
+
+test('assistantResultPayloadForRun reads generated cards from the run generation view by default', async () => {
+  const originalGenerationView = localAgentClient.getRunGenerationView
+  const originalTraceEvents = localAgentClient.getRunTraceEvents
+  try {
+    localAgentClient.getRunGenerationView = (async () => ({
+      schema: 'movscript.agent-run-generation-view.v1',
+      generatedAt: '2026-05-09T08:00:04.000Z',
+      runId: 'run_1',
+      jobs: [{
+        jobId: 51,
+        jobType: 'image',
+        modelDisplay: 'View Model',
+        status: 'succeeded',
+        stage: 'completed',
+        terminal: true,
+        outputResourceId: 89,
+      }],
+      latestJob: {
+        jobId: 51,
+        jobType: 'image',
+        modelDisplay: 'View Model',
+        status: 'succeeded',
+        stage: 'completed',
+        terminal: true,
+        outputResourceId: 89,
+      },
+      outputResourceIds: [89],
+      outputResources: [{
+        ID: 89,
+        owner_id: 1,
+        type: 'image',
+        name: 'view-result.png',
+        url: '/api/v1/resources/89/file',
+        size: 1234,
+        mime_type: 'image/png',
+      }],
+      metadataByResourceId: { 89: { jobId: 51, modelDisplay: 'View Model' } },
+      active: 0,
+      terminal: 1,
+      succeeded: 1,
+      failed: 0,
+      cancelled: 0,
+      timeout: 0,
+    })) as typeof localAgentClient.getRunGenerationView
+    localAgentClient.getRunTraceEvents = (async () => {
+      throw new Error('assistant result view model should not query trace events by default')
+    }) as typeof localAgentClient.getRunTraceEvents
+
+    const payload = await assistantResultPayloadForRun(baseRun(), [], '')
+
+    assert.equal(payload.attachments?.[0]?.id, 'generated-89')
+    assert.equal(payload.attachments?.[0]?.generated?.modelDisplay, 'View Model')
+    assert.equal(payload.meta.generationJobs?.[0]?.jobId, 51)
+  } finally {
+    localAgentClient.getRunGenerationView = originalGenerationView
+    localAgentClient.getRunTraceEvents = originalTraceEvents
+  }
 })
 
 test('hydrateHistoricalGeneratedAttachments restores text-only output resource cards', async () => {

@@ -1,0 +1,21 @@
+{
+  "name": "agent_io_list",
+  "description": "列出当前 run 的 runtime operations。runId:'all' 可查看 runtime 内所有 operation。兼容工具名仍为 agent_io_list；不要用于普通同步工具调用。",
+  "permission": "agent.io.read",
+  "risk": "read",
+  "source": "runtime",
+  "category": "runtime-operation",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string",
+        "enum": ["queued", "running", "waiting", "completed", "failed", "cancelled", "timeout"]
+      }
+    }
+  }
+}

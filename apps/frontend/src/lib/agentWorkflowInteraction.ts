@@ -9,6 +9,12 @@ export function firstPendingInputRequest(run: AgentRun | null | undefined): Agen
   return run?.pendingInputRequests?.find((request) => request.status === 'pending') ?? null
 }
 
+export function runHasWorkflowInteraction(run: AgentRun | null | undefined): boolean {
+  if (!run) return false
+  return (run.pendingInputRequests ?? []).some((request) => request.status === 'pending' || request.status === 'answered' || request.status === 'cancelled')
+    || (run.pendingApprovals ?? []).some((approval) => approval.status === 'pending' || approval.status === 'approved' || approval.status === 'rejected')
+}
+
 export function optimisticApprovalRun(run: AgentRun, approvalIds: string[] | undefined, status: AgentPendingApprovalRequest['status']): AgentRun {
   const now = new Date().toISOString()
   const targetIds = new Set(approvalIds?.length
@@ -47,13 +53,19 @@ export function optimisticInputAnswerRun(run: AgentRun, requestId: string, answe
 }
 
 export function upsertWorkflowRunSnapshot(current: AgentRun[], nextRun: AgentRun): AgentRun[] {
-  return [...current.filter((run) => run.id !== nextRun.id), nextRun].slice(-8)
+  return [...current.filter((run) => run.id !== nextRun.id), nextRun]
 }
 
-export function workflowRunsForChat(submittedRuns: AgentRun[], actionableRun: AgentRun | null): AgentRun[] {
-  if (!actionableRun) return submittedRuns
-  if (submittedRuns.some((run) => run.id === actionableRun.id)) return submittedRuns
-  return [...submittedRuns, actionableRun]
+export function workflowRunsForChat(submittedRuns: AgentRun[], actionableRuns: AgentRun[] | AgentRun | null): AgentRun[] {
+  const nextRuns = Array.isArray(actionableRuns) ? actionableRuns : actionableRuns ? [actionableRuns] : []
+  const merged = [...submittedRuns]
+  const seen = new Set(merged.map((run) => run.id))
+  for (const run of nextRuns) {
+    if (seen.has(run.id)) continue
+    seen.add(run.id)
+    merged.push(run)
+  }
+  return merged
 }
 
 export function workflowAnswerEchoesForMessages(messages: ChatMessage[], workflowRuns: AgentRun[]): Set<string> {

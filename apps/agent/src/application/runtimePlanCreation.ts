@@ -58,6 +58,7 @@ export interface RuntimePlanCreationTaskResolution {
   taskInputs: CreatePlanTaskInput[]
   plannerSource?: GeneratePlanTasksResult['source']
   plannerWarnings: string[]
+  plannerAssessment?: GeneratePlanTasksResult['assessment']
 }
 
 export async function resolveRuntimePlanCreationTasks(input: {
@@ -85,6 +86,7 @@ export async function resolveRuntimePlanCreationTasks(input: {
     taskInputs: generated.tasks,
     plannerSource: generated.source,
     plannerWarnings: generated.warnings,
+    ...(generated.assessment ? { plannerAssessment: generated.assessment } : {}),
   }
 }
 
@@ -103,6 +105,7 @@ export function createRuntimePlanWithTasks(input: {
   goal?: string
   plannerSource?: string
   plannerWarnings?: string[]
+  plannerAssessment?: GeneratePlanTasksResult['assessment']
 }): RuntimePlanCreationResult {
   const plan = buildAgentPlan({
     id: input.planId,
@@ -113,6 +116,7 @@ export function createRuntimePlanWithTasks(input: {
     ...(input.goal ? { goal: input.goal } : {}),
     ...(input.plannerSource ? { plannerSource: input.plannerSource } : {}),
     ...(input.plannerWarnings && input.plannerWarnings.length > 0 ? { plannerWarnings: input.plannerWarnings } : {}),
+    ...(input.plannerAssessment ? { plannerAssessment: input.plannerAssessment } : {}),
   })
   const tasks = buildAndValidatePlanTasksToCreate({
     planId: plan.id,
@@ -197,6 +201,7 @@ export function applyRuntimePlanCreationFlow(input: {
     ...(input.preparation.goal ? { goal: input.preparation.goal } : {}),
     ...(input.resolvedTasks.plannerSource ? { plannerSource: input.resolvedTasks.plannerSource } : {}),
     ...(input.resolvedTasks.plannerWarnings.length > 0 ? { plannerWarnings: input.resolvedTasks.plannerWarnings } : {}),
+    ...(input.resolvedTasks.plannerAssessment ? { plannerAssessment: input.resolvedTasks.plannerAssessment } : {}),
   })
   for (const task of tasks) input.onTaskCreated?.(task)
 

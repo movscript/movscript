@@ -28,6 +28,7 @@ export interface AssetProposalCandidatePlan {
 export interface AssetProposalDraftContent {
   schema: typeof ASSET_PROPOSAL_DRAFT_SCHEMA
   scope: typeof ASSET_PROPOSAL_SCOPE
+  mode: 'snapshot'
   projectId?: number
   assetSlotId: number
   summary: string
@@ -44,6 +45,8 @@ export interface AssetProposalDraftContent {
     notes: string[]
   }
   proposal: {
+    creative_references: []
+    asset_slots: []
     candidate_plans: AssetProposalCandidatePlan[]
   }
   next_actions: string[]
@@ -64,6 +67,7 @@ export function buildEmptyAssetProposalDraftContent(input: {
   return {
     schema: ASSET_PROPOSAL_DRAFT_SCHEMA,
     scope: ASSET_PROPOSAL_SCOPE,
+    mode: 'snapshot',
     ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
     assetSlotId: input.assetSlotId,
     summary: '',
@@ -83,6 +87,8 @@ export function buildEmptyAssetProposalDraftContent(input: {
       notes: [],
     },
     proposal: {
+      creative_references: [],
+      asset_slots: [],
       candidate_plans: [],
     },
     next_actions: [],

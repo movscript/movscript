@@ -7,8 +7,10 @@ import {
   isWorkflowAnswerEchoMessage,
   optimisticApprovalRun,
   optimisticInputAnswerRun,
+  runHasWorkflowInteraction,
   upsertWorkflowRunSnapshot,
   workflowAnswerEchoesForMessages,
+  workflowRunsForChat,
   workflowRunFromActivity,
 } from './agentWorkflowInteraction'
 import type { AgentRun } from './localAgentClient'
@@ -119,11 +121,28 @@ test('workflowRunFromActivity rebuilds actionable input and approval state', () 
   assert.equal(firstPendingInputRequest(run)?.id, 'input_1')
 })
 
-test('upsertWorkflowRunSnapshot keeps the latest eight distinct run snapshots', () => {
+test('upsertWorkflowRunSnapshot keeps distinct run snapshots without dropping history', () => {
   const current = Array.from({ length: 8 }, (_, index) => makeRun({ id: `run_${index + 1}` }))
   const next = upsertWorkflowRunSnapshot(current, makeRun({ id: 'run_9' }))
 
-  assert.deepEqual(next.map((run) => run.id), ['run_2', 'run_3', 'run_4', 'run_5', 'run_6', 'run_7', 'run_8', 'run_9'])
+  assert.deepEqual(next.map((run) => run.id), ['run_1', 'run_2', 'run_3', 'run_4', 'run_5', 'run_6', 'run_7', 'run_8', 'run_9'])
+})
+
+test('runHasWorkflowInteraction recognizes pending and resolved user interactions only', () => {
+  assert.equal(runHasWorkflowInteraction(makeRun()), false)
+  assert.equal(runHasWorkflowInteraction(makeRun({ pendingApprovals: [approval('approval_1', 'approved')] })), true)
+  assert.equal(runHasWorkflowInteraction(makeRun({ pendingInputRequests: [inputRequest('input_1', 'answered')] })), true)
+})
+
+test('workflowRunsForChat appends all actionable runs without duplicating submitted snapshots', () => {
+  const submitted = [makeRun({ id: 'run_1' })]
+  const next = workflowRunsForChat(submitted, [
+    makeRun({ id: 'run_1' }),
+    makeRun({ id: 'run_2' }),
+    makeRun({ id: 'run_3' }),
+  ])
+
+  assert.deepEqual(next.map((run) => run.id), ['run_1', 'run_2', 'run_3'])
 })
 
 test('formatInputAnswerForChat renders selected choices and custom text', () => {

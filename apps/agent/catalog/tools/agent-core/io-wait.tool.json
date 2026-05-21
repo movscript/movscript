@@ -1,0 +1,30 @@
+{
+  "name": "agent_io_wait",
+  "description": "等待一个或多个 runtime operations 进入终态，或直到等待超时。支持 all/any 模式。普通同步工具调用不需要 wait。",
+  "permission": "agent.io.read",
+  "risk": "read",
+  "source": "runtime",
+  "category": "runtime-operation",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["operationIds"],
+    "properties": {
+      "operationIds": {
+        "type": "array",
+        "items": { "type": "string" },
+        "minItems": 1
+      },
+      "mode": {
+        "type": "string",
+        "enum": ["all", "any"]
+      },
+      "timeoutMs": {
+        "type": "number"
+      },
+      "pollIntervalMs": {
+        "type": "number"
+      }
+    }
+  }
+}

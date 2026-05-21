@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { actionableRunForPlan, activeWorkerRunCount, buildPlanArtifactSummary, buildPlanNameConflictViews, buildPlanOverviewStats, buildPlanStatusExplanation, buildPlanTaskViews, buildTaskArtifactViews, plannerRunIdForPlanAction, runNeedsUserAction, shouldPollPlanSnapshot } from './agentPlanUi'
+import { actionableRunForPlan, actionableRunsForPlan, activeWorkerRunCount, buildPlanArtifactSummary, buildPlanNameConflictViews, buildPlanOverviewStats, buildPlanStatusExplanation, buildPlanTaskViews, buildTaskArtifactViews, interactionRunsForPlan, plannerRunIdForPlanAction, runNeedsUserAction, shouldPollPlanSnapshot } from './agentPlanUi'
 import type { AgentPlanSnapshot, AgentRun, AgentTask } from './localAgentClient'
 
 function run(input: Partial<AgentRun> & { id: string }): AgentRun {
@@ -554,4 +554,76 @@ test('actionableRunForPlan prefers the active run when it needs action', () => {
   })
 
   assert.equal(actionableRunForPlan(snapshot({ runs: [otherWorker] }), activeWorker)?.id, 'run_active_worker')
+})
+
+test('actionableRunsForPlan returns all blocked runs with active run first', () => {
+  const activeWorker = run({
+    id: 'run_active_worker',
+    role: 'worker',
+    status: 'requires_action',
+    planId: 'plan_1',
+    pendingApprovals: [
+      { id: 'approval_1', runId: 'run_active_worker', toolName: 'tool_write', reason: 'Write project data', status: 'pending', createdAt: '2026-05-12T00:00:00.000Z', updatedAt: '2026-05-12T00:00:00.000Z' },
+    ],
+  })
+  const namedWorker = run({
+    id: 'run_named_worker',
+    role: 'worker',
+    status: 'requires_action',
+    planId: 'plan_1',
+    taskId: 'task_named',
+    pendingInputRequests: [
+      { id: 'input_1', runId: 'run_named_worker', title: 'Question', question: 'Continue?', inputType: 'text', choices: [], allowCustomAnswer: true, status: 'pending', createdAt: '2026-05-12T00:00:00.000Z', updatedAt: '2026-05-12T00:00:00.000Z' },
+    ],
+  })
+  const looseWorker = run({
+    id: 'run_loose_worker',
+    role: 'worker',
+    status: 'requires_action',
+    planId: 'plan_1',
+    pendingInputRequests: [
+      { id: 'input_2', runId: 'run_loose_worker', title: 'Question', question: 'Pick?', inputType: 'text', choices: [], allowCustomAnswer: true, status: 'pending', createdAt: '2026-05-12T00:00:00.000Z', updatedAt: '2026-05-12T00:00:00.000Z' },
+    ],
+  })
+  const planSnapshot = snapshot({
+    tasks: [
+      task({ id: 'task_named', title: 'Named worker', status: 'blocked', ownerRunId: 'run_named_worker' }),
+    ],
+    runs: [namedWorker, activeWorker, looseWorker],
+  })
+
+  assert.deepEqual(actionableRunsForPlan(planSnapshot, activeWorker).map((item) => item.id), [
+    'run_active_worker',
+    'run_named_worker',
+    'run_loose_worker',
+  ])
+})
+
+test('interactionRunsForPlan keeps resolved interaction history without including internal runs', () => {
+  const activeWorker = run({
+    id: 'run_active_worker',
+    role: 'worker',
+    status: 'requires_action',
+    planId: 'plan_1',
+    pendingApprovals: [
+      { id: 'approval_1', runId: 'run_active_worker', toolName: 'tool_write', reason: 'Write project data', status: 'pending', createdAt: '2026-05-12T00:00:00.000Z', updatedAt: '2026-05-12T00:00:00.000Z' },
+    ],
+  })
+  const completedWorker = run({
+    id: 'run_completed_worker',
+    role: 'worker',
+    status: 'completed',
+    planId: 'plan_1',
+    pendingApprovals: [
+      { id: 'approval_done', runId: 'run_completed_worker', toolName: 'tool_done', reason: 'Approved earlier', status: 'approved', createdAt: '2026-05-12T00:00:00.000Z', updatedAt: '2026-05-12T00:00:01.000Z' },
+    ],
+  })
+  const internalWorker = run({ id: 'run_internal_worker', role: 'worker', status: 'completed', planId: 'plan_1' })
+
+  assert.deepEqual(interactionRunsForPlan(snapshot({
+    runs: [completedWorker, internalWorker],
+  }), activeWorker).map((item) => item.id), [
+    'run_active_worker',
+    'run_completed_worker',
+  ])
 })

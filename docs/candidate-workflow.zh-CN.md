@@ -8,7 +8,7 @@ English version: [Candidate Workflow](./candidate-workflow.md).
 
 - AI 生成媒体在用户或制作项审批前都处于可审核候选状态。
 - 一个目标可以拥有多个候选。
-- 一个生成任务可以返回多个 `output_resource_id`；每个可用的正整数资源 ID 都应写成一条独立候选。
+- 一个后端生成 job 只应承担一个可提交候选输出；需要多个候选时创建多个独立 job，并把 wait 结果中每个可用的正整数资源 ID 写成一条独立候选。
 - 候选写入和采纳 / 锁定应用都会校验引用的 raw resource 真实存在。
 - 当前候选目标包括素材需求和 keyframe / 画面锚点。
 - 未来类似视觉锚点的目标应复用同一候选模式，不再引入直接绑定语义。
@@ -52,7 +52,7 @@ Keyframe / 画面锚点候选：
 - `movscript_attach_asset_slot_candidate` 把一个资源加入素材需求候选集。
 - `movscript_attach_keyframe_candidate` 把一个资源加入原始 keyframe / 画面锚点候选集。
 - Attach tool 的目标 ID 和资源 ID 必须是正整数；非正数 ID 或互相冲突的别名会在写入前被拒绝。
-- Agent 必须逐个写入每个可用 `output_resource_id`，并逐项报告成功、失败或阻塞。
+- Agent 必须在每个可用 `output_resource_id` 出现后立即逐个写入候选集，并逐项报告成功、失败或阻塞；不得为了凑齐一批结果而延迟已完成资源。
 - 除非 attach tool 成功，否则 Agent 不得声称资源已加入候选集。
 - Agent 不得把已有 generated keyframe candidate 当作 keyframe 目标传入。
 - 通用 Agent draft apply 不能写 `asset_slot.resource_id`、`asset_slot.locked_asset_slot_id` 或 `keyframe.resource_id`；资源采纳必须走候选写入加显式采纳 / 锁定流程。

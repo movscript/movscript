@@ -44,6 +44,23 @@ type ModelInputs struct {
 }
 
 func modelInputsForDef(def *ModelDef) ModelInputs {
+	if def == nil {
+		return ModelInputs{}
+	}
+	return modelInputsForCapabilities(def, def.Capabilities)
+}
+
+func modelInputsForCapability(def *ModelDef, capability string) ModelInputs {
+	if def == nil {
+		return ModelInputs{}
+	}
+	if strings.TrimSpace(capability) == "" {
+		return modelInputsForDef(def)
+	}
+	return modelInputsForCapabilities(def, []string{capability})
+}
+
+func modelInputsForCapabilities(def *ModelDef, capabilities []string) ModelInputs {
 	var out ModelInputs
 	if def == nil {
 		return out
@@ -56,13 +73,23 @@ func modelInputsForDef(def *ModelDef) ModelInputs {
 	if out.Video.Max < 0 {
 		out.Video.Max = -1
 	}
-	if hasCap(def, CapabilityImageEdit) || hasCap(def, CapabilityVideoI2V) {
+	imageRequired := len(capabilities) > 0
+	videoRequired := len(capabilities) > 0
+	for _, capability := range capabilities {
+		if requiredImageInputMin(capability) == 0 {
+			imageRequired = false
+		}
+		if requiredVideoInputMin(capability) == 0 {
+			videoRequired = false
+		}
+	}
+	if imageRequired {
 		out.Image.Min = 1
 		if out.Image.Max == 0 {
 			out.Image.Max = 1
 		}
 	}
-	if hasCap(def, CapabilityVideoV2V) {
+	if videoRequired {
 		out.Video.Min = 1
 		if out.Video.Max == 0 {
 			out.Video.Max = 1
@@ -282,7 +309,7 @@ func (s *AIService) getModelsByCapability(capability string, providerVariants bo
 			CapacityWeight:    runtimeCandidateCapacityWeight(runtimeModelCandidate{cfg: row.AIModelConfig}),
 			MaxConcurrency:    row.MaxConcurrency,
 			SupportedParams:   def.SupportedParams,
-			InputRequirements: modelInputsForDef(def),
+			InputRequirements: modelInputsForCapability(def, capability),
 			ParamsSchema:      ParamsSchema(def.SupportedParams),
 			ProviderVariants:  1,
 			providerVariantIDs: []uint{
@@ -305,7 +332,7 @@ func (s *AIService) getModelsByCapability(capability string, providerVariants bo
 			result[idx].providerVariantIDs = append(result[idx].providerVariantIDs, row.ID)
 			result[idx].Capabilities = mergeCapabilities(result[idx].Capabilities, def.Capabilities)
 			result[idx].AcceptsImageInput = result[idx].AcceptsImageInput || def.AcceptsImageInput
-			result[idx].InputRequirements = mergeModelInputs(result[idx].InputRequirements, modelInputsForDef(def))
+			result[idx].InputRequirements = mergeModelInputs(result[idx].InputRequirements, modelInputsForCapability(def, capability))
 			result[idx].CapacityWeight += runtimeCandidateCapacityWeight(runtimeModelCandidate{cfg: row.AIModelConfig})
 			if row.MaxConcurrency == 0 || result[idx].MaxConcurrency == 0 {
 				result[idx].MaxConcurrency = 0

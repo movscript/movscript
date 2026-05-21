@@ -9,7 +9,8 @@
   "scope": "global",
   "toolRefs": [
     "tool://movscript_get_draft",
-    "tool://movscript_update_draft"
+    "tool://movscript_validate_draft",
+    "tool://movscript_preview_draft_apply"
   ],
   "outputContract": "明确说明 artifact 是本地审阅状态，还是已批准的后端写入目标。",
   "instructionTemplatePath": "instruction.md"

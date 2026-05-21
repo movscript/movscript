@@ -19,7 +19,7 @@ test('loadRuntimeThreadProjection loads thread runs and merges ensured runs befo
       getThread: async () => thread,
       listRunsByThread: async () => ({ threadId: 'thread_1', runs: [listedRun] }),
     },
-    fetchRunTraceEvents: async () => [],
+    fetchRunGenerationView: async () => emptyGenerationReplay(),
   })
 
   assert.deepEqual(result.runs.map((run) => run.id), ['run_listed', 'run_ensured'])
@@ -52,7 +52,7 @@ test('loadRuntimeThreadProjection prefers a combined thread runtime snapshot whe
         })
       },
     },
-    fetchRunTraceEvents: async () => [],
+    fetchRunGenerationView: async () => emptyGenerationReplay(),
   })
 
   assert.deepEqual(calls, ['getThreadRuntime'])
@@ -94,7 +94,7 @@ test('loadRuntimeThreadProjection derives actionable runs from the authoritative
         pendingInputRequestRefs: [{ runId: pendingRun.id, requestId: 'input_1' }],
       }),
     },
-    fetchRunTraceEvents: async () => [],
+    fetchRunGenerationView: async () => emptyGenerationReplay(),
   })
 
   assert.deepEqual(result.actionableRuns.map((run) => run.id), ['run_pending'])
@@ -113,7 +113,7 @@ test('loadRuntimeThreadProjection falls back to ensured runs when thread run lis
       getThread: async () => thread,
       listRunsByThread: async () => { throw new Error('unavailable') },
     },
-    fetchRunTraceEvents: async () => [],
+    fetchRunGenerationView: async () => emptyGenerationReplay(),
   })
 
   assert.deepEqual(result.runs.map((run) => run.id), ['run_ensured'])
@@ -139,7 +139,7 @@ test('loadRuntimeThreadProjection passes abort signals to thread and run reads',
         return { threadId: 'thread_1', runs: [] }
       },
     },
-    fetchRunTraceEvents: async () => [],
+    fetchRunGenerationView: async () => emptyGenerationReplay(),
   })
 
   assert.deepEqual(seenSignals, [controller.signal, controller.signal])
@@ -205,5 +205,21 @@ function makeRuntimeSnapshot(
       pendingApprovalRefs: [],
       pendingInputRequestRefs: options.pendingInputRequestRefs ?? [],
     },
+  }
+}
+
+function emptyGenerationReplay() {
+  return {
+    jobs: [],
+    latestJob: null,
+    outputResourceIds: [],
+    outputResources: [],
+    metadataByResourceId: new Map(),
+    active: 0,
+    terminal: 0,
+    succeeded: 0,
+    failed: 0,
+    cancelled: 0,
+    timeout: 0,
   }
 }

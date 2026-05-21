@@ -42,12 +42,12 @@ export interface AgentConversationThreadSectionProps {
   workflowRunsByResultMessageId: Map<string, AgentRun[]>
   workflowRunsWithoutResultMessage: AgentRun[]
   onAcceptPlanReview: (taskId: string) => void
-  onAnswerLocalRunInput: (requestId: string, answer: AgentInputAnswer) => void
-  onApproveLocalRun: (approvalIds?: string[]) => void
+  onAnswerLocalRunInput: (runId: string, requestId: string, answer: AgentInputAnswer) => void
+  onApproveLocalRun: (runId: string, approvalIds?: string[]) => void
   onCancelPlanTree: () => void
   onDispatchPlan: () => void
   onDraftInput: (input: string) => void
-  onRejectLocalRun: (approvalIds?: string[]) => void
+  onRejectLocalRun: (runId: string, approvalIds?: string[]) => void
   onRejectPlanReview: (taskId: string) => void
   onReplan: () => void
   onReworkPlanReview: (taskId: string) => void
@@ -128,9 +128,9 @@ export function AgentConversationThreadSection({
                   key={`workflow-before-result-${run.id}`}
                   run={run}
                   approving={approvingLocalRun}
-                  onApprove={liveWorkflowRuns ? onApproveLocalRun : undefined}
-                  onReject={liveWorkflowRuns ? onRejectLocalRun : undefined}
-                  onAnswerInput={liveWorkflowRuns ? onAnswerLocalRunInput : undefined}
+                  onApprove={liveWorkflowRuns ? (approvalIds) => onApproveLocalRun(run.id, approvalIds) : undefined}
+                  onReject={liveWorkflowRuns ? (approvalIds) => onRejectLocalRun(run.id, approvalIds) : undefined}
+                  onAnswerInput={liveWorkflowRuns ? (requestId, answer) => onAnswerLocalRunInput(run.id, requestId, answer) : undefined}
                 />
               ))}
               {showMessage && <MessageBubble msg={message} projectId={projectId} />}
@@ -154,9 +154,9 @@ export function AgentConversationThreadSection({
             key={`workflow-live-${run.id}`}
             run={run}
             approving={approvingLocalRun}
-            onApprove={onApproveLocalRun}
-            onReject={onRejectLocalRun}
-            onAnswerInput={onAnswerLocalRunInput}
+            onApprove={(approvalIds) => onApproveLocalRun(run.id, approvalIds)}
+            onReject={(approvalIds) => onRejectLocalRun(run.id, approvalIds)}
+            onAnswerInput={(requestId, answer) => onAnswerLocalRunInput(run.id, requestId, answer)}
           />
         ))}
         <AgentPlanOverviewPanel

@@ -327,6 +327,78 @@ test('trace reads preserve pagination and kind filters', async () => {
         latestEvent: traceEvent('trace_1'),
       })
     }
+    if (url.pathname === '/runs/run_trace/trace/debug-view') {
+      return jsonResponse({
+        schema: 'movscript.agent-trace-debug-view.v1',
+        generatedAt: '2026-01-01T00:00:00.000Z',
+        runId: 'run_trace',
+        run: runFixture('run_trace', 'thread_1', 'completed'),
+        trace: { loaded: 1, total: 1, hasMore: false },
+        coverage: {
+          loadedLabel: '1 / 1',
+          hasUnloadedTrace: false,
+          modelCallsLabel: '0',
+          promptDetailsLabel: '0',
+          messageWritesLabel: '0',
+          toolDetailsLabel: '1 / 1',
+          httpResponsesLabel: '0',
+          requestPayloadsLabel: '0',
+          httpResponseBodiesLabel: '0',
+          issues: [],
+        },
+        readinessChecklist: [],
+        modelCalls: [],
+        modelCallContexts: [],
+        skillTimeline: {
+          timeline: [],
+          currentActiveSkillIds: [],
+          currentLoadedSkillIds: [],
+          currentUnloadedSkillIds: [],
+          currentAvailableSkillIds: [],
+        },
+        promptDetails: [],
+        messageWrites: [],
+        toolCalls: [],
+        attentionEvents: [],
+        pendingActions: [],
+        fieldGuide: [],
+        events: [traceEvent('trace_1')],
+        reportText: 'AgentRun 调试摘要\n',
+        bundle: { schema: 'movscript.agent-run-debug-bundle.v1' },
+      })
+    }
+    if (url.pathname === '/runs/run_trace/generation-view') {
+      return jsonResponse({
+        schema: 'movscript.agent-run-generation-view.v1',
+        generatedAt: '2026-01-01T00:00:00.000Z',
+        runId: 'run_trace',
+        jobs: [{
+          jobId: 50,
+          jobType: 'image',
+          status: 'succeeded',
+          stage: 'completed',
+          terminal: true,
+          outputResourceId: 88,
+        }],
+        latestJob: {
+          jobId: 50,
+          jobType: 'image',
+          status: 'succeeded',
+          stage: 'completed',
+          terminal: true,
+          outputResourceId: 88,
+        },
+        outputResourceIds: [88],
+        outputResources: [],
+        metadataByResourceId: { 88: { jobId: 50, modelDisplay: 'Replay Model' } },
+        active: 0,
+        terminal: 1,
+        succeeded: 1,
+        failed: 0,
+        cancelled: 0,
+        timeout: 0,
+      })
+    }
     return new Response('not found', { status: 404 })
   }, async () => {
     const client = new LocalAgentClient('http://local.test')
@@ -336,14 +408,22 @@ test('trace reads preserve pagination and kind filters', async () => {
       kind: 'tool_call',
     })
     const summary = await client.getRunTraceSummary('run_trace')
+    const debugView = await client.getRunTraceDebugView('run_trace')
+    const generationView = await client.getRunGenerationView('run_trace')
 
     assert.equal(page.events[0].id, 'trace_1')
     assert.equal(page.events[0].durationMs, 42)
     assert.equal(summary.latestEvent?.durationMs, 42)
     assert.equal(summary.total, 1)
+    assert.equal(debugView.schema, 'movscript.agent-trace-debug-view.v1')
+    assert.equal(debugView.events[0].id, 'trace_1')
+    assert.equal(generationView.schema, 'movscript.agent-run-generation-view.v1')
+    assert.equal(generationView.jobs[0]?.jobId, 50)
     assert.deepEqual(requests, [
       '/runs/run_trace/trace?cursor=trace_0&limit=25&kind=tool_call',
       '/runs/run_trace/trace/summary',
+      '/runs/run_trace/trace/debug-view',
+      '/runs/run_trace/generation-view',
     ])
   })
 })

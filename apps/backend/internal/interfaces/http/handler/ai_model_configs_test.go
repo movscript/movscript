@@ -288,11 +288,11 @@ func TestPreviewModelConfigContractReturnsAgentContract(t *testing.T) {
 		t.Fatalf("expected input_requirements object, got %#v", agentContract)
 	}
 	imageReq, ok := inputRequirements["image"].(map[string]any)
-	if !ok || imageReq["min"] != float64(1) || imageReq["max"] != float64(4) {
+	if !ok || imageReq["min"] != float64(0) || imageReq["max"] != float64(4) {
 		t.Fatalf("unexpected image input requirements: %#v", inputRequirements["image"])
 	}
 	videoReq, ok := inputRequirements["video"].(map[string]any)
-	if !ok || videoReq["min"] != float64(1) || videoReq["max"] != float64(2) {
+	if !ok || videoReq["min"] != float64(0) || videoReq["max"] != float64(2) {
 		t.Fatalf("unexpected video input requirements: %#v", inputRequirements["video"])
 	}
 	keys, ok := agentContract["supported_param_keys"].([]any)
@@ -382,11 +382,11 @@ func TestSavedModelConfigInputRequirementsMatchRuntimeModels(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected runtime input_requirements object, got %#v", models[0])
 	}
-	if !inputRequirementEqual(previewInputs["image"], runtimeInputs["image"]) {
-		t.Fatalf("preview image requirements do not match runtime: preview=%#v runtime=%#v", previewInputs["image"], runtimeInputs["image"])
+	if !inputRequirementHas(previewInputs["image"], 0, 4) || !inputRequirementHas(previewInputs["video"], 0, 2) {
+		t.Fatalf("expected preview to show no globally required input for mixed capabilities, got %#v", previewInputs)
 	}
-	if !inputRequirementEqual(previewInputs["video"], runtimeInputs["video"]) {
-		t.Fatalf("preview video requirements do not match runtime: preview=%#v runtime=%#v", previewInputs["video"], runtimeInputs["video"])
+	if !inputRequirementHas(runtimeInputs["image"], 1, 4) || !inputRequirementHas(runtimeInputs["video"], 0, 2) {
+		t.Fatalf("expected video_i2v runtime contract to require image input only, got %#v", runtimeInputs)
 	}
 }
 
@@ -422,7 +422,7 @@ func TestSavedModelConfigPreservesUnlimitedInputRequirements(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected preview input_requirements object, got %#v", agentContract)
 	}
-	if !inputRequirementHas(previewInputs["image"], 1, -1) || !inputRequirementHas(previewInputs["video"], 1, -1) {
+	if !inputRequirementHas(previewInputs["image"], 0, -1) || !inputRequirementHas(previewInputs["video"], 0, -1) {
 		t.Fatalf("expected preview unlimited image/video requirements, got %#v", previewInputs)
 	}
 
@@ -462,11 +462,8 @@ func TestSavedModelConfigPreservesUnlimitedInputRequirements(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected runtime input_requirements object, got %#v", models[0])
 	}
-	if !inputRequirementEqual(previewInputs["image"], runtimeInputs["image"]) {
-		t.Fatalf("preview image requirements do not match runtime: preview=%#v runtime=%#v", previewInputs["image"], runtimeInputs["image"])
-	}
-	if !inputRequirementEqual(previewInputs["video"], runtimeInputs["video"]) {
-		t.Fatalf("preview video requirements do not match runtime: preview=%#v runtime=%#v", previewInputs["video"], runtimeInputs["video"])
+	if !inputRequirementHas(runtimeInputs["image"], 1, -1) || !inputRequirementHas(runtimeInputs["video"], 0, -1) {
+		t.Fatalf("expected video_i2v runtime unlimited image input requirement, got %#v", runtimeInputs)
 	}
 }
 

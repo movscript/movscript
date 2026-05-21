@@ -285,7 +285,8 @@ function resolveRuntimeToolParameters(
   if (tool.name === 'movscript_delete_memory') return MEMORY_ID_TOOL_SCHEMA
   if (tool.name === 'movscript_create_draft') return CREATE_DRAFT_TOOL_SCHEMA
   if (tool.name === 'movscript_get_draft') return DRAFT_ID_TOOL_SCHEMA
-  if (tool.name === 'movscript_update_draft') return UPDATE_DRAFT_TOOL_SCHEMA
+  if (tool.name === 'movscript_validate_draft') return DRAFT_ID_TOOL_SCHEMA
+  if (tool.name === 'movscript_preview_draft_apply') return PREVIEW_DRAFT_APPLY_TOOL_SCHEMA
   if (tool.name === 'movscript_inspect_agent_catalog') return INSPECT_AGENT_CATALOG_TOOL_SCHEMA
   if (tool.name === 'movscript_update_active_skills') return UPDATE_ACTIVE_SKILLS_TOOL_SCHEMA
   if (tool.name === 'movscript_create_plan') return CREATE_PLAN_TOOL_SCHEMA
@@ -494,6 +495,11 @@ const PLAN_TASK_INPUT_SCHEMA = {
     subagentName: { type: 'string', description: 'Optional human-readable worker subagent name for this task.' },
     maxTaskAttempts: { type: 'number', description: 'Optional retry attempt limit for this worker task.' },
     workerTimeoutMs: { type: 'number', description: 'Optional timeout for this worker task in milliseconds.' },
+    metadata: {
+      type: 'object',
+      additionalProperties: true,
+      description: 'Optional structured planning metadata, e.g. executionMode, parallelizable, criticalPath, writeScope, expectedOutput, and reportFormat.',
+    },
   },
   required: ['title'],
 } satisfies Record<string, unknown>
@@ -511,6 +517,11 @@ const PLAN_TASK_UPDATE_SCHEMA = {
     progress: { type: 'number' },
     blockedReason: { type: 'string' },
     subagentName: { type: 'string' },
+    metadata: {
+      type: 'object',
+      additionalProperties: true,
+      description: 'Optional structured planning metadata patch.',
+    },
   },
   required: ['id'],
 } satisfies Record<string, unknown>
@@ -721,7 +732,7 @@ const CREATE_DRAFT_TOOL_SCHEMA = {
       enum: ['setting_proposal', 'script_split_proposal', 'script', 'asset_slot', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_standards_proposal', 'production_proposal', 'content_unit_proposal'],
     },
     title: { type: 'string', description: 'Optional. Auto-generated from kind + project when omitted for proposal drafts.' },
-    content: { type: 'string', description: 'Draft content. Prefer valid JSON for structured drafts.' },
+    content: { type: 'string', description: 'Initial draft content. Structured proposal drafts must be valid JSON. After creation, edit the returned draft.filePath with standard file tools instead of replacing content through draft tools.' },
     projectId: { type: 'number' },
     productionId: { type: 'number', description: 'Optional hint for production_proposal drafts.' },
     source: { type: 'object', additionalProperties: true },
@@ -741,43 +752,13 @@ const DRAFT_ID_TOOL_SCHEMA = {
   },
 } satisfies Record<string, unknown>
 
-const UPDATE_DRAFT_TOOL_SCHEMA = {
+const PREVIEW_DRAFT_APPLY_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   required: ['draftId'],
   properties: {
     draftId: { type: 'string' },
-    action: {
-      type: 'string',
-      enum: ['replace_fields', 'replace_content', 'patch_content', 'replace_text', 'set_status', 'validate', 'preview_apply'],
-      description: 'Single draft operation to perform.',
-    },
-    status: { type: 'string', enum: ['draft', 'accepted', 'rejected', 'applied', 'superseded'] },
-    title: { type: 'string' },
-    content: { type: 'string', description: 'Full replacement content for the draft.' },
     target: { type: 'object', additionalProperties: true },
-    metadata: { type: 'object', additionalProperties: true },
-    rejectedReason: { type: 'string' },
-    expectedUpdatedAt: { type: 'string' },
-    oldString: { type: 'string', description: 'For replace_text.' },
-    newString: { type: 'string', description: 'For replace_text.' },
-    replaceAll: { type: 'boolean', description: 'For replace_text.' },
-    previewApply: { type: 'boolean', description: 'Shortcut for action=preview_apply.' },
-    validateOnly: { type: 'boolean', description: 'Shortcut for action=validate.' },
-    ops: {
-      type: 'array',
-      minItems: 1,
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['op', 'path'],
-        properties: {
-          op: { type: 'string', enum: ['add', 'replace', 'remove'] },
-          path: { type: 'string', description: 'JSON Pointer path inside the draft content JSON.' },
-          value: {},
-        },
-      },
-    },
     targetEntityType: { type: 'string' },
     targetEntityId: { type: ['string', 'number'] },
     targetField: { type: 'string' },

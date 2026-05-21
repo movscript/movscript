@@ -87,6 +87,7 @@ export function buildAgentChatSendPipelineInput({
       setLocalThreadId: store.setLocalThreadId,
       setConversationRuntimeThreadId: store.setConversationRuntimeThreadId,
       setConversationRun: store.setConversationRun,
+      setSubmittedInteractionRuns: runtime.setSubmittedInteractionRuns,
       updateConversationTitle: store.updateConversationTitle,
       messageStore: {
         setConversationMessages: store.messageStore.setConversationMessages,

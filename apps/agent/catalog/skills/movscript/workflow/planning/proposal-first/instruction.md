@@ -11,7 +11,7 @@
 
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
-- Draft：{{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
+- Draft：{{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:agent_file_read}} {{tool:agent_file_search}} {{tool:agent_file_edit}} {{tool:movscript_validate_draft}} {{tool:movscript_preview_draft_apply}}。正文编辑使用文件工具修改 `draft.filePath` 指向的真实 JSON 文件。
 - 缺少目标时询问：{{tool:movscript_request_user_input}}
 
 路由规则：

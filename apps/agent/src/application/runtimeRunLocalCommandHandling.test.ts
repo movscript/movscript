@@ -51,19 +51,23 @@ test('applyRuntimeRunLocalCommandHandling executes generation commands with cata
 
   const handled = await applyRuntimeRunLocalCommandHandling({
     ...baseInput(store, run, thread, '/image a title card'),
-    mcpClient: {
-      initialize: async () => ({}),
-      callTool: async (name, args) => {
-        calls.push({ name, args })
-        return { jobId: 42, status: 'queued' }
+    catalogManager: {
+      startIO: async (_run, args) => {
+        calls.push({ name: 'agent_io_start', args })
+        return { status: 'started', operation: { id: 'io_1', kind: 'generation_job', status: 'running' } } as JSONValue
       },
-    },
+      waitIO: async (_run, args) => {
+        calls.push({ name: 'agent_io_wait', args })
+        return { status: 'completed', done: true, completed: [], failed: [], cancelled: [], pending: [] } as JSONValue
+      },
+    } as Parameters<typeof applyRuntimeRunLocalCommandHandling>[0]['catalogManager'],
   })
 
   assert.equal(handled, true)
   assert.equal(run.status, 'completed')
-  assert.equal(calls[0]?.name, 'movscript_create_generation_job')
-  assert.equal((run.metadata?.forcedToolCall as any)?.name, 'movscript_create_generation_job')
+  assert.equal(calls[0]?.name, 'agent_io_start')
+  assert.equal(calls[1]?.name, 'agent_io_wait')
+  assert.equal((run.metadata?.forcedToolCall as any)?.name, 'agent_io_start')
 })
 
 function baseInput(

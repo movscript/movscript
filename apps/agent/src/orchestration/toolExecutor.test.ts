@@ -9,6 +9,7 @@ import { InMemoryAgentMemoryStore } from '../memory/memoryStore.js'
 import { InMemoryAgentDraftStore } from '../drafts/draftStore.js'
 import { executeTool } from './toolExecutor.js'
 import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
+import { draftContentFileRef } from '../files/providers/draftFileProvider.js'
 
 function testRun(): AgentRun {
   return {
@@ -39,57 +40,11 @@ function testOptions(mcpClient: { initialize(): Promise<JSONValue>; callTool(nam
   }
 }
 
-test('executeTool retries generation once with backend suggested_fix', async () => {
-  const calls: Array<{ name: string; args?: Record<string, JSONValue> }> = []
-  const mcpClient = {
-    async initialize(): Promise<JSONValue> {
-      return {}
-    },
-    async callTool(name: string, args: Record<string, JSONValue> = {}): Promise<JSONValue> {
-      calls.push({ name, args })
-      if (calls.length === 1) {
-        throw new MCPError('invalid duration', -32000, {
-          type: 'backend_http_error',
-          status: 400,
-          code: 'INVALID_PARAMETER_OPTION',
-          field: 'duration',
-          suggested_fix: { duration: '5', resolution: '480p' },
-        })
-      }
-      return { status: 'queued', repaired: true }
-    },
-  }
-
-  const result = await executeTool({
-    name: 'movscript_create_generation_job',
-    args: {
-      prompt: 'make a shot',
-      job_type: 'video',
-      duration: '6',
-      extra_params: { resolution: '720p' },
-    },
-  }, testOptions(mcpClient))
-
-  assert.deepEqual(result.result, {
-    status: 'queued',
-    repaired: true,
-    repair_note: 'Retried once with backend suggested_fix after generation parameter validation failed.',
-  })
-  assert.equal(calls.length, 2)
-  assert.deepEqual(calls[1]?.args, {
-    prompt: 'make a shot',
-    job_type: 'video',
-    duration: '5',
-    extra_params: { resolution: '480p' },
-    repair_note: 'Retried once with backend suggested_fix after generation parameter validation failed.',
-  })
-})
-
-test('executeTool serves generation wait through the runtime catalog manager', async () => {
+test('executeTool serves runtime operation wait through the runtime catalog manager', async () => {
   const calls: string[] = []
   const result = await executeTool({
-    name: 'movscript_wait_generation_jobs',
-    args: { jobIds: [42] },
+    name: 'agent_io_wait',
+    args: { operationIds: ['io_42'] },
   }, {
     ...testOptions({
       initialize: async () => {
@@ -110,17 +65,21 @@ test('executeTool serves generation wait through the runtime catalog manager', a
       spawnSubagent: () => ({}),
       listSubagents: () => ({}),
       waitSubagent: () => ({}),
-      waitGenerationJobs: (_run, input) => {
-        calls.push(`runtime.wait:${(input?.jobIds as JSONValue[] | undefined)?.join(',')}`)
+      startIO: () => ({}),
+      getIO: () => ({}),
+      listIO: () => ({}),
+      waitIO: (_run: AgentRun, input?: Record<string, JSONValue>) => {
+        calls.push(`runtime.wait:${(input?.operationIds as JSONValue[] | undefined)?.join(',')}`)
         return { status: 'completed', done: true }
       },
+      cancelIO: () => ({}),
       cancelSubagent: () => ({}),
     },
   })
 
   assert.equal(result.source, 'runtime')
   assert.deepEqual(result.result, { status: 'completed', done: true })
-  assert.deepEqual(calls, ['runtime.wait:42'])
+  assert.deepEqual(calls, ['runtime.wait:io_42'])
 })
 
 test('executeTool serves runtime knowledge search and bounded get', async () => {
@@ -263,6 +222,162 @@ test('executeTool creates content unit proposal drafts after media proposal depr
 
   assert.equal((result.result as any)?.status, 'created')
   assert.equal(draftStore.listDrafts()[0]?.kind, 'content_unit_proposal')
+})
+
+test('executeTool edits draft files with explicit file revision preconditions', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const draft = draftStore.createDraft({
+    projectId: 42,
+    kind: 'asset_proposal',
+    title: 'Asset requirements',
+    content: JSON.stringify({
+      schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
+      scope: 'asset_proposal',
+      mode: 'snapshot',
+      proposal: {
+        creative_references: [],
+        asset_slots: [{
+          id: 9,
+          owner: { type: 'creative_reference', id: 7 },
+          name: 'Existing portrait',
+          kind: 'image',
+          status: 'needed',
+        }],
+        candidate_plans: [],
+      },
+    }),
+  })
+  const options = {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('MCP should not be called for runtime draft file tools')
+      },
+    }),
+    draftStore,
+  }
+
+  await assert.rejects(
+    () => executeTool({
+      name: 'agent_file_edit',
+      args: {
+        ref: draftContentFileRef(draft.id),
+        baseRevision: 'sha256:stale',
+        edits: [{
+          type: 'replace_text',
+          oldText: '"asset_slots":[]',
+          newText: '"asset_slots":[{"name":"New slot","kind":"image"}]',
+        }],
+      },
+    }, options),
+    /baseRevision mismatch/,
+  )
+
+  const read = await executeTool({
+    name: 'agent_file_read',
+    args: { ref: draftContentFileRef(draft.id), jsonPointer: '/proposal/asset_slots' },
+  }, options)
+
+  assert.equal((read.result as any)?.status, 'read')
+  assert.equal((read.result as any)?.value.length, 1)
+
+  const original = draftStore.getDraft(draft.id)?.content ?? ''
+  const next = original.replace('"candidate_plans":[]', '"candidate_plans":[{"name":"Plan A"}]')
+  const edited = await executeTool({
+    name: 'agent_file_edit',
+    args: {
+      ref: draftContentFileRef(draft.id),
+      baseRevision: (read.result as any).revision,
+      edits: [{
+        type: 'replace_text',
+        oldText: original,
+        newText: next,
+      }],
+    },
+  }, options)
+
+  assert.equal((edited.result as any)?.status, 'edited')
+  const content = JSON.parse(draftStore.getDraft(draft.id)?.content ?? '{}')
+  assert.deepEqual(content.proposal.asset_slots.map((slot: any) => slot.name), ['Existing portrait'])
+  assert.deepEqual(content.proposal.candidate_plans.map((plan: any) => plan.name), ['Plan A'])
+})
+
+test('executeTool delegates agent file tools to the injected file system without requiring a draft', async () => {
+  const files = new Map([['/workspace/notes.md', 'alpha beta gamma']])
+  const fileSystem = {
+    read(input: { ref: string }) {
+      const filePath = input.ref
+      const content = files.get(filePath)
+      if (content === undefined) throw new Error(`missing file: ${filePath}`)
+      return {
+        file: { provider: 'workspace', kind: 'markdown', id: 'notes', ref: filePath },
+        content,
+        contentLength: content.length,
+        revision: 'sha256:one',
+      }
+    },
+    search() {
+      throw new Error('search not used')
+    },
+    edit(input: { ref: string; edits: Array<{ type: string; oldText?: string; newText?: string }> }) {
+      const filePath = input.ref
+      const content = files.get(filePath)
+      if (content === undefined) throw new Error(`missing file: ${filePath}`)
+      const edit = input.edits[0]!
+      const replacementCount = content.includes(edit.oldText ?? '') ? 1 : 0
+      const next = content.replace(edit.oldText ?? '', edit.newText ?? '')
+      files.set(filePath, next)
+      return {
+        file: { provider: 'workspace', kind: 'markdown', id: 'notes', ref: filePath },
+        contentLength: next.length,
+        changeSet: {
+          id: 'changeset_1',
+          fileRef: filePath,
+          baseRevision: 'sha256:one',
+          nextRevision: 'sha256:two',
+          edits: input.edits,
+          replacementCount,
+          createdAt: '2026-05-21T00:00:00.000Z',
+        },
+      }
+    },
+  }
+  const options = {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('MCP should not be called for runtime file tools')
+      },
+    }),
+    fileSystem: fileSystem as any,
+  }
+
+  const read = await executeTool({
+    name: 'agent_file_read',
+    args: { ref: '/workspace/notes.md' },
+  }, options)
+  assert.equal((read.result as any)?.draft, undefined)
+  assert.equal((read.result as any)?.file.provider, 'workspace')
+  assert.equal((read.result as any)?.content, 'alpha beta gamma')
+
+  const edited = await executeTool({
+    name: 'agent_file_edit',
+    args: {
+      ref: '/workspace/notes.md',
+      edits: [{
+        type: 'replace_text',
+        oldText: 'beta',
+        newText: 'delta',
+      }],
+    },
+  }, options)
+  assert.equal((edited.result as any)?.draft, undefined)
+  assert.equal((edited.result as any)?.replacementCount, 1)
+  assert.equal(files.get('/workspace/notes.md'), 'alpha delta gamma')
 })
 
 test('executeTool applies valid proposal drafts through runtime apply tool', async () => {
@@ -637,309 +752,7 @@ test('executeTool enforces per-run knowledge chunk budget', async () => {
   )
 })
 
-test('executeTool returns repaired generation param audit for UI extraction', async () => {
-  const calls: Array<{ name: string; args?: Record<string, JSONValue> }> = []
-  const paramValidation = {
-    audit_version: 1,
-    model_config_id: 42,
-    model_contract_loaded: true,
-    params_schema_loaded: true,
-    params_schema_rule_count: 4,
-    supported_params: ['duration', 'resolution', 'return_last_frame'],
-    provided_extra_params: ['resolution', 'return_last_frame'],
-    submitted_extra_params: ['resolution', 'return_last_frame'],
-    preflight_errors: [{
-      code: 'INVALID_PARAMETER_COMBINATION',
-      field: 'resolution',
-      message: 'parameter "resolution" is not allowed for "draft" in the local model contract',
-      allowed_values: ['480p'],
-    }],
-  }
-  const mcpClient = {
-    async initialize(): Promise<JSONValue> {
-      return {}
-    },
-    async callTool(name: string, args: Record<string, JSONValue> = {}): Promise<JSONValue> {
-      calls.push({ name, args })
-      if (calls.length === 1) {
-        throw new MCPError('invalid draft generation params', -32000, {
-          type: 'backend_http_error',
-          status: 400,
-          code: 'INVALID_PARAMETER_COMBINATION',
-          field: 'resolution',
-          allowed_values: ['480p'],
-          suggested_fix: { resolution: '480p', return_last_frame: false },
-        })
-      }
-      return {
-        data: {
-          status: 'queued',
-          jobId: 101,
-          repair_note: 'Retried once with backend suggested_fix after generation parameter validation failed.',
-          param_validation: paramValidation,
-        },
-      }
-    },
-  }
-
-  const result = await executeTool({
-    name: 'movscript_create_generation_job',
-    args: {
-      prompt: 'make a draft video',
-      job_type: 'video',
-      extra_params: { draft: true, resolution: '720p', return_last_frame: true },
-    },
-  }, testOptions(mcpClient))
-
-  assert.equal(calls.length, 2)
-  assert.deepEqual(calls[1]?.args?.extra_params, {
-    draft: true,
-    resolution: '480p',
-    return_last_frame: false,
-  })
-  assert.deepEqual(result.result, {
-    data: {
-      status: 'queued',
-      jobId: 101,
-      repair_note: 'Retried once with backend suggested_fix after generation parameter validation failed.',
-      param_validation: paramValidation,
-    },
-  })
-})
-
-test('executeTool removes generation params when backend suggested_fix value is null', async () => {
-  const calls: Array<{ name: string; args?: Record<string, JSONValue> }> = []
-  const mcpClient = {
-    async initialize(): Promise<JSONValue> {
-      return {}
-    },
-    async callTool(name: string, args: Record<string, JSONValue> = {}): Promise<JSONValue> {
-      calls.push({ name, args })
-      if (calls.length === 1) {
-        throw new MCPError('conflicting generation params', -32000, {
-          type: 'backend_http_error',
-          status: 400,
-          code: 'INVALID_PARAMETER_COMBINATION',
-          field: 'duration',
-          suggested_fix: { frames: null },
-        })
-      }
-      return { status: 'queued', repaired: true }
-    },
-  }
-
-  const result = await executeTool({
-    name: 'movscript_create_generation_job',
-    args: {
-      prompt: 'make a shot',
-      job_type: 'video',
-      duration: '5',
-      extra_params: { frames: 29, resolution: '720p' },
-    },
-  }, testOptions(mcpClient))
-
-  assert.equal(calls.length, 2)
-  assert.deepEqual(calls[1]?.args, {
-    prompt: 'make a shot',
-    job_type: 'video',
-    duration: '5',
-    extra_params: { resolution: '720p' },
-    repair_note: 'Retried once with backend suggested_fix after generation parameter validation failed.',
-  })
-  assert.deepEqual(result.result, {
-    status: 'queued',
-    repaired: true,
-    repair_note: 'Retried once with backend suggested_fix after generation parameter validation failed.',
-  })
-})
-
-test('executeTool removes empty extra_params after null suggested_fix deletes the last param', async () => {
-  const calls: Array<{ name: string; args?: Record<string, JSONValue> }> = []
-  const mcpClient = {
-    async initialize(): Promise<JSONValue> {
-      return {}
-    },
-    async callTool(name: string, args: Record<string, JSONValue> = {}): Promise<JSONValue> {
-      calls.push({ name, args })
-      if (calls.length === 1) {
-        throw new MCPError('conflicting generation params', -32000, {
-          type: 'backend_http_error',
-          status: 400,
-          code: 'INVALID_PARAMETER_COMBINATION',
-          field: 'duration',
-          suggested_fix: { frames: null },
-        })
-      }
-      return { status: 'queued', repaired: true }
-    },
-  }
-
-  await executeTool({
-    name: 'movscript_create_generation_job',
-    args: {
-      prompt: 'make a shot',
-      job_type: 'video',
-      duration: '5',
-      extra_params: { frames: 29 },
-    },
-  }, testOptions(mcpClient))
-
-  assert.equal(calls.length, 2)
-  assert.deepEqual(calls[1]?.args, {
-    prompt: 'make a shot',
-    job_type: 'video',
-    duration: '5',
-    repair_note: 'Retried once with backend suggested_fix after generation parameter validation failed.',
-  })
-})
-
-test('executeTool removes top-level generation params when backend suggested_fix value is null', async () => {
-  const calls: Array<{ name: string; args?: Record<string, JSONValue> }> = []
-  const mcpClient = {
-    async initialize(): Promise<JSONValue> {
-      return {}
-    },
-    async callTool(name: string, args: Record<string, JSONValue> = {}): Promise<JSONValue> {
-      calls.push({ name, args })
-      if (calls.length === 1) {
-        throw new MCPError('conflicting generation params', -32000, {
-          type: 'backend_http_error',
-          status: 400,
-          code: 'INVALID_PARAMETER_COMBINATION',
-          field: 'duration',
-          suggested_fix: { duration: null },
-        })
-      }
-      return { status: 'queued', repaired: true }
-    },
-  }
-
-  await executeTool({
-    name: 'movscript_create_generation_job',
-    args: {
-      prompt: 'make a shot',
-      job_type: 'video',
-      duration: '5',
-      aspect_ratio: '16:9',
-      extra_params: { resolution: '720p' },
-    },
-  }, testOptions(mcpClient))
-
-  assert.equal(calls.length, 2)
-  assert.deepEqual(calls[1]?.args, {
-    prompt: 'make a shot',
-    job_type: 'video',
-    aspect_ratio: '16:9',
-    extra_params: { resolution: '720p' },
-    repair_note: 'Retried once with backend suggested_fix after generation parameter validation failed.',
-  })
-})
-
-test('executeTool does not repair generation input resource validation errors', async () => {
-  const calls: Array<{ name: string; args?: Record<string, JSONValue> }> = []
-  const mcpClient = {
-    async initialize(): Promise<JSONValue> {
-      return {}
-    },
-    async callTool(name: string, args: Record<string, JSONValue> = {}): Promise<JSONValue> {
-      calls.push({ name, args })
-      throw new MCPError('too many image inputs', -32000, {
-        type: 'backend_http_error',
-        status: 400,
-        code: 'INVALID_INPUT_COUNT',
-        field: 'image',
-        required_min: 1,
-        allowed_max: 4,
-        actual_count: 5,
-        suggested_fix: { input_resource_ids: [1, 2, 3, 4] },
-      })
-    },
-  }
-
-  await assert.rejects(
-    executeTool({
-      name: 'movscript_create_generation_job',
-      args: {
-        prompt: 'make a shot',
-        job_type: 'image_edit',
-        input_resource_ids: [1, 2, 3, 4, 5],
-      },
-    }, testOptions(mcpClient)),
-    MCPError,
-  )
-  assert.equal(calls.length, 1)
-})
-
-test('executeTool ignores non-plain backend suggested_fix records', async () => {
-  class RuntimeSuggestedFix {
-    duration = '5'
-  }
-
-  const calls: Array<{ name: string; args?: Record<string, JSONValue> }> = []
-  const mcpClient = {
-    async initialize(): Promise<JSONValue> {
-      return {}
-    },
-    async callTool(name: string, args: Record<string, JSONValue> = {}): Promise<JSONValue> {
-      calls.push({ name, args })
-      throw new MCPError('invalid duration', -32000, {
-        type: 'backend_http_error',
-        status: 400,
-        code: 'INVALID_PARAMETER_OPTION',
-        field: 'duration',
-        suggested_fix: new RuntimeSuggestedFix() as unknown as JSONValue,
-      })
-    },
-  }
-
-  await assert.rejects(
-    executeTool({
-      name: 'movscript_create_generation_job',
-      args: {
-        prompt: 'make a shot',
-        job_type: 'video',
-        duration: '6',
-      },
-    }, testOptions(mcpClient)),
-    MCPError,
-  )
-  assert.equal(calls.length, 1)
-})
-
-test('executeTool does not repair generation output type validation errors', async () => {
-  const calls: Array<{ name: string; args?: Record<string, JSONValue> }> = []
-  const mcpClient = {
-    async initialize(): Promise<JSONValue> {
-      return {}
-    },
-    async callTool(name: string, args: Record<string, JSONValue> = {}): Promise<JSONValue> {
-      calls.push({ name, args })
-      throw new MCPError('unsupported output type', -32000, {
-        type: 'backend_http_error',
-        status: 400,
-        code: 'UNSUPPORTED_OUTPUT_TYPE',
-        field: 'output_type',
-        allowed_values: ['image'],
-        suggested_fix: { job_type: 'image' },
-      })
-    },
-  }
-
-  await assert.rejects(
-    executeTool({
-      name: 'movscript_create_generation_job',
-      args: {
-        prompt: 'make a shot',
-        job_type: 'video',
-        model_config_id: 42,
-      },
-    }, testOptions(mcpClient)),
-    MCPError,
-  )
-  assert.equal(calls.length, 1)
-})
-
-test('executeTool does not repair non-generation MCP validation errors', async () => {
+test('executeTool propagates MCP validation errors without repair', async () => {
   const mcpClient = {
     async initialize(): Promise<JSONValue> {
       return {}

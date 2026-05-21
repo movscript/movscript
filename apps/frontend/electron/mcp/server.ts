@@ -617,12 +617,12 @@ export function listTools(): MCPTool[] {
     },
     {
       name: 'movscript_list_models',
-      description: 'List enabled AI models for a capability or feature. The result includes public model_id values plus model_contracts with contract_version 1, capabilities, input_requirements, supported_param_keys, supported_params, and params_schema rule counts so the agent can choose a valid model before generation. Use model_id for generation calls.',
+      description: 'List enabled AI models for a capability or backend AI feature key. Prefer capability for generic generation: image for text-to-image, image_edit for image-to-image, video for text-to-video, video_i2v for image-to-video, and video_v2v for video-to-video. Backend feature keys are product routing keys such as ref_image_gen, ref_video_gen, canvas_image, canvas_video, style_transfer, or multi_angle; do not pass workflow template keys such as image-generation or text-generation as feature keys. The result includes public model_id values plus model_contracts with contract_version 1, capabilities, input_requirements, supported_param_keys, supported_params, and params_schema rule counts so the agent can choose a valid model before generation. Use model_id for generation calls.',
       inputSchema: objectSchema(
         {
           capability: { type: 'string', description: 'Optional capability filter such as text, image, image_edit, video, video_i2v, or video_v2v.' },
-          feature: { type: 'string', description: 'Optional feature key filter. Takes precedence over capability when provided.' },
-          feature_key: { type: 'string', description: 'Alias for feature.' },
+          feature: { type: 'string', description: 'Optional backend AI feature key filter. Takes precedence over capability when provided. Valid examples include ref_image_gen, ref_video_gen, canvas_image, canvas_video, style_transfer, multi_angle, motion_imitation, and video_edit. Do not use workflow template keys like image-generation.' },
+          feature_key: { type: 'string', description: 'Alias for feature. Use only backend AI feature keys, not workflow template keys.' },
           provider_variants: { type: 'boolean', description: 'When true, include provider-specific model variants.' },
           include_provider_variants: { type: 'boolean', description: 'Alias for provider_variants.' },
         }
@@ -698,7 +698,7 @@ export function listTools(): MCPTool[] {
     },
     {
       name: 'movscript_create_generation_job',
-      description: 'Create and wait for an AI image or video generation job through the MovScript backend. Before choosing model_id, input_resource_ids, or extra_params, inspect movscript_list_models and obey the selected model capability contract: capabilities, input_requirements, supported_params, and params_schema. Returns the completed job, output_resource/output_resource_id for the first output, output_resources/output_resource_ids when multiple outputs exist, and param_validation audit_version 1 data, including non-blocking preflight_errors and input_preflight_errors, for direct chat display. This is cost-bearing and should only run after explicit user approval.',
+      description: 'Create one or more independent single-output AI image or video generation jobs through the MovScript backend. Before choosing model_id, input_resource_ids, or extra_params, inspect movscript_list_models and obey the selected model capability contract: capabilities, input_requirements, supported_params, and params_schema. Each backend job is single-output; when multiple candidates are needed, use output_count or extra_params.image_count/max_images to enqueue multiple jobs and monitor the returned jobIds. Returns output_resource/output_resource_id for completed single-job calls, output_resource_ids when wait results aggregate independent jobs, and param_validation audit_version 1 data, including non-blocking preflight_errors and input_preflight_errors, for direct chat display. This is cost-bearing and should only run after explicit user approval.',
       inputSchema: objectSchema(
         {
           prompt: { type: 'string' },
@@ -710,6 +710,8 @@ export function listTools(): MCPTool[] {
           reference_type: { type: 'string', enum: ['image', 'video'], description: 'Use video with output_type video when reference resources should create a video_v2v job.' },
           aspect_ratio: { type: 'string', description: 'Optional aspect ratio such as 1:1, 16:9, or 9:16.' },
           duration: { type: 'number', description: 'Optional video duration in seconds.' },
+          output_count: { type: 'number', minimum: 1, maximum: 15, description: 'Number of independent single-output jobs to create. For image candidates, this is preferred over asking one provider job for multiple images.' },
+          outputCount: { type: 'number', minimum: 1, maximum: 15, description: 'Alias for output_count.' },
           extra_params: {
             type: 'object',
             description: 'Optional model-specific generation parameters. Keys must come from the selected model returned by movscript_list_models.supported_params / params_schema. Unsupported keys are omitted before submission and reported in param_validation audit_version 1 dropped_extra_params; obvious local type/option/range and compact cross-parameter rule mismatches are reported in non-blocking param_validation.preflight_errors.',
@@ -728,6 +730,8 @@ export function listTools(): MCPTool[] {
           status: { type: 'string', description: 'Current or final backend generation status.' },
           job: { type: 'object', description: 'Normalized generation job payload.' },
           jobId: { type: 'number', description: 'Generation job ID for monitoring and audit.' },
+          jobIds: { type: 'array', items: { type: 'number' }, description: 'Generation job IDs when multiple independent single-output jobs were created.' },
+          jobs: { type: 'array', items: { type: 'object' }, description: 'Normalized generation job payloads when multiple independent single-output jobs were created.' },
           monitor: {
             type: 'object',
             description: 'Present when the job needs asynchronous monitoring.',
@@ -739,8 +743,8 @@ export function listTools(): MCPTool[] {
           },
           output_resource: { type: 'object', description: 'Generated resource object when available.' },
           output_resource_id: { type: 'number', description: 'Generated resource ID when available.' },
-          output_resources: { type: 'array', items: { type: 'object' }, description: 'Generated resource objects when the provider returns multiple outputs.' },
-          output_resource_ids: { type: 'array', items: { type: 'number' }, description: 'Generated resource IDs when the provider returns multiple outputs.' },
+          output_resources: { type: 'array', items: { type: 'object' }, description: 'Generated resource objects when a wait result aggregates independent completed jobs.' },
+          output_resource_ids: { type: 'array', items: { type: 'number' }, description: 'Generated resource IDs when a wait result aggregates independent completed jobs.' },
           media: { type: 'object', description: 'Media preview metadata when available.' },
           param_validation: {
             type: 'object',
@@ -813,7 +817,7 @@ export function listTools(): MCPTool[] {
     },
     {
       name: 'movscript_attach_asset_slot_candidate',
-      description: 'Add an existing raw resource to the reviewable candidate set for an asset slot. Use after generation succeeds and an output_resource_id is available. This creates or reuses the candidate asset slot and candidate relation, but does not accept, select, bind, or lock the candidate.',
+      description: 'Add one existing raw resource to the reviewable candidate set for an asset slot. Use after generation succeeds and an output_resource_id is available. Agent automation should call this once per resource as soon as that resource is available; array aliases are compatibility-only. This creates or reuses the candidate asset slot and candidate relation, but does not accept, select, bind, or lock the candidate.',
       inputSchema: withCandidateAttachAliasRequirements(objectSchema(
         {
           projectId: { type: 'number', description: 'Defaults to the current UI project when omitted.' },
@@ -854,7 +858,7 @@ export function listTools(): MCPTool[] {
     },
     {
       name: 'movscript_attach_keyframe_candidate',
-      description: 'Add an existing raw resource to the reviewable candidate set for an original target keyframe / visual anchor. Use after generation succeeds and an output_resource_id is available. This creates or reuses a candidate keyframe linked to the original target keyframe, but does not accept, select, bind, or lock the candidate. Do not pass an existing generated candidate keyframe as the target.',
+      description: 'Add one existing raw resource to the reviewable candidate set for an original target keyframe / visual anchor. Use after generation succeeds and an output_resource_id is available. Agent automation should call this once per resource as soon as that resource is available; array aliases are compatibility-only. This creates or reuses a candidate keyframe linked to the original target keyframe, but does not accept, select, bind, or lock the candidate. Do not pass an existing generated candidate keyframe as the target.',
       inputSchema: withCandidateAttachAliasRequirements(objectSchema(
         {
           projectId: { type: 'number', description: 'Defaults to the current UI project when omitted.' },
@@ -1083,6 +1087,8 @@ function normalizeModelCapabilityAlias(value: string | undefined): string | unde
     case 'audio':
       return normalized
     case 'text_to_image':
+    case 'image_generation':
+    case 'prompt_to_image':
     case 't2i':
     case 'txt2img':
       return 'image'
@@ -1091,6 +1097,8 @@ function normalizeModelCapabilityAlias(value: string | undefined): string | unde
     case 'img2img':
       return 'image_edit'
     case 'text_to_video':
+    case 'video_generation':
+    case 'prompt_to_video':
     case 't2v':
     case 'txt2video':
       return 'video'
@@ -1101,6 +1109,9 @@ function normalizeModelCapabilityAlias(value: string | undefined): string | unde
     case 'video_to_video':
     case 'v2v':
       return 'video_v2v'
+    case 'text_generation':
+    case 'prompt_to_text':
+      return 'text'
     default:
       return undefined
   }
@@ -1653,6 +1664,7 @@ function normalizeDraftModelTarget(targetEntityType: string, value: unknown): Re
     ? source.entityType.trim()
     : targetEntityType
   const entityId = source.entityId
+    ?? (targetEntityType === 'production' ? source.productionId ?? source.production_id : undefined)
     ?? (targetEntityType === 'project' ? contextSnapshot.project?.id : undefined)
     ?? (targetEntityType === 'production' && contextSnapshot.selection?.entityType === 'production' ? contextSnapshot.selection.entityId : undefined)
   const out: Record<string, unknown> = {
@@ -1745,8 +1757,8 @@ async function hydrateDraftSeedInclude(kind: AgentDraftKind, projectId: number, 
       return summarizeSeedValue(productions.find((production) => numericValue(production?.ID ?? production?.id) === productionId) ?? null)
     }
     case 'production_script_brief': {
-      if (!entityId) return undefined
-      return hydrateProductionScriptBrief(projectId, entityId)
+      if (!productionId) return undefined
+      return hydrateProductionScriptBrief(projectId, productionId)
     }
     case 'segments': {
       const segments = await backendList(`/projects/${projectId}/entities/segments`)
@@ -2111,14 +2123,14 @@ export async function createGenerationJob(args: Record<string, unknown>): Promis
   const modelConfigId = modelRoute.modelConfigId
   if (!modelRoute.modelId) throw new Error(`没有可用的 ${jobType} model_id，请先在管理后台检查模型配置`)
   const projectId = getOptionalNumeric(args, 'projectId') ?? contextSnapshot.project?.id
-  const wait = args.wait !== false
   let aspectRatio = getOptionalString(args, 'aspect_ratio')
   const duration = getOptionalNumeric(args, 'duration')
   const featureKey = getOptionalString(args, 'feature_key') ?? getOptionalString(args, 'featureKey') ?? 'agent.chat_generation'
   const modelParamContract = await getGenerationModelParamContract(modelConfigId, jobType)
   const supportedParamKeys = modelParamContract?.supportedParamKeys
   const extraParamAudit = normalizeGenerationExtraParams(args.extra_params, supportedParamKeys)
-  const extraParams = extraParamAudit.extraParams
+  const outputCount = generationOutputCount(args, extraParamAudit.submittedParams)
+  const extraParams = outputCount > 1 ? singleOutputGenerationExtraParams(extraParamAudit.submittedParams) : extraParamAudit.extraParams
   if (aspectRatio && supportedParamKeys && !supportedParamKeys.has('aspect_ratio')) {
     aspectRatio = undefined
   }
@@ -2138,11 +2150,11 @@ export async function createGenerationJob(args: Record<string, unknown>): Promis
   })
   const title = getOptionalString(args, 'title') ?? defaultGenerationJobTitle(jobType)
 
-  const job = await backendPost('/jobs', {
+  const createBody = (index: number) => ({
     model_id: modelRoute.modelId,
     job_type: jobType,
     feature_key: featureKey,
-    title,
+    title: outputCount > 1 ? `${title}-${index + 1}/${outputCount}` : title,
     prompt,
     ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}),
     ...(duration !== undefined ? { duration } : {}),
@@ -2151,22 +2163,35 @@ export async function createGenerationJob(args: Record<string, unknown>): Promis
     ...(projectId ? { project_id: projectId } : {}),
   })
 
+  const jobs = await Promise.all(Array.from({ length: outputCount }, (_, index) => backendPost('/jobs', createBody(index))))
+  const job = jobs[0]
+
   const initialJobId = getJobId(job)
+  const jobIds = jobs.map(getJobId).filter((id): id is number => id !== undefined)
+  const wait = args.wait !== false && outputCount === 1
   if (!wait) {
-    const normalized = normalizeGenerationJob(job)
+    const normalizedJobs = jobs.map((item) => normalizeGenerationJob(item))
+    const normalized = normalizedJobs[0] ?? {}
     const monitorTimeoutMs = getOptionalNumeric(args, 'timeout_ms') ?? (jobType.startsWith('video') ? 600_000 : 180_000)
     const monitorHeartbeatMs = jobType.startsWith('video') ? 30_000 : 15_000
     return {
       status: 'queued',
       job: normalized.job,
+      ...(normalizedJobs.length > 1 ? { jobs: normalizedJobs.map((item) => item.job) } : {}),
       jobId: initialJobId,
+      ...(jobIds.length > 1 ? { jobIds } : {}),
+      ...(outputCount > 1 ? { requested_output_count: outputCount, single_output_jobs: true } : {}),
       monitor: {
         tool: 'movscript_wait_generation_jobs',
-        args: initialJobId ? { jobIds: [initialJobId], timeout_ms: monitorTimeoutMs, heartbeat_ms: monitorHeartbeatMs, ...(projectId ? { projectId } : {}) } : undefined,
-        message: 'Generation is asynchronous. Wait for this job to reach a terminal status before claiming completion.',
+        args: jobIds.length > 0 ? { jobIds, ...(jobIds.length > 1 ? { mode: 'any' } : {}), timeout_ms: monitorTimeoutMs, heartbeat_ms: monitorHeartbeatMs, ...(projectId ? { projectId } : {}) } : undefined,
+        message: jobIds.length > 1
+          ? 'Generation is asynchronous. Wait with mode:any, attach completed output resources immediately, then continue waiting for pending jobs.'
+          : 'Generation is asynchronous. Wait for this job to reach a terminal status before claiming completion.',
       },
       param_validation: paramValidation,
-      message: `生成任务已创建${initialJobId ? `（Job #${initialJobId}）` : ''}。`,
+      message: jobIds.length > 1
+        ? `已创建 ${jobIds.length} 个独立单输出生成任务（${jobIds.map((id) => `Job #${id}`).join('、')}）。`
+        : `生成任务已创建${initialJobId ? `（Job #${initialJobId}）` : ''}。`,
     }
   }
   if (!initialJobId) throw new Error('generation job was created without an ID')
@@ -2213,16 +2238,17 @@ export async function attachAssetSlotCandidate(args: Record<string, unknown>): P
   const existingResourceIds = await existingAssetSlotCandidateResourceIds(projectId, assetSlotId)
   const resourceIdsToAttach = resourceIds.filter((resourceId) => !existingResourceIds.has(resourceId))
   const skippedResourceIds = resourceIds.filter((resourceId) => existingResourceIds.has(resourceId))
-  const candidates = await Promise.all(resourceIdsToAttach.map((resourceId) => (
-    backendPost(`/projects/${projectId}/entities/asset-slot-candidates`, {
+  const candidates = []
+  for (const resourceId of resourceIdsToAttach) {
+    candidates.push(await backendPost(`/projects/${projectId}/entities/asset-slot-candidates`, {
       asset_slot_id: assetSlotId,
       resource_id: resourceId,
       source_type: sourceType,
       ...(sourceId ? { source_id: sourceId } : {}),
       ...(score !== undefined ? { score } : {}),
       ...(note ? { note } : {}),
-    })
-  )))
+    }))
+  }
   const candidate = candidates[0]
   const candidateAssetSlotIds = candidates
     .map((item) => numericValue(isRecord(item) ? item.candidate_asset_slot_id ?? item.candidateAssetSlotId : undefined))
@@ -2275,7 +2301,8 @@ export async function attachKeyframeCandidate(args: Record<string, unknown>): Pr
   const targetTitle = stringValue(target.title) ?? stringValue(target.name) ?? `画面锚点 #${keyframeId}`
   const targetDescription = stringValue(target.description)
   const targetPrompt = stringValue(target.prompt)
-  const candidates = await Promise.all(resourceIdsToAttach.map((resourceId) => {
+  const candidates = []
+  for (const resourceId of resourceIdsToAttach) {
     const metadata: Record<string, unknown> = {
       source: 'ai_generated_keyframe_candidate',
       target_keyframe_id: keyframeId,
@@ -2285,7 +2312,7 @@ export async function attachKeyframeCandidate(args: Record<string, unknown>): Pr
       ...(sourceJobId ? { source_job_id: sourceJobId } : {}),
       ...(note ? { note } : {}),
     }
-    return backendPost(`/projects/${projectId}/entities/keyframes`, {
+    candidates.push(await backendPost(`/projects/${projectId}/entities/keyframes`, {
       production_id: numericValue(target.production_id ?? target.productionId),
       scene_moment_id: numericValue(target.scene_moment_id ?? target.sceneMomentId),
       content_unit_id: numericValue(target.content_unit_id ?? target.contentUnitId),
@@ -2297,8 +2324,8 @@ export async function attachKeyframeCandidate(args: Record<string, unknown>): Pr
       order: numericValue(target.order ?? target.sort_order ?? target.sortOrder) ?? 0,
       status: 'candidate',
       metadata_json: JSON.stringify(metadata),
-    })
-  }))
+    }))
+  }
   const candidate = candidates[0]
   const resourceId = resourceIdsToAttach[0] ?? resourceIds[0]
 
@@ -2379,6 +2406,31 @@ function defaultGenerationJobTitle(jobType: string): string {
     video_v2v: '视频迁移',
   }
   return `${labels[jobType] ?? '生成任务'}-${Math.floor(1000 + Math.random() * 9000)}`
+}
+
+function generationOutputCount(args: Record<string, unknown>, submittedParams: Record<string, unknown> | undefined): number {
+  const raw = args.output_count
+    ?? args.outputCount
+    ?? args.image_count
+    ?? args.imageCount
+    ?? submittedParams?.image_count
+    ?? submittedParams?.max_images
+  if (raw === undefined || raw === null || raw === '') return 1
+  const value = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw.trim()) : NaN
+  if (!Number.isInteger(value) || value < 1 || value > 15) {
+    throw new Error('output_count must be an integer between 1 and 15')
+  }
+  return value
+}
+
+function singleOutputGenerationExtraParams(submittedParams: Record<string, unknown> | undefined): string | undefined {
+  if (!submittedParams) return undefined
+  const params = { ...submittedParams }
+  delete params.image_count
+  delete params.max_images
+  delete params.sequential_image_generation
+  const keys = Object.keys(params)
+  return keys.length > 0 ? JSON.stringify(params) : undefined
 }
 
 async function getGenerationJob(args: Record<string, unknown>): Promise<unknown> {
@@ -2693,6 +2745,10 @@ function normalizeProjectLayerProposalPayloadForKind(value: unknown, kind: Agent
   const effectiveKind = inferProjectLayerProposalDraftKind(payload, kind)
   const proposal = isRecord(payload.proposal) ? payload.proposal : {}
   if (effectiveKind === 'setting_proposal' || effectiveKind === 'asset_proposal') {
+    const assetSlots = effectiveKind === 'asset_proposal' ? normalizeProjectLayerProposalSnapshotNodes(proposal.asset_slots) : []
+    if (effectiveKind === 'asset_proposal') {
+      validateDirectAssetProposalSnapshot(payload, assetSlots)
+    }
     return {
       ...payload,
       scope: effectiveKind,
@@ -2700,7 +2756,7 @@ function normalizeProjectLayerProposalPayloadForKind(value: unknown, kind: Agent
       proposal: {
         ...proposal,
         creative_references: effectiveKind === 'setting_proposal' ? normalizeProjectLayerProposalSnapshotNodes(proposal.creative_references) : [],
-        asset_slots: effectiveKind === 'asset_proposal' ? normalizeProjectLayerProposalSnapshotNodes(proposal.asset_slots) : [],
+        asset_slots: assetSlots,
       },
     }
   }
@@ -2729,6 +2785,41 @@ function normalizeProjectStylePatch(value: unknown): Record<string, unknown> {
     out.negative_rules = normalizeProjectStyleStringList(value.negative_rules)
   }
   return out
+}
+
+function validateDirectAssetProposalSnapshot(payload: Record<string, unknown>, assetSlots: unknown[]): void {
+  if (assetSlots.length === 0) return
+  const snapshotBase = isRecord(payload.snapshot_base) ? payload.snapshot_base : undefined
+  const baseSlots = Array.isArray(snapshotBase?.asset_slots) ? snapshotBase.asset_slots : undefined
+  if (!baseSlots) {
+    throw new Error('Asset proposal snapshot apply requires snapshot_base.asset_slots. Direct apply treats proposal.asset_slots as a complete snapshot, so refresh the draft model/current project snapshot before applying.')
+  }
+  const proposedIDs = new Set<number>()
+  for (const slot of assetSlots) {
+    if (!isRecord(slot)) continue
+    const id = positiveIntValue(slot.id ?? slot.ID ?? slot.asset_slot_id ?? slot.assetSlotId)
+    if (id !== undefined) proposedIDs.add(id)
+  }
+  const omittedIDs = baseSlots
+    .filter((slot): slot is Record<string, unknown> => isRecord(slot))
+    .filter((slot) => activeAssetSlotSnapshotStatus(slot.status))
+    .map((slot) => positiveIntValue(slot.id ?? slot.ID ?? slot.asset_slot_id ?? slot.assetSlotId))
+    .filter((id): id is number => id !== undefined && !proposedIDs.has(id))
+  if (omittedIDs.length === 0) return
+  const sample = omittedIDs.slice(0, 5).join(', ')
+  const suffix = omittedIDs.length > 5 ? `, +${omittedIDs.length - 5} more` : ''
+  throw new Error(`Asset proposal snapshot apply would omit existing active asset slots. Keep every unchanged slot in proposal.asset_slots, or include an explicit status:"waived" entry for slots the user asked to remove. Omitted asset slot ids: ${sample}${suffix}.`)
+}
+
+function activeAssetSlotSnapshotStatus(value: unknown): boolean {
+  const status = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  return status !== 'ignored' && status !== 'waived' && status !== 'merged'
+}
+
+function positiveIntValue(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  if (typeof value === 'string' && /^[1-9]\d*$/.test(value.trim())) return Number(value.trim())
+  return undefined
 }
 
 function normalizeProjectStyleStringList(value: unknown): string[] {

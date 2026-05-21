@@ -7,7 +7,6 @@ import {
   createRuntimeLocalDraft,
   getRuntimeDraft,
   listRuntimeDrafts,
-  patchRuntimeDraft,
   previewRuntimeDraftApply,
   rejectRuntimeDraft,
   simulateRuntimeDraftApply,
@@ -21,7 +20,6 @@ export interface RuntimeDraftOperationsBridge {
   createLocalDraft: (input: Parameters<typeof createRuntimeLocalDraft>[0]['draftInput']) => AgentDraft
   getDraft: (id: string) => AgentDraft | undefined
   updateDraft: (input: Parameters<typeof updateRuntimeDraft>[0]['draftInput']) => AgentDraft
-  patchDraft: (input: Parameters<typeof patchRuntimeDraft>[0]['patchInput']) => JSONValue
   validateDraft: (input: { draftId?: unknown }) => JSONValue
   previewApplyDraft: (input: ApplyDraftInput) => JSONValue
   simulateApplyDraft: (input: ApplyDraftInput & { backendAuthToken?: unknown; backendAPIBaseURL?: unknown }) => Promise<JSONValue>
@@ -40,7 +38,6 @@ export function createRuntimeDraftOperationsBridge(input: {
     createLocalDraft: (draftInput) => createRuntimeLocalDraft({ draftStore: input.draftStore, draftInput }),
     getDraft: (draftId) => getRuntimeDraft({ draftStore: input.draftStore, draftId }),
     updateDraft: (draftInput) => updateRuntimeDraft({ draftStore: input.draftStore, draftInput }),
-    patchDraft: (patchInput) => patchRuntimeDraft({ draftStore: input.draftStore, patchInput }),
     validateDraft: (request) => validateRuntimeDraft({ draftStore: input.draftStore, draftId: request.draftId }),
     previewApplyDraft: (applyInput) => previewRuntimeDraftApply({ draftStore: input.draftStore, applyInput }),
     simulateApplyDraft: (applyInput) => simulateRuntimeDraftApply({

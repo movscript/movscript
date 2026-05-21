@@ -3,7 +3,6 @@ import { isValidAgentProjectId, isValidAgentReferenceId } from '../context/runti
 import {
   normalizeDraftStatus,
   type CreateAgentDraftInput,
-  type PatchAgentDraftInput,
   type UpdateAgentDraftInput,
 } from './draftStore.js'
 import { normalizeRuntimeDraftSource } from './draftRuntimeContent.js'
@@ -25,13 +24,6 @@ export interface RuntimeUpdateDraftInput {
   title?: unknown
   content?: unknown
   target?: unknown
-  metadata?: unknown
-}
-
-export interface RuntimePatchDraftInput {
-  draftId?: unknown
-  ops?: unknown
-  expectedUpdatedAt?: unknown
   metadata?: unknown
 }
 
@@ -66,20 +58,6 @@ export function buildRuntimeUpdateDraftInput(input: RuntimeUpdateDraftInput): {
       ...(typeof input.content === 'string' ? { content: input.content } : {}),
       ...(isJSONRecord(input.target) ? { target: input.target } : {}),
       ...(isJSONRecord(input.metadata) ? { metadata: input.metadata } : {}),
-    },
-  }
-}
-
-export function buildRuntimePatchDraftInput(input: RuntimePatchDraftInput): {
-  draftId: string
-  patch: PatchAgentDraftInput
-} {
-  return {
-    draftId: requireRuntimeDraftId(input.draftId, 'patch draft'),
-    patch: {
-      ops: input.ops,
-      expectedUpdatedAt: input.expectedUpdatedAt,
-      metadata: input.metadata,
     },
   }
 }

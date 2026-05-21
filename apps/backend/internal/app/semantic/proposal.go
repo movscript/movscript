@@ -94,6 +94,88 @@ type ProposalAssetSlotNode struct {
 	Priority    string `json:"priority"`
 }
 
+type ProductionProposalApplyLinkError struct {
+	Message       string `json:"message"`
+	ProjectID     uint   `json:"project_id"`
+	ProductionID  uint   `json:"production_id"`
+	Mode          string `json:"mode,omitempty"`
+	ProposalScope string `json:"proposal_scope,omitempty"`
+	Path          string `json:"path,omitempty"`
+	EntityType    string `json:"entity_type,omitempty"`
+	EntityID      *uint  `json:"entity_id,omitempty"`
+	ClientID      string `json:"client_id,omitempty"`
+	Title         string `json:"title,omitempty"`
+	SegmentID     *uint  `json:"segment_id,omitempty"`
+	SceneMomentID *uint  `json:"scene_moment_id,omitempty"`
+	ContentUnitID *uint  `json:"content_unit_id,omitempty"`
+	Cause         string `json:"cause"`
+	err           error
+}
+
+func (e *ProductionProposalApplyLinkError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
+}
+
+func (e *ProductionProposalApplyLinkError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
+}
+
+type productionProposalLinkContext struct {
+	Path          string
+	EntityType    string
+	EntityID      *uint
+	ClientID      string
+	Title         string
+	SegmentID     *uint
+	SceneMomentID *uint
+	ContentUnitID *uint
+}
+
+func productionProposalApplyLinkError(projectID uint, req ApplyProductionProposalRequest, link productionProposalLinkContext, err error) error {
+	if err == nil {
+		return nil
+	}
+	var existing *ProductionProposalApplyLinkError
+	if errors.As(err, &existing) {
+		return err
+	}
+	if !errors.Is(err, ErrOwnerNotFound) && !errors.Is(err, ErrTextBlockNotFound) && !errors.Is(err, ErrOwnerWrongProject) && !errors.Is(err, ErrNotFound) {
+		return err
+	}
+	detail := &ProductionProposalApplyLinkError{
+		ProjectID:     projectID,
+		ProductionID:  req.ProductionID,
+		Mode:          strings.TrimSpace(req.Mode),
+		ProposalScope: strings.TrimSpace(req.ProposalScope),
+		Path:          strings.TrimSpace(link.Path),
+		EntityType:    strings.TrimSpace(link.EntityType),
+		EntityID:      link.EntityID,
+		ClientID:      strings.TrimSpace(link.ClientID),
+		Title:         strings.TrimSpace(link.Title),
+		SegmentID:     link.SegmentID,
+		SceneMomentID: link.SceneMomentID,
+		ContentUnitID: link.ContentUnitID,
+		Cause:         err.Error(),
+		err:           err,
+	}
+	entity := detail.EntityType
+	if entity == "" {
+		entity = "关联对象"
+	}
+	if detail.EntityID != nil {
+		detail.Message = fmt.Sprintf("制作提案应用失败：%s #%d 不存在或不属于当前项目；path=%s；project_id=%d production_id=%d；原因：%s", entity, *detail.EntityID, detail.Path, projectID, req.ProductionID, err.Error())
+	} else {
+		detail.Message = fmt.Sprintf("制作提案应用失败：%s 不存在或不属于当前项目；path=%s；project_id=%d production_id=%d；原因：%s", entity, detail.Path, projectID, req.ProductionID, err.Error())
+	}
+	return detail
+}
+
 type ApplyProductionProposalRequest struct {
 	Mode          string        `json:"mode"`
 	ProductionID  uint          `json:"production_id" binding:"required"`
@@ -161,7 +243,11 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 		return nil, ErrInvalidInput{Err: errors.New("production proposal requires mode snapshot")}
 	}
 	if err := s.ensureProductionInProject(ctx, projectID, req.ProductionID); err != nil {
-		return nil, err
+		return nil, productionProposalApplyLinkError(projectID, req, productionProposalLinkContext{
+			Path:       "/production_id",
+			EntityType: "production",
+			EntityID:   &req.ProductionID,
+		}, err)
 	}
 	resp, err := s.applyProductionProposalInTx(ctx, projectID, req)
 	if err != nil {
@@ -185,7 +271,11 @@ func (s *Service) PreviewProductionProposalApply(ctx context.Context, projectID 
 		return nil, ErrInvalidInput{Err: errors.New("production proposal requires mode snapshot")}
 	}
 	if err := s.ensureProductionInProject(ctx, projectID, req.ProductionID); err != nil {
-		return nil, err
+		return nil, productionProposalApplyLinkError(projectID, req, productionProposalLinkContext{
+			Path:       "/production_id",
+			EntityType: "production",
+			EntityID:   &req.ProductionID,
+		}, err)
 	}
 
 	var resp *ApplyProductionProposalResponse
@@ -242,7 +332,13 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 		var segmentID uint
 		if segNode.ID != nil && *segNode.ID > 0 {
 			if err := s.ensureSegmentInProject(ctx, projectID, *segNode.ID); err != nil {
-				return nil, err
+				return nil, productionProposalApplyLinkError(projectID, req, productionProposalLinkContext{
+					Path:       fmt.Sprintf("/proposal/segments/%d/id", i),
+					EntityType: "segment",
+					EntityID:   segNode.ID,
+					ClientID:   segNode.ClientID,
+					Title:      segNode.Title,
+				}, err)
 			}
 			seg, err := s.PatchSegment(ctx, projectID, fmt.Sprint(*segNode.ID), PatchSegmentInput{
 				ProductionID:  &req.ProductionID,
@@ -280,7 +376,14 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 			var sceneMomentID uint
 			if smNode.ID != nil && *smNode.ID > 0 {
 				if err := s.ensureSceneMomentInProject(ctx, projectID, *smNode.ID); err != nil {
-					return nil, err
+					return nil, productionProposalApplyLinkError(projectID, req, productionProposalLinkContext{
+						Path:       fmt.Sprintf("/proposal/segments/%d/scene_moments/%d/id", i, j),
+						EntityType: "scene_moment",
+						EntityID:   smNode.ID,
+						ClientID:   smNode.ClientID,
+						Title:      smNode.Title,
+						SegmentID:  &segmentID,
+					}, err)
 				}
 				segIDPtr := &segmentID
 				sm, err := s.PatchSceneMoment(ctx, projectID, fmt.Sprint(*smNode.ID), PatchSceneMomentInput{
@@ -324,12 +427,20 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 			}
 			keptSceneMomentIDs[sceneMomentID] = struct{}{}
 
-			for _, crNode := range smNode.CreativeReferences {
+			for crIndex, crNode := range smNode.CreativeReferences {
 				if crNode.ID == nil {
 					return nil, missingProposalID("creative_reference", crNode.ClientID, "snapshot")
 				}
 				if err := s.ensureCreativeReferenceInProject(ctx, projectID, *crNode.ID); err != nil {
-					return nil, err
+					return nil, productionProposalApplyLinkError(projectID, req, productionProposalLinkContext{
+						Path:          fmt.Sprintf("/proposal/segments/%d/scene_moments/%d/creative_references/%d/id", i, j, crIndex),
+						EntityType:    "creative_reference",
+						EntityID:      crNode.ID,
+						ClientID:      crNode.ClientID,
+						Title:         crNode.Name,
+						SegmentID:     &segmentID,
+						SceneMomentID: &sceneMomentID,
+					}, err)
 				}
 				refID := *crNode.ID
 
@@ -372,7 +483,15 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 				var contentUnitID uint
 				if cuNode.ID != nil && *cuNode.ID > 0 {
 					if err := s.ensureContentUnitInProject(ctx, projectID, *cuNode.ID); err != nil {
-						return nil, err
+						return nil, productionProposalApplyLinkError(projectID, req, productionProposalLinkContext{
+							Path:          fmt.Sprintf("/proposal/segments/%d/scene_moments/%d/content_units/%d/id", i, j, k),
+							EntityType:    "content_unit",
+							EntityID:      cuNode.ID,
+							ClientID:      cuNode.ClientID,
+							Title:         cuNode.Title,
+							SegmentID:     &segmentID,
+							SceneMomentID: &sceneMomentID,
+						}, err)
 					}
 					smIDPtr := &sceneMomentID
 					prodIDPtr := &req.ProductionID
@@ -424,16 +543,33 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 				}
 				keptContentUnitIDs[contentUnitID] = struct{}{}
 				for l, keyframeNode := range cuNode.Keyframes {
-					if err := s.applyProposalKeyframe(ctx, projectID, req.ProductionID, sceneMomentID, &contentUnitID, keyframeNode, l, resp, keptKeyframeIDs); err != nil {
+					if err := s.applyProposalKeyframe(ctx, projectID, req, sceneMomentID, &contentUnitID, keyframeNode, l, productionProposalLinkContext{
+						Path:          fmt.Sprintf("/proposal/segments/%d/scene_moments/%d/content_units/%d/keyframes/%d/id", i, j, k, l),
+						EntityType:    "keyframe",
+						EntityID:      keyframeNode.ID,
+						ClientID:      keyframeNode.ClientID,
+						Title:         keyframeNode.Title,
+						SegmentID:     &segmentID,
+						SceneMomentID: &sceneMomentID,
+						ContentUnitID: &contentUnitID,
+					}, resp, keptKeyframeIDs); err != nil {
 						return nil, err
 					}
 				}
 			}
 
-			for _, asNode := range smNode.AssetSlots {
+			for assetIndex, asNode := range smNode.AssetSlots {
 				if asNode.ID != nil && *asNode.ID > 0 {
 					if err := s.ensureAssetSlotInProject(ctx, projectID, *asNode.ID); err != nil {
-						return nil, err
+						return nil, productionProposalApplyLinkError(projectID, req, productionProposalLinkContext{
+							Path:          fmt.Sprintf("/proposal/segments/%d/scene_moments/%d/asset_slots/%d/id", i, j, assetIndex),
+							EntityType:    "asset_slot",
+							EntityID:      asNode.ID,
+							ClientID:      asNode.ClientID,
+							Title:         asNode.Name,
+							SegmentID:     &segmentID,
+							SceneMomentID: &sceneMomentID,
+						}, err)
 					}
 					smIDPtr := &sceneMomentID
 					prodIDPtr := &req.ProductionID
@@ -473,7 +609,15 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 			}
 
 			for l, keyframeNode := range smNode.Keyframes {
-				if err := s.applyProposalKeyframe(ctx, projectID, req.ProductionID, sceneMomentID, nil, keyframeNode, l, resp, keptKeyframeIDs); err != nil {
+				if err := s.applyProposalKeyframe(ctx, projectID, req, sceneMomentID, nil, keyframeNode, l, productionProposalLinkContext{
+					Path:          fmt.Sprintf("/proposal/segments/%d/scene_moments/%d/keyframes/%d/id", i, j, l),
+					EntityType:    "keyframe",
+					EntityID:      keyframeNode.ID,
+					ClientID:      keyframeNode.ClientID,
+					Title:         keyframeNode.Title,
+					SegmentID:     &segmentID,
+					SceneMomentID: &sceneMomentID,
+				}, resp, keptKeyframeIDs); err != nil {
 					return nil, err
 				}
 			}
@@ -485,12 +629,12 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 	return resp, nil
 }
 
-func (s *Service) applyProposalKeyframe(ctx context.Context, projectID uint, productionID uint, sceneMomentID uint, contentUnitID *uint, node ProposalKeyframeNode, index int, resp *ApplyProductionProposalResponse, keptKeyframeIDs map[uint]struct{}) error {
-	prodIDPtr := &productionID
+func (s *Service) applyProposalKeyframe(ctx context.Context, projectID uint, req ApplyProductionProposalRequest, sceneMomentID uint, contentUnitID *uint, node ProposalKeyframeNode, index int, link productionProposalLinkContext, resp *ApplyProductionProposalResponse, keptKeyframeIDs map[uint]struct{}) error {
+	prodIDPtr := &req.ProductionID
 	sceneMomentIDPtr := &sceneMomentID
 	if node.ID != nil && *node.ID > 0 {
 		if err := s.ensureKeyframeInProject(ctx, projectID, *node.ID); err != nil {
-			return err
+			return productionProposalApplyLinkError(projectID, req, link, err)
 		}
 		_, err := s.PatchKeyframe(ctx, projectID, fmt.Sprint(*node.ID), KeyframeInput{
 			ProductionID:  prodIDPtr,
@@ -502,8 +646,11 @@ func (s *Service) applyProposalKeyframe(ctx context.Context, projectID uint, pro
 			Order:         node.Order,
 			Status:        node.Status,
 		})
+		if err != nil {
+			return productionProposalApplyLinkError(projectID, req, link, err)
+		}
 		keptKeyframeIDs[*node.ID] = struct{}{}
-		return err
+		return nil
 	}
 	keyframe, err := s.CreateKeyframe(ctx, projectID, KeyframeInput{
 		ProductionID:  prodIDPtr,
@@ -516,7 +663,7 @@ func (s *Service) applyProposalKeyframe(ctx context.Context, projectID uint, pro
 		Status:        domainsemantic.ProposalDraftStatus(node.Status),
 	})
 	if err != nil {
-		return err
+		return productionProposalApplyLinkError(projectID, req, link, err)
 	}
 	resp.Keyframes = append(resp.Keyframes, keyframe)
 	resp.Counts.KeyframesCreated++

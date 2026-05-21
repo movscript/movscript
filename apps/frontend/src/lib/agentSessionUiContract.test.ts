@@ -129,8 +129,8 @@ test('agent session UI routes pending input answers before starting a new run', 
   assert.match(threadItemsSource, /isWorkflowAnswerEchoMessage\(message, workflowAnswerEchoes\)/)
   assert.match(threadItemsSource, /workflowRunFromActivity\(message\.meta\?\.localRunActivity\)/)
   assert.match(chatViewLayoutSource, /<AgentComposerSection/)
-  assert.match(composerSource, /answeringPendingInput \? '回答' : debugBeforeSend/)
-  assert.match(composerSource, /loading \|\| buildingSendDraft \|\| \(answeringPendingInput && !canAnswerPendingInputWithText\)/)
+  assert.match(composerSource, /answeringPendingInput \? '回答' : loading \? '补充' : debugBeforeSend/)
+  assert.match(composerSource, /buildingSendDraft \|\| \(answeringPendingInput && !canAnswerPendingInputWithText\)/)
   assert.match(sendActionsSource, /answerActiveLocalRunInput\(activePendingInputRequest\.id, \{ text \}\)/)
 
   const pendingBranch = sendActionsSource.indexOf('if (answeringPendingInput && activePendingInputRequest)')

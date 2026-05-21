@@ -335,6 +335,10 @@ function normalizeProjectLayerProposalPayloadForKind(value: JSONValue, kind: App
   }
   if (effectiveKind !== 'setting_proposal' && effectiveKind !== 'asset_proposal') return payload
   const proposal = isRecord(payload.proposal) ? payload.proposal : {}
+  const assetSlots = effectiveKind === 'asset_proposal' ? normalizeProjectLayerProposalSnapshotNodes(proposal.asset_slots) : []
+  if (effectiveKind === 'asset_proposal') {
+    validateDirectAssetProposalSnapshot(payload, assetSlots)
+  }
   return {
     ...payload,
     scope: effectiveKind,
@@ -342,7 +346,7 @@ function normalizeProjectLayerProposalPayloadForKind(value: JSONValue, kind: App
     proposal: {
       ...proposal,
       creative_references: effectiveKind === 'setting_proposal' ? normalizeProjectLayerProposalSnapshotNodes(proposal.creative_references) : [],
-      asset_slots: effectiveKind === 'asset_proposal' ? normalizeProjectLayerProposalSnapshotNodes(proposal.asset_slots) : [],
+      asset_slots: assetSlots,
     },
   }
 }
@@ -379,6 +383,41 @@ function projectStyleListItemToString(value: JSONValue): string {
   const name = [key, label].filter(Boolean).join(' ')
   const details = [usage, composition, description].filter(Boolean).join('；')
   return [name, details].filter(Boolean).join('：')
+}
+
+function validateDirectAssetProposalSnapshot(payload: Record<string, JSONValue>, assetSlots: JSONValue[]): void {
+  if (assetSlots.length === 0) return
+  const snapshotBase = isRecord(payload.snapshot_base) ? payload.snapshot_base : undefined
+  const baseSlots = Array.isArray(snapshotBase?.asset_slots) ? snapshotBase.asset_slots : undefined
+  if (!baseSlots) {
+    throw new Error('Asset proposal snapshot apply requires snapshot_base.asset_slots. Direct apply treats proposal.asset_slots as a complete snapshot, so refresh the draft model/current project snapshot before applying.')
+  }
+  const proposedIDs = new Set<number>()
+  for (const slot of assetSlots) {
+    if (!isRecord(slot)) continue
+    const id = positiveIntValue(slot.id ?? slot.ID ?? slot.asset_slot_id ?? slot.assetSlotId)
+    if (id !== undefined) proposedIDs.add(id)
+  }
+  const omittedIDs = baseSlots
+    .filter((slot): slot is Record<string, JSONValue> => isRecord(slot))
+    .filter((slot) => activeAssetSlotSnapshotStatus(slot.status))
+    .map((slot) => positiveIntValue(slot.id ?? slot.ID ?? slot.asset_slot_id ?? slot.assetSlotId))
+    .filter((id): id is number => id !== undefined && !proposedIDs.has(id))
+  if (omittedIDs.length === 0) return
+  const sample = omittedIDs.slice(0, 5).join(', ')
+  const suffix = omittedIDs.length > 5 ? `, +${omittedIDs.length - 5} more` : ''
+  throw new Error(`Asset proposal snapshot apply would omit existing active asset slots. Keep every unchanged slot in proposal.asset_slots, or include an explicit status:"waived" entry for slots the user asked to remove. Omitted asset slot ids: ${sample}${suffix}.`)
+}
+
+function activeAssetSlotSnapshotStatus(value: JSONValue | undefined): boolean {
+  const status = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  return status !== 'ignored' && status !== 'waived' && status !== 'merged'
+}
+
+function positiveIntValue(value: JSONValue | undefined): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  if (typeof value === 'string' && /^[1-9]\d*$/.test(value.trim())) return Number(value.trim())
+  return undefined
 }
 
 function stringFromJSONValue(value: JSONValue | undefined): string {

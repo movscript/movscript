@@ -29,6 +29,10 @@ const SOURCE_FILES = {
   movscriptPack: 'apps/agent/catalog/packs/movscript.pack.json',
   movscriptPolicy: 'apps/agent/catalog/skills/movscript/policy/instruction.md',
   frontendMovscriptPolicy: 'apps/frontend/movscript-agent/catalog/skills/movscript/policy/instruction.md',
+  assetProposalInstruction: 'apps/agent/catalog/skills/movscript/workflow/proposal/asset/asset-proposal/instruction.md',
+  frontendAssetProposalInstruction: 'apps/frontend/movscript-agent/catalog/skills/movscript/workflow/proposal/asset/asset-proposal/instruction.md',
+  assetCandidateInstruction: 'apps/agent/catalog/skills/movscript/workflow/proposal/asset/asset-candidate-generation/instruction.md',
+  frontendAssetCandidateInstruction: 'apps/frontend/movscript-agent/catalog/skills/movscript/workflow/proposal/asset/asset-candidate-generation/instruction.md',
   visualGenerationWorkflow: 'apps/agent/catalog/skills/movscript/workflow/generation/visual-generation/skill.workflow.json',
   frontendVisualGenerationWorkflow: 'apps/frontend/movscript-agent/catalog/skills/movscript/workflow/generation/visual-generation/skill.workflow.json',
   visualGenerationInstruction: 'apps/agent/catalog/skills/movscript/workflow/generation/visual-generation/instruction.md',
@@ -125,8 +129,8 @@ const REQUIRED_SOURCE_MARKERS = {
   mcpServer: [
     ["name: 'movscript_attach_asset_slot_candidate'", 'MCP server must expose asset candidate attach tool'],
     ["name: 'movscript_attach_keyframe_candidate'", 'MCP server must expose keyframe candidate attach tool'],
-    ['Add an existing raw resource to the reviewable candidate set', 'MCP attach wording must describe candidate membership, not direct binding'],
-    ["getRequiredPositiveIntegerAliasParam(args, resourceIdAliases, 'resource_id')", 'MCP attach tools must normalize candidate resource aliases as positive integers'],
+    ['Add one existing raw resource to the reviewable candidate set', 'MCP attach wording must describe candidate membership, not direct binding'],
+    ["getRequiredPositiveIntegerAliasParams(args, resourceIdAliases, 'resource_id')", 'MCP attach tools must normalize candidate resource aliases as positive integers'],
     ['keyframe_id', 'MCP keyframe tool must accept keyframe_id'],
     ['target_keyframe_id', 'MCP keyframe tool must accept target_keyframe_id alias'],
     ["source: 'ai_generated_keyframe_candidate'", 'MCP keyframe attach must write generated-candidate metadata'],
@@ -171,6 +175,18 @@ const REQUIRED_SOURCE_MARKERS = {
     ['默认只表示把输出资源加入目标候选集', 'agent policy must interpret generated-result binding requests as candidate membership by default'],
     ['只有用户明确要求采纳、锁定、正式使用', 'agent policy must reserve official binding/locking semantics for explicit acceptance requests'],
     ['不得用通用 draft apply 直接写 `asset_slot.resource_id`、`asset_slot.locked_asset_slot_id` 或 `keyframe.resource_id`', 'agent policy must forbid generic apply resource adoption bypasses'],
+    ['素材有成熟度顺序', 'agent policy must require canonical/base assets before derived material'],
+    ['派生素材只能作为 blocked / next action', 'agent policy must block derived material until base resources exist'],
+  ],
+  assetProposalInstruction: [
+    ['必须优先创建或保留 canonical / base asset slot', 'asset proposal workflow must create base asset slots before derived materials'],
+    ['blocked: waiting_for_base_asset', 'asset proposal workflow must mark derived candidates blocked until base assets exist'],
+    ['不能绕过基本形象直接生成', 'asset proposal workflow must prevent bypassing the base-image gate'],
+  ],
+  assetCandidateInstruction: [
+    ['不要直接生成派生候选', 'asset candidate generation must not generate derived candidates without base resources'],
+    ['派生候选必须引用同一 creative reference 下已采纳、已锁定或明确可用的 canonical resource', 'asset candidate generation must require accepted or locked canonical references for derived candidates'],
+    ['派生候选的 prompt 必须把 canonical resource 作为一致性参考', 'asset candidate prompts must use canonical resources as continuity references'],
   ],
   visualGenerationWorkflow: [
     ['"tool://movscript_attach_keyframe_candidate"', 'visual generation workflow must include keyframe candidate attach tool'],
@@ -178,6 +194,8 @@ const REQUIRED_SOURCE_MARKERS = {
   visualGenerationInstruction: [
     ['include keyframes', 'visual generation instruction must tell agents to query keyframes when needed'],
     ['movscript_attach_keyframe_candidate', 'visual generation instruction must attach successful keyframe outputs as candidates'],
+    ['不要直接生成派生候选', 'visual generation must not bypass canonical/base asset gating'],
+    ['派生 prompt 必须把 canonical resource 作为一致性参考', 'visual generation must use canonical resources for derived prompts'],
   ],
   catalogLayeringTest: [
     ['movscript_attach_keyframe_candidate', 'catalog layering tests must cover keyframe candidate attach tool visibility'],

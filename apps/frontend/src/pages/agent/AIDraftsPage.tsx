@@ -196,6 +196,7 @@ export default function AIDraftsPage() {
                 <div className="mt-3 grid gap-2 text-xs md:grid-cols-2">
                   <MetaRow label={t('agents.draftHistory.sourceThread')} value={selectedDraft.createdByThreadId || sourceValue(selectedDraft, 'threadId')} />
                   <MetaRow label={t('agents.draftHistory.sourceRun')} value={selectedDraft.createdByRunId || sourceValue(selectedDraft, 'runId')} />
+                  <MetaRow label={t('agents.draftHistory.filePath')} value={selectedDraft.filePath || '-'} />
                   <MetaRow label={t('agents.draftHistory.createdAt')} value={formatAgentDate(selectedDraft.createdAt, locale)} />
                   <MetaRow label={t('agents.draftHistory.updatedAt')} value={formatAgentDate(selectedDraft.updatedAt, locale)} />
                 </div>

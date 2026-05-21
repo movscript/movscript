@@ -323,10 +323,10 @@ func TestGetProviderModelsByCapabilityExposesAllVisualPresetContracts(t *testing
 					t.Fatalf("runtime visual model %s schema missing param %q: %#v", got.ModelDefID, param.Key, props)
 				}
 			}
-			if got.InputRequirements.Image.Min != expectedImageInputMin(got.Capabilities) {
+			if got.InputRequirements.Image.Min != expectedImageInputMin(capability) {
 				t.Fatalf("runtime visual model %s image min mismatch: %#v", got.ModelDefID, got.InputRequirements.Image)
 			}
-			if got.InputRequirements.Video.Min != expectedVideoInputMin(got.Capabilities) {
+			if got.InputRequirements.Video.Min != expectedVideoInputMin(capability) {
 				t.Fatalf("runtime visual model %s video min mismatch: %#v", got.ModelDefID, got.InputRequirements.Video)
 			}
 			if got.InputRequirements.Image.Max < -1 || got.InputRequirements.Video.Max < -1 {
@@ -355,15 +355,66 @@ func TestResolveRuntimeModelConfigRoundRobinsLogicalProviderVariants(t *testing.
 	}
 }
 
-func expectedImageInputMin(capabilities []string) int {
-	if slices.Contains(capabilities, CapabilityImageEdit) || slices.Contains(capabilities, CapabilityVideoI2V) {
+func TestGetModelsByCapabilityUsesQueriedCapabilityInputRequirements(t *testing.T) {
+	db := openAITestDB(t)
+	cred := model.AICredential{
+		Model:       gormModel(1),
+		AdapterType: AdapterOpenAICompat,
+		DisplayName: "OpenAI",
+		IsEnabled:   true,
+	}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	cfg := model.AIModelConfig{
+		Model:                gormModel(1),
+		CredentialID:         cred.ID,
+		ModelDefID:           "gpt-image-2",
+		IsEnabled:            true,
+		CustomDisplayName:    "GPT Image 2",
+		CustomCapabilities:   strings.Join([]string{CapabilityImage, CapabilityImageEdit}, ","),
+		CustomPricingMode:    string(PricingPerImage),
+		CustomAcceptsImage:   true,
+		CustomMaxInputImages: 7,
+		CustomImageEditField: "image[]",
+	}
+	if err := db.Create(&cfg).Error; err != nil {
+		t.Fatalf("create model config: %v", err)
+	}
+
+	svc := NewAIService(db, NewRegistry(db, nil))
+	imageModels, err := svc.GetModelsByCapability(CapabilityImage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(imageModels) != 1 {
+		t.Fatalf("image model count = %d, want 1: %#v", len(imageModels), imageModels)
+	}
+	if imageModels[0].InputRequirements.Image.Min != 0 || imageModels[0].InputRequirements.Image.Max != 7 {
+		t.Fatalf("text-to-image contract should allow zero reference images, got %#v", imageModels[0].InputRequirements.Image)
+	}
+
+	editModels, err := svc.GetModelsByCapability(CapabilityImageEdit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(editModels) != 1 {
+		t.Fatalf("image_edit model count = %d, want 1: %#v", len(editModels), editModels)
+	}
+	if editModels[0].InputRequirements.Image.Min != 1 || editModels[0].InputRequirements.Image.Max != 7 {
+		t.Fatalf("image_edit contract should require reference images, got %#v", editModels[0].InputRequirements.Image)
+	}
+}
+
+func expectedImageInputMin(capability string) int {
+	if capability == CapabilityImageEdit || capability == CapabilityVideoI2V {
 		return 1
 	}
 	return 0
 }
 
-func expectedVideoInputMin(capabilities []string) int {
-	if slices.Contains(capabilities, CapabilityVideoV2V) {
+func expectedVideoInputMin(capability string) int {
+	if capability == CapabilityVideoV2V {
 		return 1
 	}
 	return 0

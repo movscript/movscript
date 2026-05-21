@@ -30,12 +30,12 @@ Draft schema：{{schema:movscript.production_proposal.v1.id}}
 - 缺必须引用的素材需求、asset slot、归属或复用边界时，先交接 asset_proposal。
 - 缺具体内容单元、制作项节拍、旁白、字幕、转场、音乐节拍、情绪推进或钩子时，交接 content_unit_proposal。
 - 缺关键帧、镜头、图片、视频输出或生成约束时，交接 visual_generation；若缺生成前的内容单元结构，先交接 content_unit_proposal。
-- 不要写 action patch 草稿；production proposal 只接受 snapshot 形态，删除靠省略节点完成。
+- 不要写 action/operation 形态草稿；production proposal 只接受 snapshot 形态，删除靠省略节点完成。
 
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
 - Draft 模型：{{tool:movscript_get_draft_model}}
-- Draft：{{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
+- Draft：{{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:agent_file_read}} {{tool:agent_file_search}} {{tool:agent_file_edit}} {{tool:movscript_validate_draft}} {{tool:movscript_preview_draft_apply}}。正文编辑使用文件工具修改 `draft.filePath` 指向的真实 JSON 文件。
 - Project 设定和素材槽查询：{{tool:movscript_query_creative_references}} {{tool:movscript_query_asset_slots}}
 - 缺少目标时询问：{{tool:movscript_request_user_input}}
 
@@ -45,14 +45,14 @@ Draft schema：{{schema:movscript.production_proposal.v1.id}}
 3. 使用 draft model 返回的 snapshot seed；如需要剧本正文，再调用项目剧本读取工具，不要自行假设当前剧本/brief。
 4. 先检查 production proposal 需要引用的 project 层对象是否已存在或已有可用 setting_proposal / asset_proposal draft 可承接；可通过 draft model seed 确认，也可调用 `movscript_query_creative_references` / `movscript_query_asset_slots` 查询。无法确认 id 存在时不得绑定；如果不存在，停止 production draft 写入，按缺口类型转去创建/更新对应 project 层 draft，并在输出中说明 production 将在其通过 review 后继续。
 5. 如果当前会话已有 production_proposal draftId，先读取它；否则创建 production_proposal draft，source/target 记录 production 锚点，并把 MCP 返回的 seed/modelRef 作为 movscript_create_draft.seed 传入。
-6. 修改现有 draft 前必须先读取内容；用 JSON Pointer operations patch segments、scene moments，以及每个 scene moment 下的 `creative_references`/`asset_slots`。Production draft 不创建 project 层设定；已有设定只用 `{ "id": number, "role"?: string }` 引用，不写 `action`。
+6. 修改现有 draft 前必须先读取 draft 并记录 `draft.filePath`；通过真实文件局部编辑 segments、scene moments，以及每个 scene moment 下的 `creative_references`/`asset_slots`。Production draft 不创建 project 层设定；已有设定只用 `{ "id": number, "role"?: string }` 引用，不写 `action`。
 7. Validate draft，然后运行 preview apply。
-8. 如果出现 validation 或后端错误，patch 具体路径并再次 preview。
+8. 如果出现 validation 或后端错误，编辑具体文本片段并再次 preview。
 
 校验：
 - Production proposal 只能写 production 层内容。
 - 新增已绑定引用必须能追溯到已有 project 数据；必须引用但不存在的设定资料要进入 setting_proposal，必须引用但不存在的素材需求要进入 asset_proposal，而不是在 production_proposal 里临时创造。
-- Validate 或 preview apply 出现 `SCENE_MOMENT_WITHOUT_CONTEXT` 时，必须 patch 对应 scene_moment，添加已有 creative reference reuse 或明确的 asset_slots 素材需求后再次 preview。
+- Validate 或 preview apply 出现 `SCENE_MOMENT_WITHOUT_CONTEXT` 时，必须编辑对应 scene_moment，添加已有 creative reference reuse 或明确的 asset_slots 素材需求后再次 preview。
 - 不确定 segment 或 scene moment 范围时，应询问用户。
 
 输出：

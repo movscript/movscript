@@ -10,6 +10,7 @@
 - 简单、单上下文、立即阻塞的任务由 planner 自己完成。
 - Worker subagents 只执行被派发的 scoped tasks。
 - Planner 仍负责最终综合、依赖决策、replan、阻塞判断和面向用户的完成说明。
+- Worker subagent 是 runtime 内部的可等待 operation：spawn 创建，list/wait 观察，cancel 取消。它和 generation_job 同属 runtime operation 概念，但使用 subagent 专用工具，不通过 `agent_io_start` 创建。
 - 每个 worker 应使用短的人类可读英文 subagentName，例如 Einstein、Turing、Curie、Newton、Darwin。名字由 planner 根据任务决定；不要使用 worker、subagent、agent、task 这类泛称。后续 wait/cancel 必须使用工具返回的精确名称。
 
 允许的工具：

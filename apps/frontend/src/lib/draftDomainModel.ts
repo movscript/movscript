@@ -139,6 +139,7 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
         'production',
         'production_script_brief',
         'project_scripts',
+        'creative_references',
         'segments',
         'scene_moments',
         'content_units',
@@ -148,7 +149,7 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
         'unresolved_requirements',
       ],
       maxDepth: 3,
-      conflictKeys: ['production.updatedAt', 'production_script_brief.scriptVersionUpdatedAt', 'project_scripts[].UpdatedAt', 'segments[].updatedAt', 'scene_moments[].updatedAt', 'content_units[].updatedAt', 'keyframes[].updatedAt'],
+      conflictKeys: ['production.updatedAt', 'production_script_brief.scriptVersionUpdatedAt', 'project_scripts[].UpdatedAt', 'creative_references[].updatedAt', 'segments[].updatedAt', 'scene_moments[].updatedAt', 'content_units[].updatedAt', 'keyframes[].updatedAt'],
     },
     fieldGuide: {
       owns: ['snapshot.proposal.segments', 'snapshot.proposal.segments[].scene_moments', 'snapshot.proposal.segments[].scene_moments[].content_units', 'snapshot.proposal.segments[].scene_moments[].keyframes', 'production_local_requirements'],

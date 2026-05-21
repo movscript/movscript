@@ -248,10 +248,10 @@ func TestPreviewModelConfigContractUsesInputLimits(t *testing.T) {
 	if err != nil {
 		t.Fatalf("preview contract: %v", err)
 	}
-	if preview.AgentContract.InputRequirements.Image.Min != 1 || preview.AgentContract.InputRequirements.Image.Max != 4 {
+	if preview.AgentContract.InputRequirements.Image.Min != 0 || preview.AgentContract.InputRequirements.Image.Max != 4 {
 		t.Fatalf("unexpected image input requirements: %#v", preview.AgentContract.InputRequirements.Image)
 	}
-	if preview.AgentContract.InputRequirements.Video.Min != 1 || preview.AgentContract.InputRequirements.Video.Max != 2 {
+	if preview.AgentContract.InputRequirements.Video.Min != 0 || preview.AgentContract.InputRequirements.Video.Max != 2 {
 		t.Fatalf("unexpected video input requirements: %#v", preview.AgentContract.InputRequirements.Video)
 	}
 }
@@ -401,14 +401,26 @@ func hasVisualGenerationCapability(capabilities []string) bool {
 }
 
 func expectedImageInputMin(def *ai.ModelDef) int {
-	if containsString(def.Capabilities, ai.CapabilityImageEdit) || containsString(def.Capabilities, ai.CapabilityVideoI2V) {
+	imageRequired := len(def.Capabilities) > 0
+	for _, capability := range def.Capabilities {
+		if capability != ai.CapabilityImageEdit && capability != ai.CapabilityVideoI2V {
+			imageRequired = false
+		}
+	}
+	if imageRequired {
 		return 1
 	}
 	return 0
 }
 
 func expectedVideoInputMin(def *ai.ModelDef) int {
-	if containsString(def.Capabilities, ai.CapabilityVideoV2V) {
+	videoRequired := len(def.Capabilities) > 0
+	for _, capability := range def.Capabilities {
+		if capability != ai.CapabilityVideoV2V {
+			videoRequired = false
+		}
+	}
+	if videoRequired {
 		return 1
 	}
 	return 0

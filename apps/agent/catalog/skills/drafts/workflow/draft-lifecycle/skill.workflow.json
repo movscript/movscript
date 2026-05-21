@@ -25,8 +25,12 @@
   "toolRefs": [
     "tool://movscript_get_draft_model",
     "tool://movscript_get_draft",
+    "tool://agent_file_read",
+    "tool://agent_file_search",
+    "tool://agent_file_edit",
     "tool://movscript_create_draft",
-    "tool://movscript_update_draft",
+    "tool://movscript_validate_draft",
+    "tool://movscript_preview_draft_apply",
     "tool://movscript_apply_draft",
     "tool://movscript_request_user_input"
   ],

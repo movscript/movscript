@@ -24,6 +24,26 @@ function runWithResults(results: unknown[]): AgentRun {
   } as unknown as AgentRun
 }
 
+function runWithToolResults(steps: Array<{ toolName: string; result: unknown }>): AgentRun {
+  return {
+    id: 'run_1',
+    threadId: 'thread_1',
+    status: 'completed',
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+    policy: { maxToolCalls: 10, maxIterations: 6 },
+    steps: steps.map((step, index) => ({
+      id: `step_${index}`,
+      runId: 'run_1',
+      type: 'tool_call',
+      status: 'completed',
+      toolName: step.toolName,
+      result: step.result,
+      createdAt: new Date(index).toISOString(),
+    })),
+  } as unknown as AgentRun
+}
+
 test('selectLatestGeneratedResource reads MCP data wrapper output resources', () => {
   const run = runWithResults([
     {
@@ -73,6 +93,36 @@ test('selectLatestGeneratedResource preserves multiple generation outputs', () =
     jobId: 103,
     outputResourceId: 301,
     outputResourceIds: [301, 302],
+  })
+})
+
+test('selectLatestGeneratedResource reads wait generation job output resources', () => {
+  const run = runWithToolResults([
+    {
+      toolName: 'movscript_create_generation_job',
+      result: {
+        data: {
+          status: 'queued',
+          jobId: 104,
+        },
+      },
+    },
+    {
+      toolName: 'movscript_wait_generation_jobs',
+      result: {
+        data: {
+          status: 'succeeded',
+          jobIds: [104],
+          output_resource_ids: [401, 402],
+        },
+      },
+    },
+  ])
+
+  assert.deepEqual(selectLatestGeneratedResource(run), {
+    jobId: 104,
+    outputResourceId: 401,
+    outputResourceIds: [401, 402],
   })
 })
 

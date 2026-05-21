@@ -719,6 +719,27 @@ test('file draft store persists draft content files across rebuilds', () => {
   }
 })
 
+test('file draft store treats draft content files as authoritative', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-drafts-'))
+  try {
+    const draftPath = join(dir, 'drafts.json')
+    const store = new FileAgentDraftStore(draftPath)
+    const draft = store.createDraft({
+      projectId: 42,
+      kind: 'note',
+      title: 'Review note',
+      content: 'before',
+    })
+
+    writeFileSync(draft.filePath ?? '', 'after external file edit', 'utf8')
+
+    assert.equal(store.getDraft(draft.id)?.content, 'after external file edit')
+    assert.equal(store.listDrafts({ projectId: 42 })[0]?.content, 'after external file edit')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('file draft store normalizes invalid persisted reference ids on load', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-drafts-'))
   try {

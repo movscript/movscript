@@ -27,9 +27,16 @@ func (h *SemanticEntityHandler) writeSemanticAppError(c *gin.Context, err error)
 	var invalidInput semanticapp.ErrInvalidInput
 	var forbidden semanticapp.ErrForbidden
 	var generationContextErr semanticapp.GenerationContextError
+	var productionProposalApplyLinkErr *semanticapp.ProductionProposalApplyLinkError
 	var projectLayerProposalAssetSlotLinkErr *semanticapp.ProjectLayerProposalAssetSlotLinkError
 	var projectLayerProposalApplyLinkErr *semanticapp.ProjectLayerProposalApplyLinkError
 	switch {
+	case errors.As(err, &productionProposalApplyLinkErr):
+		if errors.Is(err, semanticapp.ErrOwnerWrongProject) {
+			c.JSON(http.StatusBadRequest, api.InvalidInputDebug(productionProposalApplyLinkErr.Message, productionProposalApplyLinkErr))
+			return
+		}
+		c.JSON(http.StatusNotFound, api.NotFoundDebug(productionProposalApplyLinkErr.Message, productionProposalApplyLinkErr))
 	case errors.As(err, &projectLayerProposalAssetSlotLinkErr):
 		if errors.Is(err, semanticapp.ErrOwnerWrongProject) {
 			c.JSON(http.StatusBadRequest, api.InvalidInputDebug(projectLayerProposalAssetSlotLinkErr.Message, projectLayerProposalAssetSlotLinkErr))

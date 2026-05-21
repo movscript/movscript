@@ -22,7 +22,12 @@
             "parentId": { "type": "string" },
             "subagentName": { "type": "string" },
             "maxTaskAttempts": { "type": "number" },
-            "workerTimeoutMs": { "type": "number" }
+            "workerTimeoutMs": { "type": "number" },
+            "metadata": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "结构化规划元数据，例如 executionMode、parallelizable、criticalPath、writeScope、expectedOutput、reportFormat。"
+            }
           },
           "required": ["title"]
         }

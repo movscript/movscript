@@ -95,6 +95,18 @@ type ResponsesInput struct {
 	ProjectID *uint
 }
 
+type OpenAIProxyInput struct {
+	Principal Principal
+	Model     string
+	ProjectID *uint
+}
+
+type OpenAIProxyRoute struct {
+	ModelConfigID uint
+	ResponseModel string
+	Target        ai.OpenAIProxyTarget
+}
+
 type ChatResult struct {
 	ModelConfigID uint
 	ResponseModel string
@@ -261,6 +273,30 @@ func (s *Service) CallChatStream(ctx context.Context, input ChatInput) (ChatStre
 		return ChatStreamResult{}, err
 	}
 	return ChatStreamResult{ModelConfigID: modelConfigID, ResponseModel: responseModel, Events: events}, nil
+}
+
+func (s *Service) PrepareOpenAIProxy(ctx context.Context, input OpenAIProxyInput) (OpenAIProxyRoute, error) {
+	if s.ai == nil {
+		return OpenAIProxyRoute{}, ErrModelUnavailable
+	}
+	modelConfigID, responseModel, err := s.ResolveTextModel(ctx, input.Model)
+	if err != nil {
+		return OpenAIProxyRoute{}, err
+	}
+	runtimeModelConfigID, err := s.ai.ResolveRuntimeTextModel(modelConfigID)
+	if err != nil {
+		return OpenAIProxyRoute{}, err
+	}
+	if input.Principal.Key != nil {
+		if err := s.policy.CanCallChat(ctx, input.Principal, modelConfigID, input.ProjectID, 0); err != nil {
+			return OpenAIProxyRoute{}, err
+		}
+	}
+	target, err := s.ai.OpenAIProxyTarget(runtimeModelConfigID)
+	if err != nil {
+		return OpenAIProxyRoute{}, fmt.Errorf("%w: %v", ErrModelUnavailable, err)
+	}
+	return OpenAIProxyRoute{ModelConfigID: runtimeModelConfigID, ResponseModel: responseModel, Target: target}, nil
 }
 
 func (s *Service) prepareChat(ctx context.Context, input ChatInput) (uint, string, ai.TextRequest, error) {

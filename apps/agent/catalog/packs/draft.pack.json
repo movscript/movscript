@@ -10,7 +10,8 @@
       "drafts/workflow/draft-lifecycle"
     ],
     "tools": [
-      "drafts"
+      "drafts",
+      "files"
     ]
   },
   "schemas": [
@@ -22,9 +23,14 @@
   ],
   "tools": [
     "movscript_get_draft",
+    "agent_file_read",
+    "agent_file_search",
+    "agent_file_edit",
+    "agent_file_validate",
     "movscript_get_draft_model",
     "movscript_create_draft",
-    "movscript_update_draft",
+    "movscript_validate_draft",
+    "movscript_preview_draft_apply",
     "movscript_apply_draft"
   ],
   "skills": [

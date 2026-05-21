@@ -1,5 +1,12 @@
 import type { AgentPlan, AgentRun, AgentTask, AgentThread, AgentThreadSummary, AgentTraceEvent } from './types.js'
 import type { AgentRunTraceSummary } from './runTrace.js'
+import {
+  applyTraceEventToDebugLedger,
+  buildRunDebugLedgerFromTrace,
+  compactRunDebugLedger,
+  createRunDebugLedger,
+  type AgentRunDebugLedger,
+} from './runDebugLedger.js'
 import { isJSONValue } from '../jsonValue.js'
 import { isValidAgentProjectId } from '../context/runtimeContext.js'
 
@@ -32,6 +39,8 @@ export interface AgentStore {
   listRunTraceEvents(runId: string, query?: AgentTraceQuery): AgentTraceEvent[]
   countRunTraceEvents(runId: string, query?: Pick<AgentTraceQuery, 'kind'>): number
   summarizeRunTraceEvents(runId: string): AgentRunTraceSummary
+  getRunDebugLedger(runId: string): AgentRunDebugLedger | undefined
+  updateRunDebugLedger(runId: string, ledger: AgentRunDebugLedger): void
 }
 
 export interface AgentRunQuery {
@@ -48,6 +57,7 @@ export class InMemoryAgentStore implements AgentStore {
   private readonly plans = new Map<string, AgentPlan>()
   private readonly tasks = new Map<string, AgentTask>()
   private readonly traceEventsByRun = new Map<string, AgentTraceEvent[]>()
+  private readonly debugLedgersByRun = new Map<string, AgentRunDebugLedger>()
 
   createThread(thread: AgentThread): void {
     this.threads.set(thread.id, clone(thread))
@@ -77,6 +87,12 @@ export class InMemoryAgentStore implements AgentStore {
     this.runs.set(run.id, clone(normalizedRun))
     if (traceEvents.length > 0) {
       this.traceEventsByRun.set(run.id, traceEvents.map(normalizeTraceEvent))
+      this.debugLedgersByRun.set(run.id, buildRunDebugLedgerFromTrace({
+        run: normalizedRun,
+        events: traceEvents.map(normalizeTraceEvent),
+      }))
+    } else {
+      this.debugLedgersByRun.set(run.id, createRunDebugLedger(normalizedRun))
     }
   }
 
@@ -93,6 +109,22 @@ export class InMemoryAgentStore implements AgentStore {
         next.push(normalizeTraceEvent(event))
       }
       this.traceEventsByRun.set(run.id, next)
+      this.debugLedgersByRun.set(run.id, buildRunDebugLedgerFromTrace({
+        run: normalizedRun,
+        events: next,
+      }))
+    } else {
+      const current = this.debugLedgersByRun.get(run.id)
+      this.debugLedgersByRun.set(run.id, compactRunDebugLedger({
+        ...(current ?? createRunDebugLedger(normalizedRun)),
+        run: {
+          ...(current?.run ?? createRunDebugLedger(normalizedRun).run),
+          status: normalizedRun.status,
+          ...(normalizedRun.role ? { role: normalizedRun.role } : {}),
+          ...(normalizedRun.error ? { error: normalizedRun.error } : {}),
+          warnings: normalizedRun.warnings ?? current?.run.warnings ?? [],
+        },
+      }))
     }
   }
 
@@ -163,6 +195,15 @@ export class InMemoryAgentStore implements AgentStore {
       ? events.map((item, index) => index === existingIndex ? normalizedEvent : item)
       : [...events, normalizedEvent]
     this.traceEventsByRun.set(event.runId, next)
+    const run = this.runs.get(event.runId)
+    if (run) {
+      const current = this.debugLedgersByRun.get(event.runId) ?? createRunDebugLedger(run)
+      this.debugLedgersByRun.set(event.runId, applyTraceEventToDebugLedger({
+        ledger: current,
+        event: normalizedEvent,
+        run,
+      }))
+    }
   }
 
   listRunTraceEvents(runId: string, query: AgentTraceQuery = {}): AgentTraceEvent[] {
@@ -195,6 +236,21 @@ export class InMemoryAgentStore implements AgentStore {
       byKind,
       ...(latestEvent ? { latestEvent: clone(latestEvent) } : {}),
     }
+  }
+
+  getRunDebugLedger(runId: string): AgentRunDebugLedger | undefined {
+    const ledger = this.debugLedgersByRun.get(runId)
+    if (ledger) return clone(ledger)
+    const run = this.runs.get(runId)
+    if (!run) return undefined
+    return buildRunDebugLedgerFromTrace({
+      run,
+      events: this.traceEventsByRun.get(runId) ?? [],
+    })
+  }
+
+  updateRunDebugLedger(runId: string, ledger: AgentRunDebugLedger): void {
+    this.debugLedgersByRun.set(runId, compactRunDebugLedger(ledger))
   }
 }
 

@@ -31,25 +31,25 @@ const registry = new StaticToolRegistry([
     requiresApprovalByDefault: true,
   },
   {
-    name: 'movscript_create_generation_job',
-    description: 'Create a generation job.',
-    permission: 'generation.create',
+    name: 'agent_io_start',
+    description: 'Start a runtime operation.',
+    permission: 'agent.io.write',
     risk: 'generate',
     projectScoped: true,
     requiresApprovalByDefault: true,
   },
   {
-    name: 'movscript_get_generation_job',
-    description: 'Inspect a generation job.',
-    permission: 'generation.read',
+    name: 'agent_io_get',
+    description: 'Inspect a runtime operation.',
+    permission: 'agent.io.read',
     risk: 'read',
     projectScoped: true,
     requiresApprovalByDefault: false,
   },
   {
-    name: 'movscript_cancel_generation_job',
-    description: 'Cancel a generation job.',
-    permission: 'generation.cancel',
+    name: 'agent_io_cancel',
+    description: 'Cancel a runtime operation.',
+    permission: 'agent.io.write',
     risk: 'write',
     projectScoped: true,
     requiresApprovalByDefault: true,
@@ -167,62 +167,62 @@ test('tool policy blocks registered tools that the manifest does not grant', () 
 
 test('tool policy blocks write/generation tools until explicitly approved', () => {
   const result = applyToolPolicy([
-    { name: 'movscript_create_generation_job', args: { prompt: 'test' } },
+    { name: 'agent_io_start', args: { kind: 'generation_job', request: { prompt: 'test' } } },
   ], {
     currentProjectId: 42,
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      tools: [{ name: 'movscript_create_generation_job', mode: 'allow', approval: 'always' }],
+      tools: [{ name: 'agent_io_start', mode: 'allow', approval: 'always' }],
     },
     registry,
   })
 
   assert.deepEqual(result.toolCalls, [])
-  assert.deepEqual(result.warnings, ['movscript_create_generation_job 需要用户确认后才能执行'])
+  assert.deepEqual(result.warnings, ['agent_io_start 需要用户确认后才能执行'])
   assert.equal(result.blockedToolCalls[0].reason, 'approval_required')
 })
 
 test('tool policy allows approved generation tools and injects projectId', () => {
   const result = applyToolPolicy([
-    { name: 'movscript_create_generation_job', args: { prompt: 'test' } },
+    { name: 'agent_io_start', args: { kind: 'generation_job', request: { prompt: 'test' } } },
   ], {
     currentProjectId: 42,
-    approvedToolNames: ['movscript_create_generation_job'],
+    approvedToolNames: ['agent_io_start'],
     registry,
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      tools: [{ name: 'movscript_create_generation_job', mode: 'allow', approval: 'always' }],
+      tools: [{ name: 'agent_io_start', mode: 'allow', approval: 'always' }],
     },
   })
 
   assert.deepEqual(result.warnings, [])
-  assert.equal(result.toolCalls[0].args?.projectId, 42)
+  assert.equal((result.toolCalls[0].args?.request as any)?.projectId, 42)
 })
 
 test('tool policy allows generation job inspection without approval', () => {
   const result = applyToolPolicy([
-    { name: 'movscript_get_generation_job', args: { jobId: 123 } },
+    { name: 'agent_io_get', args: { operationId: 'io_123' } },
   ], {
     currentProjectId: 42,
     registry,
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      tools: [{ name: 'movscript_get_generation_job', mode: 'allow', approval: 'never' }],
+      tools: [{ name: 'agent_io_get', mode: 'allow', approval: 'never' }],
     },
   })
 
   assert.deepEqual(result.warnings, [])
-  assert.equal(result.toolCalls[0].name, 'movscript_get_generation_job')
+  assert.equal(result.toolCalls[0].name, 'agent_io_get')
   assert.equal(result.toolCalls[0].args?.projectId, 42)
 })
 
 test('tool policy requires approval before cancelling generation jobs', () => {
   const manifest = {
     ...DEFAULT_AGENT_MANIFEST,
-    tools: [{ name: 'movscript_cancel_generation_job', mode: 'allow' as const, approval: 'always' as const }],
+    tools: [{ name: 'agent_io_cancel', mode: 'allow' as const, approval: 'always' as const }],
   }
   const blocked = applyToolPolicy([
-    { name: 'movscript_cancel_generation_job', args: { jobId: 123 } },
+    { name: 'agent_io_cancel', args: { operationId: 'io_123' } },
   ], {
     currentProjectId: 42,
     registry,
@@ -233,10 +233,10 @@ test('tool policy requires approval before cancelling generation jobs', () => {
   assert.equal(blocked.blockedToolCalls[0].reason, 'approval_required')
 
   const approved = applyToolPolicy([
-    { name: 'movscript_cancel_generation_job', args: { jobId: 123 } },
+    { name: 'agent_io_cancel', args: { operationId: 'io_123' } },
   ], {
     currentProjectId: 42,
-    approvedToolNames: ['movscript_cancel_generation_job'],
+    approvedToolNames: ['agent_io_cancel'],
     registry,
     manifest,
   })
@@ -247,20 +247,20 @@ test('tool policy requires approval before cancelling generation jobs', () => {
 
 test('tool policy lets sandbox intercept approval-gated write and generation tools', () => {
   const result = applyToolPolicy([
-    { name: 'movscript_create_generation_job', args: { prompt: 'test' } },
+    { name: 'agent_io_start', args: { kind: 'generation_job', request: { prompt: 'test' } } },
   ], {
     currentProjectId: 42,
     sandboxMode: true,
     registry,
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      tools: [{ name: 'movscript_create_generation_job', mode: 'allow', approval: 'always' }],
+      tools: [{ name: 'agent_io_start', mode: 'allow', approval: 'always' }],
     },
   })
 
   assert.deepEqual(result.warnings, [])
   assert.equal(result.blockedToolCalls.length, 0)
-  assert.equal(result.toolCalls[0].args?.projectId, 42)
+  assert.equal((result.toolCalls[0].args?.request as any)?.projectId, 42)
 })
 
 test('tool policy auto approval mode allows granted write tools without explicit approval', () => {

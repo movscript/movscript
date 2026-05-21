@@ -13,6 +13,11 @@ const TOOL_NAME_LABELS_ZH: Record<string, string> = {
   movscript_create_project: '创建项目',
   movscript_delete_memory: '删除记忆',
   movscript_get_draft: '读取草稿',
+  read_file: '读取文件',
+  search_file: '搜索文件',
+  edit_file: '编辑文件',
+  movscript_validate_draft: '校验草稿',
+  movscript_preview_draft_apply: '预览应用草稿',
   movscript_get_draft_model: '读取草稿模型',
   movscript_get_focus: '读取当前焦点',
   movscript_get_generation_job: '查看生成任务',
@@ -35,7 +40,6 @@ const TOOL_NAME_LABELS_ZH: Record<string, string> = {
   movscript_search_memories: '搜索记忆',
   movscript_spawn_subagent: '启动子代理',
   movscript_update_active_skills: '更新启用技能',
-  movscript_update_draft: '更新草稿',
   movscript_wait_subagent: '等待子代理',
 }
 

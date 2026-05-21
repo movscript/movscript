@@ -96,25 +96,6 @@ export interface UpdateAgentDraftInput {
   metadata?: Record<string, JSONValue>
 }
 
-export type AgentDraftPatchOpType = 'add' | 'replace' | 'remove'
-
-export interface AgentDraftPatchOp {
-  op: AgentDraftPatchOpType
-  path: string
-  value?: JSONValue
-}
-
-export interface PatchAgentDraftInput {
-  ops?: unknown
-  expectedUpdatedAt?: unknown
-  metadata?: unknown
-}
-
-export interface AgentDraftPatchResult {
-  draft: AgentDraft
-  changedPaths: string[]
-}
-
 export interface ReadAgentDraftResult {
   draft: AgentDraft
   filePath: string
@@ -149,7 +130,6 @@ export interface AgentDraftValidationResult {
 export interface AgentDraftStore {
   createDraft(input: CreateAgentDraftInput): AgentDraft
   updateDraft(id: string, input: UpdateAgentDraftInput): AgentDraft
-  patchDraft(id: string, input: PatchAgentDraftInput): AgentDraftPatchResult
   getDraftFilePath(id: string): string
   readDraftFile(filePath: string): ReadAgentDraftResult
   editDraftFile(filePath: string, input: EditAgentDraftInput): EditAgentDraftResult
@@ -209,37 +189,13 @@ export class InMemoryAgentDraftStore implements AgentDraftStore {
     return clone(updated)
   }
 
-  patchDraft(id: string, input: PatchAgentDraftInput): AgentDraftPatchResult {
-    const current = this.drafts.get(id)
-    if (!current) throw new Error(`draft not found: ${id}`)
-    if (typeof input.expectedUpdatedAt === 'string' && input.expectedUpdatedAt && input.expectedUpdatedAt !== current.updatedAt) {
-      throw new Error(`draft changed since expectedUpdatedAt: ${id}`)
-    }
-    const ops = normalizePatchOps(input.ops)
-    const document = parseDraftDocument(current.content)
-    for (const op of ops) {
-      applyPatchOp(document, op)
-    }
-    const updated = this.updateDraft(id, {
-      content: JSON.stringify(document, null, 2),
-      metadata: {
-        ...(normalizeMetadata(input.metadata) ?? {}),
-        lastPatchPaths: ops.map((op) => op.path),
-      },
-    })
-    return {
-      draft: updated,
-      changedPaths: ops.map((op) => op.path),
-    }
-  }
-
   getDraft(id: string): AgentDraft | undefined {
     const draft = this.drafts.get(id)
     return draft ? clone(draft) : undefined
   }
 
   getDraftFilePath(id: string): string {
-    return resolve('/movscript-agent/drafts', `${id}.draft`)
+    return resolve('/movscript-agent/drafts', `${id}.draft.json`)
   }
 
   readDraftFile(filePath: string): ReadAgentDraftResult {
@@ -340,10 +296,14 @@ export class FileAgentDraftStore extends InMemoryAgentDraftStore {
     return draft
   }
 
-  override patchDraft(id: string, input: PatchAgentDraftInput): AgentDraftPatchResult {
-    const result = super.patchDraft(id, input)
-    this.persist()
-    return result
+  override getDraft(id: string): AgentDraft | undefined {
+    const draft = super.getDraft(id)
+    if (!draft) return undefined
+    return this.syncDraftContentFromFile(draft)
+  }
+
+  override listDrafts(query: ListAgentDraftsQuery = {}): AgentDraft[] {
+    return super.listDrafts(query).map((draft) => this.syncDraftContentFromFile(draft))
   }
 
   override getDraftFilePath(id: string): string {
@@ -419,6 +379,15 @@ export class FileAgentDraftStore extends InMemoryAgentDraftStore {
     }))
   }
 
+  private syncDraftContentFromFile(draft: AgentDraft): AgentDraft {
+    const filePath = draft.filePath ?? this.getDraftFilePath(draft.id)
+    const content = readDraftContent(filePath, draft.content)
+    if (content === draft.content && draft.filePath) return draft
+    const updated = super.updateDraft(draft.id, { content })
+    this.persist()
+    return updated
+  }
+
   private persist(): void {
     atomicWriteJSON(this.filePath, {
       version: 2,
@@ -438,7 +407,7 @@ export function resolveAgentDraftPath(statePath = resolveAgentStatePath()): stri
 }
 
 function contentFilePath(indexFilePath: string, draftId: string): string {
-  return join(dirname(indexFilePath), 'draft-files', `${draftId}.draft`)
+  return join(dirname(indexFilePath), 'draft-files', `${draftId}.draft.json`)
 }
 
 function readDraftContent(filePath: string, fallback: string): string {
@@ -573,84 +542,6 @@ function normalizeDraftIdValue(value: unknown): number | string | undefined {
 
 function isValidDraftReferenceId(value: unknown): value is number | string {
   return isValidDraftProjectId(value) || (typeof value === 'string' && value.trim().length > 0)
-}
-
-function normalizePatchOps(value: unknown): AgentDraftPatchOp[] {
-  if (!Array.isArray(value) || value.length === 0) throw new Error('patch_draft requires non-empty ops')
-  return value.map((item) => {
-    if (!isRecord(item)) throw new Error('patch op must be an object')
-    const op = item.op
-    const path = item.path
-    if (op !== 'add' && op !== 'replace' && op !== 'remove') throw new Error(`unsupported patch op: ${String(op)}`)
-    if (typeof path !== 'string' || !path.startsWith('/')) throw new Error('patch op path must be a JSON pointer')
-    if (op !== 'remove' && !isJSONValue(item.value)) throw new Error(`patch op ${op} requires JSON value`)
-    return {
-      op,
-      path,
-      ...(op !== 'remove' ? { value: item.value as JSONValue } : {}),
-    }
-  })
-}
-
-function parseDraftDocument(content: string): JSONValue {
-  try {
-    const parsed = JSON.parse(content) as unknown
-    if (!isJSONValue(parsed)) throw new Error('draft content is not JSON value')
-    return parsed
-  } catch (error) {
-    throw new Error(`patch_draft requires JSON draft content: ${error instanceof Error ? error.message : String(error)}`)
-  }
-}
-
-function applyPatchOp(document: JSONValue, op: AgentDraftPatchOp): void {
-  const segments = decodeJSONPointer(op.path)
-  if (segments.length === 0) throw new Error('patch_draft cannot replace the draft root')
-  const parent = resolvePatchParent(document, segments)
-  const key = segments[segments.length - 1]
-  if (Array.isArray(parent)) {
-    const index = key === '-' ? parent.length : Number(key)
-    if (!Number.isInteger(index) || index < 0 || index > parent.length) throw new Error(`invalid array path: ${op.path}`)
-    if (op.op === 'remove') {
-      if (index >= parent.length) throw new Error(`array path does not exist: ${op.path}`)
-      parent.splice(index, 1)
-      return
-    }
-    if (op.op === 'replace') {
-      if (index >= parent.length) throw new Error(`array path does not exist: ${op.path}`)
-      parent[index] = op.value ?? null
-      return
-    }
-    parent.splice(index, 0, op.value ?? null)
-    return
-  }
-  if (!isRecord(parent)) throw new Error(`patch parent is not an object: ${op.path}`)
-  if (op.op === 'remove') {
-    if (!(key in parent)) throw new Error(`object path does not exist: ${op.path}`)
-    delete parent[key]
-    return
-  }
-  if (op.op === 'replace' && !(key in parent)) throw new Error(`object path does not exist: ${op.path}`)
-  parent[key] = op.value ?? null
-}
-
-function decodeJSONPointer(path: string): string[] {
-  if (path === '/') return ['']
-  return path.slice(1).split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~'))
-}
-
-function resolvePatchParent(document: JSONValue, segments: string[]): JSONValue {
-  let current: JSONValue = document
-  for (const segment of segments.slice(0, -1)) {
-    if (Array.isArray(current)) {
-      const index = Number(segment)
-      if (!Number.isInteger(index) || index < 0 || index >= current.length) throw new Error(`array path does not exist: /${segments.join('/')}`)
-      current = current[index] as JSONValue
-      continue
-    }
-    if (!isRecord(current) || !(segment in current)) throw new Error(`object path does not exist: /${segments.join('/')}`)
-    current = current[segment] as JSONValue
-  }
-  return current
 }
 
 function validateScriptSplitDraft(draft: AgentDraft, issues: AgentDraftValidationIssue[]): void {
@@ -1289,7 +1180,7 @@ function normalizeStoredDraft(draft: AgentDraft): AgentDraft {
   const appliedByUserId = normalizeDraftIdValue(draft.appliedByUserId)
   return {
     ...draft,
-    filePath: draft.filePath ?? resolve('/movscript-agent/drafts', `${draft.id}.draft`),
+    filePath: draft.filePath ?? resolve('/movscript-agent/drafts', `${draft.id}.draft.json`),
     ...(isValidDraftProjectId(draft.projectId) ? { projectId: draft.projectId } : { projectId: undefined }),
     kind: normalizeDraftKind(draft.kind),
     title: normalizeTitle(draft.title),

@@ -1,4 +1,4 @@
-import type { ToolCall } from '../state/types.js'
+import type { JSONValue, ToolCall } from '../state/types.js'
 import type { AgentRunRole } from '../state/types.js'
 import type { AgentRunPolicy } from '../state/types.js'
 import {
@@ -127,6 +127,18 @@ function catalogWarningMessage(toolName: string, reason: ResolvedToolCatalog['bl
 }
 
 function withProjectId(call: ToolCall, projectId: number): ToolCall {
+  if (call.name === 'agent_io_start' && call.args?.kind === 'generation_job' && isPlainArgs(call.args.request)) {
+    return {
+      ...call,
+      args: {
+        ...call.args,
+        request: {
+          ...call.args.request,
+          projectId,
+        },
+      },
+    }
+  }
   return {
     ...call,
     args: {
@@ -134,4 +146,8 @@ function withProjectId(call: ToolCall, projectId: number): ToolCall {
       projectId,
     },
   }
+}
+
+function isPlainArgs(value: unknown): value is Record<string, JSONValue> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

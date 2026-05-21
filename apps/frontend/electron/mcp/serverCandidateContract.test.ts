@@ -15,11 +15,14 @@ test('MCP server exposes candidate tools and multi-output generation contracts',
   assert.match(serverSource, /case 'movscript_attach_asset_slot_candidate':/)
   assert.match(serverSource, /case 'movscript_attach_keyframe_candidate':/)
 
-  assert.match(serverSource, /output_resources\/output_resource_ids/)
+  assert.match(serverSource, /independent single-output AI image or video generation jobs/)
+  assert.match(serverSource, /output_count/)
   assert.match(serverSource, /output_resource_ids:\s*\{\s*type:\s*'array'/)
-  assert.match(createJobTool.description, /output_resources\/output_resource_ids/)
+  assert.match(createJobTool.description, /独立的单输出/)
+  assert.ok(createJobTool.inputSchema.properties.output_count)
   assert.ok(createJobTool.outputSchema.properties.output_resources)
   assert.ok(createJobTool.outputSchema.properties.output_resource_ids)
+  assert.ok(createJobTool.outputSchema.properties.jobIds)
 
   assert.match(serverSource, /const resourceIdAliases = \['resource_id', 'resourceId', 'output_resource_id', 'outputResourceId', 'resource_ids', 'resourceIds', 'output_resource_ids', 'outputResourceIds'\]/)
   assert.match(JSON.stringify(assetTool.inputSchema.allOf), /outputResourceId/)
@@ -34,7 +37,7 @@ test('MCP server exposes candidate tools and multi-output generation contracts',
   assert.equal(keyframeTool.inputSchema.properties.output_resource_ids.items.minimum, 1)
   assert.equal(keyframeTool.inputSchema.properties.target_keyframe_id.minimum, 1)
 
-  assert.match(serverSource, /Add an existing raw resource to the reviewable candidate set for an original target keyframe \/ visual anchor/)
+  assert.match(serverSource, /Add one existing raw resource to the reviewable candidate set for an original target keyframe \/ visual anchor/)
   assert.match(serverSource, /Do not pass an existing generated candidate keyframe as the target/)
   assert.match(serverSource, /target_keyframe_id/)
   assert.match(serverSource, /targetKeyframeId/)

@@ -26,7 +26,12 @@
             "title": { "type": "string" },
             "description": { "type": "string" },
             "deps": { "type": "array", "items": { "type": "string" } },
-            "parentId": { "type": "string" }
+            "parentId": { "type": "string" },
+            "metadata": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "结构化规划元数据，例如 writeScope、expectedOutput、reportFormat。"
+            }
           },
           "required": ["title"]
         }

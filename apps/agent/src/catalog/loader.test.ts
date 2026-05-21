@@ -210,7 +210,7 @@ test('loads built-in content unit proposal catalogs by default', () => {
   assert.ok(movscriptPack?.knowledge?.includes('movscript.knowledge.storyboard'))
   assert.ok(catalog.knowledgeCollections.some((collection) => collection.id === 'movscript.knowledge.storyboard'))
   assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_create_draft'))
-  assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_update_draft'))
+  assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_validate_draft'))
   assert.equal(catalog.registry.get('movscript_upsert_proposal_node'), undefined)
   assert.equal(catalog.registry.get('movscript_submit_script_split_draft'), undefined)
   assert.equal(catalog.registry.get('movscript_update_proposal_node'), undefined)

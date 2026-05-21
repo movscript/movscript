@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { completeSendRunResult, type CompleteSendRunResultDeps } from './agentSendCompletion'
+import { buildAgentConversationMessageItems } from './agentConversationThreadItems'
 import type { AgentSendDraft } from './agentSendDraft'
 import type { AgentMessage, AgentRun, AgentThread, RunMessageResult } from './localAgentClient'
 import type { ChatMessage, ChatRunActivityEvent } from '@/store/agentStore'
@@ -76,6 +77,67 @@ test('completeSendRunResult resolves stream partial runs before projecting', asy
   assert.equal(calls.includes('getRun'), true)
   assert.equal(calls.includes('setRun:run_final:completed:false'), true)
   assert.equal(calls.includes('settled:undefined:completed:run_final:thread_1:0'), true)
+})
+
+test('completeSendRunResult does not append a plain assistant summary for requires_action runs', async () => {
+  const calls: string[] = []
+  const deps = depsFixture(calls)
+  let localUserMessage = chatMessage({ id: 'local_user', role: 'user', content: 'Create video' })
+  let projectedMessages: ChatMessage[] = []
+  deps.messageStore.updateMessageMeta = (_userId, _conversationId, messageId, meta) => {
+    calls.push(`messageMeta:${messageId}:${meta.runtimeMessage?.messageId}:${meta.runtimeMessage?.runId}`)
+    localUserMessage = {
+      ...localUserMessage,
+      meta: {
+        ...localUserMessage.meta,
+        ...meta,
+      },
+    }
+  }
+  deps.messageStore.setConversationMessages = (_userId, _conversationId, messages) => {
+    calls.push(`messages:${messages.length}`)
+    projectedMessages = messages
+  }
+  deps.getExistingMessages = () => [localUserMessage]
+
+  const approvalRun = makeRun({
+    status: 'requires_action',
+    pendingApprovals: [{
+      id: 'approval_1',
+      runId: 'run_1',
+      toolName: 'movscript_create_generation_job',
+      reason: 'movscript_create_generation_job 需要用户确认后才能执行',
+      risk: 'generate',
+      permission: 'generation.create',
+      status: 'pending',
+      createdAt: '2026-05-19T00:00:00.000Z',
+      updatedAt: '2026-05-19T00:00:00.000Z',
+    }],
+  })
+
+  await completeSendRunResult({
+    draft: draft({ requestId: 'request_1' }),
+    runResult: runResult({
+      run: approvalRun,
+      thread: makeThread({
+        status: 'requires_action',
+        messages: [makeMessage({ id: 'msg_user', role: 'user', content: 'Create video' })],
+      }),
+    }),
+    deps,
+  })
+
+  assert.equal(calls.some((call) => call.startsWith('append:')), false)
+  assert.equal(calls.includes('messages:2'), true)
+
+  const items = buildAgentConversationMessageItems({
+    messages: projectedMessages,
+    workflowAnswerEchoes: new Set(),
+    workflowRunsByResultMessageId: new Map(),
+  })
+  const approvalMessage = items.find((item) => item.beforeMessageWorkflowRuns.some((run) => run.id === 'run_1'))
+  assert.equal(approvalMessage?.showMessage, false)
+  assert.equal(approvalMessage?.beforeMessageWorkflowRuns[0]?.pendingApprovals?.[0]?.toolName, 'movscript_create_generation_job')
 })
 
 function depsFixture(calls: string[]): CompleteSendRunResultDeps {
@@ -184,7 +246,7 @@ function runResult(overrides: Partial<RunMessageResult> = {}): RunMessageResult 
   }
 }
 
-function makeThread(): AgentThread {
+function makeThread(overrides: Partial<AgentThread> = {}): AgentThread {
   return {
     id: 'thread_1',
     title: 'Thread title',
@@ -195,6 +257,7 @@ function makeThread(): AgentThread {
       makeMessage({ id: 'msg_user', role: 'user', content: 'Hello' }),
       makeMessage({ id: 'msg_assistant', role: 'assistant', content: 'Done', runId: 'run_1' }),
     ],
+    ...overrides,
   }
 }
 

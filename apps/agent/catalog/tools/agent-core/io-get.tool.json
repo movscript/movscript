@@ -1,0 +1,18 @@
+{
+  "name": "agent_io_get",
+  "description": "读取单个 runtime operation 的当前状态。兼容工具名仍为 agent_io_get；不要把它理解为通用读取工具。",
+  "permission": "agent.io.read",
+  "risk": "read",
+  "source": "runtime",
+  "category": "runtime-operation",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["operationId"],
+    "properties": {
+      "operationId": {
+        "type": "string"
+      }
+    }
+  }
+}

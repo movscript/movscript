@@ -1,8 +1,8 @@
-import { MCPError, type MCPClient } from '../mcpClient.js'
+import type { MCPClient } from '../mcpClient.js'
 import type { JSONValue } from '../state/types.js'
 import type { AgentRun, ToolCall } from '../state/types.js'
 import { buildApplyDraftPreview } from '../drafts/draftApply.js'
-import { normalizeDraftStatus, validateDraft, type AgentDraftKind, type AgentDraftSource, type AgentDraftStore, type AgentDraftTarget } from '../drafts/draftStore.js'
+import { validateDraft, type AgentDraft, type AgentDraftKind, type AgentDraftSource, type AgentDraftStore, type AgentDraftTarget } from '../drafts/draftStore.js'
 import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
 import { BackendApplyHTTPError, type BackendApplyClient } from '../drafts/backendApplyClient.js'
 import { applyRuntimeDraftFromUI } from '../application/runtimeDraftOperations.js'
@@ -10,10 +10,12 @@ import type { ToolRegistry, ToolRiskLevel } from '../tools/toolRegistry.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
 import type { AgentMemoryKind } from '../memory/types.js'
 import { runtimeToolName } from '../tools/toolNames.js'
-import { isJSONRecord } from '../jsonValue.js'
+import { isJSONRecord, isJSONValue } from '../jsonValue.js'
 import type { KnowledgeManager } from '../knowledge/knowledgeManager.js'
 import { buildRetrievedContextStore, countRetrievedContextChars, selectRetrievedContext, uniqueRetrievedContextRefs } from '../contextManager/retrievedContextStore.js'
 import { isValidAgentEntityId, isValidAgentProjectId, isValidAgentReferenceId } from '../context/runtimeContext.js'
+import { AgentFileSystem, type AgentFileEdit } from '../files/agentFileSystem.js'
+import { DraftFileProvider, draftContentFileRef } from '../files/providers/draftFileProvider.js'
 
 export type ToolSource = 'runtime' | 'mcp' | 'sandbox'
 
@@ -31,6 +33,7 @@ export interface ToolExecutorOptions {
   mcpClient: Pick<MCPClient, 'initialize' | 'callTool'>
   draftStore: AgentDraftStore
   backendApplyClient: BackendApplyClient
+  fileSystem?: AgentFileSystem
   registry: ToolRegistry
   memoryManager?: MemoryManager
   knowledgeManager?: KnowledgeManager
@@ -48,12 +51,17 @@ export interface AgentCatalogToolManager {
   spawnSubagent(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   listSubagents(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   waitSubagent(run: AgentRun, input?: Record<string, JSONValue>): Promise<JSONValue> | JSONValue
-  waitGenerationJobs(run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue> | JSONValue
+  startIO(run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue> | JSONValue
+  getIO(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
+  listIO(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
+  waitIO(run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue> | JSONValue
+  cancelIO(run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue> | JSONValue
   cancelSubagent(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
 }
 
 export async function executeTool(call: ToolCall, options: ToolExecutorOptions): Promise<ToolExecutionResult> {
   const { run, mcpClient, draftStore, backendApplyClient, registry, memoryManager, knowledgeManager, catalogManager, sandboxMode } = options
+  const fileSystem = options.fileSystem ?? new AgentFileSystem([new DraftFileProvider(draftStore)])
   throwIfAborted(options.signal)
   const args = call.args ?? {}
 
@@ -71,7 +79,7 @@ export async function executeTool(call: ToolCall, options: ToolExecutorOptions):
   }
 
   // Runtime tools handled locally
-  const runtimeResult = await callRuntimeTool(call.name, args, run, draftStore, backendApplyClient, memoryManager, knowledgeManager, catalogManager, sandboxMode, options.signal)
+  const runtimeResult = await callRuntimeTool(call.name, args, run, draftStore, backendApplyClient, fileSystem, memoryManager, knowledgeManager, catalogManager, sandboxMode, options.signal)
   throwIfAborted(options.signal)
   if (runtimeResult !== undefined) {
     return { call, result: runtimeResult, source: 'runtime' }
@@ -83,124 +91,9 @@ export async function executeTool(call: ToolCall, options: ToolExecutorOptions):
   throwIfAborted(options.signal)
   const runtimeName = runtimeToolName(call.name)
   const runtimeArgs = translateToolArgsForRuntime(call.name, args)
-  const result = await callMCPToolWithGenerationRepair(mcpClient, runtimeName, runtimeArgs, { signal: options.signal })
+  const result = await mcpClient.callTool(runtimeName, runtimeArgs, { signal: options.signal })
   throwIfAborted(options.signal)
   return { call, result, source: 'mcp' }
-}
-
-async function callMCPToolWithGenerationRepair(
-  mcpClient: Pick<MCPClient, 'callTool'>,
-  toolName: string,
-  args: Record<string, JSONValue>,
-  options: { signal?: AbortSignal },
-): Promise<JSONValue> {
-  try {
-    return await mcpClient.callTool(toolName, args, options)
-  } catch (error) {
-    const repairedArgs = generationRepairArgs(toolName, args, error)
-    if (!repairedArgs) throw error
-    const result = await mcpClient.callTool(toolName, repairedArgs, options)
-    return appendGenerationRepairNote(result, repairedArgs.repair_note)
-  }
-}
-
-function generationRepairArgs(toolName: string, args: Record<string, JSONValue>, error: unknown): Record<string, JSONValue> | undefined {
-  if (toolName !== 'movscript_create_generation_job') return undefined
-  if (!(error instanceof MCPError)) return undefined
-  const data = isJSONRecord(error.data) ? error.data : undefined
-  if (!data || data.type !== 'backend_http_error' || data.status !== 400) return undefined
-  if (!isRepairableGenerationValidationCode(data.code)) return undefined
-  const suggestedFix = isJSONRecord(data.suggested_fix) ? data.suggested_fix : undefined
-  if (!suggestedFix) return undefined
-  const repaired = applyGenerationSuggestedFix(args, suggestedFix)
-  if (!repaired) return undefined
-  return {
-    ...repaired,
-    repair_note: 'Retried once with backend suggested_fix after generation parameter validation failed.',
-  }
-}
-
-function isRepairableGenerationValidationCode(code: unknown): boolean {
-  return code === 'UNSUPPORTED_PARAMETER'
-    || code === 'INVALID_PARAMETER_TYPE'
-    || code === 'INVALID_PARAMETER_OPTION'
-    || code === 'INVALID_PARAMETER_RANGE'
-    || code === 'INVALID_PARAMETER_COMBINATION'
-}
-
-function applyGenerationSuggestedFix(args: Record<string, JSONValue>, suggestedFix: Record<string, JSONValue>): Record<string, JSONValue> | undefined {
-  let changed = false
-  const next: Record<string, JSONValue> = { ...args }
-  const extraParams = isJSONRecord(args.extra_params) ? { ...args.extra_params } : {}
-
-  for (const [key, value] of Object.entries(suggestedFix)) {
-    if (!isGenerationRepairValue(value) && value !== null) continue
-    switch (key) {
-      case 'aspect_ratio':
-        if (value === null) {
-          if ('aspect_ratio' in next) {
-            delete next.aspect_ratio
-            changed = true
-          }
-        } else if (next.aspect_ratio !== value) {
-          next.aspect_ratio = value
-          changed = true
-        }
-        break
-      case 'duration':
-        if (value === null) {
-          if ('duration' in next) {
-            delete next.duration
-            changed = true
-          }
-        } else if (next.duration !== value) {
-          next.duration = value
-          changed = true
-        }
-        break
-      default:
-        if (value === null) {
-          if (key in extraParams) {
-            delete extraParams[key]
-            changed = true
-          }
-        } else if (extraParams[key] !== value) {
-          extraParams[key] = value
-          changed = true
-        }
-        break
-    }
-  }
-
-  if (!changed) return undefined
-  if (Object.keys(extraParams).length > 0) {
-    next.extra_params = extraParams
-  } else if ('extra_params' in next) {
-    delete next.extra_params
-  }
-  return next
-}
-
-function appendGenerationRepairNote(result: JSONValue, repairNote: JSONValue | undefined): JSONValue {
-  if (typeof repairNote !== 'string' || !repairNote.trim()) return result
-  if (!isJSONRecord(result)) return result
-  if (isJSONRecord(result.data)) {
-    return {
-      ...result,
-      data: {
-        ...result.data,
-        repair_note: repairNote,
-      },
-    }
-  }
-  return {
-    ...result,
-    repair_note: repairNote,
-  }
-}
-
-function isGenerationRepairValue(value: JSONValue): value is string | number | boolean {
-  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
 }
 
 async function callRuntimeTool(
@@ -209,6 +102,7 @@ async function callRuntimeTool(
   run: AgentRun,
   draftStore: AgentDraftStore,
   backendApplyClient: BackendApplyClient,
+  fileSystem: AgentFileSystem,
   memoryManager: MemoryManager | undefined,
   knowledgeManager: KnowledgeManager | undefined,
   catalogManager: AgentCatalogToolManager | undefined,
@@ -255,9 +149,29 @@ async function callRuntimeTool(
     return catalogManager.waitSubagent(run, args)
   }
 
-  if (toolName === 'movscript_wait_generation_jobs') {
+  if (toolName === 'agent_io_start') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.waitGenerationJobs(run, args, { signal })
+    return catalogManager.startIO(run, args, { signal })
+  }
+
+  if (toolName === 'agent_io_get') {
+    if (!catalogManager) throw new Error('agent catalog manager is not configured')
+    return catalogManager.getIO(run, args)
+  }
+
+  if (toolName === 'agent_io_list') {
+    if (!catalogManager) throw new Error('agent catalog manager is not configured')
+    return catalogManager.listIO(run, args)
+  }
+
+  if (toolName === 'agent_io_wait') {
+    if (!catalogManager) throw new Error('agent catalog manager is not configured')
+    return catalogManager.waitIO(run, args, { signal })
+  }
+
+  if (toolName === 'agent_io_cancel') {
+    if (!catalogManager) throw new Error('agent catalog manager is not configured')
+    return catalogManager.cancelIO(run, args, { signal })
   }
 
   if (toolName === 'movscript_cancel_subagent') {
@@ -320,14 +234,113 @@ async function callRuntimeTool(
     }
     return {
       draft,
+      file: {
+        provider: 'draft',
+        ref: draftContentFileRef(draft.id),
+        id: draft.id,
+        kind: draft.kind,
+        title: draft.title,
+        updatedAt: draft.updatedAt,
+      },
       validation: validateDraft(draft),
     } as unknown as JSONValue
   }
 
-  if (toolName === 'movscript_update_draft') {
+  if (toolName === 'agent_file_read') {
+    const ref = stringField(args.ref)
+    if (!ref) throw new Error('agent_file_read requires ref')
+    const read = fileSystem.read({ ref })
+    const jsonPointer = stringField(args.jsonPointer ?? args.json_pointer)
+    const contentLimit = Math.max(1, Math.min(Math.floor(numberField(args.contentLimit ?? args.content_limit) ?? 20000), 100000))
+    const base = {
+      status: 'read',
+      file: read.file as unknown as JSONValue,
+      ref: read.file.ref,
+      revision: read.revision,
+      contentLength: read.contentLength,
+      ...(read.validation !== undefined ? { validation: read.validation } : {}),
+    }
+    if (jsonPointer) {
+      return {
+        ...base,
+        jsonPointer,
+        value: selectJSONPointerValue(read.content, jsonPointer) as JSONValue,
+      } as unknown as JSONValue
+    }
+    return {
+      ...base,
+      content: read.content.length > contentLimit ? read.content.slice(0, contentLimit) : read.content,
+      truncated: read.content.length > contentLimit,
+    } as unknown as JSONValue
+  }
+
+  if (toolName === 'agent_file_search') {
+    const ref = stringField(args.ref)
+    if (!ref) throw new Error('agent_file_search requires ref')
+    const query = stringField(args.query)
+    const limit = Math.max(1, Math.min(Math.floor(numberField(args.limit) ?? 20), 100))
+    if (!query) throw new Error('agent_file_search requires query')
+    const result = fileSystem.search({ ref, query, limit })
+    return {
+      status: 'searched',
+      file: result.file as unknown as JSONValue,
+      ref: result.file.ref,
+      revision: result.revision,
+      query,
+      matches: result.matches as unknown as JSONValue,
+      matchCount: result.matchCount,
+    } as unknown as JSONValue
+  }
+
+  if (toolName === 'agent_file_edit') {
+    const ref = stringField(args.ref)
+    if (!ref) throw new Error('agent_file_edit requires ref')
+    const edits = normalizeAgentFileEdits(args.edits)
+    const baseRevision = stringField(args.baseRevision ?? args.base_revision)
+    const result = fileSystem.edit({
+      ref,
+      edits,
+      precondition: baseRevision ? { baseRevision } : undefined,
+      createdByRunId: run.id,
+    })
+    return {
+      status: 'edited',
+      file: result.file as unknown as JSONValue,
+      ref: result.file.ref,
+      changeSet: result.changeSet as unknown as JSONValue,
+      replacementCount: result.changeSet.replacementCount,
+      ...(result.validation !== undefined ? { validation: result.validation } : {}),
+    } as unknown as JSONValue
+  }
+
+  if (toolName === 'agent_file_validate') {
+    const ref = stringField(args.ref)
+    if (!ref) throw new Error('agent_file_validate requires ref')
+    return {
+      status: 'validated',
+      ref,
+      validation: fileSystem.validate({ ref }),
+    } as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_validate_draft') {
     const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
-    if (!draftId) throw new Error('update_draft requires draftId')
-    return updateDraftByAction(draftStore, backendApplyClient, args, draftId) as unknown as JSONValue
+    if (!draftId) throw new Error('validate_draft requires draftId')
+    const draft = draftStore.getDraft(draftId)
+    if (!draft) throw new Error(`draft not found: ${draftId}`)
+    return {
+      status: 'validated',
+      draft,
+      validation: validateDraft(draft),
+    } as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_preview_draft_apply') {
+    const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
+    if (!draftId) throw new Error('preview_draft_apply requires draftId')
+    const draft = draftStore.getDraft(draftId)
+    if (!draft) throw new Error(`draft not found: ${draftId}`)
+    return previewDraftApply(draftStore, backendApplyClient, draft, args) as unknown as JSONValue
   }
 
   if (toolName === 'movscript_apply_draft') {
@@ -907,6 +920,58 @@ function draftRefStringField(value: JSONValue | undefined): string | undefined {
   return stringField(value)
 }
 
+function selectJSONPointerValue(content: string, path: string): JSONValue {
+  let value: unknown
+  try {
+    value = JSON.parse(content) as unknown
+  } catch (error) {
+    throw new Error(`read_draft_file jsonPointer requires JSON draft content: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  if (!isJSONValue(value)) throw new Error('read_draft_file jsonPointer resolved non-JSON draft content')
+  if (path === '') return value
+  if (!path.startsWith('/')) throw new Error('read_draft_file jsonPointer must be a JSON pointer')
+  let current: unknown = value
+  for (const segment of decodeToolJSONPointer(path)) {
+    if (Array.isArray(current)) {
+      const index = Number(segment)
+      if (!Number.isInteger(index) || index < 0 || index >= current.length) throw new Error(`jsonPointer array path does not exist: ${path}`)
+      current = current[index]
+      continue
+    }
+    if (!isJSONRecord(current) || !(segment in current)) throw new Error(`jsonPointer object path does not exist: ${path}`)
+    current = current[segment]
+  }
+  if (!isJSONValue(current)) throw new Error(`jsonPointer resolved non-JSON value: ${path}`)
+  return current
+}
+
+function decodeToolJSONPointer(path: string): string[] {
+  if (path === '/') return ['']
+  return path.slice(1).split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~'))
+}
+
+function normalizeAgentFileEdits(value: JSONValue | undefined): AgentFileEdit[] {
+  if (!Array.isArray(value)) throw new Error('agent_file_edit requires edits')
+  return value.map((edit) => {
+    if (!isJSONRecord(edit)) throw new Error('agent_file_edit edit must be an object')
+    if (edit.type === 'set_content') {
+      if (typeof edit.content !== 'string') throw new Error('set_content edit requires content')
+      return { type: 'set_content', content: edit.content }
+    }
+    if (edit.type === 'replace_text') {
+      if (typeof edit.oldText !== 'string') throw new Error('replace_text edit requires oldText')
+      if (typeof edit.newText !== 'string') throw new Error('replace_text edit requires newText')
+      return {
+        type: 'replace_text',
+        oldText: edit.oldText,
+        newText: edit.newText,
+        ...(edit.replaceAll === true ? { replaceAll: true } : {}),
+      }
+    }
+    throw new Error(`unsupported agent file edit type: ${String(edit.type)}`)
+  })
+}
+
 function createProposalDraft(
   draftStore: AgentDraftStore,
   run: AgentRun,
@@ -959,102 +1024,6 @@ function createProposalDraft(
     status: 'created',
     message: 'Created a local proposal review draft from the conversation.',
   } as unknown as JSONValue
-}
-
-async function updateDraftByAction(
-  draftStore: AgentDraftStore,
-  backendApplyClient: BackendApplyClient,
-  args: Record<string, JSONValue>,
-  draftId: string,
-): Promise<JSONValue> {
-  const action = stringField(args.action) ?? inferDraftUpdateAction(args)
-  const current = draftStore.getDraft(draftId)
-  if (!current) throw new Error(`draft not found: ${draftId}`)
-  if (typeof args.expectedUpdatedAt === 'string' && args.expectedUpdatedAt && args.expectedUpdatedAt !== current.updatedAt) {
-    throw new Error(`draft changed since expectedUpdatedAt: ${draftId}`)
-  }
-
-  if (action === 'validate') {
-    return {
-      status: 'validated',
-      draft: current,
-      validation: validateDraft(current),
-    } as unknown as JSONValue
-  }
-
-  if (action === 'preview_apply') {
-    return previewDraftApply(draftStore, backendApplyClient, current, args)
-  }
-
-  if (action === 'patch_content') {
-    const result = draftStore.patchDraft(draftId, {
-      ops: args.ops,
-      expectedUpdatedAt: args.expectedUpdatedAt ?? args.expected_updated_at,
-      metadata: args.metadata,
-    })
-    return {
-      status: 'patched',
-      ...result,
-      validation: validateDraft(result.draft),
-    } as unknown as JSONValue
-  }
-
-  if (action === 'replace_text') {
-    const oldString = stringField(args.oldString ?? args.old_string)
-    const newString = typeof (args.newString ?? args.new_string) === 'string' ? String(args.newString ?? args.new_string) : undefined
-    if (oldString === undefined) throw new Error('update_draft replace_text requires oldString')
-    if (newString === undefined) throw new Error('update_draft replace_text requires newString')
-    const replaceAll = args.replaceAll === true || args.replace_all === true
-    const count = countTextOccurrences(current.content, oldString)
-    if (count === 0) throw new Error('update_draft replace_text oldString was not found')
-    if (!replaceAll && count !== 1) throw new Error(`update_draft replace_text oldString is not unique: ${count} matches`)
-    const content = replaceAll ? current.content.split(oldString).join(newString) : current.content.replace(oldString, newString)
-    const draft = draftStore.updateDraft(draftId, {
-      content,
-      ...(isJSONRecord(args.metadata) ? { metadata: args.metadata } : {}),
-    })
-    return {
-      status: 'updated',
-      replacementCount: replaceAll ? count : 1,
-      draft,
-      validation: validateDraft(draft),
-    } as unknown as JSONValue
-  }
-
-  const status = normalizeDraftStatus(args.status)
-  const draft = draftStore.updateDraft(draftId, {
-    ...(status ? { status } : {}),
-    ...(typeof args.title === 'string' ? { title: args.title } : {}),
-    ...(typeof args.content === 'string' ? { content: args.content } : {}),
-    ...(isJSONRecord(args.target) ? { target: args.target } : {}),
-    ...(isJSONRecord(args.metadata) ? { metadata: args.metadata } : {}),
-    ...(typeof args.rejectedReason === 'string' ? { rejectedReason: args.rejectedReason } : {}),
-  })
-  return {
-    status: 'updated',
-    draft,
-    validation: validateDraft(draft),
-  } as unknown as JSONValue
-}
-
-function inferDraftUpdateAction(args: Record<string, JSONValue>): string {
-  if (Array.isArray(args.ops)) return 'patch_content'
-  if (args.oldString !== undefined || args.old_string !== undefined) return 'replace_text'
-  if (args.previewApply === true || args.preview_apply === true) return 'preview_apply'
-  if (args.validateOnly === true || args.validate_only === true) return 'validate'
-  return 'replace_fields'
-}
-
-function countTextOccurrences(text: string, needle: string): number {
-  if (!needle) return 0
-  let count = 0
-  let index = 0
-  while (true) {
-    const next = text.indexOf(needle, index)
-    if (next === -1) return count
-    count += 1
-    index = next + needle.length
-  }
 }
 
 async function previewDraftApply(

@@ -9,6 +9,7 @@ func registerOpenAIGatewayRoutes(r *gin.Engine, h handlers) {
 		openAIV1.POST("/chat/completions", h.modelGateway.ChatCompletions)
 		openAIV1.POST("/responses", h.modelGateway.Responses)
 		openAIV1.POST("/messages", h.modelGateway.AnthropicMessages)
+		openAIV1.POST("/openai-proxy/*path", h.modelGateway.OpenAIProxy)
 	}
 }
 

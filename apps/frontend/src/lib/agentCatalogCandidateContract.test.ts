@@ -8,9 +8,11 @@ const deployedCatalog = resolve('movscript-agent/catalog')
 
 test('agent catalog keeps candidate generation contracts for deploy', () => {
   const visualInstruction = readFile('skills/movscript/workflow/generation/visual-generation/instruction.md')
-  assert.match(visualInstruction, /把所有可用 output_resource_id 加入目标 asset slot 候选集/)
-  assert.match(visualInstruction, /把所有可用 output_resource_id 加入目标 keyframe 候选集/)
-  assert.match(visualInstruction, /必须全部写入并逐项报告成功、失败或阻塞/)
+  assert.match(visualInstruction, /优先用 `mode: "any"` 让任一任务完成即可返回/)
+  assert.match(visualInstruction, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `movscript_attach_asset_slot_candidate`/)
+  assert.match(visualInstruction, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `movscript_attach_keyframe_candidate`/)
+  assert.match(visualInstruction, /不要把 `output_resource_ids`、`resource_ids` 或多个资源 ID 合并传入同一次候选写入/)
+  assert.match(visualInstruction, /必须逐个调用 attach，并逐项报告成功、失败或阻塞/)
 
   const visualWorkflow = readJson('skills/movscript/workflow/generation/visual-generation/skill.workflow.json')
   assert.equal(visualWorkflow.toolRefs.includes('tool://movscript_attach_keyframe_candidate'), true)
@@ -18,7 +20,9 @@ test('agent catalog keeps candidate generation contracts for deploy', () => {
   assert.match(JSON.stringify(visualWorkflow.triggers), /visual anchor candidate/)
 
   const createJob = readJson('tools/movscript/visual-generation/create-job.tool.json')
-  assert.match(createJob.description, /output_resources\/output_resource_ids/)
+  assert.match(createJob.description, /独立的单输出/)
+  assert.ok(createJob.inputSchema.properties.output_count)
+  assert.ok(createJob.outputSchema.properties.jobIds)
   assert.ok(createJob.outputSchema.properties.output_resources)
   assert.ok(createJob.outputSchema.properties.output_resource_ids)
 

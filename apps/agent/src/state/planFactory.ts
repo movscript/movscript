@@ -1,5 +1,5 @@
 import { cloneJSONValue, isJSONRecord } from '../jsonValue.js'
-import type { AgentPlan, AgentTask, AgentThread, CreatePlanInput, CreateRunInput } from './types.js'
+import type { AgentPlan, AgentTask, AgentThread, CreatePlanInput, CreateRunInput, JSONValue } from './types.js'
 
 export function normalizeCreatePlanThreadId(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
@@ -18,6 +18,7 @@ export function buildAgentPlan(input: {
   goal?: string
   plannerSource?: string
   plannerWarnings?: string[]
+  plannerAssessment?: Record<string, JSONValue>
 }): AgentPlan {
   const warnings = input.plannerWarnings ?? []
   return {
@@ -31,6 +32,7 @@ export function buildAgentPlan(input: {
       ...(input.goal ? { goal: input.goal } : {}),
       ...(input.plannerSource ? { plannerSource: input.plannerSource } : {}),
       ...(warnings.length > 0 ? { plannerWarnings: [...warnings] } : {}),
+      ...(input.plannerAssessment ? { plannerAssessment: cloneJSONValue(input.plannerAssessment) } : {}),
     },
     createdAt: input.now,
     updatedAt: input.now,

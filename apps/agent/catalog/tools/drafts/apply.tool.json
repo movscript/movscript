@@ -1,6 +1,6 @@
 {
   "name": "movscript_apply_draft",
-  "description": "正式应用一个已校验通过的本地 draft。该工具会执行后端 apply/patch 或在适用时标记本地 planning draft 已应用；普通审批模式下必须先获得用户确认，自动模式下可由 agent 自行执行。",
+  "description": "正式应用一个已校验通过的本地 draft。该工具会执行后端 apply/update 或在适用时标记本地 planning draft 已应用；普通审批模式下必须先获得用户确认，自动模式下可由 agent 自行执行。",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,

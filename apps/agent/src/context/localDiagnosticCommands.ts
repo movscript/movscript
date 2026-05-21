@@ -597,7 +597,7 @@ function renderLocalGenerationCommand(input: {
   const parsed = toolOutcome && !toolOutcome.error && isRecord(parseToolResult(toolOutcome.result ?? null))
     ? parseToolResult(toolOutcome.result ?? null)
     : undefined
-  const parsedRecord = isRecord(parsed) ? parsed : undefined
+  const parsedRecord = findGenerationPayload(parsed)
   const jobId = isValidAgentEntityId(parsedRecord?.jobId) ? parsedRecord.jobId : undefined
   const status = typeof parsedRecord?.status === 'string' ? parsedRecord.status : undefined
   const outputResourceId = isValidAgentEntityId(parsedRecord?.output_resource_id)
@@ -620,6 +620,33 @@ function renderLocalGenerationCommand(input: {
     lines.push('', 'Warnings:', ...input.warnings.map((warning) => `- ${warning}`))
   }
   return lines.filter((line): line is string => typeof line === 'string' && line.length > 0).join('\n')
+}
+
+function findGenerationPayload(value: unknown): Record<string, unknown> | undefined {
+  if (!isRecord(value)) return undefined
+  if (isRecord(value.operation)) {
+    const found = findGenerationPayload(value.operation)
+    if (found) return found
+  }
+  if (isRecord(value.result)) {
+    const found = findGenerationPayload(value.result)
+    if (found) return found
+  }
+  for (const key of ['completed', 'failed', 'cancelled', 'pending']) {
+    const items = value[key]
+    if (!Array.isArray(items)) continue
+    for (const item of items) {
+      const found = findGenerationPayload(item)
+      if (found) return found
+    }
+  }
+  if (
+    isValidAgentEntityId(value.jobId)
+    || isValidAgentEntityId(value.output_resource_id)
+    || isValidAgentEntityId(value.outputResourceId)
+    || typeof value.status === 'string'
+  ) return value
+  return undefined
 }
 
 function extractReferenceResourceIds(text: string): number[] {

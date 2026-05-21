@@ -1,0 +1,25 @@
+{
+  "name": "movscript_validate_draft",
+  "description": "校验本地 draft 当前真实文件内容是否符合对应 schema。该工具不修改正文。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "draftId"
+    ],
+    "properties": {
+      "draftId": {
+        "type": "string"
+      }
+    }
+  },
+  "permission": "draft.read",
+  "risk": "read",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "对一个本地 draft 执行 schema validation；正文由真实文件编辑工具负责。"
+}

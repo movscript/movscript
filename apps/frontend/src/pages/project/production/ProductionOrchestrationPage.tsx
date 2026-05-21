@@ -841,11 +841,13 @@ export default function ProductionOrchestrationPage() {
     () => buildCurrentProductionProposalSnapshot({
       segments: allSegments,
       sceneMoments: allSceneMoments,
+      creativeReferences: allCreativeReferences,
+      creativeReferenceUsages: data?.creativeReferenceUsages ?? [],
       contentUnits: allContentUnits,
       keyframes: allKeyframes,
       assetSlots: allAssetSlots,
     }),
-    [allAssetSlots, allContentUnits, allKeyframes, allSceneMoments, allSegments],
+    [allAssetSlots, allContentUnits, allCreativeReferences, data?.creativeReferenceUsages, allKeyframes, allSceneMoments, allSegments],
   )
   const proposalReviewNodeCount = useMemo(
     () => proposalPreviewDraft ? collectProposalReviewNodes(buildProposalReviewSegments(proposalPreviewDraft.proposal.segments, currentProductionSnapshot)).length : 0,
@@ -949,6 +951,7 @@ export default function ProductionOrchestrationPage() {
       content: JSON.stringify(buildEmptyProductionProposalDraftContent({
         projectId,
         productionId: effectiveProductionId,
+        snapshotBase: currentProductionSnapshot,
         proposedAt: new Date().toISOString(),
       }), null, 2),
       source: {
@@ -976,6 +979,7 @@ export default function ProductionOrchestrationPage() {
         seed: buildProductionDraftSeedMetadata({
           projectId,
           production: selectedProduction,
+          productionSnapshot: currentProductionSnapshot,
           scriptVersion: selectedScriptVersion,
           projectScripts: scriptVersions,
           modelRef: 'frontend:DraftDomainModel:production_proposal:v1',
@@ -3013,14 +3017,33 @@ function buildWritingFeedback(moment: SceneMomentRecord | null | undefined, line
 function buildCurrentProductionProposalSnapshot(input: {
   segments: SegmentRecord[]
   sceneMoments: SceneMomentRecord[]
+  creativeReferences: CreativeReferenceRecord[]
+  creativeReferenceUsages: SemanticEntityRecord[]
   contentUnits: ContentUnitRecord[]
   keyframes: KeyframeRecord[]
   assetSlots: AssetSlotRecord[]
 }): { segments: ProposalSegmentNode[] } {
+  const creativeReferenceById = new Map(input.creativeReferences.map((reference) => [reference.ID, reference]))
+  const referencesBySceneMoment = new Map<number, ProposalCreativeRefNode[]>()
   const assetSlotsBySceneMoment = new Map<number, AssetSlotRecord[]>()
   const unitsBySceneMoment = new Map<number, ContentUnitRecord[]>()
   const keyframesBySceneMoment = new Map<number, KeyframeRecord[]>()
   const keyframesByContentUnit = new Map<number, KeyframeRecord[]>()
+
+  for (const usage of input.creativeReferenceUsages) {
+    if (String(usage.owner_type ?? '') !== 'scene_moment') continue
+    const ownerId = positiveRecordNumber(usage.owner_id)
+    const referenceId = positiveRecordNumber(usage.creative_reference_id)
+    if (!ownerId || !referenceId) continue
+    const reference = creativeReferenceById.get(referenceId)
+    pushGroupedRecord(referencesBySceneMoment, ownerId, {
+      id: referenceId,
+      name: reference ? stringRecordValue(reference.name) || titleOfRecord(reference) : undefined,
+      kind: reference ? stringRecordValue(reference.kind) : undefined,
+      role: stringRecordValue(usage.role),
+      source_label: '当前项目',
+    })
+  }
 
   for (const slot of input.assetSlots) {
     if (String(slot.owner_type ?? '') !== 'scene_moment') continue
@@ -3079,7 +3102,7 @@ function buildCurrentProductionProposalSnapshot(input: {
             script_block_id: positiveRecordNumber(moment.script_block_id),
             content_units: contentUnits,
             keyframes: (keyframesBySceneMoment.get(moment.ID) ?? []).slice().sort(byOrder).map(proposalKeyframeFromRecord),
-            creative_references: [],
+            creative_references: (referencesBySceneMoment.get(moment.ID) ?? []).slice(),
             asset_slots: (assetSlotsBySceneMoment.get(moment.ID) ?? []).slice().sort(byOrder).map((slot) => ({
               id: slot.ID,
               client_id: stringRecordValue(slot.client_id),
@@ -5470,6 +5493,7 @@ function buildProductionCurrentOverview(input: {
 function buildProductionDraftSeedMetadata(input: {
   projectId: number
   production?: (SemanticEntityRecord & { script_version_id?: number; name?: string }) | null
+  productionSnapshot?: { segments: ProposalSegmentNode[] }
   scriptVersion?: ScriptVersion | null
   projectScripts: ScriptVersion[]
   modelRef: string
@@ -5483,6 +5507,7 @@ function buildProductionDraftSeedMetadata(input: {
     modelRef: input.modelRef,
     data: {
       production: input.production ? summarizeDraftSeedEntity(input.production) : null,
+      production_snapshot: input.productionSnapshot ?? { segments: [] },
       production_script_brief: {
         productionId: input.production?.ID,
         scriptVersionId: input.scriptVersion?.ID,
@@ -5504,6 +5529,10 @@ function buildProductionDraftSeedMetadata(input: {
     },
     sourceVersions: {
       production: input.production ? { id: input.production.ID, updatedAt: input.production.UpdatedAt } : null,
+      production_snapshot: {
+        segmentCount: input.productionSnapshot?.segments.length ?? 0,
+        sceneMomentCount: input.productionSnapshot?.segments.reduce((sum, segment) => sum + (segment.scene_moments?.length ?? 0), 0) ?? 0,
+      },
       production_script_brief: input.scriptVersion ? { id: input.scriptVersion.ID, updatedAt: input.scriptVersion.UpdatedAt } : null,
       project_scripts: input.projectScripts.map((script) => ({ id: script.ID, updatedAt: script.UpdatedAt })),
     },

@@ -11,6 +11,7 @@ export interface AgentTaskArtifactRef {
   source?: Record<string, unknown>
   target?: Record<string, unknown>
   metadata?: Record<string, unknown>
+  filePath?: string
   sourceRunId?: string
   sourceThreadId?: string
   updatedAt?: string
@@ -72,6 +73,7 @@ function artifactFromDraftCandidate(
   const source = isRecord(candidate.source) ? candidate.source : undefined
   const target = isRecord(candidate.target) ? candidate.target : undefined
   const metadata = isRecord(candidate.metadata) ? candidate.metadata : undefined
+  const filePath = stringValue(candidate.filePath ?? candidate.file_path)
   const sourceRunId = stringValue(candidate.createdByRunId ?? candidate.created_by_run_id ?? source?.runId ?? source?.run_id ?? fallback.runId)
   const sourceThreadId = stringValue(candidate.createdByThreadId ?? candidate.created_by_thread_id ?? source?.threadId ?? source?.thread_id ?? fallback.threadId)
   return {
@@ -84,6 +86,7 @@ function artifactFromDraftCandidate(
     ...(source ? { source } : {}),
     ...(target ? { target } : {}),
     ...(metadata ? { metadata } : {}),
+    ...(filePath ? { filePath } : {}),
     ...(sourceRunId ? { sourceRunId } : {}),
     ...(sourceThreadId ? { sourceThreadId } : {}),
     ...(updatedAt ? { updatedAt } : {}),

@@ -1,0 +1,20 @@
+{
+  "name": "agent_file_validate",
+  "description": "运行 agent 文件 provider 的校验逻辑。draft 文件会执行 draft schema validation。",
+  "permission": "agent.file.read",
+  "risk": "read",
+  "source": "runtime",
+  "category": "files",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["ref"],
+    "properties": {
+      "ref": {
+        "type": "string",
+        "description": "canonical 文件引用，例如 agent://draft/{draftId}/content。"
+      }
+    }
+  }
+}
+

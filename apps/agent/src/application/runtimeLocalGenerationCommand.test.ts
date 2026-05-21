@@ -49,32 +49,53 @@ test('applyRuntimeLocalGenerationCommand forces a generation tool call and compl
     timestampMs: makeClock(1000, 1250),
     executeGenerationTool: async (call): Promise<ToolExecutionResult> => {
       calls.push(call)
-      if (call.name === 'movscript_get_generation_job') {
+      if (call.name === 'agent_io_wait') {
         return {
           call,
           result: {
-            status: 'succeeded',
-            jobId: 321,
-            terminal: true,
-            output_resource_id: 654,
-            message: '图片生成完成，输出资源 #654。',
+            status: 'completed',
+            done: true,
+            completed: [{
+              id: 'io_1',
+              kind: 'generation_job',
+              status: 'completed',
+              result: {
+                status: 'succeeded',
+                jobId: 321,
+                terminal: true,
+                output_resource_id: 654,
+                message: '图片生成完成，输出资源 #654。',
+              },
+            }],
+            failed: [],
+            cancelled: [],
+            pending: [],
           },
-          source: 'mcp',
+          source: 'runtime',
         }
       }
       return {
         call,
         result: {
-          status: 'queued',
-          jobId: 321,
-          terminal: false,
-          monitor: {
-            tool: 'movscript_get_generation_job',
-            args: { jobId: 321 },
+          status: 'started',
+          operation: {
+            id: 'io_1',
+            kind: 'generation_job',
+            status: 'running',
+            externalHandle: {
+              provider: 'movscript',
+              type: 'generation_job',
+              id: 321,
+            },
+            result: {
+              status: 'queued',
+              jobId: 321,
+              terminal: false,
+              message: '生成任务已创建（Job #321）。',
+            },
           },
-          message: '生成任务已创建（Job #321）。',
         },
-        source: 'mcp',
+        source: 'runtime',
       }
     },
     recordTrace: (_run, trace) => traces.push(trace),
@@ -104,11 +125,11 @@ test('applyRuntimeLocalGenerationCommand forces a generation tool call and compl
   assert.equal(run.status, 'completed')
   assert.equal(run.assistantMessageId, assistant.id)
   assert.deepEqual(run.metadata?.writtenMemoryIds, [])
-  assert.equal((run.metadata?.forcedToolCall as any)?.name, 'movscript_create_generation_job')
-  assert.equal(calls[0]?.name, 'movscript_create_generation_job')
-  assert.equal(calls[0]?.args.output_type, 'image')
-  assert.equal(calls[0]?.args.wait, false)
-  assert.equal(calls[1]?.name, 'movscript_get_generation_job')
+  assert.equal((run.metadata?.forcedToolCall as any)?.name, 'agent_io_start')
+  assert.equal(calls[0]?.name, 'agent_io_start')
+  assert.equal((calls[0]?.args.request as any)?.output_type, 'image')
+  assert.equal((calls[0]?.args.request as any)?.wait, false)
+  assert.equal(calls[1]?.name, 'agent_io_wait')
   assert.equal(thread.status, 'completed')
   assert.equal(thread.activeRunId, undefined)
   assert.equal(thread.messages.at(-1)?.id, assistant.id)
@@ -117,11 +138,10 @@ test('applyRuntimeLocalGenerationCommand forces a generation tool call and compl
   assert.equal(run.steps[0]?.durationMs, 250)
   assert.equal(run.steps[1]?.type, 'message')
   assert.equal((run.steps[1]?.result as any)?.localCommand, 'image')
-  assert.deepEqual(traces.map((trace) => trace.kind), ['policy', 'tool_call', 'tool_call', 'tool_call', 'tool_call', 'assistant', 'run'])
+  assert.deepEqual(traces.map((trace) => trace.kind), ['policy', 'tool_call', 'tool_call', 'assistant', 'run'])
   assert.equal((traces[0]?.data as any)?.modelGatewayCalled, false)
-  assert.equal(traces[1]?.title, 'Tool started: movscript_create_generation_job')
-  assert.equal((traces[2]?.data as any)?.generation?.stage, 'created')
-  assert.equal((traces[3]?.data as any)?.generation?.stage, 'completed')
+  assert.equal(traces[1]?.title, 'Tool started: agent_io_start')
+  assert.equal(traces[2]?.toolName, 'agent_io_wait')
   assert.deepEqual(assistantMessages.map((message) => message.id), [assistant.id])
   assert.deepEqual(snapshots, ['completed:true'])
 })
@@ -173,7 +193,7 @@ test('applyRuntimeLocalGenerationCommand records failed tool steps and still fin
   assert.equal(run.steps[0]?.status, 'failed')
   assert.equal(run.steps[0]?.error, 'backend rejected parameters')
   assert.deepEqual(run.steps[0]?.errorData, { code: 'INVALID_PARAMETER_OPTION' })
-  assert.equal((run.metadata?.forcedToolCall as any)?.args.output_type, 'video')
+  assert.equal((run.metadata?.forcedToolCall as any)?.args.request.output_type, 'video')
 })
 
 function makeThread(overrides: Partial<AgentThread> = {}): AgentThread {

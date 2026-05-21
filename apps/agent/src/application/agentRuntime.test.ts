@@ -67,10 +67,10 @@ function installDefaultModelFetch(): void {
     if (
       /按模型能力|model contract/i.test(userMsg)
       && toolMessages.length > 0
-      && toolNames.has('movscript_create_generation_job')
-      && !toolResultForCall(toolMessages, 'movscript.create_generation_job')
+      && toolNames.has('agent_io_start')
+      && !toolResultForCall(toolMessages, 'agent_io_start')
     ) {
-      const modelsResult = toolResultForCall(toolMessages, 'movscript.list_models')
+      const modelsResult = toolResultForCall(toolMessages, 'movscript_list_models') ?? toolResultForCall(toolMessages, 'movscript.list_models')
       const contract = firstModelContract(modelsResult)
       if (contract) {
         const supported = new Set(Array.isArray(contract.supported_param_keys) ? contract.supported_param_keys.filter((item): item is string => typeof item === 'string') : [])
@@ -92,7 +92,7 @@ function installDefaultModelFetch(): void {
               tool_calls: [{
                 id: 'call_generation_from_contract_1',
                 type: 'function',
-                function: { name: 'movscript_create_generation_job', arguments: JSON.stringify(args) },
+                function: { name: 'agent_io_start', arguments: JSON.stringify({ kind: 'generation_job', request: args }) },
               }],
             },
             finish_reason: 'tool_calls',
@@ -147,17 +147,18 @@ function installDefaultModelFetch(): void {
         args: { capability: /视频|video/i.test(userMsg) ? 'video' : 'image' },
       })
     }
-    if (!/按模型能力|model contract/i.test(userMsg) && /生成|出图|视频|image|video/i.test(userMsg) && toolNames.has('movscript_create_generation_job')) {
+    if (!/按模型能力|model contract/i.test(userMsg) && /生成|出图|视频|image|video/i.test(userMsg) && toolNames.has('agent_io_start')) {
+      const request = {
+        prompt: '雨夜便利店，电影感，16:9',
+        output_type: /视频|video/i.test(userMsg) ? 'video' : 'image',
+        aspect_ratio: '16:9',
+        wait: false,
+        ...(projectId !== undefined ? { projectId } : {}),
+      }
       callsToMake.push({
         id: 'call_generation_1',
-        name: 'movscript_create_generation_job',
-        args: {
-          prompt: '雨夜便利店，电影感，16:9',
-          output_type: /视频|video/i.test(userMsg) ? 'video' : 'image',
-          aspect_ratio: '16:9',
-          wait: false,
-          ...(projectId !== undefined ? { projectId } : {}),
-        },
+        name: 'agent_io_start',
+        args: { kind: 'generation_job', request },
       })
     }
     if (/选择|缺少上下文|ask user/i.test(userMsg) && !/用户补充信息/.test(userMsg) && toolNames.has('movscript_request_user_input')) {
@@ -545,15 +546,18 @@ test('runtime draft tools are available without MCP tool discovery except remove
 
   const capabilities = await runtime.getCapabilities({ currentProjectId: 42 })
 
-  assert.equal(capabilities.resolvedTools.byName['movscript_update_draft']?.available, true)
+  assert.equal(capabilities.resolvedTools.byName['movscript_validate_draft']?.available, true)
+  assert.equal(capabilities.resolvedTools.byName['movscript_preview_draft_apply']?.available, true)
+  assert.equal(capabilities.resolvedTools.byName.agent_file_edit?.available, true)
   assert.equal(capabilities.resolvedTools.byName['movscript_list_drafts'], undefined)
   assert.equal(capabilities.resolvedTools.byName['movscript_create_draft']?.available, true)
 })
 
-test('runtime can edit and validate a script split draft without backend writes', async () => {
+test('runtime validates script split draft content edited through the real file', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
-  const draftStore = new InMemoryAgentDraftStore()
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-runtime-drafts-'))
+  const draftStore = new FileAgentDraftStore(join(dir, 'drafts.json'))
   const runtime = createTestRuntime({ mcpClient: client, draftStore })
   const thread = runtime.createThread({ messages: [{ role: 'user', content: '请细化草稿' }] })
   const draft = draftStore.createDraft({
@@ -603,29 +607,36 @@ test('runtime can edit and validate a script split draft without backend writes'
     }),
   })
 
-  const editRun = runtime.createToolRun({
-    threadId: thread.id,
-    title: 'Edit draft',
-    message: 'Edit draft',
-    toolCall: {
-      name: 'movscript_update_draft',
-      args: {
-        draftId: draft.id,
-        action: 'replace_text',
-        oldString: '"summary":"旧摘要"',
-        newString: '"summary":"新摘要"',
-      },
-    },
-  })
-  const completed = await waitForRun(runtime, editRun.id)
-  const updated = runtime.getDraft(draft.id)
-  const parsed = JSON.parse(updated?.content ?? '{}') as { episode_drafts?: Array<{ summary?: string }> }
-  const validation = runtime.validateDraft({ draftId: draft.id }) as { ok?: boolean }
+  try {
+    const edited = JSON.parse(readFileSync(draft.filePath ?? '', 'utf8')) as {
+      episode_drafts?: Array<{ summary?: string }>
+    }
+    if (edited.episode_drafts?.[0]) edited.episode_drafts[0].summary = '新摘要'
+    writeFileSync(draft.filePath ?? '', JSON.stringify(edited, null, 2), 'utf8')
 
-  assert.equal(completed.status, 'completed')
-  assert.equal(parsed.episode_drafts?.[0]?.summary, '新摘要')
-  assert.equal(validation.ok, true)
-  assert.equal(client.calls.some((call) => call.name === 'movscript_update_draft'), false)
+    const editRun = runtime.createToolRun({
+      threadId: thread.id,
+      title: 'Validate draft',
+      message: 'Validate draft',
+      toolCall: {
+        name: 'movscript_validate_draft',
+        args: {
+          draftId: draft.id,
+        },
+      },
+    })
+    const completed = await waitForRun(runtime, editRun.id)
+    const updated = runtime.getDraft(draft.id)
+    const parsed = JSON.parse(updated?.content ?? '{}') as { episode_drafts?: Array<{ summary?: string }> }
+    const validation = runtime.validateDraft({ draftId: draft.id }) as { ok?: boolean }
+
+    assert.equal(completed.status, 'completed')
+    assert.equal(parsed.episode_drafts?.[0]?.summary, '新摘要')
+    assert.equal(validation.ok, true)
+    assert.equal(client.calls.some((call) => call.name === 'movscript_validate_draft'), false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test('explicit write agent can create_project without a current project after approval', async () => {
@@ -1516,9 +1527,8 @@ test('content unit storyboard proposal searches knowledge and creates a proposal
     const run = await createAndWaitForRun(runtime, thread.id)
     const draft = runtime.listDrafts({ projectId: 42, kind: 'content_unit_proposal' })[0]
 
-    assert.equal(run.status, 'requires_action')
-    assert.equal(run.pendingApprovals?.[0]?.toolName, 'movscript_apply_draft')
-    assert.equal(run.pendingApprovals?.[0]?.args?.draftKind, 'content_unit_proposal')
+    assert.equal(run.status, 'completed_with_warnings')
+    assert.equal(run.pendingApprovals?.length ?? 0, 0)
     assert.equal(run.steps.some((step) => step.toolName === 'movscript_search_knowledge' && step.status === 'completed'), true)
     assert.equal(run.steps.some((step) => step.toolName === 'movscript_get_knowledge' && step.status === 'completed'), true)
     assert.equal(run.steps.some((step) => step.toolName === 'movscript_create_draft' && step.status === 'completed'), true)
@@ -2046,8 +2056,6 @@ test('oversized tool results are summarized before the next model turn', async (
 test('generation tool results emit structured generation trace events', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
-  client.extraTools.push({ name: 'movscript_create_generation_job', description: 'Create generation job.', inputSchema: {} })
-  client.extraTools.push({ name: 'movscript_get_generation_job', description: 'Inspect generation job.', inputSchema: {} })
   client.toolResults.set('movscript_create_generation_job', {
     status: 'queued',
     jobId: 123,
@@ -2093,7 +2101,7 @@ test('generation tool results emit structured generation trace events', async ()
       ...DEFAULT_AGENT_MANIFEST,
       tools: [
         ...DEFAULT_AGENT_MANIFEST.tools,
-        { name: 'movscript_create_generation_job', mode: 'allow', approval: 'never' },
+        { name: 'agent_io_start', mode: 'allow', approval: 'never' },
       ],
     },
   })
@@ -2128,7 +2136,6 @@ test('agent uses model_contracts from list_models before generation params', asy
   const client = new FakeMCPClient()
   client.projectId = 42
   client.extraTools.push({ name: 'movscript_list_models', description: 'List generation models.', inputSchema: {} })
-  client.extraTools.push({ name: 'movscript_create_generation_job', description: 'Create generation job.', inputSchema: {} })
   client.toolResults.set('movscript_list_models', {
     count: 1,
     queries: ['capability:video'],
@@ -2173,10 +2180,11 @@ test('agent uses model_contracts from list_models before generation params', asy
       requiresApprovalByDefault: false,
     },
     {
-      name: 'movscript_create_generation_job',
-      description: 'Create generation job.',
-      permission: 'generation.create',
+      name: 'agent_io_start',
+      description: 'Start an asynchronous runtime operation.',
+      permission: 'agent.io.write',
       risk: 'generate',
+      source: 'runtime',
       projectScoped: true,
       requiresApprovalByDefault: false,
     },
@@ -2189,7 +2197,7 @@ test('agent uses model_contracts from list_models before generation params', asy
       tools: [
         ...DEFAULT_AGENT_MANIFEST.tools,
         { name: 'movscript_list_models', mode: 'allow', approval: 'never' },
-        { name: 'movscript_create_generation_job', mode: 'allow', approval: 'never' },
+        { name: 'agent_io_start', mode: 'allow', approval: 'never' },
       ],
     },
   })
@@ -2211,8 +2219,6 @@ test('agent uses model_contracts from list_models before generation params', asy
 test('/image command forces a generation tool call and returns the generated job summary', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
-  client.extraTools.push({ name: 'movscript_create_generation_job', description: 'Create generation job.', inputSchema: {} })
-  client.extraTools.push({ name: 'movscript_get_generation_job', description: 'Inspect generation job.', inputSchema: {} })
   client.toolResults.set('movscript_create_generation_job', {
     status: 'succeeded',
     jobId: 321,
@@ -2228,7 +2234,7 @@ test('/image command forces a generation tool call and returns the generated job
       ...DEFAULT_AGENT_MANIFEST,
       tools: [
         ...DEFAULT_AGENT_MANIFEST.tools,
-        { name: 'movscript_create_generation_job', mode: 'allow', approval: 'never' },
+        { name: 'agent_io_start', mode: 'allow', approval: 'never' },
       ],
     },
   })
@@ -2248,8 +2254,6 @@ test('generation monitor emits failed and cancelled terminal events', async () =
   for (const terminalStatus of ['failed', 'cancelled'] as const) {
     const client = new FakeMCPClient()
     client.projectId = 42
-    client.extraTools.push({ name: 'movscript_create_generation_job', description: 'Create generation job.', inputSchema: {} })
-    client.extraTools.push({ name: 'movscript_get_generation_job', description: 'Inspect generation job.', inputSchema: {} })
     client.toolResults.set('movscript_create_generation_job', {
       status: 'queued',
       jobId: terminalStatus === 'failed' ? 501 : 502,
@@ -2275,7 +2279,7 @@ test('generation monitor emits failed and cancelled terminal events', async () =
         ...DEFAULT_AGENT_MANIFEST,
         tools: [
           ...DEFAULT_AGENT_MANIFEST.tools,
-          { name: 'movscript_create_generation_job', mode: 'allow', approval: 'never' },
+          { name: 'agent_io_start', mode: 'allow', approval: 'never' },
         ],
       },
     })
@@ -2293,8 +2297,6 @@ test('generation monitor emits failed and cancelled terminal events', async () =
 test('generation monitor emits heartbeat trace updates while the job keeps running', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
-  client.extraTools.push({ name: 'movscript_create_generation_job', description: 'Create generation job.', inputSchema: {} })
-  client.extraTools.push({ name: 'movscript_get_generation_job', description: 'Inspect generation job.', inputSchema: {} })
   client.toolResults.set('movscript_create_generation_job', {
     status: 'queued',
     jobId: 778,
@@ -2322,7 +2324,7 @@ test('generation monitor emits heartbeat trace updates while the job keeps runni
       ...DEFAULT_AGENT_MANIFEST,
       tools: [
         ...DEFAULT_AGENT_MANIFEST.tools,
-        { name: 'movscript_create_generation_job', mode: 'allow', approval: 'never' },
+        { name: 'agent_io_start', mode: 'allow', approval: 'never' },
       ],
     },
   })
@@ -2340,8 +2342,6 @@ test('generation monitor emits heartbeat trace updates while the job keeps runni
 test('generation monitor emits timeout when async job does not finish in time', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
-  client.extraTools.push({ name: 'movscript_create_generation_job', description: 'Create generation job.', inputSchema: {} })
-  client.extraTools.push({ name: 'movscript_get_generation_job', description: 'Inspect generation job.', inputSchema: {} })
   client.toolResults.set('movscript_create_generation_job', {
     status: 'queued',
     jobId: 777,
@@ -2368,7 +2368,7 @@ test('generation monitor emits timeout when async job does not finish in time', 
       ...DEFAULT_AGENT_MANIFEST,
       tools: [
         ...DEFAULT_AGENT_MANIFEST.tools,
-        { name: 'movscript_create_generation_job', mode: 'allow', approval: 'never' },
+        { name: 'agent_io_start', mode: 'allow', approval: 'never' },
       ],
     },
   })
@@ -2876,10 +2876,10 @@ test('runtime persists restrictive tool policy overrides for the default profile
   const catalogStateStore = new InMemoryAgentCatalogStateStore()
   try {
     writeJSONFile(toolsDir, 'draft.tool.json', {
-      name: 'movscript_update_draft',
-      description: 'Update draft.',
-      permission: 'draft.write',
-      risk: 'write',
+      name: 'movscript_validate_draft',
+      description: 'Validate draft.',
+      permission: 'draft.read',
+      risk: 'read',
       source: 'plugin',
       inputSchema: {},
       projectScoped: false,
@@ -2901,7 +2901,7 @@ test('runtime persists restrictive tool policy overrides for the default profile
       source: 'plugin',
       resources: { tools: ['draft.tool.json', 'memory.tool.json'] },
       schemas: [],
-      tools: ['movscript_update_draft', 'movscript_delete_memory'],
+      tools: ['movscript_validate_draft', 'movscript_delete_memory'],
       skills: [],
     })
     writeJSONFile(profilesDir, 'default.profile.json', {
@@ -2914,7 +2914,7 @@ test('runtime persists restrictive tool policy overrides for the default profile
       enabledWorkflows: [],
       enabledPolicies: [],
       toolGrants: [
-        { name: 'movscript_update_draft', mode: 'allow', approval: 'never' },
+        { name: 'movscript_validate_draft', mode: 'allow', approval: 'never' },
         { name: 'movscript_delete_memory', mode: 'allow', approval: 'on_write' },
       ],
     })
@@ -2935,18 +2935,18 @@ test('runtime persists restrictive tool policy overrides for the default profile
 
     const saved = runtime.setDefaultToolPolicy({
       toolGrants: [
-        { name: 'movscript_update_draft', mode: 'deny' },
+        { name: 'movscript_validate_draft', mode: 'deny' },
         { name: 'movscript_delete_memory', mode: 'allow', approval: 'always' },
       ],
     })
 
     assert.deepEqual(saved.metadata?.defaultToolGrants, [
-      { name: 'movscript_update_draft', mode: 'deny', approval: 'never' },
+      { name: 'movscript_validate_draft', mode: 'deny', approval: 'never' },
       { name: 'movscript_delete_memory', mode: 'allow', approval: 'always' },
     ])
     assert.deepEqual(catalogStateStore.load().metadata?.defaultToolGrants, saved.metadata?.defaultToolGrants)
     assert.deepEqual(saved.tools, [
-      { name: 'movscript_update_draft', mode: 'deny', approval: 'never' },
+      { name: 'movscript_validate_draft', mode: 'deny', approval: 'never' },
       { name: 'movscript_delete_memory', mode: 'allow', approval: 'always' },
     ])
 

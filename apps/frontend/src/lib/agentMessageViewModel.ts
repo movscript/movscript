@@ -5,7 +5,7 @@ import { generationParamAuditsFromRun, generationValidationErrorsFromRun } from 
 import { replayGenerationTrace, type GenerationTraceEventLike, type GenerationTraceReplay } from '@/lib/agentGenerationMedia'
 import { compactRunActivity, mergeRunActivityEvents } from '@/lib/agentRunActivity'
 import { isRecord } from '@/lib/jsonValue'
-import { localAgentClient, type AgentRun, type AgentTraceEvent } from '@/lib/localAgentClient'
+import { localAgentClient, type AgentRun, type AgentRunGenerationView, type AgentTraceEvent } from '@/lib/localAgentClient'
 import type { AgentAttachment, ChatContextDiagnostic, ChatMessageMeta, ChatRunActivityEvent } from '@/store/agentStore'
 import type { RawResource } from '@/types'
 
@@ -15,7 +15,7 @@ export interface AgentMessageViewModelPayload {
 }
 
 export interface AgentMessageViewModelDeps {
-  fetchRunTraceEvents?: (runId: string) => Promise<GenerationTraceEventLike[]>
+  fetchRunGenerationView?: (runId: string) => Promise<GenerationTraceReplay>
   fetchResourceById?: (id: number) => Promise<RawResource | undefined>
 }
 
@@ -86,13 +86,8 @@ export async function hydrateHistoricalGeneratedAttachments(
   ]
 }
 
-export async function fetchRunTraceEventsForGeneratedAttachments(runId: string): Promise<GenerationTraceEventLike[]> {
-  try {
-    const response = await localAgentClient.getRunTraceEvents(runId, { limit: 200, kind: 'tool_call' })
-    return response.events
-  } catch {
-    return []
-  }
+export async function fetchRunGenerationViewForGeneratedAttachments(runId: string): Promise<GenerationTraceReplay> {
+  return generationReplayFromView(await localAgentClient.getRunGenerationView(runId))
 }
 
 export async function fetchAllRunTraceEvents(runId: string): Promise<AgentTraceEvent[]> {
@@ -159,13 +154,38 @@ async function generationReplayFromRun(
   liveEvents: GenerationTraceEventLike[] = [],
   deps: AgentMessageViewModelDeps = {},
 ): Promise<GenerationTraceReplay> {
+  if (deps.fetchRunGenerationView) return deps.fetchRunGenerationView(run.id)
+  if (liveEvents.length === 0 && (run.traceEvents ?? []).length === 0) {
+    try {
+      return await fetchRunGenerationViewForGeneratedAttachments(run.id)
+    } catch {
+      // Fall back to local run data when the view endpoint is unavailable.
+    }
+  }
   const traceEvents = [
     ...(run.steps ?? []).map((step) => ({ data: step.result, createdAt: step.createdAt, completedAt: step.completedAt })),
     ...(run.traceEvents ?? []),
     ...liveEvents,
-    ...await (deps.fetchRunTraceEvents ?? fetchRunTraceEventsForGeneratedAttachments)(run.id),
   ]
   return replayGenerationTrace(traceEvents)
+}
+
+function generationReplayFromView(view: AgentRunGenerationView): GenerationTraceReplay {
+  return {
+    jobs: view.jobs,
+    latestJob: view.latestJob,
+    outputResourceIds: view.outputResourceIds,
+    outputResources: view.outputResources as RawResource[],
+    metadataByResourceId: new Map(
+      Object.entries(view.metadataByResourceId).map(([id, metadata]) => [Number(id), metadata]),
+    ),
+    active: view.active,
+    terminal: view.terminal,
+    succeeded: view.succeeded,
+    failed: view.failed,
+    cancelled: view.cancelled,
+    timeout: view.timeout,
+  }
 }
 
 async function generatedAttachmentsFromReplay(

@@ -1238,7 +1238,7 @@ func TestModelInputsForDefReflectsOptionalCustomImageInputs(t *testing.T) {
 	}
 }
 
-func TestModelInputsForDefKeepsRequiredImageInputForMixedImageEditModels(t *testing.T) {
+func TestModelInputsForDefAllowsOptionalImageInputForMixedImageEditModels(t *testing.T) {
 	def := ResolveModelDef(
 		"custom-image-and-edit", AdapterGemini,
 		"Custom Image And Edit", strings.Join([]string{CapabilityImage, CapabilityImageEdit}, ","), string(PricingPerImage),
@@ -1249,8 +1249,8 @@ func TestModelInputsForDefKeepsRequiredImageInputForMixedImageEditModels(t *test
 	if !def.AcceptsImageInput {
 		t.Fatalf("expected mixed image/edit model to accept image input")
 	}
-	if inputs.Image.Min != 1 || inputs.Image.Max != -1 {
-		t.Fatalf("expected mixed image/edit model image input min=1 max=-1, got %#v", inputs.Image)
+	if inputs.Image.Min != 0 || inputs.Image.Max != -1 {
+		t.Fatalf("expected mixed image/edit model image input min=0 max=-1, got %#v", inputs.Image)
 	}
 	if inputs.Video.Min != 0 || inputs.Video.Max != 0 {
 		t.Fatalf("expected no video input requirement, got %#v", inputs.Video)

@@ -1,6 +1,6 @@
 {
   "name": "movscript_attach_asset_slot_candidate",
-  "description": "把已有 raw resource 加入某个 asset slot 的候选集。通常在 movscript_create_generation_job 成功返回 output_resource_id 后调用。该工具只创建/复用 candidate asset slot 和 asset_slot_candidate 关系，不会 accept、select、bind 或 lock 候选。",
+  "description": "把一个已有 raw resource 加入某个 asset slot 的候选集。通常在 generation_job runtime operation 成功返回 output_resource_id 后调用。Agent 自动流程应在每个资源可用后单独调用一次。该工具只创建/复用 candidate asset slot 和 asset_slot_candidate 关系，不会 accept、select、bind 或 lock 候选。",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -21,7 +21,7 @@
       "resource_id": {
         "type": "number",
         "minimum": 1,
-        "description": "已有 raw resource ID，通常来自 movscript_create_generation_job.output_resource_id。"
+        "description": "已有 raw resource ID，通常来自 generation_job runtime operation 的 output_resource_id。"
       },
       "resourceId": {
         "type": "number",
@@ -31,7 +31,7 @@
       "output_resource_id": {
         "type": "number",
         "minimum": 1,
-        "description": "resource_id 的别名，可直接传 movscript_create_generation_job.output_resource_id。"
+        "description": "resource_id 的别名，可直接传 generation_job runtime operation 的 output_resource_id。"
       },
       "outputResourceId": {
         "type": "number",
@@ -60,7 +60,7 @@
           "type": "number",
           "minimum": 1
         },
-        "description": "resource_ids 的别名，可直接传 movscript_create_generation_job.output_resource_ids。"
+        "description": "resource_ids 的别名，可直接传 generation_job runtime operation 的 output_resource_ids。"
       },
       "outputResourceIds": {
         "type": "array",

@@ -83,6 +83,69 @@ test('invokeRuntimeAgentGraph records setup trace and passes normalized graph in
   assert.equal(captured?.config.modelConfigId, 1)
 })
 
+test('invokeRuntimeAgentGraph injects approved pending approvals as forced tool calls', async () => {
+  const run = makeRun({
+    metadata: { approvedToolNames: ['tool_a'] },
+    pendingApprovals: [{
+      id: 'approval_1',
+      runId: 'run_1',
+      toolName: 'tool_a',
+      args: { ok: true },
+      reason: 'Needs write approval.',
+      status: 'approved',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:01.000Z',
+      approvedAt: '2026-01-01T00:00:01.000Z',
+    }],
+  })
+  let captured: AgentGraphInput | undefined
+
+  await invokeRuntimeAgentGraph({
+    ...baseInvocationInput(run),
+    invokeGraph: async (input) => {
+      captured = input
+      return {
+        status: 'completed',
+        finalContent: 'done',
+        assistantContents: ['done'],
+        toolOutcomes: [{ call: input.forcedToolCalls![0], result: { ok: true } }],
+        warnings: [],
+      }
+    },
+  })
+
+  assert.deepEqual(captured?.forcedToolCalls, [{ id: 'call_approval_1', name: 'tool_a', args: { ok: true } }])
+  assert.deepEqual(run.metadata?.forcedApprovalIds, ['approval_1'])
+})
+
+test('invokeRuntimeAgentGraph does not reinject approval tool calls already forced', async () => {
+  const run = makeRun({
+    metadata: { approvedToolNames: ['tool_a'], forcedApprovalIds: ['approval_1'] },
+    pendingApprovals: [{
+      id: 'approval_1',
+      runId: 'run_1',
+      toolName: 'tool_a',
+      args: { ok: true },
+      reason: 'Needs write approval.',
+      status: 'approved',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:01.000Z',
+      approvedAt: '2026-01-01T00:00:01.000Z',
+    }],
+  })
+  let captured: AgentGraphInput | undefined
+
+  await invokeRuntimeAgentGraph({
+    ...baseInvocationInput(run),
+    invokeGraph: async (input) => {
+      captured = input
+      return { status: 'completed', finalContent: 'done', assistantContents: ['done'], toolOutcomes: [], warnings: [] }
+    },
+  })
+
+  assert.equal(captured?.forcedToolCalls, undefined)
+})
+
 test('invokeRuntimeAgentGraph exposes catalog refresh callback with latest snapshot resolution', async () => {
   const run = makeRun({ metadata: { manifestSource: 'default' } })
   const refreshedRegistry = new StaticToolRegistry([tool('tool_refreshed')])
@@ -280,7 +343,11 @@ function emptyCatalogManager(): AgentCatalogToolManager {
     spawnSubagent: () => ({}),
     listSubagents: () => ({}),
     waitSubagent: () => ({}),
-    waitGenerationJobs: () => ({}),
+startIO: () => ({}),
+getIO: () => ({}),
+listIO: () => ({}),
+waitIO: () => ({}),
+cancelIO: () => ({}),
     cancelSubagent: () => ({}),
   }
 }

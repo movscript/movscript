@@ -1,6 +1,6 @@
 {
   "name": "movscript_create_draft",
-  "description": "创建本地 draft。kind 字段选择 draft schema。设置 proposal:true 会创建带 schema 校验和推断 target/source metadata 的 proposal draft；不设置 proposal:true 则创建普通 draft。创建 proposal draft 时，content 必须是 canonical JSON 字符串，且 JSON 顶层必须包含对应 schema，例如 setting_proposal 使用 {\"schema\":\"movscript.setting_proposal.v1\",...}。",
+  "description": "创建本地 draft，并写出真实 draft JSON 文件。返回的 draft.filePath 是后续正文编辑的权威路径；创建后正文修改应使用 agent 文件编辑工具直接改该文件，再调用 movscript_validate_draft 或 movscript_preview_draft_apply。",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -33,7 +33,7 @@
       },
       "content": {
         "type": "string",
-        "description": "Draft 正文。创建 proposal draft 时必须传 JSON.stringify 后的 canonical JSON 字符串；顶层必须包含 schema 字段（project_standards_proposal=movscript.project_standards_proposal.v1，setting_proposal=movscript.setting_proposal.v1，asset_proposal=movscript.asset_proposal.v1，production_proposal=movscript.production_proposal.v1，content_unit_proposal=movscript.content_unit_proposal.v1，script_split_proposal=movscript.script_split_proposal.v1），并按对应 schema 填写 scope/mode/proposal 等字段。"
+        "description": "Draft 初始正文。创建 proposal draft 时必须传 JSON.stringify 后的 canonical JSON 字符串；顶层必须包含 schema 字段。创建成功后不要再通过工具参数替换正文，改用 draft.filePath 的真实文件编辑。"
       },
       "projectId": {
         "type": "number"

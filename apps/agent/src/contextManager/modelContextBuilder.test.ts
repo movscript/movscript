@@ -265,7 +265,7 @@ test('buildContext summarizes declared tool output fields for model-readable res
           },
         },
         {
-          name: 'movscript_create_generation_job',
+          name: 'agent_io_start',
           source: 'runtime',
           registered: true,
           granted: true,
@@ -276,28 +276,32 @@ test('buildContext summarizes declared tool output fields for model-readable res
             type: 'object',
             properties: {
               status: { type: 'string' },
-              job: { type: 'object' },
-              jobId: { type: 'number' },
-              monitor: {
+              operation: {
                 type: 'object',
                 properties: {
-                  tool: { type: 'string' },
-                  args: { type: 'object' },
-                  message: { type: 'string' },
+                  id: { type: 'string' },
+                  kind: { type: 'string' },
+                  status: { type: 'string' },
+                  externalHandle: { type: 'object' },
+                  result: {
+                    type: 'object',
+                    properties: {
+                      jobId: { type: 'number' },
+                      output_resource_id: { type: 'number' },
+                      param_validation: {
+                        type: 'object',
+                        properties: {
+                          audit_version: { type: 'number' },
+                          preflight_errors: { type: 'array' },
+                          input_preflight_errors: { type: 'array' },
+                        },
+                      },
+                      terminal: { type: 'boolean' },
+                      message: { type: 'string' },
+                    },
+                  },
                 },
               },
-              output_resource: { type: 'object' },
-              output_resource_id: { type: 'number' },
-              param_validation: {
-                type: 'object',
-                properties: {
-                  audit_version: { type: 'number' },
-                  preflight_errors: { type: 'array' },
-                  input_preflight_errors: { type: 'array' },
-                },
-              },
-              terminal: { type: 'boolean' },
-              message: { type: 'string' },
             },
           },
         },
@@ -319,10 +323,9 @@ test('buildContext summarizes declared tool output fields for model-readable res
   assert.match(built.systemPrompt, /Declared tool output fields/)
   assert.match(built.systemPrompt, /movscript_list_models/)
   assert.match(built.systemPrompt, /model_contracts\[\]\.model_id\|logical_model_id\|capabilities\|input_requirements\|supported_param_keys\|supported_params/)
-  assert.match(built.systemPrompt, /movscript_create_generation_job/)
-  assert.match(built.systemPrompt, /monitor\.\{tool\|args\|message\}/)
-  assert.match(built.systemPrompt, /param_validation\.\{audit_version\|preflight_errors\|input_preflight_errors\}/)
-  assert.match(built.systemPrompt, /output_resource_id/)
+  assert.match(built.systemPrompt, /agent_io_start/)
+  assert.match(built.systemPrompt, /operation\.\{id\|kind\|status\|externalHandle\|result/)
+  assert.doesNotMatch(built.systemPrompt, /movscript_create_generation_job/)
 })
 
 test('buildContext uses runtime contract for tool schemas without forcing JSON assistant content', () => {
@@ -419,6 +422,8 @@ test('buildRuntimeChatTools exposes spawn_subagent dispatch controls', () => {
   const taskProperties = parameters?.properties?.tasks?.items?.properties
   assert.equal(taskProperties?.maxTaskAttempts?.type, 'number')
   assert.equal(taskProperties?.workerTimeoutMs?.type, 'number')
+  assert.equal(taskProperties?.metadata?.type, 'object')
+  assert.match(taskProperties?.metadata?.description ?? '', /writeScope/)
 })
 
 test('buildRuntimeChatTools preserves runtime schema composition for provider adapters', () => {

@@ -33,6 +33,10 @@ test('buildAgentPlan normalizes title status metadata and timestamps', () => {
     goal: 'Goal',
     plannerSource: 'generated',
     plannerWarnings: ['warning'],
+    plannerAssessment: {
+      difficulty: 'large',
+      parallelStrategy: 'worker_split',
+    },
   })
 
   assert.equal(plan.id, 'plan_1')
@@ -44,6 +48,10 @@ test('buildAgentPlan normalizes title status metadata and timestamps', () => {
     goal: 'Goal',
     plannerSource: 'generated',
     plannerWarnings: ['warning'],
+    plannerAssessment: {
+      difficulty: 'large',
+      parallelStrategy: 'worker_split',
+    },
   })
   assert.equal(plan.createdAt, '2026-01-01T00:00:00.000Z')
 })
@@ -68,6 +76,9 @@ test('buildAgentPlan stores independent metadata and planner warning snapshots',
     list: [{ id: 'item_1' }],
   }
   const plannerWarnings = ['warning']
+  const plannerAssessment = {
+    conflictRisks: ['src/a.ts'],
+  }
   const plan = buildAgentPlan({
     id: 'plan_1',
     thread: makeThread(),
@@ -78,16 +89,21 @@ test('buildAgentPlan stores independent metadata and planner warning snapshots',
     taskCount: 1,
     now: '2026-01-01T00:00:00.000Z',
     plannerWarnings,
+    plannerAssessment,
   })
 
   metadata.nested.value = 'changed'
   metadata.list[0]!.id = 'changed'
   plannerWarnings[0] = 'changed'
+  plannerAssessment.conflictRisks[0] = 'changed'
 
   assert.deepEqual(plan.metadata, {
     nested: { value: 'original' },
     list: [{ id: 'item_1' }],
     plannerWarnings: ['warning'],
+    plannerAssessment: {
+      conflictRisks: ['src/a.ts'],
+    },
   })
 })
 

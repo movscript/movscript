@@ -74,7 +74,9 @@ export async function completeSendRunResult(input: {
     ? upsertActivityEvent(deps.liveEvents(), resolutionEvent)
     : deps.liveEvents()
   deps.setLiveEventsRef(liveEvents)
-  await deps.appendAssistantRunResult(run, thread, liveEvents)
+  if (run.status !== 'requires_action') {
+    await deps.appendAssistantRunResult(run, thread, liveEvents)
+  }
   if (!draft.localRuntime?.diagnosticCommand) {
     const existingMessages = deps.getExistingMessages()
     const projection = await loadRuntimeThreadProjection({
@@ -84,7 +86,6 @@ export async function completeSendRunResult(input: {
       existingMessages,
       liveEventsByRunId: { [run.id]: liveEvents },
     }, {
-      fetchRunTraceEvents: async () => [],
       fetchResourceById: deps.fetchResourceById,
     })
     deps.messageStore.setConversationMessages(deps.userId, deps.conversationId, mergeRuntimeThreadProjectionMessages(existingMessages, projection))

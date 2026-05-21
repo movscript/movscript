@@ -1,8 +1,3 @@
-import {
-  buildGenerationEvent,
-  extractGenerationMonitorRequest,
-  type GenerationEvent,
-} from '../generation/generationEvents.js'
 import { applyRuntimeThreadContextSummary } from '../context/runtimeThreadContextSummary.js'
 import { parseGenerationDebugCommand } from '../context/localDiagnosticCommands.js'
 import { projectRunOntoThread } from '../state/runProjection.js'
@@ -53,7 +48,7 @@ export async function applyRuntimeLocalGenerationCommand(input: {
   memoryStorePath?: string
   now: () => string
   timestampMs: () => number
-  executeGenerationTool: (call: { name: 'movscript_create_generation_job' | 'movscript_get_generation_job' | 'movscript_wait_generation_jobs'; args: Record<string, JSONValue> }) => Promise<ToolExecutionResult>
+  executeGenerationTool: (call: RuntimeLocalGenerationIOCall) => Promise<ToolExecutionResult>
   recordTrace: (run: AgentRun, trace: RuntimeLocalGenerationTraceInput) => void
   createStep: (run: AgentRun, type: AgentRunStep['type'], round?: AgentRunRoundInfo, toolName?: string) => AgentRunStep
   emitAssistantMessage: (run: AgentRun, message: AgentMessage) => void
@@ -93,38 +88,34 @@ export async function applyRuntimeLocalGenerationCommand(input: {
       ? { extra_params: generationCommand.extraParams }
       : {}),
   }
-  const forcedCall = { name: 'movscript_create_generation_job' as const, args: toolArgs }
+  const forcedCall = { name: 'agent_io_start' as const, args: { kind: 'generation_job', request: toolArgs } }
   input.run.metadata = {
     ...(input.run.metadata ?? {}),
     forcedToolCall: forcedCall as unknown as JSONValue,
   }
   input.store.updateRun(input.run)
 
-  const toolStep = input.createStep(input.run, 'tool_call', localRound, 'movscript_create_generation_job')
+  const toolStep = input.createStep(input.run, 'tool_call', localRound, 'agent_io_start')
   const startedAt = input.timestampMs()
   input.recordTrace(input.run, {
     kind: 'tool_call',
-    title: 'Tool started: movscript_create_generation_job',
+    title: 'Tool started: agent_io_start',
     summary: `${input.command.name === 'image' ? '图片' : '视频'}生成任务正在提交。`,
     status: 'started',
     round: localRound,
     stepId: toolStep.id,
-    toolName: 'movscript_create_generation_job',
+    toolName: 'agent_io_start',
     data: { call: forcedCall },
   })
   const createResult = await input.executeGenerationTool(forcedCall)
   let execResult = createResult
-  let finalToolCall: { name: 'movscript_create_generation_job' | 'movscript_get_generation_job' | 'movscript_wait_generation_jobs'; args: Record<string, JSONValue> } = forcedCall
-  const generationEvent = buildGenerationEvent(forcedCall, createResult.result)
-  if (!createResult.error && generationEvent) {
-    recordLocalGenerationTrace(input, localRound, toolStep.id, generationEvent)
-    const monitorRequest = extractGenerationMonitorRequest(forcedCall, createResult.result, generationEvent)
-    if (monitorRequest) {
-      finalToolCall = { name: monitorRequest.toolName, args: monitorRequest.args }
-      execResult = await input.executeGenerationTool(finalToolCall)
-      const monitorEvent = buildGenerationEvent(finalToolCall, execResult.result)
-      if (!execResult.error && monitorEvent) recordLocalGenerationTrace(input, localRound, toolStep.id, monitorEvent)
-    }
+  let finalToolCall: RuntimeLocalGenerationIOCall = forcedCall
+  const operationId = operationIdFromStartResult(createResult.result)
+  if (!createResult.error && operationId) {
+    const waitArgs: Record<string, JSONValue> = { operationIds: [operationId], mode: 'any' }
+    if (generationCommand.timeoutMs !== undefined) waitArgs.timeoutMs = generationCommand.timeoutMs
+    finalToolCall = { name: 'agent_io_wait', args: waitArgs }
+    execResult = await input.executeGenerationTool(finalToolCall)
   }
   const durationMs = input.timestampMs() - startedAt
   completeRunStep(toolStep, {
@@ -138,12 +129,12 @@ export async function applyRuntimeLocalGenerationCommand(input: {
   input.store.updateRun(input.run)
   input.recordTrace(input.run, {
     kind: 'tool_call',
-    title: execResult.error ? 'Tool call failed: movscript_create_generation_job' : 'Tool completed: movscript_create_generation_job',
+    title: execResult.error ? 'Tool call failed: agent_io_start' : 'Tool completed: agent_io_start',
     summary: `${execResult.error ?? 'generation job finished'} (${durationMs}ms)`,
     status: execResult.error ? 'failed' : 'completed',
     round: localRound,
     stepId: toolStep.id,
-    toolName: 'movscript_create_generation_job',
+    toolName: finalToolCall.name,
     data: { source: execResult.source, result: execResult.result, error: execResult.error, errorData: execResult.errorData, sandboxed: execResult.sandboxed, durationMs },
     durationMs,
   })
@@ -210,20 +201,14 @@ export async function applyRuntimeLocalGenerationCommand(input: {
   return assistant
 }
 
-function recordLocalGenerationTrace(
-  input: Pick<Parameters<typeof applyRuntimeLocalGenerationCommand>[0], 'recordTrace' | 'run'>,
-  localRound: AgentRunRoundInfo,
-  stepId: string,
-  event: GenerationEvent,
-): void {
-  input.recordTrace(input.run, {
-    kind: 'tool_call',
-    title: `Generation ${event.stage}: ${event.jobId !== undefined ? `Job #${event.jobId}` : event.toolName}`,
-    summary: event.message,
-    status: event.stage === 'failed' ? 'failed' : event.terminal ? 'completed' : 'info',
-    round: localRound,
-    stepId,
-    toolName: 'movscript_create_generation_job',
-    data: { generation: event },
-  })
+type RuntimeLocalGenerationIOCall = {
+  name: 'agent_io_start' | 'agent_io_wait' | 'agent_io_get'
+  args: Record<string, JSONValue>
+}
+
+function operationIdFromStartResult(result: JSONValue | undefined): string | undefined {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return undefined
+  const operation = result.operation
+  if (!operation || typeof operation !== 'object' || Array.isArray(operation)) return undefined
+  return typeof operation.id === 'string' && operation.id.trim() ? operation.id : undefined
 }

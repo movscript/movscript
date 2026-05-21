@@ -28,7 +28,7 @@ Draft schema：{{schema:movscript.setting_proposal.v1.id}}
 - Focus：{{tool:movscript_get_focus}}
 - 项目剧本：{{tool:movscript_read_project_scripts}}（请使用 `includeContent: true`）
 - Draft 模型：{{tool:movscript_get_draft_model}}
-- Draft：{{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
+- Draft：{{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:agent_file_read}} {{tool:agent_file_search}} {{tool:agent_file_edit}} {{tool:movscript_validate_draft}} {{tool:movscript_preview_draft_apply}}。正文编辑使用文件工具修改 `draft.filePath` 指向的真实 JSON 文件。
 - 缺少目标时询问：{{tool:movscript_request_user_input}}
 
 流程：
@@ -36,7 +36,7 @@ Draft schema：{{schema:movscript.setting_proposal.v1.id}}
 2. 先读取项目剧本正文（`movscript_read_project_scripts` + `includeContent: true`），作为角色延续、道具规则、场景边界和 world-building 约束的事实来源。
 3. 获取 setting_proposal 的 draft model contract；若暂不可用，使用 schema fallback 并在输出中说明。
 4. 如果当前会话已有 setting_proposal draftId，先读取它；否则创建本地 proposal draft，source/target 记录 project 锚点，并把 draft model 返回的 seed/modelRef 作为 `movscript_create_draft.seed` 传入。
-5. 修改前必须读取 draft。若 draft 已有 `metadata.seed.data` 或 `content.snapshot_base`，优先把其中的 project / creative_references 当作基准，并维护 `proposal.creative_references` 作为完整目标 snapshot。
+5. 修改前必须读取 draft 并记录 `draft.filePath`，然后通过真实文件做局部编辑。若 draft 已有 `metadata.seed.data` 或 `content.snapshot_base`，优先把其中的 project / creative_references 当作基准，并维护 `proposal.creative_references` 作为完整目标 snapshot。
 6. 只有 draft 缺少 seed/snapshot、seed 明确过期、或 validate/preview 指出基准冲突时，才重新获取 draft model contract 来刷新基准；不要调用 creative reference 查询工具替代当前 draft 基准。
 7. 只编辑 setting/creative reference 相关 snapshot 字段。不要写 `fields` wrapper、action 或 operations。更新已有设定必须保留 id；新设定使用 client_id，apply 成功后以后端 canonical snapshot 为准。
 8. 对每个设定写清用途、可复用范围、关键视觉/叙事特征、限制条件、关系和合并/退休意图。

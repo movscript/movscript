@@ -1017,7 +1017,11 @@
         "movscript_search_memories": "搜索记忆",
         "movscript_spawn_subagent": "启动子代理",
         "movscript_update_active_skills": "更新启用技能",
-        "movscript_update_draft": "更新草稿",
+        "movscript_validate_draft": "校验草稿",
+        "movscript_preview_draft_apply": "预览应用草稿",
+        "read_file": "读取文件",
+        "search_file": "搜索文件",
+        "edit_file": "编辑文件",
         "movscript_wait_subagent": "等待子代理"
       },
       "risks": {
@@ -2144,6 +2148,7 @@
       "copyId": "复制 ID",
       "sourceThread": "来源 thread",
       "sourceRun": "来源 run",
+      "filePath": "文件路径",
       "createdAt": "创建时间",
       "updatedAt": "更新时间",
       "content": "草稿内容",

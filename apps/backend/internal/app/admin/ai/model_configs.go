@@ -295,21 +295,43 @@ func agentInputRequirementsForCapabilities(capabilities []string, acceptsImage b
 	if maxInputVideos != 0 {
 		out.Video.Max = maxInputVideos
 	}
+	imageRequired := len(capabilities) > 0
+	videoRequired := len(capabilities) > 0
 	for _, capability := range capabilities {
-		switch capability {
-		case ai.CapabilityImageEdit, ai.CapabilityVideoI2V:
-			out.Image.Min = 1
-			if out.Image.Max == 0 {
-				out.Image.Max = 1
-			}
-		case ai.CapabilityVideoV2V:
-			out.Video.Min = 1
-			if out.Video.Max == 0 {
-				out.Video.Max = 1
-			}
+		if agentRequiredImageInputMin(capability) == 0 {
+			imageRequired = false
+		}
+		if agentRequiredVideoInputMin(capability) == 0 {
+			videoRequired = false
+		}
+	}
+	if imageRequired {
+		out.Image.Min = 1
+		if out.Image.Max == 0 {
+			out.Image.Max = 1
+		}
+	}
+	if videoRequired {
+		out.Video.Min = 1
+		if out.Video.Max == 0 {
+			out.Video.Max = 1
 		}
 	}
 	return out
+}
+
+func agentRequiredImageInputMin(capability string) int {
+	if capability == ai.CapabilityImageEdit || capability == ai.CapabilityVideoI2V {
+		return 1
+	}
+	return 0
+}
+
+func agentRequiredVideoInputMin(capability string) int {
+	if capability == ai.CapabilityVideoV2V {
+		return 1
+	}
+	return 0
 }
 
 func schemaParamProperties(schema map[string]any) map[string]any {

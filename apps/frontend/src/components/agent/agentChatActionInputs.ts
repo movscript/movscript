@@ -34,6 +34,7 @@ export function buildAgentChatActionBindingsInput({
       conversationId: conv.id,
       userId,
       actionableRun: presentation.actionableLocalRun,
+      workflowRuns: presentation.workflowRuns,
       approving: presentation.approvingLocalRun,
       setSubmittedInteractionRuns: runtime.setSubmittedInteractionRuns,
       setConversationRuntime: store.setConversationRuntime,

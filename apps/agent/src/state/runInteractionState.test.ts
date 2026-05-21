@@ -72,6 +72,21 @@ test('approveRunInteraction approves all pending approvals when no selector is p
   assert.deepEqual(result.pendingApprovals.map((item) => item.status), ['approved', 'approved'])
 })
 
+test('approveRunInteraction preserves settled approvals when approving all pending approvals', () => {
+  const result = approveRunInteraction(buildRun({
+    pendingApprovals: [
+      { ...approval('approval_done', 'tool_done', 'approved'), approvedAt: '2026-05-16T11:30:00.000Z' },
+      approval('approval_pending', 'tool_pending'),
+    ],
+  }), {}, now)
+
+  assert.deepEqual(result.approvedToolNames.sort(), ['tool_done', 'tool_pending'])
+  assert.equal(result.pendingApprovals[0]?.status, 'approved')
+  assert.equal(result.pendingApprovals[0]?.approvedAt, '2026-05-16T11:30:00.000Z')
+  assert.equal(result.pendingApprovals[1]?.status, 'approved')
+  assert.equal(result.pendingApprovals[1]?.approvedAt, now)
+})
+
 test('rejectRunInteraction rejects selected pending approvals only', () => {
   const result = rejectRunInteraction(buildRun({
     pendingApprovals: [
@@ -155,7 +170,7 @@ test('cancelPendingRunInteractions rejects pending approvals and cancels pending
   assert.deepEqual(result.pendingInputRequests.map((item) => item.status), ['cancelled', 'answered'])
 })
 
-test('mergePendingApprovals updates pending approvals by tool and drops resolved history', () => {
+test('mergePendingApprovals updates pending approvals by tool and preserves resolved history', () => {
   const merged = mergePendingApprovals([
     approval('approval_old', 'tool_a'),
     approval('approval_resolved', 'tool_b', 'approved'),
@@ -164,10 +179,11 @@ test('mergePendingApprovals updates pending approvals by tool and drops resolved
     approval('approval_new', 'tool_c'),
   ], now)
 
-  assert.deepEqual(merged.map((item) => item.id), ['approval_old', 'approval_new'])
+  assert.deepEqual(merged.map((item) => item.id), ['approval_old', 'approval_resolved', 'approval_new'])
   assert.deepEqual(merged[0]?.args, { value: 'next' })
   assert.equal(merged[0]?.reason, 'Updated reason')
   assert.equal(merged[0]?.updatedAt, now)
+  assert.equal(merged[1]?.status, 'approved')
 })
 
 test('mergePendingInputRequests updates matching pending requests and preserves resolved history', () => {
@@ -212,6 +228,23 @@ test('applyRequiredRunAction merges pending interactions and blocks the run', ()
   assert.equal(run.pendingApprovals?.[0]?.reason, 'Updated reason')
   assert.deepEqual(run.pendingInputRequests?.map((item) => item.id), ['answered', 'input_1'])
   assert.equal(result.pendingInputCount, 1)
+})
+
+test('applyRequiredRunAction keeps settled approvals as interaction history', () => {
+  const run = buildRun({
+    pendingApprovals: [approval('approval_resolved', 'tool_done', 'approved')],
+  })
+
+  applyRequiredRunAction(run, {
+    pendingApprovals: [approval('approval_new', 'tool_next')],
+    warnings: [],
+    now,
+  })
+
+  assert.deepEqual(run.pendingApprovals?.map((item) => ({ id: item.id, status: item.status })), [
+    { id: 'approval_resolved', status: 'approved' },
+    { id: 'approval_new', status: 'pending' },
+  ])
 })
 
 test('formatInputAnswerMessage renders selected labels and free text', () => {

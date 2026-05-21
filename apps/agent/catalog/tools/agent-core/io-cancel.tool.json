@@ -1,0 +1,18 @@
+{
+  "name": "agent_io_cancel",
+  "description": "取消一个可取消的 runtime operation。兼容工具名仍为 agent_io_cancel；取消 subagent 请优先使用 movscript_cancel_subagent。",
+  "permission": "agent.io.write",
+  "risk": "write",
+  "source": "runtime",
+  "category": "runtime-operation",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["operationId"],
+    "properties": {
+      "operationId": {
+        "type": "string"
+      }
+    }
+  }
+}

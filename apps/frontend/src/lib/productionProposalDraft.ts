@@ -106,6 +106,7 @@ export function buildEmptyProductionProposalDraftContent(input: {
   projectId?: number
   productionId: number
   projectDraftId?: string
+  snapshotBase?: Record<string, unknown>
   proposedAt?: string
   summary?: string
 }): ProductionProposalDraftContent {
@@ -118,6 +119,7 @@ export function buildEmptyProductionProposalDraftContent(input: {
     proposalScope: 'production',
     summary: input.summary ?? '',
     proposal: { segments: [] },
+    ...(input.snapshotBase ? { snapshot_base: input.snapshotBase } : {}),
     impact_notes: [],
     proposedAt: input.proposedAt ?? new Date().toISOString(),
     ...(input.projectDraftId ? { projectDraftId: input.projectDraftId } : {}),

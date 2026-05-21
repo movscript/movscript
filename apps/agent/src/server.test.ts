@@ -60,17 +60,90 @@ test('trace read endpoints return 404 for missing runs instead of surfacing faca
         calls.push('summary')
         throw new Error('should not read trace summary for missing run')
       },
+      getRunTraceDebugView: () => {
+        calls.push('debug-view')
+        throw new Error('should not read trace debug view for missing run')
+      },
+      getRunDebugLedger: () => {
+        calls.push('debug-ledger')
+        throw new Error('should not read debug ledger for missing run')
+      },
+      getRunDebugEvidence: () => {
+        calls.push('debug-evidence')
+        throw new Error('should not read debug evidence for missing run')
+      },
+      getRunGenerationView: () => {
+        calls.push('generation-view')
+        throw new Error('should not read generation view for missing run')
+      },
     },
   } as unknown as AgentServerContext)
 
   const page = await dispatch(handler, 'GET', '/runs/missing/trace')
   const summary = await dispatch(handler, 'GET', '/runs/missing/trace/summary')
+  const debugView = await dispatch(handler, 'GET', '/runs/missing/trace/debug-view')
+  const debugLedger = await dispatch(handler, 'GET', '/runs/missing/debug-ledger')
+  const debugEvidence = await dispatch(handler, 'GET', '/runs/missing/debug-evidence/trace_1%3Amodel_request')
+  const generationView = await dispatch(handler, 'GET', '/runs/missing/generation-view')
 
   assert.equal(page.statusCode, 404)
   assert.equal(JSON.parse(page.body).error, 'run not found')
   assert.equal(summary.statusCode, 404)
   assert.equal(JSON.parse(summary.body).error, 'run not found')
+  assert.equal(debugView.statusCode, 404)
+  assert.equal(JSON.parse(debugView.body).error, 'run not found')
+  assert.equal(debugLedger.statusCode, 404)
+  assert.equal(JSON.parse(debugLedger.body).error, 'run not found')
+  assert.equal(debugEvidence.statusCode, 404)
+  assert.equal(JSON.parse(debugEvidence.body).error, 'run not found')
+  assert.equal(generationView.statusCode, 404)
+  assert.equal(JSON.parse(generationView.body).error, 'run not found')
   assert.deepEqual(calls, [])
+})
+
+test('debug ledger endpoints return compact ledger and evidence payloads', async () => {
+  const handler = createAgentRequestListener({
+    agentRuntime: {
+      getRun: (runId: string) => ({ id: runId, threadId: 'thread_1', status: 'completed', steps: [], policy: {}, createdAt: '2026-05-21T00:00:00.000Z', updatedAt: '2026-05-21T00:00:00.000Z' }),
+      getRunDebugLedger: (runId: string) => ({
+        schema: 'movscript.agent.run-debug-ledger.v1',
+        runId,
+        generatedAt: '2026-05-21T00:00:00.000Z',
+        budget: { maxChars: 32000, estimatedChars: 100, truncated: false },
+        run: { status: 'completed', warnings: [] },
+        context: {
+          activeSkillIds: [],
+          availableToolNames: [],
+          droppedSummary: { count: 0, totalOriginalChars: 0, totalRenderedChars: 0, samples: [] },
+          layers: [],
+        },
+        modelCalls: [],
+        toolCalls: [],
+        decisions: [],
+        attention: [],
+        evidenceIndex: [{ evidenceId: 'trace_1:model_request', eventId: 'trace_1', kind: 'model_request', label: '模型请求负载', chars: 2, preview: '{}', fetchPath: `/runs/${runId}/debug-evidence/trace_1%3Amodel_request` }],
+      }),
+      getRunDebugEvidence: (runId: string, evidenceId: string) => ({
+        schema: 'movscript.agent.run-debug-evidence.v1',
+        runId,
+        evidenceId,
+        eventId: 'trace_1',
+        kind: 'model_request',
+        chars: 16,
+        value: { model: 'gpt-test' },
+      }),
+    },
+  } as unknown as AgentServerContext)
+
+  const ledger = await dispatch(handler, 'GET', '/runs/run_1/debug-ledger')
+  const evidence = await dispatch(handler, 'GET', '/runs/run_1/debug-evidence/trace_1%3Amodel_request')
+
+  assert.equal(ledger.statusCode, 200)
+  assert.equal(JSON.parse(ledger.body).schema, 'movscript.agent.run-debug-ledger.v1')
+  assert.equal(JSON.parse(ledger.body).budget.estimatedChars, 100)
+  assert.equal(evidence.statusCode, 200)
+  assert.equal(JSON.parse(evidence.body).evidenceId, 'trace_1:model_request')
+  assert.deepEqual(JSON.parse(evidence.body).value, { model: 'gpt-test' })
 })
 
 test('JSON request bodies report client errors instead of internal errors', async () => {
@@ -142,7 +215,6 @@ test('write endpoints reject non-object request bodies before touching runtime d
   const handler = createAgentRequestListener({} as unknown as AgentServerContext)
   const cases: Array<{ method: string; path: string; label: string }> = [
     { method: 'PATCH', path: '/drafts/draft_1', label: 'draft update body' },
-    { method: 'POST', path: '/drafts/draft_1/patch', label: 'draft patch body' },
     { method: 'POST', path: '/drafts/draft_1/apply-preview', label: 'apply preview body' },
     { method: 'POST', path: '/drafts/draft_1/apply-simulate', label: 'apply simulate body' },
     { method: 'POST', path: '/drafts/draft_1/apply', label: 'draft apply body' },
@@ -639,7 +711,7 @@ test('default tool policy endpoint saves requested runtime tool overrides', asyn
     },
   } as unknown as AgentServerContext)
 
-  const toolGrants = [{ name: 'movscript_update_draft', mode: 'deny' }]
+  const toolGrants = [{ name: 'movscript_validate_draft', mode: 'deny' }]
   const response = await dispatch(handler, 'POST', '/agent-tools/default-policy', JSON.stringify({ toolGrants }))
 
   assert.equal(response.statusCode, 200)

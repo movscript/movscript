@@ -125,6 +125,11 @@ export async function invokeRuntimeAgentGraph(input: {
     createStep: input.createStep,
     emitRunSnapshot: input.emitRunSnapshot,
   })
+  const approvalForcedToolCalls = buildApprovedApprovalToolCalls(input.run)
+  const forcedToolCalls = [
+    ...(input.run.metadata?.forcedToolCall ? [normalizeToolCall(input.run.metadata.forcedToolCall) as ToolCall] : []),
+    ...approvalForcedToolCalls.toolCalls,
+  ]
 
   const result = await (input.invokeGraph ?? runAgentGraph)({
     run: input.run,
@@ -155,7 +160,7 @@ export async function invokeRuntimeAgentGraph(input: {
     ...(input.runtimeContract?.commandOverride
       ? { command: input.runtimeContract.commandOverride({ userMessage: input.userMessage, manifest: input.manifest }) }
       : {}),
-    ...(input.run.metadata?.forcedToolCall ? { forcedToolCalls: [normalizeToolCall(input.run.metadata.forcedToolCall) as ToolCall] } : {}),
+    ...(forcedToolCalls.length > 0 ? { forcedToolCalls } : {}),
     ...(getApprovedToolNames(input.run).length > 0 ? { approvedToolNames: getApprovedToolNames(input.run) } : {}),
     getThreadMessages: () => input.store.getThread(input.run.threadId)?.messages ?? input.threadMessages,
     onRuntimeInputConsumed: (messages, trace) => {
@@ -180,7 +185,48 @@ export async function invokeRuntimeAgentGraph(input: {
     },
     ...graphCallbacks,
   })
+  markExecutedApprovalToolCalls(input, result, approvalForcedToolCalls.approvalIds)
   return result
+}
+
+function buildApprovedApprovalToolCalls(run: AgentRun): { toolCalls: ToolCall[]; approvalIds: string[] } {
+  const forcedApprovalIds = new Set(normalizeStringArray(run.metadata?.forcedApprovalIds))
+  const toolCalls: ToolCall[] = []
+  const approvalIds: string[] = []
+  for (const approval of run.pendingApprovals ?? []) {
+    if (approval.status !== 'approved' || forcedApprovalIds.has(approval.id)) continue
+    toolCalls.push({
+      id: `call_${approval.id}`,
+      name: approval.toolName,
+      args: approval.args ?? {},
+    })
+    approvalIds.push(approval.id)
+  }
+  return { toolCalls, approvalIds }
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return Array.from(new Set(value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)))
+}
+
+function markExecutedApprovalToolCalls(
+  input: { run: AgentRun; store: Pick<AgentStore, 'updateRun'> },
+  result: AgentGraphResult,
+  approvalIds: string[],
+): void {
+  if (approvalIds.length === 0 || !('toolOutcomes' in result)) return
+  const executedCallIds = new Set(result.toolOutcomes.map((outcome) => outcome.call.id).filter(Boolean))
+  const executedApprovalIds = approvalIds.filter((approvalId) => executedCallIds.has(`call_${approvalId}`))
+  if (executedApprovalIds.length === 0) return
+  input.run.metadata = {
+    ...(input.run.metadata ?? {}),
+    forcedApprovalIds: Array.from(new Set([
+      ...normalizeStringArray(input.run.metadata?.forcedApprovalIds),
+      ...executedApprovalIds,
+    ])),
+  }
+  input.store.updateRun(input.run)
 }
 
 async function refreshGraphCatalog(input: {

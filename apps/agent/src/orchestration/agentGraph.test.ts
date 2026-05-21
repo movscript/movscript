@@ -24,7 +24,7 @@ const emptyTools: ResolvedToolCatalog = {
   byName: {},
 }
 
-test('runAgentGraph queues default draft apply approvals in proposal layer order', async () => {
+test('runAgentGraph queues draft apply approvals in proposal layer order when explicitly requested', async () => {
   const run: AgentRun = {
     id: 'run_default_apply',
     threadId: 'thread_1',
@@ -35,7 +35,7 @@ test('runAgentGraph queues default draft apply approvals in proposal layer order
     steps: [],
     input: {
       schema: 'movscript.agent.run-input.v1',
-      userMessage: '生成 setting 和 asset 草稿',
+      userMessage: '生成 setting 和 asset 草稿并应用',
       sourceMessageId: 'msg_1',
       executionMode: 'chat',
       createdAt: '2026-05-16T00:00:00.000Z',
@@ -141,7 +141,7 @@ test('runAgentGraph queues default draft apply approvals in proposal layer order
   const result = await runAgentGraph({
     run,
     threadMessages: [
-      { id: 'msg_1', threadId: 'thread_1', role: 'user', content: '生成 setting 和 asset 草稿', createdAt: '2026-05-16T00:00:00.000Z' },
+      { id: 'msg_1', threadId: 'thread_1', role: 'user', content: '生成 setting 和 asset 草稿并应用', createdAt: '2026-05-16T00:00:00.000Z' },
     ],
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
@@ -507,7 +507,11 @@ test('runAgentGraph summarizes catalog skill inspection with active state and to
       spawnSubagent: () => ({}),
       listSubagents: () => ({}),
       waitSubagent: () => ({}),
-      waitGenerationJobs: () => ({}),
+startIO: () => ({}),
+getIO: () => ({}),
+listIO: () => ({}),
+waitIO: () => ({}),
+cancelIO: () => ({}),
       cancelSubagent: () => ({}),
     },
     onTrace: (trace) => {
@@ -632,7 +636,11 @@ test('runAgentGraph summarizes catalog summary inspection with skill and pack st
       spawnSubagent: () => ({}),
       listSubagents: () => ({}),
       waitSubagent: () => ({}),
-      waitGenerationJobs: () => ({}),
+startIO: () => ({}),
+getIO: () => ({}),
+listIO: () => ({}),
+waitIO: () => ({}),
+cancelIO: () => ({}),
       cancelSubagent: () => ({}),
     },
     onTrace: (trace) => {
@@ -836,7 +844,11 @@ test('runAgentGraph loads script reading skill when model calls project script t
       spawnSubagent: () => ({}),
       listSubagents: () => ({}),
       waitSubagent: () => ({}),
-      waitGenerationJobs: () => ({}),
+startIO: () => ({}),
+getIO: () => ({}),
+listIO: () => ({}),
+waitIO: () => ({}),
+cancelIO: () => ({}),
       cancelSubagent: () => ({}),
     },
     onCatalogRefresh: async () => ({

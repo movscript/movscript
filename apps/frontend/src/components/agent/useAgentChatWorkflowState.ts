@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { actionableRunForPlan } from '@/lib/agentPlanUi'
+import { actionableRunsForPlan, interactionRunsForPlan } from '@/lib/agentPlanUi'
 import { firstPendingInputRequest, workflowAnswerEchoesForMessages, workflowRunsForChat } from '@/lib/agentWorkflowInteraction'
 import type { AgentPlanSnapshot, AgentRun } from '@/lib/localAgentClient'
 import type { ChatMessage } from '@/store/agentStore'
@@ -17,8 +17,10 @@ export function useAgentChatWorkflowState({
   run,
   submittedInteractionRuns,
 }: UseAgentChatWorkflowStateInput) {
-  const actionableLocalRun = actionableRunForPlan(activePlanSnapshot, run)
-  const workflowRuns = useMemo(() => workflowRunsForChat(submittedInteractionRuns, actionableLocalRun), [actionableLocalRun, submittedInteractionRuns])
+  const actionableLocalRuns = useMemo(() => actionableRunsForPlan(activePlanSnapshot, run), [activePlanSnapshot, run])
+  const interactionRuns = useMemo(() => interactionRunsForPlan(activePlanSnapshot, run), [activePlanSnapshot, run])
+  const actionableLocalRun = actionableLocalRuns[0] ?? null
+  const workflowRuns = useMemo(() => workflowRunsForChat(submittedInteractionRuns, interactionRuns), [interactionRuns, submittedInteractionRuns])
   const workflowRunsByResultMessageId = useMemo(() => {
     const workflowRunById = new Map(workflowRuns.map((workflowRun) => [workflowRun.id, workflowRun]))
     const insertedRunIds = new Set<string>()
@@ -44,6 +46,7 @@ export function useAgentChatWorkflowState({
 
   return {
     actionableLocalRun,
+    actionableLocalRuns,
     activePendingInputRequest,
     answeringPendingInput,
     canAnswerPendingInputWithText,

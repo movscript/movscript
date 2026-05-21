@@ -1,0 +1,28 @@
+{
+  "name": "agent_file_search",
+  "description": "在 agent 文件系统中的 UTF-8 文本对象里搜索字符串并返回匹配位置。文件必须使用 canonical ref。",
+  "permission": "agent.file.read",
+  "risk": "read",
+  "source": "runtime",
+  "category": "files",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["ref", "query"],
+    "properties": {
+      "ref": {
+        "type": "string",
+        "description": "canonical 文件引用，例如 agent://draft/{draftId}/content。"
+      },
+      "query": {
+        "type": "string",
+        "description": "要搜索的字符串。"
+      },
+      "limit": {
+        "type": "number",
+        "description": "最多返回多少个匹配，默认 20，最大 100。"
+      }
+    }
+  }
+}
+

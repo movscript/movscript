@@ -24,7 +24,7 @@ export interface GenerationEvent {
 }
 
 export interface GenerationMonitorRequest {
-  toolName: 'movscript_get_generation_job' | 'movscript_wait_generation_jobs'
+  toolName: 'movscript_get_generation_job'
   args: Record<string, JSONValue>
   timeoutMs: number
   pollIntervalMs: number
@@ -32,8 +32,9 @@ export interface GenerationMonitorRequest {
 }
 
 export function buildGenerationEvent(call: ToolCall, result: JSONValue | undefined): GenerationEvent | undefined {
-  if (!isGenerationTool(call.name)) return undefined
-  const payload = unwrapToolPayload(result)
+  const normalized = normalizeGenerationCall(call, result)
+  if (!normalized || !isGenerationTool(normalized.call.name)) return undefined
+  const payload = unwrapToolPayload(normalized.result)
   if (!isRecord(payload)) return undefined
   const status = stringField(payload.status) ?? statusFromJob(payload.job) ?? 'unknown'
   const jobIds = idListField(payload.jobIds) ?? idListField(payload.job_ids)
@@ -49,8 +50,8 @@ export function buildGenerationEvent(call: ToolCall, result: JSONValue | undefin
   const modelConfigId = idField(payload.modelConfigId) ?? idField(payload.model_config_id) ?? idField(payload.job, 'model_config_id')
   return {
     kind: 'generation_job',
-    stage: inferStage(call.name, status, terminal),
-    toolName: call.name,
+    stage: inferStage(normalized.call.name, status, terminal),
+    toolName: normalized.call.name,
     ...(jobId !== undefined ? { jobId } : {}),
     ...(jobType ? { jobType } : {}),
     ...(providerName ? { providerName } : {}),
@@ -63,7 +64,7 @@ export function buildGenerationEvent(call: ToolCall, result: JSONValue | undefin
     ...(outputResourceId !== undefined ? { outputResourceId } : {}),
     ...(outputResourceIds.length > 0 ? { outputResourceIds } : {}),
     ...(isJSONValue(payload.media) ? { media: cloneJSONValue(payload.media) } : {}),
-    message: stringField(payload.message) ?? defaultMessage(call.name, jobId, status, progress, outputResourceIds.length > 0 ? outputResourceIds : outputResourceId !== undefined ? [outputResourceId] : []),
+    message: stringField(payload.message) ?? defaultMessage(normalized.call.name, jobId, status, progress, outputResourceIds.length > 0 ? outputResourceIds : outputResourceId !== undefined ? [outputResourceId] : []),
   }
 }
 
@@ -80,19 +81,20 @@ export function buildGenerationTimeoutEvent(initial: GenerationEvent): Generatio
 }
 
 export function extractGenerationMonitorRequest(call: ToolCall, result: JSONValue | undefined, event: GenerationEvent): GenerationMonitorRequest | undefined {
-  if (call.name !== 'movscript_create_generation_job' || event.terminal) return undefined
-  const payload = unwrapToolPayload(result)
+  const normalized = normalizeGenerationCall(call, result)
+  if (!normalized || normalized.call.name !== 'movscript_create_generation_job' || event.terminal) return undefined
+  const payload = unwrapToolPayload(normalized.result)
   const monitor = isRecord(payload) && isRecord(payload.monitor) ? payload.monitor : undefined
   if (!monitor) return undefined
   const monitorArgs = isRecord(monitor?.args) ? monitor.args : undefined
-  const monitorTool = monitor?.tool === 'movscript_wait_generation_jobs' ? 'movscript_wait_generation_jobs' : 'movscript_get_generation_job'
+  const monitorTool = 'movscript_get_generation_job'
   const jobId = event.jobId ?? idField(monitorArgs?.jobId) ?? idField(monitorArgs?.job_id)
   const jobIds = idListField(monitorArgs?.jobIds) ?? idListField(monitorArgs?.job_ids) ?? (jobId !== undefined ? [jobId] : [])
   if (jobId === undefined && jobIds.length === 0) return undefined
   const args: Record<string, JSONValue> = {
     ...(isJSONRecord(monitorArgs) ? cloneJSONValue(monitorArgs) : {}),
-    ...(monitorTool === 'movscript_wait_generation_jobs' ? { jobIds } : jobId !== undefined ? { jobId } : {}),
-    ...(isValidAgentProjectId(call.args?.projectId) ? { projectId: call.args.projectId } : {}),
+    ...(jobId !== undefined ? { jobId } : jobIds[0] !== undefined ? { jobId: jobIds[0] } : {}),
+    ...(isValidAgentProjectId(normalized.call.args?.projectId) ? { projectId: normalized.call.args.projectId } : {}),
   }
   return {
     toolName: monitorTool,
@@ -100,6 +102,23 @@ export function extractGenerationMonitorRequest(call: ToolCall, result: JSONValu
     timeoutMs: clampNumber(numberField(monitor?.timeout_ms) ?? numberField(monitor?.timeoutMs) ?? numberField(monitorArgs?.timeout_ms) ?? numberField(monitorArgs?.timeoutMs) ?? defaultMonitorTimeoutMs(event), 0, 30 * 60_000),
     pollIntervalMs: clampNumber(numberField(monitor?.poll_interval_ms) ?? numberField(monitor?.pollIntervalMs) ?? numberField(monitorArgs?.poll_interval_ms) ?? numberField(monitorArgs?.pollIntervalMs) ?? defaultPollIntervalMs(event), 250, 30_000),
     heartbeatMs: clampNumber(numberField(monitor?.heartbeat_ms) ?? numberField(monitor?.heartbeatMs) ?? numberField(monitorArgs?.heartbeat_ms) ?? numberField(monitorArgs?.heartbeatMs) ?? defaultMonitorHeartbeatMs(event), 0, 5 * 60_000),
+  }
+}
+
+function normalizeGenerationCall(call: ToolCall, result: JSONValue | undefined): { call: ToolCall; result: JSONValue | undefined } | undefined {
+  if (isGenerationTool(call.name)) return { call, result }
+  if (call.name !== 'agent_io_start') return undefined
+  const resultRecord = isRecord(result) ? result : undefined
+  const operation = isRecord(resultRecord?.operation) ? resultRecord.operation : undefined
+  const operationResult = isJSONValue(operation?.result) ? operation.result : undefined
+  const request = isJSONRecord(operation?.request)
+    ? cloneJSONValue(operation.request)
+    : isJSONRecord(call.args?.request)
+      ? cloneJSONValue(call.args.request)
+      : {}
+  return {
+    call: { name: 'movscript_create_generation_job', args: request },
+    result: operationResult,
   }
 }
 
@@ -161,8 +180,6 @@ function defaultMessage(toolName: string, jobId: number | undefined, status: str
 function isGenerationTool(toolName: string): boolean {
   return toolName === 'movscript_create_generation_job'
     || toolName === 'movscript_get_generation_job'
-    || toolName === 'movscript_wait_generation_jobs'
-    || toolName === 'movscript_list_generation_jobs'
     || toolName === 'movscript_cancel_generation_job'
 }
 

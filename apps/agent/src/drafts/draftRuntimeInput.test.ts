@@ -3,7 +3,6 @@ import test from 'node:test'
 import {
   buildRuntimeCreateDraftInput,
   buildRuntimeDraftBackendAuth,
-  buildRuntimePatchDraftInput,
   buildRuntimeUpdateDraftInput,
   requireRuntimeDraftId,
 } from './draftRuntimeInput.js'
@@ -63,22 +62,6 @@ test('buildRuntimeUpdateDraftInput filters update fields to store-safe values', 
   }), {
     draftId: 'draft_1',
     update: {},
-  })
-})
-
-test('buildRuntimePatchDraftInput keeps patch payloads and normalizes draft id', () => {
-  assert.deepEqual(buildRuntimePatchDraftInput({
-    draftId: ' draft_1 ',
-    ops: [{ op: 'replace', path: '/title', value: 'Updated' }],
-    expectedUpdatedAt: '2026-05-16T00:00:00.000Z',
-    metadata: { source: 'test' },
-  }), {
-    draftId: 'draft_1',
-    patch: {
-      ops: [{ op: 'replace', path: '/title', value: 'Updated' }],
-      expectedUpdatedAt: '2026-05-16T00:00:00.000Z',
-      metadata: { source: 'test' },
-    },
   })
 })
 

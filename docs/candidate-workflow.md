@@ -9,7 +9,7 @@ The user-facing action is **join candidate list**, not direct binding.
 
 - AI-generated media is reviewable until a user or work item accepts it.
 - One target can hold multiple candidates.
-- One generation job can return multiple `output_resource_id` values; each usable positive integer resource ID is written as a separate candidate.
+- One backend generation job should own one candidate-ready output; create multiple independent jobs when multiple candidates are needed, and write each usable positive integer resource ID from wait results as a separate candidate.
 - Candidate writes and accept / lock application both verify that the referenced raw resource exists.
 - Candidate targets currently include asset slots and keyframes / visual anchors.
 - Future visual-anchor-like targets should reuse the same candidate pattern instead of introducing direct binding.
@@ -53,7 +53,7 @@ Keyframe / visual anchor candidates:
 - `movscript_attach_asset_slot_candidate` adds one resource to an asset slot candidate set.
 - `movscript_attach_keyframe_candidate` adds one resource to an original keyframe / visual anchor candidate set.
 - Attach tool target IDs and resource IDs must be positive integers; non-positive IDs and conflicting aliases are rejected before any write.
-- Agents must write every usable `output_resource_id` individually and report each success, failure, or blocker.
+- Agents must write every usable `output_resource_id` individually as soon as it becomes available, report each success, failure, or blocker, and must not delay completed resources just to batch later outputs.
 - Agents must not claim a resource joined a candidate set unless the attach tool succeeded.
 - Agents must not pass an existing generated keyframe candidate as the keyframe target.
 - Generic Agent draft apply cannot write `asset_slot.resource_id`, `asset_slot.locked_asset_slot_id`, or `keyframe.resource_id`; resource adoption must go through candidate attach plus explicit accept / lock flows.

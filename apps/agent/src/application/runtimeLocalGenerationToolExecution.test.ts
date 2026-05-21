@@ -11,37 +11,36 @@ import {
 } from './runtimeLocalGenerationToolExecution.js'
 
 test('executeRuntimeLocalGenerationTool delegates generation calls through the tool executor', async () => {
-  const calls: Array<{ name: string; args?: Record<string, JSONValue> }> = []
   const call = {
-    name: 'movscript_create_generation_job' as const,
-    args: { prompt: 'title card' as JSONValue },
+    name: 'agent_io_start' as const,
+    args: { kind: 'generation_job' as JSONValue, request: { prompt: 'title card' as JSONValue } as JSONValue },
   }
+  const resultValue = { status: 'started', operation: { id: 'io_1', kind: 'generation_job', status: 'running' } }
 
   const result = await executeRuntimeLocalGenerationTool({
     call,
     run: makeRun(),
     mcpClient: {
       initialize: async () => ({}),
-      callTool: async (name, args) => {
-        calls.push({ name, args })
-        return { jobId: 42, status: 'queued' }
-      },
+      callTool: async () => ({ ok: true }),
     },
     draftStore: new InMemoryAgentDraftStore(),
     backendApplyClient: new BackendApplyClient(),
     registry: new StaticToolRegistry([]),
+    catalogManager: {
+      startIO: async () => resultValue as JSONValue,
+    } as any,
   })
 
   assert.equal(result.call, call)
-  assert.equal(result.source, 'mcp')
-  assert.deepEqual(result.result, { jobId: 42, status: 'queued' })
-  assert.deepEqual(calls, [{ name: 'movscript_create_generation_job', args: { prompt: 'title card' } }])
+  assert.equal(result.source, 'runtime')
+  assert.deepEqual(result.result, resultValue)
 })
 
 test('executeRuntimeLocalGenerationTool normalizes backend generation errors', async () => {
   const call = {
-    name: 'movscript_create_generation_job' as const,
-    args: { prompt: 'title card' as JSONValue },
+    name: 'agent_io_start' as const,
+    args: { kind: 'generation_job' as JSONValue, request: { prompt: 'title card' as JSONValue } as JSONValue },
   }
 
   const result = await executeRuntimeLocalGenerationTool({
@@ -60,6 +59,15 @@ test('executeRuntimeLocalGenerationTool normalizes backend generation errors', a
     draftStore: new InMemoryAgentDraftStore(),
     backendApplyClient: new BackendApplyClient(),
     registry: new StaticToolRegistry([]),
+    catalogManager: {
+      startIO: async () => {
+        throw new MCPError('backend rejected', -32000, {
+          type: 'backend_http_error',
+          status: 400,
+          code: 'bad_prompt',
+        })
+      },
+    } as any,
   })
 
   assert.equal(result.call, call)
@@ -70,8 +78,8 @@ test('executeRuntimeLocalGenerationTool normalizes backend generation errors', a
 
 test('normalizeRuntimeLocalGenerationToolError preserves backend generation error data', () => {
   const call = {
-    name: 'movscript_create_generation_job' as const,
-    args: { prompt: 'hello' as JSONValue },
+    name: 'agent_io_start' as const,
+    args: { kind: 'generation_job' as JSONValue, request: { prompt: 'hello' as JSONValue } as JSONValue },
   }
   const error = new MCPError('backend rejected', -32000, {
     type: 'backend_http_error',

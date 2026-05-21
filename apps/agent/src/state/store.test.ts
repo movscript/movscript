@@ -73,6 +73,37 @@ test('trace storage drops invalid JSON data instead of coercing non-finite numbe
   assert.equal(event.data, undefined)
 })
 
+test('trace storage maintains a bounded debug ledger projection per run', () => {
+  const store = new InMemoryAgentStore()
+  const run = buildRun()
+  store.createRun(run)
+  store.appendTraceEvent({
+    ...buildTraceEvent('trace_1', '2026-05-06T00:00:01.000Z', 'prompt'),
+    data: {
+      eventType: 'prompt.composed',
+      charCount: 900,
+      messageCount: 3,
+      skillIds: ['policy.core'],
+      availableToolNames: ['movscript_read_project'],
+    },
+  })
+  store.appendTraceEvent({
+    ...buildTraceEvent('trace_2', '2026-05-06T00:00:02.000Z', 'model_call'),
+    data: {
+      phase: 'request',
+      request: { body: { model: 'gpt-test', messages: [{ role: 'user', content: 'hello' }] } },
+    },
+  })
+
+  const ledger = store.getRunDebugLedger(run.id)
+
+  assert.equal(ledger?.schema, 'movscript.agent.run-debug-ledger.v1')
+  assert.equal(ledger?.context.promptChars, 900)
+  assert.deepEqual(ledger?.context.activeSkillIds, ['policy.core'])
+  assert.equal(ledger?.modelCalls[0]?.model, 'gpt-test')
+  assert.ok((ledger?.budget.estimatedChars ?? Number.POSITIVE_INFINITY) <= 32_000)
+})
+
 function buildRun(): AgentRun {
   return {
     id: 'run_1',

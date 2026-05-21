@@ -23,10 +23,6 @@ test('createRuntimeDraftOperationsBridge wires draft CRUD and apply helpers', as
     title: 'Script',
     content: JSON.stringify({ body: 'Draft content' }),
   })
-  const patched = bridge.patchDraft({
-    draftId: draft.id,
-    ops: [{ op: 'replace', path: '/body', value: 'Patched content' }],
-  }) as { status?: string; validation?: { ok?: boolean } }
   const simulated = await bridge.simulateApplyDraft({
     draftId: draft.id,
     targetEntityType: 'script',
@@ -37,8 +33,6 @@ test('createRuntimeDraftOperationsBridge wires draft CRUD and apply helpers', as
 
   assert.equal(bridge.listDrafts({ projectId: 42 }).length, 1)
   assert.equal(bridge.getDraft(draft.id)?.id, draft.id)
-  assert.equal(patched.status, 'patched')
-  assert.equal(patched.validation?.ok, true)
   assert.equal((bridge.validateDraft({ draftId: draft.id }) as { ok?: boolean }).ok, true)
   assert.equal(simulated.ok, true)
   assert.equal(simulated.backendApply, backendApply)

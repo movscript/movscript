@@ -57,7 +57,8 @@ test('layered catalog registry exposes schema/tool/skill/pack/profile boundaries
   const registry = catalog.layeredRegistry
 
   assert.ok(registry.schemas.has('movscript.project_standards_proposal.v1'))
-  assert.ok(registry.tools.has('movscript_update_draft'))
+  assert.ok(registry.tools.has('movscript_validate_draft'))
+  assert.ok(registry.tools.has('movscript_preview_draft_apply'))
   assert.ok(registry.tools.has('movscript_get_draft_model'))
   assert.ok(registry.tools.has('movscript_search_knowledge'))
   assert.ok(registry.tools.has('movscript_get_knowledge'))
@@ -151,7 +152,7 @@ test('target-state pack files and the default profile are loaded as first-class 
   assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.draft-lifecycle'))
   assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.script-reading'))
   assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.production-proposal'))
-  assert.ok(resolved.profile.toolGrants.some((grant) => grant.name === 'movscript_create_generation_job' && grant.approval === 'always'))
+  assert.ok(resolved.profile.toolGrants.some((grant) => grant.name === 'agent_io_start' && grant.approval === 'always'))
   assert.ok(resolved.profile.toolGrants.some((grant) => grant.name === 'movscript_request_user_input' && grant.approval === 'never'))
 })
 
@@ -163,7 +164,8 @@ test('draft lifecycle workflow describes read-before-write draft handling', () =
   assert.ok(workflow?.kind === 'workflow')
   assert.ok(workflow.toolRefs.includes('tool://movscript_get_draft'))
   assert.ok(workflow.toolRefs.includes('tool://movscript_create_draft'))
-  assert.ok(workflow.toolRefs.includes('tool://movscript_update_draft'))
+  assert.ok(workflow.toolRefs.includes('tool://movscript_validate_draft'))
+  assert.ok(workflow.toolRefs.includes('tool://movscript_preview_draft_apply'))
   assert.equal(workflow.toolRefs.includes('tool://movscript_list_drafts'), false)
   assert.match(workflow.instructionTemplate, /当前会话没有 draftId/)
   assert.match(workflow.instructionTemplate, /若用户或当前会话上下文给了 draftId，先 get 该 draft/)
@@ -245,8 +247,8 @@ test('asset candidate preparation is separated from generation execution', () =>
   const assetCandidate = catalog.layeredRegistry.skills.get('movscript.workflow.asset-candidate-generation')
   const visualGeneration = catalog.layeredRegistry.skills.get('movscript.workflow.visual-generation')
   const listModelsTool = catalog.layeredRegistry.tools.get('movscript_list_models')
-  const createJobTool = catalog.layeredRegistry.tools.get('movscript_create_generation_job')
-  const waitJobsTool = catalog.layeredRegistry.tools.get('movscript_wait_generation_jobs')
+  const ioStartTool = catalog.layeredRegistry.tools.get('agent_io_start')
+  const ioWaitTool = catalog.layeredRegistry.tools.get('agent_io_wait')
   const attachCandidateTool = catalog.layeredRegistry.tools.get('movscript_attach_asset_slot_candidate')
   const attachKeyframeCandidateTool = catalog.layeredRegistry.tools.get('movscript_attach_keyframe_candidate')
   const productionContextTool = catalog.layeredRegistry.tools.get('movscript_query_production_context')
@@ -259,8 +261,8 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.match(visualGeneration.outputContract ?? '', /输出资源列表/)
   assert.match(visualGeneration.outputContract ?? '', /每个 output_resource_id 的候选集写入结果/)
   assert.ok(listModelsTool)
-  assert.ok(createJobTool)
-  assert.ok(waitJobsTool)
+  assert.ok(ioStartTool)
+  assert.ok(ioWaitTool)
   assert.ok(attachCandidateTool)
   assert.ok(attachKeyframeCandidateTool)
   assert.ok(productionContextTool)
@@ -269,20 +271,21 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.match(JSON.stringify(visualGeneration.triggers), /keyframe candidate/)
   assert.match(JSON.stringify(visualGeneration.triggers), /visual anchor candidate/)
 
-  assert.ok(assetCandidate.toolRefs.includes('tool://movscript_create_generation_job'))
+  assert.ok(assetCandidate.toolRefs.includes('tool://agent_io_start'))
+  assert.ok(assetCandidate.toolRefs.includes('tool://agent_io_wait'))
   assert.ok(assetCandidate.toolRefs.includes('tool://movscript_attach_asset_slot_candidate'))
   assert.equal(assetCandidate.toolRefs.includes('tool://movscript_attach_keyframe_candidate'), false)
-  assert.equal(assetCandidate.toolRefs.includes('tool://movscript_cancel_generation_job'), false)
+  assert.equal(assetCandidate.toolRefs.includes('tool://agent_io_cancel'), true)
   assert.ok(assetCandidate.toolRefs.includes('tool://movscript_get_focus'))
   assert.ok(assetCandidate.toolRefs.includes('tool://movscript_get_draft_model'))
   assert.ok(visualGeneration.toolRefs.includes('tool://movscript_get_focus'))
   assert.ok(visualGeneration.toolRefs.includes('tool://movscript_get_draft_model'))
   assert.ok(visualGeneration.toolRefs.includes('tool://movscript_request_user_input'))
-  assert.ok(visualGeneration.toolRefs.includes('tool://movscript_create_generation_job'))
-  assert.ok(visualGeneration.toolRefs.includes('tool://movscript_wait_generation_jobs'))
+  assert.ok(visualGeneration.toolRefs.includes('tool://agent_io_start'))
+  assert.ok(visualGeneration.toolRefs.includes('tool://agent_io_wait'))
   assert.ok(visualGeneration.toolRefs.includes('tool://movscript_attach_asset_slot_candidate'))
   assert.ok(visualGeneration.toolRefs.includes('tool://movscript_attach_keyframe_candidate'))
-  assert.ok(visualGeneration.toolRefs.includes('tool://movscript_cancel_generation_job'))
+  assert.ok(visualGeneration.toolRefs.includes('tool://agent_io_cancel'))
 
   const ctx = {
     profile,
@@ -294,48 +297,53 @@ test('asset candidate preparation is separated from generation execution', () =>
   }
   const assetTools = resolveVisibleTools({ registry: catalog.layeredRegistry, ctx, activeWorkflows: [assetCandidate] })
   const visualTools = resolveVisibleTools({ registry: catalog.layeredRegistry, ctx, activeWorkflows: [visualGeneration] })
-  assert.ok(assetTools.available.some((tool) => tool.name === 'movscript_create_generation_job'))
+  assert.ok(assetTools.available.some((tool) => tool.name === 'agent_io_start'))
+  assert.ok(assetTools.available.some((tool) => tool.name === 'agent_io_wait'))
   assert.ok(assetTools.available.some((tool) => tool.name === 'movscript_attach_asset_slot_candidate'))
   assert.equal(assetTools.available.some((tool) => tool.name === 'movscript_attach_keyframe_candidate'), false)
-  assert.equal(assetTools.available.some((tool) => tool.name === 'movscript_cancel_generation_job'), false)
+  assert.ok(assetTools.available.some((tool) => tool.name === 'agent_io_cancel'))
   assert.ok(assetTools.available.some((tool) => tool.name === 'movscript_get_focus'))
   assert.ok(assetTools.available.some((tool) => tool.name === 'movscript_get_draft_model'))
-  assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_create_generation_job'))
+  assert.ok(visualTools.available.some((tool) => tool.name === 'agent_io_start'))
+  assert.ok(visualTools.available.some((tool) => tool.name === 'agent_io_wait'))
   assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_attach_asset_slot_candidate'))
   assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_attach_keyframe_candidate'))
-  assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_cancel_generation_job'))
+  assert.ok(visualTools.available.some((tool) => tool.name === 'agent_io_cancel'))
   assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_request_user_input'))
 
   assert.match(assetCandidate.instructionTemplate, /生成任务创建、监控，以及把成功输出加入目标 asset slot 候选集/)
-  assert.match(assetCandidate.instructionTemplate, /优先把完整列表作为 `output_resource_ids` 传入一次候选写入/)
-  assert.match(assetCandidate.instructionTemplate, /如果有多个 output_resource_id，必须全部写入并逐项报告成功、失败或阻塞/)
+  assert.match(assetCandidate.instructionTemplate, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `movscript_attach_asset_slot_candidate`/)
+  assert.match(assetCandidate.instructionTemplate, /不要把 `output_resource_ids`、`resource_ids` 或多个资源 ID 合并传入同一次候选写入/)
+  assert.match(assetCandidate.instructionTemplate, /如果有多个 output_resource_id，必须逐个调用 attach，并逐项报告成功、失败或阻塞/)
   assert.match(assetCandidate.instructionTemplate, /除非 `movscript_attach_asset_slot_candidate` 对对应 output_resource_id 成功返回，否则绝不声称该资源已经加入候选集/)
   assert.match(assetCandidate.instructionTemplate, /使用模型发现 contracts，而不是 provider 假设/)
   assert.match(assetCandidate.instructionTemplate, /先确认当前设定材料是否已有可复用素材/)
   assert.match(assetCandidate.instructionTemplate, /保留人物一致性、场景一致性和可复用识别点/)
   assert.match(assetCandidate.instructionTemplate, /主角或重要角色即使文本说“丑”“狼狈”“不起眼”/)
-  assert.match(visualGeneration.instructionTemplate, /只能通过需要审批的生成工具创建生成任务/)
+  assert.match(visualGeneration.instructionTemplate, /只能通过需要审批的异步生成 runtime operation 创建生成任务/)
   assert.match(visualGeneration.instructionTemplate, /优先用 `model_contracts` 做紧凑规划/)
   assert.match(visualGeneration.instructionTemplate, /确认当前设定材料是否已有素材/)
   assert.match(visualGeneration.instructionTemplate, /include keyframes/)
   assert.match(visualGeneration.instructionTemplate, /已有角色\/场景素材必须优先作为一致性约束/)
   assert.match(visualGeneration.instructionTemplate, /主角、核心反派、重要常驻角色要保持可长期复用的美术价值/)
-  assert.match(visualGeneration.instructionTemplate, /调用 `movscript_attach_asset_slot_candidate` 把所有可用 output_resource_id 加入目标 asset slot 候选集/)
-  assert.match(visualGeneration.instructionTemplate, /调用 `movscript_attach_keyframe_candidate` 把所有可用 output_resource_id 加入目标 keyframe 候选集/)
+  assert.match(visualGeneration.instructionTemplate, /优先用 `mode: "any"` 让任一任务完成即可返回/)
+  assert.match(visualGeneration.instructionTemplate, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `movscript_attach_asset_slot_candidate`/)
+  assert.match(visualGeneration.instructionTemplate, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `movscript_attach_keyframe_candidate`/)
+  assert.match(visualGeneration.instructionTemplate, /不要把 `output_resource_ids`、`resource_ids` 或多个资源 ID 合并传入同一次候选写入/)
   assert.match(visualGeneration.instructionTemplate, /每个 output_resource_id 的候选集写入结果/)
-  assert.match(visualGeneration.instructionTemplate, /如果有多个 output_resource_id，必须全部写入并逐项报告成功、失败或阻塞/)
+  assert.match(visualGeneration.instructionTemplate, /如果有多个 output_resource_id，必须逐个调用 attach，并逐项报告成功、失败或阻塞/)
   assert.match(visualGeneration.instructionTemplate, /除非用户明确要求只预览结果，否则不要停留在让用户手动选择/)
   assert.match(visualGeneration.instructionTemplate, /只提交被选中模型的 `supported_param_keys` \/ `supported_params` 支持的顶层参数和 `extra_params` 值/)
-  assert.match(visualGeneration.instructionTemplate, /图片\/视频数量满足 `input_requirements` 的参考资源/)
+  assert.match(visualGeneration.instructionTemplate, /图片\/视频数量满足所选 `job_type` contract 的 `input_requirements` 的参考资源/)
+  assert.match(visualGeneration.instructionTemplate, /`image` 文生图不需要参考图/)
   assert.match(visualGeneration.instructionTemplate, /将带有 `audit_version: 1` 的 `param_validation` 视为参数过滤和本地 preflight 的审计轨迹/)
   assert.match(visualGeneration.instructionTemplate, /`input_preflight_errors`/)
   assert.match(visualGeneration.instructionTemplate, /解释性审计数据，而不是最终后端拒绝/)
   assert.match(visualGeneration.instructionTemplate, /不要在同一次请求中自动修复 `UNSUPPORTED_OUTPUT_TYPE` 或 `INVALID_INPUT_COUNT`/)
-  assert.match(visualGeneration.instructionTemplate, /\{\{tool:movscript_create_generation_job\.errors\}\}/)
+  assert.match(visualGeneration.instructionTemplate, /agent_io_start\(kind:"generation_job"\)/)
   assert.match(listModelsTool.description, /model_contracts/)
   assert.match(listModelsTool.description, /contract_version 1/)
   assert.match(listModelsTool.description, /supported_param_keys/)
-  assert.match(createJobTool.description, /多个输出会同时返回 output_resources\/output_resource_ids/)
   const listModelsProperties = schemaProperties(listModelsTool.inputSchema)
   assert.ok(listModelsProperties.feature_key)
   assert.ok(listModelsProperties.provider_variants)
@@ -355,13 +363,6 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.ok(listModelsContractProperties.supported_param_keys)
   assert.ok(listModelsContractProperties.supported_params)
   assert.ok(listModelsContractProperties.params_schema_rule_count)
-  assert.match(createJobTool.description, /先调用 movscript_list_models/)
-  assert.match(createJobTool.description, /所选模型 contract/)
-  assert.match(createJobTool.description, /audit_version 1 的 param_validation/)
-  assert.match(createJobTool.description, /input_preflight_errors/)
-  assert.match(createJobTool.description, /解释性审计数据，本身不是后端拒绝/)
-  assert.match(createJobTool.description, /UNSUPPORTED_OUTPUT_TYPE 和 INVALID_INPUT_COUNT/)
-  assert.deepEqual(createJobTool.errorCodes, generationValidationErrorCodes())
   assert.match(attachCandidateTool.description, /加入某个 asset slot 的候选集/)
   assert.match(attachCandidateTool.description, /不会 accept、select、bind 或 lock 候选/)
   assert.equal(attachCandidateTool.risk, 'write')
@@ -446,33 +447,6 @@ test('asset candidate preparation is separated from generation execution', () =>
   const attachCandidateOutputProperties = schemaProperties(attachCandidateTool.outputSchema)
   assert.ok(attachCandidateOutputProperties.candidate)
   assert.ok(attachCandidateOutputProperties.candidate_asset_slot_id)
-  const createJobOutputProperties = schemaProperties(createJobTool.outputSchema)
-  assert.ok(createJobOutputProperties.status)
-  assert.ok(createJobOutputProperties.job)
-  assert.ok(createJobOutputProperties.jobId)
-  assert.ok(createJobOutputProperties.monitor)
-  assert.ok(createJobOutputProperties.output_resource)
-  assert.ok(createJobOutputProperties.output_resource_id)
-  assert.ok(createJobOutputProperties.output_resources)
-  assert.ok(createJobOutputProperties.output_resource_ids)
-  assert.ok(createJobOutputProperties.param_validation)
-  const paramValidation = isRecord(createJobOutputProperties.param_validation)
-    ? createJobOutputProperties.param_validation
-    : {}
-  const paramValidationProperties = schemaProperties(paramValidation)
-  assert.ok(paramValidationProperties.audit_version)
-  assert.ok(paramValidationProperties.input_requirements)
-  assert.ok(paramValidationProperties.submitted_inputs)
-  assert.ok(paramValidationProperties.preflight_errors)
-  assert.ok(paramValidationProperties.input_preflight_errors)
-  const createJobProperties = schemaProperties(createJobTool.inputSchema)
-  assert.equal(createJobProperties.model, undefined)
-  assert.ok(createJobProperties.title)
-  assert.ok(createJobProperties.job_type)
-  assert.ok(createJobProperties.input_resource_ids)
-  assert.ok(createJobProperties.reference_type)
-  assert.ok(createJobProperties.aspect_ratio)
-  assert.ok(createJobProperties.duration)
 })
 
 test('storyboard knowledge tools are only visible for content unit workflows', () => {
@@ -660,7 +634,7 @@ test('manual script reading skill overrides tool-policy deny for its script tool
     userMessage: message,
   })
   assert.equal(coreTools.byName.movscript_read_project_scripts?.available, false)
-  assert.equal(coreTools.byName.movscript_read_project_scripts?.unavailableReason, 'denied')
+  assert.equal(coreTools.byName.movscript_read_project_scripts?.unavailableReason, 'workflow_scope')
 
   const loaded = resolveRuntimeLayers({
     registry: catalog.layeredRegistry,
@@ -709,9 +683,10 @@ test('visual generation prompt exposes backend generation validation error codes
   assert.match(prompt.systemPrompt, /`preflight_errors` 和 `input_preflight_errors` 视为解释性审计数据/)
   assert.match(prompt.systemPrompt, /不要在同一次请求中自动修复 `UNSUPPORTED_OUTPUT_TYPE` 或 `INVALID_INPUT_COUNT`/)
   assert.match(prompt.systemPrompt, /已有角色\/场景素材必须优先作为一致性约束/)
-  assert.match(prompt.systemPrompt, /调用 `movscript_attach_asset_slot_candidate` 把所有可用 output_resource_id 加入目标 asset slot 候选集/)
-  assert.match(prompt.systemPrompt, /调用 `movscript_attach_keyframe_candidate` 把所有可用 output_resource_id 加入目标 keyframe 候选集/)
-  assert.match(prompt.systemPrompt, /如果有多个 output_resource_id，必须全部写入并逐项报告成功、失败或阻塞/)
+  assert.match(prompt.systemPrompt, /优先用 `mode: "any"` 让任一任务完成即可返回/)
+  assert.match(prompt.systemPrompt, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `movscript_attach_asset_slot_candidate`/)
+  assert.match(prompt.systemPrompt, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `movscript_attach_keyframe_candidate`/)
+  assert.match(prompt.systemPrompt, /如果有多个 output_resource_id，必须逐个调用 attach，并逐项报告成功、失败或阻塞/)
   assert.match(prompt.systemPrompt, /除非用户明确要求只预览结果，否则不要停留在让用户手动选择/)
 })
 
@@ -745,8 +720,8 @@ test('image edit wording with image context activates visual generation tools', 
     activeSkills: layers.skills,
     userMessage: message,
   })
-  assert.ok(tools.available.some((tool) => tool.name === 'movscript_create_generation_job'))
-  assert.notEqual(tools.byName.movscript_create_generation_job?.unavailableReason, 'workflow_scope')
+  assert.ok(tools.available.some((tool) => tool.name === 'agent_io_start'))
+  assert.notEqual(tools.byName.agent_io_start?.unavailableReason, 'workflow_scope')
 })
 
 test('asset candidate generation activates visual generation tools on asset slot pages', () => {
@@ -783,8 +758,8 @@ test('asset candidate generation activates visual generation tools on asset slot
     activeSkills: layers.skills,
     userMessage: message,
   })
-  assert.ok(tools.available.some((tool) => tool.name === 'movscript_create_generation_job'))
-  assert.notEqual(tools.byName.movscript_create_generation_job?.unavailableReason, 'workflow_scope')
+  assert.ok(tools.available.some((tool) => tool.name === 'agent_io_start'))
+  assert.notEqual(tools.byName.agent_io_start?.unavailableReason, 'workflow_scope')
 })
 
 test('pre-production prep routes to setting and asset proposal drafts without generation tools', () => {
@@ -831,8 +806,9 @@ test('pre-production prep routes to setting and asset proposal drafts without ge
     userMessage: message,
   })
   assert.ok(tools.available.some((tool) => tool.name === 'movscript_create_draft'))
-  assert.ok(tools.available.some((tool) => tool.name === 'movscript_update_draft'))
-  assert.equal(tools.byName.movscript_create_generation_job?.unavailableReason, 'workflow_scope')
+  assert.ok(tools.available.some((tool) => tool.name === 'movscript_validate_draft'))
+  assert.ok(tools.available.some((tool) => tool.name === 'movscript_preview_draft_apply'))
+  assert.equal(tools.byName.agent_io_start?.unavailableReason, 'workflow_scope')
 })
 
 test('workflow skills use isolated skill directories', () => {
@@ -1089,8 +1065,8 @@ test('profile resolution, trigger selection, prompt refs, and tool scope work to
   profile.enabledWorkflows = [workflow.id]
   profile.enabledPolicies = [policy.id]
   profile.toolGrants = [
-    { name: 'movscript_update_draft', mode: 'allow', approval: 'never' },
-    { name: 'movscript_create_generation_job', mode: 'allow', approval: 'always' },
+    { name: 'movscript_validate_draft', mode: 'allow', approval: 'never' },
+    { name: 'agent_io_start', mode: 'allow', approval: 'always' },
     { name: 'movscript_request_user_input', mode: 'allow', approval: 'never' },
   ]
 
@@ -1120,9 +1096,9 @@ test('profile resolution, trigger selection, prompt refs, and tool scope work to
     ctx,
     activeWorkflows: selected.workflows,
   })
-  assert.ok(tools.available.some((tool) => tool.name === 'movscript_update_draft'))
+  assert.ok(tools.available.some((tool) => tool.name === 'movscript_validate_draft'))
   assert.ok(tools.available.some((tool) => tool.name === 'movscript_request_user_input'))
-  assert.equal(tools.available.some((tool) => tool.name === 'movscript_create_generation_job'), false)
+  assert.equal(tools.available.some((tool) => tool.name === 'agent_io_start'), false)
 })
 
 test('org and user profile overrides can only narrow runtime capability', () => {
@@ -1138,7 +1114,7 @@ test('org and user profile overrides can only narrow runtime capability', () => 
     enabledWorkflows: ['movscript.workflow.project-standards-proposal'],
     enabledPolicies: ['movscript.policy.drafts', 'movscript.policy.agent-core', 'movscript.policy.movscript'],
     toolGrants: [
-      { name: 'movscript_update_draft', mode: 'allow' as const, approval: 'always' as const },
+      { name: 'movscript_validate_draft', mode: 'allow' as const, approval: 'always' as const },
       { name: 'movscript_create_draft', mode: 'deny' as const },
     ],
     limits: { maxActiveWorkflows: 1 },
@@ -1153,7 +1129,7 @@ test('org and user profile overrides can only narrow runtime capability', () => 
     enabledWorkflows: ['movscript.workflow.project-standards-proposal'],
     enabledPolicies: [],
     toolGrants: [
-      { name: 'movscript_update_draft', mode: 'deny' as const },
+      { name: 'movscript_validate_draft', mode: 'deny' as const },
     ],
   }
 
@@ -1165,7 +1141,7 @@ test('org and user profile overrides can only narrow runtime capability', () => 
   assert.deepEqual(resolved.warnings, [])
   assert.deepEqual(resolved.profile.enabledPacks, ['movscript.pack.agent-core', 'movscript.pack.drafts', 'movscript.pack.movscript'])
   assert.deepEqual(resolved.profile.enabledWorkflows, ['movscript.workflow.project-standards-proposal'])
-  assert.equal(resolved.profile.toolGrants.find((grant) => grant.name === 'movscript_update_draft')?.mode, 'deny')
+  assert.equal(resolved.profile.toolGrants.find((grant) => grant.name === 'movscript_validate_draft')?.mode, 'deny')
   assert.equal(resolved.profile.toolGrants.find((grant) => grant.name === 'movscript_create_draft')?.mode, 'deny')
   assert.equal(resolved.profile.limits?.maxActiveWorkflows, 1)
   assert.deepEqual(resolved.profile.resolvedFrom?.layers.map((layer) => layer.source), ['default', 'org', 'user'])
@@ -1184,8 +1160,8 @@ test('org and user profile overrides are rejected as a whole when they add or lo
     enabledWorkflows: [],
     enabledPolicies: [],
     toolGrants: [
-      { name: 'movscript_update_draft', mode: 'allow' as const, approval: 'never' as const },
-      { name: 'movscript_create_generation_job', mode: 'allow' as const, approval: 'never' as const },
+      { name: 'movscript_validate_draft', mode: 'allow' as const, approval: 'never' as const },
+      { name: 'agent_io_start', mode: 'allow' as const, approval: 'never' as const },
     ],
   }
   const userProfile = {

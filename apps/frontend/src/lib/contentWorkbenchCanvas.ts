@@ -8,6 +8,7 @@ export interface ContentWorkbenchCanvasRef {
 
 export interface ContentWorkbenchCanvasPayload {
   name: string
+  description?: string
   project_id: number
   canvas_type: 'workflow'
   stage: 'generation'
@@ -28,9 +29,11 @@ export function buildContentWorkbenchCanvasPayload(input: {
   projectId: number
   contentUnitId: number
   title: string
+  description?: string
 }): ContentWorkbenchCanvasPayload {
   return {
     name: `${input.title} · 内容编排`,
+    description: input.description,
     project_id: input.projectId,
     canvas_type: 'workflow',
     stage: 'generation',

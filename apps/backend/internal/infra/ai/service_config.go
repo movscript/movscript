@@ -107,6 +107,30 @@ type ModelRoute struct {
 	SelectionReason string
 }
 
+type OpenAIProxyTarget struct {
+	ModelConfigID   uint
+	ProviderModelID string
+	BaseURL         string
+	APIKey          string
+}
+
+func (s *AIService) OpenAIProxyTarget(modelConfigID uint) (OpenAIProxyTarget, error) {
+	cfg, provider, def, err := s.loadConfig(modelConfigID, CapabilityText)
+	if err != nil {
+		return OpenAIProxyTarget{}, err
+	}
+	adapter, ok := provider.(*OpenAIAdapter)
+	if !ok {
+		return OpenAIProxyTarget{}, fmt.Errorf("model config id=%d is not backed by an OpenAI-compatible provider", modelConfigID)
+	}
+	return OpenAIProxyTarget{
+		ModelConfigID:   cfg.ID,
+		ProviderModelID: resolveModelID(cfg, def),
+		BaseURL:         adapter.BaseURL,
+		APIKey:          adapter.APIKey,
+	}, nil
+}
+
 func (s *AIService) ResolveModelRoute(req ModelRouteRequest) (ModelRoute, error) {
 	capability := strings.TrimSpace(req.Capability)
 	if capability == "" {

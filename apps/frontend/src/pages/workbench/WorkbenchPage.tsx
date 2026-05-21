@@ -1944,6 +1944,26 @@ function mergeMetadataJSON(value: unknown, patch: Record<string, unknown>) {
   }
 }
 
+function metadataObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function textListFromMetadata(value: unknown) {
+  if (Array.isArray(value)) return value.map((item) => firstText(item)).filter(Boolean).join('\n')
+  return firstText(value)
+}
+
+function metadataListFromText(value: string) {
+  return value
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function hasStructuredText(...values: string[]) {
+  return values.some((value) => Boolean(value.trim()))
+}
+
 function dedupeRecords<T extends { ID: number }>(records: T[]): T[] {
   const seen = new Set<number>()
   return records.filter((record) => {
@@ -2484,6 +2504,79 @@ function ContentWorkbenchScenePreview({
         </div>
       </div>
     </WorkbenchPanel>
+  )
+}
+
+function ContentWorkbenchUnitInspector({
+  projectId,
+  queryKey,
+  jobs = [],
+  row,
+  unit,
+  onSelectUnit,
+  onCreateUnit,
+  onAiSuggest,
+  onCreateAssetSlot,
+  onCreateKeyframe,
+  onOpenCanvas,
+  onUploadMissingAssets,
+  onDeleteUnit,
+}: {
+  projectId?: number
+  queryKey?: readonly unknown[]
+  jobs?: Job[]
+  row: ContentGenerationMomentRow | null
+  unit: WorkbenchRecord | null
+  onSelectUnit: (unitId: number) => void
+  onCreateUnit: () => void
+  onAiSuggest?: () => void
+  onCreateAssetSlot?: () => void
+  onCreateKeyframe?: () => void
+  onOpenCanvas?: () => void
+  onUploadMissingAssets?: () => void
+  onDeleteUnit?: (unit: WorkbenchRecord) => void
+}) {
+  return (
+    <aside
+      className="min-w-0 overflow-hidden rounded-lg border border-border bg-background 2xl:sticky 2xl:top-0"
+      data-testid="content-workbench-unit-inspector"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border bg-muted/25 px-3 py-2.5">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <FileText size={14} />
+            当前制作项
+          </div>
+          <h3 className="mt-1 truncate text-sm font-semibold text-foreground">
+            {unit ? titleOfRecord(unit) : row ? '选择或创建制作项' : '等待选择情节'}
+          </h3>
+          <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+            {unit
+              ? '生成目标、关键帧、故事板和调度输入都在这里补齐。'
+              : row
+                ? '先在时间轴选择一个制作项，或新建一个制作项。'
+                : '选择情节后再开始内容编排。'}
+          </p>
+        </div>
+        {unit ? <Badge variant="outline">{trackKindLabel(String(unit.kind || 'shot'))}</Badge> : null}
+      </div>
+      <ContentUnitEditCards
+        projectId={projectId}
+        queryKey={queryKey}
+        jobs={jobs}
+        row={row}
+        unit={unit}
+        compact
+        onSelectUnit={onSelectUnit}
+        onCreateUnit={onCreateUnit}
+        onAiSuggest={onAiSuggest}
+        onCreateAssetSlot={onCreateAssetSlot}
+        onCreateKeyframe={onCreateKeyframe}
+        onOpenCanvas={onOpenCanvas}
+        onUploadMissingAssets={onUploadMissingAssets}
+        onDeleteUnit={onDeleteUnit}
+      />
+    </aside>
   )
 }
 
@@ -3319,6 +3412,7 @@ function formatTrackDuration(seconds: number) {
 function UnitProductionTrack({
   row,
   selectedUnitId,
+  showInlineEditor = true,
   onSelectUnit,
   onCreateUnit,
   onAiSuggest,
@@ -3337,6 +3431,7 @@ function UnitProductionTrack({
 }: {
   row: ContentGenerationMomentRow | null
   selectedUnitId?: number
+  showInlineEditor?: boolean
   onSelectUnit: (unitId: number | null) => void
   onCreateUnit: () => void
   onAiSuggest?: () => void
@@ -3475,8 +3570,8 @@ function UnitProductionTrack({
   const focusedTimeline = timelineOriginSec > 0
   const canDragUnits = Boolean(row && visibleSummary.total > 0 && !isReordering)
   useEffect(() => {
-    if (!selectedUnit && schedulePanel === 'edit') setSchedulePanel('timeline')
-  }, [schedulePanel, selectedUnit])
+    if ((!selectedUnit || !showInlineEditor) && schedulePanel === 'edit') setSchedulePanel('timeline')
+  }, [schedulePanel, selectedUnit, showInlineEditor])
   function selectOrClearUnit(unitId: number) {
     if (selectedUnitId === unitId) {
       onSelectUnit(null)
@@ -3711,7 +3806,7 @@ function UnitProductionTrack({
               <Clock3 size={13} />
               制作项时间轴
             </button>
-            {selectedUnit ? (
+            {selectedUnit && showInlineEditor ? (
               <button
                 type="button"
                 className={cn(
@@ -3766,7 +3861,7 @@ function UnitProductionTrack({
             <Badge variant="outline">{formatTrackDuration(timelineContentDurationSec)}</Badge>
           </div>
         </div>
-        {schedulePanel === 'timeline' ? (<>
+        {schedulePanel === 'timeline' || !showInlineEditor ? (<>
         <div className="overflow-x-auto">
           <div style={{ minWidth: timelineCanvasWidth }}>
             <div className="border-b border-border bg-background px-2.5 py-2.5" data-testid="content-workbench-unit-timeline">
@@ -4227,6 +4322,20 @@ type ContentUnitEditDraft = {
   camera_angle: string
   camera_motion: string
   status: string
+  metadata_json: string
+  visual_plan_space: string
+  visual_plan_blocking: string
+  visual_plan_camera_path: string
+  visual_plan_beats: string
+  visual_plan_props: string
+  visual_plan_lighting: string
+  visual_plan_risks: string
+  storyboard_purpose: string
+  storyboard_subject: string
+  storyboard_composition: string
+  storyboard_action_moment: string
+  storyboard_emotion: string
+  storyboard_keyframe_suggestions: string
 }
 
 type KeyframeEditDraft = {
@@ -4249,6 +4358,7 @@ function ContentUnitEditCards({
   jobs = [],
   row,
   unit,
+  compact = false,
   onSelectUnit,
   onCreateUnit,
   onAiSuggest,
@@ -4263,6 +4373,7 @@ function ContentUnitEditCards({
   jobs?: Job[]
   row: ContentGenerationMomentRow | null
   unit: WorkbenchRecord | null
+  compact?: boolean
   onSelectUnit: (unitId: number) => void
   onCreateUnit: () => void
   onAiSuggest?: () => void
@@ -4300,10 +4411,26 @@ function ContentUnitEditCards({
     ? row.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID).slice().sort(byOrder)
     : []
   const hasPrompt = Boolean(firstText(draft.prompt, draft.description))
+  const visualPlanReady = hasStructuredText(
+    draft.visual_plan_space,
+    draft.visual_plan_blocking,
+    draft.visual_plan_camera_path,
+    draft.visual_plan_beats,
+    draft.visual_plan_lighting,
+  )
+  const storyboardBriefReady = hasStructuredText(
+    draft.storyboard_purpose,
+    draft.storyboard_subject,
+    draft.storyboard_composition,
+    draft.storyboard_action_moment,
+    draft.storyboard_keyframe_suggestions,
+  )
   const requiresKeyframe = unit ? contentWorkbenchUnitRequiresKeyframe(unit.kind) : true
   const workStatus = unit ? contentUnitWorkStatus(unit, missingSlots) : 'blocked'
   const blockers = [
     hasPrompt ? '' : '缺提示',
+    requiresKeyframe && !visualPlanReady ? '缺视觉调度' : '',
+    requiresKeyframe && !storyboardBriefReady ? '缺故事板简述' : '',
     missingSlots.length > 0 ? `${missingSlots.length} 个素材缺口` : '',
     requiresKeyframe && keyframes.length === 0 ? '缺关键帧' : '',
   ].filter(Boolean)
@@ -4433,6 +4560,8 @@ function ContentUnitEditCards({
           unit,
           keyframe,
           sequence: ordered,
+          visualPlan: contentUnitVisualPlanPromptText(unit),
+          storyboardBrief: contentUnitStoryboardBriefPromptText(unit),
         })
         const response = await api.post<Job>('/jobs', {
           project_id: projectId,
@@ -4527,7 +4656,7 @@ function ContentUnitEditCards({
 
   return (
     <div className="min-h-[180px] bg-background p-3" data-testid="content-workbench-unit-edit-cards">
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(300px,.95fr)]">
+      <div className={cn('grid gap-3', compact ? '' : 'xl:grid-cols-[minmax(0,1.05fr)_minmax(300px,.95fr)]')}>
         <section className="rounded-md border border-border bg-card p-3" data-testid="content-workbench-edit-summary-card">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
@@ -4603,22 +4732,22 @@ function ContentUnitEditCards({
               testId="content-workbench-blocking-input-card"
               icon={Route}
               title="调度图"
-              badge={requiresKeyframe ? '可选输入' : '非视觉项'}
-              badgeVariant={requiresKeyframe ? 'outline' : 'secondary'}
-              detail={requiresKeyframe ? '空间、相机路径、人物、道具、光位和停点。' : '当前制作项不强制调度图。'}
-              status="待创建"
-              tone="default"
+              badge={visualPlanReady ? '已填写' : requiresKeyframe ? '建议补齐' : '非视觉项'}
+              badgeVariant={visualPlanReady ? 'success' : requiresKeyframe ? 'warning' : 'secondary'}
+              detail={visualPlanReady ? firstText(draft.visual_plan_blocking, draft.visual_plan_camera_path, draft.visual_plan_space) : requiresKeyframe ? '空间、相机路径、人物、道具、光位和停点。' : '当前制作项不强制调度图。'}
+              status={visualPlanReady ? '可用于生成' : '待填写'}
+              tone={visualPlanReady ? 'success' : requiresKeyframe ? 'warning' : 'default'}
               onOpen={() => setActiveInputDrawer('blocking')}
             />
             <ContentUnitGenerationInputCard
               testId="content-workbench-storyboard-input-card"
               icon={Clapperboard}
               title="故事板"
-              badge="可选输入"
-              badgeVariant="outline"
-              detail="单张叙事确认图，用于先判断画面是否讲对。"
-              status="待创建"
-              tone="default"
+              badge={storyboardBriefReady ? '已填写' : '建议补齐'}
+              badgeVariant={storyboardBriefReady ? 'success' : 'warning'}
+              detail={storyboardBriefReady ? firstText(draft.storyboard_purpose, draft.storyboard_composition, draft.storyboard_action_moment) : '单张叙事确认图，用于先判断画面是否讲对。'}
+              status={storyboardBriefReady ? '可用于关键帧' : '待填写'}
+              tone={storyboardBriefReady ? 'success' : 'warning'}
               onOpen={() => setActiveInputDrawer('storyboard')}
             />
             <ContentUnitGenerationInputCard
@@ -4685,11 +4814,15 @@ function ContentUnitEditCards({
           </div>
         </section>
 
-        <section className="rounded-md border border-border bg-muted/20 p-3 xl:col-span-2" data-testid="content-workbench-input-drawer">
+        <section className={cn('rounded-md border border-border bg-muted/20 p-3', compact ? '' : 'xl:col-span-2')} data-testid="content-workbench-input-drawer">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-foreground">输入抽屉</p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">在当前制作项内切换生成、关键帧、故事板和调度图，不打断上方内容编辑。</p>
+              <p className="text-sm font-semibold text-foreground">{compact ? '制作输入' : '输入抽屉'}</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                {compact
+                  ? '当前制作项的生成、关键帧、故事板和调度图都在右侧 Inspector 内编辑。'
+                  : '在当前制作项内切换生成、关键帧、故事板和调度图，不打断上方内容编辑。'}
+              </p>
             </div>
             <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="制作项输入类型">
               {[
@@ -4725,6 +4858,8 @@ function ContentUnitEditCards({
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <Badge variant={hasPrompt ? 'success' : 'warning'}>{hasPrompt ? '有提示' : '缺提示'}</Badge>
+                    <Badge variant={visualPlanReady ? 'success' : 'warning'}>{visualPlanReady ? '有视觉调度' : '缺视觉调度'}</Badge>
+                    <Badge variant={storyboardBriefReady ? 'success' : 'warning'}>{storyboardBriefReady ? '有故事板简述' : '缺故事板简述'}</Badge>
                     <Badge variant={missingSlots.length > 0 ? 'warning' : 'success'}>{missingSlots.length > 0 ? `${missingSlots.length} 素材缺口` : '素材可用'}</Badge>
                     <Badge variant={requiresKeyframe && keyframes.length === 0 ? 'warning' : 'success'}>{requiresKeyframe ? `${keyframes.length} 关键帧` : '无需关键帧'}</Badge>
                   </div>
@@ -4739,7 +4874,7 @@ function ContentUnitEditCards({
             ) : null}
 
             {activeInputDrawer === 'keyframes' ? (
-              <div className="grid gap-3 lg:grid-cols-[minmax(240px,.8fr)_minmax(0,1.2fr)]" data-testid="content-workbench-keyframe-editor">
+              <div className={cn('grid gap-3', compact ? '' : 'lg:grid-cols-[minmax(240px,.8fr)_minmax(0,1.2fr)]')} data-testid="content-workbench-keyframe-editor">
                 <div className="min-w-0 rounded-md border border-border bg-background">
                   <div className="flex items-center justify-between gap-2 border-b border-border px-2.5 py-2">
                     <div className="min-w-0">
@@ -4868,7 +5003,7 @@ function ContentUnitEditCards({
                         <ContentUnitEditSelect label="状态" value={keyframeDraft.status} options={keyframeEditStatusOptions} onChange={(value) => updateKeyframeDraft('status', value)} />
                       </div>
 
-                      <div className="grid gap-2 lg:grid-cols-2">
+                      <div className={cn('grid gap-2', compact ? '' : 'lg:grid-cols-2')}>
                         <div className="space-y-1.5">
                           <Label htmlFor={`keyframe-description-${selectedKeyframe.ID}`} className="text-xs">画面描述</Label>
                           <Textarea
@@ -4943,35 +5078,187 @@ function ContentUnitEditCards({
             ) : null}
 
             {activeInputDrawer === 'storyboard' ? (
-              <div>
-                <p className="text-xs font-medium text-foreground">故事板</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  {firstText(draft.description, draft.prompt, '先用单张叙事确认图验证画面讲述是否正确，再推进关键帧和生成。')}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <Badge variant="outline">待创建</Badge>
-                  <Badge variant={hasPrompt ? 'success' : 'warning'}>{hasPrompt ? '可从提示生成' : '需要补目标'}</Badge>
+              <div className="space-y-3" data-testid="content-workbench-storyboard-brief-editor">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-medium text-foreground">故事板简述</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      先用结构化说明确认画面要讲什么，再推进关键帧或单张故事板图。
+                    </p>
+                  </div>
+                  <Badge variant={storyboardBriefReady ? 'success' : 'warning'}>{storyboardBriefReady ? '已填写' : '待填写'}</Badge>
+                </div>
+                <div className="grid gap-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`storyboard-purpose-${unit.ID}`} className="text-xs">画面目的</Label>
+                    <Textarea
+                      id={`storyboard-purpose-${unit.ID}`}
+                      className="min-h-[72px]"
+                      value={draft.storyboard_purpose}
+                      placeholder="这一格故事板要让观众理解什么信息或情绪？"
+                      onChange={(event) => updateDraft('storyboard_purpose', event.target.value)}
+                      data-testid="content-workbench-storyboard-purpose"
+                    />
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`storyboard-subject-${unit.ID}`} className="text-xs">主体</Label>
+                      <Textarea
+                        id={`storyboard-subject-${unit.ID}`}
+                        className="min-h-[72px]"
+                        value={draft.storyboard_subject}
+                        placeholder="人物、道具或环境主体。"
+                        onChange={(event) => updateDraft('storyboard_subject', event.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`storyboard-composition-${unit.ID}`} className="text-xs">构图</Label>
+                      <Textarea
+                        id={`storyboard-composition-${unit.ID}`}
+                        className="min-h-[72px]"
+                        value={draft.storyboard_composition}
+                        placeholder="主体位置、前中后景、留白和视线方向。"
+                        onChange={(event) => updateDraft('storyboard_composition', event.target.value)}
+                        data-testid="content-workbench-storyboard-composition"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`storyboard-action-${unit.ID}`} className="text-xs">动作瞬间</Label>
+                      <Textarea
+                        id={`storyboard-action-${unit.ID}`}
+                        className="min-h-[72px]"
+                        value={draft.storyboard_action_moment}
+                        placeholder="故事板捕捉的动作节点或表演状态。"
+                        onChange={(event) => updateDraft('storyboard_action_moment', event.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`storyboard-emotion-${unit.ID}`} className="text-xs">情绪状态</Label>
+                      <Textarea
+                        id={`storyboard-emotion-${unit.ID}`}
+                        className="min-h-[72px]"
+                        value={draft.storyboard_emotion}
+                        placeholder="人物情绪、氛围和观众感受。"
+                        onChange={(event) => updateDraft('storyboard_emotion', event.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`storyboard-keyframes-${unit.ID}`} className="text-xs">建议关键帧</Label>
+                    <Textarea
+                      id={`storyboard-keyframes-${unit.ID}`}
+                      className="min-h-[88px]"
+                      value={draft.storyboard_keyframe_suggestions}
+                      placeholder="一行一个建议，例如：首帧：旧伞遮住半张脸；尾帧：纸条落在水洼边。"
+                      onChange={(event) => updateDraft('storyboard_keyframe_suggestions', event.target.value)}
+                      data-testid="content-workbench-storyboard-keyframe-suggestions"
+                    />
+                  </div>
                 </div>
               </div>
             ) : null}
 
             {activeInputDrawer === 'blocking' ? (
-              <div>
-                <p className="text-xs font-medium text-foreground">调度图</p>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  用来标记空间关系、相机路径、人物停点、道具和光位。它和关键帧兼容：调度图回答“怎么走”，关键帧回答“长什么样”。
-                </p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <Badge variant="outline">待创建</Badge>
-                  <Badge variant={requiresKeyframe ? 'secondary' : 'outline'}>{requiresKeyframe ? '适合视觉单元' : '可选输入'}</Badge>
+              <div className="space-y-3" data-testid="content-workbench-visual-plan-editor">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-medium text-foreground">视觉调度计划</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      调度图回答空间关系、相机路径和人物怎么走；关键帧回答最终画面长什么样。
+                    </p>
+                  </div>
+                  <Badge variant={visualPlanReady ? 'success' : requiresKeyframe ? 'warning' : 'outline'}>{visualPlanReady ? '已填写' : requiresKeyframe ? '建议补齐' : '可选'}</Badge>
+                </div>
+                <div className="grid gap-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`visual-plan-space-${unit.ID}`} className="text-xs">空间关系</Label>
+                    <Textarea
+                      id={`visual-plan-space-${unit.ID}`}
+                      className="min-h-[76px]"
+                      value={draft.visual_plan_space}
+                      placeholder="地点结构、人物/道具初始位置、前中后景关系。"
+                      onChange={(event) => updateDraft('visual_plan_space', event.target.value)}
+                      data-testid="content-workbench-visual-plan-space"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`visual-plan-blocking-${unit.ID}`} className="text-xs">人物走位 / 调度</Label>
+                    <Textarea
+                      id={`visual-plan-blocking-${unit.ID}`}
+                      className="min-h-[76px]"
+                      value={draft.visual_plan_blocking}
+                      placeholder="人物从哪里来、在哪停、动作如何变化。"
+                      onChange={(event) => updateDraft('visual_plan_blocking', event.target.value)}
+                      data-testid="content-workbench-visual-plan-blocking"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`visual-plan-camera-${unit.ID}`} className="text-xs">摄影机路径</Label>
+                    <Textarea
+                      id={`visual-plan-camera-${unit.ID}`}
+                      className="min-h-[76px]"
+                      value={draft.visual_plan_camera_path}
+                      placeholder="机位、镜头运动、焦点变化和落点。"
+                      onChange={(event) => updateDraft('visual_plan_camera_path', event.target.value)}
+                      data-testid="content-workbench-visual-plan-camera-path"
+                    />
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`visual-plan-beats-${unit.ID}`} className="text-xs">停点 / 节奏</Label>
+                      <Textarea
+                        id={`visual-plan-beats-${unit.ID}`}
+                        className="min-h-[88px]"
+                        value={draft.visual_plan_beats}
+                        placeholder="一行一个 beat，例如：0-2s 纸条滑落。"
+                        onChange={(event) => updateDraft('visual_plan_beats', event.target.value)}
+                        data-testid="content-workbench-visual-plan-beats"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`visual-plan-props-${unit.ID}`} className="text-xs">道具位置</Label>
+                      <Textarea
+                        id={`visual-plan-props-${unit.ID}`}
+                        className="min-h-[88px]"
+                        value={draft.visual_plan_props}
+                        placeholder="一行一个道具或空间参照。"
+                        onChange={(event) => updateDraft('visual_plan_props', event.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`visual-plan-lighting-${unit.ID}`} className="text-xs">光线意图</Label>
+                      <Textarea
+                        id={`visual-plan-lighting-${unit.ID}`}
+                        className="min-h-[76px]"
+                        value={draft.visual_plan_lighting}
+                        placeholder="主光、环境光、阴影、反光和情绪。"
+                        onChange={(event) => updateDraft('visual_plan_lighting', event.target.value)}
+                        data-testid="content-workbench-visual-plan-lighting"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`visual-plan-risks-${unit.ID}`} className="text-xs">风险备注</Label>
+                      <Textarea
+                        id={`visual-plan-risks-${unit.ID}`}
+                        className="min-h-[76px]"
+                        value={draft.visual_plan_risks}
+                        placeholder="连续性、道具准确性、模型容易误解的点。"
+                        onChange={(event) => updateDraft('visual_plan_risks', event.target.value)}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : null}
           </div>
         </section>
 
-        <section className="rounded-md border border-border bg-card p-3 xl:col-span-2" data-testid="content-workbench-edit-goal-card">
-          <div className="grid gap-3 lg:grid-cols-2">
+        <section className={cn('rounded-md border border-border bg-card p-3', compact ? '' : 'xl:col-span-2')} data-testid="content-workbench-edit-goal-card">
+          <div className={cn('grid gap-3', compact ? '' : 'lg:grid-cols-2')}>
             <div className="space-y-1.5">
               <Label htmlFor={`content-unit-description-${unit.ID}`} className="text-xs">要做什么</Label>
               <Textarea
@@ -5096,6 +5383,9 @@ function ContentUnitGenerationInputCard({
 }
 
 function contentUnitEditDraftFromRecord(unit?: WorkbenchRecord | null): ContentUnitEditDraft {
+  const metadata = parseMetadataJSON(unit?.metadata_json)
+  const visualPlan = metadataObject(metadata.visual_plan)
+  const storyboardBrief = metadataObject(metadata.storyboard_brief)
   return {
     title: firstText(unit?.title),
     duration_sec: unit?.duration_sec === undefined || unit?.duration_sec === null ? '' : String(unit.duration_sec),
@@ -5105,6 +5395,20 @@ function contentUnitEditDraftFromRecord(unit?: WorkbenchRecord | null): ContentU
     camera_angle: firstText(unit?.camera_angle),
     camera_motion: firstText(unit?.camera_motion),
     status: firstText(unit?.status, 'candidate'),
+    metadata_json: firstText(unit?.metadata_json),
+    visual_plan_space: firstText(visualPlan.space),
+    visual_plan_blocking: firstText(visualPlan.blocking),
+    visual_plan_camera_path: firstText(visualPlan.camera_path),
+    visual_plan_beats: textListFromMetadata(visualPlan.beats),
+    visual_plan_props: textListFromMetadata(visualPlan.props),
+    visual_plan_lighting: firstText(visualPlan.lighting),
+    visual_plan_risks: textListFromMetadata(visualPlan.risks),
+    storyboard_purpose: firstText(storyboardBrief.purpose),
+    storyboard_subject: firstText(storyboardBrief.subject),
+    storyboard_composition: firstText(storyboardBrief.composition),
+    storyboard_action_moment: firstText(storyboardBrief.action_moment),
+    storyboard_emotion: firstText(storyboardBrief.emotion),
+    storyboard_keyframe_suggestions: textListFromMetadata(storyboardBrief.keyframe_suggestions),
   }
 }
 
@@ -5118,6 +5422,23 @@ function contentUnitEditDraftEqualsRecord(draft: ContentUnitEditDraft, unit: Wor
 
 function contentUnitEditPayload(draft: ContentUnitEditDraft): SemanticEntityPayload {
   const duration = Number(draft.duration_sec)
+  const visualPlan = {
+    space: draft.visual_plan_space.trim(),
+    blocking: draft.visual_plan_blocking.trim(),
+    camera_path: draft.visual_plan_camera_path.trim(),
+    beats: metadataListFromText(draft.visual_plan_beats),
+    props: metadataListFromText(draft.visual_plan_props),
+    lighting: draft.visual_plan_lighting.trim(),
+    risks: metadataListFromText(draft.visual_plan_risks),
+  }
+  const storyboardBrief = {
+    purpose: draft.storyboard_purpose.trim(),
+    subject: draft.storyboard_subject.trim(),
+    composition: draft.storyboard_composition.trim(),
+    action_moment: draft.storyboard_action_moment.trim(),
+    emotion: draft.storyboard_emotion.trim(),
+    keyframe_suggestions: metadataListFromText(draft.storyboard_keyframe_suggestions),
+  }
   return {
     title: firstText(draft.title, '未命名制作项'),
     duration_sec: Number.isFinite(duration) && duration > 0 ? duration : null,
@@ -5127,7 +5448,47 @@ function contentUnitEditPayload(draft: ContentUnitEditDraft): SemanticEntityPayl
     camera_angle: draft.camera_angle,
     camera_motion: draft.camera_motion,
     status: firstText(draft.status, 'candidate'),
+    metadata_json: JSON.stringify(mergeMetadataJSON(draft.metadata_json, {
+      visual_plan: visualPlan,
+      storyboard_brief: storyboardBrief,
+    })),
   }
+}
+
+function contentUnitVisualPlanPromptText(unit: WorkbenchRecord) {
+  const visualPlan = metadataObject(parseMetadataJSON(unit.metadata_json).visual_plan)
+  return [
+    firstText(visualPlan.space) ? `空间关系：${firstText(visualPlan.space)}` : '',
+    firstText(visualPlan.blocking) ? `人物走位：${firstText(visualPlan.blocking)}` : '',
+    firstText(visualPlan.camera_path) ? `摄影机路径：${firstText(visualPlan.camera_path)}` : '',
+    textListFromMetadata(visualPlan.beats) ? `停点/节奏：${textListFromMetadata(visualPlan.beats).replace(/\n/g, '；')}` : '',
+    textListFromMetadata(visualPlan.props) ? `道具位置：${textListFromMetadata(visualPlan.props).replace(/\n/g, '；')}` : '',
+    firstText(visualPlan.lighting) ? `光线意图：${firstText(visualPlan.lighting)}` : '',
+    textListFromMetadata(visualPlan.risks) ? `风险备注：${textListFromMetadata(visualPlan.risks).replace(/\n/g, '；')}` : '',
+  ].filter(Boolean).join('\n')
+}
+
+function contentUnitStoryboardBriefPromptText(unit: WorkbenchRecord) {
+  const storyboardBrief = metadataObject(parseMetadataJSON(unit.metadata_json).storyboard_brief)
+  return [
+    firstText(storyboardBrief.purpose) ? `画面目的：${firstText(storyboardBrief.purpose)}` : '',
+    firstText(storyboardBrief.subject) ? `主体：${firstText(storyboardBrief.subject)}` : '',
+    firstText(storyboardBrief.composition) ? `构图：${firstText(storyboardBrief.composition)}` : '',
+    firstText(storyboardBrief.action_moment) ? `动作瞬间：${firstText(storyboardBrief.action_moment)}` : '',
+    firstText(storyboardBrief.emotion) ? `情绪状态：${firstText(storyboardBrief.emotion)}` : '',
+    textListFromMetadata(storyboardBrief.keyframe_suggestions) ? `建议关键帧：${textListFromMetadata(storyboardBrief.keyframe_suggestions).replace(/\n/g, '；')}` : '',
+  ].filter(Boolean).join('\n')
+}
+
+function contentUnitGenerationCanvasDescription(unit: WorkbenchRecord) {
+  const visualPlan = contentUnitVisualPlanPromptText(unit)
+  const storyboardBrief = contentUnitStoryboardBriefPromptText(unit)
+  return [
+    `内容单元：${titleOfRecord(unit)}`,
+    firstText(unit.description, unit.prompt) ? `生成目标：${firstText(unit.description, unit.prompt)}` : '',
+    visualPlan ? `视觉调度：\n${visualPlan}` : '',
+    storyboardBrief ? `故事板简述：\n${storyboardBrief}` : '',
+  ].filter(Boolean).join('\n\n')
 }
 
 function keyframeEditDraftFromRecord(keyframe?: WorkbenchRecord | null): KeyframeEditDraft {
@@ -5227,11 +5588,15 @@ function buildKeyframeGenerationPrompt({
   unit,
   keyframe,
   sequence,
+  visualPlan,
+  storyboardBrief,
 }: {
   row: ContentGenerationMomentRow
   unit: WorkbenchRecord
   keyframe: WorkbenchRecord
   sequence: WorkbenchRecord[]
+  visualPlan?: string
+  storyboardBrief?: string
 }) {
   const index = Math.max(0, sequence.findIndex((item) => item.ID === keyframe.ID))
   const prev = sequence[index - 1]
@@ -5241,6 +5606,8 @@ function buildKeyframeGenerationPrompt({
     `所属制作项：${titleOfRecord(unit)}。${firstText(unit.prompt, unit.description)}`,
     `当前情节：${row.title}。${firstText(row.moment.action_text, row.moment.description, row.moment.location_text, row.moment.time_text)}`,
     `关键帧要求：${firstText(keyframe.prompt, keyframe.description, titleOfRecord(keyframe))}`,
+    visualPlan ? `当前制作项视觉调度：\n${visualPlan}` : '',
+    storyboardBrief ? `当前制作项故事板简述：\n${storyboardBrief}` : '',
     prev ? `前一帧连续性：${titleOfRecord(prev)}，${firstText(prev.prompt, prev.description)}` : '',
     next ? `后一帧连续性：${titleOfRecord(next)}，${firstText(next.prompt, next.description)}` : '',
     firstText(unit.shot_size, unit.camera_angle, unit.camera_motion) ? `镜头参数：${[unit.shot_size, unit.camera_angle, unit.camera_motion].filter(Boolean).join(' / ')}` : '',
@@ -6380,6 +6747,7 @@ function ContentGenerationWorkbench() {
         projectId,
         contentUnitId: unit.ID,
         title: titleOfRecord(unit),
+        description: contentUnitGenerationCanvasDescription(unit),
       })).then((r) => r.data as Canvas)
     },
     onSuccess: (canvas) => navigate(`/canvases/${canvas.ID}`),
@@ -7094,44 +7462,63 @@ function ContentGenerationWorkbench() {
                       />
                     ) : null}
 
-                    <div className="grid gap-3">
-                      <ContentWorkbenchScenePreview
-                        row={selected}
-                        selectedUnit={selectedUnit}
-                        keyframes={selectedUnitKeyframes}
-                        previewItemCount={selectedPreviewItemCount}
-                        runningJobCount={selectedUnitRunningJobCount}
-                        onSelectUnit={(unitId) => selectContentUnitFromRow(selected, selectedUnit?.ID === unitId ? null : unitId)}
-                      />
-                    </div>
+                    <div className="grid gap-3 2xl:grid-cols-[minmax(0,1fr)_400px] 2xl:items-start" data-testid="content-workbench-production-grid">
+                      <div className="min-w-0 space-y-3">
+                        <ContentWorkbenchScenePreview
+                          row={selected}
+                          selectedUnit={selectedUnit}
+                          keyframes={selectedUnitKeyframes}
+                          previewItemCount={selectedPreviewItemCount}
+                          runningJobCount={selectedUnitRunningJobCount}
+                          onSelectUnit={(unitId) => selectContentUnitFromRow(selected, selectedUnit?.ID === unitId ? null : unitId)}
+                        />
 
-                    <div className="space-y-3" data-testid="content-workbench-production-grid">
-                      <UnitProductionTrack
+                        <UnitProductionTrack
+                          row={selected}
+                          selectedUnitId={selectedUnit?.ID}
+                          showInlineEditor={false}
+                          onSelectUnit={(unitId) => selectContentUnitFromRow(selected, unitId)}
+                          onCreateUnit={() => openCreateUnitForRow(selected)}
+                          onAiSuggest={() => openAiSuggest(selected)}
+                          onSelectFirstMoment={selectFirstSceneMoment}
+                          onCreateAssetSlot={openCreateAssetSlot}
+                          onCreateKeyframe={openCreateKeyframe}
+                          onOpenCanvas={openSelectedUnitCanvas}
+                          onUploadMissingAssets={triggerCandidateUpload}
+                          onReorderUnit={(draggedUnitId, targetUnitId, position) => {
+                            if (reorderContentUnits.isPending) return
+                            reorderContentUnits.mutate({ row: selected, draggedUnitId, targetUnitId, position })
+                          }}
+                          onMoveUnitOnTimeline={(unitId, startSec) => {
+                            if (moveContentUnitOnTimeline.isPending) return
+                            moveContentUnitOnTimeline.mutate({ row: selected, unitId, startSec })
+                          }}
+                          onDeleteUnit={(unit) => {
+                            selectContentUnitFromRow(selected, null, { replace: true })
+                          }}
+                          projectId={projectId}
+                          queryKey={productionWorkbenchQueryKey}
+                          jobs={data?.jobs ?? []}
+                          isReordering={reorderContentUnits.isPending || moveContentUnitOnTimeline.isPending}
+                        />
+                      </div>
+
+                      <ContentWorkbenchUnitInspector
+                        projectId={projectId}
+                        queryKey={productionWorkbenchQueryKey}
+                        jobs={data?.jobs ?? []}
                         row={selected}
-                        selectedUnitId={selectedUnit?.ID}
+                        unit={selectedUnit}
                         onSelectUnit={(unitId) => selectContentUnitFromRow(selected, unitId)}
                         onCreateUnit={() => openCreateUnitForRow(selected)}
                         onAiSuggest={() => openAiSuggest(selected)}
-                        onSelectFirstMoment={selectFirstSceneMoment}
                         onCreateAssetSlot={openCreateAssetSlot}
                         onCreateKeyframe={openCreateKeyframe}
                         onOpenCanvas={openSelectedUnitCanvas}
                         onUploadMissingAssets={triggerCandidateUpload}
-                        onReorderUnit={(draggedUnitId, targetUnitId, position) => {
-                          if (reorderContentUnits.isPending) return
-                          reorderContentUnits.mutate({ row: selected, draggedUnitId, targetUnitId, position })
-                        }}
-                        onMoveUnitOnTimeline={(unitId, startSec) => {
-                          if (moveContentUnitOnTimeline.isPending) return
-                          moveContentUnitOnTimeline.mutate({ row: selected, unitId, startSec })
-                        }}
                         onDeleteUnit={(unit) => {
                           selectContentUnitFromRow(selected, null, { replace: true })
                         }}
-                        projectId={projectId}
-                        queryKey={productionWorkbenchQueryKey}
-                        jobs={data?.jobs ?? []}
-                        isReordering={reorderContentUnits.isPending || moveContentUnitOnTimeline.isPending}
                       />
                     </div>
                   </>

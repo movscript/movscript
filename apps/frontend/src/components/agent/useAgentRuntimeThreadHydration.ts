@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 import { fetchResourceById } from '@/lib/agentMessageViewModel'
 import type { AgentConversationMessageStore } from '@/lib/agentConversationMessageStore'
 import { loadRuntimeThreadProjection } from '@/lib/agentRuntimeThreadHydration'
@@ -18,6 +19,7 @@ export interface UseAgentRuntimeThreadHydrationInput {
   setLocalThreadId: (conversationId: string, threadId: string) => void
   setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch?: { loading?: boolean; building?: boolean; approving?: boolean; stopping?: boolean; stopRequested?: boolean }) => void
+  setSubmittedInteractionRuns: Dispatch<SetStateAction<AgentRun[]>>
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
   messageStore: Pick<AgentConversationMessageStore, 'setConversationMessages'>
 }
@@ -34,6 +36,7 @@ export function useAgentRuntimeThreadHydration({
   setLocalThreadId,
   setConversationRuntimeThreadId,
   setConversationRun,
+  setSubmittedInteractionRuns,
   updateConversationTitle,
   messageStore,
 }: UseAgentRuntimeThreadHydrationInput) {
@@ -63,6 +66,7 @@ export function useAgentRuntimeThreadHydration({
       setLocalThreadId,
       setConversationRuntimeThreadId,
       setConversationRun,
+      setSubmittedInteractionRuns,
       updateConversationTitle,
       messageStore,
     }).catch(() => undefined)
@@ -80,6 +84,7 @@ export function useAgentRuntimeThreadHydration({
     runtimeLoading,
     setConversationRuntimeThreadId,
     setConversationRun,
+    setSubmittedInteractionRuns,
     setLocalThreadId,
     updateConversationTitle,
     userId,

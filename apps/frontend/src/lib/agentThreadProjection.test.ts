@@ -23,7 +23,7 @@ test('projectRuntimeThreadMessages binds runtime user and assistant messages to 
   const messages = await projectRuntimeThreadMessages({
     thread,
     runs: [run],
-    deps: { fetchRunTraceEvents: async () => [] },
+    deps: { fetchRunGenerationView: async () => emptyGenerationReplay() },
   })
 
   assert.deepEqual(messages.map((message) => message.id), ['runtime:msg_user', 'runtime:msg_assistant'])
@@ -56,7 +56,7 @@ test('projectRuntimeThreadMessages preserves existing local message ids for runt
   const messages = await projectRuntimeThreadMessages({
     thread,
     existingMessages: [existing],
-    deps: { fetchRunTraceEvents: async () => [] },
+    deps: { fetchRunGenerationView: async () => emptyGenerationReplay() },
   })
 
   assert.equal(messages[0].id, 'local_user_message')
@@ -90,7 +90,7 @@ test('projectRuntimeThreadMessages restores user attachments from runtime client
 
   const messages = await projectRuntimeThreadMessages({
     thread,
-    deps: { fetchRunTraceEvents: async () => [] },
+    deps: { fetchRunGenerationView: async () => emptyGenerationReplay() },
   })
 
   assert.deepEqual(messages[0].attachments, [{
@@ -133,7 +133,7 @@ test('projectRuntimeThreadMessages creates synthetic assistant messages for top-
   const messages = await projectRuntimeThreadMessages({
     thread,
     runs: [workerRun, run],
-    deps: { fetchRunTraceEvents: async () => [] },
+    deps: { fetchRunGenerationView: async () => emptyGenerationReplay() },
   })
 
   assert.deepEqual(messages.map((message) => message.id), [
@@ -189,7 +189,7 @@ test('projectRuntimeThreadMessages preserves existing synthetic assistant ids by
         createdAt: '2026-05-19T00:00:02.000Z',
       }],
     },
-    deps: { fetchRunTraceEvents: async () => [] },
+    deps: { fetchRunGenerationView: async () => emptyGenerationReplay() },
   })
 
   assert.equal(messages[1].id, 'local_assistant_result')
@@ -272,5 +272,21 @@ function makeRun(input: Partial<AgentRun> & { id: string }): AgentRun {
     createdAt: '2026-05-19T00:00:02.000Z',
     updatedAt: '2026-05-19T00:00:03.000Z',
     steps: [],
+  }
+}
+
+function emptyGenerationReplay() {
+  return {
+    jobs: [],
+    latestJob: null,
+    outputResourceIds: [],
+    outputResources: [],
+    metadataByResourceId: new Map(),
+    active: 0,
+    terminal: 0,
+    succeeded: 0,
+    failed: 0,
+    cancelled: 0,
+    timeout: 0,
   }
 }

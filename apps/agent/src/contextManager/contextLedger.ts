@@ -187,7 +187,7 @@ function retrievedRecordCharCount(ref: ContextRef, call: ToolCall, result: JSONV
       ?? 0
   }
   if (ref.type === 'draft') {
-    if (call.name === 'movscript_create_draft' || call.name === 'movscript_update_draft') return 0
+    if (call.name === 'movscript_create_draft' || call.name === 'movscript_validate_draft' || call.name === 'movscript_preview_draft_apply') return 0
     const item = findRefPayload(ref, payload)
     return stringLengthField(item, 'content')
       ?? stringLengthField(item, 'body')
@@ -341,9 +341,14 @@ function extractPlanRefs(payload: Record<string, unknown>): ContextRef[] {
 }
 
 function extractGenerationRefs(payload: Record<string, unknown>): ContextRef[] {
-  const job = isRecord(payload.job) ? payload.job : undefined
-  const id = numberField(payload.jobId)
-    ?? numberField(payload.job_id)
+  const operation = isRecord(payload.operation) ? payload.operation : undefined
+  const operationResult = isRecord(operation?.result) ? operation.result : undefined
+  const externalHandle = isRecord(operation?.externalHandle) ? operation.externalHandle : undefined
+  const generationPayload = operationResult ?? payload
+  const job = isRecord(generationPayload.job) ? generationPayload.job : undefined
+  const id = numberField(generationPayload.jobId)
+    ?? numberField(generationPayload.job_id)
+    ?? (externalHandle?.type === 'generation_job' ? numberField(externalHandle.id) : undefined)
     ?? numberField(job?.ID)
     ?? numberField(job?.id)
   if (id === undefined) return []
@@ -351,7 +356,7 @@ function extractGenerationRefs(payload: Record<string, unknown>): ContextRef[] {
   return [{
     type: 'generation_job',
     id: String(id),
-    title: stringField(payload.message) ?? `Generation job #${id}`,
+    title: stringField(generationPayload.message) ?? `Generation job #${id}`,
     hash,
     source: 'generation',
   }]

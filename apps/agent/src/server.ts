@@ -313,16 +313,6 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
-      const draftPatchMatch = url.pathname.match(/^\/drafts\/([^/]+)\/patch$/)
-      if (draftPatchMatch && req.method === 'POST') {
-        const body = await readOptionalJSONObject(req, 'draft patch body')
-        writeJSON(res, 200, context.agentRuntime.patchDraft({
-          draftId: draftPatchMatch[1],
-          ...body,
-        }))
-        return
-      }
-
       const draftValidateMatch = url.pathname.match(/^\/drafts\/([^/]+)\/validate$/)
       if (draftValidateMatch && req.method === 'POST') {
         writeJSON(res, 200, context.agentRuntime.validateDraft({ draftId: draftValidateMatch[1] }))
@@ -583,6 +573,50 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           return
         }
         writeJSON(res, 200, context.agentRuntime.getRunTraceSummary(runTraceSummaryMatch[1]))
+        return
+      }
+
+      const runTraceDebugViewMatch = url.pathname.match(/^\/runs\/([^/]+)\/trace\/debug-view$/)
+      if (runTraceDebugViewMatch && req.method === 'GET') {
+        if (!context.agentRuntime.getRun(runTraceDebugViewMatch[1])) {
+          writeJSON(res, 404, { error: 'run not found' })
+          return
+        }
+        writeJSON(res, 200, context.agentRuntime.getRunTraceDebugView(runTraceDebugViewMatch[1]))
+        return
+      }
+
+      const runDebugLedgerMatch = url.pathname.match(/^\/runs\/([^/]+)\/debug-ledger$/)
+      if (runDebugLedgerMatch && req.method === 'GET') {
+        if (!context.agentRuntime.getRun(runDebugLedgerMatch[1])) {
+          writeJSON(res, 404, { error: 'run not found' })
+          return
+        }
+        writeJSON(res, 200, context.agentRuntime.getRunDebugLedger(runDebugLedgerMatch[1]))
+        return
+      }
+
+      const runDebugEvidenceMatch = url.pathname.match(/^\/runs\/([^/]+)\/debug-evidence\/([^/]+)$/)
+      if (runDebugEvidenceMatch && req.method === 'GET') {
+        if (!context.agentRuntime.getRun(runDebugEvidenceMatch[1])) {
+          writeJSON(res, 404, { error: 'run not found' })
+          return
+        }
+        try {
+          writeJSON(res, 200, context.agentRuntime.getRunDebugEvidence(runDebugEvidenceMatch[1], decodeURIComponent(runDebugEvidenceMatch[2])))
+        } catch (error) {
+          writeJSON(res, 404, { error: error instanceof Error ? error.message : String(error) })
+        }
+        return
+      }
+
+      const runGenerationViewMatch = url.pathname.match(/^\/runs\/([^/]+)\/generation-view$/)
+      if (runGenerationViewMatch && req.method === 'GET') {
+        if (!context.agentRuntime.getRun(runGenerationViewMatch[1])) {
+          writeJSON(res, 404, { error: 'run not found' })
+          return
+        }
+        writeJSON(res, 200, context.agentRuntime.getRunGenerationView(runGenerationViewMatch[1]))
         return
       }
 

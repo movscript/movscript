@@ -8,7 +8,8 @@ export const BASE_RETRIEVAL_TOOLS = new Set([
 ])
 
 export const COMMAND_REQUIRED_TOOLS = new Set([
-  'movscript_create_generation_job',
+  'agent_io_start',
+  'agent_io_wait',
 ])
 
 export function isToolVisibleForActiveBehavior(input: {

@@ -1,7 +1,7 @@
 import { resolveRuntimePlannerModelConfig, type RuntimeModelAuthContext } from '../model/modelConfig.js'
 import { callModel, type ModelCallInput, type ModelCallResult } from '../model/modelClient.js'
-import { isRecord } from '../jsonValue.js'
-import type { CreatePlanTaskInput } from '../state/types.js'
+import { cloneJSONValue, isJSONRecord, isRecord } from '../jsonValue.js'
+import type { CreatePlanTaskInput, JSONValue } from '../state/types.js'
 
 export interface GeneratePlanTasksInput {
   goal: string
@@ -16,6 +16,7 @@ export interface GeneratePlanTasksResult {
   tasks: CreatePlanTaskInput[]
   source: 'model' | 'fallback'
   warnings: string[]
+  assessment?: Record<string, JSONValue>
 }
 
 export async function generatePlanTasks(input: GeneratePlanTasksInput): Promise<GeneratePlanTasksResult> {
@@ -24,7 +25,7 @@ export async function generatePlanTasks(input: GeneratePlanTasksInput): Promise<
   const maxTasks = normalizePositiveInteger(input.maxTasks) ?? 6
   const modelConfig = input.modelConfig === undefined ? resolveRuntimePlannerModelConfig() : input.modelConfig
   if (!modelConfig) {
-    return { tasks: [fallbackTask(goal)], source: 'fallback', warnings: ['planner model is not configured'] }
+    return { tasks: [fallbackTask(goal)], source: 'fallback', warnings: ['planner model is not configured'], assessment: fallbackAssessment() }
   }
 
   try {
@@ -36,14 +37,15 @@ export async function generatePlanTasks(input: GeneratePlanTasksInput): Promise<
       jsonMode: true,
       temperature: 0.1,
     })
-    const tasks = normalizePlannerResponse(result.content, maxTasks)
-    if (tasks.length > 0) return { tasks, source: 'model', warnings: [] }
-    return { tasks: [fallbackTask(goal)], source: 'fallback', warnings: ['planner model returned no valid tasks'] }
+    const generated = normalizePlannerResponse(result.content, maxTasks)
+    if (generated.tasks.length > 0) return { ...generated, source: 'model', warnings: [] }
+    return { tasks: [fallbackTask(goal)], source: 'fallback', warnings: ['planner model returned no valid tasks'], assessment: fallbackAssessment() }
   } catch (error) {
     return {
       tasks: [fallbackTask(goal)],
       source: 'fallback',
       warnings: [`planner model failed: ${error instanceof Error ? error.message : String(error)}`],
+      assessment: fallbackAssessment(),
     }
   }
 }
@@ -54,11 +56,16 @@ function buildPlannerMessages(goal: string, title: string | undefined, maxTasks:
       role: 'system',
       content: [
         'You are a planning agent for a parent/worker subagent runtime.',
-        'Return only JSON with this shape: {"tasks":[{"id":"task_short_id","title":"...","description":"...","deps":["task_other"]}]}',
+        'Before creating tasks, assess the goal difficulty and parallelism strategy.',
+        'Return only JSON with this shape: {"assessment":{"difficulty":"simple|moderate|large","parallelStrategy":"planner_only|planner_with_sidecars|worker_split","rationale":"...","criticalPath":["..."],"nonDelegatedWork":["..."],"conflictRisks":["..."]},"tasks":[{"id":"task_short_id","title":"...","description":"...","deps":["task_other"],"metadata":{"executionMode":"planner|worker","parallelizable":true,"criticalPath":false,"writeScope":["path or module"],"expectedOutput":"...","reportFormat":"..."}}]}',
         `Create at most ${maxTasks} implementation tasks.`,
         'Use stable snake_case task ids prefixed with "task_".',
         'Dependencies must reference only earlier task ids.',
-        'Workers execute the tasks, so each task must be concrete and independently actionable.',
+        'Use planner_only for simple, single-context, immediately blocking work; do not manufacture worker tasks for it.',
+        'Use planner_with_sidecars when the planner should handle blocking discovery and workers can handle independent side tasks.',
+        'Use worker_split only when tasks have clear boundaries, can be waited on, and do not fight over the same write scope.',
+        'Mark immediate blockers and cross-cutting integration as metadata.executionMode="planner"; mark bounded parallel work as metadata.executionMode="worker".',
+        'For worker tasks, include ownership/writeScope, expectedOutput, and reportFormat so the parent can integrate results safely.',
       ].join('\n'),
     },
     {
@@ -71,7 +78,7 @@ function buildPlannerMessages(goal: string, title: string | undefined, maxTasks:
   ]
 }
 
-function normalizePlannerResponse(content: string | null, maxTasks: number): CreatePlanTaskInput[] {
+function normalizePlannerResponse(content: string | null, maxTasks: number): Pick<GeneratePlanTasksResult, 'tasks' | 'assessment'> {
   const parsed = parseJSON(content)
   const rawTasks = isRecord(parsed) && Array.isArray(parsed.tasks) ? parsed.tasks : []
   const tasks: CreatePlanTaskInput[] = []
@@ -83,15 +90,34 @@ function normalizePlannerResponse(content: string | null, maxTasks: number): Cre
     const id = normalizeTaskId(rawTask.id, title, seen)
     seen.add(id)
     const deps = normalizeStringList(rawTask.deps).filter((dep) => seen.has(dep))
+    const metadata = normalizeTaskMetadata(rawTask)
     tasks.push({
       id,
       title,
       ...(normalizeNonEmptyString(rawTask.description) ? { description: normalizeNonEmptyString(rawTask.description) } : {}),
       ...(deps.length > 0 ? { deps } : {}),
+      ...(metadata ? { metadata } : {}),
     })
     if (tasks.length >= maxTasks) break
   }
-  return tasks
+  const assessment = isRecord(parsed) && isJSONRecord(parsed.assessment)
+    ? cloneJSONValue(parsed.assessment)
+    : undefined
+  return {
+    tasks,
+    ...(assessment ? { assessment } : {}),
+  }
+}
+
+function fallbackAssessment(): Record<string, JSONValue> {
+  return {
+    difficulty: 'simple',
+    parallelStrategy: 'planner_only',
+    rationale: 'Planner model did not provide a usable decomposition, so the planner should execute the goal directly.',
+    criticalPath: ['task_execute_goal'],
+    nonDelegatedWork: ['Complete the requested goal in the planner run.'],
+    conflictRisks: [],
+  }
 }
 
 function fallbackTask(goal: string): CreatePlanTaskInput {
@@ -99,7 +125,36 @@ function fallbackTask(goal: string): CreatePlanTaskInput {
     id: 'task_execute_goal',
     title: titleFromGoal(goal),
     description: goal,
+    metadata: {
+      executionMode: 'planner',
+      parallelizable: false,
+      criticalPath: true,
+      expectedOutput: 'Complete the requested goal directly in the planner run.',
+      reportFormat: 'Summarize completed work, verification, blockers, and next steps.',
+    },
   }
+}
+
+function normalizeTaskMetadata(rawTask: Record<string, unknown>): Record<string, JSONValue> | undefined {
+  const metadata = isJSONRecord(rawTask.metadata) ? cloneJSONValue(rawTask.metadata) : {}
+  const executionMode = rawTask.executionMode === 'planner' || rawTask.executionMode === 'worker'
+    ? rawTask.executionMode
+    : undefined
+  const parallelizable = typeof rawTask.parallelizable === 'boolean' ? rawTask.parallelizable : undefined
+  const criticalPath = typeof rawTask.criticalPath === 'boolean' ? rawTask.criticalPath : undefined
+  const writeScope = normalizeStringList(rawTask.writeScope)
+  const expectedOutput = normalizeNonEmptyString(rawTask.expectedOutput)
+  const reportFormat = normalizeNonEmptyString(rawTask.reportFormat)
+  const result = {
+    ...metadata,
+    ...(executionMode ? { executionMode } : {}),
+    ...(parallelizable !== undefined ? { parallelizable } : {}),
+    ...(criticalPath !== undefined ? { criticalPath } : {}),
+    ...(writeScope.length > 0 ? { writeScope } : {}),
+    ...(expectedOutput ? { expectedOutput } : {}),
+    ...(reportFormat ? { reportFormat } : {}),
+  }
+  return Object.keys(result).length > 0 ? result : undefined
 }
 
 function titleFromGoal(goal: string): string {

@@ -1,0 +1,52 @@
+{
+  "name": "agent_file_edit",
+  "description": "编辑 agent 文件系统中的文本对象。调用前应先 agent_file_read 获取 revision，并把该 revision 作为 baseRevision 传入以避免覆盖并发修改。返回 changeSet 记录本次 edit。",
+  "permission": "agent.file.write",
+  "risk": "draft",
+  "source": "runtime",
+  "category": "files",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["ref", "edits"],
+    "properties": {
+      "ref": {
+        "type": "string",
+        "description": "canonical 文件引用，例如 agent://draft/{draftId}/content。"
+      },
+      "baseRevision": {
+        "type": "string",
+        "description": "从 agent_file_read 得到的 revision。提供后必须与当前文件 revision 一致。"
+      },
+      "edits": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type", "oldText", "newText"],
+              "properties": {
+                "type": { "const": "replace_text" },
+                "oldText": { "type": "string" },
+                "newText": { "type": "string" },
+                "replaceAll": { "type": "boolean" }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type", "content"],
+              "properties": {
+                "type": { "const": "set_content" },
+                "content": { "type": "string" }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+

@@ -1017,7 +1017,11 @@
         "movscript_search_memories": "Search memories",
         "movscript_spawn_subagent": "Start subagent",
         "movscript_update_active_skills": "Update active skills",
-        "movscript_update_draft": "Update draft",
+        "movscript_validate_draft": "Validate draft",
+        "movscript_preview_draft_apply": "Preview draft apply",
+        "read_file": "Read file",
+        "search_file": "Search file",
+        "edit_file": "Edit file",
         "movscript_wait_subagent": "Wait for subagent"
       },
       "risks": {
@@ -2144,6 +2148,7 @@
       "copyId": "Copy ID",
       "sourceThread": "Source thread",
       "sourceRun": "Source run",
+      "filePath": "File path",
       "createdAt": "Created",
       "updatedAt": "Updated",
       "content": "Draft content",

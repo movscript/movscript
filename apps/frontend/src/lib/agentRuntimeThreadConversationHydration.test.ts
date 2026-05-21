@@ -66,6 +66,57 @@ test('hydrateRuntimeThreadConversation restores the current run from the agent s
 
   assert.equal(status, 'hydrated')
   assert.equal(calls.includes('run:conv_1:run_pending:requires_action'), true)
+  assert.equal(calls.includes('submitted:run_pending'), true)
+})
+
+test('hydrateRuntimeThreadConversation restores all interaction runs for workflow cards', async () => {
+  const calls: string[] = []
+  const pendingA = run({
+    id: 'run_pending_a',
+    status: 'requires_action',
+    pendingApprovals: [{
+      id: 'approval_a',
+      runId: 'run_pending_a',
+      toolName: 'tool_a',
+      reason: 'Needs approval',
+      status: 'pending',
+      createdAt: '2026-05-19T00:00:00.000Z',
+      updatedAt: '2026-05-19T00:00:00.000Z',
+    }],
+  })
+  const completedB = run({
+    id: 'run_completed_b',
+    status: 'completed',
+    pendingApprovals: [{
+      id: 'approval_b',
+      runId: 'run_completed_b',
+      toolName: 'tool_b',
+      reason: 'Approved earlier',
+      status: 'approved',
+      createdAt: '2026-05-19T00:00:00.000Z',
+      updatedAt: '2026-05-19T00:00:00.000Z',
+      approvedAt: '2026-05-19T00:00:01.000Z',
+    }],
+  })
+  const internalRun = run({ id: 'run_internal', status: 'completed' })
+
+  await hydrateRuntimeThreadConversation({
+    userId: 'user_1',
+    conversationId: 'conv_1',
+    threadId: 'thread_1',
+    existingMessages: [],
+    hydratedKeys: new Set(),
+    signal: new AbortController().signal,
+  }, depsFixture(calls, {
+    projection: projection({
+      thread: thread({ id: 'thread_1' }),
+      runs: [pendingA, completedB, internalRun],
+      currentRun: pendingA,
+      actionableRuns: [pendingA],
+    }),
+  }))
+
+  assert.deepEqual(calls.filter((call) => call.startsWith('submitted:')), ['submitted:run_pending_a,run_completed_b'])
 })
 
 test('hydrateRuntimeThreadConversation skips duplicate hydration keys', async () => {
@@ -128,6 +179,9 @@ function depsFixture(
     },
     setConversationRun: (conversationId, run) => {
       calls.push(`run:${conversationId}:${run.id}:${run.status}`)
+    },
+    setSubmittedInteractionRuns: (updater) => {
+      calls.push(`submitted:${updater([]).map((run) => run.id).join(',')}`)
     },
     updateConversationTitle: (_userId, conversationId, title) => {
       calls.push(`title:${conversationId}:${title}`)

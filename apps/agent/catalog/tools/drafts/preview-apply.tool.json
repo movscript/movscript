@@ -1,0 +1,43 @@
+{
+  "name": "movscript_preview_draft_apply",
+  "description": "对本地 proposal draft 执行 apply dry-run preview。该工具会先校验当前真实文件内容；支持的 kind 会调用后端 apply-preview，但不会正式写入。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "draftId"
+    ],
+    "properties": {
+      "draftId": {
+        "type": "string"
+      },
+      "target": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "targetEntityType": {
+        "type": "string"
+      },
+      "targetEntityId": {
+        "type": [
+          "string",
+          "number"
+        ]
+      },
+      "targetField": {
+        "type": "string"
+      },
+      "currentValue": {},
+      "proposedValue": {}
+    }
+  },
+  "permission": "draft.read",
+  "risk": "read",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "对本地 proposal draft 做只读 validation 与 apply-preview dry-run；正文由真实文件编辑工具负责。"
+}

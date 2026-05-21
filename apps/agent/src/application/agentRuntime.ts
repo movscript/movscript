@@ -87,9 +87,11 @@ import {
   type RuntimeSubagentToolsBridge,
 } from './runtimeSubagentToolsBridge.js'
 import {
-  createRuntimeGenerationToolsBridge,
-  type RuntimeGenerationToolsBridge,
-} from './runtimeGenerationToolsBridge.js'
+  createRuntimeIOOperationsBridge,
+  type RuntimeIOOperationsBridge,
+} from './runtimeIOOperationsBridge.js'
+import { AgentIOManager } from '../io/agentIOManager.js'
+import { GenerationJobIOProvider } from '../io/providers/generationJobProvider.js'
 import {
   createRuntimePlanDispatchBridge,
   type RuntimePlanDispatchBridge,
@@ -344,7 +346,8 @@ export class AgentRuntime {
   private readonly agentPlanTools: RuntimeAgentPlanToolsBridge
   private readonly treeCancellation: RuntimeTreeCancellationBridge
   private readonly subagentTools: RuntimeSubagentToolsBridge
-  private readonly generationTools: RuntimeGenerationToolsBridge
+  private readonly ioManager: AgentIOManager
+  private readonly ioOperations: RuntimeIOOperationsBridge
   private readonly memories: RuntimeMemoryOperationsBridge
   private readonly traceReads: RuntimeTraceReadBridge
 
@@ -593,8 +596,11 @@ export class AgentRuntime {
       getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
       taskEvents: this.taskEvents,
     })
-    this.generationTools = createRuntimeGenerationToolsBridge({
-      mcpClient: this.mcpClient,
+    this.ioManager = new AgentIOManager({
+      providers: [new GenerationJobIOProvider(this.mcpClient)],
+    })
+    this.ioOperations = createRuntimeIOOperationsBridge({
+      ioManager: this.ioManager,
       recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
     })
     if (catalogInitialization.shouldReloadCatalog) this.reloadAgentCatalog()
@@ -673,9 +679,15 @@ export class AgentRuntime {
     return await this.subagentTools.waitSubagent(run, input)
   }
 
-  async waitGenerationJobs(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> {
-    return await this.generationTools.waitGenerationJobs(run, input, options)
-  }
+  async startIO(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> { return await this.ioOperations.startIO(run, input, options) }
+
+  getIO(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue { return this.ioOperations.getIO(run, input) }
+
+  listIO(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue { return this.ioOperations.listIO(run, input) }
+
+  async waitIO(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> { return await this.ioOperations.waitIO(run, input, options) }
+
+  async cancelIO(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> { return await this.ioOperations.cancelIO(run, input, options) }
 
   cancelSubagent(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
     return this.subagentTools.cancelSubagent(run, input)
@@ -789,6 +801,14 @@ export class AgentRuntime {
     return this.traceReads.getRunTraceSummary(runId)
   }
 
+  getRunTraceDebugView(runId: string): ReturnType<RuntimeTraceReadBridge['getRunTraceDebugView']> { return this.traceReads.getRunTraceDebugView(runId) }
+
+  getRunDebugLedger(runId: string): ReturnType<RuntimeTraceReadBridge['getRunDebugLedger']> { return this.traceReads.getRunDebugLedger(runId) }
+
+  getRunDebugEvidence(runId: string, evidenceId: string): ReturnType<RuntimeTraceReadBridge['getRunDebugEvidence']> { return this.traceReads.getRunDebugEvidence(runId, evidenceId) }
+
+  getRunGenerationView(runId: string): ReturnType<RuntimeTraceReadBridge['getRunGenerationView']> { return this.traceReads.getRunGenerationView(runId) }
+
   subscribeRunStream(runId: string, listener: (event: AgentRunStreamEvent) => void): () => void {
     return this.streamSubscriptions.subscribeRunStream(runId, listener)
   }
@@ -872,15 +892,6 @@ export class AgentRuntime {
     metadata?: unknown
   }): AgentDraft {
     return this.drafts.updateDraft(input)
-  }
-
-  patchDraft(input: {
-    draftId?: unknown
-    ops?: unknown
-    expectedUpdatedAt?: unknown
-    metadata?: unknown
-  }): JSONValue {
-    return this.drafts.patchDraft(input)
   }
 
   validateDraft(input: { draftId?: unknown }): JSONValue {

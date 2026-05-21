@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
 import type { AgentPlan, AgentRun, AgentTask, AgentThread, AgentTraceEvent } from './types.js'
 import { InMemoryAgentStore, type AgentStore } from './store.js'
+import type { AgentRunDebugLedger } from './runDebugLedger.js'
 import { isRecord } from '../jsonValue.js'
 import { isValidAgentProjectId } from '../context/runtimeContext.js'
 
@@ -13,6 +14,7 @@ interface AgentStateFile {
   plans?: AgentPlan[]
   tasks?: AgentTask[]
   traceEvents?: AgentTraceEvent[]
+  debugLedgers?: AgentRunDebugLedger[]
 }
 
 export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
@@ -76,6 +78,11 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
     this.schedulePersist()
   }
 
+  override updateRunDebugLedger(runId: string, ledger: AgentRunDebugLedger): void {
+    super.updateRunDebugLedger(runId, ledger)
+    this.schedulePersist()
+  }
+
   flush(): void {
     if (this.persistTimer) {
       clearTimeout(this.persistTimer)
@@ -121,6 +128,10 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
       if (!isRecord(event)) continue
       super.appendTraceEvent(event as unknown as AgentTraceEvent)
     }
+    for (const ledger of arrayValue(parsed.debugLedgers)) {
+      if (!isRecord(ledger) || ledger.schema !== 'movscript.agent.run-debug-ledger.v1' || typeof ledger.runId !== 'string') continue
+      super.updateRunDebugLedger(ledger.runId, ledger as unknown as AgentRunDebugLedger)
+    }
   }
 
   private schedulePersist(): void {
@@ -142,6 +153,7 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
       plans: this.listPlans(),
       tasks: this.listTasks(),
       traceEvents: runs.flatMap((run) => this.listRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })),
+      debugLedgers: runs.flatMap((run) => this.getRunDebugLedger(run.id) ?? []),
     }
     atomicWriteJSON(this.filePath, state)
   }

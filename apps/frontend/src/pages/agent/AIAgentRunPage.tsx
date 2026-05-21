@@ -6,17 +6,15 @@ import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, Select
 import { AgentRunGenerationArtifacts } from '@/components/agent/AgentRunGenerationArtifacts'
 import { LocalAgentInputRequestCard } from '@/components/agent/localRuntime'
 import { agentTaskStatusLabel, buildPlanTaskViews, buildTaskArtifactViews } from '@/lib/agentPlanUi'
-import { AGENT_DEBUG_FIELD_GUIDE, agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, buildDebugAttentionEvents, buildDebugCoverageSummary, buildDebugReadinessChecklist, buildDebugReportText, buildModelCallDebugContext, buildModelCallDebugContexts, buildModelCallSummaries, buildSkillTraceSummary, buildTraceEventLink, canCancelWorkerRun, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runRoleLabel, runStatusLabel, traceCategoryLabel, traceDeepLinkMissing as isTraceDeepLinkMissing, traceEventDurationMs, traceEventIdFromHash, traceEventStatusLabel, traceKindLabel, type AgentDebugAttentionEvent, type AgentDebugCoverageSummary, type AgentDebugReadinessItem, type AgentModelCallSummary, type AgentSkillTraceSummary, type AgentTraceCategory } from '@/lib/agentRunUi'
+import { agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, buildTraceEventLink, canCancelWorkerRun, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runRoleLabel, runStatusLabel, traceCategoryLabel, traceDeepLinkMissing as isTraceDeepLinkMissing, traceEventIdFromHash, traceEventStatusLabel, traceKindLabel, type AgentTraceCategory } from '@/lib/agentRunUi'
 import { agentToolNameLabel } from '@/lib/agentToolDisplay'
 import { formatAgentTraceDebugData, redactAgentTraceDebugText } from '@/lib/agentTraceDebugData'
-import { isRecord } from '@/lib/jsonValue'
-import { localAgentClient, type AgentRun, type AgentTraceEvent, type AgentTraceEventKind } from '@/lib/localAgentClient'
+import { localAgentClient, type AgentRun, type AgentTraceDebugView, type AgentTraceEvent, type AgentTraceEventKind } from '@/lib/localAgentClient'
 import { agentRunPath } from '@/routes/projectRoutes'
 
 const TRACE_PAGE_SIZE = 25
 const TRACE_BULK_PAGE_SIZE = 100
 const DEBUG_BUNDLE_SCHEMA = 'movscript.agent-run-debug-bundle.v1'
-const DEBUG_BUNDLE_SCHEMA_URL = 'https://movscript.dev/schemas/agent-run-debug-bundle-v1.schema.json'
 const DEBUG_BUNDLE_CAPABILITIES = [
   'runSummary',
   'readinessChecklist',
@@ -30,10 +28,38 @@ const DEBUG_BUNDLE_CAPABILITIES = [
   'redactedDebugData',
 ] as const
 
+const EMPTY_DEBUG_COVERAGE: AgentDebugCoverageSummary = {
+  loadedLabel: '0 / 0',
+  hasUnloadedTrace: false,
+  modelCallsLabel: '0',
+  promptDetailsLabel: '0',
+  messageWritesLabel: '0',
+  toolDetailsLabel: '0 / 0',
+  httpResponsesLabel: '0',
+  requestPayloadsLabel: '0',
+  httpResponseBodiesLabel: '0',
+  issues: [],
+}
+
+const EMPTY_SKILL_TRACE_SUMMARY: AgentSkillTraceSummary = {
+  timeline: [],
+  currentActiveSkillIds: [],
+  currentLoadedSkillIds: [],
+  currentUnloadedSkillIds: [],
+  currentAvailableSkillIds: [],
+}
+
 interface LoadedTraceEventsResult {
   events: AgentTraceEvent[]
   hasMore: boolean
 }
+
+type AgentModelCallContextView = AgentTraceDebugView['modelCallContexts'][number]
+type AgentDebugCoverageSummary = AgentTraceDebugView['coverage']
+type AgentDebugReadinessItem = AgentTraceDebugView['readinessChecklist'][number]
+type AgentDebugAttentionEvent = AgentTraceDebugView['attentionEvents'][number]
+type AgentModelCallSummary = AgentTraceDebugView['modelCalls'][number]
+type AgentSkillTraceSummary = AgentTraceDebugView['skillTimeline']
 
 export default function AIAgentRunPage() {
   const navigate = useNavigate()
@@ -90,6 +116,12 @@ export default function AIAgentRunPage() {
     enabled: !!runId,
     retry: false,
   })
+  const debugViewQuery = useQuery({
+    queryKey: ['agent-run-trace-debug-view', localAgentClient.baseURL, runId],
+    queryFn: async () => localAgentClient.getRunTraceDebugView(runId),
+    enabled: !!runId,
+    retry: false,
+  })
   const visibleEvents = useMemo(() => {
     const needle = eventSearch.trim().toLowerCase()
     return events.filter((event) => {
@@ -113,9 +145,11 @@ export default function AIAgentRunPage() {
     event,
     view: agentTraceView(event),
   })), [visibleEvents])
-  const skillTraceSummary = useMemo(() => buildSkillTraceSummary(events), [events])
-  const modelCallSummaries = useMemo(() => buildModelCallSummaries(events), [events])
-  const attentionEvents = useMemo(() => buildDebugAttentionEvents(events), [events])
+  const debugViewEvents = debugViewQuery.data?.events ?? events
+  const skillTraceSummary = debugViewQuery.data?.skillTimeline ?? EMPTY_SKILL_TRACE_SUMMARY
+  const modelCallSummaries = (debugViewQuery.data?.modelCalls ?? []) as AgentModelCallSummary[]
+  const modelCallContexts = debugViewQuery.data?.modelCallContexts ?? []
+  const attentionEvents = (debugViewQuery.data?.attentionEvents ?? []) as AgentDebugAttentionEvent[]
   const latestTraceView = useMemo(
     () => summaryQuery.data?.latestEvent ? agentTraceView(summaryQuery.data.latestEvent) : undefined,
     [summaryQuery.data?.latestEvent],
@@ -141,19 +175,10 @@ export default function AIAgentRunPage() {
   const workerRunCanBeCancelled = canCancelWorkerRun(runQuery.data)
   const traceHasUnloadedEvents = hasUnloadedTraceEvents({ loaded: events.length, total: traceTotal, hasMore })
   const traceFiltersActive = eventSearch.trim() !== '' || eventKind !== 'all' || eventCategory !== 'all'
-  const debugCoverageSummary = useMemo(() => buildDebugCoverageSummary({
-    events,
-    total: traceTotal,
-    hasMore,
-    modelCalls: modelCallSummaries,
-  }), [events, hasMore, modelCallSummaries, traceTotal])
-  const debugReportText = useMemo(() => buildDebugReportText({
-    runId,
-    run: runQuery.data,
-    coverage: debugCoverageSummary,
-    modelCalls: modelCallSummaries,
-    events,
-  }), [debugCoverageSummary, events, modelCallSummaries, runId, runQuery.data])
+  const debugCoverageSummary = (debugViewQuery.data?.coverage ?? EMPTY_DEBUG_COVERAGE) as AgentDebugCoverageSummary
+  const debugReadinessChecklist = (debugViewQuery.data?.readinessChecklist ?? []) as AgentDebugReadinessItem[]
+  const debugReportText = debugViewQuery.data?.reportText ?? ''
+  const debugFieldGuide = debugViewQuery.data?.fieldGuide ?? []
   const runTerminalAt = runQuery.data?.completedAt ?? runQuery.data?.failedAt ?? runQuery.data?.cancelledAt
   const runDuration = formatAgentRunDuration(runQuery.data?.createdAt, runTerminalAt)
 
@@ -210,7 +235,7 @@ export default function AIAgentRunPage() {
   useEffect(() => {
     setDebugBundleCopied(false)
     setDebugBundleCopyError(null)
-  }, [debugCoverageSummary, events, modelCallSummaries, runQuery.data])
+  }, [debugViewQuery.data])
 
   useEffect(() => {
     if (!traceDeepLinkEventId) return
@@ -364,53 +389,8 @@ export default function AIAgentRunPage() {
     setDebugBundleCopied(false)
     setDebugBundleCopyError(null)
     try {
-      if (!runQuery.data) {
-        throw new Error('运行基础信息尚未加载完成，已停止复制调试包。请稍后重试。')
-      }
-      const loaded = traceHasUnloadedEvents ? await loadEvents('all') : undefined
-      if (traceHasUnloadedEvents && !loaded) {
-        throw new Error('运行事件未能加载完整，已停止复制调试包。请先重试加载全部事件。')
-      }
-      const bundleEvents = loaded?.events ?? events
-      const bundleHasMore = loaded?.hasMore ?? hasMore
-      const bundleModelCalls = buildModelCallSummaries(bundleEvents)
-      const bundleCoverage = buildDebugCoverageSummary({
-        events: bundleEvents,
-        total: traceTotal,
-        hasMore: bundleHasMore,
-        modelCalls: bundleModelCalls,
-      })
-      const bundlePromptDetails = debugBundlePromptDetails(bundleEvents)
-      const bundleMessageWrites = debugBundleMessageWrites(bundleEvents)
-      const bundleToolCalls = debugBundleToolCalls(bundleEvents)
-      const bundleModelCallContexts = debugBundleModelCallContexts(bundleModelCalls, bundleEvents)
-      const bundleAttentionEvents = buildDebugAttentionEvents(bundleEvents)
-      const bundlePendingActions = debugBundlePendingActions(runQuery.data)
-      await navigator.clipboard.writeText(formatAgentTraceDebugData({
-        schema: DEBUG_BUNDLE_SCHEMA,
-        schemaUrl: DEBUG_BUNDLE_SCHEMA_URL,
-        generatedAt: new Date().toISOString(),
-        capabilities: DEBUG_BUNDLE_CAPABILITIES,
-        runId,
-        run: debugBundleRunSnapshot(runQuery.data),
-        runSummary: debugBundleRunSummary(runQuery.data),
-        trace: {
-          loaded: bundleEvents.length,
-          total: traceTotal,
-          hasMore: bundleHasMore,
-        },
-        fieldGuide: AGENT_DEBUG_FIELD_GUIDE,
-        coverage: bundleCoverage,
-        readinessChecklist: buildDebugReadinessChecklist(bundleCoverage),
-        modelCalls: bundleModelCalls,
-        modelCallContexts: bundleModelCallContexts,
-        promptDetails: bundlePromptDetails,
-        messageWrites: bundleMessageWrites,
-        toolCalls: bundleToolCalls,
-        attentionEvents: bundleAttentionEvents,
-        pendingActions: bundlePendingActions,
-        events: bundleEvents,
-      }))
+      const debugView = debugViewQuery.data ?? await localAgentClient.getRunTraceDebugView(runId)
+      await navigator.clipboard.writeText(formatAgentTraceDebugData(debugView.bundle))
       setDebugBundleCopied(true)
     } catch (error) {
       setDebugBundleCopyError(error instanceof Error ? error.message : String(error))
@@ -421,6 +401,7 @@ export default function AIAgentRunPage() {
     await Promise.all([
       runQuery.refetch(),
       summaryQuery.refetch(),
+      debugViewQuery.refetch(),
       childRunsQuery.refetch(),
       ...(planQuery.data ? [planQuery.refetch()] : []),
       ...(events.length > 0 ? [loadEvents('initial')] : []),
@@ -450,6 +431,7 @@ export default function AIAgentRunPage() {
     try {
       if (action === 'approve') {
         await localAgentClient.approveRun(runId, { approvalIds: [approvalId] })
+        await localAgentClient.waitForRun(runId, { timeoutMs: 30_000, pollMs: 300 })
       } else {
         await localAgentClient.rejectRun(runId, { approvalIds: [approvalId] })
       }
@@ -467,6 +449,7 @@ export default function AIAgentRunPage() {
     setInputError(null)
     try {
       await localAgentClient.answerRunInput(runId, { requestId, ...answer })
+      await localAgentClient.waitForRun(runId, { timeoutMs: 30_000, pollMs: 300 })
       await refreshRunPage()
     } catch (error) {
       setInputError(error instanceof Error ? error.message : String(error))
@@ -930,15 +913,17 @@ export default function AIAgentRunPage() {
             {traceViewMode === 'skills' && (
               <SkillTracePanel summary={skillTraceSummary} onFocusEvent={focusTraceEvent} />
             )}
-            {traceViewMode === 'timeline' && events.length > 0 && (
+            {traceViewMode === 'timeline' && debugViewQuery.data && (
               <DebugCoveragePanel
                 summary={debugCoverageSummary}
+                readinessChecklist={debugReadinessChecklist}
+                fieldGuide={debugFieldGuide}
                 copied={debugReportCopied}
                 copyError={debugReportCopyError}
                 bundleCopied={debugBundleCopied}
                 bundleCopyError={debugBundleCopyError}
                 loadingAll={loadingEvents}
-                bundleCopyDisabledReason={runQuery.data ? null : '运行基础信息加载中，暂不能复制调试包。'}
+                bundleCopyDisabledReason={debugViewQuery.data ? null : '运行调试视图加载中，暂不能复制调试包。'}
                 onCopy={copyDebugReport}
                 onCopyBundle={copyDebugBundle}
                 onLoadAll={() => loadEvents('all')}
@@ -948,7 +933,7 @@ export default function AIAgentRunPage() {
               <AttentionEventsPanel events={attentionEvents} onFocusEvent={focusTraceEvent} onShowAttentionEvents={showAttentionEvents} />
             )}
             {traceViewMode === 'timeline' && modelCallSummaries.length > 0 && (
-              <ModelCallSummaryPanel summaries={modelCallSummaries} events={events} onFocusEvent={focusTraceEvent} />
+              <ModelCallSummaryPanel summaries={modelCallSummaries} contexts={modelCallContexts} events={debugViewEvents} onFocusEvent={focusTraceEvent} />
             )}
             {traceViewMode === 'timeline' && visibleTraceViews.map(({ event, view }) => {
               const isLinkedEvent = event.id === traceDeepLinkEventId
@@ -1367,6 +1352,8 @@ function SkillIdList({ label, ids, compact = false }: { label: string; ids: stri
 
 function DebugCoveragePanel({
   summary,
+  readinessChecklist,
+  fieldGuide,
   copied,
   copyError,
   bundleCopied,
@@ -1378,6 +1365,8 @@ function DebugCoveragePanel({
   onLoadAll,
 }: {
   summary: AgentDebugCoverageSummary
+  readinessChecklist: AgentDebugReadinessItem[]
+  fieldGuide: Array<{ id?: string; label?: string; description?: string }>
   copied: boolean
   copyError: string | null
   bundleCopied: boolean
@@ -1395,7 +1384,7 @@ function DebugCoveragePanel({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="text-xs font-medium text-foreground">调试覆盖</div>
-          <div className="mt-0.5 text-[10px] text-muted-foreground">当前页面已加载的可调试信息</div>
+          <div className="mt-0.5 text-[10px] text-muted-foreground">由 Agent 服务端基于全量 trace 生成</div>
         </div>
         <div className="flex items-center gap-1">
           {summary.issues.length > 0 ? <Badge variant="secondary" className="text-[10px]">需补全</Badge> : <Badge variant="outline" className="text-[10px]">信息完整</Badge>}
@@ -1462,14 +1451,14 @@ function DebugCoveragePanel({
       <details data-testid="agent-run-debug-field-guide" className="mt-2 rounded border border-border/60 bg-background/80 px-2 py-1 text-[10px]">
         <summary className="cursor-pointer font-medium text-foreground">调试口径</summary>
         <div className="mt-1 grid gap-1 text-muted-foreground sm:grid-cols-2">
-          {AGENT_DEBUG_FIELD_GUIDE.map((item) => (
-            <div key={item.id} className="rounded bg-muted/20 px-2 py-1">
+          {fieldGuide.map((item, index) => (
+            <div key={item.id ?? index} className="rounded bg-muted/20 px-2 py-1">
               <span className="font-medium text-foreground">{item.label}</span>：{item.description}
             </div>
           ))}
         </div>
       </details>
-      <DebugReadinessChecklist items={buildDebugReadinessChecklist(summary)} />
+      <DebugReadinessChecklist items={readinessChecklist} />
       {summary.issues.length > 0 && (
         <div className="mt-2 grid gap-1 text-[10px] text-amber-700 dark:text-amber-300">
           {summary.issues.map((issue) => <div key={issue} className="rounded bg-amber-500/10 px-2 py-1">{issue}</div>)}
@@ -1595,19 +1584,30 @@ function AttentionEventsPanel({ events, onFocusEvent, onShowAttentionEvents }: {
   )
 }
 
-function ModelCallSummaryPanel({ summaries, events, onFocusEvent }: { summaries: AgentModelCallSummary[]; events: AgentTraceEvent[]; onFocusEvent: (eventId: string) => void }) {
+function ModelCallSummaryPanel({
+  summaries,
+  contexts,
+  events,
+  onFocusEvent,
+}: {
+  summaries: AgentModelCallSummary[]
+  contexts: AgentModelCallContextView[]
+  events: AgentTraceEvent[]
+  onFocusEvent: (eventId: string) => void
+}) {
+  const contextsByCallId = new Map(contexts.map((context) => [context.callId, context]))
   return (
     <section data-testid="agent-run-model-call-summary" className="rounded-md border border-border bg-muted/10 px-3 py-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="text-xs font-medium text-foreground">大模型调用总览</div>
-          <div className="mt-0.5 text-[10px] text-muted-foreground">按已加载运行事件归并请求、响应、历史写入和工具调用</div>
+          <div className="mt-0.5 text-[10px] text-muted-foreground">由 Agent 服务端归并请求、响应、历史写入和工具调用</div>
         </div>
         <Badge variant="outline" className="text-[10px]">{summaries.length} 次调用</Badge>
       </div>
       <div className="mt-2 grid gap-1.5">
         {summaries.map((summary) => {
-          const debugContext = buildModelCallDebugContext({ call: summary, events })
+          const debugContext = contextsByCallId.get(summary.id) ?? fallbackModelCallContext(summary)
           return (
             <details key={summary.id} data-testid="agent-run-model-call-summary-item" className="rounded border border-border/70 bg-background px-2 py-1.5 text-[10px]">
               <summary className="flex cursor-pointer list-none flex-wrap items-center gap-1 marker:hidden">
@@ -1675,7 +1675,7 @@ function ModelCallSummaryPanel({ summaries, events, onFocusEvent }: { summaries:
               </div>
               {summary.issue && <div className="mt-1 rounded bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300">{summary.issue}</div>}
               {debugContext.issue && <div className="mt-1 rounded bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300">{debugContext.issue}</div>}
-              <ModelCallInlineDebug summary={summary} context={debugContext} onFocusEvent={onFocusEvent} />
+              <ModelCallInlineDebug summary={summary} context={debugContext} events={events} onFocusEvent={onFocusEvent} />
             </details>
           )
         })}
@@ -1684,16 +1684,37 @@ function ModelCallSummaryPanel({ summaries, events, onFocusEvent }: { summaries:
   )
 }
 
+function fallbackModelCallContext(summary: AgentModelCallSummary): AgentModelCallContextView {
+  return {
+    callId: summary.id,
+    label: summary.label,
+    status: summary.status,
+    statusLabel: summary.statusLabel,
+    correlationLabel: 'Agent 调试视图未返回关联上下文',
+    ...(summary.requestEventId ? { requestEventId: summary.requestEventId } : {}),
+    ...(summary.responseEventId ? { responseEventId: summary.responseEventId } : {}),
+    ...(summary.resultEventId ? { resultEventId: summary.resultEventId } : {}),
+    modelEventIds: summary.eventIds,
+    toolCalls: [],
+    messageWrites: [],
+    ...(summary.issue ? { issue: summary.issue } : {}),
+  }
+}
+
 function ModelCallInlineDebug({
   summary,
   context,
+  events,
   onFocusEvent,
 }: {
   summary: AgentModelCallSummary
-  context: ReturnType<typeof buildModelCallDebugContext>
+  context: AgentModelCallContextView
+  events: AgentTraceEvent[]
   onFocusEvent: (eventId: string) => void
 }) {
-  const modelDetails = context.modelEvents
+  const eventsById = new Map(events.map((event) => [event.id, event]))
+  const modelDetails = context.modelEventIds
+    .flatMap((eventId) => eventsById.get(eventId) ?? [])
     .map((event) => ({ event, detail: agentTraceView(event).modelDetail }))
     .filter((entry): entry is { event: AgentTraceEvent; detail: NonNullable<ReturnType<typeof agentTraceView>['modelDetail']> } => !!entry.detail)
   return (
@@ -1726,41 +1747,57 @@ function ModelCallInlineDebug({
           ))}
         </div>
       )}
-      <ModelCallRelatedEvents title="历史写入" emptyText="没有找到同轮 assistant 历史写入。" events={context.messageWrites} onFocusEvent={onFocusEvent} />
-      <ModelCallRelatedEvents title="工具调用" emptyText="没有找到同轮工具调用。" events={context.toolCalls} onFocusEvent={onFocusEvent} />
+      <ModelCallRelatedItems title="历史写入" emptyText="没有找到同轮 assistant 历史写入。" items={context.messageWrites.map((item) => ({
+        eventId: item.eventId,
+        title: item.sourceLabel ?? item.source ?? item.messageId ?? 'Assistant history write',
+        summary: item.contentPreview,
+        meta: `${item.contentChars} 字符`,
+      }))} onFocusEvent={onFocusEvent} />
+      <ModelCallRelatedItems title="工具调用" emptyText="没有找到同轮工具调用。" items={context.toolCalls.map((item) => ({
+        eventId: item.eventId,
+        title: item.toolName ? agentToolNameLabel(item.toolName) : 'Tool call',
+        summary: item.summary,
+        meta: item.statusLabel,
+      }))} onFocusEvent={onFocusEvent} />
     </div>
   )
 }
 
-function ModelCallRelatedEvents({ title, emptyText, events, onFocusEvent }: { title: string; emptyText: string; events: AgentTraceEvent[]; onFocusEvent: (eventId: string) => void }) {
+function ModelCallRelatedItems({
+  title,
+  emptyText,
+  items,
+  onFocusEvent,
+}: {
+  title: string
+  emptyText: string
+  items: Array<{ eventId: string; title: string; summary?: string; meta?: string }>
+  onFocusEvent: (eventId: string) => void
+}) {
   return (
     <div data-testid={`agent-run-model-call-related-${title}`} className="rounded border border-border/60 bg-muted/10 px-2 py-1">
       <div className="flex items-center justify-between gap-2">
         <div className="font-medium text-foreground">{title}</div>
-        <Badge variant="outline" className="text-[9px]">{events.length}</Badge>
+        <Badge variant="outline" className="text-[9px]">{items.length}</Badge>
       </div>
-      {events.length === 0 ? (
+      {items.length === 0 ? (
         <div className="mt-1 text-muted-foreground">{emptyText}</div>
       ) : (
         <div className="mt-1 grid gap-1">
-          {events.map((event) => {
-            const view = agentTraceView(event)
-            return (
-              <div key={event.id} className="rounded bg-background/90 px-2 py-1">
+          {items.map((item) => (
+              <div key={item.eventId} className="rounded bg-background/90 px-2 py-1">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="font-medium text-foreground">{view.title}</div>
-                    {view.summary && <div className="mt-0.5 break-words text-muted-foreground">{redactAgentTraceDebugText(view.summary)}</div>}
+                    <div className="font-medium text-foreground">{item.title}</div>
+                    {item.meta && <div className="mt-0.5 text-muted-foreground">{item.meta}</div>}
+                    {item.summary && <div className="mt-0.5 break-words text-muted-foreground">{redactAgentTraceDebugText(item.summary)}</div>}
                   </div>
-                  <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[9px]" onClick={() => onFocusEvent(event.id)}>
+                  <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[9px]" onClick={() => onFocusEvent(item.eventId)}>
                     定位
                   </Button>
                 </div>
-                {view.messageDetail && <MessageDetail detail={view.messageDetail} />}
-                {view.toolDetail && <ToolDetail detail={view.toolDetail} />}
               </div>
-            )
-          })}
+            ))}
         </div>
       )}
     </div>
@@ -2084,167 +2121,6 @@ function ToolDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentTra
       )}
     </div>
   )
-}
-
-function debugBundleRunSnapshot(run: AgentRun | undefined): Omit<AgentRun, 'traceEvents'> | undefined {
-  if (!run) return undefined
-  const { traceEvents: _traceEvents, ...snapshot } = run
-  return snapshot
-}
-
-function debugBundleRunSummary(run: AgentRun | undefined) {
-  if (!run) return undefined
-  const terminalAt = run.completedAt ?? run.failedAt ?? run.cancelledAt
-  const pendingApprovals = run.pendingApprovals?.filter((approval) => approval.status === 'pending').length ?? 0
-  const pendingInputs = run.pendingInputRequests?.filter((request) => request.status === 'pending').length ?? 0
-  const role = run.role ?? 'unknown'
-  return {
-    status: run.status,
-    statusLabel: runStatusLabel(run.status),
-    role,
-    roleLabel: run.role ? runRoleLabel(run.role) : '未知',
-    createdAt: run.createdAt,
-    startedAt: run.startedAt,
-    terminalAt,
-    duration: formatAgentRunDuration(run.startedAt ?? run.createdAt, terminalAt),
-    progress: run.progress,
-    error: run.error,
-    warningCount: run.warnings?.length ?? 0,
-    pendingApprovals,
-    pendingInputs,
-  }
-}
-
-function debugBundlePromptDetails(events: AgentTraceEvent[]) {
-  return events.flatMap((event) => {
-    const detail = agentTraceView(event).promptDetail
-    if (!detail) return []
-    return [{
-      eventId: event.id,
-      title: detail.title,
-      totalChars: detail.totalChars,
-      messageCount: detail.messageCount,
-      systemMessageCount: detail.systemMessageCount,
-      blockedToolCount: detail.blockedToolCount,
-      skills: detail.skills,
-      tools: detail.tools,
-      layers: detail.layers,
-      contextLayers: detail.contextLayers,
-      partGroups: detail.partGroups.map((group) => ({
-        contextLayer: group.contextLayer,
-        count: group.count,
-        chars: group.chars,
-        partIds: group.parts.map((part) => part.id),
-      })),
-      parts: detail.parts,
-    }]
-  })
-}
-
-function debugBundleMessageWrites(events: AgentTraceEvent[]) {
-  return events.flatMap((event) => {
-    const detail = agentTraceView(event).messageDetail
-    if (!detail) return []
-    const content = redactAgentTraceDebugText(detail.content)
-    return [{
-      eventId: event.id,
-      messageId: detail.messageId,
-      source: detail.source,
-      sourceLabel: detail.sourceLabel,
-      contentChars: detail.contentChars,
-      contentPreview: content.length > 240 ? `${content.slice(0, 237)}...` : content,
-    }]
-  })
-}
-
-function debugBundleModelCallContexts(modelCalls: AgentModelCallSummary[], events: AgentTraceEvent[]) {
-  return buildModelCallDebugContexts({ modelCalls, events }).map((context) => ({
-    callId: context.call.id,
-    label: context.call.label,
-    status: context.call.status,
-    statusLabel: context.call.statusLabel,
-    correlationLabel: context.correlationLabel,
-    issue: context.issue,
-    requestEventId: context.call.requestEventId,
-    responseEventId: context.call.responseEventId,
-    resultEventId: context.call.resultEventId,
-    modelEventIds: context.modelEvents.map((event) => event.id),
-    toolCalls: context.toolCalls.map((event) => {
-      const detail = agentTraceView(event).toolDetail
-      return {
-        eventId: event.id,
-        toolName: detail?.toolName ?? event.toolName,
-        status: event.status,
-        statusLabel: detail?.statusLabel,
-        summary: detail?.summary ? redactAgentTraceDebugText(detail.summary) : event.summary ? redactAgentTraceDebugText(event.summary) : undefined,
-      }
-    }),
-    messageWrites: context.messageWrites.map((event) => {
-      const detail = agentTraceView(event).messageDetail
-      const content = detail?.content ? redactAgentTraceDebugText(detail.content) : undefined
-      return {
-        eventId: event.id,
-        messageId: detail?.messageId,
-        source: detail?.source,
-        sourceLabel: detail?.sourceLabel,
-        contentChars: detail?.contentChars,
-        contentPreview: content && content.length > 160 ? `${content.slice(0, 157)}...` : content,
-      }
-    }),
-  }))
-}
-
-function debugBundleToolCalls(events: AgentTraceEvent[]) {
-  return events.flatMap((event) => {
-    if (event.kind !== 'tool_call') return []
-    const data = isRecord(event.data) ? event.data : {}
-    const durationMs = traceEventDurationMs(event, data)
-    const summary = event.summary ? redactAgentTraceDebugText(event.summary) : undefined
-    return [{
-      eventId: event.id,
-      toolName: event.toolName,
-      title: event.title,
-      status: event.status,
-      source: typeof data.source === 'string' ? data.source : undefined,
-      sandboxed: typeof data.sandboxed === 'boolean' ? data.sandboxed : undefined,
-      durationMs,
-      summary,
-      dataPreview: formatAgentTraceDebugData(data),
-    }]
-  })
-}
-
-function debugBundlePendingActions(run: AgentRun | undefined) {
-  if (!run) return []
-  const approvals = (run.pendingApprovals ?? [])
-    .filter((approval) => approval.status === 'pending')
-    .map((approval) => ({
-      type: 'approval',
-      id: approval.id,
-      toolName: approval.toolName,
-      risk: approval.risk,
-      permission: approval.permission,
-      reason: approval.reason,
-      createdAt: approval.createdAt,
-    }))
-  const inputs = (run.pendingInputRequests ?? [])
-    .filter((request) => request.status === 'pending')
-    .map((request) => ({
-      type: 'input',
-      id: request.id,
-      title: request.title,
-      summary: request.summary,
-      question: request.question,
-      inputType: request.inputType,
-      choices: request.choices.map((choice) => ({
-        id: choice.id,
-        label: choice.label,
-        description: choice.description,
-      })),
-      allowCustomAnswer: request.allowCustomAnswer,
-      createdAt: request.createdAt,
-    }))
-  return [...approvals, ...inputs]
 }
 
 function buildRunSummary(

@@ -26,3 +26,12 @@ This directory is the active namespace for the agent architecture.
 3. `server.ts` remains the composition root. It wires adapters, stores, contracts, and runtimes.
 4. Domain behavior enters the core agent through tools and contracts, not through manifest-id conditionals in the runtime.
 5. There is one active orchestration engine: `orchestration/agentGraph`.
+
+## Runtime Operations
+
+Runtime operations are execution objects that can outlive one tool call and can be observed, waited on, or cancelled. They are not a generic I/O layer.
+
+- Ordinary synchronous tool calls return their final result or error immediately and should not be wrapped as operations.
+- `generation_job` is an external async runtime operation backed by the MovScript backend job handle. It is managed through the compatibility-named `agent_io_start/get/list/wait/cancel` tools.
+- Worker subagents are internal async runtime operations backed by `AgentRun` and `AgentTask`. They are managed through `movscript_spawn_subagent/list_subagents/wait_subagent/cancel_subagent`.
+- `agent_io_start` currently starts only `kind: "generation_job"` operations. Do not add new public `kind` values without adding a real provider and prompt/tool-schema guidance for that lifecycle.

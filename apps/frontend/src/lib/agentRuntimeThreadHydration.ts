@@ -1,5 +1,5 @@
-import { fetchAllRunTraceEvents, fetchResourceById, type AgentMessageViewModelDeps } from '@/lib/agentMessageViewModel'
-import { localAgentClient, type AgentRun, type AgentThread, type AgentTraceEvent, type LocalAgentClient } from '@/lib/localAgentClient'
+import { fetchResourceById, type AgentMessageViewModelDeps } from '@/lib/agentMessageViewModel'
+import { localAgentClient, type AgentRun, type AgentThread, type LocalAgentClient } from '@/lib/localAgentClient'
 import { projectRuntimeThreadMessages } from '@/lib/agentThreadProjection'
 import type { ChatMessage, ChatRunActivityEvent } from '@/store/agentStore'
 import type { RawResource } from '@/types'
@@ -16,7 +16,6 @@ export interface RuntimeThreadHydrationResult {
 
 export interface RuntimeThreadHydrationDeps extends AgentMessageViewModelDeps {
   client?: RuntimeThreadHydrationClient
-  fetchAllRunTraceEvents?: (runId: string) => Promise<AgentTraceEvent[]>
   fetchResourceById?: (id: number) => Promise<RawResource | undefined>
 }
 
@@ -56,10 +55,6 @@ export async function loadRuntimeThreadProjection(input: {
     liveEventsByRunId: input.liveEventsByRunId,
     deps: {
       ...deps,
-      fetchRunTraceEvents: deps.fetchRunTraceEvents ?? (async (runId) => {
-        const events = await (deps.fetchAllRunTraceEvents ?? fetchAllRunTraceEvents)(runId)
-        return events.filter((event) => event.kind === 'tool_call')
-      }),
       fetchResourceById: deps.fetchResourceById ?? fetchResourceById,
     },
   })

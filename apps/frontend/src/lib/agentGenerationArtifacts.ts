@@ -13,7 +13,7 @@ export function selectLatestGeneratedResource(run?: AgentRun): AgentGeneratedRes
   const refs: AgentGeneratedResourceRef[] = []
   for (const step of run.steps) {
     if (step.type !== 'tool_call') continue
-    if (step.toolName !== 'movscript_create_generation_job' && step.toolName !== 'movscript_get_generation_job') continue
+    if (!isGenerationResourceTool(step.toolName)) continue
     const ref = generatedResourceFromToolResult(step.result)
     if (ref) refs.push(ref)
   }
@@ -63,8 +63,19 @@ function generatedResourceFromToolResult(result: unknown): AgentGeneratedResourc
   return {
     outputResourceId,
     outputResourceIds,
-    jobId: numericField(data, 'jobId') ?? numericField(data, 'job_id') ?? numericField(job, 'ID') ?? numericField(job, 'id'),
+    jobId: numericField(data, 'jobId')
+      ?? numericField(data, 'job_id')
+      ?? uniquePositiveNumbers([...arrayField(data, 'jobIds'), ...arrayField(data, 'job_ids')])[0]
+      ?? numericField(job, 'ID')
+      ?? numericField(job, 'id'),
   }
+}
+
+function isGenerationResourceTool(toolName: unknown) {
+  return toolName === 'movscript_create_generation_job'
+    || toolName === 'movscript_get_generation_job'
+    || toolName === 'movscript_wait_generation_jobs'
+    || toolName === 'movscript_list_generation_jobs'
 }
 
 function generatedResourceIdsFromToolData(data: Record<string, unknown>): number[] {

@@ -1,5 +1,6 @@
 import type { AgentPlanSnapshot, AgentPlanStatus, AgentRun, AgentTask } from './localAgentClient'
 import { agentPlanStatusLabel, runStatusLabel } from './agentRunUi'
+import { runHasWorkflowInteraction } from './agentWorkflowInteraction'
 
 const STOPPABLE_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
 const TERMINAL_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['completed', 'completed_with_warnings', 'failed', 'cancelled'])
@@ -370,14 +371,32 @@ export function buildTaskArtifactViews(task: AgentTask, limit?: number, snapshot
 }
 
 export function actionableRunForPlan(snapshot: AgentPlanSnapshot | undefined, activeRun: AgentRun | null | undefined): AgentRun | null {
-  if (activeRun && runNeedsUserAction(activeRun)) return activeRun
-  if (!snapshot) return null
+  return actionableRunsForPlan(snapshot, activeRun)[0] ?? null
+}
+
+export function actionableRunsForPlan(snapshot: AgentPlanSnapshot | undefined, activeRun: AgentRun | null | undefined): AgentRun[] {
+  return collectPlanRuns(snapshot, activeRun, runNeedsUserAction)
+}
+
+export function interactionRunsForPlan(snapshot: AgentPlanSnapshot | undefined, activeRun: AgentRun | null | undefined): AgentRun[] {
+  return collectPlanRuns(snapshot, activeRun, runHasWorkflowInteraction)
+}
+
+function collectPlanRuns(snapshot: AgentPlanSnapshot | undefined, activeRun: AgentRun | null | undefined, predicate: (run: AgentRun) => boolean): AgentRun[] {
+  const runs: AgentRun[] = []
+  const seen = new Set<string>()
+  const add = (run: AgentRun | null | undefined) => {
+    if (!run || !predicate(run) || seen.has(run.id)) return
+    seen.add(run.id)
+    runs.push(run)
+  }
+
+  add(activeRun)
+  if (!snapshot) return runs
   const taskViews = buildPlanTaskViews(snapshot)
-  const taskOwnerRuns = taskViews
-    .map((view) => view.ownerRun)
-    .filter((run): run is AgentRun => !!run && runNeedsUserAction(run))
-  if (taskOwnerRuns.length > 0) return taskOwnerRuns[0]!
-  return snapshot.runs.find(runNeedsUserAction) ?? null
+  for (const view of taskViews) add(view.ownerRun)
+  for (const run of snapshot.runs) add(run)
+  return runs
 }
 
 export function runNeedsUserAction(run: AgentRun): boolean {

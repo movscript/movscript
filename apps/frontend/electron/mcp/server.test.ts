@@ -155,7 +155,8 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
   assert.ok((listModels.outputSchema?.properties?.model_contracts as any)?.items?.properties?.supported_params)
   assert.match(createJob.description, /param_validation audit_version 1/)
   assert.match(createJob.description, /input_preflight_errors/)
-  assert.match(createJob.description, /output_resources\/output_resource_ids/)
+  assert.match(createJob.description, /single-output/)
+  assert.match(createJob.description, /output_count/)
   const createJobProperties = schemaProperties(createJob.inputSchema)
   assert.match(schemaDescription(createJobProperties.extra_params), /param_validation audit_version 1/)
   assert.match(schemaDescription(createJobProperties.input_resource_ids), /input_preflight_errors/)
@@ -164,10 +165,14 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
   assert.ok(createJob.inputSchema.properties?.reference_type)
   assert.ok(createJob.inputSchema.properties?.aspect_ratio)
   assert.ok(createJob.inputSchema.properties?.duration)
+  assert.ok(createJob.inputSchema.properties?.output_count)
+  assert.ok(createJob.inputSchema.properties?.outputCount)
   assert.equal(createJob.inputSchema.properties?.model_config_id, undefined)
   assert.ok(createJob.outputSchema?.properties?.status)
   assert.ok(createJob.outputSchema?.properties?.job)
   assert.ok(createJob.outputSchema?.properties?.jobId)
+  assert.ok(createJob.outputSchema?.properties?.jobIds)
+  assert.ok(createJob.outputSchema?.properties?.jobs)
   assert.ok(createJob.outputSchema?.properties?.monitor)
   assert.ok(createJob.outputSchema?.properties?.output_resource)
   assert.ok(createJob.outputSchema?.properties?.output_resource_id)
@@ -271,14 +276,14 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
       `movscript_list_models ${field} output schema should match the static agent catalog`,
     )
   }
-  for (const field of ['title', 'job_type', 'model_id', 'input_resource_ids', 'reference_type', 'aspect_ratio', 'duration', 'feature_key', 'timeout_ms', 'poll_interval_ms']) {
+  for (const field of ['title', 'job_type', 'model_id', 'input_resource_ids', 'reference_type', 'aspect_ratio', 'duration', 'output_count', 'outputCount', 'feature_key', 'timeout_ms', 'poll_interval_ms']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(createJob.inputSchema.properties?.[field]),
       schemaShapeWithoutDescriptions(staticCreateJob.inputSchema.properties?.[field]),
       `movscript_create_generation_job ${field} schema should match the static agent catalog`,
     )
   }
-  for (const field of ['status', 'job', 'jobId', 'monitor', 'output_resource', 'output_resource_id', 'output_resources', 'output_resource_ids', 'param_validation', 'terminal', 'message']) {
+  for (const field of ['status', 'job', 'jobId', 'jobIds', 'jobs', 'monitor', 'output_resource', 'output_resource_id', 'output_resources', 'output_resource_ids', 'param_validation', 'terminal', 'message']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(createJob.outputSchema?.properties?.[field]),
       schemaShapeWithoutDescriptions(staticCreateJob.outputSchema?.properties?.[field]),
@@ -967,6 +972,14 @@ test('draft model MCP tool hydrates production proposal snapshot with production
       content: 'A long script body.',
       UpdatedAt: '2026-05-13T00:00:01.000Z',
     }],
+    '/projects/42/entities/creative-references': [{
+      ID: 12,
+      project_id: 42,
+      name: 'Hero',
+      kind: 'character',
+      status: 'active',
+      UpdatedAt: '2026-05-13T00:00:03.000Z',
+    }],
     '/projects/42/scripts': [{
       ID: 9,
       project_id: 42,
@@ -981,14 +994,16 @@ test('draft model MCP tool hydrates production proposal snapshot with production
   try {
     const result = await getDraftModelContract({
       kind: 'production_proposal',
-      target: { entityType: 'production', entityId: 301, projectId: 42 },
-      include: ['production_script_brief', 'project_scripts'],
+      target: { entityType: 'production', productionId: 301, projectId: 42 },
+      include: ['production_script_brief', 'project_scripts', 'creative_references'],
     }) as Record<string, any>
 
     assert.equal(result.seedPolicy.mode, 'editable_snapshot')
+    assert.equal(result.reviewRoute, '/project/production/orchestration?productionId=301&draftId=:draftId')
     assert.equal(result.seed.data.production_script_brief.scriptVersionId, 77)
     assert.equal(result.seed.data.production_script_brief.brief, 'Production brief from page.')
     assert.equal(result.seed.data.production_script_brief.body_excerpt, 'A long script body.')
+    assert.equal(result.seed.data.creative_references[0].name, 'Hero')
     assert.equal(result.seed.data.project_scripts[0].title, 'Pilot')
     assert.equal(result.seed.data.project_scripts[0].content, undefined)
     assert.deepEqual(result.seed.sourceVersions.production_script_brief, { id: 77, updatedAt: '2026-05-13T00:00:01.000Z' })
@@ -1166,6 +1181,7 @@ test('applyDraftReview posts direct asset proposal snapshot rows to asset propos
       schema: 'movscript.asset_proposal.v1',
       mode: 'snapshot',
       summary: '批量提交：3 项',
+      snapshot_base: { asset_slots: [] },
       proposal: {
         asset_slots: [{
           client_id: 'slot_001',
@@ -1208,6 +1224,28 @@ test('applyDraftReview posts direct asset proposal snapshot rows to asset propos
     setMCPAPIBaseURL('http://localhost:8765')
     globalThis.fetch = previousFetch
   }
+})
+
+test('applyDraftReview rejects partial direct asset proposal snapshots', async () => {
+  await assert.rejects(() => applyDraftReview({
+    review: {
+      draftKind: 'asset_proposal',
+      target: { projectId: 4, entityType: 'project', entityId: 4, field: 'proposal' },
+      proposedValue: JSON.stringify({
+        schema: 'movscript.asset_proposal.v1',
+        mode: 'snapshot',
+        snapshot_base: {
+          asset_slots: [
+            { id: 11, name: 'Keep this slot', kind: 'image', status: 'active' },
+            { id: 12, name: 'Edited slot', kind: 'image', status: 'active' },
+          ],
+        },
+        proposal: {
+          asset_slots: [{ id: 12, name: 'Edited slot', kind: 'image', status: 'active' }],
+        },
+      }),
+    },
+  }), /omit existing active asset slots.*11/s)
 })
 
 test('applyDraftReview normalizes project standards shot size object arrays before apply', async () => {
@@ -1339,6 +1377,10 @@ test('listModels treats common generation feature aliases as capabilities', asyn
     const textToImage = await listModels({ feature_key: 'text_to_image' }) as Record<string, any>
     assert.deepEqual(textToImage.queries, ['capability:image'])
     assert.equal(textToImage.model_contracts[0].model_id, 'model.42')
+
+    const workflowImageTemplate = await listModels({ feature: 'image-generation' }) as Record<string, any>
+    assert.deepEqual(workflowImageTemplate.queries, ['capability:image'])
+    assert.equal(workflowImageTemplate.model_contracts[0].model_id, 'model.42')
 
     const imageCapability = await listModels({ feature: 'image' }) as Record<string, any>
     assert.deepEqual(imageCapability.queries, ['capability:image'])
@@ -1514,6 +1556,80 @@ test('createGenerationJob returns queued monitor and param validation audit for 
       input_resource_ids: [1, 2, 3, 4, 5],
     })
     assert.match(String(postedBodies[0]?.title), /^参考生图-\d{4}$/)
+  } finally {
+    setMCPAPIBaseURL(previousBaseURL)
+    globalThis.fetch = previousFetch
+  }
+})
+
+test('createGenerationJob expands image_count into independent single-output jobs', async () => {
+  const postedBodies: Array<Record<string, unknown>> = []
+  const imageModel = {
+    ...minimalBackendModelFixture(51, ['image']),
+    logical_model_id: 'image.multi',
+    model_id: 'image.multi',
+    supported_params: [
+      { key: 'image_size', type: 'select', options: ['1024x1024'] },
+      { key: 'image_count', type: 'number', min: 1, max: 15 },
+      { key: 'sequential_image_generation', type: 'select', options: ['auto'] },
+    ],
+    params_schema: {
+      type: 'object',
+      properties: {
+        image_size: { type: 'string', enum: ['1024x1024'] },
+        image_count: { type: 'number', minimum: 1, maximum: 15 },
+        sequential_image_generation: { type: 'string', enum: ['auto'] },
+      },
+    },
+  }
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = mockFetch({
+    '/models?capability=image': [imageModel],
+    'POST /jobs': (body: Record<string, unknown>) => {
+      postedBodies.push(body)
+      return {
+        id: 201 + postedBodies.length - 1,
+        status: 'pending',
+        job_type: body.job_type,
+        model_config_id: 51,
+      }
+    },
+  }) as typeof fetch
+  const previousBaseURL = 'http://localhost:8765'
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await createGenerationJob({
+      prompt: 'two candidate frames',
+      job_type: 'image',
+      model_id: 'image.multi',
+      wait: false,
+      extra_params: {
+        image_size: '1024x1024',
+        image_count: 2,
+        sequential_image_generation: 'auto',
+      },
+    }) as Record<string, any>
+
+    assert.equal(result.status, 'queued')
+    assert.equal(result.single_output_jobs, true)
+    assert.equal(result.requested_output_count, 2)
+    assert.deepEqual(result.jobIds, [201, 202])
+    assert.deepEqual(result.monitor.args, {
+      jobIds: [201, 202],
+      mode: 'any',
+      timeout_ms: 180000,
+      heartbeat_ms: 15000,
+    })
+    assert.equal(postedBodies.length, 2)
+    assert.deepEqual(postedBodies.map((body) => body.extra_params), [
+      JSON.stringify({ image_size: '1024x1024' }),
+      JSON.stringify({ image_size: '1024x1024' }),
+    ])
+    assert.deepEqual(postedBodies.map((body) => body.title), [
+      postedBodies[0]?.title,
+      String(postedBodies[0]?.title).replace('-1/2', '-2/2'),
+    ])
+    assert.match(String(postedBodies[0]?.title), /^文生图-\d{4}-1\/2$/)
   } finally {
     setMCPAPIBaseURL(previousBaseURL)
     globalThis.fetch = previousFetch

@@ -63,6 +63,7 @@ test('buildModelToolResultContext reads context budget from agent manifest metad
       ...testRun(),
       metadata: {},
       agentManifest: {
+        schema: 'movscript.agent.current',
         id: 'manifest',
         version: '1',
         name: 'Manifest',

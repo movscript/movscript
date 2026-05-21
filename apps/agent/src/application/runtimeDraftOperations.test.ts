@@ -8,7 +8,6 @@ import {
   createRuntimeLocalDraft,
   getRuntimeDraft,
   listRuntimeDrafts,
-  patchRuntimeDraft,
   previewRuntimeDraftApply,
   rejectRuntimeDraft,
   simulateRuntimeDraftApply,
@@ -17,7 +16,7 @@ import {
   type RuntimeDraftBackendApplyClient,
 } from './runtimeDraftOperations.js'
 
-test('runtime draft CRUD helpers normalize inputs and project patch validation', () => {
+test('runtime draft CRUD helpers normalize inputs and validate drafts', () => {
   const draftStore = new InMemoryAgentDraftStore()
   const draft = createRuntimeLocalDraft({
     draftStore,
@@ -40,15 +39,7 @@ test('runtime draft CRUD helpers normalize inputs and project patch validation',
   assert.equal(updated.title, 'Updated script')
   assert.equal(updated.status, 'accepted')
 
-  const patched = patchRuntimeDraft({
-    draftStore,
-    patchInput: {
-      draftId: draft.id,
-      ops: [{ op: 'replace', path: '/body', value: 'Patched content' }],
-    },
-  }) as { status?: string; validation?: { ok?: boolean } }
-  assert.equal(patched.status, 'patched')
-  assert.equal(patched.validation?.ok, true)
+  assert.equal((validateRuntimeDraft({ draftStore, draftId: draft.id }) as { ok?: boolean }).ok, true)
 
   const preview = previewRuntimeDraftApply({
     draftStore,
@@ -176,6 +167,80 @@ test('simulateRuntimeDraftApply rejects asset slot snapshot drafts without a hyd
   assert.equal(result.stage, 'local_validation')
   assert.match(result.message ?? '', /snapshot_base\.asset_slots/)
   assert.equal(backend.previewCalls, 0)
+})
+
+test('simulateRuntimeDraftApply rejects asset slot snapshots that omit active base slots', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const draft = draftStore.createDraft({
+    kind: 'asset_proposal',
+    title: 'Asset proposal',
+    content: JSON.stringify({
+      schema: 'movscript.asset_proposal.v1',
+      scope: 'asset_proposal',
+      mode: 'snapshot',
+      snapshot_base: {
+        asset_slots: [
+          { id: 11, name: 'Keep this slot', kind: 'image', status: 'active' },
+          { id: 12, name: 'Edit this slot', kind: 'image', status: 'active' },
+        ],
+      },
+      proposal: {
+        creative_references: [],
+        asset_slots: [{ id: 12, name: 'Edited slot', kind: 'image', status: 'active' }],
+        candidate_plans: [],
+      },
+    }),
+    target: { entityType: 'project', entityId: 7 },
+  })
+  const backend = fakeBackendApplyClient()
+
+  const result = await simulateRuntimeDraftApply({
+    draftStore,
+    backendApplyClient: backend,
+    applyInput: { draftId: draft.id },
+  }) as { ok?: boolean; stage?: string; message?: string }
+
+  assert.equal(result.ok, false)
+  assert.equal(result.stage, 'local_validation')
+  assert.match(result.message ?? '', /omit existing active asset slots/)
+  assert.match(result.message ?? '', /11/)
+  assert.equal(backend.previewCalls, 0)
+})
+
+test('applyRuntimeDraftFromUI rejects asset slot snapshots that omit active base slots', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const draft = draftStore.createDraft({
+    kind: 'asset_proposal',
+    title: 'Asset proposal',
+    content: JSON.stringify({
+      schema: 'movscript.asset_proposal.v1',
+      scope: 'asset_proposal',
+      mode: 'snapshot',
+      snapshot_base: {
+        asset_slots: [
+          { id: 11, name: 'Keep this slot', kind: 'image', status: 'active' },
+          { id: 12, name: 'Edit this slot', kind: 'image', status: 'active' },
+        ],
+      },
+      proposal: {
+        creative_references: [],
+        asset_slots: [{ id: 12, name: 'Edited slot', kind: 'image', status: 'active' }],
+      },
+    }),
+    target: { entityType: 'project', entityId: 7 },
+  })
+  const backend = fakeBackendApplyClient()
+
+  await assert.rejects(
+    () => applyRuntimeDraftFromUI({
+      draftStore,
+      backendApplyClient: backend,
+      applyInput: { draftId: draft.id },
+      now: () => '2026-01-01T00:00:00.000Z',
+    }),
+    /omit existing active asset slots.*11/s,
+  )
+  assert.equal(backend.applyCalls, 0)
 })
 
 test('applyRuntimeDraftFromUI stores setting proposal mapping from client_id to backend creative reference id', async () => {

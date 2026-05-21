@@ -8,6 +8,11 @@ const semanticEntitiesSource = readFileSync(resolve('src/api/semanticEntities.ts
 
 test('production proposal review applies accepted changes over the current snapshot', () => {
   assert.match(source, /listSemanticEntities\(projectId, semanticEntityConfig\('keyframes'\)\)/)
+  assert.match(source, /listSemanticEntities\(projectId, semanticEntityConfig\('creativeReferenceUsages'\)\)/)
+  assert.match(source, /creativeReferenceUsages: data\?\.creativeReferenceUsages \?\? \[\]/)
+  assert.match(source, /creative_references: \(referencesBySceneMoment\.get\(moment\.ID\) \?\? \[\]\)\.slice\(\)/)
+  assert.match(source, /snapshotBase: currentProductionSnapshot/)
+  assert.match(source, /productionSnapshot: currentProductionSnapshot/)
   assert.match(source, /buildProposalReviewSegments\(proposalPreviewDraft\.proposal\.segments, currentProductionSnapshot\)/)
   assert.match(source, /return buildMergedProductionProposal\(currentSnapshot, segments, nodeDecisions\)/)
 })
