@@ -19,6 +19,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   NODE_VERSION: '23'
   PNPM_VERSION: '10.32.1'
   GO_VERSION: '1.25.x'

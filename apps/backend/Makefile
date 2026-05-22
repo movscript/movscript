@@ -1,4 +1,4 @@
-GOCACHE ?= /private/tmp/movscript-go-cache
+GOCACHE ?= $(shell node -e "process.stdout.write(require('node:path').join(require('node:os').tmpdir(), 'movscript-go-cache'))")
 
 .PHONY: dev migrate-up migrate-status tidy test test-unit test-architecture test-model-capability-contract
 

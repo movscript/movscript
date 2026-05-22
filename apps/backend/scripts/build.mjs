@@ -1,5 +1,6 @@
 import { rmSync, cpSync, existsSync, mkdirSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -22,7 +23,7 @@ export function buildBackend(root = repoRoot) {
   const binDir = resolve(backendDir, 'bin')
   const targetOS = process.env.GOOS || process.platform
   const targetArch = process.env.GOARCH || process.arch
-  const goCache = process.env.GOCACHE || '/private/tmp/movscript-go-cache'
+  const goCache = process.env.GOCACHE || resolve(tmpdir(), 'movscript-go-cache')
   const isWindows = targetOS === 'win32' || targetOS === 'windows'
   const serverName = isWindows ? 'server.exe' : 'server'
   const outputPath = resolve(binDir, serverName)

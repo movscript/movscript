@@ -6,7 +6,6 @@ import {
   GENERATED_BINDING_TARGETS,
   type GeneratedBindingTarget,
   attachedGeneratedCandidateIdsAfterResults,
-  generatedBindingErrorMessage,
   generatedBindingTargetLabel,
   generatedCandidateAttachSummary,
   generatedTargetRecordDescription,

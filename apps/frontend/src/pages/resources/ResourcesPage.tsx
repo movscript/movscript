@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { MediaViewer, downloadResource, resolveResourceUrl } from '@/components/shared/MediaViewer'
 import { ResourceListItem } from '@/components/shared/ResourcePanel'
+import { ResourceCandidateAttachPanel, candidateResourceFromRawResource } from '@/components/shared/ResourceCandidateAttachPanel'
 import { ProjectSurfaceHeader } from '@/components/app/AppPage'
 import { Button } from '@movscript/ui'
 import * as Dialog from '@radix-ui/react-dialog'
@@ -29,6 +30,7 @@ import {
   parseClipTimecode,
 } from '@/lib/videoClipUi'
 import { useUserStore } from '@/store/userStore'
+import { useProjectStore } from '@/store/projectStore'
 
 type TypeFilter = 'all' | 'image' | 'video' | 'audio' | 'text'
 type Tab = 'mine' | 'shared'
@@ -1105,6 +1107,7 @@ function ResourceCard({
   selected,
   onSelectChange,
   onContextMenu,
+  previewProjectId,
 }: {
   resource: RawResource
   onDelete?: () => void
@@ -1116,6 +1119,7 @@ function ResourceCard({
   selected?: boolean
   onSelectChange?: (selected: boolean) => void
   onContextMenu?: (event: MouseEvent, resource: RawResource) => void
+  previewProjectId?: number
 }) {
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -1135,7 +1139,18 @@ function ResourceCard({
       {/* Preview */}
       <div className="aspect-square relative">
         {resource.type === 'image' || resource.type === 'video' || resource.type === 'audio' || resource.type === 'text' ? (
-          <MediaViewer resource={resource} className="w-full h-full" />
+          <MediaViewer
+            resource={resource}
+            className="w-full h-full"
+            fit="cover"
+            sidePanel={(
+              <ResourceCandidateAttachPanel
+                resources={[candidateResourceFromRawResource(resource)]}
+                projectId={previewProjectId}
+                compact
+              />
+            )}
+          />
         ) : (
           <div className="w-full h-full rounded-lg bg-muted flex items-center justify-center">
             <TypeIcon type={resource.type} />
@@ -1248,6 +1263,7 @@ export default function ResourcesPage() {
   const qc = useQueryClient()
   const currentOrgID = useUserStore(state => state.currentOrgID)
   const currentUser = useUserStore(state => state.currentUser)
+  const currentProject = useProjectStore(state => state.current)
   const fileRef = useRef<HTMLInputElement>(null)
   const [tab, setTab] = useState<Tab>('mine')
   const [filter, setFilter] = useState<TypeFilter>('all')
@@ -1669,6 +1685,7 @@ export default function ResourcesPage() {
                   selected={selectedResourceIDs.has(r.ID)}
                   onSelectChange={selected => setResourceSelected(r, selected)}
                   onContextMenu={openResourceContextMenu}
+                  previewProjectId={currentProject?.ID}
                 />
               ))}
             </div>
@@ -1730,6 +1747,7 @@ export default function ResourcesPage() {
                       </DropdownMenu.Portal>
                     </DropdownMenu.Root>
                     }
+                    previewProjectId={currentProject?.ID}
                   />
                 </div>
               ))}

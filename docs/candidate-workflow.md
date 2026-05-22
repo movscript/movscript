@@ -85,10 +85,10 @@ node --experimental-strip-types --test \
 
 ```bash
 cd ../backend
-GOCACHE=/private/tmp/movscript-go-build-cache go test ./internal/app/workflow ./internal/app/semantic ./internal/domain/semantic ./internal/app/preview ./internal/interfaces/http/handler
+GOCACHE="${TMPDIR:-/tmp}/movscript-go-build-cache" go test ./internal/app/workflow ./internal/app/semantic ./internal/domain/semantic ./internal/app/preview ./internal/interfaces/http/handler
 
 # Broader backend regression after service or handler changes.
-GOCACHE=/private/tmp/movscript-go-build-cache go test ./...
+GOCACHE="${TMPDIR:-/tmp}/movscript-go-build-cache" go test ./...
 
 cd ../..
 pnpm run test:scripts

@@ -4,6 +4,7 @@ import { File, FileText, Image, Mic, Sparkles, Video } from 'lucide-react'
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { MediaViewer } from '@/components/shared/MediaViewer'
+import { ResourceCandidateAttachPanel, type CandidateResourceRef } from '@/components/shared/ResourceCandidateAttachPanel'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { api } from '@/lib/api'
 import { isGeneratedResultAttachment } from '@/lib/agentGeneratedResultAttachments'
@@ -196,6 +197,16 @@ function resourceFromGeneratedAttachment(attachment: AgentAttachment): RawResour
   }
 }
 
+function candidateResourceFromGeneratedAttachment(attachment: AgentAttachment): CandidateResourceRef {
+  return {
+    id: attachment.id,
+    name: attachment.name,
+    type: attachment.type,
+    resourceId: generatedAttachmentResourceId(attachment),
+    sourceJobId: attachment.generated?.jobId,
+  }
+}
+
 function GeneratedCandidateAttachDialog({
   attachments,
   projectId,
@@ -320,94 +331,12 @@ function GeneratedCandidateAttachDialog({
                 </Badge>
               </div>
             </div>
-
-            <div className="min-h-0 flex-1 overflow-auto p-3">
-              <div className="grid gap-2">
-                <Select
-                  value={targetConfig.value}
-                  onValueChange={(value) => {
-                    setTargetType(value as typeof targetType)
-                    resetSelection()
-                  }}
-                  disabled={!projectId || candidateAttachments.length === 0 || attachStatus === 'attaching'}
-                >
-                  <SelectTrigger className="h-8 min-w-0 type-tiny">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GENERATED_BINDING_TARGETS.map((target) => (
-                      <SelectItem key={`viewer-target-type-${target.value}`} value={target.value}>{target.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <input
-                  value={targetQuery}
-                  onChange={(event) => {
-                    setTargetQuery(event.target.value)
-                    setTargetId(undefined)
-                    setAttachMessage('')
-                    if (attachStatus !== 'attaching') setAttachStatus('idle')
-                  }}
-                  placeholder={loadingTargets ? '正在加载目标对象...' : `搜索${generatedBindingTargetLabel(targetConfig.value)}`}
-                  disabled={!projectId || candidateAttachments.length === 0}
-                  className="h-8 min-w-0 rounded-md border border-input bg-background px-2 type-tiny outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
-                />
-              </div>
-
-              <div className="mt-2 max-h-[34vh] overflow-auto rounded-md border border-border bg-background">
-                {loadingTargets ? (
-                  <p className="px-3 py-6 text-center type-tiny text-muted-foreground">正在加载目标对象...</p>
-                ) : filteredTargets.length === 0 ? (
-                  <p className="px-3 py-6 text-center type-tiny text-muted-foreground">
-                    {projectId ? '没有匹配的目标对象，请调整搜索条件。' : '请选择项目后再加入候选。'}
-                  </p>
-                ) : filteredTargets.map((record) => {
-                  const selected = record.ID === targetId
-                  const meta = generatedTargetRecordMeta(record)
-                  const description = generatedTargetRecordDescription(record)
-                  return (
-                    <button
-                      key={`viewer-${targetConfig.value}-${record.ID}`}
-                      type="button"
-                      className={cn(
-                        'block w-full border-b border-border px-3 py-2 text-left last:border-b-0 hover:bg-muted/60',
-                        selected && 'bg-primary/10',
-                      )}
-                      onClick={() => {
-                        setTargetId(record.ID)
-                        setAttachMessage('')
-                        if (attachStatus !== 'attaching') setAttachStatus('idle')
-                      }}
-                    >
-                      <div className="flex min-w-0 items-center justify-between gap-3">
-                        <p className="min-w-0 truncate type-tiny font-medium text-foreground">{generatedTargetRecordLabel(record)}</p>
-                        <span className="shrink-0 type-min text-muted-foreground">#{record.ID}</span>
-                      </div>
-                      {meta.length > 0 && <p className="mt-0.5 truncate type-min text-muted-foreground">{meta.join(' · ')}</p>}
-                      {description && <p className="mt-1 line-clamp-2 type-min leading-relaxed text-muted-foreground">{description}</p>}
-                    </button>
-                  )
-                })}
-              </div>
-
-              {selectedTarget && (
-                <div className="mt-2 rounded border border-primary/25 bg-primary/10 px-2 py-1.5">
-                  <p className="truncate type-micro font-medium text-foreground">{generatedTargetRecordLabel(selectedTarget)}</p>
-                  {selectedTargetMeta.length > 0 && <p className="mt-0.5 truncate type-min text-muted-foreground">{selectedTargetMeta.join(' · ')}</p>}
-                  {selectedTargetDescription && <p className="mt-1 line-clamp-2 type-min leading-relaxed text-muted-foreground">{selectedTargetDescription}</p>}
-                </div>
-              )}
-
-              <p className={cn('mt-2 type-micro leading-relaxed', attachStatus === 'error' ? 'text-destructive' : attachStatus === 'attached' ? 'text-primary' : 'text-muted-foreground')}>
-                {attachMessage || helperMessage}
-              </p>
-            </div>
-
-            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-3 py-3">
-              <Button type="button" onClick={attachCandidates} disabled={!canAttach}>
-                {attachStatus === 'attaching' ? '加入中' : attachStatus === 'attached' ? '已加入候选' : attachStatus === 'partial' ? '重试未完成项' : '加入候选'}
-              </Button>
-            </div>
+            <ResourceCandidateAttachPanel
+              resources={[candidateResourceFromGeneratedAttachment(viewerAttachment)]}
+              projectId={projectId}
+              compact
+              className="min-h-0 flex-1"
+            />
           </div>
         )}
       />

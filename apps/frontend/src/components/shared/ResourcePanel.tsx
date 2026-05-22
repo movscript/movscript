@@ -6,6 +6,7 @@ import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord }
 import type { AssetSlot, RawResource, PaginatedResponse } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { MediaViewer } from '@/components/shared/MediaViewer'
+import { ResourceCandidateAttachPanel, candidateResourceFromRawResource } from '@/components/shared/ResourceCandidateAttachPanel'
 import { FileAudio, FileText, Package, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -13,8 +14,22 @@ type AssetSlotPanelRecord = SemanticEntityRecord & AssetSlot
 
 // ─── Shared preview dialog ────────────────────────────────────────────────────
 
-export function ResourcePreviewDialog({ resource, onClose }: { resource: RawResource; onClose: () => void }) {
-  return <MediaViewer resource={resource} open onOpenChange={v => !v && onClose()} />
+export function ResourcePreviewDialog({ resource, projectId, onClose }: { resource: RawResource; projectId?: number; onClose: () => void }) {
+  return (
+    <MediaViewer
+      resource={resource}
+      open
+      onOpenChange={v => !v && onClose()}
+      fit="contain"
+      sidePanel={(
+        <ResourceCandidateAttachPanel
+          resources={[candidateResourceFromRawResource(resource)]}
+          projectId={projectId}
+          compact
+        />
+      )}
+    />
+  )
 }
 
 // ─── Shared resource list item ────────────────────────────────────────────────
@@ -31,6 +46,7 @@ interface ResourceListItemProps {
   /** Trailing slot — e.g. a dropdown menu */
   trailing?: React.ReactNode
   thumbSize?: 'sm' | 'md'
+  previewProjectId?: number
 }
 
 export function ResourceListItem({
@@ -40,6 +56,7 @@ export function ResourceListItem({
   draggable: isDraggable,
   trailing,
   thumbSize = 'sm',
+  previewProjectId,
 }: ResourceListItemProps) {
   const { t } = useTranslation()
   const [preview, setPreview] = useState(false)
@@ -90,7 +107,7 @@ export function ResourceListItem({
       </div>
 
       {/* Controlled MediaViewer lightbox uses the same AuthedImage path as grid mode. */}
-      {preview && <MediaViewer resource={r} className="" open={preview} onOpenChange={v => !v && setPreview(false)} />}
+      {preview && <ResourcePreviewDialog resource={r} projectId={previewProjectId} onClose={() => setPreview(false)} />}
     </>
   )
 }
@@ -104,6 +121,7 @@ interface AssetSlotListItemProps {
   draggable?: boolean
   selectedResourceIds?: number[]
   trailing?: React.ReactNode
+  previewProjectId?: number
 }
 
 export function AssetSlotListItem({
@@ -113,6 +131,7 @@ export function AssetSlotListItem({
   draggable: isDraggable,
   selectedResourceIds = [],
   trailing,
+  previewProjectId,
 }: AssetSlotListItemProps) {
   const { t } = useTranslation()
   const [preview, setPreview] = useState<RawResource | null>(null)
@@ -171,7 +190,7 @@ export function AssetSlotListItem({
         )}
       </div>
 
-      {preview && <ResourcePreviewDialog resource={preview} onClose={() => setPreview(null)} />}
+      {preview && <ResourcePreviewDialog resource={preview} projectId={previewProjectId} onClose={() => setPreview(null)} />}
     </>
   )
 }
@@ -339,6 +358,7 @@ export function ResourcePanel({ inputType, selectedIds, onSelect: _onSelect }: R
                 slot={slot}
                 draggable
                 selectedResourceIds={selectedIds}
+                previewProjectId={current?.ID}
               />
             ))}
           </div>
