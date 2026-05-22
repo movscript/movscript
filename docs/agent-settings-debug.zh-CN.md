@@ -13,7 +13,6 @@
 
 - Debug Bundle schema：`contracts/agent/agent-debug-bundle-v1.schema.json`。
 - Settings Snapshot schema：`contracts/agent/agent-settings-snapshot-v1.schema.json`。
-- 静态门禁：`node --test tests/scripts/agent/verify-run-debugging.test.mjs`。
 
 ## Agent 设置负责什么
 

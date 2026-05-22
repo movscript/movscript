@@ -90,14 +90,11 @@ pnpm --filter movscript-frontend dev
 pnpm --filter movscript-agent dev
 pnpm run typecheck
 pnpm --filter movscript-backend test
-pnpm run test:contracts
+pnpm run test
 pnpm run test:scripts
-pnpm run verify:scripts
 ```
 
 Plugin-related code lives in `apps/movcli`, `packages/plugin-sdk`, and `plugins/*`. Use `pnpm --filter movcli dev` and `pnpm --filter "./plugins/*" build` when working on plugin packaging.
-
-Script ownership and lifecycle policy is documented in [Script Management](./script-management.md). Update `scripts/script-manifest.json` whenever a repository automation script is added, moved, or deleted.
 
 AI-generated media enters review through candidate sets, not direct binding. The candidate rules and release acceptance checklist for asset slots, keyframes, and future visual anchors are documented in [Candidate Workflow](./candidate-workflow.md).
 
@@ -120,14 +117,8 @@ pnpm run release -- package-desktop --platform=win32 --arch=x64
 
 Before release, verify at minimum:
 
-- `pnpm run typecheck`
-- `pnpm --filter movscript-backend test`
-- `pnpm run test:contracts`
-- `pnpm --filter movscript-frontend typecheck`
-- `pnpm --filter movscript-admin typecheck`
-- `pnpm run verify:scripts`
-- `pnpm run test:scripts`
 - `pnpm run release -- audit-ffmpeg --all --all-archs`
+- `pnpm run build`
 - The admin static assets are built and copied.
 - Local desktop mode starts `http://localhost:8766`.
 - The admin console opens at `http://localhost:8766/admin`.

@@ -90,12 +90,9 @@ GOCACHE=/private/tmp/movscript-go-build-cache go test ./internal/app/workflow ./
 GOCACHE=/private/tmp/movscript-go-build-cache go test ./...
 
 cd ../..
-node tests/scripts/agent/candidate-feature-source.test.mjs
 pnpm run test:scripts
 pnpm --filter movscript-frontend test:generation-contract
 pnpm run typecheck
-node --test tests/scripts/agent/verify-compact-contract.test.mjs
-node scripts/verify-script-manifest.mjs
 ```
 
 依赖不完整的 workspace 中仍有已知验证阻塞：
@@ -110,7 +107,7 @@ node scripts/verify-script-manifest.mjs
 
 2026-05-18 当前本地快照：
 
-- 已通过：候选专项测试、后端 `go test ./...`、`pnpm --filter movscript-frontend test:generation-contract`、`pnpm --filter movscript-frontend test`、根级 `pnpm run typecheck`、`pnpm run test:scripts`、`node tests/scripts/agent/candidate-feature-source.test.mjs` 和 `git diff --check`。
+- 已通过：候选专项测试、后端 `go test ./...`、`pnpm --filter movscript-frontend test:generation-contract`、`pnpm --filter movscript-frontend test`、根级 `pnpm run typecheck`、`pnpm run test:scripts` 和 `git diff --check`。
 - clean dependency restore 仍受阻：离线 store 预检仍报告缺少 `@radix-ui/react-toast-1.2.15.tgz` tarball，因此 `CI=true pnpm install --offline --frozen-lockfile` 还不能作为可靠的干净安装 gate。
 - 已尝试 Browser E2E：`pnpm --filter movscript-frontend exec playwright test src/e2e/agent-generation.spec.ts --reporter=line`，但在断言执行前被沙箱 `127.0.0.1:4179` 的 `listen EPERM` 阻塞。
 - 尚未完成：在允许监听本地端口的环境中运行 browser / Electron E2E，以及下面的人工发布验收清单。

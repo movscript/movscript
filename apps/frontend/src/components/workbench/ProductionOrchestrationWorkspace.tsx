@@ -44,6 +44,7 @@ export function ProductionOrchestrationWorkspace({
   onCreateSceneMoment,
   onSelectSceneMoment,
   onSaveSegment,
+  onDeleteSegment,
   onBindSceneMomentScriptBlock,
   onCreateAndBindSceneMomentScriptBlock,
   onSaveSceneMoment,
@@ -55,6 +56,7 @@ export function ProductionOrchestrationWorkspace({
   onAddExpressionLine,
   canDeleteFallbackContentUnits = false,
   isSavingSegment,
+  isDeletingSegment,
   isSavingSceneMoment,
   isDeletingSceneMoment,
   isLinkingSceneMomentReference,
@@ -76,6 +78,7 @@ export function ProductionOrchestrationWorkspace({
   onCreateSceneMoment: (segmentId: number) => void
   onSelectSceneMoment: (momentId: number) => void
   onSaveSegment: (segmentId: number, payload: SemanticEntityPayload) => void
+  onDeleteSegment: (segmentId: number) => void
   onBindSceneMomentScriptBlock: (momentId: number, scriptBlockId: number | null) => void
   onCreateAndBindSceneMomentScriptBlock: (momentId: number, startLine: number, endLine: number) => void
   onSaveSceneMoment: (momentId: number, payload: SemanticEntityPayload) => void
@@ -87,6 +90,7 @@ export function ProductionOrchestrationWorkspace({
   onAddExpressionLine: (momentId: number, order: number, scriptBlockId?: number | null) => void
   canDeleteFallbackContentUnits?: boolean
   isSavingSegment: boolean
+  isDeletingSegment: boolean
   isSavingSceneMoment: boolean
   isDeletingSceneMoment: boolean
   isLinkingSceneMomentReference: boolean
@@ -124,9 +128,11 @@ export function ProductionOrchestrationWorkspace({
           momentCount={view.selectedSegmentMoments.length}
           lineCount={view.selectedSegmentLineCount}
           isSaving={isSavingSegment}
+          isDeleting={isDeletingSegment}
           editing={Boolean(view.selectedSegment && editingSegmentId === view.selectedSegment.ID)}
           onEditingChange={(editing) => setEditingSegmentId(editing && view.selectedSegment ? view.selectedSegment.ID : null)}
           onSaveSegment={onSaveSegment}
+          onDeleteSegment={onDeleteSegment}
           onCreateSceneMoment={onCreateSceneMoment}
         />
 

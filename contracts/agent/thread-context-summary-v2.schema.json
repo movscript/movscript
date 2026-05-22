@@ -91,7 +91,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["knowledge", "memory", "draft", "tool_result", "project", "production", "asset_slot", "generation_job", "plan"]
+          "enum": ["knowledge", "memory", "draft", "tool_result", "project", "production", "asset_slot", "generation_job", "taskGraph"]
         },
         "id": { "type": "string", "minLength": 1 },
         "title": { "type": "string", "minLength": 1 },

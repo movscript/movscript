@@ -588,6 +588,88 @@ func TestDeleteSegmentRejectsDownstreamSceneMoments(t *testing.T) {
 	}
 }
 
+func TestAbandonSegmentMarksDownstreamGraphInactive(t *testing.T) {
+	db := newContentUnitTestDB(t)
+	service := NewService(db)
+	_, _, block := seedContentUnitScriptSource(t, db, 1)
+	segment := model.Segment{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Segment", Status: "confirmed"}
+	if err := db.Create(&segment).Error; err != nil {
+		t.Fatalf("create segment: %v", err)
+	}
+	moment := model.SceneMoment{ProjectID: 1, SegmentID: &segment.ID, ScriptBlockID: &block.ID, Title: "Moment", Status: "confirmed"}
+	if err := db.Create(&moment).Error; err != nil {
+		t.Fatalf("create scene moment: %v", err)
+	}
+	momentUnit := model.ContentUnit{ProjectID: 1, SegmentID: &segment.ID, SceneMomentID: &moment.ID, ScriptBlockID: &block.ID, Title: "Moment unit", Status: "confirmed"}
+	if err := db.Create(&momentUnit).Error; err != nil {
+		t.Fatalf("create moment content unit: %v", err)
+	}
+	segmentUnit := model.ContentUnit{ProjectID: 1, SegmentID: &segment.ID, ScriptBlockID: &block.ID, Title: "Segment unit", Status: "draft"}
+	if err := db.Create(&segmentUnit).Error; err != nil {
+		t.Fatalf("create segment content unit: %v", err)
+	}
+	segmentTimelineItem := model.PreviewTimelineItem{ProjectID: 1, PreviewTimelineID: 10, SegmentID: &segment.ID, Kind: "note", Status: "confirmed"}
+	if err := db.Create(&segmentTimelineItem).Error; err != nil {
+		t.Fatalf("create segment preview timeline item: %v", err)
+	}
+	momentTimelineItem := model.PreviewTimelineItem{ProjectID: 1, PreviewTimelineID: 10, SceneMomentID: &moment.ID, ContentUnitID: &momentUnit.ID, Kind: "content_unit", Status: "confirmed"}
+	if err := db.Create(&momentTimelineItem).Error; err != nil {
+		t.Fatalf("create moment preview timeline item: %v", err)
+	}
+	syncSemanticTestRelations(t, db, &segment)
+	syncSemanticTestRelations(t, db, &moment)
+	syncSemanticTestRelations(t, db, &momentUnit)
+	syncSemanticTestRelations(t, db, &segmentUnit)
+	syncSemanticTestRelations(t, db, &segmentTimelineItem)
+	syncSemanticTestRelations(t, db, &momentTimelineItem)
+
+	result, err := service.AbandonSegment(context.Background(), 1, strconv.FormatUint(uint64(segment.ID), 10))
+	if err != nil {
+		t.Fatalf("AbandonSegment() error = %v", err)
+	}
+	if result.SegmentID != segment.ID || result.SceneMomentsUpdated != 1 || result.ContentUnitsUpdated != 2 || result.TimelineItemsRemoved != 2 {
+		t.Fatalf("abandon result = %+v, want segment %d, 1 scene moment, 2 content units, 2 timeline items", result, segment.ID)
+	}
+
+	var reloadedSegment model.Segment
+	if err := db.First(&reloadedSegment, segment.ID).Error; err != nil {
+		t.Fatalf("load segment: %v", err)
+	}
+	if reloadedSegment.Status != "ignored" {
+		t.Fatalf("segment status = %q, want ignored", reloadedSegment.Status)
+	}
+	var ignoredMoments int64
+	if err := db.Model(&model.SceneMoment{}).Where("segment_id = ? AND status = ?", segment.ID, "ignored").Count(&ignoredMoments).Error; err != nil {
+		t.Fatalf("count ignored scene moments: %v", err)
+	}
+	if ignoredMoments != 1 {
+		t.Fatalf("ignored scene moments = %d, want 1", ignoredMoments)
+	}
+	var ignoredUnits int64
+	if err := db.Model(&model.ContentUnit{}).Where("segment_id = ? AND status = ?", segment.ID, "ignored").Count(&ignoredUnits).Error; err != nil {
+		t.Fatalf("count ignored content units: %v", err)
+	}
+	if ignoredUnits != 2 {
+		t.Fatalf("ignored content units = %d, want 2", ignoredUnits)
+	}
+	var removedItems int64
+	if err := db.Model(&model.PreviewTimelineItem{}).Where("project_id = ? AND status = ?", 1, "removed").Count(&removedItems).Error; err != nil {
+		t.Fatalf("count removed preview timeline items: %v", err)
+	}
+	if removedItems != 2 {
+		t.Fatalf("removed preview timeline items = %d, want 2", removedItems)
+	}
+	var activeBlockerCount int64
+	if err := db.Model(&model.EntityRelation{}).
+		Where("source_type = ? AND source_id = ? AND target_type = ? AND status = ? AND valid_to IS NULL", "segment", segment.ID, "scene_moment", "confirmed").
+		Count(&activeBlockerCount).Error; err != nil {
+		t.Fatalf("count active segment blocker relations: %v", err)
+	}
+	if activeBlockerCount != 0 {
+		t.Fatalf("active segment blocker relations = %d, want 0", activeBlockerCount)
+	}
+}
+
 func TestPatchSceneMomentAllowsScriptBlockChangeAfterContentUnits(t *testing.T) {
 	db := newContentUnitTestDB(t)
 	service := NewService(db)

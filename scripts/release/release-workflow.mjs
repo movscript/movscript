@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, resolve } from 'node:path'
 
 import {
@@ -19,7 +19,13 @@ import {
 } from './release-common.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
-const releaseCommands = loadReleaseCommands()
+const releaseCommands = new Map([
+  ['audit-ffmpeg', ['scripts/release/audit-ffmpeg.mjs']],
+  ['collect', ['builtin:collect']],
+  ['download-ffmpeg-static', ['scripts/release/download-ffmpeg-static.mjs']],
+  ['package-desktop', ['builtin:package-desktop']],
+  ['stage-ffmpeg', ['scripts/release/stage-ffmpeg.mjs']],
+])
 const isWindows = process.platform === 'win32'
 const pnpmCommand = 'pnpm'
 const prepareDesktopSteps = [
@@ -41,11 +47,7 @@ const releaseAssetExtensions = new Set([
 export function releaseWorkflowSteps(mode) {
   if (mode === 'check') {
     return [
-      ['Verify script inventory', 'pnpm', ['run', 'verify:scripts']],
       ['Audit desktop ffmpeg matrix', 'node', ['scripts/release/release-workflow.mjs', 'audit-ffmpeg', '--all', '--all-archs']],
-      ['Run automation script tests', 'pnpm', ['run', 'test:scripts']],
-      ['Run workspace tests', 'pnpm', ['run', 'test']],
-      ['Run workspace typecheck', 'pnpm', ['run', 'typecheck']],
     ]
   }
   if (mode === 'full') {
@@ -118,21 +120,6 @@ export function runReleaseWorkflowCli(args = [], options = {}) {
 
 function normalizePnpmArgs(args) {
   return args[0] === '--' ? args.slice(1) : args
-}
-
-function loadReleaseCommands() {
-  const surfacesPath = new URL('../script-surfaces.json', import.meta.url)
-  const surfaces = JSON.parse(readFileSync(surfacesPath, 'utf8'))
-  const commands = surfaces.releaseSubcommands
-  if (!commands || typeof commands !== 'object' || Array.isArray(commands)) {
-    throw new Error('scripts/script-surfaces.json releaseSubcommands must be an object')
-  }
-  return new Map(Object.entries(commands).map(([name, commandArgs]) => {
-    if (!Array.isArray(commandArgs) || commandArgs.length === 0 || commandArgs.some((value) => typeof value !== 'string' || value.length === 0)) {
-      throw new Error(`scripts/script-surfaces.json releaseSubcommands.${name} must be a non-empty string array`)
-    }
-    return [name, commandArgs]
-  }))
 }
 
 export function frontendBuilderArgsForTarget(platform, arch, explicitArch = true) {

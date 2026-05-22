@@ -170,19 +170,30 @@ async function generationReplayFromRun(
   deps: AgentMessageViewModelDeps = {},
 ): Promise<GenerationTraceReplay> {
   if (deps.fetchRunGenerationView) return deps.fetchRunGenerationView(run.id)
-  if (liveEvents.length === 0 && (run.traceEvents ?? []).length === 0) {
+  const traceEvents = [
+    ...(run.steps ?? []).map((step) => ({ data: step.result, createdAt: step.createdAt, completedAt: step.completedAt })),
+    ...(run.traceEvents ?? []),
+    ...liveEvents,
+  ]
+  const replay = replayGenerationTrace(traceEvents)
+  if (replay.jobs.length > 0) return replay
+  if (liveEvents.length === 0 || isTerminalRun(run)) {
     try {
       return await fetchRunGenerationViewForGeneratedAttachments(run.id)
     } catch {
       // Fall back to local run data when the view endpoint is unavailable.
     }
   }
-  const traceEvents = [
-    ...(run.steps ?? []).map((step) => ({ data: step.result, createdAt: step.createdAt, completedAt: step.completedAt })),
-    ...(run.traceEvents ?? []),
-    ...liveEvents,
-  ]
-  return replayGenerationTrace(traceEvents)
+  return replay
+}
+
+function isTerminalRun(run: AgentRun): boolean {
+  return run.status === 'completed'
+    || run.status === 'failed'
+    || run.status === 'cancelled'
+    || !!run.completedAt
+    || !!run.failedAt
+    || !!run.cancelledAt
 }
 
 function generationReplayFromView(view: AgentRunGenerationView): GenerationTraceReplay {

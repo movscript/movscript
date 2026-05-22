@@ -18,7 +18,6 @@ so future work does not mix persistent configuration with runtime observation.
 - Debug Bundle schema: `contracts/agent/agent-debug-bundle-v1.schema.json`.
 - Settings Snapshot schema:
   `contracts/agent/agent-settings-snapshot-v1.schema.json`.
-- Static gate: `node --test tests/scripts/agent/verify-run-debugging.test.mjs`.
 
 ## Agent Settings Owns
 

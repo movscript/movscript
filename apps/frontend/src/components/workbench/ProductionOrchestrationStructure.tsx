@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Check, GitBranch, Loader2, Pencil, Plus, Route, ScrollText, Target, X } from 'lucide-react'
+import { Check, GitBranch, Loader2, Pencil, Plus, Route, ScrollText, Target, Trash2, X } from 'lucide-react'
 
 import type { SemanticEntityPayload, SemanticEntityRecord } from '@/api/semanticEntities'
 import type { ScriptVersion } from '@/api/scriptVersions'
@@ -252,19 +252,23 @@ export function ProductionSelectedSegmentSummary({
   momentCount,
   lineCount,
   isSaving,
+  isDeleting,
   editing,
   onCreateSceneMoment,
   onEditingChange,
   onSaveSegment,
+  onDeleteSegment,
 }: {
   selectedSegment: SemanticEntityRecord | null
   momentCount: number
   lineCount: number
   isSaving: boolean
+  isDeleting: boolean
   editing: boolean
   onCreateSceneMoment: (segmentId: number) => void
   onEditingChange: (editing: boolean) => void
   onSaveSegment: (segmentId: number, payload: SemanticEntityPayload) => void
+  onDeleteSegment: (segmentId: number) => void
 }) {
   const [draft, setDraft] = useState({
     title: '',
@@ -388,14 +392,31 @@ export function ProductionSelectedSegmentSummary({
                 </Button>
               </>
             ) : (
-              <Button size="sm" variant="outline" className="gap-1.5 type-label" onClick={() => onEditingChange(true)} disabled={isSaving}>
-                <Pencil size={12} />
-                编辑说明
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="gap-1.5 type-label"
+                  loading={isDeleting}
+                  disabled={isSaving || isDeleting}
+                  onClick={() => {
+                    const title = selectedSegmentTitle || `编排段 #${selectedSegment.ID}`
+                    if (!window.confirm(`确定删除编排段「${title}」吗？该段下的情节、制作项和预览时间线会一起标记为不可用。`)) return
+                    onDeleteSegment(selectedSegment.ID)
+                  }}
+                >
+                  <Trash2 size={12} />
+                  删除编排段
+                </Button>
+                <Button size="sm" variant="outline" className="gap-1.5 type-label" onClick={() => onEditingChange(true)} disabled={isSaving || isDeleting}>
+                  <Pencil size={12} />
+                  编辑说明
+                </Button>
+              </>
             )
           ) : null}
           {selectedSegmentId ? (
-            <Button size="sm" className="gap-1.5 type-label" onClick={() => onCreateSceneMoment(selectedSegmentId)} disabled={editing}>
+            <Button size="sm" className="gap-1.5 type-label" onClick={() => onCreateSceneMoment(selectedSegmentId)} disabled={editing || isDeleting}>
               <Plus size={12} />
               添加情节
             </Button>

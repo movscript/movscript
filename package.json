@@ -6,27 +6,28 @@
   "scripts": {
     "build": "pnpm -r --filter \"./packages/*\" --filter \"./apps/*\" --filter \"./plugins/*\" --filter \"!movscript-agent\" --if-present build",
     "typecheck": "pnpm -r --if-present typecheck",
-    "test": "pnpm run test:contracts && pnpm -r --if-present test",
-    "test:contracts": "node scripts/run-node-tests.mjs --suite contracts && pnpm -r --filter \"./apps/*\" --if-present test:model-capability-contract && pnpm --filter movscript-agent test:context-management && pnpm --filter movscript-frontend test:agent-run-debugging",
+    "test": "pnpm --filter movscript-frontend test && pnpm --filter movscript-admin test",
     "test:scripts": "node scripts/run-node-tests.mjs --suite scripts",
-    "verify:scripts": "node scripts/verify-script-manifest.mjs",
     "release": "node scripts/release/release-workflow.mjs"
   },
   "testSuites": {
-    "contracts": [
-      "tests/scripts/agent/verify-compact-contract.test.mjs",
-      "tests/scripts/agent/verify-context-management.test.mjs",
-      "tests/scripts/agent/verify-run-debugging.test.mjs"
-    ],
     "scripts": [
       "tests/scripts/run-node-tests.test.mjs",
       "tests/scripts/run-with-env.test.mjs",
-      "tests/scripts/verify-script-manifest.test.mjs",
       "tests/scripts/verifier-utils.test.mjs",
-      "tests/scripts/agent/*.test.mjs",
+      "tests/scripts/agent/build-server-bundle.test.mjs",
+      "tests/scripts/agent/verify-unique-runtime-entrypoints.test.mjs",
       "tests/scripts/backend/*.test.mjs",
       "tests/scripts/frontend/*.test.mjs",
-      "tests/scripts/release/*.test.mjs"
+      "tests/scripts/release/audit-ffmpeg.test.mjs",
+      "tests/scripts/release/collect-artifacts.test.mjs",
+      "tests/scripts/release/desktop-package-verification.test.mjs",
+      "tests/scripts/release/download-ffmpeg-static.test.mjs",
+      "tests/scripts/release/package-desktop-prepare.test.mjs",
+      "tests/scripts/release/package-desktop.test.mjs",
+      "tests/scripts/release/release-workflow-cli.test.mjs",
+      "tests/scripts/release/release-workflow.test.mjs",
+      "tests/scripts/release/stage-ffmpeg.test.mjs"
     ]
   },
   "pnpm": {

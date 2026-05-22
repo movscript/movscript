@@ -62,7 +62,7 @@ export function useAgentRunResultActions({
     if (streamingMessageId) {
       messageStore.upsertMessage(userId, conversationId, streamingMessageId, message)
     } else {
-      messageStore.addMessage(userId, conversationId, message)
+      messageStore.upsertMessage(userId, conversationId, `runtime-run:${run.id}:assistant`, message)
     }
     return { artifacts, content }
   }, [conversationId, getStreamingAssistantMessageId, messageStore, resetStreamingAssistant, userId])

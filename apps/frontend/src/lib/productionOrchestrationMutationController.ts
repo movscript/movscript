@@ -1,4 +1,5 @@
 import {
+  abandonSegment,
   abandonSceneMoment,
   createSemanticEntity,
   deleteSemanticEntity,
@@ -135,6 +136,22 @@ export function buildUpdateSegmentMutationOptions(input: ProductionOrchestration
     },
     onError: (error: unknown) => {
       toast.error(productionMutationErrorMessage(error, '保存编排段失败'))
+    },
+  }
+}
+
+export function buildDeleteSegmentMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
+  return {
+    mutationFn: async (segmentId: number) => {
+      if (!input.projectId) throw new Error('请先选择项目')
+      return abandonSegment(input.projectId, segmentId)
+    },
+    onSuccess: () => {
+      toast.success('编排段已删除')
+      refreshProductionOrchestration(input)
+    },
+    onError: (error: unknown) => {
+      toast.error(productionMutationErrorMessage(error, '删除编排段失败'))
     },
   }
 }

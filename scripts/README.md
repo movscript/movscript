@@ -2,27 +2,14 @@
 
 Root scripts are workspace automation. App-only scripts should live under that app, such as `apps/agent/scripts/`.
 
-Do not add `scripts/agent/` files. Agent-owned callable automation belongs in `apps/agent/scripts/`; test-only agent contract gates live under `tests/scripts/agent/`. Release automation lives in `scripts/release/`. One-off manual utilities are not supported; durable automation belongs in the owning package's maintained workflow.
-
-The `contract` script category means a verifier for an interface or behavior contract. Contract source assets stay under `contracts/`: `*.schema.json` files define the contract, and `*.fixture.json` files are examples used by tests. They are not script files and should not be moved into `tests/scripts/`.
+Release automation lives in `scripts/release/`. App-only automation belongs in the owning package's `scripts/` directory.
 
 Only cross-workspace runners and shared verifier helpers may live directly under `scripts/`:
 
 - `run-node-tests.mjs`
 - `verifier-utils.mjs`
-- `verify-script-manifest.mjs`
 
 Tests for scripts live under `tests/scripts/`, not in this directory. Keep `scripts/` limited to callable entrypoints and shared helpers.
-
-Do not add unmanaged `.mjs`, `.py`, or `.sh` files anywhere in the repository. Durable automation belongs in a governed script root with a manifest entry; test-only helpers belong under `tests/`.
-
-The maintained script-file inventory is `scripts/script-manifest.json`. Supported package scripts, Makefile targets, root script files, and release subcommands are governed by `scripts/script-surfaces.json`; validate both with:
-
-```sh
-pnpm run verify:scripts
-```
-
-See `docs/script-management.md` for lifecycle rules and cleanup policy.
 
 ## TypeScript test dependency diagnostics
 

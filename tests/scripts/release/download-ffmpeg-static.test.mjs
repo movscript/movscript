@@ -14,13 +14,13 @@ import {
   ffmpegStaticAssetName,
   ffmpegStaticBinaryUrl,
   ffmpegStaticLicense,
-  ffmpegStaticSourceTaskGraph,
+  ffmpegStaticSourcePlan,
 } from '../../../scripts/release/release-common.mjs'
 
-test('ffmpeg-static source taskGraph maps supported release targets to GitHub assets', () => {
+test('ffmpeg-static source plan maps supported release targets to GitHub assets', () => {
   assert.equal(ffmpegStaticAssetName('darwin', 'arm64'), 'ffmpeg-darwin-arm64.gz')
   assert.equal(ffmpegStaticBinaryUrl('win32', 'x64'), 'https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffmpeg-win32-x64.gz')
-  assert.deepEqual(ffmpegStaticSourceTaskGraph('linux', 'arm64'), {
+  assert.deepEqual(ffmpegStaticSourcePlan('linux', 'arm64'), {
     arch: 'arm64',
     binary: 'ffmpeg',
     license: ffmpegStaticLicense,

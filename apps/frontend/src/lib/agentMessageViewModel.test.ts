@@ -246,6 +246,67 @@ test('assistantResultPayloadForRun reads generated cards from the run generation
   }
 })
 
+test('assistantResultPayloadForRun falls back to generation view when live events omit generation jobs', async () => {
+  const originalGenerationView = localAgentClient.getRunGenerationView
+  try {
+    localAgentClient.getRunGenerationView = (async () => ({
+      schema: 'movscript.agent-run-generation-view.v1',
+      generatedAt: '2026-05-09T08:00:04.000Z',
+      runId: 'run_1',
+      jobs: [{
+        jobId: 52,
+        jobType: 'image',
+        modelDisplay: 'View Model',
+        status: 'succeeded',
+        stage: 'completed',
+        terminal: true,
+        outputResourceId: 90,
+      }],
+      latestJob: {
+        jobId: 52,
+        jobType: 'image',
+        modelDisplay: 'View Model',
+        status: 'succeeded',
+        stage: 'completed',
+        terminal: true,
+        outputResourceId: 90,
+      },
+      outputResourceIds: [90],
+      outputResources: [{
+        ID: 90,
+        owner_id: 1,
+        type: 'image',
+        name: 'view-result.png',
+        url: '/api/v1/resources/90/file',
+        size: 1234,
+        mime_type: 'image/png',
+      }],
+      metadataByResourceId: { 90: { jobId: 52, modelDisplay: 'View Model' } },
+      active: 0,
+      terminal: 1,
+      succeeded: 1,
+      failed: 0,
+      cancelled: 0,
+      timeout: 0,
+    })) as typeof localAgentClient.getRunGenerationView
+
+    const payload = await assistantResultPayloadForRun(baseRun(), [{
+      id: 'thread-resolution',
+      kind: 'runtime',
+      title: 'Thread resolved',
+      status: 'completed',
+      createdAt: '2026-05-09T08:00:09.000Z',
+    }], '', {
+      fetchRunTraceEvents: async () => [],
+    })
+
+    assert.equal(payload.attachments?.[0]?.id, 'generated-90')
+    assert.equal(payload.meta.generationJobs?.[0]?.jobId, 52)
+  } finally {
+    localAgentClient.getRunGenerationView = originalGenerationView
+  }
+})
+
 test('hydrateHistoricalGeneratedAttachments restores text-only output resource cards', async () => {
   const resource: RawResource = {
     ID: 42,

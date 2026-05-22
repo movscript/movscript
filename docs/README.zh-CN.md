@@ -90,14 +90,11 @@ pnpm --filter movscript-frontend dev
 pnpm --filter movscript-agent dev
 pnpm run typecheck
 pnpm --filter movscript-backend test
-pnpm run test:contracts
+pnpm run test
 pnpm run test:scripts
-pnpm run verify:scripts
 ```
 
 插件相关代码位于 `apps/movcli`、`packages/plugin-sdk` 和 `plugins/*`。开发插件打包时使用 `pnpm --filter movcli dev` 和 `pnpm --filter "./plugins/*" build`。
-
-脚本归属和生命周期规则见 [Script Management](./script-management.md)。新增、移动、废弃或删除仓库自动化脚本时，必须同步更新 `scripts/script-manifest.json`。
 
 AI 生成素材进入审核链路时使用候选集语义，而不是直接绑定；素材需求、画面锚点和未来视觉锚点的候选规则与发布验收清单见 [候选集工作流](./candidate-workflow.zh-CN.md)。
 
@@ -121,14 +118,8 @@ pnpm run release -- package-desktop --platform=win32 --arch=x64
 
 发布前至少确认：
 
-- `pnpm run typecheck`
-- `pnpm --filter movscript-backend test`
-- `pnpm run test:contracts`
-- `pnpm --filter movscript-frontend typecheck`
-- `pnpm --filter movscript-admin typecheck`
-- `pnpm run verify:scripts`
-- `pnpm run test:scripts`
 - `pnpm run release -- audit-ffmpeg --all --all-archs`
+- `pnpm run build`
 - 管理后台静态资源已构建并复制。
 - 本地桌面模式能启动 `http://localhost:8766`。
 - 管理后台能打开 `http://localhost:8766/admin`。

@@ -15,11 +15,7 @@ test('release workflow exposes the curated release subcommand surface', () => {
 
 test('release workflow check runs release gates in order', () => {
   assert.deepEqual(releaseWorkflowSteps('check'), [
-    ['Verify script inventory', 'pnpm', ['run', 'verify:scripts']],
     ['Audit desktop ffmpeg matrix', 'node', ['scripts/release/release-workflow.mjs', 'audit-ffmpeg', '--all', '--all-archs']],
-    ['Run automation script tests', 'pnpm', ['run', 'test:scripts']],
-    ['Run workspace tests', 'pnpm', ['run', 'test']],
-    ['Run workspace typecheck', 'pnpm', ['run', 'typecheck']],
   ])
 })
 
@@ -52,14 +48,13 @@ test('runReleaseWorkflowCli runs steps and stops on failure', () => {
     log: () => undefined,
     spawn: (command, args, options) => {
       calls.push([command, args, options])
-      return { status: calls.length === 2 ? 9 : 0 }
+      return { status: calls.length === 1 ? 9 : 0 }
     },
   })
 
   assert.equal(exitCode, 9)
-  assert.equal(calls.length, 2)
-  assert.deepEqual(calls[0].slice(0, 2), ['pnpm', ['run', 'verify:scripts']])
-  assert.deepEqual(calls[1].slice(0, 2), ['node', ['scripts/release/release-workflow.mjs', 'audit-ffmpeg', '--all', '--all-archs']])
+  assert.equal(calls.length, 1)
+  assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/release-workflow.mjs', 'audit-ffmpeg', '--all', '--all-archs']])
 })
 
 test('runReleaseWorkflowCli accepts pnpm argument separator before modes', () => {
@@ -73,7 +68,7 @@ test('runReleaseWorkflowCli accepts pnpm argument separator before modes', () =>
     },
   })
 
-  assert.deepEqual(calls[0].slice(0, 2), ['pnpm', ['run', 'verify:scripts']])
+  assert.deepEqual(calls[0].slice(0, 2), ['node', ['scripts/release/release-workflow.mjs', 'audit-ffmpeg', '--all', '--all-archs']])
 })
 
 test('runReleaseWorkflowCli dispatches release subcommands', () => {

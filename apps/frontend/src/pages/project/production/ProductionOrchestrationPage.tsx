@@ -25,6 +25,7 @@ import {
   buildBindSceneMomentScriptBlockMutationOptions,
   buildCreateAndBindSceneMomentScriptBlockMutationOptions,
   buildCreateWritingExpressionMutationOptions,
+  buildDeleteSegmentMutationOptions,
   buildDeleteSceneMomentMutationOptions,
   buildDeleteWritingExpressionMutationOptions,
   buildLinkSceneMomentReferenceMutationOptions,
@@ -54,6 +55,7 @@ import {
   removeProductionProposalDraftContentUnit,
   removeProductionProposalDraftCreativeReference,
   removeProductionProposalDraftSceneMoment,
+  removeProductionProposalDraftSegment,
   removeProductionProposalDraftWritingExpression,
   replaceProductionProposalDraftContentUnit,
   replaceProductionProposalDraftSceneMoment,
@@ -145,6 +147,7 @@ export default function ProductionOrchestrationPage() {
   }))
   const updateSceneMomentMutation = useMutation(buildUpdateSceneMomentMutationOptions(mutationBase))
   const updateSegmentMutation = useMutation(buildUpdateSegmentMutationOptions(mutationBase))
+  const deleteSegmentMutation = useMutation(buildDeleteSegmentMutationOptions(mutationBase))
   const deleteSceneMomentMutation = useMutation(buildDeleteSceneMomentMutationOptions(mutationBase))
   const linkSceneMomentReferenceMutation = useMutation(buildLinkSceneMomentReferenceMutationOptions(mutationBase))
   const unlinkSceneMomentReferenceMutation = useMutation(buildUnlinkSceneMomentReferenceMutationOptions(mutationBase))
@@ -431,6 +434,14 @@ export default function ProductionOrchestrationPage() {
         status: stringPayloadField(payload.status),
       })
     }, '编排段已保存到提案草稿')
+  }
+
+  function deleteProposalSegment(segmentId: number) {
+    const segmentKey = proposalWorkspaceData?.segmentKeyByWorkspaceId.get(segmentId)
+    if (!segmentKey) return
+    void patchProposalDraft((draft) => {
+      removeProductionProposalDraftSegment(draft, segmentKey)
+    }, '编排段已从提案草稿移除')
   }
 
   function createProposalSceneMoment(segmentId: number) {
@@ -720,6 +731,7 @@ export default function ProductionOrchestrationPage() {
                   onCreateSceneMoment={proposalModeActive ? createProposalSceneMoment : pageController.createSceneMoment}
                   onSelectSceneMoment={proposalModeActive ? setProposalSelectedMomentId : pageController.selectSceneMoment}
                   onSaveSegment={proposalModeActive ? saveProposalSegment : (segmentId, payload) => updateSegmentMutation.mutate({ segmentId, payload })}
+                  onDeleteSegment={proposalModeActive ? deleteProposalSegment : (segmentId) => deleteSegmentMutation.mutate(segmentId)}
                   onBindSceneMomentScriptBlock={proposalModeActive ? bindProposalSceneMomentScriptBlock : (momentId, scriptBlockId) => bindSceneMomentScriptBlockMutation.mutate({ momentId, scriptBlockId })}
                   onCreateAndBindSceneMomentScriptBlock={proposalModeActive ? (momentId, _startLine, _endLine) => bindProposalSceneMomentScriptBlock(momentId, null) : (momentId, startLine, endLine) => createAndBindSceneMomentScriptBlockMutation.mutate({ momentId, startLine, endLine })}
                   onSaveSceneMoment={proposalModeActive ? saveProposalSceneMoment : (momentId, payload) => updateSceneMomentMutation.mutate({ momentId, payload })}
@@ -737,6 +749,7 @@ export default function ProductionOrchestrationPage() {
                   onAddExpressionLine={proposalModeActive ? addProposalExpressionLine : (momentId, order, scriptBlockId) => createWritingExpressionMutation.mutate({ momentId, order, scriptBlockId })}
                   canDeleteFallbackContentUnits={proposalModeActive}
                   isSavingSegment={proposalModeActive ? savingProposalDraft : updateSegmentMutation.isPending}
+                  isDeletingSegment={proposalModeActive ? savingProposalDraft : deleteSegmentMutation.isPending}
                   isSavingSceneMoment={proposalModeActive ? savingProposalDraft : updateSceneMomentMutation.isPending}
                   isDeletingSceneMoment={proposalModeActive ? savingProposalDraft : deleteSceneMomentMutation.isPending}
                   isLinkingSceneMomentReference={proposalModeActive ? savingProposalDraft : linkSceneMomentReferenceMutation.isPending}

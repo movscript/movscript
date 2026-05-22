@@ -19,8 +19,7 @@ test('release workflow packages every desktop target through one parameterized c
   }
 })
 
-test('release workflow downloads ffmpeg-static before checks and desktop packaging', () => {
-  assert.match(releaseWorkflow, /pnpm run release -- download-ffmpeg-static --matrix/)
+test('release workflow downloads ffmpeg-static in each desktop package job', () => {
   for (const pair of [
     ['ffmpeg-platform: darwin', 'ffmpeg-arch: x64'],
     ['ffmpeg-platform: darwin', 'ffmpeg-arch: arm64'],

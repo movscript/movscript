@@ -215,6 +215,18 @@ export async function deleteSemanticEntity(projectId: number, config: SemanticEn
   await api.delete(`${semanticEntityPath(projectId, config)}/${id}`)
 }
 
+export interface AbandonSegmentResult {
+  segment_id: number
+  scene_moments_updated: number
+  content_units_updated: number
+  timeline_items_removed: number
+}
+
+export async function abandonSegment(projectId: number, id: number) {
+  const { data } = await api.post<AbandonSegmentResult>(`/projects/${projectId}/entities/segments/${id}/abandon`)
+  return data
+}
+
 export interface AbandonSceneMomentResult {
   scene_moment_id: number
   content_units_updated: number

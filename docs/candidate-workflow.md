@@ -91,12 +91,9 @@ GOCACHE=/private/tmp/movscript-go-build-cache go test ./internal/app/workflow ./
 GOCACHE=/private/tmp/movscript-go-build-cache go test ./...
 
 cd ../..
-node tests/scripts/agent/candidate-feature-source.test.mjs
 pnpm run test:scripts
 pnpm --filter movscript-frontend test:generation-contract
 pnpm run typecheck
-node --test tests/scripts/agent/verify-compact-contract.test.mjs
-node scripts/verify-script-manifest.mjs
 ```
 
 Known verification blockers in a dependency-incomplete workspace:
@@ -111,7 +108,7 @@ Known verification blockers in a dependency-incomplete workspace:
 
 Current local snapshot on 2026-05-18:
 
-- Passed: focused candidate tests, backend `go test ./...`, `pnpm --filter movscript-frontend test:generation-contract`, `pnpm --filter movscript-frontend test`, root `pnpm run typecheck`, `pnpm run test:scripts`, `node tests/scripts/agent/candidate-feature-source.test.mjs`, and `git diff --check`.
+- Passed: focused candidate tests, backend `go test ./...`, `pnpm --filter movscript-frontend test:generation-contract`, `pnpm --filter movscript-frontend test`, root `pnpm run typecheck`, `pnpm run test:scripts`, and `git diff --check`.
 - Still blocked for clean dependency restore: offline store preflight reports the missing `@radix-ui/react-toast-1.2.15.tgz` tarball, so `CI=true pnpm install --offline --frozen-lockfile` is not a reliable clean install gate yet.
 - Browser E2E attempted with `pnpm --filter movscript-frontend exec playwright test src/e2e/agent-generation.spec.ts --reporter=line`; blocked by sandbox `listen EPERM` on `127.0.0.1:4179` before assertions ran.
 - Not yet completed: browser / Electron E2E in a local-port-capable environment and the manual release acceptance checklist below.

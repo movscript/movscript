@@ -275,6 +275,50 @@ test('mergeProjectedRuntimeMessages replaces only messages from the projected ru
   assert.deepEqual(merged.map((message) => message.id), ['local_error', 'other_runtime', 'projected_runtime'])
 })
 
+test('mergeProjectedRuntimeMessages removes stale projected messages that lost runtime metadata', () => {
+  const staleProjectedMessage: ChatMessage = {
+    id: 'runtime:msg_assistant',
+    role: 'assistant',
+    content: 'Generated result',
+    timestamp: 2,
+  }
+  const projectedMessage: ChatMessage = {
+    id: 'runtime:msg_assistant',
+    role: 'assistant',
+    content: 'Generated result',
+    meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'msg_assistant', runId: 'run_1' } },
+    timestamp: 2,
+  }
+
+  const once = mergeProjectedRuntimeMessages([staleProjectedMessage], [projectedMessage], 'thread_1')
+  const twice = mergeProjectedRuntimeMessages(once, [projectedMessage], 'thread_1')
+
+  assert.deepEqual(once.map((message) => message.id), ['runtime:msg_assistant'])
+  assert.deepEqual(twice.map((message) => message.id), ['runtime:msg_assistant'])
+  assert.deepEqual(twice[0]?.meta?.runtimeMessage, { threadId: 'thread_1', messageId: 'msg_assistant', runId: 'run_1' })
+})
+
+test('mergeProjectedRuntimeMessages replaces local generated assistant echoes with the runtime projection', () => {
+  const localGeneratedMessage: ChatMessage = {
+    id: 'local_assistant_result',
+    role: 'assistant',
+    content: 'Generated result',
+    meta: { contextLabels: ['run completed'] },
+    timestamp: 1,
+  }
+  const projectedMessage: ChatMessage = {
+    id: 'runtime:msg_assistant',
+    role: 'assistant',
+    content: 'Generated result',
+    meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'msg_assistant', runId: 'run_1' } },
+    timestamp: 2,
+  }
+
+  const merged = mergeProjectedRuntimeMessages([localGeneratedMessage], [projectedMessage], 'thread_1')
+
+  assert.deepEqual(merged.map((message) => message.id), ['runtime:msg_assistant'])
+})
+
 function makeThread(input: { messages: AgentMessage[] }): AgentThread {
   return {
     id: 'thread_1',

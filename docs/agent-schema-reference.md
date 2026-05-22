@@ -59,14 +59,3 @@ Compatibility rules:
   requires dry-run/import actions.
 - Exports must not include provider API keys, bearer tokens, or secret URL
   credentials.
-
-## Static Gate
-
-Run:
-
-```bash
-node --test tests/scripts/agent/verify-run-debugging.test.mjs
-```
-
-The gate checks schema IDs, fixtures, page ownership, documentation links, and
-Settings/Debug boundary rules.

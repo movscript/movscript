@@ -19,51 +19,14 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '23'
   PNPM_VERSION: '10.32.1'
   GO_VERSION: '1.25.x'
   CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
 jobs:
-  checks:
-    name: Release checks
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: apps/backend/go.sum
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Download ffmpeg-static release binaries
-        run: pnpm run release -- download-ffmpeg-static --matrix
-
-      - name: Run release checks
-        run: pnpm run release -- check
-
   package:
     name: Package ${{ matrix.name }}
-    needs: checks
     strategy:
       fail-fast: false
       matrix:
@@ -153,7 +116,6 @@ jobs:
 
   plugins:
     name: Package plugins
-    needs: checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

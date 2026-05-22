@@ -147,6 +147,7 @@ type repository interface {
 	CreateCreativeRelationship(ctx context.Context, item domainsemantic.CreativeRelationship) (domainsemantic.CreativeRelationship, error)
 	LoadCreativeRelationship(ctx context.Context, projectID uint, id string) (domainsemantic.CreativeRelationship, error)
 	PatchCreativeRelationship(ctx context.Context, item domainsemantic.CreativeRelationship, patch domainsemantic.CreativeRelationshipPatch) (domainsemantic.CreativeRelationship, error)
+	AbandonSegment(ctx context.Context, projectID uint, segmentID uint) (AbandonSegmentResult, error)
 	AbandonSceneMoment(ctx context.Context, projectID uint, sceneMomentID uint) (AbandonSceneMomentResult, error)
 	DeleteProjectItemByKind(ctx context.Context, projectID uint, kind string, id string) (uint, error)
 	EnsureProductionInProject(ctx context.Context, projectID uint, productionID uint) error

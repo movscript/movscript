@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { desktopPackageTaskGraph, frontendBuilderArgsForTarget, runDesktopPackageCli } from '../../../scripts/release/release-workflow.mjs'
+import { desktopPackagePlan, frontendBuilderArgsForTarget, runDesktopPackageCli } from '../../../scripts/release/release-workflow.mjs'
 
 test('frontendBuilderArgsForTarget maps desktop targets to electron-builder args', () => {
   assert.deepEqual(frontendBuilderArgsForTarget('darwin', 'x64'), ['--mac', '--x64', '--publish', 'never'])
@@ -13,23 +13,23 @@ test('frontendBuilderArgsForTarget maps desktop targets to electron-builder args
   assert.deepEqual(frontendBuilderArgsForTarget('win32', 'arm64'), ['--win', '--arm64', '--publish', 'never'])
 })
 
-test('desktopPackageTaskGraph keeps the current-platform package script generic', () => {
-  assert.deepEqual(desktopPackageTaskGraph([], { platform: 'darwin', arch: 'arm64' }), {
+test('desktopPackagePlan keeps the current-platform package script generic', () => {
+  assert.deepEqual(desktopPackagePlan([], { platform: 'darwin', arch: 'arm64' }), {
     builderArgs: ['--publish', 'never'],
     targetArgs: [],
   })
 })
 
-test('desktopPackageTaskGraph parses explicit target args', () => {
-  assert.deepEqual(desktopPackageTaskGraph(['--platform=darwin'], { arch: 'arm64' }), {
+test('desktopPackagePlan parses explicit target args', () => {
+  assert.deepEqual(desktopPackagePlan(['--platform=darwin'], { arch: 'arm64' }), {
     builderArgs: ['--mac', '--publish', 'never'],
     targetArgs: ['--platform=darwin'],
   })
-  assert.deepEqual(desktopPackageTaskGraph(['--platform=linux', '--arch=arm64']), {
+  assert.deepEqual(desktopPackagePlan(['--platform=linux', '--arch=arm64']), {
     builderArgs: ['--linux', '--arm64', '--publish', 'never'],
     targetArgs: ['--platform=linux', '--arch=arm64'],
   })
-  assert.deepEqual(desktopPackageTaskGraph(['--platform=win32', '--arch=x64']), {
+  assert.deepEqual(desktopPackagePlan(['--platform=win32', '--arch=x64']), {
     builderArgs: ['--win', '--x64', '--publish', 'never'],
     targetArgs: ['--platform=win32', '--arch=x64'],
   })

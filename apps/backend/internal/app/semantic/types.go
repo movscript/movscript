@@ -180,6 +180,13 @@ type AbandonSceneMomentResult struct {
 	TimelineItemsRemoved int  `json:"timeline_items_removed"`
 }
 
+type AbandonSegmentResult struct {
+	SegmentID            uint `json:"segment_id"`
+	SceneMomentsUpdated  int  `json:"scene_moments_updated"`
+	ContentUnitsUpdated  int  `json:"content_units_updated"`
+	TimelineItemsRemoved int  `json:"timeline_items_removed"`
+}
+
 type AbandonContentUnitResult struct {
 	ContentUnitID        uint `json:"content_unit_id"`
 	TimelineItemsRemoved int  `json:"timeline_items_removed"`

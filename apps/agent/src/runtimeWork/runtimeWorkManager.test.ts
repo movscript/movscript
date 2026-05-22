@@ -34,6 +34,7 @@ test('RuntimeWorkManager starts and waits generation job works', async () => {
   assert.equal(work.kind, 'generation_job')
   assert.equal(work.status, 'waiting')
   assert.deepEqual(work.externalHandle, { provider: 'movscript', type: 'generation_job', id: 42 })
+  assert.equal(calls[0]?.args.wait, false)
 
   const wait = await manager.wait({ workIds: [work.id], timeoutMs: 0 })
 
@@ -97,7 +98,9 @@ test('GenerationJobWorkProvider retries once with backend suggested_fix', async 
 
   assert.equal(work.status, 'waiting')
   assert.equal(calls.length, 2)
+  assert.equal(calls[0]?.args.wait, false)
   assert.equal(calls[1]?.args.aspect_ratio, '16:9')
+  assert.equal(calls[1]?.args.wait, false)
   assert.equal((work.result as any).repair_note, 'Retried once with backend suggested_fix after generation parameter validation failed.')
 })
 

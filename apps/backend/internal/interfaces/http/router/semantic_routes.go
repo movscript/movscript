@@ -25,6 +25,7 @@ func registerSemanticEntityRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.GET("/projects/:id/entities/segments", h.semanticEntities.ListSegments)
 	protected.POST("/projects/:id/entities/segments", h.semanticEntities.CreateSegment)
 	protected.PATCH("/projects/:id/entities/segments/:segmentId", h.semanticEntities.PatchSegment)
+	protected.POST("/projects/:id/entities/segments/:segmentId/abandon", h.semanticEntities.AbandonSegment)
 	protected.DELETE("/projects/:id/entities/segments/:segmentId", func(c *gin.Context) {
 		h.semanticEntities.DeleteSemanticItemByKind(c, "segment", c.Param("segmentId"))
 	})

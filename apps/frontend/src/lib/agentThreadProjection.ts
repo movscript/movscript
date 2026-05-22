@@ -65,10 +65,46 @@ export async function projectRuntimeThreadMessages(input: RuntimeThreadProjectio
 }
 
 export function mergeProjectedRuntimeMessages(existingMessages: ChatMessage[], projectedMessages: ChatMessage[], threadId: string): ChatMessage[] {
+  const projected = dedupeProjectedRuntimeMessages(projectedMessages)
+  const projectedIds = new Set(projected.map((message) => message.id))
+  const projectedRuntimeContentKeys = new Set(projected
+    .filter(isRuntimeProjectedMessage)
+    .map(runtimeContentKey))
   return [
-    ...existingMessages.filter((message) => message.meta?.runtimeMessage?.threadId !== threadId),
-    ...dedupeProjectedRuntimeMessages(projectedMessages),
+    ...existingMessages.filter((message) => !isReplacedByRuntimeProjection(message, threadId, projectedIds, projectedRuntimeContentKeys)),
+    ...projected,
   ].sort((a, b) => a.timestamp - b.timestamp)
+}
+
+function isReplacedByRuntimeProjection(
+  message: ChatMessage,
+  threadId: string,
+  projectedIds: Set<string>,
+  projectedRuntimeContentKeys: Set<string>,
+): boolean {
+  if (message.meta?.runtimeMessage?.threadId === threadId) return true
+  if (projectedIds.has(message.id)) return true
+  if (!isRuntimeGeneratedLocalMessage(message)) return false
+  return projectedRuntimeContentKeys.has(runtimeContentKey(message))
+}
+
+function isRuntimeProjectedMessage(message: ChatMessage): boolean {
+  return message.id.startsWith('runtime:')
+    || message.id.startsWith('runtime-run:')
+    || !!message.meta?.runtimeMessage
+}
+
+function isRuntimeGeneratedLocalMessage(message: ChatMessage): boolean {
+  if (isRuntimeProjectedMessage(message)) return true
+  const meta = message.meta
+  return !!meta?.localRunActivity
+    || !!meta?.generationJobs?.length
+    || !!meta?.draftArtifacts?.length
+    || !!meta?.contextLabels?.some((label) => /^run\s+\S+/i.test(label))
+}
+
+function runtimeContentKey(message: ChatMessage): string {
+  return `${message.role}:${message.content.trim()}`
 }
 
 function dedupeProjectedRuntimeMessages(messages: ChatMessage[]): ChatMessage[] {

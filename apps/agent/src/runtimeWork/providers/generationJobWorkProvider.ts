@@ -13,8 +13,12 @@ export class GenerationJobWorkProvider implements RuntimeWorkProvider {
 
   async start(input: RuntimeWorkStartInput): Promise<RuntimeWork> {
     await this.mcpClient.initialize({ signal: input.signal })
-    const raw = await callMCPToolWithGenerationRepair(this.mcpClient, 'generation_job_create', input.request, { signal: input.signal })
-    const event = buildGenerationEvent({ name: 'generation_job_create', args: input.request }, raw)
+    const request = {
+      ...input.request,
+      wait: false,
+    }
+    const raw = await callMCPToolWithGenerationRepair(this.mcpClient, 'generation_job_create', request, { signal: input.signal })
+    const event = buildGenerationEvent({ name: 'generation_job_create', args: request }, raw)
     const now = new Date().toISOString()
     const jobId = event?.jobId
     const status = eventStatus(event?.status, event?.terminal)
@@ -26,7 +30,7 @@ export class GenerationJobWorkProvider implements RuntimeWorkProvider {
       kind: this.kind,
       mode: 'async',
       status,
-      request: cloneJSONValue(input.request),
+      request: cloneJSONValue(request),
       ...(input.continuationPolicy ? { continuationPolicy: input.continuationPolicy } : {}),
       ...(jobId !== undefined ? { externalHandle: { provider: 'movscript', type: 'generation_job', id: jobId } } : {}),
       result: normalizePayload(raw),
