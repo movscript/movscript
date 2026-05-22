@@ -119,7 +119,7 @@ test('run debug ledger projects prompt, model, tool, and attention trace into a 
       roundIndex: 1,
       toolName: 'movscript_read_project',
       summary: 'project not found',
-      data: { error: 'project not found', result: { error: 'project not found' } },
+      data: { args: { projectId: 404 }, error: 'project not found', result: { error: 'project not found' } },
     }),
   })
 
@@ -130,9 +130,11 @@ test('run debug ledger projects prompt, model, tool, and attention trace into a 
   assert.equal(ledger.modelCalls[0]?.model, 'gpt-test')
   assert.equal(ledger.modelCalls[0]?.httpStatus, 200)
   assert.equal(ledger.toolCalls[0]?.toolName, 'movscript_read_project')
+  assert.equal(ledger.toolCalls[0]?.argsEvidenceRef, 'trace_4:tool_args')
   assert.equal(ledger.attention[0]?.severity, 'error')
   assert.equal(ledger.evidenceIndex.some((item) => item.kind === 'model_request'), true)
   assert.equal(ledger.evidenceIndex.some((item) => item.kind === 'model_response'), true)
+  assert.equal(ledger.evidenceIndex.some((item) => item.kind === 'tool_args'), true)
   assert.equal(ledger.evidenceIndex.some((item) => item.kind === 'tool_result'), true)
 })
 
@@ -181,4 +183,24 @@ test('run debug evidence resolves large payloads by evidence id without embeddin
   assert.equal(evidence?.schema, 'movscript.agent.run-debug-evidence.v1')
   assert.equal(evidence?.eventId, 'trace_99')
   assert.deepEqual(evidence?.value, { model: 'gpt-test', messages: [{ role: 'user', content: 'hello' }] })
+})
+
+test('run debug evidence resolves tool call arguments', () => {
+  const event = trace({
+    id: 'trace_tool_args',
+    kind: 'tool_call',
+    title: 'Tool completed: movscript_read_project',
+    status: 'completed',
+    toolName: 'movscript_read_project',
+    data: { args: { projectId: 42 }, result: { ok: true } },
+  })
+  let ledger = createRunDebugLedger(run())
+  ledger = applyTraceEventToDebugLedger({ ledger, event, run: run() })
+  const evidenceId = ledger.toolCalls[0]?.argsEvidenceRef
+
+  assert.equal(evidenceId, 'trace_tool_args:tool_args')
+  const evidence = resolveRunDebugEvidence({ runId: 'run_ledger', events: [event], evidenceId: evidenceId! })
+
+  assert.equal(evidence?.kind, 'tool_args')
+  assert.deepEqual(evidence?.value, { projectId: 42 })
 })

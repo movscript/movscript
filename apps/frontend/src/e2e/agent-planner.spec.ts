@@ -5,7 +5,7 @@ import type { AgentTraceEvent } from '@/lib/localAgentClient'
 import {
   APPROVAL_WORKER_RUN_ID,
   INPUT_WORKER_RUN_ID,
-  PLANNER_PLAN_ID,
+  PLANNER_TASK_GRAPH_ID,
   PLANNER_RUN_ID,
   WORKER_RUN_ID,
   approvalWorkerRunFixture,
@@ -19,7 +19,7 @@ import {
 } from './agentPlannerSeed'
 import { mockGenerationAppShell } from './generationAppShell'
 
-test('planner run exposes plan overview and run detail drilldown', async ({ page }, testInfo) => {
+test('planner run exposes taskGraph overview and run detail drilldown', async ({ page }, testInfo) => {
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
@@ -36,13 +36,13 @@ test('planner run exposes plan overview and run detail drilldown', async ({ page
 
   await page.goto('/project/overview')
 
-  await expect(page.getByTestId('agent-plan-overview')).toBeVisible()
-  await expect(page.getByTestId('agent-plan-overview-stats')).toContainText('0/4 个任务')
-  await expect(page.getByTestId('agent-plan-overview-stats')).toContainText('3 个执行器运行中')
-  await expect(page.getByTestId('agent-plan-overview-stats')).toContainText('1 个产物')
-  await expect(page.getByTestId('agent-plan-status-explanation')).toContainText('3 个执行器运行中')
-  await expect(page.getByTestId('agent-plan-artifact-summary')).toContainText('素材风险摘要')
-  await expect(page.getByTestId('agent-plan-overview')).toContainText('Einstein')
+  await expect(page.getByTestId('agent-taskGraph-overview')).toBeVisible()
+  await expect(page.getByTestId('agent-taskGraph-overview-stats')).toContainText('0/4 个任务')
+  await expect(page.getByTestId('agent-taskGraph-overview-stats')).toContainText('3 个执行器运行中')
+  await expect(page.getByTestId('agent-taskGraph-overview-stats')).toContainText('1 个产物')
+  await expect(page.getByTestId('agent-taskGraph-status-explanation')).toContainText('3 个执行器运行中')
+  await expect(page.getByTestId('agent-taskGraph-artifact-summary')).toContainText('素材风险摘要')
+  await expect(page.getByTestId('agent-taskGraph-overview')).toContainText('Einstein')
 
   await page.goto(`/agent/runs/${PLANNER_RUN_ID}`)
   await expect(page.getByTestId('agent-run-child-runs')).toContainText('Einstein')
@@ -60,8 +60,8 @@ test('planner run exposes plan overview and run detail drilldown', async ({ page
   await expect(page.getByRole('button', { name: '打开计划根运行' })).toBeVisible()
   await expect(page.getByRole('button', { name: '返回上一页' })).toBeVisible()
   await expect(page.getByTestId('agent-run-sidebar')).toContainText('Einstein')
-  await expect(page.getByTestId('agent-run-plan-context')).toContainText('Planner 调度 E2E')
-  await expect(page.getByTestId('agent-run-plan-context')).toContainText('素材风险审计')
+  await expect(page.getByTestId('agent-run-taskGraph-context')).toContainText('Planner 调度 E2E')
+  await expect(page.getByTestId('agent-run-taskGraph-context')).toContainText('素材风险审计')
   await expect(page.getByTestId('agent-run-task-artifacts')).toContainText('素材风险摘要')
   await expect(page.getByTestId('agent-run-trace-summary')).toContainText('6 个事件')
 
@@ -305,19 +305,8 @@ test('planner run exposes plan overview and run detail drilldown', async ({ page
   await expect(page.getByTestId('agent-run-trace-event')).toHaveCount(1)
   await expect(page.getByTestId('agent-run-trace-event')).toContainText('素材风险审计工具调用')
   await expect(page.getByTestId('agent-run-trace-visible-count')).toContainText('当前显示 1 个')
-  const rawDataToggle = page.getByRole('button', { name: '查看素材风险审计工具调用的原始数据' })
-  await expect(rawDataToggle).toContainText('原始数据')
-  await expect(rawDataToggle).toHaveAttribute('aria-expanded', 'false')
-  await rawDataToggle.click()
-  await expect(page.getByRole('button', { name: '隐藏素材风险审计工具调用的原始数据' })).toContainText('隐藏原始数据')
-  await expect(page.getByRole('button', { name: '隐藏素材风险审计工具调用的原始数据' })).toHaveAttribute('aria-expanded', 'true')
-  await expect(page.getByTestId('agent-run-trace-redaction-note')).toContainText('原始数据展示和复制时会自动脱敏')
-  await expect(page.getByTestId('agent-run-trace-event-details')).toContainText('missing_hero_visual')
-  await expect(page.getByTestId('agent-run-trace-event-details')).toContainText('artifact_einstein_risk')
-  await expect(page.getByTestId('agent-run-trace-event-details')).toContainText('[已脱敏]')
-  await expect(page.getByTestId('agent-run-trace-event-details')).not.toContainText('e2e-secret-token')
-  await expect(page.getByTestId('agent-run-trace-event-details')).not.toContainText('provider-e2e-api-key')
-  await expect(page.getByTestId('agent-run-trace-event-details')).not.toContainText('e2e-signed-token')
+  await expect(page.getByTestId('agent-run-trace-event-details')).toHaveCount(0)
+  await expect(page.getByTestId('agent-run-trace-event-data-copy')).toHaveCount(0)
   const toolDetail = page.getByTestId('agent-run-tool-detail')
   await expect(toolDetail).toContainText('工具调用详情')
   await expect(toolDetail).toContainText('movscript_review_assets')
@@ -327,15 +316,6 @@ test('planner run exposes plan overview and run detail drilldown', async ({ page
   await expect(toolDetail).toContainText('artifact_einstein_risk')
   await expect(toolDetail).toContainText('[已脱敏]')
   await expect(toolDetail).not.toContainText('e2e-secret-token')
-  await page.getByRole('button', { name: '复制素材风险审计工具调用的原始数据' }).click()
-  await expect(page.getByTestId('agent-run-trace-copy-feedback')).toContainText('数据已复制')
-  await expect(page.getByTestId('agent-run-trace-copy-feedback')).toHaveAttribute('role', 'status')
-  const copiedTraceData = await page.evaluate(() => navigator.clipboard.readText())
-  expect(copiedTraceData).toContain('[已脱敏]')
-  expect(copiedTraceData).toContain('missing_hero_visual')
-  expect(copiedTraceData).not.toContain('e2e-secret-token')
-  expect(copiedTraceData).not.toContain('provider-e2e-api-key')
-  expect(copiedTraceData).not.toContain('e2e-signed-token')
   await page.getByRole('button', { name: '复制素材风险审计工具调用的事件链接' }).click()
   await expect(page.getByTestId('agent-run-trace-copy-feedback')).toContainText('链接已复制')
   await page.getByTestId('agent-run-trace-search').fill('no matching trace event')
@@ -359,7 +339,7 @@ test('planner run exposes plan overview and run detail drilldown', async ({ page
   await page.goto(`/agent/runs/${WORKER_RUN_ID}#event-${encodeURIComponent(linkedTraceEventId)}`)
   await expect(page.locator(`#agent-trace-event-${linkedTraceEventId}`)).toContainText('已定位')
   await expect(page.getByTestId('agent-run-trace-linked-event')).toContainText('已定位')
-  await expect(page.locator(`#agent-trace-event-${linkedTraceEventId}`).getByTestId('agent-run-trace-event-details')).toContainText('missing_hero_visual')
+  await expect(page.locator(`#agent-trace-event-${linkedTraceEventId}`).getByTestId('agent-run-trace-event-details')).toHaveCount(0)
   await page.goto(`/agent/runs/${WORKER_RUN_ID}#event-${encodeURIComponent('trace_missing_event')}`)
   await expect(page.getByTestId('agent-run-trace-deep-link-missing')).toContainText('这个运行里没有找到事件 trace_missing_event')
   await expect(page.getByTestId('agent-run-trace-deep-link-missing')).toHaveAttribute('role', 'alert')
@@ -370,7 +350,7 @@ test('planner run exposes plan overview and run detail drilldown', async ({ page
   })
   await page.getByRole('button', { name: '取消执行器 Einstein' }).click()
   await expect(page.getByTestId('agent-run-header')).toContainText('已取消')
-  await expect(page.getByTestId('agent-run-plan-context')).toContainText('已取消')
+  await expect(page.getByTestId('agent-run-taskGraph-context')).toContainText('已取消')
   await expect(page.getByTestId('agent-run-cancel-worker')).toHaveCount(0)
 })
 
@@ -578,9 +558,6 @@ test('planner run detail shows debug report copy failure', async ({ page }, test
   await expect(page.getByTestId('agent-run-debug-report-copy-error')).toContainText('clipboard denied by test')
   await expect(page.getByTestId('agent-run-debug-report-copy-error')).toHaveAttribute('role', 'alert')
   await expect(page.getByTestId('agent-run-debug-report-copy')).toContainText('复制摘要')
-  await page.getByTestId('agent-run-trace-event').filter({ hasText: '组装模型上下文' }).getByTestId('agent-run-trace-event-data-copy').click()
-  await expect(page.getByTestId('agent-run-trace-copy-error')).toContainText('clipboard denied by test')
-  await expect(page.getByTestId('agent-run-trace-copy-error')).toHaveAttribute('role', 'alert')
 })
 
 test('planner run detail can retry after trace summary failure', async ({ page }, testInfo) => {
@@ -607,7 +584,7 @@ test('planner run detail can retry after trace summary failure', async ({ page }
   await expect(page.getByTestId('agent-run-trace-summary-error')).toHaveCount(0)
 })
 
-test('planner run detail exposes plan context load failures as alerts', async ({ page }, testInfo) => {
+test('planner run detail exposes taskGraph context load failures as alerts', async ({ page }, testInfo) => {
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
@@ -623,13 +600,13 @@ test('planner run detail exposes plan context load failures as alerts', async ({
   await mockPlannerAgentRuntime(page, { failPlanSnapshotTimes: 2 })
 
   await page.goto(`/agent/runs/${WORKER_RUN_ID}`)
-  await expect(page.getByTestId('agent-run-plan-context-error')).toContainText('plan snapshot unavailable')
-  await expect(page.getByTestId('agent-run-plan-context-error')).toHaveAttribute('role', 'alert')
-  await expect(page.getByTestId('agent-run-plan-context-retry')).toBeVisible()
+  await expect(page.getByTestId('agent-run-taskGraph-context-error')).toContainText('taskGraph snapshot unavailable')
+  await expect(page.getByTestId('agent-run-taskGraph-context-error')).toHaveAttribute('role', 'alert')
+  await expect(page.getByTestId('agent-run-taskGraph-context-retry')).toBeVisible()
   await expect(page.getByRole('button', { name: '重新加载计划上下文' })).toBeVisible()
   await page.getByRole('button', { name: '重新加载计划上下文' }).click()
-  await expect(page.getByTestId('agent-run-plan-context')).toContainText('Planner 调度 E2E')
-  await expect(page.getByTestId('agent-run-plan-context-error')).toHaveCount(0)
+  await expect(page.getByTestId('agent-run-taskGraph-context')).toContainText('Planner 调度 E2E')
+  await expect(page.getByTestId('agent-run-taskGraph-context-error')).toHaveCount(0)
 })
 
 test('planner run detail exposes missing run load failures as alerts', async ({ page }, testInfo) => {
@@ -825,15 +802,15 @@ async function mockPlannerAgentRuntime(page: Page, options: { failCancel?: boole
       await route.fallback()
       return
     }
-    if (url.pathname === `/plans/${PLANNER_PLAN_ID}`) {
+    if (url.pathname === `/plans/${PLANNER_TASK_GRAPH_ID}`) {
       if (options.failPlanSnapshot) {
-        await fulfillJSON(route, { error: 'plan snapshot unavailable' }, 500)
+        await fulfillJSON(route, { error: 'taskGraph snapshot unavailable' }, 500)
         return
       }
       const planSnapshotFailureLimit = options.failPlanSnapshotTimes ?? (options.failPlanSnapshotOnce ? 1 : 0)
       if (planSnapshotFailureCount < planSnapshotFailureLimit) {
         planSnapshotFailureCount += 1
-        await fulfillJSON(route, { error: 'plan snapshot unavailable' }, 500)
+        await fulfillJSON(route, { error: 'taskGraph snapshot unavailable' }, 500)
         return
       }
       await fulfillJSON(route, snapshot)
@@ -860,7 +837,7 @@ async function mockPlannerAgentRuntime(page: Page, options: { failCancel?: boole
       runs.set(WORKER_RUN_ID, workerRun)
       snapshot = {
         ...snapshot,
-        plan: { ...snapshot.plan, status: 'cancelled', updatedAt: '2026-05-12T09:01:00.000Z', cancelledAt: '2026-05-12T09:01:00.000Z' },
+        taskGraph: { ...snapshot.taskGraph, status: 'cancelled', updatedAt: '2026-05-12T09:01:00.000Z', cancelledAt: '2026-05-12T09:01:00.000Z' },
         tasks: snapshot.tasks.map((task) => task.id === 'task_einstein_audit'
           ? { ...task, status: 'cancelled', cancelledAt: '2026-05-12T09:01:00.000Z', updatedAt: '2026-05-12T09:01:00.000Z' }
           : task),

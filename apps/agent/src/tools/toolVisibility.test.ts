@@ -5,12 +5,12 @@ import type { ResolvedAgentSkill } from '../state/types.js'
 
 test('isToolVisibleForActiveBehavior exposes only core management tools by default', () => {
   assert.equal(isToolVisibleForActiveBehavior({
-    toolName: 'movscript_update_active_skills',
+    toolName: 'core_skill_update',
     activeSkills: [],
     userMessage: 'hello',
   }), true)
   assert.equal(isToolVisibleForActiveBehavior({
-    toolName: 'movscript_get_focus',
+    toolName: 'movscript_focus_get',
     activeSkills: [],
     userMessage: 'hello',
   }), false)
@@ -18,17 +18,17 @@ test('isToolVisibleForActiveBehavior exposes only core management tools by defau
 
 test('isToolVisibleForActiveBehavior exposes command required tools only for matching commands', () => {
   assert.equal(isToolVisibleForActiveBehavior({
-    toolName: 'runtime_operation_start',
+    toolName: 'core_operation_start',
     activeSkills: [],
     userMessage: '/image rainy store',
   }), true)
   assert.equal(isToolVisibleForActiveBehavior({
-    toolName: 'runtime_operation_wait',
+    toolName: 'core_operation_wait',
     activeSkills: [],
     userMessage: '/video rainy store',
   }), true)
   assert.equal(isToolVisibleForActiveBehavior({
-    toolName: 'runtime_operation_start',
+    toolName: 'core_operation_start',
     activeSkills: [],
     userMessage: 'generate image',
   }), false)

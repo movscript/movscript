@@ -241,7 +241,7 @@ export class ContextManager {
   }
 
   buildKnowledgeTrace(input: BuildKnowledgeTraceInput): KnowledgeContextTrace | undefined {
-    if (input.call.name === 'movscript_search_knowledge') {
+    if (input.call.name === 'knowledge_search') {
       const payload = isJSONRecord(input.result) ? input.result : undefined
       const results = Array.isArray(payload?.results) ? payload.results.filter(isJSONRecord) : []
       return {
@@ -268,7 +268,7 @@ export class ContextManager {
         },
       }
     }
-    if (input.call.name === 'movscript_get_knowledge') {
+    if (input.call.name === 'knowledge_get') {
       const payload = isJSONRecord(input.result) ? input.result : undefined
       const id = stringField(payload?.id) ?? stringField(input.call.args?.id) ?? 'unknown'
       const content = typeof payload?.content === 'string' ? payload.content : ''

@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { BarChart3, Pencil, Plus, RefreshCw, ScrollText, Search, ShieldCheck, UsersRound, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button, Input, Label } from '@movscript/ui'
+import { runtimeCapabilities } from '@admin-runtime'
 import { api } from '@/lib/api'
 import { translateAPIRequestError } from '@/lib/apiError'
 import { auditLogsHref, usageLogsHref } from '@/lib/adminLogQueryParams'
@@ -75,6 +76,10 @@ interface AdminUserDetail {
   }
 }
 
+type UserQuotaRow = User & {
+  balance?: number
+}
+
 const emptyCreateUserForm: CreateUserForm = {
   username: '',
   password: '',
@@ -118,6 +123,8 @@ export function UserManagementPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [createForm, setCreateForm] = useState<CreateUserForm>(emptyCreateUserForm)
   const [resetPassword, setResetPassword] = useState('')
+  const [quotaUser, setQuotaUser] = useState<User | null>(null)
+  const [quotaBalance, setQuotaBalance] = useState('')
 
   const params = useMemo(() => ({
     page,
@@ -136,6 +143,11 @@ export function UserManagementPage() {
     queryKey: ['admin', 'users', detailUser?.ID, 'detail'],
     queryFn: () => api.get(`/admin/users/${detailUser?.ID}/detail`).then((r) => r.data),
     enabled: !!detailUser,
+  })
+  const userQuotaQuery = useQuery<UserQuotaRow[]>({
+    queryKey: ['admin', 'users', 'quota'],
+    queryFn: () => api.get('/admin/users/quota').then((r) => r.data),
+    enabled: runtimeCapabilities.userQuotaManagement,
   })
 
   const updateUser = useMutation({
@@ -201,12 +213,32 @@ export function UserManagementPage() {
     },
     onError: (err: any) => setError(translateAPIRequestError(err)),
   })
+  const setQuota = useMutation({
+    mutationFn: ({ id, balance }: { id: number; balance: number }) =>
+      api.put(`/admin/users/${id}/quota`, { balance }),
+    onSuccess: () => {
+      setError('')
+      setQuotaUser(null)
+      setQuotaBalance('')
+      qc.invalidateQueries({ queryKey: ['admin', 'users', 'quota'] })
+    },
+    onError: (err: any) => setError(translateAPIRequestError(err)),
+  })
 
   const items = usersQuery.data?.items ?? []
   const total = usersQuery.data?.total ?? 0
+  const quotaByUserID = useMemo(() => {
+    const result = new Map<number, number>()
+    for (const item of userQuotaQuery.data ?? []) {
+      result.set(item.ID, item.balance ?? 0)
+    }
+    return result
+  }, [userQuotaQuery.data])
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const hasFilters = Object.values(filters).some((value) => value.trim() !== '')
   const queryError = usersQuery.error
+  const showUserQuota = runtimeCapabilities.userQuotaManagement
+  const userTableColumnCount = showUserQuota ? 7 : 6
 
   function updateFilter<K extends keyof UserListFilters>(key: K, value: UserListFilters[K]) {
     const next = { ...filters, [key]: value }
@@ -259,6 +291,11 @@ export function UserManagementPage() {
     setEditUser(user)
     setEditDisplayName(user.display_name || '')
     setEditEmail(user.primary_email || '')
+  }
+
+  function openQuotaUser(user: User) {
+    setQuotaUser(user)
+    setQuotaBalance(String(quotaByUserID.get(user.ID) ?? 0))
   }
 
   function submitEditUser() {
@@ -395,6 +432,7 @@ export function UserManagementPage() {
               <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.users.role')}</th>
               <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.users.status')}</th>
               <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.users.updatedAt')}</th>
+              {showUserQuota && <th className="px-4 py-2.5 text-right text-xs font-medium text-muted-foreground">{t('admin.users.creditsBalance')}</th>}
               <th className="px-4 py-2.5"></th>
             </tr>
           </thead>
@@ -443,6 +481,18 @@ export function UserManagementPage() {
                   </select>
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">{formatDate(user.UpdatedAt, i18n.language)}</td>
+                {showUserQuota && (
+                  <td className="whitespace-nowrap px-4 py-3 text-right">
+                    <div className="font-mono text-sm tabular-nums text-foreground">{formatCredits(quotaByUserID.get(user.ID))}</div>
+                    <button
+                      type="button"
+                      onClick={() => openQuotaUser(user)}
+                      className="mt-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      {t('admin.users.recharge')}
+                    </button>
+                  </td>
+                )}
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-1">
                     <button
@@ -463,7 +513,7 @@ export function UserManagementPage() {
             ))}
             {!usersQuery.isLoading && !usersQuery.error && items.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                <td colSpan={userTableColumnCount} className="px-4 py-10 text-center text-sm text-muted-foreground">
                   <Search size={18} className="mx-auto mb-2 opacity-60" />
                   {t('admin.users.empty')}
                 </td>
@@ -471,7 +521,7 @@ export function UserManagementPage() {
             )}
             {usersQuery.isLoading && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">{t('common.loading')}</td>
+                <td colSpan={userTableColumnCount} className="px-4 py-10 text-center text-sm text-muted-foreground">{t('common.loading')}</td>
               </tr>
             )}
           </tbody>
@@ -693,6 +743,43 @@ export function UserManagementPage() {
               </Button>
               <Button type="button" size="sm" onClick={submitEditUser} disabled={updateUser.isPending}>
                 {updateUser.isPending ? t('common.saving') : t('admin.users.saveProfile')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {quotaUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-background shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">{t('admin.users.setBalanceTitle', { username: quotaUser.username })}</h3>
+                <p className="mt-0.5 font-mono text-xs text-muted-foreground">#{quotaUser.ID}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuotaUser(null)}
+                className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label={t('common.close')}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-5">
+              <FilterField label={t('admin.users.newBalance')} value={quotaBalance} onChange={setQuotaBalance} type="number" />
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-4">
+              <Button type="button" variant="outline" size="sm" onClick={() => setQuotaUser(null)}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setQuota.mutate({ id: quotaUser.ID, balance: Number(quotaBalance) })}
+                disabled={setQuota.isPending || Number.isNaN(Number(quotaBalance))}
+              >
+                {setQuota.isPending ? t('common.saving') : t('common.save')}
               </Button>
             </div>
           </div>

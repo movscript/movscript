@@ -16,6 +16,7 @@ type repository interface {
 	DeleteResourceRecord(ctx context.Context, r *domainresource.RawResource) error
 	UpdateResourceRecord(ctx context.Context, r *domainresource.RawResource, spec domainresource.UpdateSpec) error
 	ReloadResource(ctx context.Context, r *domainresource.RawResource) error
+	AdoptOwnedPersonalResourceToOrg(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error)
 	GetVisible(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error)
 	GetOwned(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error)
 	DeleteResourceAndBindings(ctx context.Context, r domainresource.RawResource) error
@@ -88,15 +89,42 @@ func (r *gormRepository) ReloadResource(ctx context.Context, resource *domainres
 	return nil
 }
 
+func (r *gormRepository) AdoptOwnedPersonalResourceToOrg(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error) {
+	if orgID == nil {
+		return domainresource.RawResource{}, ErrForbidden
+	}
+	resource, err := r.GetOwned(ctx, id, userID, nil)
+	if err != nil {
+		return resource, err
+	}
+	if resource.OrgID != nil {
+		if *resource.OrgID == *orgID {
+			return resource, nil
+		}
+		return resource, ErrForbidden
+	}
+	if err := r.UpdateResourceRecord(ctx, &resource, domainresource.UpdateSpec{OrgID: orgID}); err != nil {
+		return resource, err
+	}
+	if err := r.ReloadResource(ctx, &resource); err != nil {
+		return resource, err
+	}
+	return resource, nil
+}
+
 func (r *gormRepository) GetVisible(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error) {
 	resource, err := r.getResource(ctx, id)
 	if err != nil {
 		return resource, err
 	}
-	if !resourceInOrgScope(resource.OrgID, orgID, resource.OwnerID, userID, r.includeLegacyPersonal(ctx, orgID)) {
+	includeLegacy := r.includeLegacyPersonal(ctx, orgID)
+	if !resourceInOrgScope(resource.OrgID, orgID, resource.OwnerID, userID, includeLegacy) {
+		if r.resourceBoundToVisibleProject(ctx, resource.ID, userID, orgID, includeLegacy) {
+			return resource, nil
+		}
 		return resource, ErrForbidden
 	}
-	if resource.OwnerID == userID {
+	if resource.OwnerID == userID || resourceInCurrentTeam(resource.OrgID, orgID) {
 		return resource, nil
 	}
 	allowed := resource.IsShared
@@ -105,6 +133,9 @@ func (r *gormRepository) GetVisible(ctx context.Context, id uint, userID uint, o
 		if r.db.WithContext(ctx).First(&folder, *resource.FolderID).Error == nil {
 			allowed = folder.IsShared
 		}
+	}
+	if !allowed {
+		allowed = r.resourceBoundToVisibleProject(ctx, resource.ID, userID, orgID, includeLegacy)
 	}
 	if !allowed {
 		return resource, ErrForbidden
@@ -149,7 +180,7 @@ func (r *gormRepository) UploadFolderID(ctx context.Context, userID uint, orgID 
 	if !resourceInOrgScope(folder.OrgID, orgID, folder.OwnerID, userID, r.includeLegacyPersonal(ctx, orgID)) {
 		return nil, ErrForbidden
 	}
-	if folder.OwnerID != userID {
+	if folder.OwnerID != userID && !resourceInCurrentTeam(folder.OrgID, orgID) {
 		if !folder.IsShared {
 			return nil, ErrForbidden
 		}
@@ -167,8 +198,13 @@ func (r *gormRepository) listQuery(ctx context.Context, input ListInput) (*gorm.
 	if input.Shared {
 		return r.sharedListQuery(ctx, input)
 	}
-	q := r.db.WithContext(ctx).Model(&persistencemodel.RawResource{}).Where("owner_id = ?", input.UserID)
-	q = applyOrgScope(q, input.OrgID, input.UserID, r.includeLegacyPersonal(ctx, input.OrgID))
+	q := r.db.WithContext(ctx).Model(&persistencemodel.RawResource{})
+	if input.OrgID != nil {
+		q = q.Where("(org_id = ? OR (org_id IS NULL AND owner_id = ?))", *input.OrgID, input.UserID)
+	} else {
+		q = q.Where("owner_id = ?", input.UserID)
+		q = applyOrgScope(q, input.OrgID, input.UserID, r.includeLegacyPersonal(ctx, input.OrgID))
+	}
 	switch input.FolderID {
 	case "", "all":
 	case "root", "0":
@@ -236,6 +272,33 @@ func resourceInOrgScope(resourceOrgID, currentOrgID *uint, ownerID uint, userID 
 	return domainresource.InOrgScope(resourceOrgID, currentOrgID, ownerID, userID, includeLegacy)
 }
 
+func resourceInCurrentTeam(resourceOrgID, currentOrgID *uint) bool {
+	return resourceOrgID != nil && currentOrgID != nil && *resourceOrgID == *currentOrgID
+}
+
+func (r *gormRepository) resourceBoundToVisibleProject(ctx context.Context, resourceID uint, userID uint, orgID *uint, includeLegacy bool) bool {
+	query := r.db.WithContext(ctx).
+		Table("resource_bindings AS rb").
+		Joins("JOIN projects AS p ON p.id = rb.project_id").
+		Where("rb.resource_id = ? AND rb.deleted_at IS NULL AND p.deleted_at IS NULL", resourceID)
+	if orgID != nil {
+		if includeLegacy {
+			query = query.Where("(p.org_id = ? OR (p.org_id IS NULL AND p.owner_id = ?))", *orgID, userID)
+		} else {
+			query = query.Where("p.org_id = ?", *orgID)
+		}
+	} else {
+		query = query.
+			Joins("LEFT JOIN project_members AS pm ON pm.project_id = p.id AND pm.user_id = ? AND pm.deleted_at IS NULL", userID).
+			Where("p.org_id IS NULL AND (p.owner_id = ? OR pm.id IS NOT NULL)", userID)
+	}
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return false
+	}
+	return count > 0
+}
+
 func applyListFilters(q *gorm.DB, input ListInput) *gorm.DB {
 	filters := domainresource.ParseListFilters(input.Type, input.Query)
 	if len(filters.Types) == 1 {
@@ -279,6 +342,9 @@ func resourceUpdateColumns(spec domainresource.UpdateSpec) map[string]any {
 	}
 	if spec.Size != nil {
 		updates["size"] = *spec.Size
+	}
+	if spec.OrgID != nil {
+		updates["org_id"] = *spec.OrgID
 	}
 	if spec.IsShared != nil {
 		updates["is_shared"] = *spec.IsShared

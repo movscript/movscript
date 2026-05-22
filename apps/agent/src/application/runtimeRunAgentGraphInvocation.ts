@@ -15,6 +15,7 @@ import type {
   AgentRunStep,
   AgentTraceEvent,
   AgentTraceEventKind,
+  JSONValue,
 } from '../state/types.js'
 import type { RuntimeModelAuthContext } from '../model/modelConfig.js'
 import type { AgentGraphInput } from '../orchestration/agentGraph.js'
@@ -62,7 +63,7 @@ export async function invokeRuntimeRunAgentGraph(input: {
   now: () => string
   recordTrace: (run: AgentRun, trace: RuntimeRunAgentGraphInvocationTraceInput) => void
   emitVolatileTrace: Parameters<typeof invokeRuntimeAgentGraph>[0]['emitVolatileTrace']
-  createStep: (run: AgentRun, type: AgentRunStep['type'], round?: AgentRunRoundInfo, toolName?: string) => AgentRunStep
+  createStep: (run: AgentRun, type: AgentRunStep['type'], round?: AgentRunRoundInfo, toolName?: string, args?: Record<string, JSONValue>) => AgentRunStep
   emitRunSnapshot: (run: AgentRun) => void
   invokeGraph?: (graphInput: AgentGraphInput) => Promise<AgentGraphResult>
   resolveModelConfig?: typeof resolveRuntimeChatModelConfig

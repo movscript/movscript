@@ -218,7 +218,7 @@ export function AgentComposerSection({
             type="submit"
             running={loading || buildingSendDraft}
             disabled={!canSend}
-            label={answeringPendingInput ? '回答' : loading ? '补充' : debugBeforeSend ? t('agents.chat.preview') : t('common.send')}
+            label={answeringPendingInput ? '回答' : debugBeforeSend ? t('agents.chat.preview') : t('common.send')}
           >
             {stoppingLocalRun
               ? <Loader2 size={14} className="animate-spin" />

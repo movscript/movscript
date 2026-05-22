@@ -86,26 +86,6 @@ export async function simulateRuntimeDraftApply(input: {
       message: 'Draft failed local validation. Patch the draft and validate again before simulating backend apply.',
     } as unknown as JSONValue
   }
-  const snapshotBaseValidation = validateAssetProposalSnapshotBase(preview.draft, preparedReview)
-  if (!snapshotBaseValidation.ok) {
-    return {
-      ok: false,
-      stage: 'local_validation',
-      draftId: preview.draft.id,
-      validation,
-      message: snapshotBaseValidation.message,
-    } as unknown as JSONValue
-  }
-  const snapshotCompletenessValidation = validateAssetProposalSnapshotCompleteness(preview.draft, preparedReview)
-  if (!snapshotCompletenessValidation.ok) {
-    return {
-      ok: false,
-      stage: 'local_validation',
-      draftId: preview.draft.id,
-      validation,
-      message: snapshotCompletenessValidation.message,
-    } as unknown as JSONValue
-  }
   if (isAssetPlanningDraft(preview.draft)) {
     return {
       ok: true,
@@ -164,11 +144,6 @@ export async function applyRuntimeDraftFromUI(input: {
       backendApply: { performed: false, skippedReason: 'asset proposal contains candidate plans only' },
     } as unknown as JSONValue
   }
-  const snapshotBaseValidation = validateAssetProposalSnapshotBase(preview.draft, preparedReview)
-  if (!snapshotBaseValidation.ok) throw new Error(snapshotBaseValidation.message)
-  const snapshotCompletenessValidation = validateAssetProposalSnapshotCompleteness(preview.draft, preparedReview)
-  if (!snapshotCompletenessValidation.ok) throw new Error(snapshotCompletenessValidation.message)
-
   let backendApply: BackendApplyResult
   try {
     backendApply = await input.backendApplyClient.applyReview(preparedReview, buildRuntimeDraftBackendAuth(input.applyInput, {
@@ -229,85 +204,12 @@ export function rejectRuntimeDraft(input: {
 }
 
 function isAssetPlanningDraft(draft: AgentDraft): boolean {
-  return draft.kind === 'asset_proposal' && !assetProposalContainsAssetSlots(draft.content)
-}
-
-const ASSET_PROPOSAL_SNAPSHOT_BASE_REQUIRED_MESSAGE = 'Asset proposal snapshot apply requires snapshot_base.asset_slots or a hydrated DraftDomainModel seed with data.asset_slots. Refresh the draft model/current project snapshot before applying so omitted asset slots are not treated as deletes.'
-const ASSET_PROPOSAL_SNAPSHOT_OMISSION_MESSAGE = 'Asset proposal snapshot apply would omit existing active asset slots. Keep every unchanged slot in proposal.asset_slots, or include an explicit status:"waived" entry for slots the user asked to remove.'
-
-function validateAssetProposalSnapshotBase(
-  draft: AgentDraft,
-  review: ApplyDraftReview,
-): { ok: true } | { ok: false; message: string } {
-  if (draft.kind !== 'asset_proposal' || review.draftKind !== 'asset_proposal') return { ok: true }
-  const proposed = parseJSONTextAsRecord(review.proposedValue)
-  const proposal = isRecord(proposed?.proposal) ? proposed.proposal : undefined
-  if (!Array.isArray(proposal?.asset_slots) || proposal.asset_slots.length === 0) return { ok: true }
-  if (hasAssetSlotSnapshotBase(proposed)) return { ok: true }
-  if (hasAssetSlotSnapshotBase(parseJSONTextAsRecord(draft.content))) return { ok: true }
-  if (hasHydratedAssetSlotSeed(draft.metadata)) return { ok: true }
-  return { ok: false, message: ASSET_PROPOSAL_SNAPSHOT_BASE_REQUIRED_MESSAGE }
-}
-
-function validateAssetProposalSnapshotCompleteness(
-  draft: AgentDraft,
-  review: ApplyDraftReview,
-): { ok: true } | { ok: false; message: string } {
-  if (draft.kind !== 'asset_proposal' || review.draftKind !== 'asset_proposal') return { ok: true }
-  const proposed = parseJSONTextAsRecord(review.proposedValue)
-  const proposal = isRecord(proposed?.proposal) ? proposed.proposal : undefined
-  const proposedSlots = Array.isArray(proposal?.asset_slots) ? proposal.asset_slots : []
-  if (proposedSlots.length === 0) return { ok: true }
-  const baseSlots = readAssetSlotSnapshotBase(proposed)
-    ?? readAssetSlotSnapshotBase(parseJSONTextAsRecord(draft.content))
-    ?? readAssetSlotSeed(draft.metadata)
-  if (!baseSlots || baseSlots.length === 0) return { ok: true }
-  const proposedIDs = new Set<number>()
-  for (const slot of proposedSlots) {
-    if (!isRecord(slot)) continue
-    const id = readPositiveInt(slot.id ?? slot.ID ?? slot.asset_slot_id ?? slot.assetSlotId)
-    if (id !== undefined) proposedIDs.add(id)
-  }
-  const omittedIDs = baseSlots
-    .filter((slot): slot is Record<string, unknown> => isRecord(slot))
-    .filter((slot) => isActiveAssetSlotSnapshot(slot))
-    .map((slot) => readPositiveInt(slot.id ?? slot.ID ?? slot.asset_slot_id ?? slot.assetSlotId))
-    .filter((id): id is number => id !== undefined && !proposedIDs.has(id))
-  if (omittedIDs.length === 0) return { ok: true }
-  const sample = omittedIDs.slice(0, 5).join(', ')
-  const suffix = omittedIDs.length > 5 ? `, +${omittedIDs.length - 5} more` : ''
-  return { ok: false, message: `${ASSET_PROPOSAL_SNAPSHOT_OMISSION_MESSAGE} Omitted asset slot ids: ${sample}${suffix}.` }
-}
-
-function hasAssetSlotSnapshotBase(value: unknown): boolean {
-  if (!isRecord(value)) return false
-  const snapshotBase = isRecord(value.snapshot_base) ? value.snapshot_base : undefined
-  return Array.isArray(snapshotBase?.asset_slots)
-}
-
-function hasHydratedAssetSlotSeed(metadata: unknown): boolean {
-  if (!isRecord(metadata)) return false
-  const seed = isRecord(metadata.seed) ? metadata.seed : undefined
-  const data = isRecord(seed?.data) ? seed.data : undefined
-  return Array.isArray(data?.asset_slots)
-}
-
-function readAssetSlotSnapshotBase(value: unknown): unknown[] | undefined {
-  if (!isRecord(value)) return undefined
-  const snapshotBase = isRecord(value.snapshot_base) ? value.snapshot_base : undefined
-  return Array.isArray(snapshotBase?.asset_slots) ? snapshotBase.asset_slots : undefined
-}
-
-function readAssetSlotSeed(metadata: unknown): unknown[] | undefined {
-  if (!isRecord(metadata)) return undefined
-  const seed = isRecord(metadata.seed) ? metadata.seed : undefined
-  const data = isRecord(seed?.data) ? seed.data : undefined
-  return Array.isArray(data?.asset_slots) ? data.asset_slots : undefined
-}
-
-function isActiveAssetSlotSnapshot(slot: Record<string, unknown>): boolean {
-  const status = readText(slot.status)
-  return status !== 'ignored' && status !== 'waived' && status !== 'merged'
+  if (draft.kind !== 'asset_proposal' || assetProposalContainsAssetSlots(draft.content)) return false
+  const parsed = parseJSONTextAsRecord(draft.content)
+  const proposal = isRecord(parsed?.proposal) ? parsed.proposal : undefined
+  const candidatePlans = Array.isArray(proposal?.candidate_plans) ? proposal.candidate_plans : []
+  const legacyCandidates = Array.isArray(proposal?.candidates) ? proposal.candidates : []
+  return candidatePlans.length > 0 || legacyCandidates.length > 0
 }
 
 function buildRuntimeProjectLayerProposalReviewForBackend(review: ApplyDraftReview, draftStore: AgentDraftStore): ApplyDraftReview {

@@ -14,9 +14,9 @@ import {
 test('content unit planning metadata parses and merges safely', () => {
   assert.deepEqual(parseMetadataJSON(''), {})
   assert.deepEqual(parseMetadataJSON('{bad'), {})
-  assert.deepEqual(mergeMetadataJSON('{"keep":true}', { visual_plan: { space: '巷口' } }), {
+  assert.deepEqual(mergeMetadataJSON('{"keep":true}', { visual_taskGraph: { space: '巷口' } }), {
     keep: true,
-    visual_plan: { space: '巷口' },
+    visual_taskGraph: { space: '巷口' },
   })
 })
 
@@ -31,7 +31,7 @@ test('content unit planning metadata builds reusable prompt summaries', () => {
     title: '纸条特写',
     description: '纸条从伞骨滑出。',
     metadata_json: JSON.stringify({
-      visual_plan: {
+      visual_taskGraph: {
         space: '旧伞占据前景。',
         blocking: '林夏停住。',
         beats: ['纸条滑出', '落入水洼'],

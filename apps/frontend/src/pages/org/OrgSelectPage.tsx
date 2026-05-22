@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Building2, KeyRound, Plus, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Building2, CircleUserRound, KeyRound, Plus, ChevronRight, Settings } from 'lucide-react'
 import { useUserStore } from '@/store/userStore'
 import { useProjectStore } from '@/store/projectStore'
 import { api } from '@/lib/api'
@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { translateApiError } from '@/lib/apiError'
 import type { OrgMembership } from '@/types'
 import { ROUTES } from '@/routes/projectRoutes'
+import OrgSettingsPage from './OrgSettingsPage'
 
 function roleLabel(role: OrgMembership['role'], t: (k: string) => string) {
   const map: Record<string, string> = {
@@ -128,13 +129,15 @@ function JoinOrgDialog({ onClose, onJoined }: { onClose: () => void; onJoined: (
 export default function OrgSelectPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { setCurrentOrg, setOrgMemberships, orgMemberships: memberships } = useUserStore()
+  const queryClient = useQueryClient()
+  const { currentOrgID, setCurrentOrg, setOrgMemberships, orgMemberships: memberships } = useUserStore()
   const setCurrentProject = useProjectStore((s) => s.setCurrent)
   const [showCreate, setShowCreate] = useState(false)
   const [showJoin, setShowJoin] = useState(false)
 
-  const personalMembership = memberships.find((m) => m.is_personal)
-  const visibleMemberships = memberships.filter((m) => !m.is_personal)
+  const currentMembership = memberships.find((m) => m.org_id === currentOrgID)
+  const isCurrentOrgAdmin = currentMembership && !currentMembership.is_personal && ['owner', 'admin'].includes(currentMembership.role)
+  const switchableMemberships = memberships
 
   async function refreshMemberships(preferredOrgId: number) {
     const res = await api.get('/auth/me')
@@ -144,6 +147,12 @@ export default function OrgSelectPage() {
   function selectOrg(orgId: number) {
     setCurrentOrg(orgId)
     setCurrentProject(null)
+    queryClient.removeQueries({ queryKey: ['projects'] })
+    queryClient.removeQueries({ queryKey: ['progress'] })
+    navigate(ROUTES.projects, { replace: true })
+  }
+
+  function returnToCurrentWorkspace() {
     navigate(ROUTES.projects, { replace: true })
   }
 
@@ -159,13 +168,49 @@ export default function OrgSelectPage() {
     selectOrg(orgId)
   }
 
+  function scrollToSettings() {
+    document.getElementById('workspace-settings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6">
-      <div className="w-full max-w-2xl">
+    <div className="w-full max-w-3xl">
         <div className="mb-7">
+          {currentOrgID && (
+            <Button variant="ghost" size="sm" className="mb-3 -ml-2 text-muted-foreground" onClick={returnToCurrentWorkspace}>
+              <ArrowLeft size={14} className="mr-1.5" />
+              {t('common.back')}
+            </Button>
+          )}
           <h1 className="type-page-title font-bold text-foreground mb-1">{t('org.selectTitle')}</h1>
           <p className="type-body text-muted-foreground">{t('org.selectSubtitle')}</p>
         </div>
+
+        {currentMembership && (
+          <section className="mb-7 rounded-lg border border-border bg-card p-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted">
+                  {currentMembership.is_personal ? (
+                    <CircleUserRound size={17} className="text-muted-foreground" />
+                  ) : (
+                    <Building2 size={17} className="text-muted-foreground" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="type-label font-semibold uppercase tracking-wider text-muted-foreground">{t('org.currentWorkspace')}</p>
+                  <p className="type-body font-semibold text-foreground truncate">{currentMembership.org_name}</p>
+                  <p className="type-label text-muted-foreground">{roleLabel(currentMembership.role, t)}</p>
+                </div>
+              </div>
+              {isCurrentOrgAdmin && (
+                <Button variant="outline" onClick={scrollToSettings}>
+                  <Settings size={14} className="mr-2" />
+                  {t('org.settingsTitle')}
+                </Button>
+              )}
+            </div>
+          </section>
+        )}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <button
@@ -195,18 +240,18 @@ export default function OrgSelectPage() {
           </button>
         </div>
 
-        {personalMembership && visibleMemberships.length > 0 && (
+        {switchableMemberships.length > 0 && (
           <div className="mt-7">
             <p className="mb-3 type-label font-semibold uppercase tracking-wider text-muted-foreground">{t('org.existingWorkspaces')}</p>
             <div className="space-y-2">
-              {visibleMemberships.map((m) => (
+              {switchableMemberships.map((m) => (
                 <button
                   key={m.org_id}
                   onClick={() => selectOrg(m.org_id)}
                   className="w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-border bg-card hover:bg-accent hover:border-accent-foreground/20 transition-colors text-left group"
                 >
                   <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center shrink-0">
-                    <Building2 size={16} className="text-muted-foreground" />
+                    {m.is_personal ? <CircleUserRound size={16} className="text-muted-foreground" /> : <Building2 size={16} className="text-muted-foreground" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="type-body font-medium text-foreground truncate">{m.org_name}</p>
@@ -218,7 +263,16 @@ export default function OrgSelectPage() {
             </div>
           </div>
         )}
-      </div>
+
+        {isCurrentOrgAdmin && (
+          <section id="workspace-settings" className="mt-8 scroll-mt-6">
+            <div className="mb-4">
+              <h2 className="type-title-sm font-semibold text-foreground">{t('org.settingsTitle')}</h2>
+              <p className="type-label text-muted-foreground mt-1">{t('org.settingsSubtitle')}</p>
+            </div>
+            <OrgSettingsPage embedded />
+          </section>
+        )}
 
       {showCreate && (
         <CreateOrgDialog onClose={() => setShowCreate(false)} onCreated={handleCreated} />

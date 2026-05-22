@@ -7,8 +7,8 @@ import type { ApplyDraftReview } from './draftApply.js'
 type BackendApplyMCPClient = Pick<MCPClient, 'initialize' | 'callTool'>
 
 const BACKEND_APPLY_MCP_TOOLS = {
-  applyReview: 'movscript_apply_draft_review',
-  previewApplyReview: 'movscript_preview_apply_draft_review',
+  applyReview: 'draft_review_apply',
+  previewApplyReview: 'draft_review_apply_preview',
 } as const
 
 export class MCPBackendApplyClient extends BackendApplyClient {

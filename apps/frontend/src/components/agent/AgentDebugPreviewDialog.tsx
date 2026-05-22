@@ -5,7 +5,7 @@ import { Badge, Button } from '@movscript/ui'
 import { agentToolNameLabel } from '@/lib/agentToolDisplay'
 import { agentPermissionModeLabel, runApprovalModeLabel, toolApprovalLabel, toolGrantModeLabel } from '@/lib/agentRunUi'
 import type { AgentSendDraft, DebugHttpRequest } from '@/lib/agentSendDraft'
-import type { AgentDraftApplyPreview } from '@/lib/localAgentClient'
+import type { AgentDebugTool, AgentDraftApplyPreview } from '@/lib/localAgentClient'
 import {
   localAgentApprovalImpactText,
   localAgentApprovalRiskText,
@@ -23,6 +23,18 @@ function countCharsLabel(t: ReturnType<typeof useTranslation>['t'], count: numbe
 
 export function safeJSONStringify(value: unknown) {
   return JSON.stringify(value, null, 2)
+}
+
+function toolResolutionLabel(tool: AgentDebugTool, t: ReturnType<typeof useTranslation>['t']) {
+  const resolution = tool.resolution
+  if (!resolution) return tool.unavailableReason ?? t('agents.chat.panel.runtime.unknown')
+  return [
+    `${t('agents.chat.panel.runtime.authorized')}: ${resolution.authorized ? t('agents.chat.panel.runtime.yes') : t('agents.chat.panel.runtime.no')}`,
+    `${t('agents.chat.panel.runtime.visible')}: ${resolution.visible ? t('agents.chat.panel.runtime.yes') : t('agents.chat.panel.runtime.no')}`,
+    `${t('agents.chat.panel.runtime.grant')}: ${resolution.grantSource}`,
+    `${t('agents.chat.panel.runtime.activeSkills')}: ${resolution.activeSkillIds.length}`,
+    resolution.reason ? `${t('agents.chat.panel.runtime.reason')}: ${resolution.reason}` : undefined,
+  ].filter(Boolean).join(' · ')
 }
 
 export function AgentDebugPreviewDialog({
@@ -176,7 +188,10 @@ export function AgentDebugPreviewDialog({
                   <div className="mb-1 type-tiny font-medium text-foreground">{t('agents.chat.panel.runtime.availableTools')}</div>
                   <div className="space-y-1 type-tiny text-muted-foreground">
                     {preview.tools.available.slice(0, 8).map((tool) => (
-                      <div key={tool.name}>{agentToolNameLabel(tool.name, t)} · {tool.risk ? localAgentApprovalRiskText(tool.risk, t) : t('agents.chat.panel.runtime.unknown')} · {toolApprovalLabel(tool.approval)}</div>
+                      <div key={tool.name}>
+                        <div>{agentToolNameLabel(tool.name, t)} · {tool.risk ? localAgentApprovalRiskText(tool.risk, t) : t('agents.chat.panel.runtime.unknown')} · {toolApprovalLabel(tool.approval)}</div>
+                        <div className="type-micro text-muted-foreground/80">{toolResolutionLabel(tool, t)}</div>
+                      </div>
                     ))}
                     {preview.tools.available.length === 0 && <div>{t('agents.chat.panel.runtime.none')}</div>}
                   </div>
@@ -185,7 +200,10 @@ export function AgentDebugPreviewDialog({
                   <div className="mb-1 type-tiny font-medium text-foreground">{t('agents.chat.panel.runtime.blockedTools')}</div>
                   <div className="space-y-1 type-tiny text-muted-foreground">
                     {preview.tools.blocked.slice(0, 8).map((tool) => (
-                      <div key={tool.name}>{agentToolNameLabel(tool.name, t)} · {tool.unavailableReason ?? t('agents.chat.panel.runtime.blocked')}</div>
+                      <div key={tool.name}>
+                        <div>{agentToolNameLabel(tool.name, t)} · {tool.unavailableReason ?? t('agents.chat.panel.runtime.blocked')}</div>
+                        <div className="type-micro text-muted-foreground/80">{toolResolutionLabel(tool, t)}</div>
+                      </div>
                     ))}
                     {preview.tools.blocked.length === 0 && <div>{t('agents.chat.panel.runtime.none')}</div>}
                   </div>

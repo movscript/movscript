@@ -1,11 +1,14 @@
 import { type DragEvent, useEffect, useState } from 'react'
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  CheckCircle2,
   Clock3,
   FileText,
   Plus,
   Route,
+  Play,
   Sparkles,
   X,
 } from 'lucide-react'
@@ -52,7 +55,7 @@ export function ContentWorkbenchUnitInspector({
   onSelectUnit,
   onCreateUnit,
   onAiSuggest,
-  onAiVisualPlan,
+  onAiVisualTaskGraph,
   onCreateAssetSlot,
   onCreateKeyframe,
   onOpenCanvas,
@@ -68,7 +71,7 @@ export function ContentWorkbenchUnitInspector({
   onSelectUnit: (unitId: number) => void
   onCreateUnit: () => void
   onAiSuggest?: () => void
-  onAiVisualPlan?: () => void
+  onAiVisualTaskGraph?: () => void
   onCreateAssetSlot?: () => void
   onCreateKeyframe?: () => void
   onOpenCanvas?: () => void
@@ -76,6 +79,17 @@ export function ContentWorkbenchUnitInspector({
   onDeleteUnit?: (unit: WorkbenchRecord) => void
   onClose?: () => void
 }) {
+  const drawerAction = buildContentUnitDrawerAction({
+    row,
+    unit,
+    onCreateUnit,
+    onAiSuggest,
+    onAiVisualTaskGraph,
+    onCreateAssetSlot,
+    onCreateKeyframe,
+    onOpenCanvas,
+  })
+
   return (
     <aside
       className="min-w-0 overflow-hidden border-t border-border bg-background pt-3 2xl:sticky 2xl:top-0 2xl:max-h-[calc(100vh-9rem)] 2xl:overflow-y-auto 2xl:border-l 2xl:border-t-0 2xl:pl-3 2xl:pt-0"
@@ -86,24 +100,50 @@ export function ContentWorkbenchUnitInspector({
         <div className="min-w-0">
           <div className="flex items-center gap-2 type-label font-medium text-muted-foreground">
             <FileText size={14} />
-            当前制作项
+            镜头详情
           </div>
           <h3 className="mt-1 truncate type-body font-semibold text-foreground">
-            {unit ? titleOfRecord(unit) : row ? '选择或创建制作项' : '等待选择情节'}
+            {unit ? titleOfRecord(unit) : row ? '选择或规划镜头' : '等待选择情节'}
           </h3>
           <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">
             {unit
-              ? '生成目标、关键帧、故事板和调度输入都在这里补齐。'
+              ? '这里只编辑选中镜头的生成目标、关键帧、故事板和调度输入。'
               : row
-                ? '先在时间轴选择一个制作项，或新建一个制作项。'
+                ? '先在镜头方案中选择一个镜头，或让 AI 规划一组镜头。'
                 : '选择情节后再开始内容编排。'}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {unit ? <Badge variant="outline">{trackKindLabel(String(unit.kind || 'shot'))}</Badge> : null}
           {onClose ? (
-            <Button type="button" size="icon-sm" variant="ghost" onClick={onClose} aria-label="收起当前制作项抽屉">
+            <Button type="button" size="icon-sm" variant="ghost" onClick={onClose} aria-label="收起镜头详情抽屉">
               <X size={14} />
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      <div
+        className={cn(
+          'mt-3 rounded-md border px-2.5 py-2',
+          drawerAction.tone === 'ready'
+            ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/20'
+            : drawerAction.tone === 'blocked'
+              ? 'border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20'
+              : 'border-border bg-muted/20',
+        )}
+        data-testid="content-workbench-unit-drawer-action"
+      >
+        <div className="flex items-start gap-2">
+          <span className="mt-0.5 shrink-0 text-muted-foreground">
+            {drawerAction.tone === 'ready' ? <CheckCircle2 size={15} /> : drawerAction.tone === 'blocked' ? <AlertTriangle size={15} /> : <FileText size={15} />}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="type-label font-semibold text-foreground">下一步：{drawerAction.label}</p>
+            <p className="mt-0.5 type-caption leading-5 text-muted-foreground">{drawerAction.detail}</p>
+          </div>
+          {drawerAction.onAction ? (
+            <Button type="button" size="sm" variant={drawerAction.tone === 'ready' ? 'default' : 'outline'} className="shrink-0" onClick={drawerAction.onAction}>
+              {drawerAction.actionText}
             </Button>
           ) : null}
         </div>
@@ -118,7 +158,7 @@ export function ContentWorkbenchUnitInspector({
         onSelectUnit={onSelectUnit}
         onCreateUnit={onCreateUnit}
         onAiSuggest={onAiSuggest}
-        onAiVisualPlan={onAiVisualPlan}
+        onAiVisualTaskGraph={onAiVisualTaskGraph}
         onCreateAssetSlot={onCreateAssetSlot}
         onCreateKeyframe={onCreateKeyframe}
         onOpenCanvas={onOpenCanvas}
@@ -127,6 +167,86 @@ export function ContentWorkbenchUnitInspector({
       />
     </aside>
   )
+}
+
+function buildContentUnitDrawerAction({
+  row,
+  unit,
+  onCreateUnit,
+  onAiSuggest,
+  onAiVisualTaskGraph,
+  onCreateAssetSlot,
+  onCreateKeyframe,
+  onOpenCanvas,
+}: {
+  row: ContentGenerationMomentRow | null
+  unit: WorkbenchRecord | null
+  onCreateUnit: () => void
+  onAiSuggest?: () => void
+  onAiVisualTaskGraph?: () => void
+  onCreateAssetSlot?: () => void
+  onCreateKeyframe?: () => void
+  onOpenCanvas?: () => void
+}) {
+  if (!row) {
+    return {
+      tone: 'idle' as const,
+      label: '选择情节',
+      detail: '先从左侧情节导航选择一个情节，再规划它需要的镜头组合。',
+      actionText: '选择情节',
+    }
+  }
+  if (!unit) {
+    return {
+      tone: 'blocked' as const,
+      label: '规划镜头方案',
+      detail: '当前情节还没有选中的镜头。先选择一个镜头，或让 AI 帮你拆分这一段情节。',
+      actionText: '新建镜头',
+      onAction: onCreateUnit,
+    }
+  }
+
+  const unitSlots = row.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && Number(slot.owner_id) === unit.ID)
+  const missingSlots = unitSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
+  const unitKeyframes = row.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID)
+  const hasPrompt = Boolean(firstText(unit.prompt, unit.description))
+  const requiresKeyframe = contentWorkbenchUnitRequiresKeyframe(unit.kind)
+
+  if (!hasPrompt) {
+    return {
+      tone: 'blocked' as const,
+      label: '补齐生成目标',
+      detail: '当前镜头缺少描述或提示词，生成前需要先说明画面、声音或叙事目标。',
+      actionText: onAiVisualTaskGraph ? '让 AI 起草' : '补齐输入',
+      onAction: onAiVisualTaskGraph,
+    }
+  }
+  if (missingSlots.length > 0) {
+    return {
+      tone: 'blocked' as const,
+      label: '补素材',
+      detail: `${missingSlots.length} 个素材缺口仍在阻塞生成。先上传或绑定候选素材。`,
+      actionText: '补素材',
+      onAction: onCreateAssetSlot,
+    }
+  }
+  if (requiresKeyframe && unitKeyframes.length === 0) {
+    return {
+      tone: 'blocked' as const,
+      label: '建立关键画面',
+      detail: '镜头条目需要至少一个关键帧作为视频生成的画面锚点。',
+      actionText: '新建关键帧',
+      onAction: onCreateKeyframe,
+    }
+  }
+
+  return {
+    tone: 'ready' as const,
+    label: '开始生成视频',
+    detail: '当前镜头的核心输入已经具备，可以进入生成画布检查并发起视频生成。',
+    actionText: '生成画布',
+    onAction: onOpenCanvas,
+  }
 }
 
 export function UnitProductionTrack({
@@ -234,35 +354,35 @@ export function UnitProductionTrack({
             </div>
             <p className="mt-1 type-label leading-5 text-muted-foreground">{summary.detail}</p>
           </div>
-          <Badge variant="outline">{row ? '待制作项' : '待情节'}</Badge>
+          <Badge variant="outline">{row ? '待镜头方案' : '待情节'}</Badge>
         </div>
         <div className="mt-3 overflow-hidden border-t border-border" data-testid="content-workbench-unit-schedule">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-2.5 py-2">
             <div className="flex min-w-0 items-center gap-2 type-body font-medium text-foreground">
               <Clock3 size={14} className="shrink-0 text-muted-foreground" />
-              <span className="truncate">制作项时间表</span>
+              <span className="truncate">镜头方案</span>
             </div>
             <Badge variant="outline">等待输入</Badge>
           </div>
           <div className="px-3 py-5 type-body text-muted-foreground">
-            <p className="font-medium text-foreground">{row ? '当前情节还没有制作项' : '先选择一个情节'}</p>
+            <p className="font-medium text-foreground">{row ? '当前情节还没有镜头方案' : '先选择一个情节'}</p>
             <p className="mt-1 type-label leading-5 text-muted-foreground">
               {row
-                ? '添加或采纳制作项后，这里会显示时间位置、对白/声音、关键帧和素材缺口。'
-                : '选择情节后，这里会显示该情节的制作项时间表和右侧可编辑卡片。'}
+                ? '先把情节拆成一组镜头，再逐个补齐时间位置、对白/声音、关键帧和素材缺口。'
+                : '选择情节后，这里会显示该情节的镜头方案和右侧可编辑详情。'}
             </p>
             {row ? (
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" className="gap-1.5" onClick={onCreateUnit}>
-                  <Plus size={14} />
-                  添加制作项
-                </Button>
                 {onAiSuggest ? (
-                  <Button size="sm" variant="outline" className="gap-1.5" onClick={onAiSuggest}>
+                  <Button size="sm" className="gap-1.5" onClick={onAiSuggest}>
                     <Sparkles size={14} />
-                    让 AI 规划制作项
+                    AI 规划镜头方案
                   </Button>
                 ) : null}
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={onCreateUnit}>
+                  <Plus size={14} />
+                  手动添加镜头
+                </Button>
               </div>
             ) : (
               <Button size="sm" variant="outline" className="mt-3 gap-1.5" onClick={onSelectFirstMoment}>
@@ -289,6 +409,15 @@ export function UnitProductionTrack({
   const selectedTimelineItemStartSec = selectedTimelineItem ? contentWorkbenchLocalTimelineSec(selectedTimelineItem.startSec, timelineOriginSec) : 0
   const focusedTimeline = timelineOriginSec > 0
   const canDragUnits = Boolean(row && visibleSummary.total > 0 && !isReordering)
+  const sceneIntentText = row ? firstText(row.moment.description, row.moment.content, row.moment.prompt, row.title) : ''
+  const scenePlanMeta = row
+    ? [
+        `${summary.items.length} 个镜头`,
+        row.references.length > 0 ? `${row.references.length} 个设定` : '',
+        row.scriptBlocks.length > 0 ? `${row.scriptBlocks.length} 条内容` : '',
+        summary.blockedCount > 0 ? `${summary.blockedCount} 个待补齐` : `${summary.readyCount} 个可生成`,
+      ].filter(Boolean)
+    : []
   useEffect(() => {
     if ((!selectedUnit || !showInlineEditor) && schedulePanel === 'edit') setSchedulePanel('timeline')
   }, [schedulePanel, selectedUnit, showInlineEditor])
@@ -346,7 +475,7 @@ export function UnitProductionTrack({
     return {
       key: kind,
       label: trackKindLabel(kind),
-      detail: kind === 'shot' ? '镜头 · 关键帧挂载' : '制作项',
+      detail: kind === 'shot' ? '镜头 · 关键帧挂载' : '制作条目',
       rawItems: laneItems,
       items: laneItems.map((item) => {
         const keyframeText = item.requiresKeyframe
@@ -378,7 +507,7 @@ export function UnitProductionTrack({
           <p className="mt-1 type-label leading-5 text-muted-foreground">{summary.detail}</p>
         </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 type-label text-muted-foreground" data-testid="content-workbench-unit-track-summary">
-          <span>{summary.total} 内容单元</span>
+          <span>{summary.total} 镜头</span>
           <span className="text-border">/</span>
           <span>{formatTrackDuration(summary.durationSec)}</span>
           <span className="text-border">/</span>
@@ -412,102 +541,131 @@ export function UnitProductionTrack({
             </button>
           ))}
         </div>
-        <Button size="sm" className="gap-1.5" onClick={onCreateUnit} data-testid="content-workbench-create-unit-from-track">
-          <Plus size={14} />
-          新建
-        </Button>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {onAiSuggest ? (
+            <Button size="sm" className="gap-1.5" onClick={onAiSuggest} data-testid="content-workbench-ai-shot-taskGraph">
+              <Sparkles size={14} />
+              AI 规划镜头方案
+            </Button>
+          ) : null}
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={onCreateUnit} data-testid="content-workbench-create-unit-from-track">
+            <Plus size={14} />
+            手动添加镜头
+          </Button>
+        </div>
+      </div>
+
+      <div className="mt-3 border-y border-border bg-muted/20 px-3 py-2.5" data-testid="content-workbench-scene-shot-taskGraph-brief">
+        <div className="flex flex-wrap items-start justify-between gap-2.5">
+          <div className="min-w-0">
+            <p className="type-label font-semibold text-foreground">情节表达目标</p>
+            <p className="mt-1 line-clamp-3 type-label leading-5 text-muted-foreground">{sceneIntentText || '这个情节还缺少可用于拆分镜头的描述。'}</p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-1">
+            {scenePlanMeta.map((item) => (
+              <Badge key={item} variant="outline">{item}</Badge>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="mt-2.5 pb-1">
         {visibleSummary.items.length > 0 ? (
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {visibleSummary.items.map((item, index) => {
-            const previousItem = visibleSummary.items[index - 1]
-            const nextItem = visibleSummary.items[index + 1]
-            return (
-            <div
-              key={item.id}
-              draggable={canDragUnits}
-              data-testid="content-workbench-unit-card"
-              data-track-item-id={item.id}
-              aria-grabbed={draggedUnitId === Number(item.id)}
-              title={canDragUnits ? '拖动到下方时间轴调整开始时间' : undefined}
-              onDragStart={(event) => handleUnitDragStart(event, Number(item.id))}
-              onDragOver={(event) => {
-                if (!canDragUnits) return
-                event.preventDefault()
-                event.dataTransfer.dropEffect = 'move'
-              }}
-              onDrop={(event) => handleUnitDrop(event, Number(item.id))}
-              onDragEnd={() => setDraggedUnitId(null)}
-              className={cn(
-                'min-w-0 rounded-md border px-2 py-1.5 text-left transition-colors',
-                canDragUnits ? 'cursor-grab active:cursor-grabbing' : '',
-                item.selected
-                  ? 'border-primary/60 bg-primary/5'
-                  : item.tone === 'blocked'
-                    ? 'border-amber-200 bg-amber-50/60 hover:border-primary/50 hover:bg-primary/5 dark:border-amber-900/60 dark:bg-amber-950/20'
-                    : 'border-border bg-card hover:border-primary/50 hover:bg-primary/5',
-              )}
-            >
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-                  onClick={() => selectOrClearUnit(Number(item.id))}
-                >
-                  <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 type-tiny font-semibold text-muted-foreground">{item.identifier || String(index + 1).padStart(2, '0')}</span>
-                  <span className="min-w-0 flex-1 truncate type-body font-medium text-foreground">{item.title}</span>
-                </button>
-                {canDragUnits ? (
-                  <span className="flex shrink-0 items-center gap-0.5">
-                    <button
-                      type="button"
-                      data-testid="content-workbench-unit-move-earlier"
-                      aria-label={`前移 ${item.title}`}
-                      title="前移"
-                      disabled={!previousItem || isReordering}
-                      onClick={() => {
-                        if (!previousItem) return
-                        onReorderUnit(Number(item.id), Number(previousItem.id), 'before')
-                      }}
-                      className="inline-flex h-6 w-6 items-center justify-center rounded border border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground disabled:pointer-events-none disabled:opacity-35"
-                    >
-                      <ArrowLeft size={12} />
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="content-workbench-unit-move-later"
-                      aria-label={`后移 ${item.title}`}
-                      title="后移"
-                      disabled={!nextItem || isReordering}
-                      onClick={() => {
-                        if (!nextItem) return
-                        onReorderUnit(Number(item.id), Number(nextItem.id), 'after')
-                      }}
-                      className="inline-flex h-6 w-6 items-center justify-center rounded border border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground disabled:pointer-events-none disabled:opacity-35"
-                    >
-                      <ArrowRight size={12} />
-                    </button>
-                  </span>
-                ) : null}
+          <div className="overflow-x-auto border-y border-border" data-testid="content-workbench-execution-list">
+            <div className="min-w-[760px]">
+              <div className="grid grid-cols-[64px_minmax(220px,1.2fr)_minmax(200px,1fr)_minmax(190px,0.9fr)_92px] gap-2 bg-muted/30 px-2.5 py-2 type-caption font-medium text-muted-foreground">
+                <span>镜头</span>
+                <span>画面目标</span>
+                <span>承载作用</span>
+                <span>准备状态</span>
+                <span>调整</span>
               </div>
-              <button type="button" className="mt-1 block w-full text-left" onClick={() => selectOrClearUnit(Number(item.id))}>
-                <span className="block truncate type-caption text-muted-foreground">{trackKindLabel(item.kind)} · {item.labels.slice(0, 2).join(' · ') || '待补输入'}</span>
-                {item.sceneMomentTitle ? (
-                  <span className="mt-1 block truncate type-caption text-muted-foreground">情节：{item.sceneMomentTitle}</span>
-                ) : null}
-                <span className="mt-1 block truncate type-caption text-muted-foreground">
-                  {item.summary || item.scriptCue || item.soundCue || '待补输入'}
-                </span>
-              </button>
+              {visibleSummary.items.map((item, index) => {
+                const previousItem = visibleSummary.items[index - 1]
+                const nextItem = visibleSummary.items[index + 1]
+                const itemAction = contentWorkbenchUnitExecutionAction(item)
+                const purposeText = contentWorkbenchUnitNarrativePurpose(item)
+                return (
+                  <div
+                    key={item.id}
+                    draggable={canDragUnits}
+                    data-testid="content-workbench-unit-card"
+                    data-track-item-id={item.id}
+                    aria-grabbed={draggedUnitId === Number(item.id)}
+                    title={canDragUnits ? '拖动到下方时间轴调整开始时间' : undefined}
+                    onDragStart={(event) => handleUnitDragStart(event, Number(item.id))}
+                    onDragOver={(event) => {
+                      if (!canDragUnits) return
+                      event.preventDefault()
+                      event.dataTransfer.dropEffect = 'move'
+                    }}
+                    onDrop={(event) => handleUnitDrop(event, Number(item.id))}
+                    onDragEnd={() => setDraggedUnitId(null)}
+                    className={cn(
+                      'grid grid-cols-[64px_minmax(220px,1.2fr)_minmax(200px,1fr)_minmax(190px,0.9fr)_92px] gap-2 border-t border-border px-2.5 py-2.5 transition-colors',
+                      canDragUnits ? 'cursor-grab active:cursor-grabbing' : '',
+                      item.selected ? 'bg-primary/5' : 'bg-card hover:bg-primary/5',
+                    )}
+                  >
+                    <button type="button" className="text-left" onClick={() => selectOrClearUnit(Number(item.id))}>
+                      <span className="rounded bg-muted px-1.5 py-0.5 type-tiny tabular-nums font-semibold text-muted-foreground">{item.identifier || String(index + 1).padStart(2, '0')}</span>
+                      <span className="mt-1 block truncate type-tiny text-muted-foreground">{trackKindLabel(item.kind)}</span>
+                    </button>
+                    <button type="button" className="min-w-0 text-left" onClick={() => selectOrClearUnit(Number(item.id))}>
+                      <span className="block truncate type-body font-medium text-foreground">{item.title}</span>
+                      <span className="mt-0.5 block truncate type-caption text-muted-foreground">{item.summary || item.scriptCue || item.soundCue || '待补画面描述'}</span>
+                    </button>
+                    <button type="button" className="min-w-0 text-left" onClick={() => selectOrClearUnit(Number(item.id))}>
+                      <span className="block truncate type-label text-foreground">{purposeText.title}</span>
+                      <span className="mt-0.5 block truncate type-caption text-muted-foreground">{purposeText.detail}</span>
+                    </button>
+                    <button type="button" className="min-w-0 text-left" onClick={() => selectOrClearUnit(Number(item.id))}>
+                      <span className={cn('inline-flex items-center gap-1 rounded border px-1.5 py-0.5 type-caption font-medium', itemAction.tone === 'ready' ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-emerald-200' : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200')}>
+                        {itemAction.tone === 'ready' ? <Play size={12} /> : <AlertTriangle size={12} />}
+                        {itemAction.label}
+                      </span>
+                      <span className="mt-0.5 block truncate type-caption text-muted-foreground">{formatTrackTimeRange(contentWorkbenchLocalTimelineSec(item.startSec, timelineOriginSec), contentWorkbenchLocalTimelineSec(item.endSec, timelineOriginSec), item.durationSec)} · {itemAction.detail}</span>
+                    </button>
+                    {canDragUnits ? (
+                      <span className="flex shrink-0 items-center gap-0.5">
+                        <button
+                          type="button"
+                          data-testid="content-workbench-unit-move-earlier"
+                          aria-label={`前移 ${item.title}`}
+                          title="前移"
+                          disabled={!previousItem || isReordering}
+                          onClick={() => {
+                            if (!previousItem) return
+                            onReorderUnit(Number(item.id), Number(previousItem.id), 'before')
+                          }}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded border border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground disabled:pointer-events-none disabled:opacity-35"
+                        >
+                          <ArrowLeft size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="content-workbench-unit-move-later"
+                          aria-label={`后移 ${item.title}`}
+                          title="后移"
+                          disabled={!nextItem || isReordering}
+                          onClick={() => {
+                            if (!nextItem) return
+                            onReorderUnit(Number(item.id), Number(nextItem.id), 'after')
+                          }}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded border border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground disabled:pointer-events-none disabled:opacity-35"
+                        >
+                          <ArrowRight size={12} />
+                        </button>
+                      </span>
+                    ) : null}
+                  </div>
+                )
+              })}
             </div>
-            )
-          })}
           </div>
         ) : (
           <div className="rounded-md border border-dashed border-border px-3 py-4 text-center type-body text-muted-foreground">
-            当前类型下没有内容单元。
+            当前类型下没有镜头。
           </div>
         )}
       </div>
@@ -524,7 +682,7 @@ export function UnitProductionTrack({
               onClick={() => setSchedulePanel('timeline')}
             >
               <Clock3 size={14} />
-              制作项时间轴
+              方案时间轴
             </button>
             {selectedUnit && showInlineEditor ? (
               <button
@@ -536,7 +694,7 @@ export function UnitProductionTrack({
                 onClick={() => setSchedulePanel('edit')}
               >
                 <FileText size={14} />
-                内容编辑
+                镜头编辑
               </button>
             ) : null}
           </div>
@@ -821,4 +979,88 @@ function formatTrackDuration(seconds: number) {
   const minutes = Math.floor(seconds / 60)
   const rest = Math.round(seconds % 60)
   return rest > 0 ? `${minutes}m ${rest}s` : `${minutes}m`
+}
+
+function contentWorkbenchUnitExecutionAction(item: {
+  tone: string
+  blockers: string[]
+}) {
+  if (item.blockers.includes('缺提示')) {
+    return {
+      tone: 'blocked' as const,
+      label: '补生成目标',
+      detail: '先补清画面、声音或叙事意图',
+    }
+  }
+  if (item.blockers.includes('缺素材')) {
+    return {
+      tone: 'blocked' as const,
+      label: '补素材',
+      detail: '上传或绑定可用素材',
+    }
+  }
+  if (item.blockers.includes('缺关键帧')) {
+    return {
+      tone: 'blocked' as const,
+      label: '建关键帧',
+      detail: '为镜头建立画面锚点',
+    }
+  }
+  if (item.tone === 'ready') {
+    return {
+      tone: 'ready' as const,
+      label: '开始生成',
+      detail: '打开抽屉进入生成画布',
+    }
+  }
+  if (item.tone === 'running') {
+    return {
+      tone: 'ready' as const,
+      label: '看进度',
+      detail: '检查生成任务和预览结果',
+    }
+  }
+  return {
+    tone: 'blocked' as const,
+    label: '确认输入',
+    detail: '打开抽屉检查条目内容',
+  }
+}
+
+function contentWorkbenchUnitNarrativePurpose(item: {
+  kind: string
+  scriptCue: string
+  soundCue: string
+  keyframeTitles: string[]
+  missingAssetTitles: string[]
+  labels: string[]
+}) {
+  if (item.scriptCue) {
+    return {
+      title: '承接内容条目',
+      detail: item.scriptCue,
+    }
+  }
+  if (item.soundCue) {
+    return {
+      title: '承接声音设计',
+      detail: item.soundCue,
+    }
+  }
+  if (item.keyframeTitles.length > 0) {
+    return {
+      title: '锚定关键画面',
+      detail: item.keyframeTitles.slice(0, 2).join('、'),
+    }
+  }
+  if (item.missingAssetTitles.length > 0) {
+    return {
+      title: '等待素材补齐',
+      detail: item.missingAssetTitles.slice(0, 2).join('、'),
+    }
+  }
+  return {
+    title: item.kind === 'shot' ? '补全镜头作用' : '补全制作作用',
+    detail: item.labels.join(' · '),
+  }
 }

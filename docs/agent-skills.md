@@ -106,7 +106,7 @@ The agent keeps three separate states:
 Core skills may be active by default. Specialist skills should normally use
 `load: on_demand` so their full body stays out of the prompt until selected.
 
-The runtime exposes `movscript_update_active_skills` for same-run switching:
+The runtime exposes `core_skill_update` for same-run switching:
 
 ```json
 {
@@ -124,7 +124,7 @@ Declared `dependencies` are expanded automatically when loading a skill. Declare
 `conflicts` are enforced by default: if a request would load mutually exclusive
 skills, the runtime returns `status: "conflict"` and `requiresUserInput: true`
 without writing the conflicting skill state. The agent should then ask the user
-which style or specialist to use, usually with `movscript_request_user_input`.
+which style or specialist to use, usually with `core_user_input_request`.
 
 ## Trace Contract
 

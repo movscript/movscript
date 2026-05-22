@@ -27,7 +27,7 @@ test('projectRunOntoTask completes tasks and records run artifact provenance', (
     runStatus: 'completed_with_warnings',
     sourceRunRole: 'worker',
     parentRunId: 'run_planner',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     sourceTaskId: 'task_1',
     subagentName: 'Einstein',
   })
@@ -39,7 +39,7 @@ test('projectRunOntoTask adds rollback policy artifacts once', () => {
     status: 'completed',
     metadata: {
       rollbackRecords: [{
-        call: { name: 'movscript_create_project' },
+        call: { name: 'movscript_project_create' },
         rollback: { policy: 'manual_compensation', reason: 'External write completed.' },
       }],
     },
@@ -57,7 +57,7 @@ test('projectRunOntoTask ignores non-plain rollback and subagent metadata record
   class RunMetadata {
     subagentName = 'Einstein'
     rollbackRecords = [{
-      call: { name: 'movscript_create_project' },
+      call: { name: 'movscript_project_create' },
       rollback: { policy: 'manual_compensation', reason: 'External write completed.' },
     }]
   }
@@ -140,7 +140,7 @@ test('projectRunOntoTask ignores non-terminal active runs', () => {
 function buildTask(input: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'pending',
@@ -157,7 +157,7 @@ function buildRun(input: Partial<AgentRun>): AgentRun {
     id: 'run_1',
     threadId: 'thread_1',
     status: 'queued',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_1',
     policy: {
       approvalMode: 'interactive',

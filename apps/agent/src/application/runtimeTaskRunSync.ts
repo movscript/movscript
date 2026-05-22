@@ -11,7 +11,7 @@ export interface RuntimeTaskRunSyncResult {
   run: AgentRun
   task: AgentTask
   previousTask: AgentTask
-  planId: string
+  taskGraphId: string
 }
 
 export function syncRuntimeTaskFromRun(input: {
@@ -20,7 +20,7 @@ export function syncRuntimeTaskFromRun(input: {
   now: string
 }): RuntimeTaskRunSyncResult | undefined {
   const run = input.store.getRun(input.runId)
-  if (!run?.planId || !run.taskId) return undefined
+  if (!run?.taskGraphId || !run.taskId) return undefined
 
   const task = input.store.getTask(run.taskId)
   if (!task) return undefined
@@ -29,44 +29,44 @@ export function syncRuntimeTaskFromRun(input: {
   if (!projectRunOntoTask(task, run, input.now)) return undefined
 
   input.store.updateTask(task)
-  return { run, task, previousTask, planId: run.planId }
+  return { run, task, previousTask, taskGraphId: run.taskGraphId }
 }
 
 export function applyRuntimeTaskRunSync(input: {
   store: Pick<AgentStore, 'getRun' | 'getTask' | 'updateTask'>
   runId: string
   now: string
-  onPlanSynced?: (planId: string) => void
-  onTaskSynced?: (task: AgentTask, previousTask: AgentTask, planId: string) => void
+  onPlanSynced?: (taskGraphId: string) => void
+  onTaskSynced?: (task: AgentTask, previousTask: AgentTask, taskGraphId: string) => void
 }): RuntimeTaskRunSyncResult | undefined {
   const result = syncRuntimeTaskFromRun(input)
   if (!result) return undefined
-  input.onPlanSynced?.(result.planId)
-  input.onTaskSynced?.(result.task, result.previousTask, result.planId)
+  input.onPlanSynced?.(result.taskGraphId)
+  input.onTaskSynced?.(result.task, result.previousTask, result.taskGraphId)
   return result
 }
 
 export function applyRuntimeTaskRunSyncRequest(input: {
-  store: Pick<AgentStore, 'getRun' | 'getTask' | 'updateTask' | 'getPlan'>
+  store: Pick<AgentStore, 'getRun' | 'getTask' | 'updateTask' | 'getTaskGraph'>
   runId: string
   now: string
-  recomputePlanStatus: (planId: string) => void
+  recomputePlanStatus: (taskGraphId: string) => void
   recordTrace: (run: AgentRun, trace: RuntimeTaskProtocolTraceInput) => void
-  emitPlanTaskEvent: (planId: string, task: AgentTask) => void
+  emitPlanTaskEvent: (taskGraphId: string, task: AgentTask) => void
 }): RuntimeTaskRunSyncResult | undefined {
   return applyRuntimeTaskRunSync({
     store: input.store,
     runId: input.runId,
     now: input.now,
     onPlanSynced: input.recomputePlanStatus,
-    onTaskSynced: (task, previousTask, planId) => {
+    onTaskSynced: (task, previousTask, taskGraphId) => {
       applyRuntimeTaskProtocolEvents({
         store: input.store,
         task,
         previous: previousTask,
         recordTrace: input.recordTrace,
       })
-      input.emitPlanTaskEvent(planId, task)
+      input.emitPlanTaskEvent(taskGraphId, task)
     },
   })
 }

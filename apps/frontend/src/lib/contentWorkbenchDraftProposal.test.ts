@@ -60,7 +60,7 @@ test('content workbench proposal helpers preserve visual planning metadata', () 
     title: '纸条特写',
     kind: 'shot',
     description: '纸条从伞骨滑出。',
-    visual_plan: {
+    visual_taskGraph: {
       space: '伞面占据前景。',
       beats: ['纸条滑出', '落入水洼'],
     },
@@ -72,7 +72,7 @@ test('content workbench proposal helpers preserve visual planning metadata', () 
 
   assert.equal(typeof defaults.metadata_json, 'string')
   const metadata = JSON.parse(defaults.metadata_json ?? '{}')
-  assert.equal(metadata.visual_plan.space, '伞面占据前景。')
-  assert.deepEqual(metadata.visual_plan.beats, ['纸条滑出', '落入水洼'])
+  assert.equal(metadata.visual_taskGraph.space, '伞面占据前景。')
+  assert.deepEqual(metadata.visual_taskGraph.beats, ['纸条滑出', '落入水洼'])
   assert.equal(metadata.storyboard_brief.purpose, '确认纸条是剧情证据。')
 })

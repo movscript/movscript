@@ -77,7 +77,7 @@ function artifactProvenanceFromRun(run: AgentRun, createdFrom: string): Record<s
     runStatus: run.status,
     ...(run.role ? { sourceRunRole: run.role } : {}),
     ...(run.parentRunId ? { parentRunId: run.parentRunId } : {}),
-    ...(run.planId ? { planId: run.planId } : {}),
+    ...(run.taskGraphId ? { taskGraphId: run.taskGraphId } : {}),
     ...(run.taskId ? { sourceTaskId: run.taskId } : {}),
     ...(subagentName ? { subagentName } : {}),
   }

@@ -1,37 +1,37 @@
 import type { AgentStore } from '../state/store.js'
 import type {
-  AgentPlan,
+  AgentTaskGraph,
   AgentRun,
   AgentTask,
-  DispatchPlanInput,
-  DispatchPlanResult,
-  ReplanRunInput,
-  ReplanRunResult,
-  UpdatePlanTaskInput,
+  DispatchTaskGraphInput,
+  DispatchTaskGraphResult,
+  UpdateTaskGraphInput,
+  UpdateTaskGraphResult,
+  UpdateTaskGraphTaskInput,
 } from '../state/types.js'
 import {
   normalizeAndValidateReplanTaskUpdates,
-  normalizeReplanTaskInputsForPlan,
+  normalizeReplanTaskInputsForTaskGraph,
   normalizeReplanTaskUpdateInputs,
 } from '../state/replanTaskValidation.js'
 import {
-  assertPlannerRunCanUsePlan,
+  assertPlannerRunCanUseTaskGraph,
   selectReplanPlannerRunId,
 } from '../state/planRunBinding.js'
 import { assertRunCanOwnTask } from '../state/planTaskOwner.js'
 import { assertSubagentNamesUniqueForTaskMap } from '../state/subagentNameValidation.js'
-import { requireRuntimePlan, requireRuntimeRun } from './runtimeStoreLookup.js'
+import { requireRuntimeTaskGraph, requireRuntimeRun } from './runtimeStoreLookup.js'
 import { requireRuntimePlannerRun } from './runtimePlanBinding.js'
 import { buildRuntimeReplanTasksToCreate } from './runtimeReplanTaskCreation.js'
 import { applyRuntimeReplanTaskReset } from './runtimePlanTaskMaintenance.js'
 
 export interface RuntimeReplanPreparation {
   run: AgentRun
-  plan: AgentPlan
+  taskGraph: AgentTaskGraph
   plannerRunId: string
   plannerRun: AgentRun
   tasksToCreate: AgentTask[]
-  updatesToApply: Array<{ taskId: string; update: UpdatePlanTaskInput }>
+  updatesToApply: Array<{ taskId: string; update: UpdateTaskGraphTaskInput }>
 }
 
 export interface RuntimeReplanTaskApplication {
@@ -39,35 +39,35 @@ export interface RuntimeReplanTaskApplication {
   updatedTaskIds: string[]
 }
 
-export function prepareRuntimeReplan(input: {
-  store: Pick<AgentStore, 'getRun' | 'getPlan' | 'getTask' | 'listTasks' | 'listRuns'>
+export function prepareRuntimeRetaskGraph(input: {
+  store: Pick<AgentStore, 'getRun' | 'getTaskGraph' | 'getTask' | 'listTasks' | 'listRuns'>
   runId: string
-  replanInput?: ReplanRunInput
+  replanInput?: UpdateTaskGraphInput
   now: string
 }): RuntimeReplanPreparation {
   const replanInput = input.replanInput ?? {}
   const run = requireRuntimeRun(input.store, input.runId)
-  if (!run.planId) throw new Error(`run ${input.runId} is not attached to a plan`)
-  const plan = requireRuntimePlan(input.store, run.planId)
-  const plannerRunId = selectReplanPlannerRunId({ run, plan, inputPlannerRunId: replanInput.plannerRunId })
+  if (!run.taskGraphId) throw new Error(`run ${input.runId} is not attached to a task graph`)
+  const taskGraph = requireRuntimeTaskGraph(input.store, run.taskGraphId)
+  const plannerRunId = selectReplanPlannerRunId({ run, taskGraph, inputPlannerRunId: replanInput.plannerRunId })
   const plannerRun = requireRuntimePlannerRun(input.store, plannerRunId)
-  assertPlannerRunCanUsePlan({ plannerRun, plan, action: 'replan' })
+  assertPlannerRunCanUseTaskGraph({ plannerRun, taskGraph, action: 'updateTaskGraph' })
 
-  const taskInputs = normalizeReplanTaskInputsForPlan({
-    planId: plan.id,
+  const taskInputs = normalizeReplanTaskInputsForTaskGraph({
+    taskGraphId: taskGraph.id,
     tasks: replanInput.tasks,
     addTasks: replanInput.addTasks,
     getTask: (taskId) => input.store.getTask(taskId),
   })
   const tasksToCreate = buildRuntimeReplanTasksToCreate({
     store: input.store,
-    planId: plan.id,
+    taskGraphId: taskGraph.id,
     inputs: taskInputs.creates,
     now: input.now,
   })
   const updatesToApply = normalizeAndValidateReplanTaskUpdates({
-    planId: plan.id,
-    existingTasks: input.store.listTasks(plan.id),
+    taskGraphId: taskGraph.id,
+    existingTasks: input.store.listTasks(taskGraph.id),
     tasksToCreate,
     updates: [
       ...taskInputs.updates,
@@ -78,15 +78,15 @@ export function prepareRuntimeReplan(input: {
       assertRunCanOwnTask(requireRuntimeRun(input.store, ownerRunId), task)
     },
     validateTaskNames: (tasksById) => assertSubagentNamesUniqueForTaskMap({
-      planId: plan.id,
+      taskGraphId: taskGraph.id,
       tasksById,
-      runs: input.store.listRuns({ planId: plan.id }),
+      runs: input.store.listRuns({ taskGraphId: taskGraph.id }),
     }),
   })
 
   return {
     run,
-    plan,
+    taskGraph,
     plannerRunId,
     plannerRun,
     tasksToCreate,
@@ -97,8 +97,8 @@ export function prepareRuntimeReplan(input: {
 export function applyRuntimeReplanTaskChanges(input: {
   store: Pick<AgentStore, 'createTask'>
   tasksToCreate: AgentTask[]
-  updatesToApply: Array<{ taskId: string; update: UpdatePlanTaskInput }>
-  updateTask: (taskId: string, update: UpdatePlanTaskInput) => AgentTask
+  updatesToApply: Array<{ taskId: string; update: UpdateTaskGraphTaskInput }>
+  updateTask: (taskId: string, update: UpdateTaskGraphTaskInput) => AgentTask
   onTaskCreated?: (task: AgentTask) => void
 }): RuntimeReplanTaskApplication {
   const createdTaskIds: string[] = []
@@ -120,27 +120,27 @@ export function applyRuntimeReplanTaskChanges(input: {
   }
 }
 
-export function finalizeRuntimeReplan(input: {
-  store: Pick<AgentStore, 'getPlan'>
-  planId: string
+export function finalizeRuntimeRetaskGraph(input: {
+  store: Pick<AgentStore, 'getTaskGraph'>
+  taskGraphId: string
   plannerRunId: string
-  replanInput: ReplanRunInput
+  replanInput: UpdateTaskGraphInput
   appliedTasks: RuntimeReplanTaskApplication
   resetTaskIds: string[]
-  recomputePlan: (planId: string) => void
-  dispatchPlan: (dispatchInput: DispatchPlanInput) => DispatchPlanResult
-}): ReplanRunResult {
-  input.recomputePlan(input.planId)
+  recomputeTaskGraph: (taskGraphId: string) => void
+  dispatchTaskGraph: (dispatchInput: DispatchTaskGraphInput) => DispatchTaskGraphResult
+}): UpdateTaskGraphResult {
+  input.recomputeTaskGraph(input.taskGraphId)
   const shouldDispatch = input.replanInput.dispatch !== false
   const dispatch = shouldDispatch
-    ? input.dispatchPlan({
+    ? input.dispatchTaskGraph({
       ...input.replanInput,
-      planId: input.planId,
+      taskGraphId: input.taskGraphId,
       plannerRunId: input.plannerRunId,
     })
     : undefined
   return {
-    plan: requireRuntimePlan(input.store, input.planId),
+    taskGraph: requireRuntimeTaskGraph(input.store, input.taskGraphId),
     createdTaskIds: input.appliedTasks.createdTaskIds,
     updatedTaskIds: input.appliedTasks.updatedTaskIds,
     resetTaskIds: input.resetTaskIds,
@@ -149,19 +149,19 @@ export function finalizeRuntimeReplan(input: {
 }
 
 export function applyRuntimeReplanRunRequest(input: {
-  store: Pick<AgentStore, 'getRun' | 'getPlan' | 'getTask' | 'listTasks' | 'listRuns' | 'createTask' | 'updateTask'>
+  store: Pick<AgentStore, 'getRun' | 'getTaskGraph' | 'getTask' | 'listTasks' | 'listRuns' | 'createTask' | 'updateTask'>
   runId: string
-  replanInput?: ReplanRunInput
+  replanInput?: UpdateTaskGraphInput
   now: string
   resetNow: string
-  updateTask: (taskId: string, update: UpdatePlanTaskInput) => AgentTask
-  recomputePlan: (planId: string) => void
-  dispatchPlan: (dispatchInput: DispatchPlanInput) => DispatchPlanResult
+  updateTask: (taskId: string, update: UpdateTaskGraphTaskInput) => AgentTask
+  recomputeTaskGraph: (taskGraphId: string) => void
+  dispatchTaskGraph: (dispatchInput: DispatchTaskGraphInput) => DispatchTaskGraphResult
   onTaskCreated?: (task: AgentTask) => void
   onTaskReset?: (task: AgentTask, previousTask: AgentTask) => void
-}): ReplanRunResult {
+}): UpdateTaskGraphResult {
   const replanInput = input.replanInput ?? {}
-  const prepared = prepareRuntimeReplan({
+  const prepared = prepareRuntimeRetaskGraph({
     store: input.store,
     runId: input.runId,
     replanInput,
@@ -176,7 +176,7 @@ export function applyRuntimeReplanRunRequest(input: {
   })
   const resetTaskIds = applyRuntimeReplanTaskReset({
     store: input.store,
-    planId: prepared.plan.id,
+    taskGraphId: prepared.taskGraph.id,
     resetTaskIds: replanInput.resetTaskIds,
     resetBlocked: replanInput.resetBlocked,
     resetNeedsReview: replanInput.resetNeedsReview,
@@ -185,15 +185,15 @@ export function applyRuntimeReplanRunRequest(input: {
     now: input.resetNow,
     onTaskReset: input.onTaskReset,
   }).resetTaskIds
-  return finalizeRuntimeReplan({
+  return finalizeRuntimeRetaskGraph({
     store: input.store,
-    planId: prepared.plan.id,
+    taskGraphId: prepared.taskGraph.id,
     plannerRunId: prepared.plannerRunId,
     replanInput,
     appliedTasks,
     resetTaskIds,
-    recomputePlan: input.recomputePlan,
-    dispatchPlan: input.dispatchPlan,
+    recomputeTaskGraph: input.recomputeTaskGraph,
+    dispatchTaskGraph: input.dispatchTaskGraph,
   })
 }
 

@@ -24,13 +24,13 @@ test('resolveRuntimeAgentManifest normalizes an explicit manifest over the catal
       id: 'explicit.agent',
       version: '1.0.0',
       name: 'Explicit Agent',
-      tools: [{ name: 'movscript_get_focus', mode: 'allow', approval: 'never' }],
+      tools: [{ name: 'movscript_focus_get', mode: 'allow', approval: 'never' }],
     },
   })
 
   assert.equal(manifest.id, 'explicit.agent')
   assert.equal(manifest.version, '1.0.0')
-  assert.deepEqual(manifest.tools, [{ name: 'movscript_get_focus', mode: 'allow', approval: 'never' }])
+  assert.deepEqual(manifest.tools, [{ name: 'movscript_focus_get', mode: 'allow', approval: 'never' }])
 })
 
 test('resolveRuntimeAgentManifest falls back to built-in defaults for invalid explicit manifests', () => {

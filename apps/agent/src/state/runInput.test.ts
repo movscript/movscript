@@ -38,21 +38,21 @@ test('buildAgentRunInputSnapshot marks worker and forced tool execution modes', 
     now: '2026-05-16T00:00:00.000Z',
     userMessage: 'worker task',
     role: 'worker',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_1',
   }).executionMode, 'worker')
 
   const toolInput = buildAgentRunInputSnapshot({
     now: '2026-05-16T00:00:00.000Z',
     userMessage: 'run tool',
-    forcedToolCall: { name: 'movscript_get_focus', args: { scope: { projectId: 1 } } },
+    forcedToolCall: { name: 'movscript_focus_get', args: { scope: { projectId: 1 } } },
   })
   assert.equal(toolInput.executionMode, 'tool')
-  assert.deepEqual(toolInput.forcedToolCall, { name: 'movscript_get_focus', args: { scope: { projectId: 1 } } })
+  assert.deepEqual(toolInput.forcedToolCall, { name: 'movscript_focus_get', args: { scope: { projectId: 1 } } })
 })
 
 test('buildAgentRunInputSnapshot isolates forced tool calls and task snapshots', () => {
-  const forcedToolCall = { name: 'movscript_get_focus', args: { scope: { projectId: 1 } } }
+  const forcedToolCall = { name: 'movscript_focus_get', args: { scope: { projectId: 1 } } }
   const task = {
     id: 'task_1',
     title: 'Draft outline',
@@ -69,7 +69,7 @@ test('buildAgentRunInputSnapshot isolates forced tool calls and task snapshots',
   forcedToolCall.args.scope.projectId = 2
   task.expectedArtifacts.push('changed.md')
 
-  assert.deepEqual(input.forcedToolCall, { name: 'movscript_get_focus', args: { scope: { projectId: 1 } } })
+  assert.deepEqual(input.forcedToolCall, { name: 'movscript_focus_get', args: { scope: { projectId: 1 } } })
   assert.deepEqual(input.task?.expectedArtifacts, ['outline.md'])
 })
 
@@ -86,7 +86,7 @@ test('resolveRunInputUserMessage prefers frozen run input over fallback', () => 
 test('buildAgentRunTaskInputSnapshot captures task instructions without mutable task state', () => {
   const task = {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Draft outline',
     description: 'Create the first outline.',
@@ -117,7 +117,7 @@ test('buildAgentRunTaskInputSnapshot ignores non-plain task metadata records', (
 
   const snapshot = buildAgentRunTaskInputSnapshot({
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Draft outline',
     status: 'pending',

@@ -4,19 +4,28 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	authapp "github.com/movscript/movscript/internal/app/auth"
 	orgapp "github.com/movscript/movscript/internal/app/org"
+	domainauth "github.com/movscript/movscript/internal/domain/auth"
+	domainorg "github.com/movscript/movscript/internal/domain/org"
+	tokenauth "github.com/movscript/movscript/internal/infra/auth"
 	"github.com/movscript/movscript/internal/interfaces/http/api"
 	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
 	"gorm.io/gorm"
 )
 
 type OrgHandler struct {
-	service *orgapp.Service
-	db      *gorm.DB
+	service     *orgapp.Service
+	authService *authapp.Service
+	db          *gorm.DB
 }
 
-func NewOrgHandler(db *gorm.DB) *OrgHandler {
-	return &OrgHandler{service: orgapp.NewService(db), db: db}
+func NewOrgHandler(db *gorm.DB, tokens ...*tokenauth.Manager) *OrgHandler {
+	return &OrgHandler{service: orgapp.NewService(db), authService: authapp.NewService(db, tokens...), db: db}
+}
+
+func isOrgForbidden(err error) bool {
+	return err == orgapp.ErrForbidden || err == orgapp.ErrPersonalOrg
 }
 
 func (h *OrgHandler) List(c *gin.Context) {
@@ -67,7 +76,7 @@ func (h *OrgHandler) Update(c *gin.Context) {
 		return
 	}
 	if err := h.service.Update(c.Request.Context(), *member, req.Name); err != nil {
-		if err == orgapp.ErrForbidden {
+		if isOrgForbidden(err) {
 			c.JSON(http.StatusForbidden, api.Forbidden("需要管理员权限"))
 			return
 		}
@@ -80,6 +89,10 @@ func (h *OrgHandler) Update(c *gin.Context) {
 func (h *OrgHandler) ListMembers(c *gin.Context) {
 	members, err := h.service.ListMembers(c.Request.Context(), currentOrgMember(c).OrgID)
 	if err != nil {
+		if isOrgForbidden(err) {
+			c.JSON(http.StatusForbidden, api.Forbidden("需要团队工作区"))
+			return
+		}
 		c.JSON(http.StatusInternalServerError, api.Internal("查询成员失败"))
 		return
 	}
@@ -103,8 +116,12 @@ func (h *OrgHandler) AddMember(c *gin.Context) {
 	}
 	member, err := h.service.AddMember(c.Request.Context(), *caller, orgapp.MemberInput{UserID: req.UserID, Username: req.Username, Role: req.Role})
 	if err != nil {
-		if err == orgapp.ErrForbidden {
+		if isOrgForbidden(err) {
 			c.JSON(http.StatusForbidden, api.Forbidden("需要管理员权限"))
+			return
+		}
+		if err == orgapp.ErrInvalidRole {
+			c.JSON(http.StatusBadRequest, api.InvalidInput("角色无效"))
 			return
 		}
 		if orgapp.IsDuplicateKey(err) {
@@ -148,8 +165,16 @@ func (h *OrgHandler) UpdateMember(c *gin.Context) {
 		return
 	}
 	if err := h.service.UpdateMember(c.Request.Context(), *caller, parseID(c.Param("userId")), req.Role); err != nil {
-		if err == orgapp.ErrForbidden {
+		if isOrgForbidden(err) {
 			c.JSON(http.StatusForbidden, api.Forbidden("需要管理员权限"))
+			return
+		}
+		if err == orgapp.ErrInvalidRole {
+			c.JSON(http.StatusBadRequest, api.InvalidInput("角色无效"))
+			return
+		}
+		if err == orgapp.ErrLastOwner {
+			c.JSON(http.StatusConflict, api.Conflict("组织至少需要保留一名所有者"))
 			return
 		}
 		c.JSON(http.StatusInternalServerError, api.Internal("更新角色失败"))
@@ -161,8 +186,12 @@ func (h *OrgHandler) UpdateMember(c *gin.Context) {
 func (h *OrgHandler) RemoveMember(c *gin.Context) {
 	caller := currentOrgMember(c)
 	if err := h.service.RemoveMember(c.Request.Context(), *caller, parseID(c.Param("userId"))); err != nil {
-		if err == orgapp.ErrForbidden {
+		if isOrgForbidden(err) {
 			c.JSON(http.StatusForbidden, api.Forbidden("需要管理员权限"))
+			return
+		}
+		if err == orgapp.ErrLastOwner {
+			c.JSON(http.StatusConflict, api.Conflict("组织至少需要保留一名所有者"))
 			return
 		}
 		if err == orgapp.ErrNotFound {
@@ -191,7 +220,7 @@ func (h *OrgHandler) RemoveMember(c *gin.Context) {
 func (h *OrgHandler) ListInvitations(c *gin.Context) {
 	items, err := h.service.ListInvitations(c.Request.Context(), currentDomainOrgMember(c))
 	if err != nil {
-		if err == orgapp.ErrForbidden {
+		if isOrgForbidden(err) {
 			c.JSON(http.StatusForbidden, api.Forbidden("需要管理员权限"))
 			return
 		}
@@ -213,8 +242,12 @@ func (h *OrgHandler) CreateInvitation(c *gin.Context) {
 	}
 	inv, err := h.service.CreateInvitation(c.Request.Context(), *caller, currentUser(c).ID, orgapp.InvitationInput{Role: req.Role, Note: req.Note})
 	if err != nil {
-		if err == orgapp.ErrForbidden {
+		if isOrgForbidden(err) {
 			c.JSON(http.StatusForbidden, api.Forbidden("需要管理员权限"))
+			return
+		}
+		if err == orgapp.ErrInvalidRole {
+			c.JSON(http.StatusBadRequest, api.InvalidInput("角色无效"))
 			return
 		}
 		c.JSON(http.StatusInternalServerError, api.Internal("创建邀请失败"))
@@ -226,7 +259,7 @@ func (h *OrgHandler) CreateInvitation(c *gin.Context) {
 func (h *OrgHandler) RevokeInvitation(c *gin.Context) {
 	caller := currentOrgMember(c)
 	if err := h.service.RevokeInvitation(c.Request.Context(), *caller, parseID(c.Param("invId"))); err != nil {
-		if err == orgapp.ErrForbidden {
+		if isOrgForbidden(err) {
 			c.JSON(http.StatusForbidden, api.Forbidden("需要管理员权限"))
 			return
 		}
@@ -239,6 +272,10 @@ func (h *OrgHandler) RevokeInvitation(c *gin.Context) {
 func (h *OrgHandler) GetInvitation(c *gin.Context) {
 	inv, org, err := h.service.GetInvitation(c.Request.Context(), c.Param("token"))
 	if err != nil {
+		if err == orgapp.ErrPersonalOrg {
+			c.JSON(http.StatusForbidden, api.Forbidden("个人工作区不能作为团队邀请目标"))
+			return
+		}
 		switch err {
 		case orgapp.ErrInviteNotFound:
 			c.JSON(http.StatusNotFound, api.NotFound("邀请不存在或已失效"))
@@ -270,7 +307,7 @@ func (h *OrgHandler) AcceptInvitation(c *gin.Context) {
 		}
 		req = orgapp.RegistrationInput{Username: body.Username, Password: body.Password}
 	}
-	orgID, err := h.service.AcceptInvitation(c.Request.Context(), c.Param("token"), user, &req)
+	orgID, acceptedUser, err := h.service.AcceptInvitation(c.Request.Context(), c.Param("token"), user, &req)
 	if err != nil {
 		switch err {
 		case orgapp.ErrInviteNotFound:
@@ -290,7 +327,56 @@ func (h *OrgHandler) AcceptInvitation(c *gin.Context) {
 		}
 		return
 	}
+	if user == nil && acceptedUser != nil {
+		h.respondWithInviteCredential(c, *acceptedUser, orgID)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "org_id": orgID})
+}
+
+func (h *OrgHandler) respondWithInviteCredential(c *gin.Context, user domainorg.User, orgID uint) {
+	if h.authService == nil {
+		c.JSON(http.StatusOK, gin.H{"ok": true, "org_id": orgID})
+		return
+	}
+	credential, err := h.authService.IssueCredential(c.Request.Context(), authapp.CredentialInput{
+		UserID:    user.ID,
+		UserAgent: c.Request.UserAgent(),
+		IPAddress: c.ClientIP(),
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("failed to issue auth token"))
+		return
+	}
+	if credential.SessionToken != "" {
+		setSessionCookie(c, credential.SessionToken, credential.SessionExpiresAt)
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"ok":              true,
+		"org_id":          orgID,
+		"user":            toAuthUser(authProfileFromOrgUser(user)),
+		"token":           credential.Token,
+		"token_type":      credential.TokenType,
+		"expires_at":      credential.ExpiresAt,
+		"org_memberships": credential.OrgMemberships,
+	})
+}
+
+func authProfileFromOrgUser(user domainorg.User) domainauth.UserProfile {
+	return domainauth.UserProfile{
+		ID:              user.ID,
+		Username:        user.Username,
+		SystemRole:      user.SystemRole,
+		PrimaryEmail:    user.PrimaryEmail,
+		PrimaryPhone:    user.PrimaryPhone,
+		DisplayName:     user.DisplayName,
+		AvatarURL:       user.AvatarURL,
+		Locale:          user.Locale,
+		Status:          user.Status,
+		EmailVerifiedAt: user.EmailVerifiedAt,
+		CreatedAt:       user.CreatedAt,
+		UpdatedAt:       user.UpdatedAt,
+	}
 }
 
 func (h *OrgHandler) JoinByCode(c *gin.Context) {
@@ -328,6 +414,10 @@ func (h *OrgHandler) JoinByCode(c *gin.Context) {
 func (h *OrgHandler) ListGroups(c *gin.Context) {
 	items, err := h.service.ListGroups(c.Request.Context(), currentOrgMember(c).OrgID)
 	if err != nil {
+		if isOrgForbidden(err) {
+			c.JSON(http.StatusForbidden, api.Forbidden("需要团队工作区"))
+			return
+		}
 		c.JSON(http.StatusInternalServerError, api.Internal("查询用户组失败"))
 		return
 	}
@@ -345,7 +435,7 @@ func (h *OrgHandler) CreateGroup(c *gin.Context) {
 	}
 	group, err := h.service.CreateGroup(c.Request.Context(), *caller, orgapp.GroupInput{Name: req.Name})
 	if err != nil {
-		if err == orgapp.ErrForbidden {
+		if isOrgForbidden(err) {
 			c.JSON(http.StatusForbidden, api.Forbidden("需要管理员权限"))
 			return
 		}
@@ -366,7 +456,7 @@ func (h *OrgHandler) AddGroupMember(c *gin.Context) {
 	}
 	gm, err := h.service.AddGroupMember(c.Request.Context(), *caller, parseID(c.Param("groupId")), req.UserID)
 	if err != nil {
-		if err == orgapp.ErrForbidden {
+		if isOrgForbidden(err) {
 			c.JSON(http.StatusForbidden, api.Forbidden("需要管理员权限"))
 			return
 		}
@@ -391,7 +481,7 @@ func (h *OrgHandler) AddGroupMember(c *gin.Context) {
 func (h *OrgHandler) RemoveGroupMember(c *gin.Context) {
 	caller := currentOrgMember(c)
 	if err := h.service.RemoveGroupMember(c.Request.Context(), *caller, parseID(c.Param("groupId")), parseID(c.Param("userId"))); err != nil {
-		if err == orgapp.ErrForbidden {
+		if isOrgForbidden(err) {
 			c.JSON(http.StatusForbidden, api.Forbidden("需要管理员权限"))
 			return
 		}
@@ -404,6 +494,10 @@ func (h *OrgHandler) RemoveGroupMember(c *gin.Context) {
 func (h *OrgHandler) GetUsage(c *gin.Context) {
 	result, err := h.service.GetUsage(c.Request.Context(), currentOrgMember(c).OrgID)
 	if err != nil {
+		if isOrgForbidden(err) {
+			c.JSON(http.StatusForbidden, api.Forbidden("需要团队工作区"))
+			return
+		}
 		c.JSON(http.StatusInternalServerError, api.Internal("查询组织用量失败"))
 		return
 	}

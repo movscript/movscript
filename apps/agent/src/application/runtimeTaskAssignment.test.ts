@@ -66,7 +66,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     title: 'Task',
     status: 'pending',
     progress: 0,

@@ -82,17 +82,17 @@ function localAgentApprovalImpactI18nText(approval: ApprovalLike, t: ReturnType<
   if (previewSideEffect) return t('agents.chat.workflow.approvalImpact.previewApply', { sideEffect: previewSideEffect })
 
   switch (approval.toolName) {
-    case 'movscript_create_generation_job':
+    case 'generation_job_create':
       return t('agents.chat.workflow.approvalImpact.generationCreate')
-    case 'movscript_cancel_generation_job':
+    case 'generation_job_cancel':
       return t('agents.chat.workflow.approvalImpact.generationCancel')
-    case 'movscript_create_project':
+    case 'movscript_project_create':
       return t('agents.chat.workflow.approvalImpact.projectCreate')
-    case 'movscript_delete_memory':
+    case 'core_memory_delete':
       return t('agents.chat.workflow.approvalImpact.memoryDelete')
-    case 'movscript_spawn_subagent':
+    case 'core_subagent_spawn':
       return t('agents.chat.workflow.approvalImpact.subagentSpawn')
-    case 'movscript_cancel_subagent':
+    case 'core_subagent_cancel':
       return t('agents.chat.workflow.approvalImpact.subagentCancel')
     default:
       break
@@ -261,7 +261,7 @@ export function LocalAgentApprovalRequestCard({
 }
 
 function localAgentApprovalTitle(approval: PendingApproval, t: ReturnType<typeof useTranslation>['t']) {
-  if (approval.toolName !== 'runtime_operation_start') return agentToolNameLabel(approval.toolName, t)
+  if (approval.toolName !== 'core_operation_start') return agentToolNameLabel(approval.toolName, t)
   const args = approval.args && typeof approval.args === 'object' && !Array.isArray(approval.args)
     ? approval.args as Record<string, unknown>
     : undefined
@@ -271,7 +271,7 @@ function localAgentApprovalTitle(approval: PendingApproval, t: ReturnType<typeof
 }
 
 function localAgentApprovalReason(approval: PendingApproval, t: ReturnType<typeof useTranslation>['t']) {
-  if (approval.toolName === 'runtime_operation_start' && /runtime_operation_start|agent\.operation\.write|operation\.write/i.test(approval.reason)) {
+  if (approval.toolName === 'core_operation_start' && /core_operation_start|agent\.operation\.write|operation\.write/i.test(approval.reason)) {
     return t('agents.chat.workflow.approvalOperation.confirmBeforeRun', { defaultValue: '需要用户确认后才能执行。' })
   }
   return approval.reason

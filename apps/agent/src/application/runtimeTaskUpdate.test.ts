@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentPlan, AgentRun, AgentTask } from '../state/types.js'
+import type { AgentTaskGraph, AgentRun, AgentTask } from '../state/types.js'
 import {
   applyRuntimeTaskUpdate,
   applyRuntimeTaskUpdateRequest,
@@ -27,17 +27,17 @@ test('updateRuntimeTask validates, persists, and returns the previous task snaps
   assert.equal(store.getTask('task_1')?.ownerRunId, 'run_worker')
 })
 
-test('updateRuntimeTask enforces owner run plan boundaries', () => {
+test('updateRuntimeTask enforces owner run taskGraph boundaries', () => {
   const store = new InMemoryAgentStore()
-  store.createRun(makeRun({ id: 'run_other_plan', planId: 'plan_other', taskId: 'task_other' }))
+  store.createRun(makeRun({ id: 'run_other_taskGraph', taskGraphId: 'task_graph_other', taskId: 'task_other' }))
   store.createTask(makeTask({ id: 'task_1' }))
 
   assert.throws(() => updateRuntimeTask({
     store,
     taskId: 'task_1',
-    update: { ownerRunId: 'run_other_plan' },
+    update: { ownerRunId: 'run_other_taskGraph' },
     now: '2026-01-01T00:00:01.000Z',
-  }), /owner run run_other_plan does not belong to plan plan_1/)
+  }), /owner run run_other_taskGraph does not belong to task graph task_graph_1/)
 })
 
 test('updateRuntimeTask enforces unique subagent task names', () => {
@@ -50,10 +50,10 @@ test('updateRuntimeTask enforces unique subagent task names', () => {
     taskId: 'task_b',
     update: { metadata: { subagentName: 'Writer' } },
     now: '2026-01-01T00:00:01.000Z',
-  }), /subagent name already exists in plan plan_1: Writer/)
+  }), /subagent name already exists in task graph task_graph_1: Writer/)
 })
 
-test('applyRuntimeTaskUpdate recomputes the plan before emitting task update callbacks', () => {
+test('applyRuntimeTaskUpdate recomputes the taskGraph before emitting task update callbacks', () => {
   const store = new InMemoryAgentStore()
   store.createTask(makeTask({ id: 'task_1', status: 'pending', progress: 0 }))
   const calls: string[] = []
@@ -63,21 +63,21 @@ test('applyRuntimeTaskUpdate recomputes the plan before emitting task update cal
     taskId: 'task_1',
     update: { status: 'blocked', blockedReason: 'needs input' },
     now: '2026-01-01T00:00:01.000Z',
-    onPlanRecomputed: (planId) => calls.push(`recompute:${planId}`),
+    onPlanRecomputed: (taskGraphId) => calls.push(`recompute:${taskGraphId}`),
     onTaskUpdated: (task, previousTask) => calls.push(`event:${previousTask.status}:${task.status}:${task.blockedReason}`),
   })
 
   assert.equal(result.task.status, 'blocked')
   assert.deepEqual(calls, [
-    'recompute:plan_1',
+    'recompute:task_graph_1',
     'event:pending:blocked:needs input',
   ])
 })
 
-test('applyRuntimeTaskUpdateRequest emits task protocol traces before plan task events', () => {
+test('applyRuntimeTaskUpdateRequest emits task protocol traces before task graph task events', () => {
   const store = new InMemoryAgentStore()
   store.createRun(makeRun({ id: 'run_root', role: 'planner', taskId: undefined }))
-  store.createPlan(makePlan({ rootRunId: 'run_root' }))
+  store.createTaskGraph(makeTaskGraph({ rootRunId: 'run_root' }))
   store.createTask(makeTask({ id: 'task_1', status: 'pending', progress: 0 }))
   const calls: string[] = []
 
@@ -86,16 +86,16 @@ test('applyRuntimeTaskUpdateRequest emits task protocol traces before plan task 
     taskId: 'task_1',
     update: { status: 'blocked', blockedReason: 'needs input' },
     now: '2026-01-01T00:00:01.000Z',
-    recomputePlanStatus: (planId) => calls.push(`recompute:${planId}`),
+    recomputePlanStatus: (taskGraphId) => calls.push(`recompute:${taskGraphId}`),
     recordTrace: (_run, trace) => calls.push(`trace:${trace.title}`),
-    emitPlanTaskEvent: (planId, task) => calls.push(`event:${planId}:${task.id}`),
+    emitPlanTaskEvent: (taskGraphId, task) => calls.push(`event:${taskGraphId}:${task.id}`),
   })
 
   assert.equal(result.task.status, 'blocked')
   assert.deepEqual(calls, [
-    'recompute:plan_1',
+    'recompute:task_graph_1',
     'trace:Task blocked',
-    'event:plan_1:task_1',
+    'event:task_graph_1:task_1',
   ])
 })
 
@@ -103,7 +103,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   return {
     id: 'run_1',
     threadId: 'thread_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     status: 'queued',
     role: 'worker',
     policy: {
@@ -120,11 +120,11 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   }
 }
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -136,7 +136,7 @@ function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     title: 'Task',
     status: 'pending',
     progress: 0,

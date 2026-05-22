@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AppSettings } from '../src/lib/config'
+import type { GenerationToolServer, GenerationToolsSettings } from '../src/lib/generationTools'
 
 contextBridge.exposeInMainWorld('api', {
   platform: process.platform,
@@ -8,6 +9,8 @@ contextBridge.exposeInMainWorld('api', {
   updateMCPContext: (snapshot: unknown) => ipcRenderer.invoke('mcp:update-context', snapshot),
   getMCPStatus: () => ipcRenderer.invoke('mcp:get-status'),
   setAppSettings: (settings: AppSettings) => ipcRenderer.invoke('app:set-settings', settings),
+  setGenerationToolsSettings: (settings: GenerationToolsSettings) => ipcRenderer.invoke('generation-tools:set-settings', settings),
+  testGenerationToolServer: (server: Partial<GenerationToolServer>) => ipcRenderer.invoke('generation-tools:test-server', server),
   onBackendStatus: (handler: (status: unknown) => void) => {
     const listener = (_event: unknown, status: unknown) => handler(status)
     ipcRenderer.on('backend:status', listener)

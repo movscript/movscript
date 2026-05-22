@@ -44,16 +44,16 @@ test('buildDispatchSubagentNameMap preserves existing names and assigns fallback
 test('requireTaskBySubagentName resolves exact task matches', () => {
   const task = makeTask('task_1', 'Writer')
 
-  assert.equal(requireTaskBySubagentName('plan_1', [task], 'Writer'), task)
-  assert.throws(() => requireTaskBySubagentName('plan_1', [], 'Writer'), /subagent not found by name/)
-  assert.throws(() => requireTaskBySubagentName('plan_1', [task, makeTask('task_2', 'Writer')], 'Writer'), /ambiguous/)
+  assert.equal(requireTaskBySubagentName('task_graph_1', [task], 'Writer'), task)
+  assert.throws(() => requireTaskBySubagentName('task_graph_1', [], 'Writer'), /subagent not found by name/)
+  assert.throws(() => requireTaskBySubagentName('task_graph_1', [task, makeTask('task_2', 'Writer')], 'Writer'), /ambiguous/)
 })
 
 test('resolveSubagentNameInput maps subagent names to task and owner run ids', () => {
   const task = { ...makeTask('task_1', 'Writer'), ownerRunId: 'run_1' }
 
   assert.deepEqual(resolveSubagentNameInput({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     rawInput: { subagentName: ' Writer ', timeoutMs: 1000 },
     tasks: [task],
   }), {
@@ -64,12 +64,12 @@ test('resolveSubagentNameInput maps subagent names to task and owner run ids', (
   })
 
   const rawInput = { taskId: 'task_existing' }
-  assert.equal(resolveSubagentNameInput({ planId: 'plan_1', rawInput, tasks: [task] }), rawInput)
+  assert.equal(resolveSubagentNameInput({ taskGraphId: 'task_graph_1', rawInput, tasks: [task] }), rawInput)
 })
 
 test('assertUniqueSubagentNameForTask rejects requested task duplicates and persisted run duplicates', () => {
   assert.throws(() => assertUniqueSubagentNameForTask({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_1',
     subagentName: 'Writer',
     requestedNames: new Map([['task_2', 'Writer']]),
@@ -78,7 +78,7 @@ test('assertUniqueSubagentNameForTask rejects requested task duplicates and pers
   }), /subagent name already exists/)
 
   assert.throws(() => assertUniqueSubagentNameForTask({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_1',
     subagentName: 'Writer',
     requestedNames: new Map(),
@@ -89,7 +89,7 @@ test('assertUniqueSubagentNameForTask rejects requested task duplicates and pers
 
 test('assertSubagentNamesUniqueForTaskMap rejects duplicate task and run names', () => {
   assert.throws(() => assertSubagentNamesUniqueForTaskMap({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     tasksById: new Map([
       ['task_1', makeTask('task_1', 'Writer')],
       ['task_2', makeTask('task_2', 'Writer')],
@@ -98,7 +98,7 @@ test('assertSubagentNamesUniqueForTaskMap rejects duplicate task and run names',
   }), /subagent name already exists/)
 
   assert.throws(() => assertSubagentNamesUniqueForTaskMap({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     tasksById: new Map([['task_1', makeTask('task_1', 'Writer')]]),
     runs: [makeRun('run_1', 'Writer', 'task_2')],
   }), /subagent name already exists/)
@@ -107,7 +107,7 @@ test('assertSubagentNamesUniqueForTaskMap rejects duplicate task and run names',
 function makeTask(id: string, subagentName?: string): AgentTask {
   return {
     id,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: id,
     status: 'pending',
@@ -125,7 +125,7 @@ function makeRun(id: string, subagentName?: string, taskId?: string): AgentRun {
     threadId: 'thread_1',
     status: 'in_progress',
     role: 'worker',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     ...(taskId ? { taskId } : {}),
     ...(subagentName ? { metadata: { subagentName } } : {}),
     policy: {

@@ -5,29 +5,29 @@ import {
   toStreamRun,
 } from '../state/runStreamView.js'
 import type {
-  AgentPlanSnapshot,
-  AgentPlanStreamEvent,
+  AgentTaskGraphSnapshot,
+  AgentTaskGraphStreamEvent,
   AgentRun,
   AgentRunStreamEvent,
   AgentTask,
 } from '../state/types.js'
 
 export function replayRuntimePlanStream(input: {
-  planId: string
-  getPlanSnapshot: (planId: string) => AgentPlanSnapshot
-  listener: (event: AgentPlanStreamEvent) => void
+  taskGraphId: string
+  getTaskGraphSnapshot: (taskGraphId: string) => AgentTaskGraphSnapshot
+  listener: (event: AgentTaskGraphStreamEvent) => void
 }): void {
-  const snapshot = input.getPlanSnapshot(input.planId)
+  const snapshot = input.getTaskGraphSnapshot(input.taskGraphId)
   input.listener({ type: 'snapshot', snapshot })
-  if (isTerminalPlanStatus(snapshot.plan.status)) input.listener({ type: 'done', snapshot })
+  if (isTerminalPlanStatus(snapshot.taskGraph.status)) input.listener({ type: 'done', snapshot })
 }
 
 export function emitRuntimePlanRunStreamEvent(input: {
   event: AgentRunStreamEvent
   getRun: (runId: string) => AgentRun | undefined
-  hasPlanSubscribers: (planId: string) => boolean
-  getPlanSnapshot: (planId: string) => AgentPlanSnapshot
-  emitPlanStreamEvent: (planId: string, event: AgentPlanStreamEvent) => void
+  hasPlanSubscribers: (taskGraphId: string) => boolean
+  getTaskGraphSnapshot: (taskGraphId: string) => AgentTaskGraphSnapshot
+  emitPlanStreamEvent: (taskGraphId: string, event: AgentTaskGraphStreamEvent) => void
 }): void {
   const run = input.event.type === 'run' || input.event.type === 'done'
     ? input.event.run
@@ -36,55 +36,55 @@ export function emitRuntimePlanRunStreamEvent(input: {
       : input.event.type === 'trace' || input.event.type === 'assistant_delta' || input.event.type === 'assistant_message' || input.event.type === 'thread_title'
         ? input.getRun(input.event.runId)
         : undefined
-  if (!run?.planId) return
-  const planId = run.planId
-  if (!input.hasPlanSubscribers(planId)) return
+  if (!run?.taskGraphId) return
+  const taskGraphId = run.taskGraphId
+  if (!input.hasPlanSubscribers(taskGraphId)) return
   if (input.event.type === 'trace') {
-    input.emitPlanStreamEvent(planId, {
+    input.emitPlanStreamEvent(taskGraphId, {
       type: 'trace',
-      planId,
+      taskGraphId,
       runId: input.event.runId,
       event: input.event.event,
-      snapshot: input.getPlanSnapshot(planId),
+      snapshot: input.getTaskGraphSnapshot(taskGraphId),
     })
     return
   }
   if (input.event.type === 'run' || input.event.type === 'done') {
-    input.emitPlanStreamEvent(planId, {
+    input.emitPlanStreamEvent(taskGraphId, {
       type: 'run',
-      planId,
+      taskGraphId,
       run: toStreamRun(run),
-      snapshot: input.getPlanSnapshot(planId),
+      snapshot: input.getTaskGraphSnapshot(taskGraphId),
     })
   }
 }
 
-export function emitRuntimePlanTaskStreamEvent(input: {
-  planId: string
+export function emitRuntimeTaskGraphTaskStreamEvent(input: {
+  taskGraphId: string
   task: AgentTask
-  hasPlanSubscribers: (planId: string) => boolean
-  getPlanSnapshot: (planId: string) => AgentPlanSnapshot
-  emitPlanStreamEvent: (planId: string, event: AgentPlanStreamEvent) => void
+  hasPlanSubscribers: (taskGraphId: string) => boolean
+  getTaskGraphSnapshot: (taskGraphId: string) => AgentTaskGraphSnapshot
+  emitPlanStreamEvent: (taskGraphId: string, event: AgentTaskGraphStreamEvent) => void
 }): void {
-  if (!input.hasPlanSubscribers(input.planId)) return
-  input.emitPlanStreamEvent(input.planId, {
+  if (!input.hasPlanSubscribers(input.taskGraphId)) return
+  input.emitPlanStreamEvent(input.taskGraphId, {
     type: 'task',
-    planId: input.planId,
+    taskGraphId: input.taskGraphId,
     task: input.task,
-    snapshot: input.getPlanSnapshot(input.planId),
+    snapshot: input.getTaskGraphSnapshot(input.taskGraphId),
   })
 }
 
 export function emitRuntimePlanStreamEvent(input: {
-  planId: string
-  event: AgentPlanStreamEvent
-  emit: (planId: string, event: AgentPlanStreamEvent) => boolean
-  close: (planId: string) => void
+  taskGraphId: string
+  event: AgentTaskGraphStreamEvent
+  emit: (taskGraphId: string, event: AgentTaskGraphStreamEvent) => boolean
+  close: (taskGraphId: string) => void
 }): void {
-  if (!input.emit(input.planId, input.event)) return
-  if (input.event.type === 'done' || isTerminalPlanStatus(input.event.snapshot.plan.status)) {
+  if (!input.emit(input.taskGraphId, input.event)) return
+  if (input.event.type === 'done' || isTerminalPlanStatus(input.event.snapshot.taskGraph.status)) {
     const snapshot = input.event.snapshot
-    input.emit(input.planId, { type: 'done', snapshot })
-    input.close(input.planId)
+    input.emit(input.taskGraphId, { type: 'done', snapshot })
+    input.close(input.taskGraphId)
   }
 }

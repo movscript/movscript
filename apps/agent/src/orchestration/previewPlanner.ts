@@ -51,7 +51,7 @@ export interface PreviewToolPlanResult {
 
 export async function planPreviewToolRequests(input: PreviewToolPlanInput): Promise<PreviewToolPlanResult> {
   const modelConfig = input.modelConfig === undefined ? resolveRuntimeChatModelConfig() : input.modelConfig
-  if (!modelConfig) return emptyPreviewToolPlan()
+  if (!modelConfig) return emptyPreviewToolTaskGraph()
 
   const modelTurnContext = contextManager.composeModelTurn({
     manifest: input.manifest,
@@ -75,7 +75,7 @@ export async function planPreviewToolRequests(input: PreviewToolPlanInput): Prom
     config: modelConfig,
     auth: {},
   })
-  if (modelResult.tool_calls.length === 0) return emptyPreviewToolPlan()
+  if (modelResult.tool_calls.length === 0) return emptyPreviewToolTaskGraph()
 
   const requestedCalls = modelResult.tool_calls.map((toolCall) => ({
     id: toolCall.id,
@@ -112,7 +112,7 @@ export async function planPreviewToolRequests(input: PreviewToolPlanInput): Prom
   }
 }
 
-function emptyPreviewToolPlan(): PreviewToolPlanResult {
+function emptyPreviewToolTaskGraph(): PreviewToolPlanResult {
   return { toolCalls: [], pendingApprovals: [] }
 }
 

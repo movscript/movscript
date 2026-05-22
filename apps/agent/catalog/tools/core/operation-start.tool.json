@@ -1,0 +1,65 @@
+{
+  "name": "core_operation_start",
+  "description": "提交一个可等待的异步 runtime operation，并立即返回 operationId/externalHandle；本工具不等待后端完成，也不代表生成成功。普通同步工具直接调用，不要通过此工具包装。当前此工具只支持 kind:\"generation_job\"，用于提交后端生成长任务；后续状态和结果必须通过 core_operation_wait/get/list 观察。Subagent 也是 runtime operation，但通过 core_subagent_spawn、core_subagent_wait、core_subagent_cancel 专用工具管理。",
+  "permission": "agent.operation.write",
+  "risk": "generate",
+  "source": "runtime",
+  "category": "runtime-operation",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["kind", "request"],
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": ["generation_job"]
+      },
+      "request": {
+        "type": "object",
+        "description": "operation provider 原始请求。generation_job 使用后端生成任务参数。"
+      },
+      "timeoutMs": {
+        "type": "number"
+      },
+      "pollIntervalMs": {
+        "type": "number"
+      },
+      "continuationPolicy": {
+        "type": "object",
+        "description": "后台续跑策略。generation_job 推荐传 {\"mode\":\"any_completed\",\"groupId\":\"同一批候选共享的稳定组 ID\"}，runtime 会在 operation 完成且线程无阻塞工作时自动创建 continuation run。",
+        "additionalProperties": false,
+        "required": ["mode"],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": ["none", "any_completed", "all_completed", "all_settled", "manual_selection"]
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "group_id": {
+            "type": "string"
+          }
+        }
+      },
+      "continuation_policy": {
+        "type": "object",
+        "description": "continuationPolicy 的 snake_case 别名。",
+        "additionalProperties": false,
+        "required": ["mode"],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": ["none", "any_completed", "all_completed", "all_settled", "manual_selection"]
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "group_id": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

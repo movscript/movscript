@@ -20,6 +20,7 @@ var (
 	ErrOwnerInactive            = errors.New("owner user inactive")
 	ErrMemberUserNotFound       = errors.New("member user not found")
 	ErrMemberUserInactive       = errors.New("member user inactive")
+	ErrMemberUserNotInOrg       = errors.New("member user is not in project organization")
 	ErrProjectMemberNotFound    = errors.New("project member not found")
 	ErrInvalidProjectMemberRole = errors.New("invalid project member role")
 	ErrInvalidProjectName       = errors.New("invalid project name")

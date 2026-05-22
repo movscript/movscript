@@ -4,13 +4,13 @@ import { InMemoryAgentStore } from '../state/store.js'
 import type { AgentRun, AgentTask } from '../state/types.js'
 import { buildRuntimeReplanTasksToCreate } from './runtimeReplanTaskCreation.js'
 
-test('buildRuntimeReplanTasksToCreate builds new replan tasks with store-backed validation', () => {
+test('buildRuntimeReplanTasksToCreate builds new retask graph tasks with store-backed validation', () => {
   const store = new InMemoryAgentStore()
   store.createTask(makeTask({ id: 'task_existing' }))
 
   const tasks = buildRuntimeReplanTasksToCreate({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     now: '2026-01-01T00:00:01.000Z',
     inputs: [{
       id: 'task_new',
@@ -33,35 +33,35 @@ test('buildRuntimeReplanTasksToCreate rejects duplicate subagent names against s
 
   assert.throws(() => buildRuntimeReplanTasksToCreate({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     now: '2026-01-01T00:00:01.000Z',
     inputs: [{ id: 'task_new', title: 'New task', subagentName: 'Writer' }],
-  }), /subagent name already exists in plan plan_1: Writer/)
+  }), /subagent name already exists in task graph task_graph_1: Writer/)
 
   assert.throws(() => buildRuntimeReplanTasksToCreate({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     now: '2026-01-01T00:00:01.000Z',
     inputs: [{ id: 'task_other', title: 'Other task', subagentName: 'Director' }],
-  }), /subagent name already exists in plan plan_1: Director/)
+  }), /subagent name already exists in task graph task_graph_1: Director/)
 })
 
-test('buildRuntimeReplanTasksToCreate rejects references outside the plan', () => {
+test('buildRuntimeReplanTasksToCreate rejects references outside the taskGraph', () => {
   const store = new InMemoryAgentStore()
-  store.createTask(makeTask({ id: 'task_foreign', planId: 'plan_2' }))
+  store.createTask(makeTask({ id: 'task_foreign', taskGraphId: 'task_graph_2' }))
 
   assert.throws(() => buildRuntimeReplanTasksToCreate({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     now: '2026-01-01T00:00:01.000Z',
     inputs: [{ id: 'task_new', title: 'New task', deps: ['task_foreign'] }],
-  }), /dependency task task_foreign does not belong to plan plan_1/)
+  }), /dependency task task_foreign does not belong to task graph task_graph_1/)
 })
 
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     title: 'Task',
     status: 'pending',
     progress: 0,
@@ -77,7 +77,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   return {
     id: 'run_1',
     threadId: 'thread_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     role: 'worker',
     status: 'in_progress',
     policy: {

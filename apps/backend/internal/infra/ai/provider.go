@@ -138,11 +138,15 @@ type VideoRequest struct {
 	CameraFixed           *bool  // nil = provider default
 	Watermark             *bool  // nil = provider default
 	GenerateAudio         *bool  // nil = provider default
+	AudioType             string // provider-specific audio split, e.g. "all" | "speech_only"
 	ReturnLastFrame       *bool  // nil = provider default
 	ServiceTier           string // "default" | "flex"
 	ExecutionExpiresAfter int    // seconds; 0 = provider default
 	Draft                 *bool  // nil = provider default
 	WebSearch             bool   // provider tool toggle
+	MovementAmplitude     string // Vidu movement amplitude: auto | small | medium | large
+	OffPeak               *bool  // Vidu off-peak mode
+	Payload               string // provider passthrough payload
 }
 
 // MediaData holds raw bytes for a media resource passed to AI adapters.

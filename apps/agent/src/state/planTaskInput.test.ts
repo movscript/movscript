@@ -39,7 +39,7 @@ test('normalizes create and update task arrays', () => {
 })
 
 test('buildAgentTask trims fields and keeps json metadata plus execution overrides', () => {
-  const task = buildAgentTask('plan_1', {
+  const task = buildAgentTask('task_graph_1', {
     id: ' task_1 ',
     parentId: ' parent_1 ',
     deps: [' dep_1 ', '', 'dep_2'],
@@ -54,7 +54,7 @@ test('buildAgentTask trims fields and keeps json metadata plus execution overrid
   }, '2026-05-16T00:00:00.000Z')
   assert.deepEqual(task, {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     parentId: 'parent_1',
     deps: ['dep_1', 'dep_2'],
     title: 'Task',
@@ -72,7 +72,7 @@ test('buildAgentTask trims fields and keeps json metadata plus execution overrid
 })
 
 test('buildAgentTask rejects missing titles', () => {
-  assert.throws(() => buildAgentTask('plan_1', {}, 'now'), /task title is required/)
+  assert.throws(() => buildAgentTask('task_graph_1', {}, 'now'), /task title is required/)
 })
 
 test('buildAgentTask stores an independent metadata snapshot', () => {
@@ -80,7 +80,7 @@ test('buildAgentTask stores an independent metadata snapshot', () => {
     nested: { value: 'original' },
     list: [{ id: 'item_1' }],
   }
-  const task = buildAgentTask('plan_1', {
+  const task = buildAgentTask('task_graph_1', {
     id: 'task_1',
     title: 'Task',
     metadata,
@@ -161,7 +161,7 @@ test('normalizeTaskArtifacts stores independent artifact metadata snapshots', ()
 function taskFixture(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'pending',

@@ -12,7 +12,7 @@ import {
 
 test('executeRuntimeLocalGenerationTool delegates generation calls through the tool executor', async () => {
   const call = {
-    name: 'runtime_operation_start' as const,
+    name: 'core_operation_start' as const,
     args: { kind: 'generation_job' as JSONValue, request: { prompt: 'title card' as JSONValue } as JSONValue },
   }
   const resultValue = { status: 'started', operation: { id: 'op_1', kind: 'generation_job', status: 'running' } }
@@ -39,7 +39,7 @@ test('executeRuntimeLocalGenerationTool delegates generation calls through the t
 
 test('executeRuntimeLocalGenerationTool normalizes backend generation errors', async () => {
   const call = {
-    name: 'runtime_operation_start' as const,
+    name: 'core_operation_start' as const,
     args: { kind: 'generation_job' as JSONValue, request: { prompt: 'title card' as JSONValue } as JSONValue },
   }
 
@@ -78,7 +78,7 @@ test('executeRuntimeLocalGenerationTool normalizes backend generation errors', a
 
 test('normalizeRuntimeLocalGenerationToolError preserves backend generation error data', () => {
   const call = {
-    name: 'runtime_operation_start' as const,
+    name: 'core_operation_start' as const,
     args: { kind: 'generation_job' as JSONValue, request: { prompt: 'hello' as JSONValue } as JSONValue },
   }
   const error = new MCPError('backend rejected', -32000, {

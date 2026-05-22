@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentPlan, AgentPlanSnapshot, AgentRun, AgentTask, UpdatePlanTaskInput } from '../state/types.js'
+import type { AgentTaskGraph, AgentTaskGraphSnapshot, AgentRun, AgentTask, UpdateTaskGraphTaskInput } from '../state/types.js'
 import {
   applyRuntimeSubagentSpawnFlow,
   applyRuntimeSubagentSpawnPreparation,
@@ -25,7 +25,7 @@ test('prepareRuntimeSubagentSpawn creates worker task targets with stable subage
     now: '2026-01-01T00:00:01.000Z',
   })
 
-  assert.equal(result.planId, 'plan_1')
+  assert.equal(result.taskGraphId, 'task_graph_1')
   assert.equal(result.plannerRunId, 'run_planner')
   assert.deepEqual(result.requestedTaskIds, ['task_created_a', 'task_created_b'])
   assert.deepEqual(Object.fromEntries(result.subagentNameByTaskId), {
@@ -72,28 +72,28 @@ test('prepareRuntimeSubagentSpawn maps existing tasks and rejects duplicate name
   assert.deepEqual(result.tasksToCreate, [])
 })
 
-test('prepareRuntimeSubagentSpawn validates planner plan and target plan boundaries', () => {
+test('prepareRuntimeSubagentSpawn validates planner taskGraph and target taskGraph boundaries', () => {
   const store = new InMemoryAgentStore()
-  store.createRun(makeRun({ id: 'run_no_plan', planId: undefined }))
+  store.createRun(makeRun({ id: 'run_no_taskGraph', taskGraphId: undefined }))
   store.createRun(makeRun())
-  store.createTask(makeTask({ id: 'task_other_plan', planId: 'plan_2' }))
+  store.createTask(makeTask({ id: 'task_other_taskGraph', taskGraphId: 'task_graph_2' }))
 
   assert.throws(() => prepareRuntimeSubagentSpawn({
     store,
-    plannerRunId: 'run_no_plan',
-    request: { taskId: 'task_other_plan' },
+    plannerRunId: 'run_no_taskGraph',
+    request: { taskId: 'task_other_taskGraph' },
     now: '2026-01-01T00:00:01.000Z',
-  }), /requires the planner run to be attached/)
+  }), /task graph dispatch requires planner run taskGraphId/)
 
   assert.throws(() => prepareRuntimeSubagentSpawn({
     store,
     plannerRunId: 'run_planner',
     request: {
-      taskId: 'task_other_plan',
+      taskId: 'task_other_taskGraph',
       tasks: [{ id: 'task_should_not_write', title: 'Should not write' }],
     },
     now: '2026-01-01T00:00:01.000Z',
-  }), /task task_other_plan does not belong to plan plan_1/)
+  }), /task task_other_taskGraph does not belong to task graph task_graph_1/)
 
   assert.equal(store.getTask('task_should_not_write'), undefined)
 })
@@ -223,18 +223,18 @@ test('applyRuntimeSubagentSpawnFlow applies targets, dispatches requested tasks,
       calls.push(`update:${taskId}:${String(update.status ?? 'metadata')}`)
       return applyTaskUpdate(store, taskId, update)
     },
-    dispatchPlan: (dispatchInput) => {
-      calls.push(`dispatch:${dispatchInput.planId}:${dispatchInput.plannerRunId}:${String(dispatchInput.taskIds)}:${dispatchInput.maxWorkers}:${dispatchInput.maxTaskAttempts}:${dispatchInput.retryFailed}:${dispatchInput.workerTimeoutMs}`)
+    dispatchTaskGraph: (dispatchInput) => {
+      calls.push(`dispatch:${dispatchInput.taskGraphId}:${dispatchInput.plannerRunId}:${String(dispatchInput.taskIds)}:${dispatchInput.maxWorkers}:${dispatchInput.maxTaskAttempts}:${dispatchInput.retryFailed}:${dispatchInput.workerTimeoutMs}`)
       return {
-        plan: makePlan({ id: String(dispatchInput.planId) }),
+        taskGraph: makeTaskGraph({ id: String(dispatchInput.taskGraphId) }),
         spawnedRuns: [worker],
         blockedTaskIds: [],
         retriedTaskIds: [],
         timedOutRunIds: [],
       }
     },
-    getPlanSnapshot: (planId) => {
-      calls.push(`snapshot:${planId}`)
+    getTaskGraphSnapshot: (taskGraphId) => {
+      calls.push(`snapshot:${taskGraphId}`)
       return makeSnapshot({ tasks: [store.getTask('task_created') ?? makeTask({ id: 'task_created' })], runs: [worker] })
     },
     onTaskCreated: (task) => calls.push(`created:${task.id}`),
@@ -242,8 +242,8 @@ test('applyRuntimeSubagentSpawnFlow applies targets, dispatches requested tasks,
 
   assert.deepEqual(calls, [
     'created:task_created',
-    'dispatch:plan_1:run_planner:task_created:2:3:true:5000',
-    'snapshot:plan_1',
+    'dispatch:task_graph_1:run_planner:task_created:2:3:true:5000',
+    'snapshot:task_graph_1',
   ])
   assert.equal(result.status, 'spawned')
   assert.deepEqual(result.createdTaskIds, ['task_created'])
@@ -262,7 +262,7 @@ test('buildRuntimeSubagentSpawnResult projects spawned runs and snapshot view', 
   })
 
   const result = buildRuntimeSubagentSpawnResult({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     plannerRunId: 'run_planner',
     createdTaskIds: ['task_1'],
     dispatch: {
@@ -275,7 +275,7 @@ test('buildRuntimeSubagentSpawnResult projects spawned runs and snapshot view', 
   }) as Record<string, unknown>
 
   assert.equal(result.status, 'spawned')
-  assert.equal(result.planId, 'plan_1')
+  assert.equal(result.taskGraphId, 'task_graph_1')
   assert.equal(result.plannerRunId, 'run_planner')
   assert.deepEqual(result.createdTaskIds, ['task_1'])
   assert.deepEqual(result.retriedTaskIds, ['task_retry'])
@@ -286,7 +286,7 @@ test('buildRuntimeSubagentSpawnResult projects spawned runs and snapshot view', 
 
 test('buildRuntimeSubagentSpawnResult reports no runnable tasks without spawned workers', () => {
   const result = buildRuntimeSubagentSpawnResult({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     plannerRunId: 'run_planner',
     createdTaskIds: [],
     dispatch: {
@@ -308,7 +308,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_planner',
     threadId: 'thread_1',
     role: 'planner',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     status: 'in_progress',
     policy: {
       approvalMode: 'interactive',
@@ -324,12 +324,12 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   }
 }
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
     rootRunId: 'run_planner',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -338,16 +338,16 @@ function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
   }
 }
 
-function makeSnapshot(overrides: Partial<AgentPlanSnapshot> = {}): AgentPlanSnapshot {
+function makeSnapshot(overrides: Partial<AgentTaskGraphSnapshot> = {}): AgentTaskGraphSnapshot {
   return {
-    plan: makePlan(),
+    taskGraph: makeTaskGraph(),
     tasks: [],
     runs: [],
     ...overrides,
   }
 }
 
-function applyTaskUpdate(store: InMemoryAgentStore, taskId: string, update: UpdatePlanTaskInput): AgentTask {
+function applyTaskUpdate(store: InMemoryAgentStore, taskId: string, update: UpdateTaskGraphTaskInput): AgentTask {
   const task = store.getTask(taskId)
   assert.ok(task)
   const next: AgentTask = {
@@ -367,7 +367,7 @@ function applyTaskUpdate(store: InMemoryAgentStore, taskId: string, update: Upda
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'pending',

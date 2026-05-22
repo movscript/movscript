@@ -1,27 +1,27 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentPlan, AgentRun, AgentTask, CreateRunInput, UpdatePlanTaskInput } from '../state/types.js'
+import type { AgentTaskGraph, AgentRun, AgentTask, CreateRunInput, UpdateTaskGraphTaskInput } from '../state/types.js'
 import {
-  applyRuntimePlanDispatch,
-  applyRuntimePlanDispatchDecision,
-  applyRuntimePlanDispatchFlow,
-  applyRuntimePlanDispatchRequest,
-  buildRuntimePlanDispatchDecision,
-  resolveRuntimePlanDispatchRequest,
+  applyRuntimeTaskGraphDispatch,
+  applyRuntimeTaskGraphDispatchDecision,
+  applyRuntimeTaskGraphDispatchFlow,
+  applyRuntimeTaskGraphDispatchRequest,
+  buildRuntimeTaskGraphDispatchDecision,
+  resolveRuntimeTaskGraphDispatchRequest,
 } from './runtimePlanDispatch.js'
 
-test('resolveRuntimePlanDispatchRequest normalizes controls and validates planner run boundaries', () => {
+test('resolveRuntimeTaskGraphDispatchRequest normalizes controls and validates planner run boundaries', () => {
   const store = new InMemoryAgentStore()
-  store.createPlan(makePlan())
-  store.createRun(makeRun({ id: 'run_planner', role: 'planner', planId: 'plan_1' }))
-  store.createRun(makeRun({ id: 'run_worker', role: 'worker', planId: 'plan_1' }))
-  store.createRun(makeRun({ id: 'run_other_planner', role: 'planner', planId: 'plan_2' }))
+  store.createTaskGraph(makeTaskGraph())
+  store.createRun(makeRun({ id: 'run_planner', role: 'planner', taskGraphId: 'task_graph_1' }))
+  store.createRun(makeRun({ id: 'run_worker', role: 'worker', taskGraphId: 'task_graph_1' }))
+  store.createRun(makeRun({ id: 'run_other_planner', role: 'planner', taskGraphId: 'task_graph_2' }))
 
-  const result = resolveRuntimePlanDispatchRequest({
+  const result = resolveRuntimeTaskGraphDispatchRequest({
     store,
     dispatchInput: {
-      planId: ' plan_1 ',
+      taskGraphId: ' task_graph_1 ',
       taskIds: ['task_a', 'task_a', 'task_b'],
       maxWorkers: 2,
       maxTaskAttempts: 3,
@@ -30,7 +30,7 @@ test('resolveRuntimePlanDispatchRequest normalizes controls and validates planne
     },
   })
 
-  assert.equal(result.plan.id, 'plan_1')
+  assert.equal(result.taskGraph.id, 'task_graph_1')
   assert.equal(result.plannerRun.id, 'run_planner')
   assert.deepEqual(result.dispatch.requestedTaskIds, ['task_a', 'task_b'])
   assert.equal(result.dispatch.maxWorkers, 2)
@@ -38,29 +38,29 @@ test('resolveRuntimePlanDispatchRequest normalizes controls and validates planne
   assert.equal(result.dispatch.retryFailed, true)
   assert.equal(result.dispatch.workerTimeoutMs, 5000)
 
-  assert.throws(() => resolveRuntimePlanDispatchRequest({
+  assert.throws(() => resolveRuntimeTaskGraphDispatchRequest({
     store,
-    dispatchInput: { planId: 'plan_1', plannerRunId: 'run_worker' },
+    dispatchInput: { taskGraphId: 'task_graph_1', plannerRunId: 'run_worker' },
   }), /is not a planner run/)
-  assert.throws(() => resolveRuntimePlanDispatchRequest({
+  assert.throws(() => resolveRuntimeTaskGraphDispatchRequest({
     store,
-    dispatchInput: { planId: 'plan_1', plannerRunId: 'run_other_planner' },
-  }), /does not belong to plan/)
+    dispatchInput: { taskGraphId: 'task_graph_1', plannerRunId: 'run_other_planner' },
+  }), /does not belong to taskGraph/)
 })
 
-test('buildRuntimePlanDispatchDecision validates requested tasks and prepares runnable names', () => {
+test('buildRuntimeTaskGraphDispatchDecision validates requested tasks and prepares runnable names', () => {
   const store = new InMemoryAgentStore()
-  const plan = makePlan()
-  store.createPlan(plan)
+  const taskGraph = makeTaskGraph()
+  store.createTaskGraph(taskGraph)
   store.createTask(makeTask({ id: 'task_a' }))
   store.createTask(makeTask({ id: 'task_b', deps: ['task_a'] }))
   store.createTask(makeTask({ id: 'task_named', metadata: { subagentName: 'Curie' } }))
-  store.createTask(makeTask({ id: 'task_other', planId: 'plan_2' }))
-  store.createRun(makeRun({ id: 'run_used_name', role: 'worker', planId: 'plan_1', metadata: { subagentName: 'Agent 1' } }))
+  store.createTask(makeTask({ id: 'task_other', taskGraphId: 'task_graph_2' }))
+  store.createRun(makeRun({ id: 'run_used_name', role: 'worker', taskGraphId: 'task_graph_1', metadata: { subagentName: 'Agent 1' } }))
 
-  const result = buildRuntimePlanDispatchDecision({
+  const result = buildRuntimeTaskGraphDispatchDecision({
     store,
-    plan,
+    taskGraph,
     dispatch: {
       plannerRunId: 'run_planner',
       maxTaskAttempts: 1,
@@ -77,25 +77,25 @@ test('buildRuntimePlanDispatchDecision validates requested tasks and prepares ru
     task_named: 'Curie',
   })
 
-  assert.throws(() => buildRuntimePlanDispatchDecision({
+  assert.throws(() => buildRuntimeTaskGraphDispatchDecision({
     store,
-    plan,
+    taskGraph,
     dispatch: {
       plannerRunId: 'run_planner',
       maxTaskAttempts: 1,
       retryFailed: false,
       requestedTaskIds: ['task_other'],
     },
-  }), /task task_other does not belong to plan plan_1/)
+  }), /task task_other does not belong to task graph task_graph_1/)
 })
 
-test('applyRuntimePlanDispatchDecision applies blocked tasks and worker ownership through callbacks', () => {
+test('applyRuntimeTaskGraphDispatchDecision applies blocked tasks and worker ownership through callbacks', () => {
   const store = new InMemoryAgentStore()
-  const plan = makePlan()
-  const plannerRun = makeRun({ id: 'run_planner', role: 'planner', planId: 'plan_1' })
+  const taskGraph = makeTaskGraph()
+  const plannerRun = makeRun({ id: 'run_planner', role: 'planner', taskGraphId: 'task_graph_1' })
   const readyTask = makeTask({ id: 'task_ready' })
   const blockedTask = makeTask({ id: 'task_blocked' })
-  store.createPlan(plan)
+  store.createTaskGraph(taskGraph)
   store.createRun(plannerRun)
   store.createTask(readyTask)
   store.createTask(blockedTask)
@@ -104,11 +104,11 @@ test('applyRuntimePlanDispatchDecision applies blocked tasks and worker ownershi
   const blockedEvents: string[] = []
   const dispatchedEvents: string[] = []
 
-  const result = applyRuntimePlanDispatchDecision({
+  const result = applyRuntimeTaskGraphDispatchDecision({
     store,
-    plan,
+    taskGraph,
     plannerRun,
-    dispatchInput: { planId: 'plan_1', plannerRunId: 'run_planner' },
+    dispatchInput: { taskGraphId: 'task_graph_1', plannerRunId: 'run_planner' },
     decision: {
       runnableTasks: [readyTask],
       blockedTasks: [{ task: blockedTask, blockedReason: 'Waiting for dependency task(s): task_ready' }],
@@ -122,7 +122,7 @@ test('applyRuntimePlanDispatchDecision applies blocked tasks and worker ownershi
         id: 'run_worker',
         role: 'worker',
         parentRunId: typeof input.parentRunId === 'string' ? input.parentRunId : undefined,
-        planId: typeof input.planId === 'string' ? input.planId : undefined,
+        taskGraphId: typeof input.taskGraphId === 'string' ? input.taskGraphId : undefined,
         taskId: typeof input.taskId === 'string' ? input.taskId : undefined,
         metadata: input.metadata && typeof input.metadata === 'object' && !Array.isArray(input.metadata)
           ? input.metadata as AgentRun['metadata']
@@ -148,19 +148,19 @@ test('applyRuntimePlanDispatchDecision applies blocked tasks and worker ownershi
   assert.equal(createdRunInputs[0]?.taskId, 'task_ready')
 })
 
-test('applyRuntimePlanDispatch builds decision, applies dispatch, then recomputes result projection', () => {
+test('applyRuntimeTaskGraphDispatch builds decision, applies dispatch, then recomputes result projection', () => {
   const store = new InMemoryAgentStore()
-  const plan = makePlan()
-  const plannerRun = makeRun({ id: 'run_planner', role: 'planner', planId: 'plan_1' })
-  store.createPlan(plan)
+  const taskGraph = makeTaskGraph()
+  const plannerRun = makeRun({ id: 'run_planner', role: 'planner', taskGraphId: 'task_graph_1' })
+  store.createTaskGraph(taskGraph)
   store.createRun(plannerRun)
   store.createTask(makeTask({ id: 'task_ready' }))
   store.createTask(makeTask({ id: 'task_blocked', deps: ['task_ready'] }))
   const calls: string[] = []
 
-  const result = applyRuntimePlanDispatch({
+  const result = applyRuntimeTaskGraphDispatch({
     store,
-    plan,
+    taskGraph,
     dispatch: {
       plannerRunId: 'run_planner',
       maxTaskAttempts: 2,
@@ -169,7 +169,7 @@ test('applyRuntimePlanDispatch builds decision, applies dispatch, then recompute
       maxWorkers: 2,
     },
     plannerRun,
-    dispatchInput: { planId: 'plan_1', plannerRunId: 'run_planner' },
+    dispatchInput: { taskGraphId: 'task_graph_1', plannerRunId: 'run_planner' },
     retriedTaskIds: ['task_retry'],
     timedOutRunIds: ['run_timeout'],
     now: '2026-01-01T00:00:01.000Z',
@@ -180,13 +180,13 @@ test('applyRuntimePlanDispatch builds decision, applies dispatch, then recompute
         id: 'run_worker',
         role: 'worker',
         parentRunId: typeof input.parentRunId === 'string' ? input.parentRunId : undefined,
-        planId: typeof input.planId === 'string' ? input.planId : undefined,
+        taskGraphId: typeof input.taskGraphId === 'string' ? input.taskGraphId : undefined,
         taskId: typeof input.taskId === 'string' ? input.taskId : undefined,
       })
       store.createRun(run)
       return run
     },
-    recomputePlan: (planId) => calls.push(`recompute:${planId}`),
+    recomputeTaskGraph: (taskGraphId) => calls.push(`recompute:${taskGraphId}`),
     onTaskBlocked: (task) => calls.push(`blocked:${task.id}`),
     onTaskDispatched: (task, previousTask) => calls.push(`dispatch:${previousTask.status}->${task.status}:${task.id}`),
   })
@@ -195,20 +195,20 @@ test('applyRuntimePlanDispatch builds decision, applies dispatch, then recompute
     'blocked:task_blocked',
     'create:task_ready',
     'dispatch:pending->running:task_ready',
-    'recompute:plan_1',
+    'recompute:task_graph_1',
   ])
-  assert.equal(result.plan.id, 'plan_1')
+  assert.equal(result.taskGraph.id, 'task_graph_1')
   assert.deepEqual(result.spawnedRuns.map((run) => run.id), ['run_worker'])
   assert.deepEqual(result.blockedTaskIds, ['task_blocked'])
   assert.deepEqual(result.retriedTaskIds, ['task_retry'])
   assert.deepEqual(result.timedOutRunIds, ['run_timeout'])
 })
 
-test('applyRuntimePlanDispatchFlow applies timeouts and retry resets before dispatch', () => {
+test('applyRuntimeTaskGraphDispatchFlow applies timeouts and retry resets before dispatch', () => {
   const store = new InMemoryAgentStore()
-  const plan = makePlan()
-  const plannerRun = makeRun({ id: 'run_planner', role: 'planner', planId: 'plan_1' })
-  store.createPlan(plan)
+  const taskGraph = makeTaskGraph()
+  const plannerRun = makeRun({ id: 'run_planner', role: 'planner', taskGraphId: 'task_graph_1' })
+  store.createTaskGraph(taskGraph)
   store.createRun(plannerRun)
   store.createTask(makeTask({ id: 'task_ready' }))
   store.createTask(makeTask({ id: 'task_retry', status: 'failed' }))
@@ -216,16 +216,16 @@ test('applyRuntimePlanDispatchFlow applies timeouts and retry resets before disp
   store.createRun(makeRun({
     id: 'run_timeout',
     role: 'worker',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_timeout',
     status: 'in_progress',
     startedAt: '2026-01-01T00:00:00.000Z',
   }))
   const calls: string[] = []
 
-  const result = applyRuntimePlanDispatchFlow({
+  const result = applyRuntimeTaskGraphDispatchFlow({
     store,
-    plan,
+    taskGraph,
     dispatch: {
       plannerRunId: 'run_planner',
       maxTaskAttempts: 2,
@@ -235,7 +235,7 @@ test('applyRuntimePlanDispatchFlow applies timeouts and retry resets before disp
       workerTimeoutMs: 1000,
     },
     plannerRun,
-    dispatchInput: { planId: 'plan_1', plannerRunId: 'run_planner', retryFailed: true },
+    dispatchInput: { taskGraphId: 'task_graph_1', plannerRunId: 'run_planner', retryFailed: true },
     now: '2026-01-01T00:00:02.000Z',
     nowMs: new Date('2026-01-01T00:00:02.000Z').getTime(),
     updateTask: (taskId, update) => applyTaskUpdate(store, taskId, update),
@@ -245,7 +245,7 @@ test('applyRuntimePlanDispatchFlow applies timeouts and retry resets before disp
         id: `run_${String(input.taskId)}`,
         role: 'worker',
         parentRunId: typeof input.parentRunId === 'string' ? input.parentRunId : undefined,
-        planId: typeof input.planId === 'string' ? input.planId : undefined,
+        taskGraphId: typeof input.taskGraphId === 'string' ? input.taskGraphId : undefined,
         taskId: typeof input.taskId === 'string' ? input.taskId : undefined,
       })
       store.createRun(run)
@@ -253,7 +253,7 @@ test('applyRuntimePlanDispatchFlow applies timeouts and retry resets before disp
     },
     cancelRun: (runId, reason) => calls.push(`cancel:${runId}:${reason}`),
     syncTaskFromRun: (runId) => calls.push(`sync:${runId}`),
-    recomputePlan: (planId) => calls.push(`recompute:${planId}`),
+    recomputeTaskGraph: (taskGraphId) => calls.push(`recompute:${taskGraphId}`),
     onTaskTimedOut: (task) => calls.push(`timeout:${task.id}`),
     onTaskRetryReset: (task, previousTask) => calls.push(`retry:${previousTask.status}->${task.status}:${task.id}`),
     onTaskDispatched: (task, previousTask) => calls.push(`dispatch:${previousTask.status}->${task.status}:${task.id}`),
@@ -264,12 +264,12 @@ test('applyRuntimePlanDispatchFlow applies timeouts and retry resets before disp
     'sync:run_timeout',
     'timeout:task_timeout',
     'retry:failed->pending:task_retry',
-    'recompute:plan_1',
+    'recompute:task_graph_1',
     'create:task_ready',
     'dispatch:pending->running:task_ready',
     'create:task_retry',
     'dispatch:pending->running:task_retry',
-    'recompute:plan_1',
+    'recompute:task_graph_1',
   ])
   assert.deepEqual(result.timedOutRunIds, ['run_timeout'])
   assert.deepEqual(result.retriedTaskIds, ['task_retry'])
@@ -277,17 +277,17 @@ test('applyRuntimePlanDispatchFlow applies timeouts and retry resets before disp
   assert.equal(store.getTask('task_timeout')?.metadata?.timedOutRunId, 'run_timeout')
 })
 
-test('applyRuntimePlanDispatchRequest resolves the request and applies the full dispatch flow', () => {
+test('applyRuntimeTaskGraphDispatchRequest resolves the request and applies the full dispatch flow', () => {
   const store = new InMemoryAgentStore()
-  store.createPlan(makePlan())
-  store.createRun(makeRun({ id: 'run_planner', role: 'planner', planId: 'plan_1' }))
+  store.createTaskGraph(makeTaskGraph())
+  store.createRun(makeRun({ id: 'run_planner', role: 'planner', taskGraphId: 'task_graph_1' }))
   store.createTask(makeTask({ id: 'task_ready' }))
   store.createTask(makeTask({ id: 'task_blocked', deps: ['task_ready'] }))
   const calls: string[] = []
 
-  const result = applyRuntimePlanDispatchRequest({
+  const result = applyRuntimeTaskGraphDispatchRequest({
     store,
-    dispatchInput: { planId: 'plan_1', plannerRunId: 'run_planner', maxWorkers: 2 },
+    dispatchInput: { taskGraphId: 'task_graph_1', plannerRunId: 'run_planner', maxWorkers: 2 },
     now: '2026-01-01T00:00:01.000Z',
     nowMs: new Date('2026-01-01T00:00:01.000Z').getTime(),
     updateTask: (taskId, update) => applyTaskUpdate(store, taskId, update),
@@ -297,7 +297,7 @@ test('applyRuntimePlanDispatchRequest resolves the request and applies the full 
         id: 'run_worker',
         role: 'worker',
         parentRunId: typeof input.parentRunId === 'string' ? input.parentRunId : undefined,
-        planId: typeof input.planId === 'string' ? input.planId : undefined,
+        taskGraphId: typeof input.taskGraphId === 'string' ? input.taskGraphId : undefined,
         taskId: typeof input.taskId === 'string' ? input.taskId : undefined,
       })
       store.createRun(run)
@@ -305,7 +305,7 @@ test('applyRuntimePlanDispatchRequest resolves the request and applies the full 
     },
     cancelRun: (runId, reason) => calls.push(`cancel:${runId}:${reason}`),
     syncTaskFromRun: (runId) => calls.push(`sync:${runId}`),
-    recomputePlan: (planId) => calls.push(`recompute:${planId}`),
+    recomputeTaskGraph: (taskGraphId) => calls.push(`recompute:${taskGraphId}`),
     onTaskBlocked: (task) => calls.push(`blocked:${task.id}`),
     onTaskDispatched: (task, previousTask) => calls.push(`dispatch:${previousTask.status}->${task.status}:${task.id}`),
   })
@@ -314,19 +314,19 @@ test('applyRuntimePlanDispatchRequest resolves the request and applies the full 
     'blocked:task_blocked',
     'create:task_ready',
     'dispatch:pending->running:task_ready',
-    'recompute:plan_1',
+    'recompute:task_graph_1',
   ])
   assert.deepEqual(result.spawnedRuns.map((run) => run.id), ['run_worker'])
   assert.deepEqual(result.blockedTaskIds, ['task_blocked'])
   assert.equal(store.getTask('task_ready')?.ownerRunId, 'run_worker')
 })
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
     rootRunId: 'run_planner',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -335,7 +335,7 @@ function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
   }
 }
 
-function applyTaskUpdate(store: InMemoryAgentStore, taskId: string, update: UpdatePlanTaskInput): AgentTask {
+function applyTaskUpdate(store: InMemoryAgentStore, taskId: string, update: UpdateTaskGraphTaskInput): AgentTask {
   const task = store.getTask(taskId)
   assert.ok(task)
   const next: AgentTask = { ...task }
@@ -370,7 +370,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_a',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'pending',

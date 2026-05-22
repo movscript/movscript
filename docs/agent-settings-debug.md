@@ -28,14 +28,15 @@ Settings owns:
 
 - Model call modes: backend gateway, OpenAI Responses, OpenAI Chat
   Completions, Anthropic Messages, call-mode migration guidance, and a
-  copyable call-mode switch plan derived from compatibility probes.
+  copyable call-mode switch taskGraph derived from compatibility probes.
 - Model usage routes such as chat and planning.
 - Provider model IDs, Base URLs, credential readiness, secret hygiene, and
   per-provider model compatibility probes.
 - Skills management: install, uninstall, reload catalog, enable policy,
   dependency checks, conflict checks, version coverage, source, and trust
   posture.
-- Profile work modes: default Profile, switch impact, and tool grant boundary.
+- Profile capability configuration: default Profile, switch impact, and tool
+  grant boundary.
 - Tool permission policy: allow, deny, approval mode, save-before diff preview,
   search/filter for large catalogs, saved filter presets, bulk edits on filtered tools,
   and unsavable draft fixes.
@@ -53,6 +54,25 @@ Settings owns:
 Settings should not display per-run internal steps or duplicate Agent Debug
 runtime observation panels.
 
+## Agent Capability Boundaries
+
+- Workspace mode (`workMode: detail | agent`) only owns frontend workspace and
+  navigation. It does not grant or revoke Agent capabilities.
+- Run presets only own per-run execution policy: approval mode, sandbox, tool
+  call limit, iteration limit, and workflow policy. They do not directly grant
+  tools.
+- Profile / Pack is the source for the default capability pool. Tool Policy can
+  only tighten grants or approval inside the current Profile boundary.
+- Skills are the behavior layer. The Agent may call `core_skill_update` to load
+  or unload skills; skills may change context, workflow scope, and visibility
+  for already-authorized tools.
+- Tools are the permission layer. The Agent must not self-authorize tools; a
+  tool must come from catalog/profile/manifest and pass the final
+  `applyToolPolicy` gate before execution.
+- Manifest is the resolved runtime snapshot for a run. It freezes effective
+  profile, tool grants, and metadata, but should not be treated as a
+  user-facing permission model.
+
 ## Agent Debug Owns
 
 Agent Debug should answer: what is wrong with the current Runtime or recent
@@ -62,11 +82,11 @@ Debug owns:
 
 - Runtime connection, catalog, capabilities, and MCP status.
 - Read-only current model configuration and credential status.
-- Prompt Preview, context summary, plan, and approval preview.
+- Prompt Preview, context summary, taskGraph, and approval preview.
 - Recent run lists grouped by failed, waiting, and in-progress states.
 - Observation coverage for available and missing diagnostic signals.
 - Triage that aggregates run failures, approval waits, and warning signals.
-- Read-only remediation plan that routes the next step to Agent Settings, run
+- Read-only remediation taskGraph that routes the next step to Agent Settings, run
   details, Prompt Preview, or observation-only review without writing config.
 - Evidence checklist that states whether the redacted Debug Bundle has enough
   Runtime, observation, triage, run history, Preview, and redaction evidence for

@@ -61,7 +61,7 @@ func (h *ScriptHandler) Create(c *gin.Context) {
 }
 
 func (h *ScriptHandler) Get(c *gin.Context) {
-	item, err := h.service.Get(c.Request.Context(), parseID(c.Param("scriptId")))
+	item, err := h.service.GetForProject(c.Request.Context(), parseID(c.Param("id")), parseID(c.Param("scriptId")))
 	if err != nil {
 		c.JSON(http.StatusNotFound, api.NotFound("剧本不存在"))
 		return
@@ -77,11 +77,12 @@ func (h *ScriptHandler) Update(c *gin.Context) {
 	}
 	item, err := h.service.Update(c.Request.Context(), scriptapp.UpdateInput{
 		ID:          parseID(c.Param("scriptId")),
+		ProjectID:   parseID(c.Param("id")),
 		UpdatedByID: currentUserID(c),
 		Script:      req,
 	})
 	if err != nil {
-		if errors.Is(err, scriptapp.ErrNotFound) {
+		if errors.Is(err, scriptapp.ErrNotFound) || errors.Is(err, scriptapp.ErrProjectMismatch) {
 			c.JSON(http.StatusNotFound, api.NotFound("剧本不存在"))
 			return
 		}
@@ -96,7 +97,11 @@ func (h *ScriptHandler) Update(c *gin.Context) {
 }
 
 func (h *ScriptHandler) Delete(c *gin.Context) {
-	if err := h.service.Delete(c.Request.Context(), parseID(c.Param("scriptId"))); err != nil {
+	if err := h.service.DeleteForProject(c.Request.Context(), parseID(c.Param("id")), parseID(c.Param("scriptId"))); err != nil {
+		if errors.Is(err, scriptapp.ErrNotFound) || errors.Is(err, scriptapp.ErrProjectMismatch) {
+			c.JSON(http.StatusNotFound, api.NotFound("剧本不存在"))
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

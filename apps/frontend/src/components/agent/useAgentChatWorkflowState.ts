@@ -1,11 +1,11 @@
 import { useMemo } from 'react'
-import { actionableRunsForPlan, interactionRunsForPlan } from '@/lib/agentPlanUi'
+import { actionableRunsForTaskGraph, interactionRunsForTaskGraph } from '@/lib/agentPlanUi'
 import { firstPendingInputRequest, workflowAnswerEchoesForMessages, workflowRunsForChat } from '@/lib/agentWorkflowInteraction'
-import type { AgentPlanSnapshot, AgentRun } from '@/lib/localAgentClient'
+import type { AgentTaskGraphSnapshot, AgentRun } from '@/lib/localAgentClient'
 import type { ChatMessage } from '@/store/agentStore'
 
 interface UseAgentChatWorkflowStateInput {
-  activePlanSnapshot?: AgentPlanSnapshot
+  activePlanSnapshot?: AgentTaskGraphSnapshot
   messages: ChatMessage[]
   run: AgentRun | null
   submittedInteractionRuns: AgentRun[]
@@ -17,8 +17,8 @@ export function useAgentChatWorkflowState({
   run,
   submittedInteractionRuns,
 }: UseAgentChatWorkflowStateInput) {
-  const actionableLocalRuns = useMemo(() => actionableRunsForPlan(activePlanSnapshot, run), [activePlanSnapshot, run])
-  const interactionRuns = useMemo(() => interactionRunsForPlan(activePlanSnapshot, run), [activePlanSnapshot, run])
+  const actionableLocalRuns = useMemo(() => actionableRunsForTaskGraph(activePlanSnapshot, run), [activePlanSnapshot, run])
+  const interactionRuns = useMemo(() => interactionRunsForTaskGraph(activePlanSnapshot, run), [activePlanSnapshot, run])
   const actionableLocalRun = actionableLocalRuns[0] ?? null
   const workflowRuns = useMemo(() => workflowRunsForChat(submittedInteractionRuns, interactionRuns), [interactionRuns, submittedInteractionRuns])
   const workflowRunsByResultMessageId = useMemo(() => {

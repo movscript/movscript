@@ -11,9 +11,9 @@ export interface RuntimeTaskRunSyncBridge {
 }
 
 export function createRuntimeTaskRunSyncBridge(input: {
-  store: Pick<AgentStore, 'getRun' | 'getTask' | 'updateTask' | 'getPlan'>
+  store: Pick<AgentStore, 'getRun' | 'getTask' | 'updateTask' | 'getTaskGraph'>
   now: () => string
-  recomputePlanStatus: (planId: string) => void
+  recomputePlanStatus: (taskGraphId: string) => void
   recordTrace: (run: AgentRun, trace: RuntimeTaskProtocolTraceInput) => void
   emitPlanTaskEvent: Parameters<typeof applyRuntimeTaskRunSyncRequest>[0]['emitPlanTaskEvent']
 }): RuntimeTaskRunSyncBridge {

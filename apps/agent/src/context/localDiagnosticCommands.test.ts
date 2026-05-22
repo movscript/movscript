@@ -181,6 +181,76 @@ test('renderLocalDiagnosticCommand reports runtime status and context budget wit
   assert.equal(diagnostic.context.artifactRefCount, 1)
 })
 
+test('context diagnostic metadata preserves tool resolution chain', () => {
+  const result = buildLocalDiagnosticCommand({
+    command: {
+      name: 'context',
+      rawName: '/context',
+      payload: '',
+      contextProfile: 'minimal',
+      outputMode: 'natural',
+      requiredTools: [],
+      systemContract: 'Context diagnostic.',
+    },
+    run: buildTestRun(),
+    manifest: DEFAULT_AGENT_MANIFEST,
+    skills: [],
+    context: buildTestContext(),
+    tools: {
+      discovered: [],
+      available: [{
+        name: 'movscript_focus_get',
+        source: 'runtime',
+        registered: true,
+        granted: true,
+        approval: 'never',
+        available: true,
+        requiresApproval: false,
+        resolution: {
+          authorized: true,
+          visible: true,
+          grantSource: 'manifest',
+          approval: 'never',
+          activeSkillIds: ['movscript.workflow.project_progress'],
+        },
+      }],
+      blocked: [{
+        name: 'movscript_project_script_read',
+        source: 'runtime',
+        registered: true,
+        granted: true,
+        approval: 'never',
+        available: false,
+        unavailableReason: 'workflow_scope',
+        requiresApproval: false,
+        resolution: {
+          authorized: true,
+          visible: false,
+          reason: 'workflow_scope',
+          grantSource: 'manifest',
+          approval: 'never',
+          activeSkillIds: [],
+        },
+      }],
+      byName: {},
+    },
+    policy: buildTestPolicy(),
+    memories: [],
+    warnings: [],
+    history: Array.from({ length: 3 }, (_, index) => buildTestMessage(index)),
+    userMessage: '/context',
+    contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
+  })
+
+  const diagnostic = result.metadata as any
+  assert.equal(diagnostic.schema, 'movscript.local_context_diagnostic.v1')
+  assert.equal(diagnostic.tools.available[0].resolution.authorized, true)
+  assert.equal(diagnostic.tools.available[0].resolution.grantSource, 'manifest')
+  assert.deepEqual(diagnostic.tools.available[0].resolution.activeSkillIds, ['movscript.workflow.project_progress'])
+  assert.equal(diagnostic.tools.blocked[0].resolution.visible, false)
+  assert.equal(diagnostic.tools.blocked[0].resolution.reason, 'workflow_scope')
+})
+
 test('renderLocalDiagnosticCommand reports deterministic compact result without calling model gateway', () => {
   const result = buildLocalDiagnosticCommand({
     command: {
@@ -282,7 +352,7 @@ test('renderLocalFinalAssistantContent appends source summary for ordinary final
         source: 'knowledge',
         evidence: 'advisory',
         title: '分镜节奏基础',
-        summary: 'movscript_get_knowledge result reference (runtime)',
+        summary: 'knowledge_get result reference (runtime)',
         charCount: 100,
         retrievedAt: '2026-05-06T00:00:00.000Z',
         usedInPrompt: true,

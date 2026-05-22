@@ -14,8 +14,8 @@ test('createRuntimeCatalogSettingsBridge persists default profile and policy set
     version: '1.0.0',
     name: 'Default Profile',
     tools: [
-      { name: 'movscript_validate_draft', mode: 'allow', approval: 'never' },
-      { name: 'movscript_delete_memory', mode: 'allow', approval: 'on_write' },
+      { name: 'draft_validate', mode: 'allow', approval: 'never' },
+      { name: 'core_memory_delete', mode: 'allow', approval: 'on_write' },
     ],
     metadata: { profileId: 'movscript.profile.default' },
   }
@@ -23,7 +23,7 @@ test('createRuntimeCatalogSettingsBridge persists default profile and policy set
     profiles: [
       profile('movscript.profile.default', 'Default Profile', '1.0.0', defaultAgentManifest.tools),
       profile('profile_writer', 'Writer Profile', '2.0.0', [
-        { name: 'movscript_validate_draft', mode: 'allow', approval: 'never' },
+        { name: 'draft_validate', mode: 'allow', approval: 'never' },
       ]),
     ],
   })
@@ -56,10 +56,10 @@ test('createRuntimeCatalogSettingsBridge persists default profile and policy set
   assert.deepEqual(catalogStateStore.load().metadata?.defaultToolGrants, [])
 
   const policyManifest = bridge.setDefaultToolPolicy({
-    toolGrants: [{ name: 'movscript_validate_draft', mode: 'deny' }],
+    toolGrants: [{ name: 'draft_validate', mode: 'deny' }],
   })
   assert.deepEqual(policyManifest.metadata?.defaultToolGrants, [
-    { name: 'movscript_validate_draft', mode: 'deny', approval: 'never' },
+    { name: 'draft_validate', mode: 'deny', approval: 'never' },
   ])
   assert.deepEqual(catalogStateStore.load().metadata?.defaultToolGrants, policyManifest.metadata?.defaultToolGrants)
   assert.deepEqual(calls, [

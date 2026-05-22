@@ -244,15 +244,15 @@ function contentUnitSnapshot(unit: ContentWorkbenchReviewRecord) {
 
 function proposedContentUnitVisualPlanText(proposed: Record<string, unknown>) {
   const metadata = parseMetadataJSON(proposed.metadata_json)
-  const visualPlan = metadataObject(proposed.visual_plan ?? metadata.visual_plan)
+  const visualTaskGraph = metadataObject(proposed.visual_taskGraph ?? metadata.visual_taskGraph)
   return [
-    firstText(visualPlan.space),
-    firstText(visualPlan.blocking),
-    firstText(visualPlan.camera_path),
-    textListFromMetadata(visualPlan.beats),
-    textListFromMetadata(visualPlan.props),
-    firstText(visualPlan.lighting),
-    textListFromMetadata(visualPlan.risks),
+    firstText(visualTaskGraph.space),
+    firstText(visualTaskGraph.blocking),
+    firstText(visualTaskGraph.camera_path),
+    textListFromMetadata(visualTaskGraph.beats),
+    textListFromMetadata(visualTaskGraph.props),
+    firstText(visualTaskGraph.lighting),
+    textListFromMetadata(visualTaskGraph.risks),
   ].filter(Boolean).join(' / ')
 }
 

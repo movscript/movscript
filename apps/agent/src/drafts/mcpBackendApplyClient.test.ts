@@ -50,7 +50,7 @@ test('MCPBackendApplyClient applies draft reviews through frontend MCP without b
 
   assert.equal(result.performed, true)
   assert.equal(mcpClient.initialized, 1)
-  assert.equal(mcpClient.calls[0]?.name, 'movscript_apply_draft_review')
+  assert.equal(mcpClient.calls[0]?.name, 'draft_review_apply')
   assert.deepEqual(mcpClient.calls[0]?.args, {
     review: review as unknown as JSONValue,
     userId: 9,
@@ -73,7 +73,7 @@ test('MCPBackendApplyClient previews project standards proposal apply through th
     requiresBackendApply: true,
   })
 
-  assert.equal(mcpClient.calls[0]?.name, 'movscript_preview_apply_draft_review')
+  assert.equal(mcpClient.calls[0]?.name, 'draft_review_apply_preview')
 })
 
 test('MCPBackendApplyClient rejects non-plain backend apply tool results', async () => {

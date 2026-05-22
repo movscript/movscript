@@ -1,41 +1,41 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentDebugContextPanel, AgentPlan, AgentRun, AgentTask } from '../state/types.js'
+import type { AgentDebugContextPanel, AgentTaskGraph, AgentRun, AgentTask } from '../state/types.js'
 import { attachRuntimePlanDebugContext } from './runtimePlanContext.js'
 
-test('attachRuntimePlanDebugContext adds plan state from the runtime store', () => {
+test('attachRuntimePlanDebugContext adds taskGraph state from the runtime store', () => {
   const store = new InMemoryAgentStore()
-  const plan = makePlan()
-  const planner = makeRun({ id: 'run_planner', role: 'planner', planId: plan.id })
+  const taskGraph = makeTaskGraph()
+  const planner = makeRun({ id: 'run_planner', role: 'planner', taskGraphId: taskGraph.id })
   const task = makeTask({ id: 'task_1', metadata: { subagentName: 'Writer' }, ownerRunId: 'run_worker' })
-  const worker = makeRun({ id: 'run_worker', role: 'worker', planId: plan.id, parentRunId: planner.id, taskId: task.id })
-  store.createPlan(plan)
+  const worker = makeRun({ id: 'run_worker', role: 'worker', taskGraphId: taskGraph.id, parentRunId: planner.id, taskId: task.id })
+  store.createTaskGraph(taskGraph)
   store.createTask(task)
   store.createRun(planner)
   store.createRun(worker)
 
   const result = attachRuntimePlanDebugContext({ store, context: debugContext(), run: planner })
 
-  assert.equal(result.agentPlan?.id, plan.id)
-  assert.equal(result.agentPlan?.tasks[0]?.subagentName, 'Writer')
-  assert.equal(result.agentPlan?.workers[0]?.id, worker.id)
+  assert.equal(result.agentTaskGraph?.id, taskGraph.id)
+  assert.equal(result.agentTaskGraph?.tasks[0]?.subagentName, 'Writer')
+  assert.equal(result.agentTaskGraph?.workers[0]?.id, worker.id)
 })
 
-test('attachRuntimePlanDebugContext leaves context unchanged without plan state', () => {
+test('attachRuntimePlanDebugContext leaves context unchanged without taskGraph state', () => {
   const store = new InMemoryAgentStore()
   const context = debugContext()
 
   assert.equal(attachRuntimePlanDebugContext({
     store,
     context,
-    run: makeRun({ planId: undefined }),
+    run: makeRun({ taskGraphId: undefined }),
   }), context)
 
   assert.equal(attachRuntimePlanDebugContext({
     store,
     context,
-    run: makeRun({ planId: 'missing_plan' }),
+    run: makeRun({ taskGraphId: 'missing_taskGraph' }),
   }), context)
 })
 
@@ -51,11 +51,11 @@ function debugContext(): AgentDebugContextPanel {
   }
 }
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -67,7 +67,7 @@ function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'running',

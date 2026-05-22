@@ -150,9 +150,9 @@ test('updateRuntimeActiveSkills stores run skill state and reports missing ids',
 })
 
 test('updateRuntimeActiveSkills corrects proposal skill choice for plain script reading requests', () => {
-  const scriptReading = makeSkill('movscript.workflow.script-reading')
-  const assetProposal = makeSkill('movscript.workflow.asset-proposal')
-  const settingProposal = makeSkill('movscript.workflow.setting-proposal')
+  const scriptReading = makeSkill('movscript.workflow.script_reading')
+  const assetProposal = makeSkill('movscript.workflow.asset_proposal')
+  const settingProposal = makeSkill('movscript.workflow.setting_proposal')
   const snapshots = new RuntimeCatalogSnapshotRegistry(buildRuntimeCatalogSnapshot({
     id: 'catalog_1',
     defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
@@ -201,8 +201,8 @@ test('updateRuntimeActiveSkills corrects proposal skill choice for plain script 
 })
 
 test('updateRuntimeActiveSkills preserves proposal skills when script request asks for proposal work', () => {
-  const scriptReading = makeSkill('movscript.workflow.script-reading')
-  const assetProposal = makeSkill('movscript.workflow.asset-proposal')
+  const scriptReading = makeSkill('movscript.workflow.script_reading')
+  const assetProposal = makeSkill('movscript.workflow.asset_proposal')
   const snapshots = new RuntimeCatalogSnapshotRegistry(buildRuntimeCatalogSnapshot({
     id: 'catalog_1',
     defaultAgentManifest: DEFAULT_AGENT_MANIFEST,

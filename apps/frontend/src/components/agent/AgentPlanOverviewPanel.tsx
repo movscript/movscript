@@ -23,20 +23,20 @@ import { isTerminalAgentRun } from '@/lib/agentRunControl'
 import { agentToolNameLabel } from '@/lib/agentToolDisplay'
 import { agentPlanStatusLabel, agentTraceView, inputTypeLabel, runStatusLabel, traceEventStatusLabel, traceKindLabel } from '@/lib/agentRunUi'
 import { localAgentApprovalImpactText, localAgentApprovalPermissionText, localAgentApprovalRiskText } from '@/components/agent/localRuntime'
-import { localAgentClient, type AgentPlanSnapshot, type AgentRunTraceSummary, type AgentTraceEvent } from '@/lib/localAgentClient'
+import { localAgentClient, type AgentTaskGraphSnapshot, type AgentRunTraceSummary, type AgentTraceEvent } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
 import { agentRunPath } from '@/routes/projectRoutes'
 import type { PlanDispatchSettings } from '@/lib/agentPlanActions'
 
-const DEFAULT_PLAN_DISPATCH_SETTINGS: PlanDispatchSettings = {
+const DEFAULT_TASK_GRAPH_DISPATCH_SETTINGS: PlanDispatchSettings = {
   maxWorkers: 2,
   maxTaskAttempts: 2,
   workerTimeoutMs: 15 * 60_000,
 }
 
-const PLAN_MAX_WORKER_OPTIONS = [1, 2, 3, 4]
-const PLAN_MAX_TASK_ATTEMPT_OPTIONS = [1, 2, 3]
-const PLAN_WORKER_TIMEOUT_OPTIONS = [
+const TASK_GRAPH_MAX_WORKER_OPTIONS = [1, 2, 3, 4]
+const TASK_GRAPH_MAX_TASK_ATTEMPT_OPTIONS = [1, 2, 3]
+const TASK_GRAPH_WORKER_TIMEOUT_OPTIONS = [
   { label: '5m', value: 5 * 60_000 },
   { label: '15m', value: 15 * 60_000 },
   { label: '30m', value: 30 * 60_000 },
@@ -47,7 +47,7 @@ export function AgentPlanOverviewPanel({
   snapshot,
   busy,
   onDispatch,
-  onReplan,
+  onRetaskGraph,
   onCancelTree,
   onAcceptReview,
   onReworkReview,
@@ -55,10 +55,10 @@ export function AgentPlanOverviewPanel({
   dispatchSettings,
   onDispatchSettingsChange,
 }: {
-  snapshot?: AgentPlanSnapshot
+  snapshot?: AgentTaskGraphSnapshot
   busy?: boolean
   onDispatch?: () => void
-  onReplan?: () => void
+  onRetaskGraph?: () => void
   onCancelTree?: () => void
   onAcceptReview?: (taskId: string) => void
   onReworkReview?: (taskId: string) => void
@@ -93,17 +93,17 @@ export function AgentPlanOverviewPanel({
     : artifactSummary.artifacts.filter((artifact) => artifact.type === activeArtifactTypeFilter)
   const tasks = taskViews.map((view) => view.task)
   const activeRuns = snapshot.runs.filter((run) => run.status === 'queued' || run.status === 'in_progress' || run.status === 'requires_action').length
-  const rootRun = snapshot.runs.find((run) => run.id === snapshot.plan.rootRunId)
+  const rootRun = snapshot.runs.find((run) => run.id === snapshot.taskGraph.rootRunId)
   const canDispatch = activeRuns === 0 && tasks.some((task) => task.status === 'pending')
-  const canReplan = tasks.some((task) => task.status === 'blocked' || task.status === 'failed' || task.status === 'cancelled')
+  const canRetaskGraph = tasks.some((task) => task.status === 'blocked' || task.status === 'failed' || task.status === 'cancelled')
   const canCancel = activeRuns > 0 || (rootRun && !isTerminalAgentRun(rootRun))
-  const settings = dispatchSettings ?? DEFAULT_PLAN_DISPATCH_SETTINGS
+  const settings = dispatchSettings ?? DEFAULT_TASK_GRAPH_DISPATCH_SETTINGS
   const updateSettings = (patch: Partial<PlanDispatchSettings>) => {
     onDispatchSettingsChange?.({ ...settings, ...patch })
   }
   const scrollToTask = (taskId: string | undefined) => {
     if (!taskId || typeof document === 'undefined') return
-    document.getElementById(`agent-plan-task-${taskId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    document.getElementById(`agent-taskGraph-task-${taskId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
   const openRun = (runId: string | undefined) => {
     if (!runId) return
@@ -152,26 +152,26 @@ export function AgentPlanOverviewPanel({
     }
   }
   return (
-    <div data-testid="agent-plan-overview" className="mt-2 rounded-md border border-border bg-background/70 px-2.5 py-2 type-label">
+    <div data-testid="agent-taskGraph-overview" className="mt-2 rounded-md border border-border bg-background/70 px-2.5 py-2 type-label">
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
             <Route size={12} />
-            <span className="truncate">{snapshot.plan.title}</span>
+            <span className="truncate">{snapshot.taskGraph.title}</span>
           </div>
-          <div data-testid="agent-plan-overview-stats" className="mt-0.5 type-micro text-muted-foreground">
+          <div data-testid="agent-taskGraph-overview-stats" className="mt-0.5 type-micro text-muted-foreground">
             {overviewStats.completedTaskCount}/{overviewStats.taskCount} 个任务 · {overviewStats.activeWorkerCount} 个执行器运行中
             {overviewStats.artifactCount > 0 && <> · {overviewStats.artifactCount} 个产物</>}
             {overviewStats.nameConflictCount > 0 && <> · {overviewStats.nameConflictCount} 个重名冲突</>}
           </div>
-          <p data-testid="agent-plan-status-explanation" className="mt-0.5 type-micro leading-relaxed text-muted-foreground">{planStatusExplanation}</p>
+          <p data-testid="agent-taskGraph-status-explanation" className="mt-0.5 type-micro leading-relaxed text-muted-foreground">{planStatusExplanation}</p>
         </div>
-        <Badge variant={runStatusVariant(snapshot.plan.status)} className="shrink-0 type-micro leading-4 px-1.5 py-0">
-          {agentPlanStatusLabel(snapshot.plan.status)}
+        <Badge variant={runStatusVariant(snapshot.taskGraph.status)} className="shrink-0 type-micro leading-4 px-1.5 py-0">
+          {agentPlanStatusLabel(snapshot.taskGraph.status)}
         </Badge>
       </div>
       {nameConflicts.length > 0 && (
-        <div data-testid="agent-plan-name-conflicts" className="mt-2 space-y-1 rounded border border-destructive/30 bg-destructive/5 px-2 py-1.5 type-micro leading-relaxed text-destructive">
+        <div data-testid="agent-taskGraph-name-conflicts" className="mt-2 space-y-1 rounded border border-destructive/30 bg-destructive/5 px-2 py-1.5 type-micro leading-relaxed text-destructive">
           {nameConflicts.map((conflict) => (
             <div key={conflict.subagentName} className="min-w-0">
               <div className="truncate font-medium">子代理重名 · {conflict.subagentName}</div>
@@ -205,7 +205,7 @@ export function AgentPlanOverviewPanel({
           ))}
         </div>
       )}
-      {(onDispatch || onReplan || onCancelTree) && (
+      {(onDispatch || onRetaskGraph || onCancelTree) && (
         <div className="mt-2 flex flex-wrap items-center gap-1">
           {onDispatch && (
             <Button type="button" size="xs" variant="outline" className="px-1.5 type-micro" disabled={busy || !canDispatch} onClick={onDispatch}>
@@ -213,8 +213,8 @@ export function AgentPlanOverviewPanel({
               分派
             </Button>
           )}
-          {onReplan && (
-            <Button type="button" size="xs" variant="outline" className="px-1.5 type-micro" disabled={busy || !canReplan} onClick={onReplan}>
+          {onRetaskGraph && (
+            <Button type="button" size="xs" variant="outline" className="px-1.5 type-micro" disabled={busy || !canRetaskGraph} onClick={onRetaskGraph}>
               {busy ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
               重新规划
             </Button>
@@ -234,7 +234,7 @@ export function AgentPlanOverviewPanel({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PLAN_MAX_WORKER_OPTIONS.map((value) => (
+              {TASK_GRAPH_MAX_WORKER_OPTIONS.map((value) => (
                 <SelectItem key={value} value={String(value)}>{value} 个 worker</SelectItem>
               ))}
             </SelectContent>
@@ -244,7 +244,7 @@ export function AgentPlanOverviewPanel({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PLAN_MAX_TASK_ATTEMPT_OPTIONS.map((value) => (
+              {TASK_GRAPH_MAX_TASK_ATTEMPT_OPTIONS.map((value) => (
                 <SelectItem key={value} value={String(value)}>{value} attempt{value === 1 ? '' : 's'}</SelectItem>
               ))}
             </SelectContent>
@@ -254,7 +254,7 @@ export function AgentPlanOverviewPanel({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PLAN_WORKER_TIMEOUT_OPTIONS.map((item) => (
+              {TASK_GRAPH_WORKER_TIMEOUT_OPTIONS.map((item) => (
                 <SelectItem key={item.value} value={String(item.value)}>{item.label} timeout</SelectItem>
               ))}
             </SelectContent>
@@ -264,11 +264,11 @@ export function AgentPlanOverviewPanel({
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
         <div
           className="h-full rounded-full bg-primary"
-          style={{ width: `${Math.round(Math.max(0, Math.min(1, snapshot.plan.progress)) * 100)}%` }}
+          style={{ width: `${Math.round(Math.max(0, Math.min(1, snapshot.taskGraph.progress)) * 100)}%` }}
         />
       </div>
       {artifactSummary.totalCount > 0 && (
-        <details data-testid="agent-plan-artifact-summary" className="mt-2 rounded border border-border/70 bg-muted/10">
+        <details data-testid="agent-taskGraph-artifact-summary" className="mt-2 rounded border border-border/70 bg-muted/10">
           <summary className="flex cursor-pointer list-none flex-wrap items-center gap-1 px-2 py-1.5 type-micro font-medium text-foreground">
             <FileText size={10} />
             <span>{artifactSummary.totalCount} 个计划产物</span>
@@ -339,7 +339,7 @@ export function AgentPlanOverviewPanel({
           {taskViews.map((view) => {
             const task = view.task
             return (
-              <div id={`agent-plan-task-${task.id}`} key={task.id} className="flex min-w-0 scroll-mt-4 items-start gap-1.5 rounded border border-border/70 bg-background px-2 py-1.5">
+              <div id={`agent-taskGraph-task-${task.id}`} key={task.id} className="flex min-w-0 scroll-mt-4 items-start gap-1.5 rounded border border-border/70 bg-background px-2 py-1.5">
                 <span className={cn('mt-1 h-2 w-2 shrink-0 rounded-full', workflowDotClass(task.status === 'done' ? 'completed' : task.status === 'failed' ? 'failed' : 'in_progress'))} />
                 <div className="min-w-0 flex-1">
                   <div className="flex min-w-0 items-center justify-between gap-2">

@@ -16,7 +16,7 @@ test('memory manager only writes explicit memory preferences, not draft side eff
     userMessage: { ...makeUserMessage(), content: 'create a draft' },
     projectId: 42,
     toolResults: [{
-      call: { name: 'movscript_create_draft', args: { kind: 'note' } },
+      call: { name: 'draft_create', args: { kind: 'note' } },
       result: new DraftResult() as never,
     }],
     warnings: [],

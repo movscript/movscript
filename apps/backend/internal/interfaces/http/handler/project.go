@@ -39,8 +39,21 @@ func currentOrgID(c *gin.Context) *uint {
 	return nil
 }
 
+func requireCurrentOrgID(c *gin.Context) (*uint, bool) {
+	orgID := currentOrgID(c)
+	if orgID == nil {
+		c.JSON(http.StatusForbidden, api.Forbidden("无工作区信息"))
+		return nil, false
+	}
+	return orgID, true
+}
+
 func (h *ProjectHandler) List(c *gin.Context) {
-	projects, err := h.projects.List(c.Request.Context(), currentOrgID(c))
+	orgID, ok := requireCurrentOrgID(c)
+	if !ok {
+		return
+	}
+	projects, err := h.projects.List(c.Request.Context(), orgID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Internal("查询项目失败"))
 		return
@@ -254,11 +267,15 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
+	orgID, ok := requireCurrentOrgID(c)
+	if !ok {
+		return
+	}
 	var ownerID uint
 	if user := currentUser(c); user != nil {
 		ownerID = user.ID
 	}
-	project, err := h.projects.Create(c.Request.Context(), req, ownerID, currentOrgID(c))
+	project, err := h.projects.Create(c.Request.Context(), req, ownerID, orgID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Internal("创建项目失败"))
 		return
@@ -267,7 +284,11 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 }
 
 func (h *ProjectHandler) Get(c *gin.Context) {
-	project, err := h.projects.Get(c.Request.Context(), parseID(c.Param("id")), currentOrgID(c))
+	orgID, ok := requireCurrentOrgID(c)
+	if !ok {
+		return
+	}
+	project, err := h.projects.Get(c.Request.Context(), parseID(c.Param("id")), orgID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, api.NotFound("项目不存在"))
 		return
@@ -281,8 +302,12 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
+	orgID, ok := requireCurrentOrgID(c)
+	if !ok {
+		return
+	}
 	if strings.TrimSpace(req.Name) == "" {
-		if existing, err := h.projects.Get(c.Request.Context(), parseID(c.Param("id")), currentOrgID(c)); err == nil {
+		if existing, err := h.projects.Get(c.Request.Context(), parseID(c.Param("id")), orgID); err == nil {
 			req.Name = existing.Name
 			if req.Description == "" {
 				req.Description = existing.Description
@@ -301,7 +326,7 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 			}
 		}
 	}
-	project, err := h.projects.Update(c.Request.Context(), parseID(c.Param("id")), req, currentOrgID(c))
+	project, err := h.projects.Update(c.Request.Context(), parseID(c.Param("id")), req, orgID)
 	if err != nil {
 		if errors.Is(err, projectapp.ErrProjectNotFound) {
 			c.JSON(http.StatusNotFound, api.NotFound("项目不存在"))
@@ -314,7 +339,11 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 }
 
 func (h *ProjectHandler) Delete(c *gin.Context) {
-	if err := h.projects.Delete(c.Request.Context(), parseID(c.Param("id")), currentOrgID(c)); err != nil {
+	orgID, ok := requireCurrentOrgID(c)
+	if !ok {
+		return
+	}
+	if err := h.projects.Delete(c.Request.Context(), parseID(c.Param("id")), orgID); err != nil {
 		if errors.Is(err, projectapp.ErrProjectNotFound) {
 			c.JSON(http.StatusNotFound, api.NotFound("项目不存在"))
 			return
@@ -331,7 +360,10 @@ func (h *ProjectHandler) AddMember(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
-	orgID := currentOrgID(c)
+	orgID, ok := requireCurrentOrgID(c)
+	if !ok {
+		return
+	}
 	member, err := h.projects.AddMember(c.Request.Context(), parseID(c.Param("id")), req, orgID)
 	if err != nil {
 		if errors.Is(err, projectapp.ErrProjectNotFound) {
@@ -344,6 +376,10 @@ func (h *ProjectHandler) AddMember(c *gin.Context) {
 		}
 		if errors.Is(err, projectapp.ErrMemberUserInactive) {
 			c.JSON(http.StatusBadRequest, api.InvalidInput("项目成员用户必须是 active 状态"))
+			return
+		}
+		if errors.Is(err, projectapp.ErrMemberUserNotInOrg) {
+			c.JSON(http.StatusForbidden, api.Forbidden("项目成员必须属于当前工作区"))
 			return
 		}
 		if errors.Is(err, projectapp.ErrInvalidProjectMemberRole) {
@@ -375,7 +411,10 @@ func (h *ProjectHandler) AddMember(c *gin.Context) {
 func (h *ProjectHandler) RemoveMember(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	memberID := parseID(c.Param("memberId"))
-	orgID := currentOrgID(c)
+	orgID, ok := requireCurrentOrgID(c)
+	if !ok {
+		return
+	}
 	if err := h.projects.RemoveMember(c.Request.Context(), projectID, memberID, orgID); err != nil {
 		if errors.Is(err, projectapp.ErrProjectMemberNotFound) || errors.Is(err, projectapp.ErrProjectNotFound) {
 			c.JSON(http.StatusNotFound, api.NotFound("项目成员不存在"))
@@ -525,7 +564,11 @@ func (h *ProjectHandler) adminProjectOrgID(c *gin.Context, projectID uint) *uint
 }
 
 func (h *ProjectHandler) ListMembers(c *gin.Context) {
-	members, err := h.projects.ListMembers(c.Request.Context(), parseID(c.Param("id")), currentOrgID(c))
+	orgID, ok := requireCurrentOrgID(c)
+	if !ok {
+		return
+	}
+	members, err := h.projects.ListMembers(c.Request.Context(), parseID(c.Param("id")), orgID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Internal("查询项目成员失败"))
 		return
@@ -547,7 +590,11 @@ func (h *ProjectHandler) AdminListMembers(c *gin.Context) {
 }
 
 func (h *ProjectHandler) Progress(c *gin.Context) {
-	progress, err := h.projects.Progress(c.Request.Context(), parseID(c.Param("id")), currentOrgID(c))
+	orgID, ok := requireCurrentOrgID(c)
+	if !ok {
+		return
+	}
+	progress, err := h.projects.Progress(c.Request.Context(), parseID(c.Param("id")), orgID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, api.Internal("查询项目进度失败"))
 		return

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { actionableRunForPlan, actionableRunsForPlan, activeWorkerRunCount, buildPlanArtifactSummary, buildPlanNameConflictViews, buildPlanOverviewStats, buildPlanStatusExplanation, buildPlanTaskViews, buildTaskArtifactViews, interactionRunsForPlan, plannerRunIdForPlanAction, runNeedsUserAction, shouldPollPlanSnapshot } from './agentPlanUi'
-import type { AgentPlanSnapshot, AgentRun, AgentTask } from './localAgentClient'
+import { actionableRunForTaskGraph, actionableRunsForTaskGraph, activeWorkerRunCount, buildPlanArtifactSummary, buildPlanNameConflictViews, buildPlanOverviewStats, buildPlanStatusExplanation, buildPlanTaskViews, buildTaskArtifactViews, interactionRunsForTaskGraph, plannerRunIdForPlanAction, runNeedsUserAction, shouldPollPlanSnapshot } from './agentPlanUi'
+import type { AgentTaskGraphSnapshot, AgentRun, AgentTask } from './localAgentClient'
 
 function run(input: Partial<AgentRun> & { id: string }): AgentRun {
   return {
@@ -10,7 +10,7 @@ function run(input: Partial<AgentRun> & { id: string }): AgentRun {
     status: input.status ?? 'completed',
     role: input.role,
     parentRunId: input.parentRunId,
-    planId: input.planId,
+    taskGraphId: input.taskGraphId,
     taskId: input.taskId,
     progress: input.progress,
     blockedReason: input.blockedReason,
@@ -36,18 +36,18 @@ function run(input: Partial<AgentRun> & { id: string }): AgentRun {
   }
 }
 
-function snapshot(input: { plan?: Partial<AgentPlanSnapshot['plan']>; tasks?: AgentPlanSnapshot['tasks']; runs?: AgentPlanSnapshot['runs']; nameConflicts?: AgentPlanSnapshot['nameConflicts']; summary?: AgentPlanSnapshot['summary'] } = {}): AgentPlanSnapshot {
+function snapshot(input: { taskGraph?: Partial<AgentTaskGraphSnapshot['taskGraph']>; tasks?: AgentTaskGraphSnapshot['tasks']; runs?: AgentTaskGraphSnapshot['runs']; nameConflicts?: AgentTaskGraphSnapshot['nameConflicts']; summary?: AgentTaskGraphSnapshot['summary'] } = {}): AgentTaskGraphSnapshot {
   return {
-    plan: {
-      id: 'plan_1',
+    taskGraph: {
+      id: 'task_graph_1',
       threadId: 'thread_1',
       rootRunId: 'run_planner',
-      title: 'Plan',
+      title: 'TaskGraph',
       status: 'running',
       progress: 0.5,
       createdAt: '2026-05-12T00:00:00.000Z',
       updatedAt: '2026-05-12T00:00:00.000Z',
-      ...input.plan,
+      ...input.taskGraph,
     },
     tasks: input.tasks ?? [],
     runs: input.runs ?? [],
@@ -59,7 +59,7 @@ function snapshot(input: { plan?: Partial<AgentPlanSnapshot['plan']>; tasks?: Ag
 function task(input: Partial<AgentTask> & { id: string; title: string }): AgentTask {
   return {
     id: input.id,
-    planId: input.planId ?? 'plan_1',
+    taskGraphId: input.taskGraphId ?? 'task_graph_1',
     deps: input.deps ?? [],
     title: input.title,
     description: input.description,
@@ -74,48 +74,48 @@ function task(input: Partial<AgentTask> & { id: string; title: string }): AgentT
   }
 }
 
-test('plannerRunIdForPlanAction prefers the plan root when active run is a worker', () => {
-  const activeWorker = run({ id: 'run_worker', role: 'worker', parentRunId: 'run_parent', planId: 'plan_1' })
+test('plannerRunIdForPlanAction prefers the taskGraph root when active run is a worker', () => {
+  const activeWorker = run({ id: 'run_worker', role: 'worker', parentRunId: 'run_parent', taskGraphId: 'task_graph_1' })
 
   assert.equal(plannerRunIdForPlanAction(snapshot(), activeWorker), 'run_planner')
 })
 
 test('plannerRunIdForPlanAction falls back to worker parent without a snapshot', () => {
-  const activeWorker = run({ id: 'run_worker', role: 'worker', parentRunId: 'run_parent', planId: 'plan_1' })
+  const activeWorker = run({ id: 'run_worker', role: 'worker', parentRunId: 'run_parent', taskGraphId: 'task_graph_1' })
 
   assert.equal(plannerRunIdForPlanAction(undefined, activeWorker), 'run_parent')
 })
 
 test('shouldPollPlanSnapshot keeps polling while any worker run is active', () => {
   const planSnapshot = snapshot({
-    plan: { status: 'done' },
+    taskGraph: { status: 'done' },
     runs: [
-      run({ id: 'run_planner', role: 'planner', status: 'completed', planId: 'plan_1' }),
-      run({ id: 'run_worker', role: 'worker', status: 'in_progress', parentRunId: 'run_planner', planId: 'plan_1' }),
+      run({ id: 'run_planner', role: 'planner', status: 'completed', taskGraphId: 'task_graph_1' }),
+      run({ id: 'run_worker', role: 'worker', status: 'in_progress', parentRunId: 'run_planner', taskGraphId: 'task_graph_1' }),
     ],
   })
 
-  assert.equal(shouldPollPlanSnapshot(planSnapshot, run({ id: 'run_worker', status: 'in_progress', planId: 'plan_1' })), true)
+  assert.equal(shouldPollPlanSnapshot(planSnapshot, run({ id: 'run_worker', status: 'in_progress', taskGraphId: 'task_graph_1' })), true)
 })
 
-test('shouldPollPlanSnapshot stops polling when plan and runs are terminal', () => {
+test('shouldPollPlanSnapshot stops polling when taskGraph and runs are terminal', () => {
   const planSnapshot = snapshot({
-    plan: { status: 'done' },
+    taskGraph: { status: 'done' },
     runs: [
-      run({ id: 'run_planner', role: 'planner', status: 'completed', planId: 'plan_1' }),
-      run({ id: 'run_worker', role: 'worker', status: 'completed', parentRunId: 'run_planner', planId: 'plan_1' }),
+      run({ id: 'run_planner', role: 'planner', status: 'completed', taskGraphId: 'task_graph_1' }),
+      run({ id: 'run_worker', role: 'worker', status: 'completed', parentRunId: 'run_planner', taskGraphId: 'task_graph_1' }),
     ],
   })
 
-  assert.equal(shouldPollPlanSnapshot(planSnapshot, run({ id: 'run_planner', status: 'completed', planId: 'plan_1' })), false)
+  assert.equal(shouldPollPlanSnapshot(planSnapshot, run({ id: 'run_planner', status: 'completed', taskGraphId: 'task_graph_1' })), false)
 })
 
 test('activeWorkerRunCount ignores active planner runs', () => {
   assert.equal(activeWorkerRunCount(snapshot({
     runs: [
-      run({ id: 'run_planner', role: 'planner', status: 'in_progress', planId: 'plan_1' }),
-      run({ id: 'run_worker', role: 'worker', status: 'requires_action', planId: 'plan_1' }),
-      run({ id: 'run_done_worker', role: 'worker', status: 'completed', planId: 'plan_1' }),
+      run({ id: 'run_planner', role: 'planner', status: 'in_progress', taskGraphId: 'task_graph_1' }),
+      run({ id: 'run_worker', role: 'worker', status: 'requires_action', taskGraphId: 'task_graph_1' }),
+      run({ id: 'run_done_worker', role: 'worker', status: 'completed', taskGraphId: 'task_graph_1' }),
     ],
   })), 1)
 })
@@ -128,7 +128,7 @@ test('buildPlanNameConflictViews exposes duplicate subagent names', () => {
       task({ id: 'task_b', title: 'Draft', status: 'blocked' }),
     ],
     runs: [
-      run({ id: 'run_a', role: 'worker', status: 'in_progress', taskId: 'task_a', planId: 'plan_1' }),
+      run({ id: 'run_a', role: 'worker', status: 'in_progress', taskId: 'task_a', taskGraphId: 'task_graph_1' }),
     ],
   })
 
@@ -171,7 +171,7 @@ test('buildPlanTaskViews merges subagent names, blockers, actions, and artifacts
         id: 'run_worker',
         role: 'worker',
         status: 'requires_action',
-        planId: 'plan_1',
+        taskGraphId: 'task_graph_1',
         taskId: 'task_named',
         blockedReason: 'Worker blocked',
         progress: 0.5,
@@ -286,7 +286,7 @@ test('buildPlanTaskViews falls back to worker subagent name when task metadata i
         id: 'run_named_worker',
         role: 'worker',
         status: 'in_progress',
-        planId: 'plan_1',
+        taskGraphId: 'task_graph_1',
         taskId: 'task_run_named',
         metadata: { subagentName: 'Hawking' },
       }),
@@ -300,7 +300,7 @@ test('buildPlanTaskViews falls back to worker subagent name when task metadata i
   assert.equal(view?.worker?.subagentName, 'Hawking')
 })
 
-test('buildPlanStatusExplanation summarizes plan health from task and run state', () => {
+test('buildPlanStatusExplanation summarizes taskGraph health from task and run state', () => {
   const explanation = buildPlanStatusExplanation(snapshot({
     tasks: [
       task({ id: 'task_pending', title: 'Pending', status: 'pending' }),
@@ -310,15 +310,15 @@ test('buildPlanStatusExplanation summarizes plan health from task and run state'
       task({ id: 'task_done', title: 'Done', status: 'done' }),
     ],
     runs: [
-      run({ id: 'run_planner', role: 'planner', status: 'in_progress', planId: 'plan_1' }),
-      run({ id: 'run_active', role: 'worker', status: 'in_progress', planId: 'plan_1' }),
+      run({ id: 'run_planner', role: 'planner', status: 'in_progress', taskGraphId: 'task_graph_1' }),
+      run({ id: 'run_active', role: 'worker', status: 'in_progress', taskGraphId: 'task_graph_1' }),
     ],
   }))
 
   assert.equal(explanation, '1 个执行器运行中 · 1 个被阻塞 · 1 个待复核 · 1 个失败 · 1 个待开始')
   assert.equal(buildPlanStatusExplanation(snapshot({
     tasks: [task({ id: 'task_done', title: 'Done', status: 'done' })],
-    plan: { status: 'done' },
+    taskGraph: { status: 'done' },
   })), '所有任务已完成。')
   assert.equal(buildPlanStatusExplanation(snapshot({ tasks: [] })), '还没有计划任务。')
 })
@@ -345,7 +345,7 @@ test('buildPlanStatusExplanation prefers backend summary when available', () => 
 test('buildPlanOverviewStats prefers backend summary and falls back locally', () => {
   const withSummary = snapshot({
     tasks: [task({ id: 'task_done', title: 'Done', status: 'done' })],
-    runs: [run({ id: 'run_worker', role: 'worker', status: 'in_progress', planId: 'plan_1' })],
+    runs: [run({ id: 'run_worker', role: 'worker', status: 'in_progress', taskGraphId: 'task_graph_1' })],
     nameConflicts: [{ subagentName: 'Einstein', taskIds: ['task_a', 'task_b'] }],
     summary: {
       taskCount: 4,
@@ -373,8 +373,8 @@ test('buildPlanOverviewStats prefers backend summary and falls back locally', ()
       task({ id: 'task_pending', title: 'Pending', status: 'pending' }),
     ],
     runs: [
-      run({ id: 'run_worker', role: 'worker', status: 'requires_action', planId: 'plan_1' }),
-      run({ id: 'run_planner', role: 'planner', status: 'in_progress', planId: 'plan_1' }),
+      run({ id: 'run_worker', role: 'worker', status: 'requires_action', taskGraphId: 'task_graph_1' }),
+      run({ id: 'run_planner', role: 'planner', status: 'in_progress', taskGraphId: 'task_graph_1' }),
     ],
     nameConflicts: [{ subagentName: 'Hawking', taskIds: ['task_done', 'task_pending'] }],
   })
@@ -412,7 +412,7 @@ test('buildPlanTaskViews localizes active worker task explanations', () => {
       task({ id: 'task_cancelled', title: 'Cancelled', status: 'cancelled' }),
     ],
     runs: [
-      run({ id: 'run_worker', role: 'worker', status: 'in_progress', taskId: 'task_running', planId: 'plan_1' }),
+      run({ id: 'run_worker', role: 'worker', status: 'in_progress', taskId: 'task_running', taskGraphId: 'task_graph_1' }),
     ],
   }))
 
@@ -424,7 +424,7 @@ test('buildPlanTaskViews localizes active worker task explanations', () => {
   ])
 })
 
-test('buildPlanArtifactSummary aggregates plan artifacts by recency and type', () => {
+test('buildPlanArtifactSummary aggregates taskGraph artifacts by recency and type', () => {
   const summary = buildPlanArtifactSummary(snapshot({
     tasks: [
       task({
@@ -510,13 +510,13 @@ test('buildTaskArtifactViews sorts task artifacts and preserves provenance', () 
   ])
 })
 
-test('actionableRunForPlan selects a blocked worker when the planner is active', () => {
-  const activePlanner = run({ id: 'run_planner', role: 'planner', status: 'completed', planId: 'plan_1' })
+test('actionableRunForTaskGraph selects a blocked worker when the planner is active', () => {
+  const activePlanner = run({ id: 'run_planner', role: 'planner', status: 'completed', taskGraphId: 'task_graph_1' })
   const worker = run({
     id: 'run_worker',
     role: 'worker',
     status: 'requires_action',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_named',
     pendingInputRequests: [
       { id: 'input_1', runId: 'run_worker', title: 'Question', question: 'Continue?', inputType: 'text', choices: [], allowCustomAnswer: true, status: 'pending', createdAt: '2026-05-12T00:00:00.000Z', updatedAt: '2026-05-12T00:00:00.000Z' },
@@ -529,16 +529,16 @@ test('actionableRunForPlan selects a blocked worker when the planner is active',
     runs: [activePlanner, worker],
   })
 
-  assert.equal(actionableRunForPlan(planSnapshot, activePlanner)?.id, 'run_worker')
+  assert.equal(actionableRunForTaskGraph(planSnapshot, activePlanner)?.id, 'run_worker')
   assert.equal(runNeedsUserAction(worker), true)
 })
 
-test('actionableRunForPlan prefers the active run when it needs action', () => {
+test('actionableRunForTaskGraph prefers the active run when it needs action', () => {
   const activeWorker = run({
     id: 'run_active_worker',
     role: 'worker',
     status: 'requires_action',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     pendingApprovals: [
       { id: 'approval_1', runId: 'run_active_worker', toolName: 'tool_write', reason: 'Write project data', status: 'pending', createdAt: '2026-05-12T00:00:00.000Z', updatedAt: '2026-05-12T00:00:00.000Z' },
     ],
@@ -547,21 +547,21 @@ test('actionableRunForPlan prefers the active run when it needs action', () => {
     id: 'run_other_worker',
     role: 'worker',
     status: 'requires_action',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     pendingInputRequests: [
       { id: 'input_1', runId: 'run_other_worker', title: 'Question', question: 'Continue?', inputType: 'text', choices: [], allowCustomAnswer: true, status: 'pending', createdAt: '2026-05-12T00:00:00.000Z', updatedAt: '2026-05-12T00:00:00.000Z' },
     ],
   })
 
-  assert.equal(actionableRunForPlan(snapshot({ runs: [otherWorker] }), activeWorker)?.id, 'run_active_worker')
+  assert.equal(actionableRunForTaskGraph(snapshot({ runs: [otherWorker] }), activeWorker)?.id, 'run_active_worker')
 })
 
-test('actionableRunsForPlan returns all blocked runs with active run first', () => {
+test('actionableRunsForTaskGraph returns all blocked runs with active run first', () => {
   const activeWorker = run({
     id: 'run_active_worker',
     role: 'worker',
     status: 'requires_action',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     pendingApprovals: [
       { id: 'approval_1', runId: 'run_active_worker', toolName: 'tool_write', reason: 'Write project data', status: 'pending', createdAt: '2026-05-12T00:00:00.000Z', updatedAt: '2026-05-12T00:00:00.000Z' },
     ],
@@ -570,7 +570,7 @@ test('actionableRunsForPlan returns all blocked runs with active run first', () 
     id: 'run_named_worker',
     role: 'worker',
     status: 'requires_action',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_named',
     pendingInputRequests: [
       { id: 'input_1', runId: 'run_named_worker', title: 'Question', question: 'Continue?', inputType: 'text', choices: [], allowCustomAnswer: true, status: 'pending', createdAt: '2026-05-12T00:00:00.000Z', updatedAt: '2026-05-12T00:00:00.000Z' },
@@ -580,7 +580,7 @@ test('actionableRunsForPlan returns all blocked runs with active run first', () 
     id: 'run_loose_worker',
     role: 'worker',
     status: 'requires_action',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     pendingInputRequests: [
       { id: 'input_2', runId: 'run_loose_worker', title: 'Question', question: 'Pick?', inputType: 'text', choices: [], allowCustomAnswer: true, status: 'pending', createdAt: '2026-05-12T00:00:00.000Z', updatedAt: '2026-05-12T00:00:00.000Z' },
     ],
@@ -592,19 +592,19 @@ test('actionableRunsForPlan returns all blocked runs with active run first', () 
     runs: [namedWorker, activeWorker, looseWorker],
   })
 
-  assert.deepEqual(actionableRunsForPlan(planSnapshot, activeWorker).map((item) => item.id), [
+  assert.deepEqual(actionableRunsForTaskGraph(planSnapshot, activeWorker).map((item) => item.id), [
     'run_active_worker',
     'run_named_worker',
     'run_loose_worker',
   ])
 })
 
-test('interactionRunsForPlan keeps resolved interaction history without including internal runs', () => {
+test('interactionRunsForTaskGraph keeps resolved interaction history without including internal runs', () => {
   const activeWorker = run({
     id: 'run_active_worker',
     role: 'worker',
     status: 'requires_action',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     pendingApprovals: [
       { id: 'approval_1', runId: 'run_active_worker', toolName: 'tool_write', reason: 'Write project data', status: 'pending', createdAt: '2026-05-12T00:00:00.000Z', updatedAt: '2026-05-12T00:00:00.000Z' },
     ],
@@ -613,14 +613,14 @@ test('interactionRunsForPlan keeps resolved interaction history without includin
     id: 'run_completed_worker',
     role: 'worker',
     status: 'completed',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     pendingApprovals: [
       { id: 'approval_done', runId: 'run_completed_worker', toolName: 'tool_done', reason: 'Approved earlier', status: 'approved', createdAt: '2026-05-12T00:00:00.000Z', updatedAt: '2026-05-12T00:00:01.000Z' },
     ],
   })
-  const internalWorker = run({ id: 'run_internal_worker', role: 'worker', status: 'completed', planId: 'plan_1' })
+  const internalWorker = run({ id: 'run_internal_worker', role: 'worker', status: 'completed', taskGraphId: 'task_graph_1' })
 
-  assert.deepEqual(interactionRunsForPlan(snapshot({
+  assert.deepEqual(interactionRunsForTaskGraph(snapshot({
     runs: [completedWorker, internalWorker],
   }), activeWorker).map((item) => item.id), [
     'run_active_worker',

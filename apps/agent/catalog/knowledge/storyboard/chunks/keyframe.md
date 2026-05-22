@@ -4,7 +4,7 @@ domain: storyboard
 title: 关键帧选择
 tags:
   - keyframe
-  - media_plan
+  - media_taskGraph
   - visual_generation
 summary: 用于从内容单元中选择最值得生成或审阅的关键帧目标。
 version: 1.0.0

@@ -1,0 +1,31 @@
+{
+  "name": "draft_file_read",
+  "description": "读取 agent 文件系统中的 UTF-8 文本对象。文件必须使用 canonical ref，例如 agent://draft/{draftId}/content。返回内容、revision、长度和 provider 校验结果。",
+  "permission": "agent.file.read",
+  "risk": "read",
+  "source": "runtime",
+  "category": "files",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["ref"],
+    "properties": {
+      "ref": {
+        "type": "string",
+        "description": "canonical 文件引用，例如 agent://draft/{draftId}/content。"
+      },
+      "startLine": {
+        "type": "number",
+        "description": "可选，从第几行开始读取。与 lineCount 搭配用于局部查看大文件。"
+      },
+      "lineCount": {
+        "type": "number",
+        "description": "可选，读取多少行；默认 120，最大 1000。"
+      },
+      "contentLimit": {
+        "type": "number",
+        "description": "最大返回字符数，默认 20000，最大 100000。"
+      }
+    }
+  }
+}

@@ -115,7 +115,7 @@ AI 视频工作台里，`scene_moment` 可以直接作为“情节/可生成视�
 
 这些层不是和配音、字幕并列的 `content_unit`，而是 Shot 的内部结构。
 
-建议使用 `content_unit.visual_plan_json` 或 `content_unit.blocking_json` 承载。若已有 `blocking_json` 约定，可以先沿用，并逐步泛化为更完整的视觉计划。
+建议使用 `content_unit.visual_task_graph_json` 或 `content_unit.blocking_json` 承载。若已有 `blocking_json` 约定，可以先沿用，并逐步泛化为更完整的视觉计划。
 
 示例：
 
@@ -188,12 +188,12 @@ AI 视频工作台里，`scene_moment` 可以直接作为“情节/可生成视�
 
 典型对象和推荐写入字段：
 
-- 相机路径：`visual_plan_json.camera`
-- 人物路径：`visual_plan_json.blocking.character_paths`
-- 光线范围：`visual_plan_json.lighting`
-- 物体动作：`visual_plan_json.motion.object_paths`
-- 构图安全区/禁入区：`visual_plan_json.composition`
-- 首尾关键帧：`visual_plan_json.keyframes`
+- 相机路径：`visual_task_graph_json.camera`
+- 人物路径：`visual_task_graph_json.blocking.character_paths`
+- 光线范围：`visual_task_graph_json.lighting`
+- 物体动作：`visual_task_graph_json.motion.object_paths`
+- 构图安全区/禁入区：`visual_task_graph_json.composition`
+- 首尾关键帧：`visual_task_graph_json.keyframes`
 
 示例：
 
@@ -252,7 +252,7 @@ AI 视频工作台里，`scene_moment` 可以直接作为“情节/可生成视�
 - 动作点：标记关键动作发生的位置和时间。
 - 禁入区/构图区：标记不能出现主体、不能照亮、不能越过的画面约束。
 
-点击底图层对象时，右侧展示来源信息和“去设定中编辑”。点击 Shot 覆盖层对象时，右侧进入对象编辑器，字段直接写回当前 `content_unit.visual_plan_json`。
+点击底图层对象时，右侧展示来源信息和“去设定中编辑”。点击 Shot 覆盖层对象时，右侧进入对象编辑器，字段直接写回当前 `content_unit.visual_task_graph_json`。
 
 ## 设定和素材引用
 

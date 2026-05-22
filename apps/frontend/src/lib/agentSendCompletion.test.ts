@@ -105,8 +105,8 @@ test('completeSendRunResult does not append a plain assistant summary for requir
     pendingApprovals: [{
       id: 'approval_1',
       runId: 'run_1',
-      toolName: 'movscript_create_generation_job',
-      reason: 'movscript_create_generation_job 需要用户确认后才能执行',
+      toolName: 'generation_job_create',
+      reason: 'generation_job_create 需要用户确认后才能执行',
       risk: 'generate',
       permission: 'generation.create',
       status: 'pending',
@@ -137,7 +137,7 @@ test('completeSendRunResult does not append a plain assistant summary for requir
   })
   const approvalMessage = items.find((item) => item.beforeMessageWorkflowRuns.some((run) => run.id === 'run_1'))
   assert.equal(approvalMessage?.showMessage, false)
-  assert.equal(approvalMessage?.beforeMessageWorkflowRuns[0]?.pendingApprovals?.[0]?.toolName, 'movscript_create_generation_job')
+  assert.equal(approvalMessage?.beforeMessageWorkflowRuns[0]?.pendingApprovals?.[0]?.toolName, 'generation_job_create')
 })
 
 function depsFixture(calls: string[]): CompleteSendRunResultDeps {
@@ -214,7 +214,7 @@ function draft(localRuntime: NonNullable<AgentSendDraft['localRuntime']> = {}): 
       permissionMode: 'ask',
       includeProjectContext: true,
       includeRecentResources: false,
-      autoPlan: false,
+      autoTaskGraph: false,
     },
     contextLabels: [],
     context: { recentResources: [] },

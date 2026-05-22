@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { projectTasksOntoPlan, resolvePlanStatusFromTasks } from './planProjection.js'
-import type { AgentPlan, AgentTask } from './types.js'
+import { projectTasksOntoTaskGraph, resolvePlanStatusFromTasks } from './planProjection.js'
+import type { AgentTaskGraph, AgentTask } from './types.js'
 
 test('resolvePlanStatusFromTasks prioritizes terminal and blocked task states', () => {
   assert.equal(resolvePlanStatusFromTasks('running', [task({ status: 'failed' })]), 'failed')
@@ -19,52 +19,52 @@ test('resolvePlanStatusFromTasks handles done, running, pending, mixed, and empt
   assert.equal(resolvePlanStatusFromTasks('blocked', []), 'blocked')
 })
 
-test('projectTasksOntoPlan updates progress timestamps and completion markers', () => {
-  const plan = planFixture({ status: 'running', progress: 0.2 })
-  const result = projectTasksOntoPlan(plan, [
+test('projectTasksOntoTaskGraph updates progress timestamps and completion markers', () => {
+  const taskGraph = planFixture({ status: 'running', progress: 0.2 })
+  const result = projectTasksOntoTaskGraph(taskGraph, [
     task({ status: 'done', progress: 1 }),
     task({ id: 'task_2', status: 'done', progress: 0.5 }),
   ], '2026-05-16T01:00:00.000Z')
   assert.equal(result.previousStatus, 'running')
   assert.equal(result.nextStatus, 'done')
   assert.equal(result.completedNow, true)
-  assert.equal(plan.status, 'done')
-  assert.equal(plan.progress, 0.75)
-  assert.equal(plan.completedAt, '2026-05-16T01:00:00.000Z')
-  assert.equal(plan.updatedAt, '2026-05-16T01:00:00.000Z')
+  assert.equal(taskGraph.status, 'done')
+  assert.equal(taskGraph.progress, 0.75)
+  assert.equal(taskGraph.completedAt, '2026-05-16T01:00:00.000Z')
+  assert.equal(taskGraph.updatedAt, '2026-05-16T01:00:00.000Z')
 })
 
-test('projectTasksOntoPlan preserves empty plan progress and manages blocked reason', () => {
-  const emptyPlan = planFixture({ status: 'blocked', progress: 0.4, blockedReason: 'old' })
-  projectTasksOntoPlan(emptyPlan, [], '2026-05-16T01:00:00.000Z')
-  assert.equal(emptyPlan.status, 'blocked')
-  assert.equal(emptyPlan.progress, 0.4)
-  assert.equal(emptyPlan.blockedReason, undefined)
+test('projectTasksOntoTaskGraph preserves empty taskGraph progress and manages blocked reason', () => {
+  const emptyTaskGraph = planFixture({ status: 'blocked', progress: 0.4, blockedReason: 'old' })
+  projectTasksOntoTaskGraph(emptyTaskGraph, [], '2026-05-16T01:00:00.000Z')
+  assert.equal(emptyTaskGraph.status, 'blocked')
+  assert.equal(emptyTaskGraph.progress, 0.4)
+  assert.equal(emptyTaskGraph.blockedReason, undefined)
 
-  const blockedPlan = planFixture()
-  projectTasksOntoPlan(blockedPlan, [
+  const blockedTaskGraph = planFixture()
+  projectTasksOntoTaskGraph(blockedTaskGraph, [
     task({ status: 'blocked', blockedReason: 'Need input' }),
     task({ id: 'task_2', status: 'blocked', blockedReason: 'Later blocker' }),
   ], '2026-05-16T01:00:00.000Z')
-  assert.equal(blockedPlan.status, 'blocked')
-  assert.equal(blockedPlan.blockedReason, 'Need input')
+  assert.equal(blockedTaskGraph.status, 'blocked')
+  assert.equal(blockedTaskGraph.blockedReason, 'Need input')
 })
 
-test('projectTasksOntoPlan sets failed and cancelled timestamps once', () => {
-  const failedPlan = planFixture({ failedAt: 'old' })
-  projectTasksOntoPlan(failedPlan, [task({ status: 'failed' })], 'new')
-  assert.equal(failedPlan.failedAt, 'old')
+test('projectTasksOntoTaskGraph sets failed and cancelled timestamps once', () => {
+  const failedTaskGraph = planFixture({ failedAt: 'old' })
+  projectTasksOntoTaskGraph(failedTaskGraph, [task({ status: 'failed' })], 'new')
+  assert.equal(failedTaskGraph.failedAt, 'old')
 
-  const cancelledPlan = planFixture()
-  projectTasksOntoPlan(cancelledPlan, [task({ status: 'cancelled' })], 'new')
-  assert.equal(cancelledPlan.cancelledAt, 'new')
+  const cancelledTaskGraph = planFixture()
+  projectTasksOntoTaskGraph(cancelledTaskGraph, [task({ status: 'cancelled' })], 'new')
+  assert.equal(cancelledTaskGraph.cancelledAt, 'new')
 })
 
-function planFixture(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function planFixture(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0,
     createdAt: '2026-05-16T00:00:00.000Z',
@@ -76,7 +76,7 @@ function planFixture(overrides: Partial<AgentPlan> = {}): AgentPlan {
 function task(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'pending',

@@ -145,7 +145,7 @@ export class RuntimeScheduler {
       userMessage: continuationMessage(continuation, operations),
       parentRunId: continuation.runId,
       ...(sourceRun?.role ? { role: sourceRun.role } : {}),
-      ...(sourceRun?.planId ? { planId: sourceRun.planId } : {}),
+      ...(sourceRun?.taskGraphId ? { taskGraphId: sourceRun.taskGraphId } : {}),
       ...(sourceRun?.taskId ? { taskId: sourceRun.taskId } : {}),
       ...(sourceRun?.agentManifest ? { agentManifest: sourceRun.agentManifest } : {}),
       metadata: {

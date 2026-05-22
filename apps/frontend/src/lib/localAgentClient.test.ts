@@ -217,6 +217,7 @@ test('runMessageStream reports thread resolution on the streaming path', async (
     assert.ok(requests.includes('GET /threads/thread_stream/stream'))
     assert.equal(requests.includes('GET /runs/run_stream/stream'), false)
     assert.equal(runBodies[0]?.message, 'continue')
+    assert.equal(runBodies[0]?.activeRunPolicy, 'new_run')
   })
 })
 

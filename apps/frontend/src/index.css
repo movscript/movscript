@@ -185,7 +185,10 @@
 }
 
 .app-window-header {
+  --app-window-titlebar-height: 34px;
+
   -webkit-app-region: drag;
+  height: var(--app-window-titlebar-height);
   padding-left: 8px;
   padding-right: 8px;
 }
@@ -201,6 +204,22 @@
 .app-window-no-drag,
 .app-window-no-drag * {
   -webkit-app-region: no-drag;
+}
+
+.app-window-header__left-controls {
+  height: var(--app-window-titlebar-height);
+  align-self: stretch;
+  align-items: center;
+}
+
+.app-window-sidebar-toggle {
+  width: 20px;
+  height: 20px;
+  line-height: 0;
+}
+
+.app-window-sidebar-toggle svg {
+  display: block;
 }
 
 .app-page {

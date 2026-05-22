@@ -1,7 +1,7 @@
 import { appendRunStep } from '../state/runTrace.js'
 import type { AgentRunRoundInfo } from '../state/runRound.js'
 import type { AgentStore } from '../state/store.js'
-import type { AgentRun, AgentRunStep } from '../state/types.js'
+import type { AgentRun, AgentRunStep, JSONValue } from '../state/types.js'
 
 export function createRuntimeRunStep(input: {
   store: Pick<AgentStore, 'updateRun'>
@@ -11,6 +11,7 @@ export function createRuntimeRunStep(input: {
   createdAt: string
   round?: AgentRunRoundInfo
   toolName?: string
+  args?: Record<string, JSONValue>
   emitRunSnapshot: (run: AgentRun) => void
 }): AgentRunStep {
   const step = appendRunStep({
@@ -21,6 +22,7 @@ export function createRuntimeRunStep(input: {
     createdAt: input.createdAt,
     ...(input.round ? { round: input.round } : {}),
     ...(input.toolName ? { toolName: input.toolName } : {}),
+    ...(input.args ? { args: input.args } : {}),
   })
   input.store.updateRun(input.run)
   input.emitRunSnapshot(input.run)
@@ -35,6 +37,7 @@ export function applyRuntimeRunStepCreationRequest(input: {
   now: () => string
   round?: AgentRunRoundInfo
   toolName?: string
+  args?: Record<string, JSONValue>
   emitRunSnapshot: (run: AgentRun) => void
 }): AgentRunStep {
   return createRuntimeRunStep({
@@ -45,6 +48,7 @@ export function applyRuntimeRunStepCreationRequest(input: {
     createdAt: input.now(),
     ...(input.round ? { round: input.round } : {}),
     ...(input.toolName ? { toolName: input.toolName } : {}),
+    ...(input.args ? { args: input.args } : {}),
     emitRunSnapshot: input.emitRunSnapshot,
   })
 }

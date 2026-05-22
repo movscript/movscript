@@ -181,6 +181,7 @@ export function ProjectLayerProposalReviewPanel({
         {reviewableDrafts.map((draft) => {
           const view = parseProjectLayerProposalDraft(draft, data, { includeCreativeReferences, includeAssetSlots })
           const entries = view ? [...view.creativeReferences, ...view.assetSlots] : []
+          const diffEntries = entries.filter((entry) => entry.changeType !== 'unchanged')
           const pendingEntries = entries.filter((entry) => decisions[entry.key] !== 'rejected' && !entry.applied && entry.changeType !== 'unchanged')
           const submittedEntries = entries.filter((entry) => decisions[entry.key] === 'submitted' || entry.applied)
           const rejectedEntries = entries.filter((entry) => decisions[entry.key] === 'rejected')
@@ -196,7 +197,7 @@ export function ProjectLayerProposalReviewPanel({
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                   <Badge variant={draft.status === 'applied' ? 'success' : 'outline'} className="type-tiny">{draft.status}</Badge>
-                  <Badge variant="outline" className="type-tiny">{entries.length} 条变更</Badge>
+                  <Badge variant="outline" className="type-tiny">{diffEntries.length} 条变更</Badge>
                 </div>
               </div>
 
@@ -239,9 +240,9 @@ export function ProjectLayerProposalReviewPanel({
                     </div>
                   </div>
 
-                  {entries.length > 0 ? (
+                  {diffEntries.length > 0 ? (
                     <div className="space-y-2">
-                      {entries.map((entry) => {
+                      {diffEntries.map((entry) => {
                         const rows = buildProjectLayerProposalEntryDiffRows(entry, data, referenceLabels)
                         const isSubmitted = entry.applied || decisions[entry.key] === 'submitted'
                         const isRejected = decisions[entry.key] === 'rejected'

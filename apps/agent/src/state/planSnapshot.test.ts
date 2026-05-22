@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { agentPlanSummary, buildAgentPlanSnapshot, taskArtifactReferences } from './planSnapshot.js'
-import type { AgentPlan, AgentRun, AgentTask } from './types.js'
+import { agentPlanSummary, buildAgentTaskGraphSnapshot, taskArtifactReferences } from './planSnapshot.js'
+import type { AgentTaskGraph, AgentRun, AgentTask } from './types.js'
 
 test('taskArtifactReferences includes task and provenance metadata', () => {
   const source = task({
@@ -105,7 +105,7 @@ test('agentPlanSummary counts statuses workers artifacts and conflicts', () => {
   })
 })
 
-test('buildAgentPlanSnapshot projects conflicts and reusable summary', () => {
+test('buildAgentTaskGraphSnapshot projects conflicts and reusable summary', () => {
   const tasks = [
     task({ id: 'task_1', status: 'blocked', metadata: { subagentName: 'Ada' } }),
     task({ id: 'task_2', status: 'done', metadata: { subagentName: 'Ada' }, artifacts: [{
@@ -114,13 +114,13 @@ test('buildAgentPlanSnapshot projects conflicts and reusable summary', () => {
       createdAt: '2026-05-16T00:00:00.000Z',
     }] }),
   ]
-  const snapshot = buildAgentPlanSnapshot({
-    plan: plan(),
+  const snapshot = buildAgentTaskGraphSnapshot({
+    taskGraph: taskGraph(),
     tasks,
     runs: [run({ status: 'in_progress' })],
   })
 
-  assert.equal(snapshot.plan.id, 'plan_1')
+  assert.equal(snapshot.taskGraph.id, 'task_graph_1')
   assert.deepEqual(snapshot.nameConflicts, [{ subagentName: 'Ada', taskIds: ['task_1', 'task_2'] }])
   assert.ok(snapshot.summary)
   assert.equal(snapshot.summary.taskCount, 2)
@@ -129,11 +129,11 @@ test('buildAgentPlanSnapshot projects conflicts and reusable summary', () => {
   assert.deepEqual(snapshot.summary.blockedTaskIds, ['task_1'])
 })
 
-function plan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function taskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0,
     createdAt: '2026-05-16T00:00:00.000Z',
@@ -164,7 +164,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
 function task(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'pending',

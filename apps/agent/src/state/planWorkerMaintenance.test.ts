@@ -4,7 +4,7 @@ import {
   buildReplanTaskResetPolicy,
   hasReplanTaskResetPolicy,
   retryablePlanTask,
-  shouldResetTaskForReplan,
+  shouldResetTaskForRetaskGraph,
   timedOutWorkerRun,
 } from './planWorkerMaintenance.js'
 import type { AgentRun, AgentTask } from './types.js'
@@ -51,7 +51,7 @@ test('retryablePlanTask allows failed and cancelled tasks below attempt limit', 
   }), undefined)
 })
 
-test('replan reset policy selects explicit and status-matched tasks', () => {
+test('updateTaskGraph reset policy selects explicit and status-matched tasks', () => {
   const policy = buildReplanTaskResetPolicy({
     resetTaskIds: ['task_running'],
     resetBlocked: true,
@@ -59,16 +59,16 @@ test('replan reset policy selects explicit and status-matched tasks', () => {
   })
 
   assert.equal(hasReplanTaskResetPolicy(policy), true)
-  assert.equal(shouldResetTaskForReplan(makeTask({ id: 'task_running', status: 'running' }), policy), true)
-  assert.equal(shouldResetTaskForReplan(makeTask({ id: 'task_blocked', status: 'blocked' }), policy), true)
-  assert.equal(shouldResetTaskForReplan(makeTask({ id: 'task_failed', status: 'failed' }), policy), false)
+  assert.equal(shouldResetTaskForRetaskGraph(makeTask({ id: 'task_running', status: 'running' }), policy), true)
+  assert.equal(shouldResetTaskForRetaskGraph(makeTask({ id: 'task_blocked', status: 'blocked' }), policy), true)
+  assert.equal(shouldResetTaskForRetaskGraph(makeTask({ id: 'task_failed', status: 'failed' }), policy), false)
 })
 
-test('empty replan reset policy is inert', () => {
+test('empty updateTaskGraph reset policy is inert', () => {
   const policy = buildReplanTaskResetPolicy({})
 
   assert.equal(hasReplanTaskResetPolicy(policy), false)
-  assert.equal(shouldResetTaskForReplan(makeTask({ status: 'blocked' }), policy), false)
+  assert.equal(shouldResetTaskForRetaskGraph(makeTask({ status: 'blocked' }), policy), false)
 })
 
 function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
@@ -94,7 +94,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'pending',

@@ -21,6 +21,7 @@ import {
 import { buildDraftReviewPath } from '@/lib/draftDomainModel'
 import { useProjectStore } from '@/store/projectStore'
 import { cn } from '@/lib/utils'
+import { AgentConsoleNav } from '@/pages/agent/AgentConsoleNav'
 
 const DRAFT_KINDS: AgentDraftKind[] = ['script_split_proposal', 'script', 'asset_slot', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_standards_proposal', 'production_proposal', 'content_unit_proposal']
 
@@ -72,14 +73,14 @@ export default function AIDraftsPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <header className="border-b border-border px-5 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <header className="shrink-0 border-b border-border bg-background px-5 py-3">
+        <div className="flex min-h-[72px] flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <ClipboardCheck size={18} />
               <h1 className="type-title-sm font-semibold text-foreground">{t('agents.draftHistory.title')}</h1>
             </div>
-            <p className="mt-1 max-w-2xl type-label leading-5 text-muted-foreground">{t('agents.draftHistory.description')}</p>
+            <p className="mt-1 line-clamp-2 max-w-3xl type-label leading-5 text-muted-foreground">{t('agents.draftHistory.description')}</p>
           </div>
           <Button
             type="button"
@@ -93,6 +94,8 @@ export default function AIDraftsPage() {
           </Button>
         </div>
       </header>
+
+      <AgentConsoleNav compact />
 
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(280px,420px)_minmax(0,1fr)]">
         <aside className="flex min-h-0 flex-col border-r border-border">

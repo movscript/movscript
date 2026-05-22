@@ -21,7 +21,7 @@ test('content workbench recommends AI and manual planning when a moment has no u
     hasUnitPrompt: false,
     missingSlotCount: 0,
     keyframeCount: 0,
-  }).map((action) => action.key), ['ai_plan_units', 'manual_add_unit'])
+  }).map((action) => action.key), ['ai_task_graph_units', 'manual_add_unit'])
 })
 
 test('content workbench blocks generation on prompt, assets, keyframes, then context', () => {

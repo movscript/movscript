@@ -30,6 +30,7 @@ export interface ToolDefinition {
   errorCodes?: string[]
   availability?: ToolAvailability
   allowedRunRoles?: Array<'planner' | 'worker'>
+  requiresSkills?: string[]
 }
 
 export type ToolAvailability =

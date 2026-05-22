@@ -167,7 +167,7 @@ function draft(): AgentSendDraft {
       permissionMode: 'ask',
       includeProjectContext: true,
       includeRecentResources: false,
-      autoPlan: false,
+      autoTaskGraph: false,
     },
     contextLabels: [],
     context: { recentResources: [] },

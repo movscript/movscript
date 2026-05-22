@@ -50,7 +50,7 @@ export function buildReplanTaskResetPolicy(input: {
   }
 }
 
-export function shouldResetTaskForReplan(task: AgentTask, policy: ReplanTaskResetPolicy): boolean {
+export function shouldResetTaskForRetaskGraph(task: AgentTask, policy: ReplanTaskResetPolicy): boolean {
   const explicitlyReset = policy.explicitTaskIds.has(task.id)
   const selectedByStatus = (policy.resetBlocked && task.status === 'blocked')
     || (policy.resetNeedsReview && task.status === 'needs_review')

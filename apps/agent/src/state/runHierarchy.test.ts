@@ -5,12 +5,12 @@ import { normalizeRunHierarchyInput, normalizeRunProgress, normalizeRunRole } fr
 test('normalizeRunHierarchyInput applies default role and trims hierarchy ids', () => {
   assert.deepEqual(normalizeRunHierarchyInput({
     parentRunId: ' parent ',
-    planId: ' plan ',
+    taskGraphId: ' taskGraph ',
     taskId: ' task ',
   }, { defaultRole: 'planner' }), {
     role: 'planner',
     parentRunId: 'parent',
-    planId: 'plan',
+    taskGraphId: 'taskGraph',
     taskId: 'task',
   })
 })
@@ -25,7 +25,7 @@ test('normalizeRunHierarchyInput drops invalid ids and keeps clamped progress an
   assert.deepEqual(normalizeRunHierarchyInput({
     role: 'invalid',
     parentRunId: ' ',
-    planId: 123,
+    taskGraphId: 123,
     taskId: null,
     progress: '1.5',
     blockedReason: ' Needs approval ',

@@ -17,8 +17,9 @@ export type AgentStepStatus = 'in_progress' | 'completed' | 'failed'
 export type AgentApprovalStatus = 'pending' | 'approved' | 'rejected'
 export type AgentInputRequestStatus = 'pending' | 'answered' | 'cancelled'
 export type AgentRunRole = 'planner' | 'worker'
-export type AgentPlanStatus = 'pending' | 'running' | 'blocked' | 'needs_review' | 'done' | 'failed' | 'cancelled'
+export type AgentTaskGraphStatus = 'pending' | 'running' | 'blocked' | 'needs_review' | 'done' | 'failed' | 'cancelled'
 export type AgentTaskStatus = 'pending' | 'running' | 'blocked' | 'needs_review' | 'done' | 'failed' | 'cancelled'
+export type AgentProgressChecklistItemStatus = 'pending' | 'in_progress' | 'completed'
 
 export interface AgentMessage {
   id: string
@@ -36,6 +37,8 @@ export interface AgentThread {
   title?: string
   projectId?: number
   metadata?: Record<string, JSONValue>
+  currentProgressChecklist?: AgentProgressChecklist
+  progressChecklistRevisions?: AgentProgressChecklistRevision[]
   archived?: boolean
   status?: AgentThreadStatus
   activeRunId?: string
@@ -51,6 +54,7 @@ export interface AgentThreadSummary {
   title?: string
   projectId?: number
   metadata?: Record<string, JSONValue>
+  currentProgressChecklist?: AgentProgressChecklist
   archived: boolean
   status?: AgentThreadStatus
   activeRunId?: string
@@ -60,6 +64,35 @@ export interface AgentThreadSummary {
   updatedAt: string
   messageCount: number
   lastMessageAt?: string
+}
+
+export interface AgentProgressChecklistItem {
+  step: string
+  status: AgentProgressChecklistItemStatus
+}
+
+export interface AgentProgressChecklist {
+  schema: 'movscript.agent.progress-checklist.v1'
+  id: string
+  threadId: string
+  runId?: string
+  explanation?: string
+  items: AgentProgressChecklistItem[]
+  completedCount: number
+  totalCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AgentProgressChecklistRevision {
+  schema: 'movscript.agent.progress-checklist-revision.v1'
+  id: string
+  checklistId: string
+  threadId: string
+  runId?: string
+  explanation?: string
+  snapshot: AgentProgressChecklist
+  createdAt: string
 }
 
 export interface AgentRunStep {
@@ -101,7 +134,7 @@ export const AGENT_TRACE_EVENT_KINDS = [
   'input',
   'assistant',
   'task',
-  'plan',
+  'taskGraph',
   'error',
 ] as const
 
@@ -134,7 +167,7 @@ export interface AgentRun {
   status: AgentRunStatus
   role?: AgentRunRole
   parentRunId?: string
-  planId?: string
+  taskGraphId?: string
   taskId?: string
   progress?: number
   blockedReason?: string
@@ -204,7 +237,7 @@ export interface AgentRunInput {
   executionMode: 'chat' | 'tool' | 'worker' | 'resume'
   parent?: {
     runId?: string
-    planId?: string
+    taskGraphId?: string
     taskId?: string
   }
   task?: {
@@ -218,12 +251,12 @@ export interface AgentRunInput {
   createdAt: string
 }
 
-export interface AgentPlan {
+export interface AgentTaskGraph {
   id: string
   threadId: string
   rootRunId?: string
   title: string
-  status: AgentPlanStatus
+  status: AgentTaskGraphStatus
   progress: number
   blockedReason?: string
   metadata?: Record<string, JSONValue>
@@ -245,7 +278,7 @@ export interface AgentTaskArtifact {
 
 export interface AgentTask {
   id: string
-  planId: string
+  taskGraphId: string
   parentId?: string
   deps: string[]
   title: string
@@ -264,18 +297,18 @@ export interface AgentTask {
   cancelledAt?: string
 }
 
-export interface AgentPlanSnapshot {
-  plan: AgentPlan
+export interface AgentTaskGraphSnapshot {
+  taskGraph: AgentTaskGraph
   tasks: AgentTask[]
   runs: AgentRun[]
   nameConflicts?: Array<{
     subagentName: string
     taskIds: string[]
   }>
-  summary?: AgentPlanSummary
+  summary?: AgentTaskGraphSummary
 }
 
-export interface AgentPlanSummary {
+export interface AgentTaskGraphSummary {
   taskCount: number
   taskStatusCounts: Record<AgentTaskStatus, number>
   workerCount: number
@@ -291,33 +324,33 @@ export type AgentRunStreamRun = AgentRun & {
   streamPartial?: true
 }
 
-export type AgentPlanStreamEvent =
+export type AgentTaskGraphStreamEvent =
   | {
     type: 'snapshot'
-    snapshot: AgentPlanSnapshot
+    snapshot: AgentTaskGraphSnapshot
   }
   | {
     type: 'task'
-    planId: string
+    taskGraphId: string
     task: AgentTask
-    snapshot: AgentPlanSnapshot
+    snapshot: AgentTaskGraphSnapshot
   }
   | {
     type: 'run'
-    planId: string
+    taskGraphId: string
     run: AgentRunStreamRun
-    snapshot: AgentPlanSnapshot
+    snapshot: AgentTaskGraphSnapshot
   }
   | {
     type: 'trace'
-    planId: string
+    taskGraphId: string
     runId: string
     event: AgentTraceEvent
-    snapshot: AgentPlanSnapshot
+    snapshot: AgentTaskGraphSnapshot
   }
   | {
     type: 'done'
-    snapshot: AgentPlanSnapshot
+    snapshot: AgentTaskGraphSnapshot
   }
 
 export type AgentRunStreamEvent =
@@ -484,10 +517,10 @@ export interface AgentDebugContextPanel {
   labels: string[]
   statusDigest?: string[]
   rawContextHints?: string[]
-  agentPlan?: {
+  agentTaskGraph?: {
     id: string
     title: string
-    status: AgentPlanStatus
+    status: AgentTaskGraphStatus
     progress: number
     role?: AgentRunRole
     currentTaskId?: string
@@ -530,7 +563,7 @@ export interface AgentDebugContextPanel {
       toolName?: string
       policy?: string
     }>
-    summary?: AgentPlanSummary
+    summary?: AgentTaskGraphSummary
   }
 }
 
@@ -640,6 +673,14 @@ export interface AgentDebugTool {
   available: boolean
   unavailableReason?: ToolUnavailableReason
   requiresApproval: boolean
+  resolution?: {
+    authorized: boolean
+    visible: boolean
+    reason?: ToolUnavailableReason
+    grantSource: 'manifest' | 'none'
+    approval: 'never' | 'always' | 'on_write'
+    activeSkillIds: string[]
+  }
 }
 
 export interface ResolvedToolCatalog {
@@ -802,7 +843,7 @@ export interface CreateRunInput {
   sandboxMode?: unknown
   role?: unknown
   parentRunId?: unknown
-  planId?: unknown
+  taskGraphId?: unknown
   taskId?: unknown
   progress?: unknown
   blockedReason?: unknown
@@ -823,7 +864,7 @@ export interface CreateToolRunInput {
   sandboxMode?: unknown
   role?: unknown
   parentRunId?: unknown
-  planId?: unknown
+  taskGraphId?: unknown
   taskId?: unknown
   progress?: unknown
   blockedReason?: unknown
@@ -856,7 +897,7 @@ export interface CancelRunInput {
   reason?: unknown
 }
 
-export interface CreatePlanInput {
+export interface CreateTaskGraphInput {
   threadId?: unknown
   title?: unknown
   goal?: unknown
@@ -874,8 +915,8 @@ export interface CreatePlanInput {
   sandboxMode?: unknown
 }
 
-export interface DispatchPlanInput {
-  planId?: unknown
+export interface DispatchTaskGraphInput {
+  taskGraphId?: unknown
   plannerRunId?: unknown
   taskIds?: unknown
   maxWorkers?: unknown
@@ -890,15 +931,15 @@ export interface DispatchPlanInput {
   sandboxMode?: unknown
 }
 
-export interface DispatchPlanResult {
-  plan: AgentPlan
+export interface DispatchTaskGraphResult {
+  taskGraph: AgentTaskGraph
   spawnedRuns: AgentRun[]
   blockedTaskIds: string[]
   retriedTaskIds: string[]
   timedOutRunIds: string[]
 }
 
-export interface ReplanRunInput extends DispatchPlanInput {
+export interface UpdateTaskGraphInput extends DispatchTaskGraphInput {
   tasks?: unknown
   addTasks?: unknown
   updates?: unknown
@@ -911,15 +952,15 @@ export interface ReplanRunInput extends DispatchPlanInput {
   dispatch?: unknown
 }
 
-export interface ReplanRunResult {
-  plan: AgentPlan
+export interface UpdateTaskGraphResult {
+  taskGraph: AgentTaskGraph
   createdTaskIds: string[]
   updatedTaskIds: string[]
   resetTaskIds: string[]
-  dispatch?: DispatchPlanResult
+  dispatch?: DispatchTaskGraphResult
 }
 
-export interface CreatePlanTaskInput {
+export interface CreateTaskGraphTaskInput {
   id?: unknown
   parentId?: unknown
   deps?: unknown
@@ -932,7 +973,7 @@ export interface CreatePlanTaskInput {
   metadata?: unknown
 }
 
-export interface UpdatePlanTaskInput {
+export interface UpdateTaskGraphTaskInput {
   id?: unknown
   parentId?: unknown
   deps?: unknown

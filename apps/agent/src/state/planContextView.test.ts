@@ -1,46 +1,46 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { buildRunPlanDebugContext, buildSubagentSnapshotView } from './planContextView.js'
-import type { AgentDebugContextPanel, AgentPlan, AgentRun, AgentTask } from './types.js'
+import type { AgentDebugContextPanel, AgentTaskGraph, AgentRun, AgentTask } from './types.js'
 
-test('buildRunPlanDebugContext adds compact plan state to debug context', () => {
+test('buildRunPlanDebugContext adds compact taskGraph state to debug context', () => {
   const context = debugContext()
-  const plan = makePlan()
+  const taskGraph = makeTaskGraph()
   const task = makeTask({ id: 'task_1', metadata: { subagentName: 'Writer' }, ownerRunId: 'run_worker' })
-  const run = makeRun({ id: 'run_planner', role: 'planner', planId: plan.id })
-  const worker = makeRun({ id: 'run_worker', role: 'worker', parentRunId: run.id, planId: plan.id, taskId: task.id })
+  const run = makeRun({ id: 'run_planner', role: 'planner', taskGraphId: taskGraph.id })
+  const worker = makeRun({ id: 'run_worker', role: 'worker', parentRunId: run.id, taskGraphId: taskGraph.id, taskId: task.id })
 
-  const result = buildRunPlanDebugContext({ context, run, plan, tasks: [task], runs: [run, worker] })
+  const result = buildRunPlanDebugContext({ context, run, taskGraph, tasks: [task], runs: [run, worker] })
 
-  assert.equal(result.agentPlan?.id, plan.id)
-  assert.equal(result.agentPlan?.tasks[0]?.subagentName, 'Writer')
-  assert.equal(result.agentPlan?.workers[0]?.id, worker.id)
-  assert.equal(result.agentPlan?.summary?.taskCount, 1)
+  assert.equal(result.agentTaskGraph?.id, taskGraph.id)
+  assert.equal(result.agentTaskGraph?.tasks[0]?.subagentName, 'Writer')
+  assert.equal(result.agentTaskGraph?.workers[0]?.id, worker.id)
+  assert.equal(result.agentTaskGraph?.summary?.taskCount, 1)
 })
 
-test('buildRunPlanDebugContext leaves context unchanged without a plan', () => {
+test('buildRunPlanDebugContext leaves context unchanged without a taskGraph', () => {
   const context = debugContext()
 
   assert.equal(buildRunPlanDebugContext({
     context,
-    run: makeRun({ planId: undefined }),
+    run: makeRun({ taskGraphId: undefined }),
     tasks: [],
     runs: [],
   }), context)
 })
 
 test('buildSubagentSnapshotView exposes workers, artifacts, and summary', () => {
-  const plan = makePlan()
+  const taskGraph = makeTaskGraph()
   const task = makeTask({
     id: 'task_1',
     metadata: { subagentName: 'Writer' },
     artifacts: [{ id: 'artifact_1', type: 'draft', title: 'Draft', createdAt: '2026-01-01T00:00:00.000Z' }],
   })
-  const planner = makeRun({ id: 'run_planner', role: 'planner', planId: plan.id })
-  const worker = makeRun({ id: 'run_worker', role: 'worker', parentRunId: planner.id, planId: plan.id, taskId: task.id })
+  const planner = makeRun({ id: 'run_planner', role: 'planner', taskGraphId: taskGraph.id })
+  const worker = makeRun({ id: 'run_worker', role: 'worker', parentRunId: planner.id, taskGraphId: taskGraph.id, taskId: task.id })
 
   const result = buildSubagentSnapshotView({
-    snapshot: { plan, tasks: [task], runs: [planner, worker] },
+    snapshot: { taskGraph, tasks: [task], runs: [planner, worker] },
     plannerRunId: planner.id,
   })
 
@@ -61,11 +61,11 @@ function debugContext(): AgentDebugContextPanel {
   }
 }
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -77,7 +77,7 @@ function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'running',

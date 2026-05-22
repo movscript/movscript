@@ -166,6 +166,7 @@ export interface AgentToolCallView {
   sandboxed?: boolean
   durationMs?: number
   summary?: string
+  argsPreview?: string
   dataPreview?: string
 }
 
@@ -594,7 +595,7 @@ function buildSkillTraceSummary(events: AgentTraceEvent[]): AgentSkillTraceSumma
 function skillTraceData(event: AgentTraceEvent, data: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
   const directEventType = stringValue(data?.skillEventType) ?? stringValue(data?.eventType)
   if (directEventType?.startsWith('skill.')) return data
-  if (event.toolName !== 'movscript_update_active_skills') return data
+  if (event.toolName !== 'core_skill_update') return data
   const result = recordValue(data?.result)
   return stringValue(result?.eventType)?.startsWith('skill.') ? result : data
 }
@@ -668,6 +669,7 @@ function buildToolCalls(events: AgentTraceEvent[]): AgentToolCallView[] {
       ...(typeof data?.sandboxed === 'boolean' ? { sandboxed: data.sandboxed } : {}),
       ...(numberValue(data?.durationMs) !== undefined ? { durationMs: numberValue(data?.durationMs) } : event.durationMs !== undefined ? { durationMs: event.durationMs } : {}),
       ...(event.summary ? { summary: event.summary } : {}),
+      ...(data && Object.prototype.hasOwnProperty.call(data, 'args') ? { argsPreview: previewJSON(data.args) } : {}),
       ...(data?.result !== undefined ? { dataPreview: previewJSON(data.result) } : {}),
     }]
   })
@@ -868,7 +870,7 @@ function traceKindLabel(kind: AgentTraceEvent['kind']): string {
     case 'input': return '输入'
     case 'assistant': return '助手'
     case 'task': return '任务'
-    case 'plan': return '计划'
+    case 'taskGraph': return '计划'
     case 'error': return '错误'
   }
 }

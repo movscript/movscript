@@ -4,7 +4,7 @@ import {
   updateSemanticEntity,
   type SemanticEntityConfig,
 } from '@/api/semanticEntities'
-import { buildContentUnitProposalPatch, buildContentUnitReorderPatchPlan, buildContentUnitTimelineMovePlan } from '@/lib/contentWorkbenchWriteModel'
+import { buildContentUnitProposalPatch, buildContentUnitReorderPatchTaskGraph, buildContentUnitTimelineMoveTaskGraph } from '@/lib/contentWorkbenchWriteModel'
 import { apiErrorMessage } from '@/lib/contentWorkbenchStatus'
 import type { ContentGenerationMomentRow, ContentWorkbenchRecord } from '@/lib/contentWorkbenchModel'
 import type { ContentWorkbenchDropPosition } from '@/lib/contentWorkbenchTimeline'
@@ -112,8 +112,8 @@ export function buildReorderContentUnitsMutationOptions(input: {
       position: ContentWorkbenchDropPosition
     }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      const plan = buildContentUnitReorderPatchPlan(row, draggedUnitId, targetUnitId, position)
-      await Promise.all(plan.patches.map((patch) => updateSemanticEntity(input.projectId!, input.contentUnitConfig, patch.unitId, patch.payload)))
+      const taskGraph = buildContentUnitReorderPatchTaskGraph(row, draggedUnitId, targetUnitId, position)
+      await Promise.all(taskGraph.patches.map((patch) => updateSemanticEntity(input.projectId!, input.contentUnitConfig, patch.unitId, patch.payload)))
       return { draggedUnitId }
     },
     onSuccess: async (_data: { draggedUnitId: number }, variables: {
@@ -145,24 +145,24 @@ export function buildMoveContentUnitOnTimelineMutationOptions(input: {
       startSec: number
     }) => {
       if (!input.projectId) throw new Error('请先选择项目')
-      const plan = buildContentUnitTimelineMovePlan({
+      const taskGraph = buildContentUnitTimelineMoveTaskGraph({
         row,
         unitId,
         startSec,
         previewTimelines: input.previewTimelines,
       })
-      if (plan.kind === 'update_item') {
-        await updateSemanticEntity(input.projectId, input.previewTimelineItemConfig, plan.itemId, plan.payload)
+      if (taskGraph.kind === 'update_item') {
+        await updateSemanticEntity(input.projectId, input.previewTimelineItemConfig, taskGraph.itemId, taskGraph.payload)
         return { unitId }
       }
 
-      let timelineId = plan.timelineId
+      let timelineId = taskGraph.timelineId
       if (!timelineId) {
-        const timeline = await createSemanticEntity(input.projectId, semanticEntityConfig('previewTimelines'), plan.timelinePayload ?? {})
+        const timeline = await createSemanticEntity(input.projectId, semanticEntityConfig('previewTimelines'), taskGraph.timelinePayload ?? {})
         timelineId = timeline.ID
       }
       await createSemanticEntity(input.projectId, input.previewTimelineItemConfig, {
-        ...plan.itemPayload,
+        ...taskGraph.itemPayload,
         preview_timeline_id: timelineId,
       })
       return { unitId }

@@ -45,7 +45,7 @@ export interface ContextRef {
     | 'production'
     | 'asset_slot'
     | 'generation_job'
-    | 'plan'
+    | 'taskGraph'
   id: string
   title?: string
   version?: string

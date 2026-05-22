@@ -56,6 +56,14 @@ test('resolveToolCatalog scopes business tools to active workflow hints', () => 
 
   assert.equal(inactive.byName['studio.production_context'].available, false)
   assert.equal(inactive.byName['studio.production_context'].unavailableReason, 'workflow_scope')
+  assert.deepEqual(inactive.byName['studio.production_context'].resolution, {
+    authorized: true,
+    visible: false,
+    reason: 'workflow_scope',
+    grantSource: 'manifest',
+    approval: 'never',
+    activeSkillIds: ['skill.persona'],
+  })
   assert.equal(inactive.byName['studio.general_context'].available, false)
   assert.equal(inactive.byName['studio.general_context'].unavailableReason, 'workflow_scope')
 
@@ -82,6 +90,13 @@ test('resolveToolCatalog scopes business tools to active workflow hints', () => 
 
   assert.equal(active.byName['studio.production_context'].available, true)
   assert.equal(active.byName['studio.production_context'].unavailableReason, undefined)
+  assert.deepEqual(active.byName['studio.production_context'].resolution, {
+    authorized: true,
+    visible: true,
+    grantSource: 'manifest',
+    approval: 'never',
+    activeSkillIds: ['skill.production'],
+  })
 })
 
 test('resolveToolCatalog preserves union workflow scope', () => {

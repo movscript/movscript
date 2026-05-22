@@ -432,6 +432,17 @@ func (r *gormRepository) AddMember(ctx context.Context, projectID uint, input Me
 		if !userIsActive(user) {
 			return ErrMemberUserInactive
 		}
+		if orgID != nil {
+			var orgMember persistencemodel.OrganizationMember
+			if err := tx.Select("id").
+				Where("org_id = ? AND user_id = ?", *orgID, input.UserID).
+				First(&orgMember).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return ErrMemberUserNotInOrg
+				}
+				return err
+			}
+		}
 		var existing persistencemodel.ProjectMember
 		if err := tx.Where("project_id = ? AND user_id = ?", projectID, input.UserID).First(&existing).Error; err == nil {
 			if existing.Role == domainproject.RoleOwner || existing.UserID == project.OwnerID {

@@ -84,7 +84,7 @@ test('createRuntimeAgentGraphCallbacks converts generation events to tool traces
     roundLabel: 'Tool',
     roundSource: 'model',
     stepId: 'step_1',
-    toolName: 'runtime_operation_start',
+    toolName: 'core_operation_start',
     durationMs: 10,
     volatile: false,
   })
@@ -161,7 +161,7 @@ function generationEvent(): GenerationEvent {
   return {
     kind: 'generation_job',
     stage: 'completed',
-    toolName: 'runtime_operation_start',
+    toolName: 'core_operation_start',
     jobId: 321,
     status: 'succeeded',
     terminal: true,

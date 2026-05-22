@@ -19,7 +19,7 @@ export async function callMCPToolWithGenerationRepair(
 }
 
 function generationRepairArgs(toolName: string, args: Record<string, JSONValue>, error: unknown): Record<string, JSONValue> | undefined {
-  if (toolName !== 'movscript_create_generation_job') return undefined
+  if (toolName !== 'generation_job_create') return undefined
   if (!(error instanceof MCPError)) return undefined
   const data = isJSONRecord(error.data) ? error.data : undefined
   if (!data || data.type !== 'backend_http_error' || data.status !== 400) return undefined

@@ -2,9 +2,9 @@ import { cloneJSONValue, isJSONRecord, isRecord } from '../jsonValue.js'
 import type {
   AgentTask,
   AgentTaskArtifact,
-  CreatePlanTaskInput,
+  CreateTaskGraphTaskInput,
   JSONValue,
-  UpdatePlanTaskInput,
+  UpdateTaskGraphTaskInput,
 } from './types.js'
 
 export function normalizeTaskStatus(value: unknown): AgentTask['status'] | undefined {
@@ -38,17 +38,17 @@ export function normalizeStringList(value: unknown): string[] {
   return value.flatMap((item) => typeof item === 'string' && item.trim() ? [item.trim()] : [])
 }
 
-export function normalizePlanTaskInputs(value: unknown): CreatePlanTaskInput[] {
+export function normalizePlanTaskInputs(value: unknown): CreateTaskGraphTaskInput[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => isRecord(item) ? [item] : [])
 }
 
-export function normalizePlanTaskUpdateInputs(value: unknown): UpdatePlanTaskInput[] {
+export function normalizePlanTaskUpdateInputs(value: unknown): UpdateTaskGraphTaskInput[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => isRecord(item) ? [item] : [])
 }
 
-export function taskExecutionOverrideMetadata(input: CreatePlanTaskInput): Record<string, JSONValue> {
+export function taskExecutionOverrideMetadata(input: CreateTaskGraphTaskInput): Record<string, JSONValue> {
   const maxTaskAttempts = normalizePositiveInteger(input.maxTaskAttempts)
   const workerTimeoutMs = normalizePositiveInteger(input.workerTimeoutMs)
   return {
@@ -65,7 +65,7 @@ export function taskExecutionWorkerTimeoutMs(task: AgentTask | undefined, defaul
   return normalizePositiveInteger(task?.metadata?.workerTimeoutMs) ?? defaultTimeoutMs
 }
 
-export function buildAgentTask(planId: string, input: CreatePlanTaskInput, now: string): AgentTask {
+export function buildAgentTask(taskGraphId: string, input: CreateTaskGraphTaskInput, now: string): AgentTask {
   const title = normalizeNonEmptyString(input.title)
   if (!title) throw new Error('task title is required')
   const metadata = {
@@ -74,7 +74,7 @@ export function buildAgentTask(planId: string, input: CreatePlanTaskInput, now: 
   }
   return {
     id: normalizeNonEmptyString(input.id) ?? makeId('task'),
-    planId,
+    taskGraphId,
     ...(normalizeNonEmptyString(input.parentId) ? { parentId: normalizeNonEmptyString(input.parentId) } : {}),
     deps: normalizeStringList(input.deps),
     title,

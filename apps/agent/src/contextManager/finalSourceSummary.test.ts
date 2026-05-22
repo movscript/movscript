@@ -92,7 +92,7 @@ test('final source summary omits large knowledge bodies from final content', () 
     runId: run.id,
     type: 'tool_call',
     status: 'completed',
-    toolName: 'movscript_get_knowledge',
+    toolName: 'knowledge_get',
     result: {
       id: 'storyboard.rhythm.basic',
       title: '分镜节奏基础',
@@ -126,7 +126,7 @@ test('final source summary ignores non-plain tool result objects when omitting k
     runId: run.id,
     type: 'tool_call',
     status: 'completed',
-    toolName: 'movscript_get_knowledge',
+    toolName: 'knowledge_get',
     result: new RuntimeToolResult() as unknown as JSONValue,
     createdAt: '2026-01-01T00:00:00.000Z',
     completedAt: '2026-01-01T00:00:00.000Z',

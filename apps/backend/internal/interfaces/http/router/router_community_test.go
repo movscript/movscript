@@ -75,6 +75,8 @@ func TestNewCommunityRegistersAdminRoutes(t *testing.T) {
 		"GET /api/v1/admin/users",
 		"GET /api/v1/admin/settings/auth",
 		"PUT /api/v1/admin/settings/auth",
+		"GET /api/v1/admin/settings/generation-tools",
+		"PUT /api/v1/admin/settings/generation-tools",
 		"POST /api/v1/admin/users",
 		"GET /api/v1/admin/users/:id/detail",
 		"PUT /api/v1/admin/users/:id/password",

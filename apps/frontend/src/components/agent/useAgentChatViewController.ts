@@ -53,7 +53,7 @@ export function useAgentChatViewController({
   const runtime = useAgentChatRuntimeState({
     conversationId: conv.id,
   })
-  const plan = useAgentPlanDispatchSettings({
+  const taskGraph = useAgentPlanDispatchSettings({
     settings: store.settings,
     updateSettings: store.updateSettings,
   })
@@ -110,7 +110,7 @@ export function useAgentChatViewController({
     loading,
     onExternalDraftConsumed,
     pageToolRequestId,
-    plan,
+    taskGraph,
     presentation,
     runtime,
     store,
@@ -126,7 +126,7 @@ export function useAgentChatViewController({
     interaction,
     loading,
     planActionBusy: runtime.planActionBusy,
-    planDispatchSettings: plan.planDispatchSettings,
+    planDispatchSettings: taskGraph.planDispatchSettings,
     presentation,
     runtime,
     onBack,
@@ -138,6 +138,6 @@ export function useAgentChatViewController({
     showCollapse,
     showConversationControls,
     updateDraft: composer.updateDraft,
-    updatePlanDispatchSettings: plan.updatePlanDispatchSettings,
+    updateTaskGraphDispatchSettings: taskGraph.updateTaskGraphDispatchSettings,
   })
 }

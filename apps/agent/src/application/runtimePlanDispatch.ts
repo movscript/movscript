@@ -1,25 +1,25 @@
 import { planSupervisorDispatch, type SupervisorDispatchDecision } from '../orchestration/supervisorGraph.js'
 import type { AgentStore } from '../state/store.js'
 import type {
-  AgentPlan,
+  AgentTaskGraph,
   AgentRun,
   AgentTask,
   CreateRunInput,
-  DispatchPlanInput,
-  DispatchPlanResult,
-  UpdatePlanTaskInput,
+  DispatchTaskGraphInput,
+  DispatchTaskGraphResult,
+  UpdateTaskGraphTaskInput,
 } from '../state/types.js'
 import {
-  assertDispatchPlannerRunForPlan,
+  assertDispatchTaskGraphnerRunForTaskGraph,
   assertDispatchRequestedTasks,
   buildDispatchWorkerRunInput,
-  normalizeDispatchPlanControls,
-  normalizeDispatchPlanId,
-  type NormalizedDispatchPlanControls,
+  normalizeDispatchTaskGraphControls,
+  normalizeDispatchTaskGraphId,
+  type NormalizedTaskGraphDispatchControls,
 } from '../state/planDispatchInput.js'
 import { subagentNameFromTask } from '../state/subagentIdentity.js'
 import { buildDispatchSubagentNameMap } from '../state/subagentNameValidation.js'
-import { requireRuntimePlan } from './runtimeStoreLookup.js'
+import { requireRuntimeTaskGraph } from './runtimeStoreLookup.js'
 import { requireRuntimePlannerRun } from './runtimePlanBinding.js'
 import {
   markRuntimeTaskDispatchBlocked,
@@ -28,49 +28,49 @@ import {
 import { applyRuntimeRetryablePlanTaskReset } from './runtimePlanTaskMaintenance.js'
 import { applyRuntimeTimedOutPlanWorkers } from './runtimeWorkerTimeout.js'
 
-export interface RuntimePlanDispatchRequest {
-  plan: AgentPlan
-  dispatch: NormalizedDispatchPlanControls
+export interface RuntimeTaskGraphDispatchRequest {
+  taskGraph: AgentTaskGraph
+  dispatch: NormalizedTaskGraphDispatchControls
   plannerRun: AgentRun
 }
 
-export interface RuntimePlanDispatchDecision {
+export interface RuntimeTaskGraphDispatchDecision {
   decision: SupervisorDispatchDecision
   subagentNameByTaskId: Map<string, string>
 }
 
-export interface RuntimePlanDispatchApplication {
+export interface RuntimeTaskGraphDispatchApplication {
   spawnedRuns: AgentRun[]
   blockedTaskIds: string[]
 }
 
-export function resolveRuntimePlanDispatchRequest(input: {
-  store: Pick<AgentStore, 'getPlan' | 'getRun'>
-  dispatchInput: DispatchPlanInput
-}): RuntimePlanDispatchRequest {
-  const planId = normalizeDispatchPlanId(input.dispatchInput.planId)
-  const plan = requireRuntimePlan(input.store, planId)
-  const dispatch = normalizeDispatchPlanControls(input.dispatchInput, plan)
+export function resolveRuntimeTaskGraphDispatchRequest(input: {
+  store: Pick<AgentStore, 'getTaskGraph' | 'getRun'>
+  dispatchInput: DispatchTaskGraphInput
+}): RuntimeTaskGraphDispatchRequest {
+  const taskGraphId = normalizeDispatchTaskGraphId(input.dispatchInput.taskGraphId)
+  const taskGraph = requireRuntimeTaskGraph(input.store, taskGraphId)
+  const dispatch = normalizeDispatchTaskGraphControls(input.dispatchInput, taskGraph)
   const plannerRun = requireRuntimePlannerRun(input.store, dispatch.plannerRunId)
-  assertDispatchPlannerRunForPlan(plannerRun, plan)
-  return { plan, dispatch, plannerRun }
+  assertDispatchTaskGraphnerRunForTaskGraph(plannerRun, taskGraph)
+  return { taskGraph, dispatch, plannerRun }
 }
 
-export function buildRuntimePlanDispatchDecision(input: {
+export function buildRuntimeTaskGraphDispatchDecision(input: {
   store: Pick<AgentStore, 'getTask' | 'listTasks' | 'listRuns'>
-  plan: AgentPlan
-  dispatch: NormalizedDispatchPlanControls
-}): RuntimePlanDispatchDecision {
+  taskGraph: AgentTaskGraph
+  dispatch: NormalizedTaskGraphDispatchControls
+}): RuntimeTaskGraphDispatchDecision {
   const requestedTaskIds = input.dispatch.requestedTaskIds
   assertDispatchRequestedTasks({
-    planId: input.plan.id,
+    taskGraphId: input.taskGraph.id,
     taskIds: requestedTaskIds,
     getTask: (taskId) => input.store.getTask(taskId),
   })
-  const tasks = input.store.listTasks(input.plan.id)
-  const runs = input.store.listRuns({ planId: input.plan.id })
+  const tasks = input.store.listTasks(input.taskGraph.id)
+  const runs = input.store.listRuns({ taskGraphId: input.taskGraph.id })
   const decision = planSupervisorDispatch({
-    plan: input.plan,
+    taskGraph: input.taskGraph,
     tasks,
     runs,
     maxWorkers: input.dispatch.maxWorkers,
@@ -86,19 +86,19 @@ export function buildRuntimePlanDispatchDecision(input: {
   }
 }
 
-export function applyRuntimePlanDispatchDecision(input: {
+export function applyRuntimeTaskGraphDispatchDecision(input: {
   store: Pick<AgentStore, 'getTask' | 'updateTask'>
-  plan: AgentPlan
+  taskGraph: AgentTaskGraph
   plannerRun: AgentRun
-  dispatchInput: DispatchPlanInput
+  dispatchInput: DispatchTaskGraphInput
   decision: SupervisorDispatchDecision
   subagentNameByTaskId: Map<string, string>
   now: string
-  updateTask: (taskId: string, update: UpdatePlanTaskInput) => AgentTask
+  updateTask: (taskId: string, update: UpdateTaskGraphTaskInput) => AgentTask
   createRun: (input: CreateRunInput) => AgentRun
   onTaskBlocked?: (task: AgentTask) => void
   onTaskDispatched?: (task: AgentTask, previousTask: AgentTask) => void
-}): RuntimePlanDispatchApplication {
+}): RuntimeTaskGraphDispatchApplication {
   for (const blocked of input.decision.blockedTasks) {
     const task = markRuntimeTaskDispatchBlocked({
       store: input.store,
@@ -123,7 +123,7 @@ export function applyRuntimePlanDispatchDecision(input: {
         },
       })
     const run = input.createRun(buildDispatchWorkerRunInput({
-      plan: input.plan,
+      taskGraph: input.taskGraph,
       plannerRun: input.plannerRun,
       task: workerTask,
       subagentName,
@@ -145,29 +145,29 @@ export function applyRuntimePlanDispatchDecision(input: {
   }
 }
 
-export function applyRuntimePlanDispatch(input: {
-  store: Pick<AgentStore, 'getPlan' | 'getTask' | 'listTasks' | 'listRuns' | 'updateTask'>
-  plan: AgentPlan
-  dispatch: NormalizedDispatchPlanControls
+export function applyRuntimeTaskGraphDispatch(input: {
+  store: Pick<AgentStore, 'getTaskGraph' | 'getTask' | 'listTasks' | 'listRuns' | 'updateTask'>
+  taskGraph: AgentTaskGraph
+  dispatch: NormalizedTaskGraphDispatchControls
   plannerRun: AgentRun
-  dispatchInput: DispatchPlanInput
+  dispatchInput: DispatchTaskGraphInput
   retriedTaskIds: string[]
   timedOutRunIds: string[]
   now: string
-  updateTask: (taskId: string, update: UpdatePlanTaskInput) => AgentTask
+  updateTask: (taskId: string, update: UpdateTaskGraphTaskInput) => AgentTask
   createRun: (input: CreateRunInput) => AgentRun
-  recomputePlan: (planId: string) => void
+  recomputeTaskGraph: (taskGraphId: string) => void
   onTaskBlocked?: (task: AgentTask) => void
   onTaskDispatched?: (task: AgentTask, previousTask: AgentTask) => void
-}): DispatchPlanResult {
-  const { decision, subagentNameByTaskId } = buildRuntimePlanDispatchDecision({
+}): DispatchTaskGraphResult {
+  const { decision, subagentNameByTaskId } = buildRuntimeTaskGraphDispatchDecision({
     store: input.store,
-    plan: input.plan,
+    taskGraph: input.taskGraph,
     dispatch: input.dispatch,
   })
-  const application = applyRuntimePlanDispatchDecision({
+  const application = applyRuntimeTaskGraphDispatchDecision({
     store: input.store,
-    plan: input.plan,
+    taskGraph: input.taskGraph,
     plannerRun: input.plannerRun,
     dispatchInput: input.dispatchInput,
     decision,
@@ -178,9 +178,9 @@ export function applyRuntimePlanDispatch(input: {
     onTaskBlocked: input.onTaskBlocked,
     onTaskDispatched: input.onTaskDispatched,
   })
-  input.recomputePlan(input.plan.id)
+  input.recomputeTaskGraph(input.taskGraph.id)
   return {
-    plan: requireRuntimePlan(input.store, input.plan.id),
+    taskGraph: requireRuntimeTaskGraph(input.store, input.taskGraph.id),
     spawnedRuns: application.spawnedRuns,
     blockedTaskIds: application.blockedTaskIds,
     retriedTaskIds: input.retriedTaskIds,
@@ -188,28 +188,28 @@ export function applyRuntimePlanDispatch(input: {
   }
 }
 
-export function applyRuntimePlanDispatchFlow(input: {
-  store: Pick<AgentStore, 'getPlan' | 'getTask' | 'listTasks' | 'listRuns' | 'updateTask'>
-  plan: AgentPlan
-  dispatch: NormalizedDispatchPlanControls
+export function applyRuntimeTaskGraphDispatchFlow(input: {
+  store: Pick<AgentStore, 'getTaskGraph' | 'getTask' | 'listTasks' | 'listRuns' | 'updateTask'>
+  taskGraph: AgentTaskGraph
+  dispatch: NormalizedTaskGraphDispatchControls
   plannerRun: AgentRun
-  dispatchInput: DispatchPlanInput
+  dispatchInput: DispatchTaskGraphInput
   now: string
   nowMs: number
-  updateTask: (taskId: string, update: UpdatePlanTaskInput) => AgentTask
+  updateTask: (taskId: string, update: UpdateTaskGraphTaskInput) => AgentTask
   createRun: (input: CreateRunInput) => AgentRun
   cancelRun: (runId: string, reason: string) => void
   syncTaskFromRun: (runId: string) => void
-  recomputePlan: (planId: string) => void
+  recomputeTaskGraph: (taskGraphId: string) => void
   onTaskTimedOut?: (task: AgentTask) => void
   onTaskRetryReset?: (task: AgentTask, previousTask: AgentTask) => void
   onTasksRetried?: (retriedTaskIds: string[]) => void
   onTaskBlocked?: (task: AgentTask) => void
   onTaskDispatched?: (task: AgentTask, previousTask: AgentTask) => void
-}): DispatchPlanResult {
+}): DispatchTaskGraphResult {
   const timedOutRunIds = applyRuntimeTimedOutPlanWorkers({
     store: input.store,
-    planId: input.plan.id,
+    taskGraphId: input.taskGraph.id,
     defaultTimeoutMs: input.dispatch.workerTimeoutMs,
     nowMs: input.nowMs,
     now: input.now,
@@ -220,20 +220,20 @@ export function applyRuntimePlanDispatchFlow(input: {
   const retriedTaskIds = input.dispatch.retryFailed
     ? applyRuntimeRetryablePlanTaskReset({
       store: input.store,
-      planId: input.plan.id,
+      taskGraphId: input.taskGraph.id,
       maxTaskAttempts: input.dispatch.maxTaskAttempts,
       now: input.now,
       onTaskReset: input.onTaskRetryReset,
       onTasksReset: (ids) => {
         input.onTasksRetried?.(ids)
-        input.recomputePlan(input.plan.id)
+        input.recomputeTaskGraph(input.taskGraph.id)
       },
     }).retriedTaskIds
     : []
 
-  return applyRuntimePlanDispatch({
+  return applyRuntimeTaskGraphDispatch({
     store: input.store,
-    plan: input.plan,
+    taskGraph: input.taskGraph,
     dispatch: input.dispatch,
     plannerRun: input.plannerRun,
     dispatchInput: input.dispatchInput,
@@ -242,35 +242,35 @@ export function applyRuntimePlanDispatchFlow(input: {
     now: input.now,
     updateTask: input.updateTask,
     createRun: input.createRun,
-    recomputePlan: input.recomputePlan,
+    recomputeTaskGraph: input.recomputeTaskGraph,
     onTaskBlocked: input.onTaskBlocked,
     onTaskDispatched: input.onTaskDispatched,
   })
 }
 
-export function applyRuntimePlanDispatchRequest(input: {
-  store: Pick<AgentStore, 'getPlan' | 'getRun' | 'getTask' | 'listTasks' | 'listRuns' | 'updateTask'>
-  dispatchInput: DispatchPlanInput
+export function applyRuntimeTaskGraphDispatchRequest(input: {
+  store: Pick<AgentStore, 'getTaskGraph' | 'getRun' | 'getTask' | 'listTasks' | 'listRuns' | 'updateTask'>
+  dispatchInput: DispatchTaskGraphInput
   now: string
   nowMs: number
-  updateTask: (taskId: string, update: UpdatePlanTaskInput) => AgentTask
+  updateTask: (taskId: string, update: UpdateTaskGraphTaskInput) => AgentTask
   createRun: (input: CreateRunInput) => AgentRun
   cancelRun: (runId: string, reason: string) => void
   syncTaskFromRun: (runId: string) => void
-  recomputePlan: (planId: string) => void
+  recomputeTaskGraph: (taskGraphId: string) => void
   onTaskTimedOut?: (task: AgentTask) => void
   onTaskRetryReset?: (task: AgentTask, previousTask: AgentTask) => void
   onTasksRetried?: (retriedTaskIds: string[]) => void
   onTaskBlocked?: (task: AgentTask) => void
   onTaskDispatched?: (task: AgentTask, previousTask: AgentTask) => void
-}): DispatchPlanResult {
-  const { plan, dispatch, plannerRun } = resolveRuntimePlanDispatchRequest({
+}): DispatchTaskGraphResult {
+  const { taskGraph, dispatch, plannerRun } = resolveRuntimeTaskGraphDispatchRequest({
     store: input.store,
     dispatchInput: input.dispatchInput,
   })
-  return applyRuntimePlanDispatchFlow({
+  return applyRuntimeTaskGraphDispatchFlow({
     store: input.store,
-    plan,
+    taskGraph,
     dispatch,
     plannerRun,
     dispatchInput: input.dispatchInput,
@@ -280,7 +280,7 @@ export function applyRuntimePlanDispatchRequest(input: {
     createRun: input.createRun,
     cancelRun: input.cancelRun,
     syncTaskFromRun: input.syncTaskFromRun,
-    recomputePlan: input.recomputePlan,
+    recomputeTaskGraph: input.recomputeTaskGraph,
     onTaskTimedOut: input.onTaskTimedOut,
     onTaskRetryReset: input.onTaskRetryReset,
     onTasksRetried: input.onTasksRetried,

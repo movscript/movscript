@@ -1,11 +1,11 @@
-import type { AgentPlan, AgentTask } from './types.js'
+import type { AgentTaskGraph, AgentTask } from './types.js'
 import { subagentNameFromTask } from './subagentIdentity.js'
 
 export const WORKER_TASK_INSTRUCTIONS = 'Execute this worker task and report durable artifacts, blockers, and completion status.'
 
-export function formatWorkerTaskMessage(plan: AgentPlan, task: AgentTask): string {
+export function formatWorkerTaskMessage(taskGraph: AgentTaskGraph, task: AgentTask): string {
   return [
-    `Plan: ${plan.title}`,
+    `TaskGraph: ${taskGraph.title}`,
     subagentNameFromTask(task) ? `Subagent name: ${subagentNameFromTask(task)}` : undefined,
     `Task: ${task.title}`,
     task.description ? `Description: ${task.description}` : undefined,

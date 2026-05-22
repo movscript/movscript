@@ -1,6 +1,6 @@
 import type { AgentStore } from '../state/store.js'
 import type {
-  AgentPlan,
+  AgentTaskGraph,
   AgentRun,
   AgentTask,
   AgentTraceEvent,
@@ -17,23 +17,23 @@ export interface RuntimePlanCompletionTraceInput {
 
 export function applyRuntimePlanCompletionTrace(input: {
   store: Pick<AgentStore, 'getRun' | 'listRuns'>
-  plan: AgentPlan
+  taskGraph: AgentTaskGraph
   tasks: AgentTask[]
   recordTrace: (run: AgentRun, trace: RuntimePlanCompletionTraceInput) => void
 }): AgentRun | undefined {
   const run = resolveRuntimePlanCompletionRun({
     store: input.store,
-    plan: input.plan,
+    taskGraph: input.taskGraph,
   })
   if (!run) return undefined
   input.recordTrace(run, {
-    kind: 'plan',
-    title: 'Plan completed',
+    kind: 'taskGraph',
+    title: 'TaskGraph completed',
     summary: `${input.tasks.length} task(s) completed.`,
     status: 'completed',
     data: {
-      eventType: 'plan_completed',
-      planId: input.plan.id,
+      eventType: 'task_graph_completed',
+      taskGraphId: input.taskGraph.id,
       taskCount: input.tasks.length,
       artifactCount: input.tasks.reduce((sum, task) => sum + task.artifacts.length, 0),
       completedTaskIds: input.tasks.map((task) => task.id),
@@ -44,8 +44,8 @@ export function applyRuntimePlanCompletionTrace(input: {
 
 export function resolveRuntimePlanCompletionRun(input: {
   store: Pick<AgentStore, 'getRun' | 'listRuns'>
-  plan: AgentPlan
+  taskGraph: AgentTaskGraph
 }): AgentRun | undefined {
-  if (input.plan.rootRunId) return input.store.getRun(input.plan.rootRunId)
-  return input.store.listRuns({ planId: input.plan.id, role: 'planner' })[0]
+  if (input.taskGraph.rootRunId) return input.store.getRun(input.taskGraph.rootRunId)
+  return input.store.listRuns({ taskGraphId: input.taskGraph.id, role: 'planner' })[0]
 }

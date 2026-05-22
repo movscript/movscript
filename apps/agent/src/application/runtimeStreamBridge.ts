@@ -2,8 +2,8 @@ import type { AgentStore } from '../state/store.js'
 import type { AgentRunRoundInfo } from '../state/runRound.js'
 import type {
   AgentMessage,
-  AgentPlanSnapshot,
-  AgentPlanStreamEvent,
+  AgentTaskGraphSnapshot,
+  AgentTaskGraphStreamEvent,
   AgentRun,
   AgentRunStreamEvent,
   AgentThreadStreamEvent,
@@ -15,7 +15,7 @@ import type { RuntimeEventSubscriberRegistry } from './runtimeEventSubscribers.j
 import {
   emitRuntimePlanRunStreamEvent,
   emitRuntimePlanStreamEvent,
-  emitRuntimePlanTaskStreamEvent,
+  emitRuntimeTaskGraphTaskStreamEvent,
   replayRuntimePlanStream,
 } from './runtimePlanStreamEvents.js'
 import {
@@ -29,14 +29,14 @@ import {
 export interface RuntimeStreamBridge {
   subscribeRunStream: (run: AgentRun, listener: (event: AgentRunStreamEvent) => void) => () => void
   subscribeThreadStream: (threadId: string, listener: (event: AgentThreadStreamEvent) => void) => () => void
-  subscribePlanStream: (planId: string, listener: (event: AgentPlanStreamEvent) => void) => () => void
+  subscribePlanStream: (taskGraphId: string, listener: (event: AgentTaskGraphStreamEvent) => void) => () => void
   recordTraceEvent: (run: AgentRun, trace: RuntimeTraceInput) => AgentTraceEvent
   emitVolatileTraceEvent: (run: AgentRun, trace: RuntimeVolatileTraceInput) => void
   emitRunStreamEvent: (runId: string, event: AgentRunStreamEvent) => void
   emitRunSnapshot: (run: AgentRun, options?: { done?: boolean }) => void
   emitAssistantMessage: (run: AgentRun, message: AgentMessage) => void
-  emitPlanTaskEvent: (planId: string, task: AgentTask) => void
-  emitPlanStreamEvent: (planId: string, event: AgentPlanStreamEvent) => void
+  emitPlanTaskEvent: (taskGraphId: string, task: AgentTask) => void
+  emitPlanStreamEvent: (taskGraphId: string, event: AgentTaskGraphStreamEvent) => void
 }
 
 export interface RuntimeTraceInput {
@@ -70,8 +70,8 @@ export function createRuntimeStreamBridge(input: {
   store: Pick<AgentStore, 'appendTraceEvent' | 'getRun' | 'getThread' | 'listRuns' | 'listRunTraceEvents'>
   runSubscribers: RuntimeEventSubscriberRegistry<AgentRunStreamEvent>
   threadSubscribers: RuntimeEventSubscriberRegistry<AgentThreadStreamEvent>
-  planSubscribers: RuntimeEventSubscriberRegistry<AgentPlanStreamEvent>
-  getPlanSnapshot: (planId: string) => AgentPlanSnapshot
+  planSubscribers: RuntimeEventSubscriberRegistry<AgentTaskGraphStreamEvent>
+  getTaskGraphSnapshot: (taskGraphId: string) => AgentTaskGraphSnapshot
   createTraceId: () => string
   now: () => string
 }): RuntimeStreamBridge {
@@ -89,8 +89,8 @@ export function createRuntimeStreamBridge(input: {
         })
       }
     }),
-    subscribePlanStream: (planId, listener) => input.planSubscribers.subscribe(planId, listener, (target) => {
-      replayRuntimePlanStream({ planId, getPlanSnapshot: input.getPlanSnapshot, listener: target })
+    subscribePlanStream: (taskGraphId, listener) => input.planSubscribers.subscribe(taskGraphId, listener, (target) => {
+      replayRuntimePlanStream({ taskGraphId, getTaskGraphSnapshot: input.getTaskGraphSnapshot, listener: target })
     }),
     recordTraceEvent: (run, trace) => recordRuntimeRunTraceEvent({
       store: input.store,
@@ -115,8 +115,8 @@ export function createRuntimeStreamBridge(input: {
       emitRuntimePlanRunStreamEvent({
         event,
         getRun: (targetRunId) => input.store.getRun(targetRunId),
-        hasPlanSubscribers: (planId) => input.planSubscribers.has(planId),
-        getPlanSnapshot: input.getPlanSnapshot,
+        hasPlanSubscribers: (taskGraphId) => input.planSubscribers.has(taskGraphId),
+        getTaskGraphSnapshot: input.getTaskGraphSnapshot,
         emitPlanStreamEvent: bridge.emitPlanStreamEvent,
       })
     },
@@ -134,18 +134,18 @@ export function createRuntimeStreamBridge(input: {
         emitRunStreamEvent: bridge.emitRunStreamEvent,
       })
     },
-    emitPlanTaskEvent: (planId, task) => {
-      emitRuntimePlanTaskStreamEvent({
-        planId,
+    emitPlanTaskEvent: (taskGraphId, task) => {
+      emitRuntimeTaskGraphTaskStreamEvent({
+        taskGraphId,
         task,
         hasPlanSubscribers: (targetPlanId) => input.planSubscribers.has(targetPlanId),
-        getPlanSnapshot: input.getPlanSnapshot,
+        getTaskGraphSnapshot: input.getTaskGraphSnapshot,
         emitPlanStreamEvent: bridge.emitPlanStreamEvent,
       })
     },
-    emitPlanStreamEvent: (planId, event) => {
+    emitPlanStreamEvent: (taskGraphId, event) => {
       emitRuntimePlanStreamEvent({
-        planId,
+        taskGraphId,
         event,
         emit: (targetPlanId, targetEvent) => input.planSubscribers.emit(targetPlanId, targetEvent),
         close: (targetPlanId) => input.planSubscribers.close(targetPlanId),

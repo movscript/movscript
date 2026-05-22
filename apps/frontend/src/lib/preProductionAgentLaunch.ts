@@ -99,7 +99,7 @@ export async function createAssetCandidateProposalDraft(input: CreateAssetCandid
       projectId: input.projectId,
       entityType: 'asset_slot',
       entityId: input.assetSlotId,
-      field: 'candidate_generation_plan',
+      field: 'candidate_generation_taskGraph',
     },
     metadata: {
       pageOwned: true,
@@ -170,7 +170,7 @@ export function buildPreProductionAuditAgentPanelDraftPayload(input: PreProducti
         '1. 如果设定资料缺漏、重复、状态不清晰，创建或更新 setting_proposal；只修改 proposal.creative_references，proposal.asset_slots 必须为空。',
         '2. 如果素材需求缺漏、归属不清晰、优先级/状态/类型需要修正，创建或更新 asset_proposal；只修改 proposal.asset_slots，proposal.creative_references 必须为空。',
         '3. 本轮只做设定与素材需求提案；不处理图片/视频输出、媒体任务或候选 prompt。',
-        '4. 已有 setting_proposal draft 时，优先使用 draft 的 metadata.seed.data 或 content.snapshot_base；不要用 live creative reference 查询覆盖 draft 基准。',
+        '4. 已有 setting_proposal draft 时，直接读取并局部编辑 draft 的 proposal.creative_references；不要用 live creative reference 查询重写整份快照。',
         '5. 如果查询工具返回 total_count > 0 但 count/returned = 0，说明当前筛选没有可用明细；应回到 draft seed/snapshot 或放宽筛选，不要据此判定“有资料但不能编辑”。',
         '6. 保留已确认信息，在 summary 或 impact_notes 中列出关键缺口和建议审阅顺序。',
       ].join('\n'),

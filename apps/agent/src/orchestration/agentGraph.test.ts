@@ -5,7 +5,7 @@ import { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import { InMemoryAgentDraftStore } from '../drafts/draftStore.js'
 import type { RuntimeModelRouter } from '../model/modelRouter.js'
 import { DEFAULT_TOOL_REGISTRY, StaticToolRegistry } from '../tools/toolRegistry.js'
-import type { AgentDebugTool, AgentRun, AgentRunPolicy, ResolvedToolCatalog } from '../state/types.js'
+import type { AgentDebugTool, AgentRun, AgentRunPolicy, JSONValue, ResolvedToolCatalog } from '../state/types.js'
 import { runAgentGraph } from './agentGraph.js'
 import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
 
@@ -79,7 +79,7 @@ test('runAgentGraph pauses again after executing one approved forced call when o
       {
         id: 'approval_1',
         runId: 'run_partial_approval',
-        toolName: 'runtime_operation_start',
+        toolName: 'core_operation_start',
         args: { value: 'a' },
         reason: 'Needs approval.',
         status: 'approved',
@@ -90,7 +90,7 @@ test('runAgentGraph pauses again after executing one approved forced call when o
       {
         id: 'approval_2',
         runId: 'run_partial_approval',
-        toolName: 'runtime_operation_start',
+        toolName: 'core_operation_start',
         args: { value: 'b' },
         reason: 'Needs approval.',
         status: 'pending',
@@ -98,7 +98,7 @@ test('runAgentGraph pauses again after executing one approved forced call when o
         updatedAt: '2026-05-16T00:00:00.000Z',
       },
     ],
-    metadata: { approvedToolNames: ['runtime_operation_start'] },
+    metadata: { approvedToolNames: ['core_operation_start'] },
     createdAt: '2026-05-16T00:00:00.000Z',
     updatedAt: '2026-05-16T00:00:00.000Z',
     steps: [],
@@ -111,10 +111,12 @@ test('runAgentGraph pauses again after executing one approved forced call when o
     },
   }
   const registry = new StaticToolRegistry([
-    tool('runtime_operation_start', 'generate', true),
+    tool('core_operation_start', 'generate', true),
   ])
   const capabilities = resolvedCatalog(registry)
   const calls: string[] = []
+  const traces: Array<{ kind: string; title: string; data?: unknown }> = []
+  let stepArgs: Record<string, unknown> | undefined
 
   const result = await runAgentGraph({
     run,
@@ -124,7 +126,7 @@ test('runAgentGraph pauses again after executing one approved forced call when o
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
       tools: [
-        { name: 'runtime_operation_start', mode: 'allow', approval: 'always' },
+        { name: 'core_operation_start', mode: 'allow', approval: 'always' },
       ],
     },
     capabilities,
@@ -139,7 +141,7 @@ test('runAgentGraph pauses again after executing one approved forced call when o
     policy,
     mcpClient: {
       initialize: async () => null,
-      callTool: async (name) => {
+      callTool: async (name): Promise<JSONValue> => {
         calls.push(`mcp:${name}`)
         return { ok: true }
       },
@@ -150,14 +152,12 @@ test('runAgentGraph pauses again after executing one approved forced call when o
     catalogManager: {
       inspectAgentCatalog: () => ({}),
       updateActiveSkills: () => ({}),
-      createAgentPlan: () => ({}),
-      getAgentPlan: () => ({}),
-      replanAgentPlan: () => ({}),
+      updateProgressChecklist: () => ({}),
       spawnSubagent: () => ({}),
       listSubagents: () => ({}),
       waitSubagent: () => ({}),
       startOperation: () => {
-        calls.push('runtime_operation_start')
+        calls.push('core_operation_start')
         return {
           status: 'started',
           operation: {
@@ -178,10 +178,13 @@ test('runAgentGraph pauses again after executing one approved forced call when o
       cancelOperation: () => ({}),
       cancelSubagent: () => ({}),
     },
-    forcedToolCalls: [{ id: 'call_approval_1', name: 'runtime_operation_start', args: { value: 'a' } }],
-    approvedToolNames: ['runtime_operation_start'],
-    onTrace: () => undefined,
-    onStepCreate: () => 'step_1',
+    forcedToolCalls: [{ id: 'call_approval_1', name: 'core_operation_start', args: { value: 'a' } }],
+    approvedToolNames: ['core_operation_start'],
+    onTrace: (trace) => traces.push({ kind: trace.kind, title: trace.title, data: trace.data }),
+    onStepCreate: (_type, _roundIndex, _roundLabel, _roundSource, _toolName, args) => {
+      stepArgs = args
+      return 'step_1'
+    },
     onStepComplete: () => undefined,
   })
 
@@ -190,7 +193,10 @@ test('runAgentGraph pauses again after executing one approved forced call when o
     assert.deepEqual(result.pendingApprovals.map((approval) => approval.id), ['approval_2'])
     assert.deepEqual(result.toolOutcomes.map((outcome) => outcome.call.id), ['call_approval_1'])
   }
-  assert.deepEqual(calls, ['runtime_operation_start'])
+  assert.deepEqual(calls, ['core_operation_start'])
+  assert.deepEqual(stepArgs, { value: 'a' })
+  const completedTrace = traces.find((trace) => trace.kind === 'tool_call' && trace.title === 'Tool completed: core_operation_start')
+  assert.deepEqual((completedTrace?.data as any)?.args, { value: 'a' })
 })
 
 test('runAgentGraph queues draft apply approvals in proposal layer order when explicitly requested', async () => {
@@ -231,7 +237,7 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
           id: 'call_asset',
           type: 'function',
           function: {
-            name: 'movscript_create_draft',
+            name: 'draft_create',
             arguments: JSON.stringify({
               kind: 'asset_proposal',
               proposal: true,
@@ -248,7 +254,7 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
           id: 'call_setting',
           type: 'function',
           function: {
-            name: 'movscript_create_draft',
+            name: 'draft_create',
             arguments: JSON.stringify({
               kind: 'setting_proposal',
               proposal: true,
@@ -269,7 +275,7 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
   }
   const registry = new StaticToolRegistry([
     {
-      name: 'movscript_create_draft',
+      name: 'draft_create',
       description: 'Create draft.',
       permission: 'draft.write',
       risk: 'draft',
@@ -278,7 +284,7 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
       requiresApprovalByDefault: false,
     },
     {
-      name: 'movscript_apply_draft',
+      name: 'draft_apply',
       description: 'Apply draft.',
       permission: 'draft.apply',
       risk: 'write',
@@ -297,8 +303,8 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
     registered: true,
     granted: true,
     available: true,
-    approval: tool.name === 'movscript_apply_draft' ? 'on_write' : 'never',
-    requiresApproval: tool.name === 'movscript_apply_draft',
+    approval: tool.name === 'draft_apply' ? 'on_write' : 'never',
+    requiresApproval: tool.name === 'draft_apply',
   }))
   const capabilities: ResolvedToolCatalog = {
     discovered: available,
@@ -315,8 +321,8 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
       tools: [
-        { name: 'movscript_create_draft', mode: 'allow', approval: 'never' },
-        { name: 'movscript_apply_draft', mode: 'allow', approval: 'on_write' },
+        { name: 'draft_create', mode: 'allow', approval: 'never' },
+        { name: 'draft_apply', mode: 'allow', approval: 'on_write' },
       ],
     },
     capabilities,
@@ -340,7 +346,21 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
     policy,
     mcpClient: {
       initialize: async () => null,
-      callTool: async () => ({}),
+      callTool: async (name): Promise<JSONValue> => {
+        if (name === 'draft_model_get') {
+          return {
+            data: {
+              seed: {
+                data: {
+                  asset_slots: [],
+                  creative_references: [],
+                },
+              },
+            },
+          }
+        }
+        return {}
+      },
     },
     draftStore: new InMemoryAgentDraftStore(),
     backendApplyClient: new BackendApplyClient(),
@@ -353,8 +373,8 @@ test('runAgentGraph queues draft apply approvals in proposal layer order when ex
   assert.equal(result.status, 'requires_action')
   if (result.status === 'requires_action') {
     assert.deepEqual(result.pendingApprovals.map((approval) => approval.toolName), [
-      'movscript_apply_draft',
-      'movscript_apply_draft',
+      'draft_apply',
+      'draft_apply',
     ])
     assert.deepEqual(result.pendingApprovals.map((approval) => approval.args?.draftKind), [
       'setting_proposal',
@@ -603,8 +623,8 @@ test('runAgentGraph summarizes catalog skill inspection with active state and to
             id: 'call_inspect_skill',
             type: 'function',
             function: {
-              name: 'movscript_inspect_agent_catalog',
-              arguments: JSON.stringify({ view: 'skill', id: 'movscript.workflow.script-reading' }),
+              name: 'core_catalog_inspect',
+              arguments: JSON.stringify({ view: 'skill', id: 'movscript.workflow.script_reading' }),
             },
           }],
           finish_reason: 'tool_calls',
@@ -660,19 +680,17 @@ test('runAgentGraph summarizes catalog skill inspection with active state and to
         catalogSnapshot: { id: 'snapshot_1', version: 'catalog_v1' },
         view: 'skill',
         skill: {
-          id: 'movscript.workflow.script-reading',
+          id: 'movscript.workflow.script_reading',
           kind: 'workflow',
           name: 'Script Reading',
           loadMode: 'manual',
-          toolRefs: ['tool://movscript_read_project_scripts', 'tool://movscript_request_user_input'],
+          toolRefs: ['tool://movscript_project_script_read', 'tool://core_user_input_request'],
         },
         active: true,
         coveredByEnabledPack: true,
       }),
       updateActiveSkills: () => ({}),
-      createAgentPlan: () => ({}),
-      getAgentPlan: () => ({}),
-      replanAgentPlan: () => ({}),
+      updateProgressChecklist: () => ({}),
       spawnSubagent: () => ({}),
       listSubagents: () => ({}),
       waitSubagent: () => ({}),
@@ -684,16 +702,16 @@ cancelOperation: () => ({}),
       cancelSubagent: () => ({}),
     },
     onTrace: (trace) => {
-      if (trace.kind === 'tool_call' && trace.toolName === 'movscript_inspect_agent_catalog' && trace.summary) traceSummaries.push(trace.summary)
+      if (trace.kind === 'tool_call' && trace.toolName === 'core_catalog_inspect' && trace.summary) traceSummaries.push(trace.summary)
     },
     onStepCreate: () => 'step_1',
     onStepComplete: () => undefined,
   })
 
   assert.equal(result.status, 'completed')
-  assert.match(traceSummaries.join('\n'), /catalog skill movscript\.workflow\.script-reading/)
+  assert.match(traceSummaries.join('\n'), /catalog skill movscript\.workflow\.script_reading/)
   assert.match(traceSummaries.join('\n'), /active=true/)
-  assert.match(traceSummaries.join('\n'), /tools=movscript_read_project_scripts, movscript_request_user_input/)
+  assert.match(traceSummaries.join('\n'), /tools=movscript_project_script_read, core_user_input_request/)
 })
 
 test('runAgentGraph summarizes catalog summary inspection with skill and pack state', async () => {
@@ -737,7 +755,7 @@ test('runAgentGraph summarizes catalog summary inspection with skill and pack st
             id: 'call_inspect_summary',
             type: 'function',
             function: {
-              name: 'movscript_inspect_agent_catalog',
+              name: 'core_catalog_inspect',
               arguments: JSON.stringify({ view: 'summary' }),
             },
           }],
@@ -794,14 +812,12 @@ test('runAgentGraph summarizes catalog summary inspection with skill and pack st
         catalogSnapshot: { id: 'snapshot_1', version: 'catalog_v1' },
         view: 'summary',
         counts: { packs: 2, enabledPacks: 1, skills: 12, tools: 8, knowledge: 0, profiles: 1 },
-        enabledPackIds: ['movscript.pack.default'],
-        activeSkillIds: ['movscript.policy.agent-core', 'movscript.workflow.script-reading'],
-        availableSkillIds: ['movscript.workflow.script-reading', 'movscript.workflow.asset-proposal'],
+        enabledPackIds: ['core.pack.default'],
+        activeSkillIds: ['core.policy.runtime', 'movscript.workflow.script_reading'],
+        availableSkillIds: ['movscript.workflow.script_reading', 'movscript.workflow.asset_proposal'],
       }),
       updateActiveSkills: () => ({}),
-      createAgentPlan: () => ({}),
-      getAgentPlan: () => ({}),
-      replanAgentPlan: () => ({}),
+      updateProgressChecklist: () => ({}),
       spawnSubagent: () => ({}),
       listSubagents: () => ({}),
       waitSubagent: () => ({}),
@@ -813,7 +829,7 @@ cancelOperation: () => ({}),
       cancelSubagent: () => ({}),
     },
     onTrace: (trace) => {
-      if (trace.kind === 'tool_call' && trace.toolName === 'movscript_inspect_agent_catalog' && trace.summary) traceSummaries.push(trace.summary)
+      if (trace.kind === 'tool_call' && trace.toolName === 'core_catalog_inspect' && trace.summary) traceSummaries.push(trace.summary)
     },
     onStepCreate: () => 'step_1',
     onStepComplete: () => undefined,
@@ -821,9 +837,9 @@ cancelOperation: () => ({}),
 
   assert.equal(result.status, 'completed')
   assert.match(traceSummaries.join('\n'), /catalog summary/)
-  assert.match(traceSummaries.join('\n'), /active=movscript\.policy\.agent-core, movscript\.workflow\.script-reading/)
-  assert.match(traceSummaries.join('\n'), /available=movscript\.workflow\.script-reading, movscript\.workflow\.asset-proposal/)
-  assert.match(traceSummaries.join('\n'), /packs=movscript\.pack\.default/)
+  assert.match(traceSummaries.join('\n'), /active=core\.policy\.runtime, movscript\.workflow\.script_reading/)
+  assert.match(traceSummaries.join('\n'), /available=movscript\.workflow\.script_reading, movscript\.workflow\.asset_proposal/)
+  assert.match(traceSummaries.join('\n'), /packs=core\.pack\.default/)
   assert.match(traceSummaries.join('\n'), /tools=8, skills=12/)
 })
 
@@ -846,7 +862,7 @@ test('runAgentGraph loads script reading skill when model calls project script t
     },
   }
   const updateActiveSkillsTool: AgentDebugTool = {
-    name: 'movscript_update_active_skills',
+    name: 'core_skill_update',
     description: 'Update active skills',
     source: 'runtime',
     registered: true,
@@ -859,7 +875,7 @@ test('runAgentGraph loads script reading skill when model calls project script t
     requiresApproval: false,
   }
   const readScriptsTool: AgentDebugTool = {
-    name: 'movscript_read_project_scripts',
+    name: 'movscript_project_script_read',
     description: 'Read project scripts',
     source: 'mcp',
     registered: true,
@@ -883,8 +899,8 @@ test('runAgentGraph loads script reading skill when model calls project script t
     available: [updateActiveSkillsTool],
     blocked: [readScriptsTool],
     byName: {
-      movscript_update_active_skills: updateActiveSkillsTool,
-      movscript_read_project_scripts: readScriptsTool,
+      core_skill_update: updateActiveSkillsTool,
+      movscript_project_script_read: readScriptsTool,
     },
   }
   const manifest: AgentManifest = {
@@ -893,12 +909,12 @@ test('runAgentGraph loads script reading skill when model calls project script t
     version: '0.1.0',
     name: 'Core only',
     tools: [
-      { name: 'movscript_update_active_skills', mode: 'allow', approval: 'never' },
+      { name: 'core_skill_update', mode: 'allow', approval: 'never' },
     ],
   }
   const registry = new StaticToolRegistry([
     {
-      name: 'movscript_update_active_skills',
+      name: 'core_skill_update',
       description: 'Update active skills',
       permission: 'agent.skills.manage',
       risk: 'read',
@@ -907,13 +923,14 @@ test('runAgentGraph loads script reading skill when model calls project script t
       requiresApprovalByDefault: false,
     },
     {
-      name: 'movscript_read_project_scripts',
+      name: 'movscript_project_script_read',
       description: 'Read project scripts',
       permission: 'project.script.read',
       risk: 'read',
       source: 'mcp',
       projectScoped: true,
       requiresApprovalByDefault: false,
+      requiresSkills: ['movscript.workflow.script_reading'],
     },
   ])
   const updateInputs: unknown[] = []
@@ -944,7 +961,7 @@ test('runAgentGraph loads script reading skill when model calls project script t
             id: 'call_read_scripts',
             type: 'function',
             function: {
-              name: 'movscript_read_project_scripts',
+              name: 'movscript_project_script_read',
               arguments: JSON.stringify({ projectId: 5, scriptTitle: '总剧本', includeContent: true }),
             },
           }],
@@ -1002,14 +1019,12 @@ test('runAgentGraph loads script reading skill when model calls project script t
         return {
           status: 'updated',
           eventType: 'skill.state_requested',
-          loadedSkillIds: ['movscript.workflow.script-reading'],
+          loadedSkillIds: ['movscript.workflow.script_reading'],
           unloadedSkillIds: [],
-          activeSkillIds: ['movscript.workflow.script-reading'],
+          activeSkillIds: ['movscript.workflow.script_reading'],
         }
       },
-      createAgentPlan: () => ({}),
-      getAgentPlan: () => ({}),
-      replanAgentPlan: () => ({}),
+      updateProgressChecklist: () => ({}),
       spawnSubagent: () => ({}),
       listSubagents: () => ({}),
       waitSubagent: () => ({}),
@@ -1025,7 +1040,7 @@ cancelOperation: () => ({}),
         ...manifest,
         tools: [
           ...manifest.tools,
-          { name: 'movscript_read_project_scripts', mode: 'allow', approval: 'never' },
+          { name: 'movscript_project_script_read', mode: 'allow', approval: 'never' },
         ],
       },
       capabilities: {
@@ -1033,12 +1048,12 @@ cancelOperation: () => ({}),
         available: [updateActiveSkillsTool, activeReadScriptsTool],
         blocked: [],
         byName: {
-          movscript_update_active_skills: updateActiveSkillsTool,
-          movscript_read_project_scripts: activeReadScriptsTool,
+          core_skill_update: updateActiveSkillsTool,
+          movscript_project_script_read: activeReadScriptsTool,
         },
       },
       skills: [{
-        id: 'movscript.workflow.script-reading',
+        id: 'movscript.workflow.script_reading',
         name: 'Script Reading',
         description: 'Read project scripts',
         enabled: true,
@@ -1052,7 +1067,7 @@ cancelOperation: () => ({}),
       warnings: [],
     }),
     onTrace: (trace) => {
-      if (trace.kind === 'tool_call' && trace.toolName === 'movscript_update_active_skills' && trace.summary) traceSummaries.push(trace.summary)
+      if (trace.kind === 'tool_call' && trace.toolName === 'core_skill_update' && trace.summary) traceSummaries.push(trace.summary)
       if (trace.kind === 'tool_catalog' && trace.title === 'Agent catalog refreshed') {
         if (trace.summary) catalogRefreshSummaries.push(trace.summary)
         catalogRefreshData.push(trace.data)
@@ -1064,13 +1079,13 @@ cancelOperation: () => ({}),
 
   assert.equal(result.status, 'completed')
   assert.deepEqual(updateInputs, [{
-    load: ['movscript.workflow.script-reading'],
-    reason: '读取项目剧本需要加载剧本读取 workflow。',
+    load: ['movscript.workflow.script_reading'],
+    reason: '工具 movscript_project_script_read 需要加载 movscript.workflow.script_reading。',
   }])
-  assert.match(traceSummaries.join('\n'), /loaded=movscript\.workflow\.script-reading/)
+  assert.match(traceSummaries.join('\n'), /loaded=movscript\.workflow\.script_reading/)
   assert.match(catalogRefreshSummaries.join('\n'), /manifest=test\.core-only/)
-  assert.match(catalogRefreshSummaries.join('\n'), /movscript_read_project_scripts=available\/granted/)
-  assert.equal((catalogRefreshData[0] as any)?.manifest?.tools?.some((grant: any) => grant.name === 'movscript_read_project_scripts'), true)
-  assert.equal((catalogRefreshData[0] as any)?.capabilitySnapshot?.keyTools?.some((tool: any) => tool.name === 'movscript_read_project_scripts' && tool.available === true && tool.granted === true), true)
+  assert.match(catalogRefreshSummaries.join('\n'), /movscript_project_script_read=available\/granted/)
+  assert.equal((catalogRefreshData[0] as any)?.manifest?.tools?.some((grant: any) => grant.name === 'movscript_project_script_read'), true)
+  assert.equal((catalogRefreshData[0] as any)?.capabilitySnapshot?.keyTools?.some((tool: any) => tool.name === 'movscript_project_script_read' && tool.available === true && tool.granted === true), true)
   if (result.status === 'completed') assert.equal(result.finalContent, 'skill loaded')
 })

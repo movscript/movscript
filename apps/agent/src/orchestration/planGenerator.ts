@@ -1,7 +1,7 @@
 import { resolveRuntimePlannerModelConfig, type RuntimeModelAuthContext } from '../model/modelConfig.js'
 import { callModel, type ModelCallInput, type ModelCallResult } from '../model/modelClient.js'
 import { cloneJSONValue, isJSONRecord, isRecord } from '../jsonValue.js'
-import type { CreatePlanTaskInput, JSONValue } from '../state/types.js'
+import type { CreateTaskGraphTaskInput, JSONValue } from '../state/types.js'
 
 export interface GeneratePlanTasksInput {
   goal: string
@@ -13,7 +13,7 @@ export interface GeneratePlanTasksInput {
 }
 
 export interface GeneratePlanTasksResult {
-  tasks: CreatePlanTaskInput[]
+  tasks: CreateTaskGraphTaskInput[]
   source: 'model' | 'fallback'
   warnings: string[]
   assessment?: Record<string, JSONValue>
@@ -71,7 +71,7 @@ function buildPlannerMessages(goal: string, title: string | undefined, maxTasks:
     {
       role: 'user',
       content: [
-        title ? `Plan title: ${title}` : undefined,
+        title ? `Task graph title: ${title}` : undefined,
         `Goal: ${goal}`,
       ].filter((line): line is string => line !== undefined).join('\n'),
     },
@@ -81,7 +81,7 @@ function buildPlannerMessages(goal: string, title: string | undefined, maxTasks:
 function normalizePlannerResponse(content: string | null, maxTasks: number): Pick<GeneratePlanTasksResult, 'tasks' | 'assessment'> {
   const parsed = parseJSON(content)
   const rawTasks = isRecord(parsed) && Array.isArray(parsed.tasks) ? parsed.tasks : []
-  const tasks: CreatePlanTaskInput[] = []
+  const tasks: CreateTaskGraphTaskInput[] = []
   const seen = new Set<string>()
   for (const rawTask of rawTasks) {
     if (!isRecord(rawTask)) continue
@@ -120,7 +120,7 @@ function fallbackAssessment(): Record<string, JSONValue> {
   }
 }
 
-function fallbackTask(goal: string): CreatePlanTaskInput {
+function fallbackTask(goal: string): CreateTaskGraphTaskInput {
   return {
     id: 'task_execute_goal',
     title: titleFromGoal(goal),

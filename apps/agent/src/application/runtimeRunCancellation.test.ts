@@ -125,14 +125,14 @@ test('planRuntimeSubtreeCancellation returns active subtree runs in leaf-first c
   store.createRun(makeRun({ id: 'run_grandchild', parentRunId: 'run_child_a', status: 'completed' }))
   store.createRun(makeRun({ id: 'run_child_b', parentRunId: 'run_root', status: 'requires_action' }))
 
-  const plan = planRuntimeSubtreeCancellation({
+  const taskGraph = planRuntimeSubtreeCancellation({
     store,
     runId: 'run_root',
     reason: ' stop now ',
   })
 
-  assert.equal(plan.reason, 'stop now')
-  assert.deepEqual(plan.runIds, ['run_child_b', 'run_child_a', 'run_root'])
+  assert.equal(taskGraph.reason, 'stop now')
+  assert.deepEqual(taskGraph.runIds, ['run_child_b', 'run_child_a', 'run_root'])
 })
 
 test('planRuntimeSubtreeCancellation validates the root run and falls back to a default reason', () => {
@@ -149,7 +149,7 @@ test('planRuntimeSubtreeCancellation validates the root run and falls back to a 
 test('applyRuntimeSubtreeCancellation cancels planned runs in order with the planned reason', () => {
   const calls: string[] = []
   const result = applyRuntimeSubtreeCancellation({
-    plan: {
+    taskGraph: {
       reason: 'stop now',
       runIds: ['run_child', 'run_root'],
     },

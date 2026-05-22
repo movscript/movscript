@@ -23,6 +23,7 @@ import { publicModelId, publicModelLabel } from '@/lib/modelDisplay'
 import { cn } from '@/lib/utils'
 import { ROUTES } from '@/routes/projectRoutes'
 import { activeRunPresetFromSettings, defaultAgentRunPresets, useAgentStore, type AgentRunPreset, type AgentSettingsAuditEntry, type AgentToolPolicyFilterPreset } from '@/store/agentStore'
+import { AgentConsoleNav } from '@/pages/agent/AgentConsoleNav'
 import type { PublicModel } from '@/types'
 
 const NO_MODEL_VALUE = '__none'
@@ -31,9 +32,9 @@ const MAX_SKILL_BUNDLE_FILES = 50
 const MAX_SKILL_BUNDLE_FILE_BYTES = 256 * 1024
 const MAX_SKILL_BUNDLE_TOTAL_BYTES = 1024 * 1024
 const MAX_SETTINGS_SNAPSHOT_BYTES = 1024 * 1024
-const RUN_PRESET_PLAN_WORKER_OPTIONS = [1, 2, 3, 4] as const
-const RUN_PRESET_PLAN_ATTEMPT_OPTIONS = [1, 2, 3] as const
-const RUN_PRESET_PLAN_TIMEOUT_OPTIONS = [5 * 60_000, 15 * 60_000, 30 * 60_000, 60 * 60_000] as const
+const RUN_PRESET_TASK_GRAPH_WORKER_OPTIONS = [1, 2, 3, 4] as const
+const RUN_PRESET_TASK_GRAPH_ATTEMPT_OPTIONS = [1, 2, 3] as const
+const RUN_PRESET_TASK_GRAPH_TIMEOUT_OPTIONS = [5 * 60_000, 15 * 60_000, 30 * 60_000, 60 * 60_000] as const
 const DEFAULT_RUN_PRESET_IDS = new Set(defaultAgentRunPresets().map((preset) => preset.id))
 const TOOL_POLICY_FILTER_OPTIONS = ['all', 'available', 'blocked', 'profile_granted', 'requires_approval', 'write_risk'] as const
 const API_KIND_OPTIONS: Array<{ value: RuntimeModelAPIKind; labelKey: string; descriptionKey: string }> = [
@@ -429,7 +430,7 @@ export default function AIAgentSettingsPage() {
     useForPlanner,
     effectiveConfig,
   }), [baseURLValue, directModelIdHasSecret, draftModelValue, effectiveConfig, modelApiKeyProvided, modelBaseURLHasSecret, selectedApiKind, useForChat, useForPlanner, usesBackendCompatibleBaseURL])
-  const apiModeSwitchPlan = useMemo(() => buildApiModeSwitchPlan({
+  const apiModeSwitchTaskGraph = useMemo(() => buildApiModeSwitchTaskGraph({
     selectedApiKind,
     probes: modelCompatibilityProbes,
     hasUnsavedChanges,
@@ -1440,8 +1441,8 @@ export default function AIAgentSettingsPage() {
 
   return (
     <div data-testid="agent-settings-page" className="flex h-full min-h-0 flex-col bg-background">
-      <header className="border-b border-border px-5 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <header className="shrink-0 border-b border-border bg-background px-5 py-3">
+        <div className="flex min-h-[72px] flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <Settings size={18} />
@@ -1450,8 +1451,8 @@ export default function AIAgentSettingsPage() {
                 {effectiveConfig?.configured ? t('agents.settings.configured') : t('agents.settings.notConfigured')}
               </Badge>
             </div>
-            <p className="mt-1 max-w-3xl type-label leading-5 text-muted-foreground">{t('agents.settings.description')}</p>
-            <div data-testid="agent-settings-scope-boundary" className="mt-2 flex max-w-3xl flex-wrap gap-2 type-caption leading-4">
+            <p className="mt-1 line-clamp-2 max-w-3xl type-label leading-5 text-muted-foreground">{t('agents.settings.description')}</p>
+            <div data-testid="agent-settings-scope-boundary" className="sr-only">
               <span className="rounded border border-border bg-muted/30 px-2 py-1 text-foreground">{t('agents.settings.scope.controlPlane')}</span>
               <span className="rounded border border-border bg-background px-2 py-1 text-muted-foreground">{t('agents.settings.scope.futureRuns')}</span>
               <span className="rounded border border-border bg-background px-2 py-1 text-muted-foreground">{t('agents.settings.scope.debugReadOnly')}</span>
@@ -1475,6 +1476,8 @@ export default function AIAgentSettingsPage() {
           </div>
         </div>
       </header>
+
+      <AgentConsoleNav compact />
 
       <main className="min-h-0 flex-1 overflow-y-auto p-4">
         {runtimeQuery.isLoading || modelsQuery.isLoading ? (
@@ -1605,7 +1608,7 @@ export default function AIAgentSettingsPage() {
                   <ApiModeCapabilityMatrix apiKind={selectedApiKind} t={t} />
                   <ModelCompatibilityProbePanel probes={modelCompatibilityProbes} />
                   <ApiModeMigrationGuide apiKind={selectedApiKind} onSwitchToResponses={() => setSelectedApiKind('openai_responses')} />
-                  <ApiModeSwitchPlanPanel apiKind={selectedApiKind} items={apiModeSwitchPlan} />
+                  <ApiModeSwitchPlanPanel apiKind={selectedApiKind} items={apiModeSwitchTaskGraph} />
                   {modelRouteIssues.length > 0 && (
                     <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 type-label text-amber-800 dark:text-amber-300">
                       {modelRouteIssues.map((issue) => <p key={issue}>{t(`agents.settings.modelRouteIssues.${issue}`)}</p>)}
@@ -1782,7 +1785,7 @@ export default function AIAgentSettingsPage() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {RUN_PRESET_PLAN_WORKER_OPTIONS.map((value) => <SelectItem key={value} value={String(value)}>{value}</SelectItem>)}
+                            {RUN_PRESET_TASK_GRAPH_WORKER_OPTIONS.map((value) => <SelectItem key={value} value={String(value)}>{value}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
@@ -1793,7 +1796,7 @@ export default function AIAgentSettingsPage() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {RUN_PRESET_PLAN_ATTEMPT_OPTIONS.map((value) => <SelectItem key={value} value={String(value)}>{value}</SelectItem>)}
+                            {RUN_PRESET_TASK_GRAPH_ATTEMPT_OPTIONS.map((value) => <SelectItem key={value} value={String(value)}>{value}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
@@ -1804,7 +1807,7 @@ export default function AIAgentSettingsPage() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {RUN_PRESET_PLAN_TIMEOUT_OPTIONS.map((timeoutMs) => (
+                            {RUN_PRESET_TASK_GRAPH_TIMEOUT_OPTIONS.map((timeoutMs) => (
                               <SelectItem key={timeoutMs} value={String(timeoutMs)}>{formatDurationMinutes(timeoutMs)}</SelectItem>
                             ))}
                           </SelectContent>
@@ -1813,11 +1816,11 @@ export default function AIAgentSettingsPage() {
                       <label className="flex min-h-8 items-center gap-2 rounded-md border border-border bg-background px-2 type-label">
                         <input
                           type="checkbox"
-                          checked={activeRunPreset.autoPlan}
-                          onChange={(event) => updateRunPreset(activeRunPreset.id, { autoPlan: event.target.checked })}
+                          checked={activeRunPreset.autoTaskGraph}
+                          onChange={(event) => updateRunPreset(activeRunPreset.id, { autoTaskGraph: event.target.checked })}
                           className="size-3.5 rounded border-input"
                         />
-                        <span>{t('agents.settings.runPresetFields.autoPlan')}</span>
+                        <span>{t('agents.settings.runPresetFields.autoTaskGraph')}</span>
                       </label>
                     </div>
                   </div>
@@ -1827,7 +1830,7 @@ export default function AIAgentSettingsPage() {
                       <SummaryItem label={t('agents.settings.runPresetFields.maxToolCalls')} value={activeRunPreset.maxToolCalls} />
                       <SummaryItem label={t('agents.settings.runPresetFields.maxIterations')} value={activeRunPreset.maxIterations} />
                       <SummaryItem label={t('agents.settings.runPresetFields.permissionMode')} value={t(`agents.settings.runPresetPermissionModes.${activeRunPreset.permissionMode}`)} />
-                      <SummaryItem label={t('agents.settings.runPresetFields.autoPlan')} value={activeRunPreset.autoPlan ? t('agents.settings.values.enabled') : t('agents.settings.values.disabled')} />
+                      <SummaryItem label={t('agents.settings.runPresetFields.autoTaskGraph')} value={activeRunPreset.autoTaskGraph ? t('agents.settings.values.enabled') : t('agents.settings.values.disabled')} />
                       <SummaryItem label={t('agents.settings.runPresetFields.planWorkers')} value={activeRunPreset.planMaxWorkers} />
                       <SummaryItem label={t('agents.settings.runPresetFields.planAttempts')} value={activeRunPreset.planMaxTaskAttempts} />
                       <SummaryItem label={t('agents.settings.runPresetFields.planTimeout')} value={formatDurationMinutes(activeRunPreset.planWorkerTimeoutMs)} />
@@ -2567,7 +2570,7 @@ function buildModelCompatibilityProbes(input: {
   return probes
 }
 
-function buildApiModeSwitchPlan(input: {
+function buildApiModeSwitchTaskGraph(input: {
   selectedApiKind: RuntimeModelAPIKind
   probes: ModelCompatibilityProbe[]
   hasUnsavedChanges: boolean
@@ -2580,20 +2583,20 @@ function buildApiModeSwitchPlan(input: {
     {
       id: 'target-mode',
       status: input.selectedApiKind === targetApiKind ? 'ready' : 'warning',
-      labelKey: 'agents.settings.apiModeSwitchPlan.targetMode',
+      labelKey: 'agents.settings.apiModeSwitchTaskGraph.targetMode',
       detailKey: input.selectedApiKind === targetApiKind
         ? 'agents.settings.apiModeSwitchPlanDetails.targetModeStable'
         : 'agents.settings.apiModeSwitchPlanDetails.targetModeMigration',
       detailValues: { apiKind: input.selectedApiKind, targetApiKind },
     },
-    switchPlanProbeItem('model-id', probeById.get('model-id'), 'agents.settings.apiModeSwitchPlan.modelId'),
-    switchPlanProbeItem('credentials', probeById.get('credentials'), 'agents.settings.apiModeSwitchPlan.credentials'),
-    switchPlanProbeItem('base-url', probeById.get('base-url'), 'agents.settings.apiModeSwitchPlan.baseURL'),
-    switchPlanProbeItem('routes', probeById.get('routes'), 'agents.settings.apiModeSwitchPlan.routes'),
+    switchPlanProbeItem('model-id', probeById.get('model-id'), 'agents.settings.apiModeSwitchTaskGraph.modelId'),
+    switchPlanProbeItem('credentials', probeById.get('credentials'), 'agents.settings.apiModeSwitchTaskGraph.credentials'),
+    switchPlanProbeItem('base-url', probeById.get('base-url'), 'agents.settings.apiModeSwitchTaskGraph.baseURL'),
+    switchPlanProbeItem('routes', probeById.get('routes'), 'agents.settings.apiModeSwitchTaskGraph.routes'),
     {
       id: 'save-test',
       status: saveStatus,
-      labelKey: 'agents.settings.apiModeSwitchPlan.saveTest',
+      labelKey: 'agents.settings.apiModeSwitchTaskGraph.saveTest',
       detailKey: hasActionProbe
         ? 'agents.settings.apiModeSwitchPlanDetails.saveTestBlocked'
         : input.hasUnsavedChanges
@@ -3416,7 +3419,7 @@ function runPresetSettingsPatch(preset: AgentRunPreset) {
   return {
     activeRunPresetId: preset.id,
     permissionMode: preset.permissionMode,
-    autoPlan: preset.autoPlan,
+    autoTaskGraph: preset.autoTaskGraph,
     planMaxWorkers: preset.planMaxWorkers,
     planMaxTaskAttempts: preset.planMaxTaskAttempts,
     planWorkerTimeoutMs: preset.planWorkerTimeoutMs,
@@ -3474,12 +3477,12 @@ function normalizeRunPresetDraft(preset: AgentRunPreset): AgentRunPreset {
   return {
     ...preset,
     permissionMode,
-    autoPlan: preset.autoPlan !== false,
+    autoTaskGraph: preset.autoTaskGraph !== false,
     maxToolCalls: clampInteger(preset.maxToolCalls, 1, 200),
     maxIterations: clampInteger(preset.maxIterations, 1, 200),
-    planMaxWorkers: normalizeOption(preset.planMaxWorkers, RUN_PRESET_PLAN_WORKER_OPTIONS, 2),
-    planMaxTaskAttempts: normalizeOption(preset.planMaxTaskAttempts, RUN_PRESET_PLAN_ATTEMPT_OPTIONS, 2),
-    planWorkerTimeoutMs: normalizeOption(preset.planWorkerTimeoutMs, RUN_PRESET_PLAN_TIMEOUT_OPTIONS, 15 * 60_000),
+    planMaxWorkers: normalizeOption(preset.planMaxWorkers, RUN_PRESET_TASK_GRAPH_WORKER_OPTIONS, 2),
+    planMaxTaskAttempts: normalizeOption(preset.planMaxTaskAttempts, RUN_PRESET_TASK_GRAPH_ATTEMPT_OPTIONS, 2),
+    planWorkerTimeoutMs: normalizeOption(preset.planWorkerTimeoutMs, RUN_PRESET_TASK_GRAPH_TIMEOUT_OPTIONS, 15 * 60_000),
   }
 }
 
@@ -4407,7 +4410,7 @@ function ApiModeSwitchPlanPanel({ apiKind, items }: { apiKind: RuntimeModelAPIKi
   const [copied, setCopied] = useState(false)
   const actionCount = items.filter((item) => item.status === 'action').length
   const warningCount = items.filter((item) => item.status === 'warning').length
-  async function copySwitchPlan() {
+  async function copySwitchTaskGraph() {
     const lines = [
       t('agents.settings.apiModeSwitchPlanTitle'),
       t('agents.settings.apiModeSwitchPlanCopyContext', { apiKind }),
@@ -4421,7 +4424,7 @@ function ApiModeSwitchPlanPanel({ apiKind, items }: { apiKind: RuntimeModelAPIKi
   }
 
   return (
-    <div data-testid="agent-settings-api-mode-switch-plan" className="rounded-md border border-border bg-background p-3">
+    <div data-testid="agent-settings-api-mode-switch-taskGraph" className="rounded-md border border-border bg-background p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <span className="min-w-0">
           <p className="type-label font-medium text-foreground">{t('agents.settings.apiModeSwitchPlanTitle')}</p>
@@ -4429,14 +4432,14 @@ function ApiModeSwitchPlanPanel({ apiKind, items }: { apiKind: RuntimeModelAPIKi
             {t('agents.settings.apiModeSwitchPlanHelp', { actions: actionCount, warnings: warningCount })}
           </p>
         </span>
-        <Button type="button" size="sm" variant="outline" onClick={() => void copySwitchPlan()} data-testid="agent-settings-copy-api-mode-switch-plan">
+        <Button type="button" size="sm" variant="outline" onClick={() => void copySwitchTaskGraph()} data-testid="agent-settings-copy-api-mode-switch-taskGraph">
           <Clipboard size={14} />
-          {copied ? t('agents.settings.apiModeSwitchPlanCopied') : t('agents.settings.copyApiModeSwitchPlan')}
+          {copied ? t('agents.settings.apiModeSwitchPlanCopied') : t('agents.settings.copyApiModeSwitchTaskGraph')}
         </Button>
       </div>
       <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
         {items.map((item) => (
-          <div key={item.id} data-testid="agent-settings-api-mode-switch-plan-item" className="rounded border border-border bg-muted/20 px-2 py-1.5">
+          <div key={item.id} data-testid="agent-settings-api-mode-switch-taskGraph-item" className="rounded border border-border bg-muted/20 px-2 py-1.5">
             <div className="flex items-start justify-between gap-2">
               <span className="min-w-0">
                 <span className="block type-caption font-medium leading-4 text-foreground">{t(item.labelKey)}</span>

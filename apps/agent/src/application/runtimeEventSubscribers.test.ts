@@ -38,10 +38,10 @@ test('RuntimeEventSubscriberRegistry closes a subscriber group', () => {
   const registry = new RuntimeEventSubscriberRegistry<string>()
   const events: string[] = []
 
-  registry.subscribe('plan_1', (event) => events.push(event))
-  registry.close('plan_1')
+  registry.subscribe('task_graph_1', (event) => events.push(event))
+  registry.close('task_graph_1')
 
-  assert.equal(registry.has('plan_1'), false)
-  assert.equal(registry.emit('plan_1', 'done'), false)
+  assert.equal(registry.has('task_graph_1'), false)
+  assert.equal(registry.emit('task_graph_1', 'done'), false)
   assert.deepEqual(events, [])
 })

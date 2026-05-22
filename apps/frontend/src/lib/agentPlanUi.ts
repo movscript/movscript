@@ -1,25 +1,25 @@
-import type { AgentPlanSnapshot, AgentPlanStatus, AgentRun, AgentTask } from './localAgentClient'
+import type { AgentTaskGraphSnapshot, AgentTaskGraphStatus, AgentRun, AgentTask } from './localAgentClient'
 import { agentPlanStatusLabel, runStatusLabel } from './agentRunUi'
 import { runHasWorkflowInteraction } from './agentWorkflowInteraction'
 
 const STOPPABLE_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
 const TERMINAL_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['completed', 'completed_with_warnings', 'failed', 'cancelled'])
-const TERMINAL_AGENT_PLAN_STATUSES = new Set<AgentPlanStatus>(['done', 'failed', 'cancelled'])
+const TERMINAL_AGENT_TASK_GRAPH_STATUSES = new Set<AgentTaskGraphStatus>(['done', 'failed', 'cancelled'])
 
-export function shouldPollPlanSnapshot(snapshot: AgentPlanSnapshot | undefined, activeRun: AgentRun | null | undefined): boolean {
+export function shouldPollPlanSnapshot(snapshot: AgentTaskGraphSnapshot | undefined, activeRun: AgentRun | null | undefined): boolean {
   if (snapshot) {
-    if (!TERMINAL_AGENT_PLAN_STATUSES.has(snapshot.plan.status)) return true
+    if (!TERMINAL_AGENT_TASK_GRAPH_STATUSES.has(snapshot.taskGraph.status)) return true
     return snapshot.runs.some((run) => STOPPABLE_AGENT_RUN_STATUSES.has(run.status))
   }
-  return !!activeRun?.planId && !TERMINAL_AGENT_RUN_STATUSES.has(activeRun.status)
+  return !!activeRun?.taskGraphId && !TERMINAL_AGENT_RUN_STATUSES.has(activeRun.status)
 }
 
-export function plannerRunIdForPlanAction(snapshot: AgentPlanSnapshot | undefined, activeRun: AgentRun | null | undefined): string | undefined {
-  return snapshot?.plan.rootRunId
+export function plannerRunIdForPlanAction(snapshot: AgentTaskGraphSnapshot | undefined, activeRun: AgentRun | null | undefined): string | undefined {
+  return snapshot?.taskGraph.rootRunId
     ?? (activeRun?.role === 'planner' ? activeRun.id : activeRun?.parentRunId)
 }
 
-export function activeWorkerRunCount(snapshot: AgentPlanSnapshot): number {
+export function activeWorkerRunCount(snapshot: AgentTaskGraphSnapshot): number {
   return snapshot.runs.filter((run) => run.role === 'worker' && STOPPABLE_AGENT_RUN_STATUSES.has(run.status)).length
 }
 
@@ -142,7 +142,7 @@ export interface AgentPlanOverviewStats {
   nameConflictCount: number
 }
 
-export function buildPlanOverviewStats(snapshot: AgentPlanSnapshot): AgentPlanOverviewStats {
+export function buildPlanOverviewStats(snapshot: AgentTaskGraphSnapshot): AgentPlanOverviewStats {
   const summary = snapshot.summary
   return {
     taskCount: summary?.taskCount ?? snapshot.tasks.length,
@@ -153,7 +153,7 @@ export function buildPlanOverviewStats(snapshot: AgentPlanSnapshot): AgentPlanOv
   }
 }
 
-export function buildPlanNameConflictViews(snapshot: AgentPlanSnapshot): AgentPlanNameConflictView[] {
+export function buildPlanNameConflictViews(snapshot: AgentTaskGraphSnapshot): AgentPlanNameConflictView[] {
   const tasksById = new Map(snapshot.tasks.map((task) => [task.id, task]))
   const runsById = new Map(snapshot.runs.map((run) => [run.id, run]))
   return (snapshot.nameConflicts ?? [])
@@ -182,7 +182,7 @@ export function buildPlanNameConflictViews(snapshot: AgentPlanSnapshot): AgentPl
     })
 }
 
-export function buildPlanStatusExplanation(snapshot: AgentPlanSnapshot): string {
+export function buildPlanStatusExplanation(snapshot: AgentTaskGraphSnapshot): string {
   const nameConflicts = buildPlanNameConflictViews(snapshot)
   const counts = snapshot.summary?.taskStatusCounts ?? snapshot.tasks.reduce<Record<AgentTask['status'], number>>((acc, task) => {
     acc[task.status] = (acc[task.status] ?? 0) + 1
@@ -201,7 +201,7 @@ export function buildPlanStatusExplanation(snapshot: AgentPlanSnapshot): string 
   if (parts.length > 0) return parts.join(' · ')
   if (snapshot.tasks.length > 0 && counts.done === snapshot.tasks.length) return '所有任务已完成。'
   if (snapshot.tasks.length === 0) return '还没有计划任务。'
-  return agentPlanStatusLabel(snapshot.plan.status)
+  return agentPlanStatusLabel(snapshot.taskGraph.status)
 }
 
 export function agentTaskStatusLabel(status: AgentTask['status'] | undefined): string {
@@ -217,7 +217,7 @@ export function agentTaskStatusLabel(status: AgentTask['status'] | undefined): s
   }
 }
 
-export function buildPlanTaskViews(snapshot: AgentPlanSnapshot): AgentPlanTaskView[] {
+export function buildPlanTaskViews(snapshot: AgentTaskGraphSnapshot): AgentPlanTaskView[] {
   const runsById = new Map(snapshot.runs.map((run) => [run.id, run]))
   const tasksById = new Map(snapshot.tasks.map((task) => [task.id, task]))
   return [...snapshot.tasks]
@@ -338,7 +338,7 @@ function runSubagentName(run: AgentRun | undefined): string | undefined {
   return nonEmptyString(run?.metadata?.subagentName)
 }
 
-export function buildPlanArtifactSummary(snapshot: AgentPlanSnapshot): AgentPlanArtifactSummary {
+export function buildPlanArtifactSummary(snapshot: AgentTaskGraphSnapshot): AgentPlanArtifactSummary {
   const tasksById = new Map(snapshot.tasks.map((task) => [task.id, task]))
   const artifacts = [...snapshot.tasks]
     .flatMap((task) => task.artifacts
@@ -361,7 +361,7 @@ export function buildPlanArtifactSummary(snapshot: AgentPlanSnapshot): AgentPlan
   }
 }
 
-export function buildTaskArtifactViews(task: AgentTask, limit?: number, snapshot?: AgentPlanSnapshot): AgentPlanArtifactView[] {
+export function buildTaskArtifactViews(task: AgentTask, limit?: number, snapshot?: AgentTaskGraphSnapshot): AgentPlanArtifactView[] {
   const tasksById = snapshot ? new Map(snapshot.tasks.map((item) => [item.id, item])) : undefined
   const artifacts = [...task.artifacts]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -370,19 +370,19 @@ export function buildTaskArtifactViews(task: AgentTask, limit?: number, snapshot
   return typeof limit === 'number' && limit >= 0 ? artifacts.slice(0, limit) : artifacts
 }
 
-export function actionableRunForPlan(snapshot: AgentPlanSnapshot | undefined, activeRun: AgentRun | null | undefined): AgentRun | null {
-  return actionableRunsForPlan(snapshot, activeRun)[0] ?? null
+export function actionableRunForTaskGraph(snapshot: AgentTaskGraphSnapshot | undefined, activeRun: AgentRun | null | undefined): AgentRun | null {
+  return actionableRunsForTaskGraph(snapshot, activeRun)[0] ?? null
 }
 
-export function actionableRunsForPlan(snapshot: AgentPlanSnapshot | undefined, activeRun: AgentRun | null | undefined): AgentRun[] {
+export function actionableRunsForTaskGraph(snapshot: AgentTaskGraphSnapshot | undefined, activeRun: AgentRun | null | undefined): AgentRun[] {
   return collectPlanRuns(snapshot, activeRun, runNeedsUserAction)
 }
 
-export function interactionRunsForPlan(snapshot: AgentPlanSnapshot | undefined, activeRun: AgentRun | null | undefined): AgentRun[] {
+export function interactionRunsForTaskGraph(snapshot: AgentTaskGraphSnapshot | undefined, activeRun: AgentRun | null | undefined): AgentRun[] {
   return collectPlanRuns(snapshot, activeRun, runHasWorkflowInteraction)
 }
 
-function collectPlanRuns(snapshot: AgentPlanSnapshot | undefined, activeRun: AgentRun | null | undefined, predicate: (run: AgentRun) => boolean): AgentRun[] {
+function collectPlanRuns(snapshot: AgentTaskGraphSnapshot | undefined, activeRun: AgentRun | null | undefined, predicate: (run: AgentRun) => boolean): AgentRun[] {
   const runs: AgentRun[] = []
   const seen = new Set<string>()
   const add = (run: AgentRun | null | undefined) => {

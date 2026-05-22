@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/movscript/movscript/internal/app/coregraph"
+	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	domainbinding "github.com/movscript/movscript/internal/domain/resource/binding"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
@@ -18,7 +19,9 @@ type repository interface {
 	GetBinding(ctx context.Context, id uint) (domainbinding.Binding, bool, error)
 	UpdateBinding(ctx context.Context, binding domainbinding.Binding, spec domainbinding.UpdateSpec) (domainbinding.Binding, error)
 	DeleteBinding(ctx context.Context, binding domainbinding.Binding) error
-	EnsureResourceVisibleToUser(ctx context.Context, resourceID uint, userID uint) error
+	AdoptOwnedPersonalResourceToOrg(ctx context.Context, resourceID uint, userID uint, orgID *uint) error
+	EnsureResourceVisibleToUser(ctx context.Context, resourceID uint, userID uint, orgID *uint) error
+	EnsureProjectInOrg(ctx context.Context, projectID uint, orgID *uint) error
 	EnsureOwnerInProject(ctx context.Context, projectID uint, ownerType string, ownerID uint) error
 	ProjectIDForOwner(ctx context.Context, ownerType string, ownerID uint) (uint, error)
 	BackfillAssetSlotResource(ctx context.Context, binding domainbinding.Binding) error
@@ -175,7 +178,24 @@ func (r *gormRepository) DeleteBinding(ctx context.Context, binding domainbindin
 	})
 }
 
-func (r *gormRepository) EnsureResourceVisibleToUser(ctx context.Context, resourceID uint, userID uint) error {
+func (r *gormRepository) AdoptOwnedPersonalResourceToOrg(ctx context.Context, resourceID uint, userID uint, orgID *uint) error {
+	if orgID == nil {
+		return nil
+	}
+	var resource persistencemodel.RawResource
+	err := r.db.WithContext(ctx).
+		Where("id = ? AND owner_id = ? AND org_id IS NULL", resourceID, userID).
+		First(&resource).Error
+	if err == nil {
+		return r.db.WithContext(ctx).Model(&resource).Update("org_id", *orgID).Error
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil
+	}
+	return err
+}
+
+func (r *gormRepository) EnsureResourceVisibleToUser(ctx context.Context, resourceID uint, userID uint, orgID *uint) error {
 	var resource persistencemodel.RawResource
 	if err := r.db.WithContext(ctx).First(&resource, resourceID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -183,7 +203,10 @@ func (r *gormRepository) EnsureResourceVisibleToUser(ctx context.Context, resour
 		}
 		return err
 	}
-	if resource.OwnerID == userID || resource.IsShared {
+	if !domainresource.InOrgScope(resource.OrgID, orgID, resource.OwnerID, userID, r.includeLegacyPersonal(ctx, orgID)) {
+		return ErrResourceForbidden
+	}
+	if resource.OwnerID == userID || resource.IsShared || resourceInCurrentTeam(resource.OrgID, orgID) {
 		return nil
 	}
 	if resource.FolderID != nil {
@@ -193,6 +216,24 @@ func (r *gormRepository) EnsureResourceVisibleToUser(ctx context.Context, resour
 		}
 	}
 	return ErrResourceForbidden
+}
+
+func resourceInCurrentTeam(resourceOrgID, currentOrgID *uint) bool {
+	return resourceOrgID != nil && currentOrgID != nil && *resourceOrgID == *currentOrgID
+}
+
+func (r *gormRepository) EnsureProjectInOrg(ctx context.Context, projectID uint, orgID *uint) error {
+	var project persistencemodel.Project
+	if err := r.db.WithContext(ctx).Select("id, org_id").First(&project, projectID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrOwnerWrongProject
+		}
+		return err
+	}
+	if !sameOrg(project.OrgID, orgID) {
+		return ErrOwnerWrongProject
+	}
+	return nil
 }
 
 func (r *gormRepository) EnsureOwnerInProject(ctx context.Context, projectID uint, ownerType string, ownerID uint) error {
@@ -206,8 +247,32 @@ func (r *gormRepository) EnsureOwnerInProject(ctx context.Context, projectID uin
 	return nil
 }
 
+func (r *gormRepository) includeLegacyPersonal(ctx context.Context, orgID *uint) bool {
+	if orgID == nil {
+		return true
+	}
+	var org persistencemodel.Organization
+	if err := r.db.WithContext(ctx).Select("is_personal").First(&org, *orgID).Error; err != nil {
+		return false
+	}
+	return org.IsPersonal
+}
+
+func sameOrg(a, b *uint) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
+
 func (r *gormRepository) ProjectIDForOwner(ctx context.Context, ownerType string, ownerID uint) (uint, error) {
 	switch NormalizeOwnerType(ownerType) {
+	case "project":
+		var item persistencemodel.Project
+		if err := r.db.WithContext(ctx).Select("id").First(&item, ownerID).Error; err != nil {
+			return 0, ownerLookupError(err)
+		}
+		return item.ID, nil
 	case "script":
 		var item persistencemodel.Script
 		if err := r.db.WithContext(ctx).Select("id, project_id").First(&item, ownerID).Error; err != nil {

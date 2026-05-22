@@ -42,7 +42,7 @@ test('applyRuntimeRunExecutionStart emits worker task heartbeat trace when the r
   const run = makeRun({
     id: 'run_worker',
     status: 'queued',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_1',
   })
   store.createRun(run)
@@ -61,7 +61,7 @@ test('applyRuntimeRunExecutionStart emits worker task heartbeat trace when the r
   assert.equal(traces[1]?.title, 'Task heartbeat')
   assert.deepEqual((traces[1]?.data as Record<string, unknown>), {
     eventType: 'heartbeat',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_1',
     runId: 'run_worker',
     runStatus: 'in_progress',

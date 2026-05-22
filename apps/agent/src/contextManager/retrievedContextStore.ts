@@ -115,7 +115,7 @@ function normalizeRefType(value: unknown): ContextRef['type'] | undefined {
     || value === 'production'
     || value === 'asset_slot'
     || value === 'generation_job'
-    || value === 'plan'
+    || value === 'taskGraph'
     ? value
     : undefined
 }

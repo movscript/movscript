@@ -2,6 +2,7 @@ package script
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	dto "github.com/movscript/movscript/internal/app/dto"
@@ -101,6 +102,38 @@ func TestEnsureInitialVersionCreatesImmutableSnapshotWithoutHooks(t *testing.T) 
 		t.Fatalf("version updated_at changed after script update: got %v, want %v", version.UpdatedAt, originalUpdatedAt)
 	}
 	assertScriptRelationExists(t, db, updated.ID, version.ID, model.EntityRelationTypeHasVersion, "confirmed")
+}
+
+func TestProjectScopedScriptOperationsRejectMismatchedProject(t *testing.T) {
+	db := newScriptTestDB(t)
+	service := NewService(db.Session(&gorm.Session{SkipHooks: true}))
+	ctx := context.Background()
+	item, err := service.Create(ctx, CreateInput{
+		ProjectID: 1,
+		AuthorID:  1,
+		Script:    dtoScriptInput("Scoped"),
+	})
+	if err != nil {
+		t.Fatalf("create script: %v", err)
+	}
+
+	if _, err := service.GetForProject(ctx, 2, item.ID); !errors.Is(err, ErrProjectMismatch) {
+		t.Fatalf("GetForProject err = %v, want ErrProjectMismatch", err)
+	}
+	if _, err := service.Update(ctx, UpdateInput{
+		ID:        item.ID,
+		ProjectID: 2,
+		Script:    dtoScriptInput("Wrong Project"),
+	}); !errors.Is(err, ErrProjectMismatch) {
+		t.Fatalf("Update project mismatch err = %v, want ErrProjectMismatch", err)
+	}
+	if err := service.DeleteForProject(ctx, 2, item.ID); !errors.Is(err, ErrProjectMismatch) {
+		t.Fatalf("DeleteForProject err = %v, want ErrProjectMismatch", err)
+	}
+
+	if _, err := service.GetForProject(ctx, 1, item.ID); err != nil {
+		t.Fatalf("GetForProject matching project returned error: %v", err)
+	}
 }
 
 func newScriptTestDB(t *testing.T) *gorm.DB {

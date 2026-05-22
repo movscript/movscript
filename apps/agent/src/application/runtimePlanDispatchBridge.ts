@@ -1,7 +1,7 @@
 import type { AgentStore } from '../state/store.js'
-import type { DispatchPlanInput, DispatchPlanResult } from '../state/types.js'
-import { applyRuntimePlanDispatchRequest } from './runtimePlanDispatch.js'
-import type { RuntimePlanStatusBridge } from './runtimePlanStatusBridge.js'
+import type { DispatchTaskGraphInput, DispatchTaskGraphResult } from '../state/types.js'
+import { applyRuntimeTaskGraphDispatchRequest } from './runtimePlanDispatch.js'
+import type { RuntimeTaskGraphStatusBridge } from './runtimePlanStatusBridge.js'
 import type { RuntimeRunControlBridge } from './runtimeRunControlBridge.js'
 import type { RuntimeRunCreationBridge } from './runtimeRunCreationBridge.js'
 import type { RuntimeStreamBridge } from './runtimeStreamBridge.js'
@@ -10,24 +10,24 @@ import type { RuntimeTaskRunSyncBridge } from './runtimeTaskRunSyncBridge.js'
 import type { RuntimeTaskUpdateBridge } from './runtimeTaskUpdateBridge.js'
 import { isoNow } from './runtimeIdentity.js'
 
-export interface RuntimePlanDispatchBridge {
-  dispatchPlan: (input: DispatchPlanInput) => DispatchPlanResult
+export interface RuntimeTaskGraphDispatchBridge {
+  dispatchTaskGraph: (input: DispatchTaskGraphInput) => DispatchTaskGraphResult
 }
 
-export function createRuntimePlanDispatchBridge(input: {
+export function createRuntimeTaskGraphDispatchBridge(input: {
   store: AgentStore
   taskUpdate: RuntimeTaskUpdateBridge
   runCreation: RuntimeRunCreationBridge
   runControl: RuntimeRunControlBridge
   taskRunSync: RuntimeTaskRunSyncBridge
-  planStatus: RuntimePlanStatusBridge
+  planStatus: RuntimeTaskGraphStatusBridge
   streams: RuntimeStreamBridge
   taskEvents: RuntimeTaskEventBridge
-  dispatchRequest?: typeof applyRuntimePlanDispatchRequest
-}): RuntimePlanDispatchBridge {
-  const dispatchRequest = input.dispatchRequest ?? applyRuntimePlanDispatchRequest
+  dispatchRequest?: typeof applyRuntimeTaskGraphDispatchRequest
+}): RuntimeTaskGraphDispatchBridge {
+  const dispatchRequest = input.dispatchRequest ?? applyRuntimeTaskGraphDispatchRequest
   return {
-    dispatchPlan: (dispatchInput) => dispatchRequest({
+    dispatchTaskGraph: (dispatchInput) => dispatchRequest({
       store: input.store,
       dispatchInput,
       now: isoNow(),
@@ -36,10 +36,10 @@ export function createRuntimePlanDispatchBridge(input: {
       createRun: (runInput) => input.runCreation.createRun(runInput),
       cancelRun: (runId, reason) => input.runControl.cancelRun(runId, { reason }),
       syncTaskFromRun: (runId) => input.taskRunSync.syncTaskFromRun(runId),
-      recomputePlan: (planId) => input.planStatus.recomputePlanStatus(planId),
-      onTaskTimedOut: (task) => input.streams.emitPlanTaskEvent(task.planId, task),
+      recomputeTaskGraph: (taskGraphId) => input.planStatus.recomputePlanStatus(taskGraphId),
+      onTaskTimedOut: (task) => input.streams.emitPlanTaskEvent(task.taskGraphId, task),
       onTaskRetryReset: input.taskEvents.recordTaskProtocolAndPlanEvent,
-      onTaskBlocked: (task) => input.streams.emitPlanTaskEvent(task.planId, task),
+      onTaskBlocked: (task) => input.streams.emitPlanTaskEvent(task.taskGraphId, task),
       onTaskDispatched: input.taskEvents.recordTaskProtocolAndPlanEvent,
     }),
   }

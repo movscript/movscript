@@ -205,6 +205,21 @@ func (h *ResourceHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func (h *ResourceHandler) AdoptToTeam(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+	r, err := h.service.AdoptToTeam(c.Request.Context(), parseID(c.Param("id")), user.ID, currentOrgID(c))
+	if err != nil {
+		h.writeResourceError(c, err)
+		return
+	}
+	h.populateResourceURL(c, &r)
+	c.JSON(http.StatusOK, r)
+}
+
 // Update patches is_shared and/or folder_id on a resource.
 func (h *ResourceHandler) Update(c *gin.Context) {
 	user := currentUser(c)

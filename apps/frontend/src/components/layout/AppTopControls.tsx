@@ -23,10 +23,12 @@ import {
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/i18n'
 import { api } from '@/lib/api'
 import { useTheme } from '@/hooks/useTheme'
+import { projectListQueryKey } from '@/lib/projectQueries'
 import { ROUTES } from '@/routes/projectRoutes'
 import { useAgentPanelUiStore } from '@/store/agentPanelUiStore'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
 import { useProjectStore } from '@/store/projectStore'
+import { useUserStore } from '@/store/userStore'
 import type { Project } from '@/types'
 
 interface AppTopControlsProps {
@@ -40,6 +42,7 @@ export function AppTopControls({ className = '', compact = false }: AppTopContro
   const queryClient = useQueryClient()
   const current = useProjectStore((s) => s.current)
   const setCurrent = useProjectStore((s) => s.setCurrent)
+  const currentOrgID = useUserStore((s) => s.currentOrgID)
   const workMode = useAppSettingsStore((s) => s.settings.workMode)
   const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
   const agentPanelOpen = useAgentPanelUiStore((s) => s.open)
@@ -52,13 +55,13 @@ export function AppTopControls({ className = '', compact = false }: AppTopContro
   const nextMode = workMode === 'agent' ? 'detail' : 'agent'
   const ModeIcon = nextMode === 'agent' ? Bot : LayoutDashboard
   const { data: projects = [] } = useQuery<Project[]>({
-    queryKey: ['projects'],
+    queryKey: projectListQueryKey(currentOrgID),
     queryFn: () => api.get('/projects').then((response) => response.data),
   })
   const createProject = useMutation({
     mutationFn: (input: { name: string; description: string }) => api.post('/projects', input).then((response) => response.data as Project),
     onSuccess: (project) => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      queryClient.invalidateQueries({ queryKey: projectListQueryKey(currentOrgID) })
       openProject(project)
       setProjectName('')
       setProjectDescription('')

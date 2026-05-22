@@ -6,7 +6,7 @@ export interface ContentWorkbenchAiPromptUnit {
   status?: string
   prompt?: string
   description?: string
-  visualPlan?: string
+  visualTaskGraph?: string
   storyboardBrief?: string
 }
 
@@ -72,14 +72,14 @@ export function buildContentWorkbenchVisualPlanPrompt(input: ContentWorkbenchVis
       const code = firstText(unit.unit_code)
       const selected = unit.id === input.selectedUnitId || title === selectedTitle
       const base = [code, title, firstText(unit.kind, 'shot'), firstText(unit.status, 'unknown'), firstText(unit.prompt, unit.description, '暂无描述')].filter(Boolean).join(' / ')
-      const visualPlan = firstText(unit.visualPlan) ? `视觉调度：${unit.visualPlan}` : ''
+      const visualTaskGraph = firstText(unit.visualTaskGraph) ? `视觉调度：${unit.visualTaskGraph}` : ''
       const storyboardBrief = firstText(unit.storyboardBrief) ? `故事板简述：${unit.storyboardBrief}` : ''
-      return `${index + 1}. ${selected ? '[SELECTED] ' : ''}${[base, visualPlan, storyboardBrief].filter(Boolean).join(' / ')}`
+      return `${index + 1}. ${selected ? '[SELECTED] ' : ''}${[base, visualTaskGraph, storyboardBrief].filter(Boolean).join(' / ')}`
     }).join('\n')
     : '当前情节还没有制作项。'
 
   return [
-    '请基于当前情节和当前制作项生成 visual plan / storyboard brief 草案。',
+    '请基于当前情节和当前制作项生成 visual taskGraph / storyboard brief 草案。',
     '',
     `当前情节：${input.momentTitle}`,
     input.sceneMomentId ? `情节 ID：${input.sceneMomentId}` : null,
@@ -94,8 +94,8 @@ export function buildContentWorkbenchVisualPlanPrompt(input: ContentWorkbenchVis
     `- 使用 JSON 包络：{"scene_moment_id": ${sceneMomentId}, "proposal": {"units": [...]}}。`,
     '- proposal.units 必须包含当前情节的完整制作项快照，不要只输出 selected unit，避免审阅时误判删除其他制作项。',
     '- 只强化当前选中的制作项；其他制作项应保持现有 title、kind、description、prompt、duration_sec 和镜头参数。',
-    '- 在当前制作项内写入 visual_plan 和 storyboard_brief 字段。',
-    '- visual_plan 包含 space、blocking、camera_path、beats、props、lighting、risks。',
+    '- 在当前制作项内写入 visual_taskGraph 和 storyboard_brief 字段。',
+    '- visual_taskGraph 包含 space、blocking、camera_path、beats、props、lighting、risks。',
     '- storyboard_brief 包含 purpose、subject、composition、action_moment、emotion、keyframe_suggestions。',
     '- beats、props、risks、keyframe_suggestions 使用字符串数组；其他字段使用具体中文短段落。',
     '- 不要创建真实媒体、关键帧资源、asset candidate 或 generation job。',

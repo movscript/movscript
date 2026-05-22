@@ -44,12 +44,21 @@ func (s *Service) ListByEntity(ctx context.Context, filter Filter) ([]domainbind
 	return s.repo.ListByEntity(ctx, filter)
 }
 
-func (s *Service) Create(ctx context.Context, input CreateInput, userID uint) (domainbinding.Binding, bool, error) {
+func (s *Service) Create(ctx context.Context, input CreateInput, userID uint, orgIDs ...*uint) (domainbinding.Binding, bool, error) {
+	orgID, enforceOrg := optionalOrgScope(orgIDs)
 	normalizeCreateInput(&input)
 	if err := validateCreateInput(input); err != nil {
 		return domainbinding.Binding{}, false, err
 	}
-	if err := s.EnsureResourceVisibleToUser(ctx, input.ResourceID, userID); err != nil {
+	if enforceOrg {
+		if err := s.repo.EnsureProjectInOrg(ctx, input.ProjectID, orgID); err != nil {
+			return domainbinding.Binding{}, false, err
+		}
+		if err := s.repo.AdoptOwnedPersonalResourceToOrg(ctx, input.ResourceID, userID, orgID); err != nil {
+			return domainbinding.Binding{}, false, err
+		}
+	}
+	if err := s.EnsureResourceVisibleToUser(ctx, input.ResourceID, userID, orgID); err != nil {
 		return domainbinding.Binding{}, false, err
 	}
 	if err := s.EnsureOwnerInProject(ctx, input.ProjectID, input.OwnerType, input.OwnerID); err != nil {
@@ -102,10 +111,16 @@ func (s *Service) Get(ctx context.Context, id uint) (domainbinding.Binding, bool
 	return s.repo.GetBinding(ctx, id)
 }
 
-func (s *Service) Update(ctx context.Context, id uint, input UpdateInput) (domainbinding.Binding, error) {
+func (s *Service) Update(ctx context.Context, id uint, input UpdateInput, orgIDs ...*uint) (domainbinding.Binding, error) {
+	orgID, enforceOrg := optionalOrgScope(orgIDs)
 	binding, _, err := s.repo.GetBinding(ctx, id)
 	if err != nil {
 		return binding, err
+	}
+	if enforceOrg {
+		if err := s.repo.EnsureProjectInOrg(ctx, binding.ProjectID, orgID); err != nil {
+			return binding, err
+		}
 	}
 	updates, err := buildUpdates(input)
 	if err != nil {
@@ -117,10 +132,16 @@ func (s *Service) Update(ctx context.Context, id uint, input UpdateInput) (domai
 	return binding, nil
 }
 
-func (s *Service) Delete(ctx context.Context, id uint) error {
+func (s *Service) Delete(ctx context.Context, id uint, orgIDs ...*uint) error {
+	orgID, enforceOrg := optionalOrgScope(orgIDs)
 	binding, _, err := s.repo.GetBinding(ctx, id)
 	if err != nil {
 		return err
+	}
+	if enforceOrg {
+		if err := s.repo.EnsureProjectInOrg(ctx, binding.ProjectID, orgID); err != nil {
+			return err
+		}
 	}
 	if err := s.repo.DeleteBinding(ctx, binding); err != nil {
 		return err
@@ -128,8 +149,9 @@ func (s *Service) Delete(ctx context.Context, id uint) error {
 	return s.repo.ClearAssetSlotResourceIfDeleted(ctx, binding)
 }
 
-func (s *Service) EnsureResourceVisibleToUser(ctx context.Context, resourceID uint, userID uint) error {
-	return s.repo.EnsureResourceVisibleToUser(ctx, resourceID, userID)
+func (s *Service) EnsureResourceVisibleToUser(ctx context.Context, resourceID uint, userID uint, orgIDs ...*uint) error {
+	orgID, _ := optionalOrgScope(orgIDs)
+	return s.repo.EnsureResourceVisibleToUser(ctx, resourceID, userID, orgID)
 }
 
 func (s *Service) EnsureOwnerInProject(ctx context.Context, projectID uint, ownerType string, ownerID uint) error {
@@ -175,6 +197,13 @@ func NormalizeStatus(value string) string {
 
 func NormalizeSourceType(value string) string {
 	return domainbinding.NormalizeSourceType(value)
+}
+
+func optionalOrgScope(orgIDs []*uint) (*uint, bool) {
+	if len(orgIDs) == 0 {
+		return nil, false
+	}
+	return orgIDs[0], true
 }
 
 func ValidOwnerType(value string) bool {

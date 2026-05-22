@@ -799,7 +799,7 @@ export function ScriptSplitWorkbench() {
   const writeDisabled = !sourceText.trim() || drafts.length === 0 || agentDraftWriteBlocked || createAll.isPending || importingFile || splitWithAgent.isPending || draftSyncing
   const validationErrors = agentDraftValidation?.issues.filter((issue) => issue.severity === 'error') ?? []
   const hasSourceInput = Boolean(sourceText.trim())
-  const hasPlan = drafts.length > 0
+  const hasTaskGraph = drafts.length > 0
   const hasStartedProduction = Boolean(result) || agentDraft?.status === 'applied'
   const hasModel = Boolean(modelId)
   const selectedAssetHints = selectedDraft
@@ -818,18 +818,18 @@ export function ScriptSplitWorkbench() {
     : []
   const oneClickFlow = [
     { label: '输入剧本/提示词', detail: sourceTitleLabel, done: hasSourceInput, active: !hasSourceInput, icon: ScrollText },
-    { label: '生成制作方案', detail: hasPlan ? `${drafts.length} 个制作入口` : '自动拆解设定、段落和制作主体', done: hasPlan, active: hasSourceInput && !hasPlan, icon: Bot },
-    { label: '轻确认', detail: selectedDraft ? selectedAction : '确认风格、素材缺口和制作决策', done: hasPlan && !validationErrors.length, active: hasPlan && !hasStartedProduction, icon: ClipboardCheck },
-    { label: '开始生成', detail: hasStartedProduction ? '制作入口已写入' : '写入剧本与制作主体', done: hasStartedProduction, active: hasPlan && !hasStartedProduction, icon: Wand2 },
+    { label: '生成制作方案', detail: hasTaskGraph ? `${drafts.length} 个制作入口` : '自动拆解设定、段落和制作主体', done: hasTaskGraph, active: hasSourceInput && !hasTaskGraph, icon: Bot },
+    { label: '轻确认', detail: selectedDraft ? selectedAction : '确认风格、素材缺口和制作决策', done: hasTaskGraph && !validationErrors.length, active: hasTaskGraph && !hasStartedProduction, icon: ClipboardCheck },
+    { label: '开始生成', detail: hasStartedProduction ? '制作入口已写入' : '写入剧本与制作主体', done: hasStartedProduction, active: hasTaskGraph && !hasStartedProduction, icon: Wand2 },
     { label: '进入编排', detail: '继续验证制作项、素材缺口和生成记录', done: false, active: hasStartedProduction, icon: Play },
   ]
-  const primaryActionLabel = !hasPlan
+  const primaryActionLabel = !hasTaskGraph
     ? splitWithAgent.isPending ? '生成方案中' : '一键制作'
     : createAll.isPending ? '开始生成中' : draftSyncing ? '同步方案中' : '开始生成'
-  const primaryActionDisabled = !hasSourceInput || importingFile || splitWithAgent.isPending || createAll.isPending || (hasPlan && writeDisabled)
+  const primaryActionDisabled = !hasSourceInput || importingFile || splitWithAgent.isPending || createAll.isPending || (hasTaskGraph && writeDisabled)
 
   function handlePrimaryProductionAction() {
-    if (!hasPlan) {
+    if (!hasTaskGraph) {
       handleSplit()
       return
     }
@@ -909,10 +909,10 @@ export function ScriptSplitWorkbench() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="type-label text-muted-foreground">当前主动作</p>
-                    <p className="mt-1 type-body font-semibold text-foreground">{hasPlan ? '确认方案并开始生成' : '从剧本/提示词生成方案'}</p>
+                    <p className="mt-1 type-body font-semibold text-foreground">{hasTaskGraph ? '确认方案并开始生成' : '从剧本/提示词生成方案'}</p>
                   </div>
-                  <Badge variant={hasStartedProduction ? 'success' : hasPlan ? 'warning' : 'outline'}>
-                    {hasStartedProduction ? '已启动' : hasPlan ? '待确认' : '待输入'}
+                  <Badge variant={hasStartedProduction ? 'success' : hasTaskGraph ? 'warning' : 'outline'}>
+                    {hasStartedProduction ? '已启动' : hasTaskGraph ? '待确认' : '待输入'}
                   </Badge>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 type-label">
@@ -1037,7 +1037,7 @@ export function ScriptSplitWorkbench() {
                       </Badge>
                     </div>
                     <p className="mt-1 truncate font-mono type-caption text-muted-foreground">
-                      {agentDraft?.id ?? '一键制作后会生成可审阅的 production plan draft'}
+                      {agentDraft?.id ?? '一键制作后会生成可审阅的 production taskGraph draft'}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2">

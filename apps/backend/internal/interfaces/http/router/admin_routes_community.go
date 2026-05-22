@@ -42,6 +42,8 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.GET("/overview", h.adminOverview.Summary)
 	admin.GET("/settings/auth", h.adminSettings.GetAuthSettings)
 	admin.PUT("/settings/auth", h.adminSettings.UpdateAuthSettings)
+	admin.GET("/settings/generation-tools", h.adminSettings.GetGenerationToolsSettings)
+	admin.PUT("/settings/generation-tools", h.adminSettings.UpdateGenerationToolsSettings)
 	admin.GET("/users", h.userAdmin.List)
 	admin.POST("/users", h.userAdmin.Create)
 	admin.GET("/users/:id/detail", h.userAdmin.Detail)

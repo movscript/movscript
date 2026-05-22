@@ -88,23 +88,23 @@ export async function applyRuntimeLocalGenerationCommand(input: {
       ? { extra_params: generationCommand.extraParams }
       : {}),
   }
-  const forcedCall = { name: 'runtime_operation_start' as const, args: { kind: 'generation_job', request: toolArgs } }
+  const forcedCall = { name: 'core_operation_start' as const, args: { kind: 'generation_job', request: toolArgs } }
   input.run.metadata = {
     ...(input.run.metadata ?? {}),
     forcedToolCall: forcedCall as unknown as JSONValue,
   }
   input.store.updateRun(input.run)
 
-  const toolStep = input.createStep(input.run, 'tool_call', localRound, 'runtime_operation_start')
+  const toolStep = input.createStep(input.run, 'tool_call', localRound, 'core_operation_start')
   const startedAt = input.timestampMs()
   input.recordTrace(input.run, {
     kind: 'tool_call',
-    title: 'Tool started: runtime_operation_start',
+    title: 'Tool started: core_operation_start',
     summary: `${input.command.name === 'image' ? '图片' : '视频'}生成任务正在提交。`,
     status: 'started',
     round: localRound,
     stepId: toolStep.id,
-    toolName: 'runtime_operation_start',
+    toolName: 'core_operation_start',
     data: { call: forcedCall },
   })
   const createResult = await input.executeGenerationTool(forcedCall)
@@ -114,7 +114,7 @@ export async function applyRuntimeLocalGenerationCommand(input: {
   if (!createResult.error && operationId) {
     const waitArgs: Record<string, JSONValue> = { operationIds: [operationId], mode: 'any' }
     if (generationCommand.timeoutMs !== undefined) waitArgs.timeoutMs = generationCommand.timeoutMs
-    finalToolCall = { name: 'runtime_operation_wait', args: waitArgs }
+    finalToolCall = { name: 'core_operation_wait', args: waitArgs }
     execResult = await input.executeGenerationTool(finalToolCall)
   }
   const durationMs = input.timestampMs() - startedAt
@@ -129,7 +129,7 @@ export async function applyRuntimeLocalGenerationCommand(input: {
   input.store.updateRun(input.run)
   input.recordTrace(input.run, {
     kind: 'tool_call',
-    title: execResult.error ? 'Tool call failed: runtime_operation_start' : 'Tool completed: runtime_operation_start',
+    title: execResult.error ? 'Tool call failed: core_operation_start' : 'Tool completed: core_operation_start',
     summary: `${execResult.error ?? 'generation job finished'} (${durationMs}ms)`,
     status: execResult.error ? 'failed' : 'completed',
     round: localRound,
@@ -202,7 +202,7 @@ export async function applyRuntimeLocalGenerationCommand(input: {
 }
 
 type RuntimeLocalGenerationOperationCall = {
-  name: 'runtime_operation_start' | 'runtime_operation_wait' | 'runtime_operation_get'
+  name: 'core_operation_start' | 'core_operation_wait' | 'core_operation_get'
   args: Record<string, JSONValue>
 }
 

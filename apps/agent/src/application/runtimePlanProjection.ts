@@ -1,46 +1,46 @@
 import type { AgentStore } from '../state/store.js'
-import type { AgentPlan, AgentRun, AgentTask } from '../state/types.js'
-import { projectTasksOntoPlan, type PlanTaskProjectionResult } from '../state/planProjection.js'
+import type { AgentTaskGraph, AgentRun, AgentTask } from '../state/types.js'
+import { projectTasksOntoTaskGraph, type PlanTaskProjectionResult } from '../state/planProjection.js'
 import {
   applyRuntimePlanCompletionTrace,
   type RuntimePlanCompletionTraceInput,
 } from './runtimePlanCompletionTrace.js'
 
-export interface RuntimePlanProjectionResult {
-  plan: AgentPlan
+export interface RuntimeTaskGraphProjectionResult {
+  taskGraph: AgentTaskGraph
   tasks: AgentTask[]
   projection: PlanTaskProjectionResult
 }
 
-export function recomputeRuntimePlanStatus(input: {
-  store: Pick<AgentStore, 'getPlan' | 'listTasks' | 'updatePlan'>
-  planId: string
+export function recomputeRuntimeTaskGraphStatus(input: {
+  store: Pick<AgentStore, 'getTaskGraph' | 'listTasks' | 'updateTaskGraph'>
+  taskGraphId: string
   now: string
-}): RuntimePlanProjectionResult | undefined {
-  const { store, planId, now } = input
-  const plan = store.getPlan(planId)
-  if (!plan) return undefined
-  const tasks = store.listTasks(planId)
-  const projection = projectTasksOntoPlan(plan, tasks, now)
-  store.updatePlan(plan)
-  return { plan, tasks, projection }
+}): RuntimeTaskGraphProjectionResult | undefined {
+  const { store, taskGraphId, now } = input
+  const taskGraph = store.getTaskGraph(taskGraphId)
+  if (!taskGraph) return undefined
+  const tasks = store.listTasks(taskGraphId)
+  const projection = projectTasksOntoTaskGraph(taskGraph, tasks, now)
+  store.updateTaskGraph(taskGraph)
+  return { taskGraph, tasks, projection }
 }
 
-export function applyRuntimePlanStatusRecomputeRequest(input: {
-  store: Pick<AgentStore, 'getPlan' | 'listTasks' | 'updatePlan' | 'getRun' | 'listRuns'>
-  planId: string
+export function applyRuntimeTaskGraphStatusRecomputeRequest(input: {
+  store: Pick<AgentStore, 'getTaskGraph' | 'listTasks' | 'updateTaskGraph' | 'getRun' | 'listRuns'>
+  taskGraphId: string
   now: string
   recordTrace: (run: AgentRun, trace: RuntimePlanCompletionTraceInput) => void
-}): RuntimePlanProjectionResult | undefined {
-  const result = recomputeRuntimePlanStatus({
+}): RuntimeTaskGraphProjectionResult | undefined {
+  const result = recomputeRuntimeTaskGraphStatus({
     store: input.store,
-    planId: input.planId,
+    taskGraphId: input.taskGraphId,
     now: input.now,
   })
   if (result?.projection.completedNow) {
     applyRuntimePlanCompletionTrace({
       store: input.store,
-      plan: result.plan,
+      taskGraph: result.taskGraph,
       tasks: result.tasks,
       recordTrace: input.recordTrace,
     })

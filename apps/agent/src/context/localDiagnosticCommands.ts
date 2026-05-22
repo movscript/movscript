@@ -500,6 +500,7 @@ function compactDiagnosticTools(tools: ResolvedToolCatalog['available']): JSONVa
     approval: tool.approval,
     requiresApproval: tool.requiresApproval,
     ...(tool.unavailableReason ? { unavailableReason: tool.unavailableReason } : {}),
+    ...(tool.resolution ? { resolution: tool.resolution as unknown as JSONValue } : {}),
     ...(tool.inputSchema !== undefined ? { inputSchema: tool.inputSchema } : {}),
     ...(tool.outputSchema !== undefined ? { outputSchema: tool.outputSchema } : {}),
   })) as unknown as JSONValue

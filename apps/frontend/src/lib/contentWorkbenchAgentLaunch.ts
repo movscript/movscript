@@ -95,7 +95,7 @@ export function buildContentWorkbenchVisualPlanLaunchInput({
       status: item.status,
       prompt: item.prompt,
       description: item.description,
-      visualPlan: contentUnitVisualPlanPromptText(item),
+      visualTaskGraph: contentUnitVisualPlanPromptText(item),
       storyboardBrief: contentUnitStoryboardBriefPromptText(item),
     })),
   }
@@ -143,7 +143,7 @@ export function buildContentWorkbenchVisualPlanAgentPanelDraftPayload(input: Con
   })
   return {
     requestId: input.requestId,
-    taskType: 'content_unit_visual_plan_proposal',
+    taskType: 'content_unit_visual_task_graph_proposal',
     message: prompt,
     title: `视觉计划 AI 草案: ${input.selectedUnitTitle}`,
     newConversation: true,
@@ -151,7 +151,7 @@ export function buildContentWorkbenchVisualPlanAgentPanelDraftPayload(input: Con
     projectId: input.projectId,
     clientInput: buildContentWorkbenchClientInput({
       prompt,
-      labels: ['workbench', 'content-unit-visual-plan'],
+      labels: ['workbench', 'content-unit-visual-taskGraph'],
       projectId: input.projectId,
       productionId: input.productionId,
       sceneMomentId: input.sceneMomentId,

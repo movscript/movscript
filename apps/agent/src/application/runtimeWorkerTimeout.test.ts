@@ -60,7 +60,7 @@ test('applyRuntimeTimedOutPlanWorkers cancels timed-out workers and records task
 
   const result = applyRuntimeTimedOutPlanWorkers({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     defaultTimeoutMs: 5000,
     nowMs: new Date('2026-01-01T00:00:06.000Z').getTime(),
     now: '2026-01-01T00:00:06.000Z',
@@ -82,7 +82,7 @@ test('applyRuntimeTimedOutPlanWorkers cancels timed-out workers and records task
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     title: 'Task',
     status: 'running',
     progress: 0.5,
@@ -99,7 +99,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
     id: 'run_worker',
     threadId: 'thread_1',
     role: 'worker',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     status: 'in_progress',
     policy: {
       approvalMode: 'interactive',

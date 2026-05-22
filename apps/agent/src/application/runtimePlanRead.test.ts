@@ -1,37 +1,37 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentPlan, AgentTask } from '../state/types.js'
+import type { AgentTaskGraph, AgentTask } from '../state/types.js'
 import {
-  getRuntimePlan,
+  getRuntimeTaskGraph,
   getRuntimeTaskTree,
   listRuntimePlans,
 } from './runtimePlanRead.js'
 
-test('runtime plan read helpers return plans and task trees from the store', () => {
+test('runtime taskGraph read helpers return plans and task trees from the store', () => {
   const store = new InMemoryAgentStore()
-  store.createPlan(makePlan({ id: 'plan_1' }))
-  store.createTask(makeTask({ id: 'task_1', planId: 'plan_1' }))
+  store.createTaskGraph(makeTaskGraph({ id: 'task_graph_1' }))
+  store.createTask(makeTask({ id: 'task_1', taskGraphId: 'task_graph_1' }))
 
-  assert.deepEqual(listRuntimePlans({ store }).map((plan) => plan.id), ['plan_1'])
-  assert.equal(getRuntimePlan({ store, planId: 'plan_1' })?.id, 'plan_1')
-  assert.deepEqual(getRuntimeTaskTree({ store, planId: 'plan_1' }).map((task) => task.id), ['task_1'])
+  assert.deepEqual(listRuntimePlans({ store }).map((taskGraph) => taskGraph.id), ['task_graph_1'])
+  assert.equal(getRuntimeTaskGraph({ store, taskGraphId: 'task_graph_1' })?.id, 'task_graph_1')
+  assert.deepEqual(getRuntimeTaskTree({ store, taskGraphId: 'task_graph_1' }).map((task) => task.id), ['task_1'])
 })
 
-test('getRuntimeTaskTree validates plan existence', () => {
+test('getRuntimeTaskTree validates taskGraph existence', () => {
   const store = new InMemoryAgentStore()
 
   assert.throws(() => getRuntimeTaskTree({
     store,
-    planId: 'missing_plan',
-  }), /plan not found: missing_plan/)
+    taskGraphId: 'missing_taskGraph',
+  }), /taskGraph not found: missing_taskGraph/)
 })
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'pending',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -43,7 +43,7 @@ function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     title: 'Task',
     status: 'pending',
     progress: 0,

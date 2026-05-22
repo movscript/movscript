@@ -157,16 +157,19 @@ export function resolveToolCatalog(options: {
     const registeredTool = registry.get(name)
     const grant = findManifestToolGrant(options.manifest, name)
     const approval = grant?.approval ?? defaultToolApproval(registeredTool)
-    const unavailableReason = getUnavailableReason({
-      name,
-      mcpTool,
+    const authorizationReason = getToolAuthorizationUnavailableReason({
       registeredTool,
       grant,
       currentProjectId: options.currentProjectId,
-      activeSkills: options.activeSkills,
-      userMessage: options.userMessage,
+      hasMCPTool: Boolean(mcpTool),
       runRole: options.runRole,
     })
+    const visible = !authorizationReason && isVisibleForActiveSkills({
+      name,
+      activeSkills: options.activeSkills,
+      userMessage: options.userMessage,
+    })
+    const unavailableReason = authorizationReason ?? (visible ? undefined : 'workflow_scope')
     const tool: AgentDebugTool = {
       name,
       ...(registeredTool?.description || mcpTool?.description ? { description: registeredTool?.description ?? mcpTool?.description } : {}),
@@ -184,6 +187,14 @@ export function resolveToolCatalog(options: {
       available: !unavailableReason,
       ...(unavailableReason ? { unavailableReason } : {}),
       requiresApproval: requiresToolApproval(registeredTool, approval),
+      resolution: {
+        authorized: !authorizationReason,
+        visible,
+        ...(unavailableReason ? { reason: unavailableReason } : {}),
+        grantSource: grant ? 'manifest' : 'none',
+        approval,
+        activeSkillIds: options.activeSkills?.map((skill) => skill.id) ?? [],
+      },
     }
     discovered.push(tool)
     byName[name] = tool
@@ -194,30 +205,17 @@ export function resolveToolCatalog(options: {
   return { discovered, available, blocked, byName }
 }
 
-function getUnavailableReason(options: {
+function isVisibleForActiveSkills(options: {
   name: string
-  mcpTool?: MCPTool
-  registeredTool?: RegisteredTool
-  grant?: ReturnType<typeof findManifestToolGrant>
-  currentProjectId?: number
   activeSkills?: ResolvedAgentSkill[]
   userMessage?: string
-  runRole?: AgentRunRole
-}) {
-  const authorizationReason = getToolAuthorizationUnavailableReason({
-    registeredTool: options.registeredTool,
-    grant: options.grant,
-    hasMCPTool: Boolean(options.mcpTool),
-    currentProjectId: options.currentProjectId,
-    runRole: options.runRole,
-  })
-  if (authorizationReason) return authorizationReason
-  if (options.activeSkills && !isToolVisibleForActiveBehavior({
+}): boolean {
+  if (!options.activeSkills) return true
+  return isToolVisibleForActiveBehavior({
     toolName: options.name,
     activeSkills: options.activeSkills,
     userMessage: options.userMessage ?? '',
-  })) return 'workflow_scope'
-  return undefined
+  })
 }
 
 function findManifestToolGrant(manifest: AgentManifest, toolName: string) {

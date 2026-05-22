@@ -1,17 +1,17 @@
 import type { AgentStore } from '../state/store.js'
-import type { AgentPlanSnapshot } from '../state/types.js'
-import { buildAgentPlanSnapshot } from '../state/planSnapshot.js'
+import type { AgentTaskGraphSnapshot } from '../state/types.js'
+import { buildAgentTaskGraphSnapshot } from '../state/planSnapshot.js'
 import { toProductRun } from '../state/runStreamView.js'
-import { requireRuntimePlan } from './runtimeStoreLookup.js'
+import { requireRuntimeTaskGraph } from './runtimeStoreLookup.js'
 
-export function getRuntimePlanSnapshot(input: {
-  store: Pick<AgentStore, 'getPlan' | 'listTasks' | 'listRuns'>
-  planId: string
-}): AgentPlanSnapshot {
-  const plan = requireRuntimePlan(input.store, input.planId)
-  return buildAgentPlanSnapshot({
-    plan,
-    tasks: input.store.listTasks(input.planId),
-    runs: input.store.listRuns({ planId: input.planId }).map(toProductRun),
+export function getRuntimeTaskGraphSnapshot(input: {
+  store: Pick<AgentStore, 'getTaskGraph' | 'listTasks' | 'listRuns'>
+  taskGraphId: string
+}): AgentTaskGraphSnapshot {
+  const taskGraph = requireRuntimeTaskGraph(input.store, input.taskGraphId)
+  return buildAgentTaskGraphSnapshot({
+    taskGraph,
+    tasks: input.store.listTasks(input.taskGraphId),
+    runs: input.store.listRuns({ taskGraphId: input.taskGraphId }).map(toProductRun),
   })
 }

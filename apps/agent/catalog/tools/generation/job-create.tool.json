@@ -1,0 +1,95 @@
+{
+  "name": "generation_job_create",
+  "description": "Create one or more independent single-output AI image or video generation jobs through the MovScript backend. Before choosing model_id, input_resource_ids, or extra_params, inspect generation_model_list and obey the selected model capability contract. Each backend job is single-output; when multiple candidates are needed, use output_count or extra_params.image_count/max_images to enqueue multiple jobs and monitor the returned jobIds. This is a provider-level MCP tool; planner-facing workflows should normally call core_operation_start with kind:\"generation_job\".",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["prompt"],
+    "properties": {
+      "prompt": { "type": "string" },
+      "title": { "type": "string", "description": "Optional display title for the generation job." },
+      "output_type": { "type": "string", "enum": ["image", "video"], "description": "High-level output type. Ignored when job_type is provided." },
+      "job_type": { "type": "string", "enum": ["image", "image_edit", "video", "video_i2v", "video_v2v"] },
+      "model_id": { "type": "string", "description": "Public logical model ID from generation_model_list." },
+      "input_resource_ids": { "type": "array", "items": { "type": "number" }, "description": "Optional reference image/video resource IDs." },
+      "reference_type": { "type": "string", "enum": ["image", "video"] },
+      "aspect_ratio": { "type": "string" },
+      "duration": { "type": "number" },
+      "output_count": { "type": "number", "minimum": 1, "maximum": 15, "description": "Number of independent single-output jobs to create." },
+      "outputCount": { "type": "number", "minimum": 1, "maximum": 15, "description": "Alias for output_count." },
+      "extra_params": { "type": "object", "additionalProperties": true },
+      "feature_key": { "type": "string" },
+      "projectId": { "type": "number" },
+      "wait": { "type": "boolean" },
+      "timeout_ms": { "type": "number" },
+      "poll_interval_ms": { "type": "number" }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "additionalProperties": true,
+    "required": ["status", "job", "jobId", "param_validation", "message"],
+    "properties": {
+      "status": { "type": "string", "description": "Current or final backend generation status." },
+      "job": { "type": "object", "description": "Normalized generation job payload." },
+      "jobId": { "type": "number", "description": "Generation job ID for monitoring and audit." },
+      "jobIds": { "type": "array", "items": { "type": "number" } },
+      "jobs": { "type": "array", "items": { "type": "object" } },
+      "monitor": {
+        "type": "object",
+        "properties": {
+          "tool": { "type": "string", "enum": ["generation_job_wait", "generation_job_get"] },
+          "args": { "type": "object" },
+          "message": { "type": "string" }
+        }
+      },
+      "output_resource": { "type": "object" },
+      "output_resource_id": { "type": "number" },
+      "output_resources": { "type": "array", "items": { "type": "object" } },
+      "output_resource_ids": { "type": "array", "items": { "type": "number" } },
+      "media": { "type": "object" },
+      "param_validation": {
+        "type": "object",
+        "properties": {
+          "audit_version": { "type": "number", "const": 1 },
+          "model_config_id": { "type": "number" },
+          "model_contract_loaded": { "type": "boolean" },
+          "params_schema_loaded": { "type": "boolean" },
+          "params_schema_rule_count": { "type": "number" },
+          "input_requirements": { "type": "object" },
+          "submitted_inputs": { "type": "object" },
+          "supported_params": { "type": "array", "items": { "type": "string" } },
+          "provided_extra_params": { "type": "array", "items": { "type": "string" } },
+          "submitted_extra_params": { "type": "array", "items": { "type": "string" } },
+          "dropped_extra_params": { "type": "array", "items": { "type": "string" } },
+          "dropped_top_level_params": { "type": "array", "items": { "type": "string" } },
+          "drop_reasons": { "type": "object" },
+          "renamed_extra_params": { "type": "object" },
+          "extra_params_parse_error": { "type": "string" },
+          "preflight_errors": { "type": "array" },
+          "input_preflight_errors": { "type": "array" }
+        }
+      },
+      "terminal": { "type": "boolean" },
+      "message": { "type": "string" }
+    }
+  },
+  "errorCodes": [
+    "UNSUPPORTED_OUTPUT_TYPE",
+    "UNSUPPORTED_PARAMETER",
+    "INVALID_PARAMETER_TYPE",
+    "INVALID_PARAMETER_OPTION",
+    "INVALID_PARAMETER_RANGE",
+    "INVALID_PARAMETER_COMBINATION",
+    "INVALID_INPUT_COUNT"
+  ],
+  "permission": "generation.job.write",
+  "risk": "generate",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "deny",
+    "approval": "always"
+  },
+  "source": "mcp",
+  "capability": "Provider-level generation job creation contract used by runtime operations and MCP schema tests."
+}

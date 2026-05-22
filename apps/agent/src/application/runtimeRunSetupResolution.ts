@@ -49,7 +49,7 @@ export interface RuntimeRunSetupResolutionTraceInput {
 
 export async function resolveRuntimeRunSetup(input: {
   run: AgentRun
-  store: Pick<AgentStore, 'getPlan' | 'listTasks' | 'listRuns'>
+  store: Pick<AgentStore, 'getTaskGraph' | 'listTasks' | 'listRuns'>
   catalogSnapshot: AgentRuntimeCatalogSnapshot
   contractResolver: Pick<AgentRuntimeContractResolver, 'find'>
   mcpClient: CapabilityMCPClient

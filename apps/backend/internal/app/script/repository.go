@@ -18,6 +18,7 @@ type repository interface {
 	SaveScript(ctx context.Context, item *domainscript.ScriptSnapshot) error
 	PatchScript(ctx context.Context, item *domainscript.ScriptSnapshot, spec domainscript.ScriptPatchSpec) error
 	DeleteScript(ctx context.Context, id uint) (uint, error)
+	DeleteScriptByID(ctx context.Context, id uint) error
 
 	FindInitialVersion(ctx context.Context, projectID uint, scriptID uint) (domainscript.ScriptVersion, bool, error)
 	CreateScriptVersionWithRelations(ctx context.Context, version *domainscript.ScriptVersion) error
@@ -99,11 +100,20 @@ func (r *gormRepository) PatchScript(ctx context.Context, item *domainscript.Scr
 
 func (r *gormRepository) DeleteScript(ctx context.Context, id uint) (uint, error) {
 	var item persistencemodel.Script
-	_ = r.db.WithContext(ctx).Select("id, project_id").First(&item, id).Error
+	if err := r.db.WithContext(ctx).Select("id, project_id").First(&item, id).Error; err != nil {
+		return 0, normalizeNotFound(err)
+	}
 	if err := r.db.WithContext(ctx).Delete(&persistencemodel.Script{}, id).Error; err != nil {
 		return 0, err
 	}
 	return item.ProjectID, nil
+}
+
+func (r *gormRepository) DeleteScriptByID(ctx context.Context, id uint) error {
+	if err := r.db.WithContext(ctx).Delete(&persistencemodel.Script{}, id).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *gormRepository) FindInitialVersion(ctx context.Context, projectID uint, scriptID uint) (domainscript.ScriptVersion, bool, error) {

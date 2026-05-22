@@ -3,34 +3,34 @@ import type {
   GeneratePlanTasksResult,
 } from '../orchestration/planGenerator.js'
 import type { AgentStore } from '../state/store.js'
-import type { AgentPlanSnapshot, CreatePlanInput } from '../state/types.js'
-import { applyRuntimePlanCreationRequest } from './runtimePlanCreation.js'
+import type { AgentTaskGraphSnapshot, CreateTaskGraphInput } from '../state/types.js'
+import { applyRuntimeTaskGraphCreationRequest } from './runtimePlanCreation.js'
 import type { RuntimeRunCreationBridge } from './runtimeRunCreationBridge.js'
 import type { RuntimeTaskEventBridge } from './runtimeTaskEventBridge.js'
 import { isoNow, makeId } from './runtimeIdentity.js'
 
-export interface RuntimePlanCreationBridge {
-  createPlan: (input: CreatePlanInput) => Promise<AgentPlanSnapshot>
+export interface RuntimeTaskGraphCreationBridge {
+  createTaskGraph: (input: CreateTaskGraphInput) => Promise<AgentTaskGraphSnapshot>
 }
 
-export function createRuntimePlanCreationBridge(input: {
+export function createRuntimeTaskGraphCreationBridge(input: {
   store: AgentStore
   generatePlanTasks: (input: GeneratePlanTasksInput) => Promise<GeneratePlanTasksResult>
   runCreation: RuntimeRunCreationBridge
   taskEvents: RuntimeTaskEventBridge
-  getPlanSnapshot: (planId: string) => AgentPlanSnapshot
-  createPlanRequest?: typeof applyRuntimePlanCreationRequest
-}): RuntimePlanCreationBridge {
-  const createPlanRequest = input.createPlanRequest ?? applyRuntimePlanCreationRequest
+  getTaskGraphSnapshot: (taskGraphId: string) => AgentTaskGraphSnapshot
+  createTaskGraphRequest?: typeof applyRuntimeTaskGraphCreationRequest
+}): RuntimeTaskGraphCreationBridge {
+  const createTaskGraphRequest = input.createTaskGraphRequest ?? applyRuntimeTaskGraphCreationRequest
   return {
-    createPlan: (planInput) => createPlanRequest({
+    createTaskGraph: (planInput) => createTaskGraphRequest({
       store: input.store,
       planInput,
-      planId: makeId('plan'),
+      taskGraphId: makeId('taskGraph'),
       now: isoNow(),
       generatePlanTasks: input.generatePlanTasks,
       createRun: (runInput) => input.runCreation.createRun(runInput),
-      getPlanSnapshot: input.getPlanSnapshot,
+      getTaskGraphSnapshot: input.getTaskGraphSnapshot,
       onTaskCreated: input.taskEvents.recordTaskProtocolEvents,
       onInlineTaskAssigned: input.taskEvents.recordTaskProtocolAndPlanEvent,
     }),

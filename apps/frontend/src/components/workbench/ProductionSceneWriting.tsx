@@ -89,9 +89,7 @@ export function SceneMomentSettingsEditor({
     .filter((item): item is { reference: ProductionCreativeReferenceRecord; usageId: number } => Boolean(item))
   const linkedIds = new Set(linkedReferences.map((reference) => reference.ID))
   const visibleReferences = creativeReferences.filter(isVisibleOrchestrationRecord)
-  const shownReferenceItems = linkedReferenceItems.length > 0
-    ? linkedReferenceItems
-    : visibleReferences.map((reference) => ({ reference, usageId: null }))
+  const shownReferenceItems = linkedReferenceItems
   const shownReferences = shownReferenceItems.map((item) => item.reference)
   const availableReferences = visibleReferences.filter((reference) => !linkedIds.has(reference.ID))
   const selectedReference = referenceValue ? visibleReferences.find((reference) => String(reference.ID) === referenceValue) : null
@@ -169,6 +167,12 @@ export function SceneMomentSettingsEditor({
           </div>
         ))}
       </div>
+
+      {linkedReferenceItems.length === 0 ? (
+        <div className="mt-3 rounded-md border border-dashed border-border bg-muted/30 px-3 py-2 type-label text-muted-foreground">
+          当前情节还没有绑定设定。请编辑当前情节，从下方选择人物、场景、道具或风格设定后绑定。
+        </div>
+      ) : null}
 
       <div className="mt-3 grid gap-2 md:grid-cols-[minmax(0,1fr)_160px_auto]">
         <Select value={referenceValue} onValueChange={setReferenceValue}>

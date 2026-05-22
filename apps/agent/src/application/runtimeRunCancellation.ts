@@ -26,7 +26,7 @@ import { requireRuntimeRun } from './runtimeStoreLookup.js'
 import { appendThreadMessage } from './threadLifecycle.js'
 import { updateRuntimeThreadRunStatus } from './runtimeThreadProjection.js'
 
-export interface RuntimeSubtreeCancellationPlan {
+export interface RuntimeSubtreeCancellationTaskGraph {
   reason: string
   runIds: string[]
 }
@@ -138,7 +138,7 @@ export function planRuntimeSubtreeCancellation(input: {
   store: Pick<AgentStore, 'getRun' | 'listChildRuns'>
   runId: string
   reason?: unknown
-}): RuntimeSubtreeCancellationPlan {
+}): RuntimeSubtreeCancellationTaskGraph {
   requireRuntimeRun(input.store, input.runId)
   const reason = normalizeCancelReason(input.reason)
   const runIds = collectRunSubtreeIds(input.runId, (runId) => input.store.listChildRuns(runId))
@@ -151,12 +151,12 @@ export function planRuntimeSubtreeCancellation(input: {
 }
 
 export function applyRuntimeSubtreeCancellation(input: {
-  plan: RuntimeSubtreeCancellationPlan
+  taskGraph: RuntimeSubtreeCancellationTaskGraph
   cancelRun: (runId: string, reason: string) => void
 }): { cancelledRunIds: string[] } {
   const cancelledRunIds: string[] = []
-  for (const runId of input.plan.runIds) {
-    input.cancelRun(runId, input.plan.reason)
+  for (const runId of input.taskGraph.runIds) {
+    input.cancelRun(runId, input.taskGraph.reason)
     cancelledRunIds.push(runId)
   }
   return { cancelledRunIds }
@@ -168,13 +168,13 @@ export function applyRuntimeSubtreeCancellationRequest(input: {
   reason?: unknown
   cancelRun: (runId: string, reason: string) => void
 }): { cancelledRunIds: string[] } {
-  const plan = planRuntimeSubtreeCancellation({
+  const taskGraph = planRuntimeSubtreeCancellation({
     store: input.store,
     runId: input.runId,
     reason: input.reason,
   })
   return applyRuntimeSubtreeCancellation({
-    plan,
+    taskGraph,
     cancelRun: input.cancelRun,
   })
 }

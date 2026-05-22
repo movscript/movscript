@@ -1,44 +1,44 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentPlan, AgentRun, AgentTask } from '../state/types.js'
+import type { AgentTaskGraph, AgentRun, AgentTask } from '../state/types.js'
 import {
-  applyRuntimePlanStatusRecomputeRequest,
-  recomputeRuntimePlanStatus,
+  applyRuntimeTaskGraphStatusRecomputeRequest,
+  recomputeRuntimeTaskGraphStatus,
 } from './runtimePlanProjection.js'
 
-test('recomputeRuntimePlanStatus projects task state onto a stored plan', () => {
+test('recomputeRuntimeTaskGraphStatus projects task state onto a stored taskGraph', () => {
   const store = new InMemoryAgentStore()
-  store.createPlan(makePlan({ status: 'running', progress: 0 }))
+  store.createTaskGraph(makeTaskGraph({ status: 'running', progress: 0 }))
   store.createTask(makeTask({ id: 'task_1', status: 'done', progress: 1 }))
   store.createTask(makeTask({ id: 'task_2', status: 'done', progress: 0.5 }))
 
-  const result = recomputeRuntimePlanStatus({
+  const result = recomputeRuntimeTaskGraphStatus({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     now: '2026-01-01T00:00:01.000Z',
   })
 
   assert.equal(result?.projection.completedNow, true)
   assert.equal(result?.tasks.length, 2)
-  assert.equal(result?.plan.status, 'done')
-  assert.equal(store.getPlan('plan_1')?.status, 'done')
-  assert.equal(store.getPlan('plan_1')?.progress, 0.75)
+  assert.equal(result?.taskGraph.status, 'done')
+  assert.equal(store.getTaskGraph('task_graph_1')?.status, 'done')
+  assert.equal(store.getTaskGraph('task_graph_1')?.progress, 0.75)
 })
 
-test('recomputeRuntimePlanStatus ignores missing plans', () => {
+test('recomputeRuntimeTaskGraphStatus ignores missing plans', () => {
   const store = new InMemoryAgentStore()
-  assert.equal(recomputeRuntimePlanStatus({
+  assert.equal(recomputeRuntimeTaskGraphStatus({
     store,
-    planId: 'missing_plan',
+    taskGraphId: 'missing_taskGraph',
     now: '2026-01-01T00:00:01.000Z',
   }), undefined)
 })
 
-test('applyRuntimePlanStatusRecomputeRequest records completion trace when a plan first completes', () => {
+test('applyRuntimeTaskGraphStatusRecomputeRequest records completion trace when a taskGraph first completes', () => {
   const store = new InMemoryAgentStore()
-  store.createRun(makeRun({ id: 'run_root', planId: 'plan_1' }))
-  store.createPlan(makePlan({ rootRunId: 'run_root', status: 'running', progress: 0 }))
+  store.createRun(makeRun({ id: 'run_root', taskGraphId: 'task_graph_1' }))
+  store.createTaskGraph(makeTaskGraph({ rootRunId: 'run_root', status: 'running', progress: 0 }))
   store.createTask(makeTask({
     id: 'task_1',
     status: 'done',
@@ -47,24 +47,24 @@ test('applyRuntimePlanStatusRecomputeRequest records completion trace when a pla
   }))
   const traces: string[] = []
 
-  const result = applyRuntimePlanStatusRecomputeRequest({
+  const result = applyRuntimeTaskGraphStatusRecomputeRequest({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     now: '2026-01-01T00:00:01.000Z',
     recordTrace: (run, trace) => traces.push(`${run.id}:${trace.kind}:${trace.status}:${String((trace.data as any)?.artifactCount)}`),
   })
 
-  assert.equal(result?.plan.status, 'done')
-  assert.deepEqual(traces, ['run_root:plan:completed:1'])
+  assert.equal(result?.taskGraph.status, 'done')
+  assert.deepEqual(traces, ['run_root:taskGraph:completed:1'])
 })
 
-test('applyRuntimePlanStatusRecomputeRequest skips completion trace for missing plans', () => {
+test('applyRuntimeTaskGraphStatusRecomputeRequest skips completion trace for missing plans', () => {
   const store = new InMemoryAgentStore()
   const traces: string[] = []
 
-  const result = applyRuntimePlanStatusRecomputeRequest({
+  const result = applyRuntimeTaskGraphStatusRecomputeRequest({
     store,
-    planId: 'missing_plan',
+    taskGraphId: 'missing_taskGraph',
     now: '2026-01-01T00:00:01.000Z',
     recordTrace: () => traces.push('trace'),
   })
@@ -73,11 +73,11 @@ test('applyRuntimePlanStatusRecomputeRequest skips completion trace for missing 
   assert.deepEqual(traces, [])
 })
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -109,7 +109,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     title: 'Task',
     status: 'pending',
     progress: 0,

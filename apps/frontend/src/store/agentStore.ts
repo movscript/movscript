@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import i18n from '@/i18n'
 import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
+import type { AgentProgressChecklistRevision } from '@/lib/localAgentClient'
 import { isRecord } from '@/lib/jsonValue'
 
 export interface ChatMessage {
@@ -31,7 +32,7 @@ export interface AgentSettings {
   modelId: number | null
   includeProjectContext: boolean
   includeRecentResources: boolean
-  autoPlan: boolean
+  autoTaskGraph: boolean
   permissionMode: AgentPermissionMode
   planMaxWorkers: number
   planMaxTaskAttempts: number
@@ -71,7 +72,7 @@ export interface AgentRunPreset {
   name: string
   description: string
   permissionMode: AgentPermissionMode
-  autoPlan: boolean
+  autoTaskGraph: boolean
   maxToolCalls: number
   maxIterations: number
   planMaxWorkers: number
@@ -113,6 +114,7 @@ export interface ChatMessageMeta {
   generationValidationErrors?: ChatGenerationValidationError[]
   draftArtifacts?: AgentTaskArtifactRef[]
   localRunActivity?: ChatRunActivity
+  progressChecklistRevision?: AgentProgressChecklistRevision
 }
 
 export interface ChatRuntimeMessageRef {
@@ -182,6 +184,14 @@ export interface ChatContextDiagnosticTool {
   unavailableReason?: string
   inputSchema?: unknown
   outputSchema?: unknown
+  resolution?: {
+    authorized: boolean
+    visible: boolean
+    reason?: string
+    grantSource: 'manifest' | 'none'
+    approval: 'never' | 'always' | 'on_write'
+    activeSkillIds: string[]
+  }
 }
 
 export interface ChatGenerationJob {
@@ -411,7 +421,7 @@ const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   modelId: null,
   includeProjectContext: true,
   includeRecentResources: true,
-  autoPlan: true,
+  autoTaskGraph: true,
   permissionMode: 'ask',
   planMaxWorkers: 2,
   planMaxTaskAttempts: 2,
@@ -866,7 +876,7 @@ export function normalizeAgentSettings(settings?: Partial<AgentSettings> | null)
     modelId: normalizePersistedModelId(merged.modelId),
     includeProjectContext: typeof merged.includeProjectContext === 'boolean' ? merged.includeProjectContext : DEFAULT_AGENT_SETTINGS.includeProjectContext,
     includeRecentResources: typeof merged.includeRecentResources === 'boolean' ? merged.includeRecentResources : DEFAULT_AGENT_SETTINGS.includeRecentResources,
-    autoPlan: typeof merged.autoPlan === 'boolean' ? merged.autoPlan : activeRunPreset?.autoPlan ?? DEFAULT_AGENT_SETTINGS.autoPlan,
+    autoTaskGraph: typeof merged.autoTaskGraph === 'boolean' ? merged.autoTaskGraph : activeRunPreset?.autoTaskGraph ?? DEFAULT_AGENT_SETTINGS.autoTaskGraph,
     permissionMode: normalizePermissionMode(merged.permissionMode) ?? activeRunPreset?.permissionMode ?? DEFAULT_AGENT_SETTINGS.permissionMode,
     activeRunPresetId,
     runPresets,
@@ -1000,7 +1010,7 @@ function defaultRunPresets(): AgentRunPreset[] {
       name: 'Safe Review',
       description: 'Short, approval-first runs for inspection and review.',
       permissionMode: 'ask',
-      autoPlan: false,
+      autoTaskGraph: false,
       maxToolCalls: 8,
       maxIterations: 6,
       planMaxWorkers: 1,
@@ -1012,7 +1022,7 @@ function defaultRunPresets(): AgentRunPreset[] {
       name: 'Balanced',
       description: 'Default daily work with bounded tools and planning.',
       permissionMode: 'ask',
-      autoPlan: true,
+      autoTaskGraph: true,
       maxToolCalls: 20,
       maxIterations: 12,
       planMaxWorkers: 2,
@@ -1024,7 +1034,7 @@ function defaultRunPresets(): AgentRunPreset[] {
       name: 'Deep Work',
       description: 'Longer multi-step runs for broad implementation tasks.',
       permissionMode: 'suggest',
-      autoPlan: true,
+      autoTaskGraph: true,
       maxToolCalls: 50,
       maxIterations: 24,
       planMaxWorkers: 3,
@@ -1057,7 +1067,7 @@ function normalizeRunPreset(input: unknown): AgentRunPreset | null {
     name: typeof input.name === 'string' && input.name.trim() ? input.name.trim() : id,
     description: typeof input.description === 'string' ? input.description : '',
     permissionMode,
-    autoPlan: input.autoPlan !== false,
+    autoTaskGraph: input.autoTaskGraph !== false,
     maxToolCalls: normalizePresetLimit(input.maxToolCalls, 20),
     maxIterations: normalizePresetLimit(input.maxIterations, 12),
     planMaxWorkers: [1, 2, 3, 4].includes(Number(input.planMaxWorkers)) ? Number(input.planMaxWorkers) : 2,

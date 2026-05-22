@@ -2,7 +2,7 @@ import { assistantResultPayloadForRun, type AgentMessageViewModelDeps } from '@/
 import { attachmentKind } from '@/lib/agentAttachments'
 import { formatLocalAgentAssistantContent } from '@/lib/localAgentResult'
 import { isRecord } from '@/lib/jsonValue'
-import type { AgentMessage, AgentRun, AgentThread } from '@/lib/localAgentClient'
+import type { AgentMessage, AgentProgressChecklistRevision, AgentRun, AgentThread } from '@/lib/localAgentClient'
 import type { AgentAttachment, ChatMessage, ChatMessageMeta, ChatRunActivityEvent } from '@/store/agentStore'
 
 export interface RuntimeThreadProjectionInput {
@@ -81,6 +81,7 @@ async function projectRuntimeMessage(input: {
   const timestamp = runtimeTimestamp(input.message.createdAt)
   const baseMeta: ChatMessageMeta = {
     ...input.existing?.meta,
+    ...progressChecklistRevisionMeta(input.message.metadata),
     runtimeMessage: {
       threadId: input.message.threadId,
       messageId: input.message.id,
@@ -110,6 +111,28 @@ async function projectRuntimeMessage(input: {
     meta: baseMeta,
     timestamp,
   }
+}
+
+function progressChecklistRevisionMeta(metadata: AgentMessage['metadata']): Pick<ChatMessageMeta, 'progressChecklistRevision'> {
+  if (!isRecord(metadata) || metadata.kind !== 'progress_checklist_revision') return {}
+  const revision = metadata.progressChecklistRevision
+  if (!isProgressChecklistRevision(revision)) return {}
+  return { progressChecklistRevision: revision }
+}
+
+function isProgressChecklistRevision(value: unknown): value is AgentProgressChecklistRevision {
+  if (!isRecord(value) || value.schema !== 'movscript.agent.progress-checklist-revision.v1') return false
+  if (typeof value.id !== 'string' || typeof value.taskGraphId !== 'string' || typeof value.threadId !== 'string') return false
+  if (typeof value.createdAt !== 'string' || !isRecord(value.snapshot)) return false
+  const snapshot = value.snapshot
+  if (snapshot.schema !== 'movscript.agent.progress-checklist.v1') return false
+  if (typeof snapshot.id !== 'string' || typeof snapshot.threadId !== 'string') return false
+  if (!Array.isArray(snapshot.items)) return false
+  return snapshot.items.every((item) => (
+    isRecord(item)
+    && typeof item.step === 'string'
+    && (item.status === 'pending' || item.status === 'in_progress' || item.status === 'completed')
+  ))
 }
 
 function attachmentsFromClientInput(clientInput: unknown): AgentAttachment[] | undefined {

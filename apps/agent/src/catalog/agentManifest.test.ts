@@ -5,25 +5,25 @@ import { DEFAULT_AGENT_MANIFEST, normalizeAgentManifest } from './agentManifest.
 test('normalizes a valid current agent manifest', () => {
   const manifest = normalizeAgentManifest({
     schema: 'movscript.agent.current',
-    id: 'studio.content-unit-planner',
+    id: 'studio.content-unit-task-graphner',
     version: '1.2.3',
     name: 'Content Unit Planner',
     tools: [
-      { name: 'movscript_create_project', mode: 'allow', approval: 'always' },
+      { name: 'movscript_project_create', mode: 'allow', approval: 'always' },
       { name: '', mode: 'allow' },
     ],
     metadata: { owner: 'studio' },
   })
 
   assert.equal(manifest.schema, 'movscript.agent.current')
-  assert.equal(manifest.id, 'studio.content-unit-planner')
+  assert.equal(manifest.id, 'studio.content-unit-task-graphner')
   assert.equal(manifest.tools.length, 1)
   assert.equal(manifest.tools[0].approval, 'always')
   assert.equal(manifest.metadata?.owner, 'studio')
 })
 
 test('default manifest does not grant generic draft creation', () => {
-  assert.equal(DEFAULT_AGENT_MANIFEST.tools.some((tool) => tool.name === 'movscript_create_draft'), false)
+  assert.equal(DEFAULT_AGENT_MANIFEST.tools.some((tool) => tool.name === 'draft_create'), false)
 })
 
 test('falls back to default manifest for unsupported input', () => {
@@ -35,7 +35,7 @@ test('falls back to default manifest for unsupported input', () => {
 test('drops manifest metadata with non-finite JSON numbers', () => {
   const manifest = normalizeAgentManifest({
     schema: 'movscript.agent.current',
-    id: 'studio.content-unit-planner',
+    id: 'studio.content-unit-task-graphner',
     version: '1.2.3',
     name: 'Content Unit Planner',
     tools: [],

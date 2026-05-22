@@ -1,4 +1,4 @@
-import type { AgentPlan, AgentRun, AgentTask, JSONValue } from './types.js'
+import type { AgentTaskGraph, AgentRun, AgentTask, JSONValue } from './types.js'
 import { subagentNameFromRun, subagentNameFromTask } from './subagentIdentity.js'
 
 export type SubagentWaitStatus = 'completed' | 'failed' | 'cancelled' | 'blocked' | 'needs_review' | 'pending'
@@ -12,7 +12,7 @@ export function toSubagentRunSummary(run: AgentRun, task?: AgentTask): Record<st
     status: run.status,
     ...(run.role ? { role: run.role } : {}),
     ...(run.parentRunId ? { parentRunId: run.parentRunId } : {}),
-    ...(run.planId ? { planId: run.planId } : {}),
+    ...(run.taskGraphId ? { taskGraphId: run.taskGraphId } : {}),
     ...(run.taskId ? { taskId: run.taskId } : {}),
     ...(typeof run.progress === 'number' ? { progress: run.progress } : {}),
     ...(run.blockedReason ? { blockedReason: run.blockedReason } : {}),
@@ -34,7 +34,7 @@ export function isTerminalRunStatus(status: AgentRun['status']): boolean {
   return status === 'completed' || status === 'completed_with_warnings' || status === 'requires_action' || status === 'failed' || status === 'cancelled'
 }
 
-export function isTerminalPlanStatus(status: AgentPlan['status']): boolean {
+export function isTerminalPlanStatus(status: AgentTaskGraph['status']): boolean {
   return status === 'done' || status === 'failed' || status === 'cancelled'
 }
 
@@ -55,7 +55,7 @@ export function waitStatusFromTaskStatus(status: AgentTask['status']): SubagentW
   return 'pending'
 }
 
-export function waitStatusFromPlanStatus(status: AgentPlan['status']): SubagentWaitStatus {
+export function waitStatusFromPlanStatus(status: AgentTaskGraph['status']): SubagentWaitStatus {
   if (status === 'done') return 'completed'
   if (status === 'failed') return 'failed'
   if (status === 'cancelled') return 'cancelled'

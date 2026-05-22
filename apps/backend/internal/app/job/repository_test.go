@@ -246,7 +246,32 @@ func TestGormRepositoryLoadInputResourcesAllowsFolderPermission(t *testing.T) {
 	}
 }
 
+func TestGormRepositoryLoadInputResourcesAllowsTeamResourceWithoutSharing(t *testing.T) {
+	db := openJobRepositoryTestDB(t)
+	repo := &gormRepository{db: db}
+	org := model.Organization{Name: "Studio", Slug: "studio"}
+	if err := db.Create(&org).Error; err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	resource := model.RawResource{
+		OwnerID: 2,
+		OrgID:   &org.ID,
+		Type:    "image",
+		Name:    "team.png",
+	}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+
+	if _, err := repo.LoadInputResources(context.Background(), []uint{resource.ID}, 1, &org.ID); err != nil {
+		t.Fatalf("LoadInputResources(team resource) error = %v", err)
+	}
+	if _, err := repo.LoadInputResources(context.Background(), []uint{resource.ID}, 1, nil); !errors.Is(err, ErrResourceOutsideOrg) {
+		t.Fatalf("LoadInputResources(personal workspace) error = %v, want ErrResourceOutsideOrg", err)
+	}
+}
+
 func openJobRepositoryTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	return testutil.OpenSQLite(t, "job_repository.db", &model.Job{}, &model.RawResource{}, &model.ResourceFolder{}, &model.ResourceFolderPermission{}, &model.AICredential{}, &model.AIModelConfig{})
+	return testutil.OpenSQLite(t, "job_repository.db", &model.Job{}, &model.Organization{}, &model.RawResource{}, &model.ResourceFolder{}, &model.ResourceFolderPermission{}, &model.AICredential{}, &model.AIModelConfig{})
 }

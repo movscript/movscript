@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { RawResource, ResourceFolder, ResourceFolderPermission, User, PaginatedResponse } from '@/types'
+import type { Project, RawResource, ResourceFolder, ResourceFolderPermission, User, PaginatedResponse } from '@/types'
 import {
   Upload, Trash2, Search, Image as ImageIcon, Video, FileAudio, File as FileIcon,
   FolderPlus, Folder, FolderOpen, Share2,
@@ -28,6 +28,7 @@ import {
   MAX_CLIP_SOURCE_BYTES,
   parseClipTimecode,
 } from '@/lib/videoClipUi'
+import { useUserStore } from '@/store/userStore'
 
 type TypeFilter = 'all' | 'image' | 'video' | 'audio' | 'text'
 type Tab = 'mine' | 'shared'
@@ -980,6 +981,118 @@ function FolderOption({ label, selected, isShared, onClick }: {
   )
 }
 
+function resourceIDs(resources: RawResource[]) {
+  return Array.from(new Set(resources.map(resource => resource.ID).filter(id => Number.isFinite(id) && id > 0)))
+}
+
+// ─── Share To Project Dialog ─────────────────────────────────────────────────
+function ShareToProjectDialog({
+  resources,
+  projects,
+  onClose,
+  onShare,
+  isSharing,
+}: {
+  resources: RawResource[]
+  projects: Project[]
+  onClose: () => void
+  onShare: (projectID: number) => void
+  isSharing: boolean
+}) {
+  const { t } = useTranslation()
+  const [projectID, setProjectID] = useState(projects[0]?.ID ?? 0)
+
+  useEffect(() => {
+    if (projectID === 0 && projects[0]) setProjectID(projects[0].ID)
+  }, [projectID, projects])
+
+  return (
+    <Dialog.Root open onOpenChange={open => !open && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-96 -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-background p-6 shadow-xl">
+          <Dialog.Title className="type-body mb-4 font-semibold">
+            {t('pages.resources.shareToProjectTitle', { defaultValue: '分享给项目' })}
+          </Dialog.Title>
+          <div className="space-y-3">
+            <p className="type-label text-muted-foreground">
+              {t('pages.resources.shareToProjectHint', {
+                count: resources.length,
+                defaultValue: `将 ${resources.length} 个资源加入项目引用，项目成员可读取这些资源。`,
+              })}
+            </p>
+            <select
+              value={projectID}
+              onChange={event => setProjectID(Number(event.target.value))}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 type-body text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              {projects.map(project => (
+                <option key={project.ID} value={project.ID}>{project.name}</option>
+              ))}
+            </select>
+            {projects.length === 0 && (
+              <p className="type-label text-muted-foreground">{t('pages.resources.noProjectsToShare', { defaultValue: '当前团队没有可分享的项目。' })}</p>
+            )}
+          </div>
+          <div className="mt-5 flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={onClose}>{t('common.cancel')}</Button>
+            <Button size="sm" onClick={() => onShare(projectID)} disabled={!projectID || isSharing}>
+              {isSharing ? t('common.saving') : t('pages.resources.shareToProject', { defaultValue: '分享给项目' })}
+            </Button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
+
+function ResourceContextMenu({
+  x,
+  y,
+  resources,
+  canShareToTeam,
+  onClose,
+  onShareToTeam,
+  onShareToProject,
+}: {
+  x: number
+  y: number
+  resources: RawResource[]
+  canShareToTeam: boolean
+  onClose: () => void
+  onShareToTeam: () => void
+  onShareToProject: () => void
+}) {
+  const { t } = useTranslation()
+  useEffect(() => {
+    const close = () => onClose()
+    window.addEventListener('click', close)
+    window.addEventListener('keydown', close)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('keydown', close)
+    }
+  }, [onClose])
+
+  return (
+    <div className="fixed z-[60] min-w-44 overflow-hidden rounded-lg border border-border bg-background py-1 shadow-lg type-body" style={{ left: x, top: y }} onClick={event => event.stopPropagation()}>
+      <div className="px-3 py-1.5 type-caption text-muted-foreground">
+        {t('pages.resources.selectedCount', { count: resources.length, defaultValue: `${resources.length} selected` })}
+      </div>
+      {canShareToTeam && (
+        <button className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-muted" onClick={onShareToTeam}>
+          <Share2 size={14} />
+          {t('pages.resources.shareToTeam', { defaultValue: '加入团队资源库' })}
+        </button>
+      )}
+      <button className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-muted" onClick={onShareToProject}>
+        <FolderOpen size={14} />
+        {t('pages.resources.shareToProject', { defaultValue: '分享给项目' })}
+      </button>
+    </div>
+  )
+}
+
 // ─── Resource Card ────────────────────────────────────────────────────────────
 function ResourceCard({
   resource,
@@ -989,6 +1102,9 @@ function ResourceCard({
   onDownload,
   onClip,
   isSharedView,
+  selected,
+  onSelectChange,
+  onContextMenu,
 }: {
   resource: RawResource
   onDelete?: () => void
@@ -997,14 +1113,18 @@ function ResourceCard({
   onDownload: () => void
   onClip?: () => void
   isSharedView?: boolean
+  selected?: boolean
+  onSelectChange?: (selected: boolean) => void
+  onContextMenu?: (event: MouseEvent, resource: RawResource) => void
 }) {
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
     <div
-      className="group relative flex cursor-grab flex-col gap-1.5 active:cursor-grabbing"
+      className={`group relative flex cursor-grab flex-col gap-1.5 rounded-lg ${selected ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''} active:cursor-grabbing`}
       draggable
+      onContextMenu={(event) => onContextMenu?.(event, resource)}
       onDragStart={(event) => {
         event.dataTransfer.setData('application/resource-id', String(resource.ID))
         event.dataTransfer.setData('application/canvas-resource', JSON.stringify(resource))
@@ -1023,6 +1143,17 @@ function ResourceCard({
         )}
 
         {/* Action menu */}
+        {onSelectChange && (
+          <label className="absolute left-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100 has-[:checked]:opacity-100" onClick={event => event.stopPropagation()}>
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5"
+              checked={Boolean(selected)}
+              onChange={event => onSelectChange(event.target.checked)}
+              aria-label={t('pages.resources.selectResource', { defaultValue: '选择资源' })}
+            />
+          </label>
+        )}
         <DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenu.Trigger asChild>
             <button
@@ -1115,6 +1246,8 @@ function ResourceCard({
 export default function ResourcesPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const currentOrgID = useUserStore(state => state.currentOrgID)
+  const currentUser = useUserStore(state => state.currentUser)
   const fileRef = useRef<HTMLInputElement>(null)
   const [tab, setTab] = useState<Tab>('mine')
   const [filter, setFilter] = useState<TypeFilter>('all')
@@ -1128,6 +1261,9 @@ export default function ResourcesPage() {
   const [renameResource, setRenameResource] = useState<RawResource | null>(null)
   const [clipResource, setClipResource] = useState<RawResource | null>(null)
   const [permissionsFolder, setPermissionsFolder] = useState<ResourceFolder | null>(null)
+  const [selectedResourceIDs, setSelectedResourceIDs] = useState<Set<number>>(() => new Set())
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; resources: RawResource[] } | null>(null)
+  const [shareProjectResources, setShareProjectResources] = useState<RawResource[] | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [page, setPage] = useState(1)
   const pageSize = 30
@@ -1142,6 +1278,11 @@ export default function ResourcesPage() {
   const { data: sharedFolders = [] } = useQuery<ResourceFolder[]>({
     queryKey: ['resource-folders', 'shared'],
     queryFn: () => api.get('/resource-folders?shared=true').then(r => r.data),
+  })
+
+  const { data: projects = [] } = useQuery<Project[]>({
+    queryKey: ['projects', 'resource-share-targets'],
+    queryFn: () => api.get('/projects').then(r => r.data),
   })
 
   const deleteFolder = useMutation({
@@ -1193,12 +1334,101 @@ export default function ResourcesPage() {
 
   const remove = useMutation({
     mutationFn: (id: number) => api.delete(`/resources/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['resources'] }),
+    onSuccess: (_, id) => {
+      setSelectedResourceIDs(current => {
+        const next = new Set(current)
+        next.delete(id)
+        return next
+      })
+      qc.invalidateQueries({ queryKey: ['resources'] })
+    },
+  })
+
+  const adoptToTeam = useMutation({
+    mutationFn: async (ids: number[]) => {
+      await Promise.all(ids.map(id => api.post(`/resources/${id}/adopt-to-team`)))
+    },
+    onSuccess: () => {
+      setContextMenu(null)
+      setSelectedResourceIDs(new Set())
+      qc.invalidateQueries({ queryKey: ['resources'] })
+      toast.success(t('pages.resources.sharedToTeamSuccess', { defaultValue: '已加入团队资源库' }))
+    },
+  })
+
+  const shareToProject = useMutation({
+    mutationFn: async ({ projectID, ids }: { projectID: number; ids: number[] }) => {
+      await Promise.all(ids.map(id => api.post(`/projects/${projectID}/resource-bindings`, {
+        resource_id: id,
+        owner_type: 'project',
+        owner_id: projectID,
+        role: 'reference',
+        status: 'selected',
+        source_type: 'manual',
+      })))
+    },
+    onSuccess: () => {
+      setContextMenu(null)
+      setShareProjectResources(null)
+      setSelectedResourceIDs(new Set())
+      qc.invalidateQueries({ queryKey: ['resources'] })
+      qc.invalidateQueries({ queryKey: ['resource-bindings'] })
+      toast.success(t('pages.resources.sharedToProjectSuccess', { defaultValue: '已分享给项目' }))
+    },
   })
 
   const isSharedView = tab === 'shared' || selectedFolderTab === 'shared'
 
   const visible = resources
+  const selectedResources = visible.filter(resource => selectedResourceIDs.has(resource.ID))
+  const selectedIDs = resourceIDs(selectedResources)
+  const selectedPersonalStagingResources = selectedResources.filter(canAdoptToTeam)
+
+  useEffect(() => {
+    setSelectedResourceIDs(current => {
+      const visibleIDs = new Set(visible.map(resource => resource.ID))
+      const next = new Set(Array.from(current).filter(id => visibleIDs.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [visible])
+
+  function setResourceSelected(resource: RawResource, selected: boolean) {
+    setSelectedResourceIDs(current => {
+      const next = new Set(current)
+      if (selected) next.add(resource.ID)
+      else next.delete(resource.ID)
+      return next
+    })
+  }
+
+  function contextMenuResources(resource: RawResource) {
+    if (selectedResourceIDs.has(resource.ID)) {
+      const selected = visible.filter(item => selectedResourceIDs.has(item.ID))
+      return selected.length > 0 ? selected : [resource]
+    }
+    return [resource]
+  }
+
+  function openResourceContextMenu(event: MouseEvent, resource: RawResource) {
+    event.preventDefault()
+    setContextMenu({ x: event.clientX, y: event.clientY, resources: contextMenuResources(resource) })
+  }
+
+  function shareResourcesToTeam(resourcesToShare: RawResource[]) {
+    const ids = resourceIDs(resourcesToShare.filter(canAdoptToTeam))
+    if (ids.length === 0) return
+    adoptToTeam.mutate(ids)
+  }
+
+  function openShareToProject(resourcesToShare: RawResource[]) {
+    if (resourcesToShare.length === 0) return
+    setContextMenu(null)
+    setShareProjectResources(resourcesToShare)
+  }
+
+  function canAdoptToTeam(resource: RawResource) {
+    return Boolean(currentOrgID && currentUser?.ID && resource.owner_id === currentUser.ID && !resource.org_id)
+  }
 
   const currentFolderLabel = () => {
     if (selectedFolder === 'root') return t('pages.resources.unfiled')
@@ -1390,6 +1620,26 @@ export default function ResourcesPage() {
             </button>
           ))}
           <div className="flex-1" />
+          {selectedIDs.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="type-label text-muted-foreground">
+                {t('pages.resources.selectedCount', { count: selectedIDs.length, defaultValue: `${selectedIDs.length} selected` })}
+              </span>
+              {selectedPersonalStagingResources.length > 0 && (
+                <Button variant="outline" size="sm" onClick={() => shareResourcesToTeam(selectedResources)} disabled={adoptToTeam.isPending}>
+                  <Share2 size={14} />
+                  {t('pages.resources.shareToTeam', { defaultValue: '加入团队资源库' })}
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => openShareToProject(selectedResources)} disabled={shareToProject.isPending}>
+                <FolderOpen size={14} />
+                {t('pages.resources.shareToProject', { defaultValue: '分享给项目' })}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setSelectedResourceIDs(new Set())}>
+                {t('common.cancel')}
+              </Button>
+            </div>
+          )}
           <span className="type-label text-muted-foreground">{t('pages.resources.filesCount', { count: total })}</span>
         </div>
 
@@ -1416,19 +1666,30 @@ export default function ResourcesPage() {
                   onRename={() => setRenameResource(r)}
                   onClip={() => setClipResource(r)}
                   onDownload={() => downloadResource(resolveResourceUrl(r), r.name)}
+                  selected={selectedResourceIDs.has(r.ID)}
+                  onSelectChange={selected => setResourceSelected(r, selected)}
+                  onContextMenu={openResourceContextMenu}
                 />
               ))}
             </div>
           ) : (
             <div className="space-y-0.5">
               {visible.map(r => (
-                <ResourceListItem
-                  key={r.ID}
-                  resource={r}
-                  thumbSize="md"
-                  draggable
-                  trailing={
-                    <DropdownMenu.Root>
+                <div key={r.ID} className={`group flex items-center gap-2 rounded-lg ${selectedResourceIDs.has(r.ID) ? 'bg-primary/10 ring-1 ring-primary/30' : ''}`} onContextMenu={event => openResourceContextMenu(event, r)}>
+                  <label className="ml-2 flex h-5 w-5 items-center justify-center" onClick={event => event.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selectedResourceIDs.has(r.ID)}
+                      onChange={event => setResourceSelected(r, event.target.checked)}
+                      aria-label={t('pages.resources.selectResource', { defaultValue: '选择资源' })}
+                    />
+                  </label>
+                  <ResourceListItem
+                    resource={r}
+                    thumbSize="md"
+                    draggable
+                    trailing={
+                      <DropdownMenu.Root>
                       <DropdownMenu.Trigger asChild>
                         <button
                           className="w-6 h-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-all shrink-0"
@@ -1468,8 +1729,9 @@ export default function ResourcesPage() {
                         </DropdownMenu.Content>
                       </DropdownMenu.Portal>
                     </DropdownMenu.Root>
-                  }
-                />
+                    }
+                  />
+                </div>
               ))}
             </div>
           )}
@@ -1526,6 +1788,26 @@ export default function ResourcesPage() {
         <PermissionsDialog
           folder={permissionsFolder}
           onClose={() => setPermissionsFolder(null)}
+        />
+      )}
+      {shareProjectResources && (
+        <ShareToProjectDialog
+          resources={shareProjectResources}
+          projects={projects}
+          onClose={() => setShareProjectResources(null)}
+          isSharing={shareToProject.isPending}
+          onShare={(projectID) => shareToProject.mutate({ projectID, ids: resourceIDs(shareProjectResources) })}
+        />
+      )}
+      {contextMenu && (
+        <ResourceContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          resources={contextMenu.resources}
+          canShareToTeam={contextMenu.resources.some(canAdoptToTeam)}
+          onClose={() => setContextMenu(null)}
+          onShareToTeam={() => shareResourcesToTeam(contextMenu.resources)}
+          onShareToProject={() => openShareToProject(contextMenu.resources)}
         />
       )}
     </div>

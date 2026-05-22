@@ -81,7 +81,7 @@ func newHandlers(deps Dependencies) handlers {
 		cloudFileConfig:  handler.NewCloudFileConfigHandler(db, cfg.EncryptionKey),
 		adminSettings:    handler.NewAdminSettingsHandler(db, cfg.EncryptionKey),
 		entitlement:      handler.NewEntitlementHandler(deps.Entitlements),
-		org:              handler.NewOrgHandler(db),
+		org:              handler.NewOrgHandler(db, tokens),
 		orgAdmin:         handler.NewOrgAdminHandler(db),
 		adminOverview:    handler.NewAdminOverviewHandler(db),
 		ws:               wsiface.NewHandler(),

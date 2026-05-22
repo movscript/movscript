@@ -36,7 +36,7 @@ const playwrightCommand = commandOverride ?? [
   'exec',
   'playwright',
   'test',
-  'src/e2e/agent-planner.spec.ts',
+  'src/e2e/agent-task-graphner.spec.ts',
   '--project=chromium',
 ]
 const cleanResult = runStep('Clean AgentRun debugging artifacts', cleanCommand, { allowFailure: true })

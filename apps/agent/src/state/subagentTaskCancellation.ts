@@ -1,4 +1,4 @@
-import type { AgentTask, JSONValue, UpdatePlanTaskInput } from './types.js'
+import type { AgentTask, JSONValue, UpdateTaskGraphTaskInput } from './types.js'
 import { subagentNameFromTask } from './subagentIdentity.js'
 
 const DEFAULT_PENDING_SUBAGENT_CANCEL_REASON = 'Subagent task was cancelled before a worker run started.'
@@ -11,7 +11,7 @@ export function buildPendingSubagentTaskCancellationUpdate(input: {
   task: AgentTask
   plannerRunId: string
   reason?: unknown
-}): UpdatePlanTaskInput | undefined {
+}): UpdateTaskGraphTaskInput | undefined {
   if (!isPendingSubagentTaskCancellable(input.task)) return undefined
   return {
     status: 'cancelled',

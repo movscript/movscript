@@ -63,7 +63,7 @@ export function useAgentSendActions({
   updateDraft,
   setMentionRange,
   answerActiveLocalRunInput,
-  sendActiveRunRuntimeInput,
+  sendActiveRunRuntimeInput: _sendActiveRunRuntimeInput,
   addAssistantMessage,
   setConversationBuilding,
   buildSendDraft,
@@ -109,14 +109,6 @@ export function useAgentSendActions({
 
   const send = useCallback(async () => {
     if ((!input.trim() && composerAttachments.length === 0) || uploading || buildingSendDraft) return
-    if (loading && !answeringPendingInput) {
-      const text = input.trim()
-      if (!text && composerAttachments.length === 0) return
-      updateDraft({ input: '', attachments: [] })
-      setMentionRange(null)
-      await sendActiveRunRuntimeInput({ content: text, attachments: composerAttachments })
-      return
-    }
     if (answeringPendingInput && activePendingInputRequest) {
       const text = input.trim()
       if (!canAnswerPendingInputWithText || !text) return
@@ -157,7 +149,6 @@ export function useAgentSendActions({
     updateDraft,
     setMentionRange,
     answerActiveLocalRunInput,
-    sendActiveRunRuntimeInput,
     modelId,
     addAssistantMessage,
     labels,

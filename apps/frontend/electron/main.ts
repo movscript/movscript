@@ -3,8 +3,9 @@ import { existsSync } from 'fs'
 import { join } from 'path'
 import { getBackendLaunchPolicy, getBackendStatus, LOCAL_BACKEND_URL, type BackendStatus, startBackend, stopBackend } from './backend'
 import { ensureAgentRuntimeRunning, getAgentRuntimeLaunchPolicy, setAgentRuntimeAPIBaseURL, stopAgentRuntime } from './agentRuntime'
-import { getMCPServerStatus, setMCPAPIBaseURL, startMCPServer, stopMCPServer, updateMCPContextSnapshot } from './mcp/server'
+import { getMCPServerStatus, setMCPAPIBaseURL, setMCPGenerationToolsSettings, startMCPServer, stopMCPServer, testMCPGenerationToolServer, updateMCPContextSnapshot } from './mcp/server'
 import type { MCPContextSnapshot } from './mcp/types'
+import type { GenerationToolServer, GenerationToolsSettings } from '../src/lib/generationTools'
 import { clipVideo, exportVideoTimeline, getVideoClipStatus, type VideoClipInput, type VideoTimelineExportInput } from './videoClip'
 import { resolveAdminConsoleURL } from './adminConsole'
 
@@ -24,19 +25,37 @@ function createWindow(): void {
   const titleBarHeight = 34
   const macTrafficLightVisualSize = 14
   const isMacOS = process.platform === 'darwin'
+  const trafficLightPositionForZoom = (zoomFactor = 1) => ({
+    x: 14,
+    y: Math.max(0, Math.round((titleBarHeight * zoomFactor - macTrafficLightVisualSize) / 2))
+  })
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
     icon: resolveAppIconPath(),
     titleBarStyle: isMacOS ? 'hiddenInset' : 'hidden',
     ...(isMacOS
-      ? { trafficLightPosition: { x: 14, y: Math.round((titleBarHeight - macTrafficLightVisualSize) / 2) } }
+      ? { trafficLightPosition: trafficLightPositionForZoom() }
       : { titleBarOverlay: { height: titleBarHeight } }),
     webPreferences: {
       preload: resolvePreloadPath(),
       sandbox: false
     }
   })
+
+  const syncTitlebarChromeWithZoom = () => {
+    const zoomFactor = win.webContents.getZoomFactor()
+    if (isMacOS) {
+      win.setWindowButtonPosition(trafficLightPositionForZoom(zoomFactor))
+      return
+    }
+    win.setTitleBarOverlay({ height: Math.max(1, Math.round(titleBarHeight * zoomFactor)) })
+  }
+
+  win.webContents.on('zoom-changed', () => {
+    setTimeout(syncTitlebarChromeWithZoom, 0)
+  })
+  win.webContents.once('did-finish-load', syncTitlebarChromeWithZoom)
 
   if (process.env['ELECTRON_RENDERER_URL']) {
     void win.webContents.session.clearCache().finally(() => {
@@ -170,6 +189,14 @@ ipcMain.handle('mcp:update-context', (_e, snapshot: MCPContextSnapshot) => {
 
 ipcMain.handle('mcp:get-status', () => {
   return getMCPServerStatus()
+})
+
+ipcMain.handle('generation-tools:set-settings', (_e, settings?: GenerationToolsSettings) => {
+  setMCPGenerationToolsSettings(settings)
+})
+
+ipcMain.handle('generation-tools:test-server', (_e, server?: Partial<GenerationToolServer>) => {
+  return testMCPGenerationToolServer(server ?? {})
 })
 
 ipcMain.handle('backend:get-status', () => {

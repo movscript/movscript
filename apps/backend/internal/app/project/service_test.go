@@ -353,6 +353,32 @@ func TestAddMemberValidatesUserRoleAndUpdatesExisting(t *testing.T) {
 	}
 }
 
+func TestAddMemberRequiresOrgMembershipWhenScoped(t *testing.T) {
+	db := testutil.OpenSQLite(t, "project-member-org-scope.db", &persistencemodel.User{}, &persistencemodel.Organization{}, &persistencemodel.OrganizationMember{}, &persistencemodel.Project{}, &persistencemodel.ProjectMember{})
+	owner := createProjectUser(t, db, "owner")
+	memberUser := createProjectUser(t, db, "member")
+	outsider := createProjectUser(t, db, "outsider")
+	org := persistencemodel.Organization{Name: "Team", Slug: "project-member-scope", Plan: "team", Status: "active", CreatedBy: owner.ID}
+	if err := db.Create(&org).Error; err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	if err := db.Create(&persistencemodel.OrganizationMember{OrgID: org.ID, UserID: owner.ID, Role: "owner"}).Error; err != nil {
+		t.Fatalf("create owner org member: %v", err)
+	}
+	if err := db.Create(&persistencemodel.OrganizationMember{OrgID: org.ID, UserID: memberUser.ID, Role: "member"}).Error; err != nil {
+		t.Fatalf("create project member org member: %v", err)
+	}
+	project := createProjectRecord(t, db, "Film", "desc", "planning", owner.ID, &org.ID)
+
+	service := NewService(db)
+	if _, err := service.AddMember(context.Background(), project.ID, MemberInput{UserID: outsider.ID, Role: "writer"}, &org.ID); !errors.Is(err, ErrMemberUserNotInOrg) {
+		t.Fatalf("outsider add err = %v, want ErrMemberUserNotInOrg", err)
+	}
+	if _, err := service.AddMember(context.Background(), project.ID, MemberInput{UserID: memberUser.ID, Role: "writer"}, &org.ID); err != nil {
+		t.Fatalf("org member add returned error: %v", err)
+	}
+}
+
 func newProjectTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	return testutil.OpenSQLite(t, "project.db", &persistencemodel.User{}, &persistencemodel.Project{}, &persistencemodel.ProjectMember{})

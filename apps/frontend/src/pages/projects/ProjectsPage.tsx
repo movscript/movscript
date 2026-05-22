@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { ROUTES } from '@/routes/projectRoutes'
 import { isLocalLaunchMode } from '@/lib/config'
 import { openAdminConsole } from '@/lib/adminConsole'
+import { projectListQueryKey, projectProgressQueryKey } from '@/lib/projectQueries'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
 import { useUserStore } from '@/store/userStore'
 import { AppEmptyState, AppMetricCard, AppPage, AppPageHeader, AppSection } from '@/components/app/AppPage'
@@ -71,8 +72,9 @@ function ProjectCard({
   onStatusChange: (id: number, status: ProjectStatus) => void
 }) {
   const { t } = useTranslation()
+  const currentOrgID = useUserStore((s) => s.currentOrgID)
   const { data: progress } = useQuery<ProjectProgress>({
-    queryKey: ['progress', project.ID],
+    queryKey: projectProgressQueryKey(currentOrgID, project.ID),
     queryFn: () => api.get(`/projects/${project.ID}/progress`).then((r) => r.data),
   })
 
@@ -236,6 +238,7 @@ export default function ProjectsPage() {
   const current = useProjectStore((s) => s.current)
   const setCurrent = useProjectStore((s) => s.setCurrent)
   const currentUser = useUserStore((s) => s.currentUser)
+  const currentOrgID = useUserStore((s) => s.currentOrgID)
   const settings = useAppSettingsStore((s) => s.settings)
   const [showCreate, setShowCreate] = useState(false)
   const [adminPromptDismissed, setAdminPromptDismissed] = useState(() => {
@@ -247,7 +250,7 @@ export default function ProjectsPage() {
   })
 
   const { data: projects = [], isLoading } = useQuery<Project[]>({
-    queryKey: ['projects'],
+    queryKey: projectListQueryKey(currentOrgID),
     queryFn: () => api.get('/projects').then((r) => r.data),
   })
 
@@ -261,7 +264,7 @@ export default function ProjectsPage() {
   const create = useMutation({
     mutationFn: (p: Partial<Project>) => api.post('/projects', p).then((r) => r.data),
     onSuccess: (newProject: Project) => {
-      qc.invalidateQueries({ queryKey: ['projects'] })
+      qc.invalidateQueries({ queryKey: projectListQueryKey(currentOrgID) })
       setCurrent(newProject)
       navigate(ROUTES.project.overview)
     },
@@ -271,14 +274,14 @@ export default function ProjectsPage() {
     mutationFn: (id: number) => api.delete(`/projects/${id}`),
     onSuccess: (_, id) => {
       if (current?.ID === id) setCurrent(null)
-      qc.invalidateQueries({ queryKey: ['projects'] })
+      qc.invalidateQueries({ queryKey: projectListQueryKey(currentOrgID) })
     },
   })
 
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: number; status: ProjectStatus }) =>
       api.put(`/projects/${id}`, { status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['projects'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: projectListQueryKey(currentOrgID) }),
   })
 
   function handleCreate(name: string, desc: string) {

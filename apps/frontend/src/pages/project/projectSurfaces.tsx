@@ -18,7 +18,7 @@ export type StageKey =
   | 'creative'
   | 'relations'
   | 'assets'
-  | 'plan'
+  | 'taskGraph'
   | 'production'
   | 'delivery'
 
@@ -33,14 +33,14 @@ export type WorkbenchCategory =
 export type ProjectWorkbenchId =
   | 'project_standards'
   | 'pre_production'
-  | 'creative_plan'
+  | 'creative_taskGraph'
   | 'content_orchestration'
   | 'delivery'
 
 export type ProjectWorkbenchStage =
   | 'standards'
   | 'pre_production'
-  | 'creative_plan'
+  | 'creative_taskGraph'
   | 'content_orchestration'
   | 'delivery'
 
@@ -161,14 +161,14 @@ export const projectWorkbenchDefinitions: ProjectWorkbenchDefinition[] = [
     },
   },
   {
-    id: 'creative_plan',
+    id: 'creative_taskGraph',
     title: '创作编排工作台',
     shortTitle: '创作',
     route: ROUTES.project.productionOrchestration,
     legacyRoutes: [LEGACY_ROUTES.productionOrchestration],
     sidebarTitleKey: 'sidebar.items.productionOrchestration',
     headerTitleKey: 'header.titles.productionOrchestration',
-    stage: 'creative_plan',
+    stage: 'creative_taskGraph',
     icon: Clapperboard,
     purpose: '把剧本、设定、素材约束组织成 production 级创作蓝图。',
     decision: '审阅 production proposal，确认 segments、scene moments 和引用关系。',
@@ -294,7 +294,7 @@ export const projectSurfaces: ProjectSurfaceItem[] = [
     output: '可进入画面锚点和视频生产的素材包',
   },
   {
-    key: 'plan',
+    key: 'taskGraph',
     title: '创作编排',
     shortTitle: '创作',
     href: ROUTES.project.productionOrchestration,

@@ -2,15 +2,15 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   normalizeAndValidateReplanTaskUpdates,
-  normalizeReplanTaskInputsForPlan,
+  normalizeReplanTaskInputsForTaskGraph,
   normalizeReplanTaskUpdateInputs,
 } from './replanTaskValidation.js'
 import type { AgentTask } from './types.js'
 
-test('normalizeReplanTaskInputsForPlan splits existing task updates from creates', () => {
+test('normalizeReplanTaskInputsForTaskGraph splits existing task updates from creates', () => {
   const existingTasks = [task({ id: 'task_existing' })]
-  assert.deepEqual(normalizeReplanTaskInputsForPlan({
-    planId: 'plan_1',
+  assert.deepEqual(normalizeReplanTaskInputsForTaskGraph({
+    taskGraphId: 'task_graph_1',
     tasks: [
       { id: ' task_existing ', title: 'Existing update' },
       { id: 'task_new', title: 'New task' },
@@ -29,12 +29,12 @@ test('normalizeReplanTaskInputsForPlan splits existing task updates from creates
   })
 })
 
-test('normalizeReplanTaskInputsForPlan rejects existing tasks from another plan', () => {
-  assert.throws(() => normalizeReplanTaskInputsForPlan({
-    planId: 'plan_1',
+test('normalizeReplanTaskInputsForTaskGraph rejects existing tasks from another taskGraph', () => {
+  assert.throws(() => normalizeReplanTaskInputsForTaskGraph({
+    taskGraphId: 'task_graph_1',
     tasks: [{ id: 'task_other', title: 'Other' }],
-    getTask: () => task({ id: 'task_other', planId: 'plan_2' }),
-  }), /task task_other does not belong to plan plan_1/)
+    getTask: () => task({ id: 'task_other', taskGraphId: 'task_graph_2' }),
+  }), /task task_other does not belong to task graph task_graph_1/)
 })
 
 test('normalizeReplanTaskUpdateInputs combines update aliases', () => {
@@ -54,7 +54,7 @@ test('normalizeAndValidateReplanTaskUpdates applies parent deps and metadata to 
     task({ id: 'task_3' }),
   ]
   const result = normalizeAndValidateReplanTaskUpdates({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     existingTasks,
     tasksToCreate: [],
     updates: [{
@@ -82,7 +82,7 @@ test('normalizeAndValidateReplanTaskUpdates validates owner runs via callback', 
   const existingTasks = [task({ id: 'task_1' })]
   const validated: string[] = []
   normalizeAndValidateReplanTaskUpdates({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     existingTasks,
     tasksToCreate: [],
     updates: [{ id: 'task_1', ownerRunId: ' run_1 ' }],
@@ -96,14 +96,14 @@ test('normalizeAndValidateReplanTaskUpdates validates owner runs via callback', 
 
 test('normalizeAndValidateReplanTaskUpdates rejects missing ids and missing tasks', () => {
   assert.throws(() => normalizeAndValidateReplanTaskUpdates({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     existingTasks: [],
     tasksToCreate: [],
     updates: [{ title: 'No id' }],
     getTask: () => undefined,
   }), /task update id is required/)
   assert.throws(() => normalizeAndValidateReplanTaskUpdates({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     existingTasks: [],
     tasksToCreate: [],
     updates: [{ id: 'task_missing' }],
@@ -111,15 +111,15 @@ test('normalizeAndValidateReplanTaskUpdates rejects missing ids and missing task
   }), /task not found: task_missing/)
 })
 
-test('normalizeAndValidateReplanTaskUpdates distinguishes references from another plan', () => {
+test('normalizeAndValidateReplanTaskUpdates distinguishes references from another taskGraph', () => {
   const existingTasks = [task({ id: 'task_1' })]
   assert.throws(() => normalizeAndValidateReplanTaskUpdates({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     existingTasks,
     tasksToCreate: [],
     updates: [{ id: 'task_1', deps: ['task_other'] }],
-    getTask: (taskId) => taskId === 'task_other' ? task({ id: 'task_other', planId: 'plan_2' }) : undefined,
-  }), /dependency task task_other does not belong to plan plan_1/)
+    getTask: (taskId) => taskId === 'task_other' ? task({ id: 'task_other', taskGraphId: 'task_graph_2' }) : undefined,
+  }), /dependency task task_other does not belong to task graph task_graph_1/)
 })
 
 test('normalizeAndValidateReplanTaskUpdates rejects self references and cycles', () => {
@@ -128,14 +128,14 @@ test('normalizeAndValidateReplanTaskUpdates rejects self references and cycles',
     task({ id: 'task_2', deps: ['task_1'] }),
   ]
   assert.throws(() => normalizeAndValidateReplanTaskUpdates({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     existingTasks,
     tasksToCreate: [],
     updates: [{ id: 'task_1', deps: ['task_1'] }],
     getTask: (taskId) => existingTasks.find((item) => item.id === taskId),
   }), /task task_1 cannot depend on itself/)
   assert.throws(() => normalizeAndValidateReplanTaskUpdates({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     existingTasks,
     tasksToCreate: [],
     updates: [{ id: 'task_1', deps: ['task_2'] }],
@@ -146,7 +146,7 @@ test('normalizeAndValidateReplanTaskUpdates rejects self references and cycles',
 test('normalizeAndValidateReplanTaskUpdates runs task-name validation after updates', () => {
   const existingTasks = [task({ id: 'task_1' })]
   assert.throws(() => normalizeAndValidateReplanTaskUpdates({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     existingTasks,
     tasksToCreate: [],
     updates: [{ id: 'task_1', metadata: { subagentName: 'Ada' } }],
@@ -171,7 +171,7 @@ test('normalizeAndValidateReplanTaskUpdates isolates nested metadata from valida
   }
 
   normalizeAndValidateReplanTaskUpdates({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     existingTasks,
     tasksToCreate: [],
     updates: [{ id: 'task_1', metadata: updateMetadata }],
@@ -193,7 +193,7 @@ test('normalizeAndValidateReplanTaskUpdates isolates nested metadata from valida
 function task(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'pending',

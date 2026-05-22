@@ -117,6 +117,7 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
     content: [
       input.policy.sandboxMode ? 'Sandbox mode is active: write, generation, and destructive tools are intercepted and simulated.' : undefined,
       `Runtime limits: approvalMode=${input.policy.approvalMode}; maxToolCalls=${input.policy.maxToolCalls}; maxIterations=${input.policy.maxIterations}.`,
+      input.policy.workflow ? `Workflow policy: profile=${input.policy.workflow.profile}; includeMemories=${input.policy.workflow.includeMemories !== false}; allowForcedToolCalls=${input.policy.workflow.allowForcedToolCalls !== false}.` : undefined,
       input.manifest.soul ? `[Agent-specific output contract]\n${input.manifest.soul}` : undefined,
     ].filter(Boolean).join('\n'),
   })
@@ -247,7 +248,7 @@ function resolvePromptProductPolicy(value: unknown): PromptProductPolicy {
     : 'required_for_project_work'
   const instruction = typeof projectStandards.instruction === 'string' && projectStandards.instruction.trim()
     ? projectStandards.instruction.trim()
-    : 'For project-scoped creative, production, review, prompt, asset, content-unit, or generation work, call movscript_get_project_standards before planning or producing final output; do not fetch project standards for non-project tasks.'
+    : 'For project-scoped creative, production, review, prompt, asset, content-unit, or generation work, call movscript_project_standards_get before planning or producing final output; do not fetch project standards for non-project tasks.'
   return {
     projectStandardsMode: mode,
     projectStandardsInstruction: instruction,
@@ -275,28 +276,26 @@ function resolveRuntimeToolParameters(
 ): unknown {
   if (contract?.toolSchemas?.[tool.name] !== undefined) return contract.toolSchemas[tool.name]
   if (tool.inputSchema !== undefined) return tool.inputSchema
-  if (tool.name === 'movscript_request_user_input') return USER_INPUT_TOOL_SCHEMA
-  if (tool.name === 'movscript_search_memories') return SEARCH_MEMORIES_TOOL_SCHEMA
-  if (tool.name === 'movscript_get_memory') return MEMORY_ID_TOOL_SCHEMA
-  if (tool.name === 'movscript_get_project_standards') return PROJECT_STANDARDS_TOOL_SCHEMA
-  if (tool.name === 'movscript_search_knowledge') return SEARCH_KNOWLEDGE_TOOL_SCHEMA
-  if (tool.name === 'movscript_get_knowledge') return GET_KNOWLEDGE_TOOL_SCHEMA
-  if (tool.name === 'movscript_create_memory') return CREATE_MEMORY_TOOL_SCHEMA
-  if (tool.name === 'movscript_delete_memory') return MEMORY_ID_TOOL_SCHEMA
-  if (tool.name === 'movscript_create_draft') return CREATE_DRAFT_TOOL_SCHEMA
-  if (tool.name === 'movscript_get_draft') return DRAFT_ID_TOOL_SCHEMA
-  if (tool.name === 'movscript_validate_draft') return DRAFT_ID_TOOL_SCHEMA
-  if (tool.name === 'movscript_preview_draft_apply') return PREVIEW_DRAFT_APPLY_TOOL_SCHEMA
-  if (tool.name === 'movscript_inspect_agent_catalog') return INSPECT_AGENT_CATALOG_TOOL_SCHEMA
-  if (tool.name === 'movscript_update_active_skills') return UPDATE_ACTIVE_SKILLS_TOOL_SCHEMA
-  if (tool.name === 'movscript_create_plan') return CREATE_PLAN_TOOL_SCHEMA
-  if (tool.name === 'movscript_get_plan') return GET_PLAN_TOOL_SCHEMA
-  if (tool.name === 'movscript_replan') return REPLAN_TOOL_SCHEMA
-  if (tool.name === 'movscript_spawn_subagent') return SPAWN_SUBAGENT_TOOL_SCHEMA
-  if (tool.name === 'movscript_list_subagents') return LIST_SUBAGENTS_TOOL_SCHEMA
-  if (tool.name === 'movscript_wait_subagent') return WAIT_SUBAGENT_TOOL_SCHEMA
-  if (tool.name === 'movscript_cancel_subagent') return CANCEL_SUBAGENT_TOOL_SCHEMA
-  if (tool.name === 'movscript_create_project') return CREATE_PROJECT_TOOL_SCHEMA
+  if (tool.name === 'core_user_input_request') return USER_INPUT_TOOL_SCHEMA
+  if (tool.name === 'core_memory_search') return SEARCH_MEMORIES_TOOL_SCHEMA
+  if (tool.name === 'core_memory_get') return MEMORY_ID_TOOL_SCHEMA
+  if (tool.name === 'movscript_project_standards_get') return PROJECT_STANDARDS_TOOL_SCHEMA
+  if (tool.name === 'knowledge_search') return SEARCH_KNOWLEDGE_TOOL_SCHEMA
+  if (tool.name === 'knowledge_get') return GET_KNOWLEDGE_TOOL_SCHEMA
+  if (tool.name === 'core_memory_create') return CREATE_MEMORY_TOOL_SCHEMA
+  if (tool.name === 'core_memory_delete') return MEMORY_ID_TOOL_SCHEMA
+  if (tool.name === 'draft_create') return CREATE_DRAFT_TOOL_SCHEMA
+  if (tool.name === 'draft_get') return DRAFT_ID_TOOL_SCHEMA
+  if (tool.name === 'draft_validate') return DRAFT_ID_TOOL_SCHEMA
+  if (tool.name === 'draft_apply_preview') return PREVIEW_DRAFT_APPLY_TOOL_SCHEMA
+  if (tool.name === 'core_catalog_inspect') return INSPECT_AGENT_CATALOG_TOOL_SCHEMA
+  if (tool.name === 'core_skill_update') return UPDATE_ACTIVE_SKILLS_TOOL_SCHEMA
+  if (tool.name === 'core_progress_update') return UPDATE_PROGRESS_CHECKLIST_TOOL_SCHEMA
+  if (tool.name === 'core_subagent_spawn') return SPAWN_SUBAGENT_TOOL_SCHEMA
+  if (tool.name === 'core_subagent_list') return LIST_SUBAGENTS_TOOL_SCHEMA
+  if (tool.name === 'core_subagent_wait') return WAIT_SUBAGENT_TOOL_SCHEMA
+  if (tool.name === 'core_subagent_cancel') return CANCEL_SUBAGENT_TOOL_SCHEMA
+  if (tool.name === 'movscript_project_create') return CREATE_PROJECT_TOOL_SCHEMA
   return undefined
 }
 
@@ -307,9 +306,9 @@ function shouldIncludeCommandContract(command: AgentCommandRuntime): boolean {
 
 function shouldIncludeFocusContext(input: ContextBuilderInput, command: AgentCommandRuntime): boolean {
   if (command.name === 'context') return true
-  if (input.context.agentPlan) return true
+  if (input.context.agentTaskGraph) return true
   if (input.context.productionId !== undefined) return true
-  return input.skills.some((skill) => (skill.toolHints ?? []).some((hint) => normalizeToolRef(hint) === 'movscript_get_focus'))
+  return input.skills.some((skill) => (skill.toolHints ?? []).some((hint) => normalizeToolRef(hint) === 'movscript_focus_get'))
 }
 
 function normalizeToolRef(value: string): string {
@@ -409,7 +408,7 @@ function renderSkillDiscoveryText(
   tools: ResolvedToolCatalog,
 ): string | undefined {
   const activeIds = new Set(activeSkills.map((skill) => skill.id))
-  const catalogToolAvailable = tools.available.some((tool) => tool.name === 'movscript_inspect_agent_catalog')
+  const catalogToolAvailable = tools.available.some((tool) => tool.name === 'core_catalog_inspect')
   const activeIndex = activeSkills.map((skill): SkillDiscoveryItem => ({
     id: skill.id,
     name: skill.name,
@@ -432,9 +431,9 @@ function renderSkillDiscoveryText(
   const lines = [
     'Skill activation is automatic for the current run. Persona and policy skills are loaded from the active profile; workflow skills activate when their trigger hints match the user request, UI context, or inferred intent; expertise skills attach through active workflow metadata.',
     'Use activated skill instructions as behavior rules for this run. Do not claim that a skill is active unless it appears in the active list below or after inspecting the catalog.',
-    'For style skills such as directors, cinematography, acting, editing, or writing voices: if the user prompt, project standards, active focus, or retrieved context clearly names one style, load that one. If several matching styles conflict and the choice is ambiguous, ask the user to choose with movscript_request_user_input before loading a style skill.',
+    'For style skills such as directors, cinematography, acting, editing, or writing voices: if the user prompt, project standards, active focus, or retrieved context clearly names one style, load that one. If several matching styles conflict and the choice is ambiguous, ask the user to choose with core_user_input_request before loading a style skill.',
     catalogToolAvailable
-      ? 'When the user asks for a specialist, a skill, an expert mode, or a task seems to need a workflow that is not active, call movscript_inspect_agent_catalog with view="summary" first to discover ids, then call a detail view with id when needed. Detail views view="pack", view="skill", view="tool", view="profile", and view="knowledge" require id. Set includeInstruction=true only when the skill details are needed to perform the task.'
+      ? 'When the user asks for a specialist, a skill, an expert mode, or a task seems to need a workflow that is not active, call core_catalog_inspect with view="summary" first to discover ids, then call a detail view with id when needed. Detail views view="pack", view="skill", view="tool", view="profile", and view="knowledge" require id. Set includeInstruction=true only when the skill details are needed to perform the task.'
       : 'The catalog inspection tool is not available in this run; rely only on the active skills and the short enabled-skill index below.',
   ]
   if (summary) {
@@ -483,7 +482,7 @@ function truncateForPrompt(value: string, limit: number): string {
   return `${text.slice(0, Math.max(0, limit - 1))}...`
 }
 
-const PLAN_TASK_INPUT_SCHEMA = {
+const TASK_GRAPH_TASK_INPUT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
@@ -504,7 +503,7 @@ const PLAN_TASK_INPUT_SCHEMA = {
   required: ['title'],
 } satisfies Record<string, unknown>
 
-const PLAN_TASK_UPDATE_SCHEMA = {
+const TASK_GRAPH_TASK_UPDATE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
@@ -589,105 +588,69 @@ const UPDATE_ACTIVE_SKILLS_TOOL_SCHEMA = {
   },
 } satisfies Record<string, unknown>
 
-const CREATE_PLAN_TOOL_SCHEMA = {
+const UPDATE_PROGRESS_CHECKLIST_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    title: { type: 'string', description: 'Plan title. Defaults to the current thread title or Agent plan.' },
-    goal: { type: 'string', description: 'Goal to plan. If tasks are omitted, runtime may generate initial tasks from this goal.' },
-    message: { type: 'string', description: 'Alias for goal.' },
-    maxTasks: { type: 'number', description: 'Maximum generated task count when using goal/message.' },
-    tasks: {
-      type: 'array',
-      description: 'Initial tasks. Omit only when goal/message is enough for runtime task generation.',
-      items: PLAN_TASK_INPUT_SCHEMA,
+    explanation: {
+      type: 'string',
+      description: 'Optional short reason for this checklist update.',
     },
-  },
-} satisfies Record<string, unknown>
-
-const GET_PLAN_TOOL_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    planId: { type: 'string', description: 'Plan id. Defaults to the current planner run plan.' },
-  },
-} satisfies Record<string, unknown>
-
-const REPLAN_TOOL_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    planId: { type: 'string', description: 'Plan id. Defaults to the current planner run plan.' },
-    tasks: {
+    checklist: {
       type: 'array',
-      description: 'Task creates or updates. Items with an existing id update that task; items with a new id create a task.',
+      description: 'Complete current progress checklist. At most one item may be in_progress.',
+      maxItems: 20,
       items: {
-        oneOf: [PLAN_TASK_INPUT_SCHEMA, PLAN_TASK_UPDATE_SCHEMA],
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          step: { type: 'string', minLength: 1, maxLength: 300 },
+          status: { type: 'string', enum: ['pending', 'in_progress', 'completed'] },
+        },
+        required: ['step', 'status'],
       },
     },
-    addTasks: {
-      type: 'array',
-      description: 'Tasks to add without updating existing tasks.',
-      items: PLAN_TASK_INPUT_SCHEMA,
-    },
-    updates: {
-      type: 'array',
-      description: 'Existing task updates.',
-      items: PLAN_TASK_UPDATE_SCHEMA,
-    },
-    updateTasks: {
-      type: 'array',
-      description: 'Alias for updates.',
-      items: PLAN_TASK_UPDATE_SCHEMA,
-    },
-    resetTaskIds: { type: 'array', items: { type: 'string' }, description: 'Specific tasks to reset to pending before dispatch.' },
-    resetBlocked: { type: 'boolean', description: 'Reset blocked tasks to pending.' },
-    resetNeedsReview: { type: 'boolean', description: 'Reset needs_review tasks for another worker pass.' },
-    resetFailed: { type: 'boolean', description: 'Reset failed tasks to pending.' },
-    resetCancelled: { type: 'boolean', description: 'Reset cancelled tasks to pending.' },
-    dispatch: { type: 'boolean', description: 'Whether to dispatch workers after replanning. Defaults to true.' },
-    taskIds: { type: 'array', items: { type: 'string' }, description: 'Task ids to dispatch when dispatching.' },
-    maxWorkers: { type: 'number' },
-    maxTaskAttempts: { type: 'number' },
-    retryFailed: { type: 'boolean' },
-    workerTimeoutMs: { type: 'number' },
   },
+  required: ['checklist'],
 } satisfies Record<string, unknown>
 
 const SPAWN_SUBAGENT_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    subagentName: { type: 'string', description: 'Optional human-readable worker subagent name. Prefer a short English human name such as Einstein, Turing, Curie, or Newton. Do not use generic names like worker or subagent.' },
+    title: { type: 'string', description: 'Short child-agent task title when spawning a direct child run without existing taskIds.' },
+    message: { type: 'string', description: 'Child-agent task prompt when spawning a direct child run without existing taskIds.' },
+    instructions: { type: 'string', description: 'Alias for message. Use this for concrete worker instructions when title/message are not enough.' },
+    subagentName: { type: 'string', description: 'Optional human-readable child agent name. Prefer a short English human name such as Einstein, Turing, Curie, or Newton. Do not use generic names like worker or subagent.' },
     subagentNames: {
       oneOf: [
         { type: 'array', items: { type: 'string' } },
         { type: 'object', additionalProperties: { type: 'string' } },
       ],
-      description: 'Optional human-readable names for existing taskIds. Use an array in the same order as taskIds, or an object mapping taskId to name. Prefer short English human names such as Einstein, Turing, Curie, or Newton. Missing names get neutral runtime fallback labels.',
+      description: 'Optional human-readable names for multiple child agents. Use an array in the same order as taskIds/tasks, or an object mapping taskId to name. Prefer short English human names such as Einstein, Turing, Curie, or Newton.',
     },
-    taskId: { type: 'string', description: 'Existing plan task id to run with a worker subagent. The planner run must already have a plan; call create_plan first when no plan exists.' },
+    taskId: { type: 'string', description: 'Optional existing task graph task id to dispatch through the internal task graph path.' },
     taskIds: {
       type: 'array',
       items: { type: 'string' },
-      description: 'Existing plan task ids to run with worker subagents. The planner run must already have a plan; call create_plan first when no plan exists.',
+      description: 'Optional existing task graph task ids to dispatch through the internal task graph path.',
     },
     tasks: {
       type: 'array',
-      description: 'Optional new tasks to add before dispatching workers. The planner run must already have a plan; call create_plan first when no plan exists.',
+      description: 'Optional child-agent tasks. Without taskIds these create direct child runs; with a planner task graph they may also be attached to the internal task graph dispatch path.',
       items: {
         type: 'object',
         additionalProperties: false,
         properties: {
-          ...PLAN_TASK_INPUT_SCHEMA.properties,
+          ...TASK_GRAPH_TASK_INPUT_SCHEMA.properties,
         },
         required: ['title'],
       },
     },
-    maxWorkers: { type: 'number', description: 'Maximum concurrent worker subagents to dispatch.' },
-    maxTaskAttempts: { type: 'number', description: 'Default retry attempt limit for failed worker tasks dispatched by this call. Task-level maxTaskAttempts overrides this value.' },
-    retryFailed: { type: 'boolean', description: 'Whether to reset retryable failed or cancelled worker tasks before dispatching.' },
-    workerTimeoutMs: { type: 'number', description: 'Default worker timeout in milliseconds. Task-level workerTimeoutMs overrides this value.' },
+    maxWorkers: { type: 'number', description: 'Maximum concurrent child agents to dispatch through the task graph path.' },
+    maxTaskAttempts: { type: 'number', description: 'Default retry attempt limit for failed task-graph worker tasks. Task-level maxTaskAttempts overrides this value.' },
+    retryFailed: { type: 'boolean', description: 'Whether to reset retryable failed or cancelled task-graph worker tasks before dispatching.' },
+    workerTimeoutMs: { type: 'number', description: 'Default worker timeout in milliseconds for task-graph dispatch. Task-level workerTimeoutMs overrides this value.' },
   },
 } satisfies Record<string, unknown>
 
@@ -695,7 +658,7 @@ const LIST_SUBAGENTS_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    planId: { type: 'string', description: 'Plan id. Defaults to the current planner run plan.' },
+    taskGraphId: { type: 'string', description: 'TaskGraph id. Defaults to the current planner run taskGraph.' },
   },
 } satisfies Record<string, unknown>
 
@@ -703,10 +666,10 @@ const WAIT_SUBAGENT_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    subagentName: { type: 'string', description: 'Human-readable worker subagent name to inspect. Use an actual name returned by spawn/list/get_plan, such as Einstein or Turing; do not guess generic names like worker.' },
-    runId: { type: 'string', description: 'Worker run id to inspect.' },
-    taskId: { type: 'string', description: 'Task id to inspect.' },
-    planId: { type: 'string', description: 'Plan id to inspect. Defaults to the current planner run plan.' },
+    subagentName: { type: 'string', description: 'Human-readable child agent name to inspect. Use an actual name returned by spawn/list, such as Einstein or Turing; do not guess generic names like worker.' },
+    runId: { type: 'string', description: 'Child run id to inspect.' },
+    taskId: { type: 'string', description: 'Optional task graph task id to inspect.' },
+    taskGraphId: { type: 'string', description: 'Optional task graph id. Defaults to the current planner run task graph when one exists.' },
     timeoutMs: { type: 'number', description: 'Short polling timeout in milliseconds. Use 0 for immediate status.' },
   },
 } satisfies Record<string, unknown>
@@ -715,7 +678,7 @@ const CANCEL_SUBAGENT_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    subagentName: { type: 'string', description: 'Human-readable worker subagent name to cancel. May target an active worker run or a not-yet-started task. Use an exact name returned by spawn/list/get_plan.' },
+    subagentName: { type: 'string', description: 'Human-readable child agent name to cancel. May target an active child run or a not-yet-started task-graph task. Use an exact name returned by spawn/list.' },
     runId: { type: 'string', description: 'Child worker run id to cancel.' },
     taskId: { type: 'string', description: 'Task id whose owner worker should be cancelled, or whose pending/blocked/needs_review task should be marked cancelled if no worker has started.' },
     reason: { type: 'string' },
@@ -732,7 +695,7 @@ const CREATE_DRAFT_TOOL_SCHEMA = {
       enum: ['setting_proposal', 'script_split_proposal', 'script', 'asset_slot', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_standards_proposal', 'production_proposal', 'content_unit_proposal'],
     },
     title: { type: 'string', description: 'Optional. Auto-generated from kind + project when omitted for proposal drafts.' },
-    content: { type: 'string', description: 'Initial draft content. Structured proposal drafts must be valid JSON. After creation, edit the returned draft.filePath with standard file tools instead of replacing content through draft tools.' },
+    content: { type: 'string', description: 'Initial draft content. Structured proposal drafts must be valid JSON. For setting_proposal / asset_proposal, omitted or initially empty proposal snapshot arrays are prefilled from the hydrated current project data as a no-op baseline. After creation, edit the returned draft.filePath with standard file tools instead of replacing content through draft tools.' },
     projectId: { type: 'number' },
     productionId: { type: 'number', description: 'Optional hint for production_proposal drafts.' },
     source: { type: 'object', additionalProperties: true },

@@ -1,41 +1,41 @@
 import type { AgentStore } from '../state/store.js'
-import type { AgentPlan, AgentRun } from '../state/types.js'
+import type { AgentTaskGraph, AgentRun } from '../state/types.js'
 import {
-  assertPlannerRunCanUsePlan,
+  assertPlannerRunCanUseTaskGraph,
   attachPlannerRunToPlanState,
-  findThreadPlan,
+  findThreadTaskGraph,
   requirePlannerRunState,
   selectPlannerRunPlanId,
 } from '../state/planRunBinding.js'
-import { requireRuntimePlan, requireRuntimeRun } from './runtimeStoreLookup.js'
+import { requireRuntimeTaskGraph, requireRuntimeRun } from './runtimeStoreLookup.js'
 
 export function requireRuntimePlannerRun(store: Pick<AgentStore, 'getRun'>, id: string): AgentRun {
   return requirePlannerRunState(requireRuntimeRun(store, id))
 }
 
-export function findRuntimeThreadPlan(store: Pick<AgentStore, 'listPlans'>, threadId: string): AgentPlan | undefined {
-  return findThreadPlan(store.listPlans(), threadId)
+export function findRuntimeThreadTaskGraph(store: Pick<AgentStore, 'listTaskGraphs'>, threadId: string): AgentTaskGraph | undefined {
+  return findThreadTaskGraph(store.listTaskGraphs(), threadId)
 }
 
-export function attachPlannerRunToRuntimePlan(input: {
-  store: Pick<AgentStore, 'getRun' | 'getPlan' | 'updateRun' | 'updatePlan'>
+export function attachPlannerRunToRuntimeTaskGraph(input: {
+  store: Pick<AgentStore, 'getRun' | 'getTaskGraph' | 'updateRun' | 'updateTaskGraph'>
   runId: string
-  planId: string
+  taskGraphId: string
   source: string
   now: string
 }): AgentRun {
-  const { store, runId, planId, source, now } = input
+  const { store, runId, taskGraphId, source, now } = input
   const run = requireRuntimePlannerRun(store, runId)
-  const plan = requireRuntimePlan(store, planId)
-  const rootRun = plan.rootRunId ? store.getRun(plan.rootRunId) : undefined
-  const attached = attachPlannerRunToPlanState({ run, plan, rootRun, source, now })
+  const taskGraph = requireRuntimeTaskGraph(store, taskGraphId)
+  const rootRun = taskGraph.rootRunId ? store.getRun(taskGraph.rootRunId) : undefined
+  const attached = attachPlannerRunToPlanState({ run, taskGraph, rootRun, source, now })
   store.updateRun(run)
-  if (attached.planUpdated) store.updatePlan(plan)
+  if (attached.planUpdated) store.updateTaskGraph(taskGraph)
   return run
 }
 
 export function resolveRuntimePlannerRunPlanId(input: {
-  store: Pick<AgentStore, 'getRun' | 'getPlan' | 'listPlans' | 'updateRun' | 'updatePlan'>
+  store: Pick<AgentStore, 'getRun' | 'getTaskGraph' | 'listTaskGraphs' | 'updateRun' | 'updateTaskGraph'>
   plannerRun: AgentRun
   inputPlanId?: unknown
   source: string
@@ -43,16 +43,16 @@ export function resolveRuntimePlannerRunPlanId(input: {
   now: string
 }): string {
   const { store, plannerRun, inputPlanId, source, action, now } = input
-  const planId = selectPlannerRunPlanId({
+  const taskGraphId = selectPlannerRunPlanId({
     plannerRun,
     inputPlanId,
-    threadPlan: findRuntimeThreadPlan(store, plannerRun.threadId),
+    threadTaskGraph: findRuntimeThreadTaskGraph(store, plannerRun.threadId),
     source,
   })
-  const plan = requireRuntimePlan(store, planId)
-  assertPlannerRunCanUsePlan({ plannerRun, plan, action })
-  if (!plannerRun.planId) {
-    attachPlannerRunToRuntimePlan({ store, runId: plannerRun.id, planId, source, now })
+  const taskGraph = requireRuntimeTaskGraph(store, taskGraphId)
+  assertPlannerRunCanUseTaskGraph({ plannerRun, taskGraph, action })
+  if (!plannerRun.taskGraphId) {
+    attachPlannerRunToRuntimeTaskGraph({ store, runId: plannerRun.id, taskGraphId, source, now })
   }
-  return planId
+  return taskGraphId
 }

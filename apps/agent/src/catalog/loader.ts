@@ -185,6 +185,7 @@ function registeredToolFromLayeredTool(tool: ToolDefinition): RegisteredTool {
     ...(tool.mcpServerId ? { mcpServerId: tool.mcpServerId } : {}),
     ...(tool.errorCodes ? { errorCodes: tool.errorCodes } : {}),
     ...(tool.allowedRunRoles ? { allowedRunRoles: tool.allowedRunRoles } : {}),
+    ...(tool.requiresSkills ? { requiresSkills: tool.requiresSkills } : {}),
   }
 }
 
@@ -868,6 +869,7 @@ function normalizeLayeredTool(input: unknown, filePath: string, warnings: string
     ...(nonEmptyString(input.mcpServerId) ? { mcpServerId: nonEmptyString(input.mcpServerId) } : {}),
     ...(stringArray(input.errorCodes).length > 0 ? { errorCodes: stringArray(input.errorCodes) } : {}),
     ...(runRoleArray(input.allowedRunRoles).length > 0 ? { allowedRunRoles: runRoleArray(input.allowedRunRoles) } : {}),
+    ...(stringArray(input.requiresSkills).length > 0 ? { requiresSkills: stringArray(input.requiresSkills) } : {}),
   }
 }
 

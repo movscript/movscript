@@ -24,7 +24,8 @@ import '@xyflow/react/dist/style.css'
 
 import { api } from '@/lib/api'
 import { invalidateAssetCandidateConsumers } from '@/lib/assetCandidateQueryInvalidation'
-import type { Canvas, CanvasNodeData, CanvasPortDef, CanvasPortValue, CanvasRun, CanvasTask, CanvasType, NodeType, PaginatedResponse, RawResource, ResourceBinding } from '@/types'
+import type { Canvas, CanvasNodeData, CanvasPortDef, CanvasPortValue, CanvasRun, CanvasTask, CanvasType, NodeType, PaginatedResponse, PublicModel, RawResource, ResourceBinding } from '@/types'
+import { publicModelId } from '@/lib/modelDisplay'
 import {
 	TextNode, ImageNode, VideoNode, ToolNode,
 	InputNode, OutputNode, ResourceSinkNode, ApprovalNode, TextGenNode, AIGenNode, GroupNode, PluginCardNode,
@@ -42,6 +43,7 @@ import {
   CANVAS_NODE_META,
   NODE_LABELS,
 } from './nodeCatalog'
+import { fetchCanvasNodeModelDiagnostics, formatCanvasNodeModelDiagnostics } from './canvasRunDiagnostics'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
@@ -49,6 +51,7 @@ import { Label } from '@movscript/ui'
 import { Badge } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { ROUTES } from '@/routes/projectRoutes'
+import { buildCanvasPluginArgsWithInputs } from '@/lib/canvasPluginArgs'
 import {
   ArrowLeft,
   ChevronLeft,
@@ -140,6 +143,40 @@ function createFinalOutputNode(t: (key: string, options?: any) => string): Node 
     } as any,
     style: { width: 220 },
   }
+}
+
+function shouldRunModelDiagnostics(nodeType?: string, error?: string) {
+  if (['text', 'image', 'video', 'ref_image_gen', 'ref_video_gen', 'multi_angle', 'style_transfer', 'motion_imitation'].includes(String(nodeType))) {
+    return true
+  }
+  return /model/i.test(error ?? '')
+}
+
+function modelFeatureForCanvasNode(nodeType?: string, data?: Partial<CanvasNodeData>) {
+  if (nodeType === 'text' && data?.source === 'ai') return { capability: 'text', feature: 'canvas_text' }
+  if (nodeType === 'image' && data?.source === 'ai') return { capability: 'image', feature: 'canvas_image' }
+  if (['ref_image_gen', 'multi_angle', 'style_transfer'].includes(String(nodeType))) return { capability: 'image', feature: 'canvas_image' }
+  if (nodeType === 'video' && data?.source === 'ai') return { capability: 'video', feature: 'canvas_video' }
+  if (['ref_video_gen', 'motion_imitation'].includes(String(nodeType))) return { capability: 'video', feature: 'canvas_video' }
+  return null
+}
+
+async function defaultModelsForCanvasSave(nodes: Node[]) {
+  const featureRequests = new Map<string, { capability: string; feature: string }>()
+  for (const node of nodes) {
+    const data = node.data as Partial<CanvasNodeData>
+    if (data.modelId || data.modelDbId) continue
+    const request = modelFeatureForCanvasNode(node.type, data)
+    if (request) featureRequests.set(request.feature, request)
+  }
+
+  const defaults = new Map<string, PublicModel>()
+  await Promise.all(Array.from(featureRequests.values()).map(async ({ capability, feature }) => {
+    const models = await api.get('/models', { params: { capability, feature } }).then((r) => r.data as PublicModel[])
+    const model = models.find((item) => item.is_default) ?? models[0]
+    if (model) defaults.set(feature, model)
+  }))
+  return defaults
 }
 
 function isFinalOutputNode(node: Node) {
@@ -1307,6 +1344,10 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     queryFn: () => api.get('/resources', { params: { page: 1, page_size: 200, type: 'image,video,text' } }).then((r) => r.data),
   })
   const canvasNodeResources = canvasNodeResourcePage?.items ?? []
+  const canvasNodeResourceById = useMemo(
+    () => new Map(canvasNodeResources.map((resource) => [resource.ID, resource])),
+    [canvasNodeResources],
+  )
   const referencedWorkflowCanvasIds = useMemo(() => {
     const ids = new Set<number>()
     nodes.forEach((node) => {
@@ -1415,27 +1456,51 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   useEffect(() => {
     if (!canvas || activeRunTasks.length === 0) return
     const nodeIdByDbId = new Map((canvas.nodes ?? []).map((n) => [n.ID, n.node_id]))
-    setNodes((prev) => prev.map((node) => {
-      const task = activeRunTasks.find((t) => (t.node_id && t.node_id === node.id) || nodeIdByDbId.get(t.canvas_node_id) === node.id)
-      if (!task) return node
-      const d = node.data as unknown as CanvasNodeData
-      return {
-        ...node,
-        data: {
-          ...d,
-          status: task.status,
-          resourceId: resourceIdFromTask(task) ?? d.resourceId,
-          resource: task.resource ?? d.resource,
-          error: task.error,
-        },
+    let cancelled = false
+    async function applyRunTasks() {
+      const diagnosticsByNodeId = new Map<string, CanvasNodeData['runDiagnostics']>()
+      const diagnosticErrorByNodeId = new Map<string, string>()
+      for (const task of activeRunTasks) {
+        const nodeId = task.node_id || nodeIdByDbId.get(task.canvas_node_id)
+        if (!nodeId || task.status !== 'failed' || !shouldRunModelDiagnostics(task.node_type, task.error)) continue
+        try {
+          const diag = await fetchCanvasNodeModelDiagnostics(id, nodeId)
+          diagnosticsByNodeId.set(nodeId, diag)
+          diagnosticErrorByNodeId.set(nodeId, formatCanvasNodeModelDiagnostics(diag))
+        } catch {
+          // Keep the task error when diagnostics cannot be loaded.
+        }
       }
-    }))
+      if (cancelled) return
+      setNodes((prev) => prev.map((node) => {
+        const task = activeRunTasks.find((t) => (t.node_id && t.node_id === node.id) || nodeIdByDbId.get(t.canvas_node_id) === node.id)
+        if (!task) return node
+        const d = node.data as unknown as CanvasNodeData
+        const diagnosticError = diagnosticErrorByNodeId.get(node.id)
+        const runDiagnostics = diagnosticsByNodeId.get(node.id)
+        return {
+          ...node,
+          data: {
+            ...d,
+            status: task.status,
+            resourceId: resourceIdFromTask(task) ?? d.resourceId,
+            resource: task.resource ?? d.resource,
+            error: diagnosticError ?? task.error,
+            runDiagnostics: runDiagnostics ?? d.runDiagnostics,
+          },
+        }
+      }))
+    }
+    void applyRunTasks()
     const isTerminal = activeRunTasks.every((t) => t.status === 'done' || t.status === 'failed')
     if (isTerminal && activeRunId && finalizedRunInvalidatedRef.current !== activeRunId) {
       finalizedRunInvalidatedRef.current = activeRunId
       qc.invalidateQueries({ queryKey: ['canvas-runs', id] })
     } else if (!isTerminal && activeRunId) {
       finalizedRunInvalidatedRef.current = null
+    }
+    return () => {
+      cancelled = true
     }
   }, [activeRunId, activeRunTasks, canvas, id, qc, setNodes])
 
@@ -1495,10 +1560,20 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
           if (task.status === 'done' || task.status === 'failed') {
             const resource = task.resource
             const resourceId = resourceIdFromTask(task)
+            let error = task.error
+            let runDiagnostics: CanvasNodeData['runDiagnostics']
+            if (task.status === 'failed' && shouldRunModelDiagnostics(n.type, task.error)) {
+              try {
+                runDiagnostics = await fetchCanvasNodeModelDiagnostics(id, n.id)
+                error = formatCanvasNodeModelDiagnostics(runDiagnostics)
+              } catch {
+                error = task.error
+              }
+            }
             setNodes((prev) => prev.map((node) => {
               if (node.id !== n.id) return node
               const d = node.data as unknown as CanvasNodeData
-              return { ...node, data: { ...d, status: task.status, resourceId, resource, error: task.error } }
+              return { ...node, data: { ...d, status: task.status, resourceId, resource, error, runDiagnostics } }
             }))
           }
         } catch (err: any) {
@@ -1517,12 +1592,22 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 
   // Save
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const nodesToSave = canvasType === 'workflow' ? ensureFinalOutputNode(nodes, t) : nodes
+      const defaultModels = await defaultModelsForCanvasSave(nodesToSave)
       const payload = {
         name: canvasName,
         nodes: nodesToSave.map((n) => {
-          const { label, cardMode: _cardMode, pluginInputProperties: _pluginInputProperties, availableResources: _availableResources, referenceResources: _referenceResources, onRun, onUpdateContent, onUpdatePrompt, onUpdateOutputType, onUpdateModelId, onUpdateAttachments, onUpdateParams, onApprove, onReject, onPush, canvasId: _canvasId, rfNodeId: _rfNodeId, pendingRuntimeInputs: _pendingRuntimeInputs, ...rest } = n.data as any
+          const { label, cardMode: _cardMode, pluginInputProperties: _pluginInputProperties, availableResources: _availableResources, referenceResources: _referenceResources, runDiagnostics: _runDiagnostics, onRun, onUpdateContent, onUpdatePrompt, onUpdateOutputType, onUpdateModelId, onUpdateAttachments, onUpdateParams, onApprove, onReject, onPush, canvasId: _canvasId, rfNodeId: _rfNodeId, pendingRuntimeInputs: _pendingRuntimeInputs, ...rest } = n.data as any
+          const request = modelFeatureForCanvasNode(n.type, rest)
+          const defaultModel = request ? defaultModels.get(request.feature) : undefined
+          const dataToSave = {
+            ...rest,
+            ...(defaultModel && !rest.modelId && !rest.modelDbId ? {
+              modelId: publicModelId(defaultModel),
+              modelDbId: defaultModel.id,
+            } : {}),
+          }
           return {
             node_id: n.id,
             type: n.type,
@@ -1531,7 +1616,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
             pos_y: n.position.y,
             // embed parentId and style into data so they survive save/load
             data: JSON.stringify({
-              ...rest,
+              ...dataToSave,
               _parentId: n.parentId ?? undefined,
               _style: n.style,
             }),
@@ -1552,7 +1637,10 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 
   // Run all
   const runAll = useMutation({
-    mutationFn: (values?: Record<string, CanvasPortValue>) => api.post(`/canvases/${id}/run`, { input_values: values ?? {} }).then((r) => r.data),
+    mutationFn: async (values?: Record<string, CanvasPortValue>) => {
+      await save.mutateAsync()
+      return api.post(`/canvases/${id}/run`, { input_values: values ?? {} }).then((r) => r.data)
+    },
     onSuccess: (data) => {
       const runId = data?.run?.ID
       if (runId) {
@@ -1584,14 +1672,24 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
         return { ...n, data: { ...n.data, status: 'pending', error: undefined } }
       }))
     } catch (err: any) {
-      const message = err?.response?.data?.error || err?.message || t('canvas.editor.errors.runFailed', { defaultValue: 'Failed to run node' })
+      let message = err?.response?.data?.error || err?.message || t('canvas.editor.errors.runFailed', { defaultValue: 'Failed to run node' })
+      let runDiagnostics: CanvasNodeData['runDiagnostics']
+      const node = nodes.find((n) => n.id === nodeId)
+      if (shouldRunModelDiagnostics(node?.type, message)) {
+        try {
+          runDiagnostics = await fetchCanvasNodeModelDiagnostics(id, nodeId)
+          message = formatCanvasNodeModelDiagnostics(runDiagnostics)
+        } catch {
+          // Keep the original run error if diagnostics cannot be loaded.
+        }
+      }
       toast.error(message)
       setNodes((prev) => prev.map((n) => {
         if (n.id !== nodeId) return n
-        return { ...n, data: { ...n.data, status: 'failed', error: message } }
+        return { ...n, data: { ...n.data, status: 'failed', error: message, runDiagnostics } }
       }))
     }
-  }, [id, qc, save, t])
+  }, [id, nodes, qc, save, t])
 
   const runNode = useCallback(async (nodeId: string) => {
     const node = nodes.find((n) => n.id === nodeId)
@@ -1662,10 +1760,18 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
           .filter(([, prop]) => prop.default !== undefined)
           .map(([key, prop]) => [key, prop.default])
       )
-      const pluginArgs = {
-        ...defaultArgs,
-        ...((data.pluginArgs ?? {}) as Record<string, unknown>),
-      }
+      const pluginArgs = buildCanvasPluginArgsWithInputs({
+        targetNodeId: nodeId,
+        baseArgs: {
+          ...defaultArgs,
+          ...((data.pluginArgs ?? {}) as Record<string, unknown>),
+        },
+        inputPorts: data.inputPorts,
+        schemaProperties: plugin.inputSchema?.properties,
+        nodes,
+        edges,
+        resourceById: canvasNodeResourceById,
+      })
       const executableSpec = await compileClientPlugin(plugin, pluginArgs)
       const result = await runClientPlugin(plugin, pluginArgs)
       const resultText = result.content?.map((item) => item.text ?? '').filter(Boolean).join('\n')
@@ -1691,7 +1797,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
         : n
       ))
     }
-  }, [clientPlugins, nodes, setNodes, t])
+  }, [canvasNodeResourceById, clientPlugins, edges, nodes, setNodes, t])
 
   // Handle workflow run: save first to ensure all nodes are persisted, then show input dialog if needed
   async function handleRunWorkflow() {
@@ -2154,7 +2260,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   }, [onNodeDragStop])
 
   const nodeById = new Map(nodes.map((node) => [node.id, node]))
-  const resourceById = new Map(canvasNodeResources.map((resource) => [resource.ID, resource]))
   const nodesWithHandlers = nodes.map((n) => {
     const data = n.data as unknown as CanvasNodeData
     const referenceResources: RawResource[] = []
@@ -2165,7 +2270,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
       if (!targetPort || !['resource', 'image', 'video'].includes(targetPort.type)) return
       const sourceNode = nodeById.get(edge.source)
       const sourceData = sourceNode?.data as Partial<CanvasNodeData> | undefined
-      const resource = sourceData?.resource ?? (sourceData?.resourceId ? resourceById.get(sourceData.resourceId) : undefined)
+      const resource = sourceData?.resource ?? (sourceData?.resourceId ? canvasNodeResourceById.get(sourceData.resourceId) : undefined)
       if (!resource || seenReferenceResourceIds.has(resource.ID)) return
       seenReferenceResourceIds.add(resource.ID)
       referenceResources.push(resource)

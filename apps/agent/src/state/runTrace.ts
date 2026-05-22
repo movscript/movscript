@@ -14,6 +14,7 @@ export interface BuildRunStepInput {
   createdAt: string
   round?: AgentRunRoundInfo
   toolName?: string
+  args?: Record<string, JSONValue>
 }
 
 export function buildRunStep(input: BuildRunStepInput): AgentRunStep {
@@ -29,6 +30,7 @@ export function buildRunStep(input: BuildRunStepInput): AgentRunStep {
       roundSource: input.round.roundSource,
     } : {}),
     ...(input.toolName ? { toolName: input.toolName } : {}),
+    ...(input.args ? { args: input.args } : {}),
     createdAt: input.createdAt,
   }
 }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentPlan, AgentRun, AgentTask, UpdatePlanTaskInput } from '../state/types.js'
+import type { AgentTaskGraph, AgentRun, AgentTask, UpdateTaskGraphTaskInput } from '../state/types.js'
 import { applyPlanTaskUpdate } from '../state/planTaskUpdate.js'
 import {
   applyRuntimeSubagentCancellationFlow,
@@ -14,11 +14,11 @@ import {
 test('cancelPendingRuntimeSubagentTask cancels a pending task through the update boundary', () => {
   const store = new InMemoryAgentStore()
   store.createTask(makeTask({ metadata: { subagentName: 'Writer' }, progress: 0.25 }))
-  const updates: UpdatePlanTaskInput[] = []
+  const updates: UpdateTaskGraphTaskInput[] = []
 
   const result = cancelPendingRuntimeSubagentTask({
     store,
-    plannerRun: makeRun({ planId: 'plan_1' }),
+    plannerRun: makeRun({ taskGraphId: 'task_graph_1' }),
     taskId: 'task_1',
     reason: 'No longer needed.',
     updateTask: (taskId, update) => {
@@ -38,7 +38,7 @@ test('cancelPendingRuntimeSubagentTask cancels a pending task through the update
   })
 
   assert.equal(result.status, 'cancelled')
-  assert.equal(result.planId, 'plan_1')
+  assert.equal(result.taskGraphId, 'task_graph_1')
   assert.equal(result.plannerRunId, 'run_planner')
   assert.equal((result.target.task as Record<string, unknown>).subagentName, 'Writer')
   assert.deepEqual(result.cancelledRunIds, [])
@@ -52,7 +52,7 @@ test('cancelPendingRuntimeSubagentTask returns unchanged for non-cancellable uno
 
   const result = cancelPendingRuntimeSubagentTask({
     store,
-    plannerRun: makeRun({ planId: 'plan_1' }),
+    plannerRun: makeRun({ taskGraphId: 'task_graph_1' }),
     taskId: 'task_1',
     updateTask: () => {
       throw new Error('updateTask should not be called')
@@ -63,10 +63,10 @@ test('cancelPendingRuntimeSubagentTask returns unchanged for non-cancellable uno
   assert.equal((result.target.task as Record<string, unknown>).status, 'done')
 })
 
-test('cancelPendingRuntimeSubagentTask validates planner plan and task ownership boundaries', () => {
+test('cancelPendingRuntimeSubagentTask validates planner taskGraph and task ownership boundaries', () => {
   const store = new InMemoryAgentStore()
-  store.createTask(makeTask({ id: 'task_1', planId: 'plan_1' }))
-  store.createTask(makeTask({ id: 'task_2', planId: 'plan_2' }))
+  store.createTask(makeTask({ id: 'task_1', taskGraphId: 'task_graph_1' }))
+  store.createTask(makeTask({ id: 'task_2', taskGraphId: 'task_graph_2' }))
   store.createTask(makeTask({ id: 'task_3', ownerRunId: 'run_worker' }))
 
   assert.throws(() => cancelPendingRuntimeSubagentTask({
@@ -78,14 +78,14 @@ test('cancelPendingRuntimeSubagentTask validates planner plan and task ownership
 
   assert.throws(() => cancelPendingRuntimeSubagentTask({
     store,
-    plannerRun: makeRun({ planId: 'plan_1' }),
+    plannerRun: makeRun({ taskGraphId: 'task_graph_1' }),
     taskId: 'task_2',
     updateTask: failUpdate,
-  }), /task task_2 does not belong to plan plan_1/)
+  }), /task task_2 does not belong to task graph task_graph_1/)
 
   assert.throws(() => cancelPendingRuntimeSubagentTask({
     store,
-    plannerRun: makeRun({ planId: 'plan_1' }),
+    plannerRun: makeRun({ taskGraphId: 'task_graph_1' }),
     taskId: 'task_3',
     updateTask: failUpdate,
   }), /task task_3 is already owned by run run_worker/)
@@ -99,14 +99,14 @@ test('buildRuntimePendingSubagentTaskCancellationResult attaches a subagent snap
   const result = buildRuntimePendingSubagentTaskCancellationResult({
     result: {
       status: 'cancelled',
-      planId: 'plan_1',
+      taskGraphId: 'task_graph_1',
       plannerRunId: 'run_planner',
       target: { kind: 'task', task: task as unknown as Record<string, never> },
       cancelledRunIds: [],
     },
-    getPlanSnapshot: () => ({
-      plan: makePlan(),
-      tasks: store.listTasks('plan_1'),
+    getTaskGraphSnapshot: () => ({
+      taskGraph: makeTaskGraph(),
+      tasks: store.listTasks('task_graph_1'),
       runs: [],
     }),
   })
@@ -123,47 +123,47 @@ test('resolveRuntimeSubagentCancellationTarget resolves pending task and worker 
   store.createRun(makeRun({
     id: 'run_worker',
     role: 'worker',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_owned',
   }))
 
   assert.deepEqual(resolveRuntimeSubagentCancellationTarget({
     store,
-    plannerRun: makeRun({ planId: 'plan_1' }),
+    plannerRun: makeRun({ taskGraphId: 'task_graph_1' }),
     request: { subagentName: 'Ada' },
   }), {
     kind: 'pending_task',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     plannerRunId: 'run_planner',
     taskId: 'task_pending',
   })
   assert.deepEqual(resolveRuntimeSubagentCancellationTarget({
     store,
-    plannerRun: makeRun({ planId: 'plan_1' }),
+    plannerRun: makeRun({ taskGraphId: 'task_graph_1' }),
     request: { taskId: 'task_owned' },
   }), {
     kind: 'run',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     plannerRunId: 'run_planner',
     runId: 'run_worker',
   })
 })
 
-test('resolveRuntimeSubagentCancellationTarget rejects non-worker and cross-plan runs', () => {
+test('resolveRuntimeSubagentCancellationTarget rejects non-worker and cross-taskGraph runs', () => {
   const store = new InMemoryAgentStore()
-  store.createRun(makeRun({ id: 'run_planner_target', role: 'planner', planId: 'plan_1' }))
-  store.createRun(makeRun({ id: 'run_other', role: 'worker', planId: 'plan_2' }))
+  store.createRun(makeRun({ id: 'run_planner_target', role: 'planner', taskGraphId: 'task_graph_1' }))
+  store.createRun(makeRun({ id: 'run_other', role: 'worker', taskGraphId: 'task_graph_2' }))
 
   assert.throws(() => resolveRuntimeSubagentCancellationTarget({
     store,
-    plannerRun: makeRun({ planId: 'plan_1' }),
+    plannerRun: makeRun({ taskGraphId: 'task_graph_1' }),
     request: { runId: 'run_planner_target' },
   }), /can only cancel worker subagent runs/)
   assert.throws(() => resolveRuntimeSubagentCancellationTarget({
     store,
-    plannerRun: makeRun({ planId: 'plan_1' }),
+    plannerRun: makeRun({ taskGraphId: 'task_graph_1' }),
     request: { runId: 'run_other' },
-  }), /run run_other does not belong to plan plan_1/)
+  }), /run run_other does not belong to task graph task_graph_1/)
 })
 
 test('buildRuntimeSubagentRunCancellationResult summarizes the cancelled worker and snapshot', () => {
@@ -172,21 +172,21 @@ test('buildRuntimeSubagentRunCancellationResult summarizes the cancelled worker 
   store.createRun(makeRun({
     id: 'run_worker',
     role: 'worker',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_1',
     status: 'cancelled',
   }))
-  const plan = makePlan()
+  const taskGraph = makeTaskGraph()
 
   const result = buildRuntimeSubagentRunCancellationResult({
     store,
-    plannerRun: makeRun({ planId: 'plan_1' }),
+    plannerRun: makeRun({ taskGraphId: 'task_graph_1' }),
     runId: 'run_worker',
     cancelledRunIds: ['run_worker'],
-    getPlanSnapshot: () => ({
-      plan,
-      tasks: store.listTasks('plan_1'),
-      runs: store.listRuns({ planId: 'plan_1' }),
+    getTaskGraphSnapshot: () => ({
+      taskGraph,
+      tasks: store.listTasks('task_graph_1'),
+      runs: store.listRuns({ taskGraphId: 'task_graph_1' }),
     }),
   })
 
@@ -198,7 +198,7 @@ test('buildRuntimeSubagentRunCancellationResult summarizes the cancelled worker 
 
 test('applyRuntimeSubagentCancellationFlow cancels pending task targets through update boundary', () => {
   const store = new InMemoryAgentStore()
-  store.createRun(makeRun({ planId: 'plan_1' }))
+  store.createRun(makeRun({ taskGraphId: 'task_graph_1' }))
   store.createTask(makeTask({ id: 'task_pending', metadata: { subagentName: 'Writer' } }))
   const calls: string[] = []
 
@@ -213,9 +213,9 @@ test('applyRuntimeSubagentCancellationFlow cancels pending task targets through 
     cancelSubtree: () => {
       throw new Error('cancelSubtree should not be called')
     },
-    getPlanSnapshot: () => ({
-      plan: makePlan(),
-      tasks: store.listTasks('plan_1'),
+    getTaskGraphSnapshot: () => ({
+      taskGraph: makeTaskGraph(),
+      tasks: store.listTasks('task_graph_1'),
       runs: [],
     }),
   }) as Record<string, unknown>
@@ -228,12 +228,12 @@ test('applyRuntimeSubagentCancellationFlow cancels pending task targets through 
 
 test('applyRuntimeSubagentCancellationFlow cancels worker run targets through subtree boundary', () => {
   const store = new InMemoryAgentStore()
-  store.createRun(makeRun({ planId: 'plan_1' }))
+  store.createRun(makeRun({ taskGraphId: 'task_graph_1' }))
   store.createTask(makeTask({ id: 'task_owned', ownerRunId: 'run_worker', metadata: { subagentName: 'Turing' } }))
   store.createRun(makeRun({
     id: 'run_worker',
     role: 'worker',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_owned',
     status: 'cancelled',
   }))
@@ -250,10 +250,10 @@ test('applyRuntimeSubagentCancellationFlow cancels worker run targets through su
       calls.push(`cancel:${runId}:${input?.reason}`)
       return { cancelledRunIds: [runId] }
     },
-    getPlanSnapshot: () => ({
-      plan: makePlan(),
-      tasks: store.listTasks('plan_1'),
-      runs: store.listRuns({ planId: 'plan_1' }),
+    getTaskGraphSnapshot: () => ({
+      taskGraph: makeTaskGraph(),
+      tasks: store.listTasks('task_graph_1'),
+      runs: store.listRuns({ taskGraphId: 'task_graph_1' }),
     }),
   }) as Record<string, unknown>
 
@@ -265,7 +265,7 @@ test('applyRuntimeSubagentCancellationFlow cancels worker run targets through su
 
 test('applyRuntimeSubagentCancellationFlow validates the planner run before cancellation side effects', () => {
   const store = new InMemoryAgentStore()
-  store.createRun(makeRun({ id: 'run_worker', role: 'worker', planId: 'plan_1' }))
+  store.createRun(makeRun({ id: 'run_worker', role: 'worker', taskGraphId: 'task_graph_1' }))
   store.createTask(makeTask({ id: 'task_pending', metadata: { subagentName: 'Writer' } }))
 
   const input = {
@@ -275,10 +275,10 @@ test('applyRuntimeSubagentCancellationFlow validates the planner run before canc
     cancelSubtree: () => {
       throw new Error('cancelSubtree should not be called')
     },
-    getPlanSnapshot: () => ({
-      plan: makePlan(),
-      tasks: store.listTasks('plan_1'),
-      runs: store.listRuns({ planId: 'plan_1' }),
+    getTaskGraphSnapshot: () => ({
+      taskGraph: makeTaskGraph(),
+      tasks: store.listTasks('task_graph_1'),
+      runs: store.listRuns({ taskGraphId: 'task_graph_1' }),
     }),
   }
 
@@ -296,14 +296,14 @@ function failUpdate(): AgentTask {
   throw new Error('updateTask should not be called')
 }
 
-function applyTaskUpdate(store: InMemoryAgentStore, taskId: string, update: UpdatePlanTaskInput): AgentTask {
+function applyTaskUpdate(store: InMemoryAgentStore, taskId: string, update: UpdateTaskGraphTaskInput): AgentTask {
   const task = store.getTask(taskId)
   assert.ok(task)
   applyPlanTaskUpdate({
     task,
     update,
     now: '2026-01-01T00:00:01.000Z',
-    planTasks: store.listTasks(task.planId),
+    planTasks: store.listTasks(task.taskGraphId),
     getTask: (id) => store.getTask(id),
   })
   store.updateTask(task)
@@ -333,7 +333,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'pending',
@@ -345,12 +345,12 @@ function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   }
 }
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
     rootRunId: 'run_planner',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',

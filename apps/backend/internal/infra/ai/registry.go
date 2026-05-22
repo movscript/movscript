@@ -85,6 +85,10 @@ func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelD
 		return NewVolcenAdapter(baseURL, apiKey), nil
 	case AdapterGemini:
 		return NewGeminiAdapter(apiKey, baseURL), nil
+	case AdapterDashScope:
+		return NewDashScopeAdapter(apiKey, baseURL), nil
+	case AdapterVidu:
+		return NewViduAdapter(apiKey, baseURL), nil
 	default: // openai_compat — handles text, image (text-to-image), image_edit, and openai-compat video
 		return NewOpenAIAdapter(baseURL, apiKey), nil
 	}

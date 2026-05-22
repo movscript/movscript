@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import type { AppSettings } from '@/lib/config'
+import type { GenerationToolServer, GenerationToolsSettings } from '@/lib/generationTools'
 
 type BackendStatus = {
   state: 'idle' | 'starting' | 'ready' | 'error' | 'stopped'
@@ -26,6 +27,15 @@ declare global {
       updateMCPContext?: (snapshot: unknown) => Promise<void>
       getMCPStatus?: () => Promise<MCPServerStatus>
       setAppSettings?: (settings: AppSettings) => Promise<void>
+      setGenerationToolsSettings?: (settings: GenerationToolsSettings) => Promise<void>
+      testGenerationToolServer?: (server: Partial<GenerationToolServer>) => Promise<{
+        success: boolean
+        latency_ms?: number
+        status_code?: number
+        message?: string
+        server?: unknown
+        data?: unknown
+      }>
       onBackendStatus?: (handler: (status: BackendStatus) => void) => () => void
       getBackendStatus?: () => Promise<BackendStatus>
       openAdminConsole?: (input?: { baseURL?: string; path?: string }) => Promise<{ url: string }>

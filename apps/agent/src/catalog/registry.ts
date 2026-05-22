@@ -46,8 +46,8 @@ export function buildLayeredCatalogRegistry(input: {
   for (const skill of input.layeredSkills ?? []) registry.skills.set(skill.id, skill)
   for (const pack of input.packs ?? []) registry.packs.set(pack.id, pack)
   for (const collection of input.knowledgeCollections ?? []) registry.knowledge.set(collection.id, collection)
-  registry.packs.set('movscript.pack.default', {
-    id: 'movscript.pack.default',
+  registry.packs.set('core.pack.default', {
+    id: 'core.pack.default',
     version: '1.0.0',
     name: 'Default MovScript Agent Pack',
     description: 'Default pack containing the active built-in and local catalog resources.',
@@ -92,9 +92,9 @@ export function profileFromManifest(manifest: AgentManifest, id = manifest.id, n
     version: manifest.version,
     name,
     ...(manifest.description ? { description: manifest.description } : {}),
-    enabledPacks: ['movscript.pack.default'],
+    enabledPacks: ['core.pack.default'],
     persona: manifest.soul
-      ? 'movscript.persona.default'
+      ? 'core.persona.default'
       : null,
     enabledWorkflows: [],
     enabledPolicies: [],

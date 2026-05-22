@@ -46,7 +46,9 @@ func (w *Worker) prepareVideoInputReferences(job *persistencemodel.Job, imageDat
 	if len(imageData) == 0 && len(videoData) == 0 {
 		return
 	}
-	if w.modelAdapterType(job.ModelConfigID) != ai.AdapterVolcen {
+	switch w.modelAdapterType(job.ModelConfigID) {
+	case ai.AdapterVolcen, ai.AdapterDashScope, ai.AdapterVidu:
+	default:
 		return
 	}
 	if len(imageData) > 0 {

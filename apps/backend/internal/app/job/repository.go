@@ -111,7 +111,7 @@ func (r *gormRepository) canUseInputResource(ctx context.Context, resource persi
 	if !r.inOrgScope(ctx, resource.OrgID, orgID, resource.OwnerID, userID) {
 		return false
 	}
-	if resource.OwnerID == userID || resource.IsShared {
+	if resource.OwnerID == userID || resource.IsShared || resourceInCurrentTeam(resource.OrgID, orgID) {
 		return true
 	}
 	if resource.FolderID == nil {
@@ -134,6 +134,10 @@ func (r *gormRepository) canUseInputResource(ctx context.Context, resource persi
 		Where("folder_id = ? AND user_id = ? AND permission IN ?", folder.ID, userID, []string{domainresourcefolder.PermissionRead, domainresourcefolder.PermissionWrite}).
 		First(&permission).Error
 	return err == nil
+}
+
+func resourceInCurrentTeam(resourceOrgID, currentOrgID *uint) bool {
+	return resourceOrgID != nil && currentOrgID != nil && *resourceOrgID == *currentOrgID
 }
 
 func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint, modelConfigIDs []uint) (ResponseLookups, error) {

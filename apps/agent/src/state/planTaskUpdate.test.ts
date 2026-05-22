@@ -75,8 +75,8 @@ test('applyPlanTaskUpdate rejects missing foreign and self graph references', ()
     update: { parentId: 'task_other' },
     now: 'now',
     planTasks: [task],
-    getTask: () => taskFixture({ id: 'task_other', planId: 'plan_2' }),
-  }), /parent task task_other does not belong to plan plan_1/)
+    getTask: () => taskFixture({ id: 'task_other', taskGraphId: 'task_graph_2' }),
+  }), /parent task task_other does not belong to task graph task_graph_1/)
   assert.throws(() => applyPlanTaskUpdate({
     task,
     update: { deps: ['task_1'] },
@@ -149,7 +149,7 @@ test('applyPlanTaskUpdate stores a deep copy of metadata updates', () => {
 function taskFixture(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'pending',

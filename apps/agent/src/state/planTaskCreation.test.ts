@@ -9,7 +9,7 @@ import type { AgentTask } from './types.js'
 test('buildAndValidatePlanTasksToCreate builds tasks and validates requested subagent names', () => {
   const requested: string[] = []
   const tasks = buildAndValidatePlanTasksToCreate({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     inputs: [{
       id: 'task_1',
       title: 'Task',
@@ -33,7 +33,7 @@ test('buildAndValidatePlanTasksToCreate ignores non-plain metadata subagent name
   const requested: string[] = []
 
   buildAndValidatePlanTasksToCreate({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     inputs: [{
       id: 'task_1',
       title: 'Task',
@@ -51,47 +51,47 @@ test('buildAndValidatePlanTasksToCreate ignores non-plain metadata subagent name
 
 test('buildAndValidatePlanTasksToCreate rejects existing and duplicate task ids', () => {
   assert.throws(() => buildAndValidatePlanTasksToCreate({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     inputs: [{ id: 'task_1', title: 'Task' }],
     now: 'now',
     getTask: () => task({ id: 'task_1' }),
   }), /task already exists: task_1/)
   assert.throws(() => buildAndValidatePlanTasksToCreate({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     inputs: [{ id: 'task_1', title: 'Task 1' }, { id: 'task_1', title: 'Task 2' }],
     now: 'now',
     getTask: () => undefined,
   }), /task already exists: task_1/)
 })
 
-test('assertTaskCreateReferences accepts references to newly created tasks and existing plan tasks', () => {
+test('assertTaskCreateReferences accepts references to newly created tasks and existing task graph tasks', () => {
   const created = [
     task({ id: 'task_1', parentId: 'task_2', deps: ['task_existing'] }),
     task({ id: 'task_2' }),
   ]
-  assert.doesNotThrow(() => assertTaskCreateReferences('plan_1', created, (taskId) => (
+  assert.doesNotThrow(() => assertTaskCreateReferences('task_graph_1', created, (taskId) => (
     taskId === 'task_existing' ? task({ id: 'task_existing' }) : undefined
   )))
 })
 
 test('assertTaskCreateReferences rejects self references and foreign references', () => {
-  assert.throws(() => assertTaskCreateReferences('plan_1', [
+  assert.throws(() => assertTaskCreateReferences('task_graph_1', [
     task({ id: 'task_1', parentId: 'task_1' }),
   ], () => undefined), /task task_1 cannot use itself as parent/)
-  assert.throws(() => assertTaskCreateReferences('plan_1', [
+  assert.throws(() => assertTaskCreateReferences('task_graph_1', [
     task({ id: 'task_1', deps: ['task_1'] }),
   ], () => undefined), /task task_1 cannot depend on itself/)
-  assert.throws(() => assertTaskCreateReferences('plan_1', [
+  assert.throws(() => assertTaskCreateReferences('task_graph_1', [
     task({ id: 'task_1', deps: ['task_other'] }),
-  ], () => task({ id: 'task_other', planId: 'plan_2' })), /dependency task task_other does not belong to plan plan_1/)
-  assert.throws(() => assertTaskCreateReferences('plan_1', [
+  ], () => task({ id: 'task_other', taskGraphId: 'task_graph_2' })), /dependency task task_other does not belong to task graph task_graph_1/)
+  assert.throws(() => assertTaskCreateReferences('task_graph_1', [
     task({ id: 'task_1', deps: ['task_missing'] }),
   ], () => undefined), /task not found: task_missing/)
 })
 
 test('buildAndValidatePlanTasksToCreate rejects cycles across existing and new tasks', () => {
   assert.throws(() => buildAndValidatePlanTasksToCreate({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     existingTasks: [task({ id: 'task_existing', deps: ['task_new'] })],
     inputs: [{ id: 'task_new', title: 'New', deps: ['task_existing'] }],
     now: 'now',
@@ -102,7 +102,7 @@ test('buildAndValidatePlanTasksToCreate rejects cycles across existing and new t
 function task(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'pending',

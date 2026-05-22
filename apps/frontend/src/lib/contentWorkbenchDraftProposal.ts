@@ -47,11 +47,11 @@ export function contentWorkbenchProposalSnapshot(unit: ContentWorkbenchProposalP
 export function contentWorkbenchProposalDefaults(unit: ContentWorkbenchProposalPayload): ContentWorkbenchProposalDefaults {
   const shot = isRecord(unit.shot) ? unit.shot : {}
   const durationSec = numberOf(unit.duration_sec)
-  const visualPlan = isRecord(unit.visual_plan) ? unit.visual_plan : null
+  const visualTaskGraph = isRecord(unit.visual_taskGraph) ? unit.visual_taskGraph : null
   const storyboardBrief = isRecord(unit.storyboard_brief) ? unit.storyboard_brief : null
-  const metadata = visualPlan || storyboardBrief
+  const metadata = visualTaskGraph || storyboardBrief
     ? {
-      ...(visualPlan ? { visual_plan: visualPlan } : {}),
+      ...(visualTaskGraph ? { visual_taskGraph: visualTaskGraph } : {}),
       ...(storyboardBrief ? { storyboard_brief: storyboardBrief } : {}),
     }
     : null

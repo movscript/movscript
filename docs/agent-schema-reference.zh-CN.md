@@ -17,7 +17,7 @@ JSON Schema 的权威文件仍位于 `contracts/agent/`；本文档解释职责�
 - Runtime 上下文：`baseURL`、`currentProject`、`runtime`、`lastUpdated`。
 - 模型上下文：`modelConfig`、`modelConfigError`。
 - 观测上下文：`observationCoverage`、`evidenceChecklist`、`triageItems`、
-  `remediationPlan`、`runSummary`、`runIssueGroups`、`warnings`、
+  `remediationTaskGraph`、`runSummary`、`runIssueGroups`、`warnings`、
   `warningGroups`、`preview`。
 
 兼容规则：

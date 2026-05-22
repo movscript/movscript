@@ -248,8 +248,8 @@ test('applyRequiredRunAction keeps settled approvals as interaction history', ()
 })
 
 test('mergePendingApprovals preserves same-tool approvals with different args', () => {
-  const first = { ...approval('approval_1', 'runtime_operation_start'), args: { prompt: 'A' } }
-  const second = { ...approval('approval_2', 'runtime_operation_start'), args: { prompt: 'B' } }
+  const first = { ...approval('approval_1', 'core_operation_start'), args: { prompt: 'A' } }
+  const second = { ...approval('approval_2', 'core_operation_start'), args: { prompt: 'B' } }
 
   const merged = mergePendingApprovals([first, second], [second], now)
 

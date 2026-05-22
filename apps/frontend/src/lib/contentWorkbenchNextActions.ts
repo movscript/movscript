@@ -1,6 +1,6 @@
 export type ContentWorkbenchNextActionKey =
   | 'select_scene_moment'
-  | 'ai_plan_units'
+  | 'ai_task_graph_units'
   | 'manual_add_unit'
   | 'select_unit'
   | 'complete_unit_prompt'
@@ -47,7 +47,7 @@ export function buildContentWorkbenchNextActions(input: ContentWorkbenchNextActi
   if (input.unitCount === 0) {
     return [
       {
-        key: 'ai_plan_units',
+        key: 'ai_task_graph_units',
         title: '让 AI 规划制作项',
         detail: '当前情节还没有制作项。建议先让 AI 生成 3-6 条候选，再人工确认。',
         tone: 'warning',

@@ -1,0 +1,225 @@
+{
+  "name": "candidate_asset_slot_attach",
+  "description": "把一个已有 raw resource 加入某个 asset slot 的候选集。通常在 generation_job runtime operation 成功返回 output_resource_id 后调用。Agent 自动流程应在每个资源可用后单独调用一次。该工具只创建/复用 candidate asset slot 和 asset_slot_candidate 关系，不会 accept、select、bind 或 lock 候选。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "projectId": {
+        "type": "number"
+      },
+      "asset_slot_id": {
+        "type": "number",
+        "minimum": 1,
+        "description": "目标素材位 / asset requirement ID。"
+      },
+      "assetSlotId": {
+        "type": "number",
+        "minimum": 1,
+        "description": "asset_slot_id 的别名。"
+      },
+      "resource_id": {
+        "type": "number",
+        "minimum": 1,
+        "description": "已有 raw resource ID，通常来自 generation_job runtime operation 的 output_resource_id。"
+      },
+      "resourceId": {
+        "type": "number",
+        "minimum": 1,
+        "description": "resource_id 的别名。"
+      },
+      "output_resource_id": {
+        "type": "number",
+        "minimum": 1,
+        "description": "resource_id 的别名，可直接传 generation_job runtime operation 的 output_resource_id。"
+      },
+      "outputResourceId": {
+        "type": "number",
+        "minimum": 1,
+        "description": "output_resource_id 的别名。"
+      },
+      "resource_ids": {
+        "type": "array",
+        "items": {
+          "type": "number",
+          "minimum": 1
+        },
+        "description": "批量加入候选的已有 raw resource ID 列表。"
+      },
+      "resourceIds": {
+        "type": "array",
+        "items": {
+          "type": "number",
+          "minimum": 1
+        },
+        "description": "resource_ids 的别名。"
+      },
+      "output_resource_ids": {
+        "type": "array",
+        "items": {
+          "type": "number",
+          "minimum": 1
+        },
+        "description": "resource_ids 的别名，可直接传 generation_job runtime operation 的 output_resource_ids。"
+      },
+      "outputResourceIds": {
+        "type": "array",
+        "items": {
+          "type": "number",
+          "minimum": 1
+        },
+        "description": "output_resource_ids 的别名。"
+      },
+      "source_type": {
+        "type": "string",
+        "description": "可选审计来源类型。默认 agent。"
+      },
+      "sourceType": {
+        "type": "string",
+        "description": "source_type 的别名。"
+      },
+      "source_id": {
+        "type": "number",
+        "description": "可选来源实体、生成任务或画布 ID。"
+      },
+      "sourceId": {
+        "type": "number",
+        "description": "source_id 的别名。"
+      },
+      "jobId": {
+        "type": "number",
+        "description": "当来源是生成任务时，source_id 的别名。"
+      },
+      "score": {
+        "type": "number"
+      },
+      "note": {
+        "type": "string"
+      }
+    },
+    "allOf": [
+      {
+        "anyOf": [
+          {
+            "required": [
+              "asset_slot_id"
+            ]
+          },
+          {
+            "required": [
+              "assetSlotId"
+            ]
+          }
+        ]
+      },
+      {
+        "anyOf": [
+          {
+            "required": [
+              "resource_id"
+            ]
+          },
+          {
+            "required": [
+              "resourceId"
+            ]
+          },
+          {
+            "required": [
+              "output_resource_id"
+            ]
+          },
+          {
+            "required": [
+              "outputResourceId"
+            ]
+          },
+          {
+            "required": [
+              "resource_ids"
+            ]
+          },
+          {
+            "required": [
+              "resourceIds"
+            ]
+          },
+          {
+            "required": [
+              "output_resource_ids"
+            ]
+          },
+          {
+            "required": [
+              "outputResourceIds"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "outputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "status",
+      "candidate",
+      "asset_slot_id",
+      "resource_id",
+      "message"
+    ],
+    "properties": {
+      "status": {
+        "type": "string"
+      },
+      "candidate": {
+        "type": "object"
+      },
+      "candidates": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "asset_slot_id": {
+        "type": "number"
+      },
+      "candidate_asset_slot_id": {
+        "type": "number"
+      },
+      "candidate_asset_slot_ids": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        }
+      },
+      "resource_id": {
+        "type": "number"
+      },
+      "resource_ids": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        }
+      },
+      "skipped_resource_ids": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "description": "目标候选集中已经存在、因此未重复写入的资源 ID。"
+      },
+      "message": {
+        "type": "string"
+      }
+    }
+  },
+  "permission": "asset.candidate.write",
+  "risk": "write",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "on_write"
+  },
+  "source": "runtime"
+}

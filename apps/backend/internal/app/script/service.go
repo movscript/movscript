@@ -12,8 +12,9 @@ import (
 )
 
 var (
-	ErrNotFound    = errors.New("script not found")
-	ErrVersionSync = errors.New("script version sync failed")
+	ErrNotFound        = errors.New("script not found")
+	ErrProjectMismatch = errors.New("script does not belong to project")
+	ErrVersionSync     = errors.New("script version sync failed")
 )
 
 type Service struct {
@@ -36,6 +37,7 @@ type CreateInput struct {
 
 type UpdateInput struct {
 	ID          uint
+	ProjectID   uint
 	UpdatedByID *uint
 	Script      dto.ScriptInput
 }
@@ -69,10 +71,24 @@ func (s *Service) Get(ctx context.Context, id uint) (domainscript.ScriptSnapshot
 	return s.repo.GetScript(ctx, id)
 }
 
+func (s *Service) GetForProject(ctx context.Context, projectID uint, id uint) (domainscript.ScriptSnapshot, error) {
+	item, err := s.Get(ctx, id)
+	if err != nil {
+		return item, err
+	}
+	if item.ProjectID != projectID {
+		return domainscript.ScriptSnapshot{}, ErrProjectMismatch
+	}
+	return item, nil
+}
+
 func (s *Service) Update(ctx context.Context, input UpdateInput) (domainscript.ScriptSnapshot, error) {
 	item, err := s.Get(ctx, input.ID)
 	if err != nil {
 		return item, err
+	}
+	if input.ProjectID != 0 && item.ProjectID != input.ProjectID {
+		return domainscript.ScriptSnapshot{}, ErrProjectMismatch
 	}
 	projectID := item.ProjectID
 	next := scriptSnapshotFromInput(input.Script)
@@ -98,6 +114,18 @@ func (s *Service) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 	s.bumpProgressVersion(ctx, projectID)
+	return nil
+}
+
+func (s *Service) DeleteForProject(ctx context.Context, projectID uint, id uint) error {
+	item, err := s.GetForProject(ctx, projectID, id)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.DeleteScriptByID(ctx, id); err != nil {
+		return err
+	}
+	s.bumpProgressVersion(ctx, item.ProjectID)
 	return nil
 }
 

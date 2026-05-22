@@ -8,31 +8,31 @@ import {
   buildReplanTaskResetPolicy,
   hasReplanTaskResetPolicy,
   retryablePlanTask,
-  shouldResetTaskForReplan,
+  shouldResetTaskForRetaskGraph,
 } from '../state/planWorkerMaintenance.js'
 import { snapshotTaskForProtocolEvent } from '../state/taskProtocolEvent.js'
 
-export interface RuntimePlanTaskChange {
+export interface RuntimeTaskGraphTaskChange {
   task: AgentTask
   previousTask: AgentTask
 }
 
 export interface RuntimeRetryablePlanTasksResult {
   retriedTaskIds: string[]
-  changes: RuntimePlanTaskChange[]
+  changes: RuntimeTaskGraphTaskChange[]
 }
 
-export function resetRetryableRuntimePlanTasks(input: {
+export function resetRetryableRuntimeTaskGraphTasks(input: {
   store: Pick<AgentStore, 'listTasks' | 'listRuns' | 'updateTask'>
-  planId: string
+  taskGraphId: string
   maxTaskAttempts: number
   now: string
 }): RuntimeRetryablePlanTasksResult {
-  const changes: RuntimePlanTaskChange[] = []
+  const changes: RuntimeTaskGraphTaskChange[] = []
   const retriedTaskIds: string[] = []
 
-  for (const task of input.store.listTasks(input.planId)) {
-    const attempts = input.store.listRuns({ planId: input.planId, taskId: task.id, role: 'worker' }).length
+  for (const task of input.store.listTasks(input.taskGraphId)) {
+    const attempts = input.store.listRuns({ taskGraphId: input.taskGraphId, taskId: task.id, role: 'worker' }).length
     const retry = retryablePlanTask({ task, attempts, defaultMaxTaskAttempts: input.maxTaskAttempts })
     if (!retry) continue
 
@@ -48,13 +48,13 @@ export function resetRetryableRuntimePlanTasks(input: {
 
 export function applyRuntimeRetryablePlanTaskReset(input: {
   store: Pick<AgentStore, 'listTasks' | 'listRuns' | 'updateTask'>
-  planId: string
+  taskGraphId: string
   maxTaskAttempts: number
   now: string
   onTaskReset?: (task: AgentTask, previousTask: AgentTask) => void
   onTasksReset?: (retriedTaskIds: string[]) => void
 }): RuntimeRetryablePlanTasksResult {
-  const result = resetRetryableRuntimePlanTasks(input)
+  const result = resetRetryableRuntimeTaskGraphTasks(input)
   for (const { task, previousTask } of result.changes) {
     input.onTaskReset?.(task, previousTask)
   }
@@ -66,12 +66,12 @@ export function applyRuntimeRetryablePlanTaskReset(input: {
 
 export interface RuntimeReplanTaskResetResult {
   resetTaskIds: string[]
-  changes: RuntimePlanTaskChange[]
+  changes: RuntimeTaskGraphTaskChange[]
 }
 
-export function resetRuntimePlanTasksForReplan(input: {
+export function resetRuntimeTaskGraphTasksForRetaskGraph(input: {
   store: Pick<AgentStore, 'listTasks' | 'updateTask'>
-  planId: string
+  taskGraphId: string
   resetTaskIds?: unknown
   resetBlocked?: unknown
   resetNeedsReview?: unknown
@@ -80,12 +80,12 @@ export function resetRuntimePlanTasksForReplan(input: {
   now: string
 }): RuntimeReplanTaskResetResult {
   const resetTaskIds: string[] = []
-  const changes: RuntimePlanTaskChange[] = []
+  const changes: RuntimeTaskGraphTaskChange[] = []
   const policy = buildReplanTaskResetPolicy(input)
   if (!hasReplanTaskResetPolicy(policy)) return { resetTaskIds, changes }
 
-  for (const task of input.store.listTasks(input.planId)) {
-    if (!shouldResetTaskForReplan(task, policy)) continue
+  for (const task of input.store.listTasks(input.taskGraphId)) {
+    if (!shouldResetTaskForRetaskGraph(task, policy)) continue
 
     const previousTask = snapshotTaskForProtocolEvent(task)
     markTaskReplanPending(task, input.now)
@@ -99,7 +99,7 @@ export function resetRuntimePlanTasksForReplan(input: {
 
 export function applyRuntimeReplanTaskReset(input: {
   store: Pick<AgentStore, 'listTasks' | 'updateTask'>
-  planId: string
+  taskGraphId: string
   resetTaskIds?: unknown
   resetBlocked?: unknown
   resetNeedsReview?: unknown
@@ -108,7 +108,7 @@ export function applyRuntimeReplanTaskReset(input: {
   now: string
   onTaskReset?: (task: AgentTask, previousTask: AgentTask) => void
 }): RuntimeReplanTaskResetResult {
-  const result = resetRuntimePlanTasksForReplan(input)
+  const result = resetRuntimeTaskGraphTasksForRetaskGraph(input)
   for (const { task, previousTask } of result.changes) {
     input.onTaskReset?.(task, previousTask)
   }

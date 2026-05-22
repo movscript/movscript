@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
+import { Badge } from '@movscript/ui'
 import { Tabs, TabsList, TabsTrigger } from '@movscript/ui'
 import { ActiveOrgSelect } from '@/components/admin/ActiveOrgSelect'
 import { ActiveUserSelect } from '@/components/admin/ActiveUserSelect'
@@ -4729,6 +4730,64 @@ interface AdminOverviewSummary {
   audits: { total: number }
 }
 
+type AdminGenerationToolServer = {
+  id: string
+  scope: 'admin' | 'local'
+  type: 'comfyui' | 'webui'
+  name: string
+  enabled: boolean
+  base_url: string
+  timeout_ms: number
+  priority: number
+  auth_kind: 'none' | 'basic' | 'bearer'
+  username?: string
+  password?: string
+  password_set?: boolean
+  token?: string
+  token_set?: boolean
+  tags?: string[]
+}
+
+type AdminGenerationToolsSettings = {
+  servers: AdminGenerationToolServer[]
+  default_server_id?: string
+  default_server_ids?: Partial<Record<AdminGenerationToolServer['type'], string>>
+  allow_local: boolean
+}
+
+type GenerationToolConnectionTestResult = {
+  success: boolean
+  latency_ms?: number
+  status_code?: number
+  message?: string
+}
+
+const emptyAdminGenerationToolsSettings: AdminGenerationToolsSettings = {
+  servers: [],
+  default_server_id: '',
+  default_server_ids: {},
+  allow_local: true,
+}
+
+function createAdminGenerationToolServer(type: AdminGenerationToolServer['type']): AdminGenerationToolServer {
+  const suffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+  return {
+    id: `admin-${type}-${suffix}`,
+    scope: 'admin',
+    type,
+    name: type === 'comfyui' ? '平台 ComfyUI' : '平台 WebUI',
+    enabled: true,
+    base_url: type === 'comfyui' ? 'http://gpu.example.com:8188' : 'http://webui.example.com:7860',
+    timeout_ms: 120000,
+    priority: 50,
+    auth_kind: 'none',
+    username: '',
+    password: '',
+    token: '',
+    tags: [],
+  }
+}
+
 function formatAdminNumber(value: number | undefined): string {
   return typeof value === 'number' ? value.toLocaleString() : '0'
 }
@@ -4743,6 +4802,381 @@ function formatAdminBytes(value: number | undefined): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`
+}
+
+function AdminGenerationToolsPanel() {
+  const qc = useQueryClient()
+  const [form, setForm] = useState<AdminGenerationToolsSettings>(emptyAdminGenerationToolsSettings)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+  const [testingId, setTestingId] = useState<string | null>(null)
+  const [testResults, setTestResults] = useState<Record<string, GenerationToolConnectionTestResult>>({})
+
+  const settingsQuery = useQuery<AdminGenerationToolsSettings>({
+    queryKey: ['admin', 'settings', 'generation-tools'],
+    queryFn: () => api.get('/admin/settings/generation-tools').then((r) => r.data),
+  })
+
+  useEffect(() => {
+    if (!settingsQuery.data) return
+    setForm({
+      ...emptyAdminGenerationToolsSettings,
+      ...settingsQuery.data,
+      default_server_ids: settingsQuery.data.default_server_ids ?? {},
+      servers: (settingsQuery.data.servers ?? []).map((server) => ({
+        ...server,
+        password: '',
+        token: '',
+        tags: server.tags ?? [],
+      })),
+    })
+  }, [settingsQuery.data])
+
+  const updateSettings = useMutation({
+    mutationFn: (payload: AdminGenerationToolsSettings) =>
+      api.put('/admin/settings/generation-tools', payload).then((r) => r.data as AdminGenerationToolsSettings),
+    onSuccess: (updated) => {
+      setError('')
+      setSaved(true)
+      qc.setQueryData(['admin', 'settings', 'generation-tools'], updated)
+      setForm({
+        ...emptyAdminGenerationToolsSettings,
+        ...updated,
+        default_server_ids: updated.default_server_ids ?? {},
+        servers: (updated.servers ?? []).map((server) => ({ ...server, password: '', token: '', tags: server.tags ?? [] })),
+      })
+      setTestResults({})
+      setTimeout(() => setSaved(false), 1800)
+    },
+    onError: (err: unknown) => setError(translateAPIRequestError(err)),
+  })
+
+  const invalidServers = form.servers.filter((server) => !adminGenerationToolServerValid(server))
+  const canSave = invalidServers.length === 0
+  const enabledCount = form.servers.filter((server) => server.enabled).length
+  const savedServersById = new Map((settingsQuery.data?.servers ?? []).map((server) => [server.id, server]))
+
+  function patchServer(id: string, patch: Partial<AdminGenerationToolServer>) {
+    setForm((current) => ({
+      ...current,
+      servers: current.servers.map((server) => server.id === id ? { ...server, ...patch } : server),
+      default_server_id: patch.enabled === false && current.default_server_id === id ? '' : current.default_server_id,
+      default_server_ids: patch.enabled === false ? clearAdminGenerationToolDefaultServerID(current.default_server_ids, id) : current.default_server_ids,
+    }))
+    setTestResults((current) => omitRecordKey(current, id))
+  }
+
+  function removeServer(id: string) {
+    setForm((current) => ({
+      ...current,
+      servers: current.servers.filter((server) => server.id !== id),
+      default_server_id: current.default_server_id === id ? '' : current.default_server_id,
+      default_server_ids: clearAdminGenerationToolDefaultServerID(current.default_server_ids, id),
+    }))
+    setTestResults((current) => omitRecordKey(current, id))
+  }
+
+  function addServer(type: AdminGenerationToolServer['type']) {
+    setForm((current) => ({ ...current, servers: [...current.servers, createAdminGenerationToolServer(type)] }))
+  }
+
+  function save() {
+    if (!canSave) return
+    updateSettings.mutate({
+      allow_local: form.allow_local,
+      default_server_id: form.default_server_id || '',
+      default_server_ids: form.default_server_ids ?? {},
+      servers: form.servers.map((server) => ({
+        ...server,
+        scope: 'admin',
+        base_url: server.base_url.trim(),
+        name: server.name.trim(),
+        username: server.username?.trim() ?? '',
+        timeout_ms: Number(server.timeout_ms) || 120000,
+        priority: Number(server.priority) || 0,
+        tags: normalizeAdminGenerationToolTags(server.tags),
+      })),
+    })
+  }
+
+  async function testSavedServer(server: AdminGenerationToolServer) {
+    const savedServer = savedServersById.get(server.id)
+    if (!savedServer || !adminGenerationToolServerMatchesSaved(server, savedServer) || !adminGenerationToolServerValid(server) || !server.enabled) {
+      setTestResults((current) => ({
+        ...current,
+        [server.id]: { success: false, message: '请先保存当前配置再测试连接' },
+      }))
+      return
+    }
+    setTestingId(server.id)
+    try {
+      const startedAt = Date.now()
+      const response = await api.post('/generation-tools/call', {
+        tool_type: server.type,
+        server_id: server.id,
+        server_scope: 'admin',
+        operation: 'status',
+      })
+      setTestResults((current) => ({
+        ...current,
+        [server.id]: {
+          success: true,
+          latency_ms: Date.now() - startedAt,
+          status_code: response.status,
+          message: '连接正常',
+        },
+      }))
+    } catch (err: unknown) {
+      setTestResults((current) => ({
+        ...current,
+        [server.id]: { success: false, message: translateAPIRequestError(err) },
+      }))
+    } finally {
+      setTestingId(null)
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-border bg-card p-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">平台全局生成服务器</h2>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            管理平台级 ComfyUI / WebUI 兜底服务。组织可以在工作区设置里配置自己的共享服务器；本机 127.0.0.1 请放在客户端控制台配置。
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {saved && <span className="text-xs text-primary">已保存</span>}
+          <Button type="button" size="sm" variant="outline" onClick={() => addServer('comfyui')}>添加 ComfyUI</Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => addServer('webui')}>添加 WebUI</Button>
+          <Button type="button" size="sm" onClick={save} disabled={updateSettings.isPending || !canSave}>
+            {updateSettings.isPending ? '保存中…' : '保存共享配置'}
+          </Button>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Badge variant={enabledCount > 0 ? 'success' : 'secondary'}>{enabledCount > 0 ? `${enabledCount} 个全局服务器已启用` : '未启用全局服务器'}</Badge>
+        <label className="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={form.allow_local}
+            onChange={(event) => setForm((current) => ({ ...current, allow_local: event.target.checked }))}
+          />
+          允许用户使用本地控制台配置覆盖
+        </label>
+      </div>
+
+      {(settingsQuery.error || error || !canSave) && (
+        <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {settingsQuery.error
+            ? translateAPIRequestError(settingsQuery.error)
+            : error || '启用服务器时 Base URL 必须以 http:// 或 https:// 开头，超时范围为 1000 到 600000 ms。'}
+        </div>
+      )}
+
+      <div className="mt-4 grid gap-3 xl:grid-cols-2">
+        {form.servers.length === 0 ? (
+          <div className="rounded-md border border-dashed border-border bg-background p-4 text-xs text-muted-foreground">
+            尚未配置平台全局生成服务器。可以先添加一台远程 ComfyUI 或 WebUI。
+          </div>
+        ) : form.servers.map((server) => {
+          const savedServer = savedServersById.get(server.id)
+          const canTestSavedServer = server.enabled
+            && adminGenerationToolServerValid(server)
+            && Boolean(savedServer)
+            && adminGenerationToolServerMatchesSaved(server, savedServer)
+          return (
+            <AdminGenerationToolServerCard
+              key={server.id}
+              server={server}
+              isDefault={form.default_server_ids?.[server.type] === server.id || (!form.default_server_ids?.[server.type] && form.default_server_id === server.id)}
+              onPatch={(patch) => patchServer(server.id, patch)}
+              onRemove={() => removeServer(server.id)}
+              onDefault={() => setForm((current) => ({
+                ...current,
+                default_server_id: current.default_server_id === server.id ? '' : current.default_server_id,
+                default_server_ids: {
+                  ...(current.default_server_ids ?? {}),
+                  [server.type]: current.default_server_ids?.[server.type] === server.id ? undefined : server.id,
+                },
+              }))}
+              testResult={testResults[server.id]}
+              testing={testingId === server.id}
+              canTest={canTestSavedServer}
+              onTest={() => testSavedServer(server)}
+            />
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function AdminGenerationToolServerCard({ server, isDefault, onPatch, onRemove, onDefault, testResult, testing, canTest, onTest }: {
+  server: AdminGenerationToolServer
+  isDefault: boolean
+  onPatch: (patch: Partial<AdminGenerationToolServer>) => void
+  onRemove: () => void
+  onDefault: () => void
+  testResult?: GenerationToolConnectionTestResult
+  testing?: boolean
+  canTest: boolean
+  onTest: () => void
+}) {
+  const invalid = !adminGenerationToolServerValid(server)
+  return (
+    <div className={cn('rounded-md border bg-background p-3', invalid ? 'border-destructive/40' : 'border-border')}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold text-foreground">{server.name || (server.type === 'comfyui' ? 'ComfyUI' : 'WebUI')}</p>
+            <Badge variant="outline">{server.type === 'comfyui' ? 'ComfyUI' : 'WebUI'}</Badge>
+            {isDefault && <Badge variant="success">默认</Badge>}
+          </div>
+          <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{server.base_url}</p>
+        </div>
+        <input type="checkbox" checked={server.enabled} onChange={(event) => onPatch({ enabled: event.target.checked })} className="mt-1 h-4 w-4" />
+      </div>
+
+      <div className={cn('mt-3 space-y-2', !server.enabled && 'opacity-60')}>
+        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_130px]">
+          <AdminToolField label="名称" value={server.name} onChange={(value) => onPatch({ name: value })} />
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">类型</Label>
+            <select
+              value={server.type}
+              onChange={(event) => onPatch({
+                type: event.target.value as AdminGenerationToolServer['type'],
+                base_url: event.target.value === 'comfyui' ? 'http://gpu.example.com:8188' : 'http://webui.example.com:7860',
+              })}
+              className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground"
+            >
+              <option value="comfyui">ComfyUI</option>
+              <option value="webui">WebUI</option>
+            </select>
+          </div>
+        </div>
+        <AdminToolField label="Base URL" value={server.base_url} onChange={(value) => onPatch({ base_url: value })} />
+        <div className="grid gap-2 sm:grid-cols-[120px_120px_1fr]">
+          <AdminToolField label="优先级" value={String(server.priority)} onChange={(value) => onPatch({ priority: Number(value) || 0 })} type="number" />
+          <AdminToolField label="超时 ms" value={String(server.timeout_ms || '')} onChange={(value) => onPatch({ timeout_ms: Number(value) || 0 })} type="number" />
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">认证</Label>
+            <select
+              value={server.auth_kind}
+              onChange={(event) => onPatch({ auth_kind: event.target.value as AdminGenerationToolServer['auth_kind'] })}
+              className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground"
+            >
+              <option value="none">无</option>
+              <option value="basic">Basic Auth</option>
+              <option value="bearer">Bearer/API Key</option>
+            </select>
+          </div>
+        </div>
+        {server.auth_kind === 'basic' && (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <AdminToolField label="用户名" value={server.username ?? ''} onChange={(value) => onPatch({ username: value })} />
+            <AdminToolField label="密码" value={server.password ?? ''} onChange={(value) => onPatch({ password: value })} type="password" placeholder={server.password_set ? '已保存，留空不修改' : undefined} />
+          </div>
+        )}
+        {server.auth_kind === 'bearer' && (
+          <AdminToolField label="Token / API Key" value={server.token ?? ''} onChange={(value) => onPatch({ token: value })} type="password" placeholder={server.token_set ? '已保存，留空不修改' : undefined} />
+        )}
+        <AdminToolField
+          label="标签（逗号分隔）"
+          value={(server.tags ?? []).join(', ')}
+          onChange={(value) => onPatch({ tags: value.split(',') })}
+          placeholder="gpu, sdxl, team-a"
+        />
+        <div className="flex flex-wrap justify-end gap-2 pt-1">
+          {testResult && (
+            <span className={cn('mr-auto self-center text-xs', testResult.success ? 'text-emerald-600' : 'text-destructive')}>
+              {testResult.success ? `连接正常 ${testResult.latency_ms ?? 0}ms` : `连接失败 ${testResult.message ?? ''}`}
+            </span>
+          )}
+          <Button type="button" size="sm" variant="outline" onClick={onTest} disabled={testing || !canTest}>
+            {testing ? '测试中…' : canTest ? '测试已保存连接' : '保存后测试'}
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={onDefault} disabled={!server.enabled}>
+            {isDefault ? '取消默认' : '设为默认'}
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={onRemove}>删除</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AdminToolField({ label, value, onChange, type = 'text', placeholder }: { label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string }) {
+  return (
+    <div>
+      <Label className="mb-1 block text-xs text-muted-foreground">{label}</Label>
+      <Input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-8 text-xs" />
+    </div>
+  )
+}
+
+function adminGenerationToolServerValid(server: AdminGenerationToolServer): boolean {
+  if (!Number.isFinite(Number(server.timeout_ms)) || Number(server.timeout_ms) < 1000 || Number(server.timeout_ms) > 600000) return false
+  if (!server.enabled) return true
+  const baseURL = server.base_url.trim()
+  return baseURL.startsWith('http://') || baseURL.startsWith('https://')
+}
+
+function adminGenerationToolServerMatchesSaved(current: AdminGenerationToolServer, saved?: AdminGenerationToolServer): boolean {
+  if (!saved) return false
+  return current.id === saved.id
+    && current.scope === saved.scope
+    && current.type === saved.type
+    && current.name.trim() === saved.name.trim()
+    && current.enabled === saved.enabled
+    && current.base_url.trim() === saved.base_url.trim()
+    && Number(current.timeout_ms) === Number(saved.timeout_ms)
+    && Number(current.priority) === Number(saved.priority)
+    && current.auth_kind === saved.auth_kind
+    && (current.username ?? '').trim() === (saved.username ?? '').trim()
+    && !current.password
+    && !current.token
+    && Boolean(current.password_set) === Boolean(saved.password_set)
+    && Boolean(current.token_set) === Boolean(saved.token_set)
+    && adminNormalizedStringArrayEquals(normalizeAdminGenerationToolTags(current.tags), normalizeAdminGenerationToolTags(saved.tags))
+}
+
+function normalizeAdminGenerationToolTags(tags: string[] | undefined): string[] {
+  const seen = new Set<string>()
+  const normalized: string[] = []
+  for (const tag of tags ?? []) {
+    const next = tag.trim()
+    if (!next || seen.has(next)) continue
+    seen.add(next)
+    normalized.push(next)
+  }
+  return normalized
+}
+
+function clearAdminGenerationToolDefaultServerID(
+  defaults: AdminGenerationToolsSettings['default_server_ids'] | undefined,
+  serverID: string,
+): AdminGenerationToolsSettings['default_server_ids'] {
+  if (!defaults) return {}
+  const next = { ...defaults }
+  for (const type of ['comfyui', 'webui'] as const) {
+    if (next[type] === serverID) delete next[type]
+  }
+  return next
+}
+
+function adminNormalizedStringArrayEquals(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false
+  return left.every((item, index) => item === right[index])
+}
+
+function omitRecordKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  if (!(key in record)) return record
+  const next = { ...record }
+  delete next[key]
+  return next
 }
 
 export default function AdminPage() {
@@ -4843,6 +5277,8 @@ export default function AdminPage() {
           </Link>
         ))}
       </div>
+
+      <AdminGenerationToolsPanel />
 
       <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
         {sectionCards.map((card) => (

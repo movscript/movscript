@@ -30,21 +30,21 @@ export function buildDispatchSubagentNameMap(input: {
   return namesByTaskId
 }
 
-export function requireTaskBySubagentName(planId: string, tasks: AgentTask[], subagentName: string): AgentTask {
+export function requireTaskBySubagentName(taskGraphId: string, tasks: AgentTask[], subagentName: string): AgentTask {
   const matches = tasks.filter((task) => subagentNameFromTask(task) === subagentName)
   if (matches.length === 0) throw new Error(`subagent not found by name: ${subagentName}`)
-  if (matches.length > 1) throw new Error(`subagent name is ambiguous in plan ${planId}: ${subagentName}`)
+  if (matches.length > 1) throw new Error(`subagent name is ambiguous in taskGraph ${taskGraphId}: ${subagentName}`)
   return matches[0]!
 }
 
 export function resolveSubagentNameInput(input: {
-  planId: string
+  taskGraphId: string
   rawInput: Record<string, JSONValue>
   tasks: AgentTask[]
 }): Record<string, JSONValue> {
   const subagentName = normalizeNonEmptyString(input.rawInput.subagentName)
   if (!subagentName) return input.rawInput
-  const task = requireTaskBySubagentName(input.planId, input.tasks, subagentName)
+  const task = requireTaskBySubagentName(input.taskGraphId, input.tasks, subagentName)
   return {
     ...input.rawInput,
     taskId: task.id,
@@ -53,7 +53,7 @@ export function resolveSubagentNameInput(input: {
 }
 
 export function assertUniqueSubagentNameForTask(input: {
-  planId: string
+  taskGraphId: string
   taskId: string
   subagentName: string
   requestedNames: Map<string, string>
@@ -62,23 +62,23 @@ export function assertUniqueSubagentNameForTask(input: {
 }): void {
   for (const [otherTaskId, otherName] of input.requestedNames.entries()) {
     if (otherTaskId !== input.taskId && otherName === input.subagentName) {
-      throw duplicateSubagentNameError(input.planId, input.subagentName)
+      throw duplicateSubagentNameError(input.taskGraphId, input.subagentName)
     }
   }
   for (const task of input.tasks) {
     if (task.id !== input.taskId && subagentNameFromTask(task) === input.subagentName) {
-      throw duplicateSubagentNameError(input.planId, input.subagentName)
+      throw duplicateSubagentNameError(input.taskGraphId, input.subagentName)
     }
   }
   for (const run of input.runs) {
     if (run.taskId !== input.taskId && subagentNameFromRun(run) === input.subagentName) {
-      throw duplicateSubagentNameError(input.planId, input.subagentName)
+      throw duplicateSubagentNameError(input.taskGraphId, input.subagentName)
     }
   }
 }
 
 export function assertSubagentNamesUniqueForTaskMap(input: {
-  planId: string
+  taskGraphId: string
   tasksById: Map<string, AgentTask>
   runs: AgentRun[]
 }): void {
@@ -89,18 +89,18 @@ export function assertSubagentNamesUniqueForTaskMap(input: {
     taskIdsByName.set(subagentName, [...(taskIdsByName.get(subagentName) ?? []), task.id])
   }
   for (const [subagentName, taskIds] of taskIdsByName.entries()) {
-    if (taskIds.length > 1) throw duplicateSubagentNameError(input.planId, subagentName)
+    if (taskIds.length > 1) throw duplicateSubagentNameError(input.taskGraphId, subagentName)
   }
   for (const run of input.runs) {
     const subagentName = subagentNameFromRun(run)
     if (!subagentName) continue
     const taskIds = taskIdsByName.get(subagentName) ?? []
-    if (taskIds.some((taskId) => taskId !== run.taskId)) throw duplicateSubagentNameError(input.planId, subagentName)
+    if (taskIds.some((taskId) => taskId !== run.taskId)) throw duplicateSubagentNameError(input.taskGraphId, subagentName)
   }
 }
 
-function duplicateSubagentNameError(planId: string, subagentName: string): Error {
-  return new Error(`subagent name already exists in plan ${planId}: ${subagentName}`)
+function duplicateSubagentNameError(taskGraphId: string, subagentName: string): Error {
+  return new Error(`subagent name already exists in task graph ${taskGraphId}: ${subagentName}`)
 }
 
 function normalizeNonEmptyString(value: unknown): string | undefined {

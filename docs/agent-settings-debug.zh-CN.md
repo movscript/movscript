@@ -25,7 +25,7 @@ Agent 设置应该回答：以后 Agent 默认怎么运行。
 - 模型用途路由：对话、规划等用途是否启用。
 - Provider 模型 ID、Base URL、凭证就绪状态、敏感信息防护和按 Provider 区分的模型兼容性探测。
 - Skills 管理：安装、卸载、重载目录、启用策略、依赖和冲突检查、版本覆盖、来源和信任状态。
-- Profile / 工作模式：默认 Profile、Profile 切换影响、工具授权边界。
+- Profile / 能力配置：默认 Profile、Profile 切换影响、工具授权边界。
 - 工具权限策略：允许、拒绝、审批策略、保存前 diff 预览、大目录搜索/筛选、已保存筛选预设、筛选结果批量编辑、不可保存草稿修复。
 - 运行模板：新建、复制、删除自定义模板、权限模式、工具调用上限、迭代上限、计划 worker、超时和重试。
 - 设置快照：导入、导出、dry-run、选择性应用配置段、影响预览、命名导入预设、导入前备份。
@@ -34,6 +34,15 @@ Agent 设置应该回答：以后 Agent 默认怎么运行。
 - 配置审计：保存、测试、清除、quick fix、失败操作和导入导出，并包含细分的 quick fix 审计分类。
 
 设置页不应该展示单次运行内部步骤，也不应该复制 Agent 调试页的运行观测面板。
+
+## Agent 能力边界
+
+- 界面模式（`workMode: detail | agent`）只负责前端工作区和导航，不授予或收回 Agent 能力。
+- 运行模板只负责单次 run 的执行策略：审批模式、sandbox、工具调用上限、迭代上限和 workflow policy。它不直接授予 tool。
+- Profile / Pack 是默认能力池来源；Tool Policy 只能在当前 Profile 授权范围内收紧 grant 或审批策略。
+- Skill 是行为层。Agent 可以通过 `core_skill_update` 动态加载或卸载 skill；skill 可以改变当前上下文、workflow scope 和已授权 tool 的可见性。
+- Tool 是权限层。Agent 不允许自授权加载 tool；tool 必须先来自 catalog/profile/manifest，并通过最终 `applyToolPolicy` 才能执行。
+- Manifest 是 runtime 解析后的快照，用于冻结本次 run 的有效 profile、tool grants 和 metadata，不再作为用户侧权限概念。
 
 ## Agent 调试负责什么
 

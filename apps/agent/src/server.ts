@@ -22,6 +22,31 @@ import { isValidAgentProjectId, isValidAgentReferenceId } from './context/runtim
 import { installAgentSkillBundle, listAgentSkillBundlePlugins, uninstallAgentSkillBundle, type AgentSkillBundleFile } from './catalog/skillBundleInstaller.js'
 import { RuntimeModelConfigInputError } from './model/modelConfig.js'
 
+installAgentLogTimestamps('server')
+
+const SERVER_MODULE_READY_AT = Date.now()
+const SERVER_CHILD_STARTED_AT = Number(process.env.MOVSCRIPT_AGENT_SERVER_CHILD_STARTED_AT || 0)
+if (SERVER_CHILD_STARTED_AT > 0) {
+  console.info(`[agent] server module ready after childStart=${SERVER_MODULE_READY_AT - SERVER_CHILD_STARTED_AT}ms`)
+}
+
+function installAgentLogTimestamps(scope: string): void {
+  const key = Symbol.for(`movscript.agent.log-timestamps.${scope}`)
+  const globalState = globalThis as typeof globalThis & Record<symbol, true | undefined>
+  if (globalState[key]) return
+  globalState[key] = true
+  const startedAt = Number(process.env.MOVSCRIPT_AGENT_SERVER_CHILD_STARTED_AT || 0) || Date.now()
+  for (const method of ['info', 'warn', 'error'] as const) {
+    const original = console[method].bind(console)
+    console[method] = (...args: unknown[]) => {
+      if (typeof args[0] === 'string' && args[0].startsWith('[agent')) {
+        args[0] = `[${new Date().toISOString()} +${Date.now() - startedAt}ms ${scope}] ${args[0]}`
+      }
+      original(...args)
+    }
+  }
+}
+
 interface AgentRequestListenerOptions {
   onShutdownRequest?: () => void | Promise<void>
 }
@@ -198,6 +223,14 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       }
 
       if (req.method === 'POST' && url.pathname === '/agent-catalog/reload') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'agent catalog reload is only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'agent catalog reload rejects cross-site browser requests' })
+          return
+        }
         writeJSON(res, 200, context.runtimeRouter.reloadAgentCatalog())
         return
       }
@@ -513,26 +546,26 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       }
 
       if (req.method === 'POST' && url.pathname === '/plans') {
-        const body = await readOptionalJSONObject(req, 'plan body')
-        writeJSON(res, 201, await context.runtimeRouter.createPlan(withRequestAuth(body, req)))
+        const body = await readOptionalJSONObject(req, 'taskGraph body')
+        writeJSON(res, 201, await context.runtimeRouter.createTaskGraph(withRequestAuth(body, req)))
         return
       }
 
       if (req.method === 'GET' && url.pathname === '/plans') {
-        writeJSON(res, 200, { plans: context.runtimeRouter.listPlans() })
+        writeJSON(res, 200, { plans: context.runtimeRouter.listTaskGraphs() })
         return
       }
 
       const planMatch = url.pathname.match(/^\/plans\/([^/]+)$/)
       if (planMatch && req.method === 'GET') {
-        writeJSON(res, 200, context.runtimeRouter.getPlanSnapshot(planMatch[1]))
+        writeJSON(res, 200, context.runtimeRouter.getTaskGraphSnapshot(planMatch[1]))
         return
       }
 
       const planTasksMatch = url.pathname.match(/^\/plans\/([^/]+)\/tasks$/)
       if (planTasksMatch && req.method === 'GET') {
         writeJSON(res, 200, {
-          planId: planTasksMatch[1],
+          taskGraphId: planTasksMatch[1],
           tasks: context.runtimeRouter.getTaskTree(planTasksMatch[1]),
         })
         return
@@ -540,10 +573,10 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const planDispatchMatch = url.pathname.match(/^\/plans\/([^/]+)\/dispatch$/)
       if (planDispatchMatch && req.method === 'POST') {
-        const body = await readOptionalJSONObject(req, 'plan dispatch body')
-        writeJSON(res, 202, context.runtimeRouter.dispatchPlan({
+        const body = await readOptionalJSONObject(req, 'taskGraph dispatch body')
+        writeJSON(res, 202, context.runtimeRouter.dispatchTaskGraph({
           ...withRequestAuth(body, req),
-          planId: planDispatchMatch[1],
+          taskGraphId: planDispatchMatch[1],
         }))
         return
       }
@@ -597,6 +630,24 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           return
         }
         writeJSON(res, 200, context.runtimeRouter.getRunTraceDebugView(runTraceDebugViewMatch[1]))
+        return
+      }
+
+      const runTraceEventDataMatch = url.pathname.match(/^\/runs\/([^/]+)\/trace\/events\/([^/]+)\/data$/)
+      if (runTraceEventDataMatch && req.method === 'GET') {
+        if (!context.runtimeRouter.getRun(runTraceEventDataMatch[1])) {
+          writeJSON(res, 404, { error: 'run not found' })
+          return
+        }
+        try {
+          writeJSON(res, 200, {
+            runId: runTraceEventDataMatch[1],
+            eventId: decodeURIComponent(runTraceEventDataMatch[2]),
+            data: context.runtimeRouter.getRunTraceEventData(runTraceEventDataMatch[1], decodeURIComponent(runTraceEventDataMatch[2])),
+          })
+        } catch (error) {
+          writeJSON(res, 404, { error: error instanceof Error ? error.message : String(error) })
+        }
         return
       }
 
@@ -696,19 +747,19 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
-      const runReplanMatch = url.pathname.match(/^\/runs\/([^/]+)\/replan$/)
+      const runReplanMatch = url.pathname.match(/^\/runs\/([^/]+)\/updateTaskGraph$/)
       if (runReplanMatch && req.method === 'POST') {
         const run = context.runtimeRouter.getRun(runReplanMatch[1])
-        if (!run?.planId) {
-          writeJSON(res, run ? 400 : 404, { error: run ? 'run is not attached to a plan' : 'run not found' })
+        if (!run?.taskGraphId) {
+          writeJSON(res, run ? 400 : 404, { error: run ? 'run is not attached to a task graph' : 'run not found' })
           return
         }
-        const plan = context.runtimeRouter.getPlan(run.planId)
-        const body = await readOptionalJSONObject(req, 'replan body')
+        const taskGraph = context.runtimeRouter.getTaskGraph(run.taskGraphId)
+        const body = await readOptionalJSONObject(req, 'updateTaskGraph body')
         writeJSON(res, 202, context.runtimeRouter.replanRun(runReplanMatch[1], {
           ...withRequestAuth(body, req),
-          planId: run.planId,
-          plannerRunId: plan?.rootRunId ?? (run.role === 'planner' ? run.id : run.parentRunId),
+          taskGraphId: run.taskGraphId,
+          plannerRunId: taskGraph?.rootRunId ?? (run.role === 'planner' ? run.id : run.parentRunId),
         }))
         return
       }
@@ -763,6 +814,8 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 }
 
 export function startAgentServer(context = createAgentServerContext()): ReturnType<typeof createServer> {
+  const listenStartedAt = Date.now()
+  console.info(`[agent] startup begin http-listen port=${context.port}`)
   let server: ReturnType<typeof createServer>
   server = createServer(createAgentRequestListener(context, {
     onShutdownRequest: () => {
@@ -783,7 +836,10 @@ export function startAgentServer(context = createAgentServerContext()): ReturnTy
     }
     process.exit(1)
   })
-  server.listen(context.port, '127.0.0.1', () => logAgentServerStartup(context))
+  server.listen(context.port, '127.0.0.1', () => {
+    console.info(`[agent] startup end http-listen elapsed=${Date.now() - listenStartedAt}ms port=${context.port}`)
+    logAgentServerStartup(context)
+  })
   return server
 }
 
@@ -1071,9 +1127,9 @@ function streamThreadEvents(req: IncomingMessage, res: ServerResponse, runtime: 
   req.on('close', () => cleanup(false))
 }
 
-function streamPlanEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, planId: string): void {
-  if (!runtime.getPlan(planId)) {
-    writeJSON(res, 404, { error: 'plan not found' })
+function streamPlanEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, taskGraphId: string): void {
+  if (!runtime.getTaskGraph(taskGraphId)) {
+    writeJSON(res, 404, { error: 'taskGraph not found' })
     return
   }
 
@@ -1101,7 +1157,7 @@ function streamPlanEvents(req: IncomingMessage, res: ServerResponse, runtime: Ag
     if (end && !res.writableEnded) res.end()
   }
 
-  unsubscribe = runtime.subscribePlanStream(planId, (event) => {
+  unsubscribe = runtime.subscribePlanStream(taskGraphId, (event) => {
     if (closed || res.writableEnded) return
     writeSSE(res, event.type, event)
     if (event.type === 'done') {
@@ -1193,13 +1249,13 @@ function asPlannerUserRun(body: Record<string, unknown>): Record<string, unknown
 function asDirectToolRun(body: Record<string, unknown>): Record<string, unknown> & {
   role: 'worker'
   parentRunId?: undefined
-  planId?: undefined
+  taskGraphId?: undefined
   taskId?: undefined
 } {
   const {
     role: _role,
     parentRunId: _parentRunId,
-    planId: _planId,
+    taskGraphId: _taskGraphId,
     taskId: _taskId,
     progress: _progress,
     blockedReason: _blockedReason,

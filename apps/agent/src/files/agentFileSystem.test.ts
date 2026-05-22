@@ -34,7 +34,7 @@ test('AgentFileSystem reads, searches, and edits draft content through canonical
     edits: [{
       type: 'replace_text',
       oldText: '"candidate_plans": []',
-      newText: '"candidate_plans": [{"name":"Plan A"}]',
+      newText: '"candidate_plans": [{"name":"TaskGraph A"}]',
     }],
     createdByRunId: 'run_1',
   })
@@ -43,7 +43,44 @@ test('AgentFileSystem reads, searches, and edits draft content through canonical
   assert.equal(edited.changeSet.baseRevision, read.revision)
   assert.match(edited.changeSet.nextRevision, /^sha256:/)
   assert.equal(edited.changeSet.createdByRunId, 'run_1')
-  assert.deepEqual(JSON.parse(draftStore.getDraft(draft.id)?.content ?? '{}').proposal.candidate_plans, [{ name: 'Plan A' }])
+  assert.deepEqual(JSON.parse(draftStore.getDraft(draft.id)?.content ?? '{}').proposal.candidate_plans, [{ name: 'TaskGraph A' }])
+})
+
+test('AgentFileSystem applies constrained context text patches to draft content', () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const draft = draftStore.createDraft({
+    kind: 'note',
+    title: 'Patchable note',
+    content: [
+      'line one',
+      'line two',
+      'line three',
+    ].join('\n'),
+  })
+  const fileSystem = new AgentFileSystem([new DraftFileProvider(draftStore)])
+  const ref = draftContentFileRef(draft.id)
+  const read = fileSystem.read({ ref })
+
+  const edited = fileSystem.edit({
+    ref,
+    precondition: { baseRevision: read.revision },
+    edits: [{
+      type: 'apply_patch',
+      patch: [
+        '*** Begin Patch',
+        '*** Update File: content',
+        '@@',
+        ' line one',
+        '-line two',
+        '+line 2',
+        ' line three',
+        '*** End Patch',
+      ].join('\n'),
+    }],
+  })
+
+  assert.equal(edited.changeSet.replacementCount, 1)
+  assert.equal(draftStore.getDraft(draft.id)?.content, 'line one\nline 2\nline three')
 })
 
 test('AgentFileSystem rejects stale draft edit revisions', () => {

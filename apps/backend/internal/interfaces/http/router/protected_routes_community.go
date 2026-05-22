@@ -4,12 +4,15 @@ package router
 
 import (
 	"github.com/gin-gonic/gin"
+	domainorg "github.com/movscript/movscript/internal/domain/org"
 	"github.com/movscript/movscript/internal/interfaces/http/middleware"
 	"gorm.io/gorm"
 )
 
 func registerGatewayProtectedRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.GET("/entitlement", h.entitlement.GetCurrent)
+	protected.GET("/generation-tools/settings", h.adminSettings.GetRuntimeGenerationToolsSettings)
+	protected.POST("/generation-tools/call", h.adminSettings.ProxyGenerationToolCall)
 	protected.GET("/model-gateway/models", h.modelGateway.ListModels)
 	gatewayAdmin := protected.Group("/model-gateway", middleware.RequireSystemRole("super_admin"))
 	{
@@ -42,6 +45,8 @@ func registerOrgRoutes(protected *gin.RouterGroup, db *gorm.DB, h handlers) {
 		orgRoutes.POST("/groups/:groupId/members", h.org.AddGroupMember)
 		orgRoutes.DELETE("/groups/:groupId/members/:userId", h.org.RemoveGroupMember)
 		orgRoutes.GET("/usage", h.org.GetUsage)
+		orgRoutes.GET("/generation-tools/settings", h.adminSettings.GetOrgGenerationToolsSettings)
+		orgRoutes.PUT("/generation-tools/settings", middleware.RequireOrgRole(domainorg.RoleOwner, domainorg.RoleAdmin), h.adminSettings.UpdateOrgGenerationToolsSettings)
 	}
 }
 
@@ -49,6 +54,7 @@ func registerResourceRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.GET("/resources", h.resources.List)
 	protected.POST("/resources/upload", h.resources.Upload)
 	protected.GET("/resources/:id/file", h.resources.ServeFile)
+	protected.POST("/resources/:id/adopt-to-team", h.resources.AdoptToTeam)
 	protected.PUT("/resources/:id", h.resources.Update)
 	protected.POST("/resources/:id/verify-image", h.resources.VerifyImage)
 	protected.DELETE("/resources/:id", h.resources.Delete)
@@ -100,6 +106,7 @@ func registerCanvasRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.PATCH("/canvases/:id", h.canvases.Patch)
 	protected.PUT("/canvases/:id", h.canvases.Save)
 	protected.DELETE("/canvases/:id", h.canvases.Delete)
+	protected.GET("/canvases/:id/nodes/:nodeId/model-diagnostics", h.canvases.DiagnoseNodeModel)
 	protected.POST("/canvases/:id/nodes/:nodeId/run", h.canvases.RunNode)
 	protected.GET("/canvases/:id/nodes/:nodeId/task", h.canvases.GetNodeTask)
 	protected.GET("/canvases/:id/nodes/:nodeId/tasks", h.canvases.ListNodeTasks)

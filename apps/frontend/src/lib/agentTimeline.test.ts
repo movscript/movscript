@@ -40,7 +40,7 @@ test('buildAgentRunTimeline creates one stable timeline for approvals inputs too
       id: 'step_1',
       type: 'tool_call',
       status: 'completed',
-      toolName: 'movscript_create_generation_job',
+      toolName: 'generation_job_create',
       createdAt: '2026-05-17T00:00:02.500Z',
       completedAt: '2026-05-17T00:00:03.500Z',
     }],

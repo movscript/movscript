@@ -17,6 +17,14 @@ import {
 import { getRequiredPositiveIntegerAliasParam, getRequiredPositiveIntegerAliasParams } from './candidateParams'
 import { getDraftDomainModel, type DraftSeedMode } from '../../src/lib/draftDomainModel'
 import type { AgentDraftKind } from '../../src/lib/localAgentClient'
+import {
+  DEFAULT_GENERATION_TOOLS_SETTINGS,
+  createGenerationToolServer,
+  normalizeGenerationToolsSettings,
+  type GenerationToolServer,
+  type GenerationToolServerType,
+  type GenerationToolsSettings,
+} from '../../src/lib/generationTools'
 
 const DEFAULT_PORT = 18765
 const MAX_PORT_PROBES = 20
@@ -62,6 +70,7 @@ const contextSnapshot: MCPContextSnapshot = {
 
 let server: Server | null = null
 let contextAuthToken = ''
+let generationToolsSettings = DEFAULT_GENERATION_TOOLS_SETTINGS
 
 export interface MCPServerStatus {
   ok: boolean
@@ -96,8 +105,72 @@ export function setMCPAPIBaseURL(next: string): void {
   apiBaseURL = normalizeAPIBaseURL(next)
 }
 
+export function setMCPGenerationToolsSettings(next?: Partial<GenerationToolsSettings> | null): void {
+  generationToolsSettings = normalizeGenerationToolsSettings(next)
+}
+
+export async function testMCPGenerationToolServer(input: Partial<GenerationToolServer>): Promise<Record<string, unknown>> {
+  const serverType: GenerationToolServerType = input.type === 'webui' ? 'webui' : 'comfyui'
+  const normalized = normalizeGenerationToolsSettings({
+    preferLocalServers: true,
+    servers: [createGenerationToolServer(serverType, {
+      ...input,
+      scope: 'local',
+      enabled: true,
+    })],
+  }).servers[0]
+  const path = normalized.type === 'comfyui' ? '/system_stats' : '/sdapi/v1/progress?skip_current_image=true'
+  const startedAt = Date.now()
+  try {
+    const res = await fetchWithTimeout(`${normalized.baseURL}${path}`, {
+      method: 'GET',
+      headers: generationToolServerHeaders(normalized, false),
+    }, normalized.timeoutMS)
+    const rawBody = await res.text()
+    const data = parseJSONBody(rawBody)
+    return {
+      success: res.ok,
+      latency_ms: Date.now() - startedAt,
+      status_code: res.status,
+      message: res.ok ? '连接成功' : `HTTP ${res.status}`,
+      server: sanitizeGenerationToolServerForMCP(normalized),
+      data,
+    }
+  } catch (error) {
+    return {
+      success: false,
+      latency_ms: Date.now() - startedAt,
+      message: error instanceof Error ? error.message : String(error),
+      server: sanitizeGenerationToolServerForMCP(normalized),
+    }
+  }
+}
+
 export function getMCPContextSnapshot(): MCPContextSnapshot {
   return { ...contextSnapshot }
+}
+
+export function getMCPFocusSnapshot(): MCPContextSnapshot {
+  return {
+    ...contextSnapshot,
+    route: sanitizeFocusRoute(contextSnapshot.route),
+  }
+}
+
+function sanitizeFocusRoute(route: MCPContextSnapshot['route']): MCPContextSnapshot['route'] {
+  return {
+    ...route,
+    search: sanitizeFocusSearch(route.search),
+  }
+}
+
+function sanitizeFocusSearch(search: string): string {
+  if (!search || !search.includes('draftId')) return search
+  const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
+  if (!params.has('draftId')) return search
+  params.delete('draftId')
+  const next = params.toString()
+  return next ? `?${next}` : ''
 }
 
 export async function getMCPServerStatus(): Promise<MCPServerStatus> {
@@ -484,12 +557,12 @@ function projectEndpoint(projectId: number, kind: string): string {
 export function listTools(): MCPTool[] {
   return [
     {
-      name: 'movscript_get_focus',
+      name: 'movscript_focus_get',
       description: 'Return the current MovScript task focus: route, selected project, active production id, current user, and selected entity. This does not load project lists, scripts, drafts, or resources.',
       inputSchema: objectSchema({}),
     },
     {
-      name: 'movscript_list_projects',
+      name: 'movscript_project_list',
       description: 'List all visible projects as numbered Markdown summaries.',
       inputSchema: objectSchema(
         {
@@ -498,7 +571,7 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_read_project_scripts',
+      name: 'movscript_project_script_read',
       description: 'Read backend project scripts / 剧本 in the current or specified project. Use this for 总剧本、分集剧本、第一集 and any screenplay/library content. This is not the local Agent draft artifact API. Set includeContent when the actual script body is needed.',
       inputSchema: objectSchema(
         {
@@ -513,7 +586,7 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_query_creative_references',
+      name: 'movscript_creative_reference_query',
       description: 'Query project creative references / setting materials such as characters, places, props, products, style rules, and restrictions. Can include related states, usages, relationships, and asset slots for candidate material planning.',
       inputSchema: objectSchema(
         {
@@ -531,7 +604,7 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_query_asset_slots',
+      name: 'movscript_asset_slot_query',
       description: 'Query project asset slots, including slots owned by a creative reference, creative reference state, segment, scene moment, storyboard line, content unit, or keyframe.',
       inputSchema: objectSchema(
         {
@@ -551,7 +624,7 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_query_production_context',
+      name: 'movscript_production_context_query',
       description: 'Query production context entities for material planning: productions, emotional / dramatic segments, scene moments, content units, and official keyframes. For a content_unit_id it can also build the generation context with references and asset slots.',
       inputSchema: objectSchema(
         {
@@ -570,7 +643,7 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_get_draft_model',
+      name: 'draft_model_get',
       description: 'Return the frontend-owned DraftDomainModel contract for a draft kind and target. This is the single source for draft field ownership, seed policy, review route, apply boundary, and optional hydrated seed data.',
       inputSchema: objectSchema(
         {
@@ -603,7 +676,7 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_create_project',
+      name: 'movscript_project_create',
       description: 'Create a formal MovScript project. Use only when the user explicitly asks to create a new project or confirms the project name.',
       inputSchema: objectSchema(
         {
@@ -616,7 +689,7 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_list_models',
+      name: 'generation_model_list',
       description: 'List enabled AI models for a capability or backend AI feature key. Prefer capability for generic generation: image for text-to-image, image_edit for image-to-image, video for text-to-video, video_i2v for image-to-video, and video_v2v for video-to-video. Backend feature keys are product routing keys such as ref_image_gen, ref_video_gen, canvas_image, canvas_video, style_transfer, or multi_angle; do not pass workflow template keys such as image-generation or text-generation as feature keys. The result includes public model_id values plus model_contracts with contract_version 1, capabilities, input_requirements, supported_param_keys, supported_params, and params_schema rule counts so the agent can choose a valid model before generation. Use model_id for generation calls.',
       inputSchema: objectSchema(
         {
@@ -639,7 +712,7 @@ export function listTools(): MCPTool[] {
               required: ['contract_version', 'model_id', 'capabilities', 'input_requirements', 'supported_param_keys', 'supported_params'],
               properties: {
                 contract_version: { type: 'number', const: 1 },
-                model_id: { type: 'string', description: 'Public logical model ID to pass to movscript_create_generation_job.' },
+                model_id: { type: 'string', description: 'Public logical model ID to pass to generation_job_create.' },
                 display_name: { type: 'string' },
                 short_name: { type: 'string' },
                 logical_model_id: { type: 'string', description: 'Legacy alias for model_id.' },
@@ -697,15 +770,81 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_create_generation_job',
-      description: 'Create one or more independent single-output AI image or video generation jobs through the MovScript backend. Before choosing model_id, input_resource_ids, or extra_params, inspect movscript_list_models and obey the selected model capability contract: capabilities, input_requirements, supported_params, and params_schema. Each backend job is single-output; when multiple candidates are needed, use output_count or extra_params.image_count/max_images to enqueue multiple jobs and monitor the returned jobIds. Returns output_resource/output_resource_id for completed single-job calls, output_resource_ids when wait results aggregate independent jobs, and param_validation audit_version 1 data, including non-blocking preflight_errors and input_preflight_errors, for direct chat display. This is cost-bearing and should only run after explicit user approval.',
+      name: 'tool_comfyui',
+      description: 'Use a configured ComfyUI server from local console, organization, or admin generation-tool settings. Supports listing configured ComfyUI servers, checking status, reading object info, queueing a workflow prompt, reading queue state, reading history, and importing outputs. Local user servers are called directly from the desktop runtime; organization/admin servers with hidden secrets are called through the backend proxy.',
+      inputSchema: objectSchema(
+        {
+          operation: { type: 'string', enum: ['list_servers', 'status', 'object_info', 'queue_prompt', 'queue', 'history', 'import_history_outputs'] },
+          server_id: { type: 'string', description: 'Configured ComfyUI server ID. Defaults to the enabled default/highest-priority ComfyUI server.' },
+          server_scope: { type: 'string', enum: ['local', 'org', 'admin'], description: 'Optional scope discriminator when multiple configured servers share the same ID.' },
+          workflow: { type: 'object', additionalProperties: true, description: 'ComfyUI workflow/prompt JSON required for queue_prompt.' },
+          client_id: { type: 'string', description: 'Optional ComfyUI client_id for queue_prompt.' },
+          prompt_id: { type: 'string', description: 'Optional prompt_id for history.' },
+          output_name: { type: 'string', description: 'Optional filename prefix for imported ComfyUI outputs.' },
+          folder_id: { type: ['string', 'number'], description: 'Optional resource folder id for imported outputs.' },
+          projectId: { type: 'number', description: 'Project id required when attaching imported resources as candidates.' },
+          asset_slot_id: { type: 'number', description: 'Optional asset slot id; when provided with import_history_outputs, imported resources are attached as asset slot candidates.' },
+          keyframe_id: { type: 'number', description: 'Optional original keyframe id; when provided with import_history_outputs, imported resources are attached as keyframe candidates.' },
+        },
+        ['operation']
+      ),
+      outputSchema: objectSchema(
+        {
+          status: { type: 'string' },
+          server: { type: 'object' },
+          servers: { type: 'array', items: { type: 'object' } },
+          data: { type: 'object' },
+          output_resources: { type: 'array', items: { type: 'object' } },
+          output_resource_ids: { type: 'array', items: { type: 'number' } },
+          candidate_results: { type: 'array', items: { type: 'object' } },
+          message: { type: 'string' },
+        },
+        ['status']
+      ),
+    },
+    {
+      name: 'tool_webui',
+      description: 'Use a configured Stable Diffusion WebUI / AUTOMATIC1111 compatible server from local console, organization, or admin generation-tool settings. Supports listing configured WebUI servers, checking progress/status, listing models, txt2img, img2img, imports, and arbitrary safe sdapi GET calls. Local user servers are called directly from the desktop runtime; organization/admin servers with hidden secrets are called through the backend proxy.',
+      inputSchema: objectSchema(
+        {
+          operation: { type: 'string', enum: ['list_servers', 'status', 'models', 'txt2img', 'img2img', 'progress', 'get'] },
+          server_id: { type: 'string', description: 'Configured WebUI server ID. Defaults to the enabled default/highest-priority WebUI server.' },
+          server_scope: { type: 'string', enum: ['local', 'org', 'admin'], description: 'Optional scope discriminator when multiple configured servers share the same ID.' },
+          payload: { type: 'object', additionalProperties: true, description: 'Request JSON for txt2img or img2img.' },
+          path: { type: 'string', description: 'Optional /sdapi/v1/... path for operation=get.' },
+          import_outputs: { type: 'boolean', description: 'When true for txt2img/img2img, upload returned base64 images into the MovScript resource library and omit raw image payloads from the tool result.' },
+          output_name: { type: 'string', description: 'Optional filename prefix for imported WebUI outputs.' },
+          folder_id: { type: ['string', 'number'], description: 'Optional resource folder id for imported outputs.' },
+          projectId: { type: 'number', description: 'Project id required when attaching imported resources as candidates.' },
+          asset_slot_id: { type: 'number', description: 'Optional asset slot id; when provided with import_outputs, imported resources are attached as asset slot candidates.' },
+          keyframe_id: { type: 'number', description: 'Optional original keyframe id; when provided with import_outputs, imported resources are attached as keyframe candidates.' },
+        },
+        ['operation']
+      ),
+      outputSchema: objectSchema(
+        {
+          status: { type: 'string' },
+          server: { type: 'object' },
+          servers: { type: 'array', items: { type: 'object' } },
+          data: { type: 'object' },
+          output_resources: { type: 'array', items: { type: 'object' } },
+          output_resource_ids: { type: 'array', items: { type: 'number' } },
+          candidate_results: { type: 'array', items: { type: 'object' } },
+          message: { type: 'string' },
+        },
+        ['status']
+      ),
+    },
+    {
+      name: 'generation_job_create',
+      description: 'Create one or more independent single-output AI image or video generation jobs through the MovScript backend. Before choosing model_id, input_resource_ids, or extra_params, inspect generation_model_list and obey the selected model capability contract: capabilities, input_requirements, supported_params, and params_schema. Each backend job is single-output; when multiple candidates are needed, use output_count or extra_params.image_count/max_images to enqueue multiple jobs and monitor the returned jobIds. Returns output_resource/output_resource_id for completed single-job calls, output_resource_ids when wait results aggregate independent jobs, and param_validation audit_version 1 data, including non-blocking preflight_errors and input_preflight_errors, for direct chat display. This is cost-bearing and should only run after explicit user approval.',
       inputSchema: objectSchema(
         {
           prompt: { type: 'string' },
           title: { type: 'string', description: 'Optional display title for the generation job.' },
           output_type: { type: 'string', enum: ['image', 'video'], description: 'High-level output type. Ignored when job_type is provided.' },
           job_type: { type: 'string', enum: ['image', 'image_edit', 'video', 'video_i2v', 'video_v2v'] },
-          model_id: { type: 'string', description: 'Public logical model ID from movscript_list_models. If omitted, MovScript chooses the first available model for the requested capability.' },
+          model_id: { type: 'string', description: 'Public logical model ID from generation_model_list. If omitted, MovScript chooses the first available model for the requested capability.' },
           input_resource_ids: { type: 'array', items: { type: 'number' }, description: 'Optional reference image/video resource IDs. Count should satisfy the selected model contract input_requirements; mismatches are reported in param_validation.input_preflight_errors.' },
           reference_type: { type: 'string', enum: ['image', 'video'], description: 'Use video with output_type video when reference resources should create a video_v2v job.' },
           aspect_ratio: { type: 'string', description: 'Optional aspect ratio such as 1:1, 16:9, or 9:16.' },
@@ -714,7 +853,7 @@ export function listTools(): MCPTool[] {
           outputCount: { type: 'number', minimum: 1, maximum: 15, description: 'Alias for output_count.' },
           extra_params: {
             type: 'object',
-            description: 'Optional model-specific generation parameters. Keys must come from the selected model returned by movscript_list_models.supported_params / params_schema. Unsupported keys are omitted before submission and reported in param_validation audit_version 1 dropped_extra_params; obvious local type/option/range and compact cross-parameter rule mismatches are reported in non-blocking param_validation.preflight_errors.',
+            description: 'Optional model-specific generation parameters. Keys must come from the selected model returned by generation_model_list.supported_params / params_schema. Unsupported keys are omitted before submission and reported in param_validation audit_version 1 dropped_extra_params; obvious local type/option/range and compact cross-parameter rule mismatches are reported in non-blocking param_validation.preflight_errors.',
             additionalProperties: true,
           },
           feature_key: { type: 'string', description: 'Optional feature key for routing/audit. Defaults to agent.chat_generation.' },
@@ -736,7 +875,7 @@ export function listTools(): MCPTool[] {
             type: 'object',
             description: 'Present when the job needs asynchronous monitoring.',
             properties: {
-              tool: { type: 'string', enum: ['movscript_wait_generation_jobs', 'movscript_get_generation_job'] },
+              tool: { type: 'string', enum: ['generation_job_wait', 'generation_job_get'] },
               args: { type: 'object' },
               message: { type: 'string' },
             },
@@ -776,7 +915,7 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_get_generation_job',
+      name: 'generation_job_get',
       description: 'Inspect one AI image or video generation job. Returns status, progress hints, output resource, and media preview data when available.',
       inputSchema: objectSchema(
         {
@@ -787,8 +926,8 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_wait_generation_jobs',
-      description: 'Wait for one or more AI image or video generation jobs to reach a terminal status, or return pending jobs when the wait times out. Use this instead of repeatedly calling movscript_get_generation_job.',
+      name: 'generation_job_wait',
+      description: 'Wait for one or more AI image or video generation jobs to reach a terminal status, or return pending jobs when the wait times out. Use this instead of repeatedly calling generation_job_get.',
       inputSchema: objectSchema(
         {
           jobIds: { type: 'array', items: { type: ['string', 'number'] }, minItems: 1, description: 'Generation job IDs to wait for.' },
@@ -816,20 +955,20 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_attach_asset_slot_candidate',
+      name: 'candidate_asset_slot_attach',
       description: 'Add one existing raw resource to the reviewable candidate set for an asset slot. Use after generation succeeds and an output_resource_id is available. Agent automation should call this once per resource as soon as that resource is available; array aliases are compatibility-only. This creates or reuses the candidate asset slot and candidate relation, but does not accept, select, bind, or lock the candidate.',
       inputSchema: withCandidateAttachAliasRequirements(objectSchema(
         {
           projectId: { type: 'number', description: 'Defaults to the current UI project when omitted.' },
           asset_slot_id: { type: 'number', minimum: 1, description: 'Target asset slot / requirement ID.' },
           assetSlotId: { type: 'number', minimum: 1, description: 'Alias for asset_slot_id.' },
-          resource_id: { type: 'number', minimum: 1, description: 'Existing raw resource ID, usually movscript_create_generation_job.output_resource_id.' },
+          resource_id: { type: 'number', minimum: 1, description: 'Existing raw resource ID, usually generation_job_create.output_resource_id.' },
           resourceId: { type: 'number', minimum: 1, description: 'Alias for resource_id.' },
-          output_resource_id: { type: 'number', minimum: 1, description: 'Alias for resource_id when using movscript_create_generation_job.output_resource_id directly.' },
+          output_resource_id: { type: 'number', minimum: 1, description: 'Alias for resource_id when using generation_job_create.output_resource_id directly.' },
           outputResourceId: { type: 'number', minimum: 1, description: 'Alias for output_resource_id.' },
           resource_ids: { type: 'array', items: { type: 'number', minimum: 1 }, description: 'Existing raw resource IDs for bulk candidate attachment.' },
           resourceIds: { type: 'array', items: { type: 'number', minimum: 1 }, description: 'Alias for resource_ids.' },
-          output_resource_ids: { type: 'array', items: { type: 'number', minimum: 1 }, description: 'Alias for resource_ids when using movscript_create_generation_job.output_resource_ids directly.' },
+          output_resource_ids: { type: 'array', items: { type: 'number', minimum: 1 }, description: 'Alias for resource_ids when using generation_job_create.output_resource_ids directly.' },
           outputResourceIds: { type: 'array', items: { type: 'number', minimum: 1 }, description: 'Alias for output_resource_ids.' },
           source_type: { type: 'string', description: 'Optional audit source type. Defaults to agent.' },
           sourceType: { type: 'string', description: 'Alias for source_type.' },
@@ -857,7 +996,7 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_attach_keyframe_candidate',
+      name: 'candidate_keyframe_attach',
       description: 'Add one existing raw resource to the reviewable candidate set for an original target keyframe / visual anchor. Use after generation succeeds and an output_resource_id is available. Agent automation should call this once per resource as soon as that resource is available; array aliases are compatibility-only. This creates or reuses a candidate keyframe linked to the original target keyframe, but does not accept, select, bind, or lock the candidate. Do not pass an existing generated candidate keyframe as the target.',
       inputSchema: withCandidateAttachAliasRequirements(objectSchema(
         {
@@ -866,13 +1005,13 @@ export function listTools(): MCPTool[] {
           keyframeId: { type: 'number', minimum: 1, description: 'Alias for keyframe_id.' },
           target_keyframe_id: { type: 'number', minimum: 1, description: 'Alias for the original target keyframe / visual anchor ID when reusing generated candidate metadata. Do not pass the generated candidate keyframe ID.' },
           targetKeyframeId: { type: 'number', minimum: 1, description: 'Alias for target_keyframe_id; must still be the original target keyframe / visual anchor ID.' },
-          resource_id: { type: 'number', minimum: 1, description: 'Existing raw resource ID, usually movscript_create_generation_job.output_resource_id.' },
+          resource_id: { type: 'number', minimum: 1, description: 'Existing raw resource ID, usually generation_job_create.output_resource_id.' },
           resourceId: { type: 'number', minimum: 1, description: 'Alias for resource_id.' },
-          output_resource_id: { type: 'number', minimum: 1, description: 'Alias for resource_id when using movscript_create_generation_job.output_resource_id directly.' },
+          output_resource_id: { type: 'number', minimum: 1, description: 'Alias for resource_id when using generation_job_create.output_resource_id directly.' },
           outputResourceId: { type: 'number', minimum: 1, description: 'Alias for output_resource_id.' },
           resource_ids: { type: 'array', items: { type: 'number', minimum: 1 }, description: 'Existing raw resource IDs for bulk keyframe candidate attachment.' },
           resourceIds: { type: 'array', items: { type: 'number', minimum: 1 }, description: 'Alias for resource_ids.' },
-          output_resource_ids: { type: 'array', items: { type: 'number', minimum: 1 }, description: 'Alias for resource_ids when using movscript_create_generation_job.output_resource_ids directly.' },
+          output_resource_ids: { type: 'array', items: { type: 'number', minimum: 1 }, description: 'Alias for resource_ids when using generation_job_create.output_resource_ids directly.' },
           outputResourceIds: { type: 'array', items: { type: 'number', minimum: 1 }, description: 'Alias for output_resource_ids.' },
           source_type: { type: 'string', description: 'Optional audit source type. Defaults to agent.' },
           sourceType: { type: 'string', description: 'Alias for source_type.' },
@@ -900,7 +1039,7 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_list_generation_jobs',
+      name: 'generation_job_list',
       description: 'List recent AI image or video generation jobs for the current project so the agent can monitor queued and running work.',
       inputSchema: objectSchema(
         {
@@ -912,7 +1051,7 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_cancel_generation_job',
+      name: 'generation_job_cancel',
       description: 'Cancel a running video generation job. This is cost/state affecting and should only run after explicit user approval.',
       inputSchema: objectSchema(
         {
@@ -923,7 +1062,7 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_apply_draft_review',
+      name: 'draft_review_apply',
       description: 'Apply an approved local draft review to the formal MovScript backend entity. This writes backend state and must only run after UI approval.',
       inputSchema: objectSchema(
         {
@@ -934,7 +1073,7 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_preview_apply_draft_review',
+      name: 'draft_review_apply_preview',
       description: 'Preview backend effects for applying a local draft review without writing final entity state when the backend supports dry run.',
       inputSchema: objectSchema(
         {
@@ -976,41 +1115,45 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
   const args = getObjectParam(params, 'arguments')
 
   switch (name) {
-    case 'movscript_get_focus':
+    case 'movscript_focus_get':
       return toolText(getFocus())
-    case 'movscript_list_projects':
+    case 'movscript_project_list':
       return toolText(await listProjects(args))
-    case 'movscript_read_project_scripts':
+    case 'movscript_project_script_read':
       return toolText(await readProjectScripts(args))
-    case 'movscript_query_creative_references':
+    case 'movscript_creative_reference_query':
       return toolText(await queryCreativeReferences(args))
-    case 'movscript_query_asset_slots':
+    case 'movscript_asset_slot_query':
       return toolText(await queryAssetSlots(args))
-    case 'movscript_query_production_context':
+    case 'movscript_production_context_query':
       return toolText(await queryProductionContext(args))
-    case 'movscript_get_draft_model':
+    case 'draft_model_get':
       return toolText(await getDraftModelContract(args))
-    case 'movscript_create_project':
+    case 'movscript_project_create':
       return toolText(await createProject(args))
-    case 'movscript_list_models':
+    case 'generation_model_list':
       return toolText(await listModels(args))
-    case 'movscript_create_generation_job':
+    case 'tool_comfyui':
+      return toolText(await callComfyUITool(args))
+    case 'tool_webui':
+      return toolText(await callWebUITool(args))
+    case 'generation_job_create':
       return toolText(await createGenerationJob(args))
-    case 'movscript_attach_asset_slot_candidate':
+    case 'candidate_asset_slot_attach':
       return toolText(await attachAssetSlotCandidate(args))
-    case 'movscript_attach_keyframe_candidate':
+    case 'candidate_keyframe_attach':
       return toolText(await attachKeyframeCandidate(args))
-    case 'movscript_get_generation_job':
+    case 'generation_job_get':
       return toolText(await getGenerationJob(args))
-    case 'movscript_wait_generation_jobs':
+    case 'generation_job_wait':
       return toolText(await waitGenerationJobs(args))
-    case 'movscript_list_generation_jobs':
+    case 'generation_job_list':
       return toolText(await listGenerationJobs(args))
-    case 'movscript_cancel_generation_job':
+    case 'generation_job_cancel':
       return toolText(await cancelGenerationJob(args))
-    case 'movscript_apply_draft_review':
+    case 'draft_review_apply':
       return toolText(await applyDraftReview(args))
-    case 'movscript_preview_apply_draft_review':
+    case 'draft_review_apply_preview':
       return toolText(await previewApplyDraftReview(args))
     default:
       throw new Error(`Unknown tool: ${name}`)
@@ -1021,7 +1164,7 @@ function getFocus(): unknown {
   const startedAt = Date.now()
   const focusMs = Date.now() - startedAt
   return {
-    focus: contextSnapshot,
+    focus: getMCPFocusSnapshot(),
     timings: {
       totalMs: focusMs,
       focusMs,
@@ -1071,6 +1214,535 @@ export async function listModels(args: Record<string, unknown>): Promise<unknown
     queries: queries.map((query) => query.label),
     model_contracts: Array.from(byId.values()).map(summarizeModelContractForAgent),
     models: Array.from(byId.values()),
+  }
+}
+
+export async function callComfyUITool(args: Record<string, unknown>): Promise<unknown> {
+  const operation = getRequiredOperation(args, ['list_servers', 'status', 'object_info', 'queue_prompt', 'queue', 'history', 'import_history_outputs'])
+  if (operation === 'list_servers') {
+    return {
+      status: 'ok',
+      servers: (await generationToolServersWithAdmin('comfyui')).map(sanitizeGenerationToolServerForMCP),
+    }
+  }
+
+  const selected = await selectGenerationToolServer(
+    'comfyui',
+    getOptionalString(args, 'server_id') ?? getOptionalString(args, 'serverId'),
+    getOptionalGenerationToolServerScope(args),
+  )
+  if (selected.scope !== 'local') {
+    if (operation === 'import_history_outputs') return importAdminComfyUIHistoryOutputs(selected, args)
+    return callAdminGenerationToolProxy(selected, args)
+  }
+  switch (operation) {
+    case 'status':
+      return callGenerationToolServer(selected, '/system_stats', { method: 'GET' })
+    case 'object_info':
+      return callGenerationToolServer(selected, '/object_info', { method: 'GET' })
+    case 'queue':
+      return callGenerationToolServer(selected, '/queue', { method: 'GET' })
+    case 'history': {
+      const promptID = getOptionalString(args, 'prompt_id') ?? getOptionalString(args, 'promptId')
+      return callGenerationToolServer(selected, promptID ? `/history/${encodeURIComponent(promptID)}` : '/history', { method: 'GET' })
+    }
+    case 'import_history_outputs':
+      return importComfyUIHistoryOutputs(selected, args)
+    case 'queue_prompt': {
+      const workflow = isRecord(args.workflow) ? args.workflow : undefined
+      if (!workflow) throw new Error('tool_comfyui queue_prompt requires workflow object')
+      const clientID = getOptionalString(args, 'client_id') ?? getOptionalString(args, 'clientId')
+      return callGenerationToolServer(selected, '/prompt', {
+        method: 'POST',
+        body: {
+          prompt: workflow,
+          ...(clientID ? { client_id: clientID } : {}),
+        },
+      })
+    }
+    default:
+      throw new Error(`Unsupported ComfyUI operation: ${operation}`)
+  }
+}
+
+export async function callWebUITool(args: Record<string, unknown>): Promise<unknown> {
+  const operation = getRequiredOperation(args, ['list_servers', 'status', 'models', 'txt2img', 'img2img', 'progress', 'get'])
+  if (operation === 'list_servers') {
+    return {
+      status: 'ok',
+      servers: (await generationToolServersWithAdmin('webui')).map(sanitizeGenerationToolServerForMCP),
+    }
+  }
+
+  const selected = await selectGenerationToolServer(
+    'webui',
+    getOptionalString(args, 'server_id') ?? getOptionalString(args, 'serverId'),
+    getOptionalGenerationToolServerScope(args),
+  )
+  if (selected.scope !== 'local') {
+    const result = await callAdminGenerationToolProxy(selected, args)
+    return maybeImportWebUIOutputs(result, args)
+  }
+  switch (operation) {
+    case 'status':
+    case 'progress':
+      return callGenerationToolServer(selected, '/sdapi/v1/progress?skip_current_image=true', { method: 'GET' })
+    case 'models':
+      return callGenerationToolServer(selected, '/sdapi/v1/sd-models', { method: 'GET' })
+    case 'txt2img':
+      return maybeImportWebUIOutputs(await callGenerationToolServer(selected, '/sdapi/v1/txt2img', {
+        method: 'POST',
+        body: getPayloadObject(args),
+      }), args)
+    case 'img2img':
+      return maybeImportWebUIOutputs(await callGenerationToolServer(selected, '/sdapi/v1/img2img', {
+        method: 'POST',
+        body: getPayloadObject(args),
+      }), args)
+    case 'get': {
+      const path = getOptionalString(args, 'path') ?? ''
+      if (!path.startsWith('/sdapi/v1/') || path.includes('://')) {
+        throw new Error('tool_webui get requires a safe /sdapi/v1/... path')
+      }
+      return callGenerationToolServer(selected, path, { method: 'GET' })
+    }
+    default:
+      throw new Error(`Unsupported WebUI operation: ${operation}`)
+  }
+}
+
+function getPayloadObject(args: Record<string, unknown>): Record<string, unknown> {
+  if (!isRecord(args.payload)) throw new Error('tool_webui operation requires payload object')
+  return args.payload
+}
+
+async function maybeImportWebUIOutputs(result: unknown, args: Record<string, unknown>): Promise<unknown> {
+  if (args.import_outputs !== true) return result
+  const resultRecord = isRecord(result) ? result : {}
+  const data = isRecord(resultRecord.data) ? resultRecord.data : {}
+  const images = Array.isArray(data.images) ? data.images.filter((item): item is string => typeof item === 'string' && item.trim() !== '') : []
+  if (images.length === 0) return result
+
+  const outputName = getOptionalString(args, 'output_name') ?? getOptionalString(args, 'outputName') ?? 'webui-output'
+  const folderID = getOptionalString(args, 'folder_id') ?? getOptionalString(args, 'folderId')
+  const outputResources = []
+  for (let index = 0; index < images.length; index += 1) {
+    const decoded = decodeBase64Image(images[index])
+    const filename = `${safeFilenameStem(outputName)}-${index + 1}.${mimeExtension(decoded.mimeType)}`
+    outputResources.push(await backendUploadResource(decoded.bytes, filename, decoded.mimeType, folderID))
+  }
+  const outputResourceIds = outputResources.map(resourceIDFromUpload).filter((id): id is number => id !== undefined)
+  const candidateResults = await attachImportedOutputCandidates(outputResourceIds, args, 'tool_webui')
+  return {
+    ...resultRecord,
+    data: {
+      ...data,
+      images: undefined,
+      image_count: images.length,
+      imported: true,
+    },
+    output_resources: outputResources,
+    output_resource_ids: outputResourceIds,
+    ...(candidateResults.length > 0 ? { candidate_results: candidateResults } : {}),
+    message: outputResourceIds.length > 0
+      ? `Imported ${outputResourceIds.length} WebUI output image(s) into resources.`
+      : 'WebUI returned images, but no resource IDs were created.',
+  }
+}
+
+async function importComfyUIHistoryOutputs(server: GenerationToolServer, args: Record<string, unknown>): Promise<unknown> {
+  const promptID = getOptionalString(args, 'prompt_id') ?? getOptionalString(args, 'promptId')
+  if (!promptID) throw new Error('tool_comfyui import_history_outputs requires prompt_id')
+  const historyResult = await callGenerationToolServer(server, `/history/${encodeURIComponent(promptID)}`, { method: 'GET' })
+  const historyData = isRecord(historyResult) && isRecord(historyResult.data) ? historyResult.data : {}
+  const outputs = extractComfyUIHistoryImageOutputs(historyData, promptID)
+  const outputName = getOptionalString(args, 'output_name') ?? getOptionalString(args, 'outputName') ?? 'comfyui-output'
+  const folderID = getOptionalString(args, 'folder_id') ?? getOptionalString(args, 'folderId')
+  const outputResources = []
+  for (let index = 0; index < outputs.length; index += 1) {
+    const image = await fetchComfyUIImageOutput(server, outputs[index])
+    const filename = `${safeFilenameStem(outputName)}-${index + 1}.${mimeExtension(image.mimeType)}`
+    outputResources.push(await backendUploadResource(image.bytes, filename, image.mimeType, folderID))
+  }
+  const outputResourceIds = outputResources.map(resourceIDFromUpload).filter((id): id is number => id !== undefined)
+  const candidateResults = await attachImportedOutputCandidates(outputResourceIds, args, 'tool_comfyui')
+  return {
+    status: 'ok',
+    server: sanitizeGenerationToolServerForMCP(server),
+    data: {
+      prompt_id: promptID,
+      output_count: outputs.length,
+      imported: true,
+    },
+    output_resources: outputResources,
+    output_resource_ids: outputResourceIds,
+    ...(candidateResults.length > 0 ? { candidate_results: candidateResults } : {}),
+    message: outputResourceIds.length > 0
+      ? `Imported ${outputResourceIds.length} ComfyUI output image(s) into resources.`
+      : 'No ComfyUI image outputs were imported from history.',
+  }
+}
+
+async function importAdminComfyUIHistoryOutputs(server: GenerationToolServer, args: Record<string, unknown>): Promise<unknown> {
+  const promptID = getOptionalString(args, 'prompt_id') ?? getOptionalString(args, 'promptId')
+  if (!promptID) throw new Error('tool_comfyui import_history_outputs requires prompt_id')
+  const historyResult = await callAdminGenerationToolProxy(server, { operation: 'history', prompt_id: promptID })
+  const historyData = isRecord(historyResult) && isRecord(historyResult.data) ? historyResult.data : {}
+  const outputs = extractComfyUIHistoryImageOutputs(historyData, promptID)
+  const outputName = getOptionalString(args, 'output_name') ?? getOptionalString(args, 'outputName') ?? 'comfyui-output'
+  const folderID = getOptionalString(args, 'folder_id') ?? getOptionalString(args, 'folderId')
+  const outputResources = []
+  for (let index = 0; index < outputs.length; index += 1) {
+    const viewResult = await callAdminGenerationToolProxy(server, {
+      operation: 'view',
+      filename: outputs[index].filename,
+      subfolder: outputs[index].subfolder,
+      file_type: outputs[index].type,
+    })
+    const viewData = isRecord(viewResult) && isRecord(viewResult.data) ? viewResult.data : {}
+    const base64 = typeof viewData.base64 === 'string' ? viewData.base64 : ''
+    if (!base64) continue
+    const mimeType = typeof viewData.mime_type === 'string' && viewData.mime_type.trim() ? viewData.mime_type.trim() : mimeTypeFromFilename(outputs[index].filename)
+    const bytes = new Uint8Array(Buffer.from(base64, 'base64'))
+    const filename = `${safeFilenameStem(outputName)}-${index + 1}.${mimeExtension(mimeType)}`
+    outputResources.push(await backendUploadResource(bytes, filename, mimeType, folderID))
+  }
+  const outputResourceIds = outputResources.map(resourceIDFromUpload).filter((id): id is number => id !== undefined)
+  const candidateResults = await attachImportedOutputCandidates(outputResourceIds, args, 'tool_comfyui')
+  return {
+    status: 'ok',
+    server: sanitizeGenerationToolServerForMCP(server),
+    data: {
+      prompt_id: promptID,
+      output_count: outputs.length,
+      imported: true,
+    },
+    output_resources: outputResources,
+    output_resource_ids: outputResourceIds,
+    ...(candidateResults.length > 0 ? { candidate_results: candidateResults } : {}),
+    message: outputResourceIds.length > 0
+      ? `Imported ${outputResourceIds.length} ComfyUI output image(s) into resources.`
+      : 'No ComfyUI image outputs were imported from history.',
+  }
+}
+
+function extractComfyUIHistoryImageOutputs(historyData: Record<string, unknown>, promptID: string): Array<{ filename: string; subfolder: string; type: string }> {
+  const promptHistory = isRecord(historyData[promptID]) ? historyData[promptID] : historyData
+  const outputs = isRecord(promptHistory.outputs) ? promptHistory.outputs : {}
+  const out: Array<{ filename: string; subfolder: string; type: string }> = []
+  for (const nodeOutput of Object.values(outputs)) {
+    if (!isRecord(nodeOutput) || !Array.isArray(nodeOutput.images)) continue
+    for (const image of nodeOutput.images) {
+      if (!isRecord(image) || typeof image.filename !== 'string' || !image.filename.trim()) continue
+      out.push({
+        filename: image.filename.trim(),
+        subfolder: typeof image.subfolder === 'string' ? image.subfolder : '',
+        type: typeof image.type === 'string' && image.type.trim() ? image.type.trim() : 'output',
+      })
+    }
+  }
+  return out
+}
+
+async function fetchComfyUIImageOutput(server: GenerationToolServer, output: { filename: string; subfolder: string; type: string }): Promise<{ bytes: Uint8Array; mimeType: string }> {
+  const params = new URLSearchParams()
+  params.set('filename', output.filename)
+  if (output.subfolder) params.set('subfolder', output.subfolder)
+  params.set('type', output.type)
+  const res = await fetchWithTimeout(`${server.baseURL}/view?${params.toString()}`, {
+    method: 'GET',
+    headers: generationToolServerHeaders(server, false),
+  }, server.timeoutMS)
+  if (!res.ok) {
+    const rawBody = await res.text()
+    throw new Error(`comfyui server ${server.name} GET /view failed: HTTP ${res.status} ${rawBody.slice(0, 300)}`)
+  }
+  const bytes = new Uint8Array(await res.arrayBuffer())
+  const mimeType = res.headers.get('content-type')?.split(';')[0]?.trim() || mimeTypeFromFilename(output.filename)
+  return { bytes, mimeType }
+}
+
+function decodeBase64Image(value: string): { bytes: Uint8Array; mimeType: string } {
+  const trimmed = value.trim()
+  const match = /^data:([^;,]+);base64,(.*)$/s.exec(trimmed)
+  const mimeType = match?.[1] ?? 'image/png'
+  const raw = match?.[2] ?? trimmed
+  return {
+    bytes: new Uint8Array(Buffer.from(raw, 'base64')),
+    mimeType,
+  }
+}
+
+async function backendUploadResource(bytes: Uint8Array, filename: string, mimeType: string, folderID?: string): Promise<Record<string, unknown>> {
+  const body = new FormData()
+  const arrayBuffer = new ArrayBuffer(bytes.byteLength)
+  new Uint8Array(arrayBuffer).set(bytes)
+  body.append('file', new Blob([arrayBuffer], { type: mimeType }), filename)
+  if (folderID) body.append('folder_id', folderID)
+  const headers: Record<string, string> = {}
+  if (contextAuthToken) headers.Authorization = `Bearer ${contextAuthToken}`
+  const res = await fetch(`${apiBaseURL}/resources/upload`, {
+    method: 'POST',
+    headers,
+    body,
+  })
+  if (!res.ok) {
+    throw await BackendHTTPError.fromResponse('POST', '/resources/upload', res)
+  }
+  const uploaded = await res.json()
+  return isRecord(uploaded) ? uploaded : { value: uploaded }
+}
+
+function resourceIDFromUpload(resource: Record<string, unknown>): number | undefined {
+  const value = resource.ID ?? resource.id
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined
+}
+
+async function attachImportedOutputCandidates(outputResourceIds: number[], args: Record<string, unknown>, sourceType: string): Promise<unknown[]> {
+  if (outputResourceIds.length === 0) return []
+  const projectId = getOptionalNumeric(args, 'projectId') ?? getOptionalNumeric(args, 'project_id')
+  if (!projectId) return []
+  const assetSlotId = getOptionalNumeric(args, 'asset_slot_id') ?? getOptionalNumeric(args, 'assetSlotId')
+  const keyframeId = getOptionalNumeric(args, 'keyframe_id') ?? getOptionalNumeric(args, 'keyframeId')
+  const results: unknown[] = []
+  if (assetSlotId) {
+    results.push(await attachAssetSlotCandidate({ projectId, asset_slot_id: assetSlotId, output_resource_ids: outputResourceIds, source_type: sourceType }))
+  }
+  if (keyframeId) {
+    results.push(await attachKeyframeCandidate({ projectId, keyframe_id: keyframeId, output_resource_ids: outputResourceIds, source_type: sourceType }))
+  }
+  return results
+}
+
+function safeFilenameStem(value: string): string {
+  const normalized = value.trim().replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
+  return normalized || 'webui-output'
+}
+
+function mimeExtension(mimeType: string): string {
+  switch (mimeType.toLowerCase()) {
+    case 'image/jpeg':
+    case 'image/jpg':
+      return 'jpg'
+    case 'image/webp':
+      return 'webp'
+    default:
+      return 'png'
+  }
+}
+
+function mimeTypeFromFilename(filename: string): string {
+  const lower = filename.toLowerCase()
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg'
+  if (lower.endsWith('.webp')) return 'image/webp'
+  return 'image/png'
+}
+
+function getRequiredOperation(args: Record<string, unknown>, allowed: string[]): string {
+  const operation = getOptionalString(args, 'operation')?.trim()
+  if (!operation || !allowed.includes(operation)) {
+    throw new Error(`operation must be one of: ${allowed.join(', ')}`)
+  }
+  return operation
+}
+
+function getOptionalGenerationToolServerScope(args: Record<string, unknown>): GenerationToolServer['scope'] | undefined {
+  const scope = (getOptionalString(args, 'server_scope') ?? getOptionalString(args, 'serverScope'))?.trim().toLowerCase()
+  if (!scope) return undefined
+  if (scope === 'local' || scope === 'org' || scope === 'admin') return scope
+  throw new Error('server_scope must be one of: local, org, admin')
+}
+
+function generationToolServers(type: GenerationToolServerType): GenerationToolServer[] {
+  return generationToolsSettings.servers
+    .filter((item) => item.type === type)
+    .sort(compareGenerationToolServers)
+}
+
+type RemoteGenerationToolsSettings = {
+  servers: GenerationToolServer[]
+  allowLocal: boolean
+  defaultServerId?: string
+  defaultServerIds?: Partial<Record<GenerationToolServerType, string>>
+  remoteUnavailable?: boolean
+}
+
+async function generationToolServersWithAdmin(type: GenerationToolServerType, adminSettings?: RemoteGenerationToolsSettings): Promise<GenerationToolServer[]> {
+  const remoteSettings = adminSettings ?? await fetchAdminGenerationToolsSettings()
+  const adminServers = remoteSettings.servers.filter((server) => server.type === type)
+  const localServers = remoteSettings.allowLocal === false ? [] : generationToolServers(type)
+  return [...localServers, ...adminServers].sort(compareGenerationToolServers)
+}
+
+function compareGenerationToolServers(left: GenerationToolServer, right: GenerationToolServer): number {
+  return generationToolScopeRank(left.scope) - generationToolScopeRank(right.scope)
+    || left.priority - right.priority
+    || left.name.localeCompare(right.name)
+}
+
+function generationToolScopeRank(scope: GenerationToolServer['scope']): number {
+  if (scope === 'local') return 0
+  if (scope === 'org') return 1
+  return 2
+}
+
+async function fetchAdminGenerationToolsSettings(): Promise<RemoteGenerationToolsSettings> {
+  if (!contextAuthToken) return { servers: [], allowLocal: true }
+  try {
+    const raw = await backendGet('/generation-tools/settings')
+    const source = isRecord(raw) ? raw : {}
+    const servers = Array.isArray(source.servers)
+      ? source.servers.map(normalizeAdminGenerationToolServer).filter((server): server is GenerationToolServer => !!server)
+      : []
+    return {
+      servers,
+      allowLocal: source.allow_local !== false,
+      defaultServerId: typeof source.default_server_id === 'string' ? source.default_server_id : undefined,
+      defaultServerIds: normalizeRemoteDefaultGenerationToolServerIDs(source.default_server_ids),
+    }
+  } catch {
+    return { servers: [], allowLocal: false, remoteUnavailable: true }
+  }
+}
+
+function normalizeRemoteDefaultGenerationToolServerIDs(raw: unknown): Partial<Record<GenerationToolServerType, string>> {
+  if (!isRecord(raw)) return {}
+  const out: Partial<Record<GenerationToolServerType, string>> = {}
+  if (typeof raw.comfyui === 'string' && raw.comfyui.trim()) out.comfyui = raw.comfyui.trim()
+  if (typeof raw.webui === 'string' && raw.webui.trim()) out.webui = raw.webui.trim()
+  return out
+}
+
+function normalizeAdminGenerationToolServer(raw: unknown): GenerationToolServer | null {
+  if (!isRecord(raw)) return null
+  const type: GenerationToolServerType = raw.type === 'webui' ? 'webui' : 'comfyui'
+  const id = typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : ''
+  const baseURL = typeof raw.base_url === 'string' ? raw.base_url : typeof raw.baseURL === 'string' ? raw.baseURL : ''
+  if (!id || !baseURL.trim()) return null
+  return {
+    id,
+    scope: raw.scope === 'org' ? 'org' : 'admin',
+    type,
+    name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : (type === 'comfyui' ? 'Admin ComfyUI' : 'Admin WebUI'),
+    enabled: raw.enabled === true,
+    baseURL: baseURL.trim().replace(/\/+$/, ''),
+    timeoutMS: typeof raw.timeout_ms === 'number' ? raw.timeout_ms : typeof raw.timeoutMS === 'number' ? raw.timeoutMS : 120000,
+    priority: typeof raw.priority === 'number' ? raw.priority : 50,
+    authKind: raw.auth_kind === 'basic' || raw.authKind === 'basic' ? 'basic' : raw.auth_kind === 'bearer' || raw.authKind === 'bearer' ? 'bearer' : 'none',
+    username: typeof raw.username === 'string' ? raw.username : '',
+    password: '',
+    passwordSet: raw.password_set === true || raw.passwordSet === true,
+    token: '',
+    tokenSet: raw.token_set === true || raw.tokenSet === true,
+    tags: Array.isArray(raw.tags) ? raw.tags.filter((tag): tag is string => typeof tag === 'string') : [],
+  }
+}
+
+async function selectGenerationToolServer(type: GenerationToolServerType, serverID?: string, serverScope?: GenerationToolServer['scope']): Promise<GenerationToolServer> {
+  const adminSettings = await fetchAdminGenerationToolsSettings()
+  const servers = (await generationToolServersWithAdmin(type, adminSettings))
+    .filter((server) => !serverScope || server.scope === serverScope)
+  const localDefaultServerID = generationToolsSettings.defaultServerIds?.[type] ?? generationToolsSettings.defaultServerId
+  const remoteDefaultServerID = adminSettings.defaultServerIds?.[type] ?? adminSettings.defaultServerId
+  const selected = serverID
+    ? servers.find((server) => server.id === serverID)
+    : servers.find((server) => server.id === localDefaultServerID && server.enabled)
+      ?? servers.find((server) => server.id === remoteDefaultServerID && server.enabled)
+      ?? servers.find((server) => server.enabled)
+
+  if (!selected) {
+    if (adminSettings.remoteUnavailable) {
+      throw new Error(`Generation tool policy is unavailable; reconnect to the backend before using configured ${type === 'comfyui' ? 'ComfyUI' : 'WebUI'} servers`)
+    }
+    throw new Error(`No configured ${type === 'comfyui' ? 'ComfyUI' : 'WebUI'} server is available`)
+  }
+  if (!selected.enabled) {
+    throw new Error(`Configured generation server ${selected.name} is disabled`)
+  }
+  return selected
+}
+
+function sanitizeGenerationToolServerForMCP(server: GenerationToolServer): Record<string, unknown> {
+  return {
+    id: server.id,
+    scope: server.scope,
+    type: server.type,
+    name: server.name,
+    enabled: server.enabled,
+    baseURL: server.baseURL,
+    timeoutMS: server.timeoutMS,
+    priority: server.priority,
+    authKind: server.authKind,
+    passwordSet: !!server.password || !!server.passwordSet,
+    tokenSet: !!server.token || !!server.tokenSet,
+    tags: server.tags ?? [],
+  }
+}
+
+async function callAdminGenerationToolProxy(server: GenerationToolServer, args: Record<string, unknown>): Promise<unknown> {
+  const operation = getRequiredOperation(args, server.type === 'comfyui'
+    ? ['status', 'object_info', 'queue_prompt', 'queue', 'history', 'view']
+    : ['status', 'models', 'txt2img', 'img2img', 'progress', 'get'])
+  const body: Record<string, unknown> = {
+    tool_type: server.type,
+    server_id: server.id,
+    server_scope: server.scope,
+    operation,
+  }
+  for (const key of ['path', 'workflow', 'payload', 'client_id', 'clientId', 'prompt_id', 'promptId', 'filename', 'subfolder', 'file_type', 'fileType']) {
+    if (args[key] !== undefined) body[key] = args[key]
+  }
+  if (body.clientId !== undefined && body.client_id === undefined) body.client_id = body.clientId
+  if (body.promptId !== undefined && body.prompt_id === undefined) body.prompt_id = body.promptId
+  if (body.fileType !== undefined && body.file_type === undefined) body.file_type = body.fileType
+  delete body.clientId
+  delete body.promptId
+  delete body.fileType
+  return backendPost('/generation-tools/call', body)
+}
+
+async function callGenerationToolServer(server: GenerationToolServer, path: string, request: { method: 'GET' | 'POST'; body?: Record<string, unknown> }): Promise<unknown> {
+  const startedAt = Date.now()
+  const url = `${server.baseURL}${path.startsWith('/') ? path : `/${path}`}`
+  const headers = generationToolServerHeaders(server, request.body !== undefined)
+  const res = await fetchWithTimeout(url, {
+    method: request.method,
+    headers,
+    ...(request.body !== undefined ? { body: JSON.stringify(request.body) } : {}),
+  }, server.timeoutMS)
+  const rawBody = await res.text()
+  const data = parseJSONBody(rawBody)
+  if (!res.ok) {
+    throw new Error(`${server.type} server ${server.name} ${request.method} ${path} failed: HTTP ${res.status} ${typeof data === 'string' ? data : rawBody.slice(0, 300)}`)
+  }
+  return {
+    status: 'ok',
+    server: sanitizeGenerationToolServerForMCP(server),
+    data,
+    timings: {
+      totalMs: Date.now() - startedAt,
+    },
+  }
+}
+
+function generationToolServerHeaders(server: GenerationToolServer, withJSONBody: boolean): Record<string, string> {
+  const headers: Record<string, string> = {}
+  if (withJSONBody) headers['Content-Type'] = 'application/json'
+  if (server.authKind === 'bearer' && server.token) {
+    headers.Authorization = `Bearer ${server.token}`
+  } else if (server.authKind === 'basic' && server.username && server.password) {
+    headers.Authorization = `Basic ${Buffer.from(`${server.username}:${server.password}`).toString('base64')}`
+  }
+  return headers
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMS: number): Promise<Response> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), clampNumber(timeoutMS, 1000, 600000))
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timeout)
   }
 }
 
@@ -1750,7 +2422,7 @@ async function hydrateDraftSeedInclude(kind: AgentDraftKind, projectId: number, 
     case 'creative_references':
       return summarizeSeedValue(activeDraftSeedCreativeReferences(await backendList(`/projects/${projectId}/entities/creative-references`)))
     case 'asset_slot_ownership':
-      return summarizeAssetSlotOwnership(activeDraftSeedAssetSlots(await backendList(`/projects/${projectId}/entities/asset-slots`)))
+      return summarizeAssetSlotOwnership(activeDraftSeedAssetSlots(await backendList(assetSlotSeedPath(projectId))))
     case 'production': {
       if (!productionId) return undefined
       const productions = await backendList(`/projects/${projectId}/entities/productions`)
@@ -1799,7 +2471,7 @@ async function hydrateDraftSeedInclude(kind: AgentDraftKind, projectId: number, 
         ? await backendList(`/projects/${projectId}/resources?ref_type=content_unit&ref_id=${encodeURIComponent(String(contentUnitId))}`)
         : await backendList(`/projects/${projectId}/resources`))
     case 'asset_slots': {
-      const slots = activeDraftSeedAssetSlots(await backendList(`/projects/${projectId}/entities/asset-slots`))
+      const slots = activeDraftSeedAssetSlots(await backendList(assetSlotSeedPath(projectId)))
       return summarizeSeedValue(contentUnitId
         ? slots.filter((slot) => slot.owner_type === 'content_unit' && numericValue(slot.owner_id) === contentUnitId)
         : sceneMomentId
@@ -1809,12 +2481,12 @@ async function hydrateDraftSeedInclude(kind: AgentDraftKind, projectId: number, 
             : slots)
     }
     case 'asset_slot_usages':
-      return summarizeAssetSlotOwnership(activeDraftSeedAssetSlots(await backendList(`/projects/${projectId}/entities/asset-slots`)))
+      return summarizeAssetSlotOwnership(activeDraftSeedAssetSlots(await backendList(assetSlotSeedPath(projectId))))
     case 'creative_reference_usages':
       return summarizeSeedValue(await backendList(`/projects/${projectId}/entities/creative-reference-usages`))
     case 'asset_slot': {
       if (!entityId) return undefined
-      const slots = activeDraftSeedAssetSlots(await backendList(`/projects/${projectId}/entities/asset-slots`))
+      const slots = activeDraftSeedAssetSlots(await backendList(assetSlotSeedPath(projectId)))
       return summarizeSeedValue(slots.find((slot) => numericValue(slot?.ID ?? slot?.id) === entityId) ?? null)
     }
     case 'asset_need':
@@ -1827,6 +2499,10 @@ async function hydrateDraftSeedInclude(kind: AgentDraftKind, projectId: number, 
     default:
       return undefined
   }
+}
+
+function assetSlotSeedPath(projectId: number): string {
+  return `/projects/${projectId}/entities/asset-slots?include_internal=true`
 }
 
 async function resolveDraftSeedProductionId(
@@ -2182,7 +2858,7 @@ export async function createGenerationJob(args: Record<string, unknown>): Promis
       ...(jobIds.length > 1 ? { jobIds } : {}),
       ...(outputCount > 1 ? { requested_output_count: outputCount, single_output_jobs: true } : {}),
       monitor: {
-        tool: 'movscript_wait_generation_jobs',
+        tool: 'generation_job_wait',
         args: jobIds.length > 0 ? { jobIds, ...(jobIds.length > 1 ? { mode: 'any' } : {}), timeout_ms: monitorTimeoutMs, heartbeat_ms: monitorHeartbeatMs, ...(projectId ? { projectId } : {}) } : undefined,
         message: jobIds.length > 1
           ? 'Generation is asynchronous. Wait with mode:any, attach completed output resources immediately, then continue waiting for pending jobs.'
@@ -2745,9 +3421,13 @@ function normalizeProjectLayerProposalPayloadForKind(value: unknown, kind: Agent
   const effectiveKind = inferProjectLayerProposalDraftKind(payload, kind)
   const proposal = isRecord(payload.proposal) ? payload.proposal : {}
   if (effectiveKind === 'setting_proposal' || effectiveKind === 'asset_proposal') {
+    const creativeReferences = effectiveKind === 'setting_proposal' ? normalizeProjectLayerProposalSnapshotNodes(proposal.creative_references) : []
     const assetSlots = effectiveKind === 'asset_proposal' ? normalizeProjectLayerProposalSnapshotNodes(proposal.asset_slots) : []
+    if (effectiveKind === 'setting_proposal') {
+      validateDirectSettingProposalSnapshot(payload)
+    }
     if (effectiveKind === 'asset_proposal') {
-      validateDirectAssetProposalSnapshot(payload, assetSlots)
+      validateDirectAssetProposalSnapshot(payload)
     }
     return {
       ...payload,
@@ -2755,7 +3435,7 @@ function normalizeProjectLayerProposalPayloadForKind(value: unknown, kind: Agent
       mode: 'snapshot',
       proposal: {
         ...proposal,
-        creative_references: effectiveKind === 'setting_proposal' ? normalizeProjectLayerProposalSnapshotNodes(proposal.creative_references) : [],
+        creative_references: creativeReferences,
         asset_slots: assetSlots,
       },
     }
@@ -2787,39 +3467,19 @@ function normalizeProjectStylePatch(value: unknown): Record<string, unknown> {
   return out
 }
 
-function validateDirectAssetProposalSnapshot(payload: Record<string, unknown>, assetSlots: unknown[]): void {
-  if (assetSlots.length === 0) return
+function validateDirectSettingProposalSnapshot(payload: Record<string, unknown>): void {
+  const snapshotBase = isRecord(payload.snapshot_base) ? payload.snapshot_base : undefined
+  if (!Array.isArray(snapshotBase?.creative_references)) {
+    throw new Error('Setting proposal snapshot apply requires snapshot_base.creative_references. Create or update the draft through draft_create so runtime can hydrate the current-data baseline; omitted creative references are treated as deletes.')
+  }
+}
+
+function validateDirectAssetProposalSnapshot(payload: Record<string, unknown>): void {
   const snapshotBase = isRecord(payload.snapshot_base) ? payload.snapshot_base : undefined
   const baseSlots = Array.isArray(snapshotBase?.asset_slots) ? snapshotBase.asset_slots : undefined
   if (!baseSlots) {
-    throw new Error('Asset proposal snapshot apply requires snapshot_base.asset_slots. Direct apply treats proposal.asset_slots as a complete snapshot, so refresh the draft model/current project snapshot before applying.')
+    throw new Error('Asset proposal snapshot apply requires snapshot_base.asset_slots. Create or update the draft through draft_create so runtime can hydrate the current-data baseline; omitted asset slots are treated as deletes.')
   }
-  const proposedIDs = new Set<number>()
-  for (const slot of assetSlots) {
-    if (!isRecord(slot)) continue
-    const id = positiveIntValue(slot.id ?? slot.ID ?? slot.asset_slot_id ?? slot.assetSlotId)
-    if (id !== undefined) proposedIDs.add(id)
-  }
-  const omittedIDs = baseSlots
-    .filter((slot): slot is Record<string, unknown> => isRecord(slot))
-    .filter((slot) => activeAssetSlotSnapshotStatus(slot.status))
-    .map((slot) => positiveIntValue(slot.id ?? slot.ID ?? slot.asset_slot_id ?? slot.assetSlotId))
-    .filter((id): id is number => id !== undefined && !proposedIDs.has(id))
-  if (omittedIDs.length === 0) return
-  const sample = omittedIDs.slice(0, 5).join(', ')
-  const suffix = omittedIDs.length > 5 ? `, +${omittedIDs.length - 5} more` : ''
-  throw new Error(`Asset proposal snapshot apply would omit existing active asset slots. Keep every unchanged slot in proposal.asset_slots, or include an explicit status:"waived" entry for slots the user asked to remove. Omitted asset slot ids: ${sample}${suffix}.`)
-}
-
-function activeAssetSlotSnapshotStatus(value: unknown): boolean {
-  const status = typeof value === 'string' ? value.trim().toLowerCase() : ''
-  return status !== 'ignored' && status !== 'waived' && status !== 'merged'
-}
-
-function positiveIntValue(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
-  if (typeof value === 'string' && /^[1-9]\d*$/.test(value.trim())) return Number(value.trim())
-  return undefined
 }
 
 function normalizeProjectStyleStringList(value: unknown): string[] {

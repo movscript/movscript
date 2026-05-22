@@ -18,6 +18,7 @@ const (
 	RoleOwner  = "owner"
 	RoleAdmin  = "admin"
 	RoleMember = "member"
+	RoleViewer = "viewer"
 )
 
 func IsAdminOrAbove(role string) bool {
@@ -29,6 +30,15 @@ func DefaultMemberRole(role string) string {
 		return RoleMember
 	}
 	return role
+}
+
+func IsKnownRole(role string) bool {
+	switch strings.TrimSpace(role) {
+	case RoleOwner, RoleAdmin, RoleMember, RoleViewer:
+		return true
+	default:
+		return false
+	}
 }
 
 func GenerateInviteToken() (string, error) {

@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createRuntimeTreeCancellationBridge } from './runtimeTreeCancellationBridge.js'
 
-test('createRuntimeTreeCancellationBridge wires subtree and plan tree cancellation', () => {
+test('createRuntimeTreeCancellationBridge wires subtree and taskGraph tree cancellation', () => {
   const calls: string[] = []
   const bridge = createRuntimeTreeCancellationBridge({
     store: { label: 'store' } as never,
@@ -23,14 +23,14 @@ test('createRuntimeTreeCancellationBridge wires subtree and plan tree cancellati
   assert.deepEqual(bridge.cancelSubtree('run_parent', { reason: 'user' }), {
     cancelledRunIds: ['run_parent', 'run_leaf'],
   })
-  assert.deepEqual(bridge.cancelPlanTree('run_planner', { reason: 'plan' }), {
+  assert.deepEqual(bridge.cancelPlanTree('run_planner', { reason: 'taskGraph' }), {
     cancelledRunIds: ['run_root', 'run_leaf'],
   })
   assert.deepEqual(calls, [
     'subtree:run_parent:user',
     'cancelRun:run_leaf:user',
     'planTree:run_planner',
-    'subtree:run_root:plan',
-    'cancelRun:run_leaf:plan',
+    'subtree:run_root:taskGraph',
+    'cancelRun:run_leaf:taskGraph',
   ])
 })

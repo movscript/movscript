@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
 import type {
-  AgentPlan,
-  AgentPlanSnapshot,
-  AgentPlanStreamEvent,
+  AgentTaskGraph,
+  AgentTaskGraphSnapshot,
+  AgentTaskGraphStreamEvent,
   AgentRun,
   AgentRunStreamEvent,
   AgentThreadStreamEvent,
@@ -13,16 +13,16 @@ import type {
 import { RuntimeEventSubscriberRegistry } from './runtimeEventSubscribers.js'
 import { createRuntimeStreamBridge } from './runtimeStreamBridge.js'
 
-test('createRuntimeStreamBridge records run traces and forwards trace events to plan subscribers', () => {
+test('createRuntimeStreamBridge records run traces and forwards trace events to taskGraph subscribers', () => {
   const store = new InMemoryAgentStore()
-  const run = makeRun({ planId: 'plan_1' })
+  const run = makeRun({ taskGraphId: 'task_graph_1' })
   store.createRun(run)
   const runEvents: AgentRunStreamEvent[] = []
-  const planEvents: AgentPlanStreamEvent[] = []
+  const planEvents: AgentTaskGraphStreamEvent[] = []
   const bridge = createBridge(store)
 
   bridge.subscribeRunStream(run, (event) => runEvents.push(event))
-  bridge.subscribePlanStream('plan_1', (event) => planEvents.push(event))
+  bridge.subscribePlanStream('task_graph_1', (event) => planEvents.push(event))
   const trace = bridge.recordTraceEvent(run, {
     kind: 'task',
     title: 'Task updated',
@@ -52,41 +52,41 @@ test('createRuntimeStreamBridge replays and forwards run stream events to thread
   ])
 })
 
-test('createRuntimeStreamBridge closes run and plan subscribers on terminal stream events', () => {
+test('createRuntimeStreamBridge closes run and taskGraph subscribers on terminal stream events', () => {
   const store = new InMemoryAgentStore()
-  const run = makeRun({ planId: 'plan_1', status: 'completed' })
+  const run = makeRun({ taskGraphId: 'task_graph_1', status: 'completed' })
   store.createRun(run)
   const runEvents: AgentRunStreamEvent[] = []
-  const planEvents: AgentPlanStreamEvent[] = []
+  const planEvents: AgentTaskGraphStreamEvent[] = []
   const bridge = createBridge(store, { planStatus: 'done' })
 
   bridge.subscribeRunStream(run, (event) => runEvents.push(event))
-  bridge.subscribePlanStream('plan_1', (event) => planEvents.push(event))
+  bridge.subscribePlanStream('task_graph_1', (event) => planEvents.push(event))
   bridge.emitRunSnapshot(run, { done: true })
-  bridge.emitPlanTaskEvent('plan_1', makeTask({ status: 'done' }))
+  bridge.emitPlanTaskEvent('task_graph_1', makeTask({ status: 'done' }))
 
   assert.deepEqual(runEvents.map((event) => event.type), ['run', 'done', 'run', 'done'])
   assert.deepEqual(planEvents.map((event) => event.type), ['snapshot', 'done', 'run', 'done'])
 })
 
-function createBridge(store: InMemoryAgentStore, input: { planStatus?: AgentPlan['status'] } = {}) {
+function createBridge(store: InMemoryAgentStore, input: { planStatus?: AgentTaskGraph['status'] } = {}) {
   let traceId = 0
   return createRuntimeStreamBridge({
     store,
     runSubscribers: new RuntimeEventSubscriberRegistry<AgentRunStreamEvent>(),
     threadSubscribers: new RuntimeEventSubscriberRegistry<AgentThreadStreamEvent>(),
-    planSubscribers: new RuntimeEventSubscriberRegistry<AgentPlanStreamEvent>(),
-    getPlanSnapshot: () => snapshot({ status: input.planStatus ?? 'running' }),
+    planSubscribers: new RuntimeEventSubscriberRegistry<AgentTaskGraphStreamEvent>(),
+    getTaskGraphSnapshot: () => snapshot({ status: input.planStatus ?? 'running' }),
     createTraceId: () => `trace_${++traceId}`,
     now: () => '2026-01-01T00:00:01.000Z',
   })
 }
 
-function snapshot(planOverrides: Partial<AgentPlan> = {}): AgentPlanSnapshot {
-  const plan = makePlan(planOverrides)
+function snapshot(planOverrides: Partial<AgentTaskGraph> = {}): AgentTaskGraphSnapshot {
+  const taskGraph = makeTaskGraph(planOverrides)
   const tasks = [makeTask()]
   return {
-    plan,
+    taskGraph,
     tasks,
     runs: [],
     summary: {
@@ -130,11 +130,11 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   }
 }
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0.5,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -146,7 +146,7 @@ function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     title: 'Task',
     status: 'done',
     progress: 1,

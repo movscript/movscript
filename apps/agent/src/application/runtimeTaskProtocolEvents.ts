@@ -16,7 +16,7 @@ export interface RuntimeTaskProtocolTraceInput {
 }
 
 export function applyRuntimeTaskProtocolEvents(input: {
-  store: Pick<AgentStore, 'getRun' | 'getPlan'>
+  store: Pick<AgentStore, 'getRun' | 'getTaskGraph'>
   task: AgentTask
   previous?: AgentTask
   recordTrace: (run: AgentRun, trace: RuntimeTaskProtocolTraceInput) => void
@@ -24,7 +24,7 @@ export function applyRuntimeTaskProtocolEvents(input: {
   const run = resolveRuntimeTaskProtocolRun({ store: input.store, task: input.task })
   if (!run) return undefined
   const baseData = {
-    planId: input.task.planId,
+    taskGraphId: input.task.taskGraphId,
     taskId: input.task.id,
     taskStatus: input.task.status,
     progress: input.task.progress,
@@ -74,13 +74,13 @@ export function applyRuntimeTaskProtocolEvents(input: {
 }
 
 export function resolveRuntimeTaskProtocolRun(input: {
-  store: Pick<AgentStore, 'getRun' | 'getPlan'>
+  store: Pick<AgentStore, 'getRun' | 'getTaskGraph'>
   task: AgentTask
 }): AgentRun | undefined {
   if (input.task.ownerRunId) {
     const ownerRun = input.store.getRun(input.task.ownerRunId)
     if (ownerRun) return ownerRun
   }
-  const plan = input.store.getPlan(input.task.planId)
-  return plan?.rootRunId ? input.store.getRun(plan.rootRunId) : undefined
+  const taskGraph = input.store.getTaskGraph(input.task.taskGraphId)
+  return taskGraph?.rootRunId ? input.store.getRun(taskGraph.rootRunId) : undefined
 }

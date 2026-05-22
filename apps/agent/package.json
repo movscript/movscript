@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "node scripts/build-server-bundle.mjs",
+    "check:asset-proposal-slots": "node scripts/check-asset-proposal-draft-slots.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node ../../scripts/run-node-tests.mjs \"src/**/*.test.ts\"",
     "test:context-management": "node ../../scripts/run-node-tests.mjs --suite context-management && pnpm run typecheck",

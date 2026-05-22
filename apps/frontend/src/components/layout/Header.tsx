@@ -1,9 +1,8 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import type { ReactNode } from 'react'
-import { Building2, Check, CircleUserRound, LogOut, Settings } from 'lucide-react'
+import { CircleUserRound, LogOut } from 'lucide-react'
 import { AppTopControls } from '@/components/layout/AppTopControls'
 import { useTranslation } from 'react-i18next'
-import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
 import { ROUTES } from '@/routes/projectRoutes'
 import {
@@ -20,12 +19,10 @@ import {
 function UserMenu() {
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const setCurrentProject = useProjectStore((s) => s.setCurrent)
   const currentUser = useUserStore((s) => s.currentUser)
   const setCurrentUser = useUserStore((s) => s.setCurrentUser)
   const currentOrgID = useUserStore((s) => s.currentOrgID)
   const orgMemberships = useUserStore((s) => s.orgMemberships)
-  const setCurrentOrg = useUserStore((s) => s.setCurrentOrg)
   const currentMembership = orgMemberships.find((membership) => membership.org_id === currentOrgID)
 
   if (!currentUser) return null
@@ -60,24 +57,6 @@ function UserMenu() {
           <CircleUserRound size={14} className="mr-2" />
           {t('header.titles.user')}
         </DropdownMenuItem>
-        {orgMemberships.map((membership) => (
-          <DropdownMenuItem
-            key={membership.org_id}
-            onClick={() => {
-              setCurrentOrg(membership.org_id)
-              setCurrentProject(null)
-              navigate(ROUTES.projects)
-            }}
-          >
-            {membership.is_personal ? <CircleUserRound size={14} className="mr-2 shrink-0" /> : <Building2 size={14} className="mr-2 shrink-0" />}
-            <span className="min-w-0 flex-1 truncate">{membership.org_name}</span>
-            {membership.org_id === currentOrgID ? <Check size={14} className="ml-2 shrink-0" /> : null}
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuItem onClick={() => navigate(ROUTES.orgSelect)}>
-          <Settings size={14} className="mr-2" />
-          {t('org.switchOrg')}
-        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => setCurrentUser(null)}>
           <LogOut size={14} className="mr-2" />
@@ -109,8 +88,8 @@ export function Header({
   )
 
   return (
-    <header className={`app-window-header ${isMacOS ? 'app-window-header--mac' : 'app-window-header--controls-right'} relative flex h-[34px] shrink-0 items-center gap-2 border-b border-border bg-background px-2`}>
-      {leftControls ? <div className="app-window-no-drag flex shrink-0 items-center gap-1">{leftControls}</div> : null}
+    <header className={`app-window-header ${isMacOS ? 'app-window-header--mac' : 'app-window-header--controls-right'} relative flex shrink-0 items-center gap-2 border-b border-border bg-background px-2`}>
+      {leftControls ? <div className="app-window-header__left-controls app-window-no-drag flex shrink-0 gap-1">{leftControls}</div> : null}
       {!isMacOS && controls}
       {centerContent ? (
         <div className="min-w-0 flex-1">{centerContent}</div>

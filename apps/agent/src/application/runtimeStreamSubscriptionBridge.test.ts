@@ -1,18 +1,18 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentPlan, AgentRun, AgentThread } from '../state/types.js'
+import type { AgentTaskGraph, AgentRun, AgentThread } from '../state/types.js'
 import { createRuntimeStreamSubscriptionBridge } from './runtimeStreamSubscriptionBridge.js'
 
 test('createRuntimeStreamSubscriptionBridge validates entities and delegates subscriptions', () => {
   const calls: string[] = []
   const store = new InMemoryAgentStore()
   const run = makeRun()
-  const plan = makePlan()
+  const taskGraph = makeTaskGraph()
   const thread = makeThread()
   store.createThread(thread)
   store.createRun(run)
-  store.createPlan(plan)
+  store.createTaskGraph(taskGraph)
   const bridge = createRuntimeStreamSubscriptionBridge({
     store,
     streams: {
@@ -24,24 +24,24 @@ test('createRuntimeStreamSubscriptionBridge validates entities and delegates sub
         calls.push(`thread:${threadId}`)
         return () => calls.push('unthread')
       },
-      subscribePlanStream: (planId: string) => {
-        calls.push(`plan:${planId}`)
-        return () => calls.push('unplan')
+      subscribePlanStream: (taskGraphId: string) => {
+        calls.push(`taskGraph:${taskGraphId}`)
+        return () => calls.push('untaskGraph')
       },
     } as never,
   })
 
   const unsubscribeRun = bridge.subscribeRunStream(run.id, () => undefined)
   const unsubscribeThread = bridge.subscribeThreadStream(thread.id, () => undefined)
-  const unsubscribePlan = bridge.subscribePlanStream(plan.id, () => undefined)
+  const unsubscribeTaskGraph = bridge.subscribePlanStream(taskGraph.id, () => undefined)
   unsubscribeRun()
   unsubscribeThread()
-  unsubscribePlan()
+  unsubscribeTaskGraph()
 
-  assert.deepEqual(calls, ['run:run_1', 'thread:thread_1', 'plan:plan_1', 'unrun', 'unthread', 'unplan'])
+  assert.deepEqual(calls, ['run:run_1', 'thread:thread_1', 'taskGraph:task_graph_1', 'unrun', 'unthread', 'untaskGraph'])
   assert.throws(() => bridge.subscribeRunStream('missing', () => undefined), /run not found: missing/)
   assert.throws(() => bridge.subscribeThreadStream('missing', () => undefined), /thread not found: missing/)
-  assert.throws(() => bridge.subscribePlanStream('missing', () => undefined), /plan not found: missing/)
+  assert.throws(() => bridge.subscribePlanStream('missing', () => undefined), /taskGraph not found: missing/)
 })
 
 function makeRun(): AgentRun {
@@ -68,11 +68,11 @@ function makeThread(): AgentThread {
   }
 }
 
-function makePlan(): AgentPlan {
+function makeTaskGraph(): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0,
     createdAt: 'now',

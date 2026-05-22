@@ -17,7 +17,7 @@ function runWithResults(results: unknown[]): AgentRun {
       runId: 'run_1',
       type: 'tool_call',
       status: 'completed',
-      toolName: index === 0 ? 'movscript_create_generation_job' : 'movscript_get_generation_job',
+      toolName: index === 0 ? 'generation_job_create' : 'generation_job_get',
       result,
       createdAt: new Date(index).toISOString(),
     })),
@@ -99,7 +99,7 @@ test('selectLatestGeneratedResource preserves multiple generation outputs', () =
 test('selectLatestGeneratedResource reads wait generation job output resources', () => {
   const run = runWithToolResults([
     {
-      toolName: 'movscript_create_generation_job',
+      toolName: 'generation_job_create',
       result: {
         data: {
           status: 'queued',
@@ -108,7 +108,7 @@ test('selectLatestGeneratedResource reads wait generation job output resources',
       },
     },
     {
-      toolName: 'movscript_wait_generation_jobs',
+      toolName: 'generation_job_wait',
       result: {
         data: {
           status: 'succeeded',
@@ -327,7 +327,7 @@ test('generationValidationErrorsFromRun extracts backend validation details from
       runId: 'run_1',
       type: 'tool_call',
       status: 'failed',
-      toolName: 'movscript_create_generation_job',
+      toolName: 'generation_job_create',
       error: 'unsupported output type',
       errorData: {
         type: 'backend_http_error',
@@ -363,7 +363,7 @@ test('generationValidationErrorsFromRun extracts input count details from failed
       runId: 'run_1',
       type: 'tool_call',
       status: 'failed',
-      toolName: 'movscript_create_generation_job',
+      toolName: 'generation_job_create',
       errorData: {
         type: 'backend_http_error',
         status: 400,

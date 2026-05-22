@@ -163,6 +163,16 @@ func (s *Service) GetVisible(ctx context.Context, id uint, userID uint, orgID *u
 	return s.repo.GetVisible(ctx, id, userID, orgID)
 }
 
+func (s *Service) AdoptToTeam(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error) {
+	resource, err := s.repo.AdoptOwnedPersonalResourceToOrg(ctx, id, userID, orgID)
+	if err != nil {
+		return resource, err
+	}
+	s.bumpListVersion(ctx, userID, nil)
+	s.bumpListVersion(ctx, userID, orgID)
+	return resource, nil
+}
+
 func (s *Service) Delete(ctx context.Context, id uint, userID uint, orgID *uint) error {
 	r, err := s.repo.GetOwned(ctx, id, userID, orgID)
 	if err != nil {

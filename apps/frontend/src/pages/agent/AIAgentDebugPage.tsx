@@ -14,16 +14,22 @@ import {
 } from '@movscript/ui'
 import {
   localAgentClient,
+  type AgentDraft,
   type AgentCapabilitiesResponse,
   type AgentInspectResponse,
   type AgentRun,
   type AgentRunPreview,
   type RuntimeModelConfigPublic,
 } from '@/lib/localAgentClient'
+import { api } from '@/lib/api'
+import { projectListQueryKey } from '@/lib/projectQueries'
 import { redactAgentTraceDebugData, redactAgentTraceDebugText } from '@/lib/agentTraceDebugData'
 import { useProjectStore } from '@/store/projectStore'
+import { useUserStore } from '@/store/userStore'
 import { cn } from '@/lib/utils'
 import { ROUTES, agentRunPath } from '@/routes/projectRoutes'
+import { AgentConsoleNav } from '@/pages/agent/AgentConsoleNav'
+import type { Project } from '@/types'
 
 type AgentDebugData = {
   health: unknown
@@ -40,16 +46,16 @@ type AgentToolConsoleResult = {
   trace?: Awaited<ReturnType<typeof localAgentClient.getRunTraceEvents>>
 }
 const DRAFT_RUNTIME_TOOL_NAMES = [
-  'movscript_get_draft_model',
-  'movscript_create_draft',
-  'movscript_get_draft',
-  'movscript_validate_draft',
-  'movscript_preview_draft_apply',
+  'draft_model_get',
+  'draft_create',
+  'draft_get',
+  'draft_validate',
+  'draft_apply_preview',
 ] as const
 const DRAFT_ID_REQUIRED_TOOLS = new Set<string>([
-  'movscript_get_draft',
-  'movscript_validate_draft',
-  'movscript_preview_draft_apply',
+  'draft_get',
+  'draft_validate',
+  'draft_apply_preview',
 ])
 const DEBUG_SUMMARY_MAX_DEPTH = 5
 const DEBUG_SUMMARY_MAX_FIELDS = 32
@@ -73,7 +79,7 @@ type AgentDebugBundle = {
   observationCoverage: DebugObservationItem[]
   evidenceChecklist: DebugEvidenceItem[]
   triageItems: DebugTriageItem[]
-  remediationPlan: DebugRemediationItem[]
+  remediationTaskGraph: DebugRemediationItem[]
   runSummary: ReturnType<typeof summarizeRuns>
   runIssueGroups: DebugRunIssueGroup[]
   warnings: string[]
@@ -131,6 +137,8 @@ type DebugTranslate = ReturnType<typeof useTranslation>['t']
 export default function AIAgentDebugPage() {
   const { t } = useTranslation()
   const currentProject = useProjectStore((s) => s.current)
+  const setCurrentProject = useProjectStore((s) => s.setCurrent)
+  const currentOrgID = useUserStore((s) => s.currentOrgID)
   const [previewMessage, setPreviewMessage] = useState(t('agents.debug.defaultPreviewMessage'))
   const [preview, setPreview] = useState<AgentRunPreview | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
@@ -140,26 +148,70 @@ export default function AIAgentDebugPage() {
   const [toolRunLoading, setToolRunLoading] = useState(false)
   const [toolRunError, setToolRunError] = useState<string | null>(null)
   const [toolRunResult, setToolRunResult] = useState<AgentToolConsoleResult | null>(null)
-  const [draftToolName, setDraftToolName] = useState('movscript_get_draft_model')
-  const [draftToolArgsText, setDraftToolArgsText] = useState(formatJson({
-    kind: 'asset_proposal',
-    seedMode: 'editable_snapshot',
-    hydrate: true,
-  }))
+  const [draftToolName, setDraftToolName] = useState('draft_create')
+  const [draftToolArgsText, setDraftToolArgsText] = useState(formatJson(defaultCreateAssetProposalDraftArgs(currentProject?.ID)))
   const [draftToolRunLoading, setDraftToolRunLoading] = useState(false)
   const [draftToolRunError, setDraftToolRunError] = useState<string | null>(null)
   const [draftToolRunResult, setDraftToolRunResult] = useState<AgentToolConsoleResult | null>(null)
+  const [draftRuntimeLastDraftId, setDraftRuntimeLastDraftId] = useState<string | null>(null)
+  const [draftRuntimeDraft, setDraftRuntimeDraft] = useState<AgentDraft | null>(null)
+  const [draftRuntimeDraftError, setDraftRuntimeDraftError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [triageCopied, setTriageCopied] = useState(false)
   const [downloaded, setDownloaded] = useState(false)
 
+  const projectsQuery = useQuery<Project[]>({
+    queryKey: projectListQueryKey(currentOrgID),
+    queryFn: () => api.get('/projects').then((response) => response.data),
+  })
+  const debugProject = useMemo(() => {
+    if (currentProject) return currentProject
+    return projectsQuery.data?.[0] ?? null
+  }, [currentProject, projectsQuery.data])
+
+  useEffect(() => {
+    const projects = projectsQuery.data ?? []
+    if (projects.length === 0) return
+    if (currentProject && projects.some((project) => project.ID === currentProject.ID)) return
+    setCurrentProject(projects[0])
+  }, [currentProject, projectsQuery.data, setCurrentProject])
+
+  useEffect(() => {
+    if (draftToolName !== 'draft_create') return
+    setDraftToolArgsText((current) => {
+      let parsed: Record<string, unknown>
+      try {
+        parsed = parseToolArgs(current)
+      } catch {
+        return current
+      }
+      if (!isDefaultCreateAssetProposalDraftArgs(parsed)) return current
+      if (parsed.projectId === debugProject?.ID) return current
+      return formatJson(defaultCreateAssetProposalDraftArgs(debugProject?.ID))
+    })
+  }, [debugProject?.ID, draftToolName])
+
+  useEffect(() => {
+    if (!draftRuntimeLastDraftId || !DRAFT_ID_REQUIRED_TOOLS.has(draftToolName)) return
+    setDraftToolArgsText((current) => {
+      let parsed: Record<string, unknown>
+      try {
+        parsed = parseToolArgs(current)
+      } catch {
+        return current
+      }
+      if (typeof parsed.draftId === 'string' && parsed.draftId.trim()) return current
+      return formatJson(defaultDraftRuntimeToolArgs(draftToolName, draftRuntimeLastDraftId))
+    })
+  }, [draftRuntimeLastDraftId, draftToolName])
+
   const debugQuery = useQuery<AgentDebugData>({
-    queryKey: ['agent-debug-page', localAgentClient.baseURL, currentProject?.ID],
+    queryKey: ['agent-debug-page', localAgentClient.baseURL, debugProject?.ID],
     queryFn: async () => {
       const health = await localAgentClient.ensureRunning()
       const [inspect, capabilities, modelConfigResult, runs] = await Promise.all([
         localAgentClient.inspect(),
-        localAgentClient.getCapabilities({ ...(currentProject ? { projectId: currentProject.ID } : {}) }),
+        localAgentClient.getCapabilities({ ...(debugProject ? { projectId: debugProject.ID } : {}) }),
         localAgentClient.getModelConfig()
           .then((modelConfig) => ({ modelConfig, modelConfigError: null }))
           .catch((error) => ({
@@ -174,8 +226,8 @@ export default function AIAgentDebugPage() {
   })
 
   const currentProjectSnapshot = useMemo<AgentDebugProjectSnapshot>(() => (
-    currentProject ? { id: currentProject.ID, name: currentProject.name, status: currentProject.status } : null
-  ), [currentProject])
+    debugProject ? { id: debugProject.ID, name: debugProject.name, status: debugProject.status } : null
+  ), [debugProject])
   const warningGroups = useMemo(() => collectDebugWarningGroups(debugQuery.data, preview), [debugQuery.data, preview])
   const allWarnings = useMemo(() => flattenDebugWarningGroups(warningGroups), [warningGroups])
   const runHealth = useMemo(() => summarizeRuns(debugQuery.data?.runs ?? []), [debugQuery.data?.runs])
@@ -193,7 +245,7 @@ export default function AIAgentDebugPage() {
   }), [currentProjectSnapshot, debugQuery.data, preview])
   const evidenceChecklist = rawData.evidenceChecklist
   const triageItems = rawData.triageItems
-  const remediationPlan = rawData.remediationPlan
+  const remediationTaskGraph = rawData.remediationTaskGraph
   const availableTools = useMemo(() => {
     const tools = (debugQuery.data?.capabilities.resolvedTools.available ?? [])
       .filter((tool) => tool.source === 'mcp')
@@ -202,10 +254,10 @@ export default function AIAgentDebugPage() {
   const selectedTool = useMemo(() => availableTools.find((tool) => tool.name === toolName) ?? null, [availableTools, toolName])
   const draftRuntimeTools = useMemo(() => {
     const allowed = new Set<string>(DRAFT_RUNTIME_TOOL_NAMES)
-    const tools = (debugQuery.data?.capabilities.resolvedTools.available ?? [])
+    const tools = (debugQuery.data?.capabilities.resolvedTools.discovered ?? [])
       .filter((tool) => tool.source === 'runtime' && allowed.has(tool.name))
     return [...tools].sort((a, b) => DRAFT_RUNTIME_TOOL_NAMES.indexOf(a.name as typeof DRAFT_RUNTIME_TOOL_NAMES[number]) - DRAFT_RUNTIME_TOOL_NAMES.indexOf(b.name as typeof DRAFT_RUNTIME_TOOL_NAMES[number]))
-  }, [debugQuery.data?.capabilities.resolvedTools.available])
+  }, [debugQuery.data?.capabilities.resolvedTools.discovered])
   const selectedDraftTool = useMemo(() => draftRuntimeTools.find((tool) => tool.name === draftToolName) ?? null, [draftRuntimeTools, draftToolName])
 
   useEffect(() => {
@@ -235,12 +287,12 @@ export default function AIAgentDebugPage() {
               search: window.location.search,
               hash: window.location.hash,
             },
-            project: currentProject
+            project: debugProject
               ? {
-                id: currentProject.ID,
-                name: currentProject.name,
-                status: currentProject.status,
-                description: currentProject.description,
+                id: debugProject.ID,
+                name: debugProject.name,
+                status: debugProject.status,
+                description: debugProject.description,
               }
               : undefined,
             labels: ['agent-debug'],
@@ -274,12 +326,12 @@ export default function AIAgentDebugPage() {
               search: window.location.search,
               hash: window.location.hash,
             },
-            project: currentProject
+            project: debugProject
               ? {
-                id: currentProject.ID,
-                name: currentProject.name,
-                status: currentProject.status,
-                description: currentProject.description,
+                id: debugProject.ID,
+                name: debugProject.name,
+                status: debugProject.status,
+                description: debugProject.description,
               }
               : undefined,
             labels: ['agent-debug', 'tool-console'],
@@ -322,8 +374,18 @@ export default function AIAgentDebugPage() {
     setDraftToolRunLoading(true)
     setDraftToolRunError(null)
     setDraftToolRunResult(null)
+    setDraftRuntimeDraft(null)
+    setDraftRuntimeDraftError(null)
     try {
-      const parsed = parseToolArgs(draftToolArgsText)
+      const parsed = normalizeDraftRuntimeToolArgs(
+        draftToolName,
+        parseToolArgs(draftToolArgsText),
+        {
+          projectId: debugProject?.ID,
+          draftId: draftRuntimeLastDraftId ?? undefined,
+        },
+      )
+      setDraftToolArgsText(formatJson(parsed))
       validateDraftRuntimeToolArgs(draftToolName, parsed)
       const result = await localAgentClient.runMessageStream({
         title: `Draft runtime debug: ${draftToolName}`,
@@ -338,12 +400,12 @@ export default function AIAgentDebugPage() {
               search: window.location.search,
               hash: window.location.hash,
             },
-            project: currentProject
+            project: debugProject
               ? {
-                id: currentProject.ID,
-                name: currentProject.name,
-                status: currentProject.status,
-                description: currentProject.description,
+                id: debugProject.ID,
+                name: debugProject.name,
+                status: debugProject.status,
+                description: debugProject.description,
               }
               : undefined,
             labels: ['agent-debug', 'draft-runtime'],
@@ -357,6 +419,15 @@ export default function AIAgentDebugPage() {
       const completedRun = result.run
       const trace = await localAgentClient.getRunTraceEvents(completedRun.id, { limit: 80 })
       setDraftToolRunResult({ run: completedRun, trace })
+      const draftId = extractDraftIdFromToolRun(completedRun)
+      if (draftId) {
+        setDraftRuntimeLastDraftId(draftId)
+        try {
+          setDraftRuntimeDraft(await localAgentClient.getDraft(draftId))
+        } catch (draftError) {
+          setDraftRuntimeDraftError(redactAgentTraceDebugText(draftError instanceof Error ? draftError.message : String(draftError)))
+        }
+      }
       void debugQuery.refetch()
     } catch (error) {
       setDraftToolRunError(redactAgentTraceDebugText(error instanceof Error ? error.message : String(error)))
@@ -389,8 +460,8 @@ export default function AIAgentDebugPage() {
   }
 
   function draftRuntimeToolPresetArgs(toolName: string): Record<string, unknown> {
-    if (toolName === 'movscript_create_draft') return defaultCreateAssetProposalDraftArgs(currentProject?.ID)
-    return defaultDraftRuntimeToolArgs(toolName)
+    if (toolName === 'draft_create') return defaultCreateAssetProposalDraftArgs(debugProject?.ID)
+    return defaultDraftRuntimeToolArgs(toolName, draftRuntimeLastDraftId ?? undefined)
   }
 
   async function copyRawData() {
@@ -424,10 +495,10 @@ export default function AIAgentDebugPage() {
       if (item.signalLabelKey) lines.push(`   ${t('agents.debug.triage.signal', { signal: t(item.signalLabelKey) })}`)
       if (item.runId) lines.push(`   ${t('agents.debug.actions.viewRun')}: ${agentRunPath(item.runId)}`)
     })
-    if (remediationPlan.length > 0) {
+    if (remediationTaskGraph.length > 0) {
       lines.push('')
       lines.push(t('agents.debug.remediationSummary.title'))
-      remediationPlan.forEach((item, index) => {
+      remediationTaskGraph.forEach((item, index) => {
         lines.push(`${index + 1}. [${t(`agents.debug.triageSeverities.${item.severity}`)}] ${t(item.titleKey, item.detailValues)}`)
         lines.push(`   ${t(item.detailKey, item.detailValues)}`)
       })
@@ -463,16 +534,16 @@ export default function AIAgentDebugPage() {
 
   return (
     <div data-testid="agent-debug-page" className="flex h-full min-h-0 flex-col bg-background">
-      <header className="border-b border-border px-5 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <header className="shrink-0 border-b border-border bg-background px-5 py-3">
+        <div className="flex min-h-[72px] flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <Terminal size={18} />
               <h1 className="type-title-sm font-semibold text-foreground">{t('agents.debug.title')}</h1>
               <RuntimeStatusBadge online={runtimeOnline} loading={debugQuery.isLoading || debugQuery.isFetching} />
             </div>
-            <p className="mt-1 max-w-3xl type-label leading-5 text-muted-foreground">{t('agents.debug.description')}</p>
-            <div data-testid="agent-debug-scope-boundary" className="mt-2 flex max-w-3xl flex-wrap gap-2 type-caption leading-4">
+            <p className="mt-1 line-clamp-2 max-w-3xl type-label leading-5 text-muted-foreground">{t('agents.debug.description')}</p>
+            <div data-testid="agent-debug-scope-boundary" className="sr-only">
               <span className="rounded border border-border bg-muted/30 px-2 py-1 text-foreground">{t('agents.debug.scope.observabilityPlane')}</span>
               <span className="rounded border border-border bg-background px-2 py-1 text-muted-foreground">{t('agents.debug.scope.noPersistentWrites')}</span>
               <span className="rounded border border-border bg-background px-2 py-1 text-muted-foreground">{t('agents.debug.scope.runDiagnosticsInDetails')}</span>
@@ -504,6 +575,8 @@ export default function AIAgentDebugPage() {
           </div>
         </div>
       </header>
+
+      <AgentConsoleNav compact />
 
       <main className="min-h-0 flex-1 overflow-y-auto p-4">
         {debugQuery.isLoading ? (
@@ -602,8 +675,8 @@ export default function AIAgentDebugPage() {
                 <Panel title={t('agents.debug.panels.triage')}>
                   <DebugTriagePanel items={triageItems} />
                 </Panel>
-                <Panel title={t('agents.debug.panels.remediationPlan')}>
-                  <DebugRemediationPlan items={remediationPlan} previewLoading={previewLoading} onRunPreview={() => void runPreview()} />
+                <Panel title={t('agents.debug.panels.remediationTaskGraph')}>
+                  <DebugRemediationTaskGraph items={remediationTaskGraph} previewLoading={previewLoading} onRunPreview={() => void runPreview()} />
                 </Panel>
                 <Panel title={t('agents.debug.panels.observationCoverage')}>
                   <DebugObservationCoverage items={observationItems} previewLoading={previewLoading} onRunPreview={() => void runPreview()} />
@@ -771,7 +844,7 @@ export default function AIAgentDebugPage() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() => setDraftToolPreset('movscript_get_draft_model', { kind: 'asset_proposal', seedMode: 'editable_snapshot', hydrate: true })}
+                      onClick={() => setDraftToolPreset('draft_model_get', { kind: 'asset_proposal', seedMode: 'editable_snapshot', hydrate: true })}
                     >
                       {t('agents.debug.draftRuntime.assetModelPreset')}
                     </Button>
@@ -779,7 +852,7 @@ export default function AIAgentDebugPage() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() => setDraftToolPreset('movscript_create_draft', defaultCreateAssetProposalDraftArgs(currentProject?.ID))}
+                      onClick={() => setDraftToolPreset('draft_create', defaultCreateAssetProposalDraftArgs(debugProject?.ID))}
                     >
                       {t('agents.debug.draftRuntime.createAssetDraftPreset')}
                     </Button>
@@ -787,7 +860,7 @@ export default function AIAgentDebugPage() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() => setDraftToolPreset('movscript_get_draft', { draftId: '' })}
+                      onClick={() => setDraftToolPreset('draft_get', defaultDraftRuntimeToolArgs('draft_get', draftRuntimeLastDraftId ?? undefined))}
                     >
                       {t('agents.debug.draftRuntime.getDraftPreset')}
                     </Button>
@@ -795,7 +868,7 @@ export default function AIAgentDebugPage() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() => setDraftToolPreset('movscript_validate_draft', { draftId: '' })}
+                      onClick={() => setDraftToolPreset('draft_validate', defaultDraftRuntimeToolArgs('draft_validate', draftRuntimeLastDraftId ?? undefined))}
                     >
                       {t('agents.debug.draftRuntime.validatePreset')}
                     </Button>
@@ -803,7 +876,7 @@ export default function AIAgentDebugPage() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() => setDraftToolPreset('movscript_preview_draft_apply', { draftId: '' })}
+                      onClick={() => setDraftToolPreset('draft_apply_preview', defaultDraftRuntimeToolArgs('draft_apply_preview', draftRuntimeLastDraftId ?? undefined))}
                     >
                       {t('agents.debug.draftRuntime.previewApplyPreset')}
                     </Button>
@@ -838,6 +911,7 @@ export default function AIAgentDebugPage() {
               <div className="space-y-4">
                 <JsonPanel title={t('agents.debug.panels.draftRuntimeSchema')} value={selectedDraftTool?.inputSchema} emptyText={t('agents.debug.empty.noDraftRuntimeToolSelected')} />
                 <JsonPanel title={t('agents.debug.panels.draftRuntimeOutput')} value={extractToolConsoleOutput(draftToolRunResult)} emptyText={t('agents.debug.empty.noDraftRuntimeResult')} />
+                <JsonPanel title="Draft Runtime full draft" value={buildDraftRuntimeFullDraftView(draftRuntimeDraft, draftRuntimeDraftError)} emptyText={t('agents.debug.empty.noDraftRuntimeResult')} />
                 <JsonPanel title={t('agents.debug.panels.draftRuntimeResult')} value={buildToolConsoleResultSummary(draftToolRunResult)} emptyText={t('agents.debug.empty.noDraftRuntimeResult')} />
               </div>
             </TabsContent>
@@ -861,9 +935,9 @@ export default function AIAgentDebugPage() {
 
             <TabsContent value="context" className="grid gap-4 lg:grid-cols-2">
               <Panel title={t('agents.debug.panels.currentProject')}>
-                {currentProject ? (
+                {debugProject ? (
                   <div className="space-y-2 type-label">
-                    <SummaryItem label={t('agents.debug.fields.project')} value={`#${currentProject.ID} ${currentProject.name}`} />
+                    <SummaryItem label={t('agents.debug.fields.project')} value={`#${debugProject.ID} ${debugProject.name}`} />
                     <SummaryItem label={t('agents.debug.fields.route')} value={window.location.pathname} />
                   </div>
                 ) : <EmptyText>{t('agents.debug.empty.noProject')}</EmptyText>}
@@ -1092,7 +1166,7 @@ function DebugTriagePanel({ items }: { items: DebugTriageItem[] }) {
   )
 }
 
-function DebugRemediationPlan({
+function DebugRemediationTaskGraph({
   items,
   previewLoading,
   onRunPreview,
@@ -1104,13 +1178,13 @@ function DebugRemediationPlan({
   const { t } = useTranslation()
   if (items.length === 0) {
     return (
-      <div data-testid="agent-debug-remediation-plan" className="space-y-2">
+      <div data-testid="agent-debug-remediation-taskGraph" className="space-y-2">
         <EmptyText>{t('agents.debug.empty.noRemediationItems')}</EmptyText>
       </div>
     )
   }
   return (
-    <div data-testid="agent-debug-remediation-plan" className="space-y-2">
+    <div data-testid="agent-debug-remediation-taskGraph" className="space-y-2">
       {items.map((item) => (
         <div key={item.id} data-testid="agent-debug-remediation-item" className="rounded-md border border-border bg-muted/20 p-2">
           <div className="flex items-start justify-between gap-3">
@@ -1174,7 +1248,7 @@ function DebugBundleFieldGuide() {
     'schemaVersion',
     'schemaUrl',
     'triageItems',
-    'remediationPlan',
+    'remediationTaskGraph',
     'observationCoverage',
     'evidenceChecklist',
     'runIssueGroups',
@@ -1253,7 +1327,7 @@ function RunListRow({ run }: { run: AgentRun }) {
       <div className="min-w-0">
         <p className="truncate type-label font-medium text-foreground">{run.id}</p>
         <p className="mt-0.5 truncate type-tiny text-muted-foreground">
-          {redactAgentTraceDebugText([run.status, run.role, run.planId].filter(Boolean).join(' / '))}
+          {redactAgentTraceDebugText([run.status, run.role, run.taskGraphId].filter(Boolean).join(' / '))}
         </p>
         {(run.error || run.blockedReason || run.agentManifest?.name) && (
           <p className="mt-1 line-clamp-2 type-caption leading-4 text-muted-foreground">
@@ -1386,7 +1460,7 @@ function runIssueReason(run: AgentRun): string | undefined {
     ?? ((run.pendingApprovals?.length ?? 0) > 0 ? `${run.pendingApprovals!.length} approval request(s)` : undefined)
     ?? ((run.pendingInputRequests?.length ?? 0) > 0 ? `${run.pendingInputRequests!.length} input request(s)` : undefined)
     ?? run.agentManifest?.name
-    ?? run.planId
+    ?? run.taskGraphId
     ?? run.taskId
   return reason ? redactAgentTraceDebugText(reason) : undefined
 }
@@ -1576,7 +1650,7 @@ function buildDebugTriageItems(input: {
   return items.slice(0, 5)
 }
 
-function buildDebugRemediationPlan(input: {
+function buildDebugRemediationTaskGraph(input: {
   observationItems: DebugObservationItem[]
   runIssueGroups: DebugRunIssueGroup[]
   warningGroups: DebugWarningGroup[]
@@ -1661,7 +1735,7 @@ function buildDebugEvidenceChecklist(input: {
   debug: AgentDebugData | null
   observationItems: DebugObservationItem[]
   triageItems: DebugTriageItem[]
-  remediationPlan: DebugRemediationItem[]
+  remediationTaskGraph: DebugRemediationItem[]
   runIssueGroups: DebugRunIssueGroup[]
   warningGroups: DebugWarningGroup[]
   preview: AgentRunPreview | null
@@ -1693,10 +1767,10 @@ function buildDebugEvidenceChecklist(input: {
     },
     {
       id: 'remediation',
-      status: input.remediationPlan.some((item) => item.severity === 'action') ? 'action' : input.remediationPlan.length > 0 ? 'warning' : 'ready',
+      status: input.remediationTaskGraph.some((item) => item.severity === 'action') ? 'action' : input.remediationTaskGraph.length > 0 ? 'warning' : 'ready',
       labelKey: 'agents.debug.evidenceChecklist.remediation',
       detailKey: 'agents.debug.evidenceChecklistDetails.remediation',
-      detailValues: { count: input.remediationPlan.length },
+      detailValues: { count: input.remediationTaskGraph.length },
     },
     {
       id: 'runs',
@@ -1740,7 +1814,7 @@ function buildDebugBundle(input: {
     runIssueGroups: runSummary.issueGroups,
     warningGroups,
   })
-  const remediationPlan = buildDebugRemediationPlan({
+  const remediationTaskGraph = buildDebugRemediationTaskGraph({
     observationItems: observationCoverage,
     runIssueGroups: runSummary.issueGroups,
     warningGroups,
@@ -1749,7 +1823,7 @@ function buildDebugBundle(input: {
     debug: input.debug,
     observationItems: observationCoverage,
     triageItems,
-    remediationPlan,
+    remediationTaskGraph,
     runIssueGroups: runSummary.issueGroups,
     warningGroups,
     preview: input.preview,
@@ -1769,7 +1843,7 @@ function buildDebugBundle(input: {
     observationCoverage,
     evidenceChecklist,
     triageItems,
-    remediationPlan,
+    remediationTaskGraph,
     runSummary: redactAgentTraceDebugData(runSummary) as ReturnType<typeof summarizeRuns>,
     runIssueGroups: redactAgentTraceDebugData(runSummary.issueGroups) as DebugRunIssueGroup[],
     warnings,
@@ -1802,6 +1876,34 @@ function validateDraftRuntimeToolArgs(toolName: string, args: Record<string, unk
   throw new Error(`${toolName} requires draftId. Create a draft first, or paste an existing local draftId.`)
 }
 
+function normalizeDraftRuntimeToolArgs(
+  toolName: string,
+  args: Record<string, unknown>,
+  fallback: { projectId?: number; draftId?: string },
+): Record<string, unknown> {
+  if (toolName === 'draft_create' && !isCompleteCreateDraftArgs(args)) {
+    return defaultCreateAssetProposalDraftArgs(fallback.projectId)
+  }
+  if (DRAFT_ID_REQUIRED_TOOLS.has(toolName) && (!isNonEmptyString(args.draftId)) && fallback.draftId) {
+    return { ...args, draftId: fallback.draftId }
+  }
+  return args
+}
+
+function isCompleteCreateDraftArgs(args: Record<string, unknown>): boolean {
+  return isNonEmptyString(args.kind)
+    && isNonEmptyString(args.title)
+    && isNonEmptyString(args.content)
+}
+
+function isDefaultCreateAssetProposalDraftArgs(args: Record<string, unknown>): boolean {
+  return args.kind === 'asset_proposal'
+    && args.title === 'Debug asset proposal'
+    && args.proposal === true
+    && typeof args.content === 'string'
+    && args.content.includes('Debug asset proposal draft shell')
+}
+
 function defaultCreateAssetProposalDraftArgs(projectId?: number): Record<string, unknown> {
   const content = {
     schema: 'movscript.asset_proposal.v1',
@@ -1809,10 +1911,13 @@ function defaultCreateAssetProposalDraftArgs(projectId?: number): Record<string,
     mode: 'snapshot',
     proposal: {
       creative_references: [],
-      asset_slots: [],
       candidate_plans: [],
     },
-    summary: 'Debug asset proposal draft shell. Replace proposal.asset_slots with a full hydrated snapshot before applying.',
+    summary: 'Debug asset proposal draft shell. Runtime will prefill omitted proposal.asset_slots from the current project data.',
+    next_actions: [
+      'Use the returned draft.filePath to edit proposal.asset_slots before validation or apply preview.',
+      'Leaving proposal.asset_slots equal to the hydrated current asset slots represents no asset-slot change.',
+    ],
   }
   return {
     kind: 'asset_proposal',
@@ -1822,25 +1927,45 @@ function defaultCreateAssetProposalDraftArgs(projectId?: number): Record<string,
     ...(projectId ? {
       target: { entityType: 'project', entityId: projectId, projectId },
     } : {}),
-    seed: {
-      mode: 'editable_snapshot',
-      include: ['project', 'creative_references', 'asset_slots'],
-      note: 'Run movscript_get_draft_model first and use its hydrated seed for real snapshot safety checks.',
-    },
     proposal: true,
   }
 }
 
-function defaultDraftRuntimeToolArgs(toolName: string): Record<string, unknown> {
-  if (toolName === 'movscript_get_draft_model') {
+function defaultDraftRuntimeToolArgs(toolName: string, draftId?: string): Record<string, unknown> {
+  if (toolName === 'draft_model_get') {
     return {
       kind: 'asset_proposal',
       seedMode: 'editable_snapshot',
       hydrate: true,
     }
   }
-  if (DRAFT_ID_REQUIRED_TOOLS.has(toolName)) return { draftId: '' }
+  if (DRAFT_ID_REQUIRED_TOOLS.has(toolName)) return { draftId: draftId ?? '' }
   return {}
+}
+
+function extractDraftIdFromToolRun(run: AgentRun): string | null {
+  for (const step of [...run.steps].reverse()) {
+    if (step.toolName !== 'draft_create') continue
+    const draftId = extractDraftId(step.result)
+    if (draftId) return draftId
+  }
+  return null
+}
+
+function extractDraftId(value: unknown): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  if (typeof record.id === 'string' && record.id.trim()) return record.id.trim()
+  if (typeof record.draftId === 'string' && record.draftId.trim()) return record.draftId.trim()
+  if (record.draft && typeof record.draft === 'object' && !Array.isArray(record.draft)) {
+    const draft = record.draft as Record<string, unknown>
+    if (typeof draft.id === 'string' && draft.id.trim()) return draft.id.trim()
+  }
+  return null
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0
 }
 
 function extractToolConsoleOutput(result: AgentToolConsoleResult | null): unknown {
@@ -1865,6 +1990,35 @@ function extractToolConsoleOutput(result: AgentToolConsoleResult | null): unknow
       blockedReason: result.run.blockedReason,
     },
     toolEvents,
+  }
+}
+
+function buildDraftRuntimeFullDraftView(draft: AgentDraft | null, error: string | null): unknown {
+  if (error) return { error }
+  if (!draft) return null
+  const parsedContent = parseJSONOrText(draft.content)
+  return {
+    id: draft.id,
+    filePath: draft.filePath,
+    projectId: draft.projectId,
+    kind: draft.kind,
+    title: draft.title,
+    status: draft.status,
+    contentCharCount: draft.content.length,
+    source: draft.source,
+    target: draft.target,
+    metadata: draft.metadata,
+    content: parsedContent,
+    createdAt: draft.createdAt,
+    updatedAt: draft.updatedAt,
+  }
+}
+
+function parseJSONOrText(value: string): unknown {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return value
   }
 }
 

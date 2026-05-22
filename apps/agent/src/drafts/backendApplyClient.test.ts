@@ -306,7 +306,6 @@ test('applyReview posts asset slot proposal with settings filtered out', async (
     const payload = {
       scope: 'asset_proposal',
       mode: 'snapshot',
-      snapshot_base: { asset_slots: [] },
       proposal: {
         creative_references: [{ name: 'Should be dropped' }],
         asset_slots: [{
@@ -354,7 +353,6 @@ test('applyReview posts direct asset slot proposal snapshots', async () => {
     const payload = {
       schema: 'movscript.asset_proposal.v1',
       mode: 'snapshot',
-      snapshot_base: { asset_slots: [] },
       proposal: {
         creative_references: [{ name: 'Should be dropped' }],
         asset_slots: [{
@@ -400,7 +398,7 @@ test('applyReview posts direct asset slot proposal snapshots', async () => {
   }
 })
 
-test('applyReview rejects partial direct asset proposal snapshots before posting', async () => {
+test('applyReview posts asset proposal snapshots without requiring snapshot base', async () => {
   const originalFetch = globalThis.fetch
   let fetchCalls = 0
   globalThis.fetch = (async () => {
@@ -412,8 +410,7 @@ test('applyReview rejects partial direct asset proposal snapshots before posting
   }) as typeof fetch
   try {
     const client = new BackendApplyClient({ baseURL: 'http://backend' })
-    await assert.rejects(
-      () => client.applyReview(review({
+    await client.applyReview(review({
         draftKind: 'asset_proposal',
         projectId: 42,
         entityType: 'project',
@@ -422,20 +419,12 @@ test('applyReview rejects partial direct asset proposal snapshots before posting
         proposedValue: JSON.stringify({
           schema: 'movscript.asset_proposal.v1',
           mode: 'snapshot',
-          snapshot_base: {
-            asset_slots: [
-              { id: 11, name: 'Keep this slot', kind: 'image', status: 'active' },
-              { id: 12, name: 'Edited slot', kind: 'image', status: 'active' },
-            ],
-          },
           proposal: {
             asset_slots: [{ id: 12, name: 'Edited slot', kind: 'image', status: 'active' }],
           },
         }),
-      })),
-      /omit existing active asset slots.*11/s,
-    )
-    assert.equal(fetchCalls, 0)
+      }))
+    assert.equal(fetchCalls, 1)
   } finally {
     globalThis.fetch = originalFetch
   }

@@ -153,7 +153,7 @@ export interface OrgMembership {
   org_name: string
   org_slug: string
   is_personal: boolean
-  plan?: 'personal' | 'team' | string
+  taskGraph?: 'personal' | 'team' | string
   status?: 'active' | 'suspended' | string
   role: 'owner' | 'admin' | 'member' | 'viewer'
 }
@@ -488,6 +488,7 @@ export interface ResourceFolderPermission {
 export interface RawResource {
   ID: number
   owner_id: number
+  org_id?: number
   folder_id?: number
   type: 'image' | 'video' | 'audio' | 'text' | 'file'
   name: string
@@ -502,6 +503,7 @@ export interface RawResource {
 }
 
 export type ResourceBindingOwnerType =
+  | 'project'
   | 'script'
   | 'asset_slot'
   | 'script_version'
@@ -600,6 +602,39 @@ export type CanvasType = 'inspiration' | 'workflow'
 export type CanvasParamType = 'text' | 'image' | 'video' | 'json' | 'number' | 'boolean' | 'resource'
 export type CanvasRunStatus = 'pending' | 'running' | 'done' | 'failed'
 export type CanvasPortType = CanvasParamType
+
+export interface CanvasNodeModelDiagnostics {
+  canvas_id: number
+  node_id: string
+  node_label: string
+  node_type: string
+  capability?: string
+  feature_key?: string
+  status: 'ok' | 'missing_model_selection' | 'route_error' | 'not_applicable' | 'invalid_node_data' | 'ai_service_unavailable' | 'feature_route_error' | 'missing_capability' | string
+  problems?: string[]
+  next_actions?: string[]
+  raw_model_fields?: Record<string, unknown>
+  data_model_id?: string
+  data_model_db_id?: number
+  executable?: boolean
+  executable_model_id?: string
+  executable_model_db_id?: number
+  executable_feature_key?: string
+  available_model_count: number
+  available_models?: Array<{
+    id: number
+    model_id: string
+    display_name: string
+    is_default?: boolean
+    capabilities?: string[]
+  }>
+  route?: {
+    model_id: string
+    model_config_id: number
+    provider_model_id?: string
+    selection_reason?: string
+  }
+}
 
 export interface CanvasPortDef {
   id: string
@@ -817,6 +852,7 @@ export interface CanvasNodeData {
   status?: CanvasTaskStatus
   taskId?: number
   error?: string
+  runDiagnostics?: CanvasNodeModelDiagnostics                  // transient UI diagnostic, not persisted
   textContent?: string                                     // manual text nodes
   inputValue?: string                                      // input nodes
   paramName?: string                                       // input/output parameter name

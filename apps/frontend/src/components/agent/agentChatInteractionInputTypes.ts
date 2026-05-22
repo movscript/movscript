@@ -19,7 +19,7 @@ export interface BuildAgentChatInteractionControllerInputOptions {
   loading: boolean
   onExternalDraftConsumed?: () => void
   pageToolRequestId?: string
-  plan: ReturnType<typeof useAgentPlanDispatchSettings>
+  taskGraph: ReturnType<typeof useAgentPlanDispatchSettings>
   presentation: ReturnType<typeof useAgentChatPresentationState>
   runtime: ReturnType<typeof useAgentChatRuntimeState>
   store: ReturnType<typeof useAgentChatStoreBindings>

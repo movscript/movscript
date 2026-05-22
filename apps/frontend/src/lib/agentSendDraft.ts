@@ -25,7 +25,7 @@ export interface AgentSendDraft {
     name?: string
     soul?: string
   }
-  settings: Pick<AgentSettings, 'permissionMode' | 'includeProjectContext' | 'includeRecentResources' | 'autoPlan'>
+  settings: Pick<AgentSettings, 'permissionMode' | 'includeProjectContext' | 'includeRecentResources' | 'autoTaskGraph'>
   contextLabels: string[]
   context: {
     project?: Pick<Project, 'ID' | 'name' | 'status' | 'description' | 'aspect_ratio' | 'visual_style' | 'project_style'>
@@ -143,6 +143,11 @@ export async function buildLocalAgentSendDraft(input: BuildLocalAgentSendDraftIn
     approvalMode: agentPermissionModeToApprovalMode(input.settings.permissionMode),
     maxToolCalls: activeRunPreset.maxToolCalls,
     maxIterations: activeRunPreset.maxIterations,
+    workflow: {
+      profile: input.settings.autoTaskGraph ? 'standard' : 'compact',
+      includeMemories: true,
+      allowForcedToolCalls: input.settings.autoTaskGraph,
+    },
   }
   const effectiveRunPolicy: AgentRunPolicyOverride = {
     ...presetRunPolicy,
@@ -180,7 +185,7 @@ export async function buildLocalAgentSendDraft(input: BuildLocalAgentSendDraftIn
         }))
   const agentContext = buildAgentContext({
     permissionMode: input.settings.permissionMode,
-    autoPlan: input.settings.autoPlan,
+    autoTaskGraph: input.settings.autoTaskGraph,
     project: input.currentProject,
     includeProjectContext: input.settings.includeProjectContext,
   })
@@ -256,7 +261,7 @@ export async function buildLocalAgentSendDraft(input: BuildLocalAgentSendDraftIn
       permissionMode: input.settings.permissionMode,
       includeProjectContext: input.settings.includeProjectContext,
       includeRecentResources: input.settings.includeRecentResources,
-      autoPlan: input.settings.autoPlan,
+      autoTaskGraph: input.settings.autoTaskGraph,
     },
     contextLabels: input.contextLabels,
     context: {
@@ -424,12 +429,17 @@ export function agentPermissionModeToApprovalMode(permissionMode: AgentPermissio
 
 function buildAgentContext(options: {
   permissionMode: AgentPermissionMode
-  autoPlan: boolean
+  autoTaskGraph: boolean
   project: Project | null
   includeProjectContext: boolean
 }) {
-  void options
-  return ''
+  const lines = [
+    `[Agent runtime policy] approval=${agentPermissionModeToApprovalMode(options.permissionMode)}; autoTaskGraph=${options.autoTaskGraph ? 'on' : 'off'}.`,
+  ]
+  if (options.includeProjectContext && options.project) {
+    lines.push(`[Current project] ${options.project.name}${options.project.status ? ` (${options.project.status})` : ''}.`)
+  }
+  return lines.join('\n')
 }
 
 function compactProject(project: Project | null): AgentSendDraft['context']['project'] | undefined {

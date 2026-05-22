@@ -1,0 +1,35 @@
+{
+  "id": "kernel.workflow.proposal_first",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Proposal First",
+  "description": "在正式写入前，把宽泛、跨层或缺上游上下文的请求路由到最小必要的本地 proposal draft。",
+  "priority": 700,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "keyword",
+      "any": [
+        "提案",
+        "草稿",
+        "proposal",
+        "draft"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_focus_get",
+    "tool://draft_get",
+    "tool://draft_create",
+    "tool://draft_file_read",
+    "tool://draft_file_search",
+    "tool://draft_file_edit",
+    "tool://draft_validate",
+    "tool://draft_apply_preview",
+    "tool://draft_apply",
+    "tool://core_user_input_request"
+  ],
+  "toolScope": "intersect",
+  "outputContract": "返回已选择的 draft 或推荐的 draft kind、选择理由、阻塞项、下一步审阅动作和应交接的 workflow。",
+  "instructionTemplatePath": "instruction.md"
+}

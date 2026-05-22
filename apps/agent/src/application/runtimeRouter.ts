@@ -32,22 +32,19 @@ import { defaultRunPolicy } from '../state/runPolicy.js'
 import { RuntimeRunControllerRegistry } from './runLifecycleControl.js'
 import { numberField } from './runtimeScalarInput.js'
 import { RuntimeRunAuthRegistry } from './runAuth.js'
-import {
-  createRuntimeAgentPlanToolsBridge,
-  type RuntimeAgentPlanToolsBridge,
-} from './runtimeAgentPlanToolsBridge.js'
+import { updateRuntimeProgressChecklist } from './runtimeProgressChecklistTools.js'
 import {
   requireRuntimeTask,
   requireRuntimeThread,
 } from './runtimeStoreLookup.js'
 import { updateRuntimeThreadRunStatus } from './runtimeThreadProjection.js'
 import {
-  createRuntimePlanCreationBridge,
-  type RuntimePlanCreationBridge,
+  createRuntimeTaskGraphCreationBridge,
+  type RuntimeTaskGraphCreationBridge,
 } from './runtimePlanCreationBridge.js'
 import {
-  createRuntimePlanStatusBridge,
-  type RuntimePlanStatusBridge,
+  createRuntimeTaskGraphStatusBridge,
+  type RuntimeTaskGraphStatusBridge,
 } from './runtimePlanStatusBridge.js'
 import {
   createRuntimeEntityReadBridge,
@@ -94,8 +91,8 @@ import { RuntimeOperationManager } from '../operations/runtimeOperationManager.j
 import { GenerationJobOperationProvider } from '../operations/providers/generationJobOperationProvider.js'
 import { AgentStoreRuntimeOperationStore } from '../operations/runtimeOperationStore.js'
 import {
-  createRuntimePlanDispatchBridge,
-  type RuntimePlanDispatchBridge,
+  createRuntimeTaskGraphDispatchBridge,
+  type RuntimeTaskGraphDispatchBridge,
 } from './runtimePlanDispatchBridge.js'
 import {
   createRuntimeReplanBridge,
@@ -180,9 +177,9 @@ import { RuntimeEventSubscriberRegistry } from './runtimeEventSubscribers.js'
 import { isoNow, makeId } from './runtimeIdentity.js'
 import type {
   AgentApprovalRequest,
-  AgentPlan,
-  AgentPlanSnapshot,
-  AgentPlanStreamEvent,
+  AgentTaskGraph,
+  AgentTaskGraphSnapshot,
+  AgentTaskGraphStreamEvent,
   AgentRunRole,
   AgentTask,
   AgentInputRequest,
@@ -203,27 +200,27 @@ import type {
   CancelRunInput,
   AnswerRunInputRequestInput,
   CreateMessageInput,
-  CreatePlanInput,
-  CreatePlanTaskInput,
+  CreateTaskGraphInput,
+  CreateTaskGraphTaskInput,
   CreateRunInput,
   CreateToolRunInput,
   CreateThreadInput,
-  DispatchPlanInput,
-  DispatchPlanResult,
+  DispatchTaskGraphInput,
+  DispatchTaskGraphResult,
   PreviewRunInput,
-  ReplanRunInput,
-  ReplanRunResult,
+  UpdateTaskGraphInput,
+  UpdateTaskGraphResult,
   ToolCallOutcome,
-  UpdatePlanTaskInput,
+  UpdateTaskGraphTaskInput,
   UpdateThreadInput,
 } from '../state/types.js'
 
 export type {
   AgentMessage,
   AgentMessageRole,
-  AgentPlan,
-  AgentPlanSnapshot,
-  AgentPlanStreamEvent,
+  AgentTaskGraph,
+  AgentTaskGraphSnapshot,
+  AgentTaskGraphStreamEvent,
   AgentRun,
   AgentRunRole,
   AgentRunPreview,
@@ -243,18 +240,18 @@ export type {
   CancelRunInput,
   AnswerRunInputRequestInput,
   CreateMessageInput,
-  CreatePlanInput,
-  CreatePlanTaskInput,
+  CreateTaskGraphInput,
+  CreateTaskGraphTaskInput,
   CreateRunInput,
   CreateToolRunInput,
   CreateThreadInput,
-  DispatchPlanInput,
-  DispatchPlanResult,
+  DispatchTaskGraphInput,
+  DispatchTaskGraphResult,
   PreviewRunInput,
   UpdateThreadInput,
   ToolCall,
   ToolCallOutcome,
-  UpdatePlanTaskInput,
+  UpdateTaskGraphTaskInput,
 } from '../state/types.js'
 export type { AgentMemory, AgentMemoryKind, MemoryQuery } from '../memory/types.js'
 export type { RuntimeThreadSnapshotV2 } from './runtimeThreadSnapshot.js'
@@ -329,14 +326,14 @@ export class AgentRuntimeRouter {
   private readonly runAuth = new RuntimeRunAuthRegistry()
   private readonly runStreamSubscribers = new RuntimeEventSubscriberRegistry<AgentRunStreamEvent>()
   private readonly threadStreamSubscribers = new RuntimeEventSubscriberRegistry<AgentThreadStreamEvent>()
-  private readonly planStreamSubscribers = new RuntimeEventSubscriberRegistry<AgentPlanStreamEvent>()
+  private readonly planStreamSubscribers = new RuntimeEventSubscriberRegistry<AgentTaskGraphStreamEvent>()
   private readonly postRunRecordTasks = new RuntimeDeferredTaskRegistry()
   private readonly streams: RuntimeStreamBridge
   private readonly streamSubscriptions: RuntimeStreamSubscriptionBridge
   private readonly threads: RuntimeThreadOperationsBridge
   private readonly drafts: RuntimeDraftOperationsBridge
   private readonly runSteps: RuntimeRunStepBridge
-  private readonly planStatus: RuntimePlanStatusBridge
+  private readonly planStatus: RuntimeTaskGraphStatusBridge
   private readonly postRunRecords: RuntimePostRunRecordsBridge
   private readonly runCancellation: RuntimeRunCancellationBridge
   private readonly taskRunSync: RuntimeTaskRunSyncBridge
@@ -350,10 +347,9 @@ export class AgentRuntimeRouter {
   private readonly runPreview: RuntimeRunPreviewBridge
   private readonly taskEvents: RuntimeTaskEventBridge
   private readonly taskUpdate: RuntimeTaskUpdateBridge
-  private readonly planCreation: RuntimePlanCreationBridge
-  private readonly planDispatch: RuntimePlanDispatchBridge
-  private readonly replan: RuntimeReplanBridge
-  private readonly agentPlanTools: RuntimeAgentPlanToolsBridge
+  private readonly planCreation: RuntimeTaskGraphCreationBridge
+  private readonly planDispatch: RuntimeTaskGraphDispatchBridge
+  private readonly updateTaskGraph: RuntimeReplanBridge
   private readonly treeCancellation: RuntimeTreeCancellationBridge
   private readonly subagentTools: RuntimeSubagentToolsBridge
   private readonly operationManager: RuntimeOperationManager
@@ -460,7 +456,7 @@ export class AgentRuntimeRouter {
       runSubscribers: this.runStreamSubscribers,
       threadSubscribers: this.threadStreamSubscribers,
       planSubscribers: this.planStreamSubscribers,
-      getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
+      getTaskGraphSnapshot: (taskGraphId) => this.getTaskGraphSnapshot(taskGraphId),
       createTraceId: () => makeId('trace'),
       now: () => isoNow(),
     })
@@ -475,7 +471,7 @@ export class AgentRuntimeRouter {
       now: () => isoNow(),
       emitRunSnapshot: (run) => this.streams.emitRunSnapshot(run),
     })
-    this.planStatus = createRuntimePlanStatusBridge({
+    this.planStatus = createRuntimeTaskGraphStatusBridge({
       store: this.store,
       now: () => isoNow(),
       recordTrace: (run, trace) => this.streams.recordTraceEvent(run, trace),
@@ -497,9 +493,9 @@ export class AgentRuntimeRouter {
     this.taskRunSync = createRuntimeTaskRunSyncBridge({
       store: this.store,
       now: () => isoNow(),
-      recomputePlanStatus: (planId) => this.planStatus.recomputePlanStatus(planId),
+      recomputePlanStatus: (taskGraphId) => this.planStatus.recomputePlanStatus(taskGraphId),
       recordTrace: (run, trace) => this.streams.recordTraceEvent(run, trace),
-      emitPlanTaskEvent: (planId, task) => this.streams.emitPlanTaskEvent(planId, task),
+      emitPlanTaskEvent: (taskGraphId, task) => this.streams.emitPlanTaskEvent(taskGraphId, task),
     })
     this.runCancellationGuard = createRuntimeRunCancellationGuard({ store: this.store })
     this.runExecution = createRuntimeRunExecutionBridge({
@@ -570,23 +566,23 @@ export class AgentRuntimeRouter {
     this.taskEvents = createRuntimeTaskEventBridge({
       store: this.store,
       recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
-      emitPlanTaskEvent: (planId, task) => this.streams.emitPlanTaskEvent(planId, task),
+      emitPlanTaskEvent: (taskGraphId, task) => this.streams.emitPlanTaskEvent(taskGraphId, task),
     })
     this.taskUpdate = createRuntimeTaskUpdateBridge({
       store: this.store,
       now: () => isoNow(),
-      recomputePlanStatus: (planId) => this.planStatus.recomputePlanStatus(planId),
+      recomputePlanStatus: (taskGraphId) => this.planStatus.recomputePlanStatus(taskGraphId),
       recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
-      emitPlanTaskEvent: (planId, task) => this.streams.emitPlanTaskEvent(planId, task),
+      emitPlanTaskEvent: (taskGraphId, task) => this.streams.emitPlanTaskEvent(taskGraphId, task),
     })
-    this.planCreation = createRuntimePlanCreationBridge({
+    this.planCreation = createRuntimeTaskGraphCreationBridge({
       store: this.store,
       generatePlanTasks,
       runCreation: this.runCreation,
       taskEvents: this.taskEvents,
-      getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
+      getTaskGraphSnapshot: (taskGraphId) => this.getTaskGraphSnapshot(taskGraphId),
     })
-    this.planDispatch = createRuntimePlanDispatchBridge({
+    this.planDispatch = createRuntimeTaskGraphDispatchBridge({
       store: this.store,
       taskUpdate: this.taskUpdate,
       runCreation: this.runCreation,
@@ -596,18 +592,12 @@ export class AgentRuntimeRouter {
       streams: this.streams,
       taskEvents: this.taskEvents,
     })
-    this.replan = createRuntimeReplanBridge({
+    this.updateTaskGraph = createRuntimeReplanBridge({
       store: this.store,
       taskUpdate: this.taskUpdate,
       planStatus: this.planStatus,
       planDispatch: this.planDispatch,
       taskEvents: this.taskEvents,
-    })
-    this.agentPlanTools = createRuntimeAgentPlanToolsBridge({
-      store: this.store,
-      createPlan: (planInput) => this.createPlan(planInput),
-      replanRun: (runId, replanInput) => this.replanRun(runId, replanInput),
-      getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
     })
     this.treeCancellation = createRuntimeTreeCancellationBridge({
       store: this.store,
@@ -616,9 +606,10 @@ export class AgentRuntimeRouter {
     this.subagentTools = createRuntimeSubagentToolsBridge({
       store: this.store,
       updateTask: (taskId, update) => this.updateTask(taskId, update),
-      dispatchPlan: (dispatchInput) => this.dispatchPlan(dispatchInput),
+      dispatchTaskGraph: (dispatchInput) => this.dispatchTaskGraph(dispatchInput),
+      createRun: (runInput) => this.createRun(runInput),
       cancelSubtree: (runId, cancelInput) => this.treeCancellation.cancelSubtree(runId, cancelInput),
-      getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
+      getTaskGraphSnapshot: (taskGraphId) => this.getTaskGraphSnapshot(taskGraphId),
       taskEvents: this.taskEvents,
     })
     this.operationManager = new RuntimeOperationManager({
@@ -682,18 +673,14 @@ export class AgentRuntimeRouter {
     return this.catalogOperations.updateActiveSkills(run, input)
   }
 
-  async createAgentPlan(run: AgentRun, input: Record<string, JSONValue> = {}): Promise<JSONValue> {
-    return await this.agentPlanTools.createAgentPlan(run, input)
+  updateProgressChecklist(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
+    return updateRuntimeProgressChecklist({
+      store: this.store,
+      run,
+      request: input,
+      now: isoNow(),
+    }) as unknown as JSONValue
   }
-
-  getAgentPlan(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
-    return this.agentPlanTools.getAgentPlan(run, input)
-  }
-
-  replanAgentPlan(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
-    return this.agentPlanTools.replanAgentPlan(run, input)
-  }
-
   spawnSubagent(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
     return this.subagentTools.spawnSubagent(run, input)
   }
@@ -798,27 +785,27 @@ export class AgentRuntimeRouter {
     return this.entityReads.getChildRuns(parentRunId)
   }
 
-  async createPlan(input: CreatePlanInput): Promise<AgentPlanSnapshot> {
-    return await this.planCreation.createPlan(input)
+  async createTaskGraph(input: CreateTaskGraphInput): Promise<AgentTaskGraphSnapshot> {
+    return await this.planCreation.createTaskGraph(input)
   }
 
-  listPlans(): AgentPlan[] {
-    return this.entityReads.listPlans()
+  listTaskGraphs(): AgentTaskGraph[] {
+    return this.entityReads.listTaskGraphs()
   }
 
-  getPlan(id: string): AgentPlan | undefined {
-    return this.entityReads.getPlan(id)
+  getTaskGraph(id: string): AgentTaskGraph | undefined {
+    return this.entityReads.getTaskGraph(id)
   }
 
-  getPlanSnapshot(planId: string): AgentPlanSnapshot {
-    return this.entityReads.getPlanSnapshot(planId)
+  getTaskGraphSnapshot(taskGraphId: string): AgentTaskGraphSnapshot {
+    return this.entityReads.getTaskGraphSnapshot(taskGraphId)
   }
 
-  getTaskTree(planId: string): AgentTask[] {
-    return this.entityReads.getTaskTree(planId)
+  getTaskTree(taskGraphId: string): AgentTask[] {
+    return this.entityReads.getTaskTree(taskGraphId)
   }
 
-  updateTask(taskId: string, input: UpdatePlanTaskInput): AgentTask {
+  updateTask(taskId: string, input: UpdateTaskGraphTaskInput): AgentTask {
     return this.taskUpdate.updateTask(taskId, input)
   }
 
@@ -830,12 +817,12 @@ export class AgentRuntimeRouter {
     return this.treeCancellation.cancelPlanTree(runId, input)
   }
 
-  dispatchPlan(input: DispatchPlanInput): DispatchPlanResult {
-    return this.planDispatch.dispatchPlan(input)
+  dispatchTaskGraph(input: DispatchTaskGraphInput): DispatchTaskGraphResult {
+    return this.planDispatch.dispatchTaskGraph(input)
   }
 
-  replanRun(runId: string, input: ReplanRunInput = {}): ReplanRunResult {
-    return this.replan.replanRun(runId, input)
+  replanRun(runId: string, input: UpdateTaskGraphInput = {}): UpdateTaskGraphResult {
+    return this.updateTaskGraph.replanRun(runId, input)
   }
 
   getRunTraceEvents(runId: string, query: AgentTraceQuery = {}): AgentTraceEvent[] {
@@ -845,6 +832,8 @@ export class AgentRuntimeRouter {
   getRunTracePage(runId: string, query: AgentTraceQuery = {}): ReturnType<RuntimeTraceReadBridge['getRunTracePage']> {
     return this.traceReads.getRunTracePage(runId, query)
   }
+
+  getRunTraceEventData(runId: string, eventId: string): ReturnType<RuntimeTraceReadBridge['getRunTraceEventData']> { return this.traceReads.getRunTraceEventData(runId, eventId) }
 
   getRunTraceSummary(runId: string): ReturnType<RuntimeTraceReadBridge['getRunTraceSummary']> {
     return this.traceReads.getRunTraceSummary(runId)
@@ -866,8 +855,8 @@ export class AgentRuntimeRouter {
     return this.streamSubscriptions.subscribeThreadStream(threadId, listener)
   }
 
-  subscribePlanStream(planId: string, listener: (event: AgentPlanStreamEvent) => void): () => void {
-    return this.streamSubscriptions.subscribePlanStream(planId, listener)
+  subscribePlanStream(taskGraphId: string, listener: (event: AgentTaskGraphStreamEvent) => void): () => void {
+    return this.streamSubscriptions.subscribePlanStream(taskGraphId, listener)
   }
 
   cancelRun(runId: string, input: CancelRunInput = {}): AgentRun {

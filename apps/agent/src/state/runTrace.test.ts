@@ -15,7 +15,7 @@ test('buildRunStep creates in-progress step with round metadata', () => {
     id: 'step_1',
     runId: 'run_1',
     type: 'tool_call',
-    toolName: 'movscript_read_project_scripts',
+    toolName: 'movscript_project_script_read',
     createdAt: '2026-05-06T00:00:00.000Z',
     round: {
       roundId: 'round_1',
@@ -28,7 +28,7 @@ test('buildRunStep creates in-progress step with round metadata', () => {
   assert.equal(step.status, 'in_progress')
   assert.equal(step.roundId, 'round_1')
   assert.equal(step.roundSource, 'model')
-  assert.equal(step.toolName, 'movscript_read_project_scripts')
+  assert.equal(step.toolName, 'movscript_project_script_read')
 })
 
 test('appendRunStep appends the step and updates run timestamp', () => {

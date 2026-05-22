@@ -1,15 +1,18 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	domainorg "github.com/movscript/movscript/internal/domain/org"
+	tokenauth "github.com/movscript/movscript/internal/infra/auth"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/interfaces/http/middleware"
 	"github.com/movscript/movscript/internal/testutil"
@@ -82,6 +85,62 @@ func TestOrgMemberWritesScopedAudit(t *testing.T) {
 	}
 	if countAuditAction(t, db, "org.member_removed") != 1 {
 		t.Fatalf("missing member delete should not add remove audit log")
+	}
+}
+
+func TestAcceptInvitationRegistersAndIssuesCredential(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := testutil.OpenSQLite(t, "handler-org-invite-register.db", &persistencemodel.User{}, &persistencemodel.Organization{}, &persistencemodel.OrganizationMember{}, &persistencemodel.OrgInvitation{}, &persistencemodel.AuthSession{})
+	owner := persistencemodel.User{Username: "invite-owner", Status: domainauth.UserStatusActive}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create owner: %v", err)
+	}
+	org := persistencemodel.Organization{Name: "Invite Team", Slug: "invite-team", Plan: domainorg.PlanTeam, Status: domainorg.StatusActive, CreatedBy: owner.ID}
+	if err := db.Create(&org).Error; err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	inv := persistencemodel.OrgInvitation{OrgID: org.ID, Token: "invite-register-token", Role: domainorg.RoleMember, CreatedBy: owner.ID, ExpiresAt: time.Now().Add(time.Hour)}
+	if err := db.Create(&inv).Error; err != nil {
+		t.Fatalf("create invitation: %v", err)
+	}
+	tokens, err := tokenauth.NewManager("0123456789abcdef0123456789abcdef", 3600)
+	if err != nil {
+		t.Fatalf("create token manager: %v", err)
+	}
+
+	h := NewOrgHandler(db, tokens)
+	router := gin.New()
+	router.POST("/invitations/:token/accept", h.AcceptInvitation)
+	req := httptest.NewRequest(http.MethodPost, "/invitations/invite-register-token/accept", strings.NewReader(`{"username":"invite-new","password":"secret"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected invite accept, got %d: %s", res.Code, res.Body.String())
+	}
+
+	var body struct {
+		OrgID          uint   `json:"org_id"`
+		Token          string `json:"token"`
+		TokenType      string `json:"token_type"`
+		OrgMemberships []struct {
+			OrgID uint `json:"org_id"`
+		} `json:"org_memberships"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.OrgID != org.ID || body.Token == "" || body.TokenType != "Bearer" {
+		t.Fatalf("credential response = %+v, want org/token", body)
+	}
+	foundMembership := false
+	for _, membership := range body.OrgMemberships {
+		if membership.OrgID == org.ID {
+			foundMembership = true
+		}
+	}
+	if !foundMembership {
+		t.Fatalf("org memberships = %+v, want accepted org", body.OrgMemberships)
 	}
 }
 

@@ -25,7 +25,7 @@ class StubMCPClient {
   }
 
   async callTool(name: string): Promise<JSONValue> {
-    if (name === 'movscript_get_focus') return { content: [{ type: 'text', text: JSON.stringify({ snapshot: { project: { id: 42, name: 'Project A' } } }) }] }
+    if (name === 'movscript_focus_get') return { content: [{ type: 'text', text: JSON.stringify({ snapshot: { project: { id: 42, name: 'Project A' } } }) }] }
     return { ok: true }
   }
 
@@ -219,7 +219,7 @@ test('draft apply endpoint is an application-layer action outside agent runs', a
   assert.equal(runtime.listRuns().length, 0)
 })
 
-test('run replan endpoint uses plan root planner when called on a worker run', async () => {
+test('run updateTaskGraph endpoint uses taskGraph root planner when called on a worker run', async () => {
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
@@ -234,15 +234,15 @@ test('run replan endpoint uses plan root planner when called on a worker run', a
   })
   const handler = createAgentRequestListener(buildServerContext(runtime))
   const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const plan = await runtime.createPlan({
+  const taskGraph = await runtime.createTaskGraph({
     threadId: thread.id,
-    title: 'HTTP replan root planner',
+    title: 'HTTP updateTaskGraph root planner',
     tasks: [{ id: 'task_http_worker', title: 'Worker task', metadata: { executionMode: 'worker' } }],
   })
-  const rootPlanner = await waitForRun(runtime, plan.runs[0]!.id)
-  const otherPlanner = runtime.createRun({ threadId: thread.id, planId: plan.plan.id, role: 'planner' })
-  const dispatched = runtime.dispatchPlan({
-    planId: plan.plan.id,
+  const rootPlanner = await waitForRun(runtime, taskGraph.runs[0]!.id)
+  const otherPlanner = runtime.createRun({ threadId: thread.id, taskGraphId: taskGraph.taskGraph.id, role: 'planner' })
+  const dispatched = runtime.dispatchTaskGraph({
+    taskGraphId: taskGraph.taskGraph.id,
     plannerRunId: otherPlanner.id,
     taskIds: ['task_http_worker'],
   })
@@ -250,7 +250,7 @@ test('run replan endpoint uses plan root planner when called on a worker run', a
   assert.ok(worker)
   assert.equal(worker.parentRunId, otherPlanner.id)
 
-  const res = await dispatch(handler, 'POST', `/runs/${worker.id}/replan`, {
+  const res = await dispatch(handler, 'POST', `/runs/${worker.id}/updateTaskGraph`, {
     resetFailed: true,
     dispatch: true,
     maxWorkers: 1,
@@ -259,10 +259,10 @@ test('run replan endpoint uses plan root planner when called on a worker run', a
 
   assert.equal(res.statusCode, 202)
   assert.equal(json.dispatch?.spawnedRuns.length, 0)
-  assert.equal(runtime.getPlan(plan.plan.id)?.rootRunId, rootPlanner.id)
+  assert.equal(runtime.getTaskGraph(taskGraph.taskGraph.id)?.rootRunId, rootPlanner.id)
 })
 
-test('HTTP replan rejects invalid addTasks without partial task creation', async () => {
+test('HTTP updateTaskGraph rejects invalid addTasks without partial task creation', async () => {
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
@@ -277,68 +277,68 @@ test('HTTP replan rejects invalid addTasks without partial task creation', async
   })
   const handler = createAgentRequestListener(buildServerContext(runtime))
   const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const plan = await runtime.createPlan({
+  const taskGraph = await runtime.createTaskGraph({
     threadId: thread.id,
-    title: 'HTTP replan invalid addTasks',
-    tasks: [{ id: 'task_http_replan_base', title: 'Base task', metadata: { executionMode: 'worker' } }],
+    title: 'HTTP updateTaskGraph invalid addTasks',
+    tasks: [{ id: 'task_http_retask_graph_base', title: 'Base task', metadata: { executionMode: 'worker' } }],
   })
-  const planner = await waitForRun(runtime, plan.runs[0]!.id)
+  const planner = await waitForRun(runtime, taskGraph.runs[0]!.id)
 
-  const rejected = await dispatch(handler, 'POST', `/runs/${planner.id}/replan`, {
+  const rejected = await dispatch(handler, 'POST', `/runs/${planner.id}/updateTaskGraph`, {
     addTasks: [
-      { id: 'task_http_replan_cycle_a', title: 'Cycle A', deps: ['task_http_replan_cycle_b'] },
-      { id: 'task_http_replan_cycle_b', title: 'Cycle B', deps: ['task_http_replan_cycle_a'] },
+      { id: 'task_http_retask_graph_cycle_a', title: 'Cycle A', deps: ['task_http_retask_graph_cycle_b'] },
+      { id: 'task_http_retask_graph_cycle_b', title: 'Cycle B', deps: ['task_http_retask_graph_cycle_a'] },
     ],
     dispatch: false,
   })
   assert.equal(rejected.statusCode, 500)
   assert.match(JSON.parse(rejected.body).error, /dependency cycle detected/)
 
-  const snapshot = runtime.getPlanSnapshot(plan.plan.id)
-  assert.equal(snapshot.tasks.some((task) => task.id === 'task_http_replan_cycle_a'), false)
-  assert.equal(snapshot.tasks.some((task) => task.id === 'task_http_replan_cycle_b'), false)
+  const snapshot = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id)
+  assert.equal(snapshot.tasks.some((task) => task.id === 'task_http_retask_graph_cycle_a'), false)
+  assert.equal(snapshot.tasks.some((task) => task.id === 'task_http_retask_graph_cycle_b'), false)
 
-  const parentCycle = await dispatch(handler, 'POST', `/runs/${planner.id}/replan`, {
+  const parentCycle = await dispatch(handler, 'POST', `/runs/${planner.id}/updateTaskGraph`, {
     addTasks: [
-      { id: 'task_http_replan_parent_cycle_a', title: 'Parent Cycle A', parentId: 'task_http_replan_parent_cycle_b' },
-      { id: 'task_http_replan_parent_cycle_b', title: 'Parent Cycle B', parentId: 'task_http_replan_parent_cycle_a' },
+      { id: 'task_http_retask_graph_parent_cycle_a', title: 'Parent Cycle A', parentId: 'task_http_retask_graph_parent_cycle_b' },
+      { id: 'task_http_retask_graph_parent_cycle_b', title: 'Parent Cycle B', parentId: 'task_http_retask_graph_parent_cycle_a' },
     ],
     dispatch: false,
   })
   assert.equal(parentCycle.statusCode, 500)
   assert.match(JSON.parse(parentCycle.body).error, /parent cycle detected/)
 
-  const afterParentCycle = runtime.getPlanSnapshot(plan.plan.id)
-  assert.equal(afterParentCycle.tasks.some((task) => task.id === 'task_http_replan_parent_cycle_a'), false)
-  assert.equal(afterParentCycle.tasks.some((task) => task.id === 'task_http_replan_parent_cycle_b'), false)
+  const afterParentCycle = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id)
+  assert.equal(afterParentCycle.tasks.some((task) => task.id === 'task_http_retask_graph_parent_cycle_a'), false)
+  assert.equal(afterParentCycle.tasks.some((task) => task.id === 'task_http_retask_graph_parent_cycle_b'), false)
 
-  const badUpdate = await dispatch(handler, 'POST', `/runs/${planner.id}/replan`, {
+  const badUpdate = await dispatch(handler, 'POST', `/runs/${planner.id}/updateTaskGraph`, {
     addTasks: [
-      { id: 'task_http_replan_update_atomic', title: 'Update Atomic' },
+      { id: 'task_http_retask_graph_update_atomic', title: 'Update Atomic' },
     ],
     updates: [
-      { id: 'task_http_replan_missing_update', title: 'Missing update target' },
+      { id: 'task_http_retask_graph_missing_update', title: 'Missing update target' },
     ],
     dispatch: false,
   })
   assert.equal(badUpdate.statusCode, 500)
   assert.match(JSON.parse(badUpdate.body).error, /task not found/)
 
-  const afterBadUpdate = runtime.getPlanSnapshot(plan.plan.id)
-  assert.equal(afterBadUpdate.tasks.some((task) => task.id === 'task_http_replan_update_atomic'), false)
+  const afterBadUpdate = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id)
+  assert.equal(afterBadUpdate.tasks.some((task) => task.id === 'task_http_retask_graph_update_atomic'), false)
 
-  const accepted = await dispatch(handler, 'POST', `/runs/${planner.id}/replan`, {
+  const accepted = await dispatch(handler, 'POST', `/runs/${planner.id}/updateTaskGraph`, {
     addTasks: [
-      { id: 'task_http_replan_followup', title: 'Followup', deps: ['task_http_replan_base'] },
+      { id: 'task_http_retask_graph_followup', title: 'Followup', deps: ['task_http_retask_graph_base'] },
     ],
     updates: [
-      { id: 'task_http_replan_base', description: 'Updated by HTTP replan.' },
+      { id: 'task_http_retask_graph_base', description: 'Updated by HTTP updateTaskGraph.' },
     ],
     dispatch: false,
   })
   assert.equal(accepted.statusCode, 202)
-  assert.deepEqual(JSON.parse(accepted.body).createdTaskIds, ['task_http_replan_followup'])
-  assert.deepEqual(JSON.parse(accepted.body).updatedTaskIds, ['task_http_replan_base'])
+  assert.deepEqual(JSON.parse(accepted.body).createdTaskIds, ['task_http_retask_graph_followup'])
+  assert.deepEqual(JSON.parse(accepted.body).updatedTaskIds, ['task_http_retask_graph_base'])
 })
 
 test('legacy public run endpoint is no longer an execution entrypoint', async () => {
@@ -388,12 +388,12 @@ test('legacy public tool run endpoint is no longer an execution entrypoint', asy
     threadId: thread.id,
     role: 'planner',
     parentRunId: 'run_external_parent',
-    planId: 'plan_external',
+    taskGraphId: 'task_graph_external',
     taskId: 'task_external_worker',
     progress: 0.7,
     blockedReason: 'external status injection',
     toolCall: {
-      name: 'movscript_read_project_scripts',
+      name: 'movscript_project_script_read',
       args: { projectId: 42 },
     },
   })
@@ -402,7 +402,7 @@ test('legacy public tool run endpoint is no longer an execution entrypoint', asy
   assert.deepEqual(runtime.listRunsByThread(thread.id), [])
 })
 
-test('HTTP plan creation rejects invalid task graphs without writing plan state', async () => {
+test('HTTP taskGraph creation rejects invalid task graphs without writing taskGraph state', async () => {
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
@@ -420,7 +420,7 @@ test('HTTP plan creation rejects invalid task graphs without writing plan state'
 
   const missingDep = await dispatch(handler, 'POST', '/plans', {
     threadId: thread.id,
-    title: 'HTTP invalid missing dep plan',
+    title: 'HTTP invalid missing dep taskGraph',
     createPlannerRun: false,
     tasks: [
       { id: 'task_http_invalid_dep', title: 'Invalid dep', deps: ['task_missing_dep'] },
@@ -428,11 +428,11 @@ test('HTTP plan creation rejects invalid task graphs without writing plan state'
   })
   assert.equal(missingDep.statusCode, 500)
   assert.match(JSON.parse(missingDep.body).error, /task not found/)
-  assert.equal(runtime.listPlans().some((plan) => plan.title === 'HTTP invalid missing dep plan'), false)
+  assert.equal(runtime.listTaskGraphs().some((taskGraph) => taskGraph.title === 'HTTP invalid missing dep taskGraph'), false)
 
   const cycle = await dispatch(handler, 'POST', '/plans', {
     threadId: thread.id,
-    title: 'HTTP invalid cycle plan',
+    title: 'HTTP invalid cycle taskGraph',
     createPlannerRun: false,
     tasks: [
       { id: 'task_http_cycle_a', title: 'Cycle A', deps: ['task_http_cycle_b'] },
@@ -441,11 +441,11 @@ test('HTTP plan creation rejects invalid task graphs without writing plan state'
   })
   assert.equal(cycle.statusCode, 500)
   assert.match(JSON.parse(cycle.body).error, /dependency cycle detected/)
-  assert.equal(runtime.listPlans().some((plan) => plan.title === 'HTTP invalid cycle plan'), false)
+  assert.equal(runtime.listTaskGraphs().some((taskGraph) => taskGraph.title === 'HTTP invalid cycle taskGraph'), false)
 
   const parentCycle = await dispatch(handler, 'POST', '/plans', {
     threadId: thread.id,
-    title: 'HTTP invalid parent cycle plan',
+    title: 'HTTP invalid parent cycle taskGraph',
     createPlannerRun: false,
     tasks: [
       { id: 'task_http_parent_cycle_a', title: 'Parent Cycle A', parentId: 'task_http_parent_cycle_b' },
@@ -454,11 +454,11 @@ test('HTTP plan creation rejects invalid task graphs without writing plan state'
   })
   assert.equal(parentCycle.statusCode, 500)
   assert.match(JSON.parse(parentCycle.body).error, /parent cycle detected/)
-  assert.equal(runtime.listPlans().some((plan) => plan.title === 'HTTP invalid parent cycle plan'), false)
+  assert.equal(runtime.listTaskGraphs().some((taskGraph) => taskGraph.title === 'HTTP invalid parent cycle taskGraph'), false)
 
   const valid = await dispatch(handler, 'POST', '/plans', {
     threadId: thread.id,
-    title: 'HTTP valid graph plan',
+    title: 'HTTP valid graph taskGraph',
     createPlannerRun: false,
     tasks: [
       { id: 'task_http_graph_a', title: 'Graph A' },
@@ -469,7 +469,7 @@ test('HTTP plan creation rejects invalid task graphs without writing plan state'
   assert.equal(JSON.parse(valid.body).tasks.find((task: any) => task.id === 'task_http_graph_b')?.deps[0], 'task_http_graph_a')
 })
 
-test('HTTP plan snapshot exposes reusable summary', async () => {
+test('HTTP taskGraph snapshot exposes reusable summary', async () => {
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
     store: new InMemoryAgentStore(),
@@ -484,7 +484,7 @@ test('HTTP plan snapshot exposes reusable summary', async () => {
   })
   const handler = createAgentRequestListener(buildServerContext(runtime))
   const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const plan = await runtime.createPlan({
+  const taskGraph = await runtime.createTaskGraph({
     threadId: thread.id,
     title: 'HTTP snapshot summary',
     createPlannerRun: false,
@@ -496,7 +496,7 @@ test('HTTP plan snapshot exposes reusable summary', async () => {
   const worker = runtime.createRun({
     threadId: thread.id,
     role: 'worker',
-    planId: plan.plan.id,
+    taskGraphId: taskGraph.taskGraph.id,
     taskId: 'task_http_summary_running',
   })
   runtime.updateTask('task_http_summary_running', {
@@ -509,7 +509,7 @@ test('HTTP plan snapshot exposes reusable summary', async () => {
     blockedReason: 'Worker failed',
   })
 
-  const res = await dispatch(handler, 'GET', `/plans/${plan.plan.id}`)
+  const res = await dispatch(handler, 'GET', `/plans/${taskGraph.taskGraph.id}`)
   const json = JSON.parse(res.body) as {
     summary?: {
       taskCount: number
@@ -531,7 +531,7 @@ test('HTTP plan snapshot exposes reusable summary', async () => {
   assert.deepEqual(json.summary?.failedTaskIds, ['task_http_summary_failed'])
 })
 
-test('HTTP cancel-tree only accepts the plan root planner run', async () => {
+test('HTTP cancel-tree only accepts the taskGraph root planner run', async () => {
   const store = new InMemoryAgentStore()
   const runtime = new AgentRuntimeRouter({
     mcpClient: new StubMCPClient(),
@@ -547,12 +547,12 @@ test('HTTP cancel-tree only accepts the plan root planner run', async () => {
   })
   const handler = createAgentRequestListener(buildServerContext(runtime))
   const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const plan = await runtime.createPlan({
+  const taskGraph = await runtime.createTaskGraph({
     threadId: thread.id,
     title: 'HTTP cancel tree root planner',
     tasks: [{ id: 'task_http_cancel_worker', title: 'Worker task', metadata: { executionMode: 'worker' } }],
   })
-  const rootPlanner = await waitForRun(runtime, plan.runs[0]!.id)
+  const rootPlanner = await waitForRun(runtime, taskGraph.runs[0]!.id)
   const now = new Date().toISOString()
   const worker = buildAgentRun({
     id: 'run_http_cancel_worker',
@@ -562,7 +562,7 @@ test('HTTP cancel-tree only accepts the plan root planner run', async () => {
     policy: defaultRunPolicy(),
     role: 'worker',
     parentRunId: rootPlanner.id,
-    planId: plan.plan.id,
+    taskGraphId: taskGraph.taskGraph.id,
     taskId: 'task_http_cancel_worker',
     progress: 0,
   })
@@ -571,14 +571,14 @@ test('HTTP cancel-tree only accepts the plan root planner run', async () => {
   store.createRun(worker)
 
   const rejected = await dispatch(handler, 'POST', `/runs/${worker.id}/cancel-tree`, {
-    reason: 'Worker should not cancel the whole plan.',
+    reason: 'Worker should not cancel the whole taskGraph.',
   })
   assert.equal(rejected.statusCode, 500)
   assert.match(JSON.parse(rejected.body).error, /is not a planner run/)
   assert.notEqual(runtime.getRun(worker.id)?.status, 'cancelled')
 
   const accepted = await dispatch(handler, 'POST', `/runs/${rootPlanner.id}/cancel-tree`, {
-    reason: 'Stop the whole plan.',
+    reason: 'Stop the whole taskGraph.',
   })
   assert.equal(accepted.statusCode, 200)
   assert.deepEqual(JSON.parse(accepted.body).cancelledRunIds, [worker.id])
@@ -600,7 +600,7 @@ test('HTTP task update cannot create duplicate subagent names', async () => {
   })
   const handler = createAgentRequestListener(buildServerContext(runtime))
   const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const plan = await runtime.createPlan({
+  const taskGraph = await runtime.createTaskGraph({
     threadId: thread.id,
     title: 'HTTP task subagent name boundary',
     createPlannerRun: false,
@@ -619,7 +619,7 @@ test('HTTP task update cannot create duplicate subagent names', async () => {
   assert.equal(rejected.statusCode, 500)
   assert.match(JSON.parse(rejected.body).error, /subagent name already exists/)
 
-  const taskB = runtime.getPlanSnapshot(plan.plan.id).tasks.find((task) => task.id === 'task_http_named_b')
+  const taskB = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id).tasks.find((task) => task.id === 'task_http_named_b')
   assert.equal(taskB?.metadata?.subagentName, undefined)
   assert.equal(taskB?.metadata?.reviewOutcome, undefined)
 
@@ -647,7 +647,7 @@ test('HTTP task update cannot corrupt the task graph', async () => {
   })
   const handler = createAgentRequestListener(buildServerContext(runtime))
   const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const plan = await runtime.createPlan({
+  const taskGraph = await runtime.createTaskGraph({
     threadId: thread.id,
     title: 'HTTP task graph boundary',
     createPlannerRun: false,
@@ -657,7 +657,7 @@ test('HTTP task update cannot corrupt the task graph', async () => {
     ],
   })
   const otherThread = runtime.createThread({ messages: [{ role: 'user', content: '另一个规划' }] })
-  await runtime.createPlan({
+  await runtime.createTaskGraph({
     threadId: otherThread.id,
     title: 'HTTP other graph boundary',
     createPlannerRun: false,
@@ -666,11 +666,11 @@ test('HTTP task update cannot corrupt the task graph', async () => {
     ],
   })
 
-  const crossPlan = await dispatch(handler, 'PATCH', '/tasks/task_http_graph_a', {
+  const crossTaskGraph = await dispatch(handler, 'PATCH', '/tasks/task_http_graph_a', {
     deps: ['task_http_graph_other'],
   })
-  assert.equal(crossPlan.statusCode, 500)
-  assert.match(JSON.parse(crossPlan.body).error, /does not belong to plan/)
+  assert.equal(crossTaskGraph.statusCode, 500)
+  assert.match(JSON.parse(crossTaskGraph.body).error, /does not belong to taskGraph/)
 
   const cycle = await dispatch(handler, 'PATCH', '/tasks/task_http_graph_a', {
     deps: ['task_http_graph_b'],
@@ -690,7 +690,7 @@ test('HTTP task update cannot corrupt the task graph', async () => {
   assert.equal(parentCycle.statusCode, 500)
   assert.match(JSON.parse(parentCycle.body).error, /parent cycle detected/)
 
-  const taskA = runtime.getPlanSnapshot(plan.plan.id).tasks.find((task) => task.id === 'task_http_graph_a')
+  const taskA = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id).tasks.find((task) => task.id === 'task_http_graph_a')
   assert.deepEqual(taskA?.deps, [])
   assert.equal(taskA?.parentId, undefined)
 

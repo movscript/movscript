@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentPlan, AgentRun } from '../state/types.js'
+import type { AgentTaskGraph, AgentRun } from '../state/types.js'
 import {
-  attachPlannerRunToRuntimePlan,
-  findRuntimeThreadPlan,
+  attachPlannerRunToRuntimeTaskGraph,
+  findRuntimeThreadTaskGraph,
   requireRuntimePlannerRun,
   resolveRuntimePlannerRunPlanId,
 } from './runtimePlanBinding.js'
-import { requireRuntimePlan } from './runtimeStoreLookup.js'
+import { requireRuntimeTaskGraph } from './runtimeStoreLookup.js'
 
 test('requireRuntimePlannerRun resolves planner runs and rejects workers', () => {
   const store = new InMemoryAgentStore()
@@ -20,42 +20,42 @@ test('requireRuntimePlannerRun resolves planner runs and rejects workers', () =>
   assert.throws(() => requireRuntimePlannerRun(store, 'missing'), /run not found: missing/)
 })
 
-test('requireRuntimePlan and findRuntimeThreadPlan read plans through the store boundary', () => {
+test('requireRuntimeTaskGraph and findRuntimeThreadTaskGraph read plans through the store boundary', () => {
   const store = new InMemoryAgentStore()
-  store.createPlan(makePlan({ id: 'plan_1', threadId: 'thread_1' }))
-  store.createPlan(makePlan({ id: 'plan_2', threadId: 'thread_2' }))
+  store.createTaskGraph(makeTaskGraph({ id: 'task_graph_1', threadId: 'thread_1' }))
+  store.createTaskGraph(makeTaskGraph({ id: 'task_graph_2', threadId: 'thread_2' }))
 
-  assert.equal(requireRuntimePlan(store, 'plan_1').id, 'plan_1')
-  assert.equal(findRuntimeThreadPlan(store, 'thread_2')?.id, 'plan_2')
-  assert.equal(findRuntimeThreadPlan(store, 'thread_missing'), undefined)
-  assert.throws(() => requireRuntimePlan(store, 'missing'), /plan not found: missing/)
+  assert.equal(requireRuntimeTaskGraph(store, 'task_graph_1').id, 'task_graph_1')
+  assert.equal(findRuntimeThreadTaskGraph(store, 'thread_2')?.id, 'task_graph_2')
+  assert.equal(findRuntimeThreadTaskGraph(store, 'thread_missing'), undefined)
+  assert.throws(() => requireRuntimeTaskGraph(store, 'missing'), /taskGraph not found: missing/)
 })
 
-test('attachPlannerRunToRuntimePlan persists run binding and repairs stale plan root', () => {
+test('attachPlannerRunToRuntimeTaskGraph persists run binding and repairs stale taskGraph root', () => {
   const store = new InMemoryAgentStore()
   store.createRun(makeRun({ id: 'run_1' }))
-  store.createPlan(makePlan({ id: 'plan_1', rootRunId: 'stale_run' }))
+  store.createTaskGraph(makeTaskGraph({ id: 'task_graph_1', rootRunId: 'stale_run' }))
 
-  const attached = attachPlannerRunToRuntimePlan({
+  const attached = attachPlannerRunToRuntimeTaskGraph({
     store,
     runId: 'run_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     source: 'tool',
     now: '2026-01-01T00:00:01.000Z',
   })
 
-  assert.equal(attached.planId, 'plan_1')
-  assert.equal(store.getRun('run_1')?.planId, 'plan_1')
+  assert.equal(attached.taskGraphId, 'task_graph_1')
+  assert.equal(store.getRun('run_1')?.taskGraphId, 'task_graph_1')
   assert.equal(store.getRun('run_1')?.metadata?.attachedPlanByTool, 'tool')
-  assert.equal(store.getPlan('plan_1')?.rootRunId, 'run_1')
+  assert.equal(store.getTaskGraph('task_graph_1')?.rootRunId, 'run_1')
 })
 
-test('resolveRuntimePlannerRunPlanId selects and attaches plan within planner boundaries', () => {
+test('resolveRuntimePlannerRunPlanId selects and attaches taskGraph within planner boundaries', () => {
   const store = new InMemoryAgentStore()
   store.createRun(makeRun({ id: 'run_1' }))
-  store.createPlan(makePlan({ id: 'plan_1' }))
+  store.createTaskGraph(makeTaskGraph({ id: 'task_graph_1' }))
 
-  const planId = resolveRuntimePlannerRunPlanId({
+  const taskGraphId = resolveRuntimePlannerRunPlanId({
     store,
     plannerRun: requireRuntimePlannerRun(store, 'run_1'),
     source: 'tool',
@@ -63,23 +63,23 @@ test('resolveRuntimePlannerRunPlanId selects and attaches plan within planner bo
     now: '2026-01-01T00:00:01.000Z',
   })
 
-  assert.equal(planId, 'plan_1')
-  assert.equal(store.getRun('run_1')?.planId, 'plan_1')
+  assert.equal(taskGraphId, 'task_graph_1')
+  assert.equal(store.getRun('run_1')?.taskGraphId, 'task_graph_1')
 })
 
 test('resolveRuntimePlannerRunPlanId rejects plans outside the planner thread', () => {
   const store = new InMemoryAgentStore()
   store.createRun(makeRun({ id: 'run_1', threadId: 'thread_1' }))
-  store.createPlan(makePlan({ id: 'plan_2', threadId: 'thread_2' }))
+  store.createTaskGraph(makeTaskGraph({ id: 'task_graph_2', threadId: 'thread_2' }))
 
   assert.throws(() => resolveRuntimePlannerRunPlanId({
     store,
     plannerRun: requireRuntimePlannerRun(store, 'run_1'),
-    inputPlanId: 'plan_2',
+    inputPlanId: 'task_graph_2',
     source: 'tool',
     action: 'inspect',
     now: '2026-01-01T00:00:01.000Z',
-  }), /cannot inspect plan plan_2/)
+  }), /cannot inspect task graph task_graph_2/)
 })
 
 function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
@@ -102,11 +102,11 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   }
 }
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'pending',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',

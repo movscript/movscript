@@ -8,7 +8,7 @@ test('context ledger audit reports duplicate retrieved refs while preserving fir
     runId: 'run_1',
     threadId: 'thread_1',
     catalogSnapshotId: 'catalog_1',
-    call: { name: 'movscript_get_knowledge', args: { id: 'storyboard.rhythm.basic' } },
+    call: { name: 'knowledge_get', args: { id: 'storyboard.rhythm.basic' } },
     result: knowledgeResult('分镜节奏基础'),
     source: 'runtime',
     now: '2026-01-01T00:00:00.000Z',
@@ -18,7 +18,7 @@ test('context ledger audit reports duplicate retrieved refs while preserving fir
     runId: 'run_1',
     threadId: 'thread_1',
     catalogSnapshotId: 'catalog_1',
-    call: { name: 'movscript_get_knowledge', args: { id: 'storyboard.rhythm.basic' } },
+    call: { name: 'knowledge_get', args: { id: 'storyboard.rhythm.basic' } },
     result: knowledgeResult('新版分镜节奏基础'),
     source: 'runtime',
     now: '2026-01-02T00:00:00.000Z',
@@ -39,11 +39,11 @@ test('context ledger records search refs without charging retrieved body budget'
     runId: 'run_1',
     threadId: 'thread_1',
     catalogSnapshotId: 'catalog_1',
-    call: { name: 'movscript_search_knowledge', args: { query: '分镜' } },
+    call: { name: 'knowledge_search', args: { query: '分镜' } },
     result: {
       results: [
-        { id: 'storyboard.rhythm.basic', title: '分镜节奏基础', collectionId: 'movscript.knowledge.storyboard', contentHash: 'sha256:rhythm', charCount: 3000 },
-        { id: 'storyboard.hook.basic', title: '钩子基础', collectionId: 'movscript.knowledge.storyboard', contentHash: 'sha256:hook', charCount: 2000 },
+        { id: 'storyboard.rhythm.basic', title: '分镜节奏基础', collectionId: 'film.knowledge.storyboard', contentHash: 'sha256:rhythm', charCount: 3000 },
+        { id: 'storyboard.hook.basic', title: '钩子基础', collectionId: 'film.knowledge.storyboard', contentHash: 'sha256:hook', charCount: 2000 },
       ],
     },
     source: 'runtime',
@@ -58,7 +58,7 @@ test('context ledger records search refs without charging retrieved body budget'
     runId: 'run_1',
     threadId: 'thread_1',
     catalogSnapshotId: 'catalog_1',
-    call: { name: 'movscript_get_knowledge', args: { id: 'storyboard.rhythm.basic' } },
+    call: { name: 'knowledge_get', args: { id: 'storyboard.rhythm.basic' } },
     result: knowledgeResult('分镜节奏基础'),
     source: 'runtime',
     now: '2026-01-01T00:00:01.000Z',
@@ -75,7 +75,7 @@ test('context ledger records memory search refs separately from loaded memory bo
     runId: 'run_1',
     threadId: 'thread_1',
     catalogSnapshotId: 'catalog_1',
-    call: { name: 'movscript_search_memories', args: { projectId: 42, query: '偏好' } },
+    call: { name: 'core_memory_search', args: { projectId: 42, query: '偏好' } },
     result: {
       memories: [
         { id: 'memory_1', title: '偏好', kind: 'preference', excerpt: '只返回摘要', updatedAt: '2026-01-01T00:00:00.000Z' },
@@ -91,7 +91,7 @@ test('context ledger records memory search refs separately from loaded memory bo
     runId: 'run_1',
     threadId: 'thread_1',
     catalogSnapshotId: 'catalog_1',
-    call: { name: 'movscript_get_memory', args: { projectId: 42, id: 'memory_1' } },
+    call: { name: 'core_memory_get', args: { projectId: 42, id: 'memory_1' } },
     result: {
       id: 'memory_1',
       projectId: 42,
@@ -111,7 +111,7 @@ test('context ledger extracts refs from MCP text JSON tool wrappers', () => {
     runId: 'run_1',
     threadId: 'thread_1',
     catalogSnapshotId: 'catalog_1',
-    call: { name: 'movscript_read_project_scripts', args: { projectId: 42 } },
+    call: { name: 'movscript_project_script_read', args: { projectId: 42 } },
     result: {
       content: [{
         type: 'text',
@@ -137,7 +137,7 @@ test('context ledger extracts generation refs from runtime operation payloads', 
     runId: 'run_1',
     threadId: 'thread_1',
     catalogSnapshotId: 'catalog_1',
-    call: { name: 'runtime_operation_start', args: { kind: 'generation_job', request: {} } },
+    call: { name: 'core_operation_start', args: { kind: 'generation_job', request: {} } },
     result: {
       status: 'started',
       operation: {
@@ -213,7 +213,7 @@ test('context ledger ignores non-plain persisted ledger records', () => {
     catalogSnapshotId: 'catalog_1',
     activeSkillIds: ['new_skill'],
     visibleToolNames: ['new_tool'],
-    call: { name: 'movscript_get_knowledge', args: { id: 'storyboard.rhythm.basic' } },
+    call: { name: 'knowledge_get', args: { id: 'storyboard.rhythm.basic' } },
     result: knowledgeResult('分镜节奏基础'),
     source: 'runtime',
     now: '2026-01-02T00:00:00.000Z',
@@ -230,7 +230,7 @@ test('context ledger ignores non-plain persisted ledger records', () => {
 function knowledgeResult(title: string) {
   return {
     id: 'storyboard.rhythm.basic',
-    collectionId: 'movscript.knowledge.storyboard',
+    collectionId: 'film.knowledge.storyboard',
     domain: 'storyboard',
     title,
     summary: '节奏',

@@ -1,6 +1,6 @@
 import type { AgentStore } from '../state/store.js'
 import type { CancelRunInput } from '../state/types.js'
-import { applyRuntimePlanTreeCancellationRequest } from './runtimePlanTreeCancellation.js'
+import { applyRuntimeTaskGraphTreeCancellationRequest } from './runtimePlanTreeCancellation.js'
 import { applyRuntimeSubtreeCancellationRequest } from './runtimeRunCancellation.js'
 
 export interface RuntimeTreeCancellationBridge {
@@ -12,10 +12,10 @@ export function createRuntimeTreeCancellationBridge(input: {
   store: AgentStore
   cancelRun: (runId: string, input?: CancelRunInput) => unknown
   cancelSubtreeRequest?: typeof applyRuntimeSubtreeCancellationRequest
-  cancelPlanTreeRequest?: typeof applyRuntimePlanTreeCancellationRequest
+  cancelPlanTreeRequest?: typeof applyRuntimeTaskGraphTreeCancellationRequest
 }): RuntimeTreeCancellationBridge {
   const cancelSubtreeRequest = input.cancelSubtreeRequest ?? applyRuntimeSubtreeCancellationRequest
-  const cancelPlanTreeRequest = input.cancelPlanTreeRequest ?? applyRuntimePlanTreeCancellationRequest
+  const cancelPlanTreeRequest = input.cancelPlanTreeRequest ?? applyRuntimeTaskGraphTreeCancellationRequest
   const bridge: RuntimeTreeCancellationBridge = {
     cancelSubtree: (runId, cancelInput = {}) => cancelSubtreeRequest({
       store: input.store,

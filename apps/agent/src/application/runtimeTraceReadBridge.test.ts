@@ -148,6 +148,9 @@ test('createRuntimeTraceReadBridge delegates summaries to the store aggregate', 
       countRunTraceEvents: () => {
         throw new Error('summary should not count through page reads')
       },
+      getRunTraceEventData: () => {
+        throw new Error('summary should not read trace event data')
+      },
       summarizeRunTraceEvents: (runId) => {
         calls.push(runId)
         return { runId, total: 2, byKind: { context: 1, tool_call: 1 }, latestEvent: trace('trace_2', 'tool_call') }

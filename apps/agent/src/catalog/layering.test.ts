@@ -57,26 +57,26 @@ test('layered catalog registry exposes schema/tool/skill/pack/profile boundaries
   const registry = catalog.layeredRegistry
 
   assert.ok(registry.schemas.has('movscript.project_standards_proposal.v1'))
-  assert.ok(registry.tools.has('movscript_validate_draft'))
-  assert.ok(registry.tools.has('movscript_preview_draft_apply'))
-  assert.ok(registry.tools.has('movscript_get_draft_model'))
-  assert.ok(registry.tools.has('movscript_search_knowledge'))
-  assert.ok(registry.tools.has('movscript_get_knowledge'))
-  const readScriptsTool = registry.tools.get('movscript_read_project_scripts')
+  assert.ok(registry.tools.has('draft_validate'))
+  assert.ok(registry.tools.has('draft_apply_preview'))
+  assert.ok(registry.tools.has('draft_model_get'))
+  assert.ok(registry.tools.has('knowledge_search'))
+  assert.ok(registry.tools.has('knowledge_get'))
+  const readScriptsTool = registry.tools.get('movscript_project_script_read')
   assert.ok(readScriptsTool)
   assert.match(readScriptsTool.description, /后端项目剧本/)
-  assert.match(readScriptsTool.description, /不要用 movscript_get_draft 读取剧本/)
+  assert.match(readScriptsTool.description, /不要用 draft_get 读取剧本/)
   const readScriptsProperties = schemaProperties(readScriptsTool.inputSchema)
   assert.ok(readScriptsProperties.scriptId)
   assert.ok(readScriptsProperties.scriptTitle)
   assert.ok(readScriptsProperties.query)
   assert.ok(readScriptsProperties.contentLimit)
-  assert.ok(registry.skills.has('movscript.policy.drafts'))
-  assert.ok(registry.skills.has('movscript.expertise.storyboard.general-director'))
-  assert.ok(registry.packs.has('movscript.pack.default'))
-  assert.ok(registry.packs.has('movscript.pack.agent-core'))
-  assert.ok(registry.packs.has('movscript.pack.drafts'))
-  assert.ok(registry.packs.has('movscript.pack.movscript'))
+  assert.ok(registry.skills.has('draft.policy.lifecycle'))
+  assert.ok(registry.skills.has('film.expertise.storyboard.director'))
+  assert.ok(registry.packs.has('core.pack.default'))
+  assert.ok(registry.packs.has('core.pack.agent'))
+  assert.ok(registry.packs.has('draft.pack.lifecycle'))
+  assert.ok(registry.packs.has('movscript.pack.workspace'))
   assert.ok(registry.profiles.has('movscript.profile.default'))
   assert.equal(registry.profiles.size, 1)
   assert.equal(catalog.catalogIssues.some((issue) => issue.level === 'error'), false)
@@ -85,87 +85,87 @@ test('layered catalog registry exposes schema/tool/skill/pack/profile boundaries
 
 test('target-state pack files and the default profile are loaded as first-class catalog resources', () => {
   const catalog = loadAgentPluginCatalog()
-  const movscriptPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.movscript')
+  const movscriptPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.workspace')
   const defaultProfile = catalog.profiles.find((profile) => profile.id === 'movscript.profile.default')
 
   assert.ok(movscriptPack)
   assert.equal(movscriptPack.source, 'builtin')
   assert.deepEqual(movscriptPack.schemas, [])
   assert.deepEqual(movscriptPack.requires?.packs, {
-    'movscript.pack.agent-core': '>=1.0.0',
-    'movscript.pack.drafts': '>=1.0.0',
+    'core.pack.agent': '>=1.0.0',
+    'draft.pack.lifecycle': '>=1.0.0',
   })
-  assert.ok(movscriptPack.skills.includes('movscript.workflow.project-standards-proposal'))
-  assert.ok(movscriptPack.skills.includes('movscript.workflow.setting-proposal'))
-  assert.ok(movscriptPack.skills.includes('movscript.workflow.asset-proposal'))
-  assert.ok(movscriptPack.skills.includes('movscript.workflow.production-proposal'))
-  assert.ok(movscriptPack.skills.includes('movscript.workflow.content-unit-proposal'))
-  assert.ok(movscriptPack.skills.includes('movscript.workflow.visual-generation'))
-  assert.ok(movscriptPack.skills.includes('movscript.expertise.storyboard.general-director'))
-  assert.ok(movscriptPack.tools.includes('movscript_search_knowledge'))
-  assert.ok(movscriptPack.tools.includes('movscript_get_knowledge'))
-  assert.ok(movscriptPack.knowledge?.includes('movscript.knowledge.storyboard'))
-  assert.ok(catalog.layeredRegistry.knowledge.has('movscript.knowledge.storyboard'))
-  const directorExpertise = catalog.layeredRegistry.skills.get('movscript.expertise.storyboard.general-director')
+  assert.ok(movscriptPack.skills.includes('movscript.workflow.project_standards_proposal'))
+  assert.ok(movscriptPack.skills.includes('movscript.workflow.setting_proposal'))
+  assert.ok(movscriptPack.skills.includes('movscript.workflow.asset_proposal'))
+  assert.ok(movscriptPack.skills.includes('movscript.workflow.production_proposal'))
+  assert.ok(movscriptPack.skills.includes('movscript.workflow.content_unit_proposal'))
+  assert.ok(movscriptPack.skills.includes('generation.workflow.visual_execution'))
+  assert.ok(movscriptPack.skills.includes('film.expertise.storyboard.director'))
+  assert.ok(movscriptPack.tools.includes('knowledge_search'))
+  assert.ok(movscriptPack.tools.includes('knowledge_get'))
+  assert.ok(movscriptPack.knowledge?.includes('film.knowledge.storyboard'))
+  assert.ok(catalog.layeredRegistry.knowledge.has('film.knowledge.storyboard'))
+  const directorExpertise = catalog.layeredRegistry.skills.get('film.expertise.storyboard.director')
   assert.equal(directorExpertise?.kind, 'expertise')
   assert.equal(defaultProfile?.limits?.maxKnowledgeCharsPerRun, 8000)
   assert.equal(defaultProfile?.limits?.maxKnowledgeChunksPerRun, 3)
   assert.equal(defaultProfile?.limits?.maxHistoryMessages, 6)
   assert.equal(defaultProfile?.limits?.contextWindowCharLimit, 96000)
-  const corePack = catalog.packs.find((pack) => pack.id === 'movscript.pack.agent-core')
-  const draftPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.drafts')
-  assert.ok(corePack?.skills.includes('movscript.workflow.planner-subagents'))
-  assert.ok(draftPack?.skills.includes('movscript.workflow.draft-lifecycle'))
-  assert.deepEqual(draftPack?.requires?.packs, { 'movscript.pack.agent-core': '>=1.0.0' })
+  const corePack = catalog.packs.find((pack) => pack.id === 'core.pack.agent')
+  const draftPack = catalog.packs.find((pack) => pack.id === 'draft.pack.lifecycle')
+  assert.ok(corePack?.skills.includes('core.workflow.subagent_planning'))
+  assert.ok(draftPack?.skills.includes('draft.workflow.lifecycle'))
+  assert.deepEqual(draftPack?.requires?.packs, { 'core.pack.agent': '>=1.0.0' })
   assert.ok(defaultProfile)
   assert.deepEqual(defaultProfile.enabledPacks, [
-    'movscript.pack.agent-core',
-    'movscript.pack.drafts',
-    'movscript.pack.movscript',
+    'core.pack.agent',
+    'draft.pack.lifecycle',
+    'movscript.pack.workspace',
   ])
-  assert.equal(defaultProfile.persona, 'movscript.persona.default')
+  assert.equal(defaultProfile.persona, 'core.persona.default')
   assert.deepEqual(defaultProfile.enabledWorkflows, [
-    'movscript.workflow.memory-access',
-    'movscript.workflow.planner-subagents',
-    'movscript.workflow.draft-lifecycle',
-    'movscript.workflow.project-progress',
-    'movscript.workflow.script-reading',
-    'movscript.workflow.proposal-first',
-    'movscript.workflow.project-standards-proposal',
-    'movscript.workflow.setting-proposal',
-    'movscript.workflow.asset-proposal',
-    'movscript.workflow.setting-prep',
-    'movscript.workflow.production-proposal',
-    'movscript.workflow.asset-candidate-generation',
-    'movscript.workflow.content-unit-proposal',
-    'movscript.workflow.storyboard-gap-review',
-    'movscript.workflow.visual-generation',
+    'core.workflow.memory_access',
+    'core.workflow.subagent_planning',
+    'draft.workflow.lifecycle',
+    'movscript.workflow.project_progress_review',
+    'movscript.workflow.script_reading',
+    'kernel.workflow.proposal_first',
+    'movscript.workflow.project_standards_proposal',
+    'movscript.workflow.setting_proposal',
+    'movscript.workflow.asset_proposal',
+    'movscript.workflow.setting_prep',
+    'movscript.workflow.production_proposal',
+    'candidate.workflow.asset_planning',
+    'movscript.workflow.content_unit_proposal',
+    'movscript.workflow.storyboard_gap_review',
+    'generation.workflow.visual_execution',
   ])
   assert.deepEqual(defaultProfile.enabledPolicies, [
-    'movscript.policy.agent-core',
+    'core.policy.runtime',
   ])
 
   const resolved = resolveProfile(catalog.layeredRegistry)
   assert.equal(resolved.profile.id, 'movscript.profile.default')
-  assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.project-standards-proposal'))
-  assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.planner-subagents'))
-  assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.draft-lifecycle'))
-  assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.script-reading'))
-  assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.production-proposal'))
-  assert.ok(resolved.profile.toolGrants.some((grant) => grant.name === 'runtime_operation_start' && grant.approval === 'always'))
-  assert.ok(resolved.profile.toolGrants.some((grant) => grant.name === 'movscript_request_user_input' && grant.approval === 'never'))
+  assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.project_standards_proposal'))
+  assert.ok(resolved.profile.enabledWorkflows.includes('core.workflow.subagent_planning'))
+  assert.ok(resolved.profile.enabledWorkflows.includes('draft.workflow.lifecycle'))
+  assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.script_reading'))
+  assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.production_proposal'))
+  assert.ok(resolved.profile.toolGrants.some((grant) => grant.name === 'core_operation_start' && grant.approval === 'always'))
+  assert.ok(resolved.profile.toolGrants.some((grant) => grant.name === 'core_user_input_request' && grant.approval === 'never'))
 })
 
 test('draft lifecycle workflow describes read-before-write draft handling', () => {
   const catalog = loadAgentPluginCatalog()
   const profile = resolveProfile(catalog.layeredRegistry).profile
-  const workflow = catalog.layeredRegistry.skills.get('movscript.workflow.draft-lifecycle')
+  const workflow = catalog.layeredRegistry.skills.get('draft.workflow.lifecycle')
 
   assert.ok(workflow?.kind === 'workflow')
-  assert.ok(workflow.toolRefs.includes('tool://movscript_get_draft'))
-  assert.ok(workflow.toolRefs.includes('tool://movscript_create_draft'))
-  assert.ok(workflow.toolRefs.includes('tool://movscript_validate_draft'))
-  assert.ok(workflow.toolRefs.includes('tool://movscript_preview_draft_apply'))
+  assert.ok(workflow.toolRefs.includes('tool://draft_get'))
+  assert.ok(workflow.toolRefs.includes('tool://draft_create'))
+  assert.ok(workflow.toolRefs.includes('tool://draft_validate'))
+  assert.ok(workflow.toolRefs.includes('tool://draft_apply_preview'))
   assert.equal(workflow.toolRefs.includes('tool://movscript_list_drafts'), false)
   assert.match(workflow.instructionTemplate, /当前会话没有 draftId/)
   assert.match(workflow.instructionTemplate, /若用户或当前会话上下文给了 draftId，先 get 该 draft/)
@@ -181,15 +181,15 @@ test('draft lifecycle workflow describes read-before-write draft handling', () =
     catalogVersion: catalog.layeredRegistry.version,
   })
   assert.deepEqual(selected.warnings, [])
-  assert.deepEqual(selected.workflows.map((item) => item.id), ['movscript.workflow.draft-lifecycle'])
+  assert.deepEqual(selected.workflows.map((item) => item.id), ['draft.workflow.lifecycle'])
 })
 
 test('proposal workflows reference runtime draft model contract before field-specific edits', () => {
   const catalog = loadAgentPluginCatalog()
   const workflowIds = [
-    'movscript.workflow.draft-lifecycle',
-    'movscript.workflow.project-standards-proposal',
-    'movscript.workflow.production-proposal',
+    'draft.workflow.lifecycle',
+    'movscript.workflow.project_standards_proposal',
+    'movscript.workflow.production_proposal',
   ]
 
   for (const workflowId of workflowIds) {
@@ -198,18 +198,18 @@ test('proposal workflows reference runtime draft model contract before field-spe
     assert.match(workflow.instructionTemplate, /runtime draft model contract|模型契约/, `${workflowId} should point to the runtime draft model contract`)
     assert.match(workflow.instructionTemplate, /MCP/, `${workflowId} should route field contracts through MCP`)
     assert.match(workflow.instructionTemplate, /schema fallback|schema.*fallback/i, `${workflowId} should define the current schema fallback`)
-    assert.ok(workflow.toolRefs.includes('tool://movscript_get_draft_model'), `${workflowId} should be able to call the draft model MCP contract tool`)
+    assert.ok(workflow.toolRefs.includes('tool://draft_model_get'), `${workflowId} should be able to call the draft model MCP contract tool`)
   }
 })
 
 test('planner subagent behavior is provided by agent-core workflow skill', () => {
   const catalog = loadAgentPluginCatalog()
   const profile = resolveProfile(catalog.layeredRegistry).profile
-  const workflow = catalog.layeredRegistry.skills.get('movscript.workflow.planner-subagents')
+  const workflow = catalog.layeredRegistry.skills.get('core.workflow.subagent_planning')
 
   assert.ok(workflow?.kind === 'workflow')
-  assert.ok(workflow.toolRefs.includes('tool://movscript_spawn_subagent'))
-  assert.ok(workflow.toolRefs.includes('tool://movscript_wait_subagent'))
+  assert.ok(workflow.toolRefs.includes('tool://core_subagent_spawn'))
+  assert.ok(workflow.toolRefs.includes('tool://core_subagent_wait'))
   assert.match(workflow.instructionTemplate, /简单、单上下文、立即阻塞的任务由 planner 自己完成/)
   assert.match(workflow.instructionTemplate, /maxWorkers/)
   assert.match(workflow.instructionTemplate, /workerTimeoutMs/)
@@ -223,7 +223,7 @@ test('planner subagent behavior is provided by agent-core workflow skill', () =>
     catalogVersion: catalog.layeredRegistry.version,
   })
   assert.deepEqual(selected.warnings, [])
-  assert.deepEqual(selected.workflows.map((item) => item.id), ['movscript.workflow.planner-subagents'])
+  assert.deepEqual(selected.workflows.map((item) => item.id), ['core.workflow.subagent_planning'])
 
   const prompt = composePrompt({
     registry: catalog.layeredRegistry,
@@ -244,14 +244,14 @@ test('planner subagent behavior is provided by agent-core workflow skill', () =>
 
 test('asset candidate preparation is separated from generation execution', () => {
   const catalog = loadAgentPluginCatalog()
-  const assetCandidate = catalog.layeredRegistry.skills.get('movscript.workflow.asset-candidate-generation')
-  const visualGeneration = catalog.layeredRegistry.skills.get('movscript.workflow.visual-generation')
-  const listModelsTool = catalog.layeredRegistry.tools.get('movscript_list_models')
-  const ioStartTool = catalog.layeredRegistry.tools.get('runtime_operation_start')
-  const runtimeOperationWaitTool = catalog.layeredRegistry.tools.get('runtime_operation_wait')
-  const attachCandidateTool = catalog.layeredRegistry.tools.get('movscript_attach_asset_slot_candidate')
-  const attachKeyframeCandidateTool = catalog.layeredRegistry.tools.get('movscript_attach_keyframe_candidate')
-  const productionContextTool = catalog.layeredRegistry.tools.get('movscript_query_production_context')
+  const assetCandidate = catalog.layeredRegistry.skills.get('candidate.workflow.asset_planning')
+  const visualGeneration = catalog.layeredRegistry.skills.get('generation.workflow.visual_execution')
+  const listModelsTool = catalog.layeredRegistry.tools.get('generation_model_list')
+  const ioStartTool = catalog.layeredRegistry.tools.get('core_operation_start')
+  const runtimeOperationWaitTool = catalog.layeredRegistry.tools.get('core_operation_wait')
+  const attachCandidateTool = catalog.layeredRegistry.tools.get('candidate_asset_slot_attach')
+  const attachKeyframeCandidateTool = catalog.layeredRegistry.tools.get('candidate_keyframe_attach')
+  const productionContextTool = catalog.layeredRegistry.tools.get('movscript_production_context_query')
   const profile = resolveProfile(catalog.layeredRegistry).profile
 
   assert.ok(assetCandidate?.kind === 'workflow')
@@ -271,21 +271,21 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.match(JSON.stringify(visualGeneration.triggers), /keyframe candidate/)
   assert.match(JSON.stringify(visualGeneration.triggers), /visual anchor candidate/)
 
-  assert.ok(assetCandidate.toolRefs.includes('tool://runtime_operation_start'))
-  assert.ok(assetCandidate.toolRefs.includes('tool://runtime_operation_wait'))
-  assert.ok(assetCandidate.toolRefs.includes('tool://movscript_attach_asset_slot_candidate'))
-  assert.equal(assetCandidate.toolRefs.includes('tool://movscript_attach_keyframe_candidate'), false)
-  assert.equal(assetCandidate.toolRefs.includes('tool://runtime_operation_cancel'), true)
-  assert.ok(assetCandidate.toolRefs.includes('tool://movscript_get_focus'))
-  assert.ok(assetCandidate.toolRefs.includes('tool://movscript_get_draft_model'))
-  assert.ok(visualGeneration.toolRefs.includes('tool://movscript_get_focus'))
-  assert.ok(visualGeneration.toolRefs.includes('tool://movscript_get_draft_model'))
-  assert.ok(visualGeneration.toolRefs.includes('tool://movscript_request_user_input'))
-  assert.ok(visualGeneration.toolRefs.includes('tool://runtime_operation_start'))
-  assert.ok(visualGeneration.toolRefs.includes('tool://runtime_operation_wait'))
-  assert.ok(visualGeneration.toolRefs.includes('tool://movscript_attach_asset_slot_candidate'))
-  assert.ok(visualGeneration.toolRefs.includes('tool://movscript_attach_keyframe_candidate'))
-  assert.ok(visualGeneration.toolRefs.includes('tool://runtime_operation_cancel'))
+  assert.ok(assetCandidate.toolRefs.includes('tool://core_operation_start'))
+  assert.ok(assetCandidate.toolRefs.includes('tool://core_operation_wait'))
+  assert.ok(assetCandidate.toolRefs.includes('tool://candidate_asset_slot_attach'))
+  assert.equal(assetCandidate.toolRefs.includes('tool://candidate_keyframe_attach'), false)
+  assert.equal(assetCandidate.toolRefs.includes('tool://core_operation_cancel'), true)
+  assert.ok(assetCandidate.toolRefs.includes('tool://movscript_focus_get'))
+  assert.ok(assetCandidate.toolRefs.includes('tool://draft_model_get'))
+  assert.ok(visualGeneration.toolRefs.includes('tool://movscript_focus_get'))
+  assert.ok(visualGeneration.toolRefs.includes('tool://draft_model_get'))
+  assert.ok(visualGeneration.toolRefs.includes('tool://core_user_input_request'))
+  assert.ok(visualGeneration.toolRefs.includes('tool://core_operation_start'))
+  assert.ok(visualGeneration.toolRefs.includes('tool://core_operation_wait'))
+  assert.ok(visualGeneration.toolRefs.includes('tool://candidate_asset_slot_attach'))
+  assert.ok(visualGeneration.toolRefs.includes('tool://candidate_keyframe_attach'))
+  assert.ok(visualGeneration.toolRefs.includes('tool://core_operation_cancel'))
 
   const ctx = {
     profile,
@@ -297,25 +297,25 @@ test('asset candidate preparation is separated from generation execution', () =>
   }
   const assetTools = resolveVisibleTools({ registry: catalog.layeredRegistry, ctx, activeWorkflows: [assetCandidate] })
   const visualTools = resolveVisibleTools({ registry: catalog.layeredRegistry, ctx, activeWorkflows: [visualGeneration] })
-  assert.ok(assetTools.available.some((tool) => tool.name === 'runtime_operation_start'))
-  assert.ok(assetTools.available.some((tool) => tool.name === 'runtime_operation_wait'))
-  assert.ok(assetTools.available.some((tool) => tool.name === 'movscript_attach_asset_slot_candidate'))
-  assert.equal(assetTools.available.some((tool) => tool.name === 'movscript_attach_keyframe_candidate'), false)
-  assert.ok(assetTools.available.some((tool) => tool.name === 'runtime_operation_cancel'))
-  assert.ok(assetTools.available.some((tool) => tool.name === 'movscript_get_focus'))
-  assert.ok(assetTools.available.some((tool) => tool.name === 'movscript_get_draft_model'))
-  assert.ok(visualTools.available.some((tool) => tool.name === 'runtime_operation_start'))
-  assert.ok(visualTools.available.some((tool) => tool.name === 'runtime_operation_wait'))
-  assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_attach_asset_slot_candidate'))
-  assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_attach_keyframe_candidate'))
-  assert.ok(visualTools.available.some((tool) => tool.name === 'runtime_operation_cancel'))
-  assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_request_user_input'))
+  assert.ok(assetTools.available.some((tool) => tool.name === 'core_operation_start'))
+  assert.ok(assetTools.available.some((tool) => tool.name === 'core_operation_wait'))
+  assert.ok(assetTools.available.some((tool) => tool.name === 'candidate_asset_slot_attach'))
+  assert.equal(assetTools.available.some((tool) => tool.name === 'candidate_keyframe_attach'), false)
+  assert.ok(assetTools.available.some((tool) => tool.name === 'core_operation_cancel'))
+  assert.ok(assetTools.available.some((tool) => tool.name === 'movscript_focus_get'))
+  assert.ok(assetTools.available.some((tool) => tool.name === 'draft_model_get'))
+  assert.ok(visualTools.available.some((tool) => tool.name === 'core_operation_start'))
+  assert.ok(visualTools.available.some((tool) => tool.name === 'core_operation_wait'))
+  assert.ok(visualTools.available.some((tool) => tool.name === 'candidate_asset_slot_attach'))
+  assert.ok(visualTools.available.some((tool) => tool.name === 'candidate_keyframe_attach'))
+  assert.ok(visualTools.available.some((tool) => tool.name === 'core_operation_cancel'))
+  assert.ok(visualTools.available.some((tool) => tool.name === 'core_user_input_request'))
 
   assert.match(assetCandidate.instructionTemplate, /生成任务创建、监控，以及把成功输出加入目标 asset slot 候选集/)
-  assert.match(assetCandidate.instructionTemplate, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `movscript_attach_asset_slot_candidate`/)
+  assert.match(assetCandidate.instructionTemplate, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `candidate_asset_slot_attach`/)
   assert.match(assetCandidate.instructionTemplate, /不要把 `output_resource_ids`、`resource_ids` 或多个资源 ID 合并传入同一次候选写入/)
   assert.match(assetCandidate.instructionTemplate, /如果有多个 output_resource_id，必须逐个调用 attach，并逐项报告成功、失败或阻塞/)
-  assert.match(assetCandidate.instructionTemplate, /除非 `movscript_attach_asset_slot_candidate` 对对应 output_resource_id 成功返回，否则绝不声称该资源已经加入候选集/)
+  assert.match(assetCandidate.instructionTemplate, /除非 `candidate_asset_slot_attach` 对对应 output_resource_id 成功返回，否则绝不声称该资源已经加入候选集/)
   assert.match(assetCandidate.instructionTemplate, /使用模型发现 contracts，而不是 provider 假设/)
   assert.match(assetCandidate.instructionTemplate, /先确认当前设定材料是否已有可复用素材/)
   assert.match(assetCandidate.instructionTemplate, /保留人物一致性、场景一致性和可复用识别点/)
@@ -326,9 +326,9 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.match(visualGeneration.instructionTemplate, /include keyframes/)
   assert.match(visualGeneration.instructionTemplate, /已有角色\/场景素材必须优先作为一致性约束/)
   assert.match(visualGeneration.instructionTemplate, /主角、核心反派、重要常驻角色要保持可长期复用的美术价值/)
-  assert.match(visualGeneration.instructionTemplate, /优先用 `mode: "any"` 让任一任务完成即可返回/)
-  assert.match(visualGeneration.instructionTemplate, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `movscript_attach_asset_slot_candidate`/)
-  assert.match(visualGeneration.instructionTemplate, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `movscript_attach_keyframe_candidate`/)
+  assert.match(visualGeneration.instructionTemplate, /continuationPolicy: \{ "mode": "any_completed"/)
+  assert.match(visualGeneration.instructionTemplate, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `candidate_asset_slot_attach`/)
+  assert.match(visualGeneration.instructionTemplate, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `candidate_keyframe_attach`/)
   assert.match(visualGeneration.instructionTemplate, /不要把 `output_resource_ids`、`resource_ids` 或多个资源 ID 合并传入同一次候选写入/)
   assert.match(visualGeneration.instructionTemplate, /每个 output_resource_id 的候选集写入结果/)
   assert.match(visualGeneration.instructionTemplate, /如果有多个 output_resource_id，必须逐个调用 attach，并逐项报告成功、失败或阻塞/)
@@ -340,7 +340,7 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.match(visualGeneration.instructionTemplate, /`input_preflight_errors`/)
   assert.match(visualGeneration.instructionTemplate, /解释性审计数据，而不是最终后端拒绝/)
   assert.match(visualGeneration.instructionTemplate, /不要在同一次请求中自动修复 `UNSUPPORTED_OUTPUT_TYPE` 或 `INVALID_INPUT_COUNT`/)
-  assert.match(visualGeneration.instructionTemplate, /runtime_operation_start\(kind:"generation_job"\)/)
+  assert.match(visualGeneration.instructionTemplate, /core_operation_start\(kind:"generation_job"\)/)
   assert.match(listModelsTool.description, /model_contracts/)
   assert.match(listModelsTool.description, /contract_version 1/)
   assert.match(listModelsTool.description, /supported_param_keys/)
@@ -451,7 +451,7 @@ test('asset candidate preparation is separated from generation execution', () =>
 
 test('storyboard knowledge tools are only visible for content unit workflows', () => {
   const catalog = loadAgentPluginCatalog()
-  const contentUnit = catalog.layeredRegistry.skills.get('movscript.workflow.content-unit-proposal')
+  const contentUnit = catalog.layeredRegistry.skills.get('movscript.workflow.content_unit_proposal')
   assert.ok(contentUnit?.kind === 'workflow')
 
   const inactive = resolveToolCatalog({
@@ -462,8 +462,8 @@ test('storyboard knowledge tools are only visible for content unit workflows', (
     activeSkills: [],
     userMessage: '普通聊天',
   })
-  assert.equal(inactive.byName.movscript_search_knowledge?.available, false)
-  assert.equal(inactive.byName.movscript_search_knowledge?.unavailableReason, 'workflow_scope')
+  assert.equal(inactive.byName.knowledge_search?.available, false)
+  assert.equal(inactive.byName.knowledge_search?.unavailableReason, 'workflow_scope')
 
   const active = resolveToolCatalog({
     mcpTools: [],
@@ -486,8 +486,8 @@ test('storyboard knowledge tools are only visible for content unit workflows', (
     }],
     userMessage: '规划内容单元分镜节奏',
   })
-  assert.equal(active.byName.movscript_search_knowledge?.available, true)
-  assert.equal(active.byName.movscript_get_knowledge?.available, true)
+  assert.equal(active.byName.knowledge_search?.available, true)
+  assert.equal(active.byName.knowledge_get?.available, true)
 })
 
 test('content unit proposal activates general director storyboard expertise', () => {
@@ -509,17 +509,17 @@ test('content unit proposal activates general director storyboard expertise', ()
     },
   })
 
-  assert.ok(layers.trace.workflowIds.includes('movscript.workflow.content-unit-proposal'))
-  assert.ok(layers.skills.some((skill) => skill.id === 'movscript.workflow.content-unit-proposal'))
+  assert.ok(layers.trace.workflowIds.includes('movscript.workflow.content_unit_proposal'))
+  assert.ok(layers.skills.some((skill) => skill.id === 'movscript.workflow.content_unit_proposal'))
   assert.equal(layers.skillDiscovery.profileId, 'movscript.profile.default')
-  assert.ok(layers.skillDiscovery.enabledPackIds.includes('movscript.pack.movscript'))
+  assert.ok(layers.skillDiscovery.enabledPackIds.includes('movscript.pack.workspace'))
   assert.deepEqual(layers.manifest.metadata?.promptPolicy, {
     projectStandards: { mode: 'required_for_project_work' },
     finalSourceBlock: true,
   })
-  assert.ok(layers.skillDiscovery.availableSkills.some((skill) => skill.id === 'movscript.workflow.content-unit-proposal' && skill.active))
-  assert.ok(layers.skillDiscovery.availableSkills.some((skill) => skill.id === 'movscript.expertise.storyboard.general-director' && skill.kind === 'expertise'))
-  const expertise = layers.skills.find((skill) => skill.id === 'movscript.expertise.storyboard.general-director')
+  assert.ok(layers.skillDiscovery.availableSkills.some((skill) => skill.id === 'movscript.workflow.content_unit_proposal' && skill.active))
+  assert.ok(layers.skillDiscovery.availableSkills.some((skill) => skill.id === 'film.expertise.storyboard.director' && skill.kind === 'expertise'))
+  const expertise = layers.skills.find((skill) => skill.id === 'film.expertise.storyboard.director')
   assert.ok(expertise)
   assert.equal(expertise.category, 'expertise')
   assert.match(expertise.compiledInstruction, /镜头参数/)
@@ -557,8 +557,8 @@ test('manual script reading skill is discovered before it exposes script tools',
 
   assert.equal(coreOnly.warnings.some((warning) => /Profile movscript\.profile\.default\.tool-policy/.test(warning)), false)
   assert.equal(coreOnly.manifest.metadata?.profileId, 'movscript.profile.default')
-  assert.equal(coreOnly.trace.workflowIds.includes('movscript.workflow.script-reading'), false)
-  const discoveredScriptSkill = coreOnly.skillDiscovery.availableSkills.find((skill) => skill.id === 'movscript.workflow.script-reading')
+  assert.equal(coreOnly.trace.workflowIds.includes('movscript.workflow.script_reading'), false)
+  const discoveredScriptSkill = coreOnly.skillDiscovery.availableSkills.find((skill) => skill.id === 'movscript.workflow.script_reading')
   assert.ok(discoveredScriptSkill)
   assert.equal(discoveredScriptSkill.loadMode, 'manual')
 
@@ -570,18 +570,18 @@ test('manual script reading skill is discovered before it exposes script tools',
     activeSkills: coreOnly.skills,
     userMessage: message,
   })
-  assert.equal(coreTools.byName.movscript_read_project_scripts?.available, false)
-  assert.equal(coreTools.byName.movscript_read_project_scripts?.unavailableReason, 'workflow_scope')
-  assert.equal(coreTools.byName.movscript_update_active_skills?.available, true)
+  assert.equal(coreTools.byName.movscript_project_script_read?.available, false)
+  assert.equal(coreTools.byName.movscript_project_script_read?.unavailableReason, 'workflow_scope')
+  assert.equal(coreTools.byName.core_skill_update?.available, true)
 
   const loaded = resolveRuntimeLayers({
     registry: catalog.layeredRegistry,
     baseManifest: coreOnly.manifest,
     message,
     debugContext,
-    requestedSkillIds: ['movscript.workflow.script-reading'],
+    requestedSkillIds: ['movscript.workflow.script_reading'],
   })
-  assert.ok(loaded.trace.workflowIds.includes('movscript.workflow.script-reading'))
+  assert.ok(loaded.trace.workflowIds.includes('movscript.workflow.script_reading'))
 
   const loadedTools = resolveToolCatalog({
     mcpTools: [],
@@ -591,7 +591,7 @@ test('manual script reading skill is discovered before it exposes script tools',
     activeSkills: loaded.skills,
     userMessage: message,
   })
-  assert.equal(loadedTools.byName.movscript_read_project_scripts?.available, true)
+  assert.equal(loadedTools.byName.movscript_project_script_read?.available, true)
 })
 
 test('manual script reading skill overrides tool-policy deny for its script tool', () => {
@@ -609,7 +609,7 @@ test('manual script reading skill overrides tool-policy deny for its script tool
   }
   const defaultToolGrants = catalog.manifest.tools.map((grant) => ({
     ...grant,
-    mode: grant.name === 'movscript_read_project_scripts' ? 'deny' as const : grant.mode,
+    mode: grant.name === 'movscript_project_script_read' ? 'deny' as const : grant.mode,
   }))
 
   const coreOnly = resolveRuntimeLayers({
@@ -633,17 +633,17 @@ test('manual script reading skill overrides tool-policy deny for its script tool
     activeSkills: coreOnly.skills,
     userMessage: message,
   })
-  assert.equal(coreTools.byName.movscript_read_project_scripts?.available, false)
-  assert.equal(coreTools.byName.movscript_read_project_scripts?.unavailableReason, 'workflow_scope')
+  assert.equal(coreTools.byName.movscript_project_script_read?.available, false)
+  assert.equal(coreTools.byName.movscript_project_script_read?.unavailableReason, 'workflow_scope')
 
   const loaded = resolveRuntimeLayers({
     registry: catalog.layeredRegistry,
     baseManifest: coreOnly.manifest,
     message,
     debugContext,
-    requestedSkillIds: ['movscript.workflow.script-reading'],
+    requestedSkillIds: ['movscript.workflow.script_reading'],
   })
-  assert.equal(loaded.manifest.tools.find((grant) => grant.name === 'movscript_read_project_scripts')?.mode, 'allow')
+  assert.equal(loaded.manifest.tools.find((grant) => grant.name === 'movscript_project_script_read')?.mode, 'allow')
   const loadedTools = resolveToolCatalog({
     mcpTools: [],
     registry: catalog.registry,
@@ -652,13 +652,13 @@ test('manual script reading skill overrides tool-policy deny for its script tool
     activeSkills: loaded.skills,
     userMessage: message,
   })
-  assert.equal(loadedTools.byName.movscript_read_project_scripts?.available, true)
-  assert.equal(loadedTools.byName.movscript_read_project_scripts?.granted, true)
+  assert.equal(loadedTools.byName.movscript_project_script_read?.available, true)
+  assert.equal(loadedTools.byName.movscript_project_script_read?.granted, true)
 })
 
 test('visual generation prompt exposes backend generation validation error codes', () => {
   const catalog = loadAgentPluginCatalog()
-  const visualGeneration = catalog.layeredRegistry.skills.get('movscript.workflow.visual-generation')
+  const visualGeneration = catalog.layeredRegistry.skills.get('generation.workflow.visual_execution')
   const profile = resolveProfile(catalog.layeredRegistry).profile
   assert.ok(visualGeneration?.kind === 'workflow')
 
@@ -683,9 +683,9 @@ test('visual generation prompt exposes backend generation validation error codes
   assert.match(prompt.systemPrompt, /`preflight_errors` 和 `input_preflight_errors` 视为解释性审计数据/)
   assert.match(prompt.systemPrompt, /不要在同一次请求中自动修复 `UNSUPPORTED_OUTPUT_TYPE` 或 `INVALID_INPUT_COUNT`/)
   assert.match(prompt.systemPrompt, /已有角色\/场景素材必须优先作为一致性约束/)
-  assert.match(prompt.systemPrompt, /优先用 `mode: "any"` 让任一任务完成即可返回/)
-  assert.match(prompt.systemPrompt, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `movscript_attach_asset_slot_candidate`/)
-  assert.match(prompt.systemPrompt, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `movscript_attach_keyframe_candidate`/)
+  assert.match(prompt.systemPrompt, /continuationPolicy: \{ "mode": "any_completed"/)
+  assert.match(prompt.systemPrompt, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `candidate_asset_slot_attach`/)
+  assert.match(prompt.systemPrompt, /每拿到一个可用 `output_resource_id`，立即单独调用一次 `candidate_keyframe_attach`/)
   assert.match(prompt.systemPrompt, /如果有多个 output_resource_id，必须逐个调用 attach，并逐项报告成功、失败或阻塞/)
   assert.match(prompt.systemPrompt, /除非用户明确要求只预览结果，否则不要停留在让用户手动选择/)
 })
@@ -709,8 +709,8 @@ test('image edit wording with image context activates visual generation tools', 
     },
   })
 
-  assert.ok(layers.trace.workflowIds.includes('movscript.workflow.visual-generation'))
-  assert.ok(layers.skills.some((skill) => skill.id === 'movscript.workflow.visual-generation'))
+  assert.ok(layers.trace.workflowIds.includes('generation.workflow.visual_execution'))
+  assert.ok(layers.skills.some((skill) => skill.id === 'generation.workflow.visual_execution'))
 
   const tools = resolveToolCatalog({
     mcpTools: [],
@@ -720,8 +720,8 @@ test('image edit wording with image context activates visual generation tools', 
     activeSkills: layers.skills,
     userMessage: message,
   })
-  assert.ok(tools.available.some((tool) => tool.name === 'runtime_operation_start'))
-  assert.notEqual(tools.byName.runtime_operation_start?.unavailableReason, 'workflow_scope')
+  assert.ok(tools.available.some((tool) => tool.name === 'core_operation_start'))
+  assert.notEqual(tools.byName.core_operation_start?.unavailableReason, 'workflow_scope')
 })
 
 test('asset candidate generation activates visual generation tools on asset slot pages', () => {
@@ -744,8 +744,8 @@ test('asset candidate generation activates visual generation tools on asset slot
   })
 
   assert.deepEqual(layers.trace.workflowIds, [
-    'movscript.workflow.asset-candidate-generation',
-    'movscript.workflow.visual-generation',
+    'candidate.workflow.asset_planning',
+    'generation.workflow.visual_execution',
   ])
   assert.ok(layers.ctx.intents.includes('asset_candidate_generation'))
   assert.ok(layers.ctx.intents.includes('visual_generation'))
@@ -758,8 +758,8 @@ test('asset candidate generation activates visual generation tools on asset slot
     activeSkills: layers.skills,
     userMessage: message,
   })
-  assert.ok(tools.available.some((tool) => tool.name === 'runtime_operation_start'))
-  assert.notEqual(tools.byName.runtime_operation_start?.unavailableReason, 'workflow_scope')
+  assert.ok(tools.available.some((tool) => tool.name === 'core_operation_start'))
+  assert.notEqual(tools.byName.core_operation_start?.unavailableReason, 'workflow_scope')
 })
 
 test('pre-production prep routes to setting and asset proposal drafts without generation tools', () => {
@@ -770,7 +770,7 @@ test('pre-production prep routes to setting and asset proposal drafts without ge
     '1. 如果设定资料缺漏、重复、状态不清晰，创建或更新 setting_proposal；只修改 proposal.creative_references，proposal.asset_slots 必须为空。',
     '2. 如果素材需求缺漏、归属不清晰、优先级/状态/类型需要修正，创建或更新 asset_proposal；只修改 proposal.asset_slots，proposal.creative_references 必须为空。',
     '3. 不要生成候选素材，不要创建生成任务，不要把候选图 prompt 写成本轮结果。',
-    '4. 已有 setting_proposal draft 时，优先使用 draft 的 metadata.seed.data 或 content.snapshot_base；不要用 live creative reference 查询覆盖 draft 基准。',
+    '4. 已有 setting_proposal draft 时，直接读取并局部编辑 draft 的 proposal.creative_references；不要用 live creative reference 查询重写整份快照。',
     '5. 如果查询工具返回 total_count > 0 但 count/returned = 0，说明当前筛选没有可用明细；应回到 draft seed/snapshot 或放宽筛选，不要据此判定“有资料但不能编辑”。',
     '6. 保留已确认信息，在 summary 或 impact_notes 中列出关键缺口和建议审阅顺序。',
   ].join('\n')
@@ -791,8 +791,8 @@ test('pre-production prep routes to setting and asset proposal drafts without ge
   })
 
   assert.deepEqual(layers.trace.workflowIds, [
-    'movscript.workflow.setting-proposal',
-    'movscript.workflow.asset-proposal',
+    'movscript.workflow.setting_proposal',
+    'movscript.workflow.asset_proposal',
   ])
   assert.ok(!layers.ctx.intents.includes('asset_candidate_generation'))
   assert.ok(!layers.ctx.intents.includes('visual_generation'))
@@ -805,10 +805,10 @@ test('pre-production prep routes to setting and asset proposal drafts without ge
     activeSkills: layers.skills,
     userMessage: message,
   })
-  assert.ok(tools.available.some((tool) => tool.name === 'movscript_create_draft'))
-  assert.ok(tools.available.some((tool) => tool.name === 'movscript_validate_draft'))
-  assert.ok(tools.available.some((tool) => tool.name === 'movscript_preview_draft_apply'))
-  assert.equal(tools.byName.runtime_operation_start?.unavailableReason, 'workflow_scope')
+  assert.ok(tools.available.some((tool) => tool.name === 'draft_create'))
+  assert.ok(tools.available.some((tool) => tool.name === 'draft_validate'))
+  assert.ok(tools.available.some((tool) => tool.name === 'draft_apply_preview'))
+  assert.equal(tools.byName.core_operation_start?.unavailableReason, 'workflow_scope')
 })
 
 test('workflow skills use isolated skill directories', () => {
@@ -831,29 +831,29 @@ test('workflow skills use isolated skill directories', () => {
   assert.equal(existsSync(new URL('workflow/visual-generation.workflow.json', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('workflow/visual-generation.workflow.md', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('workflow/asset-candidate-generation.workflow.md', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('movscript/workflow/planning/proposal-first/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('movscript/workflow/proposal/project/project-standards-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('movscript/workflow/proposal/production/production-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('kernel/workflow/proposal_first/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/project/project_standards_proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/production/production_proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
   assert.equal(existsSync(new URL('movscript/workflow/proposal/production/dual-orchestration/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('movscript/workflow/proposal/asset/asset-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('movscript/workflow/proposal/content-unit/content-unit-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/asset/asset_proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/content_unit/content_unit_proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
   assert.equal(existsSync(new URL('movscript/workflow/proposal/content-unit/content-unit-media-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('movscript/workflow/planning/script-split/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('movscript/workflow/proposal/project/setting-prep/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/project/setting_prep/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
   assert.equal(existsSync(new URL('movscript/workflow/writing/script-writing/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('movscript/workflow/workspace/project-progress/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('movscript/workflow/proposal/content-unit/storyboard-gap-review/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/workspace/project_progress_review/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/content_unit/storyboard_gap_review/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
   assert.equal(existsSync(new URL('movscript/workflow/creative/creative-workbench/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('movscript/workflow/generation/visual-generation/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('movscript/workflow/generation/visual-generation/instruction.md', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('movscript/workflow/proposal/asset/asset-candidate-generation/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('movscript/workflow/proposal/asset/asset-candidate-generation/instruction.md', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('generation/workflow/visual_execution/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('generation/workflow/visual_execution/instruction.md', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('candidate/workflow/asset_planning/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('candidate/workflow/asset_planning/instruction.md', CATALOG_SKILLS_DIR)), true)
 })
 
 test('target-state skill and tool files define the active runtime resources', () => {
   const catalog = loadAgentPluginCatalog()
-  const workflow = catalog.layeredRegistry.skills.get('movscript.workflow.project-standards-proposal')
-  const inputTool = catalog.layeredRegistry.tools.get('movscript_request_user_input')
+  const workflow = catalog.layeredRegistry.skills.get('movscript.workflow.project_standards_proposal')
+  const inputTool = catalog.layeredRegistry.tools.get('core_user_input_request')
 
   assert.ok(workflow?.kind === 'workflow')
   assert.equal(workflow.version, '1.0.0')
@@ -897,7 +897,7 @@ test('linter rejects missing refs and old profile permissions field', () => {
     id: 'movscript.profile.broken',
     version: '1.0.0',
     name: 'Broken',
-    enabledPacks: ['movscript.pack.default'],
+    enabledPacks: ['core.pack.default'],
     persona: null,
     enabledWorkflows: [],
     enabledPolicies: [],
@@ -1057,17 +1057,17 @@ test('profile resolution, trigger selection, prompt refs, and tool scope work to
   const { profile, warnings } = resolveProfile(catalog.layeredRegistry)
   assert.deepEqual(warnings, [])
 
-  const workflow = catalog.layeredRegistry.skills.get('movscript.workflow.project-standards-proposal')
-  const policy = catalog.layeredRegistry.skills.get('movscript.policy.drafts')
+  const workflow = catalog.layeredRegistry.skills.get('movscript.workflow.project_standards_proposal')
+  const policy = catalog.layeredRegistry.skills.get('draft.policy.lifecycle')
   assert.ok(workflow?.kind === 'workflow')
   assert.ok(policy?.kind === 'policy')
 
   profile.enabledWorkflows = [workflow.id]
   profile.enabledPolicies = [policy.id]
   profile.toolGrants = [
-    { name: 'movscript_validate_draft', mode: 'allow', approval: 'never' },
-    { name: 'runtime_operation_start', mode: 'allow', approval: 'always' },
-    { name: 'movscript_request_user_input', mode: 'allow', approval: 'never' },
+    { name: 'draft_validate', mode: 'allow', approval: 'never' },
+    { name: 'core_operation_start', mode: 'allow', approval: 'always' },
+    { name: 'core_user_input_request', mode: 'allow', approval: 'never' },
   ]
 
   const ctx = {
@@ -1096,9 +1096,9 @@ test('profile resolution, trigger selection, prompt refs, and tool scope work to
     ctx,
     activeWorkflows: selected.workflows,
   })
-  assert.ok(tools.available.some((tool) => tool.name === 'movscript_validate_draft'))
-  assert.ok(tools.available.some((tool) => tool.name === 'movscript_request_user_input'))
-  assert.equal(tools.available.some((tool) => tool.name === 'runtime_operation_start'), false)
+  assert.ok(tools.available.some((tool) => tool.name === 'draft_validate'))
+  assert.ok(tools.available.some((tool) => tool.name === 'core_user_input_request'))
+  assert.equal(tools.available.some((tool) => tool.name === 'core_operation_start'), false)
 })
 
 test('org and user profile overrides can only narrow runtime capability', () => {
@@ -1109,13 +1109,13 @@ test('org and user profile overrides can only narrow runtime capability', () => 
     id: 'acme.profile.org',
     version: '1.0.0',
     name: 'Org Override',
-    enabledPacks: ['movscript.pack.agent-core', 'movscript.pack.drafts', 'movscript.pack.movscript'],
+    enabledPacks: ['core.pack.agent', 'draft.pack.lifecycle', 'movscript.pack.workspace'],
     persona: null,
-    enabledWorkflows: ['movscript.workflow.project-standards-proposal'],
-    enabledPolicies: ['movscript.policy.drafts', 'movscript.policy.agent-core', 'movscript.policy.movscript'],
+    enabledWorkflows: ['movscript.workflow.project_standards_proposal'],
+    enabledPolicies: ['draft.policy.lifecycle', 'core.policy.runtime', 'movscript.policy.workspace'],
     toolGrants: [
-      { name: 'movscript_validate_draft', mode: 'allow' as const, approval: 'always' as const },
-      { name: 'movscript_create_draft', mode: 'deny' as const },
+      { name: 'draft_validate', mode: 'allow' as const, approval: 'always' as const },
+      { name: 'draft_create', mode: 'deny' as const },
     ],
     limits: { maxActiveWorkflows: 1 },
   }
@@ -1126,10 +1126,10 @@ test('org and user profile overrides can only narrow runtime capability', () => 
     name: 'User Override',
     enabledPacks: [],
     persona: null,
-    enabledWorkflows: ['movscript.workflow.project-standards-proposal'],
+    enabledWorkflows: ['movscript.workflow.project_standards_proposal'],
     enabledPolicies: [],
     toolGrants: [
-      { name: 'movscript_validate_draft', mode: 'deny' as const },
+      { name: 'draft_validate', mode: 'deny' as const },
     ],
   }
 
@@ -1139,10 +1139,10 @@ test('org and user profile overrides can only narrow runtime capability', () => 
   })
 
   assert.deepEqual(resolved.warnings, [])
-  assert.deepEqual(resolved.profile.enabledPacks, ['movscript.pack.agent-core', 'movscript.pack.drafts', 'movscript.pack.movscript'])
-  assert.deepEqual(resolved.profile.enabledWorkflows, ['movscript.workflow.project-standards-proposal'])
-  assert.equal(resolved.profile.toolGrants.find((grant) => grant.name === 'movscript_validate_draft')?.mode, 'deny')
-  assert.equal(resolved.profile.toolGrants.find((grant) => grant.name === 'movscript_create_draft')?.mode, 'deny')
+  assert.deepEqual(resolved.profile.enabledPacks, ['core.pack.agent', 'draft.pack.lifecycle', 'movscript.pack.workspace'])
+  assert.deepEqual(resolved.profile.enabledWorkflows, ['movscript.workflow.project_standards_proposal'])
+  assert.equal(resolved.profile.toolGrants.find((grant) => grant.name === 'draft_validate')?.mode, 'deny')
+  assert.equal(resolved.profile.toolGrants.find((grant) => grant.name === 'draft_create')?.mode, 'deny')
   assert.equal(resolved.profile.limits?.maxActiveWorkflows, 1)
   assert.deepEqual(resolved.profile.resolvedFrom?.layers.map((layer) => layer.source), ['default', 'org', 'user'])
 })
@@ -1160,8 +1160,8 @@ test('org and user profile overrides are rejected as a whole when they add or lo
     enabledWorkflows: [],
     enabledPolicies: [],
     toolGrants: [
-      { name: 'movscript_validate_draft', mode: 'allow' as const, approval: 'never' as const },
-      { name: 'runtime_operation_start', mode: 'allow' as const, approval: 'never' as const },
+      { name: 'draft_validate', mode: 'allow' as const, approval: 'never' as const },
+      { name: 'core_operation_start', mode: 'allow' as const, approval: 'never' as const },
     ],
   }
   const userProfile = {
@@ -1172,7 +1172,7 @@ test('org and user profile overrides are rejected as a whole when they add or lo
     enabledPacks: [],
     persona: null,
     enabledWorkflows: [],
-    enabledPolicies: ['movscript.policy.drafts'],
+    enabledPolicies: ['draft.policy.lifecycle'],
     toolGrants: [],
   }
 

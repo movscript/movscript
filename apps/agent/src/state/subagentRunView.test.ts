@@ -14,7 +14,7 @@ test('toSubagentRunSummary includes run fields and pending counts', () => {
   assert.deepEqual(toSubagentRunSummary(run({
     role: 'worker',
     parentRunId: 'run_parent',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_1',
     progress: 0.5,
     blockedReason: 'Need input',
@@ -37,7 +37,7 @@ test('toSubagentRunSummary includes run fields and pending counts', () => {
     status: 'queued',
     role: 'worker',
     parentRunId: 'run_parent',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_1',
     progress: 0.5,
     blockedReason: 'Need input',
@@ -56,14 +56,14 @@ test('toSubagentRunSummary falls back to task subagent name', () => {
   assert.equal(toSubagentRunSummary(run({ taskId: 'task_1' }), task({ metadata: { subagentName: 'Turing' } })).subagentName, 'Turing')
 })
 
-test('terminal status helpers classify run and plan status', () => {
+test('terminal status helpers classify run and taskGraph status', () => {
   assert.equal(isTerminalRunStatus('requires_action'), true)
   assert.equal(isTerminalRunStatus('in_progress'), false)
   assert.equal(isTerminalPlanStatus('done'), true)
   assert.equal(isTerminalPlanStatus('needs_review'), false)
 })
 
-test('wait status helpers map run task and plan statuses', () => {
+test('wait status helpers map run task and taskGraph statuses', () => {
   assert.equal(waitStatusFromRunStatus('completed_with_warnings'), 'completed')
   assert.equal(waitStatusFromRunStatus('requires_action'), 'blocked')
   assert.equal(waitStatusFromRunStatus('queued'), 'pending')
@@ -98,7 +98,7 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
 function task(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'pending',

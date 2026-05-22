@@ -142,10 +142,14 @@ func (h *Service) executeTask(user *persistencemodel.User, node *persistencemode
 			CameraFixed:        canvasdomain.BoolPtrParam(nd.Params, "camera_fixed"),
 			Watermark:          canvasdomain.BoolPtrParam(nd.Params, "watermark"),
 			GenerateAudio:      canvasdomain.BoolPtrParam(nd.Params, "generate_audio"),
+			AudioType:          canvasdomain.StringParam(nd.Params, "audio_type", ""),
 			ReturnLastFrame:    canvasdomain.BoolPtrParam(nd.Params, "return_last_frame"),
 			ServiceTier:        canvasdomain.StringParam(nd.Params, "service_tier", ""),
 			Draft:              canvasdomain.BoolPtrParam(nd.Params, "draft"),
 			WebSearch:          canvasdomain.BoolParam(nd.Params, "web_search", false),
+			MovementAmplitude:  canvasdomain.StringParam(nd.Params, "movement_amplitude", ""),
+			OffPeak:            canvasdomain.BoolPtrParam(nd.Params, "off_peak"),
+			Payload:            canvasdomain.StringParam(nd.Params, "payload", ""),
 		}
 		if len(videoData) > 0 {
 			videoReq.InputVideoData = &videoData[0]
@@ -217,12 +221,23 @@ func (h *Service) usageContextForNode(ctx context.Context, node *persistencemode
 
 func (h *Service) resolveCanvasNodeModelConfigID(nd nodeData, nodeType string) (uint, error) {
 	modelID := strings.TrimSpace(nd.ModelID)
-	if modelID == "" {
+	if modelID == "" && nd.ModelDbID != 0 {
 		return nd.ModelDbID, nil
 	}
 	capability := capabilityForCanvasNodeType(nodeType)
 	if capability == "" {
 		return nd.ModelDbID, nil
+	}
+	if modelID == "" {
+		featureKey := featureKeyForCanvasNodeType(nodeType)
+		if featureKey == "" {
+			return nd.ModelDbID, nil
+		}
+		modelDbID, _, err := h.svc.GetForFeature(featureKey)
+		if err != nil {
+			return 0, err
+		}
+		return modelDbID, nil
 	}
 	route, err := h.svc.ResolveModelRoute(ai.ModelRouteRequest{
 		ModelID:       modelID,

@@ -101,6 +101,7 @@ export interface AgentTraceToolDetail {
   sandboxed?: string
   duration?: string
   summary?: string
+  args?: unknown
   fields: AgentTraceToolField[]
 }
 
@@ -192,7 +193,7 @@ export function traceKindLabel(kind: AgentTraceEvent['kind']): string {
     case 'input': return '输入'
     case 'assistant': return '助手'
     case 'task': return '任务'
-    case 'plan': return '计划'
+    case 'taskGraph': return '计划'
     case 'error': return '错误'
   }
 }
@@ -310,12 +311,12 @@ export function approvalImpactLabel(approval: Pick<AgentApprovalRequest, 'toolNa
   if (previewSideEffect) return `批准后会执行预览变更：${previewSideEffect}`
 
   switch (approval.toolName) {
-    case 'movscript_create_generation_job': return '批准后会创建生成任务，可能消耗生成额度。'
-    case 'movscript_cancel_generation_job': return '批准后会取消生成任务，未完成的输出可能不再产生。'
-    case 'movscript_create_project': return '批准后会创建项目数据。'
-    case 'movscript_delete_memory': return '批准后会删除记忆，后续运行将无法再引用它。'
-    case 'movscript_spawn_subagent': return '批准后会启动子代理执行分配任务。'
-    case 'movscript_cancel_subagent': return '批准后会取消子代理及其后续执行。'
+    case 'generation_job_create': return '批准后会创建生成任务，可能消耗生成额度。'
+    case 'generation_job_cancel': return '批准后会取消生成任务，未完成的输出可能不再产生。'
+    case 'movscript_project_create': return '批准后会创建项目数据。'
+    case 'core_memory_delete': return '批准后会删除记忆，后续运行将无法再引用它。'
+    case 'core_subagent_spawn': return '批准后会启动子代理执行分配任务。'
+    case 'core_subagent_cancel': return '批准后会取消子代理及其后续执行。'
     default: break
   }
 
@@ -826,7 +827,7 @@ function traceToolDetail(event: AgentTraceEvent, data: Record<string, unknown> |
   const duration = formatTraceEventDuration(event, data)
   const fields = data
     ? Object.entries(data)
-      .filter(([key]) => !['source', 'durationMs', 'sandboxed'].includes(key))
+      .filter(([key]) => !['source', 'durationMs', 'sandboxed', 'args'].includes(key))
       .flatMap(([key, value]) => {
         const displayValue = toolFieldValue(value)
         return displayValue ? [{ label: toolFieldLabel(key), value: displayValue, sensitive: isSensitiveFieldName(key) }] : []
@@ -842,6 +843,7 @@ function traceToolDetail(event: AgentTraceEvent, data: Record<string, unknown> |
     sandboxed: booleanLabel(data?.sandboxed),
     duration,
     summary: traceSummary(event),
+    ...(data && Object.prototype.hasOwnProperty.call(data, 'args') ? { args: data.args } : {}),
     fields,
   }
 }
@@ -980,7 +982,7 @@ function localizedTraceSummary(summary: string): string | undefined {
     return target ? `已组装模型上下文：${target}` : '已组装模型上下文。'
   }
   switch (summary) {
-    case 'Planner started plan orchestration.': return '规划器开始编排计划。'
+    case 'Planner started taskGraph orchestration.': return '规划器开始编排计划。'
     case 'Found missing hero visual coverage.': return '发现缺少主视觉覆盖。'
     case 'Spawned worker Einstein.': return '已启动执行器 Einstein。'
     default: return undefined

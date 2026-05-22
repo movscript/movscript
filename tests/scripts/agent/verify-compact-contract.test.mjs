@@ -20,8 +20,8 @@ const auditSchemaPath = path.join(root, 'contracts/agent/agent-param-validation-
 const auditFixturePath = path.join(root, 'contracts/agent/agent-param-validation-audit-v1.fixture.json')
 const validationErrorSchemaPath = path.join(root, 'contracts/agent/agent-generation-validation-error-v1.schema.json')
 const validationErrorFixturePath = path.join(root, 'contracts/agent/agent-generation-validation-error-v1.fixture.json')
-const createGenerationJobToolPath = path.join(root, 'apps/agent/catalog/tools/movscript/visual-generation/create-job.tool.json')
-const listModelsToolPath = path.join(root, 'apps/agent/catalog/tools/movscript/visual-generation/list-models.tool.json')
+const createGenerationJobToolPath = path.join(root, 'apps/agent/catalog/tools/generation/job-create.tool.json')
+const listModelsToolPath = path.join(root, 'apps/agent/catalog/tools/generation/model-list.tool.json')
 const backendValidationErrorPath = path.join(root, 'apps/backend/internal/infra/ai/validation_error.go')
 const backendMakefilePath = path.join(root, 'apps/backend/Makefile')
 const packageJsonPath = path.join(root, 'package.json')
@@ -234,8 +234,8 @@ function verifyGenerationToolErrorCodes(schemaValue, toolValue, pathLabel) {
     errors.push(`${pathLabel} must be an object`)
     return
   }
-  if (toolValue.name !== 'movscript_create_generation_job') {
-    errors.push(`${pathLabel}.name must be movscript_create_generation_job`)
+  if (toolValue.name !== 'generation_job_create') {
+    errors.push(`${pathLabel}.name must be generation_job_create`)
   }
   if (!Array.isArray(toolValue.errorCodes)) {
     errors.push(`${pathLabel}.errorCodes must be an array`)
@@ -252,8 +252,8 @@ function verifyListModelsToolOutputSchema(toolValue, pathLabel) {
     errors.push(`${pathLabel} must be an object`)
     return
   }
-  if (toolValue.name !== 'movscript_list_models') {
-    errors.push(`${pathLabel}.name must be movscript_list_models`)
+  if (toolValue.name !== 'generation_model_list') {
+    errors.push(`${pathLabel}.name must be generation_model_list`)
   }
   const outputProps = toolValue.outputSchema?.properties
   if (!isRecord(outputProps)) {
@@ -281,8 +281,8 @@ function verifyCreateGenerationJobToolOutputSchema(toolValue, pathLabel) {
     errors.push(`${pathLabel} must be an object`)
     return
   }
-  if (toolValue.name !== 'movscript_create_generation_job') {
-    errors.push(`${pathLabel}.name must be movscript_create_generation_job`)
+  if (toolValue.name !== 'generation_job_create') {
+    errors.push(`${pathLabel}.name must be generation_job_create`)
   }
   const outputProps = toolValue.outputSchema?.properties
   if (!isRecord(outputProps)) {

@@ -1,11 +1,13 @@
 import { isJSONRecord, isRecord } from '../jsonValue.js'
 import type { AgentStore } from '../state/store.js'
 import type {
-  AgentPlanSnapshot,
+  AgentTaskGraphSnapshot,
+  AgentRun,
   AgentTask,
-  DispatchPlanInput,
-  DispatchPlanResult,
-  UpdatePlanTaskInput,
+  CreateRunInput,
+  DispatchTaskGraphInput,
+  DispatchTaskGraphResult,
+  UpdateTaskGraphTaskInput,
 } from '../state/types.js'
 import type { JSONValue } from '../types.js'
 import { buildSubagentSnapshotView } from '../state/planContextView.js'
@@ -30,14 +32,18 @@ import { requireRuntimePlannerRun } from './runtimePlanBinding.js'
 import { normalizeNonEmptyString, uniqueStrings } from './runtimeScalarInput.js'
 import { requireRuntimeTask } from './runtimeStoreLookup.js'
 
-const SPAWN_SUBAGENT_PLAN_REQUIRED_MESSAGE = 'spawn_subagent requires the planner run to be attached to the session plan. Call movscript_create_plan first with the task list or goal, then call movscript_spawn_subagent using taskIds or tasks and explicit English human subagentName values such as Einstein or Turing.'
-
 export interface RuntimeSubagentSpawnPreparation {
-  planId: string
+  taskGraphId: string
   plannerRunId: string
   tasksToCreate: AgentTask[]
   requestedTaskIds: string[]
   subagentNameByTaskId: Map<string, string>
+}
+
+export interface RuntimeDirectSubagentSpawnResult {
+  status: 'spawned'
+  plannerRunId: string
+  spawnedRuns: AgentRun[]
 }
 
 export interface RuntimeSubagentSpawnApplication {
@@ -52,19 +58,19 @@ export function prepareRuntimeSubagentSpawn(input: {
 }): RuntimeSubagentSpawnPreparation {
   const { store, now } = input
   const plannerRun = requireRuntimePlannerRun(store, input.plannerRunId)
-  const planId = plannerRun.planId
-  if (!planId) throw new Error(SPAWN_SUBAGENT_PLAN_REQUIRED_MESSAGE)
+  const taskGraphId = plannerRun.taskGraphId
+  if (!taskGraphId) throw new Error('task graph dispatch requires planner run taskGraphId; direct child agent spawn does not require a task graph')
   const request = input.request ?? {}
   const taskInputs = normalizePlanTaskInputs(request.tasks)
-  const usedSubagentNames = collectSubagentNames(store.listTasks(planId), store.listRuns({ planId }))
+  const usedSubagentNames = collectSubagentNames(store.listTasks(taskGraphId), store.listRuns({ taskGraphId }))
   const tasksToCreate: AgentTask[] = []
   for (const [index, taskInput] of taskInputs.entries()) {
     const subagentName = normalizeNonEmptyString(taskInput.subagentName)
       ?? normalizeSubagentNameAt(request.subagentNames, index)
       ?? nextSubagentName(usedSubagentNames)
-    if (usedSubagentNames.has(subagentName)) throw new Error(`subagent name already exists in plan ${planId}: ${subagentName}`)
+    if (usedSubagentNames.has(subagentName)) throw new Error(`subagent name already exists in task graph ${taskGraphId}: ${subagentName}`)
     usedSubagentNames.add(subagentName)
-    const task = buildAgentTask(planId, {
+    const task = buildAgentTask(taskGraphId, {
       ...taskInput,
       metadata: {
         ...(isJSONRecord(taskInput.metadata) ? taskInput.metadata : {}),
@@ -89,7 +95,7 @@ export function prepareRuntimeSubagentSpawn(input: {
   for (const taskId of requestedTaskIds) {
     if (!subagentNameByTaskId.has(taskId)) {
       const task = taskToCreateById.get(taskId) ?? requireRuntimeTask(store, taskId)
-      if (task.planId !== planId) throw new Error(`task ${taskId} does not belong to plan ${planId}`)
+      if (task.taskGraphId !== taskGraphId) throw new Error(`task ${taskId} does not belong to task graph ${taskGraphId}`)
       const existingName = subagentNameFromTask(task)
       const name = existingName ?? nextSubagentName(usedSubagentNames)
       subagentNameByTaskId.set(taskId, name)
@@ -98,21 +104,21 @@ export function prepareRuntimeSubagentSpawn(input: {
   }
   for (const taskId of requestedTaskIds) {
     const task = taskToCreateById.get(taskId) ?? requireRuntimeTask(store, taskId)
-    if (task.planId !== planId) throw new Error(`task ${taskId} does not belong to plan ${planId}`)
+    if (task.taskGraphId !== taskGraphId) throw new Error(`task ${taskId} does not belong to task graph ${taskGraphId}`)
     const subagentName = subagentNameByTaskId.get(taskId)
     if (!subagentName) continue
     assertUniqueSubagentNameForTask({
-      planId,
+      taskGraphId,
       taskId,
       subagentName,
       requestedNames: subagentNameByTaskId,
-      tasks: store.listTasks(planId),
-      runs: store.listRuns({ planId }),
+      tasks: store.listTasks(taskGraphId),
+      runs: store.listRuns({ taskGraphId }),
     })
   }
 
   return {
-    planId,
+    taskGraphId,
     plannerRunId: plannerRun.id,
     tasksToCreate,
     requestedTaskIds,
@@ -120,11 +126,80 @@ export function prepareRuntimeSubagentSpawn(input: {
   }
 }
 
+export function applyRuntimeDirectSubagentSpawnFlow(input: {
+  store: Pick<AgentStore, 'getRun' | 'listRuns'>
+  plannerRunId: string
+  request?: Record<string, JSONValue>
+  createRun: (input: CreateRunInput) => AgentRun
+}): RuntimeDirectSubagentSpawnResult {
+  const plannerRun = requireRuntimePlannerRun(input.store, input.plannerRunId)
+  const request = input.request ?? {}
+  const taskInputs = normalizePlanTaskInputs(request.tasks)
+  const directTasks = taskInputs.length > 0
+    ? taskInputs
+    : [{
+        title: normalizeNonEmptyString(request.title) ?? normalizeNonEmptyString(request.message) ?? 'Child agent task',
+        description: normalizeNonEmptyString(request.description) ?? normalizeNonEmptyString(request.instructions) ?? normalizeNonEmptyString(request.message),
+        metadata: isJSONRecord(request.metadata) ? request.metadata : undefined,
+      }]
+  const usedNames = new Set(input.store
+    .listRuns({ threadId: plannerRun.threadId })
+    .flatMap((run) => {
+      const name = isRecord(run.metadata) && typeof run.metadata.subagentName === 'string' ? run.metadata.subagentName.trim() : ''
+      return name ? [name] : []
+    }))
+  const spawnedRuns = directTasks.map((task, index) => {
+    const subagentName = normalizeNonEmptyString(task.subagentName)
+      ?? normalizeSubagentNameAt(request.subagentNames, index)
+      ?? (index === 0 ? normalizeNonEmptyString(request.subagentName) : undefined)
+      ?? nextSubagentName(usedNames)
+    if (usedNames.has(subagentName)) throw new Error(`child agent name already exists in thread ${plannerRun.threadId}: ${subagentName}`)
+    usedNames.add(subagentName)
+    const taskId = normalizeNonEmptyString(task.id) ?? `child_agent_${index + 1}`
+    const instructions = [
+      `Child agent task: ${task.title}`,
+      task.description ? `Description: ${task.description}` : undefined,
+      isJSONRecord(task.metadata) && typeof task.metadata.expectedOutput === 'string' ? `Expected output: ${task.metadata.expectedOutput}` : undefined,
+      isJSONRecord(task.metadata) && typeof task.metadata.writeScope === 'string' ? `Write scope: ${task.metadata.writeScope}` : undefined,
+    ].filter(Boolean).join('\n\n')
+    return input.createRun({
+      threadId: plannerRun.threadId,
+      userMessage: instructions,
+      role: 'worker',
+      parentRunId: plannerRun.id,
+      task: {
+        id: taskId,
+        title: task.title,
+        ...(task.description ? { description: task.description } : {}),
+        instructions,
+      },
+      progress: 0,
+      metadata: {
+        subagentName,
+        childAgent: true,
+        createdByPlannerRunId: plannerRun.id,
+        ...(isJSONRecord(task.metadata) ? { taskMetadata: task.metadata } : {}),
+      },
+      agentManifest: request.agentManifest ?? plannerRun.agentManifest,
+      approvedToolNames: request.approvedToolNames,
+      policy: request.policy ?? plannerRun.policy,
+      backendAuthToken: request.backendAuthToken,
+      backendAPIBaseURL: request.backendAPIBaseURL,
+      sandboxMode: request.sandboxMode,
+    })
+  })
+  return {
+    status: 'spawned',
+    plannerRunId: plannerRun.id,
+    spawnedRuns,
+  }
+}
+
 export function applyRuntimeSubagentSpawnPreparation(input: {
   store: Pick<AgentStore, 'createTask' | 'getTask'>
   spawn: RuntimeSubagentSpawnPreparation
   retryFailed?: unknown
-  updateTask: (taskId: string, update: UpdatePlanTaskInput) => AgentTask
+  updateTask: (taskId: string, update: UpdateTaskGraphTaskInput) => AgentTask
   onTaskCreated?: (task: AgentTask) => void
 }): RuntimeSubagentSpawnApplication {
   const createdTaskIds: string[] = []
@@ -165,9 +240,9 @@ export function applyRuntimeSubagentSpawnFlow(input: {
   store: Pick<AgentStore, 'createTask' | 'getTask'>
   spawn: RuntimeSubagentSpawnPreparation
   request?: Record<string, JSONValue>
-  updateTask: (taskId: string, update: UpdatePlanTaskInput) => AgentTask
-  dispatchPlan: (input: DispatchPlanInput) => DispatchPlanResult
-  getPlanSnapshot: (planId: string) => AgentPlanSnapshot
+  updateTask: (taskId: string, update: UpdateTaskGraphTaskInput) => AgentTask
+  dispatchTaskGraph: (input: DispatchTaskGraphInput) => DispatchTaskGraphResult
+  getTaskGraphSnapshot: (taskGraphId: string) => AgentTaskGraphSnapshot
   onTaskCreated?: (task: AgentTask) => void
 }): JSONValue {
   const request = input.request ?? {}
@@ -178,8 +253,8 @@ export function applyRuntimeSubagentSpawnFlow(input: {
     updateTask: input.updateTask,
     onTaskCreated: input.onTaskCreated,
   })
-  const dispatch = input.dispatchPlan({
-    planId: input.spawn.planId,
+  const dispatch = input.dispatchTaskGraph({
+    taskGraphId: input.spawn.taskGraphId,
     plannerRunId: input.spawn.plannerRunId,
     ...(input.spawn.requestedTaskIds.length > 0 ? { taskIds: input.spawn.requestedTaskIds } : {}),
     maxWorkers: request.maxWorkers,
@@ -188,24 +263,24 @@ export function applyRuntimeSubagentSpawnFlow(input: {
     workerTimeoutMs: request.workerTimeoutMs,
   })
   return buildRuntimeSubagentSpawnResult({
-    planId: input.spawn.planId,
+    taskGraphId: input.spawn.taskGraphId,
     plannerRunId: input.spawn.plannerRunId,
     createdTaskIds,
     dispatch,
-    snapshot: input.getPlanSnapshot(input.spawn.planId),
+    snapshot: input.getTaskGraphSnapshot(input.spawn.taskGraphId),
   })
 }
 
 export function buildRuntimeSubagentSpawnResult(input: {
-  planId: string
+  taskGraphId: string
   plannerRunId: string
   createdTaskIds: string[]
-  dispatch: Pick<DispatchPlanResult, 'spawnedRuns' | 'blockedTaskIds' | 'retriedTaskIds' | 'timedOutRunIds'>
-  snapshot: AgentPlanSnapshot
+  dispatch: Pick<DispatchTaskGraphResult, 'spawnedRuns' | 'blockedTaskIds' | 'retriedTaskIds' | 'timedOutRunIds'>
+  snapshot: AgentTaskGraphSnapshot
 }): JSONValue {
   return {
     status: input.dispatch.spawnedRuns.length > 0 ? 'spawned' : 'no_runnable_tasks',
-    planId: input.planId,
+    taskGraphId: input.taskGraphId,
     plannerRunId: input.plannerRunId,
     createdTaskIds: input.createdTaskIds,
     spawnedRuns: input.dispatch.spawnedRuns.map((run) => toSubagentRunSummary(run)),

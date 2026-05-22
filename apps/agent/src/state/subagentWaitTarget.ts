@@ -1,4 +1,4 @@
-import type { AgentPlan, AgentRun, AgentTask, JSONValue } from './types.js'
+import type { AgentTaskGraph, AgentRun, AgentTask, JSONValue } from './types.js'
 import { subagentNameFromTask } from './subagentIdentity.js'
 import {
   isTerminalPlanStatus,
@@ -17,18 +17,18 @@ export interface SubagentWaitTargetResult {
 }
 
 export function resolveSubagentWaitTarget(input: {
-  planId: string
+  taskGraphId: string
   runId?: unknown
   taskId?: unknown
   getRun: (runId: string) => AgentRun | undefined
   getTask: (taskId: string) => AgentTask | undefined
-  getPlan: (planId: string) => AgentPlan | undefined
+  getTaskGraph: (taskGraphId: string) => AgentTaskGraph | undefined
 }): SubagentWaitTargetResult {
   const runId = normalizeNonEmptyString(input.runId)
   const taskId = normalizeNonEmptyString(input.taskId)
   if (runId) {
     const run = requireRun(input.getRun, runId)
-    if (run.planId !== input.planId) throw new Error(`run ${runId} does not belong to plan ${input.planId}`)
+    if (run.taskGraphId !== input.taskGraphId) throw new Error(`run ${runId} does not belong to taskGraph ${input.taskGraphId}`)
     return {
       done: isTerminalRunStatus(run.status),
       status: waitStatusFromRunStatus(run.status),
@@ -40,7 +40,7 @@ export function resolveSubagentWaitTarget(input: {
   }
   if (taskId) {
     const task = requireTask(input.getTask, taskId)
-    if (task.planId !== input.planId) throw new Error(`task ${taskId} does not belong to plan ${input.planId}`)
+    if (task.taskGraphId !== input.taskGraphId) throw new Error(`task ${taskId} does not belong to taskGraph ${input.taskGraphId}`)
     return {
       done: task.status === 'done' || task.status === 'failed' || task.status === 'cancelled' || task.status === 'blocked',
       status: waitStatusFromTaskStatus(task.status),
@@ -53,11 +53,11 @@ export function resolveSubagentWaitTarget(input: {
       },
     }
   }
-  const plan = requirePlan(input.getPlan, input.planId)
+  const taskGraph = requiupdateTaskGraph(input.getTaskGraph, input.taskGraphId)
   return {
-    done: isTerminalPlanStatus(plan.status),
-    status: waitStatusFromPlanStatus(plan.status),
-    target: { kind: 'plan', plan: plan as unknown as JSONValue },
+    done: isTerminalPlanStatus(taskGraph.status),
+    status: waitStatusFromPlanStatus(taskGraph.status),
+    target: { kind: 'taskGraph', taskGraph: taskGraph as unknown as JSONValue },
   }
 }
 
@@ -73,10 +73,10 @@ function requireTask(getTask: (taskId: string) => AgentTask | undefined, taskId:
   return task
 }
 
-function requirePlan(getPlan: (planId: string) => AgentPlan | undefined, planId: string): AgentPlan {
-  const plan = getPlan(planId)
-  if (!plan) throw new Error(`plan not found: ${planId}`)
-  return plan
+function requiupdateTaskGraph(getTaskGraph: (taskGraphId: string) => AgentTaskGraph | undefined, taskGraphId: string): AgentTaskGraph {
+  const taskGraph = getTaskGraph(taskGraphId)
+  if (!taskGraph) throw new Error(`taskGraph not found: ${taskGraphId}`)
+  return taskGraph
 }
 
 function normalizeNonEmptyString(value: unknown): string | undefined {

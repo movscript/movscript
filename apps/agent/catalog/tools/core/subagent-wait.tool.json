@@ -1,0 +1,22 @@
+{
+  "name": "core_subagent_wait",
+  "description": "检查 child agent run 是否完成，并返回最新结构化快照；task graph task 只是可选绑定。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "subagentName": { "type": "string", "description": "要检查的精确 child agent 名字，必须来自 spawn/list 返回值；不要猜 worker 这种泛称。" },
+      "runId": { "type": "string" },
+      "taskId": { "type": "string" },
+      "taskGraphId": { "type": "string" },
+      "timeoutMs": { "type": "number" }
+    }
+  },
+  "permission": "agent.subagent.read",
+  "risk": "read",
+  "projectScoped": false,
+  "defaults": { "grant": "allow", "approval": "never" },
+  "source": "runtime",
+  "capability": "等待或检查 planner 拥有的 child agent 进度。",
+  "allowedRunRoles": ["planner"]
+}

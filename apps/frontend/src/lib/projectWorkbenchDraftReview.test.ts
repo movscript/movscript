@@ -19,7 +19,7 @@ test('project workbench draft review search falls back to seeded draft id', () =
 
 test('project workbench draft review search prefers latest matching artifact and entity', () => {
   const result = resolveProjectWorkbenchDraftReviewSearchParams(new URLSearchParams('panel=review'), {
-    workbenchId: 'creative_plan',
+    workbenchId: 'creative_taskGraph',
     proposalKind: 'production_proposal',
     fallbackDraftId: 'seed-draft',
     artifacts: [
@@ -90,8 +90,8 @@ test('project workbench artifact review search covers all active proposal workbe
   assert.equal(preProduction.get('settingDraftId'), 'setting-2')
   assert.equal(preProduction.get('assetProposalDraftId'), 'asset-2')
 
-  const creativePlan = mergeProjectWorkbenchArtifactReviewSearchParams(new URLSearchParams('workspace=structure'), {
-    workbenchId: 'creative_plan',
+  const creativeTaskGraph = mergeProjectWorkbenchArtifactReviewSearchParams(new URLSearchParams('workspace=structure'), {
+    workbenchId: 'creative_taskGraph',
     artifacts: [
       { type: 'draft', draftId: 'setting-3', draftKind: 'setting_proposal' },
       { type: 'draft', draftId: 'asset-3', draftKind: 'asset_proposal' },
@@ -103,11 +103,11 @@ test('project workbench artifact review search covers all active proposal workbe
       { proposalKind: 'asset_proposal', queryParam: 'assetProposalDraftId' },
     ],
   })
-  assert.equal(creativePlan.get('workspace'), 'structure')
-  assert.equal(creativePlan.get('draftId'), 'production-3')
-  assert.equal(creativePlan.get('productionId'), '301')
-  assert.equal(creativePlan.get('settingDraftId'), 'setting-3')
-  assert.equal(creativePlan.get('assetProposalDraftId'), 'asset-3')
+  assert.equal(creativeTaskGraph.get('workspace'), 'structure')
+  assert.equal(creativeTaskGraph.get('draftId'), 'production-3')
+  assert.equal(creativeTaskGraph.get('productionId'), '301')
+  assert.equal(creativeTaskGraph.get('settingDraftId'), 'setting-3')
+  assert.equal(creativeTaskGraph.get('assetProposalDraftId'), 'asset-3')
 
   const contentOrchestration = mergeProjectWorkbenchArtifactReviewSearchParams(new URLSearchParams('mode=timeline'), {
     workbenchId: 'content_orchestration',

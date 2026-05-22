@@ -19,7 +19,7 @@ function testRun(): AgentRun {
 test('buildModelToolResultContext summarizes oversized tool result bodies', () => {
   const result = buildModelToolResultContext({
     run: testRun(),
-    call: { name: 'movscript_read_project_scripts', args: { projectId: 42 } },
+    call: { name: 'movscript_project_script_read', args: { projectId: 42 } },
     result: {
       projectId: 42,
       scripts: [{
@@ -41,14 +41,14 @@ test('buildModelToolResultContext summarizes oversized tool result bodies', () =
 test('buildModelToolResultContext leaves small tool results intact', () => {
   const result = buildModelToolResultContext({
     run: testRun(),
-    call: { name: 'movscript_get_focus', args: {} },
+    call: { name: 'movscript_focus_get', args: {} },
     result: { projectId: 42 },
   })
 
   assert.equal(result.dropped, false)
   assert.deepEqual(JSON.parse(result.content), {
     result: { projectId: 42 },
-    call: { name: 'movscript.get_focus', args: {} },
+    call: { name: 'movscript.focus_get', args: {} },
     contextBoundary: {
       source: 'tool_result',
       evidence: 'runtime_state',
@@ -71,7 +71,7 @@ test('buildModelToolResultContext reads context budget from agent manifest metad
         metadata: { limits: { maxRetrievedContextChars: 1000 } },
       },
     },
-    call: { name: 'movscript_read_project_scripts', args: { projectId: 42 } },
+    call: { name: 'movscript_project_script_read', args: { projectId: 42 } },
     result: {
       projectId: 42,
       scripts: [{ id: 1, title: 'Long Script', content: '雨夜便利店。'.repeat(500) }],
@@ -89,7 +89,7 @@ test('buildModelToolResultContext keeps script bodies up to the inline limit in 
       ...testRun(),
       metadata: { limits: { maxRetrievedContextChars: 24000 } },
     },
-    call: { name: 'movscript_read_project_scripts', args: { projectId: 42 } },
+    call: { name: 'movscript_project_script_read', args: { projectId: 42 } },
     result: {
       projectId: 42,
       scripts: [{
@@ -113,7 +113,7 @@ test('buildModelToolResultContext does not parse embedded JSON with non-finite n
       ...testRun(),
       metadata: { limits: { maxRetrievedContextChars: 2000 } },
     },
-    call: { name: 'movscript_read_project_scripts', args: { projectId: 42 } },
+    call: { name: 'movscript_project_script_read', args: { projectId: 42 } },
     result: {
       text: '{"score":1e999,"body":"This body would otherwise be parsed."}',
       filler: 'x'.repeat(3000),

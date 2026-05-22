@@ -216,7 +216,7 @@ export async function executeRuntimeRun(input: RuntimeRunExecutionDependencies &
       now: isoNow,
       recordTrace: (targetRun, trace) => input.streams.recordTraceEvent(targetRun, trace),
       emitVolatileTrace: (targetRun, trace) => input.streams.emitVolatileTraceEvent(targetRun, trace),
-      createStep: (targetRun, type, round, toolName) => input.runSteps.createStep(targetRun, type, round, toolName),
+      createStep: (targetRun, type, round, toolName, args) => input.runSteps.createStep(targetRun, type, round, toolName, args),
       emitRunSnapshot: (targetRun) => input.streams.emitRunSnapshot(targetRun),
     })
     catalogSnapshot = input.catalogSnapshots.getForRun(run.id)

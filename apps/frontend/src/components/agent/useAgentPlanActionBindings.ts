@@ -2,21 +2,21 @@ import { useCallback, useMemo } from 'react'
 import {
   acceptPlanTaskReviewAction,
   cancelPlanTreeAction,
-  dispatchPlanAction,
+  dispatchTaskGraphAction,
   rejectPlanTaskReviewAction,
   replanPlanAction,
   reworkPlanTaskReviewAction,
   type AgentPlanActionDeps,
   type PlanDispatchSettings,
 } from '@/lib/agentPlanActions'
-import { localAgentClient, type AgentPlanSnapshot, type AgentRun } from '@/lib/localAgentClient'
+import { localAgentClient, type AgentTaskGraphSnapshot, type AgentRun } from '@/lib/localAgentClient'
 import type { AgentConversationMessageStore } from '@/lib/agentConversationMessageStore'
 
 export interface UseAgentPlanActionBindingsInput {
   conversationId: string
   userId: string
   run: AgentRun | null
-  snapshot?: AgentPlanSnapshot | null
+  snapshot?: AgentTaskGraphSnapshot | null
   busy: boolean
   dispatchSettings: PlanDispatchSettings
   setBusy: (busy: boolean) => void
@@ -41,7 +41,7 @@ export function useAgentPlanActionBindings({
     setBusy,
     setConversationRun: (nextRun, patch) => setConversationRun(conversationId, nextRun, patch),
     addAssistantMessage: (message) => messageStore.addMessage(userId, conversationId, message),
-    dispatchPlan: (planId, input) => localAgentClient.dispatchPlan(planId, input),
+    dispatchTaskGraph: (taskGraphId, input) => localAgentClient.dispatchTaskGraph(taskGraphId, input),
     replanRun: (runId, input) => localAgentClient.replanRun(runId, input),
     updateTask: (taskId, input) => localAgentClient.updateTask(taskId, input),
     cancelRunTree: (runId, input) => localAgentClient.cancelRunTree(runId, input),
@@ -49,9 +49,9 @@ export function useAgentPlanActionBindings({
     refetchPlanSnapshot,
   }), [conversationId, messageStore, refetchPlanSnapshot, setBusy, setConversationRun, userId])
 
-  const dispatchActivePlan = useCallback(async () => {
+  const dispatchActiveTaskGraph = useCallback(async () => {
     if (busy) return
-    await dispatchPlanAction({
+    await dispatchTaskGraphAction({
       run,
       snapshot,
       settings: dispatchSettings,
@@ -59,7 +59,7 @@ export function useAgentPlanActionBindings({
     })
   }, [busy, deps, dispatchSettings, run, snapshot])
 
-  const replanActivePlan = useCallback(async () => {
+  const replanActiveTaskGraph = useCallback(async () => {
     if (busy) return
     await replanPlanAction({
       run,
@@ -102,9 +102,9 @@ export function useAgentPlanActionBindings({
   return {
     acceptPlanTaskReview,
     cancelActivePlanTree,
-    dispatchActivePlan,
+    dispatchActiveTaskGraph,
     rejectPlanTaskReview,
-    replanActivePlan,
+    replanActiveTaskGraph,
     reworkPlanTaskReview,
   }
 }

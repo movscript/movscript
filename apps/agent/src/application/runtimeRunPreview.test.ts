@@ -127,6 +127,7 @@ test('buildRuntimeRunPreview builds a preview without persisting a run', async (
     assert.equal(context.productionId, 9)
     assert.deepEqual(preview.memoryIds, [])
     assert.equal(preview.memoryCount, 0)
+    assert.equal(policy.sandboxMode, undefined)
     assert.equal(policy.maxToolCalls, 3)
     assert.equal(policy.maxIterations, 2)
     assert.ok(tools.discovered.length > 0)
@@ -139,7 +140,7 @@ test('buildRuntimeRunPreview builds a preview without persisting a run', async (
     assert.deepEqual(calls, [
       'getThread:thread_1',
       'initialize',
-      'callTool:movscript_get_focus:{}',
+      'callTool:movscript_focus_get:{}',
       'initialize',
       'listTools',
       'listResources',

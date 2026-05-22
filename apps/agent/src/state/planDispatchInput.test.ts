@@ -1,28 +1,28 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  assertDispatchPlannerRunForPlan,
+  assertDispatchTaskGraphnerRunForTaskGraph,
   assertDispatchRequestedTasks,
   buildDispatchWorkerRunInput,
-  normalizeDispatchPlanControls,
-  normalizeDispatchPlanId,
+  normalizeDispatchTaskGraphControls,
+  normalizeDispatchTaskGraphId,
 } from './planDispatchInput.js'
 import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
-import type { AgentPlan, AgentRun, AgentTask } from './types.js'
+import type { AgentTaskGraph, AgentRun, AgentTask } from './types.js'
 
-test('normalizeDispatchPlanId requires a non-empty plan id', () => {
-  assert.equal(normalizeDispatchPlanId(' plan_1 '), 'plan_1')
-  assert.throws(() => normalizeDispatchPlanId('   '), /planId is required/)
+test('normalizeDispatchTaskGraphId requires a non-empty task graph id', () => {
+  assert.equal(normalizeDispatchTaskGraphId(' task_graph_1 '), 'task_graph_1')
+  assert.throws(() => normalizeDispatchTaskGraphId('   '), /taskGraphId is required/)
 })
 
-test('normalizeDispatchPlanControls resolves planner run and execution controls', () => {
-  assert.deepEqual(normalizeDispatchPlanControls({
+test('normalizeDispatchTaskGraphControls resolves planner run and execution controls', () => {
+  assert.deepEqual(normalizeDispatchTaskGraphControls({
     taskIds: [' task_1 ', 'task_1', '', 'task_2'],
     maxWorkers: '3',
     maxTaskAttempts: '2',
     retryFailed: true,
     workerTimeoutMs: '500',
-  }, makePlan({ rootRunId: 'run_root' })), {
+  }, makeTaskGraph({ rootRunId: 'run_root' })), {
     plannerRunId: 'run_root',
     maxTaskAttempts: 2,
     retryFailed: true,
@@ -30,35 +30,35 @@ test('normalizeDispatchPlanControls resolves planner run and execution controls'
     maxWorkers: 3,
     workerTimeoutMs: 500,
   })
-  assert.equal(normalizeDispatchPlanControls({ plannerRunId: ' run_input ' }, makePlan()).plannerRunId, 'run_input')
-  assert.throws(() => normalizeDispatchPlanControls({}, makePlan()), /has no plannerRunId/)
+  assert.equal(normalizeDispatchTaskGraphControls({ plannerRunId: ' run_input ' }, makeTaskGraph()).plannerRunId, 'run_input')
+  assert.throws(() => normalizeDispatchTaskGraphControls({}, makeTaskGraph()), /has no plannerRunId/)
 })
 
-test('assertDispatchPlannerRunForPlan rejects planner runs attached elsewhere', () => {
-  assert.doesNotThrow(() => assertDispatchPlannerRunForPlan(makeRun({ planId: 'plan_1' }), makePlan()))
-  assert.doesNotThrow(() => assertDispatchPlannerRunForPlan(makeRun(), makePlan()))
-  assert.throws(() => assertDispatchPlannerRunForPlan(makeRun({ planId: 'plan_2' }), makePlan()), /does not belong/)
+test('assertDispatchTaskGraphnerRunForTaskGraph rejects planner runs attached elsewhere', () => {
+  assert.doesNotThrow(() => assertDispatchTaskGraphnerRunForTaskGraph(makeRun({ taskGraphId: 'task_graph_1' }), makeTaskGraph()))
+  assert.doesNotThrow(() => assertDispatchTaskGraphnerRunForTaskGraph(makeRun(), makeTaskGraph()))
+  assert.throws(() => assertDispatchTaskGraphnerRunForTaskGraph(makeRun({ taskGraphId: 'task_graph_2' }), makeTaskGraph()), /does not belong/)
 })
 
-test('assertDispatchRequestedTasks requires existing tasks in the plan', () => {
+test('assertDispatchRequestedTasks requires existing tasks in the taskGraph', () => {
   assert.doesNotThrow(() => assertDispatchRequestedTasks({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskIds: ['task_1'],
     getTask: () => makeTask(),
   }))
   assert.throws(() => assertDispatchRequestedTasks({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskIds: ['task_missing'],
     getTask: () => undefined,
   }), /task not found/)
   assert.throws(() => assertDispatchRequestedTasks({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskIds: ['task_1'],
-    getTask: () => makeTask({ planId: 'plan_2' }),
+    getTask: () => makeTask({ taskGraphId: 'task_graph_2' }),
   }), /does not belong/)
 })
 
-test('buildDispatchWorkerRunInput binds worker runs to planner, plan, task, and dispatch overrides', () => {
+test('buildDispatchWorkerRunInput binds worker runs to planner, taskGraph, task, and dispatch overrides', () => {
   const plannerRun = makeRun({
     id: 'run_planner',
     agentManifest: DEFAULT_AGENT_MANIFEST,
@@ -71,17 +71,17 @@ test('buildDispatchWorkerRunInput binds worker runs to planner, plan, task, and 
     },
   })
   const input = buildDispatchWorkerRunInput({
-    plan: makePlan({ title: 'Launch Plan' }),
+    taskGraph: makeTaskGraph({ title: 'Launch TaskGraph' }),
     plannerRun,
     task: makeTask({
       id: 'task_worker',
       title: 'Write brief',
-      description: 'Summarize plan',
+      description: 'Summarize taskGraph',
       metadata: { expectedArtifacts: ['brief.md'] },
     }),
     subagentName: 'Researcher',
     dispatchInput: {
-      approvedToolNames: ['movscript_read_project_scripts'],
+      approvedToolNames: ['movscript_project_script_read'],
       backendAuthToken: 'token',
       backendAPIBaseURL: 'http://backend',
       sandboxMode: true,
@@ -91,32 +91,32 @@ test('buildDispatchWorkerRunInput binds worker runs to planner, plan, task, and 
   assert.equal(input.threadId, 'thread_1')
   assert.equal(input.role, 'worker')
   assert.equal(input.parentRunId, 'run_planner')
-  assert.equal(input.planId, 'plan_1')
+  assert.equal(input.taskGraphId, 'task_graph_1')
   assert.equal(input.taskId, 'task_worker')
   assert.equal(input.progress, 0)
   assert.deepEqual(input.metadata, { subagentName: 'Researcher' })
   assert.deepEqual(input.agentManifest, DEFAULT_AGENT_MANIFEST)
   assert.deepEqual(input.policy, plannerRun.policy)
-  assert.deepEqual(input.approvedToolNames, ['movscript_read_project_scripts'])
+  assert.deepEqual(input.approvedToolNames, ['movscript_project_script_read'])
   assert.equal(input.backendAuthToken, 'token')
   assert.equal(input.backendAPIBaseURL, 'http://backend')
   assert.equal(input.sandboxMode, true)
-  assert.match(String(input.userMessage), /Plan: Launch Plan/)
+  assert.match(String(input.userMessage), /TaskGraph: Launch TaskGraph/)
   assert.match(String(input.userMessage), /Task: Write brief/)
   assert.deepEqual(input.task, {
     id: 'task_worker',
     title: 'Write brief',
-    description: 'Summarize plan',
+    description: 'Summarize taskGraph',
     instructions: 'Execute this worker task and report durable artifacts, blockers, and completion status.',
     expectedArtifacts: ['brief.md'],
   })
 })
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'pending',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -148,7 +148,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'pending',

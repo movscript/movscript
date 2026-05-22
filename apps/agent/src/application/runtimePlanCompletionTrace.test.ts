@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentPlan, AgentRun, AgentTask } from '../state/types.js'
+import type { AgentTaskGraph, AgentRun, AgentTask } from '../state/types.js'
 import {
   applyRuntimePlanCompletionTrace,
   type RuntimePlanCompletionTraceInput,
@@ -14,7 +14,7 @@ test('applyRuntimePlanCompletionTrace records completion on the root run', () =>
 
   const run = applyRuntimePlanCompletionTrace({
     store,
-    plan: makePlan({ rootRunId: 'run_root' }),
+    taskGraph: makeTaskGraph({ rootRunId: 'run_root' }),
     tasks: [
       makeTask({ id: 'task_1' }),
       makeTask({
@@ -31,9 +31,9 @@ test('applyRuntimePlanCompletionTrace records completion on the root run', () =>
   })
 
   assert.equal(run?.id, 'run_root')
-  assert.equal(traces[0]?.title, 'Plan completed')
+  assert.equal(traces[0]?.title, 'TaskGraph completed')
   assert.equal(traces[0]?.summary, '2 task(s) completed.')
-  assert.equal((traces[0]?.data as any)?.eventType, 'plan_completed')
+  assert.equal((traces[0]?.data as any)?.eventType, 'task_graph_completed')
   assert.equal((traces[0]?.data as any)?.artifactCount, 1)
   assert.deepEqual((traces[0]?.data as any)?.completedTaskIds, ['task_1', 'task_2'])
 })
@@ -45,7 +45,7 @@ test('applyRuntimePlanCompletionTrace falls back to a planner run when rootRunId
 
   const run = applyRuntimePlanCompletionTrace({
     store,
-    plan: makePlan({ rootRunId: undefined }),
+    taskGraph: makeTaskGraph({ rootRunId: undefined }),
     tasks: [makeTask()],
     recordTrace: () => {},
   })
@@ -57,7 +57,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   return {
     id: 'run_1',
     threadId: 'thread_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     status: 'completed',
     policy: {
       approvalMode: 'interactive',
@@ -73,12 +73,12 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   }
 }
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
     rootRunId: 'run_root',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'done',
     progress: 1,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -90,7 +90,7 @@ function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     title: 'Task',
     status: 'done',
     progress: 1,

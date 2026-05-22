@@ -33,7 +33,7 @@ test('content workbench draft review builds snapshot diffs for content units', (
             prompt: 'close up',
             duration_sec: 5,
             shot: { shot_size: 'close_up', camera_angle: 'eye_level', camera_motion: 'dolly_in' },
-            visual_plan: { space: '巷口', blocking: '角色回头', beats: ['停顿'] },
+            visual_taskGraph: { space: '巷口', blocking: '角色回头', beats: ['停顿'] },
             storyboard_brief: { purpose: '确认悬疑', action_moment: '回头瞬间' },
           },
           {
@@ -60,7 +60,7 @@ test('content workbench draft review builds snapshot diffs for content units', (
             duration_sec: 4,
             shot_size: 'wide',
             metadata_json: JSON.stringify({
-              visual_plan: { space: '巷口' },
+              visual_taskGraph: { space: '巷口' },
               storyboard_brief: { purpose: '旧目的' },
             }),
           },

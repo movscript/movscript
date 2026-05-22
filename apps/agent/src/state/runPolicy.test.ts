@@ -32,10 +32,18 @@ test('defaultRunPolicy preserves explicit approval, sandbox, workflow, and numer
 
 test('normalizeRunPolicyOverride clamps positive numeric limits and ignores invalid values', () => {
   assert.deepEqual(normalizeRunPolicyOverride({ approvalMode: 'root', maxToolCalls: 0, maxIterations: Number.NaN }), {})
-  assert.deepEqual(normalizeRunPolicyOverride({ approvalMode: 'auto_readonly', maxToolCalls: 1.8, maxIterations: 500 }), {
+  assert.deepEqual(normalizeRunPolicyOverride({
     approvalMode: 'auto_readonly',
+    sandboxMode: true,
+    maxToolCalls: 1.8,
+    maxIterations: 500,
+    workflow: { profile: 'compact', includeMemories: false, allowForcedToolCalls: false },
+  }), {
+    approvalMode: 'auto_readonly',
+    sandboxMode: true,
     maxToolCalls: 1,
     maxIterations: 200,
+    workflow: { profile: 'compact', includeMemories: false, allowForcedToolCalls: false },
   })
   assert.deepEqual(normalizeRunPolicyOverride(null), {})
 })

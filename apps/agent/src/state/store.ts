@@ -1,6 +1,6 @@
 import type { RuntimeOperation } from '../operations/runtimeOperation.js'
 import type {
-  AgentPlan,
+  AgentTaskGraph,
   AgentRun,
   AgentTask,
   AgentThread,
@@ -37,13 +37,13 @@ export interface AgentStore {
   listRuns(query?: AgentRunQuery): AgentRun[]
   getRun(id: string): AgentRun | undefined
   listChildRuns(parentRunId: string): AgentRun[]
-  createPlan(plan: AgentPlan): void
-  updatePlan(plan: AgentPlan): void
-  listPlans(): AgentPlan[]
-  getPlan(id: string): AgentPlan | undefined
+  createTaskGraph(taskGraph: AgentTaskGraph): void
+  updateTaskGraph(taskGraph: AgentTaskGraph): void
+  listTaskGraphs(): AgentTaskGraph[]
+  getTaskGraph(id: string): AgentTaskGraph | undefined
   createTask(task: AgentTask): void
   updateTask(task: AgentTask): void
-  listTasks(planId?: string): AgentTask[]
+  listTasks(taskGraphId?: string): AgentTask[]
   getTask(id: string): AgentTask | undefined
   createRuntimeOperation(operation: RuntimeOperation): void
   updateRuntimeOperation(operation: RuntimeOperation): void
@@ -59,6 +59,7 @@ export interface AgentStore {
   getRuntimeContinuation(id: string): RuntimeContinuation | undefined
   appendTraceEvent(event: AgentTraceEvent): void
   listRunTraceEvents(runId: string, query?: AgentTraceQuery): AgentTraceEvent[]
+  getRunTraceEventData(runId: string, eventId: string): unknown | undefined
   countRunTraceEvents(runId: string, query?: Pick<AgentTraceQuery, 'kind'>): number
   summarizeRunTraceEvents(runId: string): AgentRunTraceSummary
   getRunDebugLedger(runId: string): AgentRunDebugLedger | undefined
@@ -68,7 +69,7 @@ export interface AgentStore {
 export interface AgentRunQuery {
   threadId?: string
   parentRunId?: string
-  planId?: string
+  taskGraphId?: string
   taskId?: string
   role?: AgentRun['role']
 }
@@ -97,7 +98,7 @@ export interface RuntimeContinuationQuery {
 export class InMemoryAgentStore implements AgentStore {
   private readonly threads = new Map<string, AgentThread>()
   private readonly runs = new Map<string, AgentRun>()
-  private readonly plans = new Map<string, AgentPlan>()
+  private readonly plans = new Map<string, AgentTaskGraph>()
   private readonly tasks = new Map<string, AgentTask>()
   private readonly runtimeOperations = new Map<string, RuntimeOperation>()
   private readonly runtimeInteractions = new Map<string, RuntimeInteraction>()
@@ -178,7 +179,7 @@ export class InMemoryAgentStore implements AgentStore {
     return Array.from(this.runs.values())
       .filter((run) => query.threadId === undefined || run.threadId === query.threadId)
       .filter((run) => query.parentRunId === undefined || run.parentRunId === query.parentRunId)
-      .filter((run) => query.planId === undefined || run.planId === query.planId)
+      .filter((run) => query.taskGraphId === undefined || run.taskGraphId === query.taskGraphId)
       .filter((run) => query.taskId === undefined || run.taskId === query.taskId)
       .filter((run) => query.role === undefined || run.role === query.role)
       .map((run) => clone(run))
@@ -194,23 +195,23 @@ export class InMemoryAgentStore implements AgentStore {
     return this.listRuns({ parentRunId })
   }
 
-  createPlan(plan: AgentPlan): void {
-    this.plans.set(plan.id, clone(plan))
+  createTaskGraph(taskGraph: AgentTaskGraph): void {
+    this.plans.set(taskGraph.id, clone(taskGraph))
   }
 
-  updatePlan(plan: AgentPlan): void {
-    this.plans.set(plan.id, clone(plan))
+  updateTaskGraph(taskGraph: AgentTaskGraph): void {
+    this.plans.set(taskGraph.id, clone(taskGraph))
   }
 
-  listPlans(): AgentPlan[] {
+  listTaskGraphs(): AgentTaskGraph[] {
     return Array.from(this.plans.values())
-      .map((plan) => clone(plan))
+      .map((taskGraph) => clone(taskGraph))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   }
 
-  getPlan(id: string): AgentPlan | undefined {
-    const plan = this.plans.get(id)
-    return plan ? clone(plan) : undefined
+  getTaskGraph(id: string): AgentTaskGraph | undefined {
+    const taskGraph = this.plans.get(id)
+    return taskGraph ? clone(taskGraph) : undefined
   }
 
   createTask(task: AgentTask): void {
@@ -221,9 +222,9 @@ export class InMemoryAgentStore implements AgentStore {
     this.tasks.set(task.id, clone(task))
   }
 
-  listTasks(planId?: string): AgentTask[] {
+  listTasks(taskGraphId?: string): AgentTask[] {
     return Array.from(this.tasks.values())
-      .filter((task) => planId === undefined || task.planId === planId)
+      .filter((task) => taskGraphId === undefined || task.taskGraphId === taskGraphId)
       .map((task) => clone(task))
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
   }
@@ -332,6 +333,11 @@ export class InMemoryAgentStore implements AgentStore {
     return events.slice(startIndex, startIndex + limit).map((event) => clone(event))
   }
 
+  getRunTraceEventData(runId: string, eventId: string): unknown | undefined {
+    const event = (this.traceEventsByRun.get(runId) ?? []).find((item) => item.id === eventId)
+    return event?.data === undefined ? undefined : clone(event.data)
+  }
+
   countRunTraceEvents(runId: string, query: Pick<AgentTraceQuery, 'kind'> = {}): number {
     const events = this.traceEventsByRun.get(runId) ?? []
     return query.kind ? events.filter((event) => event.kind === query.kind).length : events.length
@@ -376,6 +382,7 @@ export function toThreadSummary(thread: AgentThread): AgentThreadSummary {
     ...(thread.title ? { title: thread.title } : {}),
     ...(isValidAgentProjectId(thread.projectId) ? { projectId: thread.projectId } : {}),
     ...(thread.metadata ? { metadata: clone(thread.metadata) } : {}),
+    ...(thread.currentProgressChecklist ? { currentProgressChecklist: clone(thread.currentProgressChecklist) } : {}),
     archived: thread.archived === true,
     ...(thread.status ? { status: thread.status } : {}),
     ...(thread.activeRunId ? { activeRunId: thread.activeRunId } : {}),

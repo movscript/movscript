@@ -1,4 +1,4 @@
-import type { AgentDebugContextPanel, AgentPlan, AgentPlanSnapshot, AgentRun, AgentTask, JSONValue } from './types.js'
+import type { AgentDebugContextPanel, AgentTaskGraph, AgentTaskGraphSnapshot, AgentRun, AgentTask, JSONValue } from './types.js'
 import { agentPlanSummary, taskArtifactReferences } from './planSnapshot.js'
 import { subagentNameConflicts, subagentNameFromRun, subagentNameFromTask } from './subagentIdentity.js'
 import { toSubagentRunSummary } from './subagentRunView.js'
@@ -6,11 +6,11 @@ import { toSubagentRunSummary } from './subagentRunView.js'
 export function buildRunPlanDebugContext(input: {
   context: AgentDebugContextPanel
   run: AgentRun
-  plan?: AgentPlan
+  taskGraph?: AgentTaskGraph
   tasks: AgentTask[]
   runs: AgentRun[]
 }): AgentDebugContextPanel {
-  if (!input.run.planId || !input.plan) return input.context
+  if (!input.run.taskGraphId || !input.taskGraph) return input.context
   const tasksById = new Map(input.tasks.map((task) => [task.id, task]))
   const nameConflicts = subagentNameConflicts(input.tasks)
   const workers = input.runs
@@ -27,14 +27,14 @@ export function buildRunPlanDebugContext(input: {
   const artifacts = taskArtifactReferences(input.tasks, tasksById)
   return {
     ...input.context,
-    agentPlan: {
-      id: input.plan.id,
-      title: input.plan.title,
-      status: input.plan.status,
-      progress: input.plan.progress,
+    agentTaskGraph: {
+      id: input.taskGraph.id,
+      title: input.taskGraph.title,
+      status: input.taskGraph.status,
+      progress: input.taskGraph.progress,
       ...(input.run.role ? { role: input.run.role } : {}),
       ...(input.run.taskId ? { currentTaskId: input.run.taskId } : {}),
-      ...(input.plan.rootRunId ? { rootRunId: input.plan.rootRunId } : {}),
+      ...(input.taskGraph.rootRunId ? { rootRunId: input.taskGraph.rootRunId } : {}),
       tasks: input.tasks.map((task) => ({
         id: task.id,
         title: task.title,
@@ -54,17 +54,17 @@ export function buildRunPlanDebugContext(input: {
 }
 
 export function buildSubagentSnapshotView(input: {
-  snapshot: AgentPlanSnapshot
+  snapshot: AgentTaskGraphSnapshot
   plannerRunId: string
 }): Record<string, JSONValue> {
   const tasksById = new Map(input.snapshot.tasks.map((task) => [task.id, task]))
   const nameConflicts = subagentNameConflicts(input.snapshot.tasks)
   const workers = input.snapshot.runs
-    .filter((run) => run.parentRunId === input.plannerRunId || (run.role === 'worker' && run.planId === input.snapshot.plan.id))
+    .filter((run) => run.parentRunId === input.plannerRunId || (run.role === 'worker' && run.taskGraphId === input.snapshot.taskGraph.id))
     .map((run) => toSubagentRunSummary(run, run.taskId ? tasksById.get(run.taskId) : undefined))
   const artifacts = taskArtifactReferences(input.snapshot.tasks)
   return {
-    plan: input.snapshot.plan as unknown as JSONValue,
+    taskGraph: input.snapshot.taskGraph as unknown as JSONValue,
     tasks: input.snapshot.tasks as unknown as JSONValue,
     workers: workers as unknown as JSONValue,
     ...(nameConflicts.length > 0 ? { nameConflicts: nameConflicts as unknown as JSONValue } : {}),

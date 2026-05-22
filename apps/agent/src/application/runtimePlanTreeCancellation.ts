@@ -1,26 +1,26 @@
 import type { AgentStore } from '../state/store.js'
 import { requireRuntimePlannerRun } from './runtimePlanBinding.js'
-import { requireRuntimePlan } from './runtimeStoreLookup.js'
+import { requireRuntimeTaskGraph } from './runtimeStoreLookup.js'
 
-export function resolveRuntimePlanTreeCancellationRoot(input: {
-  store: Pick<AgentStore, 'getRun' | 'getPlan'>
+export function resolveRuntimeTaskGraphTreeCancellationRoot(input: {
+  store: Pick<AgentStore, 'getRun' | 'getTaskGraph'>
   runId: string
 }): string {
   const run = requireRuntimePlannerRun(input.store, input.runId)
-  if (!run.planId) throw new Error(`planner run ${input.runId} is not attached to a plan`)
-  const plan = requireRuntimePlan(input.store, run.planId)
-  if (plan.rootRunId && plan.rootRunId !== run.id) {
-    throw new Error(`planner run ${run.id} is not the root planner for plan ${plan.id}`)
+  if (!run.taskGraphId) throw new Error(`planner run ${input.runId} is not attached to a task graph`)
+  const taskGraph = requireRuntimeTaskGraph(input.store, run.taskGraphId)
+  if (taskGraph.rootRunId && taskGraph.rootRunId !== run.id) {
+    throw new Error(`planner run ${run.id} is not the root planner for taskGraph ${taskGraph.id}`)
   }
   return run.id
 }
 
-export function applyRuntimePlanTreeCancellationRequest(input: {
-  store: Pick<AgentStore, 'getRun' | 'getPlan'>
+export function applyRuntimeTaskGraphTreeCancellationRequest(input: {
+  store: Pick<AgentStore, 'getRun' | 'getTaskGraph'>
   runId: string
   cancelSubtree: (runId: string) => { cancelledRunIds: string[] }
 }): { cancelledRunIds: string[] } {
-  const rootRunId = resolveRuntimePlanTreeCancellationRoot({
+  const rootRunId = resolveRuntimeTaskGraphTreeCancellationRoot({
     store: input.store,
     runId: input.runId,
   })

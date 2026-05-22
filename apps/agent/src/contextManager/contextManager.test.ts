@@ -48,7 +48,7 @@ test('ContextManager builds bounded tool result context for model turn feedback'
       updatedAt: '2026-01-01T00:00:00.000Z',
       steps: [],
     },
-    call: { name: 'movscript_read_project_scripts', args: { projectId: 42 } },
+    call: { name: 'movscript_project_script_read', args: { projectId: 42 } },
     result: {
       projectId: 42,
       scripts: [{ id: 1, title: 'Long Script', content: '雨夜便利店。'.repeat(500) }],
@@ -90,7 +90,7 @@ test('ContextManager composes a full model turn with tool-loop history and audit
       blocked: [],
       byName: {},
       available: [{
-        name: 'movscript_inspect_agent_catalog',
+        name: 'core_catalog_inspect',
         source: 'runtime',
         registered: true,
         granted: true,
@@ -112,7 +112,7 @@ test('ContextManager composes a full model turn with tool-loop history and audit
   assert.equal(Array.isArray(turn.promptTrace.data.skillIds), true)
   assert.equal(turn.messages.some((message) => message.role === 'tool'), true)
   assert.equal(turn.messages.at(-1)?.role, 'user')
-  assert.equal(turn.tools[0]?.function.name, 'movscript_inspect_agent_catalog')
+  assert.equal(turn.tools[0]?.function.name, 'core_catalog_inspect')
   const parameters = turn.tools[0]?.function.parameters as any
   assert.equal(parameters?.properties?.view?.enum?.includes('knowledge'), true)
 })
@@ -124,7 +124,7 @@ test('ContextManager builds knowledge observability traces from ledger refs', ()
     threadId: 'thread_1',
     catalogSnapshotId: 'snapshot_1',
     activeSkillIds: [],
-    visibleToolNames: ['movscript_get_knowledge'],
+    visibleToolNames: ['knowledge_get'],
     retrieved: [{
       ref: {
         type: 'knowledge',
@@ -150,11 +150,11 @@ test('ContextManager builds knowledge observability traces from ledger refs', ()
 
   const trace = contextManager.buildKnowledgeTrace({
     ledger,
-    call: { name: 'movscript_get_knowledge', args: { id: 'storyboard.rhythm.basic', maxChars: 800 } },
+    call: { name: 'knowledge_get', args: { id: 'storyboard.rhythm.basic', maxChars: 800 } },
     result: {
       id: 'storyboard.rhythm.basic',
       title: '分镜节奏基础',
-      collectionId: 'movscript.knowledge.storyboard',
+      collectionId: 'film.knowledge.storyboard',
       domain: 'storyboard',
       contentHash: 'hash_1',
       charCount: 1200,
@@ -181,7 +181,7 @@ test('ContextManager ignores non-plain knowledge trace result records', () => {
     threadId: 'thread_1',
     catalogSnapshotId: 'snapshot_1',
     activeSkillIds: [],
-    visibleToolNames: ['movscript_get_knowledge'],
+    visibleToolNames: ['knowledge_get'],
     retrieved: [],
     facts: [],
     artifactRefs: [],
@@ -192,7 +192,7 @@ test('ContextManager ignores non-plain knowledge trace result records', () => {
 
   const trace = contextManager.buildKnowledgeTrace({
     ledger,
-    call: { name: 'movscript_get_knowledge', args: { id: 'storyboard.rhythm.basic' } },
+    call: { name: 'knowledge_get', args: { id: 'storyboard.rhythm.basic' } },
     result: new RuntimeKnowledgeResult() as unknown as any,
   })
 
@@ -205,11 +205,11 @@ test('ContextManager builds ledger and dedupe context trace payloads', () => {
     runId: 'run_1',
     threadId: 'thread_1',
     catalogSnapshotId: 'snapshot_1',
-    call: { name: 'movscript_get_knowledge', args: { id: 'storyboard.rhythm.basic' } },
+    call: { name: 'knowledge_get', args: { id: 'storyboard.rhythm.basic' } },
     result: {
       id: 'storyboard.rhythm.basic',
       title: '分镜节奏基础',
-      collectionId: 'movscript.knowledge.storyboard',
+      collectionId: 'film.knowledge.storyboard',
       contentHash: 'hash_1',
       content: '起承转合',
     },
@@ -221,11 +221,11 @@ test('ContextManager builds ledger and dedupe context trace payloads', () => {
     runId: 'run_1',
     threadId: 'thread_1',
     catalogSnapshotId: 'snapshot_1',
-    call: { name: 'movscript_get_knowledge', args: { id: 'storyboard.rhythm.basic' } },
+    call: { name: 'knowledge_get', args: { id: 'storyboard.rhythm.basic' } },
     result: {
       id: 'storyboard.rhythm.basic',
       title: '分镜节奏基础',
-      collectionId: 'movscript.knowledge.storyboard',
+      collectionId: 'film.knowledge.storyboard',
       contentHash: 'hash_1',
       content: '起承转合',
     },
@@ -234,7 +234,7 @@ test('ContextManager builds ledger and dedupe context trace payloads', () => {
   })
 
   const ledgerTrace = contextManager.buildLedgerUpdatedTrace(duplicateAudit.ledger)
-  const dedupeTrace = contextManager.buildLedgerDedupedTrace('movscript_get_knowledge', duplicateAudit)
+  const dedupeTrace = contextManager.buildLedgerDedupedTrace('knowledge_get', duplicateAudit)
 
   assert.equal(ledgerTrace.data.eventType, 'context.ledger_updated')
   assert.equal(ledgerTrace.data.retrievedCount, 1)
@@ -254,10 +254,10 @@ test('ContextManager builds bounded tool-result drop trace only when content is 
       updatedAt: '2026-01-01T00:00:00.000Z',
       steps: [],
     },
-    call: { name: 'movscript_read_project_scripts', args: { projectId: 42 } },
+    call: { name: 'movscript_project_script_read', args: { projectId: 42 } },
     result: { content: '长正文'.repeat(500) },
   })
-  const trace = contextManager.buildToolResultDroppedTrace('movscript_read_project_scripts', dropped)
+  const trace = contextManager.buildToolResultDroppedTrace('movscript_project_script_read', dropped)
 
   assert.equal(trace?.data.eventType, 'context.item_dropped')
   assert.equal(typeof trace?.data.originalChars, 'number')

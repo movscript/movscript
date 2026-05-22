@@ -6,11 +6,11 @@ import { getThinkingBubbleState, type ThinkingBubbleState } from '@/components/a
 import { useAgentChatWorkflowState } from '@/components/agent/useAgentChatWorkflowState'
 import type { AgentSendDraft } from '@/lib/agentSendDraft'
 import type { AgentLivePendingAssistantState } from '@/lib/agentLiveRunActivity'
-import type { AgentPlanSnapshot, AgentRun } from '@/lib/localAgentClient'
+import type { AgentTaskGraphSnapshot, AgentRun } from '@/lib/localAgentClient'
 import type { AgentAttachment, ChatMessage, ChatRunActivityEvent } from '@/store/agentStore'
 
 export interface UseAgentChatDerivedStateOptions {
-  activePlanSnapshot?: AgentPlanSnapshot
+  activePlanSnapshot?: AgentTaskGraphSnapshot
   composerAttachments: AgentAttachment[]
   input: string
   inputPlaceholder: string

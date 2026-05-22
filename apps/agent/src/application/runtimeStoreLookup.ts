@@ -1,5 +1,5 @@
 import type { AgentStore } from '../state/store.js'
-import type { AgentPlan, AgentRun, AgentTask, AgentThread } from '../state/types.js'
+import type { AgentTaskGraph, AgentRun, AgentTask, AgentThread } from '../state/types.js'
 
 export function requireRuntimeThread(store: Pick<AgentStore, 'getThread'>, id: string): AgentThread {
   const thread = store.getThread(id)
@@ -13,10 +13,10 @@ export function requireRuntimeRun(store: Pick<AgentStore, 'getRun'>, id: string)
   return run
 }
 
-export function requireRuntimePlan(store: Pick<AgentStore, 'getPlan'>, id: string): AgentPlan {
-  const plan = store.getPlan(id)
-  if (!plan) throw new Error(`plan not found: ${id}`)
-  return plan
+export function requireRuntimeTaskGraph(store: Pick<AgentStore, 'getTaskGraph'>, id: string): AgentTaskGraph {
+  const taskGraph = store.getTaskGraph(id)
+  if (!taskGraph) throw new Error(`taskGraph not found: ${id}`)
+  return taskGraph
 }
 
 export function requireRuntimeTask(store: Pick<AgentStore, 'getTask'>, id: string): AgentTask {

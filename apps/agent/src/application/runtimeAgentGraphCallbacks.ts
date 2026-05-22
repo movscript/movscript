@@ -1,6 +1,6 @@
 import type { AgentGraphInput, AgentGraphTraceInput } from '../orchestration/agentGraph.js'
 import type { GenerationEvent } from '../generation/generationEvents.js'
-import type { AgentRun, AgentRunStep, AgentTraceEvent, AgentTraceEventKind } from '../state/types.js'
+import type { AgentRun, AgentRunStep, AgentTraceEvent, AgentTraceEventKind, JSONValue } from '../state/types.js'
 import type { AgentStore } from '../state/store.js'
 import type { AgentRunRoundInfo } from '../state/runRound.js'
 import { completeRuntimeRunStep } from './runtimeRunStepCompletion.js'
@@ -23,7 +23,7 @@ export function createRuntimeAgentGraphCallbacks(input: {
   now: () => string
   recordTrace: (run: AgentRun, trace: RuntimeAgentGraphTraceInput) => void
   emitVolatileTrace: (run: AgentRun, trace: AgentGraphTraceInput) => void
-  createStep: (run: AgentRun, type: AgentRunStep['type'], round: AgentRunRoundInfo, toolName?: string) => AgentRunStep
+  createStep: (run: AgentRun, type: AgentRunStep['type'], round: AgentRunRoundInfo, toolName?: string, args?: Record<string, JSONValue>) => AgentRunStep
   emitRunSnapshot: (run: AgentRun) => void
 }): Pick<AgentGraphInput, 'onTrace' | 'onGenerationEvent' | 'onStepCreate' | 'onStepComplete'> {
   return {
@@ -58,8 +58,8 @@ export function createRuntimeAgentGraphCallbacks(input: {
       })
       input.store.updateRun(input.run)
     },
-    onStepCreate: (type, roundIndex, roundLabel, roundSource, toolName) => {
-      const step = input.createStep(input.run, type, { roundId: `round_${roundIndex}`, roundIndex, roundLabel, roundSource }, toolName)
+    onStepCreate: (type, roundIndex, roundLabel, roundSource, toolName, args) => {
+      const step = input.createStep(input.run, type, { roundId: `round_${roundIndex}`, roundIndex, roundLabel, roundSource }, toolName, args)
       return step.id
     },
     onStepComplete: (stepId, result, error, sandboxed) => {

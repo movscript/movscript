@@ -29,7 +29,7 @@ interface BuildAgentChatViewLayoutPropsInput {
   showCollapse?: boolean
   showConversationControls?: boolean
   updateDraft: (patch: { input: string }) => void
-  updatePlanDispatchSettings: (settings: PlanDispatchSettings) => void
+  updateTaskGraphDispatchSettings: (settings: PlanDispatchSettings) => void
 }
 
 export function buildAgentChatViewLayoutProps({
@@ -53,7 +53,7 @@ export function buildAgentChatViewLayoutProps({
   showCollapse,
   showConversationControls,
   updateDraft,
-  updatePlanDispatchSettings,
+  updateTaskGraphDispatchSettings,
 }: BuildAgentChatViewLayoutPropsInput): AgentChatViewLayoutProps {
   return {
     debugPreview: {
@@ -94,14 +94,14 @@ export function buildAgentChatViewLayoutProps({
       onAnswerLocalRunInput: interaction.answerLocalRunInput,
       onApproveLocalRun: interaction.approveLocalRun,
       onCancelPlanTree: interaction.cancelActivePlanTree,
-      onDispatchPlan: interaction.dispatchActivePlan,
+      onDispatchTaskGraph: interaction.dispatchActiveTaskGraph,
       onDraftInput: (value) => updateDraft({ input: value }),
       onRejectLocalRun: interaction.rejectLocalRun,
       onRejectPlanReview: interaction.rejectPlanTaskReview,
-      onReplan: interaction.replanActivePlan,
+      onRetaskGraph: interaction.replanActiveTaskGraph,
       onReworkPlanReview: interaction.reworkPlanTaskReview,
       onScroll: presentation.onThreadScroll,
-      onUpdatePlanDispatchSettings: updatePlanDispatchSettings,
+      onUpdatePlanDispatchSettings: updateTaskGraphDispatchSettings,
     },
     composer: {
       answeringPendingInput: presentation.answeringPendingInput,

@@ -38,7 +38,7 @@ export class AgentFileSystem {
   }
 
   search(input: { ref: string; query: string; limit?: number }): AgentFileSearchResult {
-    if (!input.query.trim()) throw new Error('agent_file_search requires query')
+    if (!input.query.trim()) throw new Error('draft_file_search requires query')
     return this.providerFor(input.ref).search(input.ref, {
       query: input.query,
       limit: input.limit,
@@ -52,7 +52,7 @@ export class AgentFileSystem {
     createdByRunId?: string
   }): AgentFileEditResult {
     if (!Array.isArray(input.edits) || input.edits.length === 0) {
-      throw new Error('agent_file_edit requires at least one edit')
+      throw new Error('draft_file_edit requires at least one edit')
     }
     return this.providerFor(input.ref).edit(input.ref, {
       edits: input.edits,

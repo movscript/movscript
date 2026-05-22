@@ -82,7 +82,7 @@ test('generatePlanTasks preserves planner assessment and task planning metadata'
               executionMode: 'planner',
               parallelizable: false,
               criticalPath: true,
-              expectedOutput: 'A concrete integration plan',
+              expectedOutput: 'A concrete integration taskGraph',
               reportFormat: 'Findings and next actions',
             },
             {
@@ -135,7 +135,7 @@ test('generatePlanTasks preserves planner assessment and task planning metadata'
         executionMode: 'planner',
         parallelizable: false,
         criticalPath: true,
-        expectedOutput: 'A concrete integration plan',
+        expectedOutput: 'A concrete integration taskGraph',
         reportFormat: 'Findings and next actions',
       },
     },

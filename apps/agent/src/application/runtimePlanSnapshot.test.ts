@@ -1,24 +1,24 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentPlan, AgentRun, AgentTask } from '../state/types.js'
-import { getRuntimePlanSnapshot } from './runtimePlanSnapshot.js'
+import type { AgentTaskGraph, AgentRun, AgentTask } from '../state/types.js'
+import { getRuntimeTaskGraphSnapshot } from './runtimePlanSnapshot.js'
 
-test('getRuntimePlanSnapshot builds a product-safe plan snapshot from store state', () => {
+test('getRuntimeTaskGraphSnapshot builds a product-safe taskGraph snapshot from store state', () => {
   const store = new InMemoryAgentStore()
-  store.createPlan(makePlan())
+  store.createTaskGraph(makeTaskGraph())
   store.createTask(makeTask({ id: 'task_1', status: 'done', progress: 1 }))
   store.createRun(makeRun({
     id: 'run_worker',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_1',
     role: 'worker',
     status: 'completed',
   }))
 
-  const snapshot = getRuntimePlanSnapshot({ store, planId: 'plan_1' })
+  const snapshot = getRuntimeTaskGraphSnapshot({ store, taskGraphId: 'task_graph_1' })
 
-  assert.equal(snapshot.plan.id, 'plan_1')
+  assert.equal(snapshot.taskGraph.id, 'task_graph_1')
   assert.equal(snapshot.tasks.length, 1)
   assert.equal(snapshot.runs.length, 1)
   assert.equal(snapshot.runs[0]?.id, 'run_worker')
@@ -27,20 +27,20 @@ test('getRuntimePlanSnapshot builds a product-safe plan snapshot from store stat
   assert.equal(snapshot.summary.workerCount, 1)
 })
 
-test('getRuntimePlanSnapshot uses stable not-found errors', () => {
+test('getRuntimeTaskGraphSnapshot uses stable not-found errors', () => {
   const store = new InMemoryAgentStore()
 
-  assert.throws(() => getRuntimePlanSnapshot({
+  assert.throws(() => getRuntimeTaskGraphSnapshot({
     store,
-    planId: 'missing_plan',
-  }), /plan not found: missing_plan/)
+    taskGraphId: 'missing_taskGraph',
+  }), /taskGraph not found: missing_taskGraph/)
 })
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -72,7 +72,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     title: 'Task',
     status: 'pending',
     progress: 0,

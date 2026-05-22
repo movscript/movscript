@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentPlan, AgentPlanSnapshot, AgentRun, AgentTask } from '../state/types.js'
+import type { AgentTaskGraph, AgentTaskGraphSnapshot, AgentRun, AgentTask } from '../state/types.js'
 import {
   listRuntimeSubagents,
   waitRuntimeSubagent,
@@ -9,18 +9,19 @@ import {
 
 const now = '2026-01-01T00:00:01.000Z'
 
-test('listRuntimeSubagents resolves the planner plan and returns a subagent snapshot', () => {
+test('listRuntimeSubagents resolves the planner taskGraph and returns a subagent snapshot', () => {
   const store = makeStore()
 
   const result = listRuntimeSubagents({
     store,
     plannerRunId: 'run_planner',
+    request: { taskGraphId: 'task_graph_1' },
     now,
-    getPlanSnapshot: (planId) => snapshot(store, planId),
+    getTaskGraphSnapshot: (taskGraphId) => snapshot(store, taskGraphId),
   })
 
   assert.equal(result.status, 'ok')
-  assert.equal(result.planId, 'plan_1')
+  assert.equal(result.taskGraphId, 'task_graph_1')
   assert.equal(result.plannerRunId, 'run_planner')
   assert.equal((result.snapshot.summary as Record<string, unknown>).taskCount, 1)
 })
@@ -31,14 +32,14 @@ test('waitRuntimeSubagent resolves named task targets without touching trace sta
   const result = await waitRuntimeSubagent({
     store,
     plannerRunId: 'run_planner',
-    request: { subagentName: 'Einstein', timeoutMs: 0 },
+    request: { taskGraphId: 'task_graph_1', subagentName: 'Einstein', timeoutMs: 0 },
     now,
-    getPlanSnapshot: (planId) => snapshot(store, planId),
+    getTaskGraphSnapshot: (taskGraphId) => snapshot(store, taskGraphId),
   })
 
   assert.equal(result.status, 'completed')
   assert.equal(result.done, true)
-  assert.equal(result.planId, 'plan_1')
+  assert.equal(result.taskGraphId, 'task_graph_1')
   assert.equal(result.target.kind, 'run')
   assert.equal((result.target.run as Record<string, unknown>).id, 'run_worker')
 })
@@ -51,7 +52,7 @@ test('waitRuntimeSubagent polls until the target is done or the deadline is reac
   const result = await waitRuntimeSubagent({
     store,
     plannerRunId: 'run_planner',
-    request: { runId: 'run_worker', timeoutMs: 200 },
+    request: { taskGraphId: 'task_graph_1', runId: 'run_worker', timeoutMs: 200 },
     now,
     currentTimeMs: () => current,
     sleep: async () => {
@@ -62,13 +63,13 @@ test('waitRuntimeSubagent polls until the target is done or the deadline is reac
           id: 'run_worker',
           role: 'worker',
           parentRunId: 'run_planner',
-          planId: 'plan_1',
+          taskGraphId: 'task_graph_1',
           taskId: 'task_1',
           status: 'completed',
         }))
       }
     },
-    getPlanSnapshot: (planId) => snapshot(store, planId),
+    getTaskGraphSnapshot: (taskGraphId) => snapshot(store, taskGraphId),
   })
 
   assert.equal(sleepCalls, 1)
@@ -82,36 +83,36 @@ function makeStore(input: {
   runStatus?: AgentRun['status']
 } = {}): InMemoryAgentStore {
   const store = new InMemoryAgentStore()
-  store.createPlan(makePlan())
+  store.createTaskGraph(makeTaskGraph())
   store.createTask(makeTask({ status: input.taskStatus ?? 'done' }))
-  store.createRun(makeRun({ id: 'run_planner', role: 'planner', planId: 'plan_1' }))
+  store.createRun(makeRun({ id: 'run_planner', role: 'planner', taskGraphId: 'task_graph_1' }))
   store.createRun(makeRun({
     id: 'run_worker',
     role: 'worker',
     parentRunId: 'run_planner',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_1',
     status: input.runStatus ?? 'completed',
   }))
   return store
 }
 
-function snapshot(store: InMemoryAgentStore, planId: string): AgentPlanSnapshot {
-  const plan = store.getPlan(planId)
-  assert.ok(plan)
+function snapshot(store: InMemoryAgentStore, taskGraphId: string): AgentTaskGraphSnapshot {
+  const taskGraph = store.getTaskGraph(taskGraphId)
+  assert.ok(taskGraph)
   return {
-    plan,
-    tasks: store.listTasks(planId),
-    runs: store.listRuns({ planId }),
+    taskGraph,
+    tasks: store.listTasks(taskGraphId),
+    runs: store.listRuns({ taskGraphId }),
   }
 }
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
     rootRunId: 'run_planner',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0.5,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -123,7 +124,7 @@ function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'done',

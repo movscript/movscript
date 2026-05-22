@@ -1,24 +1,24 @@
 import type { AgentStore } from '../state/store.js'
 import type { AgentRun } from '../state/types.js'
 import {
-  applyRuntimePlanStatusRecomputeRequest,
-  type RuntimePlanProjectionResult,
+  applyRuntimeTaskGraphStatusRecomputeRequest,
+  type RuntimeTaskGraphProjectionResult,
 } from './runtimePlanProjection.js'
 import type { RuntimePlanCompletionTraceInput } from './runtimePlanCompletionTrace.js'
 
-export interface RuntimePlanStatusBridge {
-  recomputePlanStatus: (planId: string) => RuntimePlanProjectionResult | undefined
+export interface RuntimeTaskGraphStatusBridge {
+  recomputePlanStatus: (taskGraphId: string) => RuntimeTaskGraphProjectionResult | undefined
 }
 
-export function createRuntimePlanStatusBridge(input: {
-  store: Pick<AgentStore, 'getPlan' | 'listTasks' | 'updatePlan' | 'getRun' | 'listRuns'>
+export function createRuntimeTaskGraphStatusBridge(input: {
+  store: Pick<AgentStore, 'getTaskGraph' | 'listTasks' | 'updateTaskGraph' | 'getRun' | 'listRuns'>
   now: () => string
   recordTrace: (run: AgentRun, trace: RuntimePlanCompletionTraceInput) => void
-}): RuntimePlanStatusBridge {
+}): RuntimeTaskGraphStatusBridge {
   return {
-    recomputePlanStatus: (planId) => applyRuntimePlanStatusRecomputeRequest({
+    recomputePlanStatus: (taskGraphId) => applyRuntimeTaskGraphStatusRecomputeRequest({
       store: input.store,
-      planId,
+      taskGraphId,
       now: input.now(),
       recordTrace: input.recordTrace,
     }),

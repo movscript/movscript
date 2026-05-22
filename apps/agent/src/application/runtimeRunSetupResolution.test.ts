@@ -7,7 +7,7 @@ import type { AgentRuntimeContract } from '../contracts/runtimeContract.js'
 import { StaticToolRegistry } from '../tools/toolRegistry.js'
 import type {
   AgentMessage,
-  AgentPlan,
+  AgentTaskGraph,
   AgentRun,
   AgentTask,
   AgentTraceEvent,
@@ -347,7 +347,7 @@ test('resolveRuntimeRunSetup applies default tool policy overrides without chang
 
 test('resolveRuntimeRunSetup adds active skill tool grants to custom manifests', async () => {
   const readScriptsTool = {
-    name: 'movscript_read_project_scripts',
+    name: 'movscript_project_script_read',
     description: 'Read project scripts',
     inputSchema: { type: 'object' },
     permission: 'project.script.read',
@@ -361,7 +361,7 @@ test('resolveRuntimeRunSetup adds active skill tool grants to custom manifests',
     tools: [],
     layeredTools: [readScriptsTool],
     layeredSkills: [{
-      id: 'movscript.workflow.script-reading',
+      id: 'movscript.workflow.script_reading',
       kind: 'workflow',
       version: '1.0.0',
       name: 'Script Reading',
@@ -371,7 +371,7 @@ test('resolveRuntimeRunSetup adds active skill tool grants to custom manifests',
       instructionTemplate: 'Read scripts.',
       loadMode: 'manual',
       triggers: [{ kind: 'keyword', any: ['剧本'] }],
-      toolRefs: ['tool://movscript_read_project_scripts'],
+      toolRefs: ['tool://movscript_project_script_read'],
     }],
     profiles: [{
       schema: 'movscript.agent.profile.v1',
@@ -391,8 +391,8 @@ test('resolveRuntimeRunSetup adds active skill tool grants to custom manifests',
     version: '1.0.0',
     name: 'Explicit Manifest',
     tools: [
-      { name: 'movscript_update_active_skills', mode: 'allow', approval: 'never' },
-      { name: 'movscript_read_project_scripts', mode: 'deny', approval: 'never' },
+      { name: 'core_skill_update', mode: 'allow', approval: 'never' },
+      { name: 'movscript_project_script_read', mode: 'deny', approval: 'never' },
     ],
   }
   const run = makeRun({
@@ -400,7 +400,7 @@ test('resolveRuntimeRunSetup adds active skill tool grants to custom manifests',
     metadata: {
       manifestSource: 'custom',
       skillState: {
-        loadedSkillIds: ['movscript.workflow.script-reading'],
+        loadedSkillIds: ['movscript.workflow.script_reading'],
         unloadedSkillIds: [],
       },
     },
@@ -413,9 +413,9 @@ test('resolveRuntimeRunSetup adds active skill tool grants to custom manifests',
       id: 'snapshot_custom_skill',
       defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
       toolRegistry: new StaticToolRegistry([
-        tool('movscript_update_active_skills'),
+        tool('core_skill_update'),
         {
-          name: 'movscript_read_project_scripts',
+          name: 'movscript_project_script_read',
           description: 'Read project scripts',
           permission: 'project.script.read',
           risk: 'read',
@@ -444,11 +444,11 @@ test('resolveRuntimeRunSetup adds active skill tool grants to custom manifests',
   })
 
   assert.equal(result.activeManifest.id, 'explicit_manifest')
-  assert.deepEqual(result.skills.map((skill) => skill.id), ['movscript.workflow.script-reading'])
-  assert.ok(result.activeManifest.tools.some((grant) => grant.name === 'movscript_update_active_skills'))
-  assert.equal(result.activeManifest.tools.find((grant) => grant.name === 'movscript_read_project_scripts')?.mode, 'allow')
+  assert.deepEqual(result.skills.map((skill) => skill.id), ['movscript.workflow.script_reading'])
+  assert.ok(result.activeManifest.tools.some((grant) => grant.name === 'core_skill_update'))
+  assert.equal(result.activeManifest.tools.find((grant) => grant.name === 'movscript_project_script_read')?.mode, 'allow')
   assert.equal(result.activeManifest.tools.some((grant) => grant.name === 'unrelated_profile_tool'), false)
-  assert.equal(result.capabilities.resolvedTools.byName.movscript_read_project_scripts?.available, true)
+  assert.equal(result.capabilities.resolvedTools.byName.movscript_project_script_read?.available, true)
 })
 
 function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
@@ -484,10 +484,10 @@ function tool(name: string) {
 
 function emptyStore() {
   return {
-    getPlan(_id: string): AgentPlan | undefined {
+    getTaskGraph(_id: string): AgentTaskGraph | undefined {
       return undefined
     },
-    listTasks(_planId?: string): AgentTask[] {
+    listTasks(_taskGraphId?: string): AgentTask[] {
       return []
     },
     listRuns(): AgentRun[] {

@@ -72,7 +72,7 @@ function lintKnowledgeCollection(collection: KnowledgeCollection, issues: Catalo
 }
 
 function requiresResourcePaths(pack: { id: string; source: string }): boolean {
-  return pack.id !== 'movscript.pack.default' && pack.source !== 'mcp'
+  return pack.id !== 'core.pack.default' && pack.source !== 'mcp'
 }
 
 function lintPackClosure(packId: string, registry: CatalogRegistry, issues: CatalogIssue[]): void {

@@ -1,15 +1,15 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import type { AgentPlan, AgentPlanSnapshot, AgentRun, AgentTask } from '../state/types.js'
-import { createRuntimePlanCreationBridge } from './runtimePlanCreationBridge.js'
+import type { AgentTaskGraph, AgentTaskGraphSnapshot, AgentRun, AgentTask } from '../state/types.js'
+import { createRuntimeTaskGraphCreationBridge } from './runtimePlanCreationBridge.js'
 
-test('createRuntimePlanCreationBridge wires plan creation dependencies and task events', async () => {
+test('createRuntimeTaskGraphCreationBridge wires taskGraph creation dependencies and task events', async () => {
   const calls: string[] = []
-  const plan = makePlan()
-  const task = { id: 'task_1', planId: 'plan_1' } as AgentTask
-  const previous = { id: 'task_1', planId: 'plan_1' } as AgentTask
-  const snapshot = { plan, tasks: [task], runs: [] } as unknown as AgentPlanSnapshot
-  const bridge = createRuntimePlanCreationBridge({
+  const taskGraph = makeTaskGraph()
+  const task = { id: 'task_1', taskGraphId: 'task_graph_1' } as AgentTask
+  const previous = { id: 'task_1', taskGraphId: 'task_graph_1' } as AgentTask
+  const snapshot = { taskGraph, tasks: [task], runs: [] } as unknown as AgentTaskGraphSnapshot
+  const bridge = createRuntimeTaskGraphCreationBridge({
     store: { label: 'store' } as never,
     generatePlanTasks: async () => {
       calls.push('generate')
@@ -34,37 +34,37 @@ test('createRuntimePlanCreationBridge wires plan creation dependencies and task 
         return undefined
       },
     },
-    getPlanSnapshot: (planId) => {
-      calls.push(`snapshot:${planId}`)
+    getTaskGraphSnapshot: (taskGraphId) => {
+      calls.push(`snapshot:${taskGraphId}`)
       return snapshot
     },
-    createPlanRequest: async (input) => {
+    createTaskGraphRequest: async (input) => {
       await input.generatePlanTasks({ goal: 'goal' })
       input.createRun({ threadId: 'thread_1' })
       input.onTaskCreated?.(task)
       input.onInlineTaskAssigned?.(task, previous)
-      const result = input.getPlanSnapshot('plan_1')
-      calls.push(`createPlan:${input.planId.startsWith('plan_')}:${typeof input.now}`)
+      const result = input.getTaskGraphSnapshot('task_graph_1')
+      calls.push(`createTaskGraph:${input.taskGraphId.startsWith('plan_')}:${typeof input.now}`)
       return result
     },
   })
 
-  assert.equal(await bridge.createPlan({ threadId: 'thread_1', goal: 'goal' }), snapshot)
+  assert.equal(await bridge.createTaskGraph({ threadId: 'thread_1', goal: 'goal' }), snapshot)
   assert.deepEqual(calls, [
     'generate',
     'createRun',
     'protocol:task_1:none',
     'event:task_1:task_1',
-    'snapshot:plan_1',
-    'createPlan:true:string',
+    'snapshot:task_graph_1',
+    'createTaskGraph:true:string',
   ])
 })
 
-function makePlan(): AgentPlan {
+function makeTaskGraph(): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',

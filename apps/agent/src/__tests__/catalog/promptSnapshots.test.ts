@@ -14,8 +14,8 @@ test('default profile prompt composition covers global policy and triggered work
   const persona = profile.persona ? catalog.layeredRegistry.skills.get(profile.persona) : undefined
   const policies = profile.enabledPolicies.map((id) => catalog.layeredRegistry.skills.get(id))
   const workflows = [
-    catalog.layeredRegistry.skills.get('movscript.workflow.project-standards-proposal'),
-    catalog.layeredRegistry.skills.get('movscript.workflow.proposal-first'),
+    catalog.layeredRegistry.skills.get('movscript.workflow.project_standards_proposal'),
+    catalog.layeredRegistry.skills.get('kernel.workflow.proposal_first'),
   ]
 
   assert.ok(!persona || persona.kind === 'persona')
@@ -40,13 +40,13 @@ test('default profile prompt composition covers global policy and triggered work
 
   assert.match(prompt.systemPrompt, /Project Standards Proposal/)
   assert.match(prompt.systemPrompt, /Proposal First/)
-  assert.match(prompt.systemPrompt, /movscript_read_project_scripts/)
+  assert.match(prompt.systemPrompt, /movscript_project_script_read/)
   assert.match(prompt.systemPrompt, /项目规范必须先基于剧本题材/)
   assert.match(prompt.systemPrompt, /定义 agent 对自身运行能力的稳定认知/)
   assert.match(prompt.systemPrompt, /能力发现、上下文读取、记忆、用户输入、catalog、审批状态和 planner subagents/)
   assert.match(prompt.systemPrompt, /当前 profile、active workflows、可见工具和工具 schema 是本轮能力边界/)
   assert.doesNotMatch(prompt.systemPrompt, /\{\{schema:/)
-  assert.ok(prompt.parts.some((part) => part.id === 'movscript.policy.agent-core'))
-  assert.equal(prompt.parts.some((part) => part.id === 'movscript.policy.drafts'), false)
-  assert.ok(prompt.parts.some((part) => part.id === 'movscript.workflow.project-standards-proposal'))
+  assert.ok(prompt.parts.some((part) => part.id === 'core.policy.runtime'))
+  assert.equal(prompt.parts.some((part) => part.id === 'draft.policy.lifecycle'), false)
+  assert.ok(prompt.parts.some((part) => part.id === 'movscript.workflow.project_standards_proposal'))
 })

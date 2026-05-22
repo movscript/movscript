@@ -9,7 +9,7 @@ export interface BuildAgentRunInputSnapshotInput {
   clientInput?: JSONValue
   role?: AgentRunRole
   parentRunId?: string
-  planId?: string
+  taskGraphId?: string
   taskId?: string
   forcedToolCall?: ToolCall
   task?: AgentRunInput['task']
@@ -26,11 +26,11 @@ export function buildAgentRunInputSnapshot(input: BuildAgentRunInputSnapshotInpu
     ...(input.clientInput !== undefined ? { clientInput: cloneJSONValue(input.clientInput) } : {}),
     ...(input.sourceMessage ? { sourceMessageId: input.sourceMessage.id } : {}),
     executionMode,
-    ...(input.parentRunId || input.planId || input.taskId
+    ...(input.parentRunId || input.taskGraphId || input.taskId
       ? {
         parent: {
           ...(input.parentRunId ? { runId: input.parentRunId } : {}),
-          ...(input.planId ? { planId: input.planId } : {}),
+          ...(input.taskGraphId ? { taskGraphId: input.taskGraphId } : {}),
           ...(input.taskId ? { taskId: input.taskId } : {}),
         },
       }

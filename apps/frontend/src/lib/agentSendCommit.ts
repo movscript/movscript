@@ -7,9 +7,10 @@ import { handleSendAbort, handleSendFailure } from '@/lib/agentSendError'
 import { prepareSendRuntime } from '@/lib/agentSendRuntimeReadiness'
 import { handleSendRunUpdate, handleSendStreamEvent, type AgentSendRunUpdateDeps } from '@/lib/agentSendStream'
 import { createLocalAgentStopAbortError } from '@/lib/agentRunControl'
-import { localAgentClient, type AgentRun, type AgentRunStreamEvent, type AgentThread } from '@/lib/localAgentClient'
+import { localAgentClient, type AgentProgressChecklistRevision, type AgentRun, type AgentRunStreamEvent, type AgentThread } from '@/lib/localAgentClient'
 import { syncRuntimeModelConfig } from '@/lib/runtimeChat'
 import { fetchResourceById } from '@/lib/agentMessageViewModel'
+import { isRecord } from '@/lib/jsonValue'
 import { stripAttachmentPreviewUrl } from '@/components/agent/useAgentComposerController'
 import { useAgentStore, type AgentAttachment, type ChatMessage, type ChatRunActivityEvent } from '@/store/agentStore'
 import { useAgentSessionStore, type AgentConversationRuntimeState, type AgentPageTaskState } from '@/store/agentSessionStore'
@@ -181,6 +182,10 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
           updateActivityEvents,
           recordLiveTraceEvent: deps.recordLiveTraceEvent,
         })
+        const progressChecklistMessage = progressChecklistMessageFromStreamEvent(event)
+        if (progressChecklistMessage) {
+          deps.messageStore.upsertMessage(deps.userId, deps.conversationId, progressChecklistMessage.id, progressChecklistMessage.message)
+        }
         if (event.type === 'trace' && event.event.title === 'Runtime input consumed') {
           const data = event.event.data && typeof event.event.data === 'object'
             ? event.event.data as { messageIds?: unknown }
@@ -283,4 +288,46 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
     deps.resetStreamingAssistant()
     deps.setConversationRuntime(deps.conversationId, { stopRequested: false, stopping: false, loading: false, building: false })
   }
+}
+
+function progressChecklistMessageFromStreamEvent(event: AgentRunStreamEvent): {
+  id: string
+  message: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp: number }
+} | undefined {
+  if (event.type !== 'trace' || event.event.toolName !== 'core_progress_update' || !isRecord(event.event.data)) return undefined
+  const result = event.event.data.result
+  if (!isRecord(result)) return undefined
+  const revision = result.revision
+  const runtimeMessage = result.message
+  if (!isProgressChecklistRevision(revision) || !isRecord(runtimeMessage)) return undefined
+  const messageId = typeof runtimeMessage.id === 'string' && runtimeMessage.id ? runtimeMessage.id : revision.id
+  const threadId = typeof runtimeMessage.threadId === 'string' && runtimeMessage.threadId ? runtimeMessage.threadId : revision.threadId
+  const runId = typeof runtimeMessage.runId === 'string' && runtimeMessage.runId ? runtimeMessage.runId : event.runId
+  const createdAt = typeof runtimeMessage.createdAt === 'string' ? runtimeMessage.createdAt : revision.createdAt
+  const timestamp = Date.parse(createdAt)
+  return {
+    id: `runtime:${messageId}`,
+    message: {
+      role: 'assistant',
+      content: typeof runtimeMessage.content === 'string' && runtimeMessage.content ? runtimeMessage.content : 'Progress checklist updated',
+      meta: {
+        progressChecklistRevision: revision,
+        runtimeMessage: {
+          threadId,
+          messageId,
+          runId,
+        },
+      },
+      timestamp: Number.isFinite(timestamp) ? timestamp : Date.now(),
+    },
+  }
+}
+
+function isProgressChecklistRevision(value: unknown): value is AgentProgressChecklistRevision {
+  if (!isRecord(value) || value.schema !== 'movscript.agent.progress-checklist-revision.v1') return false
+  if (typeof value.id !== 'string' || typeof value.taskGraphId !== 'string' || typeof value.threadId !== 'string') return false
+  if (typeof value.createdAt !== 'string' || !isRecord(value.snapshot)) return false
+  const snapshot = value.snapshot
+  if (snapshot.schema !== 'movscript.agent.progress-checklist.v1') return false
+  return Array.isArray(snapshot.items)
 }

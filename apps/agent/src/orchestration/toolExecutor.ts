@@ -45,9 +45,7 @@ export interface ToolExecutorOptions {
 export interface AgentCatalogToolManager {
   inspectAgentCatalog(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   updateActiveSkills(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
-  createAgentPlan(run: AgentRun, input?: Record<string, JSONValue>): Promise<JSONValue> | JSONValue
-  getAgentPlan(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
-  replanAgentPlan(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
+  updateProgressChecklist(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   spawnSubagent(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   listSubagents(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   waitSubagent(run: AgentRun, input?: Record<string, JSONValue>): Promise<JSONValue> | JSONValue
@@ -79,7 +77,7 @@ export async function executeTool(call: ToolCall, options: ToolExecutorOptions):
   }
 
   // Runtime tools handled locally
-  const runtimeResult = await callRuntimeTool(call.name, args, run, draftStore, backendApplyClient, fileSystem, memoryManager, knowledgeManager, catalogManager, sandboxMode, options.signal)
+  const runtimeResult = await callRuntimeTool(call.name, args, run, mcpClient, draftStore, backendApplyClient, fileSystem, memoryManager, knowledgeManager, catalogManager, sandboxMode, options.signal)
   throwIfAborted(options.signal)
   if (runtimeResult !== undefined) {
     return { call, result: runtimeResult, source: 'runtime' }
@@ -100,6 +98,7 @@ async function callRuntimeTool(
   toolName: string,
   args: Record<string, JSONValue>,
   run: AgentRun,
+  mcpClient: Pick<MCPClient, 'initialize' | 'callTool'>,
   draftStore: AgentDraftStore,
   backendApplyClient: BackendApplyClient,
   fileSystem: AgentFileSystem,
@@ -109,77 +108,67 @@ async function callRuntimeTool(
   _sandboxMode: boolean,
   signal?: AbortSignal,
 ): Promise<JSONValue | undefined> {
-  if (toolName === 'movscript_inspect_agent_catalog') {
+  if (toolName === 'core_catalog_inspect') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
     return catalogManager.inspectAgentCatalog(run, args)
   }
 
-  if (toolName === 'movscript_update_active_skills') {
+  if (toolName === 'core_skill_update') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
     return catalogManager.updateActiveSkills(run, args)
   }
 
-  if (toolName === 'movscript_create_plan') {
+  if (toolName === 'core_progress_update') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.createAgentPlan(run, args)
+    return catalogManager.updateProgressChecklist(run, args)
   }
 
-  if (toolName === 'movscript_get_plan') {
-    if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.getAgentPlan(run, args)
-  }
-
-  if (toolName === 'movscript_replan') {
-    if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.replanAgentPlan(run, args)
-  }
-
-  if (toolName === 'movscript_spawn_subagent') {
+  if (toolName === 'core_subagent_spawn') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
     return catalogManager.spawnSubagent(run, args)
   }
 
-  if (toolName === 'movscript_list_subagents') {
+  if (toolName === 'core_subagent_list') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
     return catalogManager.listSubagents(run, args)
   }
 
-  if (toolName === 'movscript_wait_subagent') {
+  if (toolName === 'core_subagent_wait') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
     return catalogManager.waitSubagent(run, args)
   }
 
-  if (toolName === 'runtime_operation_start') {
+  if (toolName === 'core_operation_start') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
     return catalogManager.startOperation(run, args, { signal })
   }
 
-  if (toolName === 'runtime_operation_get') {
+  if (toolName === 'core_operation_get') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
     return catalogManager.getOperation(run, args)
   }
 
-  if (toolName === 'runtime_operation_list') {
+  if (toolName === 'core_operation_list') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
     return catalogManager.listOperation(run, args)
   }
 
-  if (toolName === 'runtime_operation_wait') {
+  if (toolName === 'core_operation_wait') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
     return catalogManager.waitOperation(run, args, { signal })
   }
 
-  if (toolName === 'runtime_operation_cancel') {
+  if (toolName === 'core_operation_cancel') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
     return catalogManager.cancelOperation(run, args, { signal })
   }
 
-  if (toolName === 'movscript_cancel_subagent') {
+  if (toolName === 'core_subagent_cancel') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
     return catalogManager.cancelSubagent(run, args)
   }
 
-  if (toolName === 'movscript_get_project_standards') {
+  if (toolName === 'movscript_project_standards_get') {
     const projectId = projectIdField(args.projectId)
       ?? projectIdField(args.project_id)
       ?? projectIdFromRunContext(run)
@@ -199,9 +188,9 @@ async function callRuntimeTool(
     }) as unknown as JSONValue
   }
 
-  if (toolName === 'movscript_create_draft') {
-    if (args.proposal === true || args.proposalKind !== undefined) {
-      return createProposalDraft(draftStore, run, args) as unknown as JSONValue
+  if (toolName === 'draft_create') {
+    if (args.proposal === true || args.proposalKind !== undefined || isStructuredProposalDraftKind(args.kind)) {
+      return await createProposalDraft(draftStore, run, mcpClient, args, signal) as unknown as JSONValue
     }
     return draftStore.createDraft({
       projectId: isValidAgentProjectId(args.projectId) ? args.projectId : undefined,
@@ -222,13 +211,13 @@ async function callRuntimeTool(
     }) as unknown as JSONValue
   }
 
-  if (toolName === 'movscript_get_draft') {
+  if (toolName === 'draft_get') {
     const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
     if (!draftId) throw new Error('get_draft requires draftId')
     const draft = draftStore.getDraft(draftId)
     if (!draft) {
       const scriptHint = /^\d+$/.test(draftId)
-        ? ' movscript_get_draft only reads Agent local review draft artifacts, not backend project script IDs. To read 总剧本、第一集、分集剧本, or script body content, call movscript_read_project_scripts with projectId, scriptId or scriptTitle, and includeContent: true.'
+        ? ' draft_get only reads Agent local review draft artifacts, not backend project script IDs. To read 总剧本、第一集、分集剧本, or script body content, call movscript_project_script_read with projectId, scriptId or scriptTitle, and includeContent: true.'
         : ''
       throw new Error(`draft not found: ${draftId}.${scriptHint}`)
     }
@@ -246,11 +235,13 @@ async function callRuntimeTool(
     } as unknown as JSONValue
   }
 
-  if (toolName === 'agent_file_read') {
+  if (toolName === 'draft_file_read') {
     const ref = stringField(args.ref)
-    if (!ref) throw new Error('agent_file_read requires ref')
+    if (!ref) throw new Error('draft_file_read requires ref')
     const read = fileSystem.read({ ref })
     const jsonPointer = stringField(args.jsonPointer ?? args.json_pointer)
+    const startLine = positiveIntegerField(args.startLine ?? args.start_line)
+    const lineCount = positiveIntegerField(args.lineCount ?? args.line_count)
     const contentLimit = Math.max(1, Math.min(Math.floor(numberField(args.contentLimit ?? args.content_limit) ?? 20000), 100000))
     const base = {
       status: 'read',
@@ -267,6 +258,21 @@ async function callRuntimeTool(
         value: selectJSONPointerValue(read.content, jsonPointer) as JSONValue,
       } as unknown as JSONValue
     }
+    if (startLine !== undefined || lineCount !== undefined) {
+      const range = selectLineRange(read.content, {
+        startLine: startLine ?? 1,
+        lineCount: Math.min(lineCount ?? 120, 1000),
+      })
+      const limitedContent = range.content.length > contentLimit ? range.content.slice(0, contentLimit) : range.content
+      return {
+        ...base,
+        startLine: range.startLine,
+        endLine: range.endLine,
+        totalLines: range.totalLines,
+        content: limitedContent,
+        truncated: range.truncated || range.content.length > contentLimit,
+      } as unknown as JSONValue
+    }
     return {
       ...base,
       content: read.content.length > contentLimit ? read.content.slice(0, contentLimit) : read.content,
@@ -274,12 +280,12 @@ async function callRuntimeTool(
     } as unknown as JSONValue
   }
 
-  if (toolName === 'agent_file_search') {
+  if (toolName === 'draft_file_search') {
     const ref = stringField(args.ref)
-    if (!ref) throw new Error('agent_file_search requires ref')
+    if (!ref) throw new Error('draft_file_search requires ref')
     const query = stringField(args.query)
     const limit = Math.max(1, Math.min(Math.floor(numberField(args.limit) ?? 20), 100))
-    if (!query) throw new Error('agent_file_search requires query')
+    if (!query) throw new Error('draft_file_search requires query')
     const result = fileSystem.search({ ref, query, limit })
     return {
       status: 'searched',
@@ -292,10 +298,10 @@ async function callRuntimeTool(
     } as unknown as JSONValue
   }
 
-  if (toolName === 'agent_file_edit') {
+  if (toolName === 'draft_file_edit') {
     const ref = stringField(args.ref)
-    if (!ref) throw new Error('agent_file_edit requires ref')
-    const edits = normalizeAgentFileEdits(args.edits)
+    if (!ref) throw new Error('draft_file_edit requires ref')
+    const edits = normalizeAgentFileEdits(args.edits, args.patch)
     const baseRevision = stringField(args.baseRevision ?? args.base_revision)
     const result = fileSystem.edit({
       ref,
@@ -313,9 +319,9 @@ async function callRuntimeTool(
     } as unknown as JSONValue
   }
 
-  if (toolName === 'agent_file_validate') {
+  if (toolName === 'draft_file_validate') {
     const ref = stringField(args.ref)
-    if (!ref) throw new Error('agent_file_validate requires ref')
+    if (!ref) throw new Error('draft_file_validate requires ref')
     return {
       status: 'validated',
       ref,
@@ -323,7 +329,7 @@ async function callRuntimeTool(
     } as unknown as JSONValue
   }
 
-  if (toolName === 'movscript_validate_draft') {
+  if (toolName === 'draft_validate') {
     const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
     if (!draftId) throw new Error('validate_draft requires draftId')
     const draft = draftStore.getDraft(draftId)
@@ -335,7 +341,7 @@ async function callRuntimeTool(
     } as unknown as JSONValue
   }
 
-  if (toolName === 'movscript_preview_draft_apply') {
+  if (toolName === 'draft_apply_preview') {
     const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
     if (!draftId) throw new Error('preview_draft_apply requires draftId')
     const draft = draftStore.getDraft(draftId)
@@ -343,7 +349,7 @@ async function callRuntimeTool(
     return previewDraftApply(draftStore, backendApplyClient, draft, args) as unknown as JSONValue
   }
 
-  if (toolName === 'movscript_apply_draft') {
+  if (toolName === 'draft_apply') {
     const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
     if (!draftId) throw new Error('apply_draft requires draftId')
     const draft = draftStore.getDraft(draftId)
@@ -385,7 +391,7 @@ async function callRuntimeTool(
     } as unknown as JSONValue
   }
 
-  if (toolName === 'movscript_search_memories') {
+  if (toolName === 'core_memory_search') {
     if (!memoryManager) return { memories: [], count: 0 } as unknown as JSONValue
     const projectId = projectIdField(args.projectId)
     if (projectId === undefined) throw new Error('search_memories requires projectId')
@@ -408,12 +414,12 @@ async function callRuntimeTool(
     } as unknown as JSONValue
   }
 
-  if (toolName === 'movscript_search_knowledge') {
+  if (toolName === 'knowledge_search') {
     if (!knowledgeManager) return { results: [] } as unknown as JSONValue
     return knowledgeManager.search(args) as unknown as JSONValue
   }
 
-  if (toolName === 'movscript_get_knowledge') {
+  if (toolName === 'knowledge_get') {
     if (!knowledgeManager) throw new Error('knowledge manager unavailable')
     const budget = remainingKnowledgeBudget(run, stringField(args.id))
     if (budget.remainingChunks <= 0) {
@@ -425,7 +431,7 @@ async function callRuntimeTool(
     return knowledgeManager.get(args, { maxChars: budget.remainingChars })
   }
 
-  if (toolName === 'movscript_get_memory') {
+  if (toolName === 'core_memory_get') {
     if (!memoryManager) return null as unknown as JSONValue
     const projectId = projectIdField(args.projectId)
     const id = stringField(args.id) ?? stringField(args.memoryId)
@@ -435,7 +441,7 @@ async function callRuntimeTool(
     return (memory ?? null) as unknown as JSONValue
   }
 
-  if (toolName === 'movscript_create_memory') {
+  if (toolName === 'core_memory_create') {
     if (!memoryManager) throw new Error('memory manager unavailable')
     const projectId = projectIdField(args.projectId)
     const title = stringField(args.title)
@@ -457,7 +463,7 @@ async function callRuntimeTool(
     return memory as unknown as JSONValue
   }
 
-  if (toolName === 'movscript_delete_memory') {
+  if (toolName === 'core_memory_delete') {
     if (!memoryManager) throw new Error('memory manager unavailable')
     const projectId = projectIdField(args.projectId)
     const id = stringField(args.id) ?? stringField(args.memoryId)
@@ -499,6 +505,13 @@ function numberField(value: JSONValue | undefined): number | undefined {
     return Number.isFinite(parsed) ? parsed : undefined
   }
   return undefined
+}
+
+function positiveIntegerField(value: JSONValue | undefined): number | undefined {
+  const number = numberField(value)
+  if (number === undefined) return undefined
+  const integer = Math.floor(number)
+  return integer > 0 ? integer : undefined
 }
 
 function projectIdField(value: JSONValue | undefined): number | undefined {
@@ -544,7 +557,7 @@ function remainingKnowledgeBudget(run: AgentRun, requestedId?: string): {
     store: buildRetrievedContextStore(metadata?.contextLedger),
     source: 'knowledge',
     refType: 'knowledge',
-    summaryPrefix: 'movscript_get_knowledge ',
+    summaryPrefix: 'knowledge_get ',
   })
   const uniqueLoadedChunks = new Set(uniqueRetrievedContextRefs(loadedKnowledge).map((ref) => ref.id))
   const usedChars = countRetrievedContextChars(loadedKnowledge)
@@ -580,6 +593,15 @@ function normalizeProposalDraftKind(value: JSONValue | undefined): AgentDraftKin
     : undefined
 }
 
+function isStructuredProposalDraftKind(value: JSONValue | undefined): boolean {
+  return value === 'script_split_proposal'
+    || value === 'setting_proposal'
+    || value === 'asset_proposal'
+    || value === 'project_standards_proposal'
+    || value === 'production_proposal'
+    || value === 'content_unit_proposal'
+}
+
 function normalizeProposalDraftContent(value: JSONValue | undefined): string | undefined {
   if (typeof value === 'string' && value.trim().length > 0) return value.trim()
   if (value === null) return 'null'
@@ -588,7 +610,7 @@ function normalizeProposalDraftContent(value: JSONValue | undefined): string | u
   return undefined
 }
 
-function validateStructuredProposalDraftContent(kind: AgentDraftKind, content: string): void {
+function validateStructuredProposalDraftContent(kind: AgentDraftKind, content: string): Record<string, JSONValue> | undefined {
   const requiredSchema = kind === 'script_split_proposal'
     ? DRAFT_CONTENT_SCHEMA_IDS.scriptSplit
     : kind === 'setting_proposal'
@@ -602,7 +624,7 @@ function validateStructuredProposalDraftContent(kind: AgentDraftKind, content: s
           : kind === 'content_unit_proposal'
             ? DRAFT_CONTENT_SCHEMA_IDS.contentUnitProposal
           : undefined
-  if (!requiredSchema) return
+  if (!requiredSchema) return undefined
   let parsed: unknown
   try {
     parsed = JSON.parse(content)
@@ -612,6 +634,7 @@ function validateStructuredProposalDraftContent(kind: AgentDraftKind, content: s
   if (!isJSONRecord(parsed) || parsed.schema !== requiredSchema) {
     throw new Error(`create_proposal ${kind} content must include schema ${requiredSchema}`)
   }
+  return parsed
 }
 
 function normalizeProposalDraftTarget(value: unknown): AgentDraftTarget | undefined {
@@ -950,10 +973,40 @@ function decodeToolJSONPointer(path: string): string[] {
   return path.slice(1).split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~'))
 }
 
-function normalizeAgentFileEdits(value: JSONValue | undefined): AgentFileEdit[] {
-  if (!Array.isArray(value)) throw new Error('agent_file_edit requires edits')
+function selectLineRange(content: string, input: { startLine: number; lineCount: number }): {
+  content: string
+  startLine: number
+  endLine: number
+  totalLines: number
+  truncated: boolean
+} {
+  const lines = content.split(/\r?\n/)
+  const totalLines = lines.length
+  const startLine = Math.min(input.startLine, Math.max(totalLines, 1))
+  const startIndex = startLine - 1
+  const endIndexExclusive = Math.min(startIndex + input.lineCount, totalLines)
+  const selected = lines.slice(startIndex, endIndexExclusive)
+  return {
+    content: selected.join('\n'),
+    startLine,
+    endLine: endIndexExclusive,
+    totalLines,
+    truncated: startLine > 1 || endIndexExclusive < totalLines,
+  }
+}
+
+function normalizeAgentFileEdits(value: JSONValue | undefined, patch: JSONValue | undefined): AgentFileEdit[] {
+  if (typeof patch === 'string' && patch.trim()) {
+    if (value !== undefined) throw new Error('draft_file_edit accepts either edits or patch, not both')
+    return [{ type: 'apply_patch', patch }]
+  }
+  if (!Array.isArray(value)) throw new Error('draft_file_edit requires edits or patch')
   return value.map((edit) => {
-    if (!isJSONRecord(edit)) throw new Error('agent_file_edit edit must be an object')
+    if (!isJSONRecord(edit)) throw new Error('draft_file_edit edit must be an object')
+    if (edit.type === 'apply_patch') {
+      if (typeof edit.patch !== 'string') throw new Error('apply_patch edit requires patch')
+      return { type: 'apply_patch', patch: edit.patch }
+    }
     if (edit.type === 'set_content') {
       if (typeof edit.content !== 'string') throw new Error('set_content edit requires content')
       return { type: 'set_content', content: edit.content }
@@ -972,11 +1025,303 @@ function normalizeAgentFileEdits(value: JSONValue | undefined): AgentFileEdit[] 
   })
 }
 
-function createProposalDraft(
+interface PreparedProposalDraftContent {
+  content: string
+  seed?: JSONValue
+  hydratedProposalBase?: boolean
+  seededProposalSnapshot?: boolean
+}
+
+async function prepareProposalDraftContent(input: {
+  kind: AgentDraftKind
+  content: string
+  target?: AgentDraftTarget
+  mcpClient: Pick<MCPClient, 'initialize' | 'callTool'>
+  signal?: AbortSignal
+}): Promise<PreparedProposalDraftContent> {
+  const kind = input.kind
+  if (kind !== 'setting_proposal' && kind !== 'asset_proposal') {
+    return { content: input.content }
+  }
+  const originalParsed = parseProposalDraftContent(kind, input.content)
+  const parsed = normalizeProjectLayerProposalSnapshotContent(kind, originalParsed)
+  const normalizedSnapshotContent = JSON.stringify(parsed) !== JSON.stringify(originalParsed)
+  if (!hasProjectLayerTarget(input.target)) {
+    const contentWithoutBase = removeProjectLayerSnapshotBase(parsed)
+    if (!normalizedSnapshotContent && JSON.stringify(contentWithoutBase) === JSON.stringify(originalParsed)) return { content: input.content }
+    return { content: JSON.stringify(contentWithoutBase, null, 2) }
+  }
+
+  const hydrated = await hydrateProjectLayerSnapshotBase({ ...input, kind })
+  const seeded = seedProjectLayerProposalSnapshot(kind, removeProjectLayerSnapshotBase(parsed), hydrated.snapshotBase)
+  return {
+    content: JSON.stringify(seeded.content, null, 2),
+    seed: hydrated.seed,
+    hydratedProposalBase: true,
+    ...(seeded.changed ? { seededProposalSnapshot: true } : {}),
+  }
+}
+
+function parseProposalDraftContent(kind: AgentDraftKind, content: string): Record<string, JSONValue> {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(content)
+  } catch {
+    throw new Error(`create_proposal ${kind} content must be canonical JSON`)
+  }
+  if (!isJSONRecord(parsed)) throw new Error(`create_proposal ${kind} content must be a JSON object`)
+  return parsed
+}
+
+function hasProjectLayerTarget(target: AgentDraftTarget | undefined): boolean {
+  if (!isJSONRecord(target)) return false
+  return projectIdField(target.projectId) !== undefined || projectIdField(target.entityId) !== undefined
+}
+
+function removeProjectLayerSnapshotBase(parsed: Record<string, JSONValue>): Record<string, JSONValue> {
+  const rest = { ...parsed }
+  delete rest.snapshot_base
+  return rest
+}
+
+function mergeHydratedProjectLayerBaseIntoProposal(
+  kind: Extract<AgentDraftKind, 'setting_proposal' | 'asset_proposal'>,
+  parsed: Record<string, JSONValue>,
+  hydratedSnapshotBase: Record<string, JSONValue>,
+): { content: Record<string, JSONValue>; changed: boolean } {
+  const field = kind === 'setting_proposal' ? 'creative_references' : 'asset_slots'
+  const hydratedItems = Array.isArray(hydratedSnapshotBase[field]) ? hydratedSnapshotBase[field] : []
+  const proposal = isJSONRecord(parsed.proposal) ? parsed.proposal : {}
+  const proposedItems = Array.isArray(proposal[field]) ? proposal[field] : undefined
+  const shouldSeedWithHydratedItems = proposedItems === undefined
+    || proposedItems.length === 0
+    || (hydratedItems.length > 0 && proposedItems.every(isNewSnapshotNode))
+  if (!shouldSeedWithHydratedItems) return { content: parsed, changed: false }
+  const nextItems = proposedItems !== undefined && proposedItems.length > 0
+    ? [...cloneJSONValue(hydratedItems), ...proposedItems]
+    : cloneJSONValue(hydratedItems)
+  return {
+    content: {
+      ...parsed,
+      proposal: {
+        ...proposal,
+        [field]: nextItems,
+      },
+    },
+    changed: true,
+  }
+}
+
+function isNewSnapshotNode(value: JSONValue): boolean {
+  if (!isJSONRecord(value)) return true
+  return normalizedNumber(value.id) === undefined && normalizedNumber(value.ID) === undefined
+}
+
+function normalizeProjectLayerProposalSnapshotContent(
+  kind: Extract<AgentDraftKind, 'setting_proposal' | 'asset_proposal'>,
+  parsed: Record<string, JSONValue>,
+): Record<string, JSONValue> {
+  if (kind !== 'asset_proposal') return parsed
+  const proposal = isJSONRecord(parsed.proposal) ? parsed.proposal : undefined
+  const nextProposal = proposal && Array.isArray(proposal.asset_slots)
+    ? { ...proposal, asset_slots: normalizeAssetProposalSnapshotSlots(proposal.asset_slots) }
+    : proposal
+  return {
+    ...parsed,
+    ...(nextProposal ? { proposal: nextProposal } : {}),
+  }
+}
+
+function normalizeAssetProposalSnapshotSlots(value: JSONValue[]): JSONValue[] {
+  return value.map((item) => {
+    if (!isJSONRecord(item)) return item
+    const normalized: Record<string, JSONValue> = {}
+    setNormalizedField(normalized, 'client_id', normalizedString(item.client_id))
+    setNormalizedField(normalized, 'id', normalizedNumber(item.id) ?? normalizedNumber(item.ID))
+    setNormalizedOwner(normalized, item.owner)
+    setNormalizedField(normalized, 'production_id', normalizedNumber(item.production_id) ?? normalizedNumber(item.ProductionID))
+    setNormalizedField(normalized, 'creative_reference_id', normalizedNumber(item.creative_reference_id) ?? normalizedNumber(item.CreativeReferenceID))
+    setNormalizedField(normalized, 'creative_reference_state_id', normalizedNumber(item.creative_reference_state_id) ?? normalizedNumber(item.CreativeReferenceStateID))
+    setNormalizedField(normalized, 'owner_type', normalizedString(item.owner_type) ?? normalizedString(item.OwnerType))
+    setNormalizedField(normalized, 'owner_id', normalizedNumber(item.owner_id) ?? normalizedNumber(item.OwnerID))
+    setNormalizedField(normalized, 'kind', normalizedString(item.kind) ?? normalizedString(item.Kind))
+    setNormalizedField(normalized, 'name', normalizedString(item.name) ?? normalizedString(item.Name))
+    setNormalizedField(normalized, 'description', normalizedString(item.description) ?? normalizedString(item.Description))
+    setNormalizedField(normalized, 'slot_key', normalizedString(item.slot_key) ?? normalizedString(item.SlotKey))
+    setNormalizedField(normalized, 'prompt_hint', normalizedString(item.prompt_hint) ?? normalizedString(item.PromptHint))
+    setNormalizedField(normalized, 'priority', normalizedString(item.priority) ?? normalizedString(item.Priority))
+    setNormalizedField(normalized, 'status', normalizedString(item.status) ?? normalizedString(item.Status))
+    setNormalizedField(normalized, 'resource_id', normalizedNumber(item.resource_id) ?? normalizedNumber(item.ResourceID))
+    setNormalizedField(normalized, 'locked_asset_slot_id', normalizedNumber(item.locked_asset_slot_id) ?? normalizedNumber(item.LockedAssetSlotID))
+    setNormalizedField(normalized, 'metadata_json', normalizedString(item.metadata_json) ?? normalizedString(item.MetadataJSON))
+    return normalized
+  })
+}
+
+function setNormalizedOwner(out: Record<string, JSONValue>, value: JSONValue | undefined): void {
+  if (!isJSONRecord(value)) return
+  const owner: Record<string, JSONValue> = {}
+  setNormalizedField(owner, 'type', normalizedString(value.type))
+  setNormalizedField(owner, 'id', normalizedNumber(value.id))
+  setNormalizedField(owner, 'client_id', normalizedString(value.client_id))
+  if (owner.type !== undefined) out.owner = owner
+}
+
+function setNormalizedField(out: Record<string, JSONValue>, key: string, value: JSONValue | undefined): void {
+  if (value !== undefined) out[key] = value
+}
+
+function normalizedString(value: JSONValue | undefined): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function normalizedNumber(value: JSONValue | undefined): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value !== 'string' || !value.trim()) return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function seedProjectLayerProposalSnapshot(
+  kind: Extract<AgentDraftKind, 'setting_proposal' | 'asset_proposal'>,
+  parsed: Record<string, JSONValue>,
+  snapshotBase: Record<string, JSONValue>,
+): { content: Record<string, JSONValue>; changed: boolean } {
+  return mergeHydratedProjectLayerBaseIntoProposal(kind, parsed, snapshotBase)
+}
+
+function cloneJSONValue<T extends JSONValue>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
+async function hydrateProjectLayerSnapshotBase(input: {
+  kind: Extract<AgentDraftKind, 'setting_proposal' | 'asset_proposal'>
+  target?: AgentDraftTarget
+  mcpClient: Pick<MCPClient, 'initialize' | 'callTool'>
+  signal?: AbortSignal
+}): Promise<{ snapshotBase: Record<string, JSONValue>; seed?: JSONValue }> {
+  try {
+    await input.mcpClient.initialize({ signal: input.signal })
+    const contract = unwrapMCPToolData(await input.mcpClient.callTool('draft_model_get', {
+      kind: input.kind,
+      ...(input.target ? { target: input.target as unknown as JSONValue } : {}),
+      seedMode: 'editable_snapshot',
+      hydrate: true,
+    }, { signal: input.signal }))
+    const seed = isJSONRecord(contract) && isJSONRecord(contract.seed) ? contract.seed : undefined
+    const data = isJSONRecord(seed?.data) ? seed.data : undefined
+    if (input.kind === 'setting_proposal') {
+      const fallback = Array.isArray(data?.creative_references)
+        ? undefined
+        : await hydrateProjectLayerSeedFallback(input.mcpClient, input.target, 'creative_references', input.signal)
+      const creativeReferences = Array.isArray(data?.creative_references)
+        ? data.creative_references
+        : fallback?.value
+      if (!Array.isArray(creativeReferences)) throw new Error(missingHydratedSeedMessage('creative_references', seed, fallback))
+      return {
+        snapshotBase: { creative_references: creativeReferences as JSONValue },
+        ...(seed ? { seed } : {}),
+      }
+    }
+    const fallback = Array.isArray(data?.asset_slots)
+      ? undefined
+      : await hydrateProjectLayerSeedFallback(input.mcpClient, input.target, 'asset_slots', input.signal)
+    const assetSlots = Array.isArray(data?.asset_slots)
+      ? data.asset_slots
+      : fallback?.value
+    if (!Array.isArray(assetSlots)) throw new Error(missingHydratedSeedMessage('asset_slots', seed, fallback))
+    return {
+      snapshotBase: { asset_slots: normalizeAssetProposalSnapshotSlots(assetSlots as JSONValue[]) as JSONValue },
+      ...(seed ? { seed } : {}),
+    }
+  } catch (error) {
+    const field = input.kind === 'setting_proposal' ? 'creative_references' : 'asset_slots'
+    throw new Error(`create_proposal ${input.kind} could not hydrate proposal.${field} automatically: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+interface ProjectLayerSeedFallbackResult {
+  value?: unknown
+  diagnostic: string
+}
+
+async function hydrateProjectLayerSeedFallback(
+  mcpClient: Pick<MCPClient, 'callTool'>,
+  target: AgentDraftTarget | undefined,
+  field: 'creative_references' | 'asset_slots',
+  signal?: AbortSignal,
+): Promise<ProjectLayerSeedFallbackResult> {
+  const projectId = projectIdField(isJSONRecord(target) ? target.projectId : undefined)
+    ?? projectIdField(isJSONRecord(target) ? target.entityId : undefined)
+  if (projectId === undefined) return { diagnostic: 'fallback skipped: projectId unavailable from target' }
+  try {
+    if (field === 'creative_references') {
+      const result = unwrapMCPToolData(await mcpClient.callTool('movscript_creative_reference_query', {
+        project_id: projectId,
+        limit: 500,
+      }, { signal }))
+      const value = isJSONRecord(result) && Array.isArray(result.creative_references)
+        ? result.creative_references
+        : undefined
+      return {
+        ...(value ? { value } : {}),
+        diagnostic: value
+          ? `fallback movscript_creative_reference_query returned ${value.length} item(s)`
+          : `fallback movscript_creative_reference_query missing creative_references; result keys: ${jsonRecordKeys(result)}`,
+      }
+    }
+    const result = unwrapMCPToolData(await mcpClient.callTool('movscript_asset_slot_query', {
+      project_id: projectId,
+      include_internal: true,
+      limit: 500,
+    }, { signal }))
+    const value = isJSONRecord(result) && Array.isArray(result.asset_slots)
+      ? result.asset_slots
+      : undefined
+    return {
+      ...(value ? { value } : {}),
+      diagnostic: value
+        ? `fallback movscript_asset_slot_query returned ${value.length} item(s)`
+        : `fallback movscript_asset_slot_query missing asset_slots; result keys: ${jsonRecordKeys(result)}`,
+    }
+  } catch (error) {
+    return { diagnostic: `fallback query failed: ${error instanceof Error ? error.message : String(error)}` }
+  }
+}
+
+function missingHydratedSeedMessage(
+  field: 'creative_references' | 'asset_slots',
+  seed: Record<string, JSONValue> | undefined,
+  fallback: ProjectLayerSeedFallbackResult | undefined,
+): string {
+  const warnings = Array.isArray(seed?.warnings)
+    ? seed.warnings.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    : []
+  const data = isJSONRecord(seed?.data) ? seed.data : undefined
+  const details = [
+    `seed data keys: ${data ? Object.keys(data).join(', ') || '(none)' : '(missing)'}`,
+    ...(warnings.length > 0 ? [`seed warnings: ${warnings.join('; ')}`] : []),
+    ...(fallback ? [fallback.diagnostic] : []),
+  ]
+  return `hydrated seed did not include ${field}; ${details.join('; ')}`
+}
+
+function jsonRecordKeys(value: unknown): string {
+  return isJSONRecord(value) ? Object.keys(value).join(', ') || '(none)' : '(non-object)'
+}
+
+function unwrapMCPToolData(value: JSONValue): JSONValue {
+  if (isJSONRecord(value) && value.data !== undefined && isJSONValue(value.data)) return value.data
+  return value
+}
+
+async function createProposalDraft(
   draftStore: AgentDraftStore,
   run: AgentRun,
+  mcpClient: Pick<MCPClient, 'initialize' | 'callTool'>,
   args: Record<string, JSONValue>,
-): JSONValue {
+  signal?: AbortSignal,
+): Promise<JSONValue> {
   const kind = normalizeProposalDraftKind(args.kind)
   if (!kind) throw new Error('create_proposal requires kind')
   const context = isJSONRecord(run.metadata?.context) ? run.metadata.context : undefined
@@ -992,10 +1337,19 @@ function createProposalDraft(
   const target = normalizeProposalDraftTarget(args.target)
     ?? inferProposalDraftTarget(kind, projectId, context, pageContext, args)
   const title = stringField(args.title) ?? defaultProposalDraftTitle(kind, projectId, target)
-  const content = normalizeProposalDraftContent(args.content)
-  if (content === undefined) throw new Error('create_proposal requires content')
+  const rawContent = normalizeProposalDraftContent(args.content)
+  if (rawContent === undefined) throw new Error('create_proposal requires content')
+  const prepared = await prepareProposalDraftContent({
+    kind,
+    content: rawContent,
+    target,
+    mcpClient,
+    signal,
+  })
+  const content = prepared.content
   validateStructuredProposalDraftContent(kind, content)
   const source = normalizeProposalDraftSource(args.source, run, context, pageContext)
+  const seed = args.seed ?? prepared.seed
   const draft = draftStore.createDraft({
     projectId,
     kind,
@@ -1003,7 +1357,7 @@ function createProposalDraft(
     content,
     source,
     target,
-    seed: args.seed,
+    seed,
     createdByRunId: run.id,
     createdByThreadId: run.threadId,
     metadata: {
@@ -1014,6 +1368,8 @@ function createProposalDraft(
       ...(projectId !== undefined ? { projectId } : {}),
       ...(isJSONRecord(target) ? { target } : {}),
       ...(typeof source.pageKey === 'string' ? { pageKey: source.pageKey } : {}),
+      ...(prepared.hydratedProposalBase ? { proposalBaseHydrated: true } : {}),
+      ...(prepared.seededProposalSnapshot ? { proposalSnapshotSeeded: true } : {}),
     },
   })
   return {

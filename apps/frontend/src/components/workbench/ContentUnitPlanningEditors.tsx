@@ -4,13 +4,13 @@ import { Badge, Button } from '@movscript/ui'
 import { Label, Textarea } from '@movscript/ui'
 
 export type ContentUnitPlanningField =
-  | 'visual_plan_space'
-  | 'visual_plan_blocking'
-  | 'visual_plan_camera_path'
-  | 'visual_plan_beats'
-  | 'visual_plan_props'
-  | 'visual_plan_lighting'
-  | 'visual_plan_risks'
+  | 'visual_task_graph_space'
+  | 'visual_task_graph_blocking'
+  | 'visual_task_graph_camera_path'
+  | 'visual_task_graph_beats'
+  | 'visual_task_graph_props'
+  | 'visual_task_graph_lighting'
+  | 'visual_task_graph_risks'
   | 'storyboard_purpose'
   | 'storyboard_subject'
   | 'storyboard_composition'
@@ -42,13 +42,13 @@ export function ContentUnitStoryboardBriefEditor({
   value,
   ready,
   onFieldChange,
-  onAiVisualPlan,
+  onAiVisualTaskGraph,
 }: {
   unitId: number
   value: ContentUnitStoryboardBriefEditorValue
   ready: boolean
   onFieldChange: (field: ContentUnitPlanningField, value: string) => void
-  onAiVisualPlan?: () => void
+  onAiVisualTaskGraph?: () => void
 }) {
   return (
     <div className="space-y-3" data-testid="content-workbench-storyboard-brief-editor">
@@ -64,13 +64,13 @@ export function ContentUnitStoryboardBriefEditor({
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-1.5">
           <Badge variant={ready ? 'success' : 'warning'}>{ready ? '已填写' : '待填写'}</Badge>
-          {onAiVisualPlan ? (
+          {onAiVisualTaskGraph ? (
             <Button
               size="sm"
               variant="outline"
               className="gap-1.5"
-              onClick={onAiVisualPlan}
-              data-testid="content-workbench-ai-visual-plan"
+              onClick={onAiVisualTaskGraph}
+              data-testid="content-workbench-ai-visual-taskGraph"
             >
               <Sparkles size={14} />
               AI 起草
@@ -157,17 +157,17 @@ export function ContentUnitVisualPlanEditor({
   ready,
   requiresKeyframe,
   onFieldChange,
-  onAiVisualPlan,
+  onAiVisualTaskGraph,
 }: {
   unitId: number
   value: ContentUnitVisualPlanEditorValue
   ready: boolean
   requiresKeyframe: boolean
   onFieldChange: (field: ContentUnitPlanningField, value: string) => void
-  onAiVisualPlan?: () => void
+  onAiVisualTaskGraph?: () => void
 }) {
   return (
-    <div className="space-y-3" data-testid="content-workbench-visual-plan-editor">
+    <div className="space-y-3" data-testid="content-workbench-visual-taskGraph-editor">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-1.5 type-label font-medium text-foreground">
@@ -180,13 +180,13 @@ export function ContentUnitVisualPlanEditor({
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-1.5">
           <Badge variant={ready ? 'success' : requiresKeyframe ? 'warning' : 'outline'}>{ready ? '已填写' : requiresKeyframe ? '建议补齐' : '可选'}</Badge>
-          {onAiVisualPlan ? (
+          {onAiVisualTaskGraph ? (
             <Button
               size="sm"
               variant="outline"
               className="gap-1.5"
-              onClick={onAiVisualPlan}
-              data-testid="content-workbench-ai-visual-plan"
+              onClick={onAiVisualTaskGraph}
+              data-testid="content-workbench-ai-visual-taskGraph"
             >
               <Sparkles size={14} />
               AI 起草
@@ -196,81 +196,81 @@ export function ContentUnitVisualPlanEditor({
       </div>
       <div className="grid gap-2">
         <div className="space-y-1.5">
-          <Label htmlFor={`visual-plan-space-${unitId}`} className="type-label">空间关系</Label>
+          <Label htmlFor={`visual-taskGraph-space-${unitId}`} className="type-label">空间关系</Label>
           <Textarea
-            id={`visual-plan-space-${unitId}`}
+            id={`visual-taskGraph-space-${unitId}`}
             className="min-h-[76px]"
             value={value.space}
             placeholder="地点结构、人物/道具初始位置、前中后景关系。"
-            onChange={(event) => onFieldChange('visual_plan_space', event.target.value)}
-            data-testid="content-workbench-visual-plan-space"
+            onChange={(event) => onFieldChange('visual_task_graph_space', event.target.value)}
+            data-testid="content-workbench-visual-taskGraph-space"
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={`visual-plan-blocking-${unitId}`} className="type-label">人物走位 / 调度</Label>
+          <Label htmlFor={`visual-taskGraph-blocking-${unitId}`} className="type-label">人物走位 / 调度</Label>
           <Textarea
-            id={`visual-plan-blocking-${unitId}`}
+            id={`visual-taskGraph-blocking-${unitId}`}
             className="min-h-[76px]"
             value={value.blocking}
             placeholder="人物从哪里来、在哪停、动作如何变化。"
-            onChange={(event) => onFieldChange('visual_plan_blocking', event.target.value)}
-            data-testid="content-workbench-visual-plan-blocking"
+            onChange={(event) => onFieldChange('visual_task_graph_blocking', event.target.value)}
+            data-testid="content-workbench-visual-taskGraph-blocking"
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={`visual-plan-camera-${unitId}`} className="type-label">摄影机路径</Label>
+          <Label htmlFor={`visual-taskGraph-camera-${unitId}`} className="type-label">摄影机路径</Label>
           <Textarea
-            id={`visual-plan-camera-${unitId}`}
+            id={`visual-taskGraph-camera-${unitId}`}
             className="min-h-[76px]"
             value={value.cameraPath}
             placeholder="机位、镜头运动、焦点变化和落点。"
-            onChange={(event) => onFieldChange('visual_plan_camera_path', event.target.value)}
-            data-testid="content-workbench-visual-plan-camera-path"
+            onChange={(event) => onFieldChange('visual_task_graph_camera_path', event.target.value)}
+            data-testid="content-workbench-visual-taskGraph-camera-path"
           />
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor={`visual-plan-beats-${unitId}`} className="type-label">停点 / 节奏</Label>
+            <Label htmlFor={`visual-taskGraph-beats-${unitId}`} className="type-label">停点 / 节奏</Label>
             <Textarea
-              id={`visual-plan-beats-${unitId}`}
+              id={`visual-taskGraph-beats-${unitId}`}
               className="min-h-[88px]"
               value={value.beats}
               placeholder="一行一个 beat，例如：0-2s 纸条滑落。"
-              onChange={(event) => onFieldChange('visual_plan_beats', event.target.value)}
-              data-testid="content-workbench-visual-plan-beats"
+              onChange={(event) => onFieldChange('visual_task_graph_beats', event.target.value)}
+              data-testid="content-workbench-visual-taskGraph-beats"
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor={`visual-plan-props-${unitId}`} className="type-label">道具位置</Label>
+            <Label htmlFor={`visual-taskGraph-props-${unitId}`} className="type-label">道具位置</Label>
             <Textarea
-              id={`visual-plan-props-${unitId}`}
+              id={`visual-taskGraph-props-${unitId}`}
               className="min-h-[88px]"
               value={value.props}
               placeholder="一行一个道具或空间参照。"
-              onChange={(event) => onFieldChange('visual_plan_props', event.target.value)}
+              onChange={(event) => onFieldChange('visual_task_graph_props', event.target.value)}
             />
           </div>
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor={`visual-plan-lighting-${unitId}`} className="type-label">光线意图</Label>
+            <Label htmlFor={`visual-taskGraph-lighting-${unitId}`} className="type-label">光线意图</Label>
             <Textarea
-              id={`visual-plan-lighting-${unitId}`}
+              id={`visual-taskGraph-lighting-${unitId}`}
               className="min-h-[76px]"
               value={value.lighting}
               placeholder="主光、环境光、阴影、反光和情绪。"
-              onChange={(event) => onFieldChange('visual_plan_lighting', event.target.value)}
-              data-testid="content-workbench-visual-plan-lighting"
+              onChange={(event) => onFieldChange('visual_task_graph_lighting', event.target.value)}
+              data-testid="content-workbench-visual-taskGraph-lighting"
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor={`visual-plan-risks-${unitId}`} className="type-label">风险备注</Label>
+            <Label htmlFor={`visual-taskGraph-risks-${unitId}`} className="type-label">风险备注</Label>
             <Textarea
-              id={`visual-plan-risks-${unitId}`}
+              id={`visual-taskGraph-risks-${unitId}`}
               className="min-h-[76px]"
               value={value.risks}
               placeholder="连续性、道具准确性、模型容易误解的点。"
-              onChange={(event) => onFieldChange('visual_plan_risks', event.target.value)}
+              onChange={(event) => onFieldChange('visual_task_graph_risks', event.target.value)}
             />
           </div>
         </div>

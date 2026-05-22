@@ -1,33 +1,33 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentPlan, AgentRun, AgentTask } from '../state/types.js'
+import type { AgentTaskGraph, AgentRun, AgentTask } from '../state/types.js'
 import { createRuntimeTaskRunSyncBridge } from './runtimeTaskRunSyncBridge.js'
 
 test('createRuntimeTaskRunSyncBridge syncs run state with runtime sinks', () => {
   const store = new InMemoryAgentStore()
   store.createRun(makeRun({ id: 'run_root', role: 'planner' }))
-  store.createRun(makeRun({ id: 'run_worker', role: 'worker', status: 'completed', taskId: 'task_1', planId: 'plan_1' }))
-  store.createPlan(makePlan({ rootRunId: 'run_root' }))
+  store.createRun(makeRun({ id: 'run_worker', role: 'worker', status: 'completed', taskId: 'task_1', taskGraphId: 'task_graph_1' }))
+  store.createTaskGraph(makeTaskGraph({ rootRunId: 'run_root' }))
   store.createTask(makeTask({ id: 'task_1', status: 'running', ownerRunId: 'run_worker' }))
   const calls: string[] = []
   const bridge = createRuntimeTaskRunSyncBridge({
     store,
     now: () => '2026-01-01T00:00:01.000Z',
-    recomputePlanStatus: (planId) => calls.push(`recompute:${planId}`),
+    recomputePlanStatus: (taskGraphId) => calls.push(`recompute:${taskGraphId}`),
     recordTrace: (_run, trace) => calls.push(`trace:${trace.title}`),
-    emitPlanTaskEvent: (planId, task) => calls.push(`event:${planId}:${task.id}`),
+    emitPlanTaskEvent: (taskGraphId, task) => calls.push(`event:${taskGraphId}:${task.id}`),
   })
 
   const result = bridge.syncTaskFromRun('run_worker')
 
   assert.equal(result?.task.status, 'done')
   assert.deepEqual(calls, [
-    'recompute:plan_1',
+    'recompute:task_graph_1',
     'trace:Task completed',
     'trace:Task progress updated',
     'trace:Task artifact created',
-    'event:plan_1:task_1',
+    'event:task_graph_1:task_1',
   ])
 })
 
@@ -35,7 +35,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   return {
     id: 'run_1',
     threadId: 'thread_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     status: 'in_progress',
     role: 'worker',
     policy: {
@@ -52,11 +52,11 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   }
 }
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -68,7 +68,7 @@ function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     title: 'Task',
     status: 'pending',
     progress: 0,

@@ -15,7 +15,7 @@ test('project workbench definitions cover the five canonical workbenches', () =>
   const expectedIds: ProjectWorkbenchId[] = [
     'project_standards',
     'pre_production',
-    'creative_plan',
+    'creative_taskGraph',
     'content_orchestration',
     'delivery',
   ]
@@ -23,7 +23,7 @@ test('project workbench definitions cover the five canonical workbenches', () =>
   assert.deepEqual(projectWorkbenchDefinitions.map((item) => item.id), expectedIds)
   assert.equal(getProjectWorkbenchDefinition('project_standards').route, '/project/standards')
   assert.equal(getProjectWorkbenchDefinition('pre_production').route, '/project/pre-production')
-  assert.equal(getProjectWorkbenchDefinition('creative_plan').route, '/project/production/orchestration')
+  assert.equal(getProjectWorkbenchDefinition('creative_taskGraph').route, '/project/production/orchestration')
   assert.equal(getProjectWorkbenchDefinition('content_orchestration').route, '/project/content-units/workbench')
   assert.equal(getProjectWorkbenchDefinition('delivery').route, '/project/delivery/workbench')
   for (const definition of projectWorkbenchDefinitions) {
@@ -41,7 +41,7 @@ test('project workbench definitions own proposal kinds at the correct layer', ()
   assert.equal(getProjectWorkbenchDefinitionForProposalKind('project_standards_proposal')?.id, 'project_standards')
   assert.equal(getProjectWorkbenchDefinitionForProposalKind('setting_proposal')?.id, 'pre_production')
   assert.equal(getProjectWorkbenchDefinitionForProposalKind('asset_proposal')?.id, 'pre_production')
-  assert.equal(getProjectWorkbenchDefinitionForProposalKind('production_proposal')?.id, 'creative_plan')
+  assert.equal(getProjectWorkbenchDefinitionForProposalKind('production_proposal')?.id, 'creative_taskGraph')
   assert.equal(getProjectWorkbenchDefinitionForProposalKind('content_unit_proposal')?.id, 'content_orchestration')
   assert.equal(getProjectWorkbenchDefinitionForProposalKind('script_split_proposal'), null)
 })
@@ -68,11 +68,11 @@ test('project workbench review paths are generated from review query contracts',
     '/project/content-units/workbench?view=review&draftId=draft-c&scene_moment_id=77',
   )
   assert.equal(
-    buildProjectWorkbenchReviewPath(getProjectWorkbenchDefinition('creative_plan'), { draftId: 'draft-d' }),
+    buildProjectWorkbenchReviewPath(getProjectWorkbenchDefinition('creative_taskGraph'), { draftId: 'draft-d' }),
     null,
   )
   assert.equal(
-    buildProjectWorkbenchReviewPath(getProjectWorkbenchDefinition('creative_plan'), {
+    buildProjectWorkbenchReviewPath(getProjectWorkbenchDefinition('creative_taskGraph'), {
       draftId: 'draft-d',
       entityType: 'production',
       entityId: 301,

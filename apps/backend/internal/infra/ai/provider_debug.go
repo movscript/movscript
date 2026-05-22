@@ -122,15 +122,18 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 
 	case CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V:
 		vreq := VideoRequest{
-			Model:          model,
-			Prompt:         prompt,
-			Duration:       providerIntParam(params, "duration", 5),
-			Frames:         providerIntParam(params, "frames", 0),
-			AspectRatio:    providerStringParam(params, "aspect_ratio", "16:9"),
-			Quality:        providerStringParam(params, "quality", ""),
-			Size:           providerStringParam(params, "size", ""),
-			ResolutionName: providerStringParam(params, "resolution", ""),
-			ServiceTier:    providerStringParam(params, "service_tier", ""),
+			Model:             model,
+			Prompt:            prompt,
+			Duration:          providerIntParam(params, "duration", 5),
+			Frames:            providerIntParam(params, "frames", 0),
+			AspectRatio:       providerStringParam(params, "aspect_ratio", "16:9"),
+			Quality:           providerStringParam(params, "quality", ""),
+			Size:              providerStringParam(params, "size", ""),
+			ResolutionName:    providerStringParam(params, "resolution", ""),
+			ServiceTier:       providerStringParam(params, "service_tier", ""),
+			AudioType:         providerStringParam(params, "audio_type", ""),
+			MovementAmplitude: providerStringParam(params, "movement_amplitude", ""),
+			Payload:           providerStringParam(params, "payload", ""),
 		}
 		vreq.Seed = providerInt64PtrParam(params, "seed")
 		vreq.CameraFixed = providerBoolPtrParam(params, "camera_fixed")
@@ -138,6 +141,7 @@ func ProviderDebugCall(ctx context.Context, req ProviderDebugCallRequest) DebugC
 		vreq.GenerateAudio = providerBoolPtrParam(params, "generate_audio")
 		vreq.ReturnLastFrame = providerBoolPtrParam(params, "return_last_frame")
 		vreq.Draft = providerBoolPtrParam(params, "draft")
+		vreq.OffPeak = providerBoolPtrParam(params, "off_peak")
 		vreq.WebSearch = providerBoolParam(params, "web_search", false)
 		resp, callErr := adapter.VideoGenerate(debugCtx, vreq)
 		if callErr != nil {
@@ -210,6 +214,12 @@ func buildDebugAdapter(adapterType, apiKey, baseURL string) (Provider, error) {
 			base = "https://generativelanguage.googleapis.com"
 		}
 		return NewGeminiAdapter(apiKey, base), nil
+
+	case AdapterDashScope:
+		return NewDashScopeAdapter(apiKey, baseURL), nil
+
+	case AdapterVidu:
+		return NewViduAdapter(apiKey, baseURL), nil
 
 	default: // openai_compat
 		base := strings.TrimRight(baseURL, "/")

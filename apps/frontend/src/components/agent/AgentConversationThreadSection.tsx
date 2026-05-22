@@ -9,6 +9,7 @@ import {
   AgentThread,
 } from '@movscript/ui'
 import { AgentPlanOverviewPanel } from '@/components/agent/AgentPlanOverviewPanel'
+import { AgentCurrentProgressChecklistPanel } from '@/components/agent/AgentProgressChecklistCard'
 import { LiveRunActivityBubble } from '@/components/agent/AgentRunActivityPanel'
 import {
   GenerationProgressBubble,
@@ -22,11 +23,11 @@ import { buildAgentConversationMessageItems } from '@/lib/agentConversationThrea
 import type { AgentInputAnswer } from '@/lib/agentWorkflowInteraction'
 import type { AgentConversationBlock } from '@/lib/agentConversationPresentation'
 import type { PlanDispatchSettings } from '@/lib/agentPlanActions'
-import type { AgentPlanSnapshot, AgentRun } from '@/lib/localAgentClient'
+import type { AgentTaskGraphSnapshot, AgentProgressChecklist, AgentRun } from '@/lib/localAgentClient'
 import type { ChatMessage } from '@/store/agentStore'
 
 export interface AgentConversationThreadSectionProps {
-  activePlanSnapshot?: AgentPlanSnapshot
+  activePlanSnapshot?: AgentTaskGraphSnapshot
   activeRun: AgentRun | null
   approvingLocalRun: boolean
   bottomRef: RefObject<HTMLDivElement>
@@ -45,11 +46,11 @@ export interface AgentConversationThreadSectionProps {
   onAnswerLocalRunInput: (runId: string, requestId: string, answer: AgentInputAnswer) => void
   onApproveLocalRun: (runId: string, approvalIds?: string[]) => void
   onCancelPlanTree: () => void
-  onDispatchPlan: () => void
+  onDispatchTaskGraph: () => void
   onDraftInput: (input: string) => void
   onRejectLocalRun: (runId: string, approvalIds?: string[]) => void
   onRejectPlanReview: (taskId: string) => void
-  onReplan: () => void
+  onRetaskGraph: () => void
   onReworkPlanReview: (taskId: string) => void
   onScroll: (event: UIEvent<HTMLDivElement>) => void
   onUpdatePlanDispatchSettings: (settings: PlanDispatchSettings) => void
@@ -75,16 +76,17 @@ export function AgentConversationThreadSection({
   onAnswerLocalRunInput,
   onApproveLocalRun,
   onCancelPlanTree,
-  onDispatchPlan,
+  onDispatchTaskGraph,
   onDraftInput,
   onRejectLocalRun,
   onRejectPlanReview,
-  onReplan,
+  onRetaskGraph,
   onReworkPlanReview,
   onScroll,
   onUpdatePlanDispatchSettings,
 }: AgentConversationThreadSectionProps) {
   const { t } = useTranslation()
+  const currentProgressChecklist = latestProgressChecklistFromMessages(messages)
 
   return (
     <AgentBody>
@@ -92,6 +94,7 @@ export function AgentConversationThreadSection({
         ref={threadRef}
         onScroll={onScroll}
       >
+        <AgentCurrentProgressChecklistPanel checklist={currentProgressChecklist} />
         {messages.length === 0 && (
           <AgentEmpty className="min-h-0 py-6">
             <p className="type-body font-medium text-foreground">
@@ -162,8 +165,8 @@ export function AgentConversationThreadSection({
         <AgentPlanOverviewPanel
           snapshot={activePlanSnapshot}
           busy={planActionBusy}
-          onDispatch={onDispatchPlan}
-          onReplan={onReplan}
+          onDispatch={onDispatchTaskGraph}
+          onRetaskGraph={onRetaskGraph}
           onCancelTree={onCancelPlanTree}
           onAcceptReview={onAcceptPlanReview}
           onReworkReview={onReworkPlanReview}
@@ -175,4 +178,12 @@ export function AgentConversationThreadSection({
       </AgentThread>
     </AgentBody>
   )
+}
+
+function latestProgressChecklistFromMessages(messages: ChatMessage[]): AgentProgressChecklist | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const checklist = messages[index].meta?.progressChecklistRevision?.snapshot
+    if (checklist) return checklist
+  }
+  return undefined
 }

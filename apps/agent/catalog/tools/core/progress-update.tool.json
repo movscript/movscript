@@ -1,0 +1,42 @@
+{
+  "name": "core_progress_update",
+  "description": "更新当前 thread 的轻量进度 checklist。第一次调用会创建当前 checklist，后续调用会覆盖当前 checklist 并记录不可变历史快照。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "explanation": {
+        "type": "string",
+        "description": "可选的简短更新原因或说明。"
+      },
+      "checklist": {
+        "type": "array",
+        "maxItems": 20,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "step": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "status": {
+              "type": "string",
+              "enum": ["pending", "in_progress", "completed"]
+            }
+          },
+          "required": ["step", "status"]
+        },
+        "description": "完整进度清单状态。服务端会校验同一时间最多一个 in_progress。"
+      }
+    },
+    "required": ["checklist"]
+  },
+  "permission": "agent.progress_checklist.write",
+  "risk": "write",
+  "projectScoped": false,
+  "defaults": { "grant": "allow", "approval": "never" },
+  "source": "runtime",
+  "capability": "维护当前 thread 的 Codex 风格进度清单，并在消息流中保存每次更新的快照。"
+}

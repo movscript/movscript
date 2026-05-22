@@ -73,32 +73,38 @@ export function parseProjectLayerProposalDraft(
     const appliedEntryKeys = draftAppliedEntryKeySet(draft)
 
     const creativeReferences = includeCreativeReferences
-      ? asRecordArray(proposal.creative_references).map((item, index) => ({
-        key: `${draft.id}:creative_references:${index}`,
-        kind: 'creative_references' as const,
-        index,
-        changeType: inferProjectLayerEntryChangeType('creative_references', item, data),
-        applied: appliedEntryKeys.has(`${draft.id}:creative_references:${index}`),
-        label: asString(proposalField(item, ['title', 'name', 'label', 'kind']), `设定建议 #${index + 1}`),
-        detail: asString(proposalField(item, ['description', 'note', 'reason', 'summary', 'content', 'rationale']), '暂无说明'),
-        target: typeof item.id === 'number' ? `合并到 #${item.id}` : '新增候选',
-        raw: item,
-      }))
+      ? asRecordArray(proposal.creative_references).map((item, index) => {
+        const id = projectLayerProposalItemId(item)
+        return {
+          key: `${draft.id}:creative_references:${index}`,
+          kind: 'creative_references' as const,
+          index,
+          changeType: inferProjectLayerEntryChangeType('creative_references', item, data),
+          applied: appliedEntryKeys.has(`${draft.id}:creative_references:${index}`),
+          label: asString(proposalField(item, ['title', 'name', 'label', 'kind']), `设定建议 #${index + 1}`),
+          detail: asString(proposalField(item, ['description', 'note', 'reason', 'summary', 'content', 'rationale']), '暂无说明'),
+          target: id > 0 ? `合并到 #${id}` : '新增候选',
+          raw: item,
+        }
+      })
       : []
 
     const assetSlots = includeAssetSlots
-      ? asRecordArray(proposal.asset_slots).map((item, index) => ({
-        key: `${draft.id}:asset_slots:${index}`,
-        kind: 'asset_slots' as const,
-        index,
-        changeType: inferProjectLayerEntryChangeType('asset_slots', item, data),
-        applied: appliedEntryKeys.has(`${draft.id}:asset_slots:${index}`),
-        label: asString(proposalField(item, ['title', 'name', 'label', 'kind']), `素材需求 #${index + 1}`),
-        detail: asString(proposalField(item, ['description', 'note', 'reason', 'summary', 'content', 'rationale']), '暂无说明'),
-        target: typeof item.id === 'number' ? `调整 #${item.id}` : '新增候选',
-        ownerKey: asKey(isRecord(item.owner) ? item.owner.client_id ?? item.owner.id : proposalField(item, ['creative_reference_id', 'owner_id', 'reference_id']), ''),
-        raw: item,
-      }))
+      ? asRecordArray(proposal.asset_slots).map((item, index) => {
+        const id = projectLayerProposalItemId(item)
+        return {
+          key: `${draft.id}:asset_slots:${index}`,
+          kind: 'asset_slots' as const,
+          index,
+          changeType: inferProjectLayerEntryChangeType('asset_slots', item, data),
+          applied: appliedEntryKeys.has(`${draft.id}:asset_slots:${index}`),
+          label: asString(proposalField(item, ['title', 'name', 'label', 'kind']), `素材需求 #${index + 1}`),
+          detail: asString(proposalField(item, ['description', 'note', 'reason', 'summary', 'content', 'rationale']), '暂无说明'),
+          target: id > 0 ? `调整 #${id}` : '新增候选',
+          ownerKey: asKey(isRecord(item.owner) ? item.owner.client_id ?? item.owner.id : proposalField(item, ['creative_reference_id', 'owner_id', 'reference_id']), ''),
+          raw: item,
+        }
+      })
       : []
 
     const snapshotDeleted = mode === 'snapshot'
@@ -158,10 +164,6 @@ export function buildProjectLayerDraftContentForEntries(
     ...content,
     mode: 'snapshot',
     ...(summary ? { summary } : {}),
-    snapshot_base: {
-      creative_references: creativeReferenceSnapshot,
-      asset_slots: assetSlotSnapshot,
-    },
     proposal: {
       ...proposal,
       creative_references: creativeReferences,
@@ -173,7 +175,7 @@ export function buildProjectLayerDraftContentForEntries(
 function applyProjectLayerEntriesToSnapshot(base: Record<string, unknown>[], entries: ProjectLayerProposalEntry[]) {
   const next = [...base]
   for (const entry of entries) {
-    const id = numberOf(entry.raw.id)
+    const id = projectLayerProposalItemId(entry.raw)
     if (entry.changeType === 'deleted') {
       if (id > 0) {
         const index = next.findIndex((item) => numberOf(item.id) === id)
@@ -415,7 +417,7 @@ function inferProjectLayerEntryChangeType(
 ): ProjectLayerProposalEntryChangeType {
   const status = asString(proposalField(item, ['status']), '')
   if (['ignored', 'waived'].includes(status)) return 'deleted'
-  const id = numberOf(item.id)
+  const id = projectLayerProposalItemId(item)
   if (id <= 0) return 'added'
   const current = kind === 'creative_references'
     ? data.creativeReferences.find((record) => record.ID === id)
@@ -471,8 +473,8 @@ function inferSnapshotDeletionEntries(
   appliedEntryKeys: Set<string>,
   options: { includeCreativeReferences: boolean; includeAssetSlots: boolean },
 ): { creativeReferences: ProjectLayerProposalEntry[]; assetSlots: ProjectLayerProposalEntry[] } {
-  const proposedReferenceIds = new Set(asRecordArray(proposal.creative_references).map((item) => numberOf(item.id)).filter((id) => id > 0))
-  const proposedAssetSlotIds = new Set(asRecordArray(proposal.asset_slots).map((item) => numberOf(item.id)).filter((id) => id > 0))
+  const proposedReferenceIds = new Set(asRecordArray(proposal.creative_references).map(projectLayerProposalItemId).filter((id) => id > 0))
+  const proposedAssetSlotIds = new Set(asRecordArray(proposal.asset_slots).map(projectLayerProposalItemId).filter((id) => id > 0))
 
   const creativeReferences = options.includeCreativeReferences
     ? data.creativeReferences
@@ -533,7 +535,7 @@ function inferSnapshotDeletionEntries(
 }
 
 function draftEntryCurrentRecord(entry: ProjectLayerProposalEntry, data: ProjectLayerProposalData) {
-  const id = numberOf(entry.raw.id)
+  const id = projectLayerProposalItemId(entry.raw)
   if (id <= 0) return null
   if (entry.kind === 'creative_references') return data.creativeReferences.find((record) => record.ID === id) ?? null
   return data.assetSlots.find((record) => record.ID === id) ?? null
@@ -583,6 +585,10 @@ export function asKey(value: unknown, fallback = '') {
 function numberOf(value: unknown) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+function projectLayerProposalItemId(item: Record<string, unknown>) {
+  return numberOf(item.id ?? item.ID)
 }
 
 function proposalField(item: Record<string, unknown>, keys: string[]): unknown {

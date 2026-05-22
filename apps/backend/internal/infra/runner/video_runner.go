@@ -40,11 +40,15 @@ func (w *Worker) buildVideoRequest(job *persistencemodel.Job, params generationP
 		CameraFixed:           params.BoolPtr("camera_fixed"),
 		Watermark:             params.BoolPtr("watermark"),
 		GenerateAudio:         params.BoolPtr("generate_audio"),
+		AudioType:             params.String("audio_type"),
 		ReturnLastFrame:       params.BoolPtr("return_last_frame"),
 		ServiceTier:           params.String("service_tier"),
 		ExecutionExpiresAfter: params.Int("execution_expires_after"),
 		Draft:                 params.BoolPtr("draft"),
 		WebSearch:             params.Bool("web_search"),
+		MovementAmplitude:     params.String("movement_amplitude"),
+		OffPeak:               params.BoolPtr("off_peak"),
+		Payload:               params.String("payload"),
 		InputImageDataList:    imageData,
 	}
 	if len(videoData) > 0 {

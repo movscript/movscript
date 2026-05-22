@@ -610,6 +610,9 @@ func TestProjectMemberActionsWriteOrgAudit(t *testing.T) {
 	if err := db.Create(&orgMember).Error; err != nil {
 		t.Fatalf("create org member: %v", err)
 	}
+	if err := db.Create(&persistencemodel.OrganizationMember{OrgID: org.ID, UserID: memberUser.ID, Role: "member"}).Error; err != nil {
+		t.Fatalf("create target org member: %v", err)
+	}
 	project := persistencemodel.Project{Name: "Workspace Project", OwnerID: owner.ID, OrgID: &org.ID, Status: "planning"}
 	if err := db.Create(&project).Error; err != nil {
 		t.Fatalf("create project: %v", err)

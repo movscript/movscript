@@ -20,7 +20,7 @@ export function renderDebugContextText(context: AgentDebugContextPanel): string 
   if (projectStandards.length > 0) lines.push('', '### Project Standards', ...projectStandards)
   if (context.productionId !== undefined) lines.push(`- Active production business reference: production#${context.productionId}`)
   if (!context.project && context.projectsError) lines.push(`- Project list status: unavailable (${context.projectsError})`)
-  else if (!context.project && context.projects.length > 0) lines.push(`- Project list status: ${context.projects.length} visible project(s); call movscript_list_projects if selection is needed.`)
+  else if (!context.project && context.projects.length > 0) lines.push(`- Project list status: ${context.projects.length} visible project(s); call movscript_project_list if selection is needed.`)
   lines.push('', '### Selection')
   lines.push(context.selection
     ? `- Title: ${context.selection.label ?? businessReferenceLabel(context.selection.entityType, context.selection.entityId)}`
@@ -30,24 +30,24 @@ export function renderDebugContextText(context: AgentDebugContextPanel): string 
     lines.push('', '### Current Status Digest')
     for (const item of context.statusDigest.slice(0, 6)) lines.push(`- ${item}`)
   }
-  if (context.agentPlan) {
-    const planTasksById = new Map(context.agentPlan.tasks.map((task) => [task.id, task]))
-    const planWorkersByTaskId = new Map(context.agentPlan.workers.flatMap((worker) => worker.taskId ? [[worker.taskId, worker] as const] : []))
-    lines.push('', '### Agent Plan')
-    lines.push(`- Plan: ${context.agentPlan.title}`)
-    lines.push(`- Plan reference: plan#${context.agentPlan.id}`)
-    lines.push(`- Status: ${context.agentPlan.status}`)
-    lines.push(`- Progress: ${Math.round(context.agentPlan.progress * 100)}%`)
-    if (context.agentPlan.role) lines.push(`- Current agent role: ${context.agentPlan.role}`)
-    if (context.agentPlan.currentTaskId) lines.push(`- Current task reference: task#${context.agentPlan.currentTaskId}`)
-    if (context.agentPlan.rootRunId) lines.push(`- Planner run reference: run#${context.agentPlan.rootRunId}`)
-    if (context.agentPlan.summary) {
-      const summary = context.agentPlan.summary
+  if (context.agentTaskGraph) {
+    const planTasksById = new Map(context.agentTaskGraph.tasks.map((task) => [task.id, task]))
+    const planWorkersByTaskId = new Map(context.agentTaskGraph.workers.flatMap((worker) => worker.taskId ? [[worker.taskId, worker] as const] : []))
+    lines.push('', '### Agent TaskGraph')
+    lines.push(`- TaskGraph: ${context.agentTaskGraph.title}`)
+    lines.push(`- TaskGraph reference: taskGraph#${context.agentTaskGraph.id}`)
+    lines.push(`- Status: ${context.agentTaskGraph.status}`)
+    lines.push(`- Progress: ${Math.round(context.agentTaskGraph.progress * 100)}%`)
+    if (context.agentTaskGraph.role) lines.push(`- Current agent role: ${context.agentTaskGraph.role}`)
+    if (context.agentTaskGraph.currentTaskId) lines.push(`- Current task reference: task#${context.agentTaskGraph.currentTaskId}`)
+    if (context.agentTaskGraph.rootRunId) lines.push(`- Planner run reference: run#${context.agentTaskGraph.rootRunId}`)
+    if (context.agentTaskGraph.summary) {
+      const summary = context.agentTaskGraph.summary
       const counts = Object.entries(summary.taskStatusCounts)
         .filter(([, count]) => count > 0)
         .map(([status, count]) => `${status}=${count}`)
         .join(', ')
-      lines.push('', '#### Plan Summary')
+      lines.push('', '#### TaskGraph Summary')
       lines.push(`- Tasks: ${summary.taskCount}${counts ? ` (${counts})` : ''}`)
       lines.push(`- Workers: ${summary.workerCount}; active=${summary.activeWorkerCount}`)
       lines.push(`- Artifacts: ${summary.artifactCount}; nameConflicts=${summary.nameConflictCount}`)
@@ -55,9 +55,9 @@ export function renderDebugContextText(context: AgentDebugContextPanel): string 
       if (summary.needsReviewTaskIds.length > 0) lines.push(`- Needs review task refs: ${summary.needsReviewTaskIds.map((taskId) => `task#${taskId}`).join(', ')}`)
       if (summary.failedTaskIds.length > 0) lines.push(`- Failed task refs: ${summary.failedTaskIds.map((taskId) => `task#${taskId}`).join(', ')}`)
     }
-    if (context.agentPlan.tasks.length > 0) {
-      lines.push('', '#### Plan Tasks')
-      for (const task of context.agentPlan.tasks.slice(0, 8)) {
+    if (context.agentTaskGraph.tasks.length > 0) {
+      lines.push('', '#### TaskGraph Tasks')
+      for (const task of context.agentTaskGraph.tasks.slice(0, 8)) {
         const details = [
           `status=${task.status}`,
           `progress=${Math.round(task.progress * 100)}%`,
@@ -70,9 +70,9 @@ export function renderDebugContextText(context: AgentDebugContextPanel): string 
         lines.push(`- ${label}${details ? ` (${details})` : ''}`)
       }
     }
-    if (context.agentPlan.nameConflicts && context.agentPlan.nameConflicts.length > 0) {
+    if (context.agentTaskGraph.nameConflicts && context.agentTaskGraph.nameConflicts.length > 0) {
       lines.push('', '#### Subagent Name Conflicts')
-      for (const conflict of context.agentPlan.nameConflicts.slice(0, 6)) {
+      for (const conflict of context.agentTaskGraph.nameConflicts.slice(0, 6)) {
         const entries = conflict.taskIds.map((taskId) => {
           const task = planTasksById.get(taskId)
           const worker = planWorkersByTaskId.get(taskId)
@@ -87,9 +87,9 @@ export function renderDebugContextText(context: AgentDebugContextPanel): string 
         lines.push(`- ${conflict.subagentName}: ${entries.join(' | ')}`)
       }
     }
-    if (context.agentPlan.workers.length > 0) {
+    if (context.agentTaskGraph.workers.length > 0) {
       lines.push('', '#### Worker Subagents')
-      for (const worker of context.agentPlan.workers.slice(0, 8)) {
+      for (const worker of context.agentTaskGraph.workers.slice(0, 8)) {
         const details = [
           worker.subagentName ? `runRef=run#${worker.id}` : undefined,
           worker.taskId ? `task=task#${worker.taskId}` : undefined,
@@ -101,9 +101,9 @@ export function renderDebugContextText(context: AgentDebugContextPanel): string 
         lines.push(`- ${label}: ${worker.status}${details ? ` (${details})` : ''}`)
       }
     }
-    if (context.agentPlan.artifacts.length > 0) {
-      lines.push('', '#### Plan Artifact References')
-      for (const artifact of context.agentPlan.artifacts.slice(0, 12)) {
+    if (context.agentTaskGraph.artifacts.length > 0) {
+      lines.push('', '#### TaskGraph Artifact References')
+      for (const artifact of context.agentTaskGraph.artifacts.slice(0, 12)) {
         const details = [
           `type=${artifact.type}`,
           artifact.subagentName ? `subagent=${artifact.subagentName}` : undefined,
@@ -244,7 +244,7 @@ export function renderMemoriesText(memories: AgentMemory[]): string {
     'Startup memory index:',
     ...memories.slice(0, 12).map((memory) => `- [${memory.kind}] ${memory.title} (memory#${memory.id})`),
     '',
-    'This is only an index. Use movscript_search_memories or movscript_get_memory before relying on memory content.',
+    'This is only an index. Use core_memory_search or core_memory_get before relying on memory content.',
   ].join('\n')
 }
 

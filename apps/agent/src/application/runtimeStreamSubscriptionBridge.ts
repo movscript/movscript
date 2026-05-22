@@ -1,12 +1,12 @@
 import type { AgentStore } from '../state/store.js'
-import type { AgentPlanStreamEvent, AgentRunStreamEvent, AgentThreadStreamEvent } from '../state/types.js'
-import { requireRuntimePlan, requireRuntimeRun, requireRuntimeThread } from './runtimeStoreLookup.js'
+import type { AgentTaskGraphStreamEvent, AgentRunStreamEvent, AgentThreadStreamEvent } from '../state/types.js'
+import { requireRuntimeTaskGraph, requireRuntimeRun, requireRuntimeThread } from './runtimeStoreLookup.js'
 import type { RuntimeStreamBridge } from './runtimeStreamBridge.js'
 
 export interface RuntimeStreamSubscriptionBridge {
   subscribeRunStream: (runId: string, listener: (event: AgentRunStreamEvent) => void) => () => void
   subscribeThreadStream: (threadId: string, listener: (event: AgentThreadStreamEvent) => void) => () => void
-  subscribePlanStream: (planId: string, listener: (event: AgentPlanStreamEvent) => void) => () => void
+  subscribePlanStream: (taskGraphId: string, listener: (event: AgentTaskGraphStreamEvent) => void) => () => void
 }
 
 export function createRuntimeStreamSubscriptionBridge(input: {
@@ -22,9 +22,9 @@ export function createRuntimeStreamSubscriptionBridge(input: {
       requireRuntimeThread(input.store, threadId)
       return input.streams.subscribeThreadStream(threadId, listener)
     },
-    subscribePlanStream: (planId, listener) => {
-      requireRuntimePlan(input.store, planId)
-      return input.streams.subscribePlanStream(planId, listener)
+    subscribePlanStream: (taskGraphId, listener) => {
+      requireRuntimeTaskGraph(input.store, taskGraphId)
+      return input.streams.subscribePlanStream(taskGraphId, listener)
     },
   }
 }

@@ -4,24 +4,24 @@ import type {
   GeneratePlanTasksResult,
 } from '../orchestration/planGenerator.js'
 import type {
-  AgentPlan,
-  AgentPlanSnapshot,
+  AgentTaskGraph,
+  AgentTaskGraphSnapshot,
   AgentRun,
   AgentTask,
   AgentThread,
-  CreatePlanInput,
-  CreatePlanTaskInput,
+  CreateTaskGraphInput,
+  CreateTaskGraphTaskInput,
   CreateRunInput,
 } from '../state/types.js'
 import {
-  buildAgentPlan,
+  buildAgentTaskGraph,
   buildCreatePlanPlannerRunInput,
-  createPlanGoal,
+  createTaskGraphGoal,
   normalizeCreatePlanThreadId,
 } from '../state/planFactory.js'
 import { normalizePlanTaskInputs, normalizePositiveInteger, selectPlannerInlineTask } from '../state/planTaskInput.js'
 import { buildAndValidatePlanTasksToCreate } from '../state/planTaskCreation.js'
-import { findRuntimeThreadPlan } from './runtimePlanBinding.js'
+import { findRuntimeThreadTaskGraph } from './runtimePlanBinding.js'
 import { requireRuntimeThread } from './runtimeStoreLookup.js'
 import { assignRuntimeTaskToPlannerRun } from './runtimeTaskAssignment.js'
 import { normalizeNonEmptyString } from './runtimeScalarInput.js'
@@ -30,23 +30,23 @@ import {
   normalizeBackendAuthToken,
 } from './runAuth.js'
 
-export interface RuntimePlanCreationPreparation {
+export interface RuntimeTaskGraphCreationPreparation {
   thread: AgentThread
-  taskInputs: CreatePlanTaskInput[]
+  taskInputs: CreateTaskGraphTaskInput[]
   goal?: string
 }
 
-export function prepareRuntimePlanCreation(input: {
-  store: Pick<AgentStore, 'getThread' | 'listPlans'>
-  planInput: CreatePlanInput
-}): RuntimePlanCreationPreparation {
+export function prepareRuntimeTaskGraphCreation(input: {
+  store: Pick<AgentStore, 'getThread' | 'listTaskGraphs'>
+  planInput: CreateTaskGraphInput
+}): RuntimeTaskGraphCreationPreparation {
   const threadId = normalizeCreatePlanThreadId(input.planInput.threadId)
   if (!threadId) throw new Error('threadId is required')
   const thread = requireRuntimeThread(input.store, threadId)
-  const existingPlan = findRuntimeThreadPlan(input.store, thread.id)
-  if (existingPlan) throw new Error(`thread ${thread.id} already has plan ${existingPlan.id}`)
+  const existingTaskGraph = findRuntimeThreadTaskGraph(input.store, thread.id)
+  if (existingTaskGraph) throw new Error(`thread ${thread.id} already has taskGraph ${existingTaskGraph.id}`)
   const taskInputs = normalizePlanTaskInputs(input.planInput.tasks)
-  const goal = createPlanGoal(input.planInput)
+  const goal = createTaskGraphGoal(input.planInput)
   return {
     thread,
     taskInputs,
@@ -54,18 +54,18 @@ export function prepareRuntimePlanCreation(input: {
   }
 }
 
-export interface RuntimePlanCreationTaskResolution {
-  taskInputs: CreatePlanTaskInput[]
+export interface RuntimeTaskGraphCreationTaskResolution {
+  taskInputs: CreateTaskGraphTaskInput[]
   plannerSource?: GeneratePlanTasksResult['source']
   plannerWarnings: string[]
   plannerAssessment?: GeneratePlanTasksResult['assessment']
 }
 
-export async function resolveRuntimePlanCreationTasks(input: {
-  preparation: RuntimePlanCreationPreparation
-  planInput: CreatePlanInput
+export async function resolveRuntimeTaskGraphCreationTasks(input: {
+  preparation: RuntimeTaskGraphCreationPreparation
+  planInput: CreateTaskGraphInput
   generatePlanTasks: (input: GeneratePlanTasksInput) => Promise<GeneratePlanTasksResult>
-}): Promise<RuntimePlanCreationTaskResolution> {
+}): Promise<RuntimeTaskGraphCreationTaskResolution> {
   if (input.preparation.taskInputs.length > 0 || !input.preparation.goal) {
     return {
       taskInputs: input.preparation.taskInputs,
@@ -90,25 +90,25 @@ export async function resolveRuntimePlanCreationTasks(input: {
   }
 }
 
-export interface RuntimePlanCreationResult {
-  plan: AgentPlan
+export interface RuntimeTaskGraphCreationResult {
+  taskGraph: AgentTaskGraph
   tasks: AgentTask[]
 }
 
 export function createRuntimePlanWithTasks(input: {
-  store: Pick<AgentStore, 'getTask' | 'createPlan' | 'createTask'>
-  planId: string
+  store: Pick<AgentStore, 'getTask' | 'createTaskGraph' | 'createTask'>
+  taskGraphId: string
   thread: AgentThread
-  planInput: CreatePlanInput
-  taskInputs: CreatePlanTaskInput[]
+  planInput: CreateTaskGraphInput
+  taskInputs: CreateTaskGraphTaskInput[]
   now: string
   goal?: string
   plannerSource?: string
   plannerWarnings?: string[]
   plannerAssessment?: GeneratePlanTasksResult['assessment']
-}): RuntimePlanCreationResult {
-  const plan = buildAgentPlan({
-    id: input.planId,
+}): RuntimeTaskGraphCreationResult {
+  const taskGraph = buildAgentTaskGraph({
+    id: input.taskGraphId,
     thread: input.thread,
     planInput: input.planInput,
     taskCount: input.taskInputs.length,
@@ -119,19 +119,19 @@ export function createRuntimePlanWithTasks(input: {
     ...(input.plannerAssessment ? { plannerAssessment: input.plannerAssessment } : {}),
   })
   const tasks = buildAndValidatePlanTasksToCreate({
-    planId: plan.id,
+    taskGraphId: taskGraph.id,
     inputs: input.taskInputs,
     now: input.now,
     getTask: (taskId) => input.store.getTask(taskId),
   })
 
-  input.store.createPlan(plan)
+  input.store.createTaskGraph(taskGraph)
   for (const task of tasks) input.store.createTask(task)
 
-  return { plan, tasks }
+  return { taskGraph, tasks }
 }
 
-export interface RuntimePlanCreationRootRunResult {
+export interface RuntimeTaskGraphCreationRootRunResult {
   rootRun?: AgentRun
   inlineTaskAssignment?: {
     task: AgentTask
@@ -139,29 +139,29 @@ export interface RuntimePlanCreationRootRunResult {
   }
 }
 
-export function applyRuntimePlanCreationRootRun(input: {
-  store: Pick<AgentStore, 'updatePlan' | 'getRun' | 'getTask' | 'updateTask'>
-  plan: AgentPlan
+export function applyRuntimeTaskGraphCreationRootRun(input: {
+  store: Pick<AgentStore, 'updateTaskGraph' | 'getRun' | 'getTask' | 'updateTask'>
+  taskGraph: AgentTaskGraph
   thread: AgentThread
-  planInput: CreatePlanInput
+  planInput: CreateTaskGraphInput
   tasks: AgentTask[]
   now: string
   createRun: (runInput: CreateRunInput) => AgentRun
   onInlineTaskAssigned?: (task: AgentTask, previousTask: AgentTask) => void
-}): RuntimePlanCreationRootRunResult {
+}): RuntimeTaskGraphCreationRootRunResult {
   if (input.planInput.createPlannerRun === false) return {}
 
   const inlinePlannerTask = selectPlannerInlineTask(input.tasks)
   const rootRun = input.createRun(buildCreatePlanPlannerRunInput({
-    plan: input.plan,
+    taskGraph: input.taskGraph,
     thread: input.thread,
     planInput: input.planInput,
     ...(inlinePlannerTask ? { inlinePlannerTask } : {}),
   }))
-  input.plan.rootRunId = rootRun.id
-  input.plan.status = 'running'
-  input.plan.updatedAt = input.now
-  input.store.updatePlan(input.plan)
+  input.taskGraph.rootRunId = rootRun.id
+  input.taskGraph.status = 'running'
+  input.taskGraph.updatedAt = input.now
+  input.store.updateTaskGraph(input.taskGraph)
 
   if (!inlinePlannerTask) return { rootRun }
 
@@ -176,24 +176,24 @@ export function applyRuntimePlanCreationRootRun(input: {
   return { rootRun, inlineTaskAssignment }
 }
 
-export interface RuntimePlanCreationFlowResult extends RuntimePlanCreationResult {
+export interface RuntimeTaskGraphCreationFlowResult extends RuntimeTaskGraphCreationResult {
   rootRun?: AgentRun
 }
 
-export function applyRuntimePlanCreationFlow(input: {
-  store: Pick<AgentStore, 'getTask' | 'createPlan' | 'createTask' | 'updatePlan' | 'getRun' | 'updateTask'>
-  planId: string
-  preparation: RuntimePlanCreationPreparation
-  planInput: CreatePlanInput
-  resolvedTasks: RuntimePlanCreationTaskResolution
+export function applyRuntimeTaskGraphCreationFlow(input: {
+  store: Pick<AgentStore, 'getTask' | 'createTaskGraph' | 'createTask' | 'updateTaskGraph' | 'getRun' | 'updateTask'>
+  taskGraphId: string
+  preparation: RuntimeTaskGraphCreationPreparation
+  planInput: CreateTaskGraphInput
+  resolvedTasks: RuntimeTaskGraphCreationTaskResolution
   now: string
   createRun: (runInput: CreateRunInput) => AgentRun
   onTaskCreated?: (task: AgentTask) => void
   onInlineTaskAssigned?: (task: AgentTask, previousTask: AgentTask) => void
-}): RuntimePlanCreationFlowResult {
-  const { plan, tasks } = createRuntimePlanWithTasks({
+}): RuntimeTaskGraphCreationFlowResult {
+  const { taskGraph, tasks } = createRuntimePlanWithTasks({
     store: input.store,
-    planId: input.planId,
+    taskGraphId: input.taskGraphId,
     thread: input.preparation.thread,
     planInput: input.planInput,
     taskInputs: input.resolvedTasks.taskInputs,
@@ -205,9 +205,9 @@ export function applyRuntimePlanCreationFlow(input: {
   })
   for (const task of tasks) input.onTaskCreated?.(task)
 
-  const root = applyRuntimePlanCreationRootRun({
+  const root = applyRuntimeTaskGraphCreationRootRun({
     store: input.store,
-    plan,
+    taskGraph,
     thread: input.preparation.thread,
     planInput: input.planInput,
     tasks,
@@ -217,35 +217,35 @@ export function applyRuntimePlanCreationFlow(input: {
   })
 
   return {
-    plan,
+    taskGraph,
     tasks,
     ...(root.rootRun ? { rootRun: root.rootRun } : {}),
   }
 }
 
-export async function applyRuntimePlanCreationRequest(input: {
-  store: Pick<AgentStore, 'getThread' | 'listPlans' | 'getTask' | 'createPlan' | 'createTask' | 'updatePlan' | 'getRun' | 'updateTask'>
-  planInput: CreatePlanInput
-  planId: string
+export async function applyRuntimeTaskGraphCreationRequest(input: {
+  store: Pick<AgentStore, 'getThread' | 'listTaskGraphs' | 'getTask' | 'createTaskGraph' | 'createTask' | 'updateTaskGraph' | 'getRun' | 'updateTask'>
+  planInput: CreateTaskGraphInput
+  taskGraphId: string
   now: string
   generatePlanTasks: (input: GeneratePlanTasksInput) => Promise<GeneratePlanTasksResult>
   createRun: (runInput: CreateRunInput) => AgentRun
-  getPlanSnapshot: (planId: string) => AgentPlanSnapshot
+  getTaskGraphSnapshot: (taskGraphId: string) => AgentTaskGraphSnapshot
   onTaskCreated?: (task: AgentTask) => void
   onInlineTaskAssigned?: (task: AgentTask, previousTask: AgentTask) => void
-}): Promise<AgentPlanSnapshot> {
-  const preparation = prepareRuntimePlanCreation({
+}): Promise<AgentTaskGraphSnapshot> {
+  const preparation = prepareRuntimeTaskGraphCreation({
     store: input.store,
     planInput: input.planInput,
   })
-  const resolvedTasks = await resolveRuntimePlanCreationTasks({
+  const resolvedTasks = await resolveRuntimeTaskGraphCreationTasks({
     preparation,
     planInput: input.planInput,
     generatePlanTasks: input.generatePlanTasks,
   })
-  const { plan } = applyRuntimePlanCreationFlow({
+  const { taskGraph } = applyRuntimeTaskGraphCreationFlow({
     store: input.store,
-    planId: input.planId,
+    taskGraphId: input.taskGraphId,
     preparation,
     planInput: input.planInput,
     resolvedTasks,
@@ -254,5 +254,5 @@ export async function applyRuntimePlanCreationRequest(input: {
     ...(input.onTaskCreated ? { onTaskCreated: input.onTaskCreated } : {}),
     ...(input.onInlineTaskAssigned ? { onInlineTaskAssigned: input.onInlineTaskAssigned } : {}),
   })
-  return input.getPlanSnapshot(plan.id)
+  return input.getTaskGraphSnapshot(taskGraph.id)
 }

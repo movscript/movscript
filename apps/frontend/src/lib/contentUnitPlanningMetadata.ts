@@ -52,15 +52,15 @@ export function hasStructuredText(...values: string[]) {
 }
 
 export function contentUnitVisualPlanPromptText(unit: ContentUnitPlanningRecord) {
-  const visualPlan = metadataObject(parseMetadataJSON(unit.metadata_json).visual_plan)
+  const visualTaskGraph = metadataObject(parseMetadataJSON(unit.metadata_json).visual_taskGraph)
   return [
-    firstText(visualPlan.space) ? `空间关系：${firstText(visualPlan.space)}` : '',
-    firstText(visualPlan.blocking) ? `人物走位：${firstText(visualPlan.blocking)}` : '',
-    firstText(visualPlan.camera_path) ? `摄影机路径：${firstText(visualPlan.camera_path)}` : '',
-    textListFromMetadata(visualPlan.beats) ? `停点/节奏：${textListFromMetadata(visualPlan.beats).replace(/\n/g, '；')}` : '',
-    textListFromMetadata(visualPlan.props) ? `道具位置：${textListFromMetadata(visualPlan.props).replace(/\n/g, '；')}` : '',
-    firstText(visualPlan.lighting) ? `光线意图：${firstText(visualPlan.lighting)}` : '',
-    textListFromMetadata(visualPlan.risks) ? `风险备注：${textListFromMetadata(visualPlan.risks).replace(/\n/g, '；')}` : '',
+    firstText(visualTaskGraph.space) ? `空间关系：${firstText(visualTaskGraph.space)}` : '',
+    firstText(visualTaskGraph.blocking) ? `人物走位：${firstText(visualTaskGraph.blocking)}` : '',
+    firstText(visualTaskGraph.camera_path) ? `摄影机路径：${firstText(visualTaskGraph.camera_path)}` : '',
+    textListFromMetadata(visualTaskGraph.beats) ? `停点/节奏：${textListFromMetadata(visualTaskGraph.beats).replace(/\n/g, '；')}` : '',
+    textListFromMetadata(visualTaskGraph.props) ? `道具位置：${textListFromMetadata(visualTaskGraph.props).replace(/\n/g, '；')}` : '',
+    firstText(visualTaskGraph.lighting) ? `光线意图：${firstText(visualTaskGraph.lighting)}` : '',
+    textListFromMetadata(visualTaskGraph.risks) ? `风险备注：${textListFromMetadata(visualTaskGraph.risks).replace(/\n/g, '；')}` : '',
   ].filter(Boolean).join('\n')
 }
 
@@ -77,12 +77,12 @@ export function contentUnitStoryboardBriefPromptText(unit: ContentUnitPlanningRe
 }
 
 export function contentUnitGenerationCanvasDescription(unit: ContentUnitPlanningRecord) {
-  const visualPlan = contentUnitVisualPlanPromptText(unit)
+  const visualTaskGraph = contentUnitVisualPlanPromptText(unit)
   const storyboardBrief = contentUnitStoryboardBriefPromptText(unit)
   return [
     `内容单元：${contentUnitPlanningTitle(unit)}`,
     firstText(unit.description, unit.prompt) ? `生成目标：${firstText(unit.description, unit.prompt)}` : '',
-    visualPlan ? `视觉调度：\n${visualPlan}` : '',
+    visualTaskGraph ? `视觉调度：\n${visualTaskGraph}` : '',
     storyboardBrief ? `故事板简述：\n${storyboardBrief}` : '',
   ].filter(Boolean).join('\n\n')
 }

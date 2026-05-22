@@ -1,7 +1,7 @@
 {
   "skills": [
     {
-      "id": "movscript.persona.project-orchestrator",
+      "id": "movscript.persona.project_orchestrator",
       "kind": "persona",
       "version": "1.0.0",
       "name": "Project Orchestrator",
@@ -12,7 +12,7 @@
       "instructionTemplatePath": "project-orchestrator.persona.md"
     },
     {
-      "id": "movscript.persona.production-orchestrator",
+      "id": "movscript.persona.production_orchestrator",
       "kind": "persona",
       "version": "1.0.0",
       "name": "Production Orchestrator",
@@ -23,7 +23,7 @@
       "instructionTemplatePath": "production-orchestrator.persona.md"
     },
     {
-      "id": "movscript.persona.visual-director",
+      "id": "film.persona.visual_director",
       "kind": "persona",
       "version": "1.0.0",
       "name": "Visual Director",

@@ -22,6 +22,7 @@ export default function InvitePage() {
   const currentUser = useUserStore((s) => s.currentUser)
   const setSession = useUserStore((s) => s.setSession)
   const setCurrentOrg = useUserStore((s) => s.setCurrentOrg)
+  const setOrgMemberships = useUserStore((s) => s.setOrgMemberships)
   const setCurrentProject = useProjectStore((s) => s.setCurrent)
   const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
 
@@ -41,14 +42,19 @@ export default function InvitePage() {
   const accept = useMutation({
     mutationFn: (body: Record<string, string>) =>
       api.post(`/invitations/${token}/accept`, body).then((r) => r.data),
-    onSuccess: (data: AuthSession & { org_id?: number }) => {
+    onSuccess: async (data: AuthSession & { org_id?: number }) => {
       if (!currentUser) {
         setPendingSession(data)
         return
       }
       const orgId = data.org_id ?? invite?.org_id
       if (orgId) {
-        setCurrentOrg(orgId)
+        try {
+          const res = await api.get('/auth/me')
+          setOrgMemberships(res.data.org_memberships ?? [], orgId)
+        } catch {
+          setCurrentOrg(orgId)
+        }
         setCurrentProject(null)
       }
       navigate(ROUTES.projects, { replace: true })

@@ -38,11 +38,11 @@ export function createRuntimeOperationsBridge(input: {
       })
       input.scheduler?.dispatch({ type: 'operation.started', operation })
       monitorOperationContinuation(input, run, operation, options.signal)
-      recordOperationTrace(input.recordTrace, run, 'runtime_operation_start', operation)
+      recordOperationTrace(input.recordTrace, run, 'core_operation_start', operation)
       return { status: 'started', operation } as unknown as JSONValue
     },
     getOperation: (_run, request = {}) => {
-      const operationId = requiredString(request.operationId ?? request.operation_id, 'runtime_operation_get requires operationId')
+      const operationId = requiredString(request.operationId ?? request.operation_id, 'core_operation_get requires operationId')
       return { status: 'read', operation: input.operationManager.get(operationId) } as unknown as JSONValue
     },
     listOperation: (run, request = {}) => ({
@@ -62,7 +62,7 @@ export function createRuntimeOperationsBridge(input: {
         signal: options.signal,
         onOperation: (operation) => {
           input.scheduler?.dispatch({ type: 'operation.observed', operation })
-          recordOperationTrace(input.recordTrace, run, 'runtime_operation_wait', operation)
+          recordOperationTrace(input.recordTrace, run, 'core_operation_wait', operation)
         },
       })
       input.recordTrace?.(run, {
@@ -70,16 +70,16 @@ export function createRuntimeOperationsBridge(input: {
         title: `Runtime operation wait ${result.status}`,
         summary: result.message,
         status: result.status === 'failed' ? 'failed' : result.done ? 'completed' : 'info',
-        toolName: 'runtime_operation_wait',
+        toolName: 'core_operation_wait',
         data: { runtimeOperationWait: result },
       })
       return result as unknown as JSONValue
     },
     cancelOperation: async (run, request = {}, options = {}) => {
-      const operationId = requiredString(request.operationId ?? request.operation_id, 'runtime_operation_cancel requires operationId')
+      const operationId = requiredString(request.operationId ?? request.operation_id, 'core_operation_cancel requires operationId')
       const operation = await input.operationManager.cancel(operationId, { signal: options.signal })
       input.scheduler?.dispatch({ type: 'operation.observed', operation })
-      recordOperationTrace(input.recordTrace, run, 'runtime_operation_cancel', operation)
+      recordOperationTrace(input.recordTrace, run, 'core_operation_cancel', operation)
       return { status: 'cancelled', operation } as unknown as JSONValue
     },
   }
@@ -100,7 +100,7 @@ function monitorOperationContinuation(
     signal,
     onOperation: (observed) => {
       input.scheduler?.dispatch({ type: 'operation.observed', operation: observed })
-      recordOperationTrace(input.recordTrace, run, 'runtime_operation_wait', observed)
+      recordOperationTrace(input.recordTrace, run, 'core_operation_wait', observed)
     },
   }).catch((error) => {
     input.recordTrace?.(run, {
@@ -108,7 +108,7 @@ function monitorOperationContinuation(
       title: `Runtime operation monitor failed: ${operation.kind}`,
       summary: error instanceof Error ? error.message : String(error),
       status: 'failed',
-      toolName: 'runtime_operation_wait',
+      toolName: 'core_operation_wait',
       data: { runtimeOperationId: operation.id },
     })
   })
@@ -140,23 +140,23 @@ function generationTraceForOperation(toolName: string, operation: RuntimeOperati
     ? operation.request as Record<string, JSONValue>
     : {}
   const args = typeof jobId === 'number' ? { jobId } : request
-  const backendToolName = toolName === 'runtime_operation_start'
-    ? 'movscript_create_generation_job'
-    : toolName === 'runtime_operation_cancel'
-      ? 'movscript_cancel_generation_job'
-      : 'movscript_get_generation_job'
+  const backendToolName = toolName === 'core_operation_start'
+    ? 'generation_job_create'
+    : toolName === 'core_operation_cancel'
+      ? 'generation_job_cancel'
+      : 'generation_job_get'
   return buildGenerationEvent({ name: backendToolName, args }, operation.result)
 }
 
 function normalizeKind(value: unknown): RuntimeOperationKind {
   if (value === 'generation_job') return value
-  if (value === 'subagent') throw new Error('runtime_operation_start does not create subagent runtime operations; use movscript_spawn_subagent')
-  if (typeof value === 'string' && value.trim()) throw new Error(`runtime_operation_start currently supports only kind "generation_job", not ${value}`)
-  throw new Error('runtime_operation_start requires kind')
+  if (value === 'subagent') throw new Error('core_operation_start does not create subagent runtime operations; use core_subagent_spawn')
+  if (typeof value === 'string' && value.trim()) throw new Error(`core_operation_start currently supports only kind "generation_job", not ${value}`)
+  throw new Error('core_operation_start requires kind')
 }
 
 function normalizeRequest(value: unknown): Record<string, JSONValue> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('runtime_operation_start requires request object')
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('core_operation_start requires request object')
   const output: Record<string, JSONValue> = {}
   for (const [key, item] of Object.entries(value)) {
     if (isJSONValue(item)) output[key] = item
@@ -167,7 +167,7 @@ function normalizeRequest(value: unknown): Record<string, JSONValue> {
 function normalizeOperationIds(value: unknown): string[] {
   const raw = Array.isArray(value) ? value : [value]
   const ids = raw.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim())
-  if (ids.length === 0) throw new Error('runtime_operation_wait requires operationIds')
+  if (ids.length === 0) throw new Error('core_operation_wait requires operationIds')
   return Array.from(new Set(ids))
 }
 

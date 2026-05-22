@@ -14,12 +14,12 @@ export interface ContentUnitOrderPatch {
   payload: SemanticEntityPayload
 }
 
-export interface ContentUnitReorderPatchPlan {
+export interface ContentUnitReorderPatchTaskGraph {
   draggedUnitId: number
   patches: ContentUnitOrderPatch[]
 }
 
-export type ContentUnitTimelineMovePlan =
+export type ContentUnitTimelineMoveTaskGraph =
   | {
     kind: 'update_item'
     unitId: number
@@ -57,12 +57,12 @@ export function buildContentUnitProposalPatch(current: ContentWorkbenchRecord | 
   return payload
 }
 
-export function buildContentUnitReorderPatchPlan(
+export function buildContentUnitReorderPatchTaskGraph(
   row: ContentGenerationMomentRow,
   draggedUnitId: number,
   targetUnitId: number,
   position: ContentWorkbenchDropPosition,
-): ContentUnitReorderPatchPlan {
+): ContentUnitReorderPatchTaskGraph {
   const reorderedUnits = reorderContentWorkbenchUnits(row.units, draggedUnitId, targetUnitId, position)
   const originalIds = row.units.slice().sort(byOrder).map((unit) => unit.ID).join(',')
   const nextIds = reorderedUnits.map((unit) => unit.ID).join(',')
@@ -77,12 +77,12 @@ export function buildContentUnitReorderPatchPlan(
   }
 }
 
-export function buildContentUnitTimelineMovePlan({
+export function buildContentUnitTimelineMoveTaskGraph({
   row,
   unitId,
   startSec,
   previewTimelines,
-}: ContentUnitTimelineMovePlanInput): ContentUnitTimelineMovePlan {
+}: ContentUnitTimelineMovePlanInput): ContentUnitTimelineMoveTaskGraph {
   const unit = row.units.find((item) => item.ID === unitId)
   if (!unit) throw new Error('未找到制作项')
   const normalizedStartSec = Math.max(0, Math.round(Number(startSec) * 10) / 10)

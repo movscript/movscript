@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  buildAgentPlan,
+  buildAgentTaskGraph,
   buildCreatePlanPlannerRunInput,
-  createPlanGoal,
+  createTaskGraphGoal,
   normalizeCreatePlanThreadId,
 } from './planFactory.js'
-import type { AgentPlan, AgentTask, AgentThread } from './types.js'
+import type { AgentTaskGraph, AgentTask, AgentThread } from './types.js'
 
 test('normalizeCreatePlanThreadId trims required thread id input', () => {
   assert.equal(normalizeCreatePlanThreadId(' thread_1 '), 'thread_1')
@@ -14,18 +14,18 @@ test('normalizeCreatePlanThreadId trims required thread id input', () => {
   assert.equal(normalizeCreatePlanThreadId(123), undefined)
 })
 
-test('createPlanGoal prefers explicit goal over message', () => {
-  assert.equal(createPlanGoal({ goal: ' goal ', message: 'message' }), 'goal')
-  assert.equal(createPlanGoal({ message: ' message ' }), 'message')
-  assert.equal(createPlanGoal({ goal: ' ' }), undefined)
+test('createTaskGraphGoal prefers explicit goal over message', () => {
+  assert.equal(createTaskGraphGoal({ goal: ' goal ', message: 'message' }), 'goal')
+  assert.equal(createTaskGraphGoal({ message: ' message ' }), 'message')
+  assert.equal(createTaskGraphGoal({ goal: ' ' }), undefined)
 })
 
-test('buildAgentPlan normalizes title status metadata and timestamps', () => {
-  const plan = buildAgentPlan({
-    id: 'plan_1',
+test('buildAgentTaskGraph normalizes title status metadata and timestamps', () => {
+  const taskGraph = buildAgentTaskGraph({
+    id: 'task_graph_1',
     thread: makeThread(),
     planInput: {
-      title: '  Launch plan  ',
+      title: '  Launch taskGraph  ',
       metadata: { source: 'test' },
     },
     taskCount: 2,
@@ -39,11 +39,11 @@ test('buildAgentPlan normalizes title status metadata and timestamps', () => {
     },
   })
 
-  assert.equal(plan.id, 'plan_1')
-  assert.equal(plan.threadId, 'thread_1')
-  assert.equal(plan.title, 'Launch plan')
-  assert.equal(plan.status, 'pending')
-  assert.deepEqual(plan.metadata, {
+  assert.equal(taskGraph.id, 'task_graph_1')
+  assert.equal(taskGraph.threadId, 'thread_1')
+  assert.equal(taskGraph.title, 'Launch taskGraph')
+  assert.equal(taskGraph.status, 'pending')
+  assert.deepEqual(taskGraph.metadata, {
     source: 'test',
     goal: 'Goal',
     plannerSource: 'generated',
@@ -53,24 +53,24 @@ test('buildAgentPlan normalizes title status metadata and timestamps', () => {
       parallelStrategy: 'worker_split',
     },
   })
-  assert.equal(plan.createdAt, '2026-01-01T00:00:00.000Z')
+  assert.equal(taskGraph.createdAt, '2026-01-01T00:00:00.000Z')
 })
 
-test('buildAgentPlan falls back to thread title and blocked status without tasks', () => {
-  const plan = buildAgentPlan({
-    id: 'plan_1',
+test('buildAgentTaskGraph falls back to thread title and blocked status without tasks', () => {
+  const taskGraph = buildAgentTaskGraph({
+    id: 'task_graph_1',
     thread: makeThread({ title: 'Thread title' }),
     planInput: {},
     taskCount: 0,
     now: '2026-01-01T00:00:00.000Z',
   })
 
-  assert.equal(plan.title, 'Thread title')
-  assert.equal(plan.status, 'blocked')
-  assert.deepEqual(plan.metadata, {})
+  assert.equal(taskGraph.title, 'Thread title')
+  assert.equal(taskGraph.status, 'blocked')
+  assert.deepEqual(taskGraph.metadata, {})
 })
 
-test('buildAgentPlan stores independent metadata and planner warning snapshots', () => {
+test('buildAgentTaskGraph stores independent metadata and planner warning snapshots', () => {
   const metadata = {
     nested: { value: 'original' },
     list: [{ id: 'item_1' }],
@@ -79,11 +79,11 @@ test('buildAgentPlan stores independent metadata and planner warning snapshots',
   const plannerAssessment = {
     conflictRisks: ['src/a.ts'],
   }
-  const plan = buildAgentPlan({
-    id: 'plan_1',
+  const taskGraph = buildAgentTaskGraph({
+    id: 'task_graph_1',
     thread: makeThread(),
     planInput: {
-      title: 'Plan',
+      title: 'TaskGraph',
       metadata,
     },
     taskCount: 1,
@@ -97,7 +97,7 @@ test('buildAgentPlan stores independent metadata and planner warning snapshots',
   plannerWarnings[0] = 'changed'
   plannerAssessment.conflictRisks[0] = 'changed'
 
-  assert.deepEqual(plan.metadata, {
+  assert.deepEqual(taskGraph.metadata, {
     nested: { value: 'original' },
     list: [{ id: 'item_1' }],
     plannerWarnings: ['warning'],
@@ -109,20 +109,20 @@ test('buildAgentPlan stores independent metadata and planner warning snapshots',
 
 test('buildCreatePlanPlannerRunInput forwards root planner run controls explicitly', () => {
   assert.deepEqual(buildCreatePlanPlannerRunInput({
-    plan: makePlan(),
+    taskGraph: makeTaskGraph(),
     thread: makeThread(),
     inlinePlannerTask: makeTask(),
     planInput: {
-      title: 'Plan only title',
-      goal: 'Plan only goal',
-      message: 'Plan only message',
+      title: 'TaskGraph only title',
+      goal: 'TaskGraph only goal',
+      message: 'TaskGraph only message',
       tasks: [],
       maxTasks: 3,
       createPlannerRun: true,
       agentManifest: { schema: 'movscript.agent.current' },
       clientInput: { message: 'client' },
       policy: { maxIterations: 4 },
-      approvedToolNames: ['movscript_get_focus'],
+      approvedToolNames: ['movscript_focus_get'],
       backendAuthToken: 'token',
       backendAPIBaseURL: 'http://backend',
       sandboxMode: true,
@@ -131,13 +131,13 @@ test('buildCreatePlanPlannerRunInput forwards root planner run controls explicit
   }), {
     threadId: 'thread_1',
     role: 'planner',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_1',
     progress: 0,
     agentManifest: { schema: 'movscript.agent.current' },
     clientInput: { message: 'client' },
     policy: { maxIterations: 4 },
-    approvedToolNames: ['movscript_get_focus'],
+    approvedToolNames: ['movscript_focus_get'],
     backendAuthToken: 'token',
     backendAPIBaseURL: 'http://backend',
     sandboxMode: true,
@@ -155,11 +155,11 @@ function makeThread(overrides: Partial<AgentThread> = {}): AgentThread {
   }
 }
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'pending',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -171,7 +171,7 @@ function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'pending',

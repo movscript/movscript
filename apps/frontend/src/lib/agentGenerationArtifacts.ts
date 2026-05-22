@@ -24,7 +24,7 @@ export function generationParamAuditsFromRun(run?: AgentRun): ChatGenerationPara
   if (!run?.steps?.length) return []
   return run.steps.flatMap((step) => {
     if (step.type !== 'tool_call') return []
-    if (step.toolName !== 'movscript_create_generation_job') return []
+    if (step.toolName !== 'generation_job_create') return []
     const audit = generationParamAuditFromToolResult(step.result)
     if (!audit) return []
     const data = dataRecord(step.result)
@@ -45,7 +45,7 @@ export function generationValidationErrorsFromRun(run?: AgentRun): ChatGeneratio
   if (!run?.steps?.length) return []
   return run.steps.flatMap((step) => {
     if (step.type !== 'tool_call') return []
-    if (step.toolName !== 'movscript_create_generation_job') return []
+    if (step.toolName !== 'generation_job_create') return []
     const error = generationValidationErrorFromData(step.errorData)
     return error ? [{ ...error, stepId: step.id }] : []
   })
@@ -72,10 +72,10 @@ function generatedResourceFromToolResult(result: unknown): AgentGeneratedResourc
 }
 
 function isGenerationResourceTool(toolName: unknown) {
-  return toolName === 'movscript_create_generation_job'
-    || toolName === 'movscript_get_generation_job'
-    || toolName === 'movscript_wait_generation_jobs'
-    || toolName === 'movscript_list_generation_jobs'
+  return toolName === 'generation_job_create'
+    || toolName === 'generation_job_get'
+    || toolName === 'generation_job_wait'
+    || toolName === 'generation_job_list'
 }
 
 function generatedResourceIdsFromToolData(data: Record<string, unknown>): number[] {

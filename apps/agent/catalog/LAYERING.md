@@ -8,9 +8,11 @@
 
 | 产品层 | 拥有 | 示例 |
 | --- | --- | --- |
-| Agent Core | Agent 拥有的 memory、用户输入、catalog inspection 和 planner subagents | `movscript.pack.agent-core`, `tools/agent-core/`, `skills/agent-core/` |
-| Drafts | 本地审阅 draft CRUD、校验和 preview 工具 | `movscript.pack.drafts`, `tools/drafts/` |
-| MovScript | 当前任务 focus、项目读取、可审阅 proposal workflows 和视觉生成任务 | `movscript.pack.movscript`, `tools/movscript/`, `skills/movscript/` |
+| Agent Core | Agent 拥有的 memory、用户输入、catalog inspection 和 planner subagents | `core.pack.agent`, `tools/core/`, `skills/core/` |
+| Draft | 本地审阅 draft CRUD、校验和 preview 工具 | `draft.pack.lifecycle`, `tools/draft/` |
+| MovScript | 当前任务 focus、项目读取和可审阅 proposal workflows | `movscript.pack.workspace`, `tools/movscript/workspace/`, `skills/movscript/` |
+| Candidate | 候选写入与候选规划 | `tools/candidate/`, `skills/candidate/` |
+| Generation | 模型发现、provider-level generation job contract 和视觉生成执行 | `tools/generation/`, `skills/generation/` |
 
 业务 proposal 继续按领域拆分：
 
@@ -54,61 +56,74 @@ Catalog 资源目录采用 pack-first 结构。`skills/` 或 `tools/` 下的第�
 
 ```text
 skills/
-  agent-core/
+  core/
     persona/
-      movscript-default.persona.json
-      mode-personas.persona.json
+      default/
+        default.persona.json
+        default.persona.md
     policy/
-      agent-core/
+      runtime/
         skill.policy.json
         instruction.md
-  drafts/
+  draft/
     policy/
-      drafts/
+      lifecycle/
         skill.policy.json
+        instruction.md
+    workflow/
+      lifecycle/
+        skill.workflow.json
+        instruction.md
+  candidate/
+    workflow/
+      asset_planning/
+        skill.workflow.json
+        instruction.md
+  generation/
+    workflow/
+      visual_execution/
+        skill.workflow.json
         instruction.md
   movscript/
     persona/
       movscript-personas.persona.json
     policy/
-      movscript/
+      workspace/
         skill.policy.json
         instruction.md
     workflow/
       proposal/
         project/
-          project-standards-proposal/
+          project_standards_proposal/
             skill.workflow.json
             instruction.md
-      generation/
-        visual-generation/
-          skill.workflow.json
-          instruction.md
 tools/
-  agent-core/
-  drafts/
+  core/
+  draft/
+  candidate/
+  generation/
+  knowledge/
   movscript/
     workspace/
-    visual-generation/
 ```
 
 每个 pack 都应拥有一个 policy skill，用来表达该能力层的跨任务 guardrails：
 
 ```text
 skills/
-  agent-core/
+  core/
     policy/
-      agent-core/
+      runtime/
         skill.policy.json
         instruction.md
-  drafts/
+  draft/
     policy/
-      drafts/
+      lifecycle/
         skill.policy.json
         instruction.md
   movscript/
     policy/
-      movscript/
+      workspace/
         skill.policy.json
         instruction.md
 ```
@@ -121,7 +136,7 @@ skills/
     workflow/
       proposal/
         production/
-          production-proposal/
+          production_proposal/
             skill.workflow.json
             instruction.md
 ```

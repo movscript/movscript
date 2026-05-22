@@ -1,5 +1,5 @@
 import { cloneJSONValue, isJSONRecord } from '../jsonValue.js'
-import type { AgentTask, CreatePlanTaskInput, ReplanRunInput, UpdatePlanTaskInput } from './types.js'
+import type { AgentTask, CreateTaskGraphTaskInput, UpdateTaskGraphInput, UpdateTaskGraphTaskInput } from './types.js'
 import { normalizePlanTaskInputs, normalizePlanTaskUpdateInputs, normalizeStringList } from './planTaskInput.js'
 import {
   assertTaskDependencyGraphAcyclic,
@@ -8,33 +8,33 @@ import {
 } from './planTaskGraph.js'
 
 export interface ReplanTaskUpdateValidationInput {
-  planId: string
+  taskGraphId: string
   existingTasks: AgentTask[]
   tasksToCreate: AgentTask[]
-  updates: UpdatePlanTaskInput[]
+  updates: UpdateTaskGraphTaskInput[]
   getTask: (taskId: string) => AgentTask | undefined
   validateOwnerRun?: (ownerRunId: string, task: AgentTask) => void
   validateTaskNames?: (tasksById: Map<string, AgentTask>) => void
 }
 
 export interface NormalizedReplanTaskInputs {
-  creates: CreatePlanTaskInput[]
-  updates: UpdatePlanTaskInput[]
+  creates: CreateTaskGraphTaskInput[]
+  updates: UpdateTaskGraphTaskInput[]
 }
 
-export function normalizeReplanTaskInputsForPlan(input: {
-  planId: string
+export function normalizeReplanTaskInputsForTaskGraph(input: {
+  taskGraphId: string
   tasks?: unknown
   addTasks?: unknown
   getTask: (taskId: string) => AgentTask | undefined
 }): NormalizedReplanTaskInputs {
-  const creates: CreatePlanTaskInput[] = [...normalizePlanTaskInputs(input.addTasks)]
-  const updates: UpdatePlanTaskInput[] = []
+  const creates: CreateTaskGraphTaskInput[] = [...normalizePlanTaskInputs(input.addTasks)]
+  const updates: UpdateTaskGraphTaskInput[] = []
   for (const item of normalizePlanTaskInputs(input.tasks)) {
     const taskId = normalizeNonEmptyString(item.id)
     const existing = taskId ? input.getTask(taskId) : undefined
     if (existing) {
-      if (existing.planId !== input.planId) throw new Error(`task ${taskId} does not belong to plan ${input.planId}`)
+      if (existing.taskGraphId !== input.taskGraphId) throw new Error(`task ${taskId} does not belong to taskGraph ${input.taskGraphId}`)
       updates.push(item)
     } else {
       creates.push(item)
@@ -43,7 +43,7 @@ export function normalizeReplanTaskInputsForPlan(input: {
   return { creates, updates }
 }
 
-export function normalizeReplanTaskUpdateInputs(input: Pick<ReplanRunInput, 'updates' | 'updateTasks'>): UpdatePlanTaskInput[] {
+export function normalizeReplanTaskUpdateInputs(input: Pick<UpdateTaskGraphInput, 'updates' | 'updateTasks'>): UpdateTaskGraphTaskInput[] {
   return [
     ...normalizePlanTaskUpdateInputs(input.updates),
     ...normalizePlanTaskUpdateInputs(input.updateTasks),
@@ -52,19 +52,19 @@ export function normalizeReplanTaskUpdateInputs(input: Pick<ReplanRunInput, 'upd
 
 export function normalizeAndValidateReplanTaskUpdates(
   input: ReplanTaskUpdateValidationInput,
-): Array<{ taskId: string; update: UpdatePlanTaskInput }> {
+): Array<{ taskId: string; update: UpdateTaskGraphTaskInput }> {
   const tasksById = new Map<string, AgentTask>()
   for (const task of input.existingTasks) tasksById.set(task.id, cloneTaskForValidation(task))
   for (const task of input.tasksToCreate) tasksById.set(task.id, cloneTaskForValidation(task))
 
-  const normalized: Array<{ taskId: string; update: UpdatePlanTaskInput }> = []
+  const normalized: Array<{ taskId: string; update: UpdateTaskGraphTaskInput }> = []
   for (const update of input.updates) {
     const taskId = normalizeNonEmptyString(update.id)
     if (!taskId) throw new Error('task update id is required')
     const task = tasksById.get(taskId)
     if (!task) {
       const existing = input.getTask(taskId)
-      if (existing && existing.planId !== input.planId) throw new Error(`task ${taskId} does not belong to plan ${input.planId}`)
+      if (existing && existing.taskGraphId !== input.taskGraphId) throw new Error(`task ${taskId} does not belong to taskGraph ${input.taskGraphId}`)
       throw new Error(`task not found: ${taskId}`)
     }
 
@@ -73,7 +73,7 @@ export function normalizeAndValidateReplanTaskUpdates(
 
     const parentId = normalizeNonEmptyString(update.parentId)
     if (parentId) {
-      assertTaskReferenceInTaskMap(input.planId, tasksById, input.getTask, parentId, 'parent task')
+      assertTaskReferenceInTaskMap(input.taskGraphId, tasksById, input.getTask, parentId, 'parent task')
       if (parentId === task.id) throw new Error(`task ${task.id} cannot use itself as parent`)
       task.parentId = parentId
     } else if ('parentId' in update) {
@@ -83,7 +83,7 @@ export function normalizeAndValidateReplanTaskUpdates(
     if (Array.isArray(update.deps)) {
       const deps = normalizeStringList(update.deps)
       for (const depId of deps) {
-        assertTaskReferenceInTaskMap(input.planId, tasksById, input.getTask, depId, 'dependency task')
+        assertTaskReferenceInTaskMap(input.taskGraphId, tasksById, input.getTask, depId, 'dependency task')
         if (depId === task.id) throw new Error(`task ${task.id} cannot depend on itself`)
       }
       task.deps = deps
@@ -104,7 +104,7 @@ export function normalizeAndValidateReplanTaskUpdates(
 }
 
 function assertTaskReferenceInTaskMap(
-  planId: string,
+  taskGraphId: string,
   tasksById: Map<string, AgentTask>,
   getTask: (taskId: string) => AgentTask | undefined,
   taskId: string,
@@ -112,7 +112,7 @@ function assertTaskReferenceInTaskMap(
 ): void {
   if (tasksById.has(taskId)) return
   const referencedTask = getTask(taskId)
-  if (referencedTask && referencedTask.planId !== planId) throw new Error(`${label} ${taskId} does not belong to plan ${planId}`)
+  if (referencedTask && referencedTask.taskGraphId !== taskGraphId) throw new Error(`${label} ${taskId} does not belong to taskGraph ${taskGraphId}`)
   throw new Error(`task not found: ${taskId}`)
 }
 

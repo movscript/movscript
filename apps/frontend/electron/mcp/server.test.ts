@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
-import { applyDraftReview, attachAssetSlotCandidate, attachKeyframeCandidate, buildGenerationModelParamRules, buildGenerationParamValidationAudit, createGenerationJob, getDraftModelContract, listModels, listTools, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, queryCreativeReferences, queryProductionContext, readProjectScripts, setMCPAPIBaseURL, summarizeModelContractForAgent, waitGenerationJobs } from './server'
+import { applyDraftReview, attachAssetSlotCandidate, attachKeyframeCandidate, buildGenerationModelParamRules, buildGenerationParamValidationAudit, callComfyUITool, callWebUITool, createGenerationJob, getDraftModelContract, listModels, listTools, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, queryCreativeReferences, queryProductionContext, readProjectScripts, setMCPAPIBaseURL, setMCPGenerationToolsSettings, summarizeModelContractForAgent, testMCPGenerationToolServer, updateMCPContextSnapshot, waitGenerationJobs } from './server'
 
 test('normalizeBackendHTTPErrorForMCP preserves structured generation validation details', () => {
   const body = {
@@ -120,11 +120,11 @@ test('normalizeBackendHTTPErrorForMCP preserves typed allowed values and suggest
 
 test('generation MCP tool descriptions expose versioned agent contracts', () => {
   const tools = listTools()
-  const listModels = tools.find((tool) => tool.name === 'movscript_list_models')
-  const createJob = tools.find((tool) => tool.name === 'movscript_create_generation_job')
-  const waitJobs = tools.find((tool) => tool.name === 'movscript_wait_generation_jobs')
-  const attachCandidate = tools.find((tool) => tool.name === 'movscript_attach_asset_slot_candidate')
-  const attachKeyframe = tools.find((tool) => tool.name === 'movscript_attach_keyframe_candidate')
+  const listModels = tools.find((tool) => tool.name === 'generation_model_list')
+  const createJob = tools.find((tool) => tool.name === 'generation_job_create')
+  const waitJobs = tools.find((tool) => tool.name === 'generation_job_wait')
+  const attachCandidate = tools.find((tool) => tool.name === 'candidate_asset_slot_attach')
+  const attachKeyframe = tools.find((tool) => tool.name === 'candidate_keyframe_attach')
   const staticListModels = loadStaticCatalogTool('list-models.tool.json')
   const staticCreateJob = loadStaticCatalogTool('create-job.tool.json')
   const staticWaitJobs = loadStaticCatalogTool('wait-jobs.tool.json')
@@ -251,7 +251,7 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
   assert.ok((createJob.outputSchema?.properties?.param_validation as any)?.properties?.extra_params_parse_error)
   assert.ok((createJob.outputSchema?.properties?.param_validation as any)?.properties?.preflight_errors)
   assert.ok((createJob.outputSchema?.properties?.param_validation as any)?.properties?.input_preflight_errors)
-  assert.match(waitJobs.description, /instead of repeatedly calling movscript_get_generation_job/)
+  assert.match(waitJobs.description, /instead of repeatedly calling generation_job_get/)
   assert.ok(waitJobs.inputSchema.properties?.jobIds)
   assert.ok(waitJobs.inputSchema.properties?.jobId)
   assert.ok(waitJobs.inputSchema.properties?.mode)
@@ -266,62 +266,62 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
     assert.deepEqual(
       schemaShapeWithoutDescriptions(listModels.inputSchema.properties?.[field]),
       schemaShapeWithoutDescriptions(staticListModels.inputSchema.properties?.[field]),
-      `movscript_list_models ${field} schema should match the static agent catalog`,
+      `generation_model_list ${field} schema should match the static agent catalog`,
     )
   }
   for (const field of ['count', 'queries', 'model_contracts', 'models']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(listModels.outputSchema?.properties?.[field]),
       schemaShapeWithoutDescriptions(staticListModels.outputSchema?.properties?.[field]),
-      `movscript_list_models ${field} output schema should match the static agent catalog`,
+      `generation_model_list ${field} output schema should match the static agent catalog`,
     )
   }
   for (const field of ['title', 'job_type', 'model_id', 'input_resource_ids', 'reference_type', 'aspect_ratio', 'duration', 'output_count', 'outputCount', 'feature_key', 'timeout_ms', 'poll_interval_ms']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(createJob.inputSchema.properties?.[field]),
       schemaShapeWithoutDescriptions(staticCreateJob.inputSchema.properties?.[field]),
-      `movscript_create_generation_job ${field} schema should match the static agent catalog`,
+      `generation_job_create ${field} schema should match the static agent catalog`,
     )
   }
   for (const field of ['status', 'job', 'jobId', 'jobIds', 'jobs', 'monitor', 'output_resource', 'output_resource_id', 'output_resources', 'output_resource_ids', 'param_validation', 'terminal', 'message']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(createJob.outputSchema?.properties?.[field]),
       schemaShapeWithoutDescriptions(staticCreateJob.outputSchema?.properties?.[field]),
-      `movscript_create_generation_job ${field} output schema should match the static agent catalog`,
+      `generation_job_create ${field} output schema should match the static agent catalog`,
     )
   }
   for (const field of ['jobIds', 'jobId', 'projectId', 'mode', 'timeout_ms', 'heartbeat_ms']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(waitJobs.inputSchema.properties?.[field]),
       schemaShapeWithoutDescriptions(staticWaitJobs.inputSchema.properties?.[field]),
-      `movscript_wait_generation_jobs ${field} schema should match the static agent catalog`,
+      `generation_job_wait ${field} schema should match the static agent catalog`,
     )
   }
   for (const field of ['status', 'done', 'jobIds', 'completed', 'pending', 'failed', 'cancelled', 'output_resource_ids', 'jobs', 'message']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(waitJobs.outputSchema?.properties?.[field]),
       schemaShapeWithoutDescriptions(staticWaitJobs.outputSchema?.properties?.[field]),
-      `movscript_wait_generation_jobs ${field} output schema should match the static agent catalog`,
+      `generation_job_wait ${field} output schema should match the static agent catalog`,
     )
   }
   for (const field of ['projectId', 'asset_slot_id', 'assetSlotId', 'resource_id', 'resourceId', 'output_resource_id', 'outputResourceId', 'resource_ids', 'resourceIds', 'output_resource_ids', 'outputResourceIds', 'source_type', 'sourceType', 'source_id', 'sourceId', 'jobId', 'score', 'note']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(attachCandidate.inputSchema.properties?.[field]),
       schemaShapeWithoutDescriptions(staticAttachCandidate.inputSchema.properties?.[field]),
-      `movscript_attach_asset_slot_candidate ${field} schema should match the static agent catalog`,
+      `candidate_asset_slot_attach ${field} schema should match the static agent catalog`,
     )
   }
   assert.equal(attachCandidate.inputSchema.additionalProperties, staticAttachCandidate.inputSchema.additionalProperties)
   assert.deepEqual(
     schemaShapeWithoutDescriptions(attachCandidate.inputSchema.allOf),
     schemaShapeWithoutDescriptions(staticAttachCandidate.inputSchema.allOf),
-    'movscript_attach_asset_slot_candidate alias requirements should match the static agent catalog',
+    'candidate_asset_slot_attach alias requirements should match the static agent catalog',
   )
   for (const field of ['status', 'candidate', 'candidates', 'asset_slot_id', 'candidate_asset_slot_id', 'candidate_asset_slot_ids', 'resource_id', 'resource_ids', 'skipped_resource_ids', 'message']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(attachCandidate.outputSchema?.properties?.[field]),
       schemaShapeWithoutDescriptions(staticAttachCandidate.outputSchema?.properties?.[field]),
-      `movscript_attach_asset_slot_candidate ${field} output schema should match the static agent catalog`,
+      `candidate_asset_slot_attach ${field} output schema should match the static agent catalog`,
     )
   }
   assert.equal(attachCandidate.outputSchema?.additionalProperties, staticAttachCandidate.outputSchema?.additionalProperties)
@@ -329,20 +329,20 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
     assert.deepEqual(
       schemaShapeWithoutDescriptions(attachKeyframe.inputSchema.properties?.[field]),
       schemaShapeWithoutDescriptions(staticAttachKeyframe.inputSchema.properties?.[field]),
-      `movscript_attach_keyframe_candidate ${field} schema should match the static agent catalog`,
+      `candidate_keyframe_attach ${field} schema should match the static agent catalog`,
     )
   }
   assert.equal(attachKeyframe.inputSchema.additionalProperties, staticAttachKeyframe.inputSchema.additionalProperties)
   assert.deepEqual(
     schemaShapeWithoutDescriptions(attachKeyframe.inputSchema.allOf),
     schemaShapeWithoutDescriptions(staticAttachKeyframe.inputSchema.allOf),
-    'movscript_attach_keyframe_candidate alias requirements should match the static agent catalog',
+    'candidate_keyframe_attach alias requirements should match the static agent catalog',
   )
   for (const field of ['status', 'candidate', 'candidates', 'keyframe_id', 'resource_id', 'resource_ids', 'skipped_resource_ids', 'message']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(attachKeyframe.outputSchema?.properties?.[field]),
       schemaShapeWithoutDescriptions(staticAttachKeyframe.outputSchema?.properties?.[field]),
-      `movscript_attach_keyframe_candidate ${field} output schema should match the static agent catalog`,
+      `candidate_keyframe_attach ${field} output schema should match the static agent catalog`,
     )
   }
   assert.equal(attachKeyframe.outputSchema?.additionalProperties, staticAttachKeyframe.outputSchema?.additionalProperties)
@@ -350,8 +350,686 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
   assert.deepEqual(attachKeyframe.inputSchema.required, staticAttachKeyframe.inputSchema.required)
 })
 
+test('local generation connector tools use configured ComfyUI and WebUI servers', async () => {
+  const previousFetch = globalThis.fetch
+  const calls: Array<{ path: string; auth: string; body: Record<string, unknown> }> = []
+  globalThis.fetch = mockFetch({
+    'GET /system_stats': () => ({ system: { os: 'test' } }),
+    'POST /prompt': (body: Record<string, unknown>) => {
+      calls.push({ path: '/prompt', auth: currentMockAuthHeader, body })
+      return { prompt_id: 'prompt-1' }
+    },
+    'GET /sdapi/v1/sd-models': () => {
+      calls.push({ path: '/sdapi/v1/sd-models', auth: currentMockAuthHeader, body: {} })
+      return [{ title: 'model-a' }]
+    },
+  }) as typeof fetch
+  setMCPGenerationToolsSettings({
+    preferLocalServers: true,
+    defaultServerIds: {
+      comfyui: 'local-comfy',
+      webui: 'local-webui',
+    },
+    servers: [
+      {
+        id: 'local-comfy',
+        scope: 'local',
+        type: 'comfyui',
+        name: 'Local ComfyUI',
+        enabled: true,
+        baseURL: 'http://127.0.0.1:8188',
+        timeoutMS: 120000,
+        priority: 10,
+        authKind: 'bearer',
+        token: 'comfy-token',
+      },
+      {
+        id: 'local-webui',
+        scope: 'local',
+        type: 'webui',
+        name: 'Local WebUI',
+        enabled: true,
+        baseURL: 'http://127.0.0.1:7860',
+        timeoutMS: 120000,
+        priority: 10,
+        authKind: 'basic',
+        username: 'user',
+        password: 'pass',
+      },
+    ],
+  })
+
+  try {
+    const listed = await callComfyUITool({ operation: 'list_servers' }) as Record<string, any>
+    assert.equal(listed.status, 'ok')
+    assert.equal(listed.servers[0].id, 'local-comfy')
+    assert.equal(listed.servers[0].tokenSet, true)
+    assert.equal(listed.servers[0].token, undefined)
+
+    const queued = await callComfyUITool({ operation: 'queue_prompt', workflow: { '1': { class_type: 'CheckpointLoaderSimple' } } }) as Record<string, any>
+    assert.equal(queued.data.prompt_id, 'prompt-1')
+
+    const models = await callWebUITool({ operation: 'models' }) as Record<string, any>
+    assert.equal(models.data[0].title, 'model-a')
+    assert.equal(calls[0].auth, 'Bearer comfy-token')
+    assert.equal(calls[1].auth, `Basic ${Buffer.from('user:pass').toString('base64')}`)
+    assert.deepEqual(calls[0].body, { prompt: { '1': { class_type: 'CheckpointLoaderSimple' } } })
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPGenerationToolsSettings(undefined)
+  }
+})
+
+test('local generation connector connection test checks the draft server directly', async () => {
+  const previousFetch = globalThis.fetch
+  const calls: Array<Record<string, unknown>> = []
+  globalThis.fetch = mockFetch({
+    'GET /system_stats': () => {
+      calls.push({ auth: currentMockAuthHeader })
+      return { system: { comfyui: true } }
+    },
+  }) as typeof fetch
+
+  try {
+    const result = await testMCPGenerationToolServer({
+      id: 'draft-comfy',
+      scope: 'local',
+      type: 'comfyui',
+      name: 'Draft Comfy',
+      enabled: false,
+      baseURL: 'http://127.0.0.1:8188',
+      timeoutMS: 120000,
+      priority: 10,
+      authKind: 'bearer',
+      token: 'draft-token',
+    }) as Record<string, any>
+
+    assert.equal(result.success, true)
+    assert.equal(result.status_code, 200)
+    assert.equal(result.server.token, undefined)
+    assert.equal(result.server.tokenSet, true)
+    assert.equal(calls[0].auth, 'Bearer draft-token')
+  } finally {
+    globalThis.fetch = previousFetch
+  }
+})
+
+test('admin generation connector servers are called through backend proxy', async () => {
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const calls: Array<Record<string, unknown>> = []
+  globalThis.fetch = mockFetch({
+    'GET /generation-tools/settings': {
+      allow_local: false,
+      default_server_id: 'org-comfy',
+      servers: [{
+        id: 'org-comfy',
+        scope: 'org',
+        type: 'comfyui',
+        name: 'Org Comfy',
+        enabled: true,
+        base_url: 'https://org-gpu.example.com',
+        timeout_ms: 120000,
+        priority: 5,
+        auth_kind: 'bearer',
+        token_set: true,
+      }, {
+        id: 'admin-comfy',
+        scope: 'admin',
+        type: 'comfyui',
+        name: 'Admin Comfy',
+        enabled: true,
+        base_url: 'https://gpu.example.com',
+        timeout_ms: 120000,
+        priority: 10,
+        auth_kind: 'bearer',
+        token_set: true,
+      }],
+    },
+    'POST /generation-tools/call': (body: Record<string, unknown>) => {
+      calls.push(body)
+      return { status: 'ok', data: { prompt_id: 'admin-prompt' } }
+    },
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  updateMCPContextSnapshot({
+    route: { pathname: '/', search: '', hash: '' },
+    project: null,
+    user: null,
+    selection: null,
+    updatedAt: new Date(0).toISOString(),
+    auth: { token: 'runtime-token' },
+  })
+  try {
+    const listed = await callComfyUITool({ operation: 'list_servers' }) as Record<string, any>
+    assert.equal(listed.servers[0].id, 'org-comfy')
+    assert.equal(listed.servers[0].scope, 'org')
+    assert.equal(listed.servers[0].tokenSet, true)
+    assert.equal(listed.servers[0].token, undefined)
+
+    const result = await callComfyUITool({ operation: 'queue_prompt', workflow: { '1': { class_type: 'KSampler' } } }) as Record<string, any>
+    assert.equal(result.data.prompt_id, 'admin-prompt')
+    assert.deepEqual(calls[0], {
+      tool_type: 'comfyui',
+      server_id: 'org-comfy',
+      server_scope: 'org',
+      operation: 'queue_prompt',
+      workflow: { '1': { class_type: 'KSampler' } },
+    })
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    updateMCPContextSnapshot({
+      route: { pathname: '/', search: '', hash: '' },
+      project: null,
+      user: null,
+      selection: null,
+      updatedAt: new Date(0).toISOString(),
+      auth: null,
+    })
+  }
+})
+
+test('generation connector server_scope disambiguates duplicate remote server IDs', async () => {
+  const comfyTool = listTools().find((tool) => tool.name === 'tool_comfyui')
+  const webuiTool = listTools().find((tool) => tool.name === 'tool_webui')
+  assert.deepEqual(schemaShapeWithoutDescriptions(comfyTool?.inputSchema.properties?.server_scope), {
+    type: 'string',
+    enum: ['local', 'org', 'admin'],
+  })
+  assert.deepEqual(schemaShapeWithoutDescriptions(webuiTool?.inputSchema.properties?.server_scope), {
+    type: 'string',
+    enum: ['local', 'org', 'admin'],
+  })
+
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const calls: Array<Record<string, unknown>> = []
+  globalThis.fetch = mockFetch({
+    'GET /generation-tools/settings': {
+      allow_local: false,
+      servers: [{
+        id: 'shared-comfy',
+        scope: 'admin',
+        type: 'comfyui',
+        name: 'Admin Shared Comfy',
+        enabled: true,
+        base_url: 'https://admin-gpu.example.com',
+        timeout_ms: 120000,
+        priority: 1,
+        auth_kind: 'bearer',
+        token_set: true,
+      }, {
+        id: 'shared-comfy',
+        scope: 'org',
+        type: 'comfyui',
+        name: 'Org Shared Comfy',
+        enabled: true,
+        base_url: 'https://org-gpu.example.com',
+        timeout_ms: 120000,
+        priority: 1,
+        auth_kind: 'bearer',
+        token_set: true,
+      }],
+    },
+    'POST /generation-tools/call': (body: Record<string, unknown>) => {
+      calls.push(body)
+      return { status: 'ok', data: { scope: body.server_scope } }
+    },
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  updateMCPContextSnapshot({
+    route: { pathname: '/', search: '', hash: '' },
+    project: null,
+    user: null,
+    selection: null,
+    updatedAt: new Date(0).toISOString(),
+    auth: { token: 'runtime-token' },
+  })
+  try {
+    const result = await callComfyUITool({
+      operation: 'status',
+      server_id: 'shared-comfy',
+      server_scope: 'admin',
+    }) as Record<string, any>
+
+    assert.equal(result.data.scope, 'admin')
+    assert.equal(calls[0].server_id, 'shared-comfy')
+    assert.equal(calls[0].server_scope, 'admin')
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    updateMCPContextSnapshot({
+      route: { pathname: '/', search: '', hash: '' },
+      project: null,
+      user: null,
+      selection: null,
+      updatedAt: new Date(0).toISOString(),
+      auth: null,
+    })
+  }
+})
+
+test('generation connector selection keeps local before org before admin regardless of priority', async () => {
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const calls: Array<Record<string, unknown>> = []
+  globalThis.fetch = mockFetch({
+    'GET /generation-tools/settings': {
+      allow_local: true,
+      servers: [{
+        id: 'admin-comfy',
+        scope: 'admin',
+        type: 'comfyui',
+        name: 'Admin Comfy',
+        enabled: true,
+        base_url: 'https://admin-gpu.example.com',
+        timeout_ms: 120000,
+        priority: 1,
+        auth_kind: 'bearer',
+        token_set: true,
+      }, {
+        id: 'org-comfy',
+        scope: 'org',
+        type: 'comfyui',
+        name: 'Org Comfy',
+        enabled: true,
+        base_url: 'https://org-gpu.example.com',
+        timeout_ms: 120000,
+        priority: 99,
+        auth_kind: 'bearer',
+        token_set: true,
+      }],
+    },
+    'GET /system_stats': () => {
+      calls.push({ path: '/system_stats', auth: currentMockAuthHeader })
+      return { system: { local: true } }
+    },
+    'POST /generation-tools/call': (body: Record<string, unknown>) => {
+      calls.push(body)
+      return { status: 'ok', data: { prompt_id: 'remote-prompt' } }
+    },
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  setMCPGenerationToolsSettings({
+    preferLocalServers: true,
+    servers: [{
+      id: 'local-comfy',
+      scope: 'local',
+      type: 'comfyui',
+      name: 'Local Comfy',
+      enabled: true,
+      baseURL: 'http://127.0.0.1:8188',
+      timeoutMS: 120000,
+      priority: 500,
+      authKind: 'none',
+    }],
+  })
+  updateMCPContextSnapshot({
+    route: { pathname: '/', search: '', hash: '' },
+    project: null,
+    user: null,
+    selection: null,
+    updatedAt: new Date(0).toISOString(),
+    auth: { token: 'runtime-token' },
+  })
+  try {
+    const listed = await callComfyUITool({ operation: 'list_servers' }) as Record<string, any>
+    assert.deepEqual(listed.servers.map((server: Record<string, unknown>) => server.id), ['local-comfy', 'org-comfy', 'admin-comfy'])
+
+    const status = await callComfyUITool({ operation: 'status' }) as Record<string, any>
+    assert.equal(status.server.id, 'local-comfy')
+    assert.deepEqual(calls[0], { path: '/system_stats', auth: '' })
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    setMCPGenerationToolsSettings(undefined)
+    updateMCPContextSnapshot({
+      route: { pathname: '/', search: '', hash: '' },
+      project: null,
+      user: null,
+      selection: null,
+      updatedAt: new Date(0).toISOString(),
+      auth: null,
+    })
+  }
+})
+
+test('generation connector selection keeps org before admin when local is disallowed', async () => {
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const calls: Array<Record<string, unknown>> = []
+  globalThis.fetch = mockFetch({
+    'GET /generation-tools/settings': {
+      allow_local: false,
+      servers: [{
+        id: 'admin-comfy',
+        scope: 'admin',
+        type: 'comfyui',
+        name: 'Admin Comfy',
+        enabled: true,
+        base_url: 'https://admin-gpu.example.com',
+        timeout_ms: 120000,
+        priority: 1,
+        auth_kind: 'bearer',
+        token_set: true,
+      }, {
+        id: 'org-comfy',
+        scope: 'org',
+        type: 'comfyui',
+        name: 'Org Comfy',
+        enabled: true,
+        base_url: 'https://org-gpu.example.com',
+        timeout_ms: 120000,
+        priority: 99,
+        auth_kind: 'bearer',
+        token_set: true,
+      }],
+    },
+    'POST /generation-tools/call': (body: Record<string, unknown>) => {
+      calls.push(body)
+      return { status: 'ok', data: { prompt_id: 'org-prompt' } }
+    },
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  setMCPGenerationToolsSettings({
+    preferLocalServers: true,
+    servers: [{
+      id: 'local-comfy',
+      scope: 'local',
+      type: 'comfyui',
+      name: 'Local Comfy',
+      enabled: true,
+      baseURL: 'http://127.0.0.1:8188',
+      timeoutMS: 120000,
+      priority: 1,
+      authKind: 'none',
+    }],
+  })
+  updateMCPContextSnapshot({
+    route: { pathname: '/', search: '', hash: '' },
+    project: null,
+    user: null,
+    selection: null,
+    updatedAt: new Date(0).toISOString(),
+    auth: { token: 'runtime-token' },
+  })
+  try {
+    const listed = await callComfyUITool({ operation: 'list_servers' }) as Record<string, any>
+    assert.deepEqual(listed.servers.map((server: Record<string, unknown>) => server.id), ['org-comfy', 'admin-comfy'])
+
+    const result = await callComfyUITool({ operation: 'queue_prompt', workflow: { '1': { class_type: 'KSampler' } } }) as Record<string, any>
+    assert.equal(result.data.prompt_id, 'org-prompt')
+    assert.equal(calls[0].server_id, 'org-comfy')
+    assert.equal(calls[0].server_scope, 'org')
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    setMCPGenerationToolsSettings(undefined)
+    updateMCPContextSnapshot({
+      route: { pathname: '/', search: '', hash: '' },
+      project: null,
+      user: null,
+      selection: null,
+      updatedAt: new Date(0).toISOString(),
+      auth: null,
+    })
+  }
+})
+
+test('generation connector fails closed when remote policy cannot be loaded in an authenticated session', async () => {
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const calls: Array<string> = []
+  globalThis.fetch = mockFetch({
+    'GET /generation-tools/settings': () => {
+      calls.push('/generation-tools/settings')
+      return new Response(JSON.stringify({ error: 'policy unavailable' }), {
+        status: 503,
+        headers: { 'content-type': 'application/json' },
+      })
+    },
+    'GET /system_stats': () => {
+      calls.push('/system_stats')
+      return { system: { local: true } }
+    },
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  setMCPGenerationToolsSettings({
+    preferLocalServers: true,
+    servers: [{
+      id: 'local-comfy',
+      scope: 'local',
+      type: 'comfyui',
+      name: 'Local Comfy',
+      enabled: true,
+      baseURL: 'http://127.0.0.1:8188',
+      timeoutMS: 120000,
+      priority: 1,
+      authKind: 'none',
+    }],
+  })
+  updateMCPContextSnapshot({
+    route: { pathname: '/', search: '', hash: '' },
+    project: null,
+    user: null,
+    selection: null,
+    updatedAt: new Date(0).toISOString(),
+    auth: { token: 'runtime-token' },
+  })
+  try {
+    const listed = await callComfyUITool({ operation: 'list_servers' }) as Record<string, any>
+    assert.deepEqual(listed.servers, [])
+
+    await assert.rejects(
+      () => callComfyUITool({ operation: 'status' }),
+      /Generation tool policy is unavailable/,
+    )
+    assert.deepEqual(calls, ['/generation-tools/settings', '/generation-tools/settings'])
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    setMCPGenerationToolsSettings(undefined)
+    updateMCPContextSnapshot({
+      route: { pathname: '/', search: '', hash: '' },
+      project: null,
+      user: null,
+      selection: null,
+      updatedAt: new Date(0).toISOString(),
+      auth: null,
+    })
+  }
+})
+
+test('webui connector imports returned images into resources', async () => {
+  const previousFetch = globalThis.fetch
+  const pngBase64 = Buffer.from('png-bytes').toString('base64')
+  globalThis.fetch = mockFetch({
+    'POST /sdapi/v1/txt2img': () => ({
+      images: [pngBase64],
+      parameters: { prompt: 'cinematic frame' },
+    }),
+    'POST /resources/upload': () => ({
+      ID: 770,
+      name: 'webui-output-1.png',
+      mime_type: 'image/png',
+    }),
+  }) as typeof fetch
+  setMCPGenerationToolsSettings({
+    preferLocalServers: true,
+    servers: [{
+      id: 'local-webui',
+      scope: 'local',
+      type: 'webui',
+      name: 'Local WebUI',
+      enabled: true,
+      baseURL: 'http://127.0.0.1:7860',
+      timeoutMS: 120000,
+      priority: 10,
+      authKind: 'none',
+    }],
+  })
+
+  try {
+    const result = await callWebUITool({
+      operation: 'txt2img',
+      payload: { prompt: 'cinematic frame' },
+      import_outputs: true,
+      output_name: 'cinematic frame',
+    }) as Record<string, any>
+
+    assert.equal(result.data.imported, true)
+    assert.equal(result.data.image_count, 1)
+    assert.equal(result.data.images, undefined)
+    assert.deepEqual(result.output_resource_ids, [770])
+    assert.equal(result.output_resources[0].ID, 770)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPGenerationToolsSettings(undefined)
+  }
+})
+
+test('comfyui connector imports history image outputs into resources', async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = mockFetch({
+    'GET /history/prompt-1': {
+      'prompt-1': {
+        outputs: {
+          '9': {
+            images: [{ filename: 'frame.png', subfolder: '', type: 'output' }],
+          },
+        },
+      },
+    },
+    'GET /view?filename=frame.png&type=output': new Response(new Uint8Array([1, 2, 3]), {
+      status: 200,
+      headers: { 'content-type': 'image/png' },
+    }),
+    'POST /resources/upload': {
+      ID: 771,
+      name: 'comfyui-output-1.png',
+      mime_type: 'image/png',
+    },
+  }) as typeof fetch
+  setMCPGenerationToolsSettings({
+    preferLocalServers: true,
+    servers: [{
+      id: 'local-comfy',
+      scope: 'local',
+      type: 'comfyui',
+      name: 'Local ComfyUI',
+      enabled: true,
+      baseURL: 'http://127.0.0.1:8188',
+      timeoutMS: 120000,
+      priority: 10,
+      authKind: 'none',
+    }],
+  })
+
+  try {
+    const result = await callComfyUITool({
+      operation: 'import_history_outputs',
+      prompt_id: 'prompt-1',
+      output_name: 'comfy frame',
+    }) as Record<string, any>
+
+    assert.equal(result.data.imported, true)
+    assert.equal(result.data.output_count, 1)
+    assert.deepEqual(result.output_resource_ids, [771])
+    assert.equal(result.output_resources[0].ID, 771)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPGenerationToolsSettings(undefined)
+  }
+})
+
+test('admin comfyui connector imports history outputs through backend proxy', async () => {
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const imageBase64 = Buffer.from('admin-image').toString('base64')
+  globalThis.fetch = mockFetch({
+    'GET /generation-tools/settings': {
+      allow_local: false,
+      default_server_id: 'admin-comfy',
+      servers: [{
+        id: 'admin-comfy',
+        scope: 'admin',
+        type: 'comfyui',
+        name: 'Admin Comfy',
+        enabled: true,
+        base_url: 'https://gpu.example.com',
+        timeout_ms: 120000,
+        priority: 10,
+        auth_kind: 'bearer',
+        token_set: true,
+      }],
+    },
+    'POST /generation-tools/call': (body: Record<string, unknown>) => {
+      if (body.operation === 'history') {
+        return {
+          status: 'ok',
+          data: {
+            'prompt-2': {
+              outputs: {
+                '9': { images: [{ filename: 'admin-frame.png', subfolder: '', type: 'output' }] },
+              },
+            },
+          },
+        }
+      }
+      if (body.operation === 'view') {
+        return {
+          status: 'ok',
+          data: {
+            mime_type: 'image/png',
+            base64: imageBase64,
+          },
+        }
+      }
+      return { status: 'ok' }
+    },
+    'POST /resources/upload': {
+      ID: 772,
+      name: 'admin-comfyui-output-1.png',
+      mime_type: 'image/png',
+    },
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  updateMCPContextSnapshot({
+    route: { pathname: '/', search: '', hash: '' },
+    project: null,
+    user: null,
+    selection: null,
+    updatedAt: new Date(0).toISOString(),
+    auth: { token: 'runtime-token' },
+  })
+  try {
+    const result = await callComfyUITool({
+      operation: 'import_history_outputs',
+      prompt_id: 'prompt-2',
+      output_name: 'admin comfyui output',
+    }) as Record<string, any>
+
+    assert.equal(result.data.imported, true)
+    assert.deepEqual(result.output_resource_ids, [772])
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
+    updateMCPContextSnapshot({
+      route: { pathname: '/', search: '', hash: '' },
+      project: null,
+      user: null,
+      selection: null,
+      updatedAt: new Date(0).toISOString(),
+      auth: null,
+    })
+  }
+})
+
+
+
 test('script MCP tool exposes backend script identity and content controls', () => {
-  const tool = listTools().find((item) => item.name === 'movscript_read_project_scripts')
+  const tool = listTools().find((item) => item.name === 'movscript_project_script_read')
   assert.ok(tool)
   assert.match(tool.description, /backend project scripts/)
   assert.match(tool.description, /not the local Agent draft artifact API/)
@@ -1022,8 +1700,9 @@ test('draft model MCP tool hydrates asset proposal seed from allowed backend inc
       { ID: 8, name: 'Old Hero', status: 'ignored', UpdatedAt: '2026-05-13T00:00:01.000Z' },
       { ID: 10, name: 'Merged Hero', status: 'merged', UpdatedAt: '2026-05-13T00:00:01.000Z' },
     ],
-    '/projects/42/entities/asset-slots': [
+    '/projects/42/entities/asset-slots?include_internal=true': [
       { ID: 9, name: 'Hero portrait', status: 'missing', owner_type: 'creative_reference', owner_id: 7, UpdatedAt: '2026-05-13T00:00:02.000Z' },
+      { ID: 11, name: 'Hero internal candidate shell', status: 'missing', owner_type: 'asset_slot', owner_id: 9, UpdatedAt: '2026-05-13T00:00:02.500Z' },
       { ID: 12, name: 'Waived portrait', status: 'waived', owner_type: 'creative_reference', owner_id: 7, UpdatedAt: '2026-05-13T00:00:02.000Z' },
       { ID: 13, name: 'Merged portrait', status: 'merged', owner_type: 'creative_reference', owner_id: 7, UpdatedAt: '2026-05-13T00:00:02.000Z' },
       { ID: 14, name: 'Ignored portrait', status: 'ignored', owner_type: 'creative_reference', owner_id: 7, UpdatedAt: '2026-05-13T00:00:02.000Z' },
@@ -1043,8 +1722,8 @@ test('draft model MCP tool hydrates asset proposal seed from allowed backend inc
     assert.equal(result.seed.data.creative_references[0].name, 'Hero')
     assert.deepEqual(result.seed.data.creative_references.map((item: any) => item.ID), [7])
     assert.equal(result.seed.data.asset_slots[0].owner_type, 'creative_reference')
-    assert.deepEqual(result.seed.data.asset_slots.map((item: any) => item.ID), [9])
-    assert.deepEqual(result.seed.data.asset_slot_ownership.map((item: any) => item.id), [9])
+    assert.deepEqual(result.seed.data.asset_slots.map((item: any) => item.ID), [9, 11])
+    assert.deepEqual(result.seed.data.asset_slot_ownership.map((item: any) => item.id), [9, 11])
     assert.deepEqual(result.seed.sourceVersions.project, { id: 42, updatedAt: '2026-05-13T00:00:00.000Z' })
   } finally {
     setMCPAPIBaseURL(previousBaseURL)
@@ -1108,6 +1787,58 @@ test('semantic query creative reference count is filtered and total_count preser
 
     assert.equal(result.count, 0)
     assert.equal(result.total_count, 2)
+    assert.equal(result.returned, 0)
+    assert.deepEqual(result.references, [])
+    assert.match(result.note, /Filters matched no creative references/)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL('http://localhost:8765')
+  }
+})
+
+test('semantic query creative references matches Chinese names from backend rows', async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = mockFetch({
+    '/projects/42/entities/creative-references': [
+      { ID: 10, project_id: 42, proposal_client_id: 'cr_zhou_dehou', kind: 'character', name: '周德厚', description: '周建国父亲', status: 'needs_review' },
+      { ID: 11, project_id: 42, proposal_client_id: 'cr_jiuye', kind: 'character', name: '舅爷', description: '周家长辈，带领族亲公审周建国。', status: 'needs_review' },
+      { ID: 12, project_id: 42, proposal_client_id: 'cr_laoyang', kind: 'character', name: '老杨', description: '陈家坳村长', status: 'needs_review' },
+    ],
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await queryCreativeReferences({
+      projectId: 42,
+      query: '舅爷',
+    }) as Record<string, any>
+
+    assert.equal(result.count, 1)
+    assert.equal(result.total_count, 3)
+    assert.equal(result.returned, 1)
+    assert.deepEqual(result.references.map((item: any) => item.ID), [11])
+    assert.equal(result.references[0]?.name, '舅爷')
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL('http://localhost:8765')
+  }
+})
+
+test('semantic query creative references exposes hidden-character query mismatch', async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = mockFetch({
+    '/projects/42/entities/creative-references': [
+      { ID: 11, project_id: 42, proposal_client_id: 'cr_jiuye', kind: 'character', name: '舅爷', description: '周家长辈，带领族亲公审周建国。', status: 'needs_review' },
+    ],
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await queryCreativeReferences({
+      projectId: 42,
+      query: '舅\u200b爷',
+    }) as Record<string, any>
+
+    assert.equal(result.count, 0)
+    assert.equal(result.total_count, 1)
     assert.equal(result.returned, 0)
     assert.deepEqual(result.references, [])
     assert.match(result.note, /Filters matched no creative references/)
@@ -1226,26 +1957,45 @@ test('applyDraftReview posts direct asset proposal snapshot rows to asset propos
   }
 })
 
-test('applyDraftReview rejects partial direct asset proposal snapshots', async () => {
-  await assert.rejects(() => applyDraftReview({
-    review: {
-      draftKind: 'asset_proposal',
-      target: { projectId: 4, entityType: 'project', entityId: 4, field: 'proposal' },
-      proposedValue: JSON.stringify({
-        schema: 'movscript.asset_proposal.v1',
-        mode: 'snapshot',
-        snapshot_base: {
-          asset_slots: [
-            { id: 11, name: 'Keep this slot', kind: 'image', status: 'active' },
-            { id: 12, name: 'Edited slot', kind: 'image', status: 'active' },
-          ],
-        },
-        proposal: {
-          asset_slots: [{ id: 12, name: 'Edited slot', kind: 'image', status: 'active' }],
-        },
-      }),
+test('applyDraftReview allows omitted asset ids when snapshot_base defines the delete baseline', async () => {
+  const postedBodies: Array<Record<string, unknown>> = []
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = mockFetch({
+    'POST /projects/4/entities/asset-proposals/apply': (body: Record<string, unknown>) => {
+      postedBodies.push(body)
+      return { counts: { asset_slots_deleted: 1 } }
     },
-  }), /omit existing active asset slots.*11/s)
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await applyDraftReview({
+      review: {
+        draftKind: 'asset_proposal',
+        target: { projectId: 4, entityType: 'project', entityId: 4, field: 'proposal' },
+        proposedValue: JSON.stringify({
+          schema: 'movscript.asset_proposal.v1',
+          mode: 'snapshot',
+          snapshot_base: {
+            asset_slots: [
+              { id: 11, name: 'Delete this slot', kind: 'image', status: 'active' },
+              { id: 12, name: 'Edited slot', kind: 'image', status: 'active' },
+            ],
+          },
+          proposal: {
+            asset_slots: [{ id: 12, name: 'Edited slot', kind: 'image', status: 'active' }],
+          },
+        }),
+      },
+    }) as Record<string, any>
+    assert.equal(result.performed, true)
+    assert.deepEqual(postedBodies[0]?.proposal, {
+      creative_references: [],
+      asset_slots: [{ id: 12, name: 'Edited slot', kind: 'image', status: 'active' }],
+    })
+  } finally {
+    setMCPAPIBaseURL('http://localhost:8765')
+    globalThis.fetch = previousFetch
+  }
 })
 
 test('applyDraftReview normalizes project standards shot size object arrays before apply', async () => {
@@ -1485,7 +2235,7 @@ test('createGenerationJob returns queued monitor and param validation audit for 
     assert.equal(result.status, 'queued')
     assert.equal(result.jobId, 101)
     assert.deepEqual(result.monitor, {
-      tool: 'movscript_wait_generation_jobs',
+      tool: 'generation_job_wait',
       args: { jobIds: [101], timeout_ms: 180000, heartbeat_ms: 15000 },
       message: 'Generation is asynchronous. Wait for this job to reach a terminal status before claiming completion.',
     })
@@ -2017,7 +2767,26 @@ function loadParamValidationAuditFixture(): Record<string, any> {
 }
 
 function loadStaticCatalogTool(fileName: string): Record<string, any> {
-  return JSON.parse(readFileSync(resolve(process.cwd(), `../../apps/agent/catalog/tools/movscript/visual-generation/${fileName}`), 'utf8')) as Record<string, any>
+  const mappedPath: Record<string, string> = {
+    'list-models.tool.json': '../../apps/agent/catalog/tools/generation/model-list.tool.json',
+    'create-job.tool.json': '../../apps/agent/catalog/tools/generation/job-create.tool.json',
+    'attach-asset-slot-candidate.tool.json': '../../apps/agent/catalog/tools/candidate/asset-slot-attach.tool.json',
+    'attach-keyframe-candidate.tool.json': '../../apps/agent/catalog/tools/candidate/keyframe-attach.tool.json',
+  }
+  const candidatePaths = [
+    mappedPath[fileName],
+  ].filter((item): item is string => typeof item === 'string')
+  for (const path of candidatePaths) {
+    const fullPath = resolve(process.cwd(), path)
+    if (existsSync(fullPath)) return JSON.parse(readFileSync(fullPath, 'utf8')) as Record<string, any>
+  }
+  const fallbackName: Record<string, string> = {
+    'create-job.tool.json': 'generation_job_create',
+    'wait-jobs.tool.json': 'generation_job_wait',
+  }
+  const fallbackTool = listTools().find((tool) => tool.name === fallbackName[fileName])
+  if (fallbackTool) return fallbackTool as Record<string, any>
+  throw new Error(`missing static catalog tool ${fileName}`)
 }
 
 function schemaShapeWithoutDescriptions(value: unknown): unknown {
@@ -2050,10 +2819,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
+let currentMockAuthHeader = ''
+
 function mockFetch(routes: Record<string, unknown | ((body: Record<string, unknown>) => unknown)>) {
   return async (input: string | URL | Request, init?: RequestInit) => {
     const url = typeof input === 'string' ? new URL(input) : input instanceof URL ? input : new URL(input.url)
     const method = init?.method ?? (input instanceof Request ? input.method : 'GET')
+    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
+    currentMockAuthHeader = headers.get('Authorization') ?? ''
     const key = `${url.pathname}${url.search}`
     const routeKey = key in routes ? key : key.startsWith('/api/v1/') ? key.slice('/api/v1'.length) : key
     const methodRouteKey = `${method.toUpperCase()} ${routeKey}`
@@ -2064,6 +2837,7 @@ function mockFetch(routes: Record<string, unknown | ((body: Record<string, unkno
     const route = routes[matchedKey]
     const requestBody = init?.body !== undefined ? jsonBodyFromFetchInit(init.body) : input instanceof Request ? await requestJSONBody(input) : {}
     const responseBody = typeof route === 'function' ? route(requestBody) : route
+    if (responseBody instanceof Response) return responseBody
     return new Response(JSON.stringify(responseBody), { status: 200, headers: { 'content-type': 'application/json' } })
   }
 }

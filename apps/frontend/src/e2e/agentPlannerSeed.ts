@@ -1,30 +1,30 @@
 import type { E2EBootstrapSeed } from '@/lib/e2eBootstrap'
-import type { AgentPlanSnapshot, AgentRun, AgentRunTraceSummary, AgentTraceEvent } from '@/lib/localAgentClient'
+import type { AgentTaskGraphSnapshot, AgentRun, AgentRunTraceSummary, AgentTraceEvent } from '@/lib/localAgentClient'
 import type { ChatMessage, Conversation } from '@/store/agentStore'
 import type { Project } from '@/types'
 import { buildGenerationAppBootstrap } from './generationAppSeed'
 
-export const PLANNER_PLAN_ID = 'plan_planner_e2e'
+export const PLANNER_TASK_GRAPH_ID = 'task_graph_planner_e2e'
 export const PLANNER_RUN_ID = 'run_planner_e2e'
 export const WORKER_RUN_ID = 'run_worker_einstein_e2e'
 export const APPROVAL_WORKER_RUN_ID = 'run_worker_approval_e2e'
 export const INPUT_WORKER_RUN_ID = 'run_worker_input_e2e'
 
-const THREAD_ID = 'thread-planner-e2e'
-const CONVERSATION_ID = 'conversation-planner-e2e'
+const THREAD_ID = 'thread-task-graphner-e2e'
+const CONVERSATION_ID = 'conversation-task-graphner-e2e'
 const FIXED_NOW = '2026-05-12T09:00:00.000Z'
 
 export function buildPlannerAgentBootstrap(apiBaseURL: string): E2EBootstrapSeed {
   const base = buildGenerationAppBootstrap(apiBaseURL)
   const userId = String(base.user?.user.ID ?? 1001)
   const userMessage: ChatMessage = {
-    id: 'message-user-planner-e2e',
+    id: 'message-user-task-graphner-e2e',
     role: 'user',
     content: '请并行梳理项目素材风险，并把结果汇总给我。',
     timestamp: Date.parse(FIXED_NOW),
   }
   const assistantMessage: ChatMessage = {
-    id: 'message-assistant-planner-e2e',
+    id: 'message-assistant-task-graphner-e2e',
     role: 'assistant',
     content: '已创建计划，并派发Einstein处理素材风险审计。',
     timestamp: Date.parse('2026-05-12T09:00:10.000Z'),
@@ -49,7 +49,7 @@ export function buildPlannerAgentBootstrap(apiBaseURL: string): E2EBootstrapSeed
       conversationRuntimes: {
         [CONVERSATION_ID]: {
           conversationId: CONVERSATION_ID,
-          requestId: 'request-planner-e2e',
+          requestId: 'request-task-graphner-e2e',
           threadId: THREAD_ID,
           runId: plannerRun.id,
           run: plannerRun,
@@ -75,7 +75,7 @@ export function plannerRunFixture(): AgentRun {
     threadId: THREAD_ID,
     status: 'in_progress',
     role: 'planner',
-    planId: PLANNER_PLAN_ID,
+    taskGraphId: PLANNER_TASK_GRAPH_ID,
     progress: 0.45,
     policy: {
       approvalMode: 'auto_readonly',
@@ -109,7 +109,7 @@ export function workerRunFixture(): AgentRun {
     status: 'in_progress',
     role: 'worker',
     parentRunId: PLANNER_RUN_ID,
-    planId: PLANNER_PLAN_ID,
+    taskGraphId: PLANNER_TASK_GRAPH_ID,
     taskId: 'task_einstein_audit',
     progress: 0.62,
     policy: {
@@ -192,14 +192,14 @@ export function inputWorkerRunFixture(): AgentRun {
   }
 }
 
-export function plannerPlanSnapshotFixture(): AgentPlanSnapshot {
+export function plannerPlanSnapshotFixture(): AgentTaskGraphSnapshot {
   const plannerRun = plannerRunFixture()
   const workerRun = workerRunFixture()
   const approvalWorkerRun = approvalWorkerRunFixture()
   const inputWorkerRun = inputWorkerRunFixture()
   return {
-    plan: {
-      id: PLANNER_PLAN_ID,
+    taskGraph: {
+      id: PLANNER_TASK_GRAPH_ID,
       threadId: THREAD_ID,
       rootRunId: PLANNER_RUN_ID,
       title: 'Planner 调度 E2E',
@@ -211,7 +211,7 @@ export function plannerPlanSnapshotFixture(): AgentPlanSnapshot {
     tasks: [
       {
         id: 'task_einstein_audit',
-        planId: PLANNER_PLAN_ID,
+        taskGraphId: PLANNER_TASK_GRAPH_ID,
         deps: [],
         title: '素材风险审计',
         description: '检查项目素材缺口与风险。',
@@ -243,7 +243,7 @@ export function plannerPlanSnapshotFixture(): AgentPlanSnapshot {
       },
       {
         id: 'task_approval_review',
-        planId: PLANNER_PLAN_ID,
+        taskGraphId: PLANNER_TASK_GRAPH_ID,
         deps: [],
         title: '素材发布审批',
         description: '等待人工批准后写回素材元数据。',
@@ -261,7 +261,7 @@ export function plannerPlanSnapshotFixture(): AgentPlanSnapshot {
       },
       {
         id: 'task_input_review',
-        planId: PLANNER_PLAN_ID,
+        taskGraphId: PLANNER_TASK_GRAPH_ID,
         deps: [],
         title: '素材范围确认',
         description: '等待用户确认 worker 的审计范围。',
@@ -279,7 +279,7 @@ export function plannerPlanSnapshotFixture(): AgentPlanSnapshot {
       },
       {
         id: 'task_planner_summary',
-        planId: PLANNER_PLAN_ID,
+        taskGraphId: PLANNER_TASK_GRAPH_ID,
         deps: ['task_einstein_audit', 'task_approval_review', 'task_input_review'],
         title: '最终汇总',
         description: '等待 worker 输出后生成用户可见总结。',
@@ -413,7 +413,7 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
       kind: 'run',
       title: runId === WORKER_RUN_ID ? 'Worker started' : 'Planner started',
       status: 'started',
-      summary: runId === WORKER_RUN_ID ? 'Einstein开始素材风险审计。' : 'Planner started plan orchestration.',
+      summary: runId === WORKER_RUN_ID ? 'Einstein开始素材风险审计。' : 'Planner started taskGraph orchestration.',
       createdAt: '2026-05-12T09:00:01.000Z',
     },
     ...(runId === WORKER_RUN_ID ? [{
@@ -427,8 +427,8 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
         charCount: 1024,
         messageCount: 3,
         systemMessageCount: 1,
-        skillIds: ['movscript.workflow.asset-review', 'movscript.policy.drafts'],
-        availableToolNames: ['movscript_review_assets', 'movscript_get_focus'],
+        skillIds: ['movscript.workflow.asset-review', 'draft.policy.lifecycle'],
+        availableToolNames: ['movscript_review_assets', 'movscript_focus_get'],
         blockedToolCount: 1,
         promptStats: {
           totalChars: 1024,
@@ -464,7 +464,7 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
       kind: 'tool_call',
       title: runId === WORKER_RUN_ID ? 'Asset review tool call' : 'Subagent dispatch tool call',
       status: 'completed',
-      toolName: runId === WORKER_RUN_ID ? 'movscript_review_assets' : 'movscript_spawn_subagent',
+      toolName: runId === WORKER_RUN_ID ? 'movscript_review_assets' : 'core_subagent_spawn',
       summary: runId === WORKER_RUN_ID ? 'Found missing hero visual coverage.' : 'Spawned worker Einstein.',
       data: runId === WORKER_RUN_ID
         ? {

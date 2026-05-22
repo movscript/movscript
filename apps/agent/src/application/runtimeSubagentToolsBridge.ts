@@ -1,12 +1,13 @@
 import type { AgentStore } from '../state/store.js'
 import type {
-  AgentPlanSnapshot,
+  AgentTaskGraphSnapshot,
   AgentRun,
   AgentTask,
   CancelRunInput,
-  DispatchPlanInput,
-  DispatchPlanResult,
-  UpdatePlanTaskInput,
+  CreateRunInput,
+  DispatchTaskGraphInput,
+  DispatchTaskGraphResult,
+  UpdateTaskGraphTaskInput,
 } from '../state/types.js'
 import type { JSONValue } from '../types.js'
 import { isoNow } from './runtimeIdentity.js'
@@ -15,6 +16,7 @@ import {
   waitRuntimeSubagent,
 } from './runtimeSubagentRead.js'
 import {
+  applyRuntimeDirectSubagentSpawnFlow,
   applyRuntimeSubagentSpawnFlow,
   prepareRuntimeSubagentSpawn,
 } from './runtimeSubagentSpawn.js'
@@ -30,10 +32,11 @@ export interface RuntimeSubagentToolsBridge {
 
 export function createRuntimeSubagentToolsBridge(input: {
   store: AgentStore
-  updateTask: (taskId: string, update: UpdatePlanTaskInput) => AgentTask
-  dispatchPlan: (input: DispatchPlanInput) => DispatchPlanResult
+  updateTask: (taskId: string, update: UpdateTaskGraphTaskInput) => AgentTask
+  dispatchTaskGraph: (input: DispatchTaskGraphInput) => DispatchTaskGraphResult
+  createRun: (input: CreateRunInput) => AgentRun
   cancelSubtree: (runId: string, input?: CancelRunInput) => { cancelledRunIds: string[] }
-  getPlanSnapshot: (planId: string) => AgentPlanSnapshot
+  getTaskGraphSnapshot: (taskGraphId: string) => AgentTaskGraphSnapshot
   taskEvents: RuntimeTaskEventBridge
   now?: () => string
   prepareSpawn?: typeof prepareRuntimeSubagentSpawn
@@ -50,6 +53,30 @@ export function createRuntimeSubagentToolsBridge(input: {
   const cancelFlow = input.cancelFlow ?? applyRuntimeSubagentCancellationFlow
   return {
     spawnSubagent: (run, request = {}) => {
+      const wantsTaskGraphDispatch = !!run.taskGraphId
+        && (typeof request.taskId === 'string'
+          || (Array.isArray(request.taskIds) && request.taskIds.length > 0))
+      if (!wantsTaskGraphDispatch) {
+        const result = applyRuntimeDirectSubagentSpawnFlow({
+          store: input.store,
+          plannerRunId: run.id,
+          request,
+          createRun: input.createRun,
+        })
+        return {
+          status: result.status,
+          plannerRunId: result.plannerRunId,
+          spawnedRuns: result.spawnedRuns.map((childRun) => ({
+            id: childRun.id,
+            status: childRun.status,
+            role: childRun.role,
+            parentRunId: childRun.parentRunId,
+            subagentName: typeof childRun.metadata?.subagentName === 'string' ? childRun.metadata.subagentName : undefined,
+            taskId: childRun.taskId,
+            taskGraphId: childRun.taskGraphId,
+          })),
+        } as unknown as JSONValue
+      }
       const spawn = prepareSpawn({
         store: input.store,
         plannerRunId: run.id,
@@ -61,8 +88,8 @@ export function createRuntimeSubagentToolsBridge(input: {
         spawn,
         request,
         updateTask: input.updateTask,
-        dispatchPlan: input.dispatchPlan,
-        getPlanSnapshot: input.getPlanSnapshot,
+        dispatchTaskGraph: input.dispatchTaskGraph,
+        getTaskGraphSnapshot: input.getTaskGraphSnapshot,
         onTaskCreated: input.taskEvents.recordTaskProtocolAndPlanEvent,
       })
     },
@@ -71,14 +98,14 @@ export function createRuntimeSubagentToolsBridge(input: {
       plannerRunId: run.id,
       request,
       now: now(),
-      getPlanSnapshot: input.getPlanSnapshot,
+      getTaskGraphSnapshot: input.getTaskGraphSnapshot,
     }) as unknown as JSONValue,
     waitSubagent: async (run, request = {}) => await waitFlow({
       store: input.store,
       plannerRunId: run.id,
       request,
       now: now(),
-      getPlanSnapshot: input.getPlanSnapshot,
+      getTaskGraphSnapshot: input.getTaskGraphSnapshot,
     }) as unknown as JSONValue,
     cancelSubagent: (run, request = {}) => cancelFlow({
       store: input.store,
@@ -86,7 +113,7 @@ export function createRuntimeSubagentToolsBridge(input: {
       request,
       updateTask: input.updateTask,
       cancelSubtree: input.cancelSubtree,
-      getPlanSnapshot: input.getPlanSnapshot,
+      getTaskGraphSnapshot: input.getTaskGraphSnapshot,
     }),
   }
 }

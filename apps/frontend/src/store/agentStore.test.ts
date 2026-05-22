@@ -31,14 +31,14 @@ test('normalizeAgentSettings falls back from invalid persisted base settings', (
     modelId: 'bad' as unknown as number,
     includeProjectContext: 'yes' as unknown as boolean,
     includeRecentResources: 1 as unknown as boolean,
-    autoPlan: 'auto' as unknown as boolean,
+    autoTaskGraph: 'auto' as unknown as boolean,
     permissionMode: 'danger' as unknown as any,
   })
 
   assert.equal(settings.modelId, null)
   assert.equal(settings.includeProjectContext, true)
   assert.equal(settings.includeRecentResources, true)
-  assert.equal(settings.autoPlan, true)
+  assert.equal(settings.autoTaskGraph, true)
   assert.equal(settings.permissionMode, 'ask')
 })
 
@@ -69,7 +69,7 @@ test('normalizeAgentSettings preserves valid custom active run preset', () => {
       name: 'Custom',
       description: 'Custom run policy',
       permissionMode: 'suggest',
-      autoPlan: true,
+      autoTaskGraph: true,
       maxToolCalls: 33,
       maxIterations: 17,
       planMaxWorkers: 3,
@@ -94,7 +94,7 @@ test('normalizeAgentSettings drops duplicate persisted run preset ids', () => {
         name: 'Custom A',
         description: 'First preset wins',
         permissionMode: 'ask',
-        autoPlan: false,
+        autoTaskGraph: false,
         maxToolCalls: 11,
         maxIterations: 7,
         planMaxWorkers: 1,
@@ -106,7 +106,7 @@ test('normalizeAgentSettings drops duplicate persisted run preset ids', () => {
         name: 'Custom B',
         description: 'Duplicate should be dropped',
         permissionMode: 'auto',
-        autoPlan: true,
+        autoTaskGraph: true,
         maxToolCalls: 99,
         maxIterations: 99,
         planMaxWorkers: 4,

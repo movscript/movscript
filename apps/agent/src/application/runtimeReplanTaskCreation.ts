@@ -1,29 +1,29 @@
 import type { AgentStore } from '../state/store.js'
-import type { AgentTask, CreatePlanTaskInput } from '../state/types.js'
+import type { AgentTask, CreateTaskGraphTaskInput } from '../state/types.js'
 import { buildAndValidatePlanTasksToCreate } from '../state/planTaskCreation.js'
 import { assertUniqueSubagentNameForTask } from '../state/subagentNameValidation.js'
 
 export function buildRuntimeReplanTasksToCreate(input: {
   store: Pick<AgentStore, 'getTask' | 'listTasks' | 'listRuns'>
-  planId: string
-  inputs: CreatePlanTaskInput[]
+  taskGraphId: string
+  inputs: CreateTaskGraphTaskInput[]
   now: string
 }): AgentTask[] {
-  const { store, planId, inputs, now } = input
+  const { store, taskGraphId, inputs, now } = input
   return buildAndValidatePlanTasksToCreate({
-    planId,
+    taskGraphId,
     inputs,
     now,
-    existingTasks: store.listTasks(planId),
+    existingTasks: store.listTasks(taskGraphId),
     getTask: (taskId) => store.getTask(taskId),
     validateSubagentName: (taskId, subagentName, requestedNames) => {
       assertUniqueSubagentNameForTask({
-        planId,
+        taskGraphId,
         taskId,
         subagentName,
         requestedNames,
-        tasks: store.listTasks(planId),
-        runs: store.listRuns({ planId }),
+        tasks: store.listTasks(taskGraphId),
+        runs: store.listRuns({ taskGraphId }),
       })
     },
   })

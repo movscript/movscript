@@ -89,8 +89,8 @@ export function buildContentWorkbenchUnitTrack(inputs: ContentWorkbenchUnitTrack
       missingAssetCount,
       keyframeCount,
       selectedId,
-      title: '暂无内容单元',
-      detail: '先创建或让 AI 规划内容单元，这里会显示每个生成目标。',
+      title: '暂无镜头方案',
+      detail: '先让 AI 根据情节拆分一组镜头，再逐个补齐画面、素材和关键帧。',
       items,
     }
   }
@@ -105,8 +105,8 @@ export function buildContentWorkbenchUnitTrack(inputs: ContentWorkbenchUnitTrack
       missingAssetCount,
       keyframeCount,
       selectedId,
-      title: '内容单元',
-      detail: `${total} 个内容单元按当前情节顺序排列。`,
+      title: '镜头方案',
+      detail: `${total} 个镜头共同表达当前情节，按叙事顺序排列。`,
       items,
     }
   }
@@ -120,8 +120,8 @@ export function buildContentWorkbenchUnitTrack(inputs: ContentWorkbenchUnitTrack
     missingAssetCount,
     keyframeCount,
     selectedId,
-    title: '内容单元',
-    detail: `${total} 个内容单元按当前情节顺序排列。`,
+    title: '镜头方案',
+    detail: `${total} 个镜头共同表达当前情节，按叙事顺序排列。`,
     items,
   }
 }

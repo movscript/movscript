@@ -50,8 +50,8 @@ Keyframe / visual anchor candidates:
 
 ## Agent And MCP Contract
 
-- `movscript_attach_asset_slot_candidate` adds one resource to an asset slot candidate set.
-- `movscript_attach_keyframe_candidate` adds one resource to an original keyframe / visual anchor candidate set.
+- `candidate_asset_slot_attach` adds one resource to an asset slot candidate set.
+- `candidate_keyframe_attach` adds one resource to an original keyframe / visual anchor candidate set.
 - Attach tool target IDs and resource IDs must be positive integers; non-positive IDs and conflicting aliases are rejected before any write.
 - Agents must write every usable `output_resource_id` individually as soon as it becomes available, report each success, failure, or blocker, and must not delay completed resources just to batch later outputs.
 - Agents must not claim a resource joined a candidate set unless the attach tool succeeded.
@@ -128,5 +128,5 @@ Run these checks after frontend dependencies are restored and the desktop workfl
 - Pick a keyframe resource from the Workbench library and upload a keyframe image; confirm both create keyframe candidates without direct official resource patches.
 - Accept and reject asset-slot candidates from task / pre-production surfaces; confirm sibling rejection and missing-resource errors.
 - Accept and reject keyframe candidates from task / workbench surfaces; confirm sibling rejection and generated-candidate marker requirements.
-- Call `movscript_attach_asset_slot_candidate` and `movscript_attach_keyframe_candidate` with invalid IDs, conflicting aliases, and a generated candidate target; confirm they fail before write.
+- Call `candidate_asset_slot_attach` and `candidate_keyframe_attach` with invalid IDs, conflicting aliases, and a generated candidate target; confirm they fail before write.
 - Try generic semantic create / patch and Agent draft apply paths with official resource fields; confirm they are rejected or stripped.

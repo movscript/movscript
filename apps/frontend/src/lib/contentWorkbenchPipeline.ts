@@ -7,7 +7,7 @@ export type ContentWorkbenchPipelineStepKey =
   | 'assets'
   | 'generation_context'
   | 'ai_review'
-  | 'generation_plan'
+  | 'generation_taskGraph'
   | 'preview_delivery'
 
 export type ContentWorkbenchPipelineTone = 'done' | 'current' | 'blocked' | 'pending'
@@ -119,7 +119,7 @@ export function buildContentWorkbenchPipeline(input: ContentWorkbenchPipelineInp
       blocked: normalized.pendingReviewDraftCount > 0,
     },
     {
-      key: 'generation_plan',
+      key: 'generation_taskGraph',
       label: '生成计划',
       value: normalized.runningJobCount > 0 ? `${normalized.runningJobCount} 运行中` : normalized.completedJobCount > 0 ? `${normalized.completedJobCount} 完成` : '待启动',
       detail: normalized.runningJobCount > 0 ? '正在执行生成任务' : normalized.completedJobCount > 0 ? '已有可追溯生成记录' : '门禁通过后进入画布执行',

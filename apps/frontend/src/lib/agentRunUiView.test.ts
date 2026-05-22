@@ -26,7 +26,7 @@ test('agentTraceView translates prompt composition into readable Chinese summary
       messageCount: 6,
       systemMessageCount: 2,
       skillIds: ['skill.a', 'skill.b'],
-      availableToolNames: ['movscript_get_focus'],
+      availableToolNames: ['movscript_focus_get'],
       blockedToolCount: 1,
       promptStats: {
         totalChars: 1024,
@@ -55,17 +55,17 @@ test('agentTraceView translates prompt composition into readable Chinese summary
     ['页面焦点', 1, '200'],
   ])
   assert.deepEqual(view.promptDetail?.skills, ['skill.a', 'skill.b'])
-  assert.deepEqual(view.promptDetail?.tools, ['movscript_get_focus'])
+  assert.deepEqual(view.promptDetail?.tools, ['movscript_focus_get'])
 })
 
 test('agentTraceView shows refreshed manifest after active skill updates', () => {
   const view = agentTraceView(traceEvent({
     kind: 'tool_catalog',
     title: 'Agent catalog refreshed',
-    summary: '2 available tool(s) after catalog change; manifest=test.core-only; tools=2; movscript_read_project_scripts=available/granted.',
+    summary: '2 available tool(s) after catalog change; manifest=test.core-only; tools=2; movscript_project_script_read=available/granted.',
     data: {
-      skillIds: ['movscript.workflow.script-reading'],
-      availableToolNames: ['movscript_update_active_skills', 'movscript_read_project_scripts'],
+      skillIds: ['movscript.workflow.script_reading'],
+      availableToolNames: ['core_skill_update', 'movscript_project_script_read'],
       manifest: {
         id: 'test.core-only',
         version: '0.1.0',
@@ -74,16 +74,16 @@ test('agentTraceView shows refreshed manifest after active skill updates', () =>
         profileVersion: '1.0.0',
         toolCount: 2,
         tools: [
-          { name: 'movscript_update_active_skills', mode: 'allow', approval: 'never' },
-          { name: 'movscript_read_project_scripts', mode: 'allow', approval: 'never' },
+          { name: 'core_skill_update', mode: 'allow', approval: 'never' },
+          { name: 'movscript_project_script_read', mode: 'allow', approval: 'never' },
         ],
       },
       capabilitySnapshot: {
         keyTools: [
-          { name: 'movscript_update_active_skills', available: true, granted: true, approval: 'never' },
-          { name: 'movscript_read_project_scripts', available: true, granted: true, approval: 'never' },
+          { name: 'core_skill_update', available: true, granted: true, approval: 'never' },
+          { name: 'movscript_project_script_read', available: true, granted: true, approval: 'never' },
         ],
-        availableToolNames: ['movscript_update_active_skills', 'movscript_read_project_scripts'],
+        availableToolNames: ['core_skill_update', 'movscript_project_script_read'],
         blockedTools: [],
       },
       warningCount: 0,
@@ -95,8 +95,8 @@ test('agentTraceView shows refreshed manifest after active skill updates', () =>
   assert.ok(manifestGroup)
   assert.ok(keyToolsGroup)
   assert.equal(manifestGroup.items.find((item) => item.label === 'Manifest ID')?.value, 'test.core-only')
-  assert.match(manifestGroup.items.find((item) => item.label === '工具授权')?.value ?? '', /movscript_read_project_scripts:allow\/never/)
-  assert.equal(keyToolsGroup.items.find((item) => item.label === 'movscript_read_project_scripts')?.value, 'available / granted / approval=never')
+  assert.match(manifestGroup.items.find((item) => item.label === '工具授权')?.value ?? '', /movscript_project_script_read:allow\/never/)
+  assert.equal(keyToolsGroup.items.find((item) => item.label === 'movscript_project_script_read')?.value, 'available / granted / approval=never')
 })
 
 test('agentTraceView separates model HTTP request and impact', () => {
@@ -288,7 +288,7 @@ test('agentTraceView exposes full model request tools for detail panel', () => {
           tools: [{
             type: 'function',
             function: {
-              name: 'movscript_get_focus',
+              name: 'movscript_focus_get',
               description: 'Read current focus',
               parameters: {
                 type: 'object',
@@ -302,7 +302,7 @@ test('agentTraceView exposes full model request tools for detail panel', () => {
       },
     },
   }))
-  assert.equal(view.modelDetail?.tools[0]?.name, 'movscript_get_focus')
+  assert.equal(view.modelDetail?.tools[0]?.name, 'movscript_focus_get')
   assert.deepEqual(view.modelDetail?.tools[0]?.parameterKeys, ['projectId'])
 })
 
@@ -352,7 +352,7 @@ test('run trace labels localize categories and statuses', () => {
   assert.equal(approvalStatusLabel('approved'), '已同意')
   assert.equal(approvalStatusLabel('unknown_status'), '未知审批状态 (unknown_status)')
   assert.equal(approvalImpactLabel({ toolName: 'movscript_publish_assets', permission: 'project.assets.write', risk: 'write', preview: undefined }), '批准后会写入项目数据。')
-  assert.equal(approvalImpactLabel({ toolName: 'movscript_apply_draft', permission: 'draft.apply', risk: 'write', preview: undefined }), '批准后会把草稿变更应用到当前项目。')
+  assert.equal(approvalImpactLabel({ toolName: 'draft_apply', permission: 'draft.apply', risk: 'write', preview: undefined }), '批准后会把草稿变更应用到当前项目。')
   assert.equal(approvalImpactLabel({ toolName: 'custom_tool', permission: 'unknown', risk: 'read', preview: { review: { sideEffect: '更新素材标记' } } }), '批准后会执行预览变更：更新素材标记')
   assert.equal(agentPermissionModeLabel('suggest'), '建议后确认')
   assert.equal(runApprovalModeLabel('auto_readonly'), '只读自动')
@@ -378,11 +378,12 @@ test('agent permission display supports i18n labels and unknown fallback interpo
 test('agentTraceView keeps behavior and impact separated', () => {
   const view = agentTraceView(traceEvent({
     kind: 'tool_call',
-    title: 'Tool completed: movscript_get_focus',
-    toolName: 'movscript_get_focus',
+    title: 'Tool completed: movscript_focus_get',
+    toolName: 'movscript_focus_get',
     durationMs: 42,
     data: {
       source: 'runtime',
+      args: { scope: { projectId: 42 } },
       sandboxed: false,
     },
   }))
@@ -390,18 +391,19 @@ test('agentTraceView keeps behavior and impact separated', () => {
   assert.match(view.impact ?? '', /工具结果会进入运行步骤/)
   assert.equal(view.contextGroups.some((group) => group.label === '工具执行'), true)
   assert.equal(view.toolDetail?.title, '工具调用详情')
-  assert.equal(view.toolDetail?.toolName, '读取当前焦点 (movscript_get_focus)')
+  assert.equal(view.toolDetail?.toolName, '读取当前焦点 (movscript_focus_get)')
   assert.equal(view.toolDetail?.statusLabel, '已完成')
   assert.equal(view.toolDetail?.source, 'runtime')
   assert.equal(view.toolDetail?.duration, '42ms')
   assert.equal(view.toolDetail?.sandboxed, '否')
+  assert.deepEqual(view.toolDetail?.args, { scope: { projectId: 42 } })
 })
 
 test('agentTraceView formats trace duration without changing latency precision', () => {
   const toolView = agentTraceView(traceEvent({
     kind: 'tool_call',
-    title: 'Tool completed: movscript_get_focus',
-    toolName: 'movscript_get_focus',
+    title: 'Tool completed: movscript_focus_get',
+    toolName: 'movscript_focus_get',
     durationMs: 1500,
     data: {
       source: 'runtime',
@@ -483,7 +485,7 @@ test('agentTraceView localizes common planner and worker trace fallbacks', () =>
   const dispatchView = agentTraceView(traceEvent({
     kind: 'tool_call',
     title: 'Subagent dispatch tool call',
-    toolName: 'movscript_spawn_subagent',
+    toolName: 'core_subagent_spawn',
     summary: 'Spawned worker Einstein.',
   }))
 

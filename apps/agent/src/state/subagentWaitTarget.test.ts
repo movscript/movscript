@@ -1,17 +1,17 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { resolveSubagentWaitTarget } from './subagentWaitTarget.js'
-import type { AgentPlan, AgentRun, AgentTask } from './types.js'
+import type { AgentTaskGraph, AgentRun, AgentTask } from './types.js'
 
 test('resolveSubagentWaitTarget resolves run targets with summary status', () => {
   const task = makeTask({ metadata: { subagentName: 'Writer' } })
   const run = makeRun({ status: 'completed', taskId: task.id })
   const result = resolveSubagentWaitTarget({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     runId: run.id,
     getRun: () => run,
     getTask: () => task,
-    getPlan: () => undefined,
+    getTaskGraph: () => undefined,
   })
 
   assert.equal(result.done, true)
@@ -23,11 +23,11 @@ test('resolveSubagentWaitTarget resolves run targets with summary status', () =>
 test('resolveSubagentWaitTarget resolves task targets and blocked completion', () => {
   const task = makeTask({ status: 'blocked', metadata: { subagentName: 'Writer' } })
   const result = resolveSubagentWaitTarget({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: task.id,
     getRun: () => undefined,
     getTask: () => task,
-    getPlan: () => undefined,
+    getTaskGraph: () => undefined,
   })
 
   assert.equal(result.done, true)
@@ -35,43 +35,43 @@ test('resolveSubagentWaitTarget resolves task targets and blocked completion', (
   assert.equal((result.target.task as any).subagentName, 'Writer')
 })
 
-test('resolveSubagentWaitTarget resolves plan targets by default', () => {
-  const plan = makePlan({ status: 'needs_review' })
+test('resolveSubagentWaitTarget resolves taskGraph targets by default', () => {
+  const taskGraph = makeTaskGraph({ status: 'needs_review' })
   const result = resolveSubagentWaitTarget({
-    planId: plan.id,
+    taskGraphId: taskGraph.id,
     getRun: () => undefined,
     getTask: () => undefined,
-    getPlan: () => plan,
+    getTaskGraph: () => taskGraph,
   })
 
   assert.equal(result.done, false)
   assert.equal(result.status, 'needs_review')
-  assert.equal(result.target.kind, 'plan')
+  assert.equal(result.target.kind, 'taskGraph')
 })
 
-test('resolveSubagentWaitTarget enforces plan boundaries', () => {
+test('resolveSubagentWaitTarget enforces taskGraph boundaries', () => {
   assert.throws(() => resolveSubagentWaitTarget({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     runId: 'run_other',
-    getRun: () => makeRun({ id: 'run_other', planId: 'plan_other' }),
+    getRun: () => makeRun({ id: 'run_other', taskGraphId: 'task_graph_other' }),
     getTask: () => undefined,
-    getPlan: () => undefined,
-  }), /does not belong to plan/)
+    getTaskGraph: () => undefined,
+  }), /does not belong to taskGraph/)
 
   assert.throws(() => resolveSubagentWaitTarget({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_other',
     getRun: () => undefined,
-    getTask: () => makeTask({ id: 'task_other', planId: 'plan_other' }),
-    getPlan: () => undefined,
-  }), /does not belong to plan/)
+    getTask: () => makeTask({ id: 'task_other', taskGraphId: 'task_graph_other' }),
+    getTaskGraph: () => undefined,
+  }), /does not belong to taskGraph/)
 })
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -83,7 +83,7 @@ function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'running',
@@ -101,7 +101,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
     threadId: 'thread_1',
     status: 'in_progress',
     role: 'worker',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     policy: {
       approvalMode: 'interactive',
       maxToolCalls: 20,

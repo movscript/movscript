@@ -157,7 +157,7 @@ test('projectLiveRunStreamTraceEvent derives preparing tool state from model too
         stream: {
           kind: 'tool_call',
           toolCall: {
-            name: 'movscript_create_draft',
+            name: 'draft_create',
           },
         },
       },
@@ -169,7 +169,7 @@ test('projectLiveRunStreamTraceEvent derives preparing tool state from model too
 
   assert.deepEqual(projected?.pendingAssistantState, {
     status: 'preparing_tool_call',
-    toolName: 'movscript_create_draft',
+    toolName: 'draft_create',
   })
 })
 

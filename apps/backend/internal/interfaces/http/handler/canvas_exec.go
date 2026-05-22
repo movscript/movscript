@@ -43,6 +43,26 @@ func (h *CanvasHandler) RunNode(c *gin.Context) {
 	c.JSON(http.StatusAccepted, task)
 }
 
+// DiagnoseNodeModel explains how a canvas node resolves its AI model route.
+func (h *CanvasHandler) DiagnoseNodeModel(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+	cv, err := h.CanvasExecService.GetOwnedCanvas(c.Request.Context(), c.Param("id"), user.ID, currentOrgID(c))
+	if err != nil {
+		writeCanvasAccessError(c, err, "canvas not found")
+		return
+	}
+	diag, err := h.CanvasExecService.DiagnoseNodeModel(c.Request.Context(), cv.ID, c.Param("nodeId"))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "node not found"})
+		return
+	}
+	c.JSON(http.StatusOK, diag)
+}
+
 // RunCanvas starts one canvas run and executes runnable nodes in topological order.
 func (h *CanvasHandler) RunCanvas(c *gin.Context) {
 	user := currentUser(c)

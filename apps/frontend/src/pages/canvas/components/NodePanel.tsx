@@ -13,6 +13,7 @@ import { Label } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { IMAGE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 import { canvasDefaultParamValues, canvasGenerationParamDefs, canvasParamValue, updateCanvasParam } from '../canvasGenerationParams'
+import { fetchCanvasNodeModelDiagnostics, formatCanvasNodeModelDiagnostics } from '../canvasRunDiagnostics'
 
 interface Props {
   nodeId: string
@@ -120,6 +121,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
   const qc = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
   const [source, setSource] = useState<'upload' | 'ai' | 'manual'>(data.source ?? 'upload')
+  const [diagnosing, setDiagnosing] = useState(false)
 
   useEffect(() => {
     setSource(data.source ?? 'upload')
@@ -185,6 +187,23 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
 
   const status = data.status ?? 'idle'
   const isRunning = status === 'running' || status === 'pending'
+
+  async function runModelDiagnostics() {
+    setDiagnosing(true)
+    try {
+      const diag = await fetchCanvasNodeModelDiagnostics(canvasId, nodeId)
+      onUpdate(nodeId, {
+        runDiagnostics: diag,
+        error: formatCanvasNodeModelDiagnostics(diag),
+      })
+    } catch (err: any) {
+      onUpdate(nodeId, {
+        error: err?.response?.data?.error || err?.message || t('canvas.nodePanel.diagnosticsFailed', { defaultValue: '运行诊断失败' }),
+      })
+    } finally {
+      setDiagnosing(false)
+    }
+  }
 
   useEffect(() => {
     if (nodeType !== 'canvas' || !referencedCanvas) return
@@ -511,7 +530,18 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
             upstreamNodes={upstreamNodes}
             onUpdate={(patch) => onUpdate(nodeId, patch)}
           />
-          {data.error && <p className="type-label text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
+          {data.error && <p className="whitespace-pre-wrap type-label text-destructive bg-destructive/10 rounded px-2 py-1">{data.error}</p>}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={runModelDiagnostics}
+            disabled={diagnosing}
+            className="w-full"
+          >
+            {diagnosing ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+            {t('canvas.nodePanel.runDiagnostics', { defaultValue: '运行诊断' })}
+          </Button>
           {allowRun && (
             <Button
               onClick={() => onRun(nodeId)}
@@ -899,11 +929,28 @@ function AIConfigSection({
 }) {
   const { t } = useTranslation()
   const legacySelectedModel = models.find((model) => model.id === data.modelDbId)
-  const selectedModel = models.find((model) => publicModelId(model) === data.modelId)
-    ?? legacySelectedModel
-    ?? models[0]
-    ?? null
+  const modelIdSelectedModel = models.find((model) => publicModelId(model) === data.modelId)
+  const explicitSelectedModel = modelIdSelectedModel ?? legacySelectedModel ?? null
+  const defaultModel = models.find((model) => model.is_default) ?? models[0] ?? null
+  const selectedModel = explicitSelectedModel ?? defaultModel
   const selectedModelValue = selectedModel ? publicModelId(selectedModel) : ''
+  useEffect(() => {
+    if (!selectedModel) return
+    const selectedModelId = publicModelId(selectedModel)
+    if (!explicitSelectedModel && !data.modelId && !data.modelDbId) {
+      onUpdate({
+        modelId: selectedModelId,
+        modelDbId: selectedModel.id,
+        params: data.params && Object.keys(data.params).length > 0
+          ? data.params
+          : canvasDefaultParamValues(canvasGenerationParamDefs(nodeType, data.outputType, selectedModel)),
+      })
+      return
+    }
+    if (modelIdSelectedModel && data.modelDbId !== modelIdSelectedModel.id) {
+      onUpdate({ modelDbId: modelIdSelectedModel.id })
+    }
+  }, [data.modelDbId, data.modelId, data.outputType, data.params, explicitSelectedModel, modelIdSelectedModel, nodeType, onUpdate, selectedModel])
   return (
     <div className="space-y-3">
       <div>

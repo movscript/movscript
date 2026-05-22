@@ -10,24 +10,28 @@ export interface DefaultRunPolicyInput {
 
 export function defaultRunPolicy(input: DefaultRunPolicyInput = {}): AgentRunPolicy {
   const override = normalizeRunPolicyOverride(input.policy)
+  const sandboxMode = override.sandboxMode ?? input.sandboxMode ?? false
   return {
     approvalMode: override.approvalMode ?? input.approvalMode ?? 'interactive',
-    ...(input.sandboxMode ? { sandboxMode: true } : {}),
+    ...(sandboxMode ? { sandboxMode: true } : {}),
     maxToolCalls: override.maxToolCalls ?? 20,
     maxIterations: override.maxIterations ?? 20,
     allowNetwork: false,
     allowFileBytes: false,
-    workflow: input.workflow ?? { profile: 'standard', includeMemories: true, allowForcedToolCalls: true },
+    workflow: override.workflow ?? input.workflow ?? { profile: 'standard', includeMemories: true, allowForcedToolCalls: true },
   }
 }
 
-export function normalizeRunPolicyOverride(value: unknown): Partial<Pick<AgentRunPolicy, 'approvalMode' | 'maxToolCalls' | 'maxIterations'>> {
+export function normalizeRunPolicyOverride(value: unknown): Partial<Pick<AgentRunPolicy, 'approvalMode' | 'sandboxMode' | 'maxToolCalls' | 'maxIterations' | 'workflow'>> {
   if (!isRecord(value)) return {}
   const record = value
+  const workflow = normalizeWorkflowConfig(record.workflow)
   return {
     ...(isRunApprovalMode(record.approvalMode) ? { approvalMode: record.approvalMode } : {}),
+    ...(typeof record.sandboxMode === 'boolean' ? { sandboxMode: record.sandboxMode } : {}),
     ...(isPositiveFiniteNumber(record.maxToolCalls) ? { maxToolCalls: clampPolicyLimit(record.maxToolCalls) } : {}),
     ...(isPositiveFiniteNumber(record.maxIterations) ? { maxIterations: clampPolicyLimit(record.maxIterations) } : {}),
+    ...(workflow ? { workflow } : {}),
   }
 }
 
@@ -41,4 +45,15 @@ function isPositiveFiniteNumber(value: unknown): value is number {
 
 function clampPolicyLimit(value: number): number {
   return Math.max(1, Math.min(200, Math.floor(value)))
+}
+
+function normalizeWorkflowConfig(value: unknown): AgentRunPolicy['workflow'] | undefined {
+  if (!isRecord(value)) return undefined
+  const profile = value.profile === 'compact' || value.profile === 'deep' ? value.profile : value.profile === 'standard' ? 'standard' : undefined
+  if (!profile) return undefined
+  return {
+    profile,
+    ...(typeof value.includeMemories === 'boolean' ? { includeMemories: value.includeMemories } : {}),
+    ...(typeof value.allowForcedToolCalls === 'boolean' ? { allowForcedToolCalls: value.allowForcedToolCalls } : {}),
+  }
 }

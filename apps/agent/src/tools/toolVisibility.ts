@@ -2,14 +2,14 @@ import type { ResolvedAgentSkill } from '../state/types.js'
 import { publicToolName } from './toolNames.js'
 
 export const BASE_RETRIEVAL_TOOLS = new Set([
-  'movscript_request_user_input',
-  'movscript_inspect_agent_catalog',
-  'movscript_update_active_skills',
+  'core_user_input_request',
+  'core_catalog_inspect',
+  'core_skill_update',
 ])
 
 export const COMMAND_REQUIRED_TOOLS = new Set([
-  'runtime_operation_start',
-  'runtime_operation_wait',
+  'core_operation_start',
+  'core_operation_wait',
 ])
 
 export function isToolVisibleForActiveBehavior(input: {
@@ -19,7 +19,7 @@ export function isToolVisibleForActiveBehavior(input: {
 }): boolean {
   const name = publicToolName(input.toolName)
   if (BASE_RETRIEVAL_TOOLS.has(name)) return true
-  if (name === 'movscript_get_focus' && /^\/context\b/i.test(input.userMessage.trim())) return true
+  if (name === 'movscript_focus_get' && /^\/context\b/i.test(input.userMessage.trim())) return true
   if (COMMAND_REQUIRED_TOOLS.has(name) && /^\/(?:image|video)\b/i.test(input.userMessage.trim())) return true
   if (input.activeSkills.length === 0) return false
   const activeToolHints = new Set<string>()

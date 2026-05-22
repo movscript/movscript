@@ -277,32 +277,36 @@ export class InMemoryAgentDraftStore implements AgentDraftStore {
 
 export class FileAgentDraftStore extends InMemoryAgentDraftStore {
   readonly filePath: string
+  private loaded = false
 
   constructor(filePath = resolveAgentDraftPath()) {
     super()
     this.filePath = filePath
-    this.load()
   }
 
   override createDraft(input: CreateAgentDraftInput): AgentDraft {
+    this.ensureLoaded()
     const draft = super.createDraft(input)
     this.persist()
     return draft
   }
 
   override updateDraft(id: string, input: UpdateAgentDraftInput): AgentDraft {
+    this.ensureLoaded()
     const draft = super.updateDraft(id, input)
     this.persist()
     return draft
   }
 
   override getDraft(id: string): AgentDraft | undefined {
+    this.ensureLoaded()
     const draft = super.getDraft(id)
     if (!draft) return undefined
     return this.syncDraftContentFromFile(draft)
   }
 
   override listDrafts(query: ListAgentDraftsQuery = {}): AgentDraft[] {
+    this.ensureLoaded()
     return super.listDrafts(query).map((draft) => this.syncDraftContentFromFile(draft))
   }
 
@@ -311,6 +315,7 @@ export class FileAgentDraftStore extends InMemoryAgentDraftStore {
   }
 
   override readDraftFile(filePath: string): ReadAgentDraftResult {
+    this.ensureLoaded()
     const draft = this.requireDraftByFilePath(filePath)
     const normalizedPath = normalizeFilePath(filePath)
     const content = readDraftContent(normalizedPath, draft.content)
@@ -323,6 +328,7 @@ export class FileAgentDraftStore extends InMemoryAgentDraftStore {
   }
 
   override editDraftFile(filePath: string, input: EditAgentDraftInput): EditAgentDraftResult {
+    this.ensureLoaded()
     const normalizedPath = normalizeFilePath(filePath)
     const draft = this.requireDraftByFilePath(normalizedPath)
     const currentContent = readDraftContent(normalizedPath, draft.content)
@@ -358,17 +364,36 @@ export class FileAgentDraftStore extends InMemoryAgentDraftStore {
     }
   }
 
+  private ensureLoaded(): void {
+    if (this.loaded) return
+    this.loaded = true
+    this.load()
+  }
+
   private load(): void {
     if (!existsSync(this.filePath)) return
+    const loadStartedAt = Date.now()
     let parsed: unknown
+    let rawBytes = 0
+    let readMs = 0
+    let parseMs = 0
     try {
-      parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as unknown
+      const readStartedAt = Date.now()
+      const raw = readFileSync(this.filePath, 'utf8')
+      readMs = Date.now() - readStartedAt
+      rawBytes = Buffer.byteLength(raw)
+      const parseStartedAt = Date.now()
+      parsed = JSON.parse(raw) as unknown
+      parseMs = Date.now() - parseStartedAt
     } catch {
       return
     }
     if (!isRecord(parsed)) return
+    const normalizeStartedAt = Date.now()
     const drafts = Array.isArray(parsed.drafts) ? parsed.drafts.flatMap((draft) => normalizeStoredDraftRecord(draft)) : []
-    this.loadDrafts(drafts.map((draft) => {
+    const normalizeMs = Date.now() - normalizeStartedAt
+    const readFilesStartedAt = Date.now()
+    const loadedDrafts = drafts.map((draft) => {
       const filePath = this.getDraftFilePath(draft.id)
       const fileContent = readDraftContent(filePath, draft.content)
       return {
@@ -376,7 +401,22 @@ export class FileAgentDraftStore extends InMemoryAgentDraftStore {
         filePath,
         content: fileContent,
       }
-    }))
+    })
+    const readFilesMs = Date.now() - readFilesStartedAt
+    const hydrateStartedAt = Date.now()
+    this.loadDrafts(loadedDrafts)
+    const hydrateMs = Date.now() - hydrateStartedAt
+    console.info([
+      '[agent] startup draft-store load-detail',
+      `total=${Date.now() - loadStartedAt}ms`,
+      `read=${readMs}ms`,
+      `parse=${parseMs}ms`,
+      `normalize=${normalizeMs}ms`,
+      `readFiles=${readFilesMs}ms`,
+      `hydrate=${hydrateMs}ms`,
+      `rawBytes=${rawBytes}`,
+      `drafts=${loadedDrafts.length}`,
+    ].join(' '))
   }
 
   private syncDraftContentFromFile(draft: AgentDraft): AgentDraft {
@@ -813,33 +853,33 @@ function validateAssetProposalDraft(draft: AgentDraft, issues: AgentDraftValidat
     }
   }
 
-  candidatePlans.forEach((plan, index) => {
+  candidatePlans.forEach((taskGraph, index) => {
     const base = `/proposal/candidate_plans/${index}`
-    if (!isRecord(plan)) {
-      issues.push({ path: base, message: 'Asset proposal candidate plan must be an object.', severity: 'error' })
+    if (!isRecord(taskGraph)) {
+      issues.push({ path: base, message: 'Asset proposal candidate taskGraph must be an object.', severity: 'error' })
       return
     }
-    const outputKind = typeof plan.output_kind === 'string' ? plan.output_kind : ''
+    const outputKind = typeof taskGraph.output_kind === 'string' ? taskGraph.output_kind : ''
     if (!['image', 'video', 'audio', 'text', 'file'].includes(outputKind)) {
-      issues.push({ path: `${base}/output_kind`, message: 'Asset proposal candidate plan output_kind must be image, video, audio, text, or file.', severity: 'error' })
+      issues.push({ path: `${base}/output_kind`, message: 'Asset proposal candidate taskGraph output_kind must be image, video, audio, text, or file.', severity: 'error' })
     }
-    if (typeof plan.prompt !== 'string' || !plan.prompt.trim()) {
-      issues.push({ path: `${base}/prompt`, message: 'Asset proposal candidate plan requires prompt.', severity: 'error' })
+    if (typeof taskGraph.prompt !== 'string' || !taskGraph.prompt.trim()) {
+      issues.push({ path: `${base}/prompt`, message: 'Asset proposal candidate taskGraph requires prompt.', severity: 'error' })
     }
-    if (!Array.isArray(plan.input_resource_ids)) {
-      issues.push({ path: `${base}/input_resource_ids`, message: 'Asset proposal candidate plan requires input_resource_ids array.', severity: 'error' })
+    if (!Array.isArray(taskGraph.input_resource_ids)) {
+      issues.push({ path: `${base}/input_resource_ids`, message: 'Asset proposal candidate taskGraph requires input_resource_ids array.', severity: 'error' })
     } else {
-      plan.input_resource_ids.forEach((value, resourceIndex) => {
+      taskGraph.input_resource_ids.forEach((value, resourceIndex) => {
         const resourceId = numberValue(value)
         if (resourceId === undefined || resourceId <= 0) {
           issues.push({ path: `${base}/input_resource_ids/${resourceIndex}`, message: 'Asset proposal input resource ids must be positive numbers.', severity: 'error' })
         }
       })
     }
-    if (!Array.isArray(plan.acceptance_criteria) || plan.acceptance_criteria.length === 0) {
-      issues.push({ path: `${base}/acceptance_criteria`, message: 'Asset proposal candidate plan requires acceptance_criteria.', severity: 'warning' })
+    if (!Array.isArray(taskGraph.acceptance_criteria) || taskGraph.acceptance_criteria.length === 0) {
+      issues.push({ path: `${base}/acceptance_criteria`, message: 'Asset proposal candidate taskGraph requires acceptance_criteria.', severity: 'warning' })
     }
-    const modelCapability = typeof plan.model_capability === 'string' ? plan.model_capability : ''
+    const modelCapability = typeof taskGraph.model_capability === 'string' ? taskGraph.model_capability : ''
     if (modelCapability && !['image', 'image_edit', 'video', 'video_i2v'].includes(modelCapability)) {
       issues.push({ path: `${base}/model_capability`, message: 'Asset proposal model_capability must be image, image_edit, video, or video_i2v.', severity: 'error' })
     }

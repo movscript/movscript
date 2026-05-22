@@ -81,7 +81,7 @@ export default function AuthPage() {
 
   const login = useMutation({
     mutationFn: () => api.post('/auth/login', { username, password }).then((r) => r.data as AuthSession),
-    onSuccess: setPendingSession,
+    onSuccess: finishAuth,
     onError: (e: any) => setError(translateApiError(e.response?.data, 'auth.loginFailed'))
   })
 
@@ -93,7 +93,7 @@ export default function AuthPage() {
       code,
       localAdmin: localMode || bootstrapRequired,
     }).then((r) => r.data as AuthSession),
-    onSuccess: setPendingSession,
+    onSuccess: finishAuth,
     onError: (e: any) => setError(translateApiError(e.response?.data, 'auth.registerFailed'))
   })
   const startCode = useMutation({
@@ -121,6 +121,14 @@ export default function AuthPage() {
 
   const loading = login.isPending || register.isPending
   const onEnter = (e: React.KeyboardEvent) => e.key === 'Enter' && handleSubmit()
+
+  function finishAuth(session: AuthSession) {
+    if (settings.onboardingCompleted) {
+      setSession(session)
+      return
+    }
+    setPendingSession(session)
+  }
 
   function completeLogin(mode: WorkModeChoice) {
     if (!pendingSession) return

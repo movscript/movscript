@@ -86,7 +86,7 @@ export function ContentUnitEditCards({
   onSelectUnit,
   onCreateUnit,
   onAiSuggest,
-  onAiVisualPlan,
+  onAiVisualTaskGraph,
   onCreateAssetSlot,
   onCreateKeyframe,
   onOpenCanvas,
@@ -102,7 +102,7 @@ export function ContentUnitEditCards({
   onSelectUnit: (unitId: number) => void
   onCreateUnit: () => void
   onAiSuggest?: () => void
-  onAiVisualPlan?: () => void
+  onAiVisualTaskGraph?: () => void
   onCreateAssetSlot?: () => void
   onCreateKeyframe?: () => void
   onOpenCanvas?: () => void
@@ -138,11 +138,11 @@ export function ContentUnitEditCards({
     : []
   const hasPrompt = Boolean(firstText(draft.prompt, draft.description))
   const visualPlanReady = hasStructuredText(
-    draft.visual_plan_space,
-    draft.visual_plan_blocking,
-    draft.visual_plan_camera_path,
-    draft.visual_plan_beats,
-    draft.visual_plan_lighting,
+    draft.visual_task_graph_space,
+    draft.visual_task_graph_blocking,
+    draft.visual_task_graph_camera_path,
+    draft.visual_task_graph_beats,
+    draft.visual_task_graph_lighting,
   )
   const storyboardBriefReady = hasStructuredText(
     draft.storyboard_purpose,
@@ -286,7 +286,7 @@ export function ContentUnitEditCards({
           unit,
           keyframe,
           sequence: ordered,
-          visualPlan: contentUnitVisualPlanPromptText(unit),
+          visualTaskGraph: contentUnitVisualPlanPromptText(unit),
           storyboardBrief: contentUnitStoryboardBriefPromptText(unit),
         })
         const response = await api.post<Job>('/jobs', {
@@ -445,6 +445,31 @@ export function ContentUnitEditCards({
           </div>
         </section>
 
+        <section className={cn('border-t border-border pt-3', compact ? '' : 'xl:col-span-2')} data-testid="content-workbench-edit-goal-card">
+          <div className={cn('grid gap-3', compact ? '' : 'lg:grid-cols-2')}>
+            <div className="space-y-1.5">
+              <Label htmlFor={`content-unit-description-${unit.ID}`} className="type-label">要做什么</Label>
+              <Textarea
+                id={`content-unit-description-${unit.ID}`}
+                className={compact ? 'min-h-[180px]' : 'min-h-[140px]'}
+                value={draft.description}
+                placeholder="描述这个内容单元要完成的叙事、动作、信息或声音目标。"
+                onChange={(event) => updateDraft('description', event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`content-unit-prompt-${unit.ID}`} className="type-label">创作提示</Label>
+              <Textarea
+                id={`content-unit-prompt-${unit.ID}`}
+                className={compact ? 'min-h-[180px]' : 'min-h-[140px]'}
+                value={draft.prompt}
+                placeholder="写给生成模型的提示词，包含画面、动作、风格、限制和参考。"
+                onChange={(event) => updateDraft('prompt', event.target.value)}
+              />
+            </div>
+          </div>
+        </section>
+
         <ContentUnitGenerationInputsPanel
           compact={compact}
           unit={unit}
@@ -476,7 +501,7 @@ export function ContentUnitEditCards({
           onCreateKeyframe={onCreateKeyframe}
           onUploadMissingAssets={onUploadMissingAssets}
           onOpenCanvas={onOpenCanvas}
-          onAiVisualPlan={onAiVisualPlan}
+          onAiVisualTaskGraph={onAiVisualTaskGraph}
           onSelectKeyframe={setSelectedKeyframeId}
           onMoveKeyframe={(keyframe, direction) => reorderKeyframe.mutate({ keyframe: keyframe as ContentUnitEditRecord, direction })}
           onDeleteKeyframe={(keyframe) => removeKeyframe(keyframe as ContentUnitEditRecord)}
@@ -485,31 +510,6 @@ export function ContentUnitEditCards({
           onKeyframeModelChange={setKeyframeModelId}
           onGenerateKeyframes={(targets) => generateKeyframes.mutate(targets as ContentUnitEditRecord[])}
         />
-
-        <section className={cn('border-t border-border pt-3', compact ? '' : 'xl:col-span-2')} data-testid="content-workbench-edit-goal-card">
-          <div className={cn('grid gap-3', compact ? '' : 'lg:grid-cols-2')}>
-            <div className="space-y-1.5">
-              <Label htmlFor={`content-unit-description-${unit.ID}`} className="type-label">要做什么</Label>
-              <Textarea
-                id={`content-unit-description-${unit.ID}`}
-                className="min-h-[120px]"
-                value={draft.description}
-                placeholder="描述这个内容单元要完成的叙事、动作、信息或声音目标。"
-                onChange={(event) => updateDraft('description', event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor={`content-unit-prompt-${unit.ID}`} className="type-label">创作提示</Label>
-              <Textarea
-                id={`content-unit-prompt-${unit.ID}`}
-                className="min-h-[120px]"
-                value={draft.prompt}
-                placeholder="写给生成模型的提示词，包含画面、动作、风格、限制和参考。"
-                onChange={(event) => updateDraft('prompt', event.target.value)}
-              />
-            </div>
-          </div>
-        </section>
       </div>
     </div>
   )

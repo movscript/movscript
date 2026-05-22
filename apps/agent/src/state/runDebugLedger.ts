@@ -73,6 +73,7 @@ export interface AgentRunDebugLedgerToolCall {
   status: AgentTraceEvent['status']
   durationMs?: number
   summary?: string
+  argsEvidenceRef?: string
   resultEvidenceRef?: string
   issue?: string
 }
@@ -95,7 +96,7 @@ export interface AgentRunDebugLedgerAttentionItem {
 export interface AgentRunDebugLedgerEvidenceRef {
   evidenceId: string
   eventId: string
-  kind: 'model_request' | 'model_response' | 'tool_result' | 'raw_event'
+  kind: 'model_request' | 'model_response' | 'tool_args' | 'tool_result' | 'raw_event'
   label: string
   chars: number
   preview: string
@@ -304,6 +305,9 @@ export function resolveRunDebugEvidence(input: {
     case 'model_response':
       value = recordValue(data?.response) ?? data
       break
+    case 'tool_args':
+      value = data?.args ?? data
+      break
     case 'tool_result':
       value = data?.result ?? data
       break
@@ -439,6 +443,7 @@ function applyModelCallEvent(ledger: AgentRunDebugLedger, event: AgentTraceEvent
 
 function applyToolCallEvent(ledger: AgentRunDebugLedger, event: AgentTraceEvent, data: Record<string, unknown> | undefined): void {
   const toolName = event.toolName ?? stringValue(data?.toolName) ?? event.title.replace(/^Tool (?:completed|call failed):\s*/, '')
+  const argsRef = data && Object.prototype.hasOwnProperty.call(data, 'args') ? evidenceId(event, 'tool_args') : undefined
   const resultRef = data?.result !== undefined ? evidenceId(event, 'tool_result') : undefined
   const view: AgentRunDebugLedgerToolCall = {
     eventId: event.id,
@@ -447,10 +452,19 @@ function applyToolCallEvent(ledger: AgentRunDebugLedger, event: AgentTraceEvent,
     status: event.status,
     ...(numberValue(data?.durationMs) ?? event.durationMs ? { durationMs: numberValue(data?.durationMs) ?? event.durationMs } : {}),
     ...(event.summary ? { summary: previewText(event.summary) } : {}),
+    ...(argsRef ? { argsEvidenceRef: argsRef } : {}),
     ...(resultRef ? { resultEvidenceRef: resultRef } : {}),
     ...(event.status === 'failed' ? { issue: previewText(stringValue(data?.error) ?? event.summary ?? '工具调用失败。') } : {}),
   }
   ledger.toolCalls = [...ledger.toolCalls.filter((item) => item.eventId !== event.id), view]
+  if (data && Object.prototype.hasOwnProperty.call(data, 'args')) {
+    addEvidence(ledger, buildEvidenceRef({
+      event,
+      kind: 'tool_args',
+      label: `工具参数：${toolName}`,
+      value: data.args,
+    }))
+  }
   if (data?.result !== undefined) {
     addEvidence(ledger, buildEvidenceRef({
       event,
@@ -521,7 +535,7 @@ function parseEvidenceId(value: string): { eventId: string; kind: AgentRunDebugL
   if (index <= 0) return undefined
   const eventId = value.slice(0, index)
   const kind = value.slice(index + 1)
-  if (kind !== 'model_request' && kind !== 'model_response' && kind !== 'tool_result' && kind !== 'raw_event') return undefined
+  if (kind !== 'model_request' && kind !== 'model_response' && kind !== 'tool_args' && kind !== 'tool_result' && kind !== 'raw_event') return undefined
   return { eventId, kind }
 }
 

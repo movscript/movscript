@@ -133,14 +133,14 @@ export function formatToolCallStreamDetail(event: ChatRunActivityEvent) {
 }
 
 function toolCallTimelineTitle(toolName: string, args: unknown): string {
-  if (toolName === 'runtime_operation_start') {
+  if (toolName === 'core_operation_start') {
     const record = recordValue(args)
     const kind = typeof record?.kind === 'string' ? record.kind : undefined
     if (kind === 'generation_job') return '创建生成任务'
     return '提交后台任务'
   }
-  if (toolName === 'runtime_operation_wait') return '等待后台任务'
-  if (toolName === 'runtime_operation_cancel') return '取消后台任务'
+  if (toolName === 'core_operation_wait') return '等待后台任务'
+  if (toolName === 'core_operation_cancel') return '取消后台任务'
   return agentToolNameLabel(toolName)
 }
 
@@ -207,6 +207,7 @@ function eventTimelineItem(event: ChatRunActivityEvent, runId: string): AgentTim
     summary: generationTrace
       ? generationTrace.message ?? generationTrace.summary
       : streamToolCall ? `准备参数：${streamToolCall.parseStatus}（${streamToolCall.args.length} 字符）` : eventView?.behavior ?? eventView?.summary ?? event.summary,
+    args: event.kind === 'tool_call' ? data?.args : undefined,
     result: generationTrace ? generationTrace.generation : streamToolCall ? (streamToolCall.parsedArgs ?? streamToolCall.args) : event.data,
     error: event.status === 'failed' || event.status === 'blocked' ? event.summary : undefined,
   }

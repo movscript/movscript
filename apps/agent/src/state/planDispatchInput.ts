@@ -1,9 +1,9 @@
-import type { AgentPlan, AgentRun, AgentTask, CreateRunInput, DispatchPlanInput } from './types.js'
+import type { AgentTaskGraph, AgentRun, AgentTask, CreateRunInput, DispatchTaskGraphInput } from './types.js'
 import { normalizePositiveInteger, normalizeStringList } from './planTaskInput.js'
 import { buildAgentRunTaskInputSnapshot } from './runInput.js'
 import { formatWorkerTaskMessage } from './workerTaskPrompt.js'
 
-export interface NormalizedDispatchPlanControls {
+export interface NormalizedTaskGraphDispatchControls {
   plannerRunId: string
   maxTaskAttempts: number
   retryFailed: boolean
@@ -12,15 +12,15 @@ export interface NormalizedDispatchPlanControls {
   workerTimeoutMs?: number
 }
 
-export function normalizeDispatchPlanId(value: unknown): string {
-  const planId = normalizeNonEmptyString(value)
-  if (!planId) throw new Error('planId is required')
-  return planId
+export function normalizeDispatchTaskGraphId(value: unknown): string {
+  const taskGraphId = normalizeNonEmptyString(value)
+  if (!taskGraphId) throw new Error('taskGraphId is required')
+  return taskGraphId
 }
 
-export function normalizeDispatchPlanControls(input: DispatchPlanInput, plan: AgentPlan): NormalizedDispatchPlanControls {
-  const plannerRunId = normalizeNonEmptyString(input.plannerRunId) ?? plan.rootRunId
-  if (!plannerRunId) throw new Error(`plan ${plan.id} has no plannerRunId`)
+export function normalizeDispatchTaskGraphControls(input: DispatchTaskGraphInput, taskGraph: AgentTaskGraph): NormalizedTaskGraphDispatchControls {
+  const plannerRunId = normalizeNonEmptyString(input.plannerRunId) ?? taskGraph.rootRunId
+  if (!plannerRunId) throw new Error(`taskGraph ${taskGraph.id} has no plannerRunId`)
   return {
     plannerRunId,
     maxTaskAttempts: normalizePositiveInteger(input.maxTaskAttempts) ?? 1,
@@ -31,38 +31,38 @@ export function normalizeDispatchPlanControls(input: DispatchPlanInput, plan: Ag
   }
 }
 
-export function assertDispatchPlannerRunForPlan(plannerRun: AgentRun, plan: AgentPlan): void {
-  if (plannerRun.planId && plannerRun.planId !== plan.id) {
-    throw new Error(`planner run ${plannerRun.id} does not belong to plan ${plan.id}`)
+export function assertDispatchTaskGraphnerRunForTaskGraph(plannerRun: AgentRun, taskGraph: AgentTaskGraph): void {
+  if (plannerRun.taskGraphId && plannerRun.taskGraphId !== taskGraph.id) {
+    throw new Error(`planner run ${plannerRun.id} does not belong to taskGraph ${taskGraph.id}`)
   }
 }
 
 export function assertDispatchRequestedTasks(input: {
-  planId: string
+  taskGraphId: string
   taskIds: string[]
   getTask: (taskId: string) => AgentTask | undefined
 }): void {
   for (const taskId of input.taskIds) {
     const task = input.getTask(taskId)
     if (!task) throw new Error(`task not found: ${taskId}`)
-    if (task.planId !== input.planId) throw new Error(`task ${taskId} does not belong to plan ${input.planId}`)
+    if (task.taskGraphId !== input.taskGraphId) throw new Error(`task ${taskId} does not belong to taskGraph ${input.taskGraphId}`)
   }
 }
 
 export function buildDispatchWorkerRunInput(input: {
-  plan: AgentPlan
+  taskGraph: AgentTaskGraph
   plannerRun: AgentRun
   task: AgentTask
   subagentName: string
-  dispatchInput: DispatchPlanInput
+  dispatchInput: DispatchTaskGraphInput
 }): CreateRunInput {
   return {
-    threadId: input.plan.threadId,
-    userMessage: formatWorkerTaskMessage(input.plan, input.task),
+    threadId: input.taskGraph.threadId,
+    userMessage: formatWorkerTaskMessage(input.taskGraph, input.task),
     task: buildAgentRunTaskInputSnapshot(input.task),
     role: 'worker',
     parentRunId: input.plannerRun.id,
-    planId: input.plan.id,
+    taskGraphId: input.taskGraph.id,
     taskId: input.task.id,
     progress: 0,
     metadata: { subagentName: input.subagentName },

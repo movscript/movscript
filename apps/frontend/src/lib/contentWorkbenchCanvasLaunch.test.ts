@@ -79,7 +79,7 @@ test('content workbench canvas launch creates a traceable unit canvas when none 
       title: '纸条特写',
       description: '纸条被灯光扫过',
       metadata_json: JSON.stringify({
-        visual_plan: { space: '书房桌面', blocking: '手从画外进入' },
+        visual_taskGraph: { space: '书房桌面', blocking: '手从画外进入' },
       }),
     },
     client,

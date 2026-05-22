@@ -1,5 +1,5 @@
 import { cloneJSONValue, isJSONRecord } from '../jsonValue.js'
-import type { AgentTask, UpdatePlanTaskInput } from './types.js'
+import type { AgentTask, UpdateTaskGraphTaskInput } from './types.js'
 import {
   normalizeProgress,
   normalizeStringList,
@@ -13,7 +13,7 @@ import {
 
 export interface ApplyPlanTaskUpdateInput {
   task: AgentTask
-  update: UpdatePlanTaskInput
+  update: UpdateTaskGraphTaskInput
   now: string
   planTasks: AgentTask[]
   getTask: (taskId: string) => AgentTask | undefined
@@ -34,7 +34,7 @@ export function applyPlanTaskUpdate(input: ApplyPlanTaskUpdateInput): AgentTask 
 
   const parentId = normalizeNonEmptyString(update.parentId)
   if (parentId) {
-    assertTaskReferenceInPlan(task.planId, input.getTask, parentId, 'parent task')
+    assertTaskReferenceInTaskGraph(task.taskGraphId, input.getTask, parentId, 'parent task')
     if (parentId === task.id) throw new Error(`task ${task.id} cannot use itself as parent`)
     assertTaskParentGraphAcyclic(input.planTasks, new Map([[task.id, parentId]]))
     task.parentId = parentId
@@ -46,7 +46,7 @@ export function applyPlanTaskUpdate(input: ApplyPlanTaskUpdateInput): AgentTask 
   if (Array.isArray(update.deps)) {
     const deps = normalizeStringList(update.deps)
     for (const depId of deps) {
-      assertTaskReferenceInPlan(task.planId, input.getTask, depId, 'dependency task')
+      assertTaskReferenceInTaskGraph(task.taskGraphId, input.getTask, depId, 'dependency task')
       if (depId === task.id) throw new Error(`task ${task.id} cannot depend on itself`)
     }
     assertTaskDependencyGraphAcyclic(input.planTasks, new Map([[task.id, deps]]))
@@ -85,15 +85,15 @@ export function applyPlanTaskUpdate(input: ApplyPlanTaskUpdateInput): AgentTask 
   return task
 }
 
-function assertTaskReferenceInPlan(
-  planId: string,
+function assertTaskReferenceInTaskGraph(
+  taskGraphId: string,
   getTask: (taskId: string) => AgentTask | undefined,
   taskId: string,
   label: string,
 ): void {
   const referencedTask = getTask(taskId)
   if (!referencedTask) throw new Error(`task not found: ${taskId}`)
-  if (referencedTask.planId !== planId) throw new Error(`${label} ${taskId} does not belong to plan ${planId}`)
+  if (referencedTask.taskGraphId !== taskGraphId) throw new Error(`${label} ${taskId} does not belong to taskGraph ${taskGraphId}`)
 }
 
 function normalizeNonEmptyString(value: unknown): string | undefined {

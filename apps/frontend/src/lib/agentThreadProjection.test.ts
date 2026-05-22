@@ -103,6 +103,47 @@ test('projectRuntimeThreadMessages restores user attachments from runtime client
   }])
 })
 
+test('projectRuntimeThreadMessages preserves progress taskGraph revision metadata snapshots', async () => {
+  const thread = makeThread({
+    messages: [
+      makeMessage({
+        id: 'msg_taskGraph',
+        role: 'assistant',
+        content: 'Progress checklist updated',
+        createdAt: '2026-05-19T00:00:01.000Z',
+        metadata: {
+          kind: 'progress_checklist_revision',
+          progressChecklistRevision: {
+            schema: 'movscript.agent.progress-checklist-revision.v1',
+            id: 'progress_checklist_revision_1',
+            taskGraphId: 'progress_checklist_1',
+            threadId: 'thread_1',
+            snapshot: {
+              schema: 'movscript.agent.progress-checklist.v1',
+              id: 'progress_checklist_1',
+              threadId: 'thread_1',
+              items: [{ step: 'Wire tool', status: 'in_progress' }],
+              completedCount: 0,
+              totalCount: 1,
+              createdAt: NOW,
+              updatedAt: NOW,
+            },
+            createdAt: NOW,
+          },
+        },
+      }),
+    ],
+  })
+
+  const messages = await projectRuntimeThreadMessages({
+    thread,
+    deps: { fetchRunGenerationView: async () => emptyGenerationReplay() },
+  })
+
+  assert.equal(messages[0].meta?.progressChecklistRevision?.id, 'progress_checklist_revision_1')
+  assert.equal(messages[0].meta?.progressChecklistRevision?.snapshot.items[0].status, 'in_progress')
+})
+
 test('projectRuntimeThreadMessages creates synthetic assistant messages for top-level runs without persisted assistant messages', async () => {
   const thread = makeThread({
     messages: [
@@ -244,7 +285,7 @@ function makeThread(input: { messages: AgentMessage[] }): AgentThread {
   }
 }
 
-function makeMessage(input: Pick<AgentMessage, 'id' | 'role' | 'content' | 'createdAt'> & { runId?: string; clientInput?: unknown }): AgentMessage {
+function makeMessage(input: Pick<AgentMessage, 'id' | 'role' | 'content' | 'createdAt'> & { runId?: string; clientInput?: unknown; metadata?: AgentMessage['metadata'] }): AgentMessage {
   return {
     id: input.id,
     threadId: 'thread_1',
@@ -252,6 +293,7 @@ function makeMessage(input: Pick<AgentMessage, 'id' | 'role' | 'content' | 'crea
     content: input.content,
     ...(input.clientInput ? { clientInput: input.clientInput } : {}),
     ...(input.runId ? { runId: input.runId } : {}),
+    ...(input.metadata ? { metadata: input.metadata } : {}),
     createdAt: input.createdAt,
   }
 }

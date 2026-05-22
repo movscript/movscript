@@ -57,7 +57,7 @@ export function recordRuntimeRunSetupTraces(input: {
       route: input.debugContext.route,
       project: input.debugContext.project,
       selection: input.debugContext.selection,
-      ...(input.debugContext.agentPlan ? { agentPlan: input.debugContext.agentPlan as unknown as JSONValue } : {}),
+      ...(input.debugContext.agentTaskGraph ? { agentTaskGraph: input.debugContext.agentTaskGraph as unknown as JSONValue } : {}),
       recentResourceCount: input.debugContext.recentResources.length,
       attachmentCount: input.debugContext.attachments.length,
       durationMs: input.contextDurationMs,

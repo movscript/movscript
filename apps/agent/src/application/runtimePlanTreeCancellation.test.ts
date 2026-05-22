@@ -1,33 +1,33 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentPlan, AgentRun } from '../state/types.js'
+import type { AgentTaskGraph, AgentRun } from '../state/types.js'
 import {
-  applyRuntimePlanTreeCancellationRequest,
-  resolveRuntimePlanTreeCancellationRoot,
+  applyRuntimeTaskGraphTreeCancellationRequest,
+  resolveRuntimeTaskGraphTreeCancellationRoot,
 } from './runtimePlanTreeCancellation.js'
 
-test('resolveRuntimePlanTreeCancellationRoot accepts only the attached root planner run', () => {
+test('resolveRuntimeTaskGraphTreeCancellationRoot accepts only the attached root planner run', () => {
   const store = new InMemoryAgentStore()
-  store.createPlan(makePlan())
-  store.createRun(makeRun({ id: 'run_root', role: 'planner', planId: 'plan_1' }))
-  store.createRun(makeRun({ id: 'run_worker', role: 'worker', planId: 'plan_1' }))
-  store.createRun(makeRun({ id: 'run_second_planner', role: 'planner', planId: 'plan_1' }))
+  store.createTaskGraph(makeTaskGraph())
+  store.createRun(makeRun({ id: 'run_root', role: 'planner', taskGraphId: 'task_graph_1' }))
+  store.createRun(makeRun({ id: 'run_worker', role: 'worker', taskGraphId: 'task_graph_1' }))
+  store.createRun(makeRun({ id: 'run_second_planner', role: 'planner', taskGraphId: 'task_graph_1' }))
   store.createRun(makeRun({ id: 'run_unattached', role: 'planner' }))
 
-  assert.equal(resolveRuntimePlanTreeCancellationRoot({ store, runId: 'run_root' }), 'run_root')
-  assert.throws(() => resolveRuntimePlanTreeCancellationRoot({ store, runId: 'run_worker' }), /is not a planner run/)
-  assert.throws(() => resolveRuntimePlanTreeCancellationRoot({ store, runId: 'run_second_planner' }), /is not the root planner/)
-  assert.throws(() => resolveRuntimePlanTreeCancellationRoot({ store, runId: 'run_unattached' }), /is not attached to a plan/)
+  assert.equal(resolveRuntimeTaskGraphTreeCancellationRoot({ store, runId: 'run_root' }), 'run_root')
+  assert.throws(() => resolveRuntimeTaskGraphTreeCancellationRoot({ store, runId: 'run_worker' }), /is not a planner run/)
+  assert.throws(() => resolveRuntimeTaskGraphTreeCancellationRoot({ store, runId: 'run_second_planner' }), /is not the root planner/)
+  assert.throws(() => resolveRuntimeTaskGraphTreeCancellationRoot({ store, runId: 'run_unattached' }), /is not attached to a task graph/)
 })
 
-test('applyRuntimePlanTreeCancellationRequest resolves the root and delegates subtree cancellation', () => {
+test('applyRuntimeTaskGraphTreeCancellationRequest resolves the root and delegates subtree cancellation', () => {
   const store = new InMemoryAgentStore()
-  store.createPlan(makePlan())
-  store.createRun(makeRun({ id: 'run_root', role: 'planner', planId: 'plan_1' }))
+  store.createTaskGraph(makeTaskGraph())
+  store.createRun(makeRun({ id: 'run_root', role: 'planner', taskGraphId: 'task_graph_1' }))
   const calls: string[] = []
 
-  const result = applyRuntimePlanTreeCancellationRequest({
+  const result = applyRuntimeTaskGraphTreeCancellationRequest({
     store,
     runId: 'run_root',
     cancelSubtree: (runId) => {
@@ -40,12 +40,12 @@ test('applyRuntimePlanTreeCancellationRequest resolves the root and delegates su
   assert.deepEqual(calls, ['subtree:run_root'])
 })
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
     rootRunId: 'run_root',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',

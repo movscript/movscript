@@ -29,7 +29,7 @@ export function useAgentChatActionBindings({
     runTouchesAgentCatalog,
   })
 
-  const plan = useAgentPlanActionBindings(planActions)
+  const taskGraph = useAgentPlanActionBindings(planActions)
 
   const stopActiveLocalRun = useAgentRunStopAction({
     ...stopAction,
@@ -40,6 +40,6 @@ export function useAgentChatActionBindings({
     appendAssistantRunResult,
     stopActiveLocalRun,
     ...workflow,
-    ...plan,
+    ...taskGraph,
   }
 }

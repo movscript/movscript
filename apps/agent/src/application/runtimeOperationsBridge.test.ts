@@ -44,20 +44,29 @@ test('runtime operation bridge delegates operations and records traces', async (
   })
   const run = { id: 'run_1' } as AgentRun
 
-  assert.deepEqual(await bridge.startOperation(run, { kind: 'generation_job', request: { prompt: 'image' } }), { status: 'started', operation })
+  assert.deepEqual(await bridge.startOperation(run, {
+    kind: 'generation_job',
+    request: { prompt: 'image' },
+    continuationPolicy: { mode: 'any_completed', groupId: 'batch_1' },
+  }), { status: 'started', operation })
   assert.deepEqual(bridge.getOperation(run, { operationId: 'op_1' }), { status: 'read', operation })
   assert.deepEqual(bridge.listOperation(run), { status: 'listed', operations: [operation] })
   assert.equal((await bridge.waitOperation(run, { operationIds: ['op_1'] }) as any).status, 'completed')
   assert.deepEqual(await bridge.cancelOperation(run, { operationId: 'op_1' }), { status: 'cancelled', operation: { ...operation, status: 'cancelled' } })
 
-  assert.equal(calls.some((call) => call.startsWith('start:')), true)
+  const startCall = calls.find((call) => call.startsWith('start:'))
+  assert.ok(startCall)
+  assert.deepEqual(JSON.parse(startCall.slice('start:'.length)).continuationPolicy, {
+    mode: 'any_completed',
+    groupId: 'batch_1',
+  })
   assert.equal(calls.includes('get:op_1'), true)
   assert.equal(calls.includes('list'), true)
   assert.equal(calls.includes('wait'), true)
   assert.equal(calls.includes('cancel:op_1'), true)
-  assert.equal(traces.some((trace) => trace.toolName === 'runtime_operation_start'), true)
-  assert.equal(traces.some((trace) => trace.toolName === 'runtime_operation_wait'), true)
-  assert.equal(traces.some((trace) => trace.toolName === 'runtime_operation_cancel'), true)
+  assert.equal(traces.some((trace) => trace.toolName === 'core_operation_start'), true)
+  assert.equal(traces.some((trace) => trace.toolName === 'core_operation_wait'), true)
+  assert.equal(traces.some((trace) => trace.toolName === 'core_operation_cancel'), true)
 })
 
 test('runtime operation bridge rejects unsupported start kinds with guidance', async () => {
@@ -72,7 +81,7 @@ test('runtime operation bridge rejects unsupported start kinds with guidance', a
 
   await assert.rejects(
     bridge.startOperation(run, { kind: 'subagent', request: {} }),
-    /use movscript_spawn_subagent/,
+    /use core_subagent_spawn/,
   )
   await assert.rejects(
     bridge.startOperation(run, { kind: 'unsupported_operation', request: {} }),

@@ -21,7 +21,6 @@ test('canonicalizeProjectStandardsProposalDraftContent rebases asset proposals o
   )
   assert.deepEqual(JSON.parse(content ?? ''), {
     mode: 'snapshot',
-    snapshot_base: { asset_slots: [{ id: 'slot_1' }], creative_references: [{ id: 'ref_1' }] },
     proposal: { note: 'keep', creative_references: [], asset_slots: [{ id: 'slot_1' }] },
   })
 })

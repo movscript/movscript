@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  AlertCircle, Download, Loader2, Plus, Search, Store, Trash2, ExternalLink, Play, Upload,
+  AlertCircle, Blocks, Download, Loader2, Plus, Search, Store, Trash2, ExternalLink, Play, Upload,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -16,6 +16,7 @@ import {
 import { MARKETPLACE_PLUGINS, type MarketplaceEntry } from '@/lib/pluginMarketplace'
 import { cn } from '@/lib/utils'
 import { Button, Input } from '@movscript/ui'
+import { AgentConsoleNav } from '@/pages/agent/AgentConsoleNav'
 
 type Tab = 'installed' | 'marketplace'
 
@@ -281,8 +282,17 @@ export default function ClientPluginsPage() {
     <div className="h-full flex flex-col bg-background">
       {showURLDialog && <InstallURLDialog onInstalled={handleInstalled} onClose={() => setShowURLDialog(false)} />}
 
-      <div className="h-11 border-b border-border px-5 flex items-center justify-between shrink-0">
-        <h1 className="type-body font-semibold text-foreground">{t('plugins.title')}</h1>
+      <header className="shrink-0 border-b border-border bg-background px-5 py-3">
+        <div className="flex min-h-[72px] flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Blocks size={18} />
+              <h1 className="type-title-sm font-semibold text-foreground">{t('plugins.title')}</h1>
+            </div>
+            <p className="mt-1 line-clamp-2 max-w-3xl type-label leading-5 text-muted-foreground">
+              管理应用插件、画布节点、工具页，以及可安装到 Agent 的 Skills 和工具扩展。
+            </p>
+          </div>
         <div className="flex items-center gap-2">
           <input
             ref={fileInputRef}
@@ -302,7 +312,10 @@ export default function ClientPluginsPage() {
             {t('plugins.installFromUrl')}
           </Button>
         </div>
-      </div>
+        </div>
+      </header>
+
+      <AgentConsoleNav compact />
 
       {fileError && (
         <div className="px-5 py-2 bg-destructive/10 border-b border-border type-label text-destructive flex items-center gap-2 shrink-0">

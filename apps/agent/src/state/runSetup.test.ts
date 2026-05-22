@@ -25,7 +25,7 @@ test('buildRunSetupMetadata assembles debug context and run metadata', () => {
     },
     agentManifest: DEFAULT_AGENT_MANIFEST,
     skills: [{
-      id: 'movscript.policy.agent-core',
+      id: 'core.policy.runtime',
       name: 'Agent Core',
       description: 'Core policy',
       version: '1.0.0',
@@ -45,7 +45,7 @@ test('buildRunSetupMetadata assembles debug context and run metadata', () => {
       resolvedTools: {
         discovered: [],
         available: [{
-          name: 'movscript_search_memories',
+          name: 'core_memory_search',
           description: 'Search memories',
           source: 'runtime',
           registered: true,
@@ -91,10 +91,10 @@ test('buildRunSetupMetadata assembles debug context and run metadata', () => {
   assert.equal(result.metadata.backendAuthToken, 'token_1')
   assert.equal((result.metadata.command as any)?.name, 'chat')
   assert.equal((result.metadata.debugTrace as any)?.manifestId, DEFAULT_AGENT_MANIFEST.id)
-  assert.equal((result.metadata.skills as any[])?.[0]?.id, 'movscript.policy.agent-core')
+  assert.equal((result.metadata.skills as any[])?.[0]?.id, 'core.policy.runtime')
   assert.equal((result.metadata.skills as any[])?.[0]?.instruction, 'compiled core instruction')
-  assert.deepEqual(result.metadata.activeSkillIds, ['movscript.policy.agent-core'])
-  assert.deepEqual(result.metadata.visibleToolNames, ['movscript_search_memories'])
+  assert.deepEqual(result.metadata.activeSkillIds, ['core.policy.runtime'])
+  assert.deepEqual(result.metadata.visibleToolNames, ['core_memory_search'])
   assert.deepEqual(result.metadata.limits, { maxActiveWorkflows: 2, maxKnowledgeCharsPerRun: 8000, maxKnowledgeChunksPerRun: 3 })
   assert.equal((result.metadata.catalogSnapshot as any)?.id, 'catalog_1')
   assert.equal((result.metadata.catalogSnapshot as any)?.version, '2026.05.15')
@@ -103,8 +103,8 @@ test('buildRunSetupMetadata assembles debug context and run metadata', () => {
   assert.equal((result.metadata.contextLedger as any)?.threadId, 'thread_1')
   assert.equal((result.metadata.contextLedger as any)?.catalogSnapshotId, 'catalog_1')
   assert.equal((result.metadata.contextLedger as any)?.catalogSnapshotVersion, '2026.05.15')
-  assert.deepEqual((result.metadata.contextLedger as any)?.activeSkillIds, ['movscript.policy.agent-core'])
-  assert.deepEqual((result.metadata.contextLedger as any)?.visibleToolNames, ['movscript_search_memories'])
+  assert.deepEqual((result.metadata.contextLedger as any)?.activeSkillIds, ['core.policy.runtime'])
+  assert.deepEqual((result.metadata.contextLedger as any)?.visibleToolNames, ['core_memory_search'])
   assert.deepEqual((result.metadata.contextLedger as any)?.retrieved, [])
 })
 
@@ -168,7 +168,7 @@ test('buildRunSetupMetadata stores independent input metadata snapshots', () => 
     payload: 'hello',
     contextProfile: 'minimal',
     outputMode: 'natural',
-    requiredTools: ['movscript_search_memories'],
+    requiredTools: ['core_memory_search'],
     systemContract: 'Chat.',
   }
 
@@ -225,5 +225,5 @@ test('buildRunSetupMetadata stores independent input metadata snapshots', () => 
     maxKnowledgeCharsPerRun: 8000,
     maxKnowledgeChunksPerRun: 3,
   })
-  assert.deepEqual((result.metadata.command as any).requiredTools, ['movscript_search_memories'])
+  assert.deepEqual((result.metadata.command as any).requiredTools, ['core_memory_search'])
 })

@@ -80,21 +80,21 @@ test('resolveToolRunUserMessage uses client input, explicit message, then tool f
   }), /shot\.png/)
   assert.equal(resolveToolRunUserMessage({
     message: '  explicit tool request  ',
-    toolName: 'movscript_create_project',
+    toolName: 'movscript_project_create',
   }), 'explicit tool request')
   assert.equal(resolveToolRunUserMessage({
-    toolName: 'movscript_create_project',
-  }), 'Run tool movscript_create_project')
+    toolName: 'movscript_project_create',
+  }), 'Run tool movscript_project_create')
 })
 
 test('resolveToolRunThreadTitle uses explicit title then tool fallback', () => {
   assert.equal(resolveToolRunThreadTitle({
     title: '  Draft tool run  ',
-    toolName: 'movscript_create_project',
+    toolName: 'movscript_project_create',
   }), 'Draft tool run')
   assert.equal(resolveToolRunThreadTitle({
-    toolName: 'movscript_create_project',
-  }), 'Tool run: movscript_create_project')
+    toolName: 'movscript_project_create',
+  }), 'Tool run: movscript_project_create')
 })
 
 test('resolvePreviewRunMessageInput preserves preview message source priority', () => {

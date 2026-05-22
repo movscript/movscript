@@ -487,7 +487,7 @@ export function buildProposalSemanticDiff(segments: ProposalSegmentNode[]): Prop
 
 export function buildProposalApplyPreview(segments: ProposalSegmentNode[], decisions: ProposalNodeDecisions): ProposalApplyPreview {
   const preview: ProposalApplyPreview = {
-    writePlan: [],
+    writeTaskGraph: [],
     rejected: [],
     pending: [],
     blocked: [],
@@ -497,7 +497,7 @@ export function buildProposalApplyPreview(segments: ProposalSegmentNode[], decis
     if (blocked) {
       preview.blocked.push(item)
     } else if (decision === 'accepted') {
-      preview.writePlan.push(item)
+      preview.writeTaskGraph.push(item)
     } else if (decision === 'rejected') {
       preview.rejected.push(item)
     } else {
@@ -611,7 +611,7 @@ export function buildProposalApplyPreview(segments: ProposalSegmentNode[], decis
 }
 
 export function buildProposalApplyGate(preview: ProposalApplyPreview, backendPreviewReady: boolean): ProposalApplyGate {
-  if (preview.writePlan.length === 0) {
+  if (preview.writeTaskGraph.length === 0) {
     return {
       status: 'empty',
       title: '还没有可写入内容',

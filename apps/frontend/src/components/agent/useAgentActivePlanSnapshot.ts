@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { shouldPollPlanSnapshot } from '@/lib/agentPlanUi'
-import { localAgentClient, type AgentPlanSnapshot, type AgentRun } from '@/lib/localAgentClient'
+import { localAgentClient, type AgentTaskGraphSnapshot, type AgentRun } from '@/lib/localAgentClient'
 
 interface UseAgentActivePlanSnapshotInput {
   activeRun: AgentRun | null
@@ -13,14 +13,14 @@ export function useAgentActivePlanSnapshot({
   localRuntimeEnabled,
   localAgentOnline,
 }: UseAgentActivePlanSnapshotInput) {
-  return useQuery<AgentPlanSnapshot>({
-    queryKey: ['local-agent-plan-snapshot', localAgentClient.baseURL, activeRun?.planId ?? null, activeRun?.updatedAt ?? null],
+  return useQuery<AgentTaskGraphSnapshot>({
+    queryKey: ['local-agent-taskGraph-snapshot', localAgentClient.baseURL, activeRun?.taskGraphId ?? null, activeRun?.updatedAt ?? null],
     queryFn: async () => {
-      if (!activeRun?.planId) throw new Error('active run is not attached to a plan')
+      if (!activeRun?.taskGraphId) throw new Error('active run is not attached to a task graph')
       await localAgentClient.ensureRunning()
-      return localAgentClient.getPlanSnapshot(activeRun.planId)
+      return localAgentClient.getTaskGraphSnapshot(activeRun.taskGraphId)
     },
-    enabled: localRuntimeEnabled && localAgentOnline && !!activeRun?.planId,
+    enabled: localRuntimeEnabled && localAgentOnline && !!activeRun?.taskGraphId,
     retry: false,
     refetchInterval: (query) => shouldPollPlanSnapshot(query.state.data, activeRun) ? 1500 : false,
   })

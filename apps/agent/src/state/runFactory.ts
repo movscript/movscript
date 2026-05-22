@@ -18,7 +18,7 @@ export interface BuildAgentRunInput {
   runtimeContract?: AgentRuntimeContract
   role?: AgentRunRole
   parentRunId?: string
-  planId?: string
+  taskGraphId?: string
   taskId?: string
   progress?: number
   blockedReason?: string
@@ -31,7 +31,7 @@ export function buildAgentRun(input: BuildAgentRunInput): AgentRun {
     status: 'queued',
     ...(input.role ? { role: input.role } : {}),
     ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
-    ...(input.planId ? { planId: input.planId } : {}),
+    ...(input.taskGraphId ? { taskGraphId: input.taskGraphId } : {}),
     ...(input.taskId ? { taskId: input.taskId } : {}),
     ...(typeof input.progress === 'number' ? { progress: input.progress } : {}),
     ...(input.blockedReason ? { blockedReason: input.blockedReason } : {}),

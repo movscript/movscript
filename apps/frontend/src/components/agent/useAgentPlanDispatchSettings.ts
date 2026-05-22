@@ -17,7 +17,7 @@ export function useAgentPlanDispatchSettings({
     workerTimeoutMs: settings.planWorkerTimeoutMs,
   }), [settings.planMaxWorkers, settings.planMaxTaskAttempts, settings.planWorkerTimeoutMs])
 
-  const updatePlanDispatchSettings = useCallback((next: PlanDispatchSettings) => {
+  const updateTaskGraphDispatchSettings = useCallback((next: PlanDispatchSettings) => {
     updateSettings({
       planMaxWorkers: next.maxWorkers,
       planMaxTaskAttempts: next.maxTaskAttempts,
@@ -27,6 +27,6 @@ export function useAgentPlanDispatchSettings({
 
   return {
     planDispatchSettings,
-    updatePlanDispatchSettings,
+    updateTaskGraphDispatchSettings,
   }
 }

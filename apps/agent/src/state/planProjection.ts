@@ -1,27 +1,27 @@
-import type { AgentPlan, AgentTask } from './types.js'
+import type { AgentTaskGraph, AgentTask } from './types.js'
 import { normalizeProgress } from './planTaskInput.js'
 
 export interface PlanTaskProjectionResult {
-  previousStatus: AgentPlan['status']
-  nextStatus: AgentPlan['status']
+  previousStatus: AgentTaskGraph['status']
+  nextStatus: AgentTaskGraph['status']
   completedNow: boolean
 }
 
-export function projectTasksOntoPlan(plan: AgentPlan, tasks: AgentTask[], now: string): PlanTaskProjectionResult {
-  const previousStatus = plan.status
+export function projectTasksOntoTaskGraph(taskGraph: AgentTaskGraph, tasks: AgentTask[], now: string): PlanTaskProjectionResult {
+  const previousStatus = taskGraph.status
   const progress = tasks.length === 0
-    ? plan.progress
+    ? taskGraph.progress
     : tasks.reduce((sum, task) => sum + normalizeProgress(task.progress)!, 0) / tasks.length
-  const nextStatus = resolvePlanStatusFromTasks(plan.status, tasks)
-  plan.progress = Math.max(0, Math.min(1, progress))
-  plan.status = nextStatus
-  plan.updatedAt = now
-  if (nextStatus === 'done' && !plan.completedAt) plan.completedAt = now
-  if (nextStatus === 'failed' && !plan.failedAt) plan.failedAt = now
-  if (nextStatus === 'cancelled' && !plan.cancelledAt) plan.cancelledAt = now
+  const nextStatus = resolvePlanStatusFromTasks(taskGraph.status, tasks)
+  taskGraph.progress = Math.max(0, Math.min(1, progress))
+  taskGraph.status = nextStatus
+  taskGraph.updatedAt = now
+  if (nextStatus === 'done' && !taskGraph.completedAt) taskGraph.completedAt = now
+  if (nextStatus === 'failed' && !taskGraph.failedAt) taskGraph.failedAt = now
+  if (nextStatus === 'cancelled' && !taskGraph.cancelledAt) taskGraph.cancelledAt = now
   const firstBlocked = tasks.find((task) => task.status === 'blocked' && task.blockedReason)
-  if (firstBlocked?.blockedReason) plan.blockedReason = firstBlocked.blockedReason
-  else delete plan.blockedReason
+  if (firstBlocked?.blockedReason) taskGraph.blockedReason = firstBlocked.blockedReason
+  else delete taskGraph.blockedReason
   return {
     previousStatus,
     nextStatus,
@@ -29,7 +29,7 @@ export function projectTasksOntoPlan(plan: AgentPlan, tasks: AgentTask[], now: s
   }
 }
 
-export function resolvePlanStatusFromTasks(currentStatus: AgentPlan['status'], tasks: AgentTask[]): AgentPlan['status'] {
+export function resolvePlanStatusFromTasks(currentStatus: AgentTaskGraph['status'], tasks: AgentTask[]): AgentTaskGraph['status'] {
   const statuses = new Set(tasks.map((task) => task.status))
   return statuses.has('failed') ? 'failed'
     : statuses.has('cancelled') && tasks.every((task) => task.status === 'cancelled') ? 'cancelled'

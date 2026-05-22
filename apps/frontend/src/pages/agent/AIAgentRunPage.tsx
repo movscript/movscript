@@ -4,11 +4,13 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ChevronDown, ChevronRight, Copy, History, Loader2, RefreshCw, Route, XCircle } from 'lucide-react'
 import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
 import { AgentRunGenerationArtifacts } from '@/components/agent/AgentRunGenerationArtifacts'
+import { AgentConsoleNav } from '@/pages/agent/AgentConsoleNav'
 import { LocalAgentInputRequestCard } from '@/components/agent/localRuntime'
 import { agentTaskStatusLabel, buildPlanTaskViews, buildTaskArtifactViews } from '@/lib/agentPlanUi'
-import { agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, buildTraceEventLink, canCancelWorkerRun, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runRoleLabel, runStatusLabel, traceCategoryLabel, traceDeepLinkMissing as isTraceDeepLinkMissing, traceEventIdFromHash, traceEventStatusLabel, traceKindLabel, type AgentTraceCategory } from '@/lib/agentRunUi'
+import { agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, buildTraceEventLink, canCancelWorkerRun, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runRoleLabel, runStatusLabel, traceCategoryLabel, traceDeepLinkMissing as isTraceDeepLinkMissing, traceEventDurationMs, traceEventIdFromHash, traceEventStatusLabel, traceKindLabel, type AgentTraceCategory } from '@/lib/agentRunUi'
 import { agentToolNameLabel } from '@/lib/agentToolDisplay'
 import { formatAgentTraceDebugData, redactAgentTraceDebugText } from '@/lib/agentTraceDebugData'
+import { isRecord } from '@/lib/jsonValue'
 import { localAgentClient, type AgentRun, type AgentTraceDebugView, type AgentTraceEvent, type AgentTraceEventKind } from '@/lib/localAgentClient'
 import { agentRunPath } from '@/routes/projectRoutes'
 
@@ -60,11 +62,36 @@ type AgentDebugReadinessItem = AgentTraceDebugView['readinessChecklist'][number]
 type AgentDebugAttentionEvent = AgentTraceDebugView['attentionEvents'][number]
 type AgentModelCallSummary = AgentTraceDebugView['modelCalls'][number]
 type AgentSkillTraceSummary = AgentTraceDebugView['skillTimeline']
+type AgentTraceViewMode = 'debug' | 'timeline' | 'tools' | 'skills'
+
+interface AgentDebugHotspot {
+  id: string
+  eventId?: string
+  title: string
+  label: string
+  tone: 'danger' | 'warning' | 'neutral'
+  summary?: string
+  meta: string[]
+}
+
+interface AgentToolCallSummary {
+  eventId: string
+  toolName?: string
+  title: string
+  status: AgentTraceEvent['status']
+  statusLabel: string
+  source?: string
+  sandboxed?: boolean
+  durationMs?: number
+  summary?: string
+  argsPreview?: string
+  dataPreview?: string
+}
 
 export default function AIAgentRunPage() {
   const navigate = useNavigate()
   const { runId = '' } = useParams()
-  const [traceViewMode, setTraceViewMode] = useState<'timeline' | 'skills'>('timeline')
+  const [traceViewMode, setTraceViewMode] = useState<AgentTraceViewMode>('debug')
   const [eventKind, setEventKind] = useState<'all' | AgentTraceEventKind>('all')
   const [eventCategory, setEventCategory] = useState<'all' | AgentTraceCategory>('all')
   const [eventSearch, setEventSearch] = useState('')
@@ -78,13 +105,12 @@ export default function AIAgentRunPage() {
   const [approvalError, setApprovalError] = useState<string | null>(null)
   const [inputActionId, setInputActionId] = useState<string | null>(null)
   const [inputError, setInputError] = useState<string | null>(null)
-  const [expandedEventIds, setExpandedEventIds] = useState<Set<string>>(() => new Set())
   const [traceDeepLinkEventId, setTraceDeepLinkEventId] = useState(() => traceEventIdFromLocationHash())
   const [debugReportCopied, setDebugReportCopied] = useState(false)
   const [debugReportCopyError, setDebugReportCopyError] = useState<string | null>(null)
   const [debugBundleCopied, setDebugBundleCopied] = useState(false)
   const [debugBundleCopyError, setDebugBundleCopyError] = useState<string | null>(null)
-  const [eventCopyFeedback, setEventCopyFeedback] = useState<{ eventId: string; action: 'data' | 'link' } | null>(null)
+  const [eventCopyFeedback, setEventCopyFeedback] = useState<{ eventId: string; action: 'link' } | null>(null)
   const [eventCopyError, setEventCopyError] = useState<{ eventId: string; message: string } | null>(null)
   const currentRunIdRef = useRef(runId)
   const initialTraceLoadRunIdRef = useRef<string | null>(null)
@@ -99,9 +125,9 @@ export default function AIAgentRunPage() {
     retry: false,
   })
   const planQuery = useQuery({
-    queryKey: ['agent-run-plan-context', localAgentClient.baseURL, runQuery.data?.planId],
-    queryFn: async () => localAgentClient.getPlanSnapshot(runQuery.data!.planId!),
-    enabled: !!runQuery.data?.planId,
+    queryKey: ['agent-run-taskGraph-context', localAgentClient.baseURL, runQuery.data?.taskGraphId],
+    queryFn: async () => localAgentClient.getTaskGraphSnapshot(runQuery.data!.taskGraphId!),
+    enabled: !!runQuery.data?.taskGraphId,
     retry: false,
   })
   const childRunsQuery = useQuery({
@@ -131,6 +157,14 @@ export default function AIAgentRunPage() {
       return traceEventSearchText(event).includes(needle)
     })
   }, [eventCategory, eventKind, eventSearch, events])
+  const toolCallSummaries = useMemo<AgentToolCallSummary[]>(() => (
+    toolCallSummariesFromUnknown(debugViewQuery.data?.toolCalls) ?? fallbackToolCallSummaries(events)
+  ), [debugViewQuery.data?.toolCalls, events])
+  const visibleToolCallSummaries = useMemo(() => {
+    const needle = eventSearch.trim().toLowerCase()
+    if (!needle) return toolCallSummaries
+    return toolCallSummaries.filter((toolCall) => toolCallSearchText(toolCall).includes(needle))
+  }, [eventSearch, toolCallSummaries])
   const eventKinds = useMemo(() => Array.from(new Set(events.map((event) => event.kind))).sort(), [events])
   const eventCategories = useMemo(() => Array.from(new Set(events.map((event) => agentTraceView(event).category))).sort(), [events])
   const categoryCounts = useMemo(() => {
@@ -150,6 +184,15 @@ export default function AIAgentRunPage() {
   const modelCallSummaries = (debugViewQuery.data?.modelCalls ?? []) as AgentModelCallSummary[]
   const modelCallContexts = debugViewQuery.data?.modelCallContexts ?? []
   const attentionEvents = (debugViewQuery.data?.attentionEvents ?? []) as AgentDebugAttentionEvent[]
+  const debugHotspots = useMemo(
+    () => buildDebugHotspots({
+      events: debugViewEvents,
+      toolCalls: toolCallSummaries,
+      modelCalls: modelCallSummaries,
+      attentionEvents,
+    }),
+    [attentionEvents, debugViewEvents, modelCallSummaries, toolCallSummaries],
+  )
   const latestTraceView = useMemo(
     () => summaryQuery.data?.latestEvent ? agentTraceView(summaryQuery.data.latestEvent) : undefined,
     [summaryQuery.data?.latestEvent],
@@ -174,7 +217,8 @@ export default function AIAgentRunPage() {
       : undefined
   const workerRunCanBeCancelled = canCancelWorkerRun(runQuery.data)
   const traceHasUnloadedEvents = hasUnloadedTraceEvents({ loaded: events.length, total: traceTotal, hasMore })
-  const traceFiltersActive = eventSearch.trim() !== '' || eventKind !== 'all' || eventCategory !== 'all'
+  const traceFiltersActive = eventSearch.trim() !== ''
+    || (traceViewMode === 'timeline' && (eventKind !== 'all' || eventCategory !== 'all'))
   const debugCoverageSummary = (debugViewQuery.data?.coverage ?? EMPTY_DEBUG_COVERAGE) as AgentDebugCoverageSummary
   const debugReadinessChecklist = (debugViewQuery.data?.readinessChecklist ?? []) as AgentDebugReadinessItem[]
   const debugReportText = debugViewQuery.data?.reportText ?? ''
@@ -193,6 +237,7 @@ export default function AIAgentRunPage() {
     loadingEventsRef.current = false
     setTraceLoadError(null)
     initialTraceLoadRunIdRef.current = null
+    setTraceViewMode('debug')
     setEventKind('all')
     setEventCategory('all')
     setEventSearch('')
@@ -207,7 +252,6 @@ export default function AIAgentRunPage() {
     setDebugBundleCopyError(null)
     setEventCopyFeedback(null)
     setEventCopyError(null)
-    setExpandedEventIds(new Set())
   }, [runId])
 
   useEffect(() => {
@@ -241,15 +285,6 @@ export default function AIAgentRunPage() {
     if (!traceDeepLinkEventId) return
     const element = document.getElementById(`agent-trace-event-${traceDeepLinkEventId}`)
     element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    const linkedEvent = visibleEvents.find((event) => event.id === traceDeepLinkEventId)
-    if (linkedEvent?.data !== undefined) {
-      setExpandedEventIds((current) => {
-        if (current.has(traceDeepLinkEventId)) return current
-        const next = new Set(current)
-        next.add(traceDeepLinkEventId)
-        return next
-      })
-    }
   }, [traceDeepLinkEventId, visibleEvents])
 
   useEffect(() => {
@@ -340,6 +375,7 @@ export default function AIAgentRunPage() {
   }
 
   function focusTraceEvent(eventId: string) {
+    setTraceViewMode('timeline')
     const nextUrl = buildTraceEventLink({
       origin: window.location.origin,
       pathname: window.location.pathname,
@@ -361,17 +397,6 @@ export default function AIAgentRunPage() {
     setEventSearch('')
     setEventKind('all')
     setEventCategory('attention')
-  }
-
-  async function copyEventData(eventId: string, data: unknown) {
-    setEventCopyFeedback(null)
-    setEventCopyError(null)
-    try {
-      await navigator.clipboard.writeText(formatAgentTraceDebugData(data))
-      setEventCopyFeedback({ eventId, action: 'data' })
-    } catch (error) {
-      setEventCopyError({ eventId, message: error instanceof Error ? error.message : String(error) })
-    }
   }
 
   async function copyDebugReport() {
@@ -463,19 +488,10 @@ export default function AIAgentRunPage() {
     }
   }
 
-  function toggleEventDetails(eventId: string) {
-    setExpandedEventIds((current) => {
-      const next = new Set(current)
-      if (next.has(eventId)) next.delete(eventId)
-      else next.add(eventId)
-      return next
-    })
-  }
-
   return (
     <div data-testid="agent-run-page" className="flex h-full min-h-full min-w-0 flex-col bg-background">
-      <header data-testid="agent-run-header" className="border-b border-border px-5 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <header data-testid="agent-run-header" className="shrink-0 border-b border-border bg-background px-5 py-3">
+        <div className="flex min-h-[72px] flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <Route size={18} />
@@ -496,8 +512,8 @@ export default function AIAgentRunPage() {
                 上级
               </Button>
             )}
-            {planQuery.data?.plan.rootRunId && planQuery.data.plan.rootRunId !== runId && (
-              <Button type="button" size="sm" variant="outline" aria-label="打开计划根运行" onClick={() => navigate(agentRunPath(planQuery.data!.plan.rootRunId!))}>
+            {planQuery.data?.taskGraph.rootRunId && planQuery.data.taskGraph.rootRunId !== runId && (
+              <Button type="button" size="sm" variant="outline" aria-label="打开计划根运行" onClick={() => navigate(agentRunPath(planQuery.data!.taskGraph.rootRunId!))}>
                 <Route size={14} />
                 根运行
               </Button>
@@ -527,6 +543,7 @@ export default function AIAgentRunPage() {
           </div>
         </div>
       </header>
+      <AgentConsoleNav compact />
       <main className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(260px,380px)_minmax(0,1fr)] lg:overflow-hidden">
         <aside data-testid="agent-run-sidebar" className="min-h-0 border-b border-border p-4 lg:overflow-y-auto lg:border-b-0 lg:border-r">
           {runQuery.isLoading ? (
@@ -553,7 +570,7 @@ export default function AIAgentRunPage() {
               <Info label="角色" value={runRoleLabel(runQuery.data.role)} />
               <Info label="子代理" value={subagentName ?? '-'} />
               <Info label="线程" value={runQuery.data.threadId} />
-              <Info label="计划" value={runQuery.data.planId ?? '-'} />
+              <Info label="计划" value={runQuery.data.taskGraphId ?? '-'} />
               <Info label="任务" value={runQuery.data.taskId ?? '-'} />
               <Info label="上级" value={runQuery.data.parentRunId ?? '-'} />
               <Info label="进度" value={typeof runQuery.data.progress === 'number' ? `${Math.round(runQuery.data.progress * 100)}%` : '-'} />
@@ -662,10 +679,10 @@ export default function AIAgentRunPage() {
                 <div className="flex items-center gap-2 rounded border border-border px-2 py-1 text-muted-foreground"><Loader2 size={12} className="animate-spin" /> 正在加载计划上下文</div>
               )}
               {planQuery.error && (
-                <div data-testid="agent-run-plan-context-error" role="alert" className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-destructive">
+                <div data-testid="agent-run-taskGraph-context-error" role="alert" className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-destructive">
                   <p>{planQuery.error instanceof Error ? planQuery.error.message : String(planQuery.error)}</p>
                   <Button
-                    data-testid="agent-run-plan-context-retry"
+                    data-testid="agent-run-taskGraph-context-retry"
                     type="button"
                     size="xs"
                     variant="outline"
@@ -680,10 +697,10 @@ export default function AIAgentRunPage() {
                 </div>
               )}
               {planQuery.data && (
-                <div data-testid="agent-run-plan-context" className="space-y-2 rounded border border-border/70 bg-muted/10 p-2">
+                <div data-testid="agent-run-taskGraph-context" className="space-y-2 rounded border border-border/70 bg-muted/10 p-2">
                   <div className="type-tiny uppercase tracking-wide text-muted-foreground">计划上下文</div>
-                  <Info label="计划标题" value={planQuery.data.plan.title} />
-                  <Info label="计划状态" value={agentPlanStatusLabel(planQuery.data.plan.status)} />
+                  <Info label="计划标题" value={planQuery.data.taskGraph.title} />
+                  <Info label="计划状态" value={agentPlanStatusLabel(planQuery.data.taskGraph.status)} />
                   {runPlanTask && (
                     <>
                       <Info label="任务标题" value={runPlanTask.title} />
@@ -774,35 +791,51 @@ export default function AIAgentRunPage() {
               )}
               {events.length > 0 && traceFiltersActive && (
                 <span data-testid="agent-run-trace-visible-count" className="text-muted-foreground">
-                  当前显示 {visibleEvents.length} 个
+                  当前显示 {traceViewMode === 'tools' ? visibleToolCallSummaries.length : visibleEvents.length} 个
                 </span>
               )}
-              {categoryCounts.map(([category, count]) => (
-                <button
-                  key={category}
-                  type="button"
-                  data-testid="agent-run-trace-category-filter"
-                  aria-pressed={eventCategory === category}
-                  aria-label={`按${traceCategoryLabel(category)}筛选运行事件`}
-                  className="rounded focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  onClick={() => setEventCategory((current) => current === category ? 'all' : category)}
-                >
-                  <Badge variant={eventCategory === category ? 'secondary' : 'outline'} className="type-tiny">{traceCategoryLabel(category)} {count}</Badge>
-                </button>
-              ))}
-              {summaryQuery.data && Object.entries(summaryQuery.data.byKind).slice(0, 8).map(([kind, count]) => (
-                <Badge key={kind} variant="outline" className="type-tiny">{traceKindLabel(kind as AgentTraceEventKind)} {count}</Badge>
-              ))}
+              {traceViewMode === 'timeline' && categoryCounts.map(([category, count]) => (
+                  <button
+                    key={category}
+                    type="button"
+                    data-testid="agent-run-trace-category-filter"
+                    aria-pressed={eventCategory === category}
+                    aria-label={`按${traceCategoryLabel(category)}筛选运行事件`}
+                    className="rounded focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    onClick={() => setEventCategory((current) => current === category ? 'all' : category)}
+                  >
+                    <Badge variant={eventCategory === category ? 'secondary' : 'outline'} className="type-tiny">{traceCategoryLabel(category)} {count}</Badge>
+                  </button>
+                ))}
+              {traceViewMode === 'timeline' && summaryQuery.data && Object.entries(summaryQuery.data.byKind).slice(0, 8).map(([kind, count]) => (
+                  <Badge key={kind} variant="outline" className="type-tiny">{traceKindLabel(kind as AgentTraceEventKind)} {count}</Badge>
+                ))}
             </div>
             <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
               <div data-testid="agent-run-trace-view-mode" className="flex h-8 overflow-hidden rounded-md border border-border bg-background type-label">
                 <button
                   type="button"
+                  aria-pressed={traceViewMode === 'debug'}
+                  className={`px-2 ${traceViewMode === 'debug' ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'}`}
+                  onClick={() => setTraceViewMode('debug')}
+                >
+                  调试
+                </button>
+                <button
+                  type="button"
                   aria-pressed={traceViewMode === 'timeline'}
-                  className={`px-2 ${traceViewMode === 'timeline' ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'}`}
+                  className={`border-l border-border px-2 ${traceViewMode === 'timeline' ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'}`}
                   onClick={() => setTraceViewMode('timeline')}
                 >
                   时间线
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={traceViewMode === 'tools'}
+                  className={`border-l border-border px-2 ${traceViewMode === 'tools' ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'}`}
+                  onClick={() => setTraceViewMode('tools')}
+                >
+                  工具调用
                 </button>
                 <button
                   type="button"
@@ -813,28 +846,34 @@ export default function AIAgentRunPage() {
                   技能变动
                 </button>
               </div>
-              <input
-                data-testid="agent-run-trace-search"
-                value={eventSearch}
-                onChange={(event) => setEventSearch(event.target.value)}
-                placeholder="搜索事件"
-                aria-label="搜索运行事件"
-                className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 type-label outline-none focus-visible:ring-1 focus-visible:ring-ring sm:w-44 sm:flex-none"
-              />
-              <Select value={eventKind} onValueChange={(next) => setEventKind(next as 'all' | AgentTraceEventKind)}>
-                <SelectTrigger size="sm" aria-label="按事件类型筛选" className="h-8 min-w-32 flex-1 type-label sm:w-36 sm:flex-none"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部事件</SelectItem>
-                  {eventKinds.map((kind) => <SelectItem key={kind} value={kind}>{traceKindLabel(kind as AgentTraceEventKind)}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={eventCategory} onValueChange={(next) => setEventCategory(next as 'all' | AgentTraceCategory)}>
-                <SelectTrigger size="sm" aria-label="按事件分类筛选" className="h-8 min-w-32 flex-1 type-label sm:w-32 sm:flex-none"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部分类</SelectItem>
-                  {eventCategories.map((category) => <SelectItem key={category} value={category}>{traceCategoryLabel(category)}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              {traceViewMode !== 'debug' && (
+                <input
+                  data-testid="agent-run-trace-search"
+                  value={eventSearch}
+                  onChange={(event) => setEventSearch(event.target.value)}
+                  placeholder="搜索事件"
+                  aria-label="搜索运行事件"
+                  className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 type-label outline-none focus-visible:ring-1 focus-visible:ring-ring sm:w-44 sm:flex-none"
+                />
+              )}
+              {traceViewMode === 'timeline' && (
+                <>
+                  <Select value={eventKind} onValueChange={(next) => setEventKind(next as 'all' | AgentTraceEventKind)}>
+                    <SelectTrigger size="sm" aria-label="按事件类型筛选" className="h-8 min-w-32 flex-1 type-label sm:w-36 sm:flex-none"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部事件</SelectItem>
+                      {eventKinds.map((kind) => <SelectItem key={kind} value={kind}>{traceKindLabel(kind as AgentTraceEventKind)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={eventCategory} onValueChange={(next) => setEventCategory(next as 'all' | AgentTraceCategory)}>
+                    <SelectTrigger size="sm" aria-label="按事件分类筛选" className="h-8 min-w-32 flex-1 type-label sm:w-32 sm:flex-none"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部分类</SelectItem>
+                      {eventCategories.map((category) => <SelectItem key={category} value={category}>{traceCategoryLabel(category)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
               {traceFiltersActive && (
                 <Button
                   data-testid="agent-run-clear-trace-filters-inline"
@@ -918,6 +957,44 @@ export default function AIAgentRunPage() {
             {traceViewMode === 'skills' && (
               <SkillTracePanel summary={skillTraceSummary} onFocusEvent={focusTraceEvent} />
             )}
+            {traceViewMode === 'tools' && (
+              <ToolCallProcessPanel
+                toolCalls={toolCallSummaries}
+                visibleToolCalls={visibleToolCallSummaries}
+                events={debugViewEvents}
+                search={eventSearch}
+                loading={debugViewQuery.isLoading || loadingEvents}
+                traceHasUnloadedEvents={traceHasUnloadedEvents}
+                onFocusEvent={focusTraceEvent}
+                onLoadAll={() => loadEvents('all')}
+                onClearSearch={() => setEventSearch('')}
+              />
+            )}
+            {traceViewMode === 'debug' && (
+              <DebugWorkbenchPanel
+                hotspots={debugHotspots}
+                summary={debugCoverageSummary}
+                readinessChecklist={debugReadinessChecklist}
+                attentionEvents={attentionEvents}
+                toolCalls={toolCallSummaries}
+                modelCalls={modelCallSummaries}
+                loading={debugViewQuery.isLoading || loadingEvents}
+                traceHasUnloadedEvents={traceHasUnloadedEvents}
+                copied={debugReportCopied}
+                copyError={debugReportCopyError}
+                bundleCopied={debugBundleCopied}
+                bundleCopyError={debugBundleCopyError}
+                loadingAll={loadingEvents}
+                bundleCopyDisabledReason={debugViewQuery.data ? null : '运行调试视图加载中，暂不能复制调试包。'}
+                onFocusEvent={focusTraceEvent}
+                onShowAttentionEvents={showAttentionEvents}
+                onOpenTimeline={() => setTraceViewMode('timeline')}
+                onOpenTools={() => setTraceViewMode('tools')}
+                onCopy={copyDebugReport}
+                onCopyBundle={copyDebugBundle}
+                onLoadAll={() => loadEvents('all')}
+              />
+            )}
             {traceViewMode === 'timeline' && debugViewQuery.data && (
               <DebugCoveragePanel
                 summary={debugCoverageSummary}
@@ -942,9 +1019,8 @@ export default function AIAgentRunPage() {
             )}
             {traceViewMode === 'timeline' && visibleTraceViews.map(({ event, view }) => {
               const isLinkedEvent = event.id === traceDeepLinkEventId
-              const isEventDataExpanded = expandedEventIds.has(event.id)
-              const eventDataPanelId = `agent-trace-event-data-${event.id}`
               const eventDuration = formatTraceEventDuration(event)
+              const defaultDetailOpen = isLinkedEvent || view.category === 'attention'
               return (
                 <div data-testid="agent-run-trace-event" id={`agent-trace-event-${event.id}`} key={event.id} className={`scroll-mt-4 rounded-md border px-3 py-2 type-label ${isLinkedEvent ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-border bg-background'}`}>
                   <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
@@ -953,37 +1029,8 @@ export default function AIAgentRunPage() {
                       {isLinkedEvent && <Badge data-testid="agent-run-trace-linked-event" variant="secondary" className="type-tiny">已定位</Badge>}
                       {eventCopyFeedback?.eventId === event.id && (
                         <Badge data-testid="agent-run-trace-copy-feedback" role="status" variant="secondary" className="type-tiny">
-                          {eventCopyFeedback.action === 'data' ? '数据已复制' : '链接已复制'}
+                          链接已复制
                         </Badge>
-                      )}
-                      {event.data !== undefined && (
-                        <Button
-                          data-testid="agent-run-trace-event-details-toggle"
-                          type="button"
-                          size="xs"
-                          variant="ghost"
-                          className="px-1 type-micro"
-                          aria-label={`${isEventDataExpanded ? '隐藏' : '查看'}${view.title}的原始数据`}
-                          aria-expanded={isEventDataExpanded}
-                          aria-controls={eventDataPanelId}
-                          onClick={() => toggleEventDetails(event.id)}
-                        >
-                          {isEventDataExpanded ? '隐藏原始数据' : '原始数据'}
-                        </Button>
-                      )}
-                      {event.data !== undefined && (
-                        <Button
-                          data-testid="agent-run-trace-event-data-copy"
-                          type="button"
-                          size="xs"
-                          variant="ghost"
-                          className="px-1 type-micro"
-                          aria-label={`复制${view.title}的原始数据`}
-                          onClick={() => copyEventData(event.id, event.data)}
-                        >
-                          <Copy size={10} />
-                          复制数据
-                        </Button>
                       )}
                       <Button
                         type="button"
@@ -1018,7 +1065,7 @@ export default function AIAgentRunPage() {
                     {view.impact && <TraceDetailLine label="影响" value={redactAgentTraceDebugText(view.impact)} />}
                     {view.summary && <TraceDetailLine label="摘要" value={redactAgentTraceDebugText(view.summary)} />}
                     {view.contextGroups.length > 0 && (
-                      <details className="rounded border border-border/70 bg-muted/20 px-2 py-1" open={view.category === 'http'}>
+                      <details className="rounded border border-border/70 bg-muted/20 px-2 py-1" open={defaultDetailOpen || view.category === 'http'}>
                         <summary className="flex cursor-pointer list-none items-center gap-1 type-tiny font-medium text-foreground marker:hidden">
                           <ChevronRight size={10} className="open:hidden" />
                           <ChevronDown size={10} className="hidden open:block" />
@@ -1042,7 +1089,7 @@ export default function AIAgentRunPage() {
                       </details>
                     )}
                     {view.promptDetail && (
-                      <details data-testid="agent-run-prompt-detail" className="rounded border border-border/70 bg-muted/20 px-2 py-1" open>
+                      <details data-testid="agent-run-prompt-detail" className="rounded border border-border/70 bg-muted/20 px-2 py-1" open={defaultDetailOpen}>
                         <summary className="flex cursor-pointer list-none items-center gap-1 type-tiny font-medium text-foreground marker:hidden">
                           <ChevronRight size={10} className="open:hidden" />
                           <ChevronDown size={10} className="hidden open:block" />
@@ -1052,7 +1099,7 @@ export default function AIAgentRunPage() {
                       </details>
                     )}
                     {view.modelDetail && (
-                      <details data-testid="agent-run-model-detail" className="rounded border border-border/70 bg-muted/20 px-2 py-1" open>
+                      <details data-testid="agent-run-model-detail" className="rounded border border-border/70 bg-muted/20 px-2 py-1" open={defaultDetailOpen}>
                         <summary className="flex cursor-pointer list-none items-center gap-1 type-tiny font-medium text-foreground marker:hidden">
                           <ChevronRight size={10} className="open:hidden" />
                           <ChevronDown size={10} className="hidden open:block" />
@@ -1062,7 +1109,7 @@ export default function AIAgentRunPage() {
                       </details>
                     )}
                     {view.messageDetail && (
-                      <details data-testid="agent-run-message-detail" className="rounded border border-border/70 bg-muted/20 px-2 py-1" open>
+                      <details data-testid="agent-run-message-detail" className="rounded border border-border/70 bg-muted/20 px-2 py-1" open={defaultDetailOpen}>
                         <summary className="flex cursor-pointer list-none items-center gap-1 type-tiny font-medium text-foreground marker:hidden">
                           <ChevronRight size={10} className="open:hidden" />
                           <ChevronDown size={10} className="hidden open:block" />
@@ -1072,7 +1119,7 @@ export default function AIAgentRunPage() {
                       </details>
                     )}
                     {view.toolDetail && (
-                      <details data-testid="agent-run-tool-detail" className="rounded border border-border/70 bg-muted/20 px-2 py-1" open>
+                      <details data-testid="agent-run-tool-detail" className="rounded border border-border/70 bg-muted/20 px-2 py-1" open={defaultDetailOpen}>
                         <summary className="flex cursor-pointer list-none items-center gap-1 type-tiny font-medium text-foreground marker:hidden">
                           <ChevronRight size={10} className="open:hidden" />
                           <ChevronDown size={10} className="hidden open:block" />
@@ -1082,20 +1129,10 @@ export default function AIAgentRunPage() {
                       </details>
                     )}
                   </div>
-                  {event.data !== undefined && isEventDataExpanded && (
-                    <div id={eventDataPanelId} className="mt-2 space-y-1">
-                      <div data-testid="agent-run-trace-redaction-note" className="rounded border border-border/60 bg-muted/10 px-2 py-1 type-tiny leading-relaxed text-muted-foreground">
-                        原始数据展示和复制时会自动脱敏 authorization、cookie、API key、token、secret 等字段。
-                      </div>
-                      <pre data-testid="agent-run-trace-event-details" className="max-h-64 overflow-auto rounded border border-border/70 bg-muted/20 p-2 type-tiny leading-relaxed text-muted-foreground">
-                        {formatAgentTraceDebugData(event.data)}
-                      </pre>
-                    </div>
-                  )}
                 </div>
               )
             })}
-            {events.length === 0 && <p className="type-label text-muted-foreground">尚未加载运行事件。</p>}
+            {traceViewMode === 'timeline' && events.length === 0 && <p className="type-label text-muted-foreground">尚未加载运行事件。</p>}
             {traceViewMode === 'timeline' && events.length > 0 && visibleEvents.length === 0 && (
               <div data-testid="agent-run-trace-empty-state" className="rounded-md border border-border/70 bg-muted/10 px-3 py-2 type-label">
                 <div className="font-medium text-foreground">没有符合当前筛选条件的事件</div>
@@ -1151,6 +1188,108 @@ function traceEventIdFromLocationHash(): string | undefined {
   return typeof window === 'undefined' ? undefined : traceEventIdFromHash(window.location.hash)
 }
 
+function buildDebugHotspots(input: {
+  events: AgentTraceEvent[]
+  toolCalls: AgentToolCallSummary[]
+  modelCalls: AgentModelCallSummary[]
+  attentionEvents: AgentDebugAttentionEvent[]
+}): AgentDebugHotspot[] {
+  const hotspots: AgentDebugHotspot[] = []
+  const seen = new Set<string>()
+  const add = (hotspot: AgentDebugHotspot) => {
+    if (seen.has(hotspot.id)) return
+    seen.add(hotspot.id)
+    hotspots.push(hotspot)
+  }
+
+  for (const event of input.attentionEvents) {
+    add({
+      id: `attention:${event.eventId}`,
+      eventId: event.eventId,
+      title: event.title,
+      label: event.status === 'failed' ? '失败' : event.status === 'blocked' ? '阻塞' : event.kindLabel,
+      tone: event.status === 'failed' ? 'danger' : 'warning',
+      summary: event.error ?? event.summary ?? event.impact ?? event.behavior,
+      meta: [event.kindLabel, event.statusLabel, formatAgentRunTimestamp(event.createdAt)].filter(Boolean),
+    })
+  }
+
+  for (const toolCall of input.toolCalls) {
+    if (toolCall.status !== 'failed' && toolCall.status !== 'blocked') continue
+    add({
+      id: `tool:${toolCall.eventId}`,
+      eventId: toolCall.eventId,
+      title: toolCall.toolName ? agentToolNameLabel(toolCall.toolName) : toolCall.title,
+      label: toolCall.status === 'failed' ? '工具失败' : '工具阻塞',
+      tone: toolCall.status === 'failed' ? 'danger' : 'warning',
+      summary: toolCall.summary,
+      meta: [
+        toolCall.toolName,
+        toolCall.statusLabel,
+        toolCall.durationMs !== undefined ? formatDurationMs(toolCall.durationMs) : undefined,
+        toolCall.source ? `来源 ${toolCall.source}` : undefined,
+      ].filter((value): value is string => !!value),
+    })
+  }
+
+  for (const call of input.modelCalls) {
+    if (!call.issue && !call.error && call.status === 'complete') continue
+    const eventId = call.responseEventId ?? call.requestEventId ?? call.resultEventId ?? call.eventIds[0]
+    add({
+      id: `model:${call.id}`,
+      eventId,
+      title: call.label,
+      label: call.status === 'failed' ? '模型失败' : '模型异常',
+      tone: call.status === 'failed' ? 'danger' : 'warning',
+      summary: call.error ?? call.issue,
+      meta: [
+        call.statusLabel,
+        call.model ? `模型 ${call.model}` : undefined,
+        call.httpStatus ? `HTTP ${call.httpStatus}` : undefined,
+        call.latency,
+        call.retryCount ? `重试 ${call.retryCount}` : undefined,
+      ].filter((value): value is string => !!value),
+    })
+  }
+
+  const slowTools = input.toolCalls
+    .filter((toolCall) => (toolCall.durationMs ?? 0) >= 3000 && toolCall.status === 'completed')
+    .sort((left, right) => (right.durationMs ?? 0) - (left.durationMs ?? 0))
+    .slice(0, 3)
+  for (const toolCall of slowTools) {
+    add({
+      id: `slow-tool:${toolCall.eventId}`,
+      eventId: toolCall.eventId,
+      title: toolCall.toolName ? agentToolNameLabel(toolCall.toolName) : toolCall.title,
+      label: '慢工具',
+      tone: 'neutral',
+      summary: toolCall.summary,
+      meta: [
+        toolCall.durationMs !== undefined ? `耗时 ${formatDurationMs(toolCall.durationMs)}` : undefined,
+        toolCall.toolName,
+      ].filter((value): value is string => !!value),
+    })
+  }
+
+  const failedEvents = input.events
+    .filter((event) => (event.status === 'failed' || event.status === 'blocked') && !seen.has(`attention:${event.id}`))
+    .slice(0, 5)
+  for (const event of failedEvents) {
+    const view = agentTraceView(event)
+    add({
+      id: `event:${event.id}`,
+      eventId: event.id,
+      title: view.title,
+      label: event.status === 'failed' ? '失败事件' : '阻塞事件',
+      tone: event.status === 'failed' ? 'danger' : 'warning',
+      summary: view.summary ?? view.impact ?? event.summary,
+      meta: [traceKindLabel(event.kind), traceEventStatusLabel(event.status), formatTraceEventDuration(event)].filter((value): value is string => !!value),
+    })
+  }
+
+  return hotspots
+}
+
 function traceEventSearchText(event: AgentTraceEvent): string {
   const view = agentTraceView(event)
   const promptDetail = view.promptDetail
@@ -1203,7 +1342,77 @@ function traceEventSearchText(event: AgentTraceEvent): string {
     toolDetail?.source,
     toolDetail?.statusLabel,
     toolDetail?.summary ? redactAgentTraceDebugText(toolDetail.summary) : undefined,
+    toolDetail?.args !== undefined ? formatAgentTraceRawJSON(toolDetail.args) : undefined,
     ...((toolDetail?.fields ?? []).flatMap((field) => [field.label, redactAgentTraceDebugText(field.value)])),
+  ].map(searchTextToken).filter((value): value is string => !!value).join(' ').toLowerCase()
+}
+
+function fallbackToolCallSummaries(events: AgentTraceEvent[]): AgentToolCallSummary[] {
+  return events.flatMap((event): AgentToolCallSummary[] => {
+    if (event.kind !== 'tool_call') return []
+    const view = agentTraceView(event)
+    const detail = view.toolDetail
+    const data = isRecord(event.data) ? event.data : undefined
+    const durationMs = traceEventDurationMs(event, data)
+    return [{
+      eventId: event.id,
+      ...(event.toolName ? { toolName: event.toolName } : {}),
+      title: view.title,
+      status: event.status,
+      statusLabel: traceEventStatusLabel(event.status),
+      ...(detail?.source ? { source: detail.source } : typeof data?.source === 'string' ? { source: data.source } : {}),
+      ...(detail?.sandboxed ? { sandboxed: detail.sandboxed === '是' } : typeof data?.sandboxed === 'boolean' ? { sandboxed: data.sandboxed } : {}),
+      ...(durationMs !== undefined ? { durationMs } : {}),
+      ...(view.summary ? { summary: view.summary } : {}),
+      ...(detail?.args !== undefined ? { argsPreview: formatAgentTraceRawJSON(detail.args) } : {}),
+      ...(data?.result !== undefined ? { dataPreview: formatAgentTraceRawJSON(data.result) } : {}),
+    }]
+  })
+}
+
+function toolCallSummariesFromUnknown(value: unknown): AgentToolCallSummary[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  return value.flatMap((item): AgentToolCallSummary[] => {
+    if (!isRecord(item)) return []
+    const eventId = typeof item.eventId === 'string' ? item.eventId : ''
+    const title = typeof item.title === 'string' ? item.title : ''
+    const status = isTraceEventStatus(item.status) ? item.status : undefined
+    const statusLabel = typeof item.statusLabel === 'string' ? item.statusLabel : undefined
+    if (!eventId || !title || !status || !statusLabel) return []
+    return [{
+      eventId,
+      ...(typeof item.toolName === 'string' ? { toolName: item.toolName } : {}),
+      title,
+      status,
+      statusLabel,
+      ...(typeof item.source === 'string' ? { source: item.source } : {}),
+      ...(typeof item.sandboxed === 'boolean' ? { sandboxed: item.sandboxed } : {}),
+      ...(typeof item.durationMs === 'number' && Number.isFinite(item.durationMs) ? { durationMs: item.durationMs } : {}),
+      ...(typeof item.summary === 'string' ? { summary: item.summary } : {}),
+      ...(typeof item.argsPreview === 'string' ? { argsPreview: item.argsPreview } : {}),
+      ...(typeof item.dataPreview === 'string' ? { dataPreview: item.dataPreview } : {}),
+    }]
+  })
+}
+
+function isTraceEventStatus(value: unknown): value is AgentTraceEvent['status'] {
+  return value === 'started' || value === 'completed' || value === 'blocked' || value === 'failed' || value === 'info'
+}
+
+function toolCallSearchText(toolCall: AgentToolCallSummary): string {
+  return [
+    toolCall.eventId,
+    toolCall.toolName,
+    toolCall.title,
+    toolCall.status,
+    toolCall.statusLabel,
+    toolCall.source,
+    toolCall.sandboxed === undefined ? undefined : toolCall.sandboxed ? '沙箱 sandboxed yes true' : '非沙箱 sandboxed no false',
+    toolCall.durationMs === undefined ? undefined : `${toolCall.durationMs}ms`,
+    toolCall.summary,
+    toolCall.argsPreview,
+    toolCall.dataPreview,
+    toolCall.toolName ? agentToolNameLabel(toolCall.toolName) : undefined,
   ].map(searchTextToken).filter((value): value is string => !!value).join(' ').toLowerCase()
 }
 
@@ -1267,6 +1476,349 @@ function TraceDetailLine({ label, value }: { label: string; value: string }) {
       <div className="type-micro uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-0.5 type-tiny leading-relaxed text-foreground">{value}</div>
     </div>
+  )
+}
+
+function DebugWorkbenchPanel({
+  hotspots,
+  summary,
+  readinessChecklist,
+  attentionEvents,
+  toolCalls,
+  modelCalls,
+  loading,
+  traceHasUnloadedEvents,
+  copied,
+  copyError,
+  bundleCopied,
+  bundleCopyError,
+  loadingAll,
+  bundleCopyDisabledReason,
+  onFocusEvent,
+  onShowAttentionEvents,
+  onOpenTimeline,
+  onOpenTools,
+  onCopy,
+  onCopyBundle,
+  onLoadAll,
+}: {
+  hotspots: AgentDebugHotspot[]
+  summary: AgentDebugCoverageSummary
+  readinessChecklist: AgentDebugReadinessItem[]
+  attentionEvents: AgentDebugAttentionEvent[]
+  toolCalls: AgentToolCallSummary[]
+  modelCalls: AgentModelCallSummary[]
+  loading: boolean
+  traceHasUnloadedEvents: boolean
+  copied: boolean
+  copyError: string | null
+  bundleCopied: boolean
+  bundleCopyError: string | null
+  loadingAll: boolean
+  bundleCopyDisabledReason: string | null
+  onFocusEvent: (eventId: string) => void
+  onShowAttentionEvents: () => void
+  onOpenTimeline: () => void
+  onOpenTools: () => void
+  onCopy: () => void
+  onCopyBundle: () => void
+  onLoadAll: () => void
+}) {
+  const failedTools = toolCalls.filter((toolCall) => toolCall.status === 'failed').length
+  const blockedTools = toolCalls.filter((toolCall) => toolCall.status === 'blocked').length
+  const modelIssues = modelCalls.filter((call) => call.issue || call.error || call.status === 'failed').length
+  const slowestTool = toolCalls
+    .filter((toolCall) => typeof toolCall.durationMs === 'number')
+    .sort((left, right) => (right.durationMs ?? 0) - (left.durationMs ?? 0))[0]
+  const blockingItems = readinessChecklist.filter((item) => item.status !== 'ok')
+  const bundleCopyDisabled = loadingAll || bundleCopyDisabledReason !== null
+  return (
+    <section data-testid="agent-run-debug-workbench" className="space-y-2">
+      <div className="rounded-md border border-border bg-muted/10 px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="type-label font-medium text-foreground">调试工作台</div>
+            <div className="mt-0.5 type-tiny text-muted-foreground">先看异常、慢调用和缺失信息；需要上下文时再定位到时间线事件</div>
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
+            {loading && <Badge variant="outline" className="type-tiny">加载中</Badge>}
+            <Button type="button" size="xs" variant="outline" className="px-2 type-tiny" onClick={onOpenTimeline}>
+              打开时间线
+            </Button>
+            <Button type="button" size="xs" variant="outline" className="px-2 type-tiny" onClick={onOpenTools}>
+              工具过程
+            </Button>
+          </div>
+        </div>
+        <div className="mt-2 grid gap-1 sm:grid-cols-5">
+          <DebugCoverageMetric label="需关注" value={String(attentionEvents.length)} />
+          <DebugCoverageMetric label="失败工具" value={String(failedTools)} />
+          <DebugCoverageMetric label="阻塞工具" value={String(blockedTools)} />
+          <DebugCoverageMetric label="模型问题" value={String(modelIssues)} />
+          <DebugCoverageMetric label="最慢工具" value={slowestTool?.durationMs !== undefined ? formatDurationMs(slowestTool.durationMs) : '-'} />
+        </div>
+      </div>
+
+      <div className="grid gap-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.6fr)]">
+        <div className="rounded-md border border-border bg-background px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="type-label font-medium text-foreground">优先排查</div>
+              <div className="mt-0.5 type-tiny text-muted-foreground">按失败、阻塞、慢调用和模型异常排序</div>
+            </div>
+            <Badge variant={hotspots.length > 0 ? 'secondary' : 'outline'} className="type-tiny">{hotspots.length} 项</Badge>
+          </div>
+          {hotspots.length > 0 ? (
+            <div className="mt-2 grid gap-1.5">
+              {hotspots.slice(0, 10).map((hotspot) => (
+                <DebugHotspotItem key={hotspot.id} hotspot={hotspot} onFocusEvent={onFocusEvent} />
+              ))}
+              {hotspots.length > 10 && <div className="type-tiny text-muted-foreground">还有 {hotspots.length - 10} 项，可进入时间线继续筛选。</div>}
+            </div>
+          ) : (
+            <div className="mt-2 rounded border border-border/70 bg-muted/10 px-2 py-2 type-label text-muted-foreground">
+              当前已加载 trace 中没有明显失败、阻塞或慢调用。可以继续看时间线，或加载全部事件确认没有遗漏。
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <div className="rounded-md border border-border bg-background px-3 py-2">
+            <div className="type-label font-medium text-foreground">下一步</div>
+            <div className="mt-2 grid gap-1">
+              {attentionEvents.length > 0 && (
+                <Button type="button" size="xs" variant="outline" className="justify-start px-2 type-tiny" onClick={onShowAttentionEvents}>
+                  只看需关注事件
+                </Button>
+              )}
+              {traceHasUnloadedEvents && (
+                <Button type="button" size="xs" variant="outline" className="justify-start px-2 type-tiny" onClick={onLoadAll} disabled={loadingAll}>
+                  {loadingAll ? <Loader2 size={10} className="animate-spin" /> : <History size={10} />}
+                  加载全部事件
+                </Button>
+              )}
+              <Button type="button" size="xs" variant="ghost" className="justify-start px-2 type-tiny" onClick={onCopy}>
+                <Copy size={10} />
+                {copied ? '摘要已复制' : '复制调试摘要'}
+              </Button>
+              <Button
+                type="button"
+                size="xs"
+                variant="ghost"
+                className="justify-start px-2 type-tiny"
+                onClick={onCopyBundle}
+                disabled={bundleCopyDisabled}
+                title={bundleCopyDisabledReason ?? undefined}
+              >
+                {loadingAll ? <Loader2 size={10} className="animate-spin" /> : <Copy size={10} />}
+                {bundleCopied ? '调试包已复制' : '复制脱敏调试包'}
+              </Button>
+            </div>
+            {copyError && <div role="alert" className="mt-2 rounded bg-destructive/10 px-2 py-1 type-tiny text-destructive">摘要复制失败：{copyError}</div>}
+            {bundleCopyError && <div role="alert" className="mt-2 rounded bg-destructive/10 px-2 py-1 type-tiny text-destructive">调试包复制失败：{bundleCopyError}</div>}
+            {bundleCopyDisabledReason && !bundleCopyError && <div className="mt-2 rounded bg-muted/20 px-2 py-1 type-tiny text-muted-foreground">{bundleCopyDisabledReason}</div>}
+          </div>
+
+          <div className="rounded-md border border-border bg-background px-3 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="type-label font-medium text-foreground">覆盖状态</div>
+              {summary.issues.length > 0 ? <Badge variant="secondary" className="type-tiny">需补全</Badge> : <Badge variant="outline" className="type-tiny">信息完整</Badge>}
+            </div>
+            <div className="mt-2 grid gap-1 sm:grid-cols-2 xl:grid-cols-1">
+              <DebugCoverageMetric label="事件" value={summary.loadedLabel} />
+              <DebugCoverageMetric label="工具详情" value={summary.toolDetailsLabel} />
+              <DebugCoverageMetric label="模型调用" value={summary.modelCallsLabel} />
+              <DebugCoverageMetric label="请求/响应" value={`${summary.requestPayloadsLabel} / ${summary.httpResponseBodiesLabel}`} />
+            </div>
+            {blockingItems.length > 0 && (
+              <div className="mt-2 grid gap-1">
+                {blockingItems.slice(0, 3).map((item) => (
+                  <div key={item.id} className="rounded bg-amber-500/10 px-2 py-1 type-tiny text-amber-700 dark:text-amber-300">
+                    <span className="font-medium">{item.label}</span>：{item.action}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function DebugHotspotItem({ hotspot, onFocusEvent }: { hotspot: AgentDebugHotspot; onFocusEvent: (eventId: string) => void }) {
+  const toneClass = hotspot.tone === 'danger'
+    ? 'border-destructive/30 bg-destructive/10'
+    : hotspot.tone === 'warning'
+      ? 'border-amber-500/30 bg-amber-500/10'
+      : 'border-border/70 bg-muted/10'
+  return (
+    <div data-testid="agent-run-debug-hotspot" className={`rounded border px-2 py-1.5 type-label ${toneClass}`}>
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1">
+            <Badge variant={hotspot.tone === 'neutral' ? 'outline' : 'secondary'} className="type-micro">{hotspot.label}</Badge>
+            <span className="font-medium text-foreground">{hotspot.title}</span>
+          </div>
+          {hotspot.summary && <div className="mt-1 break-words type-tiny text-muted-foreground">{redactAgentTraceDebugText(hotspot.summary)}</div>}
+          {hotspot.meta.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 type-tiny text-muted-foreground">
+              {hotspot.meta.map((item) => <span key={item}>{item}</span>)}
+            </div>
+          )}
+        </div>
+        {hotspot.eventId && (
+          <Button type="button" size="xs" variant="ghost" className="shrink-0 px-1 type-micro" onClick={() => onFocusEvent(hotspot.eventId!)}>
+            定位
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ToolCallProcessPanel({
+  toolCalls,
+  visibleToolCalls,
+  events,
+  search,
+  loading,
+  traceHasUnloadedEvents,
+  onFocusEvent,
+  onLoadAll,
+  onClearSearch,
+}: {
+  toolCalls: AgentToolCallSummary[]
+  visibleToolCalls: AgentToolCallSummary[]
+  events: AgentTraceEvent[]
+  search: string
+  loading: boolean
+  traceHasUnloadedEvents: boolean
+  onFocusEvent: (eventId: string) => void
+  onLoadAll: () => void
+  onClearSearch: () => void
+}) {
+  const eventsById = new Map(events.map((event) => [event.id, event]))
+  const failedCount = toolCalls.filter((toolCall) => toolCall.status === 'failed').length
+  const blockedCount = toolCalls.filter((toolCall) => toolCall.status === 'blocked').length
+  const totalDurationMs = toolCalls.reduce((sum, toolCall) => sum + (toolCall.durationMs ?? 0), 0)
+  const uniqueToolNames = new Set(toolCalls.map((toolCall) => toolCall.toolName).filter(Boolean)).size
+  const trimmedSearch = search.trim()
+  return (
+    <section data-testid="agent-run-tool-call-process" className="space-y-2">
+      <div className="rounded-md border border-border bg-muted/10 px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="type-label font-medium text-foreground">工具调用过程</div>
+            <div className="mt-0.5 type-tiny text-muted-foreground">只显示工具调用事件，适合快速核对输入、结果、耗时和失败点</div>
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
+            <Badge variant="outline" className="type-tiny">{toolCalls.length} 次调用</Badge>
+            {trimmedSearch && <Badge variant="secondary" className="type-tiny">匹配 {visibleToolCalls.length}</Badge>}
+            {loading && <Badge variant="outline" className="type-tiny">加载中</Badge>}
+          </div>
+        </div>
+        <div className="mt-2 grid gap-1 sm:grid-cols-4">
+          <DebugCoverageMetric label="工具种类" value={String(uniqueToolNames)} />
+          <DebugCoverageMetric label="失败" value={String(failedCount)} />
+          <DebugCoverageMetric label="阻塞" value={String(blockedCount)} />
+          <DebugCoverageMetric label="累计耗时" value={totalDurationMs > 0 ? formatDurationMs(totalDurationMs) : '-'} />
+        </div>
+      </div>
+      {toolCalls.length === 0 && !loading && (
+        <div data-testid="agent-run-tool-call-empty" className="rounded-md border border-border/70 bg-muted/10 px-3 py-2 type-label text-muted-foreground">
+          当前运行没有工具调用记录。
+        </div>
+      )}
+      {toolCalls.length > 0 && visibleToolCalls.length === 0 && (
+        <div data-testid="agent-run-tool-call-search-empty" className="rounded-md border border-border/70 bg-muted/10 px-3 py-2 type-label">
+          <div className="font-medium text-foreground">没有符合搜索条件的工具调用</div>
+          <p className="mt-1 text-muted-foreground">搜索会匹配工具名、展示名、状态、摘要、参数预览和结果预览。</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button type="button" size="xs" variant="ghost" className="px-2 type-tiny" onClick={onClearSearch}>
+              清除搜索
+            </Button>
+            {traceHasUnloadedEvents && (
+              <Button type="button" size="xs" variant="outline" className="px-2 type-tiny" disabled={loading} onClick={onLoadAll}>
+                {loading ? <Loader2 size={10} className="animate-spin" /> : <History size={10} />}
+                加载全部后再搜
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+      {visibleToolCalls.length > 0 && (
+        <div className="space-y-1.5">
+          {visibleToolCalls.map((toolCall, index) => {
+            const event = eventsById.get(toolCall.eventId)
+            const detail = event ? agentTraceView(event).toolDetail : undefined
+            const statusVariant = toolCall.status === 'failed' || toolCall.status === 'blocked' ? 'secondary' : 'outline'
+            return (
+              <article key={toolCall.eventId} data-testid="agent-run-tool-call-process-item" className="rounded-md border border-border bg-background px-3 py-2 type-label">
+                <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1">
+                      <Badge variant="outline" className="type-micro">#{index + 1}</Badge>
+                      <span className="font-medium text-foreground">{toolCall.toolName ? agentToolNameLabel(toolCall.toolName) : toolCall.title}</span>
+                      {toolCall.toolName && <span className="break-all type-tiny text-muted-foreground">{toolCall.toolName}</span>}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 type-tiny text-muted-foreground">
+                      <span>事件 {toolCall.eventId}</span>
+                      <Badge variant={statusVariant} className="type-micro">{toolCall.statusLabel}</Badge>
+                      {toolCall.source && <span>来源 {toolCall.source}</span>}
+                      {toolCall.sandboxed !== undefined && <span>沙箱 {toolCall.sandboxed ? '是' : '否'}</span>}
+                      {toolCall.durationMs !== undefined && <span>耗时 {formatDurationMs(toolCall.durationMs)}</span>}
+                      {event?.createdAt && <span title={event.createdAt}>创建 {formatAgentRunTimestamp(event.createdAt)}</span>}
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="ghost"
+                    className="px-1 type-micro"
+                    aria-label={`定位工具调用事件 ${toolCall.title}`}
+                    onClick={() => onFocusEvent(toolCall.eventId)}
+                  >
+                    定位事件
+                  </Button>
+                </div>
+                {toolCall.summary && (
+                  <div className="mt-2 rounded border border-border/60 bg-muted/10 px-2 py-1 type-tiny leading-relaxed text-foreground">
+                    {redactAgentTraceDebugText(toolCall.summary)}
+                  </div>
+                )}
+                {detail ? (
+                  <details className="mt-2 rounded border border-border/70 bg-muted/20 px-2 py-1" open>
+                    <summary className="flex cursor-pointer list-none items-center gap-1 type-tiny font-medium text-foreground marker:hidden">
+                      <ChevronRight size={10} className="open:hidden" />
+                      <ChevronDown size={10} className="hidden open:block" />
+                      工具详情
+                    </summary>
+                    <ToolDetail detail={detail} />
+                  </details>
+                ) : (
+                  <div className="mt-2 grid gap-1 md:grid-cols-2">
+                    {toolCall.argsPreview && <ToolCallPreviewBlock title="参数预览" value={toolCall.argsPreview} />}
+                    {toolCall.dataPreview && <ToolCallPreviewBlock title="结果预览" value={toolCall.dataPreview} />}
+                  </div>
+                )}
+              </article>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function ToolCallPreviewBlock({ title, value }: { title: string; value: string }) {
+  return (
+    <details className="rounded border border-border/60 bg-muted/10 px-2 py-1" open>
+      <summary className="cursor-pointer type-micro uppercase tracking-wide text-muted-foreground">{title}</summary>
+      <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-background/90 p-2 type-tiny leading-relaxed text-foreground">
+        {redactAgentTraceDebugText(value)}
+      </pre>
+    </details>
   )
 }
 
@@ -2110,6 +2662,14 @@ function ToolDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentTra
           {redactAgentTraceDebugText(detail.summary)}
         </div>
       )}
+      {detail.args !== undefined && (
+        <details data-testid="agent-run-tool-args" className="rounded border border-border/60 bg-background/90 px-2 py-1" open>
+          <summary className="cursor-pointer type-micro uppercase tracking-wide text-muted-foreground">参数</summary>
+          <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/20 p-2 type-tiny leading-relaxed text-foreground">
+            {formatAgentTraceRawJSON(detail.args)}
+          </pre>
+        </details>
+      )}
       {detail.fields.length > 0 && (
         <div className="rounded border border-border/60 bg-background/90 px-2 py-1">
           <div className="type-micro uppercase tracking-wide text-muted-foreground">结果字段</div>
@@ -2126,6 +2686,14 @@ function ToolDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentTra
       )}
     </div>
   )
+}
+
+function formatAgentTraceRawJSON(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
 }
 
 function buildRunSummary(

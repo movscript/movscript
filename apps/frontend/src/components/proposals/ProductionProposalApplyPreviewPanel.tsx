@@ -12,7 +12,7 @@ export interface ProductionProposalApplyPreviewItem {
 }
 
 export interface ProductionProposalApplyPreview {
-  writePlan: ProductionProposalApplyPreviewItem[]
+  writeTaskGraph: ProductionProposalApplyPreviewItem[]
   rejected: ProductionProposalApplyPreviewItem[]
   pending: ProductionProposalApplyPreviewItem[]
   blocked: ProductionProposalApplyPreviewItem[]
@@ -24,7 +24,7 @@ export function ProductionProposalApplyPreviewPanel({ preview }: { preview: Prod
       <ProductionProposalApplyPreviewGroup
         tone="success"
         title="将写入"
-        items={preview.writePlan}
+        items={preview.writeTaskGraph}
         empty="还没有接受任何可写入项"
       />
       <ProductionProposalApplyPreviewGroup

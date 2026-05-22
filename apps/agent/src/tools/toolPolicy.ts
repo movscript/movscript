@@ -19,7 +19,7 @@ export interface ToolPolicyResult {
 
 export interface BlockedToolCall {
   call: ToolCall
-  reason: 'unknown_tool' | 'not_granted' | 'missing_project' | 'approval_required'
+  reason: 'unknown_tool' | 'not_granted' | 'missing_project' | 'approval_required' | 'workflow_scope'
   message: string
   tool?: RegisteredTool
 }
@@ -79,11 +79,14 @@ export function applyToolPolicy(
     }
 
     if (tool.projectScoped) {
-      if (!isValidAgentProjectId(options.currentProjectId)) {
+      const projectId = isValidAgentProjectId(options.currentProjectId)
+        ? options.currentProjectId
+        : explicitReadProjectId(tool, call)
+      if (!isValidAgentProjectId(projectId)) {
         block(call, 'missing_project', '当前没有选中项目')
         continue
       }
-      toolCalls.push(withProjectId(call, options.currentProjectId))
+      toolCalls.push(withProjectId(call, projectId))
       continue
     }
 
@@ -103,6 +106,12 @@ export function applyToolPolicy(
   }
 }
 
+function explicitReadProjectId(tool: RegisteredTool, call: ToolCall): number | undefined {
+  if (tool.risk !== 'read') return undefined
+  const projectId = call.args?.projectId
+  return isValidAgentProjectId(projectId) ? projectId : undefined
+}
+
 function isAutoApprovedByRunPolicy(risk: RegisteredTool['risk'], approvalMode?: AgentRunPolicy['approvalMode']): boolean {
   if (approvalMode === 'auto') return risk !== 'destructive'
   if (approvalMode === 'auto_readonly') return risk === 'read' || risk === 'draft' || risk === 'ui'
@@ -111,6 +120,7 @@ function isAutoApprovedByRunPolicy(risk: RegisteredTool['risk'], approvalMode?: 
 
 function mapCatalogReason(reason: ResolvedToolCatalog['blocked'][number]['unavailableReason']): BlockedToolCall['reason'] {
   if (reason === 'missing_project') return 'missing_project'
+  if (reason === 'workflow_scope') return 'workflow_scope'
   if (reason === 'not_granted' || reason === 'denied' || reason === 'missing_permission') return 'not_granted'
   if (reason === 'inactive' || reason === 'wrong_run_role') return 'unknown_tool'
   return 'unknown_tool'
@@ -127,7 +137,7 @@ function catalogWarningMessage(toolName: string, reason: ResolvedToolCatalog['bl
 }
 
 function withProjectId(call: ToolCall, projectId: number): ToolCall {
-  if (call.name === 'runtime_operation_start' && call.args?.kind === 'generation_job' && isPlainArgs(call.args.request)) {
+  if (call.name === 'core_operation_start' && call.args?.kind === 'generation_job' && isPlainArgs(call.args.request)) {
     return {
       ...call,
       args: {

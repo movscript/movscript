@@ -4,14 +4,14 @@ import test from 'node:test'
 import {
   acceptPlanTaskReviewAction,
   cancelPlanTreeAction,
-  dispatchPlanAction,
+  dispatchTaskGraphAction,
   rejectPlanTaskReviewAction,
   replanPlanAction,
   reworkPlanTaskReviewAction,
   type AgentPlanActionDeps,
   type PlanDispatchSettings,
 } from './agentPlanActions'
-import type { AgentPlanSnapshot, AgentRun, AgentTask, DispatchPlanResult, ReplanRunResult } from './localAgentClient'
+import type { AgentTaskGraphSnapshot, AgentRun, AgentTask, DispatchTaskGraphResult, UpdateTaskGraphResult } from './localAgentClient'
 
 const settings: PlanDispatchSettings = {
   maxWorkers: 3,
@@ -19,18 +19,18 @@ const settings: PlanDispatchSettings = {
   workerTimeoutMs: 12_000,
 }
 
-test('dispatchPlanAction dispatches with planner run settings and stores latest planner run', async () => {
+test('dispatchTaskGraphAction dispatches with planner run settings and stores latest planner run', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
-  const plannerRun = makeRun({ id: 'run_planner', planId: 'plan_1', status: 'completed' })
+  const plannerRun = makeRun({ id: 'run_planner', taskGraphId: 'task_graph_1', status: 'completed' })
   deps.getRun = async () => {
     calls.push('getRun')
     return plannerRun
   }
-  deps.dispatchPlan = async (_planId, input) => {
+  deps.dispatchTaskGraph = async (_taskGraphId, input) => {
     calls.push(`dispatch:${input.plannerRunId}:${input.maxWorkers}:${input.maxTaskAttempts}:${input.workerTimeoutMs}`)
     return {
-      plan: makeSnapshot().plan,
+      taskGraph: makeSnapshot().taskGraph,
       spawnedRuns: [makeRun({ id: 'run_worker', status: 'in_progress' })],
       blockedTaskIds: [],
       retriedTaskIds: [],
@@ -38,8 +38,8 @@ test('dispatchPlanAction dispatches with planner run settings and stores latest 
     }
   }
 
-  const handled = await dispatchPlanAction({
-    run: makeRun({ id: 'run_planner', planId: 'plan_1', status: 'requires_action' }),
+  const handled = await dispatchTaskGraphAction({
+    run: makeRun({ id: 'run_planner', taskGraphId: 'task_graph_1', status: 'requires_action' }),
     snapshot: makeSnapshot(),
     settings,
     deps,
@@ -60,18 +60,18 @@ test('replanPlanAction resets blocked review and failed task states', async () =
   const calls: string[] = []
   const deps = depsFixture(calls)
   deps.replanRun = async (_runId, input) => {
-    calls.push(`replan:${input.resetBlocked}:${input.resetNeedsReview}:${input.resetFailed}:${input.resetCancelled}:${input.retryFailed}`)
+    calls.push(`updateTaskGraph:${input.resetBlocked}:${input.resetNeedsReview}:${input.resetFailed}:${input.resetCancelled}:${input.retryFailed}`)
     return makeReplanResult({ spawnedRuns: [] })
   }
 
   await replanPlanAction({
-    run: makeRun({ id: 'run_planner', planId: 'plan_1' }),
+    run: makeRun({ id: 'run_planner', taskGraphId: 'task_graph_1' }),
     snapshot: makeSnapshot(),
     settings,
     deps,
   })
 
-  assert.equal(calls.includes('replan:true:true:true:true:true'), true)
+  assert.equal(calls.includes('updateTaskGraph:true:true:true:true:true'), true)
   assert.equal(calls.includes('setRun:run_planner:false'), true)
 })
 
@@ -97,7 +97,7 @@ test('reworkPlanTaskReviewAction replans only the requested task', async () => {
 
   await reworkPlanTaskReviewAction({
     taskId: 'task_review',
-    run: makeRun({ id: 'run_planner', planId: 'plan_1' }),
+    run: makeRun({ id: 'run_planner', taskGraphId: 'task_graph_1' }),
     snapshot: makeSnapshot(),
     settings,
     deps,
@@ -112,7 +112,7 @@ test('cancelPlanTreeAction cancels root run and clears loading state', async () 
   const deps = depsFixture(calls)
 
   await cancelPlanTreeAction({
-    run: makeRun({ id: 'run_planner', planId: 'plan_1' }),
+    run: makeRun({ id: 'run_planner', taskGraphId: 'task_graph_1' }),
     snapshot: makeSnapshot(),
     deps,
   })
@@ -127,15 +127,15 @@ test('cancelPlanTreeAction cancels root run and clears loading state', async () 
   ])
 })
 
-test('plan actions report failures through assistant messages and clear busy state', async () => {
+test('taskGraph actions report failures through assistant messages and clear busy state', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)
-  deps.dispatchPlan = async () => {
+  deps.dispatchTaskGraph = async () => {
     throw new Error('backend offline')
   }
 
-  const handled = await dispatchPlanAction({
-    run: makeRun({ id: 'run_planner', planId: 'plan_1' }),
+  const handled = await dispatchTaskGraphAction({
+    run: makeRun({ id: 'run_planner', taskGraphId: 'task_graph_1' }),
     snapshot: makeSnapshot(),
     settings,
     deps,
@@ -160,18 +160,18 @@ function depsFixture(calls: string[]): AgentPlanActionDeps {
     addAssistantMessage: (message) => {
       calls.push(`assistant:${message.content}`)
     },
-    dispatchPlan: async (_planId, input) => {
+    dispatchTaskGraph: async (_taskGraphId, input) => {
       calls.push(`dispatch:${input.plannerRunId}`)
       return {
-        plan: makeSnapshot().plan,
+        taskGraph: makeSnapshot().taskGraph,
         spawnedRuns: [],
         blockedTaskIds: [],
         retriedTaskIds: [],
         timedOutRunIds: [],
-      } satisfies DispatchPlanResult
+      } satisfies DispatchTaskGraphResult
     },
     replanRun: async (_runId, input) => {
-      calls.push(`replan:${input.resetTaskIds?.join(',') ?? 'all'}`)
+      calls.push(`updateTaskGraph:${input.resetTaskIds?.join(',') ?? 'all'}`)
       return makeReplanResult({ spawnedRuns: [] })
     },
     updateTask: async (taskId, input) => {
@@ -184,7 +184,7 @@ function depsFixture(calls: string[]): AgentPlanActionDeps {
     },
     getRun: async () => {
       calls.push('getRun')
-      return makeRun({ id: 'run_planner', planId: 'plan_1' })
+      return makeRun({ id: 'run_planner', taskGraphId: 'task_graph_1' })
     },
     refetchPlanSnapshot: async () => {
       calls.push('refetch')
@@ -192,14 +192,14 @@ function depsFixture(calls: string[]): AgentPlanActionDeps {
   }
 }
 
-function makeReplanResult(options: { spawnedRuns: AgentRun[] }): ReplanRunResult {
+function makeReplanResult(options: { spawnedRuns: AgentRun[] }): UpdateTaskGraphResult {
   return {
-    plan: makeSnapshot().plan,
+    taskGraph: makeSnapshot().taskGraph,
     createdTaskIds: [],
     updatedTaskIds: [],
     resetTaskIds: [],
     dispatch: {
-      plan: makeSnapshot().plan,
+      taskGraph: makeSnapshot().taskGraph,
       spawnedRuns: options.spawnedRuns,
       blockedTaskIds: [],
       retriedTaskIds: [],
@@ -208,20 +208,20 @@ function makeReplanResult(options: { spawnedRuns: AgentRun[] }): ReplanRunResult
   }
 }
 
-function makeSnapshot(): AgentPlanSnapshot {
+function makeSnapshot(): AgentTaskGraphSnapshot {
   return {
-    plan: {
-      id: 'plan_1',
+    taskGraph: {
+      id: 'task_graph_1',
       threadId: 'thread_1',
       rootRunId: 'run_planner',
-      title: 'Plan',
+      title: 'TaskGraph',
       status: 'running',
       progress: 0.5,
       createdAt: '2026-05-19T00:00:00.000Z',
       updatedAt: '2026-05-19T00:00:01.000Z',
     },
     tasks: [makeTask()],
-    runs: [makeRun({ id: 'run_planner', planId: 'plan_1' })],
+    runs: [makeRun({ id: 'run_planner', taskGraphId: 'task_graph_1' })],
   }
 }
 
@@ -247,7 +247,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'needs_review',

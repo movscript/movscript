@@ -5,7 +5,7 @@ export type RuntimeIntentSource =
   | 'label_alias'
   | 'keyword_fallback'
   | 'route'
-  | 'agent_plan'
+  | 'agent_taskGraph'
   | 'visual_context'
   | 'derived'
 
@@ -52,7 +52,7 @@ export function resolveRuntimeIntents(message: string, debugContext: AgentDebugC
     if (!hasExplicitAssetWorkflow) addSignal(signals, 'asset_proposal', 'route', 'high', `route:${debugContext.route.pathname}`)
   }
 
-  if (debugContext.agentPlan) addSignal(signals, 'planner_subagents', 'agent_plan', 'high', `plan:${debugContext.agentPlan.id}`)
+  if (debugContext.agentTaskGraph) addSignal(signals, 'planner_subagents', 'agent_taskGraph', 'high', `taskGraph:${debugContext.agentTaskGraph.id}`)
   if (isVisualGenerationRequest(normalized, debugContext)) addSignal(signals, 'visual_generation', 'visual_context', 'medium', 'visual_context')
   if (intentSet(signals).has('asset_candidate_generation')) addSignal(signals, 'visual_generation', 'derived', 'medium', 'asset_candidate_generation')
   return {

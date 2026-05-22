@@ -1,17 +1,17 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentPlan, AgentRun, AgentTask } from '../state/types.js'
+import type { AgentTaskGraph, AgentRun, AgentTask } from '../state/types.js'
 import { createRuntimeEntityReadBridge } from './runtimeEntityReadBridge.js'
 
-test('createRuntimeEntityReadBridge wires run and plan read projections', () => {
+test('createRuntimeEntityReadBridge wires run and taskGraph read projections', () => {
   const store = new InMemoryAgentStore()
   const planner = makeRun('run_planner')
-  const worker = makeRun('run_worker', { parentRunId: planner.id, planId: 'plan_1', taskId: 'task_1' })
-  const plan = makePlan()
+  const worker = makeRun('run_worker', { parentRunId: planner.id, taskGraphId: 'task_graph_1', taskId: 'task_1' })
+  const taskGraph = makeTaskGraph()
   const task = {
     id: 'task_1',
-    planId: plan.id,
+    taskGraphId: taskGraph.id,
     title: 'Task',
     status: 'pending',
     progress: 0,
@@ -22,7 +22,7 @@ test('createRuntimeEntityReadBridge wires run and plan read projections', () => 
   } as AgentTask
   store.createRun(planner)
   store.createRun(worker)
-  store.createPlan(plan)
+  store.createTaskGraph(taskGraph)
   store.createTask(task)
   const bridge = createRuntimeEntityReadBridge({ store })
 
@@ -30,10 +30,10 @@ test('createRuntimeEntityReadBridge wires run and plan read projections', () => 
   assert.deepEqual(bridge.listRunsByParent(planner.id).map((run) => run.id), ['run_worker'])
   assert.equal(bridge.getRun(worker.id)?.id, worker.id)
   assert.deepEqual(bridge.getChildRuns(planner.id).map((run) => run.id), ['run_worker'])
-  assert.deepEqual(bridge.listPlans().map((item) => item.id), ['plan_1'])
-  assert.equal(bridge.getPlan(plan.id)?.id, plan.id)
-  assert.deepEqual(bridge.getTaskTree(plan.id).map((item) => item.id), ['task_1'])
-  assert.deepEqual(bridge.getPlanSnapshot(plan.id).runs.map((run) => run.id), ['run_worker'])
+  assert.deepEqual(bridge.listTaskGraphs().map((item) => item.id), ['task_graph_1'])
+  assert.equal(bridge.getTaskGraph(taskGraph.id)?.id, taskGraph.id)
+  assert.deepEqual(bridge.getTaskTree(taskGraph.id).map((item) => item.id), ['task_1'])
+  assert.deepEqual(bridge.getTaskGraphSnapshot(taskGraph.id).runs.map((run) => run.id), ['run_worker'])
 })
 
 function makeRun(id: string, input: Partial<AgentRun> = {}): AgentRun {
@@ -50,11 +50,11 @@ function makeRun(id: string, input: Partial<AgentRun> = {}): AgentRun {
   } as AgentRun
 }
 
-function makePlan(): AgentPlan {
+function makeTaskGraph(): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0,
     createdAt: 'now',

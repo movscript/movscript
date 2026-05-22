@@ -29,7 +29,6 @@ import ProductionOrchestrationPage from './pages/project/production/ProductionOr
 import ContentUnitsPage from './pages/project/content-units/ContentUnitsPage'
 import UserProfilePage from './pages/user/UserProfilePage'
 import OrgSelectPage from './pages/org/OrgSelectPage'
-import OrgSettingsPage from './pages/org/OrgSettingsPage'
 import InvitePage from './pages/auth/InvitePage'
 import ResourcesPage from './pages/resources/ResourcesPage'
 import JobsPage from './pages/jobs/JobsPage'
@@ -48,6 +47,8 @@ import AIDraftsPage from './pages/agent/AIDraftsPage'
 import AIAgentRunPage from './pages/agent/AIAgentRunPage'
 import AIAgentDebugPage from './pages/agent/AIAgentDebugPage'
 import AIAgentSettingsPage from './pages/agent/AIAgentSettingsPage'
+import AgentConsolePage from './pages/agent/AgentConsolePage'
+import AgentRunsPage from './pages/agent/AgentRunsPage'
 import i18n from './i18n'
 import { MCPContextBridge } from './mcp/MCPContextBridge'
 import { ArrowLeft, BriefcaseBusiness, HardDrive, Loader2, Lightbulb, PanelLeftClose, PanelLeftOpen, Play, Save, Workflow, Zap } from 'lucide-react'
@@ -61,7 +62,7 @@ import { Badge, Button } from '@movscript/ui'
 
 const projectStandardsWorkbenchRoute = getProjectWorkbenchDefinition('project_standards').route
 const preProductionWorkbenchRoute = getProjectWorkbenchDefinition('pre_production').route
-const creativePlanWorkbenchRoute = getProjectWorkbenchDefinition('creative_plan').route
+const creativePlanWorkbenchRoute = getProjectWorkbenchDefinition('creative_taskGraph').route
 const contentOrchestrationWorkbenchRoute = getProjectWorkbenchDefinition('content_orchestration').route
 const deliveryWorkbenchRoute = getProjectWorkbenchDefinition('delivery').route
 
@@ -224,7 +225,7 @@ function OrgAdminGuard({ children }: { children: React.ReactNode }) {
   const memberships = useUserStore((s) => s.orgMemberships)
   if (!hydrated) return <LoadingScreen fullScreen />
   const membership = memberships.find((m) => m.org_id === currentOrgID)
-  if (!membership || !['owner', 'admin'].includes(membership.role)) {
+  if (!membership || membership.is_personal || !['owner', 'admin'].includes(membership.role)) {
     return <Navigate to={ROUTES.projects} replace />
   }
   return <>{children}</>
@@ -428,7 +429,7 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
   const sidebarHeaderControl = (
     <button
       type="button"
-      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+      className="app-window-sidebar-toggle flex shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
       onClick={toggleHiddenDetailSidebar}
       title={detailSidebarHidden ? '展开左侧栏' : '隐藏左侧栏'}
       aria-label={detailSidebarHidden ? '展开左侧栏' : '隐藏左侧栏'}
@@ -542,8 +543,11 @@ export default function App() {
               </WorkspaceShell>
             </OrgGuard>
           } />
-          {/* Org select - full-screen, no sidebar */}
-          <Route path={ROUTES.orgSelect} element={<OrgSelectPage />} />
+          <Route path={ROUTES.orgSelect} element={
+            <ShellLayout requireOrg={false}>
+              <Padded><OrgSelectPage /></Padded>
+            </ShellLayout>
+          } />
           {/* Invite page - accessible when logged in */}
           <Route path={ROUTES.invite} element={<InvitePage />} />
           <Route path={ROUTES.appSettings} element={<AppSettingsPage />} />
@@ -626,18 +630,20 @@ export default function App() {
               })}
 
               {/* 组织 */}
-              <Route path={ROUTES.orgSettings} element={<OrgAdminGuard><Padded><OrgSettingsPage /></Padded></OrgAdminGuard>} />
+              <Route path={ROUTES.orgSettings} element={<Navigate to={ROUTES.orgSelect} replace />} />
 
               {/* 文件 */}
               <Route path={ROUTES.resources} element={<ResourcesPage />} />
               <Route path={ROUTES.jobs} element={<JobsPage />} />
               <Route path={ROUTES.plugins} element={<ClientPluginsPage />} />
-              <Route path={ROUTES.agentDrafts} element={<Padded><AIDraftsPage /></Padded>} />
+              <Route path={ROUTES.agentConsole} element={<AgentConsolePage />} />
+              <Route path={ROUTES.agentDrafts} element={<AIDraftsPage />} />
               <Route path={ROUTES.agentSettings} element={<AIAgentSettingsPage />} />
               <Route path={ROUTES.agentDebug} element={<AIAgentDebugPage />} />
+              <Route path={ROUTES.agentRuns} element={<AgentRunsPage />} />
               <Route path={ROUTES.agentRun} element={<AIAgentRunPage />} />
 
-              <Route path="/agents" element={<Navigate to={ROUTES.agentSettings} replace />} />
+              <Route path="/agents" element={<Navigate to={ROUTES.agentConsole} replace />} />
               </Routes>
             </ShellLayout>
           } />

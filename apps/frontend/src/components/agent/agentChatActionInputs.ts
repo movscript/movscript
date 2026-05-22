@@ -9,7 +9,7 @@ export function buildAgentChatActionBindingsInput({
   context,
   conv,
   loading,
-  plan,
+  taskGraph,
   presentation,
   runtime,
   store,
@@ -51,7 +51,7 @@ export function buildAgentChatActionBindingsInput({
       run: activeLocalRun,
       snapshot: presentation.activePlanSnapshot,
       busy: runtime.planActionBusy,
-      dispatchSettings: plan.planDispatchSettings,
+      dispatchSettings: taskGraph.planDispatchSettings,
       setBusy: runtime.setPlanActionBusy,
       setConversationRun: store.setConversationRun,
       messageStore: {

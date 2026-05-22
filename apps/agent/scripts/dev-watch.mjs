@@ -3,6 +3,8 @@ import { spawn } from 'node:child_process'
 import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
+installAgentLogTimestamps('dev-watch')
+
 const WATCH_ROOTS = ['src', 'catalog']
 const WATCH_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.mjs', '.json'])
 const POLL_MS = Number(process.env.MOVSCRIPT_AGENT_DEV_POLL_MS || 700)
@@ -18,13 +20,33 @@ let stopped = false
 let timer = null
 let parentTimer = null
 
+function installAgentLogTimestamps(scope) {
+  const key = Symbol.for(`movscript.agent.log-timestamps.${scope}`)
+  if (globalThis[key]) return
+  globalThis[key] = true
+  const startedAt = Date.now()
+  for (const method of ['info', 'warn', 'error']) {
+    const original = console[method].bind(console)
+    console[method] = (...args) => {
+      if (typeof args[0] === 'string' && args[0].startsWith('[agent')) {
+        args[0] = `[${new Date().toISOString()} +${Date.now() - startedAt}ms ${scope}] ${args[0]}`
+      }
+      original(...args)
+    }
+  }
+}
+
 function startAgent() {
   if (stopped) return
-  console.info(`[agent:dev] starting ${process.execPath} --import tsx src/server.ts (cwd=${process.cwd()} agentPort=${process.env.MOVSCRIPT_AGENT_PORT || 'unset'} mcpEndpoint=${process.env.MOVSCRIPT_MCP_ENDPOINT || 'unset'})`)
+  const serverCommand = process.env.MOVSCRIPT_AGENT_DEV_NODE_COMMAND || process.execPath
+  console.info(`[agent:dev] starting ${serverCommand} --import tsx src/server.ts (cwd=${process.cwd()} agentPort=${process.env.MOVSCRIPT_AGENT_PORT || 'unset'} mcpEndpoint=${process.env.MOVSCRIPT_MCP_ENDPOINT || 'unset'})`)
   const startedAt = Date.now()
-  child = spawn(process.execPath, ['--import', 'tsx', 'src/server.ts'], {
+  child = spawn(serverCommand, ['--import', 'tsx', 'src/server.ts'], {
     cwd: process.cwd(),
-    env: process.env,
+    env: {
+      ...process.env,
+      MOVSCRIPT_AGENT_SERVER_CHILD_STARTED_AT: String(startedAt),
+    },
     stdio: 'inherit',
   })
   console.info(`[agent:dev] child pid=${child.pid ?? 'unknown'}`)

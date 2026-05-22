@@ -1,6 +1,6 @@
 {
   "schema": "movscript.script-surfaces.v1",
-  "maxMaintainedScriptFiles": 13,
+  "maxMaintainedScriptFiles": 14,
   "rootScriptFiles": [
     "scripts/run-node-tests.mjs",
     "scripts/verifier-utils.mjs",
@@ -25,6 +25,7 @@
     ],
     "apps/agent/package.json": [
       "build",
+      "check:asset-proposal-slots",
       "dev",
       "test",
       "test:context-management",

@@ -1,24 +1,24 @@
 import type { AgentStore } from '../state/store.js'
-import type { AgentPlan, AgentTask } from '../state/types.js'
-import { requireRuntimePlan } from './runtimeStoreLookup.js'
+import type { AgentTaskGraph, AgentTask } from '../state/types.js'
+import { requireRuntimeTaskGraph } from './runtimeStoreLookup.js'
 
 export function listRuntimePlans(input: {
-  store: Pick<AgentStore, 'listPlans'>
-}): AgentPlan[] {
-  return input.store.listPlans()
+  store: Pick<AgentStore, 'listTaskGraphs'>
+}): AgentTaskGraph[] {
+  return input.store.listTaskGraphs()
 }
 
-export function getRuntimePlan(input: {
-  store: Pick<AgentStore, 'getPlan'>
-  planId: string
-}): AgentPlan | undefined {
-  return input.store.getPlan(input.planId)
+export function getRuntimeTaskGraph(input: {
+  store: Pick<AgentStore, 'getTaskGraph'>
+  taskGraphId: string
+}): AgentTaskGraph | undefined {
+  return input.store.getTaskGraph(input.taskGraphId)
 }
 
 export function getRuntimeTaskTree(input: {
-  store: Pick<AgentStore, 'getPlan' | 'listTasks'>
-  planId: string
+  store: Pick<AgentStore, 'getTaskGraph' | 'listTasks'>
+  taskGraphId: string
 }): AgentTask[] {
-  requireRuntimePlan(input.store, input.planId)
-  return input.store.listTasks(input.planId)
+  requireRuntimeTaskGraph(input.store, input.taskGraphId)
+  return input.store.listTasks(input.taskGraphId)
 }

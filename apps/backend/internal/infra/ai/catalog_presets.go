@@ -364,6 +364,31 @@ var modelPresetSources = []ModelDef{
 				Options: []string{"16:9", "9:16", "1:1"}, Default: "16:9"},
 		}},
 
+	// ─── Alibaba Cloud DashScope / Model Studio ───────────────────────────────
+
+	{ID: "dashscope:happyhorse-1-0-r2v", ModelID: "happyhorse-1.0-r2v",
+		DisplayName: "HappyHorse 1.0 参考生视频", Capabilities: []string{CapabilityVideoI2V},
+		PricingMode: PricingPerSecond, AdapterType: AdapterDashScope,
+		AcceptsImageInput: true, MaxInputImages: 3,
+		DefaultDurSec: 5, MaxDurSec: 5,
+		SupportedParams: []ParamDef{
+			{Key: "duration", Label: "时长(秒)", Type: "select",
+				Options: []string{"5"}, Default: "5"},
+			{Key: "aspect_ratio", Label: "画面比例", Type: "select",
+				Options: []string{"16:9", "9:16", "1:1"}, Default: "16:9"},
+			{Key: "resolution", Label: "分辨率", Type: "select",
+				Options: []string{"720P"}, Default: "720P"},
+		}},
+
+	// ─── Vidu ─────────────────────────────────────────────────────────────────
+
+	{ID: "vidu:q1", ModelID: "viduq1",
+		DisplayName: "Vidu Q1 视频", Capabilities: []string{CapabilityVideo, CapabilityVideoI2V},
+		PricingMode: PricingPerSecond, AdapterType: AdapterVidu,
+		AcceptsImageInput: true, MaxInputImages: 7,
+		DefaultDurSec: 5, MaxDurSec: 16,
+		SupportedParams: viduVideoParams()},
+
 	// ─── xAI Grok ─────────────────────────────────────────────────────────────
 	// Accessed via OpenAI-compatible proxy. All text models support vision input.
 	// Pricing reference: https://x.ai/api — varies by variant; estimates below.

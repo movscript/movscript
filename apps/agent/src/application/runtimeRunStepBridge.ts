@@ -1,6 +1,6 @@
 import type { AgentRunRoundInfo } from '../state/runRound.js'
 import type { AgentStore } from '../state/store.js'
-import type { AgentRun, AgentRunStep } from '../state/types.js'
+import type { AgentRun, AgentRunStep, JSONValue } from '../state/types.js'
 import { applyRuntimeRunStepCreationRequest } from './runtimeRunStepCreation.js'
 
 export interface RuntimeRunStepBridge {
@@ -9,6 +9,7 @@ export interface RuntimeRunStepBridge {
     type: AgentRunStep['type'],
     round?: AgentRunRoundInfo,
     toolName?: string,
+    args?: Record<string, JSONValue>,
   ) => AgentRunStep
 }
 
@@ -19,7 +20,7 @@ export function createRuntimeRunStepBridge(input: {
   emitRunSnapshot: (run: AgentRun) => void
 }): RuntimeRunStepBridge {
   return {
-    createStep: (run, type, round, toolName) => applyRuntimeRunStepCreationRequest({
+    createStep: (run, type, round, toolName, args) => applyRuntimeRunStepCreationRequest({
       store: input.store,
       run,
       type,
@@ -27,6 +28,7 @@ export function createRuntimeRunStepBridge(input: {
       now: input.now,
       ...(round ? { round } : {}),
       ...(toolName ? { toolName } : {}),
+      ...(args ? { args } : {}),
       emitRunSnapshot: input.emitRunSnapshot,
     }),
   }

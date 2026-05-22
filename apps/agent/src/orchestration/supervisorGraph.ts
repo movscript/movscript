@@ -1,7 +1,7 @@
-import type { AgentPlan, AgentRun, AgentTask } from '../state/types.js'
+import type { AgentTaskGraph, AgentRun, AgentTask } from '../state/types.js'
 
 export interface SupervisorDispatchInput {
-  plan: AgentPlan
+  taskGraph: AgentTaskGraph
   tasks: AgentTask[]
   runs: AgentRun[]
   maxWorkers?: number

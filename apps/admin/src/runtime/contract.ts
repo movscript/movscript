@@ -30,4 +30,5 @@ export interface AdminSectionCard {
 
 export interface AdminRuntimeCapabilities {
   customPricingMode: boolean
+  userQuotaManagement: boolean
 }

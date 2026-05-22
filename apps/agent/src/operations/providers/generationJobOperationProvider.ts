@@ -13,8 +13,8 @@ export class GenerationJobOperationProvider implements RuntimeOperationProvider 
 
   async start(input: RuntimeOperationStartInput): Promise<RuntimeOperation> {
     await this.mcpClient.initialize({ signal: input.signal })
-    const raw = await callMCPToolWithGenerationRepair(this.mcpClient, 'movscript_create_generation_job', input.request, { signal: input.signal })
-    const event = buildGenerationEvent({ name: 'movscript_create_generation_job', args: input.request }, raw)
+    const raw = await callMCPToolWithGenerationRepair(this.mcpClient, 'generation_job_create', input.request, { signal: input.signal })
+    const event = buildGenerationEvent({ name: 'generation_job_create', args: input.request }, raw)
     const now = new Date().toISOString()
     const jobId = event?.jobId
     const status = eventStatus(event?.status, event?.terminal)
@@ -41,8 +41,8 @@ export class GenerationJobOperationProvider implements RuntimeOperationProvider 
     const jobId = operation.externalHandle?.id
     if (typeof jobId !== 'number') throw new Error(`generation job operation has no numeric job id: ${operation.id}`)
     const args = { jobId }
-    const raw = await this.mcpClient.callTool('movscript_get_generation_job', args, { signal: options.signal })
-    const event = buildGenerationEvent({ name: 'movscript_get_generation_job', args }, raw)
+    const raw = await this.mcpClient.callTool('generation_job_get', args, { signal: options.signal })
+    const event = buildGenerationEvent({ name: 'generation_job_get', args }, raw)
     const now = new Date().toISOString()
     const status = eventStatus(event?.status, event?.terminal)
     return {
@@ -57,7 +57,7 @@ export class GenerationJobOperationProvider implements RuntimeOperationProvider 
   async cancel(operation: RuntimeOperation, options: { signal?: AbortSignal } = {}): Promise<RuntimeOperation> {
     const jobId = operation.externalHandle?.id
     if (typeof jobId !== 'number') throw new Error(`generation job operation has no numeric job id: ${operation.id}`)
-    const raw = await this.mcpClient.callTool('movscript_cancel_generation_job', { jobId }, { signal: options.signal })
+    const raw = await this.mcpClient.callTool('generation_job_cancel', { jobId }, { signal: options.signal })
     const now = new Date().toISOString()
     return {
       ...operation,

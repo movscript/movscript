@@ -354,7 +354,7 @@ function isContextRefType(value: unknown): value is ContextRef['type'] {
     || value === 'production'
     || value === 'asset_slot'
     || value === 'generation_job'
-    || value === 'plan'
+    || value === 'taskGraph'
 }
 
 function normalizeContextSource(value: unknown): FactRecord['source'] | undefined {

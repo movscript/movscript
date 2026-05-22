@@ -112,16 +112,16 @@ export function updateRuntimeActiveSkills(input: {
   } as unknown as JSONValue
 }
 
-const SCRIPT_READING_SKILL_ID = 'movscript.workflow.script-reading'
+const SCRIPT_READING_SKILL_ID = 'movscript.workflow.script_reading'
 const SCRIPT_ADJACENT_PROPOSAL_SKILL_IDS = new Set([
-  'movscript.workflow.asset-proposal',
   'movscript.workflow.asset_proposal',
-  'movscript.workflow.setting-proposal',
+  'movscript.workflow.asset_proposal',
   'movscript.workflow.setting_proposal',
-  'movscript.workflow.project-standards-proposal',
-  'movscript.workflow.production-proposal',
+  'movscript.workflow.setting_proposal',
+  'movscript.workflow.project_standards_proposal',
   'movscript.workflow.production_proposal',
-  'movscript.workflow.content-unit-proposal',
+  'movscript.workflow.production_proposal',
+  'movscript.workflow.content_unit_proposal',
   'movscript.workflow.content_unit_proposal',
 ])
 

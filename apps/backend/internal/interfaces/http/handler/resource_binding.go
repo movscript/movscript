@@ -90,7 +90,7 @@ func (h *ResourceBindingHandler) CreateByProject(c *gin.Context) {
 		SourceID:     input.SourceID,
 		MetadataJSON: input.MetadataJSON,
 		CreatedByID:  &createdByID,
-	}, user.ID)
+	}, user.ID, currentOrgID(c))
 	if err != nil {
 		h.writeResourceBindingError(c, err)
 		return
@@ -130,7 +130,7 @@ func (h *ResourceBindingHandler) Patch(c *gin.Context) {
 		SourceType:   body.SourceType,
 		SourceID:     body.SourceID,
 		MetadataJSON: body.MetadataJSON,
-	})
+	}, currentOrgID(c))
 	if err != nil {
 		h.writeResourceBindingError(c, err)
 		return
@@ -140,7 +140,7 @@ func (h *ResourceBindingHandler) Patch(c *gin.Context) {
 }
 
 func (h *ResourceBindingHandler) Delete(c *gin.Context) {
-	if err := h.service.Delete(c.Request.Context(), parseID(c.Param("id"))); err != nil {
+	if err := h.service.Delete(c.Request.Context(), parseID(c.Param("id")), currentOrgID(c)); err != nil {
 		h.writeResourceBindingError(c, err)
 		return
 	}

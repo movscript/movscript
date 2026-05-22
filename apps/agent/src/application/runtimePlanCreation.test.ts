@@ -2,25 +2,25 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { defaultRunPolicy } from '../state/runPolicy.js'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentPlan, AgentPlanSnapshot, AgentRun, AgentThread, CreateRunInput } from '../state/types.js'
+import type { AgentTaskGraph, AgentTaskGraphSnapshot, AgentRun, AgentThread, CreateRunInput } from '../state/types.js'
 import {
-  applyRuntimePlanCreationFlow,
-  applyRuntimePlanCreationRequest,
-  applyRuntimePlanCreationRootRun,
+  applyRuntimeTaskGraphCreationFlow,
+  applyRuntimeTaskGraphCreationRequest,
+  applyRuntimeTaskGraphCreationRootRun,
   createRuntimePlanWithTasks,
-  prepareRuntimePlanCreation,
-  resolveRuntimePlanCreationTasks,
+  prepareRuntimeTaskGraphCreation,
+  resolveRuntimeTaskGraphCreationTasks,
 } from './runtimePlanCreation.js'
 
-test('prepareRuntimePlanCreation validates thread ownership and normalizes plan inputs', () => {
+test('prepareRuntimeTaskGraphCreation validates thread ownership and normalizes taskGraph inputs', () => {
   const store = new InMemoryAgentStore()
   store.createThread(makeThread())
 
-  const preparation = prepareRuntimePlanCreation({
+  const preparation = prepareRuntimeTaskGraphCreation({
     store,
     planInput: {
       threadId: ' thread_1 ',
-      title: 'Launch plan',
+      title: 'Launch taskGraph',
       goal: ' Ship the feature ',
       tasks: [{ id: 'task_1', title: 'Draft' }],
     },
@@ -31,29 +31,29 @@ test('prepareRuntimePlanCreation validates thread ownership and normalizes plan 
   assert.deepEqual(preparation.taskInputs, [{ id: 'task_1', title: 'Draft' }])
 })
 
-test('prepareRuntimePlanCreation rejects missing thread ids and duplicate thread plans', () => {
+test('prepareRuntimeTaskGraphCreation rejects missing thread ids and duplicate thread plans', () => {
   const store = new InMemoryAgentStore()
   store.createThread(makeThread())
-  store.createPlan(makePlan())
+  store.createTaskGraph(makeTaskGraph())
 
-  assert.throws(() => prepareRuntimePlanCreation({
+  assert.throws(() => prepareRuntimeTaskGraphCreation({
     store,
     planInput: {},
   }), /threadId is required/)
-  assert.throws(() => prepareRuntimePlanCreation({
+  assert.throws(() => prepareRuntimeTaskGraphCreation({
     store,
     planInput: { threadId: 'thread_1' },
-  }), /thread thread_1 already has plan plan_1/)
+  }), /thread thread_1 already has task graph task_graph_1/)
 })
 
-test('resolveRuntimePlanCreationTasks keeps explicit tasks without invoking planner generation', async () => {
-  const result = await resolveRuntimePlanCreationTasks({
+test('resolveRuntimeTaskGraphCreationTasks keeps explicit tasks without invoking planner generation', async () => {
+  const result = await resolveRuntimeTaskGraphCreationTasks({
     preparation: {
       thread: makeThread(),
       taskInputs: [{ id: 'task_1', title: 'Draft' }],
       goal: 'Launch',
     },
-    planInput: { title: 'Launch plan' },
+    planInput: { title: 'Launch taskGraph' },
     generatePlanTasks: async () => {
       throw new Error('generatePlanTasks should not be called')
     },
@@ -65,16 +65,16 @@ test('resolveRuntimePlanCreationTasks keeps explicit tasks without invoking plan
   })
 })
 
-test('resolveRuntimePlanCreationTasks builds planner generation input from a goal', async () => {
+test('resolveRuntimeTaskGraphCreationTasks builds planner generation input from a goal', async () => {
   const calls: unknown[] = []
-  const result = await resolveRuntimePlanCreationTasks({
+  const result = await resolveRuntimeTaskGraphCreationTasks({
     preparation: {
       thread: makeThread(),
       taskInputs: [],
       goal: 'Ship the feature',
     },
     planInput: {
-      title: ' Launch plan ',
+      title: ' Launch taskGraph ',
       maxTasks: 3,
       backendAuthToken: ' token_1 ',
       backendAPIBaseURL: ' https://model.example.test ',
@@ -104,7 +104,7 @@ test('resolveRuntimePlanCreationTasks builds planner generation input from a goa
   })
   assert.deepEqual(calls, [{
     goal: 'Ship the feature',
-    title: 'Launch plan',
+    title: 'Launch taskGraph',
     maxTasks: 3,
     auth: {
       backendAuthToken: 'token_1',
@@ -113,13 +113,13 @@ test('resolveRuntimePlanCreationTasks builds planner generation input from a goa
   }])
 })
 
-test('createRuntimePlanWithTasks persists a plan and validated tasks', () => {
+test('createRuntimePlanWithTasks persists a taskGraph and validated tasks', () => {
   const store = new InMemoryAgentStore()
   const result = createRuntimePlanWithTasks({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     thread: makeThread(),
-    planInput: { title: 'Launch plan', metadata: { source: 'test' } },
+    planInput: { title: 'Launch taskGraph', metadata: { source: 'test' } },
     taskInputs: [{ id: 'task_1', title: 'Draft' }],
     now: '2026-01-01T00:00:00.000Z',
     goal: 'Launch',
@@ -131,60 +131,60 @@ test('createRuntimePlanWithTasks persists a plan and validated tasks', () => {
     },
   })
 
-  assert.equal(result.plan.id, 'plan_1')
-  assert.equal(result.plan.status, 'pending')
-  assert.equal(result.plan.metadata?.goal, 'Launch')
-  assert.equal(result.plan.metadata?.plannerSource, 'fallback')
-  assert.deepEqual(result.plan.metadata?.plannerWarnings, ['limited context'])
-  assert.deepEqual(result.plan.metadata?.plannerAssessment, {
+  assert.equal(result.taskGraph.id, 'task_graph_1')
+  assert.equal(result.taskGraph.status, 'pending')
+  assert.equal(result.taskGraph.metadata?.goal, 'Launch')
+  assert.equal(result.taskGraph.metadata?.plannerSource, 'fallback')
+  assert.deepEqual(result.taskGraph.metadata?.plannerWarnings, ['limited context'])
+  assert.deepEqual(result.taskGraph.metadata?.plannerAssessment, {
     difficulty: 'simple',
     parallelStrategy: 'planner_only',
   })
   assert.equal(result.tasks.length, 1)
   assert.equal(result.tasks[0]?.id, 'task_1')
-  assert.equal(store.getPlan('plan_1')?.title, 'Launch plan')
-  assert.equal(store.getTask('task_1')?.planId, 'plan_1')
+  assert.equal(store.getTaskGraph('task_graph_1')?.title, 'Launch taskGraph')
+  assert.equal(store.getTask('task_1')?.taskGraphId, 'task_graph_1')
 })
 
-test('createRuntimePlanWithTasks validates tasks before writing plan state', () => {
+test('createRuntimePlanWithTasks validates tasks before writing taskGraph state', () => {
   const store = new InMemoryAgentStore()
 
   assert.throws(() => createRuntimePlanWithTasks({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     thread: makeThread(),
-    planInput: { title: 'Invalid plan' },
+    planInput: { title: 'Invalid taskGraph' },
     taskInputs: [
       { id: 'task_1', title: 'Depends on missing', deps: ['missing_task'] },
     ],
     now: '2026-01-01T00:00:00.000Z',
   }), /task not found: missing_task/)
-  assert.equal(store.getPlan('plan_1'), undefined)
+  assert.equal(store.getTaskGraph('task_graph_1'), undefined)
 })
 
-test('applyRuntimePlanCreationRootRun creates root planner run and assigns inline task', () => {
+test('applyRuntimeTaskGraphCreationRootRun creates root planner run and assigns inline task', () => {
   const store = new InMemoryAgentStore()
   const thread = makeThread()
   store.createThread(thread)
   const creation = createRuntimePlanWithTasks({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     thread,
-    planInput: { threadId: thread.id, title: 'Launch plan' },
+    planInput: { threadId: thread.id, title: 'Launch taskGraph' },
     taskInputs: [{ id: 'task_1', title: 'Draft' }],
     now: '2026-01-01T00:00:00.000Z',
   })
   const calls: string[] = []
 
-  const result = applyRuntimePlanCreationRootRun({
+  const result = applyRuntimeTaskGraphCreationRootRun({
     store,
-    plan: creation.plan,
+    taskGraph: creation.taskGraph,
     thread,
-    planInput: { threadId: thread.id, title: 'Launch plan' },
+    planInput: { threadId: thread.id, title: 'Launch taskGraph' },
     tasks: creation.tasks,
     now: '2026-01-01T00:00:01.000Z',
     createRun: (runInput) => {
-      calls.push(`create:${runInput.role}:${runInput.planId}:${runInput.taskId}`)
+      calls.push(`create:${runInput.role}:${runInput.taskGraphId}:${runInput.taskId}`)
       const run = makeRunFromInput(runInput, { id: 'run_1' })
       store.createRun(run)
       return run
@@ -197,30 +197,30 @@ test('applyRuntimePlanCreationRootRun creates root planner run and assigns inlin
   assert.equal(result.rootRun?.id, 'run_1')
   assert.equal(result.inlineTaskAssignment?.task.id, 'task_1')
   assert.deepEqual(calls, [
-    'create:planner:plan_1:task_1',
+    'create:planner:task_graph_1:task_1',
     'assign:pending:running:run_1',
   ])
-  assert.equal(store.getPlan('plan_1')?.rootRunId, 'run_1')
-  assert.equal(store.getPlan('plan_1')?.status, 'running')
-  assert.equal(store.getPlan('plan_1')?.updatedAt, '2026-01-01T00:00:01.000Z')
+  assert.equal(store.getTaskGraph('task_graph_1')?.rootRunId, 'run_1')
+  assert.equal(store.getTaskGraph('task_graph_1')?.status, 'running')
+  assert.equal(store.getTaskGraph('task_graph_1')?.updatedAt, '2026-01-01T00:00:01.000Z')
   assert.equal(store.getTask('task_1')?.ownerRunId, 'run_1')
   assert.equal(store.getTask('task_1')?.metadata?.executionMode, 'planner_inline')
 })
 
-test('applyRuntimePlanCreationRootRun skips root run when disabled', () => {
+test('applyRuntimeTaskGraphCreationRootRun skips root run when disabled', () => {
   const store = new InMemoryAgentStore()
   const thread = makeThread()
   const creation = createRuntimePlanWithTasks({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     thread,
     planInput: { threadId: thread.id, createPlannerRun: false },
     taskInputs: [{ id: 'task_1', title: 'Draft' }],
     now: '2026-01-01T00:00:00.000Z',
   })
-  const result = applyRuntimePlanCreationRootRun({
+  const result = applyRuntimeTaskGraphCreationRootRun({
     store,
-    plan: creation.plan,
+    taskGraph: creation.taskGraph,
     thread,
     planInput: { threadId: thread.id, createPlannerRun: false },
     tasks: creation.tasks,
@@ -231,24 +231,24 @@ test('applyRuntimePlanCreationRootRun skips root run when disabled', () => {
   })
 
   assert.deepEqual(result, {})
-  assert.equal(store.getPlan('plan_1')?.rootRunId, undefined)
+  assert.equal(store.getTaskGraph('task_graph_1')?.rootRunId, undefined)
   assert.equal(store.getTask('task_1')?.ownerRunId, undefined)
 })
 
-test('applyRuntimePlanCreationFlow persists plan, records created tasks, then applies root run', () => {
+test('applyRuntimeTaskGraphCreationFlow persists taskGraph, records created tasks, then applies root run', () => {
   const store = new InMemoryAgentStore()
   const thread = makeThread()
   const calls: string[] = []
 
-  const result = applyRuntimePlanCreationFlow({
+  const result = applyRuntimeTaskGraphCreationFlow({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     preparation: {
       thread,
       taskInputs: [{ id: 'task_1', title: 'Draft' }],
       goal: 'Launch',
     },
-    planInput: { threadId: thread.id, title: 'Launch plan' },
+    planInput: { threadId: thread.id, title: 'Launch taskGraph' },
     resolvedTasks: {
       taskInputs: [{ id: 'task_1', title: 'Draft' }],
       plannerSource: 'fallback',
@@ -256,7 +256,7 @@ test('applyRuntimePlanCreationFlow persists plan, records created tasks, then ap
     },
     now: '2026-01-01T00:00:01.000Z',
     createRun: (runInput) => {
-      calls.push(`root:${runInput.planId}:${runInput.taskId}`)
+      calls.push(`root:${runInput.taskGraphId}:${runInput.taskId}`)
       const run = makeRunFromInput(runInput, { id: 'run_root' })
       store.createRun(run)
       return run
@@ -265,28 +265,28 @@ test('applyRuntimePlanCreationFlow persists plan, records created tasks, then ap
     onInlineTaskAssigned: (task, previousTask) => calls.push(`assigned:${previousTask.status}->${task.status}:${task.ownerRunId}`),
   })
 
-  assert.equal(result.plan.id, 'plan_1')
+  assert.equal(result.taskGraph.id, 'task_graph_1')
   assert.equal(result.rootRun?.id, 'run_root')
   assert.deepEqual(calls, [
     'created:task_1',
-    'root:plan_1:task_1',
+    'root:task_graph_1:task_1',
     'assigned:pending->running:run_root',
   ])
-  assert.equal(store.getPlan('plan_1')?.metadata?.goal, 'Launch')
-  assert.equal(store.getPlan('plan_1')?.metadata?.plannerSource, 'fallback')
-  assert.deepEqual(store.getPlan('plan_1')?.metadata?.plannerWarnings, ['planner unavailable'])
+  assert.equal(store.getTaskGraph('task_graph_1')?.metadata?.goal, 'Launch')
+  assert.equal(store.getTaskGraph('task_graph_1')?.metadata?.plannerSource, 'fallback')
+  assert.deepEqual(store.getTaskGraph('task_graph_1')?.metadata?.plannerWarnings, ['planner unavailable'])
   assert.equal(store.getTask('task_1')?.ownerRunId, 'run_root')
 })
 
-test('applyRuntimePlanCreationRequest resolves tasks, persists plan, and returns the snapshot', async () => {
+test('applyRuntimeTaskGraphCreationRequest resolves tasks, persists taskGraph, and returns the snapshot', async () => {
   const store = new InMemoryAgentStore()
   const thread = makeThread()
   store.createThread(thread)
   const calls: string[] = []
 
-  const snapshot = await applyRuntimePlanCreationRequest({
+  const snapshot = await applyRuntimeTaskGraphCreationRequest({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     planInput: { threadId: thread.id, goal: 'Launch the agent workstream' },
     now: '2026-01-01T00:00:01.000Z',
     generatePlanTasks: async (input) => {
@@ -298,28 +298,28 @@ test('applyRuntimePlanCreationRequest resolves tasks, persists plan, and returns
       }
     },
     createRun: (runInput) => {
-      calls.push(`run:${runInput.planId}:${runInput.taskId}`)
+      calls.push(`run:${runInput.taskGraphId}:${runInput.taskId}`)
       const run = makeRunFromInput(runInput, { id: 'run_root' })
       store.createRun(run)
       return run
     },
-    getPlanSnapshot: (planId) => {
-      calls.push(`snapshot:${planId}`)
-      return makeSnapshot(store, planId)
+    getTaskGraphSnapshot: (taskGraphId) => {
+      calls.push(`snapshot:${taskGraphId}`)
+      return makeSnapshot(store, taskGraphId)
     },
     onTaskCreated: (task) => calls.push(`created:${task.id}`),
     onInlineTaskAssigned: (task, previousTask) => calls.push(`assigned:${previousTask.status}->${task.status}:${task.ownerRunId}`),
   })
 
-  assert.equal(snapshot.plan.id, 'plan_1')
+  assert.equal(snapshot.taskGraph.id, 'task_graph_1')
   assert.deepEqual(calls, [
     'generate:Launch the agent workstream',
     'created:task_generated',
-    'run:plan_1:task_generated',
+    'run:task_graph_1:task_generated',
     'assigned:pending->running:run_root',
-    'snapshot:plan_1',
+    'snapshot:task_graph_1',
   ])
-  assert.equal(store.getPlan('plan_1')?.rootRunId, 'run_root')
+  assert.equal(store.getTaskGraph('task_graph_1')?.rootRunId, 'run_root')
   assert.equal(store.getTask('task_generated')?.ownerRunId, 'run_root')
 })
 
@@ -334,11 +334,11 @@ function makeThread(overrides: Partial<AgentThread> = {}): AgentThread {
   }
 }
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'pending',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -352,7 +352,7 @@ function makeRunFromInput(input: CreateRunInput, overrides: Partial<AgentRun> = 
     id: 'run_1',
     threadId: typeof input.threadId === 'string' ? input.threadId : 'thread_1',
     role: input.role === 'planner' || input.role === 'worker' ? input.role : undefined,
-    planId: typeof input.planId === 'string' ? input.planId : undefined,
+    taskGraphId: typeof input.taskGraphId === 'string' ? input.taskGraphId : undefined,
     taskId: typeof input.taskId === 'string' ? input.taskId : undefined,
     progress: typeof input.progress === 'number' ? input.progress : undefined,
     status: 'queued',
@@ -364,12 +364,12 @@ function makeRunFromInput(input: CreateRunInput, overrides: Partial<AgentRun> = 
   }
 }
 
-function makeSnapshot(store: InMemoryAgentStore, planId: string): AgentPlanSnapshot {
-  const plan = store.getPlan(planId)
-  assert.ok(plan)
+function makeSnapshot(store: InMemoryAgentStore, taskGraphId: string): AgentTaskGraphSnapshot {
+  const taskGraph = store.getTaskGraph(taskGraphId)
+  assert.ok(taskGraph)
   return {
-    plan,
-    tasks: store.listTasks(planId),
-    runs: store.listRuns({ planId }),
+    taskGraph,
+    tasks: store.listTasks(taskGraphId),
+    runs: store.listRuns({ taskGraphId }),
   }
 }

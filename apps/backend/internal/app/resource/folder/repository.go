@@ -29,10 +29,18 @@ func (r *gormRepository) ListFolders(ctx context.Context, userID uint, orgID *ui
 	q := r.db.WithContext(ctx)
 	if shared {
 		q = q.Preload("Owner").Where("is_shared = true AND owner_id != ?", userID)
+		q = applyOrgScope(q, orgID, userID, includeLegacy)
+	} else if orgID != nil {
+		if includeLegacy {
+			q = q.Where("(org_id = ? OR (org_id IS NULL AND owner_id = ?))", *orgID, userID)
+		} else {
+			q = q.Where("org_id = ?", *orgID)
+		}
 	} else {
 		q = q.Where("owner_id = ?", userID)
+		q = applyOrgScope(q, orgID, userID, includeLegacy)
 	}
-	q = applyOrgScope(q, orgID, userID, includeLegacy).Order("created_at asc")
+	q = q.Order("created_at asc")
 	if err := q.Find(&folders).Error; err != nil {
 		return nil, err
 	}
@@ -49,7 +57,10 @@ func (r *gormRepository) CreateFolder(ctx context.Context, ownerID uint, input C
 			}
 			return domainresourcefolder.Folder{}, err
 		}
-		if parent.OwnerID != ownerID || !domainresourcefolder.FolderInOrgScope(parent.OrgID, input.OrgID, parent.OwnerID, ownerID, includeLegacy) {
+		if !domainresourcefolder.FolderInOrgScope(parent.OrgID, input.OrgID, parent.OwnerID, ownerID, includeLegacy) {
+			return domainresourcefolder.Folder{}, ErrForbidden
+		}
+		if parent.OwnerID != ownerID && !folderInCurrentTeam(parent.OrgID, input.OrgID) {
 			return domainresourcefolder.Folder{}, ErrForbidden
 		}
 	}
@@ -174,6 +185,10 @@ func (r *gormRepository) requireOwner(ctx context.Context, userID uint, orgID *u
 		return folder, ErrForbidden
 	}
 	return folder, nil
+}
+
+func folderInCurrentTeam(folderOrgID, currentOrgID *uint) bool {
+	return folderOrgID != nil && currentOrgID != nil && *folderOrgID == *currentOrgID
 }
 
 func (r *gormRepository) populateFolderCounts(ctx context.Context, folders []persistencemodel.ResourceFolder) {

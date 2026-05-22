@@ -62,7 +62,7 @@ export function ContentWorkbenchFilterSidebar({
   onSelectScene: (value: string) => void
 }) {
   return (
-    <aside className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden border-b border-border pb-3 xl:self-stretch xl:border-b-0 xl:border-r xl:pr-3" data-testid="content-workbench-filter-sidebar">
+    <aside className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden border-b border-border pb-3 xl:h-full xl:self-stretch xl:border-b-0 xl:border-r xl:pr-3" data-testid="content-workbench-filter-sidebar">
       <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/25 px-2 py-2 shadow-sm">
         <div className="flex min-w-0 items-center gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground">

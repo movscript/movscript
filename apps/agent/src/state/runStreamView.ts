@@ -43,7 +43,7 @@ export function toStreamRun(run: AgentRun): AgentRunStreamRun {
     status: run.status,
     ...(run.role ? { role: run.role } : {}),
     ...(run.parentRunId ? { parentRunId: run.parentRunId } : {}),
-    ...(run.planId ? { planId: run.planId } : {}),
+    ...(run.taskGraphId ? { taskGraphId: run.taskGraphId } : {}),
     ...(run.taskId ? { taskId: run.taskId } : {}),
     ...(typeof run.progress === 'number' ? { progress: run.progress } : {}),
     ...(run.blockedReason ? { blockedReason: run.blockedReason } : {}),

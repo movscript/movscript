@@ -21,37 +21,37 @@ test('assistant message surfaces missing project warning', () => {
 test('assistant message describes successful and failed tool outcomes', () => {
   const content = buildAssistantContent('搜索并写草稿', [
     {
-      call: { name: 'movscript_create_draft', args: { kind: 'note' } },
+      call: { name: 'draft_create', args: { kind: 'note' } },
       error: 'create failed',
     },
   ])
-  assert.match(content, /movscript\.create_draft 未完成：create failed/)
+  assert.match(content, /draft_create 未完成：create failed/)
 })
 
 test('assistant message describes tool reads', () => {
-  const content = buildAssistantContent('/plan 第一场', [
+  const content = buildAssistantContent('/taskGraph 第一场', [
     {
-      call: { name: 'movscript_read_project_scripts', args: { projectId: 42 } },
+      call: { name: 'movscript_project_script_read', args: { projectId: 42 } },
       result: toolText({ counts: { scripts: 3 } }),
     },
   ], [], [], makeRun())
 
   assert.throws(() => JSON.parse(content))
-  assert.match(content, /read_project_scripts/i)
+  assert.match(content, /movscript_project_script_read/i)
 })
 
 test('assistant message extracts tool calls from model JSON content', () => {
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
     tool_calls: [
       {
-        name: 'movscript_read_project_scripts',
+        name: 'movscript_project_script_read',
         parameters: { project_id: 1 },
       },
     ],
   }))
 
   assert.equal(toolCalls.length, 1)
-  assert.equal(toolCalls[0].name, 'movscript_read_project_scripts')
+  assert.equal(toolCalls[0].name, 'movscript_project_script_read')
   assert.equal(toolCalls[0].args?.project_id, 1)
   assert.equal(toolCalls[0].args?.projectId, 1)
 })
@@ -60,7 +60,7 @@ test('assistant message ignores invalid model-emitted project and production ids
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
     tool_calls: [
       {
-        name: 'movscript_create_draft',
+        name: 'draft_create',
         parameters: {
           project_id: '42',
           production_id: 7.5,
@@ -73,7 +73,7 @@ test('assistant message ignores invalid model-emitted project and production ids
   }))
 
   assert.equal(toolCalls.length, 1)
-  assert.equal(toolCalls[0].name, 'movscript_create_draft')
+  assert.equal(toolCalls[0].name, 'draft_create')
   assert.equal(toolCalls[0].args?.project_id, undefined)
   assert.equal(toolCalls[0].args?.projectId, undefined)
   assert.equal(toolCalls[0].args?.production_id, undefined)
@@ -86,7 +86,7 @@ test('configured assistant messages prefer resolved skill instructions from run 
   run.metadata = {
     ...(run.metadata ?? {}),
     skills: [{
-      id: 'movscript.policy.agent-core',
+      id: 'core.policy.runtime',
       name: 'Agent Core Capability Policy',
       instruction: 'Core skill instruction from catalog.',
     }],
@@ -113,7 +113,7 @@ test('configured assistant messages ignore non-plain skill metadata records', ()
     skills: [
       new RuntimeSkill(),
       {
-        id: 'movscript.policy.agent-core',
+        id: 'core.policy.runtime',
         instruction: 'Core skill instruction from catalog.',
       },
     ] as never,
@@ -124,13 +124,13 @@ test('configured assistant messages ignore non-plain skill metadata records', ()
 
   assert.doesNotMatch(systemText, /Runtime Skill/)
   assert.doesNotMatch(systemText, /Do not trust prototype skill records/)
-  assert.match(systemText, /movscript\.policy\.agent-core/)
+  assert.match(systemText, /core\.policy\.runtime/)
   assert.match(systemText, /Core skill instruction from catalog/)
 })
 
 test('assistant message extracts a single tool call returned as JSON content', () => {
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
-    name: 'movscript_create_draft',
+    name: 'draft_create',
     args: {
       projectId: 1,
       kind: 'production_proposal',
@@ -140,7 +140,7 @@ test('assistant message extracts a single tool call returned as JSON content', (
   }))
 
   assert.equal(toolCalls.length, 1)
-  assert.equal(toolCalls[0].name, 'movscript_create_draft')
+  assert.equal(toolCalls[0].name, 'draft_create')
   assert.equal(toolCalls[0].args?.projectId, 1)
   assert.equal(toolCalls[0].args?.kind, 'production_proposal')
 })
@@ -148,7 +148,7 @@ test('assistant message extracts a single tool call returned as JSON content', (
 test('assistant message extracts model-emitted single tool_call wrapper', () => {
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
     tool_call: {
-      tool_name: 'movscript_get_draft',
+      tool_name: 'draft_get',
       parameters: {
         draftId: 'draft_1',
       },
@@ -156,7 +156,7 @@ test('assistant message extracts model-emitted single tool_call wrapper', () => 
   }))
 
   assert.equal(toolCalls.length, 1)
-  assert.equal(toolCalls[0].name, 'movscript_get_draft')
+  assert.equal(toolCalls[0].name, 'draft_get')
   assert.equal(toolCalls[0].args?.draftId, 'draft_1')
 })
 
@@ -229,7 +229,7 @@ function makeRun(): AgentRun {
         runId: 'run_test',
       type: 'tool_call',
       status: 'completed',
-      toolName: 'movscript_read_project_scripts',
+      toolName: 'movscript_project_script_read',
       args: { projectId: 42 },
       createdAt: '2026-05-03T00:00:00.000Z',
       completedAt: '2026-05-03T00:00:00.000Z',

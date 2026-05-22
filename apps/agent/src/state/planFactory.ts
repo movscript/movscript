@@ -1,30 +1,30 @@
 import { cloneJSONValue, isJSONRecord } from '../jsonValue.js'
-import type { AgentPlan, AgentTask, AgentThread, CreatePlanInput, CreateRunInput, JSONValue } from './types.js'
+import type { AgentTaskGraph, AgentTask, AgentThread, CreateTaskGraphInput, CreateRunInput, JSONValue } from './types.js'
 
 export function normalizeCreatePlanThreadId(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
-export function createPlanGoal(input: Pick<CreatePlanInput, 'goal' | 'message'>): string | undefined {
+export function createTaskGraphGoal(input: Pick<CreateTaskGraphInput, 'goal' | 'message'>): string | undefined {
   return normalizeNonEmptyString(input.goal) ?? normalizeNonEmptyString(input.message)
 }
 
-export function buildAgentPlan(input: {
+export function buildAgentTaskGraph(input: {
   id: string
   thread: AgentThread
-  planInput: CreatePlanInput
+  planInput: CreateTaskGraphInput
   taskCount: number
   now: string
   goal?: string
   plannerSource?: string
   plannerWarnings?: string[]
   plannerAssessment?: Record<string, JSONValue>
-}): AgentPlan {
+}): AgentTaskGraph {
   const warnings = input.plannerWarnings ?? []
   return {
     id: input.id,
     threadId: input.thread.id,
-    title: normalizeNonEmptyString(input.planInput.title) ?? input.thread.title ?? 'Agent plan',
+    title: normalizeNonEmptyString(input.planInput.title) ?? input.thread.title ?? 'Agent task graph',
     status: input.taskCount > 0 ? 'pending' : 'blocked',
     progress: 0,
     metadata: {
@@ -40,15 +40,15 @@ export function buildAgentPlan(input: {
 }
 
 export function buildCreatePlanPlannerRunInput(input: {
-  plan: AgentPlan
+  taskGraph: AgentTaskGraph
   thread: AgentThread
-  planInput: CreatePlanInput
+  planInput: CreateTaskGraphInput
   inlinePlannerTask?: AgentTask
 }): CreateRunInput {
   return {
     threadId: input.thread.id,
     role: 'planner',
-    planId: input.plan.id,
+    taskGraphId: input.taskGraph.id,
     ...(input.inlinePlannerTask ? { taskId: input.inlinePlannerTask.id } : {}),
     progress: 0,
     agentManifest: input.planInput.agentManifest,

@@ -1,107 +1,107 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  assertPlannerRunCanUsePlan,
+  assertPlannerRunCanUseTaskGraph,
   attachPlannerRunToPlanState,
-  findThreadPlan,
+  findThreadTaskGraph,
   requirePlannerRunState,
   selectReplanPlannerRunId,
   selectPlannerRunPlanId,
 } from './planRunBinding.js'
-import type { AgentPlan, AgentRun } from './types.js'
+import type { AgentTaskGraph, AgentRun } from './types.js'
 
 test('requirePlannerRunState rejects worker runs', () => {
   assert.throws(() => requirePlannerRunState(makeRun({ role: 'worker' })), /is not a planner run/)
 })
 
-test('findThreadPlan returns the plan for the same thread', () => {
-  const plan = makePlan({ id: 'plan_2', threadId: 'thread_2' })
-  assert.equal(findThreadPlan([makePlan(), plan], 'thread_2'), plan)
+test('findThreadTaskGraph returns the taskGraph for the same thread', () => {
+  const taskGraph = makeTaskGraph({ id: 'task_graph_2', threadId: 'thread_2' })
+  assert.equal(findThreadTaskGraph([makeTaskGraph(), taskGraph], 'thread_2'), taskGraph)
 })
 
-test('selectPlannerRunPlanId prefers explicit input then attached run then thread plan', () => {
-  const plannerRun = makeRun({ planId: 'plan_attached' })
-  const threadPlan = makePlan({ id: 'plan_thread' })
+test('selectPlannerRunPlanId prefers explicit input then attached run then thread taskGraph', () => {
+  const plannerRun = makeRun({ taskGraphId: 'task_graph_attached' })
+  const threadTaskGraph = makeTaskGraph({ id: 'task_graph_thread' })
 
-  assert.equal(selectPlannerRunPlanId({ plannerRun, inputPlanId: ' plan_input ', threadPlan, source: 'tool' }), 'plan_input')
-  assert.equal(selectPlannerRunPlanId({ plannerRun, threadPlan, source: 'tool' }), 'plan_attached')
-  assert.equal(selectPlannerRunPlanId({ plannerRun: makeRun(), threadPlan, source: 'tool' }), 'plan_thread')
-  assert.throws(() => selectPlannerRunPlanId({ plannerRun: makeRun(), source: 'tool' }), /requires planId/)
+  assert.equal(selectPlannerRunPlanId({ plannerRun, inputPlanId: ' task_graph_input ', threadTaskGraph, source: 'tool' }), 'task_graph_input')
+  assert.equal(selectPlannerRunPlanId({ plannerRun, threadTaskGraph, source: 'tool' }), 'task_graph_attached')
+  assert.equal(selectPlannerRunPlanId({ plannerRun: makeRun(), threadTaskGraph, source: 'tool' }), 'task_graph_thread')
+  assert.throws(() => selectPlannerRunPlanId({ plannerRun: makeRun(), source: 'tool' }), /requires taskGraphId/)
 })
 
-test('assertPlannerRunCanUsePlan protects thread and attached plan boundaries', () => {
-  assert.doesNotThrow(() => assertPlannerRunCanUsePlan({
-    plannerRun: makeRun({ planId: 'plan_1' }),
-    plan: makePlan({ id: 'plan_1' }),
+test('assertPlannerRunCanUseTaskGraph protects thread and attached taskGraph boundaries', () => {
+  assert.doesNotThrow(() => assertPlannerRunCanUseTaskGraph({
+    plannerRun: makeRun({ taskGraphId: 'task_graph_1' }),
+    taskGraph: makeTaskGraph({ id: 'task_graph_1' }),
     action: 'inspect',
   }))
-  assert.throws(() => assertPlannerRunCanUsePlan({
-    plannerRun: makeRun({ planId: 'plan_2' }),
-    plan: makePlan({ id: 'plan_1' }),
+  assert.throws(() => assertPlannerRunCanUseTaskGraph({
+    plannerRun: makeRun({ taskGraphId: 'task_graph_2' }),
+    taskGraph: makeTaskGraph({ id: 'task_graph_1' }),
     action: 'inspect',
-  }), /cannot inspect plan plan_1/)
-  assert.throws(() => assertPlannerRunCanUsePlan({
+  }), /cannot inspect task graph task_graph_1/)
+  assert.throws(() => assertPlannerRunCanUseTaskGraph({
     plannerRun: makeRun({ threadId: 'thread_2' }),
-    plan: makePlan({ threadId: 'thread_1' }),
+    taskGraph: makeTaskGraph({ threadId: 'thread_1' }),
     action: 'inspect',
-  }), /cannot inspect plan plan_1/)
+  }), /cannot inspect task graph task_graph_1/)
 })
 
-test('selectReplanPlannerRunId prefers explicit input then planner run then parent then plan root', () => {
+test('selectReplanPlannerRunId prefers explicit input then planner run then parent then taskGraph root', () => {
   assert.equal(selectReplanPlannerRunId({
     run: makeRun({ id: 'run_current' }),
-    plan: makePlan({ rootRunId: 'run_root' }),
+    taskGraph: makeTaskGraph({ rootRunId: 'run_root' }),
     inputPlannerRunId: ' run_input ',
   }), 'run_input')
   assert.equal(selectReplanPlannerRunId({
     run: makeRun({ id: 'run_current', role: 'planner' }),
-    plan: makePlan({ rootRunId: 'run_root' }),
+    taskGraph: makeTaskGraph({ rootRunId: 'run_root' }),
   }), 'run_current')
   assert.equal(selectReplanPlannerRunId({
     run: makeRun({ role: 'worker', parentRunId: 'run_parent' }),
-    plan: makePlan({ rootRunId: 'run_root' }),
+    taskGraph: makeTaskGraph({ rootRunId: 'run_root' }),
   }), 'run_parent')
   assert.equal(selectReplanPlannerRunId({
     run: makeRun({ role: 'worker' }),
-    plan: makePlan({ rootRunId: 'run_root' }),
+    taskGraph: makeTaskGraph({ rootRunId: 'run_root' }),
   }), 'run_root')
   assert.throws(() => selectReplanPlannerRunId({
     run: makeRun({ role: 'worker' }),
-    plan: makePlan(),
+    taskGraph: makeTaskGraph(),
   }), /has no plannerRunId/)
 })
 
-test('attachPlannerRunToPlanState updates run and repairs missing or stale plan root', () => {
+test('attachPlannerRunToPlanState updates run and repairs missing or stale taskGraph root', () => {
   const run = makeRun()
-  const plan = makePlan()
+  const taskGraph = makeTaskGraph()
   const result = attachPlannerRunToPlanState({
     run,
-    plan,
+    taskGraph,
     source: 'tool',
     now: '2026-01-01T00:00:01.000Z',
   })
 
   assert.equal(result.planUpdated, true)
-  assert.equal(run.planId, plan.id)
+  assert.equal(run.taskGraphId, taskGraph.id)
   assert.equal(run.progress, 0)
   assert.equal(run.metadata?.attachedPlanByTool, 'tool')
-  assert.equal(plan.rootRunId, run.id)
+  assert.equal(taskGraph.rootRunId, run.id)
 })
 
 test('attachPlannerRunToPlanState keeps a valid existing root run', () => {
   const rootRun = makeRun({ id: 'run_root' })
   const run = makeRun({ id: 'run_child' })
-  const plan = makePlan({ rootRunId: rootRun.id })
+  const taskGraph = makeTaskGraph({ rootRunId: rootRun.id })
   const result = attachPlannerRunToPlanState({
     run,
-    plan,
+    taskGraph,
     rootRun,
     source: 'tool',
     now: '2026-01-01T00:00:01.000Z',
   })
 
   assert.equal(result.planUpdated, false)
-  assert.equal(plan.rootRunId, rootRun.id)
+  assert.equal(taskGraph.rootRunId, rootRun.id)
 })
 
 function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
@@ -124,11 +124,11 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   }
 }
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'pending',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',

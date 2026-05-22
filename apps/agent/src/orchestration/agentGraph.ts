@@ -94,7 +94,7 @@ export interface AgentGraphInput {
     messages: AgentMessage[],
     trace: Omit<AgentGraphTraceInput, 'kind' | 'title' | 'summary' | 'status' | 'data'>,
   ) => void
-  onStepCreate: (type: 'tool_call' | 'message', roundIndex: number, roundLabel: string, roundSource: AgentGraphTraceInput['roundSource'], toolName?: string) => string
+  onStepCreate: (type: 'tool_call' | 'message', roundIndex: number, roundLabel: string, roundSource: AgentGraphTraceInput['roundSource'], toolName?: string, args?: Record<string, JSONValue>) => string
   onStepComplete: (stepId: string, result?: JSONValue, error?: string, sandboxed?: boolean) => void
 }
 
@@ -497,7 +497,7 @@ async function runPolicyNode(state: AgentGraphState, input: AgentGraphInput): Pr
     }
   }
 
-  const inputCalls = state.requestedCalls.filter((call) => call.name === 'movscript_request_user_input')
+  const inputCalls = state.requestedCalls.filter((call) => call.name === 'core_user_input_request')
   if (inputCalls.length > 0) {
     const pendingInputRequests = inputCalls.map((call) => buildInputRequest(input.run.id, call.args ?? {}))
     input.onTrace({
@@ -638,21 +638,27 @@ async function runPolicyNode(state: AgentGraphState, input: AgentGraphInput): Pr
 }
 
 const TOOL_SKILL_ACTIVATION_REPAIRS: Record<string, { skillId: string; reason: string }> = {
-  movscript_read_project_scripts: {
-    skillId: 'movscript.workflow.script-reading',
+  movscript_project_script_read: {
+    skillId: 'movscript.workflow.script_reading',
     reason: '读取项目剧本需要加载剧本读取 workflow。',
   },
 }
 
 function buildSkillActivationRepairCalls(blockedToolCalls: BlockedToolCall[], input: AgentGraphInput): ToolCall[] {
-  const skillTool = input.capabilities.byName.movscript_update_active_skills
+  const skillTool = input.capabilities.byName.core_skill_update
   if (!skillTool?.available) return []
 
   const activeSkillIds = new Set(input.skills.map((skill) => skill.id))
   const load: string[] = []
   const reasons: string[] = []
   for (const blocked of blockedToolCalls) {
-    if (blocked.reason !== 'not_granted' && blocked.reason !== 'unknown_tool') continue
+    if (blocked.reason !== 'not_granted' && blocked.reason !== 'unknown_tool' && blocked.reason !== 'workflow_scope') continue
+    const declaredSkillIds = blocked.tool?.requiresSkills ?? input.registry.get(blocked.call.name)?.requiresSkills ?? []
+    for (const skillId of declaredSkillIds) {
+      if (activeSkillIds.has(skillId) || load.includes(skillId)) continue
+      load.push(skillId)
+      reasons.push(`工具 ${blocked.call.name} 需要加载 ${skillId}。`)
+    }
     const repair = TOOL_SKILL_ACTIVATION_REPAIRS[blocked.call.name]
     if (!repair || activeSkillIds.has(repair.skillId) || load.includes(repair.skillId)) continue
     load.push(repair.skillId)
@@ -662,7 +668,7 @@ function buildSkillActivationRepairCalls(blockedToolCalls: BlockedToolCall[], in
   if (load.length === 0) return []
   return [{
     id: makeId('call'),
-    name: 'movscript_update_active_skills',
+    name: 'core_skill_update',
     args: {
       load,
       reason: Array.from(new Set(reasons)).join(' '),
@@ -725,7 +731,7 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
   const canRunConcurrently = requestedCalls.length > 1 && requestedCalls.every((call) => canExecuteConcurrently(call, input.registry))
 
   const executeOne = async (call: ToolCall): Promise<{ outcome: ToolCallOutcome; turnResult: { toolCall: ToolCall; content: string }; warning?: string }> => {
-    const stepId = input.onStepCreate('tool_call', currentRoundIndex, roundLabel, effectiveRoundSource, call.name)
+    const stepId = input.onStepCreate('tool_call', currentRoundIndex, roundLabel, effectiveRoundSource, call.name, call.args)
     const startedAt = Date.now()
     try {
       const execResult = await executeTool(call, {
@@ -755,7 +761,7 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
         roundSource: effectiveRoundSource,
         stepId,
         toolName: call.name,
-        data: { source: execResult.source, result: execResult.result, sandboxed: execResult.sandboxed, durationMs },
+        data: { source: execResult.source, args: call.args ?? {}, result: execResult.result, sandboxed: execResult.sandboxed, durationMs },
         durationMs,
       })
       const ledgerUpdatedTrace = contextManager.buildLedgerUpdatedTrace(ledger)
@@ -864,7 +870,7 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
         roundSource: effectiveRoundSource,
         stepId,
         toolName: call.name,
-        data: { error: message, durationMs },
+        data: { args: call.args ?? {}, error: message, durationMs },
         durationMs,
       })
       const modelToolResult = contextManager.buildToolResultContext({ run: input.run, call, error: message })
@@ -892,7 +898,7 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
       throwIfAborted(input.signal)
       const result = await executeOne(call)
       results.push(result)
-      if (call.name === 'movscript_apply_draft' && result.outcome.error) break
+      if (call.name === 'draft_apply' && result.outcome.error) break
     }
   }
 
@@ -1046,12 +1052,12 @@ const DEFAULT_DRAFT_APPLY_KIND_ORDER: Record<string, number> = {
 }
 
 function buildDefaultDraftApplyCalls(outcomes: ToolCallOutcome[], input: AgentGraphInput): ToolCall[] {
-  if (!input.registry.get('movscript_apply_draft')) return []
-  const grant = findToolGrant(input.manifest, 'movscript_apply_draft')
+  if (!input.registry.get('draft_apply')) return []
+  const grant = findToolGrant(input.manifest, 'draft_apply')
   if (!grant || grant.mode === 'deny') return []
   if (!hasExplicitDraftApplyIntent(input.userMessage)) return []
   const candidates = outcomes.flatMap((outcome, index) => {
-    if (outcome.call.name !== 'movscript_create_draft') return []
+    if (outcome.call.name !== 'draft_create') return []
     const result = isJSONRecord(outcome.result) ? outcome.result : undefined
     if (!result || result.status !== 'created') return []
     const draft = isJSONRecord(result.draft) ? result.draft : undefined
@@ -1071,7 +1077,7 @@ function buildDefaultDraftApplyCalls(outcomes: ToolCallOutcome[], input: AgentGr
     .sort((left, right) => left.rank - right.rank || left.index - right.index)
     .map((candidate): ToolCall => ({
       id: makeId('call'),
-      name: 'movscript_apply_draft',
+      name: 'draft_apply',
       args: {
         draftId: candidate.draftId,
         ...(candidate.draftKind ? { draftKind: candidate.draftKind } : {}),
@@ -1191,14 +1197,13 @@ function abortErrorFromSignal(signal?: AbortSignal): Error {
 }
 
 function canExecuteConcurrently(call: ToolCall, registry: ToolRegistry): boolean {
-  if (call.name === 'movscript_wait_subagent' || call.name === 'movscript_list_subagents') return true
+  if (call.name === 'core_subagent_wait' || call.name === 'core_subagent_list') return true
   const tool = registry.get(call.name)
   return tool?.risk === 'read'
 }
 
 function isCatalogMutationTool(toolName: string): boolean {
-  return toolName === 'movscript_reload_agent_catalog'
-    || toolName === 'movscript_update_active_skills'
+  return toolName === 'core_skill_update'
 }
 
 function buildCatalogRefreshManifestSnapshot(manifest: AgentManifest): Record<string, JSONValue> {
@@ -1219,11 +1224,11 @@ function buildCatalogRefreshManifestSnapshot(manifest: AgentManifest): Record<st
 
 function buildCatalogRefreshCapabilitySnapshot(capabilities: ResolvedToolCatalog): Record<string, JSONValue> {
   const keyToolNames = [
-    'movscript_update_active_skills',
-    'movscript_inspect_agent_catalog',
-    'movscript_read_project_scripts',
-    'movscript_get_focus',
-    'movscript_request_user_input',
+    'core_skill_update',
+    'core_catalog_inspect',
+    'movscript_project_script_read',
+    'movscript_focus_get',
+    'core_user_input_request',
   ]
   return {
     availableToolNames: capabilities.available.map((tool) => tool.name),
@@ -1260,11 +1265,11 @@ function buildCatalogRefreshSummary(
   const keyTools = Array.isArray(capabilitySnapshot.keyTools) ? capabilitySnapshot.keyTools : []
   const readScriptsStatus = keyTools
     .flatMap((tool) => {
-      if (!isJSONRecord(tool) || tool.name !== 'movscript_read_project_scripts') return []
+      if (!isJSONRecord(tool) || tool.name !== 'movscript_project_script_read') return []
       const available = tool.available === true ? 'available' : 'blocked'
       const granted = tool.granted === true ? 'granted' : 'not_granted'
       const reason = typeof tool.unavailableReason === 'string' ? `/${tool.unavailableReason}` : ''
-      return [`movscript_read_project_scripts=${available}/${granted}${reason}`]
+      return [`movscript_project_script_read=${available}/${granted}${reason}`]
     })[0]
   return [
     `${availableCount} available tool(s) after catalog change`,
@@ -1414,7 +1419,7 @@ function buildRollbackRecord(call: ToolCall, result: JSONValue | undefined, sand
     ? stringField(metadata.draftId)
       ?? stringField(metadata.draftRef)
       ?? stringField(metadata.proposalRef)
-      ?? (call.name === 'movscript_create_draft' ? stringField(metadata.id) : undefined)
+      ?? (call.name === 'draft_create' ? stringField(metadata.id) : undefined)
     : undefined
   if (draftId) {
     return {
@@ -1454,23 +1459,20 @@ function buildRollbackRecord(call: ToolCall, result: JSONValue | undefined, sand
 }
 
 function isBackendWriteTool(name: string): boolean {
-  return name === 'movscript_apply_draft'
+  return name === 'draft_apply'
     || name.includes('_create_')
     || name.includes('_update_')
     || name.includes('_delete_')
 }
 
 function isRuntimeStateTool(name: string): boolean {
-  return name === 'movscript_update_active_skills'
-    || name === 'movscript_inspect_agent_catalog'
-    || name === 'movscript_reload_agent_catalog'
-    || name === 'movscript_create_plan'
-    || name === 'movscript_get_plan'
-    || name === 'movscript_replan'
-    || name === 'movscript_spawn_subagent'
-    || name === 'movscript_list_subagents'
-    || name === 'movscript_wait_subagent'
-    || name === 'movscript_cancel_subagent'
+  return name === 'core_skill_update'
+    || name === 'core_catalog_inspect'
+    || name === 'core_progress_update'
+    || name === 'core_subagent_spawn'
+    || name === 'core_subagent_list'
+    || name === 'core_subagent_wait'
+    || name === 'core_subagent_cancel'
 }
 
 function booleanField(value: unknown): boolean {

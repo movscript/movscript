@@ -2,8 +2,13 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
+  Bot,
+  Building2,
   ChevronDown,
   ChevronRight,
+  CircleUserRound,
+  ExternalLink,
+  LogOut,
   MessageSquare,
   PanelTopOpen,
   Plug,
@@ -11,15 +16,28 @@ import {
   Settings,
   UserRound,
 } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@movscript/ui'
+import {
+  Avatar,
+  AvatarFallback,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 
 import { AgentBuiltinChatShell } from '@/components/agent/AgentBuiltinChatShell'
 import { conversationDisplayTitle, formatAgentDate } from '@/components/agent/AgentConversationList'
 import { api } from '@/lib/api'
+import { openAdminConsole } from '@/lib/adminConsole'
 import { localAgentClient, type AgentThreadSummary } from '@/lib/localAgentClient'
+import { projectListQueryKey } from '@/lib/projectQueries'
 import { cn } from '@/lib/utils'
+import { runtimeNavItems } from '@runtime'
 import { ROUTES } from '@/routes/projectRoutes'
+import { useAppSettingsStore } from '@/store/appSettingsStore'
 import { useAgentStore, type Conversation } from '@/store/agentStore'
 import { useAgentSessionStore } from '@/store/agentSessionStore'
 import { useProjectStore } from '@/store/projectStore'
@@ -75,6 +93,10 @@ export function ProjectAgentModeSidebar() {
   const { t, i18n } = useTranslation()
   const project = useProjectStore((s) => s.current)
   const currentUser = useUserStore((s) => s.currentUser)
+  const setCurrentUser = useUserStore((s) => s.setCurrentUser)
+  const currentOrgID = useUserStore((s) => s.currentOrgID)
+  const orgMemberships = useUserStore((s) => s.orgMemberships)
+  const apiBaseURL = useAppSettingsStore((s) => s.settings.apiBaseURL)
   const userId = currentUser ? String(currentUser.ID) : ''
   const getConversations = useAgentStore((s) => s.getConversations)
   const getActiveConversationId = useAgentStore((s) => s.getActiveConversationId)
@@ -86,6 +108,7 @@ export function ProjectAgentModeSidebar() {
   const [showAllProjectGroups, setShowAllProjectGroups] = useState(false)
   const [openProjectGroups, setOpenProjectGroups] = useState<Record<number, boolean>>({})
   const [conversationsOpen, setConversationsOpen] = useState(true)
+  const [manageOpen, setManageOpen] = useState(true)
   const [showAllChatConversations, setShowAllChatConversations] = useState(false)
   const resizeStart = useRef({ x: 0, width: AGENT_SIDEBAR_DEFAULT_WIDTH })
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -134,7 +157,7 @@ export function ProjectAgentModeSidebar() {
   }
 
   const { data: projects = [] } = useQuery<Project[]>({
-    queryKey: ['projects'],
+    queryKey: projectListQueryKey(currentOrgID),
     queryFn: () => api.get('/projects').then((response) => response.data),
   })
   const { data: localThreads = [] } = useQuery<AgentThreadSummary[]>({
@@ -197,6 +220,7 @@ export function ProjectAgentModeSidebar() {
     : sortedChatConversations.slice(0, DEFAULT_VISIBLE_CHAT_CONVERSATIONS)
   const hiddenChatConversationCount = Math.max(0, sortedChatConversations.length - visibleChatConversations.length)
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
+  const currentMembership = orgMemberships.find((membership) => membership.org_id === currentOrgID)
 
   function startNewConversation() {
     createConversation(userId)
@@ -340,36 +364,74 @@ export function ProjectAgentModeSidebar() {
             </div>
           )}
         </AgentSidebarGroup>
+
+        <AgentSidebarGroup
+          title={t('sidebar.sections.manage')}
+          icon={<Settings size={13} />}
+          open={manageOpen}
+          onOpenChange={setManageOpen}
+        >
+          <div className="space-y-0.5">
+            <AgentModeNavItem to={ROUTES.orgSelect} icon={<Building2 size={13} />} label={t('sidebar.items.workspace')} />
+            <AgentModeNavItem to={ROUTES.agentConsole} icon={<Bot size={13} />} label={t('sidebar.items.agentConsole')} end />
+            {runtimeNavItems.filter((item) => (item.section ?? 'manage') === 'manage').map((item) => {
+              const RuntimeIcon = item.icon
+              return <AgentModeNavItem key={item.to} to={item.to} icon={<RuntimeIcon size={13} />} label={item.label} />
+            })}
+            {currentUser?.system_role === 'super_admin' && (
+              <AgentModeActionItem
+                icon={<ExternalLink size={13} />}
+                label={t('sidebar.items.adminConsole')}
+                onClick={() => void openAdminConsole(apiBaseURL)}
+              />
+            )}
+          </div>
+        </AgentSidebarGroup>
+
       </div>
 
       <div className="shrink-0 border-t border-sidebar-border p-2">
-        <NavLink
-          to={ROUTES.agentSettings}
-          className={({ isActive }) => cn(
-            'mb-1 flex h-9 w-full items-center gap-2 rounded-md px-2 type-body-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground',
-            isActive && 'bg-accent text-accent-foreground',
-          )}
-        >
-          <Settings size={14} className="shrink-0" />
-          <span className="truncate">{t('agents.chat.agentModeSidebar.settings')}</span>
-        </NavLink>
-        <NavLink
-          to={ROUTES.user}
-          className={({ isActive }) => cn(
-            'flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-muted/60',
-            isActive && 'bg-accent',
-          )}
-        >
-          <Avatar className="h-6 w-6 shrink-0">
-            <AvatarFallback className="bg-muted type-caption font-semibold text-muted-foreground">
-              {currentUser?.username[0]?.toUpperCase() ?? <UserRound size={13} />}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <p className="truncate type-caption font-medium text-foreground">{currentUser?.username ?? t('agents.chat.agentModeSidebar.defaultUser')}</p>
-            <p className="truncate type-tiny text-muted-foreground">{t('agents.chat.agentModeSidebar.settingsUser')}</p>
-          </div>
-        </NavLink>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/60"
+            >
+              <Avatar className="h-6 w-6 shrink-0">
+                <AvatarFallback className="bg-muted type-caption font-semibold text-muted-foreground">
+                  {currentUser?.username[0]?.toUpperCase() ?? <UserRound size={13} />}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="truncate type-caption font-medium text-foreground">{currentUser?.username ?? t('agents.chat.agentModeSidebar.defaultUser')}</p>
+                <p className="truncate type-tiny text-muted-foreground">
+                  {currentMembership?.org_name ?? t('agents.chat.agentModeSidebar.settingsUser')}
+                </p>
+              </div>
+              <ChevronDown size={12} className="shrink-0 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-64">
+            <DropdownMenuLabel>
+              <span className="block truncate type-label font-medium">{currentUser?.username ?? t('agents.chat.agentModeSidebar.defaultUser')}</span>
+              <span className="mt-0.5 block truncate type-caption text-muted-foreground">
+                {currentMembership
+                  ? t(`org.roles.${currentMembership.role}`, { defaultValue: currentMembership.role })
+                  : currentUser?.system_role === 'super_admin' ? t('sidebar.roles.superAdmin') : t('sidebar.roles.user')}
+              </span>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate(ROUTES.user)}>
+              <CircleUserRound size={14} className="mr-2 shrink-0" />
+              {t('header.titles.user')}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setCurrentUser(null)}>
+              <LogOut size={14} className="mr-2 shrink-0" />
+              {t('sidebar.logout')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <div
         role="separator"
@@ -398,6 +460,53 @@ export function ProjectAgentModeSidebar() {
         }}
       />
     </aside>
+  )
+}
+
+function AgentModeNavItem({
+  to,
+  icon,
+  label,
+  end = false,
+}: {
+  to: string
+  icon: ReactNode
+  label: string
+  end?: boolean
+}) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      className={({ isActive }) => cn(
+        'flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 type-caption text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground',
+        isActive && 'bg-accent text-accent-foreground',
+      )}
+    >
+      <span className="shrink-0">{icon}</span>
+      <span className="truncate">{label}</span>
+    </NavLink>
+  )
+}
+
+function AgentModeActionItem({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: ReactNode
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left type-caption text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+    >
+      <span className="shrink-0">{icon}</span>
+      <span className="truncate">{label}</span>
+    </button>
   )
 }
 

@@ -1,7 +1,7 @@
 import type { CatalogRegistry, RuntimeContext, ToolDefinition, WorkflowSkill } from '../catalog/types.js'
 import { stricterApproval } from '../profiles/profileMerge.js'
 
-const RESERVED_ALWAYS_VISIBLE = new Set(['movscript_request_user_input'])
+const RESERVED_ALWAYS_VISIBLE = new Set(['core_user_input_request'])
 
 export interface VisibleToolCatalog {
   available: ToolDefinition[]

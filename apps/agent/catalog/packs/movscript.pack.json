@@ -1,5 +1,5 @@
 {
-  "id": "movscript.pack.movscript",
+  "id": "movscript.pack.workspace",
   "version": "1.0.0",
   "name": "MovScript",
   "description": "MovScript workspace、proposal 规划、项目进度审阅和视觉生成能力。",
@@ -7,17 +7,19 @@
   "resources": {
     "skills": [
       "movscript/persona",
-      "movscript/policy",
+      "movscript/policy/workspace",
       "movscript/workflow/workspace",
-      "movscript/workflow/planning",
+      "kernel/workflow/proposal_first",
       "movscript/workflow/proposal",
-      "movscript/workflow/generation",
-      "movscript/expertise"
+      "candidate/workflow/asset_planning",
+      "generation/workflow/visual_execution",
+      "film/expertise"
     ],
     "tools": [
       "movscript/workspace",
-      "movscript/visual-generation",
-      "movscript/knowledge"
+      "generation",
+      "candidate",
+      "knowledge"
     ],
     "knowledge": [
       "storyboard"
@@ -25,47 +27,49 @@
   },
   "schemas": [],
   "tools": [
-    "movscript_get_focus",
-    "movscript_list_projects",
-    "movscript_get_project_standards",
-    "movscript_read_project_scripts",
-    "movscript_query_creative_references",
-    "movscript_query_asset_slots",
-    "movscript_query_production_context",
-    "movscript_get_draft_model",
-    "movscript_create_project",
-    "movscript_list_models",
-    "movscript_attach_asset_slot_candidate",
-    "movscript_attach_keyframe_candidate",
-    "movscript_search_knowledge",
-    "movscript_get_knowledge"
+    "movscript_focus_get",
+    "movscript_project_list",
+    "movscript_project_standards_get",
+    "movscript_project_script_read",
+    "movscript_creative_reference_query",
+    "movscript_asset_slot_query",
+    "movscript_production_context_query",
+    "draft_model_get",
+    "movscript_project_create",
+    "generation_model_list",
+    "tool_comfyui",
+    "tool_webui",
+    "candidate_asset_slot_attach",
+    "candidate_keyframe_attach",
+    "knowledge_search",
+    "knowledge_get"
   ],
   "skills": [
-    "movscript.policy.movscript",
-    "movscript.persona.project-orchestrator",
-    "movscript.persona.production-orchestrator",
-    "movscript.persona.visual-director",
-    "movscript.workflow.project-progress",
-    "movscript.workflow.script-reading",
-    "movscript.workflow.proposal-first",
-    "movscript.workflow.project-standards-proposal",
-    "movscript.workflow.setting-proposal",
-    "movscript.workflow.asset-proposal",
-    "movscript.workflow.setting-prep",
-    "movscript.workflow.production-proposal",
-    "movscript.workflow.asset-candidate-generation",
-    "movscript.workflow.content-unit-proposal",
-    "movscript.workflow.storyboard-gap-review",
-    "movscript.workflow.visual-generation",
-    "movscript.expertise.storyboard.general-director"
+    "movscript.policy.workspace",
+    "movscript.persona.project_orchestrator",
+    "movscript.persona.production_orchestrator",
+    "film.persona.visual_director",
+    "movscript.workflow.project_progress_review",
+    "movscript.workflow.script_reading",
+    "kernel.workflow.proposal_first",
+    "movscript.workflow.project_standards_proposal",
+    "movscript.workflow.setting_proposal",
+    "movscript.workflow.asset_proposal",
+    "movscript.workflow.setting_prep",
+    "movscript.workflow.production_proposal",
+    "candidate.workflow.asset_planning",
+    "movscript.workflow.content_unit_proposal",
+    "movscript.workflow.storyboard_gap_review",
+    "generation.workflow.visual_execution",
+    "film.expertise.storyboard.director"
   ],
   "knowledge": [
-    "movscript.knowledge.storyboard"
+    "film.knowledge.storyboard"
   ],
   "requires": {
     "packs": {
-      "movscript.pack.agent-core": ">=1.0.0",
-      "movscript.pack.drafts": ">=1.0.0"
+      "core.pack.agent": ">=1.0.0",
+      "draft.pack.lifecycle": ">=1.0.0"
     }
   }
 }

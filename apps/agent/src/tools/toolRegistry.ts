@@ -28,6 +28,7 @@ export interface RegisteredTool {
   mcpServerId?: string
   errorCodes?: string[]
   allowedRunRoles?: AgentRunRole[]
+  requiresSkills?: string[]
 }
 
 export interface ToolRegistry {
@@ -83,12 +84,13 @@ export function normalizeRegisteredTool(input: unknown): RegisteredTool | undefi
     ...(nonEmptyString(input.mcpServerId) ? { mcpServerId: nonEmptyString(input.mcpServerId) } : {}),
     ...(stringArray(input.errorCodes).length > 0 ? { errorCodes: stringArray(input.errorCodes) } : {}),
     ...(runRoleArray(input.allowedRunRoles).length > 0 ? { allowedRunRoles: runRoleArray(input.allowedRunRoles) } : {}),
+    ...(stringArray(input.requiresSkills).length > 0 ? { requiresSkills: stringArray(input.requiresSkills) } : {}),
   }
 }
 
 export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
   {
-    name: 'movscript_inspect_agent_catalog',
+    name: 'core_catalog_inspect',
     description: 'Inspect the current run agent catalog snapshot, including profile, enabled packs, skills, tools, and availability summary.',
     permission: 'agent.catalog.read',
     risk: 'read',
@@ -97,38 +99,17 @@ export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
     requiresApprovalByDefault: false,
   },
   {
-    name: 'movscript_create_plan',
-    description: 'Planner-only tool. Create or attach the single plan for the current thread, and optionally define initial tasks.',
-    permission: 'agent.plan.write',
+    name: 'core_progress_update',
+    description: 'Update the current thread progress checklist and append an immutable checklist revision snapshot.',
+    permission: 'agent.progress_checklist.write',
     risk: 'write',
     source: 'runtime',
     projectScoped: false,
     requiresApprovalByDefault: false,
-    allowedRunRoles: ['planner'],
   },
   {
-    name: 'movscript_get_plan',
-    description: 'Planner-only tool. Inspect the current thread plan snapshot with tasks and runs.',
-    permission: 'agent.plan.read',
-    risk: 'read',
-    source: 'runtime',
-    projectScoped: false,
-    requiresApprovalByDefault: false,
-    allowedRunRoles: ['planner'],
-  },
-  {
-    name: 'movscript_replan',
-    description: 'Planner-only tool. Update, add, reset, and optionally dispatch tasks for the current plan.',
-    permission: 'agent.plan.write',
-    risk: 'write',
-    source: 'runtime',
-    projectScoped: false,
-    requiresApprovalByDefault: false,
-    allowedRunRoles: ['planner'],
-  },
-  {
-    name: 'movscript_spawn_subagent',
-    description: 'Planner-only tool. Create or dispatch one or more worker subagent runs for plan tasks that need separate execution.',
+    name: 'core_subagent_spawn',
+    description: 'Planner-only tool. Create or dispatch one or more worker subagent runs for task graph tasks that need separate execution.',
     permission: 'agent.subagent.write',
     risk: 'write',
     source: 'runtime',
@@ -137,8 +118,8 @@ export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
     allowedRunRoles: ['planner'],
   },
   {
-    name: 'movscript_list_subagents',
-    description: 'Planner-only tool. List worker subagents and task status for the current plan.',
+    name: 'core_subagent_list',
+    description: 'Planner-only tool. List worker subagents and task status for the current task graph.',
     permission: 'agent.subagent.read',
     risk: 'read',
     source: 'runtime',
@@ -147,8 +128,8 @@ export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
     allowedRunRoles: ['planner'],
   },
   {
-    name: 'movscript_wait_subagent',
-    description: 'Planner-only tool. Check whether a worker subagent, task, or plan has finished, returning the latest structured snapshot.',
+    name: 'core_subagent_wait',
+    description: 'Planner-only tool. Check whether a worker subagent, task, or taskGraph has finished, returning the latest structured snapshot.',
     permission: 'agent.subagent.read',
     risk: 'read',
     source: 'runtime',
@@ -157,8 +138,8 @@ export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
     allowedRunRoles: ['planner'],
   },
   {
-    name: 'movscript_cancel_subagent',
-    description: 'Planner-only tool. Cancel a worker subagent run or a named pending subagent task in the current plan.',
+    name: 'core_subagent_cancel',
+    description: 'Planner-only tool. Cancel a worker subagent run or a named pending subagent task in the current task graph.',
     permission: 'agent.subagent.write',
     risk: 'write',
     source: 'runtime',

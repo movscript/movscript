@@ -101,7 +101,7 @@ test('markTimedOutWorkerTask records timeout metadata', () => {
 function taskFixture(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     deps: [],
     title: 'Task',
     status: 'pending',

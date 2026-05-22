@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type {
-  AgentPlan,
-  AgentPlanSnapshot,
-  AgentPlanStreamEvent,
+  AgentTaskGraph,
+  AgentTaskGraphSnapshot,
+  AgentTaskGraphStreamEvent,
   AgentRun,
   AgentRunStreamEvent,
   AgentTask,
@@ -11,24 +11,24 @@ import type {
 import {
   emitRuntimePlanRunStreamEvent,
   emitRuntimePlanStreamEvent,
-  emitRuntimePlanTaskStreamEvent,
+  emitRuntimeTaskGraphTaskStreamEvent,
   replayRuntimePlanStream,
 } from './runtimePlanStreamEvents.js'
 
 test('replayRuntimePlanStream emits snapshot and done for terminal plans', () => {
-  const events: AgentPlanStreamEvent[] = []
+  const events: AgentTaskGraphStreamEvent[] = []
   replayRuntimePlanStream({
-    planId: 'plan_1',
-    getPlanSnapshot: () => snapshot({ status: 'done' }),
+    taskGraphId: 'task_graph_1',
+    getTaskGraphSnapshot: () => snapshot({ status: 'done' }),
     listener: (event) => events.push(event),
   })
 
   assert.deepEqual(events.map((event) => event.type), ['snapshot', 'done'])
 })
 
-test('emitRuntimePlanRunStreamEvent projects run and trace events into plan stream events', () => {
-  const events: Array<{ planId: string; event: AgentPlanStreamEvent }> = []
-  const run = makeRun({ id: 'run_1', planId: 'plan_1' })
+test('emitRuntimePlanRunStreamEvent projects run and trace events into taskGraph stream events', () => {
+  const events: Array<{ taskGraphId: string; event: AgentTaskGraphStreamEvent }> = []
+  const run = makeRun({ id: 'run_1', taskGraphId: 'task_graph_1' })
   const traceEvent: AgentRunStreamEvent = {
     type: 'trace',
     runId: run.id,
@@ -46,65 +46,65 @@ test('emitRuntimePlanRunStreamEvent projects run and trace events into plan stre
     event: { type: 'run', run },
     getRun: () => undefined,
     hasPlanSubscribers: () => true,
-    getPlanSnapshot: () => snapshot(),
-    emitPlanStreamEvent: (planId, event) => events.push({ planId, event }),
+    getTaskGraphSnapshot: () => snapshot(),
+    emitPlanStreamEvent: (taskGraphId, event) => events.push({ taskGraphId, event }),
   })
   emitRuntimePlanRunStreamEvent({
     event: traceEvent,
     getRun: () => run,
     hasPlanSubscribers: () => true,
-    getPlanSnapshot: () => snapshot(),
-    emitPlanStreamEvent: (planId, event) => events.push({ planId, event }),
+    getTaskGraphSnapshot: () => snapshot(),
+    emitPlanStreamEvent: (taskGraphId, event) => events.push({ taskGraphId, event }),
   })
 
   assert.deepEqual(events.map((item) => item.event.type), ['run', 'trace'])
-  assert.equal(events[0]?.planId, 'plan_1')
-  assert.equal((events[1]?.event as Extract<AgentPlanStreamEvent, { type: 'trace' }>).runId, 'run_1')
+  assert.equal(events[0]?.taskGraphId, 'task_graph_1')
+  assert.equal((events[1]?.event as Extract<AgentTaskGraphStreamEvent, { type: 'trace' }>).runId, 'run_1')
 })
 
-test('emitRuntimePlanTaskStreamEvent emits task events only when plan has subscribers', () => {
-  const events: AgentPlanStreamEvent[] = []
-  emitRuntimePlanTaskStreamEvent({
-    planId: 'plan_1',
+test('emitRuntimeTaskGraphTaskStreamEvent emits task events only when taskGraph has subscribers', () => {
+  const events: AgentTaskGraphStreamEvent[] = []
+  emitRuntimeTaskGraphTaskStreamEvent({
+    taskGraphId: 'task_graph_1',
     task: makeTask(),
     hasPlanSubscribers: () => false,
-    getPlanSnapshot: () => snapshot(),
-    emitPlanStreamEvent: (_planId, event) => events.push(event),
+    getTaskGraphSnapshot: () => snapshot(),
+    emitPlanStreamEvent: (_taskGraphId, event) => events.push(event),
   })
-  emitRuntimePlanTaskStreamEvent({
-    planId: 'plan_1',
+  emitRuntimeTaskGraphTaskStreamEvent({
+    taskGraphId: 'task_graph_1',
     task: makeTask(),
     hasPlanSubscribers: () => true,
-    getPlanSnapshot: () => snapshot(),
-    emitPlanStreamEvent: (_planId, event) => events.push(event),
+    getTaskGraphSnapshot: () => snapshot(),
+    emitPlanStreamEvent: (_taskGraphId, event) => events.push(event),
   })
 
   assert.deepEqual(events.map((event) => event.type), ['task'])
 })
 
 test('emitRuntimePlanStreamEvent closes terminal snapshots', () => {
-  const events: AgentPlanStreamEvent[] = []
+  const events: AgentTaskGraphStreamEvent[] = []
   const closed: string[] = []
 
   emitRuntimePlanStreamEvent({
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     event: { type: 'snapshot', snapshot: snapshot({ status: 'done' }) },
-    emit: (_planId, event) => {
+    emit: (_taskGraphId, event) => {
       events.push(event)
       return true
     },
-    close: (planId) => closed.push(planId),
+    close: (taskGraphId) => closed.push(taskGraphId),
   })
 
   assert.deepEqual(events.map((event) => event.type), ['snapshot', 'done'])
-  assert.deepEqual(closed, ['plan_1'])
+  assert.deepEqual(closed, ['task_graph_1'])
 })
 
-function snapshot(planOverrides: Partial<AgentPlan> = {}): AgentPlanSnapshot {
-  const plan = makePlan(planOverrides)
+function snapshot(planOverrides: Partial<AgentTaskGraph> = {}): AgentTaskGraphSnapshot {
+  const taskGraph = makeTaskGraph(planOverrides)
   const tasks = [makeTask()]
   return {
-    plan,
+    taskGraph,
     tasks,
     runs: [],
     summary: {
@@ -148,11 +148,11 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   }
 }
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0.5,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -164,7 +164,7 @@ function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     title: 'Task',
     status: 'done',
     progress: 1,

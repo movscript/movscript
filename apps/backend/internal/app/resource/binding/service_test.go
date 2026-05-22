@@ -2,6 +2,7 @@ package binding
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"testing"
 
@@ -172,12 +173,242 @@ func TestCreateAndDeleteBindingSyncsRelationsWithoutAdoptingAssetSlotResource(t 
 	assertResourceBindingEdgeMissing(t, db, "asset_slot", slot.ID, "raw_resource", resource.ID, model.EntityRelationTypeUsesResource)
 }
 
+func TestCreateRejectsResourceOutsideCurrentOrg(t *testing.T) {
+	db := newResourceBindingTestDB(t)
+	ctx := context.Background()
+	userID := uint(7)
+	orgA := model.Organization{Name: "Org A", Slug: "org-a"}
+	orgB := model.Organization{Name: "Org B", Slug: "org-b"}
+	if err := db.Create(&orgA).Error; err != nil {
+		t.Fatalf("create org A: %v", err)
+	}
+	if err := db.Create(&orgB).Error; err != nil {
+		t.Fatalf("create org B: %v", err)
+	}
+	project := model.Project{Name: "Team project", OwnerID: userID, OrgID: &orgB.ID}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	slot := model.AssetSlot{ProjectID: project.ID, Kind: "image", Name: "Poster"}
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&slot).Error; err != nil {
+		t.Fatalf("create slot: %v", err)
+	}
+	resource := model.RawResource{OwnerID: userID, OrgID: &orgA.ID, Type: "image", Name: "other-org.png", FilePath: "/tmp/other-org.png", IsShared: true}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+
+	svc := NewService(db.Session(&gorm.Session{SkipHooks: true}))
+	_, _, err := svc.Create(ctx, CreateInput{
+		ProjectID:  project.ID,
+		ResourceID: resource.ID,
+		OwnerType:  "asset_slot",
+		OwnerID:    slot.ID,
+	}, userID, &orgB.ID)
+	if !errors.Is(err, ErrResourceForbidden) {
+		t.Fatalf("error = %v, want ErrResourceForbidden", err)
+	}
+}
+
+func TestCreateAllowsTeamResourceWithoutSharing(t *testing.T) {
+	db := newResourceBindingTestDB(t)
+	ctx := context.Background()
+	userID := uint(7)
+	org := model.Organization{Name: "Team", Slug: "team"}
+	if err := db.Create(&org).Error; err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	project := model.Project{Name: "Team project", OwnerID: userID, OrgID: &org.ID}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	slot := model.AssetSlot{ProjectID: project.ID, Kind: "image", Name: "Poster"}
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&slot).Error; err != nil {
+		t.Fatalf("create slot: %v", err)
+	}
+	resource := model.RawResource{OwnerID: 99, OrgID: &org.ID, Type: "image", Name: "team.png", FilePath: "/tmp/team.png"}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+
+	svc := NewService(db.Session(&gorm.Session{SkipHooks: true}))
+	binding, created, err := svc.Create(ctx, CreateInput{
+		ProjectID:  project.ID,
+		ResourceID: resource.ID,
+		OwnerType:  "asset_slot",
+		OwnerID:    slot.ID,
+	}, userID, &org.ID)
+	if err != nil {
+		t.Fatalf("create team resource binding: %v", err)
+	}
+	if !created || binding.ID == 0 {
+		t.Fatalf("expected created binding, got created=%v binding=%+v", created, binding)
+	}
+}
+
+func TestCreateAdoptsOwnedPersonalResourceIntoTeam(t *testing.T) {
+	db := newResourceBindingTestDB(t)
+	ctx := context.Background()
+	userID := uint(8)
+	org := model.Organization{Name: "Team", Slug: "team-adopt"}
+	if err := db.Create(&org).Error; err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	project := model.Project{Name: "Team project", OwnerID: userID, OrgID: &org.ID}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	slot := model.AssetSlot{ProjectID: project.ID, Kind: "image", Name: "Poster"}
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&slot).Error; err != nil {
+		t.Fatalf("create slot: %v", err)
+	}
+	resource := model.RawResource{OwnerID: userID, Type: "image", Name: "personal-draft.png", FilePath: "/tmp/personal-draft.png"}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+
+	svc := NewService(db.Session(&gorm.Session{SkipHooks: true}))
+	if _, _, err := svc.Create(ctx, CreateInput{
+		ProjectID:  project.ID,
+		ResourceID: resource.ID,
+		OwnerType:  "asset_slot",
+		OwnerID:    slot.ID,
+	}, userID, &org.ID); err != nil {
+		t.Fatalf("create adopted binding: %v", err)
+	}
+	var stored model.RawResource
+	if err := db.First(&stored, resource.ID).Error; err != nil {
+		t.Fatalf("reload resource: %v", err)
+	}
+	if stored.OrgID == nil || *stored.OrgID != org.ID {
+		t.Fatalf("resource was not adopted into team org: %+v", stored)
+	}
+	if stored.OwnerID != userID {
+		t.Fatalf("resource creator changed: owner_id=%d want %d", stored.OwnerID, userID)
+	}
+}
+
+func TestCreateAllowsProjectLevelBindingForProjectShare(t *testing.T) {
+	db := newResourceBindingTestDB(t)
+	ctx := context.Background()
+	userID := uint(8)
+	org := model.Organization{Name: "Team", Slug: "team-project-share"}
+	if err := db.Create(&org).Error; err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	project := model.Project{Name: "Team project", OwnerID: userID, OrgID: &org.ID}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	resource := model.RawResource{OwnerID: userID, Type: "image", Name: "style.png", FilePath: "/tmp/style.png"}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+
+	svc := NewService(db.Session(&gorm.Session{SkipHooks: true}))
+	binding, created, err := svc.Create(ctx, CreateInput{
+		ProjectID:  project.ID,
+		ResourceID: resource.ID,
+		OwnerType:  "project",
+		OwnerID:    project.ID,
+		Role:       "reference",
+		Status:     "selected",
+		SourceType: "manual",
+	}, userID, &org.ID)
+	if err != nil {
+		t.Fatalf("create project binding: %v", err)
+	}
+	if !created || binding.OwnerType != "project" || binding.OwnerID != project.ID {
+		t.Fatalf("unexpected project binding: created=%v binding=%+v", created, binding)
+	}
+	var stored model.RawResource
+	if err := db.First(&stored, resource.ID).Error; err != nil {
+		t.Fatalf("reload resource: %v", err)
+	}
+	if stored.OrgID == nil || *stored.OrgID != org.ID {
+		t.Fatalf("project-shared resource was not adopted into team org: %+v", stored)
+	}
+}
+
+func TestCreateAllowsLegacyPersonalResourceInPersonalOrg(t *testing.T) {
+	db := newResourceBindingTestDB(t)
+	ctx := context.Background()
+	userID := uint(8)
+	org := model.Organization{Name: "Personal", Slug: "personal", IsPersonal: true}
+	if err := db.Create(&org).Error; err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	project := model.Project{Name: "Personal project", OwnerID: userID, OrgID: &org.ID}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	slot := model.AssetSlot{ProjectID: project.ID, Kind: "image", Name: "Cover"}
+	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&slot).Error; err != nil {
+		t.Fatalf("create slot: %v", err)
+	}
+	resource := model.RawResource{OwnerID: userID, Type: "image", Name: "legacy.png", FilePath: "/tmp/legacy.png"}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+
+	svc := NewService(db.Session(&gorm.Session{SkipHooks: true}))
+	binding, created, err := svc.Create(ctx, CreateInput{
+		ProjectID:  project.ID,
+		ResourceID: resource.ID,
+		OwnerType:  "asset_slot",
+		OwnerID:    slot.ID,
+	}, userID, &org.ID)
+	if err != nil {
+		t.Fatalf("create binding: %v", err)
+	}
+	if !created || binding.ID == 0 {
+		t.Fatalf("expected created binding, got created=%v binding=%+v", created, binding)
+	}
+}
+
+func TestUpdateAndDeleteRequireBindingProjectInCurrentOrg(t *testing.T) {
+	db := newResourceBindingTestDB(t)
+	ctx := context.Background()
+	userID := uint(9)
+	orgA := model.Organization{Name: "Org A", Slug: "org-a"}
+	orgB := model.Organization{Name: "Org B", Slug: "org-b"}
+	if err := db.Create(&orgA).Error; err != nil {
+		t.Fatalf("create org A: %v", err)
+	}
+	if err := db.Create(&orgB).Error; err != nil {
+		t.Fatalf("create org B: %v", err)
+	}
+	project := model.Project{Name: "Org A project", OwnerID: userID, OrgID: &orgA.ID}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	resource := model.RawResource{OwnerID: userID, OrgID: &orgA.ID, Type: "image", Name: "org-a.png", FilePath: "/tmp/org-a.png"}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+	binding := model.ResourceBinding{ProjectID: project.ID, ResourceID: resource.ID, OwnerType: "asset_slot", OwnerID: 1, Role: "attachment", Status: "draft", SourceType: "manual", Version: 1}
+	if err := db.Create(&binding).Error; err != nil {
+		t.Fatalf("create binding: %v", err)
+	}
+
+	svc := NewService(db.Session(&gorm.Session{SkipHooks: true}))
+	status := "selected"
+	if _, err := svc.Update(ctx, binding.ID, UpdateInput{Status: &status}, &orgB.ID); !errors.Is(err, ErrOwnerWrongProject) {
+		t.Fatalf("update error = %v, want ErrOwnerWrongProject", err)
+	}
+	if err := svc.Delete(ctx, binding.ID, &orgB.ID); !errors.Is(err, ErrOwnerWrongProject) {
+		t.Fatalf("delete error = %v, want ErrOwnerWrongProject", err)
+	}
+}
+
 func newResourceBindingTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	return testutil.OpenSQLiteWithConfig(t, "resource_binding.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
 	},
 		&model.EntityRelation{},
+		&model.Organization{},
+		&model.Project{},
 		&model.AssetSlot{},
 		&model.ResourceBinding{},
 		&model.RawResource{},

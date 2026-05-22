@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentPlan, AgentRun, AgentTask, AgentThread } from '../state/types.js'
+import type { AgentTaskGraph, AgentRun, AgentTask, AgentThread } from '../state/types.js'
 import {
-  requireRuntimePlan,
+  requireRuntimeTaskGraph,
   requireRuntimeRun,
   requireRuntimeTask,
   requireRuntimeThread,
@@ -13,12 +13,12 @@ test('runtime store lookup helpers return persisted entities', () => {
   const store = new InMemoryAgentStore()
   store.createThread(makeThread())
   store.createRun(makeRun())
-  store.createPlan(makePlan())
+  store.createTaskGraph(makeTaskGraph())
   store.createTask(makeTask())
 
   assert.equal(requireRuntimeThread(store, 'thread_1').id, 'thread_1')
   assert.equal(requireRuntimeRun(store, 'run_1').id, 'run_1')
-  assert.equal(requireRuntimePlan(store, 'plan_1').id, 'plan_1')
+  assert.equal(requireRuntimeTaskGraph(store, 'task_graph_1').id, 'task_graph_1')
   assert.equal(requireRuntimeTask(store, 'task_1').id, 'task_1')
 })
 
@@ -27,7 +27,7 @@ test('runtime store lookup helpers throw stable not-found errors', () => {
 
   assert.throws(() => requireRuntimeThread(store, 'missing'), /thread not found: missing/)
   assert.throws(() => requireRuntimeRun(store, 'missing'), /run not found: missing/)
-  assert.throws(() => requireRuntimePlan(store, 'missing'), /plan not found: missing/)
+  assert.throws(() => requireRuntimeTaskGraph(store, 'missing'), /taskGraph not found: missing/)
   assert.throws(() => requireRuntimeTask(store, 'missing'), /task not found: missing/)
 })
 
@@ -62,11 +62,11 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   }
 }
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'pending',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -78,7 +78,7 @@ function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     title: 'Task',
     status: 'pending',
     progress: 0,

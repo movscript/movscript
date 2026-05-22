@@ -111,7 +111,7 @@ export async function ensureProductionProposalDraft(input: EnsureProductionPropo
 
 export function buildProductionProposalReviewSearchParams(current: URLSearchParams, input: ProductionProposalReviewSearchInput): URLSearchParams {
   return mergeProjectWorkbenchArtifactReviewSearchParams(current, {
-    workbenchId: 'creative_plan',
+    workbenchId: 'creative_taskGraph',
     artifacts: input.artifacts,
     primary: {
       proposalKind: 'production_proposal',

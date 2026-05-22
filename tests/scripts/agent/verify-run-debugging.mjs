@@ -30,7 +30,7 @@ const files = {
   agentStoreTest: 'apps/frontend/src/store/agentStore.test.ts',
   localAgentClient: 'apps/frontend/src/lib/localAgentClient.ts',
   agentStateTypes: 'apps/agent/src/state/types.ts',
-  e2e: 'apps/frontend/src/e2e/agent-planner.spec.ts',
+  e2e: 'apps/frontend/src/e2e/agent-task-graphner.spec.ts',
   playwrightConfig: 'apps/frontend/playwright.config.ts',
   artifactVerifier: 'tests/agent-run-debugging/verify-artifacts.mjs',
   artifactVerifierTest: 'tests/scripts/agent/verify-run-debugging-artifacts.test.mjs',
@@ -260,7 +260,7 @@ function verifyAgentDebugBundleContract() {
     'observationCoverage',
     'evidenceChecklist',
     'triageItems',
-    'remediationPlan',
+    'remediationTaskGraph',
     'runSummary',
     'runIssueGroups',
     'warningGroups',
@@ -269,14 +269,14 @@ function verifyAgentDebugBundleContract() {
   assertIncludes(errors, JSON.stringify(agentDebugBundleSchema), 'evidenceItem', 'Agent Debug bundle schema must define evidence checklist items')
   assertIncludes(errors, JSON.stringify(agentDebugBundleFixture), 'evidenceChecklist', 'Agent Debug bundle fixture must include evidenceChecklist')
   assertIncludes(errors, JSON.stringify(agentDebugBundleSchema), 'remediationItem', 'Agent Debug bundle schema must define remediation items')
-  assertIncludes(errors, JSON.stringify(agentDebugBundleFixture), 'remediationPlan', 'Agent Debug bundle fixture must include remediationPlan')
+  assertIncludes(errors, JSON.stringify(agentDebugBundleFixture), 'remediationTaskGraph', 'Agent Debug bundle fixture must include remediationTaskGraph')
   assertIncludes(errors, source.debugPage, "AGENT_DEBUG_BUNDLE_SCHEMA_URL = 'https://movscript.dev/schemas/agent-debug-bundle-v1.schema.json'", 'Agent Debug page must export stable bundle schema URL')
   assertIncludes(errors, source.debugPage, 'schemaVersion: AGENT_DEBUG_BUNDLE_SCHEMA_VERSION', 'Agent Debug bundle export must include schemaVersion')
   assertIncludes(errors, source.debugPage, 'schemaUrl: AGENT_DEBUG_BUNDLE_SCHEMA_URL', 'Agent Debug bundle export must include schemaUrl')
-  assertIncludes(errors, source.debugPage, 'buildDebugRemediationPlan', 'Agent Debug page must build a read-only remediation plan')
-  assertIncludes(errors, source.debugPage, 'data-testid="agent-debug-remediation-plan"', 'Agent Debug page must expose remediation plan panel')
-  assertIncludes(errors, source.debugPage, 'data-testid="agent-debug-remediation-settings-link"', 'Agent Debug remediation plan may route persistent fixes to Settings')
-  assertIncludes(errors, source.debugPage, 'data-testid="agent-debug-remediation-run-link"', 'Agent Debug remediation plan may route per-run fixes to run details')
+  assertIncludes(errors, source.debugPage, 'buildDebugRemediationTaskGraph', 'Agent Debug page must build a read-only remediation taskGraph')
+  assertIncludes(errors, source.debugPage, 'data-testid="agent-debug-remediation-taskGraph"', 'Agent Debug page must expose remediation taskGraph panel')
+  assertIncludes(errors, source.debugPage, 'data-testid="agent-debug-remediation-settings-link"', 'Agent Debug remediation taskGraph may route persistent fixes to Settings')
+  assertIncludes(errors, source.debugPage, 'data-testid="agent-debug-remediation-run-link"', 'Agent Debug remediation taskGraph may route per-run fixes to run details')
   assertIncludes(errors, source.debugPage, 'buildDebugEvidenceChecklist', 'Agent Debug page must build a support evidence checklist')
   assertIncludes(errors, source.debugPage, 'data-testid="agent-debug-evidence-checklist"', 'Agent Debug page must expose support evidence checklist')
   assertIncludes(errors, source.debugPage, 'data-testid="agent-debug-copy-evidence-checklist"', 'Agent Debug page must allow copying support evidence checklist')
@@ -360,12 +360,12 @@ function verifyAgentSettingsDebugOrthogonality() {
   assertIncludes(errors, source.settingsPage, 'buildModelCompatibilityProbes', 'Agent Settings page must build provider model compatibility probes')
   assertIncludes(errors, source.settingsPage, 'ModelCompatibilityProbePanel', 'Agent Settings page must show provider model compatibility probes')
   assertIncludes(errors, source.settingsPage, 'data-testid="agent-settings-model-compatibility-probes"', 'Agent Settings page must expose provider model compatibility probes')
-  assertIncludes(errors, source.settingsPage, 'type ApiModeSwitchPlanItem', 'Agent Settings page must type API mode switch plan items')
-  assertIncludes(errors, source.settingsPage, 'buildApiModeSwitchPlan', 'Agent Settings page must build an API mode switch plan from compatibility probes')
+  assertIncludes(errors, source.settingsPage, 'type ApiModeSwitchPlanItem', 'Agent Settings page must type API mode switch taskGraph items')
+  assertIncludes(errors, source.settingsPage, 'buildApiModeSwitchTaskGraph', 'Agent Settings page must build an API mode switch taskGraph from compatibility probes')
   assertIncludes(errors, source.settingsPage, 'recommendedSwitchTarget', 'Agent Settings page must centralize API mode switch target recommendations')
-  assertIncludes(errors, source.settingsPage, 'ApiModeSwitchPlanPanel', 'Agent Settings page must show an API mode switch plan')
-  assertIncludes(errors, source.settingsPage, 'data-testid="agent-settings-api-mode-switch-plan"', 'Agent Settings page must expose API mode switch plan')
-  assertIncludes(errors, source.settingsPage, 'data-testid="agent-settings-copy-api-mode-switch-plan"', 'Agent Settings page must allow copying API mode switch plan')
+  assertIncludes(errors, source.settingsPage, 'ApiModeSwitchPlanPanel', 'Agent Settings page must show an API mode switch taskGraph')
+  assertIncludes(errors, source.settingsPage, 'data-testid="agent-settings-api-mode-switch-taskGraph"', 'Agent Settings page must expose API mode switch taskGraph')
+  assertIncludes(errors, source.settingsPage, 'data-testid="agent-settings-copy-api-mode-switch-taskGraph"', 'Agent Settings page must allow copying API mode switch taskGraph')
   assertIncludes(errors, source.settingsPage, 'id="agent-settings-skills"', 'Agent Settings page owns skills management')
   assertIncludes(errors, source.settingsPage, 'buildSkillGovernanceStats', 'Agent Settings page must summarize Skill governance posture')
   assertIncludes(errors, source.settingsPage, 'skillSourceKind', 'Agent Settings page must classify Skill source')
@@ -406,9 +406,9 @@ function verifyAgentSettingsDebugOrthogonality() {
   assertIncludes(errors, source.settingsPage, 'settings_quick_fix_mode_migration', 'Agent Settings page must audit call mode migration quick fixes distinctly')
   assertNotIncludes(errors, source.settingsPage, 'buildDebugBundle', 'Agent Settings page must not build Agent Debug bundles')
   assertNotIncludes(errors, source.settingsPage, 'DebugTriagePanel', 'Agent Settings page must not embed Agent Debug triage')
-  assertNotIncludes(errors, source.settingsPage, 'DebugRemediationPlan', 'Agent Settings page must not embed Agent Debug remediation')
+  assertNotIncludes(errors, source.settingsPage, 'DebugRemediationTaskGraph', 'Agent Settings page must not embed Agent Debug remediation')
   assertNotIncludes(errors, source.settingsPage, 'data-testid="agent-debug-triage"', 'Agent Settings page must not expose Agent Debug triage panels')
-  assertNotIncludes(errors, source.settingsPage, 'data-testid="agent-debug-remediation-plan"', 'Agent Settings page must not expose Agent Debug remediation panels')
+  assertNotIncludes(errors, source.settingsPage, 'data-testid="agent-debug-remediation-taskGraph"', 'Agent Settings page must not expose Agent Debug remediation panels')
   assertNotIncludes(errors, source.settingsPage, 'data-testid="agent-debug-run-issue-summary"', 'Agent Settings page must not expose Agent Debug run issue panels')
 
   assertIncludes(errors, source.debugPage, 'data-testid="agent-debug-scope-boundary"', 'Agent Debug page declares its scope boundary')
@@ -419,8 +419,8 @@ function verifyAgentSettingsDebugOrthogonality() {
   assertIncludes(errors, source.debugPage, 'localAgentClient.getModelConfig()', 'Agent Debug page may read model config')
   assertIncludes(errors, source.debugPage, 'localAgentClient.listRuns()', 'Agent Debug page owns cross-run observability')
   assertIncludes(errors, source.debugPage, 'buildDebugBundle', 'Agent Debug page owns debug bundle export')
-  assertIncludes(errors, source.debugPage, 'buildDebugRemediationPlan', 'Agent Debug page owns read-only remediation routing')
-  assertIncludes(errors, source.debugPage, 'data-testid="agent-debug-remediation-plan"', 'Agent Debug page exposes read-only remediation routing')
+  assertIncludes(errors, source.debugPage, 'buildDebugRemediationTaskGraph', 'Agent Debug page owns read-only remediation routing')
+  assertIncludes(errors, source.debugPage, 'data-testid="agent-debug-remediation-taskGraph"', 'Agent Debug page exposes read-only remediation routing')
   assertIncludes(errors, source.debugPage, 'buildDebugEvidenceChecklist', 'Agent Debug page owns support evidence checklist')
   assertIncludes(errors, source.debugPage, 'data-testid="agent-debug-evidence-checklist"', 'Agent Debug page exposes support evidence checklist')
   assertNotIncludes(errors, source.debugPage, 'buildSettingsSnapshot', 'Agent Debug page must not build settings snapshots')
@@ -862,7 +862,7 @@ function assertFrontendAgentRunDebuggingScript() {
   assertScriptArgumentIncludesAny(script, ['agent-run-debugging'], 'frontend test:agent-run-debugging must select the AgentRun debugging suite')
   assertIncludes(errors, script, 'pnpm run typecheck', 'frontend test:agent-run-debugging must typecheck frontend')
   assertArrayIncludes(errors, suite, ['src/lib/*Agent*.test.ts'], 'frontend AgentRun debugging suite runs local agent client contract tests')
-  assertArrayIncludes(errors, suite, ['src/lib/agent*.test.ts'], 'frontend AgentRun debugging suite runs AgentRun activity, UI view, redaction, plan UI, and artifact tests')
+  assertArrayIncludes(errors, suite, ['src/lib/agent*.test.ts'], 'frontend AgentRun debugging suite runs AgentRun activity, UI view, redaction, taskGraph UI, and artifact tests')
   assertArrayIncludes(errors, suite, ['src/lib/agent*.test.tsx'], 'frontend AgentRun debugging suite runs generation UI contract tests')
   assertArrayIncludes(errors, suite, ['src/lib/jsonValue.test.ts'], 'frontend AgentRun debugging suite runs shared frontend JSON guard tests')
   assertArrayIncludes(errors, suite, ['src/store/agentStore.test.ts'], 'frontend AgentRun debugging suite runs AgentRun persisted store tests')
@@ -910,7 +910,7 @@ function verifyAgentSettingsDebugDocs() {
   assertIncludes(errors, source.settingsDebugDoc, 'node --test tests/scripts/agent/verify-run-debugging.test.mjs', 'English boundary doc links static gate')
   assertIncludes(errors, source.settingsDebugDoc, 'Model call modes: backend gateway, OpenAI Responses, OpenAI Chat', 'English boundary doc includes call mode ownership')
   assertIncludes(errors, source.settingsDebugDoc, 'call-mode migration guidance', 'English boundary doc includes call mode migration guidance ownership')
-  assertIncludes(errors, source.settingsDebugDoc, 'copyable call-mode switch plan', 'English boundary doc includes copyable call mode switch plan ownership')
+  assertIncludes(errors, source.settingsDebugDoc, 'copyable call-mode switch taskGraph', 'English boundary doc includes copyable call mode switch taskGraph ownership')
   assertIncludes(errors, source.settingsDebugDoc, 'per-provider model compatibility probes', 'English boundary doc includes provider compatibility probe ownership')
   assertIncludes(errors, source.settingsDebugDoc, 'Tool permission policy: allow, deny, approval mode, save-before diff preview', 'English boundary doc includes tool policy diff ownership')
   assertIncludes(errors, source.settingsDebugDoc, 'search/filter for large catalogs', 'English boundary doc includes tool policy large-catalog filter ownership')
@@ -921,7 +921,7 @@ function verifyAgentSettingsDebugDocs() {
   assertIncludes(errors, source.settingsDebugDoc, 'Settings snapshots: export, import, dry-run, selective section apply, impact', 'English boundary doc includes Settings snapshot dry-run and selective import ownership')
   assertIncludes(errors, source.settingsDebugDoc, 'named import presets', 'English boundary doc includes Settings snapshot import preset ownership')
   assertIncludes(errors, source.settingsDebugDoc, 'granular quick-fix audit categories', 'English boundary doc includes granular quick-fix audit ownership')
-  assertIncludes(errors, source.settingsDebugDoc, 'Read-only remediation plan', 'English boundary doc includes Debug remediation ownership')
+  assertIncludes(errors, source.settingsDebugDoc, 'Read-only remediation taskGraph', 'English boundary doc includes Debug remediation ownership')
   assertIncludes(errors, source.settingsDebugDoc, 'Evidence checklist', 'English boundary doc includes Debug evidence checklist ownership')
   assertIncludes(errors, source.settingsDebugDoc, 'Debug must not save models, edit Skills, edit Profiles, edit tool policy, or', 'English boundary doc prohibits Debug persistent writes')
   assertNotIncludes(errors, source.settingsDebugDoc, 'Publish Debug Bundle and Settings Snapshot schema URLs, then include them in', 'English boundary doc must not claim schema CI coverage is still missing')
@@ -943,7 +943,7 @@ function verifyAgentSettingsDebugDocs() {
   assertIncludes(errors, source.settingsDebugDocZh, 'node --test tests/scripts/agent/verify-run-debugging.test.mjs', 'Chinese boundary doc links static gate')
   assertIncludes(errors, source.settingsDebugDocZh, '模型调用模式：后端网关、OpenAI Responses、OpenAI Chat Completions', 'Chinese boundary doc includes call mode ownership')
   assertIncludes(errors, source.settingsDebugDocZh, '调用模式迁移指南', 'Chinese boundary doc includes call mode migration guidance ownership')
-  assertIncludes(errors, source.settingsDebugDocZh, '可复制切换计划', 'Chinese boundary doc includes copyable call mode switch plan ownership')
+  assertIncludes(errors, source.settingsDebugDocZh, '可复制切换计划', 'Chinese boundary doc includes copyable call mode switch taskGraph ownership')
   assertIncludes(errors, source.settingsDebugDocZh, '按 Provider 区分的模型兼容性探测', 'Chinese boundary doc includes provider compatibility probe ownership')
   assertIncludes(errors, source.settingsDebugDocZh, '工具权限策略：允许、拒绝、审批策略、保存前 diff 预览', 'Chinese boundary doc includes tool policy diff ownership')
   assertIncludes(errors, source.settingsDebugDocZh, '大目录搜索/筛选', 'Chinese boundary doc includes tool policy large-catalog filter ownership')
@@ -979,7 +979,7 @@ function verifyAgentSchemaReferenceDoc(doc, input) {
   assertIncludes(errors, doc, 'https://movscript.dev/schemas/agent-settings-snapshot-v1.schema.json', `${input.language} schema reference documents Settings Snapshot schema URL`)
   assertIncludes(errors, doc, input.redactionText, `${input.language} schema reference documents Debug Bundle redaction`)
   assertIncludes(errors, doc, input.importText, `${input.language} schema reference documents Settings Snapshot preflight import`)
-  assertIncludes(errors, doc, 'remediationPlan', `${input.language} schema reference documents Debug Bundle remediation plan`)
+  assertIncludes(errors, doc, 'remediationTaskGraph', `${input.language} schema reference documents Debug Bundle remediation taskGraph`)
   assertIncludes(errors, doc, 'evidenceChecklist', `${input.language} schema reference documents Debug Bundle evidence checklist`)
 }
 

@@ -1,20 +1,20 @@
 import type { AgentStore } from '../state/store.js'
-import type { AgentRun, AgentTask, UpdatePlanTaskInput } from '../state/types.js'
+import type { AgentRun, AgentTask, UpdateTaskGraphTaskInput } from '../state/types.js'
 import {
   applyRuntimeTaskUpdateRequest,
 } from './runtimeTaskUpdate.js'
 import type { RuntimeTaskProtocolTraceInput } from './runtimeTaskProtocolEvents.js'
 
 export interface RuntimeTaskUpdateBridge {
-  updateTask: (taskId: string, update: UpdatePlanTaskInput) => AgentTask
+  updateTask: (taskId: string, update: UpdateTaskGraphTaskInput) => AgentTask
 }
 
 export function createRuntimeTaskUpdateBridge(input: {
   store: AgentStore
   now: () => string
-  recomputePlanStatus: (planId: string) => void
+  recomputePlanStatus: (taskGraphId: string) => void
   recordTrace: (run: AgentRun, trace: RuntimeTaskProtocolTraceInput) => void
-  emitPlanTaskEvent: (planId: string, task: AgentTask) => void
+  emitPlanTaskEvent: (taskGraphId: string, task: AgentTask) => void
 }): RuntimeTaskUpdateBridge {
   return {
     updateTask: (taskId, update) => {

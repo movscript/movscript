@@ -11,36 +11,79 @@ interface MemoryStateFile {
 
 export class FileAgentMemoryStore extends InMemoryAgentMemoryStore implements AgentMemoryStore {
   readonly filePath: string
+  private loaded = false
 
   constructor(filePath = resolveAgentMemoryPath()) {
     super()
     this.filePath = filePath
-    this.load()
+  }
+
+  override listMemories(query?: Parameters<InMemoryAgentMemoryStore['listMemories']>[0]): AgentMemory[] {
+    this.ensureLoaded()
+    return super.listMemories(query)
+  }
+
+  override getMemory(id: string): AgentMemory | undefined {
+    this.ensureLoaded()
+    return super.getMemory(id)
   }
 
   override createMemory(input: CreateMemoryInput): AgentMemory {
+    this.ensureLoaded()
     const memory = super.createMemory(input)
     this.persist()
     return memory
   }
 
   override deleteMemory(id: string): boolean {
+    this.ensureLoaded()
     const deleted = super.deleteMemory(id)
     if (deleted) this.persist()
     return deleted
   }
 
+  private ensureLoaded(): void {
+    if (this.loaded) return
+    this.loaded = true
+    this.load()
+  }
+
   private load(): void {
     if (!existsSync(this.filePath)) return
+    const loadStartedAt = Date.now()
     let parsed: unknown
+    let rawBytes = 0
+    let readMs = 0
+    let parseMs = 0
     try {
-      parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as unknown
+      const readStartedAt = Date.now()
+      const raw = readFileSync(this.filePath, 'utf8')
+      readMs = Date.now() - readStartedAt
+      rawBytes = Buffer.byteLength(raw)
+      const parseStartedAt = Date.now()
+      parsed = JSON.parse(raw) as unknown
+      parseMs = Date.now() - parseStartedAt
     } catch {
       return
     }
     if (!isRecord(parsed)) return
+    const normalizeStartedAt = Date.now()
     const memories = Array.isArray(parsed.memories) ? parsed.memories : []
-    this.replaceMemories(memories.flatMap((memory) => normalizeMemory(memory)))
+    const normalizedMemories = memories.flatMap((memory) => normalizeMemory(memory))
+    const normalizeMs = Date.now() - normalizeStartedAt
+    const hydrateStartedAt = Date.now()
+    this.replaceMemories(normalizedMemories)
+    const hydrateMs = Date.now() - hydrateStartedAt
+    console.info([
+      '[agent] startup memory-store load-detail',
+      `total=${Date.now() - loadStartedAt}ms`,
+      `read=${readMs}ms`,
+      `parse=${parseMs}ms`,
+      `normalize=${normalizeMs}ms`,
+      `hydrate=${hydrateMs}ms`,
+      `rawBytes=${rawBytes}`,
+      `memories=${normalizedMemories.length}`,
+    ].join(' '))
   }
 
   private persist(): void {

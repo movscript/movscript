@@ -52,7 +52,7 @@ export async function buildRuntimeRunPreview(input: {
     defaultAgentManifest: input.catalogSnapshot.defaultAgentManifest,
   })
   await input.mcpClient.initialize()
-  const contextResult = await input.mcpClient.callTool('movscript_get_focus', {})
+  const contextResult = await input.mcpClient.callTool('movscript_focus_get', {})
   const context = extractAgentContext(contextResult)
   const currentProjectId = isValidAgentProjectId(context.currentProjectId) ? context.currentProjectId : undefined
   const relevantMemories = shouldLoadRuntimeMemories(command, message)
@@ -87,7 +87,7 @@ export async function buildRuntimeRunPreview(input: {
     userMessage: message,
     runRole: 'planner',
   })
-  const policy = defaultRunPolicy({ sandboxMode: input.previewInput.sandboxMode !== false, policy: input.previewInput.policy })
+  const policy = defaultRunPolicy({ sandboxMode: input.previewInput.sandboxMode === true, policy: input.previewInput.policy })
   const promptPreview = contextManager.buildPromptPreview({
     manifest: activeManifest,
     skills,
@@ -104,9 +104,9 @@ export async function buildRuntimeRunPreview(input: {
   })
   const warnings: string[] = [...capabilities.warnings]
 
-  let previewToolPlan = { toolCalls: [] as ToolCall[], pendingApprovals: [] as AgentApprovalRequest[] }
+  let previewToolTaskGraph = { toolCalls: [] as ToolCall[], pendingApprovals: [] as AgentApprovalRequest[] }
   try {
-    previewToolPlan = await planPreviewToolRequests({
+    previewToolTaskGraph = await planPreviewToolRequests({
       manifest: activeManifest,
       skills,
       ...(layers?.skillDiscovery ? { skillDiscovery: layers.skillDiscovery } : {}),
@@ -142,8 +142,8 @@ export async function buildRuntimeRunPreview(input: {
     policy,
     promptPreview,
     debug: buildDebugTrace(activeManifest, skills, capabilities.resolvedTools, promptPreview.debugParts.map((part) => part.id), layers?.trace),
-    toolCalls: previewToolPlan.toolCalls,
-    pendingApprovals: previewToolPlan.pendingApprovals,
+    toolCalls: previewToolTaskGraph.toolCalls,
+    pendingApprovals: previewToolTaskGraph.pendingApprovals,
     warnings,
     memoryIds: memories.map((memory) => memory.id),
     memoryCount: memories.length,

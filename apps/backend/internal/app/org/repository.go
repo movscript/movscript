@@ -19,6 +19,7 @@ type repository interface {
 	ListUserMembers(ctx context.Context, userID uint) ([]domainorg.OrganizationMember, error)
 	FindUserMember(ctx context.Context, orgID uint, userID uint) (domainorg.OrganizationMember, error)
 	FindPersonalMember(ctx context.Context, userID uint) (domainorg.OrganizationMember, bool, error)
+	CountOwners(ctx context.Context, orgID uint) (int64, error)
 	UpdateName(ctx context.Context, orgID uint, name string) error
 	ListMembers(ctx context.Context, orgID uint) ([]domainorg.OrganizationMember, error)
 	CreateMember(ctx context.Context, member domainorg.OrganizationMember) (domainorg.OrganizationMember, error)
@@ -35,6 +36,7 @@ type repository interface {
 	JoinByCode(ctx context.Context, code string, userID uint) (uint, error)
 	ListGroups(ctx context.Context, orgID uint) ([]domainorg.UserGroup, error)
 	CreateGroup(ctx context.Context, group domainorg.UserGroup) (domainorg.UserGroup, error)
+	FindGroupOrgID(ctx context.Context, groupID uint) (uint, error)
 	CreateGroupMember(ctx context.Context, member domainorg.UserGroupMember) (domainorg.UserGroupMember, error)
 	DeleteGroupMember(ctx context.Context, groupID uint, userID uint) error
 	GetUsage(ctx context.Context, orgID uint) (UsageResult, error)
@@ -135,6 +137,14 @@ func (r *gormRepository) FindPersonalMember(ctx context.Context, userID uint) (d
 		return domainorg.OrganizationMember{}, false, err
 	}
 	return domainorg.OrganizationMemberFromModel(member), true, nil
+}
+
+func (r *gormRepository) CountOwners(ctx context.Context, orgID uint) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&persistencemodel.OrganizationMember{}).
+		Where("org_id = ? AND role = ?", orgID, domainorg.RoleOwner).
+		Count(&count).Error
+	return count, err
 }
 
 func (r *gormRepository) UpdateName(ctx context.Context, orgID uint, name string) error {
@@ -245,22 +255,36 @@ func (r *gormRepository) CreateUser(ctx context.Context, user domainauth.Registe
 }
 
 func (r *gormRepository) AcceptInvitation(ctx context.Context, inv domainorg.Invitation, userID uint) error {
-	row := inv.ToModel()
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := ensureActiveUserExists(tx, userID); err != nil {
 			return err
 		}
 		var existing persistencemodel.OrganizationMember
-		if tx.Where("org_id = ? AND user_id = ?", inv.OrgID, userID).First(&existing).Error == nil {
-			return nil
+		if err := tx.Where("org_id = ? AND user_id = ?", inv.OrgID, userID).First(&existing).Error; err == nil {
+			return consumeInvitation(tx, inv.ID, userID)
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
 		}
 		member := domainorg.Member(inv.OrgID, userID, inv.Role).ToModel()
 		if err := tx.Create(&member).Error; err != nil {
 			return err
 		}
-		now := time.Now()
-		return tx.Model(&row).Updates(map[string]any{"used_by": userID, "used_at": now}).Error
+		return consumeInvitation(tx, inv.ID, userID)
 	})
+}
+
+func consumeInvitation(tx *gorm.DB, invitationID uint, userID uint) error {
+	now := time.Now()
+	result := tx.Model(&persistencemodel.OrgInvitation{}).
+		Where("id = ? AND used_at IS NULL", invitationID).
+		Updates(map[string]any{"used_by": userID, "used_at": now})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrInviteUsed
+	}
+	return nil
 }
 
 func (r *gormRepository) JoinByCode(ctx context.Context, code string, userID uint) (uint, error) {
@@ -303,6 +327,17 @@ func (r *gormRepository) CreateGroup(ctx context.Context, group domainorg.UserGr
 		return group, err
 	}
 	return domainorg.UserGroupFromModel(row), nil
+}
+
+func (r *gormRepository) FindGroupOrgID(ctx context.Context, groupID uint) (uint, error) {
+	var group persistencemodel.UserGroup
+	if err := r.db.WithContext(ctx).Select("id, org_id").First(&group, groupID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, ErrNotFound
+		}
+		return 0, err
+	}
+	return group.OrgID, nil
 }
 
 func (r *gormRepository) CreateGroupMember(ctx context.Context, member domainorg.UserGroupMember) (domainorg.UserGroupMember, error) {

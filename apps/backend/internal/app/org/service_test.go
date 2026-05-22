@@ -91,7 +91,7 @@ func TestMembershipEntryPointsRejectInactiveUsers(t *testing.T) {
 	if _, err := service.JoinByCode(context.Background(), org.JoinCode, domainorg.User{ID: disabled.ID, Username: disabled.Username, Status: disabled.Status}); !errors.Is(err, ErrUserInactive) {
 		t.Fatalf("JoinByCode disabled err = %v, want ErrUserInactive", err)
 	}
-	if _, err := service.AcceptInvitation(context.Background(), invitation.Token, &domainorg.User{ID: disabled.ID, Username: disabled.Username, Status: disabled.Status}, nil); !errors.Is(err, ErrUserInactive) {
+	if _, _, err := service.AcceptInvitation(context.Background(), invitation.Token, &domainorg.User{ID: disabled.ID, Username: disabled.Username, Status: disabled.Status}, nil); !errors.Is(err, ErrUserInactive) {
 		t.Fatalf("AcceptInvitation disabled err = %v, want ErrUserInactive", err)
 	}
 	if _, err := service.AddGroupMember(context.Background(), caller, group.ID, disabled.ID); !errors.Is(err, ErrUserInactive) {
@@ -111,6 +111,117 @@ func TestMembershipEntryPointsRejectInactiveUsers(t *testing.T) {
 	}
 	if groupMemberCount != 0 {
 		t.Fatalf("disabled group member count = %d, want 0", groupMemberCount)
+	}
+}
+
+func TestAcceptInvitationConsumesSingleUseTokenForExistingMember(t *testing.T) {
+	db := newOrgTestDB(t)
+	owner := createOrgTestUser(t, db, "invite-owner")
+	member := createOrgTestUser(t, db, "invite-member")
+	org := createOrgTestOrg(t, db, "Invite Team", "invite-team", "INVITECODE", false, domainorg.StatusActive, owner.ID)
+	createOrgTestMember(t, db, org.ID, owner.ID, domainorg.RoleOwner)
+	createOrgTestMember(t, db, org.ID, member.ID, domainorg.RoleMember)
+	invitation := persistencemodel.OrgInvitation{
+		OrgID:     org.ID,
+		Token:     "single-use-token",
+		Role:      domainorg.RoleMember,
+		CreatedBy: owner.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	}
+	if err := db.Create(&invitation).Error; err != nil {
+		t.Fatalf("create invitation: %v", err)
+	}
+
+	service := NewService(db)
+	if _, _, err := service.AcceptInvitation(context.Background(), invitation.Token, &domainorg.User{ID: member.ID, Username: member.Username, Status: member.Status}, nil); err != nil {
+		t.Fatalf("AcceptInvitation existing member returned error: %v", err)
+	}
+	if _, _, err := service.AcceptInvitation(context.Background(), invitation.Token, &domainorg.User{ID: owner.ID, Username: owner.Username, Status: owner.Status}, nil); !errors.Is(err, ErrInviteUsed) {
+		t.Fatalf("second AcceptInvitation err = %v, want ErrInviteUsed", err)
+	}
+	var consumed persistencemodel.OrgInvitation
+	if err := db.First(&consumed, invitation.ID).Error; err != nil {
+		t.Fatalf("load consumed invitation: %v", err)
+	}
+	if consumed.UsedAt == nil || consumed.UsedBy == nil || *consumed.UsedBy != member.ID {
+		t.Fatalf("invitation was not consumed by existing member: %+v", consumed)
+	}
+}
+
+func TestPersonalOrgRejectsTeamManagement(t *testing.T) {
+	db := newOrgTestDB(t)
+	owner := createOrgTestUser(t, db, "personal-owner")
+	member := createOrgTestUser(t, db, "personal-member")
+	personal := createOrgTestOrg(t, db, "Personal", "personal", "", true, domainorg.StatusActive, owner.ID)
+	createOrgTestMember(t, db, personal.ID, owner.ID, domainorg.RoleOwner)
+
+	service := NewService(db)
+	caller := domainorg.OrganizationMember{OrgID: personal.ID, UserID: owner.ID, Role: domainorg.RoleOwner}
+
+	if _, err := service.AddMember(context.Background(), caller, MemberInput{UserID: member.ID, Role: domainorg.RoleMember}); !errors.Is(err, ErrPersonalOrg) {
+		t.Fatalf("AddMember personal err = %v, want ErrPersonalOrg", err)
+	}
+	if _, err := service.CreateInvitation(context.Background(), caller, owner.ID, InvitationInput{Role: domainorg.RoleMember}); !errors.Is(err, ErrPersonalOrg) {
+		t.Fatalf("CreateInvitation personal err = %v, want ErrPersonalOrg", err)
+	}
+	if _, err := service.CreateGroup(context.Background(), caller, GroupInput{Name: "Crew"}); !errors.Is(err, ErrPersonalOrg) {
+		t.Fatalf("CreateGroup personal err = %v, want ErrPersonalOrg", err)
+	}
+	if _, err := service.GetUsage(context.Background(), personal.ID); !errors.Is(err, ErrPersonalOrg) {
+		t.Fatalf("GetUsage personal err = %v, want ErrPersonalOrg", err)
+	}
+}
+
+func TestMemberRoleAndOwnerGuards(t *testing.T) {
+	db := newOrgTestDB(t)
+	owner := createOrgTestUser(t, db, "owner-guard")
+	admin := createOrgTestUser(t, db, "admin-guard")
+	member := createOrgTestUser(t, db, "member-guard")
+	org := createOrgTestOrg(t, db, "Team", "owner-guard-team", "OWNERGUARD", false, domainorg.StatusActive, owner.ID)
+	createOrgTestMember(t, db, org.ID, owner.ID, domainorg.RoleOwner)
+	createOrgTestMember(t, db, org.ID, admin.ID, domainorg.RoleAdmin)
+	createOrgTestMember(t, db, org.ID, member.ID, domainorg.RoleMember)
+
+	service := NewService(db)
+	ownerCaller := domainorg.OrganizationMember{OrgID: org.ID, UserID: owner.ID, Role: domainorg.RoleOwner}
+	adminCaller := domainorg.OrganizationMember{OrgID: org.ID, UserID: admin.ID, Role: domainorg.RoleAdmin}
+
+	if _, err := service.AddMember(context.Background(), ownerCaller, MemberInput{UserID: member.ID, Role: "bad"}); !errors.Is(err, ErrInvalidRole) {
+		t.Fatalf("AddMember invalid role err = %v, want ErrInvalidRole", err)
+	}
+	if err := service.UpdateMember(context.Background(), adminCaller, owner.ID, domainorg.RoleMember); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("admin demote owner err = %v, want ErrForbidden", err)
+	}
+	if err := service.UpdateMember(context.Background(), ownerCaller, owner.ID, domainorg.RoleAdmin); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("self demote err = %v, want ErrForbidden", err)
+	}
+	if err := service.UpdateMember(context.Background(), ownerCaller, owner.ID, domainorg.RoleMember); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("self demote last owner err = %v, want ErrForbidden", err)
+	}
+	if err := service.RemoveMember(context.Background(), ownerCaller, owner.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("self remove err = %v, want ErrForbidden", err)
+	}
+}
+
+func TestGroupMembershipRequiresCallerOrg(t *testing.T) {
+	db := newOrgTestDB(t)
+	owner := createOrgTestUser(t, db, "group-owner")
+	member := createOrgTestUser(t, db, "group-member")
+	org := createOrgTestOrg(t, db, "Team A", "team-a", "TEAMACODE", false, domainorg.StatusActive, owner.ID)
+	otherOrg := createOrgTestOrg(t, db, "Team B", "team-b", "TEAMBCODE", false, domainorg.StatusActive, owner.ID)
+	createOrgTestMember(t, db, org.ID, owner.ID, domainorg.RoleOwner)
+	otherGroup := persistencemodel.UserGroup{OrgID: otherOrg.ID, Name: "Other"}
+	if err := db.Create(&otherGroup).Error; err != nil {
+		t.Fatalf("create other group: %v", err)
+	}
+
+	service := NewService(db)
+	caller := domainorg.OrganizationMember{OrgID: org.ID, UserID: owner.ID, Role: domainorg.RoleOwner}
+	if _, err := service.AddGroupMember(context.Background(), caller, otherGroup.ID, member.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("AddGroupMember cross org err = %v, want ErrForbidden", err)
+	}
+	if err := service.RemoveGroupMember(context.Background(), caller, otherGroup.ID, member.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("RemoveGroupMember cross org err = %v, want ErrForbidden", err)
 	}
 }
 

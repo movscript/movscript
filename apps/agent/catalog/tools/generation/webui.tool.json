@@ -1,0 +1,81 @@
+{
+  "name": "tool_webui",
+  "description": "连接用户本地控制台、组织共享或 Admin 平台全局配置的 Stable Diffusion WebUI / AUTOMATIC1111 兼容服务器。支持 list_servers、status、models、progress、txt2img、img2img、get。txt2img/img2img 会提交生成请求，调用前必须确认用户已同意使用该服务器。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["operation"],
+    "properties": {
+      "operation": {
+        "type": "string",
+        "enum": ["list_servers", "status", "models", "txt2img", "img2img", "progress", "get"]
+      },
+      "server_id": {
+        "type": "string",
+        "description": "控制台中配置的 WebUI server id；省略时使用默认或最高优先级的已启用 WebUI。"
+      },
+      "server_scope": {
+        "type": "string",
+        "enum": ["local", "org", "admin"],
+        "description": "当本地、组织、平台全局服务器存在相同 server id 时，用于指定调用范围。"
+      },
+      "payload": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "txt2img 或 img2img 的 /sdapi/v1 请求 JSON。"
+      },
+      "path": {
+        "type": "string",
+        "description": "operation=get 时允许的 /sdapi/v1/... 路径。"
+      },
+      "import_outputs": {
+        "type": "boolean",
+        "description": "txt2img/img2img 时为 true 会把返回的 base64 图片上传到 MovScript 资源库，并在结果中返回 output_resource_ids；同时省略原始 base64 图片。"
+      },
+      "output_name": {
+        "type": "string",
+        "description": "导入资源时使用的文件名前缀。"
+      },
+      "folder_id": {
+        "type": ["string", "number"],
+        "description": "导入资源的目标资源文件夹。"
+      },
+      "projectId": {
+        "type": "number",
+        "description": "需要把导入资源加入候选集时传项目 ID。"
+      },
+      "asset_slot_id": {
+        "type": "number",
+        "description": "可选素材位 ID；配合 import_outputs 把导入资源加入 asset slot 候选集。"
+      },
+      "keyframe_id": {
+        "type": "number",
+        "description": "可选原始 keyframe / 画面锚点 ID；配合 import_outputs 把导入资源加入 keyframe 候选集。"
+      }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "additionalProperties": true,
+    "required": ["status"],
+    "properties": {
+      "status": { "type": "string" },
+      "server": { "type": "object", "additionalProperties": true },
+      "servers": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+      "data": { "type": "object", "additionalProperties": true },
+      "output_resources": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+      "output_resource_ids": { "type": "array", "items": { "type": "number" } },
+      "candidate_results": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+      "message": { "type": "string" }
+    }
+  },
+  "permission": "generation.local",
+  "risk": "write",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "always"
+  },
+  "source": "runtime",
+  "capability": "使用用户本机、组织共享或平台全局配置的 Stable Diffusion WebUI 服务做连通性检查、模型发现、图片生成和输出导入。"
+}

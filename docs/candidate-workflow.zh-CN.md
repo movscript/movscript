@@ -49,8 +49,8 @@ Keyframe / 画面锚点候选：
 
 ## Agent 与 MCP 契约
 
-- `movscript_attach_asset_slot_candidate` 把一个资源加入素材需求候选集。
-- `movscript_attach_keyframe_candidate` 把一个资源加入原始 keyframe / 画面锚点候选集。
+- `candidate_asset_slot_attach` 把一个资源加入素材需求候选集。
+- `candidate_keyframe_attach` 把一个资源加入原始 keyframe / 画面锚点候选集。
 - Attach tool 的目标 ID 和资源 ID 必须是正整数；非正数 ID 或互相冲突的别名会在写入前被拒绝。
 - Agent 必须在每个可用 `output_resource_id` 出现后立即逐个写入候选集，并逐项报告成功、失败或阻塞；不得为了凑齐一批结果而延迟已完成资源。
 - 除非 attach tool 成功，否则 Agent 不得声称资源已加入候选集。
@@ -127,5 +127,5 @@ node scripts/verify-script-manifest.mjs
 - 在 Workbench 从资源库选择 keyframe 资源并上传 keyframe 图片，确认都创建 keyframe 候选，不直接 patch 正式资源。
 - 在任务 / 预制作界面采纳和拒绝素材需求候选，确认兄弟候选被拒绝，缺失资源会报错。
 - 在任务 / Workbench 界面采纳和拒绝 keyframe 候选，确认兄弟候选被拒绝，且要求 generated-candidate 标记。
-- 用非法 ID、冲突别名、generated candidate 目标调用 `movscript_attach_asset_slot_candidate` 和 `movscript_attach_keyframe_candidate`，确认写入前失败。
+- 用非法 ID、冲突别名、generated candidate 目标调用 `candidate_asset_slot_attach` 和 `candidate_keyframe_attach`，确认写入前失败。
 - 通过通用语义 create / patch 和 Agent draft apply 尝试写正式资源字段，确认会被拒绝或剥离。

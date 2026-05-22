@@ -337,9 +337,7 @@ function emptyCatalogManager(): AgentCatalogToolManager {
   return {
     inspectAgentCatalog: () => ({}),
     updateActiveSkills: () => ({}),
-    createAgentPlan: () => ({}),
-    getAgentPlan: () => ({}),
-    replanAgentPlan: () => ({}),
+    updateProgressChecklist: () => ({}),
     spawnSubagent: () => ({}),
     listSubagents: () => ({}),
     waitSubagent: () => ({}),

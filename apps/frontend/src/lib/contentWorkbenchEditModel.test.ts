@@ -18,7 +18,7 @@ import {
   normalizeKeyframeFrameRole,
 } from './contentWorkbenchEditModel.ts'
 
-test('content workbench edit model round-trips visual plan and storyboard metadata', () => {
+test('content workbench edit model round-trips visual taskGraph and storyboard metadata', () => {
   const unit = {
     ID: 7,
     title: '雨夜特写',
@@ -27,7 +27,7 @@ test('content workbench edit model round-trips visual plan and storyboard metada
     prompt: 'cinematic close up',
     status: 'candidate',
     metadata_json: JSON.stringify({
-      visual_plan: {
+      visual_taskGraph: {
         space: '巷口',
         blocking: '角色从右入画',
         camera_path: '缓慢推进',
@@ -49,19 +49,19 @@ test('content workbench edit model round-trips visual plan and storyboard metada
 
   const draft = contentUnitEditDraftFromRecord(unit)
 
-  assert.equal(draft.visual_plan_beats, '停顿\n回头')
+  assert.equal(draft.visual_task_graph_beats, '停顿\n回头')
   assert.equal(draft.storyboard_keyframe_suggestions, '首帧\n尾帧')
   assert.equal(contentUnitEditDraftEqualsRecord(draft, unit), true)
 
   const payload = contentUnitEditPayload({
     ...draft,
     duration_sec: '5',
-    visual_plan_props: '伞\n门牌',
+    visual_task_graph_props: '伞\n门牌',
   })
   const metadata = JSON.parse(String(payload.metadata_json))
 
   assert.equal(payload.duration_sec, 5)
-  assert.deepEqual(metadata.visual_plan.props, ['伞', '门牌'])
+  assert.deepEqual(metadata.visual_taskGraph.props, ['伞', '门牌'])
   assert.equal(metadata.storyboard_brief.action_moment, '回头瞬间')
 })
 
@@ -122,7 +122,7 @@ test('content workbench edit model builds continuity prompt for adjacent keyfram
       { ID: 11, title: '首帧', prompt: '角色进入巷口' },
       { ID: 12, title: '尾帧', prompt: '角色定格在霓虹下' },
     ],
-    visualPlan: '缓慢推进',
+    visualTaskGraph: '缓慢推进',
     storyboardBrief: '确认悬疑落点',
   })
 

@@ -6,7 +6,7 @@ import type { AgentRun, JSONValue } from '../state/types.js'
 import { KnowledgeManager, loadBuiltinKnowledgeStore } from '../knowledge/index.js'
 import { MemoryManager } from '../memory/memoryManager.js'
 import { InMemoryAgentMemoryStore } from '../memory/memoryStore.js'
-import { InMemoryAgentDraftStore } from '../drafts/draftStore.js'
+import { InMemoryAgentDraftStore, validateDraft } from '../drafts/draftStore.js'
 import { executeTool } from './toolExecutor.js'
 import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
 import { draftContentFileRef } from '../files/providers/draftFileProvider.js'
@@ -43,7 +43,7 @@ function testOptions(mcpClient: { initialize(): Promise<JSONValue>; callTool(nam
 test('executeTool serves runtime operation wait through the runtime catalog manager', async () => {
   const calls: string[] = []
   const result = await executeTool({
-    name: 'runtime_operation_wait',
+    name: 'core_operation_wait',
     args: { operationIds: ['op_42'] },
   }, {
     ...testOptions({
@@ -59,9 +59,7 @@ test('executeTool serves runtime operation wait through the runtime catalog mana
     catalogManager: {
       inspectAgentCatalog: () => ({}),
       updateActiveSkills: () => ({}),
-      createAgentPlan: () => ({}),
-      getAgentPlan: () => ({}),
-      replanAgentPlan: () => ({}),
+      updateProgressChecklist: () => ({}),
       spawnSubagent: () => ({}),
       listSubagents: () => ({}),
       waitSubagent: () => ({}),
@@ -96,7 +94,7 @@ test('executeTool serves runtime knowledge search and bounded get', async () => 
   }
 
   const search = await executeTool({
-    name: 'movscript_search_knowledge',
+    name: 'knowledge_search',
     args: { query: '关键帧 分镜', domain: 'storyboard', limit: 2 },
   }, options)
   const results = (search.result as any)?.results as any[]
@@ -109,7 +107,7 @@ test('executeTool serves runtime knowledge search and bounded get', async () => 
   assert.equal(typeof results[0]!.sourcePath, 'string')
 
   const body = await executeTool({
-    name: 'movscript_get_knowledge',
+    name: 'knowledge_get',
     args: { id: results[0]!.id, maxChars: 32 },
   }, options)
   assert.equal((body.result as any)?.id, results[0]!.id)
@@ -133,8 +131,8 @@ test('executeTool explains numeric draft ids are not backend script ids', async 
   }
 
   await assert.rejects(
-    () => executeTool({ name: 'movscript_get_draft', args: { draftId: 3 } }, options),
-    /not backend project script IDs.*movscript_read_project_scripts/s,
+    () => executeTool({ name: 'draft_get', args: { draftId: 3 } }, options),
+    /not backend project script IDs.*movscript_project_script_read/s,
   )
 })
 
@@ -175,7 +173,7 @@ test('executeTool reads project standards from backend project data with context
   }
 
   const result = await executeTool({
-    name: 'movscript_get_project_standards',
+    name: 'movscript_project_standards_get',
     args: { projectId: 42 },
   }, options)
 
@@ -191,7 +189,7 @@ test('executeTool reads project standards from backend project data with context
 test('executeTool creates content unit proposal drafts after media proposal deprecation', async () => {
   const draftStore = new InMemoryAgentDraftStore()
   const result = await executeTool({
-    name: 'movscript_create_draft',
+    name: 'draft_create',
     args: {
       kind: 'content_unit_proposal',
       proposal: true,
@@ -222,6 +220,511 @@ test('executeTool creates content unit proposal drafts after media proposal depr
 
   assert.equal((result.result as any)?.status, 'created')
   assert.equal(draftStore.listDrafts()[0]?.kind, 'content_unit_proposal')
+})
+
+test('executeTool rejects proposal-kind draft creation without content instead of creating an empty draft', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  await assert.rejects(
+    executeTool({
+      name: 'draft_create',
+      args: {
+        kind: 'asset_proposal',
+        projectId: 42,
+        seedMode: 'editable_snapshot',
+        hydrate: true,
+      },
+    }, {
+      ...testOptions({
+        async initialize(): Promise<JSONValue> {
+          return {}
+        },
+        async callTool(): Promise<JSONValue> {
+          throw new Error('MCP should not be called when proposal content is missing')
+        },
+      }),
+      draftStore,
+    }),
+    /create_proposal requires content/,
+  )
+
+  assert.equal(draftStore.listDrafts().length, 0)
+})
+
+test('executeTool hydrates missing asset proposal rows into proposal during draft creation', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const calls: Array<{ name: string; args?: Record<string, JSONValue> }> = []
+  const result = await executeTool({
+    name: 'draft_create',
+    args: {
+      kind: 'asset_proposal',
+      proposal: true,
+      projectId: 42,
+      content: JSON.stringify({
+        schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
+        scope: 'asset_proposal',
+        mode: 'snapshot',
+        proposal: {
+          creative_references: [],
+          asset_slots: [],
+          candidate_plans: [],
+        },
+      }),
+    },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        calls.push({ name: 'initialize' })
+        return {}
+      },
+      async callTool(name: string, args?: Record<string, JSONValue>): Promise<JSONValue> {
+        calls.push({ name, args })
+        return {
+          seed: {
+            data: {
+              asset_slots: [{
+                id: 9,
+                owner: { type: 'creative_reference', id: 7 },
+                name: 'Existing portrait',
+                kind: 'image',
+                status: 'needed',
+              }],
+            },
+          },
+        }
+      },
+    }),
+    draftStore,
+  })
+
+  assert.equal((result.result as any)?.status, 'created')
+  assert.equal(calls.some((call) => call.name === 'draft_model_get'), true)
+  const mcpCall = calls.find((call) => call.name === 'draft_model_get')
+  assert.deepEqual(mcpCall?.args, {
+    kind: 'asset_proposal',
+    target: {
+      projectId: 42,
+    },
+    seedMode: 'editable_snapshot',
+    hydrate: true,
+  })
+  const draft = draftStore.listDrafts()[0]!
+  const content = JSON.parse(draft.content)
+  assert.equal(content.snapshot_base, undefined)
+  assert.deepEqual(content.proposal.asset_slots.map((slot: any) => slot.id), [9])
+  assert.equal((draft.metadata as any)?.proposalBaseHydrated, true)
+  assert.equal((draft.metadata as any)?.proposalSnapshotSeeded, true)
+  assert.deepEqual((draft.metadata as any)?.seed.data.asset_slots.map((slot: any) => slot.id), [9])
+})
+
+test('executeTool seeds omitted asset proposal snapshot from current project data', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const result = await executeTool({
+    name: 'draft_create',
+    args: {
+      kind: 'asset_proposal',
+      proposal: true,
+      projectId: 42,
+      content: JSON.stringify({
+        schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
+        scope: 'asset_proposal',
+        mode: 'snapshot',
+        proposal: {
+          creative_references: [],
+          candidate_plans: [],
+        },
+      }),
+    },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        return {
+          seed: {
+            data: {
+              asset_slots: [{
+                client_id: 'slot-existing-9',
+                ID: 9,
+                project_id: 42,
+                owner_type: 'creative_reference',
+                owner_id: 7,
+                creative_reference_id: 7,
+                name: 'Existing portrait',
+                kind: 'image',
+                resource_id: 12,
+                resource: { ID: 12, name: 'raw.png' },
+                locked_asset_slot_id: 13,
+                locked_asset_slot: { ID: 13, name: 'Candidate', kind: 'image' },
+                status: 'needed',
+                CreatedAt: '2026-05-21T00:00:00Z',
+                UpdatedAt: '2026-05-21T00:00:00Z',
+              }],
+            },
+          },
+        }
+      },
+    }),
+    draftStore,
+  })
+
+  assert.equal((result.result as any)?.status, 'created')
+  const draft = draftStore.listDrafts()[0]!
+  const content = JSON.parse(draft.content)
+  assert.equal(content.snapshot_base, undefined)
+  assert.deepEqual(content.proposal.asset_slots.map((slot: any) => slot.id), [9])
+  assert.deepEqual(content.proposal.asset_slots[0], {
+    client_id: 'slot-existing-9',
+    id: 9,
+    creative_reference_id: 7,
+    owner_type: 'creative_reference',
+    owner_id: 7,
+    kind: 'image',
+    name: 'Existing portrait',
+    status: 'needed',
+    resource_id: 12,
+    locked_asset_slot_id: 13,
+  })
+  assert.equal(validateDraft(draft).ok, true)
+  assert.equal((draft.metadata as any)?.proposalBaseHydrated, true)
+  assert.equal((draft.metadata as any)?.proposalSnapshotSeeded, true)
+})
+
+test('executeTool merges new-only asset proposal snapshots onto hydrated project data', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const result = await executeTool({
+    name: 'draft_create',
+    args: {
+      kind: 'asset_proposal',
+      proposal: true,
+      projectId: 42,
+      content: JSON.stringify({
+        schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
+        scope: 'asset_proposal',
+        mode: 'snapshot',
+        proposal: {
+          creative_references: [],
+          asset_slots: [{
+            client_id: 'new-slot',
+            owner: { type: 'creative_reference', id: 7 },
+            name: 'New cane detail',
+            kind: 'image',
+          }],
+          candidate_plans: [],
+        },
+      }),
+    },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        return {
+          seed: {
+            data: {
+              asset_slots: [{
+                id: 9,
+                owner: { type: 'creative_reference', id: 7 },
+                name: 'Existing portrait',
+                kind: 'image',
+                status: 'needed',
+              }],
+            },
+          },
+        }
+      },
+    }),
+    draftStore,
+  })
+
+  assert.equal((result.result as any)?.status, 'created')
+  const draft = draftStore.listDrafts()[0]!
+  const content = JSON.parse(draft.content)
+  assert.equal(content.snapshot_base, undefined)
+  assert.deepEqual(content.proposal.asset_slots.map((slot: any) => slot.name), ['Existing portrait', 'New cane detail'])
+  assert.equal((draft.metadata as any)?.proposalBaseHydrated, true)
+  assert.equal(validateDraft(draft).ok, true)
+})
+
+test('executeTool falls back to asset slot query when draft model seed omits asset slots', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const calls: string[] = []
+  const result = await executeTool({
+    name: 'draft_create',
+    args: {
+      kind: 'asset_proposal',
+      proposal: true,
+      projectId: 42,
+      content: JSON.stringify({
+        schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
+        scope: 'asset_proposal',
+        mode: 'snapshot',
+        proposal: {
+          creative_references: [],
+          candidate_plans: [],
+        },
+      }),
+    },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(name: string): Promise<JSONValue> {
+        calls.push(name)
+        if (name === 'draft_model_get') {
+          return { seed: { data: {}, warnings: ['asset_slots: backend timeout'] } }
+        }
+        if (name === 'movscript_asset_slot_query') {
+          return {
+            asset_slots: [{
+              id: 9,
+              owner: { type: 'creative_reference', id: 7 },
+              name: 'Existing portrait',
+              kind: 'image',
+              status: 'needed',
+            }],
+          }
+        }
+        throw new Error(`unexpected tool ${name}`)
+      },
+    }),
+    draftStore,
+  })
+
+  assert.equal((result.result as any)?.status, 'created')
+  assert.deepEqual(calls, ['draft_model_get', 'movscript_asset_slot_query'])
+  const content = JSON.parse(draftStore.listDrafts()[0]!.content)
+  assert.equal(content.snapshot_base, undefined)
+  assert.deepEqual(content.proposal.asset_slots.map((slot: any) => slot.id), [9])
+})
+
+test('executeTool unwraps MCP tool data while hydrating asset proposal snapshots', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const result = await executeTool({
+    name: 'draft_create',
+    args: {
+      kind: 'asset_proposal',
+      proposal: true,
+      projectId: 42,
+      content: JSON.stringify({
+        schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
+        scope: 'asset_proposal',
+        mode: 'snapshot',
+        proposal: {
+          creative_references: [],
+          candidate_plans: [],
+        },
+      }),
+    },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        return {
+          content: [{ type: 'text', text: 'wrapped MCP result' }],
+          data: {
+            seed: {
+              data: {
+                asset_slots: [{
+                  id: 9,
+                  name: 'Wrapped portrait',
+                  kind: 'image',
+                  status: 'needed',
+                }],
+              },
+            },
+          },
+        }
+      },
+    }),
+    draftStore,
+  })
+
+  assert.equal((result.result as any)?.status, 'created')
+  const content = JSON.parse(draftStore.listDrafts()[0]!.content)
+  assert.equal(content.snapshot_base, undefined)
+  assert.deepEqual(content.proposal.asset_slots.map((slot: any) => slot.name), ['Wrapped portrait'])
+})
+
+test('executeTool hydrates missing setting proposal rows into proposal during draft creation', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const result = await executeTool({
+    name: 'draft_create',
+    args: {
+      kind: 'setting_proposal',
+      proposal: true,
+      projectId: 42,
+      content: JSON.stringify({
+        schema: DRAFT_CONTENT_SCHEMA_IDS.settingProposal,
+        scope: 'setting_proposal',
+        mode: 'snapshot',
+        proposal: {
+          creative_references: [],
+          asset_slots: [],
+        },
+      }),
+    },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(name: string): Promise<JSONValue> {
+        assert.equal(name, 'draft_model_get')
+        return {
+          seed: {
+            data: {
+              creative_references: [{
+                id: 7,
+                name: 'Existing hero',
+                kind: 'person',
+                status: 'active',
+              }],
+            },
+          },
+        }
+      },
+    }),
+    draftStore,
+  })
+
+  assert.equal((result.result as any)?.status, 'created')
+  const draft = draftStore.listDrafts()[0]!
+  const content = JSON.parse(draft.content)
+  assert.equal(content.snapshot_base, undefined)
+  assert.deepEqual(content.proposal.creative_references.map((reference: any) => reference.id), [7])
+  assert.equal((draft.metadata as any)?.proposalBaseHydrated, true)
+  assert.equal((draft.metadata as any)?.proposalSnapshotSeeded, true)
+})
+
+test('executeTool seeds omitted setting proposal snapshot from current project data', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const result = await executeTool({
+    name: 'draft_create',
+    args: {
+      kind: 'setting_proposal',
+      proposal: true,
+      projectId: 42,
+      content: JSON.stringify({
+        schema: DRAFT_CONTENT_SCHEMA_IDS.settingProposal,
+        scope: 'setting_proposal',
+        mode: 'snapshot',
+        proposal: {
+          asset_slots: [],
+        },
+      }),
+    },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(name: string): Promise<JSONValue> {
+        assert.equal(name, 'draft_model_get')
+        return {
+          seed: {
+            data: {
+              creative_references: [{
+                id: 7,
+                name: 'Existing hero',
+                kind: 'person',
+                status: 'active',
+              }],
+            },
+          },
+        }
+      },
+    }),
+    draftStore,
+  })
+
+  assert.equal((result.result as any)?.status, 'created')
+  const draft = draftStore.listDrafts()[0]!
+  const content = JSON.parse(draft.content)
+  assert.equal(content.snapshot_base, undefined)
+  assert.deepEqual(content.proposal.creative_references.map((reference: any) => reference.id), [7])
+  assert.equal((draft.metadata as any)?.proposalBaseHydrated, true)
+  assert.equal((draft.metadata as any)?.proposalSnapshotSeeded, true)
+})
+
+test('executeTool does not duplicate proposal rows that already have backend ids', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const result = await executeTool({
+    name: 'draft_create',
+    args: {
+      kind: 'asset_proposal',
+      proposal: true,
+      projectId: 42,
+      content: JSON.stringify({
+        schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
+        scope: 'asset_proposal',
+        mode: 'snapshot',
+        proposal: {
+          creative_references: [],
+          asset_slots: [{
+            id: 9,
+            name: 'Existing portrait',
+            kind: 'image',
+          }],
+          candidate_plans: [],
+        },
+      }),
+    },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        return { seed: { data: { asset_slots: [{ id: 9, name: 'Existing portrait', kind: 'image' }] } } }
+      },
+    }),
+    draftStore,
+  })
+
+  assert.equal((result.result as any)?.status, 'created')
+  const draft = draftStore.listDrafts()[0]!
+  const content = JSON.parse(draft.content)
+  assert.equal(content.snapshot_base, undefined)
+  assert.equal((draft.metadata as any)?.proposalBaseHydrated, true)
+})
+
+test('executeTool reports automatic snapshot base hydration failures clearly', async () => {
+  await assert.rejects(
+    () => executeTool({
+      name: 'draft_create',
+      args: {
+        kind: 'asset_proposal',
+        proposal: true,
+        projectId: 42,
+        content: JSON.stringify({
+          schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
+          scope: 'asset_proposal',
+          mode: 'snapshot',
+          proposal: {
+            creative_references: [],
+            asset_slots: [],
+            candidate_plans: [],
+          },
+        }),
+      },
+    }, {
+      ...testOptions({
+        async initialize(): Promise<JSONValue> {
+          return {}
+        },
+        async callTool(): Promise<JSONValue> {
+          return { seed: { data: {} } }
+        },
+      }),
+      draftStore: new InMemoryAgentDraftStore(),
+    }),
+    /could not hydrate proposal\.asset_slots automatically: hydrated seed did not include asset_slots/,
+  )
 })
 
 test('executeTool edits draft files with explicit file revision preconditions', async () => {
@@ -261,7 +764,7 @@ test('executeTool edits draft files with explicit file revision preconditions', 
 
   await assert.rejects(
     () => executeTool({
-      name: 'agent_file_edit',
+      name: 'draft_file_edit',
       args: {
         ref: draftContentFileRef(draft.id),
         baseRevision: 'sha256:stale',
@@ -276,7 +779,7 @@ test('executeTool edits draft files with explicit file revision preconditions', 
   )
 
   const read = await executeTool({
-    name: 'agent_file_read',
+    name: 'draft_file_read',
     args: { ref: draftContentFileRef(draft.id), jsonPointer: '/proposal/asset_slots' },
   }, options)
 
@@ -284,9 +787,9 @@ test('executeTool edits draft files with explicit file revision preconditions', 
   assert.equal((read.result as any)?.value.length, 1)
 
   const original = draftStore.getDraft(draft.id)?.content ?? ''
-  const next = original.replace('"candidate_plans":[]', '"candidate_plans":[{"name":"Plan A"}]')
+  const next = original.replace('"candidate_plans":[]', '"candidate_plans":[{"name":"TaskGraph A"}]')
   const edited = await executeTool({
-    name: 'agent_file_edit',
+    name: 'draft_file_edit',
     args: {
       ref: draftContentFileRef(draft.id),
       baseRevision: (read.result as any).revision,
@@ -301,11 +804,11 @@ test('executeTool edits draft files with explicit file revision preconditions', 
   assert.equal((edited.result as any)?.status, 'edited')
   const content = JSON.parse(draftStore.getDraft(draft.id)?.content ?? '{}')
   assert.deepEqual(content.proposal.asset_slots.map((slot: any) => slot.name), ['Existing portrait'])
-  assert.deepEqual(content.proposal.candidate_plans.map((plan: any) => plan.name), ['Plan A'])
+  assert.deepEqual(content.proposal.candidate_plans.map((taskGraph: any) => taskGraph.name), ['TaskGraph A'])
 })
 
 test('executeTool delegates agent file tools to the injected file system without requiring a draft', async () => {
-  const files = new Map([['/workspace/notes.md', 'alpha beta gamma']])
+  const files = new Map([['/workspace/notes.md', 'alpha\nbeta\ngamma']])
   const fileSystem = {
     read(input: { ref: string }) {
       const filePath = input.ref
@@ -357,15 +860,24 @@ test('executeTool delegates agent file tools to the injected file system without
   }
 
   const read = await executeTool({
-    name: 'agent_file_read',
+    name: 'draft_file_read',
     args: { ref: '/workspace/notes.md' },
   }, options)
   assert.equal((read.result as any)?.draft, undefined)
   assert.equal((read.result as any)?.file.provider, 'workspace')
-  assert.equal((read.result as any)?.content, 'alpha beta gamma')
+  assert.equal((read.result as any)?.content, 'alpha\nbeta\ngamma')
+
+  const rangedRead = await executeTool({
+    name: 'draft_file_read',
+    args: { ref: '/workspace/notes.md', startLine: 2, lineCount: 1 },
+  }, options)
+  assert.equal((rangedRead.result as any)?.content, 'beta')
+  assert.equal((rangedRead.result as any)?.startLine, 2)
+  assert.equal((rangedRead.result as any)?.endLine, 2)
+  assert.equal((rangedRead.result as any)?.totalLines, 3)
 
   const edited = await executeTool({
-    name: 'agent_file_edit',
+    name: 'draft_file_edit',
     args: {
       ref: '/workspace/notes.md',
       edits: [{
@@ -377,7 +889,7 @@ test('executeTool delegates agent file tools to the injected file system without
   }, options)
   assert.equal((edited.result as any)?.draft, undefined)
   assert.equal((edited.result as any)?.replacementCount, 1)
-  assert.equal(files.get('/workspace/notes.md'), 'alpha delta gamma')
+  assert.equal(files.get('/workspace/notes.md'), 'alpha\ndelta\ngamma')
 })
 
 test('executeTool applies valid proposal drafts through runtime apply tool', async () => {
@@ -389,10 +901,17 @@ test('executeTool applies valid proposal drafts through runtime apply tool', asy
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
       scope: 'asset_proposal',
+      assetSlotId: 9,
+      slot: { id: 9, name: 'Hero portrait', kind: 'image' },
       proposal: {
         creative_references: [],
         asset_slots: [],
-        candidate_plans: [],
+        candidate_plans: [{
+          output_kind: 'image',
+          prompt: 'Hero portrait candidate',
+          input_resource_ids: [],
+          acceptance_criteria: ['Matches project style'],
+        }],
       },
     }),
     target: {
@@ -404,7 +923,7 @@ test('executeTool applies valid proposal drafts through runtime apply tool', asy
   })
 
   const result = await executeTool({
-    name: 'movscript_apply_draft',
+    name: 'draft_apply',
     args: { draftId: draft.id },
   }, {
     ...testOptions({
@@ -423,7 +942,6 @@ test('executeTool applies valid proposal drafts through runtime apply tool', asy
     } as never,
   })
 
-  assert.equal((result.result as any)?.ok, true)
   assert.equal((result.result as any)?.status, 'applied')
   const applied = draftStore.getDraft(draft.id)
   assert.equal(applied?.status, 'applied')
@@ -437,7 +955,7 @@ test('executeTool ignores non-plain runtime draft source and metadata records', 
 
   const draftStore = new InMemoryAgentDraftStore()
   const result = await executeTool({
-    name: 'movscript_create_draft',
+    name: 'draft_create',
     args: {
       kind: 'note',
       title: 'Runtime draft',
@@ -486,7 +1004,7 @@ test('executeTool drops invalid numeric page entity ids from runtime draft sourc
   }
 
   await executeTool({
-    name: 'movscript_create_draft',
+    name: 'draft_create',
     args: {
       kind: 'note',
       title: 'Runtime draft',
@@ -515,7 +1033,7 @@ test('executeTool rejects invalid project ids for project standards proposals', 
   for (const projectId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY, '42']) {
     await assert.rejects(
       () => executeTool({
-        name: 'movscript_create_draft',
+        name: 'draft_create',
         args: {
           kind: 'project_standards_proposal',
           proposal: true,
@@ -545,7 +1063,7 @@ test('executeTool rejects invalid project ids for project standards proposals', 
 test('executeTool ignores invalid production ids for inferred proposal targets', async () => {
   const draftStore = new InMemoryAgentDraftStore()
   const result = await executeTool({
-    name: 'movscript_create_draft',
+    name: 'draft_create',
     args: {
       kind: 'production_proposal',
       proposal: true,
@@ -584,7 +1102,7 @@ test('executeTool ignores invalid production ids for inferred proposal targets',
 test('executeTool drops invalid numeric entity ids from explicit proposal targets', async () => {
   const draftStore = new InMemoryAgentDraftStore()
   const result = await executeTool({
-    name: 'movscript_create_draft',
+    name: 'draft_create',
     args: {
       kind: 'production_proposal',
       proposal: true,
@@ -641,28 +1159,28 @@ test('executeTool rejects invalid project ids for memory tools', async () => {
   for (const projectId of invalidProjectIds) {
     await assert.rejects(
       () => executeTool({
-        name: 'movscript_search_memories',
+        name: 'core_memory_search',
         args: { projectId, query: 'preference' } as Record<string, JSONValue>,
       }, options),
       /search_memories requires projectId/,
     )
     await assert.rejects(
       () => executeTool({
-        name: 'movscript_get_memory',
+        name: 'core_memory_get',
         args: { projectId, id: 'mem_1' } as Record<string, JSONValue>,
       }, options),
       /get_memory requires projectId/,
     )
     await assert.rejects(
       () => executeTool({
-        name: 'movscript_create_memory',
+        name: 'core_memory_create',
         args: { projectId, title: 'Preference', kind: 'preference', content: 'Remember this.' } as Record<string, JSONValue>,
       }, options),
       /create_memory requires projectId/,
     )
     await assert.rejects(
       () => executeTool({
-        name: 'movscript_delete_memory',
+        name: 'core_memory_delete',
         args: { projectId, id: 'mem_1' } as Record<string, JSONValue>,
       }, options),
       /delete_memory requires projectId/,
@@ -691,7 +1209,7 @@ test('executeTool enforces per-run knowledge character budget', async () => {
             source: 'knowledge',
             evidence: 'advisory',
             title: '分镜节奏基础',
-            summary: 'movscript_get_knowledge result reference (runtime)',
+            summary: 'knowledge_get result reference (runtime)',
             charCount: 30,
             retrievedAt: new Date(0).toISOString(),
             usedInPrompt: true,
@@ -703,7 +1221,7 @@ test('executeTool enforces per-run knowledge character budget', async () => {
   }
 
   const body = await executeTool({
-    name: 'movscript_get_knowledge',
+    name: 'knowledge_get',
     args: { id: 'storyboard.hook.short_drama', maxChars: 100 },
   }, options)
 
@@ -732,7 +1250,7 @@ test('executeTool enforces per-run knowledge chunk budget', async () => {
             source: 'knowledge',
             evidence: 'advisory',
             title: '分镜节奏基础',
-            summary: 'movscript_get_knowledge result reference (runtime)',
+            summary: 'knowledge_get result reference (runtime)',
             charCount: 120,
             retrievedAt: new Date(0).toISOString(),
             usedInPrompt: true,
@@ -745,7 +1263,7 @@ test('executeTool enforces per-run knowledge chunk budget', async () => {
 
   await assert.rejects(
     () => executeTool({
-      name: 'movscript_get_knowledge',
+      name: 'knowledge_get',
       args: { id: 'storyboard.hook.short_drama', maxChars: 100 },
     }, options),
     /knowledge chunk budget exceeded/,
@@ -767,7 +1285,7 @@ test('executeTool propagates MCP validation errors without repair', async () => 
   }
 
   await assert.rejects(
-    executeTool({ name: 'movscript_list_models', args: { capability: 'video' } }, testOptions(mcpClient)),
+    executeTool({ name: 'generation_model_list', args: { capability: 'video' } }, testOptions(mcpClient)),
     MCPError,
   )
 })

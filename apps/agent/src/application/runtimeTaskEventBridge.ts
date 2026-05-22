@@ -6,11 +6,11 @@ import {
 } from './runtimeTaskProtocolEvents.js'
 
 export function applyRuntimeTaskEventBridgeRequest(input: {
-  store: Pick<AgentStore, 'getRun' | 'getPlan'>
+  store: Pick<AgentStore, 'getRun' | 'getTaskGraph'>
   task: AgentTask
   previous?: AgentTask
   recordTrace: (run: AgentRun, trace: RuntimeTaskProtocolTraceInput) => void
-  emitPlanTaskEvent?: (planId: string, task: AgentTask) => void
+  emitPlanTaskEvent?: (taskGraphId: string, task: AgentTask) => void
 }): AgentRun | undefined {
   const run = applyRuntimeTaskProtocolEvents({
     store: input.store,
@@ -18,7 +18,7 @@ export function applyRuntimeTaskEventBridgeRequest(input: {
     ...(input.previous ? { previous: input.previous } : {}),
     recordTrace: input.recordTrace,
   })
-  input.emitPlanTaskEvent?.(input.task.planId, input.task)
+  input.emitPlanTaskEvent?.(input.task.taskGraphId, input.task)
   return run
 }
 
@@ -28,9 +28,9 @@ export interface RuntimeTaskEventBridge {
 }
 
 export function createRuntimeTaskEventBridge(input: {
-  store: Pick<AgentStore, 'getRun' | 'getPlan'>
+  store: Pick<AgentStore, 'getRun' | 'getTaskGraph'>
   recordTrace: (run: AgentRun, trace: RuntimeTaskProtocolTraceInput) => void
-  emitPlanTaskEvent: (planId: string, task: AgentTask) => void
+  emitPlanTaskEvent: (taskGraphId: string, task: AgentTask) => void
 }): RuntimeTaskEventBridge {
   return {
     recordTaskProtocolEvents: (task, previous) => applyRuntimeTaskEventBridgeRequest({

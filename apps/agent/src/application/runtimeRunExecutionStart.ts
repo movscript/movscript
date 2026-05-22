@@ -39,7 +39,7 @@ export function applyRuntimeRunExecutionStart(input: {
       sandboxMode: input.run.policy.sandboxMode === true,
     },
   })
-  if (input.run.planId && input.run.taskId) {
+  if (input.run.taskGraphId && input.run.taskId) {
     input.recordTrace(input.run, {
       kind: 'task',
       title: 'Task heartbeat',
@@ -48,7 +48,7 @@ export function applyRuntimeRunExecutionStart(input: {
       round: setupRound,
       data: {
         eventType: 'heartbeat',
-        planId: input.run.planId,
+        taskGraphId: input.run.taskGraphId,
         taskId: input.run.taskId,
         runId: input.run.id,
         runStatus: input.run.status,

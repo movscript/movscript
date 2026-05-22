@@ -9,6 +9,7 @@ import { buildRuntimeTraceDebugView, type AgentTraceDebugView } from './runtimeT
 export interface RuntimeTraceReadBridge {
   getRunTraceEvents(runId: string, query?: AgentTraceQuery): AgentTraceEvent[]
   getRunTracePage(runId: string, query?: AgentTraceQuery): AgentRunTracePage
+  getRunTraceEventData(runId: string, eventId: string): unknown | undefined
   getRunTraceSummary(runId: string): AgentRunTraceSummary
   getRunTraceDebugView(runId: string): AgentTraceDebugView
   getRunDebugLedger(runId: string): AgentRunDebugLedger
@@ -17,7 +18,7 @@ export interface RuntimeTraceReadBridge {
 }
 
 export function createRuntimeTraceReadBridge(input: {
-  store: Pick<AgentStore, 'getRun' | 'listRunTraceEvents' | 'countRunTraceEvents' | 'summarizeRunTraceEvents' | 'getRunDebugLedger'>
+  store: Pick<AgentStore, 'getRun' | 'listRunTraceEvents' | 'getRunTraceEventData' | 'countRunTraceEvents' | 'summarizeRunTraceEvents' | 'getRunDebugLedger'>
 }): RuntimeTraceReadBridge {
   const requireRun = (runId: string) => requireRuntimeRun(input.store, runId)
 
@@ -36,6 +37,12 @@ export function createRuntimeTraceReadBridge(input: {
         limit,
         total: input.store.countRunTraceEvents(runId, { kind: query.kind }),
       })
+    },
+    getRunTraceEventData: (runId, eventId) => {
+      requireRun(runId)
+      const data = input.store.getRunTraceEventData(runId, eventId)
+      if (data === undefined) throw new Error(`trace event data not found: ${eventId}`)
+      return data
     },
     getRunTraceSummary: (runId) => {
       requireRun(runId)

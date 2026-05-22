@@ -229,8 +229,8 @@ test('write endpoints reject non-object request bodies before touching runtime d
     { method: 'POST', path: '/agent-skills/default-policy', label: 'default skill policy body' },
     { method: 'POST', path: '/agent-catalog/skills/install-bundle', label: 'agent skill bundle body' },
     { method: 'POST', path: '/agent-catalog/skills/uninstall-bundle', label: 'agent skill bundle uninstall body' },
-    { method: 'POST', path: '/plans', label: 'plan body' },
-    { method: 'POST', path: '/plans/plan_1/dispatch', label: 'plan dispatch body' },
+    { method: 'POST', path: '/plans', label: 'taskGraph body' },
+    { method: 'POST', path: '/plans/task_graph_1/dispatch', label: 'taskGraph dispatch body' },
     { method: 'PATCH', path: '/tasks/task_1', label: 'task update body' },
     { method: 'POST', path: '/runs/run_1/cancel', label: 'cancel body' },
     { method: 'POST', path: '/runs/run_1/cancel-tree', label: 'cancel tree body' },
@@ -243,6 +243,26 @@ test('write endpoints reject non-object request bodies before touching runtime d
     assert.equal(response.statusCode, 400, entry.path)
     assert.equal(JSON.parse(response.body).error, `${entry.label} must be an object`, entry.path)
   }
+})
+
+test('agent catalog reload rejects cross-site browser requests before reloading', async () => {
+  const calls: string[] = []
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      reloadAgentCatalog: () => {
+        calls.push('reload')
+        return { status: 'reloaded' }
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const blocked = await dispatch(handler, 'POST', '/agent-catalog/reload', undefined, { 'sec-fetch-site': 'cross-site' })
+  const allowed = await dispatch(handler, 'POST', '/agent-catalog/reload')
+
+  assert.equal(blocked.statusCode, 403)
+  assert.equal(JSON.parse(blocked.body).error, 'agent catalog reload rejects cross-site browser requests')
+  assert.equal(allowed.statusCode, 200)
+  assert.deepEqual(calls, ['reload'])
 })
 
 test('legacy direct run endpoints are not public runtime entrypoints', async () => {
@@ -278,9 +298,9 @@ test('legacy direct run endpoints are not public runtime entrypoints', async () 
   } as unknown as AgentServerContext)
 
   const directRun = await dispatch(handler, 'POST', '/runs', JSON.stringify({ threadId: 'thread_1' }))
-  const directToolRun = await dispatch(handler, 'POST', '/runs/tool', JSON.stringify({ toolCall: { name: 'movscript_get_focus' } }))
+  const directToolRun = await dispatch(handler, 'POST', '/runs/tool', JSON.stringify({ toolCall: { name: 'movscript_focus_get' } }))
   const directContext = await dispatch(handler, 'GET', '/context')
-  const directApprove = await dispatch(handler, 'POST', '/runs/run_1/approve', JSON.stringify({ approvedToolNames: ['movscript_get_focus'] }))
+  const directApprove = await dispatch(handler, 'POST', '/runs/run_1/approve', JSON.stringify({ approvedToolNames: ['movscript_focus_get'] }))
   const directReject = await dispatch(handler, 'POST', '/runs/run_1/reject', JSON.stringify({ approvalIds: ['approval_1'] }))
 
   assert.equal(directRun.statusCode, 404)
@@ -350,7 +370,7 @@ test('thread run endpoint appends a user message and creates a run bound to that
 
 test('thread run endpoint can force one diagnostic tool call without exposing a direct tool route', async () => {
   const calls: Array<{ endpoint: string; input?: Record<string, unknown> }> = []
-  const messages = [{ id: 'msg_tool', threadId: 'thread_1', role: 'user', content: 'Run movscript_get_focus', createdAt: '2026-05-19T00:00:00.000Z' }]
+  const messages = [{ id: 'msg_tool', threadId: 'thread_1', role: 'user', content: 'Run movscript_focus_get', createdAt: '2026-05-19T00:00:00.000Z' }]
   const handler = createAgentRequestListener({
     runtimeRouter: {
       getThread: (threadId: string) => ({ id: threadId, status: 'idle', createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:00.000Z', messages }),
@@ -370,9 +390,9 @@ test('thread run endpoint can force one diagnostic tool call without exposing a 
   } as unknown as AgentServerContext)
 
   const response = await dispatch(handler, 'POST', '/threads/thread_1/runs', JSON.stringify({
-    message: 'Run movscript_get_focus',
-    toolCall: { name: 'movscript_get_focus', args: {} },
-    approvedToolNames: ['movscript_get_focus'],
+    message: 'Run movscript_focus_get',
+    toolCall: { name: 'movscript_focus_get', args: {} },
+    approvedToolNames: ['movscript_focus_get'],
     policy: { approvalMode: 'auto', maxToolCalls: 1, maxIterations: 2 },
   }))
 
@@ -384,11 +404,11 @@ test('thread run endpoint can force one diagnostic tool call without exposing a 
   assert.deepEqual(calls, [{
     endpoint: 'toolRun',
     input: {
-      toolCall: { name: 'movscript_get_focus', args: {} },
-      approvedToolNames: ['movscript_get_focus'],
+      toolCall: { name: 'movscript_focus_get', args: {} },
+      approvedToolNames: ['movscript_focus_get'],
       policy: { approvalMode: 'auto', maxToolCalls: 1, maxIterations: 2 },
       threadId: 'thread_1',
-      message: 'Run movscript_get_focus',
+      message: 'Run movscript_focus_get',
       role: 'worker',
     },
   }])
@@ -837,7 +857,7 @@ test('default tool policy endpoint saves requested runtime tool overrides', asyn
     },
   } as unknown as AgentServerContext)
 
-  const toolGrants = [{ name: 'movscript_validate_draft', mode: 'deny' }]
+  const toolGrants = [{ name: 'draft_validate', mode: 'deny' }]
   const response = await dispatch(handler, 'POST', '/agent-tools/default-policy', JSON.stringify({ toolGrants }))
 
   assert.equal(response.statusCode, 200)
@@ -1028,6 +1048,7 @@ function dispatch(
   method: string,
   path: string,
   body?: string,
+  headers: Record<string, string> = {},
 ): Promise<{ statusCode: number; body: string }> {
   return new Promise((resolve, reject) => {
     const req = new EventEmitter() as unknown as IncomingMessage & {
@@ -1039,7 +1060,7 @@ function dispatch(
     }
     req.method = method
     req.url = path
-    req.headers = { host: '127.0.0.1' }
+    req.headers = { host: '127.0.0.1', ...headers }
     ;(req as any).setEncoding = () => {}
     ;(req as any).destroy = () => {}
 

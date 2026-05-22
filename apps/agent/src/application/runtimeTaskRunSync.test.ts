@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentPlan, AgentRun, AgentTask } from '../state/types.js'
+import type { AgentTaskGraph, AgentRun, AgentTask } from '../state/types.js'
 import {
   applyRuntimeTaskRunSync,
   applyRuntimeTaskRunSyncRequest,
@@ -44,9 +44,9 @@ test('syncRuntimeTaskFromRun returns undefined for non-projectable runs', () => 
   assert.equal(store.getTask('task_1')?.status, 'running')
 })
 
-test('syncRuntimeTaskFromRun ignores runs without plan task ownership', () => {
+test('syncRuntimeTaskFromRun ignores runs without task graph task ownership', () => {
   const store = new InMemoryAgentStore()
-  store.createRun(makeRun({ id: 'run_chat', planId: undefined, taskId: undefined }))
+  store.createRun(makeRun({ id: 'run_chat', taskGraphId: undefined, taskId: undefined }))
 
   assert.equal(syncRuntimeTaskFromRun({
     store,
@@ -55,7 +55,7 @@ test('syncRuntimeTaskFromRun ignores runs without plan task ownership', () => {
   }), undefined)
 })
 
-test('applyRuntimeTaskRunSync invokes plan and task callbacks after projection', () => {
+test('applyRuntimeTaskRunSync invokes taskGraph and task callbacks after projection', () => {
   const store = new InMemoryAgentStore()
   store.createRun(makeRun({
     id: 'run_worker',
@@ -71,18 +71,18 @@ test('applyRuntimeTaskRunSync invokes plan and task callbacks after projection',
     store,
     runId: 'run_worker',
     now: '2026-01-01T00:00:03.000Z',
-    onPlanSynced: (planId) => events.push(`plan:${planId}`),
-    onTaskSynced: (task, previousTask, planId) => events.push(`${planId}:${previousTask.status}->${task.status}:${task.id}`),
+    onPlanSynced: (taskGraphId) => events.push(`taskGraph:${taskGraphId}`),
+    onTaskSynced: (task, previousTask, taskGraphId) => events.push(`${taskGraphId}:${previousTask.status}->${task.status}:${task.id}`),
   })
 
   assert.equal(result?.task.status, 'failed')
-  assert.deepEqual(events, ['plan:plan_1', 'plan_1:running->failed:task_1'])
+  assert.deepEqual(events, ['taskGraph:task_graph_1', 'task_graph_1:running->failed:task_1'])
 })
 
-test('applyRuntimeTaskRunSyncRequest recomputes plan before task protocol and stream callbacks', () => {
+test('applyRuntimeTaskRunSyncRequest recomputes taskGraph before task protocol and stream callbacks', () => {
   const store = new InMemoryAgentStore()
   store.createRun(makeRun({ id: 'run_root', role: 'planner', taskId: undefined }))
-  store.createPlan(makePlan({ rootRunId: 'run_root' }))
+  store.createTaskGraph(makeTaskGraph({ rootRunId: 'run_root' }))
   store.createRun(makeRun({
     id: 'run_worker',
     status: 'completed',
@@ -96,18 +96,18 @@ test('applyRuntimeTaskRunSyncRequest recomputes plan before task protocol and st
     store,
     runId: 'run_worker',
     now: '2026-01-01T00:00:03.000Z',
-    recomputePlanStatus: (planId) => events.push(`plan:${planId}`),
+    recomputePlanStatus: (taskGraphId) => events.push(`taskGraph:${taskGraphId}`),
     recordTrace: (_run, trace) => events.push(`protocol:${trace.title}`),
-    emitPlanTaskEvent: (planId, task) => events.push(`event:${planId}:${task.id}`),
+    emitPlanTaskEvent: (taskGraphId, task) => events.push(`event:${taskGraphId}:${task.id}`),
   })
 
   assert.equal(result?.task.status, 'done')
   assert.deepEqual(events, [
-    'plan:plan_1',
+    'taskGraph:task_graph_1',
     'protocol:Task completed',
     'protocol:Task progress updated',
     'protocol:Task artifact created',
-    'event:plan_1:task_1',
+    'event:task_graph_1:task_1',
   ])
 })
 
@@ -115,7 +115,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   return {
     id: 'run_1',
     threadId: 'thread_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     status: 'queued',
     role: 'worker',
     policy: {
@@ -135,7 +135,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     title: 'Task',
     status: 'pending',
     progress: 0,
@@ -147,11 +147,11 @@ function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   }
 }
 
-function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
-    id: 'plan_1',
+    id: 'task_graph_1',
     threadId: 'thread_1',
-    title: 'Plan',
+    title: 'TaskGraph',
     status: 'running',
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',

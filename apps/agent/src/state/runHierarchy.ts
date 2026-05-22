@@ -3,7 +3,7 @@ import type { AgentRunRole } from './types.js'
 export interface RunHierarchyInput {
   role?: unknown
   parentRunId?: unknown
-  planId?: unknown
+  taskGraphId?: unknown
   taskId?: unknown
   progress?: unknown
   blockedReason?: unknown
@@ -12,7 +12,7 @@ export interface RunHierarchyInput {
 export interface NormalizedRunHierarchy {
   role?: AgentRunRole
   parentRunId?: string
-  planId?: string
+  taskGraphId?: string
   taskId?: string
   progress?: number
   blockedReason?: string
@@ -24,14 +24,14 @@ export function normalizeRunHierarchyInput(
 ): NormalizedRunHierarchy {
   const role = normalizeRunRole(input.role) ?? options.defaultRole
   const parentRunId = normalizeNonEmptyString(input.parentRunId)
-  const planId = normalizeNonEmptyString(input.planId)
+  const taskGraphId = normalizeNonEmptyString(input.taskGraphId)
   const taskId = normalizeNonEmptyString(input.taskId)
   const progress = normalizeRunProgress(input.progress)
   const blockedReason = normalizeNonEmptyString(input.blockedReason)
   return {
     ...(role ? { role } : {}),
     ...(parentRunId ? { parentRunId } : {}),
-    ...(planId ? { planId } : {}),
+    ...(taskGraphId ? { taskGraphId } : {}),
     ...(taskId ? { taskId } : {}),
     ...(progress !== undefined ? { progress } : {}),
     ...(blockedReason ? { blockedReason } : {}),

@@ -229,7 +229,7 @@ export function useProductionProposalReviewController({
     setBackendPreviewIssue(null)
     const localResult = buildSimulationResult()
     const proposal = buildAcceptedProposal()
-    if (currentApplyPreview.writePlan.length === 0) {
+    if (currentApplyPreview.writeTaskGraph.length === 0) {
       setSimulationResult(localResult)
       return
     }
@@ -292,7 +292,7 @@ export function useProductionProposalReviewController({
       return
     }
     const proposal = buildAcceptedProposal()
-    if (applyPreview.writePlan.length === 0 || proposal.segments.length === 0) {
+    if (applyPreview.writeTaskGraph.length === 0 || proposal.segments.length === 0) {
       setApplyError('请至少接受一个段落后再写入项目')
       return
     }

@@ -89,7 +89,7 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
       conflictKeys: ['project.updatedAt', 'creative_references[].updatedAt', 'asset_slots[].updatedAt', 'asset_slot.updatedAt', 'reference_resources[].UpdatedAt'],
     },
     fieldGuide: {
-      owns: ['asset_slots', 'asset_slot_ownership', 'candidate_plan', 'acceptance_criteria', 'risks'],
+      owns: ['asset_slots', 'asset_slot_ownership', 'candidate_taskGraph', 'acceptance_criteria', 'risks'],
       references: ['project', 'creative_references', 'asset_slot', 'reference_resources'],
       forbids: ['creative_reference_edits', 'media_generation_jobs', 'generated_resource_bindings', 'resource_binding_apply'],
     },
@@ -179,7 +179,7 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
       conflictKeys: ['production.updatedAt', 'segments[].updatedAt', 'scene_moments[].updatedAt', 'content_units[].updatedAt'],
     },
     fieldGuide: {
-      owns: ['content_units', 'content_units[].visual_plan', 'content_units[].storyboard_brief'],
+      owns: ['content_units', 'content_units[].visual_taskGraph', 'content_units[].storyboard_brief'],
       references: ['production', 'segments', 'scene_moments', 'creative_references', 'asset_slots'],
       forbids: ['operation_fields', 'media_generation_jobs', 'generated_resource_bindings', 'project_level_creative_references', 'project_level_asset_slots'],
     },
@@ -205,7 +205,7 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
       conflictKeys: ['source_script.hash', 'project_scripts[].UpdatedAt'],
     },
     fieldGuide: {
-      owns: ['episode_drafts', 'script_split_plan'],
+      owns: ['episode_drafts', 'script_split_taskGraph'],
       references: ['source_script', 'project_scripts', 'productions'],
       forbids: ['raw_script_body_copy', 'production_entity_apply_without_review'],
     },

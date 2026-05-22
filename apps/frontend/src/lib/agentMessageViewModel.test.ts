@@ -33,7 +33,7 @@ test('assistantResultPayloadForRun builds the same structured payload from run g
       runId: 'run_1',
       type: 'tool_call',
       status: 'completed',
-      toolName: 'movscript_create_draft',
+      toolName: 'draft_create',
       result: {
         id: 'draft_1',
         kind: 'project_standards_proposal',

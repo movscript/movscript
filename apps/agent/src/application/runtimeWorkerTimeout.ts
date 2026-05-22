@@ -28,7 +28,7 @@ export function markRuntimeTimedOutWorkerTask(input: {
 
 export function applyRuntimeTimedOutPlanWorkers(input: {
   store: Pick<AgentStore, 'listRuns' | 'getTask' | 'updateTask'>
-  planId: string
+  taskGraphId: string
   defaultTimeoutMs?: number
   nowMs: number
   now: string
@@ -37,7 +37,7 @@ export function applyRuntimeTimedOutPlanWorkers(input: {
   onTaskTimedOut?: (task: AgentTask) => void
 }): RuntimeTimedOutPlanWorkersResult {
   const timedOutRunIds: string[] = []
-  for (const run of input.store.listRuns({ planId: input.planId, role: 'worker' })) {
+  for (const run of input.store.listRuns({ taskGraphId: input.taskGraphId, role: 'worker' })) {
     const task = run.taskId ? input.store.getTask(run.taskId) : undefined
     const timeout = timedOutWorkerRun({
       run,

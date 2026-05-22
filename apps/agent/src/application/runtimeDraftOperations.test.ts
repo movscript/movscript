@@ -122,7 +122,7 @@ test('applyRuntimeDraftFromUI marks asset planning drafts applied without backen
   const draftStore = new InMemoryAgentDraftStore()
   const draft = draftStore.createDraft({
     kind: 'asset_proposal',
-    title: 'Asset plan',
+    title: 'Asset taskGraph',
     content: JSON.stringify({ proposal: { asset_slots: [], candidates: [{ id: 'candidate_1' }] } }),
     target: { entityType: 'project', entityId: 1 },
   })
@@ -141,7 +141,7 @@ test('applyRuntimeDraftFromUI marks asset planning drafts applied without backen
   assert.equal(draftStore.getDraft(draft.id)?.status, 'applied')
 })
 
-test('simulateRuntimeDraftApply rejects asset slot snapshot drafts without a hydrated base', async () => {
+test('simulateRuntimeDraftApply accepts asset slot snapshot drafts without snapshot base', async () => {
   const draftStore = new InMemoryAgentDraftStore()
   const draft = draftStore.createDraft({
     kind: 'asset_proposal',
@@ -163,13 +163,12 @@ test('simulateRuntimeDraftApply rejects asset slot snapshot drafts without a hyd
     applyInput: { draftId: draft.id },
   }) as { ok?: boolean; stage?: string; message?: string }
 
-  assert.equal(result.ok, false)
-  assert.equal(result.stage, 'local_validation')
-  assert.match(result.message ?? '', /snapshot_base\.asset_slots/)
-  assert.equal(backend.previewCalls, 0)
+  assert.equal(result.ok, true)
+  assert.equal(result.stage, 'backend_apply_preview')
+  assert.equal(backend.previewCalls, 1)
 })
 
-test('simulateRuntimeDraftApply rejects asset slot snapshots that omit active base slots', async () => {
+test('simulateRuntimeDraftApply allows omitted asset ids in proposal snapshot', async () => {
   const draftStore = new InMemoryAgentDraftStore()
   const draft = draftStore.createDraft({
     kind: 'asset_proposal',
@@ -178,12 +177,6 @@ test('simulateRuntimeDraftApply rejects asset slot snapshots that omit active ba
       schema: 'movscript.asset_proposal.v1',
       scope: 'asset_proposal',
       mode: 'snapshot',
-      snapshot_base: {
-        asset_slots: [
-          { id: 11, name: 'Keep this slot', kind: 'image', status: 'active' },
-          { id: 12, name: 'Edit this slot', kind: 'image', status: 'active' },
-        ],
-      },
       proposal: {
         creative_references: [],
         asset_slots: [{ id: 12, name: 'Edited slot', kind: 'image', status: 'active' }],
@@ -200,14 +193,12 @@ test('simulateRuntimeDraftApply rejects asset slot snapshots that omit active ba
     applyInput: { draftId: draft.id },
   }) as { ok?: boolean; stage?: string; message?: string }
 
-  assert.equal(result.ok, false)
-  assert.equal(result.stage, 'local_validation')
-  assert.match(result.message ?? '', /omit existing active asset slots/)
-  assert.match(result.message ?? '', /11/)
-  assert.equal(backend.previewCalls, 0)
+  assert.equal(result.ok, true)
+  assert.equal(result.stage, 'backend_apply_preview')
+  assert.equal(backend.previewCalls, 1)
 })
 
-test('applyRuntimeDraftFromUI rejects asset slot snapshots that omit active base slots', async () => {
+test('applyRuntimeDraftFromUI applies proposal snapshots without snapshot base', async () => {
   const draftStore = new InMemoryAgentDraftStore()
   const draft = draftStore.createDraft({
     kind: 'asset_proposal',
@@ -216,12 +207,6 @@ test('applyRuntimeDraftFromUI rejects asset slot snapshots that omit active base
       schema: 'movscript.asset_proposal.v1',
       scope: 'asset_proposal',
       mode: 'snapshot',
-      snapshot_base: {
-        asset_slots: [
-          { id: 11, name: 'Keep this slot', kind: 'image', status: 'active' },
-          { id: 12, name: 'Edit this slot', kind: 'image', status: 'active' },
-        ],
-      },
       proposal: {
         creative_references: [],
         asset_slots: [{ id: 12, name: 'Edited slot', kind: 'image', status: 'active' }],
@@ -231,16 +216,15 @@ test('applyRuntimeDraftFromUI rejects asset slot snapshots that omit active base
   })
   const backend = fakeBackendApplyClient()
 
-  await assert.rejects(
-    () => applyRuntimeDraftFromUI({
-      draftStore,
-      backendApplyClient: backend,
-      applyInput: { draftId: draft.id },
-      now: () => '2026-01-01T00:00:00.000Z',
-    }),
-    /omit existing active asset slots.*11/s,
-  )
-  assert.equal(backend.applyCalls, 0)
+  const result = await applyRuntimeDraftFromUI({
+    draftStore,
+    backendApplyClient: backend,
+    applyInput: { draftId: draft.id },
+    now: () => '2026-01-01T00:00:00.000Z',
+  }) as { status?: string }
+
+  assert.equal(result.status, 'applied')
+  assert.equal(backend.applyCalls, 1)
 })
 
 test('applyRuntimeDraftFromUI stores setting proposal mapping from client_id to backend creative reference id', async () => {
@@ -299,7 +283,6 @@ test('applyRuntimeDraftFromUI rewrites asset owner client_id using project setti
     title: 'Asset proposal',
     projectId: 7,
     content: JSON.stringify({
-      snapshot_base: { asset_slots: [] },
       proposal: {
         asset_slots: [{
           name: 'Hero portrait',
@@ -364,7 +347,6 @@ test('applyRuntimeDraftFromUI prefers latest setting proposal mapping when multi
     title: 'Asset proposal',
     projectId: 7,
     content: JSON.stringify({
-      snapshot_base: { asset_slots: [] },
       proposal: {
         asset_slots: [{
           name: 'Hero portrait',
@@ -415,7 +397,6 @@ test('applyRuntimeDraftFromUI rewrites creative_reference_id on top-level slot f
     title: 'Asset proposal',
     projectId: 7,
     content: JSON.stringify({
-      snapshot_base: { asset_slots: [] },
       proposal: {
         asset_slots: [{
           name: 'Hero portrait',
@@ -468,7 +449,6 @@ test('applyRuntimeDraftFromUI prefers mapped owner client_id over stale owner id
     title: 'Asset proposal',
     projectId: 7,
     content: JSON.stringify({
-      snapshot_base: { asset_slots: [] },
       proposal: {
         asset_slots: [{
           name: 'Hero portrait',

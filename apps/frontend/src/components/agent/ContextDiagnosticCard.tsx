@@ -150,6 +150,7 @@ export function ContextDiagnosticCard({ diagnostic }: { diagnostic: ChatContextD
 function ContextDiagnosticToolRow({ tool, parameters }: { tool: ChatContextDiagnosticTool | { name: string; description?: string }; parameters?: unknown }) {
   const { t } = useTranslation()
   const schema = parameters ?? ('inputSchema' in tool ? tool.inputSchema : undefined)
+  const resolution = 'resolution' in tool ? tool.resolution : undefined
   return (
     <div className="rounded border border-border/70 bg-background px-2 py-1.5 type-tiny">
       <div className="flex min-w-0 items-center gap-1">
@@ -159,6 +160,11 @@ function ContextDiagnosticToolRow({ tool, parameters }: { tool: ChatContextDiagn
         {'unavailableReason' in tool && tool.unavailableReason && <Badge variant="warning" className="type-min leading-3 px-1 py-0">{tool.unavailableReason}</Badge>}
       </div>
       {tool.description && <p className="mt-0.5 line-clamp-2 type-micro leading-relaxed text-muted-foreground">{tool.description}</p>}
+      {resolution && (
+        <p className="mt-0.5 type-micro leading-relaxed text-muted-foreground">
+          {contextToolResolutionLabel(resolution)}
+        </p>
+      )}
       {schema !== undefined && (
         <details className="mt-1 rounded border border-border/60 bg-muted/20">
           <summary className="cursor-pointer list-none px-1.5 py-1 type-micro text-muted-foreground marker:hidden">参数结构</summary>
@@ -169,6 +175,16 @@ function ContextDiagnosticToolRow({ tool, parameters }: { tool: ChatContextDiagn
       )}
     </div>
   )
+}
+
+function contextToolResolutionLabel(resolution: NonNullable<ChatContextDiagnosticTool['resolution']>) {
+  return [
+    `授权: ${resolution.authorized ? '是' : '否'}`,
+    `可见: ${resolution.visible ? '是' : '否'}`,
+    `来源: ${resolution.grantSource}`,
+    `激活技能: ${resolution.activeSkillIds.length}`,
+    resolution.reason ? `原因: ${resolution.reason}` : undefined,
+  ].filter(Boolean).join(' · ')
 }
 
 function DiagnosticSummaryItem({ label, value }: { label: string; value: string }) {

@@ -163,7 +163,7 @@
 
 5. 命名边界容易混淆
 
-   当前状态：项目工作台定义已显式使用 `creative_plan` 和 `content_orchestration`，减少 `production` 同时表达多个页面概念。底层实体仍保留 `production` 作为业务对象名，不再把实体名和工作台 stage 混用。
+   当前状态：项目工作台定义已显式使用 `creative_taskGraph` 和 `content_orchestration`，减少 `production` 同时表达多个页面概念。底层实体仍保留 `production` 作为业务对象名，不再把实体名和工作台 stage 混用。
 
 ## 建议统一的工作台契约
 
@@ -176,7 +176,7 @@ interface ProjectWorkbenchDefinition {
   shortTitle: string
   route: string
   legacyRoutes: string[]
-  stage: 'standards' | 'pre_production' | 'creative_plan' | 'content_orchestration' | 'delivery'
+  stage: 'standards' | 'pre_production' | 'creative_taskGraph' | 'content_orchestration' | 'delivery'
   owns: string[]
   reads: string[]
   proposalKinds: string[]
@@ -238,7 +238,7 @@ interface ProjectWorkbenchDefinition {
 ### 第一阶段：只收敛配置和命名
 
 - 在 `projectSurfaces.tsx` 增加统一的 `projectWorkbenchDefinitions`。
-- 明确 `creative_plan` 和 `content_orchestration` 的命名，不再用 `production` 同时表达多个页面概念。
+- 明确 `creative_taskGraph` 和 `content_orchestration` 的命名，不再用 `production` 同时表达多个页面概念。
 - 让 sidebar、overview 快捷入口、draft review path 尽量引用统一定义。
 - 保留 legacy route redirect，不继续扩散旧入口。
 

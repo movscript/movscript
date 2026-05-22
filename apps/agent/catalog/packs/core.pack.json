@@ -1,46 +1,44 @@
 {
-  "id": "movscript.pack.agent-core",
+  "id": "core.pack.agent",
   "version": "1.0.0",
   "name": "Agent Core",
   "description": "Agent 对自身能力的核心认知层：memory、用户输入、catalog inspection 和 planner subagents。",
   "source": "builtin",
   "resources": {
     "skills": [
-      "agent-core/persona/default",
-      "agent-core/policy/agent-core",
-      "agent-core/workflow/memory-access",
-      "agent-core/workflow/planner-subagents"
+      "core/persona/default",
+      "core/policy/runtime",
+      "core/workflow/memory_access",
+      "core/workflow/subagent_planning"
     ],
     "tools": [
-      "agent-core"
+      "core"
     ]
   },
   "schemas": [],
   "tools": [
-    "movscript_search_memories",
-    "movscript_get_memory",
-    "movscript_create_memory",
-    "movscript_delete_memory",
-    "movscript_inspect_agent_catalog",
-    "movscript_update_active_skills",
-    "movscript_create_plan",
-    "movscript_get_plan",
-    "movscript_replan",
-    "movscript_spawn_subagent",
-    "movscript_list_subagents",
-    "movscript_wait_subagent",
-    "movscript_cancel_subagent",
-    "runtime_operation_start",
-    "runtime_operation_get",
-    "runtime_operation_list",
-    "runtime_operation_wait",
-    "runtime_operation_cancel",
-    "movscript_request_user_input"
+    "core_memory_search",
+    "core_memory_get",
+    "core_memory_create",
+    "core_memory_delete",
+    "core_catalog_inspect",
+    "core_skill_update",
+    "core_progress_update",
+    "core_subagent_spawn",
+    "core_subagent_list",
+    "core_subagent_wait",
+    "core_subagent_cancel",
+    "core_operation_start",
+    "core_operation_get",
+    "core_operation_list",
+    "core_operation_wait",
+    "core_operation_cancel",
+    "core_user_input_request"
   ],
   "skills": [
-    "movscript.persona.default",
-    "movscript.policy.agent-core",
-    "movscript.workflow.memory-access",
-    "movscript.workflow.planner-subagents"
+    "core.persona.default",
+    "core.policy.runtime",
+    "core.workflow.memory_access",
+    "core.workflow.subagent_planning"
   ]
 }

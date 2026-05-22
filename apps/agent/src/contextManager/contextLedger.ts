@@ -171,7 +171,7 @@ function buildRetrievedRecord(input: {
 function retrievedRecordCharCount(ref: ContextRef, call: ToolCall, result: JSONValue | undefined): number {
   const payload = unwrapResult(result)
   if (ref.type === 'knowledge') {
-    if (call.name !== 'movscript_get_knowledge') return 0
+    if (call.name !== 'knowledge_get') return 0
     const item = findRefPayload(ref, payload)
     return positiveNumberField(item, 'charCount')
       ?? stringLengthField(item, 'content')
@@ -180,14 +180,14 @@ function retrievedRecordCharCount(ref: ContextRef, call: ToolCall, result: JSONV
       ?? 0
   }
   if (ref.type === 'memory') {
-    if (call.name === 'movscript_search_memories') return 0
+    if (call.name === 'core_memory_search') return 0
     const item = findRefPayload(ref, payload)
     return stringLengthField(item, 'content')
       ?? stringLengthField(payload, 'content')
       ?? 0
   }
   if (ref.type === 'draft') {
-    if (call.name === 'movscript_create_draft' || call.name === 'movscript_validate_draft' || call.name === 'movscript_preview_draft_apply') return 0
+    if (call.name === 'draft_create' || call.name === 'draft_validate' || call.name === 'draft_apply_preview') return 0
     const item = findRefPayload(ref, payload)
     return stringLengthField(item, 'content')
       ?? stringLengthField(item, 'body')
@@ -203,7 +203,7 @@ function retrievedRecordCharCount(ref: ContextRef, call: ToolCall, result: JSONV
 function findRefPayload(ref: ContextRef, value: unknown): Record<string, unknown> | undefined {
   if (isRecord(value) && refMatchesRecord(ref, value)) return value
   if (isRecord(value)) {
-    for (const key of ['draft', 'memory', 'knowledge', 'project', 'production', 'plan', 'job']) {
+    for (const key of ['draft', 'memory', 'knowledge', 'project', 'production', 'taskGraph', 'job']) {
       const nested = value[key]
       if (isRecord(nested) && refMatchesRecord(ref, nested)) return nested
     }
@@ -328,15 +328,15 @@ function extractKnowledgeRefs(payload: Record<string, unknown>): ContextRef[] {
 }
 
 function extractPlanRefs(payload: Record<string, unknown>): ContextRef[] {
-  const plan = isRecord(payload.plan) ? payload.plan : payload
-  const id = stringField(plan.id) ?? stringField(payload.planId)
-  if (!id || !('tasks' in plan || 'status' in plan || 'planId' in payload)) return []
+  const taskGraph = isRecord(payload.taskGraph) ? payload.taskGraph : payload
+  const id = stringField(taskGraph.id) ?? stringField(payload.taskGraphId)
+  if (!id || !('tasks' in taskGraph || 'status' in taskGraph || 'taskGraphId' in payload)) return []
   return [{
-    type: 'plan',
+    type: 'taskGraph',
     id,
-    title: stringField(plan.title) ?? id,
-    ...(stringField(plan.updatedAt) ? { version: stringField(plan.updatedAt) } : {}),
-    source: 'agent_plan',
+    title: stringField(taskGraph.title) ?? id,
+    ...(stringField(taskGraph.updatedAt) ? { version: stringField(taskGraph.updatedAt) } : {}),
+    source: 'agent_taskGraph',
   }]
 }
 
@@ -455,7 +455,7 @@ function normalizeRefType(value: unknown): ContextRef['type'] | undefined {
     || value === 'production'
     || value === 'asset_slot'
     || value === 'generation_job'
-    || value === 'plan'
+    || value === 'taskGraph'
     ? value
     : undefined
 }

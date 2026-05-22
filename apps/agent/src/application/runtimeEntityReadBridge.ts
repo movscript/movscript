@@ -1,11 +1,11 @@
 import type { AgentStore } from '../state/store.js'
-import type { AgentPlan, AgentPlanSnapshot, AgentRun, AgentTask } from '../state/types.js'
+import type { AgentTaskGraph, AgentTaskGraphSnapshot, AgentRun, AgentTask } from '../state/types.js'
 import {
-  getRuntimePlan,
+  getRuntimeTaskGraph,
   getRuntimeTaskTree,
   listRuntimePlans,
 } from './runtimePlanRead.js'
-import { getRuntimePlanSnapshot } from './runtimePlanSnapshot.js'
+import { getRuntimeTaskGraphSnapshot } from './runtimePlanSnapshot.js'
 import {
   getRuntimeChildRuns,
   getRuntimeRun,
@@ -20,10 +20,10 @@ export interface RuntimeEntityReadBridge {
   listRunsByThread: (threadId: string) => AgentRun[]
   getRun: (id: string) => AgentRun | undefined
   getChildRuns: (parentRunId: string) => AgentRun[]
-  listPlans: () => AgentPlan[]
-  getPlan: (id: string) => AgentPlan | undefined
-  getPlanSnapshot: (planId: string) => AgentPlanSnapshot
-  getTaskTree: (planId: string) => AgentTask[]
+  listTaskGraphs: () => AgentTaskGraph[]
+  getTaskGraph: (id: string) => AgentTaskGraph | undefined
+  getTaskGraphSnapshot: (taskGraphId: string) => AgentTaskGraphSnapshot
+  getTaskTree: (taskGraphId: string) => AgentTask[]
 }
 
 export function createRuntimeEntityReadBridge(input: {
@@ -35,9 +35,9 @@ export function createRuntimeEntityReadBridge(input: {
     listRunsByThread: (threadId) => listRuntimeRunsByThread({ store: input.store, threadId }),
     getRun: (runId) => getRuntimeRun({ store: input.store, runId }),
     getChildRuns: (parentRunId) => getRuntimeChildRuns({ store: input.store, parentRunId }),
-    listPlans: () => listRuntimePlans({ store: input.store }),
-    getPlan: (planId) => getRuntimePlan({ store: input.store, planId }),
-    getPlanSnapshot: (planId) => getRuntimePlanSnapshot({ store: input.store, planId }),
-    getTaskTree: (planId) => getRuntimeTaskTree({ store: input.store, planId }),
+    listTaskGraphs: () => listRuntimePlans({ store: input.store }),
+    getTaskGraph: (taskGraphId) => getRuntimeTaskGraph({ store: input.store, taskGraphId }),
+    getTaskGraphSnapshot: (taskGraphId) => getRuntimeTaskGraphSnapshot({ store: input.store, taskGraphId }),
+    getTaskTree: (taskGraphId) => getRuntimeTaskTree({ store: input.store, taskGraphId }),
   }
 }

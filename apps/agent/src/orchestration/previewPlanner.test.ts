@@ -8,7 +8,7 @@ import { planPreviewToolRequests } from './previewPlanner.js'
 
 const registry = new StaticToolRegistry([
   {
-    name: 'movscript_create_project',
+    name: 'movscript_project_create',
     description: 'Create a project.',
     permission: 'project.write',
     risk: 'write',
@@ -22,7 +22,7 @@ test('planPreviewToolRequests predicts approval-gated write calls without draft 
   const draftStore = new InMemoryAgentDraftStore()
   const manifest = {
     ...DEFAULT_AGENT_MANIFEST,
-    tools: [{ name: 'movscript_create_project', mode: 'allow' as const, approval: 'always' as const }],
+    tools: [{ name: 'movscript_project_create', mode: 'allow' as const, approval: 'always' as const }],
   }
 
   const result = await planPreviewToolRequests({
@@ -42,7 +42,7 @@ test('planPreviewToolRequests predicts approval-gated write calls without draft 
       blocked: [],
       byName: {},
       available: [{
-        name: 'movscript_create_project',
+        name: 'movscript_project_create',
         source: 'runtime',
         registered: true,
         granted: true,
@@ -94,7 +94,7 @@ test('planPreviewToolRequests predicts approval-gated write calls without draft 
         id: 'call_1',
           type: 'function',
           function: {
-          name: 'movscript_create_project',
+          name: 'movscript_project_create',
           arguments: JSON.stringify({ name: '雨夜便利店' }),
         },
       }],
@@ -117,12 +117,12 @@ test('planPreviewToolRequests predicts approval-gated write calls without draft 
   assert.equal(result.toolCalls.length, 0)
   assert.equal(result.pendingApprovals.length, 1)
   assert.equal(result.pendingApprovals[0].id, 'approval_1')
-  assert.equal(result.pendingApprovals[0].toolName, 'movscript_create_project')
+  assert.equal(result.pendingApprovals[0].toolName, 'movscript_project_create')
   assert.equal(result.pendingApprovals[0].risk, 'write')
   assert.equal(result.pendingApprovals[0].preview, undefined)
 })
 
-test('planPreviewToolRequests returns an empty plan without a model config', async () => {
+test('planPreviewToolRequests returns an empty taskGraph without a model config', async () => {
   const result = await planPreviewToolRequests({
     manifest: DEFAULT_AGENT_MANIFEST,
     skills: [],

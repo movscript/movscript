@@ -70,9 +70,9 @@ export function selectActiveWorkflowsWithTrace(workflows: WorkflowSkill[], ctx: 
 
 function workflowSelectionPriority(workflow: WorkflowSkill, ctx: RuntimeContext): number {
   if (!hasGenerationExecutionIntent(ctx)) return workflow.priority
-  if (ctx.intents.includes('asset_candidate_generation') && workflow.id === 'movscript.workflow.asset-candidate-generation') return workflow.priority + 10000
-  if (workflow.id === 'movscript.workflow.visual-generation') return workflow.priority + 9000
-  if (workflow.id === 'movscript.workflow.asset-candidate-generation') return workflow.priority + 8000
+  if (ctx.intents.includes('asset_candidate_generation') && workflow.id === 'candidate.workflow.asset_planning') return workflow.priority + 10000
+  if (workflow.id === 'generation.workflow.visual_execution') return workflow.priority + 9000
+  if (workflow.id === 'candidate.workflow.asset_planning') return workflow.priority + 8000
   return workflow.priority
 }
 

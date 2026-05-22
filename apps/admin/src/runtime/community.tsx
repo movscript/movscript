@@ -10,4 +10,5 @@ export const runtimeSectionCards: AdminSectionCard[] = []
 
 export const runtimeCapabilities: AdminRuntimeCapabilities = {
   customPricingMode: false,
+  userQuotaManagement: false,
 }

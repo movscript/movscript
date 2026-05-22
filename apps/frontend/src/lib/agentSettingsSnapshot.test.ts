@@ -367,9 +367,9 @@ test('parseSettingsSnapshot rejects invalid run preset metadata field types', ()
   assert.throws(
     () => parseSettingsSnapshot(JSON.stringify({
       schema: 'movscript.agent.settings.snapshot.v1',
-      runPresets: [{ ...preset, autoPlan: 'yes' }],
+      runPresets: [{ ...preset, autoTaskGraph: 'yes' }],
     })),
-    /runPresets 1 autoPlan must be boolean/,
+    /runPresets 1 autoTaskGraph must be boolean/,
   )
 })
 

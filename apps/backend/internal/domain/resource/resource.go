@@ -51,6 +51,7 @@ type UpdateSpec struct {
 	Name                 *string
 	MimeType             *string
 	Size                 *int64
+	OrgID                *uint
 	IsShared             *bool
 	FolderID             *uint
 	ClearFolder          bool
@@ -105,6 +106,7 @@ func (spec UpdateSpec) Empty() bool {
 		spec.Name == nil &&
 		spec.MimeType == nil &&
 		spec.Size == nil &&
+		spec.OrgID == nil &&
 		spec.IsShared == nil &&
 		spec.FolderID == nil &&
 		!spec.ClearFolder &&
@@ -136,6 +138,10 @@ func (resource *RawResource) ApplyUpdate(spec UpdateSpec) {
 	}
 	if spec.Size != nil {
 		resource.Size = *spec.Size
+	}
+	if spec.OrgID != nil {
+		orgID := *spec.OrgID
+		resource.OrgID = &orgID
 	}
 	if spec.IsShared != nil {
 		resource.IsShared = *spec.IsShared

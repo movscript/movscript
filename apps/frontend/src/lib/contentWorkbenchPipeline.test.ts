@@ -38,7 +38,7 @@ test('content workbench pipeline moves the current blocker to AI review drafts',
   assert.equal(summary.currentKey, 'ai_review')
   assert.equal(summary.blockedCount, 1)
   assert.equal(summary.steps.find((step) => step.key === 'ai_review')?.tone, 'current')
-  assert.equal(summary.steps.find((step) => step.key === 'generation_plan')?.tone, 'done')
+  assert.equal(summary.steps.find((step) => step.key === 'generation_taskGraph')?.tone, 'done')
 })
 
 test('content workbench pipeline reports generation readiness when all gates are clear', () => {
@@ -58,7 +58,7 @@ test('content workbench pipeline reports generation readiness when all gates are
 
   assert.equal(summary.title, '生产链路可进入生成')
   assert.equal(summary.blockedCount, 0)
-  assert.equal(summary.currentKey, 'generation_plan')
+  assert.equal(summary.currentKey, 'generation_taskGraph')
   assert.equal(summary.steps.every((step) => step.tone === 'done' || step.tone === 'pending'), true)
 })
 

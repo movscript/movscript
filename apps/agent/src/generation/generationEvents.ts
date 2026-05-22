@@ -24,7 +24,7 @@ export interface GenerationEvent {
 }
 
 export interface GenerationMonitorRequest {
-  toolName: 'movscript_get_generation_job'
+  toolName: 'generation_job_get'
   args: Record<string, JSONValue>
   timeoutMs: number
   pollIntervalMs: number
@@ -81,14 +81,14 @@ export function buildGenerationTimeoutEvent(initial: GenerationEvent): Generatio
 }
 
 export function extractGenerationMonitorRequest(call: ToolCall, result: JSONValue | undefined, event: GenerationEvent): GenerationMonitorRequest | undefined {
-  if (call.name === 'runtime_operation_start') return undefined
+  if (call.name === 'core_operation_start') return undefined
   const normalized = normalizeGenerationCall(call, result)
-  if (!normalized || normalized.call.name !== 'movscript_create_generation_job' || event.terminal) return undefined
+  if (!normalized || normalized.call.name !== 'generation_job_create' || event.terminal) return undefined
   const payload = unwrapToolPayload(normalized.result)
   const monitor = isRecord(payload) && isRecord(payload.monitor) ? payload.monitor : undefined
   if (!monitor) return undefined
   const monitorArgs = isRecord(monitor?.args) ? monitor.args : undefined
-  const monitorTool = 'movscript_get_generation_job'
+  const monitorTool = 'generation_job_get'
   const jobId = event.jobId ?? idField(monitorArgs?.jobId) ?? idField(monitorArgs?.job_id)
   const jobIds = idListField(monitorArgs?.jobIds) ?? idListField(monitorArgs?.job_ids) ?? (jobId !== undefined ? [jobId] : [])
   if (jobId === undefined && jobIds.length === 0) return undefined
@@ -108,7 +108,7 @@ export function extractGenerationMonitorRequest(call: ToolCall, result: JSONValu
 
 function normalizeGenerationCall(call: ToolCall, result: JSONValue | undefined): { call: ToolCall; result: JSONValue | undefined } | undefined {
   if (isGenerationTool(call.name)) return { call, result }
-  if (call.name !== 'runtime_operation_start') return undefined
+  if (call.name !== 'core_operation_start') return undefined
   const resultRecord = isRecord(result) ? result : undefined
   const operation = isRecord(resultRecord?.operation) ? resultRecord.operation : undefined
   const operationResult = isJSONValue(operation?.result) ? operation.result : undefined
@@ -118,7 +118,7 @@ function normalizeGenerationCall(call: ToolCall, result: JSONValue | undefined):
       ? cloneJSONValue(call.args.request)
       : {}
   return {
-    call: { name: 'movscript_create_generation_job', args: request },
+    call: { name: 'generation_job_create', args: request },
     result: operationResult,
   }
 }
@@ -151,7 +151,7 @@ function inferStage(toolName: string, status: string, terminal: boolean): Genera
   if (status === 'succeeded') return 'completed'
   if (status === 'failed') return 'failed'
   if (status === 'cancelled') return 'cancelled'
-  if (toolName === 'movscript_create_generation_job' && !terminal) return 'created'
+  if (toolName === 'generation_job_create' && !terminal) return 'created'
   return 'observed'
 }
 
@@ -174,14 +174,14 @@ function defaultMessage(toolName: string, jobId: number | undefined, status: str
   if (status === 'succeeded') return `${jobLabel} 生成完成${outputResourceIds.length > 0 ? `，输出资源 ${outputResourceIds.map((id) => `#${id}`).join('、')}` : ''}。`
   if (status === 'failed') return `${jobLabel} 生成失败。`
   if (status === 'cancelled') return `${jobLabel} 已取消。`
-  if (toolName === 'movscript_create_generation_job') return `${jobLabel} 已创建，当前状态：${status}。`
+  if (toolName === 'generation_job_create') return `${jobLabel} 已创建，当前状态：${status}。`
   return `${jobLabel} 仍在运行，当前状态：${status}${progress !== undefined ? `，进度 ${progress}%` : ''}。`
 }
 
 function isGenerationTool(toolName: string): boolean {
-  return toolName === 'movscript_create_generation_job'
-    || toolName === 'movscript_get_generation_job'
-    || toolName === 'movscript_cancel_generation_job'
+  return toolName === 'generation_job_create'
+    || toolName === 'generation_job_get'
+    || toolName === 'generation_job_cancel'
 }
 
 function isTerminalStatus(status: string): boolean {

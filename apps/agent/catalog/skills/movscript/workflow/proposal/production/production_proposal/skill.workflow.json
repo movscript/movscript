@@ -1,0 +1,45 @@
+{
+  "id": "movscript.workflow.production_proposal",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Production Proposal",
+  "description": "以本地审阅 draft 的形式起草 production 层 segment、scene-moment 和 production-ready gap proposals，并把缺失 project 设定或素材槽回退到上游 proposal。",
+  "priority": 860,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "intent",
+      "id": "production_proposal"
+    },
+    {
+      "kind": "keyword",
+      "any": [
+        "制作提案",
+        "制作编排",
+        "production proposal",
+        "production_proposal"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_focus_get",
+    "tool://draft_model_get",
+    "tool://draft_create",
+    "tool://draft_file_read",
+    "tool://draft_file_search",
+    "tool://draft_file_edit",
+    "tool://draft_validate",
+    "tool://draft_apply_preview",
+    "tool://draft_apply",
+    "tool://draft_get",
+    "tool://movscript_creative_reference_query",
+    "tool://movscript_asset_slot_query",
+    "tool://core_user_input_request"
+  ],
+  "toolScope": "intersect",
+  "schemaRefs": [
+    "schema://movscript.production_proposal.v1"
+  ],
+  "outputContract": "回复 draftId、projectId、productionId、draft status、最近一次 preview_apply 的 ok/stage、segments/scene moments 数量和未解决上游缺口。",
+  "instructionTemplatePath": "instruction.md"
+}

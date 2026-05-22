@@ -18,6 +18,21 @@
       ]
     },
     {
+      "path": "apps/agent/scripts/check-asset-proposal-draft-slots.mjs",
+      "category": "dev",
+      "lifecycle": "maintained",
+      "owner": "agent-runtime",
+      "purpose": "Create a diagnostic asset_proposal draft through the running agent and compare its hydrated asset slots with the backend current asset slots.",
+      "entrypoint": "pnpm --filter movscript-agent check:asset-proposal-slots -- [--project-id <id>]",
+      "invokedBy": [
+        "apps/agent/package.json check:asset-proposal-slots"
+      ],
+      "tests": [
+        "pnpm run verify:scripts",
+        "node --check apps/agent/scripts/check-asset-proposal-draft-slots.mjs"
+      ]
+    },
+    {
       "path": "apps/agent/scripts/dev-watch.mjs",
       "category": "dev",
       "lifecycle": "maintained",

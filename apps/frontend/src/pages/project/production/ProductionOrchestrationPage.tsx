@@ -243,7 +243,7 @@ export default function ProductionOrchestrationPage() {
 
   return (
     <ProjectWorkbenchShell
-      workbenchId="creative_plan"
+      workbenchId="creative_taskGraph"
       projectName={project?.name}
       kicker={selectedProduction ? `${String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`)} · 创作编排` : '创作编排'}
       title="创作编排工作台"

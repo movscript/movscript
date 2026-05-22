@@ -20,13 +20,13 @@ export type ContentUnitEditDraft = {
   camera_motion: string
   status: string
   metadata_json: string
-  visual_plan_space: string
-  visual_plan_blocking: string
-  visual_plan_camera_path: string
-  visual_plan_beats: string
-  visual_plan_props: string
-  visual_plan_lighting: string
-  visual_plan_risks: string
+  visual_task_graph_space: string
+  visual_task_graph_blocking: string
+  visual_task_graph_camera_path: string
+  visual_task_graph_beats: string
+  visual_task_graph_props: string
+  visual_task_graph_lighting: string
+  visual_task_graph_risks: string
   storyboard_purpose: string
   storyboard_subject: string
   storyboard_composition: string
@@ -188,7 +188,7 @@ export function keyframeDisplayTitle(keyframe: ContentWorkbenchEditRecord) {
 
 export function contentUnitEditDraftFromRecord(unit?: ContentWorkbenchEditRecord | null): ContentUnitEditDraft {
   const metadata = parseMetadataJSON(unit?.metadata_json)
-  const visualPlan = metadataObject(metadata.visual_plan)
+  const visualTaskGraph = metadataObject(metadata.visual_taskGraph)
   const storyboardBrief = metadataObject(metadata.storyboard_brief)
   return {
     title: firstText(unit?.title),
@@ -200,13 +200,13 @@ export function contentUnitEditDraftFromRecord(unit?: ContentWorkbenchEditRecord
     camera_motion: firstText(unit?.camera_motion),
     status: firstText(unit?.status, 'candidate'),
     metadata_json: firstText(unit?.metadata_json),
-    visual_plan_space: firstText(visualPlan.space),
-    visual_plan_blocking: firstText(visualPlan.blocking),
-    visual_plan_camera_path: firstText(visualPlan.camera_path),
-    visual_plan_beats: textListFromMetadata(visualPlan.beats),
-    visual_plan_props: textListFromMetadata(visualPlan.props),
-    visual_plan_lighting: firstText(visualPlan.lighting),
-    visual_plan_risks: textListFromMetadata(visualPlan.risks),
+    visual_task_graph_space: firstText(visualTaskGraph.space),
+    visual_task_graph_blocking: firstText(visualTaskGraph.blocking),
+    visual_task_graph_camera_path: firstText(visualTaskGraph.camera_path),
+    visual_task_graph_beats: textListFromMetadata(visualTaskGraph.beats),
+    visual_task_graph_props: textListFromMetadata(visualTaskGraph.props),
+    visual_task_graph_lighting: firstText(visualTaskGraph.lighting),
+    visual_task_graph_risks: textListFromMetadata(visualTaskGraph.risks),
     storyboard_purpose: firstText(storyboardBrief.purpose),
     storyboard_subject: firstText(storyboardBrief.subject),
     storyboard_composition: firstText(storyboardBrief.composition),
@@ -226,14 +226,14 @@ export function contentUnitEditDraftEqualsRecord(draft: ContentUnitEditDraft, un
 
 export function contentUnitEditPayload(draft: ContentUnitEditDraft): SemanticEntityPayload {
   const duration = Number(draft.duration_sec)
-  const visualPlan = {
-    space: draft.visual_plan_space.trim(),
-    blocking: draft.visual_plan_blocking.trim(),
-    camera_path: draft.visual_plan_camera_path.trim(),
-    beats: metadataListFromText(draft.visual_plan_beats),
-    props: metadataListFromText(draft.visual_plan_props),
-    lighting: draft.visual_plan_lighting.trim(),
-    risks: metadataListFromText(draft.visual_plan_risks),
+  const visualTaskGraph = {
+    space: draft.visual_task_graph_space.trim(),
+    blocking: draft.visual_task_graph_blocking.trim(),
+    camera_path: draft.visual_task_graph_camera_path.trim(),
+    beats: metadataListFromText(draft.visual_task_graph_beats),
+    props: metadataListFromText(draft.visual_task_graph_props),
+    lighting: draft.visual_task_graph_lighting.trim(),
+    risks: metadataListFromText(draft.visual_task_graph_risks),
   }
   const storyboardBrief = {
     purpose: draft.storyboard_purpose.trim(),
@@ -253,7 +253,7 @@ export function contentUnitEditPayload(draft: ContentUnitEditDraft): SemanticEnt
     camera_motion: draft.camera_motion,
     status: firstText(draft.status, 'candidate'),
     metadata_json: JSON.stringify(mergeMetadataJSON(draft.metadata_json, {
-      visual_plan: visualPlan,
+      visual_taskGraph: visualTaskGraph,
       storyboard_brief: storyboardBrief,
     })),
   }
@@ -300,14 +300,14 @@ export function buildKeyframeGenerationPrompt({
   unit,
   keyframe,
   sequence,
-  visualPlan,
+  visualTaskGraph,
   storyboardBrief,
 }: {
   row: ContentWorkbenchKeyframePromptRow
   unit: ContentWorkbenchEditRecord
   keyframe: ContentWorkbenchEditRecord
   sequence: ContentWorkbenchEditRecord[]
-  visualPlan?: string
+  visualTaskGraph?: string
   storyboardBrief?: string
 }) {
   const index = Math.max(0, sequence.findIndex((item) => item.ID === keyframe.ID))
@@ -318,7 +318,7 @@ export function buildKeyframeGenerationPrompt({
     `所属制作项：${recordTitle(unit)}。${firstText(unit.prompt, unit.description)}`,
     `当前情节：${row.title}。${firstText(row.moment.action_text, row.moment.description, row.moment.location_text, row.moment.time_text)}`,
     `关键帧要求：${firstText(keyframe.prompt, keyframe.description, recordTitle(keyframe))}`,
-    visualPlan ? `当前制作项视觉调度：\n${visualPlan}` : '',
+    visualTaskGraph ? `当前制作项视觉调度：\n${visualTaskGraph}` : '',
     storyboardBrief ? `当前制作项故事板简述：\n${storyboardBrief}` : '',
     prev ? `前一帧连续性：${recordTitle(prev)}，${firstText(prev.prompt, prev.description)}` : '',
     next ? `后一帧连续性：${recordTitle(next)}，${firstText(next.prompt, next.description)}` : '',

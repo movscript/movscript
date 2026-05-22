@@ -13,7 +13,7 @@ test('RuntimeOperationManager starts and waits generation job operations', async
       initialize: async () => ({}),
       callTool: async (name, args = {}) => {
         calls.push({ name, args })
-        if (name === 'movscript_create_generation_job') {
+        if (name === 'generation_job_create') {
           return { data: { jobId: 42, status: 'queued', terminal: false } } as JSONValue
         }
         observed = true
@@ -39,7 +39,7 @@ test('RuntimeOperationManager starts and waits generation job operations', async
   assert.equal(wait.status, 'completed')
   assert.equal(wait.done, true)
   assert.equal(wait.completed[0]?.status, 'completed')
-  assert.deepEqual(calls.map((call) => call.name), ['movscript_create_generation_job', 'movscript_get_generation_job'])
+  assert.deepEqual(calls.map((call) => call.name), ['generation_job_create', 'generation_job_get'])
 })
 
 test('RuntimeOperationManager can cancel generation job operations', async () => {
@@ -47,8 +47,8 @@ test('RuntimeOperationManager can cancel generation job operations', async () =>
     providers: [new GenerationJobOperationProvider({
       initialize: async () => ({}),
       callTool: async (name, args = {}) => {
-        if (name === 'movscript_create_generation_job') return { data: { jobId: 77, status: 'queued', terminal: false } } as JSONValue
-        if (name === 'movscript_cancel_generation_job') return { data: { jobId: args.jobId, status: 'cancelled', terminal: true } } as JSONValue
+        if (name === 'generation_job_create') return { data: { jobId: 77, status: 'queued', terminal: false } } as JSONValue
+        if (name === 'generation_job_cancel') return { data: { jobId: args.jobId, status: 'cancelled', terminal: true } } as JSONValue
         throw new Error(`unexpected tool ${name}`)
       },
     })],

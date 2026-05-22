@@ -46,7 +46,7 @@ export class RuntimeOperationManager {
   }
 
   async wait(input: RuntimeOperationWaitInput): Promise<RuntimeOperationWaitResult> {
-    if (input.operationIds.length === 0) throw new Error('runtime_operation_wait requires operationIds')
+    if (input.operationIds.length === 0) throw new Error('core_operation_wait requires operationIds')
     const mode = input.mode === 'any' ? 'any' : 'all'
     const timeoutMs = clampNumber(input.timeoutMs ?? 180_000, 0, 30 * 60_000)
     const pollIntervalMs = clampNumber(input.pollIntervalMs ?? 2_500, 250, 30_000)

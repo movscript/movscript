@@ -5,7 +5,7 @@ import type { JSONValue, ToolCall } from '../state/types.js'
 
 test('generation events prefer structured MCP data over rendered content text', () => {
   const call: ToolCall = {
-    name: 'movscript_create_generation_job',
+    name: 'generation_job_create',
     args: { projectId: 42 },
   }
   const result: JSONValue = {
@@ -20,7 +20,7 @@ test('generation events prefer structured MCP data over rendered content text', 
       jobId: 123,
       terminal: false,
       monitor: {
-        tool: 'movscript_get_generation_job',
+        tool: 'generation_job_get',
         args: { jobId: 123 },
         timeoutMs: 200,
         pollIntervalMs: 300,
@@ -38,7 +38,7 @@ test('generation events prefer structured MCP data over rendered content text', 
 
   const monitor = extractGenerationMonitorRequest(call, result, event)
   assert.ok(monitor)
-  assert.equal(monitor.toolName, 'movscript_get_generation_job')
+  assert.equal(monitor.toolName, 'generation_job_get')
   assert.deepEqual(monitor.args, { jobId: 123, projectId: 42 })
   assert.equal(monitor.timeoutMs, 200)
   assert.equal(monitor.pollIntervalMs, 300)
@@ -46,7 +46,7 @@ test('generation events prefer structured MCP data over rendered content text', 
 
 test('generation events clone JSON media and monitor args snapshots', () => {
   const call: ToolCall = {
-    name: 'movscript_create_generation_job',
+    name: 'generation_job_create',
     args: { projectId: 42 },
   }
   const result: JSONValue = {
@@ -81,7 +81,7 @@ test('generation events clone JSON media and monitor args snapshots', () => {
 
 test('generation monitor requests normalize backend monitor data to get job polling', () => {
   const call: ToolCall = {
-    name: 'movscript_create_generation_job',
+    name: 'generation_job_create',
     args: { projectId: 42 },
   }
   const result: JSONValue = {
@@ -90,7 +90,7 @@ test('generation monitor requests normalize backend monitor data to get job poll
       jobId: 123,
       terminal: false,
       monitor: {
-        tool: 'movscript_get_generation_job',
+        tool: 'generation_job_get',
         args: {
           jobId: 123,
           timeout_ms: 500,
@@ -104,7 +104,7 @@ test('generation monitor requests normalize backend monitor data to get job poll
   assert.ok(event)
   const monitor = extractGenerationMonitorRequest(call, result, event)
   assert.ok(monitor)
-  assert.equal(monitor.toolName, 'movscript_get_generation_job')
+  assert.equal(monitor.toolName, 'generation_job_get')
   assert.deepEqual(monitor.args, { jobId: 123, timeout_ms: 500, heartbeat_ms: 50, projectId: 42 })
   assert.equal(monitor.timeoutMs, 500)
   assert.equal(monitor.heartbeatMs, 50)
@@ -112,7 +112,7 @@ test('generation monitor requests normalize backend monitor data to get job poll
 
 test('runtime operation starts emit generation events without synchronous monitor requests', () => {
   const call: ToolCall = {
-    name: 'runtime_operation_start',
+    name: 'core_operation_start',
     args: { kind: 'generation_job', request: { projectId: 42, prompt: 'image' } },
   }
   const result: JSONValue = {
@@ -127,7 +127,7 @@ test('runtime operation starts emit generation events without synchronous monito
         jobId: 123,
         terminal: false,
         monitor: {
-          tool: 'movscript_get_generation_job',
+          tool: 'generation_job_get',
           args: { jobId: 123, projectId: 42 },
           timeoutMs: 200,
           pollIntervalMs: 300,
@@ -145,7 +145,7 @@ test('runtime operation starts emit generation events without synchronous monito
 
 test('generation monitor requests ignore invalid project ids', () => {
   const call: ToolCall = {
-    name: 'movscript_create_generation_job',
+    name: 'generation_job_create',
     args: { projectId: 42.5 },
   }
   const result: JSONValue = {
@@ -168,7 +168,7 @@ test('generation monitor requests ignore invalid project ids', () => {
 
 test('generation events ignore invalid job and resource ids', () => {
   const call: ToolCall = {
-    name: 'movscript_create_generation_job',
+    name: 'generation_job_create',
     args: { projectId: 42 },
   }
   const result: JSONValue = {
@@ -196,7 +196,7 @@ test('generation events ignore invalid job and resource ids', () => {
 
 test('generation events reject non-finite media values', () => {
   const call: ToolCall = {
-    name: 'movscript_get_generation_job',
+    name: 'generation_job_get',
     args: {},
   }
   const result = {
@@ -213,7 +213,7 @@ test('generation events reject non-finite media values', () => {
 
 test('generation events reject non-plain payload records', () => {
   const call: ToolCall = {
-    name: 'movscript_get_generation_job',
+    name: 'generation_job_get',
     args: {},
   }
 
@@ -223,7 +223,7 @@ test('generation events reject non-plain payload records', () => {
 
 test('generation events can recover from invalid data via JSON content text', () => {
   const call: ToolCall = {
-    name: 'movscript_get_generation_job',
+    name: 'generation_job_get',
     args: {},
   }
   const event = buildGenerationEvent(call, {

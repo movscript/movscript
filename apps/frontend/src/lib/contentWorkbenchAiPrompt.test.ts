@@ -53,7 +53,7 @@ test('content workbench AI prompt defines the draft envelope contract', () => {
   assert.match(prompt, /不要在 content_unit_proposal 里创建 production 级 preview_timeline/)
 })
 
-test('content workbench visual plan prompt keeps a full snapshot and selected unit focus', () => {
+test('content workbench visual taskGraph prompt keeps a full snapshot and selected unit focus', () => {
   const prompt = buildContentWorkbenchVisualPlanPrompt({
     momentTitle: '旧伞纸条滑落',
     sceneMomentId: 402,
@@ -65,7 +65,7 @@ test('content workbench visual plan prompt keeps a full snapshot and selected un
       kind: 'shot',
       status: 'confirmed',
       prompt: '特写纸条从伞骨滑落。',
-      visualPlan: '相机低位推进。',
+      visualTaskGraph: '相机低位推进。',
     }, {
       id: 802,
       title: '顾言反应',
@@ -76,7 +76,7 @@ test('content workbench visual plan prompt keeps a full snapshot and selected un
 
   assert.match(prompt, /\[SELECTED\] 纸条特写/)
   assert.match(prompt, /proposal\.units 必须包含当前情节的完整制作项快照/)
-  assert.match(prompt, /visual_plan/)
+  assert.match(prompt, /visual_taskGraph/)
   assert.match(prompt, /storyboard_brief/)
   assert.match(prompt, /beats、props、risks、keyframe_suggestions 使用字符串数组/)
 })

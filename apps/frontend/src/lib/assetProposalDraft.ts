@@ -11,7 +11,7 @@ export interface AssetProposalReferenceResource {
   reason?: string
 }
 
-export interface AssetProposalCandidatePlan {
+export interface AssetProposalCandidateTaskGraph {
   client_id?: string
   output_kind: AssetProposalOutputKind
   prompt: string
@@ -47,7 +47,7 @@ export interface AssetProposalDraftContent {
   proposal: {
     creative_references: []
     asset_slots: []
-    candidate_plans: AssetProposalCandidatePlan[]
+    candidate_plans: AssetProposalCandidateTaskGraph[]
   }
   next_actions: string[]
   createdAt: string

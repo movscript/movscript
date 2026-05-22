@@ -18,7 +18,7 @@ Required top-level fields:
 - Runtime context: `baseURL`, `currentProject`, `runtime`, `lastUpdated`.
 - Model context: `modelConfig`, `modelConfigError`.
 - Observation context: `observationCoverage`, `evidenceChecklist`,
-  `triageItems`, `runSummary`, `remediationPlan`, `runIssueGroups`,
+  `triageItems`, `runSummary`, `remediationTaskGraph`, `runIssueGroups`,
   `warnings`, `warningGroups`, `preview`.
 
 Compatibility rules:

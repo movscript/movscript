@@ -128,7 +128,7 @@ function omitLargeKnowledgeBodies(content: string, run: AgentRun | undefined): s
 
 function loadedKnowledgeBodies(run: AgentRun): Array<{ id: string; title?: string; body: string }> {
   return run.steps.flatMap((step) => {
-    if (step.toolName !== 'movscript_get_knowledge') return []
+    if (step.toolName !== 'knowledge_get') return []
     const result = isRecord(step.result) ? step.result : undefined
     const id = stringField(result?.id)
     const body = stringField(result?.content)

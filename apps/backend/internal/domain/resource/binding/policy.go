@@ -16,6 +16,7 @@ var (
 const (
 	OwnerTypeScript                 = "script"
 	OwnerTypeScriptVersion          = "script_version"
+	OwnerTypeProject                = "project"
 	OwnerTypeSegment                = "segment"
 	OwnerTypeSceneMoment            = "scene_moment"
 	OwnerTypeContentUnit            = "content_unit"
@@ -175,7 +176,7 @@ func Normalize(binding *Binding) {
 
 func ValidOwnerType(value string) bool {
 	switch value {
-	case OwnerTypeScript, OwnerTypeScriptVersion, OwnerTypeSegment, OwnerTypeSceneMoment, OwnerTypeContentUnit, OwnerTypeKeyframe, OwnerTypePreviewTimeline,
+	case OwnerTypeScript, OwnerTypeScriptVersion, OwnerTypeProject, OwnerTypeSegment, OwnerTypeSceneMoment, OwnerTypeContentUnit, OwnerTypeKeyframe, OwnerTypePreviewTimeline,
 		OwnerTypeCreativeReference, OwnerTypeCreativeReferenceState, OwnerTypeAssetSlot,
 		OwnerTypeDeliveryVersion, OwnerTypeCanvas:
 		return true

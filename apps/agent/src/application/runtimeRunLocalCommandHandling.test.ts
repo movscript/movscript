@@ -53,11 +53,11 @@ test('applyRuntimeRunLocalCommandHandling executes generation commands with cata
     ...baseInput(store, run, thread, '/image a title card'),
     catalogManager: {
       startOperation: async (_run, args) => {
-        calls.push({ name: 'runtime_operation_start', args })
+        calls.push({ name: 'core_operation_start', args })
         return { status: 'started', operation: { id: 'op_1', kind: 'generation_job', status: 'running' } } as JSONValue
       },
       waitOperation: async (_run, args) => {
-        calls.push({ name: 'runtime_operation_wait', args })
+        calls.push({ name: 'core_operation_wait', args })
         return { status: 'completed', done: true, completed: [], failed: [], cancelled: [], pending: [] } as JSONValue
       },
     } as Parameters<typeof applyRuntimeRunLocalCommandHandling>[0]['catalogManager'],
@@ -65,9 +65,9 @@ test('applyRuntimeRunLocalCommandHandling executes generation commands with cata
 
   assert.equal(handled, true)
   assert.equal(run.status, 'completed')
-  assert.equal(calls[0]?.name, 'runtime_operation_start')
-  assert.equal(calls[1]?.name, 'runtime_operation_wait')
-  assert.equal((run.metadata?.forcedToolCall as any)?.name, 'runtime_operation_start')
+  assert.equal(calls[0]?.name, 'core_operation_start')
+  assert.equal(calls[1]?.name, 'core_operation_wait')
+  assert.equal((run.metadata?.forcedToolCall as any)?.name, 'core_operation_start')
 })
 
 function baseInput(

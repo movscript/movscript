@@ -3,19 +3,19 @@ import type { AgentDebugContextPanel, AgentRun } from '../state/types.js'
 import { buildRunPlanDebugContext } from '../state/planContextView.js'
 
 export function attachRuntimePlanDebugContext(input: {
-  store: Pick<AgentStore, 'getPlan' | 'listTasks' | 'listRuns'>
+  store: Pick<AgentStore, 'getTaskGraph' | 'listTasks' | 'listRuns'>
   context: AgentDebugContextPanel
   run: AgentRun
 }): AgentDebugContextPanel {
   const { store, context, run } = input
-  if (!run.planId) return context
-  const plan = store.getPlan(run.planId)
-  if (!plan) return context
+  if (!run.taskGraphId) return context
+  const taskGraph = store.getTaskGraph(run.taskGraphId)
+  if (!taskGraph) return context
   return buildRunPlanDebugContext({
     context,
     run,
-    plan,
-    tasks: store.listTasks(plan.id),
-    runs: store.listRuns({ planId: plan.id }),
+    taskGraph,
+    tasks: store.listTasks(taskGraph.id),
+    runs: store.listRuns({ taskGraphId: taskGraph.id }),
   })
 }

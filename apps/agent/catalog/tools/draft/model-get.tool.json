@@ -1,0 +1,54 @@
+{
+  "name": "draft_model_get",
+  "description": "读取 frontend DraftDomainModel 契约，用于调试、检查字段归属、seed policy、review route、apply boundary，或显式查看按目标 hydrate 的当前数据。创建 setting_proposal / asset_proposal draft 时不需要先调用本工具；draft_create 会在缺少 snapshot_base 时自动 hydrate 当前数据，并在省略 proposal snapshot 数组时预填 no-op 提案。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "kind"
+    ],
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "setting_proposal",
+          "project_standards_proposal",
+          "production_proposal",
+          "script_split_proposal",
+          "asset_proposal",
+          "content_unit_proposal"
+        ]
+      },
+      "target": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "seedMode": {
+        "type": "string",
+        "enum": [
+          "empty",
+          "snapshot",
+          "editable_snapshot"
+        ]
+      },
+      "include": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "hydrate": {
+        "type": "boolean"
+      }
+    }
+  },
+  "permission": "project.read",
+  "risk": "read",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "从前端单一模型源读取 draft 语义、seed 和 route 契约。"
+}

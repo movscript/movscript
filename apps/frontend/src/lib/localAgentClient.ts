@@ -7,8 +7,9 @@ export type AgentThreadStatus = 'idle' | 'running' | 'requires_action' | 'comple
 export type AgentStepStatus = 'in_progress' | 'completed' | 'failed'
 export type AgentInputRequestStatus = 'pending' | 'answered' | 'cancelled'
 export type AgentRunRole = 'planner' | 'worker'
-export type AgentPlanStatus = 'pending' | 'running' | 'blocked' | 'needs_review' | 'done' | 'failed' | 'cancelled'
+export type AgentTaskGraphStatus = 'pending' | 'running' | 'blocked' | 'needs_review' | 'done' | 'failed' | 'cancelled'
 export type AgentTaskStatus = 'pending' | 'running' | 'blocked' | 'needs_review' | 'done' | 'failed' | 'cancelled'
+export type AgentProgressChecklistItemStatus = 'pending' | 'in_progress' | 'completed'
 
 export interface AgentMessage {
   id: string
@@ -26,6 +27,8 @@ export interface AgentThread {
   title?: string
   projectId?: number
   metadata?: Record<string, unknown>
+  currentProgressChecklist?: AgentProgressChecklist
+  progressChecklistRevisions?: AgentProgressChecklistRevision[]
   archived?: boolean
   status?: AgentThreadStatus
   activeRunId?: string
@@ -41,6 +44,7 @@ export interface AgentThreadSummary {
   title?: string
   projectId?: number
   metadata?: Record<string, unknown>
+  currentProgressChecklist?: AgentProgressChecklist
   archived: boolean
   status?: AgentThreadStatus
   activeRunId?: string
@@ -50,6 +54,35 @@ export interface AgentThreadSummary {
   updatedAt: string
   messageCount: number
   lastMessageAt?: string
+}
+
+export interface AgentProgressChecklistItem {
+  step: string
+  status: AgentProgressChecklistItemStatus
+}
+
+export interface AgentProgressChecklist {
+  schema: 'movscript.agent.progress-checklist.v1'
+  id: string
+  threadId: string
+  runId?: string
+  explanation?: string
+  items: AgentProgressChecklistItem[]
+  completedCount: number
+  totalCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AgentProgressChecklistRevision {
+  schema: 'movscript.agent.progress-checklist-revision.v1'
+  id: string
+  checklistId: string
+  threadId: string
+  runId?: string
+  explanation?: string
+  snapshot: AgentProgressChecklist
+  createdAt: string
 }
 
 export interface AgentRunStep {
@@ -91,7 +124,7 @@ export const AGENT_TRACE_EVENT_KINDS = [
   'input',
   'assistant',
   'task',
-  'plan',
+  'taskGraph',
   'error',
 ] as const
 
@@ -130,7 +163,6 @@ export interface AgentManifest {
   name: string
   description?: string
   soul?: string
-  permissions: string[]
   tools: Array<{
     name: string
     mode: 'allow' | 'deny'
@@ -238,6 +270,14 @@ export interface AgentDebugTool {
   available: boolean
   unavailableReason?: string
   requiresApproval: boolean
+  resolution?: {
+    authorized: boolean
+    visible: boolean
+    reason?: string
+    grantSource: 'manifest' | 'none'
+    approval: 'never' | 'always' | 'on_write'
+    activeSkillIds: string[]
+  }
 }
 
 export interface ResolvedToolCatalog {
@@ -259,7 +299,7 @@ export interface AgentRun {
   status: AgentRunStatus
   role?: AgentRunRole
   parentRunId?: string
-  planId?: string
+  taskGraphId?: string
   taskId?: string
   progress?: number
   blockedReason?: string
@@ -291,7 +331,7 @@ export interface AgentRunInput {
   clientInput?: unknown
   parent?: {
     runId?: string
-    planId?: string
+    taskGraphId?: string
     taskId?: string
   }
   task?: {
@@ -310,7 +350,7 @@ export interface AgentTaskArtifact {
 
 export interface AgentTask {
   id: string
-  planId: string
+  taskGraphId: string
   parentId?: string
   deps: string[]
   title: string
@@ -329,12 +369,12 @@ export interface AgentTask {
   cancelledAt?: string
 }
 
-export interface AgentPlan {
+export interface AgentTaskGraph {
   id: string
   threadId: string
   rootRunId?: string
   title: string
-  status: AgentPlanStatus
+  status: AgentTaskGraphStatus
   progress: number
   blockedReason?: string
   metadata?: Record<string, unknown>
@@ -345,8 +385,8 @@ export interface AgentPlan {
   cancelledAt?: string
 }
 
-export interface AgentPlanSnapshot {
-  plan: AgentPlan
+export interface AgentTaskGraphSnapshot {
+  taskGraph: AgentTaskGraph
   tasks: AgentTask[]
   runs: AgentRun[]
   nameConflicts?: Array<{
@@ -366,20 +406,20 @@ export interface AgentPlanSnapshot {
   }
 }
 
-export interface DispatchPlanResult {
-  plan: AgentPlan
+export interface DispatchTaskGraphResult {
+  taskGraph: AgentTaskGraph
   spawnedRuns: AgentRun[]
   blockedTaskIds: string[]
   retriedTaskIds: string[]
   timedOutRunIds: string[]
 }
 
-export interface ReplanRunResult {
-  plan: AgentPlan
+export interface UpdateTaskGraphResult {
+  taskGraph: AgentTaskGraph
   createdTaskIds: string[]
   updatedTaskIds: string[]
   resetTaskIds: string[]
-  dispatch?: DispatchPlanResult
+  dispatch?: DispatchTaskGraphResult
 }
 
 export interface AgentRunPreview {
@@ -462,13 +502,18 @@ export interface AgentRunPolicy {
   maxIterations: number
   allowNetwork: boolean
   allowFileBytes: boolean
+  workflow?: {
+    profile: 'standard' | 'compact' | 'deep'
+    includeMemories?: boolean
+    allowForcedToolCalls?: boolean
+  }
   costLimit?: {
     currency: string
     amount: number
   }
 }
 
-export type AgentRunPolicyOverride = Partial<Pick<AgentRunPolicy, 'approvalMode' | 'maxToolCalls' | 'maxIterations'>>
+export type AgentRunPolicyOverride = Partial<Pick<AgentRunPolicy, 'approvalMode' | 'sandboxMode' | 'maxToolCalls' | 'maxIterations' | 'workflow'>>
 
 export interface AgentCapabilitiesResponse {
   defaultAgentManifest: AgentManifest
@@ -970,6 +1015,7 @@ export interface AgentRunDebugLedger {
     status: AgentTraceEvent['status']
     durationMs?: number
     summary?: string
+    argsEvidenceRef?: string
     resultEvidenceRef?: string
     issue?: string
   }>
@@ -1362,11 +1408,11 @@ export class LocalAgentClient {
     return this.postJSON(`/interactions/${encodeURIComponent(interactionId)}/reject`, {}, signal)
   }
 
-  getPlanSnapshot(planId: string, signal?: AbortSignal): Promise<AgentPlanSnapshot> {
-    return this.getJSON(`/plans/${encodeURIComponent(planId)}`, { signal })
+  getTaskGraphSnapshot(taskGraphId: string, signal?: AbortSignal): Promise<AgentTaskGraphSnapshot> {
+    return this.getJSON(`/plans/${encodeURIComponent(taskGraphId)}`, { signal })
   }
 
-  createPlan(input: {
+  createTaskGraph(input: {
     threadId: string
     title?: string
     goal?: string
@@ -1376,19 +1422,19 @@ export class LocalAgentClient {
     createPlannerRun?: boolean
     agentManifest?: AgentManifest
     policy?: AgentRunPolicyOverride
-  }, signal?: AbortSignal): Promise<AgentPlanSnapshot> {
+  }, signal?: AbortSignal): Promise<AgentTaskGraphSnapshot> {
     return this.postJSON('/plans', input, signal)
   }
 
-  getPlanTasks(planId: string, signal?: AbortSignal): Promise<{ planId: string; tasks: AgentTask[] }> {
-    return this.getJSON(`/plans/${encodeURIComponent(planId)}/tasks`, { signal })
+  getPlanTasks(taskGraphId: string, signal?: AbortSignal): Promise<{ taskGraphId: string; tasks: AgentTask[] }> {
+    return this.getJSON(`/plans/${encodeURIComponent(taskGraphId)}/tasks`, { signal })
   }
 
   updateTask(taskId: string, input: Partial<AgentTask>, signal?: AbortSignal): Promise<AgentTask> {
     return this.patchJSON(`/tasks/${encodeURIComponent(taskId)}`, input, signal)
   }
 
-  dispatchPlan(planId: string, input: {
+  dispatchTaskGraph(taskGraphId: string, input: {
     plannerRunId?: string
     taskIds?: string[]
     maxWorkers?: number
@@ -1397,8 +1443,8 @@ export class LocalAgentClient {
     workerTimeoutMs?: number
     agentManifest?: AgentManifest
     policy?: AgentRunPolicyOverride
-  } = {}, signal?: AbortSignal): Promise<DispatchPlanResult> {
-    return this.postJSON(`/plans/${encodeURIComponent(planId)}/dispatch`, input, signal)
+  } = {}, signal?: AbortSignal): Promise<DispatchTaskGraphResult> {
+    return this.postJSON(`/plans/${encodeURIComponent(taskGraphId)}/dispatch`, input, signal)
   }
 
   getChildRuns(runId: string, signal?: AbortSignal): Promise<{ runId: string; children: AgentRun[] }> {
@@ -1420,8 +1466,8 @@ export class LocalAgentClient {
     maxTaskAttempts?: number
     retryFailed?: boolean
     workerTimeoutMs?: number
-  } = {}, signal?: AbortSignal): Promise<ReplanRunResult> {
-    return this.postJSON(`/runs/${encodeURIComponent(runId)}/replan`, input, signal)
+  } = {}, signal?: AbortSignal): Promise<UpdateTaskGraphResult> {
+    return this.postJSON(`/runs/${encodeURIComponent(runId)}/updateTaskGraph`, input, signal)
   }
 
   cancelRunTree(runId: string, input: { reason?: string } = {}, signal?: AbortSignal): Promise<{ cancelledRunIds: string[] }> {
@@ -1434,6 +1480,10 @@ export class LocalAgentClient {
     if (typeof query.limit === 'number') params.set('limit', String(query.limit))
     if (query.kind) params.set('kind', query.kind)
     return this.getJSON(`/runs/${encodeURIComponent(runId)}/trace${params.size ? `?${params.toString()}` : ''}`)
+  }
+
+  getRunTraceEventData(runId: string, eventId: string): Promise<{ runId: string; eventId: string; data: unknown }> {
+    return this.getJSON(`/runs/${encodeURIComponent(runId)}/trace/events/${encodeURIComponent(eventId)}/data`)
   }
 
   getRunTraceSummary(runId: string): Promise<AgentRunTraceSummary> {
@@ -1788,6 +1838,7 @@ export class LocalAgentClient {
     clientInput?: AgentClientInput
     toolCall?: AgentToolCall
     approvedToolNames?: string[]
+    activeRunPolicy?: 'runtime_input' | 'new_run'
   }, options: RunMessageOptions = {}): Promise<RunMessageResult> {
     const resolvedThread = await this.resolveMessageThread(input, options.signal)
     const thread = resolvedThread.thread
@@ -1797,6 +1848,7 @@ export class LocalAgentClient {
       ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
       ...(input.approvedToolNames?.length ? { approvedToolNames: input.approvedToolNames } : {}),
       ...(input.clientInput ? { clientInput: input.clientInput } : {}),
+      activeRunPolicy: input.activeRunPolicy ?? 'new_run',
       ...(options.runPolicy ? { policy: options.runPolicy } : {}),
     }, options.signal)
     const run = created.run

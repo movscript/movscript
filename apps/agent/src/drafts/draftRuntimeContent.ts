@@ -43,7 +43,6 @@ export function canonicalizeProjectStandardsProposalDraftContent(draft: AgentDra
   return JSON.stringify({
     ...parsed,
     mode: 'snapshot',
-    snapshot_base: canonicalSnapshot as JSONValue,
     proposal: nextProposal,
   }, null, 2)
 }

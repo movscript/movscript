@@ -19,6 +19,8 @@ const (
 	AdapterKling        = "kling"
 	AdapterVolcen       = "volcen" // Volcengine Ark: text (doubao), image (Seedream), video (Seedance)
 	AdapterGemini       = "gemini" // Google Gemini API (text/image/video)
+	AdapterDashScope    = "dashscope"
+	AdapterVidu         = "vidu"
 )
 
 // ParamDef describes a user-configurable generation parameter for a model.
@@ -329,6 +331,39 @@ func volcenVideoParams() []ParamDef {
 	}
 }
 
+func dashScopeVideoParams() []ParamDef {
+	return []ParamDef{
+		{Key: "duration", Label: "时长(秒)", Type: "select",
+			Options: []string{"5", "10", "15"}, Default: "5"},
+		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
+			Options: []string{"16:9", "9:16", "1:1", "4:3", "3:4"}, Default: "16:9"},
+		{Key: "resolution", Label: "分辨率", Type: "select",
+			Options: []string{"480P", "720P", "1080P"}, Default: "720P"},
+		{Key: "image_size", Label: "画面尺寸", Type: "select",
+			Options: []string{"832*480", "1280*720", "720*1280"}, Default: "1280*720"},
+		{Key: "watermark", Label: "水印", Type: "boolean", Default: false},
+		{Key: "audio", Label: "生成音频", Type: "boolean", Default: true},
+	}
+}
+
+func viduVideoParams() []ParamDef {
+	return []ParamDef{
+		{Key: "duration", Label: "时长(秒)", Type: "select",
+			Options: []string{"1", "3", "4", "5", "8", "10", "16"}, Default: "5"},
+		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
+			Options: []string{"16:9", "9:16", "1:1"}, Default: "16:9"},
+		{Key: "resolution", Label: "分辨率", Type: "select",
+			Options: []string{"360p", "540p", "720p", "1080p"}, Default: "720p"},
+		{Key: "seed", Label: "种子", Type: "number", Min: -1, Max: 2147483647, Step: 1},
+		{Key: "audio", Label: "生成音频", Type: "boolean", Default: true},
+		{Key: "audio_type", Label: "音频类型", Type: "select",
+			Options: []string{"all", "speech_only", "sound_effect_only"}, Default: "all"},
+		{Key: "movement_amplitude", Label: "运动幅度", Type: "select",
+			Options: []string{"auto", "small", "medium", "large"}, Default: "auto"},
+		{Key: "off_peak", Label: "错峰模式", Type: "boolean", Default: false},
+	}
+}
+
 // AdapterDefs lists all supported adapter definitions.
 var AdapterDefs = []AdapterDef{
 	{
@@ -410,6 +445,35 @@ var AdapterDefs = []AdapterDef{
 			{Capability: CapabilityImageEdit, Params: geminiImageParams()},
 			{Capability: CapabilityVideo, Params: geminiVideoParams()},
 			{Capability: CapabilityVideoI2V, Params: geminiVideoParams()},
+		},
+	},
+	{
+		AdapterType:    AdapterDashScope,
+		DisplayName:    "阿里云 DashScope",
+		Description:    "阿里云百炼 / DashScope 视频生成异步任务接口（Wan、HappyHorse 等）",
+		DefaultBaseURL: "https://dashscope-intl.aliyuncs.com/api/v1",
+		CredFields: []CredField{
+			{Key: "api_key", Label: "API Key", Required: true},
+			{Key: "base_url", Label: "Base URL（可选：国际站/北京/美国区）", Required: false},
+		},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityVideo, Params: dashScopeVideoParams()},
+			{Capability: CapabilityVideoI2V, Params: dashScopeVideoParams()},
+			{Capability: CapabilityVideoV2V, Params: dashScopeVideoParams()},
+		},
+	},
+	{
+		AdapterType:    AdapterVidu,
+		DisplayName:    "Vidu",
+		Description:    "生数科技 Vidu 视频生成任务接口，支持文生视频、图生视频和参考生视频",
+		DefaultBaseURL: "https://api.vidu.com/ent/v2",
+		CredFields: []CredField{
+			{Key: "api_key", Label: "API Key", Required: true},
+			{Key: "base_url", Label: "Base URL（可选）", Required: false},
+		},
+		ParamSets: []AdapterParamSet{
+			{Capability: CapabilityVideo, Params: viduVideoParams()},
+			{Capability: CapabilityVideoI2V, Params: viduVideoParams()},
 		},
 	},
 }

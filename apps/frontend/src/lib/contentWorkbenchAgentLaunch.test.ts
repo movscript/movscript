@@ -93,7 +93,7 @@ test('content workbench AI suggest launch input is built from the selected row',
   assert.equal(buildContentWorkbenchAiSuggestLaunchInput({ projectId: undefined, row: null }), null)
 })
 
-test('content workbench visual plan launch builds selected unit payload', () => {
+test('content workbench visual taskGraph launch builds selected unit payload', () => {
   const payload = buildContentWorkbenchVisualPlanAgentPanelDraftPayload({
     requestId: 'visual-1',
     projectId: 7,
@@ -102,22 +102,22 @@ test('content workbench visual plan launch builds selected unit payload', () => 
     momentTitle: '雨夜相遇',
     selectedUnitId: 88,
     selectedUnitTitle: '主角特写',
-    existingUnits: [{ id: 88, title: '主角特写', kind: 'shot', status: 'draft', visualPlan: '低角度推进' }],
+    existingUnits: [{ id: 88, title: '主角特写', kind: 'shot', status: 'draft', visualTaskGraph: '低角度推进' }],
   })
 
-  assert.equal(payload.taskType, 'content_unit_visual_plan_proposal')
+  assert.equal(payload.taskType, 'content_unit_visual_task_graph_proposal')
   assert.equal(payload.title, '视觉计划 AI 草案: 主角特写')
   assert.ok(payload.clientInput)
   assert.equal(payload.clientInput.uiSnapshot?.selection?.entityType, 'content_unit')
   assert.equal(payload.clientInput.uiSnapshot?.selection?.entityId, 88)
   assert.match(payload.clientInput.uiSnapshot?.pageContext?.pageRoute ?? '', /scene_moment_id=12/)
   assert.match(payload.clientInput.uiSnapshot?.pageContext?.pageRoute ?? '', /content_unit_id=88/)
-  assert.match(payload.clientInput.message, /visual plan/)
+  assert.match(payload.clientInput.message, /visual taskGraph/)
   assert.match(payload.clientInput.message, /storyboard brief/)
   assert.match(payload.clientInput.message, /主角特写/)
 })
 
-test('content workbench visual plan launch input includes visual planning context', () => {
+test('content workbench visual taskGraph launch input includes visual planning context', () => {
   const unit = record({
     ID: 88,
     title: '主角特写',
@@ -127,7 +127,7 @@ test('content workbench visual plan launch input includes visual planning contex
     prompt: '低角度推进',
     description: '主角站在雨里',
     metadata_json: JSON.stringify({
-      visual_plan: { camera_path: '缓慢推进' },
+      visual_taskGraph: { camera_path: '缓慢推进' },
       storyboard_brief: { composition: '雨线切过前景' },
     }),
   })
@@ -143,11 +143,11 @@ test('content workbench visual plan launch input includes visual planning contex
     now: () => 12345,
   })
 
-  assert.equal(launchInput?.requestId, 'content_unit_visual_plan_88_9ix')
+  assert.equal(launchInput?.requestId, 'content_unit_visual_task_graph_88_9ix')
   assert.equal(launchInput?.productionId, 30)
   assert.equal(launchInput?.selectedUnitTitle, '主角特写')
   assert.equal(launchInput?.existingUnits[0]?.unit_code, 'U-1')
-  assert.match(launchInput?.existingUnits[0]?.visualPlan ?? '', /缓慢推进/)
+  assert.match(launchInput?.existingUnits[0]?.visualTaskGraph ?? '', /缓慢推进/)
   assert.match(launchInput?.existingUnits[0]?.storyboardBrief ?? '', /雨线切过前景/)
   assert.equal(buildContentWorkbenchVisualPlanLaunchInput({ projectId: 7, row: null, unit: null }), null)
 })

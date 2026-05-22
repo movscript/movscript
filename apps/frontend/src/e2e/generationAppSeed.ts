@@ -184,7 +184,7 @@ export function buildGenerationAppBootstrapScenario(
       kind: 'tool_call',
       title: kind === 'video' ? 'Video generation progress' : 'Image generation progress',
       status: outcome === 'success' ? 'started' : 'failed',
-      toolName: 'movscript_create_generation_job',
+      toolName: 'generation_job_create',
       data: {
         generation: {
           jobId: FINAL_JOB_ID,
@@ -233,7 +233,7 @@ export function buildGenerationAppBootstrapScenario(
         org_name: 'E2E Org',
         org_slug: 'e2e-org',
         is_personal: true,
-        plan: 'team',
+        taskGraph: 'team',
         status: 'active',
         role: 'owner',
       }],
@@ -244,7 +244,7 @@ export function buildGenerationAppBootstrapScenario(
       settings: {
         includeProjectContext: true,
         includeRecentResources: true,
-        autoPlan: true,
+        autoTaskGraph: true,
         permissionMode: 'ask',
       },
       conversations: [{

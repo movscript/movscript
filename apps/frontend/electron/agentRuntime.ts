@@ -1,8 +1,10 @@
 import { execFile, spawn, type ChildProcess } from 'child_process'
-import { existsSync } from 'fs'
+import { existsSync, readdirSync, statSync } from 'fs'
 import { join } from 'path'
 import { promisify } from 'util'
 import { app } from 'electron'
+
+installAgentLogTimestamps('main')
 
 const DEFAULT_PRODUCTION_RUNTIME_BASE_URL = 'http://127.0.0.1:28765'
 const DEFAULT_MCP_ENDPOINT = 'http://127.0.0.1:18765/mcp'
@@ -22,6 +24,23 @@ let backendAPIBaseURL = normalizeBackendAPIBaseURL(
 )
 const supportsProcessGroups = process.platform !== 'win32'
 const shouldDetachAgentRuntime = app.isPackaged && supportsProcessGroups
+
+function installAgentLogTimestamps(scope: string): void {
+  const key = Symbol.for(`movscript.agent.log-timestamps.${scope}`)
+  const globalState = globalThis as typeof globalThis & Record<symbol, true | undefined>
+  if (globalState[key]) return
+  globalState[key] = true
+  const startedAt = Date.now()
+  for (const method of ['info', 'warn', 'error'] as const) {
+    const original = console[method].bind(console)
+    console[method] = (...args: unknown[]) => {
+      if (typeof args[0] === 'string' && args[0].startsWith('[agent')) {
+        args[0] = `[${new Date().toISOString()} +${Date.now() - startedAt}ms ${scope}] ${args[0]}`
+      }
+      original(...args)
+    }
+  }
+}
 
 export interface AgentRuntimeStatus {
   ok: boolean
@@ -180,6 +199,7 @@ async function startAgentRuntime(baseURL: string): Promise<AgentRuntimeStatus> {
           MOVSCRIPT_API_BASE_URL: backendAPIBaseURL,
         } : {}),
         MOVSCRIPT_AGENT_PARENT_PID: String(process.pid),
+        MOVSCRIPT_AGENT_SERVER_CHILD_STARTED_AT: String(spawnStartedAt),
       },
       stdio: app.isPackaged ? 'ignore' : 'inherit',
     })
@@ -358,11 +378,30 @@ function resolveAgentRuntimeLaunch(): AgentRuntimeLaunch {
 
     const packageJSON = join(root, 'package.json')
     if (!app.isPackaged && existsSync(packageJSON)) {
+      const nodeCommand = resolveDevelopmentNodeCommand()
+      const useDevBundle = process.env.MOVSCRIPT_AGENT_DEV_USE_BUNDLE !== '0'
+      if (useDevBundle && process.env.MOVSCRIPT_AGENT_HOT_RELOAD !== '1' && existsSync(bundledServer) && developmentBundleIsFresh(root, bundledServer)) {
+        return {
+          command: nodeCommand,
+          args: [bundledServer],
+          cwd: root,
+          env: {
+            ...(nodeCommand === process.execPath ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+            MOVSCRIPT_AGENT_DEV_ENTRY: 'bundle',
+          },
+        }
+      }
+      if (useDevBundle && process.env.MOVSCRIPT_AGENT_HOT_RELOAD !== '1' && existsSync(bundledServer)) {
+        console.info(`[agent] dev bundle is stale; falling back to tsx entry bundle=${bundledServer}`)
+      }
       return {
-        command: process.execPath,
+        command: nodeCommand,
         args: ['scripts/dev-watch.mjs'],
         cwd: root,
-        env: { ELECTRON_RUN_AS_NODE: '1' },
+        env: {
+          ...(nodeCommand === process.execPath ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+          MOVSCRIPT_AGENT_DEV_NODE_COMMAND: nodeCommand,
+        },
       }
     }
 
@@ -379,17 +418,68 @@ function resolveAgentRuntimeLaunch(): AgentRuntimeLaunch {
   throw new Error('movscript-agent not found. Expected apps/agent in development or resources/movscript-agent/dist/server.js in packaged builds.')
 }
 
+function resolveDevelopmentNodeCommand(): string {
+  const candidates = [
+    process.env.MOVSCRIPT_AGENT_NODE_COMMAND,
+    process.env.npm_node_execpath,
+    process.env.NODE,
+  ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+  return candidates.find((candidate) => existsSync(candidate)) ?? process.execPath
+}
+
+function developmentBundleIsFresh(root: string, bundledServer: string): boolean {
+  if (process.env.MOVSCRIPT_AGENT_DEV_ALLOW_STALE_BUNDLE === '1') return true
+  let bundleMtime = 0
+  try {
+    bundleMtime = statSync(bundledServer).mtimeMs
+  } catch {
+    return false
+  }
+  const sourceMtime = newestMtime([
+    join(root, 'package.json'),
+    join(root, 'tsconfig.json'),
+    join(root, 'src'),
+    join(root, 'catalog'),
+  ])
+  return sourceMtime <= bundleMtime
+}
+
+function newestMtime(paths: string[]): number {
+  let newest = 0
+  for (const path of paths) {
+    let stat
+    try {
+      stat = statSync(path)
+    } catch {
+      continue
+    }
+    newest = Math.max(newest, stat.mtimeMs)
+    if (!stat.isDirectory()) continue
+    for (const entry of readdirSync(path, { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name === 'dist') continue
+      newest = Math.max(newest, newestMtime([join(path, entry.name)]))
+    }
+  }
+  return newest
+}
+
 async function waitForAgentRuntime(baseURL: string, timeoutMs: number): Promise<void> {
   const startedAt = Date.now()
   const deadline = startedAt + timeoutMs
   let lastHealth: AgentRuntimeHealthCheck = { ok: false, compatible: false, reason: 'fetch-failed', error: 'no health probe yet' }
   let lastProgressLogAt = 0
+  let attempts = 0
+  const reasonCounts = new Map<string, number>()
+  let firstHealthOkAt: number | undefined
   while (Date.now() < deadline) {
     const probeStartedAt = Date.now()
     const health = await getAgentRuntimeHealth(baseURL)
+    attempts += 1
+    reasonCounts.set(health.reason ?? (health.compatible ? 'compatible' : 'unknown'), (reasonCounts.get(health.reason ?? (health.compatible ? 'compatible' : 'unknown')) ?? 0) + 1)
+    if (health.ok && firstHealthOkAt === undefined) firstHealthOkAt = Date.now() - startedAt
     const probeMs = Date.now() - probeStartedAt
     if (health.ok && health.compatible) {
-      console.info(`[agent] health ok at ${baseURL} after ${Date.now() - startedAt}ms probeMs=${probeMs}`)
+      console.info(`[agent] health ok at ${baseURL} after ${Date.now() - startedAt}ms probeMs=${probeMs} attempts=${attempts}${firstHealthOkAt !== undefined ? ` firstHealthOkAt=${firstHealthOkAt}ms` : ''} reasons=${formatProbeReasonCounts(reasonCounts)}`)
       return
     }
     lastHealth = health
@@ -398,9 +488,13 @@ async function waitForAgentRuntime(baseURL: string, timeoutMs: number): Promise<
       lastProgressLogAt = now
       console.info(`[agent] still waiting for runtime at ${baseURL} (elapsed=${now - startedAt}ms probeMs=${probeMs}, ${summarizeHealthCheck(health)})`)
     }
-    await new Promise((resolve) => setTimeout(resolve, 250))
+    await new Promise((resolve) => setTimeout(resolve, now - startedAt < 4_000 ? 100 : 250))
   }
   throw new Error(`movscript-agent did not become compatible at ${baseURL} within ${timeoutMs}ms; last health: ${summarizeHealthCheck(lastHealth)}`)
+}
+
+function formatProbeReasonCounts(counts: Map<string, number>): string {
+  return Array.from(counts.entries()).map(([reason, count]) => `${reason}:${count}`).join(',')
 }
 
 async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRuntimeHealthCheck> {
@@ -424,7 +518,7 @@ async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRuntimeHealt
       error: `GET ${baseURL}/health returned HTTP ${res.status}`,
     }
   }
-  let body: { ok?: unknown; runtime?: { apiVersion?: unknown; features?: unknown } }
+  let body: { ok?: unknown; runtime?: { apiVersion?: unknown; features?: unknown }; mcpEndpoint?: unknown }
   try {
     body = await res.json() as typeof body
   } catch (error) {
@@ -444,26 +538,29 @@ async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRuntimeHealt
     }
   }
   const healthMs = Date.now() - startedAt
-  let capabilityRes: Response
-  try {
-    capabilityRes = await fetch(`${baseURL}/runtime/capabilities`)
-  } catch (error) {
-    return {
-      ok: true,
-      compatible: false,
-      reason: 'capabilities-fetch-failed',
-      error: `GET ${baseURL}/runtime/capabilities failed: ${describeFetchError(error)}`,
+  let capabilities: { runtime?: { apiVersion?: unknown; features?: unknown }; mcpEndpoint?: unknown } = body
+  if (!body.runtime || typeof body.mcpEndpoint !== 'string') {
+    let capabilityRes: Response
+    try {
+      capabilityRes = await fetch(`${baseURL}/runtime/capabilities`)
+    } catch (error) {
+      return {
+        ok: true,
+        compatible: false,
+        reason: 'capabilities-fetch-failed',
+        error: `GET ${baseURL}/runtime/capabilities failed: ${describeFetchError(error)}`,
+      }
     }
-  }
-  if (!capabilityRes.ok) {
-    return {
-      ok: true,
-      compatible: false,
-      reason: 'capabilities-non-200',
-      error: `GET ${baseURL}/runtime/capabilities returned HTTP ${capabilityRes.status}`,
+    if (!capabilityRes.ok) {
+      return {
+        ok: true,
+        compatible: false,
+        reason: 'capabilities-non-200',
+        error: `GET ${baseURL}/runtime/capabilities returned HTTP ${capabilityRes.status}`,
+      }
     }
+    capabilities = await capabilityRes.json() as { runtime?: { apiVersion?: unknown; features?: unknown }; mcpEndpoint?: unknown }
   }
-  const capabilities = await capabilityRes.json() as { runtime?: { apiVersion?: unknown; features?: unknown }; mcpEndpoint?: unknown }
   const totalMs = Date.now() - startedAt
   if (totalMs > 250) {
     console.info(`[agent] runtime health probe slow healthMs=${healthMs} totalMs=${totalMs} baseURL=${baseURL}`)

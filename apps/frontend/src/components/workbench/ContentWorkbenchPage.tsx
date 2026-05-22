@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ClipboardCheck,
+  PanelRightOpen,
   Route,
   Wand2,
 } from 'lucide-react'
@@ -107,30 +108,16 @@ function appendReviewGate(rows: WorkbenchGate[], pendingDraftCount: number): Wor
 
 function ContentWorkbenchSceneInfoCard({
   row,
-  totalRows,
 }: {
   row: ContentGenerationMomentRow | null
-  totalRows: number
 }) {
   if (!row) {
     return (
-      <section className="rounded-md border border-dashed border-border bg-muted/15 px-3 py-3" data-testid="content-workbench-select-scene-empty">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/70 pb-3">
-          <div className="min-w-0">
-            <p className="type-label font-medium text-muted-foreground">内容信息</p>
-            <h3 className="mt-1 type-title-sm font-semibold text-foreground">请选择情节</h3>
-            <p className="mt-1 max-w-2xl type-label leading-5 text-muted-foreground">从左侧情节导航选择后，这里会浓缩展示涉及设定、内容条目和情节作用。</p>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            <Badge variant="outline">{totalRows} 个情节</Badge>
-          </div>
-        </div>
-        <div className="mt-3 grid gap-2 lg:grid-cols-3">
-          <ContentInfoSection title="涉及设定" items={['等待选择情节']} muted />
-          <ContentInfoSection title="条目" items={['等待选择情节']} muted />
-          <ContentInfoSection title="作用" items={['等待选择情节']} muted />
-        </div>
-      </section>
+      <div className="grid gap-2 lg:grid-cols-3" data-testid="content-workbench-select-scene-empty">
+        <ContentInfoSection title="涉及设定" items={['等待选择情节']} muted />
+        <ContentInfoSection title="条目" items={['等待选择情节']} muted />
+        <ContentInfoSection title="作用" items={['等待选择情节']} muted />
+      </div>
     )
   }
 
@@ -143,38 +130,25 @@ function ContentWorkbenchSceneInfoCard({
   const hiddenUnitCount = Math.max(0, row.units.length - contentItems.length)
 
   return (
-    <section className="rounded-md border border-border bg-muted/15 px-3 py-3" data-testid="content-workbench-scene-info-card">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/70 pb-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant="outline">内容信息</Badge>
-            {row.segment ? <Badge variant="outline">{titleOfRecord(row.segment)}</Badge> : null}
-          </div>
-          <h3 className="mt-2 truncate type-title-sm font-semibold text-foreground">{row.title}</h3>
-          <p className="mt-1 line-clamp-2 max-w-3xl type-label leading-5 text-muted-foreground">{purposeItems[0] ?? '当前情节还没有补充明确的内容作用。'}</p>
-        </div>
-        <Badge variant="outline">{row.units.length} 个条目</Badge>
-      </div>
-      <div className="mt-3 grid gap-2 lg:grid-cols-3">
-        <ContentInfoSection
-          title="涉及设定"
-          items={settingItems.length > 0 ? settingItems : ['未关联设定']}
-          suffix={hiddenSettingCount > 0 ? `另有 ${hiddenSettingCount} 个` : undefined}
-          muted={settingItems.length === 0}
-        />
-        <ContentInfoSection
-          title="条目"
-          items={contentItems.length > 0 ? contentItems : ['当前情节还没有内容条目']}
-          suffix={hiddenUnitCount > 0 ? `另有 ${hiddenUnitCount} 个` : undefined}
-          muted={contentItems.length === 0}
-        />
-        <ContentInfoSection
-          title="作用"
-          items={purposeItems.length > 0 ? purposeItems : ['未填写情节作用']}
-          muted={purposeItems.length === 0}
-        />
-      </div>
-    </section>
+    <div className="grid gap-2 lg:grid-cols-3" data-testid="content-workbench-scene-info-card">
+      <ContentInfoSection
+        title="涉及设定"
+        items={settingItems.length > 0 ? settingItems : ['未关联设定']}
+        suffix={hiddenSettingCount > 0 ? `另有 ${hiddenSettingCount} 个` : undefined}
+        muted={settingItems.length === 0}
+      />
+      <ContentInfoSection
+        title="条目"
+        items={contentItems.length > 0 ? contentItems : ['当前情节还没有内容条目']}
+        suffix={hiddenUnitCount > 0 ? `另有 ${hiddenUnitCount} 个` : undefined}
+        muted={contentItems.length === 0}
+      />
+      <ContentInfoSection
+        title="作用"
+        items={purposeItems.length > 0 ? purposeItems : ['未填写情节作用']}
+        muted={purposeItems.length === 0}
+      />
+    </div>
   )
 }
 
@@ -223,6 +197,7 @@ export function ContentWorkbenchPage() {
   const [unitDraftDefaults, setUnitDraftDefaults] = useState<Partial<SemanticEntityPayload> | null>(null)
   const [creatingAssetSlot, setCreatingAssetSlot] = useState(false)
   const [creatingKeyframe, setCreatingKeyframe] = useState(false)
+  const [unitDrawerOpen, setUnitDrawerOpen] = useState(false)
   const pageController = useContentWorkbenchPageController({
     rows,
     productions: data?.productions ?? [],
@@ -449,7 +424,7 @@ export function ContentWorkbenchPage() {
     toast.success('已打开 AI 助手，可在输入框补充需求后发送')
   }
 
-  function openAiVisualPlan(unitOverride?: WorkbenchRecord | null) {
+  function openAiVisualTaskGraph(unitOverride?: WorkbenchRecord | null) {
     const targetRow = selected
     const targetUnit = unitOverride ?? selectedUnit
     const launchInput = buildContentWorkbenchVisualPlanLaunchInput({
@@ -558,7 +533,7 @@ export function ContentWorkbenchPage() {
       onRefresh={() => { void refetch() }}
       refreshing={isFetching}
     >
-      <main className="min-h-0 flex-1 overflow-y-auto p-4">
+      <main className="min-h-0 flex-1 overflow-y-auto p-4 xl:overflow-hidden">
         {!projectId ? (
           <WorkbenchEmptyState title="请先选择项目" description="当前没有可用的项目信息，无法拉取情节、制作项、素材需求和生成任务。" />
         ) : isLoading ? (
@@ -566,9 +541,9 @@ export function ContentWorkbenchPage() {
         ) : isError ? (
           <WorkbenchEmptyState title="内容编排数据加载失败" description="后端语义实体接口未返回可用数据，稍后重试。" />
         ) : (
-          <div className="production-workbench h-full min-h-[calc(100vh-8rem)]">
+          <div className="production-workbench h-full min-h-[calc(100vh-8rem)] xl:min-h-0">
             <div
-              className="grid h-full min-h-[calc(100vh-8rem)] gap-3 xl:grid-cols-[280px_minmax(0,1fr)]"
+              className="grid min-h-[calc(100vh-8rem)] gap-3 xl:h-[calc(100vh-8rem)] xl:min-h-0 xl:overflow-hidden xl:grid-cols-[280px_minmax(0,1fr)]"
               data-testid="content-workbench-command-center"
             >
               <ContentWorkbenchFilterSidebar
@@ -587,7 +562,7 @@ export function ContentWorkbenchPage() {
                 onSelectScene={selectSceneMoment}
               />
 
-              <div className="min-w-0 space-y-3 pr-1" data-testid="content-workbench-main-scroll">
+              <div className="min-w-0 space-y-3 pr-1 xl:h-full xl:min-h-0 xl:overflow-y-auto xl:pr-2" data-testid="content-workbench-main-scroll">
                 <section className="border-b border-border pb-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
@@ -634,7 +609,6 @@ export function ContentWorkbenchPage() {
                 {!selected ? (
                   <ContentWorkbenchSceneInfoCard
                     row={null}
-                    totalRows={visibleRows.length}
                   />
                 ) : (
                   <>
@@ -658,26 +632,43 @@ export function ContentWorkbenchPage() {
                       />
                     ) : null}
 
-                    <div className="grid gap-3 2xl:grid-cols-[minmax(0,1fr)_400px] 2xl:items-start" data-testid="content-workbench-production-grid">
-                      <div className="min-w-0 space-y-3 2xl:pr-3">
+                    <div
+                      className={cn(
+                        'grid gap-3 transition-[grid-template-columns] 2xl:items-start',
+                        unitDrawerOpen ? '2xl:grid-cols-[minmax(0,1fr)_520px]' : '2xl:grid-cols-1',
+                      )}
+                      data-testid="content-workbench-production-grid"
+                      data-unit-drawer-open={unitDrawerOpen ? 'true' : undefined}
+                    >
+                      <div className={cn('min-w-0 space-y-3', unitDrawerOpen ? '2xl:pr-3' : '')}>
                         <ContentWorkbenchSceneInfoCard
                           row={selected}
-                          totalRows={visibleRows.length}
                         />
 
-                        <ContentWorkbenchScenePreview
-                          row={selected}
-                          selectedUnit={selectedUnit}
-                          keyframes={selectedUnitKeyframes}
-                          previewItemCount={selectedPreviewItemCount}
-                          runningJobCount={selectedUnitRunningJobCount}
-                        />
+                        {selectedUnit && !unitDrawerOpen ? (
+                          <div className="flex justify-end">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-1.5"
+                              onClick={() => setUnitDrawerOpen(true)}
+                              data-testid="content-workbench-open-unit-drawer"
+                            >
+                              <PanelRightOpen size={14} />
+                              打开当前制作项
+                            </Button>
+                          </div>
+                        ) : null}
 
                         <UnitProductionTrack
                           row={selected}
                           selectedUnitId={selectedUnit?.ID}
                           showInlineEditor={false}
-                          onSelectUnit={(unitId) => selectContentUnitFromRow(selected, unitId)}
+                          onSelectUnit={(unitId) => {
+                            selectContentUnitFromRow(selected, unitId)
+                            setUnitDrawerOpen(Boolean(unitId))
+                          }}
                           onCreateUnit={() => openCreateUnitForRow(selected)}
                           onAiSuggest={() => openAiSuggest(selected)}
                           onSelectFirstMoment={selectFirstSceneMoment}
@@ -695,32 +686,48 @@ export function ContentWorkbenchPage() {
                           }}
                           onDeleteUnit={(unit) => {
                             selectContentUnitFromRow(selected, null, { replace: true })
+                            setUnitDrawerOpen(false)
                           }}
                           projectId={projectId}
                           queryKey={productionWorkbenchQueryKey}
                           jobs={data?.jobs ?? []}
                           isReordering={reorderContentUnits.isPending || moveContentUnitOnTimeline.isPending}
                         />
+
+                        <ContentWorkbenchScenePreview
+                          row={selected}
+                          selectedUnit={selectedUnit}
+                          keyframes={selectedUnitKeyframes}
+                          previewItemCount={selectedPreviewItemCount}
+                          runningJobCount={selectedUnitRunningJobCount}
+                        />
                       </div>
 
-                      <ContentWorkbenchUnitInspector
-                        projectId={projectId}
-                        queryKey={productionWorkbenchQueryKey}
-                        jobs={data?.jobs ?? []}
-                        row={selected}
-                        unit={selectedUnit}
-                        onSelectUnit={(unitId) => selectContentUnitFromRow(selected, unitId)}
-                        onCreateUnit={() => openCreateUnitForRow(selected)}
-                        onAiSuggest={() => openAiSuggest(selected)}
-                        onAiVisualPlan={() => openAiVisualPlan(selectedUnit)}
-                        onCreateAssetSlot={openCreateAssetSlot}
-                        onCreateKeyframe={openCreateKeyframe}
-                        onOpenCanvas={openSelectedUnitCanvas}
-                        onUploadMissingAssets={triggerCandidateUpload}
-                        onDeleteUnit={(unit) => {
-                          selectContentUnitFromRow(selected, null, { replace: true })
-                        }}
-                      />
+                      {unitDrawerOpen ? (
+                        <ContentWorkbenchUnitInspector
+                          projectId={projectId}
+                          queryKey={productionWorkbenchQueryKey}
+                          jobs={data?.jobs ?? []}
+                          row={selected}
+                          unit={selectedUnit}
+                          onSelectUnit={(unitId) => {
+                            selectContentUnitFromRow(selected, unitId)
+                            setUnitDrawerOpen(true)
+                          }}
+                          onCreateUnit={() => openCreateUnitForRow(selected)}
+                          onAiSuggest={() => openAiSuggest(selected)}
+                          onAiVisualTaskGraph={() => openAiVisualTaskGraph(selectedUnit)}
+                          onCreateAssetSlot={openCreateAssetSlot}
+                          onCreateKeyframe={openCreateKeyframe}
+                          onOpenCanvas={openSelectedUnitCanvas}
+                          onUploadMissingAssets={triggerCandidateUpload}
+                          onDeleteUnit={(unit) => {
+                            selectContentUnitFromRow(selected, null, { replace: true })
+                            setUnitDrawerOpen(false)
+                          }}
+                          onClose={() => setUnitDrawerOpen(false)}
+                        />
+                      ) : null}
                     </div>
                   </>
                 )}
@@ -759,6 +766,7 @@ export function ContentWorkbenchPage() {
           setCreatingUnit(false)
           setUnitDraftDefaults(null)
           setEditingUnit(false)
+          setUnitDrawerOpen(true)
         }}
         onEditingUnitChange={(open) => { if (!open) setEditingUnit(false) }}
         onAssetSlotCreated={() => setCreatingAssetSlot(false)}

@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	domainorg "github.com/movscript/movscript/internal/domain/org"
+	domainproject "github.com/movscript/movscript/internal/domain/project"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/interfaces/http/api"
 	"github.com/movscript/movscript/internal/testutil"
@@ -63,6 +64,129 @@ func TestResolveOrgMemberBypassesSuspendedWorkspaceForAdminSuperAdmin(t *testing
 
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusNoContent, w.Body.String())
+	}
+}
+
+func TestRequireProjectRoleRejectsViewerAndAllowsOwner(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := testutil.OpenSQLite(t, "middleware-project-role.db", &persistencemodel.User{}, &persistencemodel.Project{}, &persistencemodel.ProjectMember{})
+	owner := persistencemodel.User{Username: "project-owner", Status: domainauth.UserStatusActive}
+	viewer := persistencemodel.User{Username: "project-viewer", Status: domainauth.UserStatusActive}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create owner: %v", err)
+	}
+	if err := db.Create(&viewer).Error; err != nil {
+		t.Fatalf("create viewer: %v", err)
+	}
+	project := persistencemodel.Project{Name: "Role Test", OwnerID: owner.ID}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	if err := db.Create(&persistencemodel.ProjectMember{ProjectID: project.ID, UserID: owner.ID, Role: domainproject.RoleOwner}).Error; err != nil {
+		t.Fatalf("create owner member: %v", err)
+	}
+	if err := db.Create(&persistencemodel.ProjectMember{ProjectID: project.ID, UserID: viewer.ID, Role: domainproject.RoleViewer}).Error; err != nil {
+		t.Fatalf("create viewer member: %v", err)
+	}
+
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		userID := viewer.ID
+		if c.GetHeader("X-Test-User") == "owner" {
+			userID = owner.ID
+		}
+		c.Set(ContextUserKey, domainauth.UserProfile{ID: userID, Username: "test-user", SystemRole: domainauth.SystemRoleUser, Status: domainauth.UserStatusActive})
+		c.Next()
+	})
+	r.POST("/projects/:id/members", RequireProjectRole(db, domainproject.RoleOwner), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	viewerReq := httptest.NewRequest(http.MethodPost, "/projects/"+strconv.FormatUint(uint64(project.ID), 10)+"/members", nil)
+	viewerRes := httptest.NewRecorder()
+	r.ServeHTTP(viewerRes, viewerReq)
+	if viewerRes.Code != http.StatusForbidden {
+		t.Fatalf("viewer status = %d, want %d: %s", viewerRes.Code, http.StatusForbidden, viewerRes.Body.String())
+	}
+
+	ownerReq := httptest.NewRequest(http.MethodPost, "/projects/"+strconv.FormatUint(uint64(project.ID), 10)+"/members", nil)
+	ownerReq.Header.Set("X-Test-User", "owner")
+	ownerRes := httptest.NewRecorder()
+	r.ServeHTTP(ownerRes, ownerReq)
+	if ownerRes.Code != http.StatusNoContent {
+		t.Fatalf("owner status = %d, want %d: %s", ownerRes.Code, http.StatusNoContent, ownerRes.Body.String())
+	}
+}
+
+func TestRequireScriptProjectRoleScopesScriptToProjectRole(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := testutil.OpenSQLite(t, "middleware-script-role.db", &persistencemodel.User{}, &persistencemodel.Organization{}, &persistencemodel.OrganizationMember{}, &persistencemodel.Project{}, &persistencemodel.ProjectMember{}, &persistencemodel.Script{})
+	owner := persistencemodel.User{Username: "script-owner", Status: domainauth.UserStatusActive}
+	writer := persistencemodel.User{Username: "script-writer", Status: domainauth.UserStatusActive}
+	viewer := persistencemodel.User{Username: "script-viewer", Status: domainauth.UserStatusActive}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create owner: %v", err)
+	}
+	if err := db.Create(&writer).Error; err != nil {
+		t.Fatalf("create writer: %v", err)
+	}
+	if err := db.Create(&viewer).Error; err != nil {
+		t.Fatalf("create viewer: %v", err)
+	}
+	org := persistencemodel.Organization{Name: "Script Team", Slug: "script-team", Status: domainorg.StatusActive, CreatedBy: owner.ID}
+	if err := db.Create(&org).Error; err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	for _, userID := range []uint{owner.ID, writer.ID, viewer.ID} {
+		if err := db.Create(&persistencemodel.OrganizationMember{OrgID: org.ID, UserID: userID, Role: domainorg.RoleMember}).Error; err != nil {
+			t.Fatalf("create org member: %v", err)
+		}
+	}
+	project := persistencemodel.Project{Name: "Script Project", OwnerID: owner.ID, OrgID: &org.ID}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	if err := db.Create(&persistencemodel.ProjectMember{ProjectID: project.ID, UserID: owner.ID, Role: domainproject.RoleOwner}).Error; err != nil {
+		t.Fatalf("create owner project member: %v", err)
+	}
+	if err := db.Create(&persistencemodel.ProjectMember{ProjectID: project.ID, UserID: writer.ID, Role: "writer"}).Error; err != nil {
+		t.Fatalf("create writer project member: %v", err)
+	}
+	if err := db.Create(&persistencemodel.ProjectMember{ProjectID: project.ID, UserID: viewer.ID, Role: domainproject.RoleViewer}).Error; err != nil {
+		t.Fatalf("create viewer project member: %v", err)
+	}
+	script := persistencemodel.Script{ProjectID: project.ID, Title: "Scoped Script"}
+	if err := db.Create(&script).Error; err != nil {
+		t.Fatalf("create script: %v", err)
+	}
+
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		userID := viewer.ID
+		if c.GetHeader("X-Test-User") == "writer" {
+			userID = writer.ID
+		}
+		c.Set(ContextUserKey, domainauth.UserProfile{ID: userID, Username: "test-user", SystemRole: domainauth.SystemRoleUser, Status: domainauth.UserStatusActive})
+		c.Set(ContextOrgMemberKey, domainorg.OrganizationMember{OrgID: org.ID, UserID: userID, Role: domainorg.RoleMember})
+		c.Next()
+	})
+	r.PATCH("/scripts/:id", RequireScriptProjectRole(db, "writer"), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	viewerReq := httptest.NewRequest(http.MethodPatch, "/scripts/"+strconv.FormatUint(uint64(script.ID), 10), nil)
+	viewerRes := httptest.NewRecorder()
+	r.ServeHTTP(viewerRes, viewerReq)
+	if viewerRes.Code != http.StatusForbidden {
+		t.Fatalf("viewer status = %d, want %d: %s", viewerRes.Code, http.StatusForbidden, viewerRes.Body.String())
+	}
+
+	writerReq := httptest.NewRequest(http.MethodPatch, "/scripts/"+strconv.FormatUint(uint64(script.ID), 10), nil)
+	writerReq.Header.Set("X-Test-User", "writer")
+	writerRes := httptest.NewRecorder()
+	r.ServeHTTP(writerRes, writerReq)
+	if writerRes.Code != http.StatusNoContent {
+		t.Fatalf("writer status = %d, want %d: %s", writerRes.Code, http.StatusNoContent, writerRes.Body.String())
 	}
 }
 

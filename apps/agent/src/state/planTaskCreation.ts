@@ -1,5 +1,5 @@
 import { isRecord } from '../jsonValue.js'
-import type { AgentTask, CreatePlanTaskInput } from './types.js'
+import type { AgentTask, CreateTaskGraphTaskInput } from './types.js'
 import { buildAgentTask } from './planTaskInput.js'
 import {
   assertTaskDependencyGraphAcyclic,
@@ -7,8 +7,8 @@ import {
 } from './planTaskGraph.js'
 
 export interface BuildPlanTasksToCreateInput {
-  planId: string
-  inputs: CreatePlanTaskInput[]
+  taskGraphId: string
+  inputs: CreateTaskGraphTaskInput[]
   now: string
   existingTasks?: AgentTask[]
   getTask: (taskId: string) => AgentTask | undefined
@@ -21,7 +21,7 @@ export function buildAndValidatePlanTasksToCreate(input: BuildPlanTasksToCreateI
   for (const taskInput of input.inputs) {
     const subagentName = normalizeNonEmptyString(taskInput.subagentName)
       ?? normalizeNonEmptyString(isRecord(taskInput.metadata) ? taskInput.metadata.subagentName : undefined)
-    const task = buildAgentTask(input.planId, taskInput, input.now)
+    const task = buildAgentTask(input.taskGraphId, taskInput, input.now)
     if (input.getTask(task.id)) throw new Error(`task already exists: ${task.id}`)
     if (tasksToCreate.some((item) => item.id === task.id)) throw new Error(`task already exists: ${task.id}`)
     if (subagentName) {
@@ -30,7 +30,7 @@ export function buildAndValidatePlanTasksToCreate(input: BuildPlanTasksToCreateI
     }
     tasksToCreate.push(task)
   }
-  assertTaskCreateReferences(input.planId, tasksToCreate, input.getTask)
+  assertTaskCreateReferences(input.taskGraphId, tasksToCreate, input.getTask)
   const validationTasks = [...(input.existingTasks ?? []), ...tasksToCreate]
   assertTaskParentGraphAcyclic(validationTasks)
   assertTaskDependencyGraphAcyclic(validationTasks)
@@ -38,7 +38,7 @@ export function buildAndValidatePlanTasksToCreate(input: BuildPlanTasksToCreateI
 }
 
 export function assertTaskCreateReferences(
-  planId: string,
+  taskGraphId: string,
   tasksToCreate: AgentTask[],
   getTask: (taskId: string) => AgentTask | undefined,
 ): void {
@@ -56,8 +56,8 @@ export function assertTaskCreateReferences(
       }
       if (createdIds.has(reference.id)) continue
       const referencedTask = getTask(reference.id)
-      if (referencedTask && referencedTask.planId !== planId) {
-        throw new Error(`${reference.label} ${reference.id} does not belong to plan ${planId}`)
+      if (referencedTask && referencedTask.taskGraphId !== taskGraphId) {
+        throw new Error(`${reference.label} ${reference.id} does not belong to taskGraph ${taskGraphId}`)
       }
       if (!referencedTask) throw new Error(`task not found: ${reference.id}`)
     }

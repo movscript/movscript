@@ -5,19 +5,19 @@ import type { AgentRun, AgentTask } from '../state/types.js'
 import {
   applyRuntimeReplanTaskReset,
   applyRuntimeRetryablePlanTaskReset,
-  resetRetryableRuntimePlanTasks,
-  resetRuntimePlanTasksForReplan,
+  resetRetryableRuntimeTaskGraphTasks,
+  resetRuntimeTaskGraphTasksForRetaskGraph,
 } from './runtimePlanTaskMaintenance.js'
 
-test('resetRetryableRuntimePlanTasks persists retryable failed tasks and returns protocol snapshots', () => {
+test('resetRetryableRuntimeTaskGraphTasks persists retryable failed tasks and returns protocol snapshots', () => {
   const store = new InMemoryAgentStore()
   store.createTask(makeTask({ id: 'task_failed', status: 'failed', ownerRunId: 'run_old', metadata: { maxTaskAttempts: 3 } }))
   store.createTask(makeTask({ id: 'task_done', status: 'done' }))
   store.createRun(makeRun({ id: 'run_old', taskId: 'task_failed' }))
 
-  const result = resetRetryableRuntimePlanTasks({
+  const result = resetRetryableRuntimeTaskGraphTasks({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     maxTaskAttempts: 2,
     now: '2026-01-01T00:00:01.000Z',
   })
@@ -31,14 +31,14 @@ test('resetRetryableRuntimePlanTasks persists retryable failed tasks and returns
   assert.equal(store.getTask('task_failed')?.ownerRunId, undefined)
 })
 
-test('resetRetryableRuntimePlanTasks leaves exhausted tasks unchanged', () => {
+test('resetRetryableRuntimeTaskGraphTasks leaves exhausted tasks unchanged', () => {
   const store = new InMemoryAgentStore()
   store.createTask(makeTask({ id: 'task_failed', status: 'failed', metadata: { maxTaskAttempts: 1 } }))
   store.createRun(makeRun({ id: 'run_old', taskId: 'task_failed' }))
 
-  const result = resetRetryableRuntimePlanTasks({
+  const result = resetRetryableRuntimeTaskGraphTasks({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     maxTaskAttempts: 3,
     now: '2026-01-01T00:00:01.000Z',
   })
@@ -57,7 +57,7 @@ test('applyRuntimeRetryablePlanTaskReset emits reset callbacks and aggregate cal
 
   const result = applyRuntimeRetryablePlanTaskReset({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     maxTaskAttempts: 3,
     now: '2026-01-01T00:00:01.000Z',
     onTaskReset: (task, previousTask) => taskEvents.push(`${previousTask.status}->${task.status}:${task.id}`),
@@ -69,15 +69,15 @@ test('applyRuntimeRetryablePlanTaskReset emits reset callbacks and aggregate cal
   assert.deepEqual(aggregateEvents, [['task_failed']])
 })
 
-test('resetRuntimePlanTasksForReplan persists selected task resets and returns snapshots', () => {
+test('resetRuntimeTaskGraphTasksForRetaskGraph persists selected task resets and returns snapshots', () => {
   const store = new InMemoryAgentStore()
   store.createTask(makeTask({ id: 'task_blocked', status: 'blocked', ownerRunId: 'run_blocked', blockedReason: 'waiting' }))
   store.createTask(makeTask({ id: 'task_running', status: 'running', ownerRunId: 'run_running' }))
   store.createTask(makeTask({ id: 'task_done', status: 'done' }))
 
-  const result = resetRuntimePlanTasksForReplan({
+  const result = resetRuntimeTaskGraphTasksForRetaskGraph({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     resetBlocked: true,
     resetTaskIds: ['task_running'],
     now: '2026-01-01T00:00:01.000Z',
@@ -100,7 +100,7 @@ test('applyRuntimeReplanTaskReset emits per-task reset callbacks', () => {
 
   const result = applyRuntimeReplanTaskReset({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     resetBlocked: true,
     now: '2026-01-01T00:00:01.000Z',
     onTaskReset: (task, previousTask) => taskEvents.push(`${previousTask.status}->${task.status}:${task.id}`),
@@ -110,13 +110,13 @@ test('applyRuntimeReplanTaskReset emits per-task reset callbacks', () => {
   assert.deepEqual(taskEvents, ['blocked->pending:task_blocked'])
 })
 
-test('resetRuntimePlanTasksForReplan is inert without a reset policy', () => {
+test('resetRuntimeTaskGraphTasksForRetaskGraph is inert without a reset policy', () => {
   const store = new InMemoryAgentStore()
   store.createTask(makeTask({ id: 'task_blocked', status: 'blocked' }))
 
-  const result = resetRuntimePlanTasksForReplan({
+  const result = resetRuntimeTaskGraphTasksForRetaskGraph({
     store,
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     now: '2026-01-01T00:00:01.000Z',
   })
 
@@ -129,7 +129,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   return {
     id: 'run_1',
     threadId: 'thread_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     status: 'failed',
     role: 'worker',
     policy: {
@@ -149,7 +149,7 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     title: 'Task',
     status: 'pending',
     progress: 0,

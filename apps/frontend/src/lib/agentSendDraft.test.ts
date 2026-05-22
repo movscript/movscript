@@ -47,6 +47,11 @@ test('buildLocalAgentSendDraft binds composer input, attachments, runtime policy
   assert.equal(draft.localRuntime?.clientInput?.message, 'Render this @[resource:42]')
   assert.equal(draft.localRuntime?.clientInput?.uiSnapshot?.project?.id, 101)
   assert.equal(draft.localRuntime?.runPolicy?.approvalMode, 'interactive')
+  assert.deepEqual(draft.localRuntime?.runPolicy?.workflow, {
+    profile: 'standard',
+    includeMemories: true,
+    allowForcedToolCalls: true,
+  })
   assert.equal(draft.model.runtimeModelId, 'gpt-test')
   assert.equal(draft.httpRequests.some((request) => request.id === 'local-get-thread'), true)
   assert.equal(draft.httpRequests.some((request) => request.id === 'local-create-thread'), false)
@@ -79,6 +84,31 @@ test('buildLocalAgentSendDraft uses external task payload when the composer has 
   assert.equal(draft.localRuntime?.timeoutMs, 30_000)
   assert.equal(draft.localRuntime?.runPolicy?.maxToolCalls, 11)
   assert.equal(draft.localRuntime?.runPolicy?.maxIterations, 5)
+})
+
+test('buildLocalAgentSendDraft maps disabled auto task graph to compact workflow policy', async () => {
+  const draft = await buildLocalAgentSendDraft({
+    draftInput: 'Small request',
+    attachments: [],
+    composerAttachments: [],
+    resourceAttachmentIndex: new Map(),
+    settings: settings({ autoTaskGraph: false }),
+    currentProject: null,
+    conversationMessages: [],
+    systemPrompt: '',
+    contextLabels: [],
+    modelId: 7,
+    activeModel: model(),
+    attachmentOnlyMessageLabel: 'Attachment only',
+    localAgentBaseURL: 'http://127.0.0.1:39291',
+    httpLabels: labels,
+  })
+
+  assert.deepEqual(draft.localRuntime?.runPolicy?.workflow, {
+    profile: 'compact',
+    includeMemories: true,
+    allowForcedToolCalls: false,
+  })
 })
 
 test('buildLocalAgentSendDraft drops saved thread for diagnostic commands and omits debug artifacts on request', async () => {
@@ -175,12 +205,12 @@ test('buildDebugHttpRequests compacts large request bodies', () => {
   assert.match(body?.clientInput?.message ?? '', /truncated/)
 })
 
-function settings(): AgentSettings {
+function settings(overrides: Partial<AgentSettings> = {}): AgentSettings {
   return {
     modelId: 7,
     includeProjectContext: true,
     includeRecentResources: false,
-    autoPlan: true,
+    autoTaskGraph: true,
     permissionMode: 'ask',
     planMaxWorkers: 2,
     planMaxTaskAttempts: 2,
@@ -191,7 +221,7 @@ function settings(): AgentSettings {
       name: 'Preset',
       description: '',
       permissionMode: 'ask',
-      autoPlan: true,
+      autoTaskGraph: true,
       maxToolCalls: 11,
       maxIterations: 5,
       planMaxWorkers: 2,
@@ -201,6 +231,7 @@ function settings(): AgentSettings {
     toolPolicyFilterPresets: [],
     auditTrail: [],
     lastImportBackup: null,
+    ...overrides,
   }
 }
 

@@ -6,8 +6,8 @@ test('content workbench unit track explains empty production track', () => {
   const summary = buildContentWorkbenchUnitTrack([])
 
   assert.equal(summary.total, 0)
-  assert.equal(summary.title, '暂无内容单元')
-  assert.equal(summary.detail, '先创建或让 AI 规划内容单元，这里会显示每个生成目标。')
+  assert.equal(summary.title, '暂无镜头方案')
+  assert.equal(summary.detail, '先让 AI 根据情节拆分一组镜头，再逐个补齐画面、素材和关键帧。')
 })
 
 test('content workbench unit track surfaces blockers across units', () => {
@@ -43,7 +43,7 @@ test('content workbench unit track surfaces blockers across units', () => {
     },
   ])
 
-  assert.equal(summary.title, '内容单元')
+  assert.equal(summary.title, '镜头方案')
   assert.equal(summary.total, 2)
   assert.equal(summary.durationSec, 10)
   assert.equal(summary.blockedCount, 2)
@@ -82,7 +82,7 @@ test('content workbench unit track reports executable track when units are ready
     },
   ])
 
-  assert.equal(summary.title, '内容单元')
+  assert.equal(summary.title, '镜头方案')
   assert.equal(summary.readyCount, 1)
   assert.equal(summary.blockedCount, 0)
   assert.equal(summary.items[0].readiness, 100)
@@ -104,7 +104,7 @@ test('content workbench unit track does not require keyframes for non-visual uni
     },
   ])
 
-  assert.equal(summary.title, '内容单元')
+  assert.equal(summary.title, '镜头方案')
   assert.equal(summary.items[0].requiresKeyframe, false)
   assert.equal(summary.items[0].readiness, 100)
   assert.deepEqual(summary.items[0].blockers, [])

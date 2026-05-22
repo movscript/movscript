@@ -21,12 +21,17 @@ test('buildRuntimeCreateRun freezes creation input, policy, hierarchy, and catal
     runInput: {
       threadId: thread.id,
       approvedToolNames: ['tool_a', 'tool_a', 'tool_b'],
-      sandboxMode: true,
-      policy: { approvalMode: 'auto_readonly', maxIterations: 3 },
+      sandboxMode: false,
+      policy: {
+        approvalMode: 'auto_readonly',
+        sandboxMode: true,
+        maxIterations: 3,
+        workflow: { profile: 'compact', includeMemories: true, allowForcedToolCalls: false },
+      },
       userMessage: ' Explicit task ',
       role: 'worker',
       parentRunId: 'run_parent',
-      planId: 'plan_1',
+      taskGraphId: 'task_graph_1',
       taskId: 'task_1',
       task: {
         id: 'task_1',
@@ -54,11 +59,12 @@ test('buildRuntimeCreateRun freezes creation input, policy, hierarchy, and catal
   assert.equal(run.threadId, 'thread_1')
   assert.equal(run.role, 'worker')
   assert.equal(run.parentRunId, 'run_parent')
-  assert.equal(run.planId, 'plan_1')
+  assert.equal(run.taskGraphId, 'task_graph_1')
   assert.equal(run.taskId, 'task_1')
   assert.equal(run.policy.sandboxMode, true)
   assert.equal(run.policy.approvalMode, 'auto_readonly')
   assert.equal(run.policy.maxIterations, 3)
+  assert.deepEqual(run.policy.workflow, { profile: 'compact', includeMemories: true, allowForcedToolCalls: false })
   assert.deepEqual(run.metadata?.approvedToolNames, ['tool_a', 'tool_b'])
   assert.equal(run.metadata?.requestId, 'request_1')
   assert.deepEqual(run.metadata?.nested, { stable: true })
@@ -69,7 +75,7 @@ test('buildRuntimeCreateRun freezes creation input, policy, hierarchy, and catal
   assert.equal(run.input?.executionMode, 'worker')
   assert.deepEqual(run.input?.parent, {
     runId: 'run_parent',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_1',
   })
   assert.deepEqual(run.input?.task, {
@@ -146,7 +152,7 @@ test('buildRuntimeCreateToolRun freezes forced tool calls and worker hierarchy',
       sandboxMode: true,
       policy: { maxToolCalls: 1 },
       parentRunId: 'run_parent',
-      planId: 'plan_1',
+      taskGraphId: 'task_graph_1',
       taskId: 'task_1',
     },
     thread,
@@ -178,7 +184,7 @@ test('buildRuntimeCreateToolRun freezes forced tool calls and worker hierarchy',
   assert.deepEqual(run.input?.forcedToolCall, toolCall)
   assert.deepEqual(run.input?.parent, {
     runId: 'run_parent',
-    planId: 'plan_1',
+    taskGraphId: 'task_graph_1',
     taskId: 'task_1',
   })
 })

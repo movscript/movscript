@@ -1,7 +1,8 @@
-import { dirname, relative } from 'node:path'
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { dirname, join, relative } from 'node:path'
 import { MCPClient } from '../mcpClient.js'
 import { AgentRuntimeRouter, loadAgentPluginCatalog } from '../application/runtimeRouter.js'
-import { FileAgentStore, resolveAgentMemoryPath, resolveAgentStatePath } from '../state/fileStore.js'
+import { FileAgentStore, resolveAgentMemoryPath, resolveAgentStatePath, resolveAgentTracePath } from '../state/fileStore.js'
 import { FileAgentDraftStore, resolveAgentDraftPath } from '../drafts/draftStore.js'
 import { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import { MCPBackendApplyClient } from '../drafts/mcpBackendApplyClient.js'
@@ -113,16 +114,21 @@ export function createAgentServerContext(): AgentServerContext {
   const mcpEndpoint = process.env.MOVSCRIPT_MCP_ENDPOINT || DEFAULT_MCP_ENDPOINT
   const statePath = resolveAgentStatePath()
   const memoryPath = resolveAgentMemoryPath(statePath)
+  const tracePath = resolveAgentTracePath(statePath)
   const draftPath = resolveAgentDraftPath(statePath)
   const catalogStatePath = resolveAgentCatalogStatePath(statePath)
   const modelConfigPath = resolveRuntimeModelConfigPath(statePath)
-  logPhase('paths-resolved')
-  const modelConfigStore = new RuntimeModelConfigStore(modelConfigPath)
-  logPhase('model-config-store-created')
-  const pluginCatalog = loadAgentPluginCatalog()
-  logPhase(`plugin-catalog-loaded packs=${pluginCatalog.packs.length} skills=${pluginCatalog.layeredSkills.length} tools=${pluginCatalog.layeredTools.length}`)
-  const catalogStateStore = new FileAgentCatalogStateStore(catalogStatePath)
-  logPhase('catalog-state-store-loaded')
+  logPhase(`paths-resolved state=${pathDiagnostic(statePath)} trace=${pathDiagnostic(tracePath)} memory=${pathDiagnostic(memoryPath)} draft=${pathDiagnostic(draftPath)} catalogState=${pathDiagnostic(catalogStatePath)} modelConfig=${pathDiagnostic(modelConfigPath)}`)
+  const modelConfigStore = timeStartupStep('model-config-store', () => new RuntimeModelConfigStore(modelConfigPath), () => pathDiagnostic(modelConfigPath))
+  const pluginCatalog = timeStartupStep('plugin-catalog-load', () => loadAgentPluginCatalog(), (catalog) => [
+    `packs=${catalog.packs.length}`,
+    `skills=${catalog.layeredSkills.length}`,
+    `tools=${catalog.layeredTools.length}`,
+    `warnings=${catalog.warnings.length}`,
+    `skillsDir=${relative(process.cwd(), catalog.skillsDir) || '.'}`,
+    `toolsDir=${relative(process.cwd(), catalog.toolsDir) || '.'}`,
+  ].join(' '))
+  const catalogStateStore = timeStartupStep('catalog-state-store', () => new FileAgentCatalogStateStore(catalogStatePath), () => pathDiagnostic(catalogStatePath))
   const updateState = buildAgentUpdateState({
     runtimeVersion: '0.1.0',
     manifestVersion: pluginCatalog.manifest.version,
@@ -147,13 +153,32 @@ export function createAgentServerContext(): AgentServerContext {
   const client = new MCPClient({ endpoint: mcpEndpoint })
   const backendApplyClient = new MCPBackendApplyClient(client)
   const runtimeContractResolver = EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER
+  const store = timeStartupStep('state-store', () => new FileAgentStore(statePath), (stateStore) => [
+    pathDiagnostic(statePath),
+    `trace=${traceIndexDiagnostic(stateStore.tracePath)}`,
+    `threads=${stateStore.listThreads().length}`,
+    `runs=${stateStore.listRuns().length}`,
+    `plans=${stateStore.listTaskGraphs().length}`,
+    `tasks=${stateStore.listTasks().length}`,
+    `operations=${stateStore.listRuntimeOperations().length}`,
+    `interactions=${stateStore.listRuntimeInteractions().length}`,
+    `continuations=${stateStore.listRuntimeContinuations().length}`,
+  ].join(' '))
+  const draftStore = timeStartupStep('draft-store', () => new FileAgentDraftStore(draftPath), () => [
+    pathDiagnostic(draftPath),
+    'load=lazy',
+  ].join(' '))
+  const memoryStore = timeStartupStep('memory-store', () => new FileAgentMemoryStore(memoryPath), () => [
+    pathDiagnostic(memoryPath),
+    'load=lazy',
+  ].join(' '))
 
-  const runtimeRouter = new AgentRuntimeRouter({
+  const runtimeRouter = timeStartupStep('runtime-router', () => new AgentRuntimeRouter({
     mcpClient: client,
-    store: new FileAgentStore(statePath),
-    draftStore: new FileAgentDraftStore(draftPath),
+    store,
+    draftStore,
     backendApplyClient,
-    memoryStore: new FileAgentMemoryStore(memoryPath),
+    memoryStore,
     defaultAgentManifest: pluginCatalog.manifest,
     toolRegistry: pluginCatalog.registry,
     pluginCatalog,
@@ -170,11 +195,19 @@ export function createAgentServerContext(): AgentServerContext {
     },
     pluginWarnings: pluginCatalog.warnings,
     updateState,
-  })
-  logPhase('runtime-router-created')
-  const recoveryReport = runtimeRouter.reconcileRuntimeThreads()
+  }), () => [
+    `registeredTools=${runtimeRouterToolCountSafe(pluginCatalog)}`,
+    `catalogState=${pathDiagnostic(catalogStatePath)}`,
+  ].join(' '))
+  const recoveryReport = timeStartupStep('runtime-recovery', () => runtimeRouter.reconcileRuntimeThreads(), (report) => [
+    `checked=${report.checkedRunCount}`,
+    `rescheduled=${report.rescheduledRunIds.length}`,
+    `interrupted=${report.interruptedRunIds.length}`,
+    `waiting=${report.waitingRunIds.length}`,
+  ].join(' '))
   console.info(`[agent] runtime recovery checked=${recoveryReport.checkedRunCount} rescheduled=${recoveryReport.rescheduledRunIds.length} interrupted=${recoveryReport.interruptedRunIds.length} waiting=${recoveryReport.waitingRunIds.length}`)
   logPhase('runtime-recovery-reconciled')
+  console.info(`[agent] startup complete total=${Date.now() - startupStartedAt}ms`)
 
   return {
     port,
@@ -193,6 +226,60 @@ export function createAgentServerContext(): AgentServerContext {
     modelConfigStore,
     pluginCatalog,
   }
+}
+
+function timeStartupStep<T>(label: string, run: () => T, detail?: (result: T) => string): T {
+  const startedAt = Date.now()
+  console.info(`[agent] startup begin ${label}`)
+  const result = run()
+  const elapsedMs = Date.now() - startedAt
+  const detailText = detail?.(result)
+  console.info(`[agent] startup end ${label} elapsed=${elapsedMs}ms${detailText ? ` ${detailText}` : ''}`)
+  return result
+}
+
+function pathDiagnostic(filePath: string): string {
+  try {
+    if (!existsSync(filePath)) return `${relative(process.cwd(), filePath) || filePath}:missing`
+    const stat = statSync(filePath)
+    return `${relative(process.cwd(), filePath) || filePath}:${stat.isDirectory() ? 'dir' : 'file'}:${stat.size}b`
+  } catch (error) {
+    return `${relative(process.cwd(), filePath) || filePath}:stat_error=${formatStartupError(error)}`
+  }
+}
+
+function traceIndexDiagnostic(tracePath: string): string {
+  const indexPath = join(tracePath, 'index.json')
+  try {
+    if (!existsSync(indexPath)) return `${relative(process.cwd(), indexPath) || indexPath}:missing`
+    const stat = statSync(indexPath)
+    const parsed = JSON.parse(readFileSync(indexPath, 'utf8')) as unknown
+    if (!isStartupRecord(parsed)) return `${relative(process.cwd(), indexPath) || indexPath}:${stat.size}b invalid`
+    const threads = isStartupRecord(parsed.threads) ? Object.keys(parsed.threads).length : 0
+    const runs = isStartupRecord(parsed.runs) ? Object.values(parsed.runs).filter(isStartupRecord) : []
+    const events = runs.reduce((sum, run) => sum + numberField(run.eventCount), 0)
+    const chunks = runs.reduce((sum, run) => sum + (Array.isArray(run.chunks) ? run.chunks.length : 0), 0)
+    const blobBytes = runs.reduce((sum, run) => sum + numberField(run.blobBytes), 0)
+    return `${relative(process.cwd(), indexPath) || indexPath}:${stat.size}b threads=${threads} runs=${runs.length} events=${events} chunks=${chunks} blobBytes=${blobBytes}`
+  } catch (error) {
+    return `${relative(process.cwd(), indexPath) || indexPath}:read_error=${formatStartupError(error)}`
+  }
+}
+
+function runtimeRouterToolCountSafe(pluginCatalog: ReturnType<typeof loadAgentPluginCatalog>): number {
+  return pluginCatalog.layeredTools.length
+}
+
+function isStartupRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function numberField(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function formatStartupError(error: unknown): string {
+  return error instanceof Error ? error.message.replace(/\s+/g, '_') : String(error).replace(/\s+/g, '_')
 }
 
 export function getAgentServerCapabilities(context: AgentServerContext): AgentServerCapabilities {

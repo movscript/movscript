@@ -164,24 +164,32 @@ function parseInlineProjectLayerProposalDraft(
     const content = JSON.parse(draft.content) as Record<string, unknown>
     const proposal = isRecord(content.proposal) ? content.proposal : {}
     const mode = content.mode === 'snapshot' ? 'snapshot' as const : 'patch' as const
-    const creativeReferences = asRecordArray(proposal.creative_references).map((item, index) => ({
-      key: `${draft.id}:creative_references:${index}`,
-      kind: 'creative_references' as const,
-      title: asString(proposalField(item, ['name', 'title', 'label', 'kind']), `设定建议 #${index + 1}`),
-      detail: asString(proposalField(item, ['description', 'summary', 'content', 'rationale']), '暂无说明'),
-      changeType: inlineProjectLayerProposalChangeType(item),
-      target: inlineProjectLayerProposalChangeType(item) === 'deleted' ? `移出 #${item.id}` : typeof item.id === 'number' ? `合并到 #${item.id}` : '新增候选',
-      raw: item,
-    }))
-    const assetSlots = asRecordArray(proposal.asset_slots).map((item, index) => ({
-      key: `${draft.id}:asset_slots:${index}`,
-      kind: 'asset_slots' as const,
-      title: asString(proposalField(item, ['name', 'title', 'label', 'kind']), `素材建议 #${index + 1}`),
-      detail: asString(proposalField(item, ['description', 'summary', 'content', 'rationale']), '暂无说明'),
-      changeType: inlineProjectLayerProposalChangeType(item),
-      target: inlineProjectLayerProposalChangeType(item) === 'deleted' ? `移出 #${item.id}` : typeof item.id === 'number' ? `调整 #${item.id}` : '新增候选',
-      raw: item,
-    }))
+    const creativeReferences = asRecordArray(proposal.creative_references).map((item, index) => {
+      const id = projectLayerProposalItemId(item)
+      const changeType = inlineProjectLayerProposalChangeType(item)
+      return {
+        key: `${draft.id}:creative_references:${index}`,
+        kind: 'creative_references' as const,
+        title: asString(proposalField(item, ['name', 'title', 'label', 'kind']), `设定建议 #${index + 1}`),
+        detail: asString(proposalField(item, ['description', 'summary', 'content', 'rationale']), '暂无说明'),
+        changeType,
+        target: changeType === 'deleted' ? `移出 #${id}` : id > 0 ? `合并到 #${id}` : '新增候选',
+        raw: item,
+      }
+    })
+    const assetSlots = asRecordArray(proposal.asset_slots).map((item, index) => {
+      const id = projectLayerProposalItemId(item)
+      const changeType = inlineProjectLayerProposalChangeType(item)
+      return {
+        key: `${draft.id}:asset_slots:${index}`,
+        kind: 'asset_slots' as const,
+        title: asString(proposalField(item, ['name', 'title', 'label', 'kind']), `素材建议 #${index + 1}`),
+        detail: asString(proposalField(item, ['description', 'summary', 'content', 'rationale']), '暂无说明'),
+        changeType,
+        target: changeType === 'deleted' ? `移出 #${id}` : id > 0 ? `调整 #${id}` : '新增候选',
+        raw: item,
+      }
+    })
     const snapshotDeleted = mode === 'snapshot'
       ? inferInlineProjectLayerProposalSnapshotDeletes(draft, proposal, creativeReferenceRecords, assetSlotRecords)
       : { creativeReferences: [], assetSlots: [] }
@@ -207,8 +215,8 @@ function inferInlineProjectLayerProposalSnapshotDeletes(
   creativeReferenceRecords: ProposalEntityRecord[],
   assetSlotRecords: ProposalEntityRecord[],
 ) {
-  const proposedReferenceIds = new Set(asRecordArray(proposal.creative_references).map((item) => Number(item.id)).filter((id) => Number.isFinite(id) && id > 0))
-  const proposedAssetSlotIds = new Set(asRecordArray(proposal.asset_slots).map((item) => Number(item.id)).filter((id) => Number.isFinite(id) && id > 0))
+  const proposedReferenceIds = new Set(asRecordArray(proposal.creative_references).map(projectLayerProposalItemId).filter((id) => id > 0))
+  const proposedAssetSlotIds = new Set(asRecordArray(proposal.asset_slots).map(projectLayerProposalItemId).filter((id) => id > 0))
   const creativeReferences = creativeReferenceRecords
     .filter((record) => !['ignored', 'merged'].includes(String(record.status ?? '')))
     .flatMap((record) => {
@@ -243,7 +251,7 @@ function inferInlineProjectLayerProposalSnapshotDeletes(
 function inlineProjectLayerProposalChangeType(item: Record<string, unknown>): InlineProjectLayerProposalEntry['changeType'] {
   const status = asString(proposalField(item, ['status']))
   if (['ignored', 'waived'].includes(status)) return 'deleted'
-  return typeof item.id === 'number' ? 'modified' : 'added'
+  return projectLayerProposalItemId(item) > 0 ? 'modified' : 'added'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -265,6 +273,11 @@ function proposalField(item: Record<string, unknown>, keys: string[]): unknown {
     if (fields[key] !== undefined) return fields[key]
   }
   return undefined
+}
+
+function projectLayerProposalItemId(item: Record<string, unknown>) {
+  const parsed = Number(item.id ?? item.ID)
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 function titleOfRecord(record: ProposalEntityRecord | null | undefined) {

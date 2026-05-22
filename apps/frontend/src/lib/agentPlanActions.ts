@@ -1,5 +1,5 @@
 import { plannerRunIdForPlanAction } from '@/lib/agentPlanUi'
-import type { AgentPlanSnapshot, AgentRun, AgentTask, DispatchPlanResult, ReplanRunResult } from '@/lib/localAgentClient'
+import type { AgentTaskGraphSnapshot, AgentRun, AgentTask, DispatchTaskGraphResult, UpdateTaskGraphResult } from '@/lib/localAgentClient'
 import type { ChatMessage } from '@/store/agentStore'
 
 export type PlanDispatchSettings = {
@@ -17,12 +17,12 @@ export interface AgentPlanActionDeps {
   setBusy: (busy: boolean) => void
   setConversationRun: (run: AgentRun, patch: PlanConversationRuntimePatch) => void
   addAssistantMessage: (message: Pick<ChatMessage, 'role' | 'content'> & { meta?: ChatMessage['meta'] }) => void
-  dispatchPlan: (planId: string, input: {
+  dispatchTaskGraph: (taskGraphId: string, input: {
     plannerRunId?: string
     maxWorkers?: number
     maxTaskAttempts?: number
     workerTimeoutMs?: number
-  }) => Promise<DispatchPlanResult>
+  }) => Promise<DispatchTaskGraphResult>
   replanRun: (runId: string, input: {
     resetBlocked?: boolean
     resetNeedsReview?: boolean
@@ -33,27 +33,27 @@ export interface AgentPlanActionDeps {
     maxWorkers?: number
     maxTaskAttempts?: number
     workerTimeoutMs?: number
-  }) => Promise<ReplanRunResult>
+  }) => Promise<UpdateTaskGraphResult>
   updateTask: (taskId: string, input: Partial<AgentTask>) => Promise<AgentTask>
   cancelRunTree: (runId: string, input: { reason?: string }) => Promise<unknown>
   getRun: (runId: string) => Promise<AgentRun>
   refetchPlanSnapshot: () => Promise<unknown>
 }
 
-export async function dispatchPlanAction(input: {
+export async function dispatchTaskGraphAction(input: {
   run: AgentRun | null
-  snapshot?: AgentPlanSnapshot | null
+  snapshot?: AgentTaskGraphSnapshot | null
   settings: PlanDispatchSettings
   deps: AgentPlanActionDeps
 }): Promise<boolean> {
   const { run, snapshot, settings, deps } = input
-  const planId = snapshot?.plan.id ?? run?.planId
+  const taskGraphId = snapshot?.taskGraph.id ?? run?.taskGraphId
   const plannerRunId = plannerRunIdForPlanAction(snapshot ?? undefined, run)
-  if (!run || !planId || !plannerRunId) return false
+  if (!run || !taskGraphId || !plannerRunId) return false
 
   deps.setBusy(true)
   try {
-    const result = await deps.dispatchPlan(planId, {
+    const result = await deps.dispatchTaskGraph(taskGraphId, {
       plannerRunId,
       maxWorkers: settings.maxWorkers,
       maxTaskAttempts: settings.maxTaskAttempts,
@@ -73,13 +73,13 @@ export async function dispatchPlanAction(input: {
 
 export async function replanPlanAction(input: {
   run: AgentRun | null
-  snapshot?: AgentPlanSnapshot | null
+  snapshot?: AgentTaskGraphSnapshot | null
   settings: PlanDispatchSettings
   deps: AgentPlanActionDeps
 }): Promise<boolean> {
   const { run, snapshot, settings, deps } = input
   const plannerRunId = plannerRunIdForPlanAction(snapshot ?? undefined, run)
-  if (!run?.planId || !plannerRunId) return false
+  if (!run?.taskGraphId || !plannerRunId) return false
 
   deps.setBusy(true)
   try {
@@ -162,13 +162,13 @@ export async function rejectPlanTaskReviewAction(input: {
 export async function reworkPlanTaskReviewAction(input: {
   taskId: string
   run: AgentRun | null
-  snapshot?: AgentPlanSnapshot | null
+  snapshot?: AgentTaskGraphSnapshot | null
   settings: PlanDispatchSettings
   deps: AgentPlanActionDeps
 }): Promise<boolean> {
   const { taskId, run, snapshot, settings, deps } = input
   const plannerRunId = plannerRunIdForPlanAction(snapshot ?? undefined, run)
-  if (!run?.planId || !plannerRunId) return false
+  if (!run?.taskGraphId || !plannerRunId) return false
 
   deps.setBusy(true)
   try {
@@ -193,7 +193,7 @@ export async function reworkPlanTaskReviewAction(input: {
 
 export async function cancelPlanTreeAction(input: {
   run: AgentRun | null
-  snapshot?: AgentPlanSnapshot | null
+  snapshot?: AgentTaskGraphSnapshot | null
   deps: AgentPlanActionDeps
 }): Promise<boolean> {
   const { run, snapshot, deps } = input

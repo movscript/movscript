@@ -20,6 +20,7 @@ import {
 import { ContextDiagnosticCard } from '@/components/agent/ContextDiagnosticCard'
 import { RunActivityPanel } from '@/components/agent/AgentRunActivityPanel'
 import { AgentDraftResultCards } from '@/components/agent/AgentDraftResultCards'
+import { AgentProgressChecklistRevisionCard } from '@/components/agent/AgentProgressChecklistCard'
 import type { GenerationProgressState } from '@/lib/agentGenerationMedia'
 import type { AgentLivePendingAssistantState } from '@/lib/agentLiveRunActivity'
 import type { AgentRun } from '@/lib/localAgentClient'
@@ -154,6 +155,7 @@ export function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?
     [historicalGeneratedAttachments, msg],
   )
   const runtimeInput = msg.meta?.runtimeInput
+  const progressChecklistRevision = msg.meta?.progressChecklistRevision
   const runtimeInputStatus = runtimeInput?.status
   const runtimeInputLabel = runtimeInput?.status === 'pending'
     ? '等待送达运行中任务'
@@ -226,7 +228,9 @@ export function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?
         </div>
       )}
     >
-      {displayContent && <MarkdownContent text={displayContent} attachments={messageAttachments} />}
+      {progressChecklistRevision
+        ? <AgentProgressChecklistRevisionCard revision={progressChecklistRevision} />
+        : displayContent && <MarkdownContent text={displayContent} attachments={messageAttachments} />}
       {showModelSetupAction && (
         <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2 type-tiny">
           <div className="flex items-start gap-2">

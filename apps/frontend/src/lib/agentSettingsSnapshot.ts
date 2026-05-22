@@ -110,7 +110,7 @@ export function parseSettingsSnapshot(text: string): AgentSettingsSnapshot {
 export function resolveSnapshotRunPresetImport(
   snapshot: AgentSettingsSnapshot,
   settings: AgentSettings,
-): Partial<Pick<AgentSettings, 'runPresets' | 'activeRunPresetId' | 'permissionMode' | 'autoPlan' | 'planMaxWorkers' | 'planMaxTaskAttempts' | 'planWorkerTimeoutMs'>> | null {
+): Partial<Pick<AgentSettings, 'runPresets' | 'activeRunPresetId' | 'permissionMode' | 'autoTaskGraph' | 'planMaxWorkers' | 'planMaxTaskAttempts' | 'planWorkerTimeoutMs'>> | null {
   const runPresets = snapshot.runPresets ?? settings.runPresets
   const requestedActiveRunPresetId = snapshot.activeRunPresetId ?? settings.activeRunPresetId
   const active = runPresets.find((preset) => preset.id === requestedActiveRunPresetId) ?? runPresets[0]
@@ -119,7 +119,7 @@ export function resolveSnapshotRunPresetImport(
     ...(snapshot.runPresets ? { runPresets } : {}),
     activeRunPresetId: active.id,
     permissionMode: active.permissionMode,
-    autoPlan: active.autoPlan,
+    autoTaskGraph: active.autoTaskGraph,
     planMaxWorkers: active.planMaxWorkers,
     planMaxTaskAttempts: active.planMaxTaskAttempts,
     planWorkerTimeoutMs: active.planWorkerTimeoutMs,
@@ -366,19 +366,19 @@ function parseSnapshotRunPresets(input: unknown): AgentRunPreset[] {
   const seenIds = new Set<string>()
   return input.map((item, index) => {
     if (!isRecord(item)) throw new Error(`agent settings snapshot runPresets ${index + 1} must be an object`)
-    assertAllowedKeys(item, `agent settings snapshot runPresets ${index + 1}`, ['id', 'name', 'description', 'permissionMode', 'autoPlan', 'maxToolCalls', 'maxIterations', 'planMaxWorkers', 'planMaxTaskAttempts', 'planWorkerTimeoutMs'])
+    assertAllowedKeys(item, `agent settings snapshot runPresets ${index + 1}`, ['id', 'name', 'description', 'permissionMode', 'autoTaskGraph', 'maxToolCalls', 'maxIterations', 'planMaxWorkers', 'planMaxTaskAttempts', 'planWorkerTimeoutMs'])
     const id = typeof item.id === 'string' && item.id.trim() ? item.id.trim() : ''
     if (!id) throw new Error(`agent settings snapshot runPresets ${index + 1} id is required`)
     if (seenIds.has(id)) throw new Error(`agent settings snapshot runPresets ${index + 1} id is duplicated`)
     seenIds.add(id)
     if (item.permissionMode !== 'ask' && item.permissionMode !== 'suggest' && item.permissionMode !== 'auto') throw new Error(`agent settings snapshot runPresets ${index + 1} permissionMode is invalid`)
-    if (item.autoPlan !== undefined && typeof item.autoPlan !== 'boolean') throw new Error(`agent settings snapshot runPresets ${index + 1} autoPlan must be boolean`)
+    if (item.autoTaskGraph !== undefined && typeof item.autoTaskGraph !== 'boolean') throw new Error(`agent settings snapshot runPresets ${index + 1} autoTaskGraph must be boolean`)
     return {
       id,
       name: parseOptionalNonEmptyString(item.name, `agent settings snapshot runPresets ${index + 1} name`) ?? id,
       description: parseOptionalString(item.description, `agent settings snapshot runPresets ${index + 1} description`) ?? '',
       permissionMode: item.permissionMode,
-      autoPlan: item.autoPlan !== false,
+      autoTaskGraph: item.autoTaskGraph !== false,
       maxToolCalls: parseSnapshotIntegerRange(item.maxToolCalls, `agent settings snapshot runPresets ${index + 1} maxToolCalls`, 1, 200),
       maxIterations: parseSnapshotIntegerRange(item.maxIterations, `agent settings snapshot runPresets ${index + 1} maxIterations`, 1, 200),
       planMaxWorkers: parseSnapshotIntegerOption(item.planMaxWorkers, `agent settings snapshot runPresets ${index + 1} planMaxWorkers`, [1, 2, 3, 4]),

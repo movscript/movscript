@@ -54,7 +54,7 @@ export function ContentUnitGenerationInputsPanel({
   onCreateKeyframe,
   onUploadMissingAssets,
   onOpenCanvas,
-  onAiVisualPlan,
+  onAiVisualTaskGraph,
   onSelectKeyframe,
   onMoveKeyframe,
   onDeleteKeyframe,
@@ -93,7 +93,7 @@ export function ContentUnitGenerationInputsPanel({
   onCreateKeyframe?: () => void
   onUploadMissingAssets?: () => void
   onOpenCanvas?: () => void
-  onAiVisualPlan?: () => void
+  onAiVisualTaskGraph?: () => void
   onSelectKeyframe: (keyframeId: number) => void
   onMoveKeyframe: (keyframe: ContentWorkbenchEditRecord, direction: 'up' | 'down') => void
   onDeleteKeyframe: (keyframe: ContentWorkbenchEditRecord) => void
@@ -119,7 +119,7 @@ export function ContentUnitGenerationInputsPanel({
             title="调度图"
             badge={visualPlanReady ? '已填写' : requiresKeyframe ? '建议补齐' : '非视觉项'}
             badgeVariant={visualPlanReady ? 'success' : requiresKeyframe ? 'warning' : 'secondary'}
-            detail={visualPlanReady ? firstText(draft.visual_plan_blocking, draft.visual_plan_camera_path, draft.visual_plan_space) : requiresKeyframe ? '空间、相机路径、人物、道具、光位和停点。' : '当前制作项不强制调度图。'}
+            detail={visualPlanReady ? firstText(draft.visual_task_graph_blocking, draft.visual_task_graph_camera_path, draft.visual_task_graph_space) : requiresKeyframe ? '空间、相机路径、人物、道具、光位和停点。' : '当前制作项不强制调度图。'}
             status={visualPlanReady ? '可用于生成' : '待填写'}
             tone={visualPlanReady ? 'success' : requiresKeyframe ? 'warning' : 'default'}
             onOpen={() => onInputDrawerChange('blocking')}
@@ -300,7 +300,7 @@ export function ContentUnitGenerationInputsPanel({
               }}
               ready={storyboardBriefReady}
               onFieldChange={onDraftChange}
-              onAiVisualPlan={onAiVisualPlan}
+              onAiVisualTaskGraph={onAiVisualTaskGraph}
             />
           ) : null}
 
@@ -308,18 +308,18 @@ export function ContentUnitGenerationInputsPanel({
             <ContentUnitVisualPlanEditor
               unitId={unit.ID}
               value={{
-                space: draft.visual_plan_space,
-                blocking: draft.visual_plan_blocking,
-                cameraPath: draft.visual_plan_camera_path,
-                beats: draft.visual_plan_beats,
-                props: draft.visual_plan_props,
-                lighting: draft.visual_plan_lighting,
-                risks: draft.visual_plan_risks,
+                space: draft.visual_task_graph_space,
+                blocking: draft.visual_task_graph_blocking,
+                cameraPath: draft.visual_task_graph_camera_path,
+                beats: draft.visual_task_graph_beats,
+                props: draft.visual_task_graph_props,
+                lighting: draft.visual_task_graph_lighting,
+                risks: draft.visual_task_graph_risks,
               }}
               ready={visualPlanReady}
               requiresKeyframe={requiresKeyframe}
               onFieldChange={onDraftChange}
-              onAiVisualPlan={onAiVisualPlan}
+              onAiVisualTaskGraph={onAiVisualTaskGraph}
             />
           ) : null}
         </div>
