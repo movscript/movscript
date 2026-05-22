@@ -65,7 +65,7 @@
             },
             "model_id": {
               "type": "string",
-              "description": "传给异步 generation_job runtime operation request 的公开模型 ID。"
+              "description": "传给异步 generation_job runtime work request 的公开模型 ID。"
             },
             "display_name": {
               "type": "string"

@@ -1,10 +1,11 @@
 {
-  "name": "core_operation_start",
-  "description": "提交一个可等待的异步 runtime operation，并立即返回 operationId/externalHandle；本工具不等待后端完成，也不代表生成成功。普通同步工具直接调用，不要通过此工具包装。当前此工具只支持 kind:\"generation_job\"，用于提交后端生成长任务；后续状态和结果必须通过 core_operation_wait/get/list 观察。Subagent 也是 runtime operation，但通过 core_subagent_spawn、core_subagent_wait、core_subagent_cancel 专用工具管理。",
-  "permission": "agent.operation.write",
+  "name": "core_work_start",
+  "description": "提交一个可等待的异步 runtime work，并立即返回 work handle；本工具不等待后端或子 agent 完成，也不代表最终成功。普通同步工具直接调用，不要通过此工具包装。支持 kind:\"generation_job\" 和 kind:\"subagent_run\"；后续状态和结果通过 core_work_get/list/wait/cancel 观察或管理。",
+  "permission": "agent.work.write",
   "risk": "generate",
   "source": "runtime",
-  "category": "runtime-operation",
+  "category": "runtime-work",
+  "allowedRunRoles": ["planner"],
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -12,11 +13,11 @@
     "properties": {
       "kind": {
         "type": "string",
-        "enum": ["generation_job"]
+        "enum": ["generation_job", "subagent_run"]
       },
       "request": {
         "type": "object",
-        "description": "operation provider 原始请求。generation_job 使用后端生成任务参数。"
+        "description": "work provider 原始请求。generation_job 使用后端生成任务参数；subagent_run 使用子 agent 任务说明、期望输出、写入边界和可选权限配置。"
       },
       "timeoutMs": {
         "type": "number"
@@ -26,7 +27,7 @@
       },
       "continuationPolicy": {
         "type": "object",
-        "description": "后台续跑策略。generation_job 推荐传 {\"mode\":\"any_completed\",\"groupId\":\"同一批候选共享的稳定组 ID\"}，runtime 会在 operation 完成且线程无阻塞工作时自动创建 continuation run。",
+        "description": "后台续跑策略。推荐传 {\"mode\":\"any_completed\",\"groupId\":\"同一批 work 共享的稳定组 ID\"}，runtime 会在 work 完成且线程无阻塞工作时自动创建 continuation run。",
         "additionalProperties": false,
         "required": ["mode"],
         "properties": {

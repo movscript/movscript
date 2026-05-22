@@ -38,7 +38,7 @@ test('content workbench unit health identifies hard generation blockers', () => 
   })
 
   assert.equal(health.tone, 'blocked')
-  assert.equal(health.title, '制作项不可执行')
+  assert.equal(health.title, '下一步：补齐生成条件')
   assert.equal(health.score, 0)
   assert.deepEqual(health.checks.filter((check) => check.tone === 'blocked').map((check) => check.key), [
     'prompt',

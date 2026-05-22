@@ -69,6 +69,9 @@ export function compactRunActivity(run: AgentRun): ChatRunActivity {
         id: step.id,
         type: step.type,
         status: step.status,
+        ...(step.roundId ? { roundId: step.roundId } : {}),
+        ...(step.roundIndex !== undefined ? { roundIndex: step.roundIndex } : {}),
+        ...(step.roundLabel ? { roundLabel: step.roundLabel } : {}),
         ...(step.title ? { title: step.title } : {}),
         ...(step.toolName ? { toolName: step.toolName } : {}),
         ...(step.args ? { args: step.args } : {}),
@@ -101,6 +104,9 @@ export function compactRunTraceEvents(events: AgentTraceEvent[] = []): ChatRunAc
       kind: trace.kind,
       title: trace.title,
       status: trace.status,
+      ...(trace.roundId ? { roundId: trace.roundId } : {}),
+      ...(trace.roundIndex !== undefined ? { roundIndex: trace.roundIndex } : {}),
+      ...(trace.roundLabel ? { roundLabel: trace.roundLabel } : {}),
       ...(trace.summary ? { summary: trace.summary } : {}),
       ...(trace.toolName ? { toolName: trace.toolName } : {}),
       ...(trace.stepId ? { stepId: trace.stepId } : {}),
@@ -129,7 +135,8 @@ export function mergeLiveRunActivityEvent(current: ChatRunActivityEvent[], item:
     : [...current, item]
   const httpItems = next.filter((candidate) => candidate.id.startsWith('http-request-'))
   const runtimeItems = next.filter((candidate) => !candidate.id.startsWith('http-request-'))
-  return [...httpItems, ...runtimeItems.slice(-(input.runtimeLimit ?? 16))]
+  const limit = input.runtimeLimit ?? Number.POSITIVE_INFINITY
+  return [...httpItems, ...(Number.isFinite(limit) ? runtimeItems.slice(-limit) : runtimeItems)]
 }
 
 export function projectLiveRunStreamTraceEvent(event: AgentRunStreamEvent): LiveRunTraceProjection | null {
@@ -144,14 +151,15 @@ export function projectLiveRunStreamTraceEvent(event: AgentRunStreamEvent): Live
   }
 }
 
-export function mergeRunActivityEvents(activity: ChatRunActivity, events: ChatRunActivityEvent[]): ChatRunActivity {
+export function mergeRunActivityEvents(activity: ChatRunActivity, events: ChatRunActivityEvent[], input: { runtimeLimit?: number } = {}): ChatRunActivity {
   if (events.length === 0) return activity
   const existingKeys = new Set(activity.events.map(liveTraceEventKey))
   const mergedEvents = [
     ...activity.events,
     ...events.filter((event) => !existingKeys.has(liveTraceEventKey(event))),
   ]
-  return { ...activity, events: mergedEvents.slice(-48) }
+  const limit = input.runtimeLimit ?? 48
+  return { ...activity, events: Number.isFinite(limit) ? mergedEvents.slice(-limit) : mergedEvents }
 }
 
 function chatRunActivityEventFromTrace(trace: AgentTraceEvent): ChatRunActivityEvent {
@@ -160,6 +168,9 @@ function chatRunActivityEventFromTrace(trace: AgentTraceEvent): ChatRunActivityE
     kind: trace.kind,
     title: trace.title,
     status: trace.status,
+    ...(trace.roundId ? { roundId: trace.roundId } : {}),
+    ...(trace.roundIndex !== undefined ? { roundIndex: trace.roundIndex } : {}),
+    ...(trace.roundLabel ? { roundLabel: trace.roundLabel } : {}),
     ...(trace.summary ? { summary: trace.summary } : {}),
     ...(trace.toolName ? { toolName: trace.toolName } : {}),
     ...(trace.stepId ? { stepId: trace.stepId } : {}),

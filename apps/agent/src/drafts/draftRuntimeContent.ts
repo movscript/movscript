@@ -31,10 +31,10 @@ export function canonicalizeProjectStandardsProposalDraftContent(draft: AgentDra
   const nextProposal: Record<string, unknown> = { ...currentProposal }
   if (draft.kind === 'setting_proposal') {
     nextProposal.creative_references = Array.isArray(canonicalSnapshot.creative_references) ? canonicalSnapshot.creative_references : []
-    nextProposal.asset_slots = []
+    delete nextProposal.asset_slots
   } else if (draft.kind === 'asset_proposal') {
-    nextProposal.creative_references = []
     nextProposal.asset_slots = Array.isArray(canonicalSnapshot.asset_slots) ? canonicalSnapshot.asset_slots : []
+    delete nextProposal.creative_references
   } else {
     nextProposal.project_style = isRecord(currentProposal.project_style) ? currentProposal.project_style : {}
     delete nextProposal.creative_references

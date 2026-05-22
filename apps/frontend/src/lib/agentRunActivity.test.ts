@@ -236,3 +236,31 @@ test('mergeLiveRunActivityEvent replaces by live key and keeps http setup events
 
   assert.deepEqual(merged.map((event) => event.id), ['http-request-1', 'trace_context'])
 })
+
+test('mergeLiveRunActivityEvent keeps complete live history unless a caller asks for a limit', () => {
+  const first: ChatRunActivityEvent = {
+    id: 'trace_context_1',
+    kind: 'context',
+    title: 'Context 1',
+    status: 'info',
+    createdAt: '2026-05-17T00:00:01.000Z',
+  }
+  const second: ChatRunActivityEvent = {
+    id: 'trace_context_2',
+    kind: 'context',
+    title: 'Context 2',
+    status: 'info',
+    createdAt: '2026-05-17T00:00:02.000Z',
+  }
+  const third: ChatRunActivityEvent = {
+    id: 'trace_context_3',
+    kind: 'context',
+    title: 'Context 3',
+    status: 'info',
+    createdAt: '2026-05-17T00:00:03.000Z',
+  }
+
+  const merged = [first, second, third].reduce((current, event) => mergeLiveRunActivityEvent(current, event), [] as ChatRunActivityEvent[])
+
+  assert.deepEqual(merged.map((event) => event.id), ['trace_context_1', 'trace_context_2', 'trace_context_3'])
+})

@@ -1912,7 +1912,6 @@ test('applyDraftReview posts direct asset proposal snapshot rows to asset propos
       schema: 'movscript.asset_proposal.v1',
       mode: 'snapshot',
       summary: '批量提交：3 项',
-      snapshot_base: { asset_slots: [] },
       proposal: {
         asset_slots: [{
           client_id: 'slot_001',
@@ -1957,7 +1956,7 @@ test('applyDraftReview posts direct asset proposal snapshot rows to asset propos
   }
 })
 
-test('applyDraftReview allows omitted asset ids when snapshot_base defines the delete baseline', async () => {
+test('applyDraftReview allows omitted asset ids because proposal is the desired snapshot', async () => {
   const postedBodies: Array<Record<string, unknown>> = []
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
@@ -1975,12 +1974,6 @@ test('applyDraftReview allows omitted asset ids when snapshot_base defines the d
         proposedValue: JSON.stringify({
           schema: 'movscript.asset_proposal.v1',
           mode: 'snapshot',
-          snapshot_base: {
-            asset_slots: [
-              { id: 11, name: 'Delete this slot', kind: 'image', status: 'active' },
-              { id: 12, name: 'Edited slot', kind: 'image', status: 'active' },
-            ],
-          },
           proposal: {
             asset_slots: [{ id: 12, name: 'Edited slot', kind: 'image', status: 'active' }],
           },

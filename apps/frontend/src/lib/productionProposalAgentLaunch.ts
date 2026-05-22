@@ -30,6 +30,7 @@ export interface EnsureProductionProposalDraftInput {
   productionSnapshot: { segments: ProposalSegmentNode[] }
   scriptVersion?: ScriptVersion | null
   projectScripts: ScriptVersion[]
+  seedProposalFromSnapshot?: boolean
 }
 
 export interface ProductionProposalAgentPayloadInput {
@@ -39,6 +40,15 @@ export interface ProductionProposalAgentPayloadInput {
   productionLabel: string
   draftId: string
   target: ProductionAnalysisTarget
+}
+
+export interface ProductionProposalRevisionAgentPayloadInput {
+  requestId: string
+  projectId: number
+  productionId: number
+  productionLabel: string
+  draftId: string
+  instruction: string
 }
 
 export interface ProductionProposalReviewSearchInput {
@@ -65,16 +75,27 @@ export async function ensureProductionProposalDraft(input: EnsureProductionPropo
   if (existingProductionDraft) return existingProductionDraft
 
   const productionLabel = productionProposalLaunchLabel(input.production, input.productionId)
+  const emptyContent = buildEmptyProductionProposalDraftContent({
+    projectId: input.projectId,
+    productionId: input.productionId,
+    snapshotBase: input.productionSnapshot,
+    proposedAt: new Date().toISOString(),
+  })
+  const content = input.seedProposalFromSnapshot
+    ? {
+        ...emptyContent,
+        summary: emptyContent.summary || '基于当前正式编排创建的提案草稿。',
+        proposal: {
+          segments: input.productionSnapshot.segments,
+        },
+      }
+    : emptyContent
+
   return localAgentClient.createDraft({
     projectId: input.projectId,
     kind: 'production_proposal',
     title: `制作提案草稿 - ${productionLabel}`,
-    content: JSON.stringify(buildEmptyProductionProposalDraftContent({
-      projectId: input.projectId,
-      productionId: input.productionId,
-      snapshotBase: input.productionSnapshot,
-      proposedAt: new Date().toISOString(),
-    }), null, 2),
+    content: JSON.stringify(content, null, 2),
     source: {
       entityType: 'production',
       entityId: input.productionId,
@@ -158,6 +179,52 @@ export function buildProductionProposalAgentPanelDraftPayload(input: ProductionP
 export function launchProductionProposalAgent(input: ProductionProposalAgentPayloadInput & { onSettled: AgentPanelPageTool }): () => void {
   const cleanup = registerAgentPanelPageTool(input.requestId, input.onSettled)
   openAgentPanelDraft(buildProductionProposalAgentPanelDraftPayload(input))
+  return cleanup
+}
+
+export function buildProductionProposalRevisionRequestId(now = Date.now(), random = Math.random()) {
+  return `production_proposal_revision_${now.toString(36)}_${random.toString(36).slice(2, 8)}`
+}
+
+export function buildProductionProposalRevisionAgentPanelDraftPayload(input: ProductionProposalRevisionAgentPayloadInput): AgentPanelDraftPayload {
+  const instruction = input.instruction.trim()
+  const draftFileRef = `agent://draft/${encodeURIComponent(input.draftId)}/content`
+  return {
+    requestId: input.requestId,
+    taskType: 'production_proposal',
+    message: instruction ? `调整制作提案：${instruction}` : `调整制作提案：${input.productionLabel}`,
+    title: `调整制作提案: ${input.productionLabel}`,
+    newConversation: true,
+    autoSend: true,
+    projectId: input.projectId,
+    clientInput: buildCommandFirstClientInput({
+      message: [
+        `请调整当前 production_proposal 草稿：${input.productionLabel}。`,
+        `必须把 draft content 当作文件处理：先使用 draft_file_read 读取 ${draftFileRef}，再使用 draft_file_edit 修改同一个 ref；不要直接写正式 production graph。`,
+        '修改完成后简要说明调整了哪些段落、情节、内容项或素材需求。不要调用 draft_apply，除非用户明确要求提交且经过确认。',
+        instruction ? `用户调整要求：${instruction}` : '',
+      ].filter(Boolean).join('\n\n'),
+      labels: ['production-orchestration', 'production-proposal-draft-edit'],
+      hints: {
+        projectId: input.projectId,
+        productionId: input.productionId,
+        draftId: input.draftId,
+        route: { pathname: ROUTES.project.productionOrchestration },
+        selection: {
+          entityType: 'production',
+          entityId: input.productionId,
+          label: input.productionLabel,
+        },
+      },
+    }),
+    timeoutMs: 180_000,
+    renderMode: 'page',
+  }
+}
+
+export function launchProductionProposalRevisionAgent(input: ProductionProposalRevisionAgentPayloadInput & { onSettled: AgentPanelPageTool }): () => void {
+  const cleanup = registerAgentPanelPageTool(input.requestId, input.onSettled)
+  openAgentPanelDraft(buildProductionProposalRevisionAgentPanelDraftPayload(input))
   return cleanup
 }
 

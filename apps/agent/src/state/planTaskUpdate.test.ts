@@ -76,7 +76,7 @@ test('applyPlanTaskUpdate rejects missing foreign and self graph references', ()
     now: 'now',
     planTasks: [task],
     getTask: () => taskFixture({ id: 'task_other', taskGraphId: 'task_graph_2' }),
-  }), /parent task task_other does not belong to task graph task_graph_1/)
+  }), /parent task task_other does not belong to taskGraph task_graph_1/)
   assert.throws(() => applyPlanTaskUpdate({
     task,
     update: { deps: ['task_1'] },

@@ -42,13 +42,13 @@ export function resolveRuntimeIntents(message: string, debugContext: AgentDebugC
 
   const route = debugContext.route.pathname.toLowerCase()
   if (route.includes('project-workspace')) addSignal(signals, 'project_standards_proposal', 'route', 'high', `route:${debugContext.route.pathname}`)
-  if (route.includes('creative-references') || route.includes('pre-production')) addSignal(signals, 'setting_proposal', 'route', 'high', `route:${debugContext.route.pathname}`)
+  const routeIntentSet = intentSet(signals)
+  const hasExplicitAssetWorkflow = routeIntentSet.has('asset_proposal')
+    || routeIntentSet.has('asset_candidate_generation')
+    || routeIntentSet.has('visual_generation')
+  if (route.includes('creative-references') || (route.includes('pre-production') && !hasExplicitAssetWorkflow)) addSignal(signals, 'setting_proposal', 'route', 'high', `route:${debugContext.route.pathname}`)
   if (route.includes('production-orchestrate')) addSignal(signals, 'production_proposal', 'route', 'high', `route:${debugContext.route.pathname}`)
   if (route.includes('asset-slots') || route.includes('pre-production')) {
-    const intents = intentSet(signals)
-    const hasExplicitAssetWorkflow = intents.has('asset_proposal')
-      || intents.has('asset_candidate_generation')
-      || intents.has('visual_generation')
     if (!hasExplicitAssetWorkflow) addSignal(signals, 'asset_proposal', 'route', 'high', `route:${debugContext.route.pathname}`)
   }
 
@@ -143,7 +143,7 @@ const INTENT_KEYWORD_MAPPINGS = [
     '这张图',
     '这张图片',
   ]],
-  ['planner_subagents', ['subagent', 'worker', 'parallel', '并行', '子代理', '多任务', '拆分任务', '分工']],
+  ['planner_subagents', ['subagent', 'worker', 'parallel', '并行', '子代理', '分工']],
 ] as const
 
 function matchesIntentNeedle(message: string, needle: string, intent: string): boolean {

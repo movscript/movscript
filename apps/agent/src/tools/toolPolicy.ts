@@ -137,7 +137,7 @@ function catalogWarningMessage(toolName: string, reason: ResolvedToolCatalog['bl
 }
 
 function withProjectId(call: ToolCall, projectId: number): ToolCall {
-  if (call.name === 'core_operation_start' && call.args?.kind === 'generation_job' && isPlainArgs(call.args.request)) {
+  if (call.name === 'core_work_start' && call.args?.kind === 'generation_job' && isPlainArgs(call.args.request)) {
     return {
       ...call,
       args: {

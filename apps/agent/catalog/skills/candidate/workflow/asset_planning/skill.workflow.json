@@ -29,14 +29,14 @@
     "tool://draft_model_get",
     "tool://core_user_input_request",
     "tool://generation_model_list",
-    "tool://core_operation_start",
-    "tool://core_operation_get",
-    "tool://core_operation_wait",
-    "tool://core_operation_list",
+    "tool://core_work_start",
+    "tool://core_work_get",
+    "tool://core_work_wait",
+    "tool://core_work_list",
     "tool://candidate_asset_slot_attach",
-    "tool://core_operation_cancel"
+    "tool://core_work_cancel"
   ],
   "toolScope": "intersect",
-  "outputContract": "返回已选 asset target、候选 prompt 方向、已有设定/素材检查结果、所需模型能力、生成 operationId、output_resource_id 列表、每个 output_resource_id 的候选写入结果、阻塞项和下一步动作。",
+  "outputContract": "返回已选 asset target、候选 prompt 方向、已有设定/素材检查结果、所需模型能力、生成 workId、output_resource_id 列表、每个 output_resource_id 的候选写入结果、阻塞项和下一步动作。",
   "instructionTemplatePath": "instruction.md"
 }

@@ -167,8 +167,8 @@ export function buildPreProductionAuditAgentPanelDraftPayload(input: PreProducti
       message: [
         `请梳理当前项目「${input.projectLabel}」的前期准备。`,
         '读取当前 draft model / 已有 proposal draft 的 seed 与 snapshot 作为设定基准，再检查 asset_slots，输出可审阅草稿：',
-        '1. 如果设定资料缺漏、重复、状态不清晰，创建或更新 setting_proposal；只修改 proposal.creative_references，proposal.asset_slots 必须为空。',
-        '2. 如果素材需求缺漏、归属不清晰、优先级/状态/类型需要修正，创建或更新 asset_proposal；只修改 proposal.asset_slots，proposal.creative_references 必须为空。',
+        '1. 如果设定资料缺漏、重复、下一步不清晰，创建或更新 setting_proposal；只修改 proposal.creative_references，不写 asset_slots。',
+        '2. 如果素材需求缺漏、归属不清晰、优先级/下一步/类型需要修正，创建或更新 asset_proposal；只修改 proposal.asset_slots，proposal.creative_references 必须为空。',
         '3. 本轮只做设定与素材需求提案；不处理图片/视频输出、媒体任务或候选 prompt。',
         '4. 已有 setting_proposal draft 时，直接读取并局部编辑 draft 的 proposal.creative_references；不要用 live creative reference 查询重写整份快照。',
         '5. 如果查询工具返回 total_count > 0 但 count/returned = 0，说明当前筛选没有可用明细；应回到 draft seed/snapshot 或放宽筛选，不要据此判定“有资料但不能编辑”。',
@@ -200,8 +200,8 @@ export function buildSettingPreparationAgentPanelDraftPayload(input: SettingPrep
     autoSend: true,
     projectId: input.projectId,
     clientInput: buildCommandFirstClientInput({
-      message: `请完善设定资料：${input.creativeReferenceLabel}`,
-      labels: ['setting-prep-workbench', 'workbench', 'structured-output'],
+      message: input.message,
+      labels: ['setting-prep-workbench', 'setting_prep', 'workbench', 'structured-output'],
       hints: {
         projectId: input.projectId,
         route: { pathname: ROUTES.project.preProduction },

@@ -3,7 +3,7 @@
   "kind": "workflow",
   "version": "1.0.0",
   "name": "Planner Subagents",
-  "description": "在 planner run 中为可并行或可隔离的任务启动、观察和综合 subagent runs。",
+  "description": "在 planner run 中按用户授意或为确需并行、隔离、长时等待的计划步骤启动、观察和综合 subagent runs。",
   "priority": 760,
   "enabled": true,
   "triggers": [
@@ -16,20 +16,19 @@
         "parallel",
         "并行",
         "子代理",
-        "多任务",
-        "拆分任务",
         "分工"
       ]
     }
   ],
   "toolRefs": [
-    "tool://core_subagent_spawn",
-    "tool://core_subagent_list",
-    "tool://core_subagent_wait",
-    "tool://core_subagent_cancel",
+    "tool://core_work_start",
+    "tool://core_work_get",
+    "tool://core_work_list",
+    "tool://core_work_wait",
+    "tool://core_work_cancel",
     "tool://core_user_input_request"
   ],
   "toolScope": "intersect",
-  "outputContract": "返回 planner 自己完成的内容、已启动或等待的 subagent 名称、run 状态、阻塞项和最终综合结论。",
+  "outputContract": "返回当前计划状态、planner 自己完成的内容、已启动或等待的 subagent 名称、run 状态、阻塞项和最终综合结论。",
   "instructionTemplatePath": "instruction.md"
 }

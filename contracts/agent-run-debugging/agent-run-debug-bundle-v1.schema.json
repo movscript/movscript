@@ -416,6 +416,7 @@
         "httpResponsesLabel",
         "requestPayloadsLabel",
         "httpResponseBodiesLabel",
+        "tokenUsageLabel",
         "issues"
       ],
       "properties": {
@@ -444,6 +445,9 @@
           "type": "string"
         },
         "httpResponseBodiesLabel": {
+          "type": "string"
+        },
+        "tokenUsageLabel": {
           "type": "string"
         },
         "issues": {

@@ -3,7 +3,6 @@ import { ArrowDown, ArrowUp, CheckCircle2, Play, Plus, Trash2 } from 'lucide-rea
 import { AuthedImage } from '@/components/shared/AuthedImage'
 import {
   keyframeDisplayTitle,
-  keyframeEditStatusOptions,
   keyframeFrameRoleLabel,
   keyframeFrameRoleOptions,
   keyframeGenerationStatusLabel,
@@ -189,7 +188,7 @@ export function ContentWorkbenchKeyframeEditor({
               </div>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-[140px_minmax(0,1fr)_96px_128px]">
+            <div className="grid gap-2 sm:grid-cols-[140px_minmax(0,1fr)_96px]">
               <ContentUnitEditSelect label="分类" value={keyframeDraft.frame_role} options={keyframeFrameRoleOptions} onChange={(value) => onDraftChange('frame_role', value)} />
               <div className="space-y-1.5">
                 <Label htmlFor={`keyframe-title-${selectedKeyframe.ID}`} className="type-label">标题（可选）</Label>
@@ -199,7 +198,6 @@ export function ContentWorkbenchKeyframeEditor({
                 <Label htmlFor={`keyframe-order-${selectedKeyframe.ID}`} className="type-label">顺序</Label>
                 <Input id={`keyframe-order-${selectedKeyframe.ID}`} type="number" min="1" value={keyframeDraft.order} onChange={(event) => onDraftChange('order', event.target.value)} />
               </div>
-              <ContentUnitEditSelect label="状态" value={keyframeDraft.status} options={keyframeEditStatusOptions} onChange={(value) => onDraftChange('status', value)} />
             </div>
 
             <div className={cn('grid gap-2', compact ? '' : 'lg:grid-cols-2')}>

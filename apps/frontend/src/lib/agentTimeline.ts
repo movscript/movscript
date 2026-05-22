@@ -1,5 +1,5 @@
 import { generationStatusText } from '@/lib/agentGenerationDisplay'
-import { compactRunActivity, mergeRunActivityEvents } from '@/lib/agentRunActivity'
+import { buildRunActivitySnapshot } from '@/lib/agentRunActivitySnapshot'
 import { agentTraceView, approvalStatusLabel, traceEventStatusLabel, traceKindLabel } from '@/lib/agentRunUi'
 import { agentToolNameLabel } from '@/lib/agentToolDisplay'
 import type { AgentRun, AgentTraceEvent } from '@/lib/localAgentClient'
@@ -40,8 +40,9 @@ export function buildAgentRunTimeline(input: {
   run?: AgentRun | null
   events?: ChatRunActivityEvent[]
 }): AgentRunTimeline | undefined {
-  const activity = displayRunActivity(input)
-  if (!activity) return undefined
+  const snapshot = buildRunActivitySnapshot(input)
+  if (!snapshot) return undefined
+  const { activity } = snapshot
 
   const approvalItems: AgentTimelineItem[] = (activity.approvals ?? []).map((approval) => ({
     id: `approval-${approval.id}`,
@@ -142,39 +143,6 @@ function toolCallTimelineTitle(toolName: string, args: unknown): string {
   if (toolName === 'core_operation_wait') return '等待后台任务'
   if (toolName === 'core_operation_cancel') return '取消后台任务'
   return agentToolNameLabel(toolName)
-}
-
-function displayRunActivity(input: {
-  activity?: ChatRunActivity
-  run?: AgentRun | null
-  events?: ChatRunActivityEvent[]
-}): ChatRunActivity | undefined {
-  const base = input.activity ?? (input.run ? compactRunActivity(input.run) : activityFromEvents(input.events ?? []))
-  if (!base) return undefined
-  const normalizedBase = {
-    ...base,
-    approvals: base.approvals ?? [],
-    inputs: base.inputs ?? [],
-  }
-  if (!input.events?.length || base.events === input.events) return normalizedBase
-  return mergeRunActivityEvents(normalizedBase, input.events)
-}
-
-function activityFromEvents(events: ChatRunActivityEvent[]): ChatRunActivity | undefined {
-  if (events.length === 0) return undefined
-  const firstEvent = events[0]
-  const lastEvent = events[events.length - 1] ?? firstEvent
-  const failed = events.some((event) => event.status === 'failed' || event.status === 'blocked')
-  const running = events.some((event) => event.status === 'started' || event.status === 'in_progress')
-  return {
-    runId: 'pending',
-    threadId: 'pending',
-    status: failed ? 'failed' : running ? 'in_progress' : lastEvent.status,
-    createdAt: firstEvent.createdAt,
-    updatedAt: lastEvent.completedAt ?? lastEvent.createdAt,
-    events,
-    steps: [],
-  }
 }
 
 function eventTimelineItem(event: ChatRunActivityEvent, runId: string): AgentTimelineItem {

@@ -343,7 +343,7 @@ test('renderLocalFinalAssistantContent rejects non-plain local context records',
   assert.doesNotMatch(content, /Business reference: project#42/)
 })
 
-test('renderLocalFinalAssistantContent appends source summary for ordinary final replies', () => {
+test('renderLocalFinalAssistantContent keeps ordinary final replies free of source summaries', () => {
   const run = buildTestRun()
   run.metadata = {
     contextLedger: {
@@ -377,9 +377,9 @@ test('renderLocalFinalAssistantContent appends source summary for ordinary final
   })
 
   assert.match(content, /建议按三段节奏组织分镜。/)
-  assert.match(content, /来源：/)
-  assert.match(content, /通用知识建议：knowledge#storyboard\.rhythm\.basic/)
-  assert.match(content, /用户输入：本轮消息（source=user_input; evidence=user_claimed）/)
+  assert.doesNotMatch(content, /来源：/)
+  assert.doesNotMatch(content, /通用知识建议：knowledge#storyboard\.rhythm\.basic/)
+  assert.doesNotMatch(content, /用户输入：本轮消息（source=user_input; evidence=user_claimed）/)
 })
 
 function buildTestRun(): AgentRun {

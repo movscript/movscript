@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react'
 import { ArrowRight, CheckCircle2, ChevronRight, CircleDot, ListChecks, RefreshCw } from 'lucide-react'
 
 import { decisionVariant, priorityLabel, statusLabel, statusVariant } from '@/lib/contentWorkbenchStatus'
+import { gateActionLabel } from '@/lib/productionTerminology'
 import { cn } from '@/lib/utils'
 import { useWorkbenchCanvasLauncher, type CanvasWorkbenchKind } from '@/lib/useWorkbenchCanvasLauncher'
 import type {
@@ -15,7 +16,7 @@ import {
   getProjectWorkbenchDefinition,
   type ProjectWorkbenchId,
 } from '@/pages/project/projectSurfaces'
-import { Badge, Button, Card, Progress, ScrollArea } from '@movscript/ui'
+import { Badge, Button, Card, ScrollArea } from '@movscript/ui'
 import { WorkbenchPanel } from './WorkbenchPanel'
 import {
   WorkbenchKeyValue,
@@ -148,7 +149,7 @@ export function QueueList({
   return (
     <Card className="rounded-lg border-border bg-card p-4">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="type-body font-semibold text-foreground">待处理队列</h2>
+        <h2 className="type-body font-semibold text-foreground">下一步队列</h2>
         <Badge variant="secondary">{items.length}</Badge>
       </div>
       <WorkbenchList>
@@ -167,7 +168,7 @@ export function QueueList({
               <Badge variant={item.priority === 'high' ? 'danger' : item.priority === 'medium' ? 'warning' : 'outline'} className="shrink-0">
                 {priorityLabel(item.priority)}
               </Badge>
-              <Progress value={item.progress} className="h-1.5" />
+              <span className="truncate type-label text-muted-foreground">制作条件检查</span>
             </div>
           </WorkbenchListItem>
         ))}
@@ -293,7 +294,6 @@ export function SpecializedQueue({
     scope: string
     status: WorkbenchScenarioStatus
     priority: WorkbenchScenarioPriority
-    progress: number
     need?: string
   }>
   selectedId: string
@@ -319,7 +319,7 @@ export function SpecializedQueue({
               {item.need ? <p className="mt-2 line-clamp-2 type-label leading-5 text-muted-foreground">{item.need}</p> : null}
               <div className="mt-3 flex items-center gap-2">
                 <Badge variant={item.priority === 'high' ? 'danger' : item.priority === 'medium' ? 'warning' : 'outline'}>{priorityLabel(item.priority)}</Badge>
-                <Progress value={item.progress} className="h-1.5" />
+                <span className="truncate type-label text-muted-foreground">制作条件检查</span>
               </div>
             </WorkbenchListItem>
           ))}
@@ -390,7 +390,7 @@ export function GateChecklist({ rows }: { rows: WorkbenchGate[] }) {
               {row.done ? <CheckCircle2 size={14} className="shrink-0 text-emerald-600" /> : <CircleDot size={14} className="shrink-0 text-amber-600" />}
               <span className="truncate type-body font-medium text-foreground">{row.label}</span>
             </div>
-            <WorkbenchStatusBadge tone={row.done ? 'success' : row.tone === 'warning' ? 'warning' : 'neutral'} label={row.done ? '通过' : '待处理'} />
+            <WorkbenchStatusBadge tone={row.done ? 'success' : row.tone === 'warning' ? 'warning' : 'neutral'} label={gateActionLabel(row.done, row.tone)} />
           </div>
           <p className="mt-1 type-label leading-5 text-muted-foreground">{row.detail}</p>
         </div>

@@ -225,7 +225,7 @@ function buildContentUnitDrawerAction({
     return {
       tone: 'blocked' as const,
       label: '补素材',
-      detail: `${missingSlots.length} 个素材缺口仍在阻塞生成。先上传或绑定候选素材。`,
+      detail: `${missingSlots.length} 个素材缺口需要补齐。先上传或绑定候选素材。`,
       actionText: '补素材',
       onAction: onCreateAssetSlot,
     }
@@ -577,7 +577,7 @@ export function UnitProductionTrack({
                 <span>镜头</span>
                 <span>画面目标</span>
                 <span>承载作用</span>
-                <span>准备状态</span>
+                <span>下一步</span>
                 <span>调整</span>
               </div>
               {visibleSummary.items.map((item, index) => {
@@ -872,7 +872,7 @@ export function UnitProductionTrack({
               <span>镜头内容</span>
               <span>关键帧</span>
               <span>素材</span>
-              <span>状态</span>
+              <span>检查结果</span>
             </div>
             {visibleSummary.items.map((item, index) => {
               const previousItem = visibleSummary.items[index - 1]
@@ -1016,7 +1016,7 @@ function contentWorkbenchUnitExecutionAction(item: {
   if (item.tone === 'running') {
     return {
       tone: 'ready' as const,
-      label: '看进度',
+      label: '查看结果',
       detail: '检查生成任务和预览结果',
     }
   }

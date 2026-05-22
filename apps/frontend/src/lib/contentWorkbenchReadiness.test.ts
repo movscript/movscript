@@ -23,7 +23,7 @@ test('content workbench readiness highlights the first blocker', () => {
 
   assert.equal(summary.tone, 'blocked')
   assert.equal(summary.percent, 33)
-  assert.equal(summary.title, '生成仍被阻塞')
+  assert.equal(summary.title, '下一步：补齐生成条件')
   assert.equal(summary.primaryBlocker, '素材输入可用：缺少参考素材')
 })
 

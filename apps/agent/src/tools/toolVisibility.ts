@@ -8,8 +8,8 @@ export const BASE_RETRIEVAL_TOOLS = new Set([
 ])
 
 export const COMMAND_REQUIRED_TOOLS = new Set([
-  'core_operation_start',
-  'core_operation_wait',
+  'core_work_start',
+  'core_work_wait',
 ])
 
 export function isToolVisibleForActiveBehavior(input: {

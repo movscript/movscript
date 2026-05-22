@@ -15,8 +15,10 @@ import { buildProductionCurrentOverview } from './productionOrchestrationOvervie
 
 const source = readFileSync(resolve('src/pages/project/production/ProductionOrchestrationPage.tsx'), 'utf8')
 const panelSource = readFileSync(resolve('src/components/proposals/ProductionProposalReviewPanel.tsx'), 'utf8')
+const controlsSource = readFileSync(resolve('src/components/proposals/ProductionProposalReviewControls.tsx'), 'utf8')
 const controllerSource = readFileSync(resolve('src/components/proposals/useProductionProposalReviewController.ts'), 'utf8')
 const orchestrationReviewControllerSource = readFileSync(resolve('src/lib/productionOrchestrationReviewController.ts'), 'utf8')
+const orchestrationLaunchControllerSource = readFileSync(resolve('src/lib/productionOrchestrationLaunchController.ts'), 'utf8')
 const modelSource = readFileSync(resolve('src/lib/productionProposalReviewModel.ts'), 'utf8')
 const draftSeedSource = readFileSync(resolve('src/lib/productionOrchestrationDraftSeed.ts'), 'utf8')
 const agentLaunchSource = readFileSync(resolve('src/lib/productionProposalAgentLaunch.ts'), 'utf8')
@@ -38,12 +40,27 @@ test('production proposal review applies accepted changes over the current snaps
   assert.match(draftSeedSource, /export function buildProductionDraftSeedMetadata/)
   assert.match(overviewSource, /export function buildProductionCurrentOverview/)
   assert.match(agentLaunchSource, /export async function ensureProductionProposalDraft/)
+  assert.match(agentLaunchSource, /seedProposalFromSnapshot/)
+  assert.match(agentLaunchSource, /proposal: \{\s+segments: input\.productionSnapshot\.segments/)
+  assert.match(orchestrationLaunchControllerSource, /requireLinkedScript: false/)
   assert.match(agentLaunchSource, /export function launchProductionProposalAgent/)
   assert.match(source, /useProductionOrchestrationReviewController\(\{/)
   assert.match(orchestrationReviewControllerSource, /buildProposalReviewSegments\(proposalPreviewDraft\.proposal\.segments, currentProductionSnapshot\)/)
   assert.match(orchestrationReviewControllerSource, /parseProductionProposalDraft\(draft\)/)
   assert.match(orchestrationReviewControllerSource, /localAgentClient\.getDraft/)
+  assert.match(source, /buildProductionProposalDraftWorkspaceData/)
+  assert.match(source, /updateProductionProposalDraftText/)
+  assert.match(source, /openedDraftQuery\.data\?\.kind === 'production_proposal'/)
+  assert.match(source, /workspaceSegments/)
+  assert.match(source, /description: '待补表达'/)
+  assert.match(source, /canDeleteFallbackContentUnits=\{proposalModeActive\}/)
+  assert.match(source, /正式项目当前只读/)
+  assert.match(source, /localAgentClient\.updateDraft/)
+  assert.match(source, /让 Agent 调整提案/)
+  assert.match(source, /proposalRevisionInstruction/)
+  assert.match(source, /Agent 会读取并编辑当前 production proposal draft 文件/)
   assert.match(source, /<ProductionProposalReviewPanel/)
+  assert.match(controlsSource, /应用提案到项目/)
   assert.match(panelSource, /useProductionProposalReviewController\(/)
   assert.match(controllerSource, /return buildMergedProductionProposal\(currentSnapshot, segments, nodeDecisions\)/)
   assert.match(controllerSource, /previewProductionProposalApply\(projectId/)
@@ -60,7 +77,7 @@ test('production current overview summarizes script binding and next step', () =
     assetSlots: [],
     contentUnits: [],
   })
-  assert.deepEqual(withoutScript.position, ['制作：制作 A', '状态：draft', '剧本：未绑定'])
+  assert.deepEqual(withoutScript.position, ['制作：制作 A', '剧本：未绑定'])
   assert.equal(withoutScript.sourceLabel, '当前现状')
   assert.deepEqual(withoutScript.nextStep, ['先选择一份剧本正文，再继续写情节。'])
 
@@ -205,6 +222,97 @@ test('production proposal review segments append deleted current snapshot childr
   assert.equal(deletedMoment?.asset_slots?.[0]?.__delete, true)
   assert.equal(deletedMoment?.keyframes?.[0]?.__delete, true)
   assert.deepEqual(deletedMoment?.creative_references, [])
+})
+
+test('production proposal review segments omit unchanged seeded snapshot nodes', () => {
+  const currentSnapshot = {
+    segments: [{
+      id: 1,
+      title: '当前段落',
+      kind: 'act',
+      summary: '摘要',
+      order: 1,
+      scene_moments: [{
+        id: 10,
+        title: '当前情节',
+        description: '说明',
+        content_units: [{ id: 100, title: '当前内容', description: '内容说明' }],
+        keyframes: [{ id: 200, title: '当前画面', prompt: '画面提示' }],
+        creative_references: [{ id: 300, name: '人物', role: '主角' }],
+        asset_slots: [{ id: 400, name: '服装', priority: 'high' }],
+      }],
+    }],
+  } satisfies { segments: ProposalSegmentNode[] }
+
+  const reviewSegments = buildProposalReviewSegments(currentSnapshot.segments, currentSnapshot)
+
+  assert.deepEqual(reviewSegments, [])
+})
+
+test('production proposal review keeps only changed branches from a seeded snapshot', () => {
+  const currentSnapshot = {
+    segments: [{
+      id: 1,
+      title: '当前段落',
+      scene_moments: [
+        { id: 10, title: '旧情节', content_units: [{ id: 100, title: '旧内容' }] },
+        { id: 11, title: '未改情节', content_units: [{ id: 101, title: '未改内容' }] },
+      ],
+    }],
+  } satisfies { segments: ProposalSegmentNode[] }
+  const proposalSegments = [{
+    id: 1,
+    title: '当前段落',
+    scene_moments: [
+      { id: 10, title: '新情节', content_units: [{ id: 100, title: '旧内容' }] },
+      { id: 11, title: '未改情节', content_units: [{ id: 101, title: '未改内容' }] },
+    ],
+  }] satisfies ProposalSegmentNode[]
+
+  const reviewSegments = buildProposalReviewSegments(proposalSegments, currentSnapshot)
+
+  assert.equal(reviewSegments.length, 1)
+  assert.equal(reviewSegments[0]?.id, 1)
+  assert.deepEqual(reviewSegments[0]?.scene_moments?.map((moment) => moment.id), [10])
+  assert.deepEqual(reviewSegments[0]?.scene_moments?.[0]?.content_units, [])
+  assert.deepEqual(collectProposalReviewNodes(reviewSegments).map((node) => node.key), ['segment:1', 'scene_moment:10'])
+})
+
+test('production proposal review treats removed scene creative references as deletions', () => {
+  const currentSnapshot = {
+    segments: [{
+      id: 1,
+      title: '当前段落',
+      scene_moments: [{
+        id: 10,
+        title: '当前情节',
+        creative_references: [
+          { id: 20, name: '保留人物', role: '主角' },
+          { id: 21, name: '移除人物', role: '配角' },
+        ],
+      }],
+    }],
+  } satisfies { segments: ProposalSegmentNode[] }
+  const proposalSegments = [{
+    id: 1,
+    title: '当前段落',
+    scene_moments: [{
+      id: 10,
+      title: '当前情节',
+      creative_references: [{ id: 20, name: '保留人物', role: '主角' }],
+    }],
+  }] satisfies ProposalSegmentNode[]
+
+  const reviewSegments = buildProposalReviewSegments(proposalSegments, currentSnapshot)
+  const deletedReference = reviewSegments[0]?.scene_moments?.[0]?.creative_references?.[0]
+  const decisions: ProposalNodeDecisions = Object.fromEntries(
+    collectProposalReviewNodes(reviewSegments).map((node) => [node.key, 'accepted']),
+  )
+  const merged = buildMergedProductionProposal(currentSnapshot, reviewSegments, decisions)
+
+  assert.equal(deletedReference?.id, 21)
+  assert.equal(deletedReference?.__delete, true)
+  assert.deepEqual(merged.segments[0]?.scene_moments?.[0]?.creative_references?.map((reference) => reference.id), [20])
 })
 
 test('production proposal review merge applies accepted updates and strips internal markers', () => {

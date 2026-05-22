@@ -35,11 +35,13 @@ export function ProductionProposalReviewFooterActions({
   onDiscard,
   onSimulate,
   onApply,
+  discardLabel = '放弃提案',
 }: {
   previewOnly: boolean
   applying: boolean
   simulating: boolean
   canApply: boolean
+  discardLabel?: string
   onResetDecisions: () => void
   onDiscard: () => void
   onSimulate: () => void
@@ -54,7 +56,7 @@ export function ProductionProposalReviewFooterActions({
         disabled={applying || simulating}
         onClick={previewOnly ? onResetDecisions : onDiscard}
       >
-        {previewOnly ? '清空决策' : '丢弃'}
+        {previewOnly ? '清空决策' : discardLabel}
       </Button>
       <Button
         size="sm"
@@ -74,7 +76,7 @@ export function ProductionProposalReviewFooterActions({
           onClick={onApply}
         >
           {applying ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-          写入项目
+          应用提案到项目
         </Button>
       )}
     </div>

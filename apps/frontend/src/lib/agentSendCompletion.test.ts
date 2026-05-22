@@ -136,7 +136,7 @@ test('completeSendRunResult does not append a plain assistant summary for requir
     workflowRunsByResultMessageId: new Map(),
   })
   const approvalMessage = items.find((item) => item.beforeMessageWorkflowRuns.some((run) => run.id === 'run_1'))
-  assert.equal(approvalMessage?.showMessage, false)
+  assert.equal(approvalMessage?.showMessage, true)
   assert.equal(approvalMessage?.beforeMessageWorkflowRuns[0]?.pendingApprovals?.[0]?.toolName, 'generation_job_create')
 })
 

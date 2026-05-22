@@ -174,6 +174,7 @@ export function SceneMomentScriptBlockBinder({
   scriptBlocks,
   scriptSourceText,
   isSaving,
+  allowCreateFromScriptRange = true,
   onBindMomentScriptBlock,
   onCreateAndBindMomentScriptBlock,
 }: {
@@ -182,6 +183,7 @@ export function SceneMomentScriptBlockBinder({
   scriptBlocks: ProductionScriptBlockRecord[]
   scriptSourceText: string
   isSaving: boolean
+  allowCreateFromScriptRange?: boolean
   onBindMomentScriptBlock: (momentId: number, scriptBlockId: number | null) => void
   onCreateAndBindMomentScriptBlock: (momentId: number, startLine: number, endLine: number) => void
 }) {
@@ -239,6 +241,7 @@ export function SceneMomentScriptBlockBinder({
         scriptBlocks={scriptBlocks}
         scriptSourceText={scriptSourceText}
         isSaving={isSaving}
+        allowCreateFromScriptRange={allowCreateFromScriptRange}
         onBindMomentScriptBlock={onBindMomentScriptBlock}
         onCreateAndBindMomentScriptBlock={onCreateAndBindMomentScriptBlock}
       />
@@ -254,6 +257,7 @@ function ScriptBlockPickerDialog({
   scriptBlocks,
   scriptSourceText,
   isSaving,
+  allowCreateFromScriptRange,
   onBindMomentScriptBlock,
   onCreateAndBindMomentScriptBlock,
 }: {
@@ -264,6 +268,7 @@ function ScriptBlockPickerDialog({
   scriptBlocks: ProductionScriptBlockRecord[]
   scriptSourceText: string
   isSaving: boolean
+  allowCreateFromScriptRange: boolean
   onBindMomentScriptBlock: (momentId: number, scriptBlockId: number | null) => void
   onCreateAndBindMomentScriptBlock: (momentId: number, startLine: number, endLine: number) => void
 }) {
@@ -333,7 +338,7 @@ function ScriptBlockPickerDialog({
             <div className="space-y-2">
               {scriptBlocks.length === 0 ? (
                 <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-4 type-label text-muted-foreground">
-                  当前还没有已创建的剧本块，可以在右侧从剧本正文直接创建。
+                  {allowCreateFromScriptRange ? '当前还没有已创建的剧本块，可以在右侧从剧本正文直接创建。' : '当前还没有已创建的剧本块。提案模式下不会创建正式剧本块。'}
                 </div>
               ) : scriptBlocks.map((block, index) => {
                 const active = index === activeIndex
@@ -360,7 +365,8 @@ function ScriptBlockPickerDialog({
             </div>
           </div>
           <div className="min-h-0 overflow-auto p-4">
-            <div className="mb-4 rounded-md border border-border bg-muted/10 p-3">
+            {allowCreateFromScriptRange ? (
+              <div className="mb-4 rounded-md border border-border bg-muted/10 p-3">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 type-caption font-medium text-muted-foreground">
@@ -416,7 +422,8 @@ function ScriptBlockPickerDialog({
                   </div>
                 </>
               )}
-            </div>
+              </div>
+            ) : null}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="type-label font-semibold text-foreground">{activeBlock ? scriptBlockSelectLabel(activeBlock) : '未选择剧本块'}</p>
@@ -458,7 +465,7 @@ function ScriptBlockPickerDialog({
             <div className="mt-3 space-y-2">
               {scriptBlocks.length === 0 ? (
                 <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-6 type-body leading-6 text-muted-foreground">
-                  当前还没有可绑定的剧本块。可以先在上方从剧本正文选择行，创建后会自动绑定到当前情节。
+                  {allowCreateFromScriptRange ? '当前还没有可绑定的剧本块。可以先在上方从剧本正文选择行，创建后会自动绑定到当前情节。' : '当前还没有可绑定的剧本块。提案模式保持正式项目只读，因此这里只能绑定已有剧本块。'}
                 </div>
               ) : previewBlocks.map((block) => {
                 const speaker = firstScriptText(block.speaker)

@@ -64,7 +64,7 @@ export function PreProductionReviewWorkspace({
             projectId={projectId}
             kind="asset_proposal"
             title="素材需求提案"
-            description="只确认需要什么素材、属于哪个设定、用途、优先级、复用边界和状态。"
+            description="只确认需要什么素材、属于哪个设定、用途、优先级、复用边界和下一步。"
             emptyMessage="暂无待审阅素材需求提案。"
             drafts={drafts}
             loading={loading}

@@ -21,7 +21,18 @@ test('canonicalizeProjectStandardsProposalDraftContent rebases asset proposals o
   )
   assert.deepEqual(JSON.parse(content ?? ''), {
     mode: 'snapshot',
-    proposal: { note: 'keep', creative_references: [], asset_slots: [{ id: 'slot_1' }] },
+    proposal: { note: 'keep', asset_slots: [{ id: 'slot_1' }] },
+  })
+})
+
+test('canonicalizeProjectStandardsProposalDraftContent rebases setting proposals without asset slots', () => {
+  const content = canonicalizeProjectStandardsProposalDraftContent(
+    draft({ kind: 'setting_proposal', content: JSON.stringify({ mode: 'proposal', proposal: { note: 'keep', asset_slots: [] } }) }),
+    backendApply({ canonical_snapshot: { asset_slots: [{ id: 'slot_1' }], creative_references: [{ id: 'ref_1' }] } }),
+  )
+  assert.deepEqual(JSON.parse(content ?? ''), {
+    mode: 'snapshot',
+    proposal: { note: 'keep', creative_references: [{ id: 'ref_1' }] },
   })
 })
 

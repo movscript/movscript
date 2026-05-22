@@ -17,7 +17,7 @@ import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.
 import type { SkillDiscoverySummary } from '../contextManager/modelContextBuilder.js'
 import { isValidAgentEntityId, isValidAgentProjectId, isValidAgentReferenceId, parseToolResult } from './runtimeContext.js'
 import { renderDebugContextText, renderMemoryFilesText } from './contextText.js'
-import { appendFinalSourceSummary } from '../contextManager/finalSourceSummary.js'
+import { renderFinalAssistantContent } from '../contextManager/finalSourceSummary.js'
 import { contextManager } from '../contextManager/contextManager.js'
 
 export function isLocalDiagnosticCommand(name: string): boolean {
@@ -545,11 +545,8 @@ export function renderLocalFinalAssistantContent(input: {
       modelContent: input.modelContent,
     })
   }
-  return appendFinalSourceSummary(input.modelContent, {
+  return renderFinalAssistantContent(input.modelContent, {
     run: input.run,
-    toolResults: input.toolResults ?? [],
-    memories: input.memories,
-    userMessage: input.command.payload,
   })
 }
 
@@ -625,8 +622,8 @@ function renderLocalGenerationCommand(input: {
 
 function findGenerationPayload(value: unknown): Record<string, unknown> | undefined {
   if (!isRecord(value)) return undefined
-  if (isRecord(value.operation)) {
-    const found = findGenerationPayload(value.operation)
+  if (isRecord(value.work)) {
+    const found = findGenerationPayload(value.work)
     if (found) return found
   }
   if (isRecord(value.result)) {

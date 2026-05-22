@@ -355,6 +355,7 @@ test('trace reads preserve pagination and kind filters', async () => {
           httpResponsesLabel: '0',
           requestPayloadsLabel: '0',
           httpResponseBodiesLabel: '0',
+          tokenUsageLabel: '0 tokens',
           issues: [],
         },
         readinessChecklist: [],

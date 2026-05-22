@@ -3,8 +3,8 @@ import { attachmentFromResource } from '@/lib/agentAttachments'
 import { extractAgentTaskArtifacts } from '@/lib/agentArtifacts'
 import { generationParamAuditsFromRun, generationValidationErrorsFromRun } from '@/lib/agentGenerationArtifacts'
 import { replayGenerationTrace, type GenerationTraceEventLike, type GenerationTraceReplay } from '@/lib/agentGenerationMedia'
-import { compactRunActivity, mergeRunActivityEvents } from '@/lib/agentRunActivity'
 import { isRecord } from '@/lib/jsonValue'
+import { buildRunActivitySnapshot } from '@/lib/agentRunActivitySnapshot'
 import { localAgentClient, type AgentRun, type AgentRunGenerationView, type AgentTraceEvent } from '@/lib/localAgentClient'
 import type { AgentAttachment, ChatContextDiagnostic, ChatMessageMeta, ChatRunActivityEvent } from '@/store/agentStore'
 import type { RawResource } from '@/types'
@@ -16,6 +16,7 @@ export interface AgentMessageViewModelPayload {
 
 export interface AgentMessageViewModelDeps {
   fetchRunGenerationView?: (runId: string) => Promise<GenerationTraceReplay>
+  fetchRunTraceEvents?: (runId: string) => Promise<AgentTraceEvent[]>
   fetchResourceById?: (id: number) => Promise<RawResource | undefined>
 }
 
@@ -35,7 +36,9 @@ export async function assistantResultPayloadForRun(
   assistantContent = '',
   deps: AgentMessageViewModelDeps = {},
 ): Promise<AgentMessageViewModelPayload> {
-  const replay = await generationReplayFromRun(run, liveEvents, deps)
+  const traceEvents = await traceEventsForRun(run, deps)
+  const runWithTrace = traceEvents.length > 0 ? { ...run, traceEvents } : run
+  const replay = await generationReplayFromRun(runWithTrace, liveEvents, deps)
   const fallbackIds = outputResourceIdsFromText(assistantContent)
   const attachments = run.streamPartial ? [] : await generatedAttachmentsFromReplay(replay, fallbackIds, assistantContent, deps)
   const generationJobs = replay.jobs
@@ -43,6 +46,7 @@ export async function assistantResultPayloadForRun(
   const generationValidationErrors = generationValidationErrorsFromRun(run)
   const contextDiagnostic = contextDiagnosticFromRun(run)
   const draftArtifacts = extractAgentTaskArtifacts(run)
+  const activitySnapshot = buildRunActivitySnapshot({ run: runWithTrace, events: liveEvents })
   return {
     ...(attachments.length > 0 ? { attachments } : {}),
     meta: {
@@ -52,13 +56,24 @@ export async function assistantResultPayloadForRun(
         runId: run.id,
         ...(run.assistantMessageId ? { messageId: run.assistantMessageId } : {}),
       },
-      localRunActivity: mergeRunActivityEvents(compactRunActivity(run), liveEvents),
+      ...(activitySnapshot ? { localRunActivity: activitySnapshot.activity } : {}),
       ...(contextDiagnostic ? { contextDiagnostic } : {}),
       ...(generationJobs.length > 0 ? { generationJobs } : {}),
       ...(generationParamAudits.length > 0 ? { generationParamAudits } : {}),
       ...(generationValidationErrors.length > 0 ? { generationValidationErrors } : {}),
       ...(draftArtifacts.length > 0 ? { draftArtifacts } : {}),
     },
+  }
+}
+
+async function traceEventsForRun(run: AgentRun, deps: AgentMessageViewModelDeps): Promise<AgentTraceEvent[]> {
+  if ((run.traceEvents ?? []).length > 0) return run.traceEvents ?? []
+  try {
+    return deps.fetchRunTraceEvents
+      ? await deps.fetchRunTraceEvents(run.id)
+      : await fetchAllRunTraceEvents(run.id)
+  } catch {
+    return []
   }
 }
 

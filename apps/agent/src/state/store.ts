@@ -1,4 +1,4 @@
-import type { RuntimeOperation } from '../operations/runtimeOperation.js'
+import type { RuntimeWork } from '../runtimeWork/runtimeWork.js'
 import type {
   AgentTaskGraph,
   AgentRun,
@@ -45,10 +45,10 @@ export interface AgentStore {
   updateTask(task: AgentTask): void
   listTasks(taskGraphId?: string): AgentTask[]
   getTask(id: string): AgentTask | undefined
-  createRuntimeOperation(operation: RuntimeOperation): void
-  updateRuntimeOperation(operation: RuntimeOperation): void
-  listRuntimeOperations(query?: RuntimeOperationQuery): RuntimeOperation[]
-  getRuntimeOperation(id: string): RuntimeOperation | undefined
+  createRuntimeWork(work: RuntimeWork): void
+  updateRuntimeWork(work: RuntimeWork): void
+  listRuntimeWorks(query?: RuntimeWorkQuery): RuntimeWork[]
+  getRuntimeWork(id: string): RuntimeWork | undefined
   createRuntimeInteraction(interaction: RuntimeInteraction): void
   updateRuntimeInteraction(interaction: RuntimeInteraction): void
   listRuntimeInteractions(query?: RuntimeInteractionQuery): RuntimeInteraction[]
@@ -74,17 +74,17 @@ export interface AgentRunQuery {
   role?: AgentRun['role']
 }
 
-export interface RuntimeOperationQuery {
+export interface RuntimeWorkQuery {
   threadId?: string
   runId?: string
-  status?: RuntimeOperation['status']
-  kind?: RuntimeOperation['kind']
+  status?: RuntimeWork['status']
+  kind?: RuntimeWork['kind']
 }
 
 export interface RuntimeInteractionQuery {
   threadId?: string
   runId?: string
-  operationId?: string
+  workId?: string
   status?: RuntimeInteraction['status']
   kind?: RuntimeInteraction['kind']
 }
@@ -100,7 +100,7 @@ export class InMemoryAgentStore implements AgentStore {
   private readonly runs = new Map<string, AgentRun>()
   private readonly plans = new Map<string, AgentTaskGraph>()
   private readonly tasks = new Map<string, AgentTask>()
-  private readonly runtimeOperations = new Map<string, RuntimeOperation>()
+  private readonly runtimeWorks = new Map<string, RuntimeWork>()
   private readonly runtimeInteractions = new Map<string, RuntimeInteraction>()
   private readonly runtimeContinuations = new Map<string, RuntimeContinuation>()
   private readonly traceEventsByRun = new Map<string, AgentTraceEvent[]>()
@@ -234,27 +234,27 @@ export class InMemoryAgentStore implements AgentStore {
     return task ? clone(task) : undefined
   }
 
-  createRuntimeOperation(operation: RuntimeOperation): void {
-    this.runtimeOperations.set(operation.id, clone(operation))
+  createRuntimeWork(work: RuntimeWork): void {
+    this.runtimeWorks.set(work.id, clone(work))
   }
 
-  updateRuntimeOperation(operation: RuntimeOperation): void {
-    this.runtimeOperations.set(operation.id, clone(operation))
+  updateRuntimeWork(work: RuntimeWork): void {
+    this.runtimeWorks.set(work.id, clone(work))
   }
 
-  listRuntimeOperations(query: RuntimeOperationQuery = {}): RuntimeOperation[] {
-    return Array.from(this.runtimeOperations.values())
-      .filter((operation) => query.threadId === undefined || operation.threadId === query.threadId)
-      .filter((operation) => query.runId === undefined || operation.runId === query.runId)
-      .filter((operation) => query.status === undefined || operation.status === query.status)
-      .filter((operation) => query.kind === undefined || operation.kind === query.kind)
-      .map((operation) => clone(operation))
+  listRuntimeWorks(query: RuntimeWorkQuery = {}): RuntimeWork[] {
+    return Array.from(this.runtimeWorks.values())
+      .filter((work) => query.threadId === undefined || work.threadId === query.threadId)
+      .filter((work) => query.runId === undefined || work.runId === query.runId)
+      .filter((work) => query.status === undefined || work.status === query.status)
+      .filter((work) => query.kind === undefined || work.kind === query.kind)
+      .map((work) => clone(work))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   }
 
-  getRuntimeOperation(id: string): RuntimeOperation | undefined {
-    const operation = this.runtimeOperations.get(id)
-    return operation ? clone(operation) : undefined
+  getRuntimeWork(id: string): RuntimeWork | undefined {
+    const work = this.runtimeWorks.get(id)
+    return work ? clone(work) : undefined
   }
 
   createRuntimeInteraction(interaction: RuntimeInteraction): void {
@@ -269,7 +269,7 @@ export class InMemoryAgentStore implements AgentStore {
     return Array.from(this.runtimeInteractions.values())
       .filter((interaction) => query.threadId === undefined || interaction.threadId === query.threadId)
       .filter((interaction) => query.runId === undefined || interaction.runId === query.runId)
-      .filter((interaction) => query.operationId === undefined || interaction.operationId === query.operationId)
+      .filter((interaction) => query.workId === undefined || interaction.workId === query.workId)
       .filter((interaction) => query.status === undefined || interaction.status === query.status)
       .filter((interaction) => query.kind === undefined || interaction.kind === query.kind)
       .map((interaction) => clone(interaction))

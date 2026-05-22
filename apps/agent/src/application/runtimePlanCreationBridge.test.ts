@@ -56,7 +56,7 @@ test('createRuntimeTaskGraphCreationBridge wires taskGraph creation dependencies
     'protocol:task_1:none',
     'event:task_1:task_1',
     'snapshot:task_graph_1',
-    'createTaskGraph:true:string',
+    'createTaskGraph:false:string',
   ])
 })
 

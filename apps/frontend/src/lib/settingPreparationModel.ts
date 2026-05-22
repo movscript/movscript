@@ -1,4 +1,4 @@
-import { byOrder, clampProgress, dedupeRecords, firstText, titleOfRecord } from '@/lib/contentWorkbenchRecordUtils'
+import { byOrder, dedupeRecords, firstText, titleOfRecord } from '@/lib/contentWorkbenchRecordUtils'
 import type { SettingPreparationData, SettingPreparationRecord } from '@/lib/settingPreparationDataController'
 import type {
   WorkbenchScenarioPriority as Priority,
@@ -10,9 +10,7 @@ export interface SettingPrepRow {
   title: string
   kind: string
   status: WorkStatus
-  rawStatus: string
   priority: Priority
-  progress: number
   readinessLabel: string
   scope: string
   missing: string[]
@@ -28,27 +26,6 @@ export interface SettingPrepRow {
   linkedProductions: SettingPreparationRecord[]
 }
 
-export function normalizeCreativeReferenceStatus(status?: string) {
-  if (status === 'confirmed' || status === 'locked' || status === 'ignored' || status === 'merged') return status
-  return 'draft'
-}
-
-export function creativeReferenceStatusLabel(status?: string) {
-  const normalized = normalizeCreativeReferenceStatus(status)
-  if (normalized === 'confirmed') return '已确认'
-  if (normalized === 'locked') return '已锁定'
-  if (normalized === 'ignored') return '已忽略'
-  if (normalized === 'merged') return '已合并'
-  return '草稿'
-}
-
-export function creativeReferenceStatusVariant(status?: string) {
-  const normalized = normalizeCreativeReferenceStatus(status)
-  if (normalized === 'confirmed' || normalized === 'locked' || normalized === 'merged') return 'success' as const
-  if (normalized === 'ignored') return 'outline' as const
-  return 'warning' as const
-}
-
 export function creativeUsageStatusLabel(status?: string) {
   if (status === 'confirmed') return '已确认'
   if (status === 'corrected') return '已修正'
@@ -62,13 +39,6 @@ export function creativeUsageStatusVariant(status?: string) {
   if (status === 'ignored') return 'outline' as const
   if (status === 'draft') return 'warning' as const
   return 'outline' as const
-}
-
-export function creativeReferenceWorkStatus(status?: string): WorkStatus {
-  const normalized = normalizeCreativeReferenceStatus(status)
-  if (normalized === 'ignored') return 'blocked'
-  if (normalized === 'draft') return 'review'
-  return 'ready'
 }
 
 export function creativeReferenceKindLabel(kind?: string) {
@@ -141,7 +111,6 @@ export function buildSettingPrepForm(record: SettingPreparationRecord) {
     alias: firstText(record.alias, ''),
     kind: firstText(record.kind, 'person'),
     importance: firstText(record.importance, 'supporting'),
-    status: normalizeCreativeReferenceStatus(record.status),
     description: firstText(record.description, ''),
     content: firstText(record.content, ''),
     visualIntent: profile.visualIntent,
@@ -244,42 +213,25 @@ export function buildSettingPrepRows(data?: SettingPreparationData): SettingPrep
       const title = firstText(record.name, record.title, record.label, record.alias, `${creativeReferenceKindLabel(record.kind)} #${record.ID}`)
       const hasDescription = Boolean(firstText(record.description, record.content))
       const hasVisualAnchor = Boolean(firstText(record.visual_intent, record.visual_notes, record.profile_json))
-      const hasState = states.length > 0
       const hasUsage = usages.length > 0
       const hasAsset = relatedAssetSlots.length > 0
       const missing = [
         hasDescription ? null : '缺设定正文',
         hasVisualAnchor ? null : '缺视觉锚点',
-        hasState ? null : '缺状态记录',
         hasUsage ? null : '缺使用上下文',
-        normalizeCreativeReferenceStatus(record.status) === 'draft' ? '待定稿' : null,
       ].filter(Boolean) as string[]
       const warnings = [
         relationships.some((relation) => String(relation.category) === 'conflict') ? '存在冲突关系' : null,
-        usages.length > 0 && normalizeCreativeReferenceStatus(record.status) === 'draft' ? '下游已在使用，建议先补完再定稿' : null,
+        usages.length > 0 && missing.length > 0 ? '下游已在使用，建议先补完缺口' : null,
       ].filter(Boolean) as string[]
-      const progress = clampProgress(
-        10 +
-        (hasDescription ? 18 : 0) +
-        (hasVisualAnchor ? 20 : 0) +
-        (hasState ? 18 : 0) +
-        (hasUsage ? 18 : 0) +
-        (hasAsset ? 10 : 0) +
-        (normalizeCreativeReferenceStatus(record.status) === 'confirmed' ? 8 : 0) +
-        (normalizeCreativeReferenceStatus(record.status) === 'locked' ? 12 : 0),
-      )
       const priority: Priority = (usages.length > 0 && missing.length > 0) || warnings.length > 0
         ? 'high'
         : usages.length > 0
           ? 'medium'
           : 'low'
-      const status = creativeReferenceWorkStatus(record.status)
+      const status: WorkStatus = missing.length > 0 ? 'blocked' : hasUsage || hasAsset ? 'ready' : 'review'
       const readinessLabel = missing.length === 0
-        ? normalizeCreativeReferenceStatus(record.status) === 'locked'
-          ? '已锁定，可下游引用'
-          : normalizeCreativeReferenceStatus(record.status) === 'confirmed'
-            ? '已确认，可继续使用'
-            : '可进入确认'
+        ? '已覆盖，可下游引用'
         : `${missing.length} 个缺口`
       const scopeParts = [
         linkedProductions.length > 0 ? `${linkedProductions.length} 个制作` : '未绑定制作',
@@ -292,9 +244,7 @@ export function buildSettingPrepRows(data?: SettingPreparationData): SettingPrep
         title,
         kind: creativeReferenceKindLabel(record.kind),
         status,
-        rawStatus: normalizeCreativeReferenceStatus(record.status),
         priority,
-        progress,
         readinessLabel,
         scope: scopeParts.join(' / '),
         missing,
@@ -322,7 +272,6 @@ export function buildSettingPrepAgentMessage(input: {
     `请完善设定资料：${input.row.title}`,
     input.projectName ? `项目：${input.projectName}` : undefined,
     `类型：${input.row.kind}`,
-    `状态：${creativeReferenceStatusLabel(input.row.rawStatus)}`,
     input.missing.length > 0 ? `缺口：${input.missing.join('、')}` : undefined,
     input.evidence.length > 0 ? `证据：${input.evidence.join('；')}` : undefined,
   ].filter(Boolean).join('\n')

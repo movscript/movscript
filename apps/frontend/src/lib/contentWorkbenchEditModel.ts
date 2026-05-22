@@ -18,7 +18,6 @@ export type ContentUnitEditDraft = {
   shot_size: string
   camera_angle: string
   camera_motion: string
-  status: string
   metadata_json: string
   visual_task_graph_space: string
   visual_task_graph_blocking: string
@@ -41,7 +40,6 @@ export type KeyframeEditDraft = {
   order: string
   description: string
   prompt: string
-  status: string
   metadata_json: string
 }
 
@@ -119,23 +117,6 @@ export const contentUnitEditCameraMotionOptions = [
   { value: 'zoom', label: '变焦' },
 ]
 
-export const contentUnitEditStatusOptions = [
-  { value: 'draft', label: '草稿' },
-  { value: 'candidate', label: '候选' },
-  { value: 'confirmed', label: '已确认' },
-  { value: 'in_production', label: '生产中' },
-  { value: 'locked', label: '已锁定' },
-]
-
-export const keyframeEditStatusOptions = [
-  { value: 'draft', label: '草稿' },
-  { value: 'candidate', label: '候选' },
-  { value: 'generated', label: '已生成' },
-  { value: 'attached', label: '已挂载' },
-  { value: 'accepted', label: '已采纳' },
-  { value: 'rejected', label: '已拒绝' },
-]
-
 export function frameRoleLabel(index: number, total: number) {
   if (total <= 1) return '关键画面'
   if (index <= 0) return '开头帧'
@@ -198,7 +179,6 @@ export function contentUnitEditDraftFromRecord(unit?: ContentWorkbenchEditRecord
     shot_size: firstText(unit?.shot_size),
     camera_angle: firstText(unit?.camera_angle),
     camera_motion: firstText(unit?.camera_motion),
-    status: firstText(unit?.status, 'candidate'),
     metadata_json: firstText(unit?.metadata_json),
     visual_task_graph_space: firstText(visualTaskGraph.space),
     visual_task_graph_blocking: firstText(visualTaskGraph.blocking),
@@ -251,7 +231,6 @@ export function contentUnitEditPayload(draft: ContentUnitEditDraft): SemanticEnt
     shot_size: draft.shot_size,
     camera_angle: draft.camera_angle,
     camera_motion: draft.camera_motion,
-    status: firstText(draft.status, 'candidate'),
     metadata_json: JSON.stringify(mergeMetadataJSON(draft.metadata_json, {
       visual_taskGraph: visualTaskGraph,
       storyboard_brief: storyboardBrief,
@@ -266,7 +245,6 @@ export function keyframeEditDraftFromRecord(keyframe?: ContentWorkbenchEditRecor
     order: keyframe?.order === undefined || keyframe?.order === null ? '' : String(keyframe.order),
     description: firstText(keyframe?.description),
     prompt: firstText(keyframe?.prompt),
-    status: firstText(keyframe?.status, 'candidate'),
     metadata_json: firstText(keyframe?.metadata_json),
   }
 }
@@ -287,7 +265,6 @@ export function keyframeEditPayload(draft: KeyframeEditDraft): SemanticEntityPay
     order: Number.isFinite(order) && order > 0 ? order : null,
     description: draft.description,
     prompt: draft.prompt,
-    status: firstText(draft.status, 'candidate'),
     metadata_json: JSON.stringify(mergeMetadataJSON(draft.metadata_json, {
       frame_role: role,
       frame_role_label: keyframeFrameRoleLabel(role),

@@ -14,7 +14,7 @@ export interface ProductionProposalContentUnitSnapshot {
   duration_sec?: number
   order?: number
   status?: string
-  script_block_id?: number
+  script_block_id?: number | null
   before?: Record<string, unknown>
   keyframes?: ProductionProposalKeyframeSnapshot[]
 }
@@ -62,7 +62,7 @@ export interface ProductionProposalSceneMomentSnapshot {
   description?: string
   order?: number
   status?: string
-  script_block_id?: number
+  script_block_id?: number | null
   content_units?: ProductionProposalContentUnitSnapshot[]
   creative_references?: ProductionProposalCreativeReferenceUsageSnapshot[]
   asset_slots?: ProductionProposalAssetSlotSnapshot[]
@@ -79,7 +79,7 @@ export interface ProductionProposalSegmentSnapshot {
   summary?: string
   order?: number
   status?: string
-  script_block_id?: number
+  script_block_id?: number | null
   scene_moments: ProductionProposalSceneMomentSnapshot[]
   rationale?: string
   before?: Record<string, unknown>

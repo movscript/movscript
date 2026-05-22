@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
-import type { RuntimeOperation } from '../operations/runtimeOperation.js'
+import type { RuntimeWork } from '../runtimeWork/runtimeWork.js'
 import type {
   AgentTaskGraph,
   AgentRun,
@@ -26,7 +26,7 @@ interface AgentStateFile {
   runs: AgentRun[]
   plans?: AgentTaskGraph[]
   tasks?: AgentTask[]
-  runtimeOperations?: RuntimeOperation[]
+  runtimeWorks?: RuntimeWork[]
   runtimeInteractions?: RuntimeInteraction[]
   runtimeContinuations?: RuntimeContinuation[]
   traceEvents?: AgentTraceEvent[]
@@ -112,13 +112,13 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
     this.schedulePersist()
   }
 
-  override createRuntimeOperation(operation: RuntimeOperation): void {
-    super.createRuntimeOperation(operation)
+  override createRuntimeWork(work: RuntimeWork): void {
+    super.createRuntimeWork(work)
     this.schedulePersist()
   }
 
-  override updateRuntimeOperation(operation: RuntimeOperation): void {
-    super.updateRuntimeOperation(operation)
+  override updateRuntimeWork(work: RuntimeWork): void {
+    super.updateRuntimeWork(work)
     this.schedulePersist()
   }
 
@@ -238,9 +238,9 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
       if (!isRecord(task)) continue
       super.createTask(task as unknown as AgentTask)
     }
-    for (const operation of arrayValue(parsed.runtimeOperations)) {
-      if (!isRecord(operation)) continue
-      super.createRuntimeOperation(operation as unknown as RuntimeOperation)
+    for (const work of arrayValue(parsed.runtimeWorks)) {
+      if (!isRecord(work)) continue
+      super.createRuntimeWork(work as unknown as RuntimeWork)
     }
     for (const interaction of arrayValue(parsed.runtimeInteractions)) {
       if (!isRecord(interaction)) continue
@@ -298,7 +298,7 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
       runs,
       plans: this.listTaskGraphs(),
       tasks: this.listTasks(),
-      runtimeOperations: this.listRuntimeOperations(),
+      runtimeWorks: this.listRuntimeWorks(),
       runtimeInteractions: this.listRuntimeInteractions(),
       runtimeContinuations: this.listRuntimeContinuations(),
       debugLedgers: runs.flatMap((run) => this.getRunDebugLedger(run.id) ?? []),

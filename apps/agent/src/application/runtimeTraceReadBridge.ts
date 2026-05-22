@@ -50,35 +50,66 @@ export function createRuntimeTraceReadBridge(input: {
     },
     getRunTraceDebugView: (runId) => {
       const run = requireRun(runId)
+      const events = hydrateTraceEventData({
+        runId,
+        store: input.store,
+        events: input.store.listRunTraceEvents(runId, { limit: Number.MAX_SAFE_INTEGER }),
+      })
       return buildRuntimeTraceDebugView({
         run,
-        events: input.store.listRunTraceEvents(runId, { limit: Number.MAX_SAFE_INTEGER }),
+        events,
         summary: input.store.summarizeRunTraceEvents(runId),
       })
     },
     getRunDebugLedger: (runId) => {
       const run = requireRun(runId)
+      const events = hydrateTraceEventData({
+        runId,
+        store: input.store,
+        events: input.store.listRunTraceEvents(runId, { limit: Number.MAX_SAFE_INTEGER }),
+      })
       return input.store.getRunDebugLedger(runId) ?? buildRunDebugLedgerFromTrace({
         run,
-        events: input.store.listRunTraceEvents(runId, { limit: Number.MAX_SAFE_INTEGER }),
+        events,
       })
     },
     getRunDebugEvidence: (runId, evidenceId) => {
       requireRun(runId)
+      const events = hydrateTraceEventData({
+        runId,
+        store: input.store,
+        events: input.store.listRunTraceEvents(runId, { limit: Number.MAX_SAFE_INTEGER }),
+      })
       const evidence = resolveRunDebugEvidence({
         runId,
         evidenceId,
-        events: input.store.listRunTraceEvents(runId, { limit: Number.MAX_SAFE_INTEGER }),
+        events,
       })
       if (!evidence) throw new Error(`debug evidence not found: ${evidenceId}`)
       return evidence
     },
     getRunGenerationView: (runId) => {
       const run = requireRun(runId)
+      const events = hydrateTraceEventData({
+        runId,
+        store: input.store,
+        events: input.store.listRunTraceEvents(runId, { limit: Number.MAX_SAFE_INTEGER }),
+      })
       return buildRuntimeRunGenerationView({
         run,
-        events: input.store.listRunTraceEvents(runId, { limit: Number.MAX_SAFE_INTEGER }),
+        events,
       })
     },
   }
+}
+
+function hydrateTraceEventData(input: {
+  runId: string
+  store: Pick<AgentStore, 'getRunTraceEventData'>
+  events: AgentTraceEvent[]
+}): AgentTraceEvent[] {
+  return input.events.map((event) => {
+    const data = input.store.getRunTraceEventData(input.runId, event.id)
+    return data === undefined ? event : { ...event, data: data as AgentTraceEvent['data'] }
+  })
 }

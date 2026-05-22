@@ -122,11 +122,11 @@ export function useProductionOrchestrationLaunchController(input: ProductionOrch
     ])
   }, [input])
 
-  const ensureProductionProposalDraftForLaunch = useCallback(async (target: ProductionAnalysisTarget) => {
+  const ensureProductionProposalDraftForLaunch = useCallback(async (target: ProductionAnalysisTarget, options?: { seedProposalFromSnapshot?: boolean; requireLinkedScript?: boolean }) => {
     const blockedReason = productionProposalLaunchBlockedReason({
       projectId: input.projectId,
       effectiveProductionId: input.effectiveProductionId,
-      canLaunchLinkedProposal: input.canLaunchLinkedProposal,
+      canLaunchLinkedProposal: options?.requireLinkedScript === false ? true : input.canLaunchLinkedProposal,
     })
     if (blockedReason === 'missing_script') {
       toast.error('请先绑定可用剧本后再发起制作提案。')
@@ -143,6 +143,7 @@ export function useProductionOrchestrationLaunchController(input: ProductionOrch
       productionSnapshot: input.productionSnapshot,
       scriptVersion: input.selectedScriptVersion,
       projectScripts: input.scriptVersions,
+      seedProposalFromSnapshot: options?.seedProposalFromSnapshot,
     })
 
     input.setSearchParams((current) => buildProductionProposalSettledReviewSearchParams(current, {
@@ -155,7 +156,7 @@ export function useProductionOrchestrationLaunchController(input: ProductionOrch
   }, [input, productionPageKey])
 
   const handleAnalyzeTarget = useCallback(async (target: ProductionAnalysisTarget) => {
-    const drafts = await ensureProductionProposalDraftForLaunch(target)
+    const drafts = await ensureProductionProposalDraftForLaunch(target, { requireLinkedScript: true })
     if (!drafts || !input.projectId || !input.effectiveProductionId) return
 
     const requestId = buildProductionProposalLaunchRequestId()
@@ -187,10 +188,14 @@ export function useProductionOrchestrationLaunchController(input: ProductionOrch
     })
   }, [ensureProductionProposalDraftForLaunch, input, refreshProductionQueries])
 
+  const openProposalMode = useCallback(async () => {
+    await ensureProductionProposalDraftForLaunch({ scope: 'production' }, { seedProposalFromSnapshot: true, requireLinkedScript: false })
+  }, [ensureProductionProposalDraftForLaunch])
+
   return {
     orchestrationStage,
     productionPageKey,
-    ensureProductionProposalDraftForLaunch,
+    openProposalMode,
     handleAnalyzeTarget,
   }
 }

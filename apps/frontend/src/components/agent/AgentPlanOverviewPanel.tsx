@@ -44,6 +44,7 @@ const TASK_GRAPH_WORKER_TIMEOUT_OPTIONS = [
 ]
 
 export function AgentPlanOverviewPanel({
+  id,
   snapshot,
   busy,
   onDispatch,
@@ -55,6 +56,7 @@ export function AgentPlanOverviewPanel({
   dispatchSettings,
   onDispatchSettingsChange,
 }: {
+  id?: string
   snapshot?: AgentTaskGraphSnapshot
   busy?: boolean
   onDispatch?: () => void
@@ -152,7 +154,7 @@ export function AgentPlanOverviewPanel({
     }
   }
   return (
-    <div data-testid="agent-taskGraph-overview" className="mt-2 rounded-md border border-border bg-background/70 px-2.5 py-2 type-label">
+    <div id={id} data-testid="agent-taskGraph-overview" className="mt-2 rounded-md border border-border bg-background/70 px-2.5 py-2 type-label">
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">

@@ -54,7 +54,7 @@ test('prepareRuntimeRetaskGraph validates run, owner, graph, and subagent-name b
     runId: 'run_worker',
     replanInput: { plannerRunId: 'run_other_planner' },
     now: '2026-01-01T00:00:01.000Z',
-  }), /cannot retask graph taskGraph/)
+  }), /cannot updateTaskGraph taskGraph/)
 
   assert.throws(() => prepareRuntimeRetaskGraph({
     store,
@@ -75,7 +75,7 @@ test('prepareRuntimeRetaskGraph validates run, owner, graph, and subagent-name b
     runId: 'run_planner',
     replanInput: { updates: [{ id: 'task_b', deps: ['task_other'] }] },
     now: '2026-01-01T00:00:01.000Z',
-  }), /dependency task task_other does not belong to task graph task_graph_1/)
+  }), /dependency task task_other does not belong to taskGraph task_graph_1/)
 })
 
 test('applyRuntimeReplanTaskChanges creates tasks, applies updates, and deduplicates updated ids', () => {

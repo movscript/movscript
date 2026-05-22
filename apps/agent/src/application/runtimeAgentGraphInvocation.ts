@@ -23,6 +23,7 @@ import type {
   AgentTraceEvent,
   AgentTraceEventKind,
   ToolCall,
+  JSONValue,
 } from '../state/types.js'
 import { normalizeToolCall } from '../tools/toolCallInput.js'
 import { resolveRuntimeChatModelConfig } from '../model/modelConfig.js'
@@ -87,7 +88,15 @@ export async function invokeRuntimeAgentGraph(input: {
   capabilityDurationMs: number
   focusTimings?: unknown
   signal?: AbortSignal
-  store: Pick<AgentStore, 'getThread' | 'updateRun'>
+  store: Pick<
+    AgentStore,
+    | 'getThread'
+    | 'updateRun'
+    | 'listRuns'
+    | 'listRuntimeWorks'
+    | 'listRuntimeInteractions'
+    | 'listRuntimeContinuations'
+  >
   timestampMs: () => number
   now: () => string
   recordTrace: (run: AgentRun, trace: RuntimeAgentGraphInvocationTraceInput) => void
@@ -144,6 +153,7 @@ export async function invokeRuntimeAgentGraph(input: {
     command: input.command,
     userMessage: input.userMessage,
     ...(input.rootUserMessageId ? { rootUserMessageId: input.rootUserMessageId } : {}),
+    runtimeState: buildThreadRuntimeStateForPrompt(input),
     config: modelConfig,
     auth: input.auth,
     policy: input.policy,
@@ -187,6 +197,56 @@ export async function invokeRuntimeAgentGraph(input: {
   })
   markExecutedApprovalToolCalls(input, result, approvalForcedToolCalls.approvalIds)
   return result
+}
+
+function buildThreadRuntimeStateForPrompt(input: {
+  run: AgentRun
+  store: Pick<
+    AgentStore,
+    'listRuns' | 'listRuntimeWorks' | 'listRuntimeInteractions' | 'listRuntimeContinuations'
+  >
+}): JSONValue {
+  const runs = input.store.listRuns({ threadId: input.run.threadId })
+  const works = input.store.listRuntimeWorks({ threadId: input.run.threadId })
+  const interactions = input.store.listRuntimeInteractions({ threadId: input.run.threadId })
+  const continuations = input.store.listRuntimeContinuations({ threadId: input.run.threadId })
+  return {
+    schema: 'movscript.thread-runtime-state.v1',
+    currentRunId: input.run.id,
+    currentRunStatus: input.run.status,
+    activeRunIds: runs
+      .filter((run) => run.status === 'queued' || run.status === 'in_progress' || run.status === 'requires_action')
+      .map((run) => run.id),
+    works: works.map((work) => ({
+      id: work.id,
+      kind: work.kind,
+      status: work.status,
+      runId: work.runId,
+      ...(work.externalHandle ? { externalHandle: work.externalHandle } : {}),
+      createdAt: work.createdAt,
+      updatedAt: work.updatedAt,
+      ...(work.completedAt ? { completedAt: work.completedAt } : {}),
+    })),
+    pendingInteractions: interactions
+      .filter((interaction) => interaction.status === 'pending')
+      .map((interaction) => ({
+        id: interaction.id,
+        kind: interaction.kind,
+        runId: interaction.runId,
+        ...(interaction.workId ? { workId: interaction.workId } : {}),
+        createdAt: interaction.createdAt,
+      })),
+    continuations: continuations
+      .filter((continuation) => continuation.status === 'waiting' || continuation.status === 'ready')
+      .map((continuation) => ({
+        id: continuation.id,
+        status: continuation.status,
+        runId: continuation.runId,
+        trigger: continuation.trigger,
+        nextInput: continuation.nextInput,
+        updatedAt: continuation.updatedAt,
+      })),
+  } as unknown as JSONValue
 }
 
 function buildApprovedApprovalToolCalls(run: AgentRun): { toolCalls: ToolCall[]; approvalIds: string[] } {

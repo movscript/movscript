@@ -138,6 +138,55 @@ test('assistantResultPayloadForRun reads context diagnostics from message steps'
   assert.equal(payload.meta.contextDiagnostic?.schema, 'movscript.local_context_diagnostic.v1')
 })
 
+test('assistantResultPayloadForRun hydrates full trace events for round telemetry', async () => {
+  const run = baseRun()
+  const payload = await assistantResultPayloadForRun(run, [], '', {
+    fetchRunTraceEvents: async () => [{
+      id: 'trace_round_done',
+      runId: 'run_1',
+      kind: 'model_call',
+      title: 'Model round completed',
+      status: 'completed',
+      roundIndex: 1,
+      roundLabel: 'Model turn 1',
+      durationMs: 1200,
+      data: {
+        eventType: 'model.round.completed',
+        usage: {
+          input_tokens: 40,
+          output_tokens: 2,
+        },
+        durationMs: 1200,
+      },
+      createdAt: '2026-05-09T08:00:01.000Z',
+    }],
+    fetchRunGenerationView: async () => ({
+      jobs: [],
+      latestJob: null,
+      outputResourceIds: [],
+      outputResources: [],
+      metadataByResourceId: new Map(),
+      active: 0,
+      terminal: 0,
+      succeeded: 0,
+      failed: 0,
+      cancelled: 0,
+      timeout: 0,
+    }),
+  })
+
+  assert.equal(payload.meta.localRunActivity?.events[0]?.title, 'Model round completed')
+  assert.equal(payload.meta.localRunActivity?.events[0]?.durationMs, 1200)
+  assert.deepEqual(payload.meta.localRunActivity?.events[0]?.data, {
+    eventType: 'model.round.completed',
+    usage: {
+      input_tokens: 40,
+      output_tokens: 2,
+    },
+    durationMs: 1200,
+  })
+})
+
 test('assistantResultPayloadForRun reads generated cards from the run generation view by default', async () => {
   const originalGenerationView = localAgentClient.getRunGenerationView
   const originalTraceEvents = localAgentClient.getRunTraceEvents

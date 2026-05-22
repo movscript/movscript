@@ -52,22 +52,25 @@ test('applyRuntimeRunLocalCommandHandling executes generation commands with cata
   const handled = await applyRuntimeRunLocalCommandHandling({
     ...baseInput(store, run, thread, '/image a title card'),
     catalogManager: {
-      startOperation: async (_run, args) => {
-        calls.push({ name: 'core_operation_start', args })
-        return { status: 'started', operation: { id: 'op_1', kind: 'generation_job', status: 'running' } } as JSONValue
+      inspectAgentCatalog: () => ({}),
+      updateActiveSkills: () => ({}),
+      updateProgressChecklist: () => ({}),
+      startWork: async (_run, args) => {
+        calls.push({ name: 'core_work_start', args })
+        return { status: 'started', work: { id: 'work_1', kind: 'generation_job', status: 'running' } } as JSONValue
       },
-      waitOperation: async (_run, args) => {
-        calls.push({ name: 'core_operation_wait', args })
-        return { status: 'completed', done: true, completed: [], failed: [], cancelled: [], pending: [] } as JSONValue
-      },
+      getWork: () => ({}),
+      listWork: () => ({}),
+      waitWork: () => ({}),
+      cancelWork: () => ({}),
     } as Parameters<typeof applyRuntimeRunLocalCommandHandling>[0]['catalogManager'],
   })
 
   assert.equal(handled, true)
   assert.equal(run.status, 'completed')
-  assert.equal(calls[0]?.name, 'core_operation_start')
-  assert.equal(calls[1]?.name, 'core_operation_wait')
-  assert.equal((run.metadata?.forcedToolCall as any)?.name, 'core_operation_start')
+  assert.equal(calls[0]?.name, 'core_work_start')
+  assert.equal(calls.length, 1)
+  assert.equal((run.metadata?.forcedToolCall as any)?.name, 'core_work_start')
 })
 
 function baseInput(

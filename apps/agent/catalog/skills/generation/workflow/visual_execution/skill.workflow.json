@@ -52,13 +52,13 @@
     "tool://generation_model_list",
     "tool://tool_comfyui",
     "tool://tool_webui",
-    "tool://core_operation_start",
-    "tool://core_operation_get",
-    "tool://core_operation_wait",
-    "tool://core_operation_cancel",
+    "tool://core_work_start",
+    "tool://core_work_get",
+    "tool://core_work_wait",
+    "tool://core_work_cancel",
     "tool://candidate_asset_slot_attach",
     "tool://candidate_keyframe_attach",
-    "tool://core_operation_list"
+    "tool://core_work_list"
   ],
   "toolScope": "intersect",
   "outputContract": "返回最终任务状态、jobId、生成类型、目标实体、可用时的输出资源列表、一致性参考说明、简洁的匹配理由，以及每个 output_resource_id 的候选集写入结果。",

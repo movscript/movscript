@@ -9,7 +9,7 @@ import {
   AgentThread,
 } from '@movscript/ui'
 import { AgentPlanOverviewPanel } from '@/components/agent/AgentPlanOverviewPanel'
-import { AgentCurrentProgressChecklistPanel } from '@/components/agent/AgentProgressChecklistCard'
+import { AgentPinnedStatusShelf } from '@/components/agent/AgentPinnedStatusShelf'
 import { LiveRunActivityBubble } from '@/components/agent/AgentRunActivityPanel'
 import {
   GenerationProgressBubble,
@@ -18,10 +18,10 @@ import {
   ThinkingBubble,
   type ThinkingBubbleState,
 } from '@/components/agent/AgentChatBubbles'
-import { LocalAgentWorkflowBubble } from '@/components/agent/AgentWorkflowBubble'
 import { buildAgentConversationMessageItems } from '@/lib/agentConversationThreadItems'
 import type { AgentInputAnswer } from '@/lib/agentWorkflowInteraction'
 import type { AgentConversationBlock } from '@/lib/agentConversationPresentation'
+import type { GenerationProgressState } from '@/lib/agentGenerationMedia'
 import type { PlanDispatchSettings } from '@/lib/agentPlanActions'
 import type { AgentTaskGraphSnapshot, AgentProgressChecklist, AgentRun } from '@/lib/localAgentClient'
 import type { ChatMessage } from '@/store/agentStore'
@@ -32,6 +32,7 @@ export interface AgentConversationThreadSectionProps {
   approvingLocalRun: boolean
   bottomRef: RefObject<HTMLDivElement>
   conversationBlocks: AgentConversationBlock[]
+  generationProgressStates: GenerationProgressState[]
   messages: ChatMessage[]
   planActionBusy: boolean
   planDispatchSettings: PlanDispatchSettings
@@ -62,6 +63,7 @@ export function AgentConversationThreadSection({
   approvingLocalRun,
   bottomRef,
   conversationBlocks,
+  generationProgressStates,
   messages,
   planActionBusy,
   planDispatchSettings,
@@ -87,14 +89,23 @@ export function AgentConversationThreadSection({
 }: AgentConversationThreadSectionProps) {
   const { t } = useTranslation()
   const currentProgressChecklist = latestProgressChecklistFromMessages(messages)
+  const liveActivityRunIds = new Set(conversationBlocks
+    .filter((block) => block.type === 'live_run_activity' && block.run?.id)
+    .map((block) => block.type === 'live_run_activity' ? block.run?.id : undefined)
+    .filter((id): id is string => Boolean(id)))
 
   return (
-    <AgentBody>
+    <AgentBody className="flex flex-col">
+      <AgentPinnedStatusShelf
+        checklist={currentProgressChecklist}
+        generationProgressStates={generationProgressStates}
+        planSnapshot={activePlanSnapshot}
+      />
       <AgentThread
         ref={threadRef}
         onScroll={onScroll}
+        className="min-h-0 flex-1"
       >
-        <AgentCurrentProgressChecklistPanel checklist={currentProgressChecklist} />
         {messages.length === 0 && (
           <AgentEmpty className="min-h-0 py-6">
             <p className="type-body font-medium text-foreground">
@@ -124,19 +135,21 @@ export function AgentConversationThreadSection({
           workflowAnswerEchoes,
           workflowRunsByResultMessageId,
         }).map(({ beforeMessageWorkflowRuns, liveWorkflowRuns, message, showMessage }) => {
+          const workflowRun = liveWorkflowRuns?.[0] ?? beforeMessageWorkflowRuns[0] ?? null
+          const canInteractWithWorkflowRun = !!liveWorkflowRuns?.length
           return (
             <React.Fragment key={message.id}>
-              {beforeMessageWorkflowRuns.map((run) => (
-                <LocalAgentWorkflowBubble
-                  key={`workflow-before-result-${run.id}`}
-                  run={run}
-                  approving={approvingLocalRun}
-                  onApprove={liveWorkflowRuns ? (approvalIds) => onApproveLocalRun(run.id, approvalIds) : undefined}
-                  onReject={liveWorkflowRuns ? (approvalIds) => onRejectLocalRun(run.id, approvalIds) : undefined}
-                  onAnswerInput={liveWorkflowRuns ? (requestId, answer) => onAnswerLocalRunInput(run.id, requestId, answer) : undefined}
+              {showMessage && (
+                <MessageBubble
+                  msg={message}
+                  projectId={projectId}
+                  workflowRun={workflowRun}
+                  approvingLocalRun={approvingLocalRun}
+                  onApproveLocalRun={workflowRun && canInteractWithWorkflowRun ? (approvalIds) => onApproveLocalRun(workflowRun.id, approvalIds) : undefined}
+                  onRejectLocalRun={workflowRun && canInteractWithWorkflowRun ? (approvalIds) => onRejectLocalRun(workflowRun.id, approvalIds) : undefined}
+                  onAnswerLocalRunInput={workflowRun && canInteractWithWorkflowRun ? (requestId, answer) => onAnswerLocalRunInput(workflowRun.id, requestId, answer) : undefined}
                 />
-              ))}
-              {showMessage && <MessageBubble msg={message} projectId={projectId} />}
+              )}
             </React.Fragment>
           )
         })}
@@ -148,14 +161,25 @@ export function AgentConversationThreadSection({
             return <GenerationProgressBubble key={block.id} state={block.state} />
           }
           if (block.type === 'live_run_activity') {
-            return <LiveRunActivityBubble key={block.id} run={block.run} events={block.events} />
+            return (
+              <LiveRunActivityBubble
+                key={block.id}
+                run={block.run}
+                events={block.events}
+                approving={approvingLocalRun}
+                onApprove={(approvalIds) => block.run && onApproveLocalRun(block.run.id, approvalIds)}
+                onReject={(approvalIds) => block.run && onRejectLocalRun(block.run.id, approvalIds)}
+                onAnswerInput={(requestId, answer) => block.run && onAnswerLocalRunInput(block.run.id, requestId, answer)}
+              />
+            )
           }
           return <ThinkingBubble key={block.id} run={activeRun} state={thinkingState} />
         })}
-        {showLocalWorkflow && workflowRunsWithoutResultMessage.map((run) => (
-          <LocalAgentWorkflowBubble
+        {showLocalWorkflow && workflowRunsWithoutResultMessage.filter((run) => !liveActivityRunIds.has(run.id)).map((run) => (
+          <LiveRunActivityBubble
             key={`workflow-live-${run.id}`}
             run={run}
+            events={[]}
             approving={approvingLocalRun}
             onApprove={(approvalIds) => onApproveLocalRun(run.id, approvalIds)}
             onReject={(approvalIds) => onRejectLocalRun(run.id, approvalIds)}
@@ -163,6 +187,7 @@ export function AgentConversationThreadSection({
           />
         ))}
         <AgentPlanOverviewPanel
+          id="agent-taskGraph-overview"
           snapshot={activePlanSnapshot}
           busy={planActionBusy}
           onDispatch={onDispatchTaskGraph}

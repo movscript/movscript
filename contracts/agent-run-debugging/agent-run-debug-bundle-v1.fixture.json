@@ -72,6 +72,7 @@
     "httpResponsesLabel": "1",
     "requestPayloadsLabel": "1",
     "httpResponseBodiesLabel": "1",
+    "tokenUsageLabel": "160 tokens，in 128 / out 32",
     "issues": []
   },
   "readinessChecklist": [
@@ -140,7 +141,9 @@
       "requestEventId": "evt_model_request",
       "responseEventId": "evt_model_response",
       "model": "gpt-5.4",
-      "httpStatus": "200"
+      "httpStatus": "200",
+      "inputTokens": "128",
+      "outputTokens": "32"
     }
   ],
   "modelCallContexts": [

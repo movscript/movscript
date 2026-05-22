@@ -149,6 +149,7 @@ test('previewApplyReview posts production proposal draft payload to apply-previe
     const client = new BackendApplyClient({ baseURL: 'http://backend' })
     const proposedValue = JSON.stringify({
       schema: 'movscript.production_proposal.v1',
+      scope: 'production_proposal',
       mode: 'snapshot',
       productionId: 9,
       proposalScope: 'production',
@@ -161,6 +162,7 @@ test('previewApplyReview posts production proposal draft payload to apply-previe
           }],
         }],
       },
+      impact_notes: [],
     })
 
     const result = await client.previewApplyReview({
@@ -183,6 +185,7 @@ test('previewApplyReview posts production proposal draft payload to apply-previe
     assert.equal((calls[0].init.headers as Record<string, string>)['Content-Type'], 'application/json')
     assert.deepEqual(JSON.parse(String(calls[0].init.body)), {
       schema: 'movscript.production_proposal.v1',
+      scope: 'production_proposal',
       mode: 'snapshot',
       productionId: 9,
       proposalScope: 'production',
@@ -197,6 +200,7 @@ test('previewApplyReview posts production proposal draft payload to apply-previe
           }],
         }],
       },
+      impact_notes: [],
     })
     assert.deepEqual(result.response, { dry_run: true, warnings: [] })
   } finally {
@@ -208,6 +212,7 @@ test('previewApplyReview rejects legacy production proposal action drafts', asyn
   const client = new BackendApplyClient({ baseURL: 'http://backend' })
   const proposedValue = JSON.stringify({
     schema: 'movscript.production_proposal.v1',
+    scope: 'production_proposal',
     mode: 'snapshot',
     productionId: 9,
     proposalScope: 'production',

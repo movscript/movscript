@@ -34,7 +34,7 @@ test('normalizeReplanTaskInputsForTaskGraph rejects existing tasks from another 
     taskGraphId: 'task_graph_1',
     tasks: [{ id: 'task_other', title: 'Other' }],
     getTask: () => task({ id: 'task_other', taskGraphId: 'task_graph_2' }),
-  }), /task task_other does not belong to task graph task_graph_1/)
+  }), /task task_other does not belong to taskGraph task_graph_1/)
 })
 
 test('normalizeReplanTaskUpdateInputs combines update aliases', () => {
@@ -119,7 +119,7 @@ test('normalizeAndValidateReplanTaskUpdates distinguishes references from anothe
     tasksToCreate: [],
     updates: [{ id: 'task_1', deps: ['task_other'] }],
     getTask: (taskId) => taskId === 'task_other' ? task({ id: 'task_other', taskGraphId: 'task_graph_2' }) : undefined,
-  }), /dependency task task_other does not belong to task graph task_graph_1/)
+  }), /dependency task task_other does not belong to taskGraph task_graph_1/)
 })
 
 test('normalizeAndValidateReplanTaskUpdates rejects self references and cycles', () => {

@@ -341,10 +341,10 @@ function extractPlanRefs(payload: Record<string, unknown>): ContextRef[] {
 }
 
 function extractGenerationRefs(payload: Record<string, unknown>): ContextRef[] {
-  const operation = isRecord(payload.operation) ? payload.operation : undefined
-  const operationResult = isRecord(operation?.result) ? operation.result : undefined
-  const externalHandle = isRecord(operation?.externalHandle) ? operation.externalHandle : undefined
-  const generationPayload = operationResult ?? payload
+  const work = isRecord(payload.work) ? payload.work : undefined
+  const workResult = isRecord(work?.result) ? work.result : undefined
+  const externalHandle = isRecord(work?.externalHandle) ? work.externalHandle : undefined
+  const generationPayload = workResult ?? payload
   const job = isRecord(generationPayload.job) ? generationPayload.job : undefined
   const id = numberField(generationPayload.jobId)
     ?? numberField(generationPayload.job_id)

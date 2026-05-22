@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { buildContentWorkbenchPipeline } from './contentWorkbenchPipeline'
 
-test('content workbench pipeline identifies the first production blocker', () => {
+test('content workbench pipeline identifies the first production action', () => {
   const summary = buildContentWorkbenchPipeline({
     unitCount: 0,
     keyframeCount: 0,
@@ -13,7 +13,7 @@ test('content workbench pipeline identifies the first production blocker', () =>
     completedJobCount: 0,
   })
 
-  assert.equal(summary.title, '生产链路仍有阻塞')
+  assert.equal(summary.title, '下一步：制作')
   assert.equal(summary.currentKey, 'production')
   assert.equal(summary.steps[0].tone, 'current')
   assert.equal(summary.steps[1].tone, 'blocked')
@@ -56,7 +56,7 @@ test('content workbench pipeline reports generation readiness when all gates are
     completedJobCount: 0,
   })
 
-  assert.equal(summary.title, '生产链路可进入生成')
+  assert.equal(summary.title, '下一步：启动生成')
   assert.equal(summary.blockedCount, 0)
   assert.equal(summary.currentKey, 'generation_taskGraph')
   assert.equal(summary.steps.every((step) => step.tone === 'done' || step.tone === 'pending'), true)
@@ -79,7 +79,7 @@ test('content workbench pipeline continues from generation into preview delivery
     deliveryVersionCount: 0,
   })
 
-  assert.equal(summary.title, '生产链路待交付')
+  assert.equal(summary.title, '下一步：预览交付')
   assert.equal(summary.currentKey, 'preview_delivery')
   assert.equal(summary.steps.at(-1)?.label, '预览交付')
   assert.equal(summary.steps.at(-1)?.tone, 'pending')

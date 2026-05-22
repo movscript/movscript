@@ -309,15 +309,11 @@ function emptyCatalogManager(): AgentCatalogToolManager {
     inspectAgentCatalog: () => ({}),
     updateActiveSkills: () => ({}),
     updateProgressChecklist: () => ({}),
-    spawnSubagent: () => ({}),
-    listSubagents: () => ({}),
-    waitSubagent: () => ({}),
-startOperation: () => ({}),
-getOperation: () => ({}),
-listOperation: () => ({}),
-waitOperation: () => ({}),
-cancelOperation: () => ({}),
-    cancelSubagent: () => ({}),
+      startWork: () => ({}),
+getWork: () => ({}),
+listWork: () => ({}),
+waitWork: () => ({}),
+      cancelWork: () => ({}),
   }
 }
 

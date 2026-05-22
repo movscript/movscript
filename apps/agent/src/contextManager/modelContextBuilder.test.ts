@@ -265,7 +265,7 @@ test('buildContext summarizes declared tool output fields for model-readable res
           },
         },
         {
-          name: 'core_operation_start',
+          name: 'core_work_start',
           source: 'runtime',
           registered: true,
           granted: true,
@@ -323,7 +323,7 @@ test('buildContext summarizes declared tool output fields for model-readable res
   assert.match(built.systemPrompt, /Declared tool output fields/)
   assert.match(built.systemPrompt, /generation_model_list/)
   assert.match(built.systemPrompt, /model_contracts\[\]\.model_id\|logical_model_id\|capabilities\|input_requirements\|supported_param_keys\|supported_params/)
-  assert.match(built.systemPrompt, /core_operation_start/)
+  assert.match(built.systemPrompt, /core_work_start/)
   assert.match(built.systemPrompt, /operation\.\{id\|kind\|status\|externalHandle\|result/)
   assert.doesNotMatch(built.systemPrompt, /generation_job_create/)
 })
@@ -393,40 +393,44 @@ test('buildContext uses runtime contract for tool schemas without forcing JSON a
   assert.ok(chatTools.some((tool) => tool.function.name === 'movscript_structured_test_tool' && !!tool.function.parameters))
 })
 
-test('buildRuntimeChatTools exposes spawn_subagent dispatch controls', () => {
+test('buildRuntimeChatTools exposes runtime work start controls', () => {
+  const inputSchema = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['kind', 'request'],
+    properties: {
+      kind: { type: 'string', enum: ['generation_job', 'subagent_run'] },
+      request: { type: 'object' },
+      continuationPolicy: {
+        type: 'object',
+        required: ['mode'],
+        properties: {
+          mode: { type: 'string', enum: ['none', 'any_completed', 'all_completed', 'all_settled', 'manual_selection'] },
+          groupId: { type: 'string' },
+        },
+      },
+    },
+  }
   const tools = {
     discovered: [],
     blocked: [],
     byName: {},
     available: [{
-      name: 'core_subagent_spawn',
+      name: 'core_work_start',
       source: 'runtime' as const,
       registered: true,
       granted: true,
       available: true,
       approval: 'never' as const,
       requiresApproval: false,
+      inputSchema,
     }],
   }
   const [tool] = buildRuntimeChatTools(tools)
   const parameters = tool?.function.parameters as any
-  assert.equal(parameters?.properties?.maxWorkers?.type, 'number')
-  assert.equal(parameters?.properties?.retryFailed?.type, 'boolean')
-  assert.equal(parameters?.properties?.maxTaskAttempts?.type, 'number')
-  assert.equal(parameters?.properties?.workerTimeoutMs?.type, 'number')
-  assert.deepEqual(parameters?.properties?.subagentNames?.oneOf?.map((item: any) => item.type), ['array', 'object'])
-  assert.equal(parameters?.properties?.subagentNames?.oneOf?.[1]?.additionalProperties?.type, 'string')
-  assert.match(parameters?.properties?.subagentName?.description ?? '', /Einstein/)
-  assert.match(parameters?.properties?.subagentName?.description ?? '', /Do not use generic names/)
-  assert.match(parameters?.properties?.taskIds?.description ?? '', /internal task graph path/)
-  assert.equal(parameters?.properties?.title?.type, 'string')
-  assert.equal(parameters?.properties?.message?.type, 'string')
-  assert.equal(parameters?.properties?.instructions?.type, 'string')
-  const taskProperties = parameters?.properties?.tasks?.items?.properties
-  assert.equal(taskProperties?.maxTaskAttempts?.type, 'number')
-  assert.equal(taskProperties?.workerTimeoutMs?.type, 'number')
-  assert.equal(taskProperties?.metadata?.type, 'object')
-  assert.match(taskProperties?.metadata?.description ?? '', /writeScope/)
+  assert.equal(parameters, inputSchema)
+  assert.deepEqual(parameters?.properties?.kind?.enum, ['generation_job', 'subagent_run'])
+  assert.ok(parameters?.properties?.continuationPolicy)
 })
 
 test('buildRuntimeChatTools preserves runtime schema composition for provider adapters', () => {
@@ -516,26 +520,34 @@ test('buildRuntimeChatTools does not expose deprecated content unit media propos
   assert.equal(enumValues.includes('content_unit_media_proposal'), false)
 })
 
-test('buildRuntimeChatTools exposes cancel_subagent pending task semantics', () => {
+test('buildRuntimeChatTools exposes runtime work cancel schema', () => {
+  const inputSchema = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['workId'],
+    properties: {
+      workId: { type: 'string' },
+    },
+  }
   const tools = {
     discovered: [],
     blocked: [],
     byName: {},
     available: [{
-      name: 'core_subagent_cancel',
+      name: 'core_work_cancel',
       source: 'runtime' as const,
       registered: true,
       granted: true,
       available: true,
       approval: 'never' as const,
       requiresApproval: false,
+      inputSchema,
     }],
   }
   const [tool] = buildRuntimeChatTools(tools)
   const parameters = tool?.function.parameters as any
-  assert.match(parameters?.properties?.subagentName?.description ?? '', /not-yet-started task/)
-  assert.match(parameters?.properties?.subagentName?.description ?? '', /exact name/)
-  assert.match(parameters?.properties?.taskId?.description ?? '', /pending\/blocked\/needs_review task/)
+  assert.equal(parameters, inputSchema)
+  assert.deepEqual(parameters?.required, ['workId'])
 })
 
 test('buildContext renders planner subagent workflow when runtime layers activate it', () => {
@@ -573,7 +585,7 @@ test('buildContext renders planner subagent workflow when runtime layers activat
     blocked: [],
     byName: {},
     available: [{
-      name: 'core_subagent_spawn',
+      name: 'core_work_start',
       source: 'runtime' as const,
       registered: true,
       granted: true,

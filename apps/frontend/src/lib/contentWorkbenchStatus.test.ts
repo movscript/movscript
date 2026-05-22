@@ -13,9 +13,9 @@ import {
 } from './contentWorkbenchStatus.ts'
 
 test('content workbench status helpers preserve labels and readiness semantics', () => {
-  assert.equal(statusLabel('blocked'), '阻塞')
+  assert.equal(statusLabel('blocked'), '补信息')
   assert.equal(statusVariant('ready'), 'success')
-  assert.equal(priorityLabel('medium'), '中')
+  assert.equal(priorityLabel('medium'), '正常处理')
   assert.equal(decisionVariant('warning'), 'warning')
   assert.equal(normalizeAssetSlotStatus('bad'), 'missing')
   assert.equal(assetSlotWorkStatus({ status: 'candidate' }), 'review')

@@ -33,7 +33,7 @@ export interface ProposalContentUnitNode {
   duration_sec?: number
   order?: number
   status?: string
-  script_block_id?: number
+  script_block_id?: number | null
   before?: Record<string, unknown>
   keyframes?: ProposalKeyframeNode[]
   __delete?: boolean
@@ -85,7 +85,7 @@ export interface ProposalSceneMomentNode {
   description?: string
   order?: number
   status?: string
-  script_block_id?: number
+  script_block_id?: number | null
   content_units?: ProposalContentUnitNode[]
   creative_references?: ProposalCreativeRefNode[]
   asset_slots?: ProposalAssetSlotNode[]
@@ -103,7 +103,7 @@ export interface ProposalSegmentNode {
   summary?: string
   order?: number
   status?: string
-  script_block_id?: number
+  script_block_id?: number | null
   scene_moments?: ProposalSceneMomentNode[]
   rationale?: string
   before?: Record<string, unknown>
@@ -761,7 +761,11 @@ export function buildProposalReviewSegments(proposalSegments: ProposalSegmentNod
     if (!snapshotNodeHasID(current) || proposedIds.has(current.id!)) continue
     next.push(markProposalSegmentDeleted(current))
   }
-  return next
+  return next.flatMap((segment) => {
+    const current = snapshotNodeHasID(segment) ? currentById.get(segment.id!) : undefined
+    const pruned = pruneUnchangedProposalSegment(segment, current)
+    return pruned ? [pruned] : []
+  })
 }
 
 export function buildMergedProductionProposal(
@@ -818,7 +822,11 @@ export function buildMergedProductionProposal(
       })
       ;(moment.creative_references ?? []).forEach((reference, referenceIndex) => {
         const referenceKey = proposalNodeDecisionKey('creative_reference', reference, `${momentFallback}-reference-${referenceIndex}`)
-        if (decisions[referenceKey] !== 'accepted' || reference.__delete) return
+        if (decisions[referenceKey] !== 'accepted') return
+        if (reference.__delete) {
+          targetMoment.creative_references = removeNodeById(targetMoment.creative_references ?? [], reference.id)
+          return
+        }
         targetMoment.creative_references = upsertNode(targetMoment.creative_references ?? [], reference)
       })
       ;(moment.asset_slots ?? []).forEach((slot, slotIndex) => {
@@ -973,6 +981,88 @@ function appendDeletedChildren(proposed: ProposalSegmentNode, current: ProposalS
   if (deletedMoments.length > 0) proposed.scene_moments = [...proposedMoments, ...deletedMoments]
 }
 
+function pruneUnchangedProposalSegment(proposed: ProposalSegmentNode, current?: ProposalSegmentNode): ProposalSegmentNode | null {
+  if (!snapshotNodeHasID(proposed) || proposed.__delete || !current) return proposed
+  const prunedMoments = (proposed.scene_moments ?? []).flatMap((moment) => {
+    const currentMoment = snapshotNodeHasID(moment)
+      ? (current.scene_moments ?? []).find((item) => item.id === moment.id)
+      : undefined
+    const pruned = pruneUnchangedProposalMoment(moment, currentMoment)
+    return pruned ? [pruned] : []
+  })
+  if (!proposalOwnFieldsEqual(proposed, current, ['scene_moments']) || prunedMoments.length > 0) {
+    return { ...proposed, scene_moments: prunedMoments }
+  }
+  return null
+}
+
+function pruneUnchangedProposalMoment(proposed: ProposalSceneMomentNode, current?: ProposalSceneMomentNode): ProposalSceneMomentNode | null {
+  if (!snapshotNodeHasID(proposed) || proposed.__delete || !current) return proposed
+  const prunedContentUnits = (proposed.content_units ?? []).flatMap((unit) => {
+    const currentUnit = snapshotNodeHasID(unit)
+      ? (current.content_units ?? []).find((item) => item.id === unit.id)
+      : undefined
+    const pruned = pruneUnchangedProposalContentUnit(unit, currentUnit)
+    return pruned ? [pruned] : []
+  })
+  const prunedKeyframes = pruneUnchangedProposalNodes(proposed.keyframes ?? [], current.keyframes ?? [], ['keyframes'])
+  const prunedCreativeReferences = pruneUnchangedProposalNodes(proposed.creative_references ?? [], current.creative_references ?? [], ['creative_references'])
+  const prunedAssetSlots = pruneUnchangedProposalNodes(proposed.asset_slots ?? [], current.asset_slots ?? [], ['asset_slots'])
+  const hasOwnChange = !proposalOwnFieldsEqual(proposed, current, ['content_units', 'creative_references', 'asset_slots', 'keyframes'])
+  const hasChildChanges = prunedContentUnits.length > 0 || prunedKeyframes.length > 0 || prunedCreativeReferences.length > 0 || prunedAssetSlots.length > 0
+  if (!hasOwnChange && !hasChildChanges) return null
+  return {
+    ...proposed,
+    content_units: prunedContentUnits,
+    keyframes: prunedKeyframes,
+    creative_references: prunedCreativeReferences,
+    asset_slots: prunedAssetSlots,
+  }
+}
+
+function pruneUnchangedProposalContentUnit(proposed: ProposalContentUnitNode, current?: ProposalContentUnitNode): ProposalContentUnitNode | null {
+  if (!snapshotNodeHasID(proposed) || proposed.__delete || !current) return proposed
+  const prunedKeyframes = pruneUnchangedProposalNodes(proposed.keyframes ?? [], current.keyframes ?? [], ['keyframes'])
+  if (!proposalOwnFieldsEqual(proposed, current, ['keyframes']) || prunedKeyframes.length > 0) {
+    return { ...proposed, keyframes: prunedKeyframes }
+  }
+  return null
+}
+
+function pruneUnchangedProposalNodes<T extends { id?: number; __delete?: boolean }>(proposed: T[], current: T[], childKeys: string[]): T[] {
+  return proposed.flatMap((node) => {
+    if (!snapshotNodeHasID(node) || node.__delete) return [node]
+    const currentNode = current.find((item) => item.id === node.id)
+    if (!currentNode || !proposalOwnFieldsEqual(node, currentNode, childKeys)) return [node]
+    return []
+  })
+}
+
+function proposalOwnFieldsEqual(
+  left: object,
+  right: object,
+  childKeys: string[],
+) {
+  const leftRecord = left as Record<string, unknown>
+  const rightRecord = right as Record<string, unknown>
+  const ignored = new Set(['__delete', 'before', 'rationale', ...childKeys])
+  const keys = new Set([
+    ...Object.keys(leftRecord).filter((key) => !ignored.has(key)),
+    ...Object.keys(rightRecord).filter((key) => !ignored.has(key)),
+  ])
+  for (const key of keys) {
+    if (!proposalFieldValueEqual(leftRecord[key], rightRecord[key])) return false
+  }
+  return true
+}
+
+function proposalFieldValueEqual(left: unknown, right: unknown): boolean {
+  if (left === right) return true
+  if (left === undefined && right === undefined) return true
+  if ((left === null || left === undefined) && (right === null || right === undefined)) return true
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
 function appendDeletedMomentChildren(proposed: ProposalSceneMomentNode, current: ProposalSceneMomentNode) {
   proposed.content_units = appendDeletedNodes(
     proposed.content_units ?? [],
@@ -988,6 +1078,11 @@ function appendDeletedMomentChildren(proposed: ProposalSceneMomentNode, current:
     proposed.asset_slots ?? [],
     current.asset_slots ?? [],
     markProposalAssetSlotDeleted,
+  )
+  proposed.creative_references = appendDeletedNodes(
+    proposed.creative_references ?? [],
+    current.creative_references ?? [],
+    markProposalCreativeReferenceDeleted,
   )
   for (const unit of proposed.content_units ?? []) {
     if (!snapshotNodeHasID(unit)) continue
@@ -1117,6 +1212,10 @@ function markProposalContentUnitDeleted(unit: ProposalContentUnitNode): Proposal
 
 function markProposalKeyframeDeleted(keyframe: ProposalKeyframeNode): ProposalKeyframeNode {
   return { ...cloneProposalNode(keyframe), __delete: true }
+}
+
+function markProposalCreativeReferenceDeleted(reference: ProposalCreativeRefNode): ProposalCreativeRefNode {
+  return { ...cloneProposalNode(reference), __delete: true }
 }
 
 function markProposalAssetSlotDeleted(slot: ProposalAssetSlotNode): ProposalAssetSlotNode {

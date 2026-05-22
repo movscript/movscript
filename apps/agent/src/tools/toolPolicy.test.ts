@@ -31,25 +31,25 @@ const registry = new StaticToolRegistry([
     requiresApprovalByDefault: true,
   },
   {
-    name: 'core_operation_start',
-    description: 'Start a runtime operation.',
-    permission: 'agent.operation.write',
+    name: 'core_work_start',
+    description: 'Start a runtime work.',
+    permission: 'agent.work.write',
     risk: 'generate',
     projectScoped: true,
     requiresApprovalByDefault: true,
   },
   {
-    name: 'core_operation_get',
-    description: 'Inspect a runtime operation.',
-    permission: 'agent.operation.read',
+    name: 'core_work_get',
+    description: 'Inspect a runtime work.',
+    permission: 'agent.work.read',
     risk: 'read',
     projectScoped: true,
     requiresApprovalByDefault: false,
   },
   {
-    name: 'core_operation_cancel',
-    description: 'Cancel a runtime operation.',
-    permission: 'agent.operation.write',
+    name: 'core_work_cancel',
+    description: 'Cancel a runtime work.',
+    permission: 'agent.work.write',
     risk: 'write',
     projectScoped: true,
     requiresApprovalByDefault: true,
@@ -197,31 +197,31 @@ test('tool policy blocks registered tools that the manifest does not grant', () 
 
 test('tool policy blocks write/generation tools until explicitly approved', () => {
   const result = applyToolPolicy([
-    { name: 'core_operation_start', args: { kind: 'generation_job', request: { prompt: 'test' } } },
+    { name: 'core_work_start', args: { kind: 'generation_job', request: { prompt: 'test' } } },
   ], {
     currentProjectId: 42,
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      tools: [{ name: 'core_operation_start', mode: 'allow', approval: 'always' }],
+      tools: [{ name: 'core_work_start', mode: 'allow', approval: 'always' }],
     },
     registry,
   })
 
   assert.deepEqual(result.toolCalls, [])
-  assert.deepEqual(result.warnings, ['core_operation_start 需要用户确认后才能执行'])
+  assert.deepEqual(result.warnings, ['core_work_start 需要用户确认后才能执行'])
   assert.equal(result.blockedToolCalls[0].reason, 'approval_required')
 })
 
 test('tool policy allows approved generation tools and injects projectId', () => {
   const result = applyToolPolicy([
-    { name: 'core_operation_start', args: { kind: 'generation_job', request: { prompt: 'test' } } },
+    { name: 'core_work_start', args: { kind: 'generation_job', request: { prompt: 'test' } } },
   ], {
     currentProjectId: 42,
-    approvedToolNames: ['core_operation_start'],
+    approvedToolNames: ['core_work_start'],
     registry,
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      tools: [{ name: 'core_operation_start', mode: 'allow', approval: 'always' }],
+      tools: [{ name: 'core_work_start', mode: 'allow', approval: 'always' }],
     },
   })
 
@@ -231,28 +231,28 @@ test('tool policy allows approved generation tools and injects projectId', () =>
 
 test('tool policy allows generation job inspection without approval', () => {
   const result = applyToolPolicy([
-    { name: 'core_operation_get', args: { operationId: 'op_123' } },
+    { name: 'core_work_get', args: { workId: 'work_123' } },
   ], {
     currentProjectId: 42,
     registry,
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      tools: [{ name: 'core_operation_get', mode: 'allow', approval: 'never' }],
+      tools: [{ name: 'core_work_get', mode: 'allow', approval: 'never' }],
     },
   })
 
   assert.deepEqual(result.warnings, [])
-  assert.equal(result.toolCalls[0].name, 'core_operation_get')
+  assert.equal(result.toolCalls[0].name, 'core_work_get')
   assert.equal(result.toolCalls[0].args?.projectId, 42)
 })
 
 test('tool policy requires approval before cancelling generation jobs', () => {
   const manifest = {
     ...DEFAULT_AGENT_MANIFEST,
-    tools: [{ name: 'core_operation_cancel', mode: 'allow' as const, approval: 'always' as const }],
+    tools: [{ name: 'core_work_cancel', mode: 'allow' as const, approval: 'always' as const }],
   }
   const blocked = applyToolPolicy([
-    { name: 'core_operation_cancel', args: { operationId: 'op_123' } },
+    { name: 'core_work_cancel', args: { workId: 'work_123' } },
   ], {
     currentProjectId: 42,
     registry,
@@ -263,10 +263,10 @@ test('tool policy requires approval before cancelling generation jobs', () => {
   assert.equal(blocked.blockedToolCalls[0].reason, 'approval_required')
 
   const approved = applyToolPolicy([
-    { name: 'core_operation_cancel', args: { operationId: 'op_123' } },
+    { name: 'core_work_cancel', args: { workId: 'work_123' } },
   ], {
     currentProjectId: 42,
-    approvedToolNames: ['core_operation_cancel'],
+    approvedToolNames: ['core_work_cancel'],
     registry,
     manifest,
   })
@@ -277,14 +277,14 @@ test('tool policy requires approval before cancelling generation jobs', () => {
 
 test('tool policy lets sandbox intercept approval-gated write and generation tools', () => {
   const result = applyToolPolicy([
-    { name: 'core_operation_start', args: { kind: 'generation_job', request: { prompt: 'test' } } },
+    { name: 'core_work_start', args: { kind: 'generation_job', request: { prompt: 'test' } } },
   ], {
     currentProjectId: 42,
     sandboxMode: true,
     registry,
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      tools: [{ name: 'core_operation_start', mode: 'allow', approval: 'always' }],
+      tools: [{ name: 'core_work_start', mode: 'allow', approval: 'always' }],
     },
   })
 

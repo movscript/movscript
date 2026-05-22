@@ -1,4 +1,4 @@
-import { isTerminalRuntimeOperationStatus, type RuntimeOperation } from '../operations/runtimeOperation.js'
+import { isTerminalRuntimeWorkStatus, type RuntimeWork } from '../runtimeWork/runtimeWork.js'
 import type { AgentRun, CreateRunInput, RuntimeContinuation, RuntimeInteraction } from '../state/types.js'
 import type { AgentStore } from '../state/store.js'
 import {
@@ -9,8 +9,8 @@ import {
 import type { RuntimeRunControlBridge } from './runtimeRunControlBridge.js'
 
 export type RuntimeSchedulerEvent =
-  | { type: 'operation.started'; operation: RuntimeOperation }
-  | { type: 'operation.observed'; operation: RuntimeOperation }
+  | { type: 'work.started'; work: RuntimeWork }
+  | { type: 'work.observed'; work: RuntimeWork }
   | { type: 'interaction.approved'; interactionId: string }
   | { type: 'interaction.rejected'; interactionId: string }
   | { type: 'continuation.ready'; continuationId: string }
@@ -23,7 +23,7 @@ export class RuntimeScheduler {
       | 'createRuntimeContinuation'
       | 'updateRuntimeContinuation'
       | 'listRuntimeContinuations'
-      | 'listRuntimeOperations'
+      | 'listRuntimeWorks'
       | 'listRuntimeInteractions'
       | 'listRuns'
       | 'getRun'
@@ -34,12 +34,12 @@ export class RuntimeScheduler {
   }) {}
 
   dispatch(event: RuntimeSchedulerEvent): RuntimeInteractionApprovalResult | RuntimeContinuation[] | undefined {
-    if (event.type === 'operation.started') {
-      return this.registerOperationContinuation(event.operation)
+    if (event.type === 'work.started') {
+      return this.registerWorkContinuation(event.work)
     }
-    if (event.type === 'operation.observed') {
-      const continuations = this.evaluateContinuationsForOperation(event.operation)
-      if (continuations.length > 0) this.advanceThread(event.operation.threadId)
+    if (event.type === 'work.observed') {
+      const continuations = this.evaluateContinuationsForWork(event.work)
+      if (continuations.length > 0) this.advanceThread(event.work.threadId)
       return continuations
     }
     if (event.type === 'interaction.approved') {
@@ -79,32 +79,32 @@ export class RuntimeScheduler {
     })
   }
 
-  registerOperationContinuation(operation: RuntimeOperation): RuntimeContinuation[] {
-    const policy = operation.continuationPolicy
+  registerWorkContinuation(work: RuntimeWork): RuntimeContinuation[] {
+    const policy = work.continuationPolicy
     if (!policy || policy.mode === 'none') return []
-    const existing = this.input.store.listRuntimeContinuations({ runId: operation.runId })
-      .find((continuation) => continuation.trigger.type === 'operation_completed'
+    const existing = this.input.store.listRuntimeContinuations({ runId: work.runId })
+      .find((continuation) => continuation.trigger.type === 'work_completed'
         && continuation.status === 'waiting'
-        && continuation.id === continuationIdForOperation(operation))
+        && continuation.id === continuationIdForWork(work))
     const now = this.input.now()
-    if (existing && existing.trigger.type === 'operation_completed') {
-      const operationIds = Array.from(new Set([...existing.trigger.operationIds, operation.id]))
+    if (existing && existing.trigger.type === 'work_completed') {
+      const workIds = Array.from(new Set([...existing.trigger.workIds, work.id]))
       const next: RuntimeContinuation = {
         ...existing,
-        trigger: { ...existing.trigger, operationIds },
+        trigger: { ...existing.trigger, workIds },
         updatedAt: now,
       }
       this.input.store.updateRuntimeContinuation(next)
       return this.evaluateContinuation(next)
     }
     const continuation: RuntimeContinuation = {
-      id: continuationIdForOperation(operation),
-      threadId: operation.threadId,
-      runId: operation.runId,
+      id: continuationIdForWork(work),
+      threadId: work.threadId,
+      runId: work.runId,
       status: 'waiting',
       trigger: {
-        type: 'operation_completed',
-        operationIds: [operation.id],
+        type: 'work_completed',
+        workIds: [work.id],
         mode: policy.mode === 'any_completed' ? 'any' : 'all',
       },
       createdAt: now,
@@ -114,17 +114,17 @@ export class RuntimeScheduler {
     return this.evaluateContinuation(continuation)
   }
 
-  evaluateContinuationsForOperation(operation: RuntimeOperation): RuntimeContinuation[] {
-    if (!isTerminalRuntimeOperationStatus(operation.status)) return []
-    const continuations = this.input.store.listRuntimeContinuations({ runId: operation.runId, status: 'waiting' })
-      .filter((continuation) => continuation.trigger.type === 'operation_completed'
-        && continuation.trigger.operationIds.includes(operation.id))
+  evaluateContinuationsForWork(work: RuntimeWork): RuntimeContinuation[] {
+    if (!isTerminalRuntimeWorkStatus(work.status)) return []
+    const continuations = this.input.store.listRuntimeContinuations({ runId: work.runId, status: 'waiting' })
+      .filter((continuation) => continuation.trigger.type === 'work_completed'
+        && continuation.trigger.workIds.includes(work.id))
     return continuations.flatMap((continuation) => this.evaluateContinuation(continuation))
   }
 
   advanceThread(threadId: string): AgentRun[] {
     if (!this.input.continueRun) return []
-    if (this.threadHasBlockingRuntimeWork(threadId)) return []
+    if (this.threadHasBlockingModelRun(threadId)) return []
     const readyContinuations = this.input.store.listRuntimeContinuations({ threadId, status: 'ready' })
     const advancedRuns: AgentRun[] = []
     for (const continuation of readyContinuations) {
@@ -137,12 +137,12 @@ export class RuntimeScheduler {
   private advanceContinuation(continuation: RuntimeContinuation): AgentRun | undefined {
     if (!this.input.continueRun || continuation.status !== 'ready') return undefined
     const sourceRun = this.input.store.getRun(continuation.runId)
-    const operationIds = continuation.nextInput?.operationResults ?? []
-    const operations = this.input.store.listRuntimeOperations({ runId: continuation.runId })
-      .filter((operation) => operationIds.includes(operation.id))
+    const workIds = continuation.nextInput?.workResults ?? []
+    const works = this.input.store.listRuntimeWorks({ runId: continuation.runId })
+      .filter((work) => workIds.includes(work.id))
     const run = this.input.continueRun({
       threadId: continuation.threadId,
-      userMessage: continuationMessage(continuation, operations),
+      userMessage: continuationMessage(continuation, works),
       parentRunId: continuation.runId,
       ...(sourceRun?.role ? { role: sourceRun.role } : {}),
       ...(sourceRun?.taskGraphId ? { taskGraphId: sourceRun.taskGraphId } : {}),
@@ -150,7 +150,7 @@ export class RuntimeScheduler {
       ...(sourceRun?.agentManifest ? { agentManifest: sourceRun.agentManifest } : {}),
       metadata: {
         runtimeContinuationId: continuation.id,
-        runtimeOperationIds: operationIds,
+        runtimeWorkIds: workIds,
       },
     })
     const now = this.input.now()
@@ -163,7 +163,7 @@ export class RuntimeScheduler {
     return run
   }
 
-  private threadHasBlockingRuntimeWork(threadId: string): boolean {
+  private threadHasBlockingModelRun(threadId: string): boolean {
     const pendingInteractions = this.input.store.listRuntimeInteractions({ threadId, status: 'pending' })
     if (pendingInteractions.length > 0) return true
     const activeRuns = this.input.store.listRuns({ threadId })
@@ -172,23 +172,23 @@ export class RuntimeScheduler {
   }
 
   private evaluateContinuation(continuation: RuntimeContinuation): RuntimeContinuation[] {
-    if (continuation.status !== 'waiting' || continuation.trigger.type !== 'operation_completed') return []
-    const operations = this.input.store.listRuntimeOperations({ runId: continuation.runId })
-      .filter((operation) => continuation.trigger.type === 'operation_completed'
-        && continuation.trigger.operationIds.includes(operation.id))
+    if (continuation.status !== 'waiting' || continuation.trigger.type !== 'work_completed') return []
+    const works = this.input.store.listRuntimeWorks({ runId: continuation.runId })
+      .filter((work) => continuation.trigger.type === 'work_completed'
+        && continuation.trigger.workIds.includes(work.id))
     const ready = continuation.trigger.mode === 'any'
-      ? operations.some((operation) => operation.status === 'completed')
-      : operations.length === continuation.trigger.operationIds.length
-        && operations.every((operation) => operation.status === 'completed' || isTerminalRuntimeOperationStatus(operation.status))
+      ? works.some((work) => work.status === 'completed')
+      : works.length === continuation.trigger.workIds.length
+        && works.every((work) => work.status === 'completed' || isTerminalRuntimeWorkStatus(work.status))
     if (!ready) return []
     const now = this.input.now()
     const next: RuntimeContinuation = {
       ...continuation,
       status: 'ready',
       nextInput: {
-        operationResults: operations
-          .filter((operation) => operation.status === 'completed')
-          .map((operation) => operation.id),
+        workResults: works
+          .filter((work) => work.status === 'completed')
+          .map((work) => work.id),
       },
       updatedAt: now,
     }
@@ -197,20 +197,20 @@ export class RuntimeScheduler {
   }
 }
 
-function continuationIdForOperation(operation: RuntimeOperation): string {
-  const groupId = operation.continuationPolicy?.groupId?.trim()
-  return `continuation_${groupId || operation.id}`
+function continuationIdForWork(work: RuntimeWork): string {
+  const groupId = work.continuationPolicy?.groupId?.trim()
+  return `continuation_${groupId || work.id}`
 }
 
-function continuationMessage(continuation: RuntimeContinuation, operations: RuntimeOperation[]): string {
+function continuationMessage(continuation: RuntimeContinuation, works: RuntimeWork[]): string {
   const lines = [
-    '[Runtime continuation]',
+    '[Runtime work continuation]',
     `Continuation: ${continuation.id}`,
-    'Runtime operations completed. Continue the original task using these results. Do not rerun completed operations unless the result is unusable.',
+    'Runtime work completed. Continue the original task using these results. Do not rerun completed work unless the result is unusable.',
     '',
-    ...operations.map((operation) => {
-      const result = operation.result === undefined ? 'null' : JSON.stringify(operation.result)
-      return `- ${operation.id} (${operation.kind}): ${result}`
+    ...works.map((work) => {
+      const result = work.result === undefined ? 'null' : JSON.stringify(work.result)
+      return `- ${work.id} (${work.kind}): ${result}`
     }),
   ]
   return lines.join('\n')

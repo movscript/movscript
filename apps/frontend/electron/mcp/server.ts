@@ -3423,12 +3423,6 @@ function normalizeProjectLayerProposalPayloadForKind(value: unknown, kind: Agent
   if (effectiveKind === 'setting_proposal' || effectiveKind === 'asset_proposal') {
     const creativeReferences = effectiveKind === 'setting_proposal' ? normalizeProjectLayerProposalSnapshotNodes(proposal.creative_references) : []
     const assetSlots = effectiveKind === 'asset_proposal' ? normalizeProjectLayerProposalSnapshotNodes(proposal.asset_slots) : []
-    if (effectiveKind === 'setting_proposal') {
-      validateDirectSettingProposalSnapshot(payload)
-    }
-    if (effectiveKind === 'asset_proposal') {
-      validateDirectAssetProposalSnapshot(payload)
-    }
     return {
       ...payload,
       scope: effectiveKind,
@@ -3465,21 +3459,6 @@ function normalizeProjectStylePatch(value: unknown): Record<string, unknown> {
     out.negative_rules = normalizeProjectStyleStringList(value.negative_rules)
   }
   return out
-}
-
-function validateDirectSettingProposalSnapshot(payload: Record<string, unknown>): void {
-  const snapshotBase = isRecord(payload.snapshot_base) ? payload.snapshot_base : undefined
-  if (!Array.isArray(snapshotBase?.creative_references)) {
-    throw new Error('Setting proposal snapshot apply requires snapshot_base.creative_references. Create or update the draft through draft_create so runtime can hydrate the current-data baseline; omitted creative references are treated as deletes.')
-  }
-}
-
-function validateDirectAssetProposalSnapshot(payload: Record<string, unknown>): void {
-  const snapshotBase = isRecord(payload.snapshot_base) ? payload.snapshot_base : undefined
-  const baseSlots = Array.isArray(snapshotBase?.asset_slots) ? snapshotBase.asset_slots : undefined
-  if (!baseSlots) {
-    throw new Error('Asset proposal snapshot apply requires snapshot_base.asset_slots. Create or update the draft through draft_create so runtime can hydrate the current-data baseline; omitted asset slots are treated as deletes.')
-  }
 }
 
 function normalizeProjectStyleStringList(value: unknown): string[] {

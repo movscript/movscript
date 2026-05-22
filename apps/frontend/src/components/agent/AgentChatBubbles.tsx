@@ -10,7 +10,7 @@ import { toolNameFromToolCallStreamEvent } from '@/lib/agentRunActivity'
 import { openAdminConsole } from '@/lib/adminConsole'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
 import { cn } from '@/lib/utils'
-import { GenerationJobSummaryCard, GenerationParamAuditCard, GenerationProgressCard, GenerationTraceSummaryCard, GenerationValidationErrorCard } from '@/components/agent/GenerationCards'
+import { GenerationParamAuditCard, GenerationProgressCard, GenerationValidationErrorCard } from '@/components/agent/GenerationCards'
 import { GeneratedResultCard } from '@/components/agent/GeneratedResultCard'
 import {
   AgentAttachmentPreview as AttachmentPreview,
@@ -18,11 +18,12 @@ import {
   AgentMessageSection,
 } from '@/components/agent/AgentMessageContent'
 import { ContextDiagnosticCard } from '@/components/agent/ContextDiagnosticCard'
-import { RunActivityPanel } from '@/components/agent/AgentRunActivityPanel'
 import { AgentDraftResultCards } from '@/components/agent/AgentDraftResultCards'
 import { AgentProgressChecklistRevisionCard } from '@/components/agent/AgentProgressChecklistCard'
+import { AgentActivityDividerMenu, AgentActivityFeedView } from '@/components/agent/AgentActivityFeed'
 import type { GenerationProgressState } from '@/lib/agentGenerationMedia'
 import type { AgentLivePendingAssistantState } from '@/lib/agentLiveRunActivity'
+import type { AgentInputAnswer } from '@/lib/agentWorkflowInteraction'
 import type { AgentRun } from '@/lib/localAgentClient'
 import type { ChatMessage, ChatRunActivityEvent } from '@/store/agentStore'
 
@@ -136,7 +137,23 @@ function formatDurationLabel(ms: number) {
   return `${Math.round(ms / 60_000)}m`
 }
 
-export function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?: number }) {
+export function MessageBubble({
+  msg,
+  projectId,
+  workflowRun,
+  approvingLocalRun = false,
+  onApproveLocalRun,
+  onRejectLocalRun,
+  onAnswerLocalRunInput,
+}: {
+  msg: ChatMessage
+  projectId?: number
+  workflowRun?: AgentRun | null
+  approvingLocalRun?: boolean
+  onApproveLocalRun?: (approvalIds?: string[]) => void
+  onRejectLocalRun?: (approvalIds?: string[]) => void
+  onAnswerLocalRunInput?: (requestId: string, answer: AgentInputAnswer) => void
+}) {
   const { t, i18n } = useTranslation()
   const apiBaseURL = useAppSettingsStore((s) => s.settings.apiBaseURL)
   const [copied, setCopied] = useState(false)
@@ -168,7 +185,6 @@ export function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?
     contextDiagnostic,
     contextLabels,
     draftArtifacts,
-    generationJobs,
     generationParamAudits,
     generationValidationErrors,
     localRunActivity,
@@ -179,7 +195,6 @@ export function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?
     showModelSetupAction,
     showLargeMedia,
     hasResultSection,
-    hasProcessSection,
     hasDiagnosticSection,
   } = presentation
 
@@ -228,6 +243,18 @@ export function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?
         </div>
       )}
     >
+      {!isUser && localRunActivity && <AgentActivityDividerMenu activity={localRunActivity} />}
+      {!isUser && localRunActivity && (
+        <AgentActivityFeedView
+          activity={localRunActivity}
+          workflowRun={workflowRun}
+          approving={approvingLocalRun}
+          onApprove={onApproveLocalRun}
+          onReject={onRejectLocalRun}
+          onAnswerInput={onAnswerLocalRunInput}
+          className={displayContent || progressChecklistRevision ? 'mb-2' : undefined}
+        />
+      )}
       {progressChecklistRevision
         ? <AgentProgressChecklistRevisionCard revision={progressChecklistRevision} />
         : displayContent && <MarkdownContent text={displayContent} attachments={messageAttachments} />}
@@ -263,19 +290,6 @@ export function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?
             </div>
           )}
         </div>
-      )}
-      {hasProcessSection && (
-        <AgentMessageSection title={t('agents.chat.messageSections.process')} tone="process" defaultOpen={false}>
-          {localRunActivity && (
-            <RunActivityPanel
-              activity={localRunActivity}
-              title={t('agents.chat.messageSections.processOverview')}
-              className="mt-0"
-            />
-          )}
-          <GenerationTraceSummaryCard jobs={generationJobs} />
-          <GenerationJobSummaryCard jobs={generationJobs} />
-        </AgentMessageSection>
       )}
       {hasDiagnosticSection && (
         <AgentMessageSection title={t('agents.chat.messageSections.diagnostics')} tone="diagnostic" defaultOpen={!!contextDiagnostic && !displayContent}>

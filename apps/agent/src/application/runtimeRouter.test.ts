@@ -43,6 +43,7 @@ function installDefaultModelFetch(): void {
     const toolMessages = messages.filter((m) => m.role === 'tool')
     const tools = (body.tools as Array<{ function: { name: string } }>) ?? []
     const toolNames = new Set(tools.map((t) => t.function.name))
+    const isWorkContinuation = /^\[Runtime work continuation\]/.test(userMsg)
     if (isThreadTitleRequest(messages)) {
       return new Response(JSON.stringify({
         choices: [{ message: { content: userMsg.slice(0, 12) }, finish_reason: 'stop' }],
@@ -67,8 +68,8 @@ function installDefaultModelFetch(): void {
     if (
       /按模型能力|model contract/i.test(userMsg)
       && toolMessages.length > 0
-      && toolNames.has('core_operation_start')
-      && !toolResultForCall(toolMessages, 'core_operation_start')
+      && toolNames.has('core_work_start')
+      && !toolResultForCall(toolMessages, 'core_work_start')
     ) {
       const modelsResult = toolResultForCall(toolMessages, 'generation_model_list') ?? toolResultForCall(toolMessages, 'movscript.list_models')
       const contract = firstModelContract(modelsResult)
@@ -92,7 +93,7 @@ function installDefaultModelFetch(): void {
               tool_calls: [{
                 id: 'call_generation_from_contract_1',
                 type: 'function',
-                function: { name: 'core_operation_start', arguments: JSON.stringify({ kind: 'generation_job', request: args }) },
+                function: { name: 'core_work_start', arguments: JSON.stringify({ kind: 'generation_job', request: args }) },
               }],
             },
             finish_reason: 'tool_calls',
@@ -147,7 +148,7 @@ function installDefaultModelFetch(): void {
         args: { capability: /视频|video/i.test(userMsg) ? 'video' : 'image' },
       })
     }
-    if (!/按模型能力|model contract/i.test(userMsg) && /生成|出图|视频|image|video/i.test(userMsg) && toolNames.has('core_operation_start')) {
+    if (!isWorkContinuation && !/按模型能力|model contract/i.test(userMsg) && /生成|出图|视频|image|video/i.test(userMsg) && toolNames.has('core_work_start')) {
       const request = {
         prompt: '雨夜便利店，电影感，16:9',
         output_type: /视频|video/i.test(userMsg) ? 'video' : 'image',
@@ -157,7 +158,7 @@ function installDefaultModelFetch(): void {
       }
       callsToMake.push({
         id: 'call_generation_1',
-        name: 'core_operation_start',
+        name: 'core_work_start',
         args: { kind: 'generation_job', request },
       })
     }
@@ -178,24 +179,30 @@ function installDefaultModelFetch(): void {
         },
       })
     }
-    if (/spawn subagent/i.test(userMsg) && toolNames.has('core_subagent_spawn')) {
+    if (/spawn subagent/i.test(userMsg) && toolNames.has('core_work_start')) {
       callsToMake.push({
         id: 'call_spawn_subagent_1',
-        name: 'core_subagent_spawn',
-        args: { maxWorkers: 2 },
+        name: 'core_work_start',
+        args: {
+          kind: 'subagent_run',
+          request: {
+            name: 'research_worker',
+            instructions: 'Check the requested context and report concise findings.',
+          },
+        },
       })
     }
-    if (/list subagents/i.test(userMsg) && toolNames.has('core_subagent_list')) {
+    if (/list subagents/i.test(userMsg) && toolNames.has('core_work_list')) {
       callsToMake.push({
         id: 'call_list_subagents_1',
-        name: 'core_subagent_list',
+        name: 'core_work_list',
         args: {},
       })
     }
-    if (/wait subagent/i.test(userMsg) && toolNames.has('core_subagent_wait')) {
+    if (/wait subagent/i.test(userMsg) && toolNames.has('core_work_wait')) {
       callsToMake.push({
         id: 'call_wait_subagent_1',
-        name: 'core_subagent_wait',
+        name: 'core_work_wait',
         args: { timeoutMs: 1000 },
       })
     }
@@ -1413,9 +1420,9 @@ test('completed runs persist thread context summaries and reuse refs in later pr
     assert.equal(summary?.schema, 'movscript.thread-context-summary.v2')
     assert.equal(firstRun.metadata?.threadContextSummary && (firstRun.metadata.threadContextSummary as any).schema, 'movscript.thread-context-summary.v2')
     assert.ok(summary.recentRunRefs?.[0]?.retrievedRefs?.some((ref: any) => ref.type === 'knowledge' && ref.id === 'storyboard.rhythm.basic'))
-    assert.match(firstAssistant?.content ?? '', /来源：/)
-    assert.match(firstAssistant?.content ?? '', /通用知识建议：.*knowledge#storyboard\.rhythm\.basic《分镜节奏基础》.*（source=knowledge; evidence=advisory）/)
-    assert.match(firstAssistant?.content ?? '', /用户输入：本轮消息（source=user_input; evidence=user_claimed）/)
+    assert.doesNotMatch(firstAssistant?.content ?? '', /来源：/)
+    assert.doesNotMatch(firstAssistant?.content ?? '', /通用知识建议：.*knowledge#storyboard\.rhythm\.basic《分镜节奏基础》.*（source=knowledge; evidence=advisory）/)
+    assert.doesNotMatch(firstAssistant?.content ?? '', /用户输入：本轮消息（source=user_input; evidence=user_claimed）/)
 
     runtime.addMessage(thread.id, { role: 'user', content: '继续' })
     const secondRun = await createAndWaitForRun(runtime, thread.id)
@@ -1596,7 +1603,7 @@ test('records backend OpenAI-compatible model HTTP request and response in run t
     assert.equal(typeof responseData.latencyMs, 'number')
     assert.equal(typeof assistantData.messageId, 'string')
     assert.match(assistantData.content, /trace reply/)
-    assert.match(assistantData.content, /来源/)
+    assert.doesNotMatch(assistantData.content, /来源/)
     assert.equal(assistantData.source, 'model')
     assertRunTraceEventTypes(runtime, run.id, [
       'context.run_built',
@@ -1645,7 +1652,7 @@ test('records backend OpenAI-compatible model HTTP request and response in run t
     assert.equal(restoredResponseData.response.content, 'trace reply')
     assert.equal(typeof restoredAssistantData.messageId, 'string')
     assert.match(restoredAssistantData.content, /trace reply/)
-    assert.match(restoredAssistantData.content, /来源/)
+    assert.doesNotMatch(restoredAssistantData.content, /来源/)
     assert.equal(restoredAssistantData.source, 'model')
     assert.deepEqual(rebuilt.getRun(run.id)?.traceEvents ?? [], [])
   } finally {
@@ -2053,7 +2060,7 @@ test('oversized tool results are summarized before the next model turn', async (
   }
 })
 
-test('runtime operation generation starts emit structured created trace without synchronous polling', async () => {
+test('runtime work generation starts emit structured created trace without synchronous polling', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   client.toolResults.set('generation_job_create', {
@@ -2101,7 +2108,7 @@ test('runtime operation generation starts emit structured created trace without 
       ...DEFAULT_AGENT_MANIFEST,
       tools: [
         ...DEFAULT_AGENT_MANIFEST.tools,
-        { name: 'core_operation_start', mode: 'allow', approval: 'never' },
+        { name: 'core_work_start', mode: 'allow', approval: 'never' },
       ],
     },
   })
@@ -2168,9 +2175,9 @@ test('agent uses model_contracts from list_models before generation params', asy
       requiresApprovalByDefault: false,
     },
     {
-      name: 'core_operation_start',
-      description: 'Start an asynchronous runtime operation.',
-      permission: 'agent.operation.write',
+      name: 'core_work_start',
+      description: 'Start an asynchronous runtime work.',
+      permission: 'agent.work.write',
       risk: 'generate',
       source: 'runtime',
       projectScoped: true,
@@ -2185,7 +2192,7 @@ test('agent uses model_contracts from list_models before generation params', asy
       tools: [
         ...DEFAULT_AGENT_MANIFEST.tools,
         { name: 'generation_model_list', mode: 'allow', approval: 'never' },
-        { name: 'core_operation_start', mode: 'allow', approval: 'never' },
+        { name: 'core_work_start', mode: 'allow', approval: 'never' },
       ],
     },
   })
@@ -2222,7 +2229,7 @@ test('/image command forces a generation tool call and returns the generated job
       ...DEFAULT_AGENT_MANIFEST,
       tools: [
         ...DEFAULT_AGENT_MANIFEST.tools,
-        { name: 'core_operation_start', mode: 'allow', approval: 'never' },
+        { name: 'core_work_start', mode: 'allow', approval: 'never' },
       ],
     },
   })
@@ -2238,7 +2245,7 @@ test('/image command forces a generation tool call and returns the generated job
   assert.match(assistant?.content ?? '', /Output resource: #654/)
 })
 
-test('runtime operation generation starts do not synchronously monitor failed or cancelled jobs', async () => {
+test('runtime work generation starts do not synchronously monitor failed or cancelled jobs', async () => {
   for (const terminalStatus of ['failed', 'cancelled'] as const) {
     const client = new FakeMCPClient()
     client.projectId = 42
@@ -2267,7 +2274,7 @@ test('runtime operation generation starts do not synchronously monitor failed or
         ...DEFAULT_AGENT_MANIFEST,
         tools: [
           ...DEFAULT_AGENT_MANIFEST.tools,
-          { name: 'core_operation_start', mode: 'allow', approval: 'never' },
+          { name: 'core_work_start', mode: 'allow', approval: 'never' },
         ],
       },
     })
@@ -2285,7 +2292,7 @@ test('runtime operation generation starts do not synchronously monitor failed or
   }
 })
 
-test('runtime operation generation starts do not emit synchronous heartbeat monitor updates', async () => {
+test('runtime work generation starts do not emit synchronous heartbeat monitor updates', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   client.toolResults.set('generation_job_create', {
@@ -2315,7 +2322,7 @@ test('runtime operation generation starts do not emit synchronous heartbeat moni
       ...DEFAULT_AGENT_MANIFEST,
       tools: [
         ...DEFAULT_AGENT_MANIFEST.tools,
-        { name: 'core_operation_start', mode: 'allow', approval: 'never' },
+        { name: 'core_work_start', mode: 'allow', approval: 'never' },
       ],
     },
   })
@@ -2333,7 +2340,7 @@ test('runtime operation generation starts do not emit synchronous heartbeat moni
   assert.deepEqual(client.calls.filter((call) => call.name === 'generation_job_get'), [])
 })
 
-test('runtime operation generation starts do not timeout while async job keeps running', async () => {
+test('runtime work generation starts do not timeout while async job keeps running', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   client.toolResults.set('generation_job_create', {
@@ -2362,7 +2369,7 @@ test('runtime operation generation starts do not timeout while async job keeps r
       ...DEFAULT_AGENT_MANIFEST,
       tools: [
         ...DEFAULT_AGENT_MANIFEST.tools,
-        { name: 'core_operation_start', mode: 'allow', approval: 'never' },
+        { name: 'core_work_start', mode: 'allow', approval: 'never' },
       ],
     },
   })
@@ -3652,8 +3659,7 @@ test('supervisor dispatch spawns worker runs and syncs task status from child co
   })
   assert.equal(runtime.getThread(thread.id)?.messages.filter((message) => message.role === 'user').length, userMessageCountBeforeDispatch)
   assert.equal(runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id).tasks.find((task) => task.id === 'task_a')?.metadata?.subagentName, 'Agent 1')
-  const waitFirstByName = await runtime.waitSubagent(finishedPlanner, { subagentName: 'Agent 1' }) as any
-  assert.equal((waitFirstByName.target.run ?? waitFirstByName.target.task).subagentName, 'Agent 1')
+  assert.equal(firstDispatch.spawnedRuns[0]?.metadata?.subagentName, 'Agent 1')
 
   const firstWorker = await waitForRun(runtime, firstDispatch.spawnedRuns[0]!.id)
   assert.ok(firstWorker.status === 'completed' || firstWorker.status === 'completed_with_warnings')
@@ -3884,290 +3890,6 @@ test('taskGraph stream replays snapshots and emits task run lifecycle events', a
   unsubscribe()
 })
 
-test('planner runtime tools spawn list and wait worker subagents', async () => {
-  const client = new FakeMCPClient()
-  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: 'spawn subagent' }] })
-  const taskGraph = await runtime.createTaskGraph({
-    threadId: thread.id,
-    title: 'Planner tool dispatch',
-    tasks: [
-      { id: 'task_tool_a', title: 'Worker A', metadata: { executionMode: 'worker' } },
-      { id: 'task_tool_b', title: 'Worker B', metadata: { executionMode: 'worker' } },
-    ],
-  })
-
-  const planner = await waitForRun(runtime, taskGraph.runs[0]!.id)
-  assert.ok(planner.status === 'completed' || planner.status === 'completed_with_warnings')
-  const spawnStep = planner.steps.find((step) => step.toolName === 'core_subagent_spawn')
-  const spawnResult = spawnStep?.result as any
-  assert.equal(spawnResult?.status, 'spawned')
-  assert.equal(spawnResult?.spawnedRuns?.length, 1)
-  const workerIds = spawnResult.spawnedRuns.map((run: any) => run.id)
-
-  for (const workerId of workerIds) {
-    const worker = await waitForRun(runtime, workerId)
-    assert.ok(worker.status === 'completed' || worker.status === 'completed_with_warnings')
-  }
-
-  const listResult = runtime.listSubagents(planner, {}) as any
-  assert.equal(listResult.snapshot.runs.length, 1)
-  const waitResult = await runtime.waitSubagent(planner, { runId: workerIds[0], timeoutMs: 1000 })
-  assert.equal((waitResult as any).done, true)
-  assert.equal((waitResult as any).status, 'completed')
-})
-
-test('planner subagent dispatch can target specific runnable tasks', async () => {
-  const client = new FakeMCPClient()
-  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const taskGraph = await runtime.createTaskGraph({
-    threadId: thread.id,
-    title: 'Targeted dispatch',
-    tasks: [
-      { id: 'task_target_a', title: 'Target A', metadata: { executionMode: 'worker' } },
-      { id: 'task_target_b', title: 'Target B', metadata: { executionMode: 'worker' } },
-      { id: 'task_target_c', title: 'Target C', deps: ['task_target_a'], metadata: { executionMode: 'worker' } },
-    ],
-  })
-  const planner = await waitForRun(runtime, taskGraph.runs[0]!.id)
-
-  const targeted = runtime.spawnSubagent(planner, {
-    taskIds: ['task_target_b'],
-    maxWorkers: 2,
-  }) as any
-  assert.equal(targeted.spawnedRuns.length, 1)
-  assert.equal(targeted.spawnedRuns[0]?.taskId, 'task_target_b')
-  let snapshot = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id)
-  assert.equal(snapshot.tasks.find((task) => task.id === 'task_target_a')?.status, 'pending')
-  assert.equal(snapshot.tasks.find((task) => task.id === 'task_target_b')?.status, 'running')
-  assert.equal(snapshot.tasks.find((task) => task.id === 'task_target_c')?.status, 'pending')
-
-  const blocked = runtime.spawnSubagent(planner, {
-    taskIds: ['task_target_c'],
-    maxWorkers: 2,
-  }) as any
-  assert.equal(blocked.spawnedRuns.length, 0)
-  assert.deepEqual(blocked.blockedTaskIds, ['task_target_c'])
-  snapshot = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id)
-  assert.equal(snapshot.tasks.find((task) => task.id === 'task_target_c')?.blockedReason, 'Waiting for dependency task(s): task_target_a')
-})
-
-test('spawn_subagent forwards retry and timeout dispatch controls', async () => {
-  const client = new FakeMCPClient()
-  const store = new InMemoryAgentStore()
-  const runtime = createTestRuntime({ mcpClient: client, store, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const taskGraph = await runtime.createTaskGraph({
-    threadId: thread.id,
-    title: 'Subagent dispatch controls',
-    tasks: [
-      { id: 'task_spawn_retry', title: 'Retry me', metadata: { executionMode: 'worker' } },
-      { id: 'task_spawn_timeout', title: 'Timeout me', metadata: { executionMode: 'worker' } },
-    ],
-  })
-  const planner = await waitForRun(runtime, taskGraph.runs[0]!.id)
-
-  const first = runtime.spawnSubagent(planner, {
-    taskIds: ['task_spawn_retry'],
-  }) as any
-  assert.equal(first.spawnedRuns.length, 1)
-  const failedRun = runtime.getRun(first.spawnedRuns[0].id)
-  assert.ok(failedRun)
-  failedRun.status = 'failed'
-  failedRun.failedAt = new Date().toISOString()
-  failedRun.error = 'worker failed'
-  store.updateRun(failedRun)
-  runtime.updateTask('task_spawn_retry', {
-    status: 'failed',
-    progress: 0,
-    ownerRunId: failedRun.id,
-    blockedReason: 'worker failed',
-  })
-
-  const retried = runtime.spawnSubagent(planner, {
-    taskIds: ['task_spawn_retry'],
-    retryFailed: true,
-    maxTaskAttempts: 2,
-  }) as any
-  assert.deepEqual(retried.retriedTaskIds, ['task_spawn_retry'])
-  assert.equal(retried.spawnedRuns.length, 1)
-  assert.notEqual(retried.spawnedRuns[0].id, failedRun.id)
-  assert.equal(runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id).tasks.find((task) => task.id === 'task_spawn_retry')?.metadata?.retryAttempt, 2)
-
-  const staleStartedAt = new Date(Date.now() - 60_000).toISOString()
-  const staleRun: AgentRun = {
-    id: 'run_spawn_timeout',
-    threadId: thread.id,
-    status: 'in_progress',
-    role: 'worker',
-    parentRunId: planner.id,
-    taskGraphId: taskGraph.taskGraph.id,
-    taskId: 'task_spawn_timeout',
-    agentManifest: DEFAULT_AGENT_MANIFEST,
-    policy: planner.policy,
-    createdAt: staleStartedAt,
-    updatedAt: staleStartedAt,
-    startedAt: staleStartedAt,
-    steps: [],
-    traceEvents: [],
-  }
-  store.createRun(staleRun)
-  runtime.updateTask('task_spawn_timeout', {
-    status: 'running',
-    progress: 0.1,
-    ownerRunId: staleRun.id,
-  })
-
-  const timedOut = runtime.spawnSubagent(planner, {
-    taskIds: ['task_spawn_timeout'],
-    workerTimeoutMs: 1,
-  }) as any
-  assert.equal(timedOut.timedOutRunIds.includes(staleRun.id), true)
-  assert.equal(runtime.getRun(staleRun.id)?.status, 'cancelled')
-  assert.equal(runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id).tasks.find((task) => task.id === 'task_spawn_timeout')?.metadata?.timedOutRunId, staleRun.id)
-})
-
-test('spawn_subagent assigns neutral fallback names when omitted', async () => {
-  const client = new FakeMCPClient()
-  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const taskGraph = await runtime.createTaskGraph({
-    threadId: thread.id,
-    title: 'Auto named subagents',
-    tasks: [
-      { id: 'task_auto_a', title: 'Auto A', metadata: { executionMode: 'worker' } },
-      { id: 'task_auto_b', title: 'Auto B', metadata: { executionMode: 'worker' } },
-    ],
-  })
-  const planner = await waitForRun(runtime, taskGraph.runs[0]!.id)
-
-  const spawned = runtime.spawnSubagent(planner, {
-    taskIds: ['task_auto_a', 'task_auto_b'],
-    maxWorkers: 2,
-  }) as any
-
-  assert.deepEqual(spawned.spawnedRuns.map((run: any) => run.subagentName), ['Agent 1', 'Agent 2'])
-  const listResult = runtime.listSubagents(planner, {}) as any
-  assert.deepEqual(listResult.snapshot.workers.map((run: any) => run.subagentName).sort(), ['Agent 1', 'Agent 2'])
-  const waitAgent = await runtime.waitSubagent(planner, { subagentName: 'Agent 1' }) as any
-  assert.equal((waitAgent.target.run ?? waitAgent.target.task).subagentName, 'Agent 1')
-})
-
-test('spawn_subagent creates direct child agents for inline tasks', async () => {
-  const client = new FakeMCPClient()
-  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const taskGraph = await runtime.createTaskGraph({
-    threadId: thread.id,
-    title: 'Auto named new tasks',
-    tasks: [],
-  })
-  const planner = await waitForRun(runtime, taskGraph.runs[0]!.id)
-
-  const spawned = runtime.spawnSubagent(planner, {
-    tasks: [
-      { id: 'task_created_auto_a', title: 'Created Auto A' },
-      { id: 'task_created_auto_b', title: 'Created Auto B' },
-    ],
-    maxWorkers: 2,
-  }) as any
-
-  assert.deepEqual(spawned.spawnedRuns.map((run: any) => run.subagentName), ['Agent 1', 'Agent 2'])
-  assert.deepEqual(spawned.spawnedRuns.map((run: any) => run.parentRunId), [planner.id, planner.id])
-  const snapshot = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id)
-  assert.equal(snapshot.tasks.some((task) => task.id === 'task_created_auto_a'), false)
-  assert.equal(snapshot.tasks.some((task) => task.id === 'task_created_auto_b'), false)
-})
-
-test('spawn_subagent rejects duplicate subagent names within a taskGraph', async () => {
-  const client = new FakeMCPClient()
-  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const taskGraph = await runtime.createTaskGraph({
-    threadId: thread.id,
-    title: 'Duplicate subagent names',
-    tasks: [
-      { id: 'task_duplicate_a', title: 'Duplicate A', metadata: { executionMode: 'worker' } },
-      { id: 'task_duplicate_b', title: 'Duplicate B', metadata: { executionMode: 'worker' } },
-    ],
-  })
-  const planner = await waitForRun(runtime, taskGraph.runs[0]!.id)
-
-  assert.throws(() => runtime.spawnSubagent(planner, {
-    taskIds: ['task_duplicate_a', 'task_duplicate_b'],
-    subagentNames: ['Einstein', 'Einstein'],
-  }), /subagent name already exists/)
-
-  const spawned = runtime.spawnSubagent(planner, {
-    taskIds: ['task_duplicate_a'],
-    subagentName: 'Einstein',
-  }) as any
-  assert.equal(spawned.spawnedRuns[0]?.subagentName, 'Einstein')
-  assert.throws(() => runtime.spawnSubagent(planner, {
-    taskIds: ['task_duplicate_b'],
-    subagentName: 'Einstein',
-  }), /subagent name already exists/)
-})
-
-test('spawn_subagent accepts taskId to subagentName mappings', async () => {
-  const client = new FakeMCPClient()
-  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const taskGraph = await runtime.createTaskGraph({
-    threadId: thread.id,
-    title: 'Mapped subagent names',
-    tasks: [
-      { id: 'task_mapped_a', title: 'Mapped A', metadata: { executionMode: 'worker' } },
-      { id: 'task_mapped_b', title: 'Mapped B', metadata: { executionMode: 'worker' } },
-    ],
-  })
-  const planner = await waitForRun(runtime, taskGraph.runs[0]!.id)
-
-  const spawned = runtime.spawnSubagent(planner, {
-    taskIds: ['task_mapped_a', 'task_mapped_b'],
-    subagentNames: {
-      task_mapped_b: 'Hawking',
-      task_mapped_a: 'Einstein',
-    },
-    maxWorkers: 2,
-  }) as any
-
-  assert.deepEqual(spawned.spawnedRuns.map((run: any) => run.subagentName).sort(), ['Einstein', 'Hawking'])
-  const snapshot = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id)
-  assert.equal(snapshot.tasks.find((task) => task.id === 'task_mapped_a')?.metadata?.subagentName, 'Einstein')
-  assert.equal(snapshot.tasks.find((task) => task.id === 'task_mapped_b')?.metadata?.subagentName, 'Hawking')
-})
-
-test('spawn_subagent preserves explicit names when resetting blocked tasks', async () => {
-  const client = new FakeMCPClient()
-  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const taskGraph = await runtime.createTaskGraph({
-    threadId: thread.id,
-    title: 'Blocked subagent name reset',
-    tasks: [
-      { id: 'task_blocked_named', title: 'Blocked named', metadata: { executionMode: 'worker' } },
-    ],
-  })
-  const planner = await waitForRun(runtime, taskGraph.runs[0]!.id)
-  runtime.updateTask('task_blocked_named', {
-    status: 'blocked',
-    blockedReason: 'Waiting for explicit retry',
-  })
-
-  const spawned = runtime.spawnSubagent(planner, {
-    taskId: 'task_blocked_named',
-    subagentName: 'Curie',
-  }) as any
-
-  assert.equal(spawned.spawnedRuns[0]?.subagentName, 'Curie')
-  const snapshot = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id)
-  const task = snapshot.tasks.find((item) => item.id === 'task_blocked_named')
-  assert.equal(task?.metadata?.subagentName, 'Curie')
-  assert.equal(task?.metadata?.resetByPlannerRunId, planner.id)
-})
-
 test('task metadata updates cannot create duplicate subagent names', async () => {
   const client = new FakeMCPClient()
   const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
@@ -4200,106 +3922,6 @@ test('task metadata updates cannot create duplicate subagent names', async () =>
     },
   })
   assert.equal(updated.metadata?.subagentName, 'Hawking')
-})
-
-test('spawn_subagent does not partially create tasks when name validation fails', async () => {
-  const client = new FakeMCPClient()
-  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const taskGraph = await runtime.createTaskGraph({
-    threadId: thread.id,
-    title: 'Atomic subagent creation',
-    tasks: [],
-  })
-  const planner = await waitForRun(runtime, taskGraph.runs[0]!.id)
-
-  assert.throws(() => runtime.spawnSubagent(planner, {
-    tasks: [
-      { id: 'task_atomic_a', title: 'Atomic A', subagentName: 'Einstein' },
-      { id: 'task_atomic_b', title: 'Atomic B', subagentName: 'Einstein' },
-    ],
-  }), /child agent name already exists/)
-
-  const snapshot = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id)
-  assert.equal(snapshot.tasks.some((task) => task.id === 'task_atomic_a'), false)
-  assert.equal(snapshot.tasks.some((task) => task.id === 'task_atomic_b'), false)
-})
-
-test('spawn_subagent validates existing task targets before creating new tasks', async () => {
-  const client = new FakeMCPClient()
-  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const taskGraph = await runtime.createTaskGraph({
-    threadId: thread.id,
-    title: 'Atomic subagent target validation',
-    tasks: [],
-  })
-  const otherThread = runtime.createThread({ messages: [{ role: 'user', content: '其他规划' }] })
-  const otherTaskGraph = await runtime.createTaskGraph({
-    threadId: otherThread.id,
-    title: 'Other target validation taskGraph',
-    createPlannerRun: false,
-    tasks: [
-      { id: 'task_other_task_graph_target', title: 'Other taskGraph target', metadata: { executionMode: 'worker' } },
-    ],
-  })
-  const planner = await waitForRun(runtime, taskGraph.runs[0]!.id)
-
-  assert.throws(() => runtime.spawnSubagent(planner, {
-    taskIds: ['task_other_task_graph_target'],
-    tasks: [
-      { id: 'task_should_not_be_created', title: 'Should not be created' },
-    ],
-  }), /does not belong to task graph/)
-
-  assert.equal(runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id).tasks.some((task) => task.id === 'task_should_not_be_created'), false)
-  assert.equal(runtime.getTaskGraphSnapshot(otherTaskGraph.taskGraph.id).tasks.some((task) => task.id === 'task_other_task_graph_target'), true)
-})
-
-test('wait and cancel reject ambiguous persisted subagent names', async () => {
-  const client = new FakeMCPClient()
-  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const taskGraph = await runtime.createTaskGraph({
-    threadId: thread.id,
-    title: 'Ambiguous persisted subagents',
-    tasks: [
-      { id: 'task_ambiguous_a', title: 'Ambiguous A', metadata: { executionMode: 'worker', subagentName: 'Einstein' } },
-      { id: 'task_ambiguous_b', title: 'Ambiguous B', metadata: { executionMode: 'worker', subagentName: 'Einstein' } },
-    ],
-  })
-  const planner = await waitForRun(runtime, taskGraph.runs[0]!.id)
-
-  assert.deepEqual(runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id).nameConflicts, [{
-    subagentName: 'Einstein',
-    taskIds: ['task_ambiguous_a', 'task_ambiguous_b'],
-  }])
-
-  await assert.rejects(
-    runtime.waitSubagent(planner, { subagentName: 'Einstein' }),
-    /subagent name is ambiguous/,
-  )
-  assert.throws(
-    () => runtime.cancelSubagent(planner, { subagentName: 'Einstein' }),
-    /subagent name is ambiguous/,
-  )
-
-  const listResult = runtime.listSubagents(planner, {}) as any
-  assert.deepEqual(listResult.snapshot.nameConflicts, [{
-    subagentName: 'Einstein',
-    taskIds: ['task_ambiguous_a', 'task_ambiguous_b'],
-  }])
-
-  const followupPlanner = await createAndWaitForRun(runtime, thread.id, {
-    role: 'planner',
-    taskGraphId: taskGraph.taskGraph.id,
-  })
-  const contextEvent = runtime.getRunTraceEvents(followupPlanner.id, { limit: Number.MAX_SAFE_INTEGER })
-    .find((event) => event.title === 'Runtime context resolved')
-  assert.deepEqual((contextEvent?.data as any)?.agentTaskGraph?.nameConflicts, [{
-    subagentName: 'Einstein',
-    taskIds: ['task_ambiguous_a', 'task_ambiguous_b'],
-  }])
 })
 
 test('planner context artifact references include source task provenance', async () => {
@@ -4403,426 +4025,6 @@ test('taskGraph snapshots expose reusable taskGraph summary', async () => {
   assert.deepEqual(snapshot.summary?.blockedTaskIds, ['task_summary_blocked'])
 })
 
-test('subagent planner tool results expose stable name-first schema', async () => {
-  const client = new FakeMCPClient()
-  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const taskGraph = await runtime.createTaskGraph({
-    threadId: thread.id,
-    title: 'Subagent tool schema',
-    tasks: [
-      { id: 'task_schema_a', title: 'Schema A', metadata: { executionMode: 'worker' } },
-      { id: 'task_schema_b', title: 'Schema B', metadata: { executionMode: 'worker' } },
-    ],
-  })
-  const planner = await waitForRun(runtime, taskGraph.runs[0]!.id)
-
-  const spawnResult = runtime.spawnSubagent(planner, {
-    taskIds: ['task_schema_a', 'task_schema_b'],
-    subagentNames: ['Einstein', 'Hawking'],
-    maxWorkers: 2,
-  }) as any
-  assert.equal(spawnResult.status, 'spawned')
-  assert.equal(spawnResult.taskGraphId, taskGraph.taskGraph.id)
-  assert.equal(spawnResult.plannerRunId, planner.id)
-  assert.deepEqual(spawnResult.createdTaskIds, [])
-  assert.deepEqual(spawnResult.blockedTaskIds, [])
-  assert.deepEqual(spawnResult.retriedTaskIds, [])
-  assert.deepEqual(spawnResult.timedOutRunIds, [])
-  assert.deepEqual(spawnResult.spawnedRuns.map((run: any) => run.subagentName), ['Einstein', 'Hawking'])
-  for (const run of spawnResult.spawnedRuns) {
-    assert.equal(run.role, 'worker')
-    assert.equal(run.taskGraphId, taskGraph.taskGraph.id)
-    assert.equal(run.parentRunId, planner.id)
-    assert.equal(typeof run.id, 'string')
-    assert.equal(typeof run.taskId, 'string')
-    assert.equal(typeof run.status, 'string')
-    assert.equal(typeof run.stepCount, 'number')
-    assert.equal(typeof run.pendingApprovalCount, 'number')
-    assert.equal(typeof run.pendingInputCount, 'number')
-  }
-  assert.equal(spawnResult.snapshot.taskGraph.id, taskGraph.taskGraph.id)
-  assert.deepEqual(spawnResult.snapshot.workers.map((run: any) => run.subagentName).sort(), ['Einstein', 'Hawking'])
-  assert.equal(spawnResult.snapshot.tasks.find((task: any) => task.id === 'task_schema_a')?.metadata?.subagentName, 'Einstein')
-  assert.equal(spawnResult.snapshot.tasks.find((task: any) => task.id === 'task_schema_b')?.metadata?.subagentName, 'Hawking')
-
-  const listResult = runtime.listSubagents(planner, {}) as any
-  assert.equal(listResult.status, 'ok')
-  assert.equal(listResult.taskGraphId, taskGraph.taskGraph.id)
-  assert.equal(listResult.plannerRunId, planner.id)
-  assert.deepEqual(listResult.snapshot.workers.map((run: any) => run.subagentName).sort(), ['Einstein', 'Hawking'])
-  assert.equal(listResult.snapshot.summary.taskCount, 2)
-  assert.equal(listResult.snapshot.summary.workerCount, 2)
-  assert.equal(listResult.snapshot.summary.activeWorkerCount, 2)
-  assert.equal(listResult.snapshot.summary.artifactCount, 0)
-  assert.equal(listResult.snapshot.summary.nameConflictCount, 0)
-  assert.equal(listResult.snapshot.summary.taskStatusCounts.running, 2)
-
-  const waitResult = await runtime.waitSubagent(planner, { subagentName: 'Einstein', timeoutMs: 0 }) as any
-  assert.equal(typeof waitResult.status, 'string')
-  assert.equal(typeof waitResult.done, 'boolean')
-  assert.equal(waitResult.taskGraphId, taskGraph.taskGraph.id)
-  assert.equal(waitResult.plannerRunId, planner.id)
-  assert.equal(waitResult.target.kind, 'run')
-  assert.equal(waitResult.target.run.subagentName, 'Einstein')
-  assert.equal(waitResult.target.run.taskId, 'task_schema_a')
-  assert.equal(waitResult.snapshot.workers.some((run: any) => run.subagentName === 'Einstein'), true)
-  assert.equal(waitResult.snapshot.summary.workerCount, 2)
-  assert.equal(typeof waitResult.snapshot.summary.activeWorkerCount, 'number')
-
-  const cancelResult = runtime.cancelSubagent(planner, {
-    subagentName: 'Hawking',
-    reason: 'schema contract check',
-  }) as any
-  assert.ok(cancelResult.status === 'cancelled' || cancelResult.status === 'unchanged')
-  assert.equal(cancelResult.taskGraphId, taskGraph.taskGraph.id)
-  assert.equal(cancelResult.plannerRunId, planner.id)
-  if (cancelResult.status === 'cancelled') assert.deepEqual(cancelResult.cancelledRunIds, [spawnResult.spawnedRuns[1]!.id])
-  else assert.deepEqual(cancelResult.cancelledRunIds, [])
-  assert.equal(cancelResult.target.kind, 'run')
-  assert.equal(cancelResult.target.run.subagentName, 'Hawking')
-  assert.equal(typeof cancelResult.target.run.status, 'string')
-  assert.equal(cancelResult.target.run.taskId, 'task_schema_b')
-  assert.equal(typeof cancelResult.snapshot.workers.find((run: any) => run.subagentName === 'Hawking')?.status, 'string')
-})
-
-test('subagent tool snapshots include artifact source task provenance', async () => {
-  const client = new FakeMCPClient()
-  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const taskGraph = await runtime.createTaskGraph({
-    threadId: thread.id,
-    title: 'Subagent artifact snapshot',
-    tasks: [
-      { id: 'task_snapshot_source', title: 'Snapshot source', metadata: { executionMode: 'worker', subagentName: 'Einstein' } },
-      { id: 'task_snapshot_reader', title: 'Snapshot reader' },
-    ],
-  })
-  const planner = await waitForRun(runtime, taskGraph.runs[0]!.id)
-  const worker = runtime.createRun({
-    threadId: thread.id,
-    role: 'worker',
-    parentRunId: planner.id,
-    taskGraphId: taskGraph.taskGraph.id,
-    taskId: 'task_snapshot_source',
-    metadata: { subagentName: 'Einstein' },
-  })
-  runtime.updateTask('task_snapshot_source', {
-    status: 'running',
-    ownerRunId: worker.id,
-  })
-  runtime.updateTask('task_snapshot_reader', {
-    artifacts: [{
-      id: 'artifact_snapshot_source',
-      type: 'review',
-      title: 'Snapshot source review',
-      metadata: {
-        sourceRunId: worker.id,
-        sourceTaskId: 'task_snapshot_source',
-        toolName: 'movscript_review',
-        policy: 'manual_compensation',
-      },
-    }],
-  })
-
-  const listResult = runtime.listSubagents(planner, {}) as any
-  const listArtifact = listResult.snapshot.artifacts.find((artifact: any) => artifact.id === 'artifact_snapshot_source')
-  assert.equal(listArtifact?.sourceTaskTitle, 'Snapshot source')
-  assert.equal(listArtifact?.sourceTaskStatus, 'running')
-  assert.equal(listArtifact?.sourceTaskOwnerRunId, worker.id)
-  assert.equal(listArtifact?.toolName, 'movscript_review')
-  assert.equal(listArtifact?.policy, 'manual_compensation')
-  assert.equal(listResult.snapshot.summary.artifactCount, 1)
-  assert.equal(listResult.snapshot.summary.activeWorkerCount, 1)
-  assert.equal(listResult.snapshot.summary.taskStatusCounts.running, 1)
-
-  const waitResult = await runtime.waitSubagent(planner, { subagentName: 'Einstein', timeoutMs: 0 }) as any
-  const waitArtifact = waitResult.snapshot.artifacts.find((artifact: any) => artifact.id === 'artifact_snapshot_source')
-  assert.equal(waitArtifact?.sourceTaskTitle, 'Snapshot source')
-  assert.equal(waitArtifact?.sourceTaskOwnerRunId, worker.id)
-  assert.equal(waitResult.snapshot.summary.artifactCount >= 1, true)
-})
-
-test('planner subagents can be addressed by human-readable names', async () => {
-  const client = new FakeMCPClient()
-  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const taskGraph = await runtime.createTaskGraph({
-    threadId: thread.id,
-    title: 'Named subagent rollout',
-    tasks: [
-      { id: 'task_named_einstein', title: 'Named worker', metadata: { executionMode: 'worker' } },
-    ],
-  })
-  const planner = await waitForRun(runtime, taskGraph.runs[0]!.id)
-
-  const spawned = runtime.spawnSubagent(planner, {
-    taskId: 'task_named_einstein',
-    subagentName: 'Einstein',
-  }) as any
-  assert.equal(spawned.spawnedRuns[0]?.subagentName, 'Einstein')
-  const workerId = spawned.spawnedRuns[0]?.id
-  assert.ok(workerId)
-
-  const listResult = runtime.listSubagents(planner, {}) as any
-  assert.equal(listResult.snapshot.tasks.find((task: any) => task.id === 'task_named_einstein')?.metadata?.subagentName, 'Einstein')
-  assert.equal(listResult.snapshot.workers.find((worker: any) => worker.id === workerId)?.subagentName, 'Einstein')
-
-  const pendingWait = await runtime.waitSubagent(planner, { subagentName: 'Einstein' }) as any
-  assert.equal((pendingWait.target.run ?? pendingWait.target.task).subagentName, 'Einstein')
-
-  const worker = await waitForRun(runtime, workerId)
-  assert.ok(worker.status === 'completed' || worker.status === 'completed_with_warnings')
-  const doneWait = await runtime.waitSubagent(planner, { subagentName: 'Einstein' }) as any
-  assert.equal(doneWait.status, 'completed')
-  assert.equal((doneWait.target.run ?? doneWait.target.task).subagentName, 'Einstein')
-})
-
-test('later planner runs can cancel named subagents from the same taskGraph', async () => {
-  const client = new FakeMCPClient()
-  const store = new InMemoryAgentStore()
-  const runtime = createTestRuntime({ mcpClient: client, store, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const taskGraph = await runtime.createTaskGraph({
-    threadId: thread.id,
-    title: 'Cross-run cancel',
-    createPlannerRun: false,
-    tasks: [
-      { id: 'task_cancel_named', title: 'Cancelable worker', metadata: { executionMode: 'worker', subagentName: 'Einstein' } },
-    ],
-  })
-  const firstPlanner = await createAndWaitForRun(runtime, thread.id, {
-    role: 'planner',
-    taskGraphId: taskGraph.taskGraph.id,
-  })
-  const now = new Date().toISOString()
-  const worker: AgentRun = {
-    id: 'run_cancel_named_1',
-    threadId: thread.id,
-    status: 'requires_action',
-    role: 'worker',
-    parentRunId: firstPlanner.id,
-    taskGraphId: taskGraph.taskGraph.id,
-    taskId: 'task_cancel_named',
-    agentManifest: DEFAULT_AGENT_MANIFEST,
-    policy: firstPlanner.policy,
-    metadata: { subagentName: 'Einstein' },
-    createdAt: now,
-    updatedAt: now,
-    pendingInputRequests: [{
-      id: 'input_cancel_named_1',
-      runId: 'run_cancel_named_1',
-      title: 'Need input',
-      question: 'Continue?',
-      inputType: 'text',
-      choices: [],
-      allowCustomAnswer: true,
-      status: 'pending',
-      createdAt: now,
-      updatedAt: now,
-    }],
-    steps: [],
-    traceEvents: [],
-  }
-  store.createRun(worker)
-  runtime.updateTask('task_cancel_named', {
-    status: 'running',
-    ownerRunId: worker.id,
-  })
-  const secondPlanner = await createAndWaitForRun(runtime, thread.id, {
-    role: 'planner',
-    taskGraphId: taskGraph.taskGraph.id,
-  })
-
-  const result = runtime.cancelSubagent(secondPlanner, {
-    subagentName: 'Einstein',
-    reason: 'No longer needed.',
-  }) as any
-
-  assert.equal(result.status, 'cancelled')
-  assert.deepEqual(result.cancelledRunIds, [worker.id])
-  assert.equal(result.target.kind, 'run')
-  assert.equal(result.target.run.id, worker.id)
-  assert.equal(result.target.run.subagentName, 'Einstein')
-  assert.equal(result.target.run.status, 'cancelled')
-  assert.equal(runtime.getRun(worker.id)?.status, 'cancelled')
-})
-
-test('planner can cancel a named pending subagent task before a worker starts', async () => {
-  const client = new FakeMCPClient()
-  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const taskGraph = await runtime.createTaskGraph({
-    threadId: thread.id,
-    title: 'Cancel pending subagent task',
-    createPlannerRun: false,
-    tasks: [
-      { id: 'task_cancel_pending_named', title: 'Pending worker', metadata: { executionMode: 'worker', subagentName: 'Hawking' } },
-    ],
-  })
-  const planner = await createAndWaitForRun(runtime, thread.id, {
-    role: 'planner',
-    taskGraphId: taskGraph.taskGraph.id,
-  })
-
-  const result = runtime.cancelSubagent(planner, {
-    subagentName: 'Hawking',
-    reason: 'No longer needed before dispatch.',
-  }) as any
-
-  assert.equal(result.status, 'cancelled')
-  assert.equal(result.target.kind, 'task')
-  assert.equal(result.target.task.id, 'task_cancel_pending_named')
-  assert.equal(result.target.task.subagentName, 'Hawking')
-  assert.equal(result.target.task.status, 'cancelled')
-  assert.deepEqual(result.cancelledRunIds, [])
-  const task = runtime.getTaskGraphSnapshot(taskGraph.taskGraph.id).tasks.find((item) => item.id === 'task_cancel_pending_named')
-  assert.equal(task?.status, 'cancelled')
-  assert.equal(task?.blockedReason, 'No longer needed before dispatch.')
-  assert.equal(task?.metadata?.cancelledByPlannerRunId, planner.id)
-
-  const wait = await runtime.waitSubagent(planner, { subagentName: 'Hawking' }) as any
-  assert.equal(wait.status, 'cancelled')
-  assert.equal(wait.done, true)
-  assert.equal(wait.target.kind, 'task')
-  assert.equal(wait.target.task.subagentName, 'Hawking')
-})
-
-test('persisted planner runs can wait and cancel named subagents after runtime restart', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-persisted-subagents-'))
-  const statePath = join(dir, 'state.json')
-  try {
-    const firstStore = new FileAgentStore(statePath)
-    const firstRuntime = createTestRuntime({
-      mcpClient: new FakeMCPClient(),
-      store: firstStore,
-      defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
-    })
-    const thread = firstRuntime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-    const taskGraph = await firstRuntime.createTaskGraph({
-      threadId: thread.id,
-      title: 'Persistent subagent lifecycle',
-      createPlannerRun: false,
-      tasks: [
-        { id: 'task_persisted_named', title: 'Persistent worker', metadata: { executionMode: 'worker', subagentName: 'Einstein' } },
-      ],
-    })
-    const firstPlanner = await createAndWaitForRun(firstRuntime, thread.id, {
-      role: 'planner',
-      taskGraphId: taskGraph.taskGraph.id,
-    })
-    const now = new Date().toISOString()
-    const worker: AgentRun = {
-      id: 'run_persisted_named_1',
-      threadId: thread.id,
-      status: 'requires_action',
-      role: 'worker',
-      parentRunId: firstPlanner.id,
-      taskGraphId: taskGraph.taskGraph.id,
-      taskId: 'task_persisted_named',
-      agentManifest: DEFAULT_AGENT_MANIFEST,
-      policy: firstPlanner.policy,
-      metadata: { subagentName: 'Einstein' },
-      createdAt: now,
-      updatedAt: now,
-      pendingInputRequests: [{
-        id: 'input_persisted_named_1',
-        runId: 'run_persisted_named_1',
-        title: 'Need input',
-        question: 'Continue?',
-        inputType: 'text',
-        choices: [],
-        allowCustomAnswer: true,
-        status: 'pending',
-        createdAt: now,
-        updatedAt: now,
-      }],
-      steps: [],
-      traceEvents: [],
-    }
-    firstStore.createRun(worker)
-    firstRuntime.updateTask('task_persisted_named', {
-      status: 'running',
-      ownerRunId: worker.id,
-    })
-    firstStore.flush()
-
-    const restartedStore = new FileAgentStore(statePath)
-    const restartedRuntime = createTestRuntime({
-      mcpClient: new FakeMCPClient(),
-      store: restartedStore,
-      defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
-    })
-    const secondPlanner = await createAndWaitForRun(restartedRuntime, thread.id, {
-      role: 'planner',
-      taskGraphId: taskGraph.taskGraph.id,
-    })
-    const blockedWait = await restartedRuntime.waitSubagent(secondPlanner, { subagentName: 'Einstein' }) as any
-
-    assert.equal(blockedWait.status, 'blocked')
-    assert.equal(blockedWait.target.kind, 'run')
-    assert.equal(blockedWait.target.run.id, worker.id)
-    assert.equal(blockedWait.target.run.subagentName, 'Einstein')
-
-    const cancelResult = restartedRuntime.cancelSubagent(secondPlanner, {
-      subagentName: 'Einstein',
-      reason: 'No longer needed after restart.',
-    }) as any
-
-    assert.equal(cancelResult.status, 'cancelled')
-    assert.equal(cancelResult.target.run.id, worker.id)
-    assert.equal(cancelResult.target.run.subagentName, 'Einstein')
-    restartedStore.flush()
-
-    const finalRuntime = createTestRuntime({
-      mcpClient: new FakeMCPClient(),
-      store: new FileAgentStore(statePath),
-      defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
-    })
-    const persistedPlanner = finalRuntime.getRun(secondPlanner.id)
-    assert.ok(persistedPlanner)
-    const cancelledWait = await finalRuntime.waitSubagent(persistedPlanner, { subagentName: 'Einstein' }) as any
-    assert.equal(cancelledWait.status, 'cancelled')
-    assert.equal(cancelledWait.target.run.id, worker.id)
-    assert.equal(cancelledWait.target.run.status, 'cancelled')
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-})
-
-test('wait_subagent reports terminal failure and blocked statuses distinctly', async () => {
-  const client = new FakeMCPClient()
-  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
-  const taskGraph = await runtime.createTaskGraph({
-    threadId: thread.id,
-    title: 'Wait status rollout',
-    tasks: [
-      { id: 'task_wait_failed', title: 'Failed task', metadata: { executionMode: 'worker' } },
-      { id: 'task_wait_blocked', title: 'Blocked task', metadata: { executionMode: 'worker' } },
-    ],
-  })
-  const planner = await waitForRun(runtime, taskGraph.runs[0]!.id)
-  runtime.updateTask('task_wait_failed', {
-    status: 'failed',
-    blockedReason: 'synthetic failure',
-  })
-  runtime.updateTask('task_wait_blocked', {
-    status: 'blocked',
-    blockedReason: 'needs input',
-  })
-
-  const failed = await runtime.waitSubagent(planner, { taskId: 'task_wait_failed' }) as any
-  assert.equal(failed.done, true)
-  assert.equal(failed.status, 'failed')
-  assert.equal(failed.target.task.blockedReason, 'synthetic failure')
-
-  const blocked = await runtime.waitSubagent(planner, { taskId: 'task_wait_blocked' }) as any
-  assert.equal(blocked.done, true)
-  assert.equal(blocked.status, 'blocked')
-  assert.equal(blocked.target.task.blockedReason, 'needs input')
-})
-
 test('planner and worker prompts include structured taskGraph context', async () => {
   const client = new FakeMCPClient()
   const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
@@ -4898,13 +4100,13 @@ test('worker runs cannot use planner-only subagent tools', async () => {
     taskId: 'task_worker_only',
   })
 
-  assert.equal(runHasTool(worker, 'core_subagent_spawn'), false)
+  assert.equal(runHasTool(worker, 'core_work_start'), false)
   const event = runtime.getRunTraceEvents(worker.id, { limit: Number.MAX_SAFE_INTEGER })
     .find((item) => item.title === 'Tool catalog resolved')
   const availableToolNames = (event?.data as any)?.availableToolNames ?? []
   const blockedTools = (event?.data as any)?.blockedTools ?? []
-  assert.equal(availableToolNames.includes('core_subagent_spawn'), false)
-  assert.equal(blockedTools.some((tool: any) => tool.name === 'core_subagent_spawn' && tool.reason === 'wrong_run_role'), true)
+  assert.equal(availableToolNames.includes('core_work_start'), false)
+  assert.equal(blockedTools.some((tool: any) => tool.name === 'core_work_start' && tool.reason === 'wrong_run_role'), true)
 })
 
 test('planner capabilities expose subagent scheduling tools', async () => {
@@ -4913,13 +4115,13 @@ test('planner capabilities expose subagent scheduling tools', async () => {
 
   const plannerCapabilities = await runtime.getCapabilities({ runRole: 'planner' })
   assert.equal(plannerCapabilities.resolvedTools.byName.core_catalog_inspect?.available, true)
-  assert.equal(plannerCapabilities.resolvedTools.byName.core_subagent_spawn?.available, true)
-  assert.equal(plannerCapabilities.resolvedTools.byName.core_subagent_wait?.available, true)
+  assert.equal(plannerCapabilities.resolvedTools.byName.core_work_start?.available, true)
+  assert.equal(plannerCapabilities.resolvedTools.byName.core_work_wait?.available, true)
 
   const workerCapabilities = await runtime.getCapabilities({ runRole: 'worker' })
   assert.equal(workerCapabilities.resolvedTools.byName.core_catalog_inspect?.available, true)
-  assert.equal(workerCapabilities.resolvedTools.byName.core_subagent_spawn?.available, false)
-  assert.equal(workerCapabilities.resolvedTools.byName.core_subagent_spawn?.unavailableReason, 'wrong_run_role')
+  assert.equal(workerCapabilities.resolvedTools.byName.core_work_start?.available, false)
+  assert.equal(workerCapabilities.resolvedTools.byName.core_work_start?.unavailableReason, 'wrong_run_role')
 })
 
 test('inspect agent catalog returns current snapshot summary and skill details', async () => {
@@ -4961,7 +4163,7 @@ test('inspect agent catalog returns current snapshot summary and skill details',
   assert.equal(knowledge.enabledByPack, true)
 })
 
-test('user conversation runs default to planner role with subagent scheduling tools', async () => {
+test('user conversation runs default to planner role with runtime work scheduling tools', async () => {
   const client = new FakeMCPClient()
   const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
   const thread = runtime.createThread({ messages: [{ role: 'user', content: 'spawn subagent' }] })
@@ -4973,8 +4175,7 @@ test('user conversation runs default to planner role with subagent scheduling to
   const event = runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
     .find((item) => item.title === 'Tool catalog resolved')
   const availableToolNames = (event?.data as any)?.availableToolNames ?? []
-  assert.equal(availableToolNames.includes('core_subagent_spawn'), true)
-  assert.equal(runHasTool(run, 'core_subagent_spawn'), true)
+  assert.equal(availableToolNames.includes('core_work_start'), true)
 })
 
 test('supervisor retries failed tasks within the configured attempt limit', async () => {

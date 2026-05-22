@@ -328,6 +328,7 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 	keptContentUnitIDs := make(map[uint]struct{})
 	keptKeyframeIDs := make(map[uint]struct{})
 	keptAssetSlotIDs := make(map[uint]struct{})
+	keptCreativeReferenceUsageIDs := make(map[uint]struct{})
 	for i, segNode := range req.Proposal.Segments {
 		var segmentID uint
 		if segNode.ID != nil && *segNode.ID > 0 {
@@ -463,7 +464,7 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 						}
 						stateID = &state.ID
 					}
-					_, err := s.CreateCreativeReferenceUsage(ctx, projectID, CreativeReferenceUsageInput{
+					usageInput := CreativeReferenceUsageInput{
 						OwnerType:                "scene_moment",
 						OwnerID:                  sceneMomentID,
 						CreativeReferenceID:      refID,
@@ -471,10 +472,29 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 						Role:                     crNode.Role,
 						Source:                   "agent_proposal",
 						Status:                   domainsemantic.ProposalDraftStatusValue,
-					})
+					}
+					existingUsage, usageFound, err := s.findProductionProposalCreativeReferenceUsage(ctx, projectID, sceneMomentID, refID)
 					if err != nil {
 						return nil, err
 					}
+					if usageFound {
+						if productionProposalCreativeReferenceUsageNeedsPatch(existingUsage, usageInput) {
+							patchedUsage, err := s.PatchCreativeReferenceUsage(ctx, projectID, fmt.Sprint(existingUsage.ID), usageInput)
+							if err != nil {
+								return nil, err
+							}
+							keptCreativeReferenceUsageIDs[patchedUsage.ID] = struct{}{}
+							resp.Counts.CreativeReferenceUsages++
+						} else {
+							keptCreativeReferenceUsageIDs[existingUsage.ID] = struct{}{}
+						}
+						continue
+					}
+					createdUsage, err := s.CreateCreativeReferenceUsage(ctx, projectID, usageInput)
+					if err != nil {
+						return nil, err
+					}
+					keptCreativeReferenceUsageIDs[createdUsage.ID] = struct{}{}
 					resp.Counts.CreativeReferenceUsages++
 				}
 			}
@@ -623,7 +643,7 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 			}
 		}
 	}
-	if err := s.applyProductionProposalSnapshotOmissions(ctx, projectID, req, keptSegmentIDs, keptSceneMomentIDs, keptContentUnitIDs, keptKeyframeIDs, keptAssetSlotIDs); err != nil {
+	if err := s.applyProductionProposalSnapshotOmissions(ctx, projectID, req, keptSegmentIDs, keptSceneMomentIDs, keptContentUnitIDs, keptKeyframeIDs, keptAssetSlotIDs, keptCreativeReferenceUsageIDs); err != nil {
 		return nil, err
 	}
 	return resp, nil
@@ -671,6 +691,32 @@ func (s *Service) applyProposalKeyframe(ctx context.Context, projectID uint, req
 	return nil
 }
 
+func (s *Service) findProductionProposalCreativeReferenceUsage(ctx context.Context, projectID uint, sceneMomentID uint, referenceID uint) (domainsemantic.CreativeReferenceUsage, bool, error) {
+	usages, err := s.ListCreativeReferenceUsages(ctx, CreativeReferenceUsageFilter{
+		ProjectID:           projectID,
+		OwnerType:           "scene_moment",
+		OwnerID:             sceneMomentID,
+		CreativeReferenceID: referenceID,
+	})
+	if err != nil {
+		return domainsemantic.CreativeReferenceUsage{}, false, err
+	}
+	if len(usages) == 0 {
+		return domainsemantic.CreativeReferenceUsage{}, false, nil
+	}
+	return usages[0], true, nil
+}
+
+func productionProposalCreativeReferenceUsageNeedsPatch(existing domainsemantic.CreativeReferenceUsage, input CreativeReferenceUsageInput) bool {
+	if input.CreativeReferenceStateID != nil && (existing.CreativeReferenceStateID == nil || *existing.CreativeReferenceStateID != *input.CreativeReferenceStateID) {
+		return true
+	}
+	if strings.TrimSpace(input.Role) != "" && strings.TrimSpace(existing.Role) != strings.TrimSpace(input.Role) {
+		return true
+	}
+	return false
+}
+
 func buildProductionProposalPreviewSemanticChanges(proposal *ProposalTree) []ProductionProposalPreviewSemanticChange {
 	if proposal == nil {
 		return nil
@@ -687,6 +733,7 @@ func buildProductionProposalPreviewSemanticChanges(proposal *ProposalTree) []Pro
 		})
 		for _, moment := range segment.SceneMoments {
 			momentTitle := fallbackProposalTitle(moment.Title, moment.ClientID, "情景")
+			momentParent := segmentTitle + " / " + momentTitle
 			changes = append(changes, ProductionProposalPreviewSemanticChange{
 				Kind:     "scene_moment",
 				Action:   snapshotChangeAction(moment.ID),
@@ -695,12 +742,43 @@ func buildProductionProposalPreviewSemanticChanges(proposal *ProposalTree) []Pro
 				ClientID: moment.ClientID,
 				ID:       moment.ID,
 			})
+			for _, unit := range moment.ContentUnits {
+				unitTitle := fallbackProposalTitle(unit.Title, unit.ClientID, "制作项")
+				changes = append(changes, ProductionProposalPreviewSemanticChange{
+					Kind:     "content_unit",
+					Action:   snapshotChangeAction(unit.ID),
+					Title:    unitTitle,
+					Parent:   momentParent,
+					ClientID: unit.ClientID,
+					ID:       unit.ID,
+				})
+				for _, keyframe := range unit.Keyframes {
+					changes = append(changes, ProductionProposalPreviewSemanticChange{
+						Kind:     "keyframe",
+						Action:   snapshotChangeAction(keyframe.ID),
+						Title:    fallbackProposalTitle(keyframe.Title, keyframe.ClientID, "关键帧"),
+						Parent:   momentParent + " / " + unitTitle,
+						ClientID: keyframe.ClientID,
+						ID:       keyframe.ID,
+					})
+				}
+			}
+			for _, keyframe := range moment.Keyframes {
+				changes = append(changes, ProductionProposalPreviewSemanticChange{
+					Kind:     "keyframe",
+					Action:   snapshotChangeAction(keyframe.ID),
+					Title:    fallbackProposalTitle(keyframe.Title, keyframe.ClientID, "关键帧"),
+					Parent:   momentParent,
+					ClientID: keyframe.ClientID,
+					ID:       keyframe.ID,
+				})
+			}
 			for _, ref := range moment.CreativeReferences {
 				changes = append(changes, ProductionProposalPreviewSemanticChange{
 					Kind:     "creative_reference",
 					Action:   snapshotChangeAction(ref.ID),
 					Title:    fallbackProposalTitle(ref.Name, ref.ClientID, "设定资料"),
-					Parent:   segmentTitle + " / " + momentTitle,
+					Parent:   momentParent,
 					ClientID: ref.ClientID,
 					ID:       ref.ID,
 				})
@@ -710,7 +788,7 @@ func buildProductionProposalPreviewSemanticChanges(proposal *ProposalTree) []Pro
 					Kind:     "asset_slot",
 					Action:   snapshotChangeAction(slot.ID),
 					Title:    fallbackProposalTitle(slot.Name, slot.ClientID, "素材需求"),
-					Parent:   segmentTitle + " / " + momentTitle,
+					Parent:   momentParent,
 					ClientID: slot.ClientID,
 					ID:       slot.ID,
 				})
@@ -759,6 +837,7 @@ func (s *Service) applyProductionProposalSnapshotOmissions(
 	keptContentUnitIDs map[uint]struct{},
 	keptKeyframeIDs map[uint]struct{},
 	keptAssetSlotIDs map[uint]struct{},
+	keptCreativeReferenceUsageIDs map[uint]struct{},
 ) error {
 	segments, err := s.proposalSnapshotTargets(ctx, projectID, domainrelation.NewEntityRef("production", req.ProductionID), domainrelation.CategoryStructure, domainrelation.TypeContains, "segment")
 	if err != nil {
@@ -825,14 +904,14 @@ func (s *Service) applyProductionProposalSnapshotOmissions(
 	}
 
 	for momentID := range productionSceneMomentIDs {
-		if _, keepMoment := keptSceneMomentIDs[momentID]; keepMoment {
-			continue
-		}
 		usageIDs, err := s.proposalSnapshotRelationMetadataIDs(ctx, projectID, domainrelation.NewEntityRef("scene_moment", momentID), domainrelation.CategoryCreative, domainrelation.TypeUses, "creative_reference", "creative_reference_usage_id")
 		if err != nil {
 			return err
 		}
 		for _, usageID := range usageIDs {
+			if _, ok := keptCreativeReferenceUsageIDs[usageID]; ok {
+				continue
+			}
 			if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, "creative_reference_usage", fmt.Sprint(usageID)); err != nil {
 				return err
 			}

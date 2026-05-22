@@ -279,7 +279,7 @@ export function buildMomentStandards(row: ContentGenerationMomentRow | null, job
     { label: '情节上下文明确', detail: hasStoryContext ? '已有情节描述、动作或时空条件' : '需要补齐情节描述、动作、时间或地点', done: hasStoryContext, tone: hasStoryContext ? 'success' : 'warning' },
     { label: '制作项存在', detail: hasUnits ? `${row.units.length} 个制作项可继续拆分` : '还没有制作项，先手动创建或让 AI 规划制作项', done: hasUnits, tone: hasUnits ? 'success' : 'warning' },
     { label: '制作项提示可用', detail: hasUnitPrompt ? '已有描述或创作提示，可驱动后续执行' : '需要为制作项补上创作提示或用途说明', done: hasUnitPrompt, tone: hasUnitPrompt ? 'success' : 'warning' },
-    { label: '素材输入就绪', detail: assetsReady ? '没有未处理的素材缺口' : `${row.missingSlots.length} 个素材缺口仍在阻塞`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
+    { label: '素材输入就绪', detail: assetsReady ? '没有待补齐的素材缺口' : `${row.missingSlots.length} 个素材缺口需要补齐`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
     { label: '生成记录可追溯', detail: hasJob ? '已有项目生成任务记录' : '当前项目还没有生成任务记录', done: hasJob, tone: hasJob ? 'success' : 'warning' },
   ]
 }

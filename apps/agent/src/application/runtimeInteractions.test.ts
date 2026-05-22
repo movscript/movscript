@@ -82,7 +82,7 @@ function approval(id: string): AgentApprovalRequest {
   return {
     id,
     runId: 'run_1',
-    toolName: 'core_operation_start',
+    toolName: 'core_work_start',
     args: { kind: 'generation_job' },
     reason: 'needs review',
     risk: 'generate',

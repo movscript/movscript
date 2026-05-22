@@ -43,7 +43,7 @@ test('prepareRuntimeTaskGraphCreation rejects missing thread ids and duplicate t
   assert.throws(() => prepareRuntimeTaskGraphCreation({
     store,
     planInput: { threadId: 'thread_1' },
-  }), /thread thread_1 already has task graph task_graph_1/)
+  }), /thread thread_1 already has taskGraph task_graph_1/)
 })
 
 test('resolveRuntimeTaskGraphCreationTasks keeps explicit tasks without invoking planner generation', async () => {

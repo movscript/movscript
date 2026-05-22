@@ -6,11 +6,9 @@ import {
   ArrowRight,
   CheckCircle2,
   ChevronRight,
-  CircleDot,
   ClipboardCheck,
   GitBranch,
   Layers,
-  LockKeyhole,
   PackageCheck,
   RefreshCw,
   Route,
@@ -34,11 +32,8 @@ import {
   buildSettingPrepUsageSummary,
   composeCreativeProfileJSON,
   creativeReferenceKindLabel,
-  creativeReferenceStatusLabel,
-  creativeReferenceStatusVariant,
   creativeUsageStatusLabel,
   creativeUsageStatusVariant,
-  normalizeCreativeReferenceStatus,
   type SettingPrepRow,
 } from '@/lib/settingPreparationModel'
 import { cn } from '@/lib/utils'
@@ -63,9 +58,9 @@ import { WorkbenchEmptyState } from './WorkbenchPrimitives'
 function buildSettingPrepContextRows(record: SettingPrepRow | null) {
   if (!record) return []
   return [
-    { label: '设定资料', value: `${creativeReferenceKindLabel(record.record.kind)} / ${creativeReferenceStatusLabel(record.record.status)}`, icon: Sparkles },
+    { label: '设定资料', value: creativeReferenceKindLabel(record.record.kind), icon: Sparkles },
     { label: '使用范围', value: buildSettingPrepUsageSummary(record), icon: GitBranch },
-    { label: '设定状态', value: `${record.states.length} 个状态记录`, icon: Layers },
+    { label: '变体记录', value: `${record.states.length} 个变体`, icon: Layers },
     { label: '关联素材', value: record.assetSlots.length > 0 ? `${record.assetSlots.length} 个素材需求` : '尚未关联素材需求', icon: PackageCheck },
     { label: '关系网络', value: record.relationships.length > 0 ? `${record.relationships.length} 条关系` : '尚未建立关系', icon: Route },
   ]
@@ -73,32 +68,25 @@ function buildSettingPrepContextRows(record: SettingPrepRow | null) {
 
 function buildSettingPrepChecklist(record: SettingPrepRow | null) {
   if (!record) return []
-  const readyForLock = record.missing.length === 0 && (record.rawStatus === 'confirmed' || record.rawStatus === 'locked')
   return [
     { label: '名称明确', detail: firstText(record.record.name, '设定资料需要一个稳定名称'), done: Boolean(firstText(record.record.name)), tone: 'warning' as const },
     { label: '设定正文完整', detail: record.missing.includes('缺设定正文') ? '需要补充可直接用于制作的设定说明' : '已有可用设定正文', done: !record.missing.includes('缺设定正文'), tone: 'warning' as const },
     { label: '视觉锚点可用', detail: record.missing.includes('缺视觉锚点') ? '需要补充视觉说明、档案或提示词锚点' : '已有视觉说明或档案', done: !record.missing.includes('缺视觉锚点'), tone: 'warning' as const },
     { label: '被使用范围明确', detail: record.usages.length > 0 ? `${record.usages.length} 个引用正在使用这个设定` : '还没有被剧本或制作使用', done: record.usages.length > 0, tone: 'warning' as const },
-    { label: '状态可放行', detail: readyForLock ? '可以进入已确认或已锁定状态' : '建议先补齐缺口，再确认状态', done: readyForLock, tone: 'warning' as const },
+    { label: '素材关系明确', detail: record.assetSlots.length > 0 ? `${record.assetSlots.length} 个素材需求依赖这个设定` : '还没有素材需求绑定到这个设定', done: record.assetSlots.length > 0, tone: 'warning' as const },
   ]
 }
 
 function buildSettingPrepMetrics(rows: SettingPrepRow[]): WorkbenchMetric[] {
-  const completed = rows.filter((row) => row.missing.length === 0 && (row.rawStatus === 'confirmed' || row.rawStatus === 'locked'))
-  const locked = rows.filter((row) => row.rawStatus === 'locked')
+  const covered = rows.filter((row) => row.missing.length === 0)
   const used = rows.filter((row) => row.usages.length > 0)
-  const needingWork = rows.filter((row) => row.missing.length > 0 || row.rawStatus === 'draft')
+  const needingWork = rows.filter((row) => row.missing.length > 0)
   return [
     { label: '设定资料', value: String(rows.length), detail: '当前项目内的核心设定对象', icon: Sparkles, status: rows.length > 0 ? 'review' : 'blocked' },
-    { label: '待完善', value: String(needingWork.length), detail: '缺口或草稿状态的设定', icon: AlertTriangle, status: needingWork.length > 0 ? 'blocked' : 'ready' },
-    { label: '已可用', value: String(completed.length), detail: '可进入下游使用的设定', icon: CheckCircle2, status: completed.length > 0 ? 'ready' : 'review' },
-    { label: '已锁定', value: String(locked.length), detail: '后续修改需二次确认', icon: LockKeyhole, status: locked.length > 0 ? 'ready' : 'review' },
+    { label: '待完善', value: String(needingWork.length), detail: '仍有缺口的设定', icon: AlertTriangle, status: needingWork.length > 0 ? 'blocked' : 'ready' },
+    { label: '已覆盖', value: String(covered.length), detail: '当前条件已覆盖的设定', icon: CheckCircle2, status: covered.length > 0 ? 'ready' : 'review' },
     { label: '已使用', value: String(used.length), detail: '已经进入剧本或制作上下文', icon: GitBranch, status: used.length > 0 ? 'ready' : 'review' },
   ]
-}
-
-function SettingPrepStateBadge({ status }: { status?: string }) {
-  return <Badge variant={creativeReferenceStatusVariant(status)}>{creativeReferenceStatusLabel(status)}</Badge>
 }
 
 function SettingPrepHintCard({ label, text }: { label: string; text: string }) {
@@ -126,7 +114,6 @@ export function SettingPreparationWorkbench() {
   })
   const rows = useMemo(() => buildSettingPrepRows(data), [data])
   const [kindFilter, setKindFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('all')
   const [selectedId, setSelectedId] = useState('')
   const [contextMode, setContextMode] = useState<'usage' | 'script' | 'ai'>('usage')
   const [draft, setDraft] = useState<ReturnType<typeof buildSettingPrepForm> | null>(null)
@@ -136,16 +123,10 @@ export function SettingPreparationWorkbench() {
     for (const row of rows) counts.set(row.kind, (counts.get(row.kind) ?? 0) + 1)
     return Array.from(counts.entries()).map(([kind, count]) => ({ value: kind, label: creativeReferenceKindLabel(kind), count }))
   }, [rows])
-  const statusOptions = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const row of rows) counts.set(row.rawStatus, (counts.get(row.rawStatus) ?? 0) + 1)
-    return Array.from(counts.entries()).map(([status, count]) => ({ value: status, label: creativeReferenceStatusLabel(status), count }))
-  }, [rows])
   const filteredRows = useMemo(() => rows.filter((row) => {
     if (kindFilter !== 'all' && row.kind !== kindFilter) return false
-    if (statusFilter !== 'all' && row.rawStatus !== statusFilter) return false
     return true
-  }), [rows, kindFilter, statusFilter])
+  }), [rows, kindFilter])
   const selected = filteredRows.find((row) => row.id === selectedId) ?? filteredRows[0] ?? rows.find((row) => row.id === selectedId) ?? rows[0] ?? null
   const metrics = buildSettingPrepMetrics(rows)
   const evidenceRows = buildSettingPrepEvidenceRows(selected)
@@ -168,7 +149,7 @@ export function SettingPreparationWorkbench() {
       return
     }
     setDraft(buildSettingPrepForm(selected.record))
-  }, [selected?.id, selected?.record.UpdatedAt, selected?.record.status, selected?.record.name, selected?.record.content, selected?.record.profile_json, selected?.record.tags_json])
+  }, [selected?.id, selected?.record.UpdatedAt, selected?.record.name, selected?.record.content, selected?.record.profile_json, selected?.record.tags_json])
 
   const saveReference = useMutation({
     mutationFn: async () => {
@@ -178,7 +159,6 @@ export function SettingPreparationWorkbench() {
         alias: draft.alias,
         kind: draft.kind,
         importance: draft.importance,
-        status: draft.status,
         description: draft.description,
         content: draft.content,
         profile_json: composeCreativeProfileJSON(draft.profileJson, draft.visualIntent),
@@ -192,22 +172,6 @@ export function SettingPreparationWorkbench() {
     },
     onError: (error) => {
       toast.error(apiErrorMessage(error, '保存设定资料失败'))
-    },
-  })
-
-  const updateStatus = useMutation({
-    mutationFn: async (status: string) => {
-      if (!projectId || !selected) throw new Error('请先选择设定资料')
-      return updateSemanticEntity(projectId, semanticEntityConfig('creativeReferences'), selected.record.ID, { status })
-    },
-    onSuccess: async (record) => {
-      setDraft((current) => current ? { ...current, status: normalizeCreativeReferenceStatus(record.status) } : current)
-      await queryClient.invalidateQueries({ queryKey: settingPreparationWorkbenchQueryKey(projectId) })
-      await queryClient.invalidateQueries({ queryKey: ['semantic-creative-references-page', projectId] })
-      toast.success('设定状态已更新')
-    },
-    onError: (error) => {
-      toast.error(apiErrorMessage(error, '更新设定状态失败'))
     },
   })
 
@@ -239,7 +203,7 @@ export function SettingPreparationWorkbench() {
       projectName={project?.name}
       kicker="设定准备"
       title="设定准备工作台"
-      description="围绕已经被剧本和制作使用到的设定推进完整度：先看上下文，再用 AI 补齐缺口，最后把设定状态确认或锁定。"
+      description="围绕已经被剧本和制作使用到的设定推进完整度：先看上下文，再用 AI 补齐缺口，系统按当前条件推导下一步。"
       badges={isFetching ? <Badge variant="outline">同步中</Badge> : null}
       onRefresh={() => { void refetch() }}
       refreshing={isFetching}
@@ -279,7 +243,7 @@ export function SettingPreparationWorkbench() {
                   </div>
                   <h1 className="mt-2 type-title-sm font-semibold text-foreground">推进被生产使用的设定完整度</h1>
                   <p className="mt-1 max-w-4xl type-label leading-5 text-muted-foreground">
-                    这里按使用上下文组织设定。优先处理被制作、情景、素材需求引用但仍处于草稿或缺口状态的资料。
+                    这里按使用上下文组织设定。优先处理被制作、情景、素材需求引用但仍有缺口的资料。
                   </p>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
@@ -288,7 +252,7 @@ export function SettingPreparationWorkbench() {
                   <QueueMiniMetric label="情景" value={data?.sceneMoments.length ?? 0} />
                 </div>
               </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[220px_220px_minmax(0,1fr)]">
+              <div className="mt-4 grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
                 <div className="space-y-1.5">
                   <p className="type-label font-medium text-muted-foreground">类型</p>
                   <Select value={kindFilter} onValueChange={setKindFilter}>
@@ -303,22 +267,8 @@ export function SettingPreparationWorkbench() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1.5">
-                  <p className="type-label font-medium text-muted-foreground">状态</p>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="全部状态" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部状态 · {rows.length}</SelectItem>
-                      {statusOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>{option.label} · {option.count}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
                 <div className="flex flex-wrap items-end justify-end gap-2">
-                  <Button variant="outline" className="gap-2" onClick={() => { setKindFilter('all'); setStatusFilter('all') }}>
+                  <Button variant="outline" className="gap-2" onClick={() => { setKindFilter('all') }}>
                     <RefreshCw size={14} />
                     清空筛选
                   </Button>
@@ -347,7 +297,6 @@ export function SettingPreparationWorkbench() {
                   scope: row.scope,
                   status: row.status,
                   priority: row.priority,
-                  progress: row.progress,
                   need: [row.readinessLabel, ...row.missing.slice(0, 2)].join(' · '),
                 }))}
                 selectedId={selected?.id ?? ''}
@@ -360,8 +309,7 @@ export function SettingPreparationWorkbench() {
                   icon={Sparkles}
                   action={selected ? (
                     <div className="flex flex-wrap items-center justify-end gap-2">
-                      <SettingPrepStateBadge status={draft?.status ?? selected.rawStatus} />
-                      <Badge variant="outline">准备度 {selected.progress}%</Badge>
+                      <Badge variant="outline">{selected.readinessLabel}</Badge>
                     </div>
                   ) : undefined}
                 >
@@ -402,25 +350,10 @@ export function SettingPreparationWorkbench() {
                         </div>
                       </div>
 
-                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
+                      <div className="grid gap-3">
                         <div className="space-y-1.5">
                           <Label className="type-label text-muted-foreground">别名 / 识别词</Label>
                           <Input value={draft.alias} onChange={(event) => setDraft({ ...draft, alias: event.target.value })} placeholder="可选，用于查重和 AI 识别" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="type-label text-muted-foreground">状态</Label>
-                          <Select value={draft.status} onValueChange={(value) => setDraft({ ...draft, status: value })}>
-                            <SelectTrigger className="h-9">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="draft">草稿</SelectItem>
-                              <SelectItem value="confirmed">已确认</SelectItem>
-                              <SelectItem value="locked">已锁定</SelectItem>
-                              <SelectItem value="merged">已合并</SelectItem>
-                              <SelectItem value="ignored">已忽略</SelectItem>
-                            </SelectContent>
-                          </Select>
                         </div>
                       </div>
 
@@ -575,38 +508,14 @@ export function SettingPreparationWorkbench() {
                       <div className="space-y-2">
                         <p className="type-label font-medium text-muted-foreground">建议 AI 优先处理</p>
                         {(selected.missing.length > 0 ? selected.missing : ['检查设定是否足够进入下游']).map((item) => (
-                          <SettingPrepHintCard key={item} label="待处理" text={item} />
+                          <SettingPrepHintCard key={item} label="补设定" text={item} />
                         ))}
-                      </div>
-                      <div className="space-y-2 border-t border-border pt-4">
-                        <p className="type-label font-medium text-muted-foreground">完成后设置状态</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {[
-                            ['draft', '草稿'],
-                            ['confirmed', '已确认'],
-                            ['locked', '已锁定'],
-                            ['merged', '已合并'],
-                            ['ignored', '已忽略'],
-                          ].map(([status, label]) => (
-                            <Button
-                              key={status}
-                              variant={selected.rawStatus === status ? 'primary' : 'outline'}
-                              size="sm"
-                              className="justify-start gap-2"
-                              loading={updateStatus.isPending && updateStatus.variables === status}
-                              onClick={() => updateStatus.mutate(status)}
-                            >
-                              {status === 'locked' ? <LockKeyhole size={14} /> : status === 'confirmed' ? <CheckCircle2 size={14} /> : <CircleDot size={14} />}
-                              {label}
-                            </Button>
-                          ))}
-                        </div>
                       </div>
                     </div>
                   )}
                 </WorkbenchPanel>
 
-                <WorkbenchPanel title="下游可用性" icon={ShieldCheck} action={selected ? <Badge variant={selected.progress >= 80 ? 'success' : 'warning'}>{selected.progress}%</Badge> : undefined}>
+                <WorkbenchPanel title="下游可用性" icon={ShieldCheck} action={selected ? <Badge variant={selected.missing.length > 0 ? 'warning' : 'success'}>{selected.readinessLabel}</Badge> : undefined}>
                   {!selected ? (
                     <p className="rounded-md border border-dashed border-border px-3 py-8 text-center type-body text-muted-foreground">暂无设定。</p>
                   ) : (

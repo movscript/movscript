@@ -422,7 +422,6 @@ test('validateDraft accepts canonical setting proposal content', () => {
           name: '女主',
           kind: 'person',
         }],
-        asset_slots: [],
       },
       impact_notes: [],
       createdAt: '2026-05-08T00:00:00.000Z',
@@ -462,7 +461,7 @@ test('validateDraft accepts canonical asset slot proposal content', () => {
   assert.equal(validation.issues.filter((issue) => issue.severity === 'error').length, 0)
 })
 
-test('validateDraft rejects operation-shaped project standards proposal content', () => {
+test('validateDraft rejects mutation-shaped project standards proposal content', () => {
   const store = new InMemoryAgentDraftStore()
   const draft = store.createDraft({
     kind: 'setting_proposal',
@@ -480,7 +479,6 @@ test('validateDraft rejects operation-shaped project standards proposal content'
           source_ids: [0],
           payload: {},
         }],
-        asset_slots: [],
       },
       operations: [],
       impact_notes: [],
@@ -532,8 +530,10 @@ test('validateDraft accepts content units and keyframes in production proposal s
     title: 'production proposal',
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
+      scope: 'production_proposal',
       mode: 'snapshot',
       productionId: 12,
+      proposalScope: 'production',
       proposal: {
         segments: [{
           title: '情绪段一',
@@ -548,6 +548,7 @@ test('validateDraft accepts content units and keyframes in production proposal s
           }],
         }],
       },
+      impact_notes: [],
     }),
   })
 
@@ -563,8 +564,10 @@ test('validateDraft rejects legacy action fields in production proposal snapshot
     title: 'production proposal',
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
+      scope: 'production_proposal',
       mode: 'snapshot',
       productionId: 12,
+      proposalScope: 'production',
       proposal: {
         segments: [{
           action: 'create',
@@ -572,6 +575,7 @@ test('validateDraft rejects legacy action fields in production proposal snapshot
           scene_moments: [],
         }],
       },
+      impact_notes: [],
     }),
   })
 
@@ -587,8 +591,10 @@ test('validateDraft rejects production proposal creative references without exis
     title: 'production proposal',
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
+      scope: 'production_proposal',
       mode: 'snapshot',
       productionId: 12,
+      proposalScope: 'production',
       proposal: {
         segments: [{
           title: '情绪段一',
@@ -598,6 +604,7 @@ test('validateDraft rejects production proposal creative references without exis
           }],
         }],
       },
+      impact_notes: [],
     }),
   })
 
@@ -613,8 +620,10 @@ test('validateDraft warns when production proposal scene moment lacks context bi
     title: 'production proposal',
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
+      scope: 'production_proposal',
       mode: 'snapshot',
       productionId: 12,
+      proposalScope: 'production',
       proposal: {
         segments: [{
           title: '情绪段一',
@@ -623,6 +632,7 @@ test('validateDraft warns when production proposal scene moment lacks context bi
           }],
         }],
       },
+      impact_notes: [],
     }),
   })
 

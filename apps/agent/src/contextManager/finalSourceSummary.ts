@@ -27,6 +27,10 @@ export function appendFinalSourceSummary(content: string, input: BuildFinalSourc
   return summary ? [bounded, summary].join('\n\n') : bounded
 }
 
+export function renderFinalAssistantContent(content: string, input: Pick<BuildFinalSourceSummaryInput, 'run'>): string {
+  return omitLargeKnowledgeBodies(content.trim(), input.run)
+}
+
 function finalSourceLines(input: BuildFinalSourceSummaryInput): string[] {
   const lines: string[] = []
   const store = buildRetrievedContextStore(input.run?.metadata?.contextLedger)

@@ -3,15 +3,15 @@ import { callMCPToolWithGenerationRepair } from '../../generation/generationRepa
 import type { MCPClient } from '../../mcpClient.js'
 import type { JSONValue, ToolCall } from '../../state/types.js'
 import { cloneJSONValue, isJSONRecord, isJSONValue, isRecord } from '../../jsonValue.js'
-import type { RuntimeOperationProvider } from '../runtimeOperationProvider.js'
-import type { RuntimeOperation, RuntimeOperationStartInput, RuntimeOperationStatus } from '../runtimeOperation.js'
+import type { RuntimeWorkProvider } from '../runtimeWorkProvider.js'
+import type { RuntimeWork, RuntimeWorkStartInput, RuntimeWorkStatus } from '../runtimeWork.js'
 
-export class GenerationJobOperationProvider implements RuntimeOperationProvider {
+export class GenerationJobWorkProvider implements RuntimeWorkProvider {
   readonly kind = 'generation_job' as const
 
   constructor(private readonly mcpClient: Pick<MCPClient, 'initialize' | 'callTool'>) {}
 
-  async start(input: RuntimeOperationStartInput): Promise<RuntimeOperation> {
+  async start(input: RuntimeWorkStartInput): Promise<RuntimeWork> {
     await this.mcpClient.initialize({ signal: input.signal })
     const raw = await callMCPToolWithGenerationRepair(this.mcpClient, 'generation_job_create', input.request, { signal: input.signal })
     const event = buildGenerationEvent({ name: 'generation_job_create', args: input.request }, raw)
@@ -19,7 +19,7 @@ export class GenerationJobOperationProvider implements RuntimeOperationProvider 
     const jobId = event?.jobId
     const status = eventStatus(event?.status, event?.terminal)
     return {
-      id: makeOperationId(),
+      id: makeWorkId(),
       threadId: input.threadId,
       runId: input.runId,
       kind: this.kind,
@@ -37,16 +37,16 @@ export class GenerationJobOperationProvider implements RuntimeOperationProvider 
     }
   }
 
-  async observe(operation: RuntimeOperation, options: { signal?: AbortSignal } = {}): Promise<RuntimeOperation> {
-    const jobId = operation.externalHandle?.id
-    if (typeof jobId !== 'number') throw new Error(`generation job operation has no numeric job id: ${operation.id}`)
+  async observe(work: RuntimeWork, options: { signal?: AbortSignal } = {}): Promise<RuntimeWork> {
+    const jobId = work.externalHandle?.id
+    if (typeof jobId !== 'number') throw new Error(`generation job work has no numeric job id: ${work.id}`)
     const args = { jobId }
     const raw = await this.mcpClient.callTool('generation_job_get', args, { signal: options.signal })
     const event = buildGenerationEvent({ name: 'generation_job_get', args }, raw)
     const now = new Date().toISOString()
     const status = eventStatus(event?.status, event?.terminal)
     return {
-      ...operation,
+      ...work,
       status,
       result: normalizePayload(raw),
       updatedAt: now,
@@ -54,13 +54,13 @@ export class GenerationJobOperationProvider implements RuntimeOperationProvider 
     }
   }
 
-  async cancel(operation: RuntimeOperation, options: { signal?: AbortSignal } = {}): Promise<RuntimeOperation> {
-    const jobId = operation.externalHandle?.id
-    if (typeof jobId !== 'number') throw new Error(`generation job operation has no numeric job id: ${operation.id}`)
+  async cancel(work: RuntimeWork, options: { signal?: AbortSignal } = {}): Promise<RuntimeWork> {
+    const jobId = work.externalHandle?.id
+    if (typeof jobId !== 'number') throw new Error(`generation job work has no numeric job id: ${work.id}`)
     const raw = await this.mcpClient.callTool('generation_job_cancel', { jobId }, { signal: options.signal })
     const now = new Date().toISOString()
     return {
-      ...operation,
+      ...work,
       status: 'cancelled',
       result: normalizePayload(raw),
       updatedAt: now,
@@ -69,7 +69,7 @@ export class GenerationJobOperationProvider implements RuntimeOperationProvider 
   }
 }
 
-function eventStatus(status: string | undefined, terminal: boolean | undefined): RuntimeOperationStatus {
+function eventStatus(status: string | undefined, terminal: boolean | undefined): RuntimeWorkStatus {
   if (status === 'completed' || status === 'succeeded') return 'completed'
   if (status === 'failed') return 'failed'
   if (status === 'cancelled') return 'cancelled'
@@ -102,6 +102,6 @@ function unwrapToolPayload(result: JSONValue | undefined): JSONValue | undefined
   return hasData ? undefined : result
 }
 
-function makeOperationId(): string {
-  return `op_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+function makeWorkId(): string {
+  return `work_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 }

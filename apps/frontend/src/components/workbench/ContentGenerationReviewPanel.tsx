@@ -133,7 +133,7 @@ export function ContentGenerationReviewPanel({
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate type-body font-medium text-foreground">{draft.title}</p>
-                      <p className="mt-1 truncate type-caption text-muted-foreground">制作项快照 · {draft.status}</p>
+                      <p className="mt-1 truncate type-caption text-muted-foreground">制作项草案</p>
                     </div>
                     <Badge variant={active ? 'secondary' : 'outline'} className="shrink-0 type-tiny">
                       结构

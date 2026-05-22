@@ -197,7 +197,7 @@ export interface RuntimeInteraction {
   id: string
   threadId: string
   runId: string
-  operationId?: string
+  workId?: string
   kind: RuntimeInteractionKind
   status: RuntimeInteractionStatus
   payload: JSONValue
@@ -215,11 +215,11 @@ export interface RuntimeContinuation {
   runId: string
   status: RuntimeContinuationStatus
   trigger:
-    | { type: 'operation_completed'; operationIds: string[]; mode: 'any' | 'all' }
+    | { type: 'work_completed'; workIds: string[]; mode: 'any' | 'all' }
     | { type: 'interaction_resolved'; interactionIds: string[]; mode: 'any' | 'all' }
     | { type: 'manual' }
   nextInput?: {
-    operationResults?: string[]
+    workResults?: string[]
     interactionResults?: string[]
     message?: string
   }

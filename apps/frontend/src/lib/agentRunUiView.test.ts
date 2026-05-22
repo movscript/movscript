@@ -143,6 +143,58 @@ test('agentTraceView separates model HTTP request and impact', () => {
   })
 })
 
+test('agentTraceView exposes Responses SDK payload as submitted model request', () => {
+  const sdkBody = {
+    model: 'gpt-5.5',
+    input: [{ role: 'user', content: 'review trace detail' }],
+    tools: [{
+      type: 'function',
+      name: 'draft_file_edit',
+      description: 'Edit draft text',
+      parameters: {
+        type: 'object',
+        properties: {
+          draftId: { type: 'string' },
+          patch: { type: 'string' },
+        },
+      },
+    }],
+    tool_choice: 'auto',
+  }
+  const internalBody = {
+    model: 'gpt-5.5',
+    messages: [{ role: 'user', content: 'review trace detail' }],
+    sdk_body: sdkBody,
+  }
+  const view = agentTraceView(traceEvent({
+    kind: 'model_call',
+    title: 'Model HTTP request sent',
+    data: {
+      phase: 'request',
+      request: {
+        url: 'http://localhost:8765/v1/responses',
+        method: 'POST',
+        body: internalBody,
+      },
+    },
+  }))
+
+  const payloadGroup = view.contextGroups.find((group) => group.label === '请求负载摘要')
+  assert.equal(payloadGroup?.items.some((item) => item.label === '实际 input' && item.value === '1'), true)
+  assert.equal(payloadGroup?.items.some((item) => item.label === '工具定义' && item.value === '1'), true)
+  assert.equal(view.modelDetail?.request?.model, 'gpt-5.5')
+  assert.equal(view.modelDetail?.request?.toolCount, '1')
+  assert.equal(view.modelDetail?.request?.toolChoice, 'auto')
+  assert.deepEqual(view.modelDetail?.request?.submittedPayload, sdkBody)
+  assert.deepEqual(view.modelDetail?.request?.internalPayload, internalBody)
+  assert.deepEqual(view.modelDetail?.tools, [{
+    index: 1,
+    name: 'draft_file_edit',
+    description: 'Edit draft text',
+    parameterKeys: ['draftId', 'patch'],
+  }])
+})
+
 test('agentTraceView explains ledger updates as impact', () => {
   const view = agentTraceView(traceEvent({
     kind: 'context',
@@ -248,6 +300,7 @@ test('agentTraceView exposes HTTP response and final model result separately', (
   assert.equal(resultGroup?.items.some((item) => item.label === '结束原因' && item.value === '正常结束 (stop)'), true)
   assert.equal(resultGroup?.items.some((item) => item.label === '回复 token' && item.value === '5'), true)
   assert.equal(view.modelDetail?.response?.content, 'reply body')
+  assert.deepEqual(view.modelDetail?.response?.parsedBody, { id: 'chatcmpl_1' })
   assert.equal(view.modelDetail?.response?.parsedId, 'chatcmpl_1')
   assert.deepEqual(view.modelDetail?.response?.headers, [
     { name: 'content-type', value: 'application/json' },

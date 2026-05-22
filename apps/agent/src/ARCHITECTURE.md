@@ -44,12 +44,12 @@ Startup recovery follows this contract:
 - Recovery choices are handled through the normal run input route first; `/runs/{id}/resume` remains a direct operational endpoint for explicit resume actions.
 - The frontend must not reconstruct runtime state from local chat memory alone. It should hydrate from the thread runtime projection and send answers/approvals back through runtime routes.
 
-## Runtime Operations
+## Runtime Works
 
-Runtime operations are execution objects that can outlive one tool call and can be observed, waited on, or cancelled.
+Runtime works are execution objects that can outlive one tool call and can be observed, waited on, or cancelled.
 
-- Ordinary synchronous tool calls return their final result or error immediately and should not be wrapped as operations.
-- `generation_job` is an external async runtime operation backed by the MovScript backend job handle. It is managed through the `core_operation_start/get/list/wait/cancel` tools.
-- `core_operation_start` is submit-only: it creates the operation and returns the operation handle, but it does not wait for backend completion or imply success. When a `continuationPolicy` is present, the runtime monitors the operation in the background and schedules a continuation when the policy is satisfied. Use `core_operation_wait/get/list` only for explicit inspection or blocking waits.
-- Worker subagents are internal async runtime operations backed by `AgentRun` and `AgentTask`. They are managed through `core_subagent_spawn/list_subagents/wait_subagent/cancel_subagent`.
-- `core_operation_start` currently starts only `kind: "generation_job"` operations. Do not add new public `kind` values without adding a real provider and prompt/tool-schema guidance for that lifecycle.
+- Ordinary synchronous tool calls return their final result or error immediately and should not be wrapped as runtime works.
+- `generation_job` is an external async runtime work backed by the MovScript backend job handle. It is managed through the `core_work_start/get/list/wait/cancel` tools.
+- `core_work_start` is submit-only: it creates the work and returns the work handle, but it does not wait for backend completion or imply success. When a `continuationPolicy` is present, the runtime monitors the work in the background and schedules a continuation when the policy is satisfied. Use `core_work_wait/get/list` only for explicit inspection or blocking waits.
+- Worker subagents are internal async runtime works backed by `AgentRun`. They are managed through `core_work_start/get/list/wait/cancel` with `kind: "subagent_run"`.
+- Public runtime work kinds must have a real provider and prompt/tool-schema guidance for that lifecycle.

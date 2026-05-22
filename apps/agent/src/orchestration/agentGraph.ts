@@ -64,6 +64,7 @@ export interface AgentGraphInput {
   command?: AgentCommandRuntime
   userMessage?: string
   rootUserMessageId?: string
+  runtimeState?: unknown
   config: ConfiguredRuntimeModelConfig
   modelRouter?: RuntimeModelRouter
   auth: RuntimeModelAuthContext
@@ -339,6 +340,7 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     userMessage: effectiveUserMessage,
     toolLoopHistory: state.history,
     ...(promptHistory.summary ? { threadSummary: promptHistory.summary } : {}),
+    ...(input.runtimeState !== undefined ? { runtimeState: input.runtimeState } : {}),
     ...(input.command ? { command: input.command } : {}),
     ...(input.contractResolver ? { contractResolver: input.contractResolver } : {}),
   })
@@ -373,6 +375,24 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
       modelConfigId: reasoningRoute.config.modelConfigId,
       model: reasoningRoute.config.model,
       source: reasoningRoute.source,
+    },
+  })
+  const roundStartedAtMs = Date.now()
+  input.onTrace({
+    kind: 'model_call',
+    title: 'Model round started',
+    summary: `Round ${currentRoundIndex} started with ${reasoningRoute.config.model}`,
+    status: 'started',
+    roundIndex: currentRoundIndex,
+    roundLabel,
+    roundSource: 'model',
+    data: {
+      eventType: 'model.round.started',
+      roundIndex: currentRoundIndex,
+      modelConfigId: reasoningRoute.config.modelConfigId,
+      model: reasoningRoute.config.model,
+      messageCount: messages.length,
+      toolCount: tools.length,
     },
   })
   const modelResult = await modelRouter.call({
@@ -421,6 +441,7 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
         roundLabel,
         roundSource: 'model',
         data: { phase: event.phase, ...event.trace, ...(event.error ? { error: event.error } : {}), ...(event.retry ? { retry: event.retry } : {}) },
+        ...(event.phase === 'response' || event.phase === 'error' ? { durationMs: event.trace.latencyMs } : {}),
       })
     },
   }).catch((error) => {
@@ -438,6 +459,49 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     }
   })
   throwIfAborted(input.signal)
+
+  const roundDurationMs = Math.max(0, Date.now() - roundStartedAtMs)
+  input.onTrace({
+    kind: 'model_call',
+    title: 'Model round completed',
+    summary: modelResult.finish_reason === 'tool_calls'
+      ? `Round ${currentRoundIndex} requested ${modelResult.tool_calls.length} tool call(s) in ${roundDurationMs}ms`
+      : `Round ${currentRoundIndex} finished with ${modelResult.finish_reason} in ${roundDurationMs}ms`,
+    status: 'completed',
+    roundIndex: currentRoundIndex,
+    roundLabel,
+    roundSource: 'model',
+    data: {
+      eventType: 'model.round.completed',
+      roundIndex: currentRoundIndex,
+      finish_reason: modelResult.finish_reason,
+      tool_calls: modelResult.tool_calls.map((tc) => ({ id: tc.id, name: tc.function.name })),
+      content_chars: modelResult.content?.length ?? 0,
+      usage: modelResult.usage,
+      durationMs: roundDurationMs,
+    },
+    durationMs: roundDurationMs,
+  })
+
+  if (modelResult.tool_calls.length > 0) {
+    input.onTrace({
+      kind: 'model_call',
+      title: 'Model tool calls requested',
+      summary: `${modelResult.tool_calls.length} tool call(s) requested`,
+      status: 'completed',
+      roundIndex: currentRoundIndex,
+      roundLabel,
+      roundSource: 'model',
+      data: {
+        eventType: 'model.tool_calls.requested',
+        tool_calls: modelResult.tool_calls.map((tc) => ({
+          id: tc.id,
+          name: tc.function.name,
+          args: parseArgs(tc.function.arguments),
+        })),
+      },
+    })
+  }
 
   input.onTrace({
     kind: 'model_call',
@@ -1197,7 +1261,7 @@ function abortErrorFromSignal(signal?: AbortSignal): Error {
 }
 
 function canExecuteConcurrently(call: ToolCall, registry: ToolRegistry): boolean {
-  if (call.name === 'core_subagent_wait' || call.name === 'core_subagent_list') return true
+  if (call.name === 'core_work_get' || call.name === 'core_work_list' || call.name === 'core_work_wait') return true
   const tool = registry.get(call.name)
   return tool?.risk === 'read'
 }
@@ -1469,10 +1533,11 @@ function isRuntimeStateTool(name: string): boolean {
   return name === 'core_skill_update'
     || name === 'core_catalog_inspect'
     || name === 'core_progress_update'
-    || name === 'core_subagent_spawn'
-    || name === 'core_subagent_list'
-    || name === 'core_subagent_wait'
-    || name === 'core_subagent_cancel'
+    || name === 'core_work_start'
+    || name === 'core_work_get'
+    || name === 'core_work_list'
+    || name === 'core_work_wait'
+    || name === 'core_work_cancel'
 }
 
 function booleanField(value: unknown): boolean {

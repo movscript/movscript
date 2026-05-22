@@ -62,7 +62,24 @@ test('setting preparation launch scopes the agent to the selected creative refer
   assert.ok(payload.clientInput)
   assert.equal(payload.clientInput.uiSnapshot?.selection?.entityType, 'creative_reference')
   assert.equal(payload.clientInput.uiSnapshot?.selection?.entityId, 31)
-  assert.match(payload.clientInput.message, /女主角/)
+  assert.equal(payload.clientInput.message, '请补齐人物动机。')
+  assert.ok(payload.clientInput.uiSnapshot?.labels?.includes('setting_prep'))
+})
+
+test('setting preparation launch preserves asset requirement requests for intent routing', () => {
+  const payload = buildSettingPreparationAgentPanelDraftPayload({
+    requestId: 'setting-asset',
+    projectId: 7,
+    creativeReferenceId: 31,
+    creativeReferenceLabel: '女主角',
+    message: '请给这个已存在设定添加基础形象素材需求，只创建 asset_proposal。',
+  })
+
+  assert.ok(payload.clientInput)
+  assert.equal(payload.clientInput.message, '请给这个已存在设定添加基础形象素材需求，只创建 asset_proposal。')
+  assert.equal(payload.clientInput.uiSnapshot?.selection?.entityType, 'creative_reference')
+  assert.equal(payload.clientInput.uiSnapshot?.selection?.entityId, 31)
+  assert.match(payload.clientInput.message, /asset_proposal/)
 })
 
 test('media candidate generation launch builds real generation payload', () => {

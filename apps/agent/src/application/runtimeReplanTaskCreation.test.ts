@@ -55,7 +55,7 @@ test('buildRuntimeReplanTasksToCreate rejects references outside the taskGraph',
     taskGraphId: 'task_graph_1',
     now: '2026-01-01T00:00:01.000Z',
     inputs: [{ id: 'task_new', title: 'New task', deps: ['task_foreign'] }],
-  }), /dependency task task_foreign does not belong to task graph task_graph_1/)
+  }), /dependency task task_foreign does not belong to taskGraph task_graph_1/)
 })
 
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {

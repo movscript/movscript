@@ -5,7 +5,7 @@ import { statusLabel, statusVariant } from '@/lib/contentWorkbenchStatus'
 import { useWorkbenchCanvasLauncher, type CanvasWorkbenchKind } from '@/lib/useWorkbenchCanvasLauncher'
 import { workbenchScenarios } from '@/lib/workbenchScenarios'
 import { getWorkbenchSurface, type WorkbenchCategory } from '@/pages/project/projectSurfaces'
-import { Badge, Button, Card, Progress } from '@movscript/ui'
+import { Badge, Button, Card } from '@movscript/ui'
 import { ActionRail, DecisionPanel, InfoPanel, QueueList } from './WorkbenchChrome'
 
 export function ScenarioWorkspace({ category, generationKind }: { category: WorkbenchCategory; generationKind?: CanvasWorkbenchKind }) {
@@ -63,7 +63,9 @@ export function ScenarioWorkspace({ category, generationKind }: { category: Work
                     </div>
                     <Badge variant={statusVariant(selected.status)}>{statusLabel(selected.status)}</Badge>
                   </div>
-                  <Progress value={selected.progress} className="mt-4 h-1.5" />
+                  <p className="mt-4 rounded-md border border-border bg-background px-3 py-2 type-label text-muted-foreground">
+                    下一步：{statusLabel(selected.status)}
+                  </p>
                 </Card>
               ) : null}
 

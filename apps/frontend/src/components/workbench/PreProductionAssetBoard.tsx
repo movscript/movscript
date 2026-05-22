@@ -19,6 +19,7 @@ import {
   type ReferenceAssetCluster,
   type SlotStatus,
 } from '@/lib/preProductionAssetRows'
+import { assetCoverage, assetSlotAction } from '@/lib/productionTerminology'
 import { cn } from '@/lib/utils'
 import type { RawResource } from '@/types'
 import { Badge, Button } from '@movscript/ui'
@@ -165,7 +166,7 @@ export function PreProductionAssetBoard({
                   ? '直接处理缺少素材的准备项，不被设定层级打断。'
                   : view === 'locked'
                     ? '查看已经锁定、可以交给下游使用的资产。'
-                    : '设定和素材并列展示，先看全局准备进度，再进入具体检查器处理。'}
+                    : '设定和素材并列展示，先看全局准备清单，再进入具体检查器处理。'}
               </p>
             </div>
             <div className="flex flex-wrap justify-end gap-1">
@@ -298,6 +299,12 @@ function ReferencePrepItem({
   onSelect: () => void
   onContextMenu?: (event: MouseEvent) => void
 }) {
+  const coverage = assetCoverage({
+    total: cluster.rows.length,
+    missing: cluster.missing,
+    candidate: cluster.candidate,
+    locked: cluster.locked,
+  })
   return (
     <WorkbenchEntityCard
       onClick={onSelect}
@@ -310,7 +317,7 @@ function ReferencePrepItem({
       )}
       title={referenceTitle(cluster.reference)}
       description={`${referenceKindLabel(cluster.reference?.kind)} · ${cluster.rows.length} 个素材 · 缺 ${cluster.missing} · 待选 ${cluster.candidate}`}
-      status={<WorkbenchStatusBadge tone={cluster.missing > 0 ? 'warning' : cluster.candidate > 0 ? 'info' : 'success'} label={cluster.missing > 0 ? '有缺口' : cluster.candidate > 0 ? '待选择' : '已覆盖'} />}
+      status={<WorkbenchStatusBadge tone={coverage.tone} label={coverage.label} />}
     />
   )
 }
@@ -355,13 +362,8 @@ export function SlotThumb({ slot, className, fit = 'cover' }: { slot?: AssetSlot
 }
 
 export function SlotStatusBadge({ status }: { status: SlotStatus }) {
-  const meta = {
-    missing: { label: '缺少', tone: 'warning' as const },
-    candidate: { label: '待选择', tone: 'info' as const },
-    locked: { label: '已选定', tone: 'success' as const },
-    waived: { label: '不需要', tone: 'neutral' as const },
-  }[status]
-  return <WorkbenchStatusBadge tone={meta.tone} label={meta.label} />
+  const action = assetSlotAction({ status })
+  return <WorkbenchStatusBadge tone={action.tone} label={action.label} />
 }
 
 export function EmptyPreview({ title, description }: { title: string; description: string }) {

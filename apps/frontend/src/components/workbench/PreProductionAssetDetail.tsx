@@ -9,9 +9,9 @@ import {
   slotScopeLabel,
   type AssetSlotCandidateRecord,
   type AssetSlotViewModel,
-  type SlotStatus,
 } from '@/lib/preProductionAssetRows'
 import type { PreProductionCandidateGenerationKind } from '@/lib/preProductionAssetCandidateWrite'
+import { assetSlotAction } from '@/lib/productionTerminology'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 
@@ -50,6 +50,7 @@ export function AssetSlotDetail({
   const slot = row.slot
   const preferredKind: CandidateGenerationKind = row.kind === 'video' ? 'video' : 'image'
   const canGenerate = row.kind === 'image' || row.kind === 'video'
+  const nextAction = assetSlotAction({ status: normalizeSlotStatus(slot.status), candidateCount: row.candidates.length, hasResource: row.hasResource })
   return (
     <section className="space-y-3 border-t border-border pt-4">
       <div className="flex items-start justify-between gap-3">
@@ -64,7 +65,7 @@ export function AssetSlotDetail({
 
       <div className="grid grid-cols-2 gap-2">
         <MiniStat label="类型" value={assetKindLabel(row.kind)} />
-        <MiniStat label="状态" value={slotStatusLabel(normalizeSlotStatus(slot.status))} />
+        <MiniStat label="下一步" value={nextAction.label} />
       </div>
 
       <section>
@@ -142,16 +143,6 @@ function CandidateRow({
       </div>
     </div>
   )
-}
-
-function slotStatusLabel(status: SlotStatus): string {
-  const labels: Record<SlotStatus, string> = {
-    missing: '缺少',
-    candidate: '待选择',
-    locked: '已选定',
-    waived: '不需要',
-  }
-  return labels[status]
 }
 
 function sourceTypeLabel(sourceType?: string): string {

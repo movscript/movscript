@@ -17,7 +17,6 @@ import {
   contentUnitEditDraftFromRecord,
   contentUnitEditPayload,
   contentUnitEditShotSizeOptions,
-  contentUnitEditStatusOptions,
   keyframeEditDraftEqualsRecord,
   keyframeEditDraftFromRecord,
   keyframeEditPayload,
@@ -436,7 +435,6 @@ export function ContentUnitEditCards({
             <ContentUnitEditSelect label="景别" value={draft.shot_size} options={contentUnitEditShotSizeOptions} onChange={(value) => updateDraft('shot_size', value)} />
             <ContentUnitEditSelect label="机位角度" value={draft.camera_angle} options={contentUnitEditCameraAngleOptions} onChange={(value) => updateDraft('camera_angle', value)} />
             <ContentUnitEditSelect label="运镜方式" value={draft.camera_motion} options={contentUnitEditCameraMotionOptions} onChange={(value) => updateDraft('camera_motion', value)} />
-            <ContentUnitEditSelect label="状态" value={draft.status} options={contentUnitEditStatusOptions} onChange={(value) => updateDraft('status', value)} />
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {blockers.length > 0 ? blockers.map((item) => (

@@ -99,7 +99,7 @@ function appendReviewGate(rows: WorkbenchGate[], pendingDraftCount: number): Wor
     ...rows,
     {
       label: 'AI 草案已处理',
-      detail: pendingDraftCount > 0 ? `${pendingDraftCount} 个制作项草案仍需人工审阅` : '没有待处理的制作项草案',
+      detail: pendingDraftCount > 0 ? `${pendingDraftCount} 个制作项草案仍需人工审阅` : '没有待确认的制作项草案',
       done: pendingDraftCount === 0,
       tone: pendingDraftCount === 0 ? 'success' : 'warning',
     },

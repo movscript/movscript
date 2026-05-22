@@ -79,7 +79,7 @@ test('resolveRuntimePlannerRunPlanId rejects plans outside the planner thread', 
     source: 'tool',
     action: 'inspect',
     now: '2026-01-01T00:00:01.000Z',
-  }), /cannot inspect task graph task_graph_2/)
+  }), /cannot inspect taskGraph task_graph_2/)
 })
 
 function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {

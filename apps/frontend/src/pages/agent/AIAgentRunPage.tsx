@@ -40,6 +40,7 @@ const EMPTY_DEBUG_COVERAGE: AgentDebugCoverageSummary = {
   httpResponsesLabel: '0',
   requestPayloadsLabel: '0',
   httpResponseBodiesLabel: '0',
+  tokenUsageLabel: '0 tokens',
   issues: [],
 }
 
@@ -197,7 +198,11 @@ export default function AIAgentRunPage() {
     () => summaryQuery.data?.latestEvent ? agentTraceView(summaryQuery.data.latestEvent) : undefined,
     [summaryQuery.data?.latestEvent],
   )
-  const runSummary = useMemo(() => buildRunSummary(runQuery.data, summaryQuery.data), [runQuery.data, summaryQuery.data])
+  const modelCallTokenUsage = useMemo(() => modelCallTokenUsageLabel(modelCallSummaries), [modelCallSummaries])
+  const runSummary = useMemo(() => buildRunSummary(runQuery.data, summaryQuery.data, {
+    modelCallCount: debugViewQuery.data ? modelCallSummaries.length : undefined,
+    tokenUsageLabel: modelCallTokenUsage,
+  }), [debugViewQuery.data, modelCallSummaries.length, modelCallTokenUsage, runQuery.data, summaryQuery.data])
   const traceTotal = summaryQuery.data?.total
   const traceDeepLinkMissing = isTraceDeepLinkMissing({ eventId: traceDeepLinkEventId, events, hasMore })
   const runPlanTask = useMemo(() => {
@@ -1628,6 +1633,7 @@ function DebugWorkbenchPanel({
               <DebugCoverageMetric label="事件" value={summary.loadedLabel} />
               <DebugCoverageMetric label="工具详情" value={summary.toolDetailsLabel} />
               <DebugCoverageMetric label="模型调用" value={summary.modelCallsLabel} />
+              <DebugCoverageMetric label="Token" value={summary.tokenUsageLabel} />
               <DebugCoverageMetric label="请求/响应" value={`${summary.requestPayloadsLabel} / ${summary.httpResponseBodiesLabel}`} />
             </div>
             {blockingItems.length > 0 && (
@@ -1992,6 +1998,7 @@ function DebugCoveragePanel({
       <div className="mt-2 grid gap-1 sm:grid-cols-8">
         <DebugCoverageMetric label="事件" value={summary.loadedLabel} />
         <DebugCoverageMetric label="模型调用" value={summary.modelCallsLabel} />
+        <DebugCoverageMetric label="Token" value={summary.tokenUsageLabel} />
         <DebugCoverageMetric label="HTTP 响应" value={summary.httpResponsesLabel} />
         <DebugCoverageMetric label="请求负载" value={summary.requestPayloadsLabel} />
         <DebugCoverageMetric label="响应正文" value={summary.httpResponseBodiesLabel} />
@@ -2481,11 +2488,22 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
               </div>
             </details>
           )}
-          {detail.request.payload !== undefined && (
-            <details data-testid="agent-run-model-request-payload" className="mt-1 rounded bg-muted/20 px-2 py-1">
+          {(detail.request.submittedPayload ?? detail.request.payload) !== undefined && (
+            <details data-testid="agent-run-model-request-payload" open className="mt-1 rounded bg-muted/20 px-2 py-1">
               <summary className="cursor-pointer type-tiny font-medium text-foreground">完整请求负载</summary>
+              <div className="mt-1 type-micro text-muted-foreground">
+                实际发送到模型接口的请求体；Responses 调用会展开 sdk_body。
+              </div>
               <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap break-words type-tiny leading-relaxed text-foreground">
-                {formatAgentTraceDebugData(detail.request.payload)}
+                {formatAgentTraceDebugData(detail.request.submittedPayload ?? detail.request.payload)}
+              </pre>
+            </details>
+          )}
+          {detail.request.internalPayload !== undefined && (
+            <details data-testid="agent-run-model-internal-payload" className="mt-1 rounded bg-muted/20 px-2 py-1">
+              <summary className="cursor-pointer type-tiny font-medium text-foreground">Agent 内部请求快照</summary>
+              <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap break-words type-tiny leading-relaxed text-foreground">
+                {formatAgentTraceDebugData(detail.request.internalPayload)}
               </pre>
             </details>
           )}
@@ -2568,9 +2586,18 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
               </pre>
             </details>
           )}
+          {detail.response.parsedBody !== undefined && !detail.response.bodyText && (
+            <details className="mt-1 rounded bg-muted/20 px-2 py-1" open>
+              <summary className="cursor-pointer type-tiny font-medium text-foreground">解析响应数据</summary>
+              <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words type-tiny leading-relaxed text-foreground">
+                {formatAgentTraceDebugData(detail.response.parsedBody)}
+              </pre>
+            </details>
+          )}
           {!detail.response.content && !detail.response.bodyText && (
             <div className="mt-1 rounded bg-muted/20 px-2 py-1 type-tiny leading-relaxed text-muted-foreground">
-              这条事件没有 HTTP 响应正文；如果是流式调用，请查看模型增量事件或最终的历史写入事件。
+              这条事件没有原始 HTTP 响应正文；如果本区块上方有“完整请求负载”，仍可核对当时发送给模型的 input/tools。
+              模型输出请继续查看“模型结果”或同轮“历史写入”。
             </div>
           )}
         </ModelDetailSection>
@@ -2699,9 +2726,11 @@ function formatAgentTraceRawJSON(value: unknown): string {
 function buildRunSummary(
   run?: Pick<AgentRun, 'status' | 'role' | 'steps' | 'warnings' | 'error' | 'pendingApprovals' | 'pendingInputRequests'>,
   traceSummary?: { total: number; byKind: Partial<Record<AgentTraceEventKind, number>>; latestEvent?: AgentTraceEvent },
+  metrics: { modelCallCount?: number; tokenUsageLabel?: string } = {},
 ): { overview: string; bullets: string[] } | undefined {
   if (!run) return undefined
-  const modelCalls = traceSummary?.byKind.model_call ?? 0
+  const modelEvents = traceSummary?.byKind.model_call ?? 0
+  const modelCalls = metrics.modelCallCount ?? modelEvents
   const toolCalls = traceSummary?.byKind.tool_call ?? 0
   const contextEvents = (traceSummary?.byKind.context ?? 0) + (traceSummary?.byKind.prompt ?? 0) + (traceSummary?.byKind.memory ?? 0)
   const approvals = run.pendingApprovals?.filter((item) => item.status === 'pending').length ?? 0
@@ -2718,13 +2747,32 @@ function buildRunSummary(
   return {
     overview,
     bullets: [
-      `${traceSummary?.total ?? 0} 个运行事件，${modelCalls} 次模型调用，${toolCalls} 次工具调用`,
+      `${traceSummary?.total ?? 0} 个运行事件，${modelCalls} 次 HTTP 调用，${toolCalls} 次工具调用${modelEvents !== modelCalls ? `，${modelEvents} 个模型事件` : ''}`,
+      metrics.tokenUsageLabel ? `模型消耗：${metrics.tokenUsageLabel}` : undefined,
       `${contextEvents} 个上下文相关事件`,
       approvals > 0 ? `${approvals} 个待审批项` : '无待审批项',
       inputs > 0 ? `${inputs} 个待输入项` : '无待输入项',
       run.warnings?.length ? `${run.warnings.length} 条警告` : '无运行警告',
-    ],
+    ].filter((item): item is string => !!item),
   }
+}
+
+function modelCallTokenUsageLabel(modelCalls: AgentModelCallSummary[]): string | undefined {
+  const input = modelCalls.reduce((sum, call) => sum + integerFromLabel(call.inputTokens), 0)
+  const output = modelCalls.reduce((sum, call) => sum + integerFromLabel(call.outputTokens), 0)
+  const total = input + output
+  if (total <= 0) return undefined
+  return `${formatInteger(total)} tokens，in ${formatInteger(input)} / out ${formatInteger(output)}`
+}
+
+function integerFromLabel(value: string | undefined): number {
+  const normalized = value?.replace(/,/g, '')
+  const parsed = Number(normalized?.match(/\d+/)?.[0] ?? 0)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function formatInteger(value: number): string {
+  return Math.round(value).toLocaleString('en-US')
 }
 
 function Info({ label, value, title }: { label: string; value: string; title?: string }) {

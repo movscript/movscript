@@ -110,15 +110,15 @@ test('generation monitor requests normalize backend monitor data to get job poll
   assert.equal(monitor.heartbeatMs, 50)
 })
 
-test('runtime operation starts emit generation events without synchronous monitor requests', () => {
+test('runtime work starts emit generation events without synchronous monitor requests', () => {
   const call: ToolCall = {
-    name: 'core_operation_start',
+    name: 'core_work_start',
     args: { kind: 'generation_job', request: { projectId: 42, prompt: 'image' } },
   }
   const result: JSONValue = {
     status: 'started',
-    operation: {
-      id: 'op_1',
+    work: {
+      id: 'work_1',
       kind: 'generation_job',
       status: 'waiting',
       request: { projectId: 42, prompt: 'image' },

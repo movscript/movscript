@@ -11,6 +11,7 @@ function objectSchema(required: string[], properties: Record<string, unknown>): 
 
 const clientIdSchema = { type: 'string', minLength: 1 }
 const proposalModeSchema = { const: 'snapshot' }
+const nullableNumberSchema = { type: ['number', 'null'] }
 const assetSlotOwnerTypeSchema = {
   enum: ['creative_reference', 'creative_reference_state', 'segment', 'scene_moment', 'content_unit', 'keyframe'],
 }
@@ -109,7 +110,7 @@ export const projectStandardsProposalSchema = {
     '# movscript.project_standards_proposal.v1',
     '',
     'Content shape:',
-    '{ schema: "movscript.project_standards_proposal.v1", scope: "project_standards_proposal", mode: "snapshot", proposal: { project_style: { aspect_ratio?, shot_size_system?: string[], camera_language?, visual_style?, lighting_style?, color_palette?, pacing_rules?, negative_rules?: string[], custom_rules?: Array<{ id?, key, label, category?, value, prompt_role?, enabled?, required?, order? }> } }, snapshot_base?, impact_notes?: string[], summary? }',
+    '{ schema: "movscript.project_standards_proposal.v1", scope: "project_standards_proposal", mode: "snapshot", proposal: { project_style: { aspect_ratio?, shot_size_system?: string[], camera_language?, visual_style?, lighting_style?, color_palette?, pacing_rules?, negative_rules?: string[], custom_rules?: Array<{ id?, key, label, category?, value, prompt_role?, enabled?, required?, order? }> } }, impact_notes?: string[], summary? }',
     '',
     'Rules:',
     '- Project standards proposal owns project-wide production standards: shot sizes, aspect ratio, camera language, style, lighting, color, pacing, and negative rules.',
@@ -173,11 +174,6 @@ export const settingProposalSchema = {
     mode: proposalModeSchema,
     proposal: objectSchema([], {
       creative_references: projectLayerProposalCreativeReferencesSchema,
-      asset_slots: {
-        type: 'array',
-        maxItems: 0,
-        description: 'Setting proposals never edit asset slots.',
-      },
     }),
     impact_notes: { type: 'string' },
     summary: { type: 'string' },
@@ -186,11 +182,11 @@ export const settingProposalSchema = {
     '# movscript.setting_proposal.v1',
     '',
     'Content shape:',
-    '{ schema: "movscript.setting_proposal.v1", scope: "setting_proposal", mode: "snapshot", proposal: { creative_references?: Array<{ id?, client_id?, name, kind?, description?, status?, merge_candidates? }>, asset_slots?: [] }, impact_notes?: string, summary? }',
+    '{ schema: "movscript.setting_proposal.v1", scope: "setting_proposal", mode: "snapshot", proposal: { creative_references?: Array<{ id?, client_id?, name, kind?, description?, status?, merge_candidates? }> }, impact_notes?: string, summary? }',
     '',
     'Rules:',
     '- Setting proposals only create, update, merge, or retire creative_references.',
-    '- Do not include asset_slots, candidate image plans, prompts, generation jobs, or generated resources.',
+    '- Do not include material requirements, candidate image plans, prompts, generation jobs, or generated resources.',
     '- Draft content is an editable backend snapshot in proposal.creative_references. Existing rows keep backend id; new rows use client_id only until apply returns a canonical snapshot with backend ids.',
     '- draft_create hydrates current creative references into proposal.creative_references when creating the draft. After creation, edit proposal.creative_references directly; existing backend ids omitted from the proposal snapshot are intentional delete/retire candidates.',
   ].join('\n'),
@@ -206,7 +202,6 @@ export const settingProposalSchema = {
           name: 'Main character',
           description: 'A reserved young engineer.',
         }],
-        asset_slots: [],
       },
       summary: 'Adds one character reference.',
     },
@@ -221,10 +216,10 @@ export const productionProposalSchema = {
   title: 'Production Proposal',
   version: '1.0.0',
   status: 'active',
-  jsonSchema: objectSchema(['schema', 'mode', 'productionId', 'proposalScope', 'proposal'], {
+  jsonSchema: objectSchema(['schema', 'scope', 'mode', 'productionId', 'proposalScope', 'proposal'], {
     schema: { const: 'movscript.production_proposal.v1' },
+    scope: { const: 'production_proposal' },
     mode: { const: 'snapshot' },
-    snapshot_base: { type: 'object' },
     productionId: { type: 'number' },
     proposalScope: { const: 'production' },
     proposal: objectSchema(['segments'], {
@@ -237,7 +232,7 @@ export const productionProposalSchema = {
           summary: { type: 'string' },
           order: { type: 'number' },
           status: { type: 'string' },
-          script_block_id: { type: 'number' },
+          script_block_id: nullableNumberSchema,
           title: { type: 'string' },
           scene_moments: {
             type: 'array',
@@ -253,7 +248,7 @@ export const productionProposalSchema = {
               description: { type: 'string' },
               order: { type: 'number' },
               status: { type: 'string' },
-              script_block_id: { type: 'number' },
+              script_block_id: nullableNumberSchema,
               content_units: {
                 type: 'array',
                 items: objectSchema(['title', 'kind'], {
@@ -268,7 +263,7 @@ export const productionProposalSchema = {
                   duration_sec: { type: 'number' },
                   order: { type: 'number' },
                   status: { type: 'string' },
-                  script_block_id: { type: 'number' },
+                  script_block_id: nullableNumberSchema,
                   keyframes: {
                     type: 'array',
                     items: objectSchema(['title'], {
@@ -320,14 +315,14 @@ export const productionProposalSchema = {
         }),
       },
     }),
-    impact_notes: { type: 'string' },
+    impact_notes: { type: 'array', items: { type: 'string' } },
     summary: { type: 'string' },
   }),
   promptSummary: [
     '# movscript.production_proposal.v1',
     '',
     'Content shape:',
-    '{ schema: "movscript.production_proposal.v1", mode: "snapshot", productionId: number, proposalScope: "production", proposal: { segments: Array<{ id?, client_id?, title, kind?, summary?, order?, status?, script_block_id?, scene_moments: Array<{ id?, client_id?, scene_code?, title, time_text?, location_text?, action_text?, mood?, description?, order?, status?, script_block_id?, content_units?: Array<{ id?, client_id?, unit_code?, title, kind, description?, keyframes? }>, keyframes?: Array<{ id?, client_id?, title, description?, prompt? }>, creative_references?: Array<{ id, role? }>, asset_slots?: Array<{ id?, client_id?, name, kind, description?, priority? }> }> }> }, snapshot_base?, impact_notes?: string, summary? }',
+    '{ schema: "movscript.production_proposal.v1", scope: "production_proposal", mode: "snapshot", productionId: number, proposalScope: "production", proposal: { segments: Array<{ id?, client_id?, title, kind?, summary?, order?, status?, script_block_id?: number|null, scene_moments: Array<{ id?, client_id?, scene_code?, title, time_text?, location_text?, action_text?, mood?, description?, order?, status?, script_block_id?: number|null, content_units?: Array<{ id?, client_id?, unit_code?, title, kind, description?, script_block_id?: number|null, keyframes? }>, keyframes?: Array<{ id?, client_id?, title, description?, prompt? }>, creative_references?: Array<{ id, role? }>, asset_slots?: Array<{ id?, client_id?, name, kind, description?, priority? }> }> }> }, impact_notes?: string[], summary? }',
     '',
     'Rules:',
     '- productionId is required and must match the selected production.',
@@ -343,6 +338,7 @@ export const productionProposalSchema = {
     name: 'basic',
     content: {
       schema: 'movscript.production_proposal.v1',
+      scope: 'production_proposal',
       mode: 'snapshot',
       productionId: 1,
       proposalScope: 'production',
@@ -358,6 +354,7 @@ export const productionProposalSchema = {
           }],
         }],
       },
+      impact_notes: [],
     },
   }],
 } satisfies DraftSchemaDefinition

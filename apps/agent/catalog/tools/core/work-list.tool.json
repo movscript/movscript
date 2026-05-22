@@ -1,10 +1,11 @@
 {
-  "name": "core_operation_list",
-  "description": "列出当前 run 的 runtime operations。runId:'all' 可查看 runtime 内所有 operation。不要用于普通同步工具调用。",
-  "permission": "agent.operation.read",
+  "name": "core_work_list",
+  "description": "列出当前 run 的 runtime works。runId:'all' 可查看 runtime 内所有 work。不要用于普通同步工具调用。",
+  "permission": "agent.work.read",
   "risk": "read",
   "source": "runtime",
-  "category": "runtime-operation",
+  "category": "runtime-work",
+  "allowedRunRoles": ["planner"],
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,

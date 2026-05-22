@@ -37,20 +37,7 @@ export function buildAgentConversationPresentation(input: AgentConversationPrese
 
   const blockedByDraft = !!input.pendingSendDraft
   const runIsNonTerminal = !!input.activeRun && !isTerminalAgentRunStatus(input.activeRun.status)
-  const runIsActivelyGenerating = input.activeRun?.status === 'in_progress' || input.activeRun?.status === 'queued'
   const busy = !!input.loading || !!input.buildingSendDraft
-  const generationProgressStates = input.generationProgressStates ?? (input.generationProgressState ? [input.generationProgressState] : [])
-  const showGenerationProgress = generationProgressStates.length > 0
-    && (busy || runIsActivelyGenerating)
-    && !blockedByDraft
-  if (showGenerationProgress) {
-    blocks.push(...generationProgressStates.map((state) => ({
-      id: generationProgressBlockId(state),
-      type: 'generation_progress' as const,
-      state,
-    })))
-  }
-
   const showLiveRunActivity = !blockedByDraft
     && (busy || runIsNonTerminal)
     && (input.visibleActivityEvents.length > 0 || !!input.activeRun)
@@ -81,10 +68,4 @@ export function buildAgentConversationPresentation(input: AgentConversationPrese
 
 function isTerminalAgentRunStatus(status: AgentRun['status'] | undefined): boolean {
   return status === 'completed' || status === 'completed_with_warnings' || status === 'failed' || status === 'cancelled'
-}
-
-function generationProgressBlockId(state: GenerationProgressState): string {
-  if (state.jobId !== undefined) return `generation-progress-job-${state.jobId}`
-  if (state.outputResourceId !== undefined) return `generation-progress-resource-${state.outputResourceId}`
-  return `generation-progress-${state.status}-${state.stage ?? 'unknown'}`
 }

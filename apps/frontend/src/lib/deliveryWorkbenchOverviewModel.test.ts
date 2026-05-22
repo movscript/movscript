@@ -107,7 +107,7 @@ test('delivery workbench overview model summarizes selected version state', () =
     total: 2,
     lockedCount: 1,
     warningCount: 1,
-    completion: 50,
+    readinessLabel: '1/2 片段锁定',
     totalDurationLabel: '0:12',
   })
 })

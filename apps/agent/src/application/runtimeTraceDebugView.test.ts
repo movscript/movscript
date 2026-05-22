@@ -64,6 +64,7 @@ test('buildRuntimeTraceDebugView summarizes model context, tools, pending action
   assert.equal(view.modelCalls[0]?.model, 'gpt-test')
   assert.equal(view.modelCalls[0]?.hasRequestPayload, true)
   assert.equal(view.modelCalls[0]?.hasResponseBody, true)
+  assert.equal(view.coverage.tokenUsageLabel, '12 tokens，in 10 / out 2')
   assert.equal(view.promptDetails[0]?.totalChars, '1200')
   assert.equal(view.messageWrites[0]?.messageId, 'msg_1')
   assert.equal(view.toolCalls.length, 2)
@@ -71,6 +72,53 @@ test('buildRuntimeTraceDebugView summarizes model context, tools, pending action
   assert.deepEqual(view.pendingActions.map((action) => action.id), ['approval_1', 'input_1'])
   assert.equal(view.bundle.schema, 'movscript.agent-run-debug-bundle.v1')
   assert.match(view.reportText, /AgentRun 调试摘要/)
+})
+
+test('buildRuntimeTraceDebugView summarizes OpenAI Responses sdk_body payloads', () => {
+  const run = makeRun()
+  const sdkBody = {
+    model: 'gpt-5.5',
+    input: [{ role: 'user', content: 'hello responses' }],
+    tools: [{ type: 'function', name: 'draft_file_edit' }],
+    tool_choice: 'auto',
+  }
+  const events: AgentTraceEvent[] = [
+    trace('trace_req', 'model_call', 'Model HTTP request sent', {
+      phase: 'request',
+      request: {
+        body: {
+          model: 'gpt-5.5',
+          messages: [{ role: 'user', content: 'hello responses' }],
+          sdk_body: sdkBody,
+        },
+      },
+    }),
+    trace('trace_res', 'model_call', 'Model HTTP response received', {
+      phase: 'response',
+      response: { status: 200, ok: true },
+      content_chars: 12,
+    }),
+  ]
+
+  const view = buildRuntimeTraceDebugView({
+    run,
+    events,
+    summary: {
+      runId: run.id,
+      total: events.length,
+      byKind: { model_call: 2 },
+      latestEvent: events.at(-1),
+    },
+    generatedAt: '2026-01-01T00:00:10.000Z',
+  })
+
+  assert.equal(view.modelCalls[0]?.model, 'gpt-5.5')
+  assert.equal(view.modelCalls[0]?.messageCount, '1')
+  assert.equal(view.modelCalls[0]?.toolCount, '1')
+  assert.equal(view.modelCalls[0]?.hasRequestPayload, true)
+  assert.equal(view.modelCalls[0]?.hasResponseBody, false)
+  assert.equal(view.coverage.requestPayloadsLabel, '1')
+  assert.equal(view.coverage.httpResponseBodiesLabel, '0')
 })
 
 function makeRun(): AgentRun {

@@ -124,6 +124,55 @@ test('createRuntimeTraceReadBridge exposes compact debug ledgers and evidence pa
   assert.throws(() => bridge.getRunDebugEvidence(run.id, 'missing:model_request'), /debug evidence not found/)
 })
 
+test('createRuntimeTraceReadBridge hydrates compact trace data for debug views', () => {
+  const run = testRun()
+  const compactEvent = trace('trace_1', 'model_call', {
+    phase: 'request',
+    request: {
+      body: {
+        model: 'gpt-5.5',
+        messageCount: 10,
+      },
+    },
+    persistedTraceTruncated: true,
+    dataRef: 'trace_1.data.json.gz',
+    dataEncoding: 'gzip',
+  })
+  const fullData = {
+    phase: 'request',
+    request: {
+      body: {
+        model: 'gpt-5.5',
+        sdk_body: {
+          model: 'gpt-5.5',
+          input: [{ role: 'user', content: 'full request content' }],
+          tools: [{ type: 'function', name: 'draft_file_edit' }],
+        },
+      },
+    },
+  }
+  const bridge = createRuntimeTraceReadBridge({
+    store: {
+      getRun: (runId) => runId === run.id ? run : undefined,
+      listRunTraceEvents: () => [compactEvent],
+      countRunTraceEvents: () => 1,
+      getRunTraceEventData: (_runId, eventId) => eventId === compactEvent.id ? fullData : undefined,
+      summarizeRunTraceEvents: (runId) => ({ runId, total: 1, byKind: { model_call: 1 }, latestEvent: compactEvent }),
+      getRunDebugLedger: () => undefined,
+    },
+  })
+
+  const listedEventData = bridge.getRunTraceEvents(run.id)[0]?.data as any
+  assert.equal(listedEventData.request.body.messageCount, 10)
+
+  const debugView = bridge.getRunTraceDebugView(run.id)
+  const debugEventData = debugView.events[0]?.data as any
+  assert.equal(debugEventData.request.body.sdk_body.input[0].content, 'full request content')
+  assert.equal(debugView.modelCalls[0]?.messageCount, '1')
+  assert.equal(debugView.modelCalls[0]?.toolCount, '1')
+  assert.deepEqual(debugView.modelCallContexts[0]?.modelEventIds, ['trace_1'])
+})
+
 test('createRuntimeTraceReadBridge validates run existence before reading traces', () => {
   const bridge = createRuntimeTraceReadBridge({ store: new InMemoryAgentStore() })
 

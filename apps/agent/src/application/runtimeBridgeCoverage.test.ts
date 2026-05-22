@@ -19,6 +19,16 @@ function listRuntimeModuleNames(): string[] {
     .sort()
 }
 
+function bridgeExportNames(moduleName: string): { bridgeName: string; factoryName: string } {
+  const aliases: Record<string, string> = {
+    runtimePlanCreationBridge: 'RuntimeTaskGraphCreationBridge',
+    runtimePlanDispatchBridge: 'RuntimeTaskGraphDispatchBridge',
+    runtimePlanStatusBridge: 'RuntimeTaskGraphStatusBridge',
+  }
+  const bridgeName = aliases[moduleName] ?? moduleName.replace(/^runtime/, 'Runtime')
+  return { bridgeName, factoryName: `create${bridgeName}` }
+}
+
 test('every runtime bridge module has a focused bridge test', () => {
   const bridgeModules = listRuntimeBridgeModuleNames()
   const testModules = new Set(files.filter((file) => /^runtime.+Bridge\.test\.ts$/.test(file)))
@@ -61,8 +71,7 @@ test('runtime bridge modules expose a standard interface and factory', () => {
 
   for (const moduleName of bridgeModules) {
     const source = readFileSync(new URL(`${moduleName}.ts`, applicationDir), 'utf8')
-    const bridgeName = moduleName.replace(/^runtime/, 'Runtime')
-    const factoryName = `create${bridgeName}`
+    const { bridgeName, factoryName } = bridgeExportNames(moduleName)
 
     assert.equal(
       source.includes(`export interface ${bridgeName}`),

@@ -280,6 +280,61 @@ func TestPreviewProductionProposalApplyRollsBack(t *testing.T) {
 	}
 }
 
+func TestPreviewProductionProposalReportsContentUnitsAndKeyframes(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+	production := createProposalTestProduction(t, db, 1)
+
+	resp, err := service.PreviewProductionProposalApply(ctx, 1, ApplyProductionProposalRequest{
+		Mode:         "snapshot",
+		ProductionID: production.ID,
+		Proposal: &ProposalTree{Segments: []ProposalSegmentNode{{
+			ClientID: "segment-preview",
+			Title:    "Preview segment",
+			SceneMoments: []ProposalSceneMomentNode{{
+				ClientID: "scene-preview",
+				Title:    "Preview scene",
+				ContentUnits: []ProposalContentUnitNode{{
+					ClientID: "unit-preview",
+					Title:    "Preview unit",
+					Kind:     "visual",
+					Keyframes: []ProposalKeyframeNode{{
+						ClientID: "unit-keyframe-preview",
+						Title:    "Unit keyframe",
+					}},
+				}},
+				Keyframes: []ProposalKeyframeNode{{
+					ClientID: "scene-keyframe-preview",
+					Title:    "Scene keyframe",
+				}},
+			}},
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("preview proposal: %v", err)
+	}
+	kinds := make([]string, 0, len(resp.SemanticChanges))
+	for _, change := range resp.SemanticChanges {
+		kinds = append(kinds, change.Kind)
+	}
+	want := []string{"segment", "scene_moment", "content_unit", "keyframe", "keyframe"}
+	if len(kinds) != len(want) {
+		t.Fatalf("semantic change kinds = %+v, want %+v", kinds, want)
+	}
+	for i := range want {
+		if kinds[i] != want[i] {
+			t.Fatalf("semantic change kinds = %+v, want %+v", kinds, want)
+		}
+	}
+	if resp.SemanticChanges[2].Parent != "Preview segment / Preview scene" {
+		t.Fatalf("content unit parent = %q", resp.SemanticChanges[2].Parent)
+	}
+	if resp.SemanticChanges[3].Parent != "Preview segment / Preview scene / Preview unit" {
+		t.Fatalf("unit keyframe parent = %q", resp.SemanticChanges[3].Parent)
+	}
+}
+
 func TestApplyProductionProposalSnapshotDeletesOmittedTree(t *testing.T) {
 	db := newProposalTestDB(t)
 	service := NewService(db)
@@ -355,6 +410,188 @@ func TestApplyProductionProposalSnapshotDeletesOmittedTree(t *testing.T) {
 	}
 	if removedUsageCount != 0 {
 		t.Fatalf("removed usage count = %d, want 0", removedUsageCount)
+	}
+}
+
+func TestApplyProductionProposalReusesExistingCreativeReferenceUsage(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+	production := createProposalTestProduction(t, db, 1)
+	segment := model.Segment{ProjectID: 1, ProductionID: &production.ID, Title: "Current segment", Status: "draft"}
+	if err := db.Create(&segment).Error; err != nil {
+		t.Fatalf("create segment: %v", err)
+	}
+	syncSemanticTestRelations(t, db, &segment)
+	moment := model.SceneMoment{ProjectID: 1, SegmentID: &segment.ID, Title: "Current moment", Status: "draft"}
+	if err := db.Create(&moment).Error; err != nil {
+		t.Fatalf("create moment: %v", err)
+	}
+	syncSemanticTestRelations(t, db, &moment)
+	reference := seedProposalTestCreativeReference(t, db, 1)
+	usage := model.CreativeReferenceUsage{
+		ProjectID:           1,
+		OwnerType:           "scene_moment",
+		OwnerID:             moment.ID,
+		CreativeReferenceID: reference.ID,
+		Role:                "protagonist",
+		Source:              "manual",
+		Status:              "draft",
+	}
+	if err := db.Create(&usage).Error; err != nil {
+		t.Fatalf("create usage: %v", err)
+	}
+	syncSemanticTestRelations(t, db, &usage)
+
+	noChangeResp, err := service.ApplyProductionProposal(ctx, 1, ApplyProductionProposalRequest{
+		Mode:         "snapshot",
+		ProductionID: production.ID,
+		Proposal: &ProposalTree{Segments: []ProposalSegmentNode{{
+			ID:    &segment.ID,
+			Title: "Current segment",
+			SceneMoments: []ProposalSceneMomentNode{{
+				ID:    &moment.ID,
+				Title: "Current moment",
+				CreativeReferences: []ProposalCreativeRefNode{{
+					ID:   &reference.ID,
+					Name: reference.Name,
+					Role: "protagonist",
+				}},
+			}},
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("apply unchanged usage proposal: %v", err)
+	}
+	if noChangeResp.Counts.CreativeReferenceUsages != 0 {
+		t.Fatalf("unchanged usage count = %d, want 0", noChangeResp.Counts.CreativeReferenceUsages)
+	}
+	var usageCount int64
+	if err := db.Model(&model.CreativeReferenceUsage{}).Where("owner_type = ? AND owner_id = ? AND creative_reference_id = ?", "scene_moment", moment.ID, reference.ID).Count(&usageCount).Error; err != nil {
+		t.Fatalf("count usages: %v", err)
+	}
+	if usageCount != 1 {
+		t.Fatalf("usage count after unchanged apply = %d, want 1", usageCount)
+	}
+
+	changedResp, err := service.ApplyProductionProposal(ctx, 1, ApplyProductionProposalRequest{
+		Mode:         "snapshot",
+		ProductionID: production.ID,
+		Proposal: &ProposalTree{Segments: []ProposalSegmentNode{{
+			ID:    &segment.ID,
+			Title: "Current segment",
+			SceneMoments: []ProposalSceneMomentNode{{
+				ID:    &moment.ID,
+				Title: "Current moment",
+				CreativeReferences: []ProposalCreativeRefNode{{
+					ID:   &reference.ID,
+					Name: reference.Name,
+					Role: "supporting",
+				}},
+			}},
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("apply changed usage proposal: %v", err)
+	}
+	if changedResp.Counts.CreativeReferenceUsages != 1 {
+		t.Fatalf("changed usage count = %d, want 1", changedResp.Counts.CreativeReferenceUsages)
+	}
+	var patchedUsage model.CreativeReferenceUsage
+	if err := db.First(&patchedUsage, usage.ID).Error; err != nil {
+		t.Fatalf("load patched usage: %v", err)
+	}
+	if patchedUsage.Role != "supporting" {
+		t.Fatalf("usage role = %q, want supporting", patchedUsage.Role)
+	}
+	if err := db.Model(&model.CreativeReferenceUsage{}).Where("owner_type = ? AND owner_id = ? AND creative_reference_id = ?", "scene_moment", moment.ID, reference.ID).Count(&usageCount).Error; err != nil {
+		t.Fatalf("count usages after patch: %v", err)
+	}
+	if usageCount != 1 {
+		t.Fatalf("usage count after changed apply = %d, want 1", usageCount)
+	}
+}
+
+func TestApplyProductionProposalDeletesOmittedCreativeReferenceUsageOnKeptMoment(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+	production := createProposalTestProduction(t, db, 1)
+	segment := model.Segment{ProjectID: 1, ProductionID: &production.ID, Title: "Current segment", Status: "draft"}
+	if err := db.Create(&segment).Error; err != nil {
+		t.Fatalf("create segment: %v", err)
+	}
+	syncSemanticTestRelations(t, db, &segment)
+	moment := model.SceneMoment{ProjectID: 1, SegmentID: &segment.ID, Title: "Current moment", Status: "draft"}
+	if err := db.Create(&moment).Error; err != nil {
+		t.Fatalf("create moment: %v", err)
+	}
+	syncSemanticTestRelations(t, db, &moment)
+	keptReference := seedProposalTestCreativeReference(t, db, 1)
+	removedReference := seedProposalTestCreativeReference(t, db, 1)
+	removedReference.Name = "Removed ref"
+	if err := db.Save(&removedReference).Error; err != nil {
+		t.Fatalf("rename removed reference: %v", err)
+	}
+	keptUsage := model.CreativeReferenceUsage{
+		ProjectID:           1,
+		OwnerType:           "scene_moment",
+		OwnerID:             moment.ID,
+		CreativeReferenceID: keptReference.ID,
+		Role:                "protagonist",
+		Status:              "draft",
+	}
+	removedUsage := model.CreativeReferenceUsage{
+		ProjectID:           1,
+		OwnerType:           "scene_moment",
+		OwnerID:             moment.ID,
+		CreativeReferenceID: removedReference.ID,
+		Role:                "supporting",
+		Status:              "draft",
+	}
+	if err := db.Create(&keptUsage).Error; err != nil {
+		t.Fatalf("create kept usage: %v", err)
+	}
+	syncSemanticTestRelations(t, db, &keptUsage)
+	if err := db.Create(&removedUsage).Error; err != nil {
+		t.Fatalf("create removed usage: %v", err)
+	}
+	syncSemanticTestRelations(t, db, &removedUsage)
+
+	_, err := service.ApplyProductionProposal(ctx, 1, ApplyProductionProposalRequest{
+		Mode:         "snapshot",
+		ProductionID: production.ID,
+		Proposal: &ProposalTree{Segments: []ProposalSegmentNode{{
+			ID:    &segment.ID,
+			Title: "Current segment",
+			SceneMoments: []ProposalSceneMomentNode{{
+				ID:    &moment.ID,
+				Title: "Current moment",
+				CreativeReferences: []ProposalCreativeRefNode{{
+					ID:   &keptReference.ID,
+					Name: keptReference.Name,
+					Role: "protagonist",
+				}},
+			}},
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("apply omitted usage proposal: %v", err)
+	}
+
+	var keptCount int64
+	if err := db.Model(&model.CreativeReferenceUsage{}).Where("id = ?", keptUsage.ID).Count(&keptCount).Error; err != nil {
+		t.Fatalf("count kept usage: %v", err)
+	}
+	if keptCount != 1 {
+		t.Fatalf("kept usage count = %d, want 1", keptCount)
+	}
+	var removedCount int64
+	if err := db.Model(&model.CreativeReferenceUsage{}).Where("id = ?", removedUsage.ID).Count(&removedCount).Error; err != nil {
+		t.Fatalf("count removed usage: %v", err)
+	}
+	if removedCount != 0 {
+		t.Fatalf("removed usage count = %d, want 0", removedCount)
 	}
 }
 

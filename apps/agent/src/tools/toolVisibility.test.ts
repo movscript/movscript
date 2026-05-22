@@ -18,17 +18,17 @@ test('isToolVisibleForActiveBehavior exposes only core management tools by defau
 
 test('isToolVisibleForActiveBehavior exposes command required tools only for matching commands', () => {
   assert.equal(isToolVisibleForActiveBehavior({
-    toolName: 'core_operation_start',
+    toolName: 'core_work_start',
     activeSkills: [],
     userMessage: '/image rainy store',
   }), true)
   assert.equal(isToolVisibleForActiveBehavior({
-    toolName: 'core_operation_wait',
+    toolName: 'core_work_wait',
     activeSkills: [],
     userMessage: '/video rainy store',
   }), true)
   assert.equal(isToolVisibleForActiveBehavior({
-    toolName: 'core_operation_start',
+    toolName: 'core_work_start',
     activeSkills: [],
     userMessage: 'generate image',
   }), false)

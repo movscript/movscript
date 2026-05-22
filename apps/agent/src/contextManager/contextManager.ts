@@ -52,6 +52,7 @@ export interface ComposeModelContextInput {
   history: AgentMessage[]
   userMessage: string
   threadSummary?: string
+  runtimeState?: unknown
   command?: AgentCommandRuntime
   contractResolver?: AgentRuntimeContractResolver
 }

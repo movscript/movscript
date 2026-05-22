@@ -172,7 +172,7 @@ test('combineAssistantTurnContents trims empty turns and avoids adjacent duplica
   assert.equal(combineAssistantTurnContents([], ' fallback '), 'fallback')
 })
 
-test('buildFinalAssistantContent delegates normal turns through final source summary rendering', () => {
+test('buildFinalAssistantContent keeps normal final replies free of technical source summaries', () => {
   const content = buildFinalAssistantContent({
     userMessage: '总结一下',
     modelContent: '这是最终回答。',
@@ -183,7 +183,8 @@ test('buildFinalAssistantContent delegates normal turns through final source sum
   })
 
   assert.match(content, /这是最终回答。/)
-  assert.match(content, /用户输入：本轮消息/)
+  assert.doesNotMatch(content, /来源：/)
+  assert.doesNotMatch(content, /source=user_input/)
 })
 
 function toolText(value: unknown): JSONValue {

@@ -38,6 +38,16 @@ test('resolveRuntimeIntents activates route intents deterministically without ke
   assert.equal(result.signals.find((signal) => signal.intent === 'project_standards_proposal')?.confidence, 'high')
 })
 
+test('resolveRuntimeIntents routes selected setting asset requirements to asset proposal only', () => {
+  const result = resolveRuntimeIntents('请给这个设定添加基础形象素材需求', debugContext({
+    route: { pathname: '/project/pre-production' },
+    selection: { entityType: 'creative_reference', entityId: 31, label: '女主角' },
+  }))
+
+  assert.ok(result.intents.includes('asset_proposal'))
+  assert.equal(result.intents.includes('setting_proposal'), false)
+})
+
 test('resolveRuntimeIntents does not activate generation for negated visual requests', () => {
   const result = resolveRuntimeIntents('不要生成图片，只分析这段文字', debugContext())
 

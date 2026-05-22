@@ -50,10 +50,12 @@ export function ProductionOrchestrationWorkspace({
   onSaveExpressionLine,
   onDeleteExpressionLine,
   onAddExpressionLine,
+  canDeleteFallbackContentUnits = false,
   isSavingSceneMoment,
   isLinkingSceneMomentReference,
   isDeletingSceneMomentReference,
   isSavingExpressionLine,
+  allowCreateAndBindSceneMomentScriptBlock = true,
 }: {
   scriptSourceText: string
   creativeReferences: CreativeReferenceRecord[]
@@ -77,10 +79,12 @@ export function ProductionOrchestrationWorkspace({
   onSaveExpressionLine: (target: ProductionWritingExpressionEditTarget, payload: ProductionWritingExpressionSavePayload) => void
   onDeleteExpressionLine: (target: ProductionWritingExpressionEditTarget) => void
   onAddExpressionLine: (momentId: number, order: number, scriptBlockId?: number | null) => void
+  canDeleteFallbackContentUnits?: boolean
   isSavingSceneMoment: boolean
   isLinkingSceneMomentReference: boolean
   isDeletingSceneMomentReference: boolean
   isSavingExpressionLine: boolean
+  allowCreateAndBindSceneMomentScriptBlock?: boolean
 }) {
   const view = buildProductionOrchestrationWorkspaceView({
     segments,
@@ -132,6 +136,7 @@ export function ProductionOrchestrationWorkspace({
             scriptSourceText={scriptSourceText}
             isSaving={isSavingSceneMoment}
             isBindingScriptBlock={isBindingSceneMomentScriptBlock}
+            allowCreateAndBindMomentScriptBlock={allowCreateAndBindSceneMomentScriptBlock}
             onSave={onSaveSceneMoment}
             onBindMomentScriptBlock={onBindSceneMomentScriptBlock}
             onCreateAndBindMomentScriptBlock={onCreateAndBindSceneMomentScriptBlock}
@@ -145,6 +150,7 @@ export function ProductionOrchestrationWorkspace({
           creativeReferences={creativeReferences}
           lookup={lookup}
           isSavingExpressionLine={isSavingExpressionLine}
+          canDeleteFallbackContentUnits={canDeleteFallbackContentUnits}
           onAddExpressionLine={onAddExpressionLine}
           onSaveExpressionLine={onSaveExpressionLine}
           onDeleteExpressionLine={onDeleteExpressionLine}

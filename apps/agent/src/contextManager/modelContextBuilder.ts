@@ -29,6 +29,7 @@ export interface ContextBuilderInput {
   history: AgentMessage[]
   userMessage: string
   threadSummary?: string
+  runtimeState?: unknown
   command?: AgentCommandRuntime
   contractResolver?: AgentRuntimeContractResolver
 }
@@ -161,6 +162,16 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
     })
   }
 
+  const runtimeStateText = renderRuntimeStateText(input.runtimeState)
+  if (runtimeStateText) {
+    debugParts.push({
+      id: 'thread.runtime_state',
+      kind: 'context',
+      title: 'Thread Runtime State',
+      content: runtimeStateText,
+    })
+  }
+
   // --- Core Command Contract ---
   if (shouldIncludeCommandContract(command)) {
     debugParts.push({
@@ -256,6 +267,15 @@ function resolvePromptProductPolicy(value: unknown): PromptProductPolicy {
   }
 }
 
+function renderRuntimeStateText(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return undefined
+  }
+}
+
 export function buildRuntimeChatTools(
   catalog: ResolvedToolCatalog,
   contract?: ReturnType<AgentRuntimeContractResolver['find']>,
@@ -291,10 +311,6 @@ function resolveRuntimeToolParameters(
   if (tool.name === 'core_catalog_inspect') return INSPECT_AGENT_CATALOG_TOOL_SCHEMA
   if (tool.name === 'core_skill_update') return UPDATE_ACTIVE_SKILLS_TOOL_SCHEMA
   if (tool.name === 'core_progress_update') return UPDATE_PROGRESS_CHECKLIST_TOOL_SCHEMA
-  if (tool.name === 'core_subagent_spawn') return SPAWN_SUBAGENT_TOOL_SCHEMA
-  if (tool.name === 'core_subagent_list') return LIST_SUBAGENTS_TOOL_SCHEMA
-  if (tool.name === 'core_subagent_wait') return WAIT_SUBAGENT_TOOL_SCHEMA
-  if (tool.name === 'core_subagent_cancel') return CANCEL_SUBAGENT_TOOL_SCHEMA
   if (tool.name === 'movscript_project_create') return CREATE_PROJECT_TOOL_SCHEMA
   return undefined
 }
@@ -612,77 +628,6 @@ const UPDATE_PROGRESS_CHECKLIST_TOOL_SCHEMA = {
     },
   },
   required: ['checklist'],
-} satisfies Record<string, unknown>
-
-const SPAWN_SUBAGENT_TOOL_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    title: { type: 'string', description: 'Short child-agent task title when spawning a direct child run without existing taskIds.' },
-    message: { type: 'string', description: 'Child-agent task prompt when spawning a direct child run without existing taskIds.' },
-    instructions: { type: 'string', description: 'Alias for message. Use this for concrete worker instructions when title/message are not enough.' },
-    subagentName: { type: 'string', description: 'Optional human-readable child agent name. Prefer a short English human name such as Einstein, Turing, Curie, or Newton. Do not use generic names like worker or subagent.' },
-    subagentNames: {
-      oneOf: [
-        { type: 'array', items: { type: 'string' } },
-        { type: 'object', additionalProperties: { type: 'string' } },
-      ],
-      description: 'Optional human-readable names for multiple child agents. Use an array in the same order as taskIds/tasks, or an object mapping taskId to name. Prefer short English human names such as Einstein, Turing, Curie, or Newton.',
-    },
-    taskId: { type: 'string', description: 'Optional existing task graph task id to dispatch through the internal task graph path.' },
-    taskIds: {
-      type: 'array',
-      items: { type: 'string' },
-      description: 'Optional existing task graph task ids to dispatch through the internal task graph path.',
-    },
-    tasks: {
-      type: 'array',
-      description: 'Optional child-agent tasks. Without taskIds these create direct child runs; with a planner task graph they may also be attached to the internal task graph dispatch path.',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          ...TASK_GRAPH_TASK_INPUT_SCHEMA.properties,
-        },
-        required: ['title'],
-      },
-    },
-    maxWorkers: { type: 'number', description: 'Maximum concurrent child agents to dispatch through the task graph path.' },
-    maxTaskAttempts: { type: 'number', description: 'Default retry attempt limit for failed task-graph worker tasks. Task-level maxTaskAttempts overrides this value.' },
-    retryFailed: { type: 'boolean', description: 'Whether to reset retryable failed or cancelled task-graph worker tasks before dispatching.' },
-    workerTimeoutMs: { type: 'number', description: 'Default worker timeout in milliseconds for task-graph dispatch. Task-level workerTimeoutMs overrides this value.' },
-  },
-} satisfies Record<string, unknown>
-
-const LIST_SUBAGENTS_TOOL_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    taskGraphId: { type: 'string', description: 'TaskGraph id. Defaults to the current planner run taskGraph.' },
-  },
-} satisfies Record<string, unknown>
-
-const WAIT_SUBAGENT_TOOL_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    subagentName: { type: 'string', description: 'Human-readable child agent name to inspect. Use an actual name returned by spawn/list, such as Einstein or Turing; do not guess generic names like worker.' },
-    runId: { type: 'string', description: 'Child run id to inspect.' },
-    taskId: { type: 'string', description: 'Optional task graph task id to inspect.' },
-    taskGraphId: { type: 'string', description: 'Optional task graph id. Defaults to the current planner run task graph when one exists.' },
-    timeoutMs: { type: 'number', description: 'Short polling timeout in milliseconds. Use 0 for immediate status.' },
-  },
-} satisfies Record<string, unknown>
-
-const CANCEL_SUBAGENT_TOOL_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    subagentName: { type: 'string', description: 'Human-readable child agent name to cancel. May target an active child run or a not-yet-started task-graph task. Use an exact name returned by spawn/list.' },
-    runId: { type: 'string', description: 'Child worker run id to cancel.' },
-    taskId: { type: 'string', description: 'Task id whose owner worker should be cancelled, or whose pending/blocked/needs_review task should be marked cancelled if no worker has started.' },
-    reason: { type: 'string' },
-  },
 } satisfies Record<string, unknown>
 
 const CREATE_DRAFT_TOOL_SCHEMA = {

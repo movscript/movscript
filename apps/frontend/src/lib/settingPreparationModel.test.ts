@@ -9,7 +9,6 @@ import {
   buildSettingPrepRows,
   buildSettingPrepUsageSummary,
   composeCreativeProfileJSON,
-  creativeReferenceStatusLabel,
   parseCreativeProfileJSON,
 } from './settingPreparationModel'
 
@@ -74,9 +73,9 @@ test('setting preparation model builds rows with linked context and readiness', 
 
   assert.equal(rows.length, 1)
   assert.equal(rows[0]?.title, '林岚')
-  assert.equal(rows[0]?.rawStatus, 'draft')
-  assert.equal(rows[0]?.priority, 'high')
-  assert.deepEqual(rows[0]?.missing, ['待定稿'])
+  assert.equal(rows[0]?.priority, 'medium')
+  assert.deepEqual(rows[0]?.missing, [])
+  assert.equal(rows[0]?.readinessLabel, '已覆盖，可下游引用')
   assert.equal(buildSettingPrepUsageSummary(rows[0] ?? null), '制作 第一集 / 编排段 开场 / 情景 雨夜街口')
   assert.deepEqual(buildSettingPrepEvidenceRows(rows[0] ?? null), ['雨夜街口 · 夜', '开场'])
 })
@@ -93,12 +92,17 @@ test('setting preparation model builds form and AI message text', () => {
     })],
   }))[0]
 
-  assert.equal(creativeReferenceStatusLabel(row?.rawStatus), '已确认')
   assert.equal(buildSettingPrepForm(row!.record).visualIntent, '黑色风衣')
   assert.match(buildSettingPrepAgentMessage({
     projectName: '迷雾',
     row: row!,
     evidence: ['雨夜街口'],
-    missing: ['缺状态记录'],
+    missing: ['缺使用上下文'],
   }), /项目：迷雾/)
+  assert.doesNotMatch(buildSettingPrepAgentMessage({
+    projectName: '迷雾',
+    row: row!,
+    evidence: ['雨夜街口'],
+    missing: ['缺使用上下文'],
+  }), /状态：/)
 })

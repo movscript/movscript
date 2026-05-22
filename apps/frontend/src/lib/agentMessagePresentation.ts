@@ -52,9 +52,13 @@ export function buildAgentMessagePresentation(
   const generationParamAudits = !isUser ? msg.meta?.generationParamAudits ?? [] : []
   const generationValidationErrors = !isUser ? msg.meta?.generationValidationErrors ?? [] : []
   const localRunActivity = !isUser ? msg.meta?.localRunActivity : undefined
-  const displayContent = contextDiagnostic
+  const rawDisplayContent = contextDiagnostic
     ? ''
     : showLargeMedia && hasUsableGeneratedResource ? hideGeneratedResultTechnicalSummary(msg.content) : msg.content
+  const visibleContent = !isUser ? hideFinalSourceSummary(rawDisplayContent) : rawDisplayContent
+  const displayContent = !isUser && localRunActivity && isRequiredActionSummaryContent(visibleContent, localRunActivity)
+    ? ''
+    : visibleContent
   const showModelSetupAction = !isUser && needsModelSetupAction(msg.content)
   const hasResultSection = !isUser && (
     showLargeMedia
@@ -91,4 +95,42 @@ export function buildAgentMessagePresentation(
     hasDiagnosticSection,
     missingTextOutputResourceIds,
   }
+}
+
+function isRequiredActionSummaryContent(content: string, activity: NonNullable<ChatMessageMeta['localRunActivity']>): boolean {
+  if (activity.status !== 'requires_action') return false
+  const lines = content.split('\n').map((line) => line.trim()).filter(Boolean)
+  if (lines.length === 0) return false
+  const approvalLines = (activity.approvals ?? [])
+    .filter((approval) => approval.status === 'pending')
+    .map((approval) => `- ${approval.toolName}: ${approval.reason}`)
+  if (matchesSummaryLines(lines, approvalLines)) return true
+
+  const inputLines = (activity.inputs ?? [])
+    .filter((request) => request.status === 'pending')
+    .map((request) => `- ${request.title}: ${request.question}`)
+  return matchesSummaryLines(lines, inputLines)
+}
+
+function matchesSummaryLines(lines: string[], expectedItems: string[]): boolean {
+  if (expectedItems.length === 0) return false
+  if (lines.length !== expectedItems.length + 1) return false
+  return expectedItems.every((item) => lines.includes(item))
+}
+
+function hideFinalSourceSummary(content: string): string {
+  const lines = content.split('\n')
+  let sourceStart = -1
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (/^\s*来源[:：]\s*$/.test(lines[index])) {
+      sourceStart = index
+      break
+    }
+  }
+  if (sourceStart < 0) return content
+  const sourceLines = lines.slice(sourceStart + 1).filter((line) => line.trim())
+  if (sourceLines.length === 0) return content
+  const allTechnicalSourceLines = sourceLines.every((line) => /^\s*-\s+/.test(line) && /source=/.test(line) && /evidence=/.test(line))
+  if (!allTechnicalSourceLines) return content
+  return lines.slice(0, sourceStart).join('\n').trimEnd()
 }

@@ -38,6 +38,8 @@ export interface AgentTraceModelDetail {
     stream?: string
     headers: Array<{ name: string; value: string }>
     payload?: unknown
+    submittedPayload?: unknown
+    internalPayload?: unknown
   }
   messageGroups: AgentTraceModelMessageGroup[]
   messages: AgentTraceModelMessageDetail[]
@@ -48,6 +50,7 @@ export interface AgentTraceModelDetail {
     headers: Array<{ name: string; value: string }>
     content?: string
     bodyText?: string
+    parsedBody?: unknown
     parsedId?: string
   }
   result?: {
@@ -626,10 +629,12 @@ function traceContextGroups(event: AgentTraceEvent, data: Record<string, unknown
     const request = recordValue(data.request)
     const response = recordValue(data.response)
     const body = recordValue(request?.body)
+    const submittedBody = modelSubmittedBody(body)
     const messages = arrayValue(body?.messages)
+    const submittedTools = modelSubmittedTools(body, submittedBody)
     groups.push(group('HTTP 调用', [
       item('阶段', tracePhaseLabel(phase)),
-      item('模型', stringValue(data.model) ?? stringValue(recordValue(data.config)?.model)),
+      item('模型', stringValue(submittedBody?.model) ?? stringValue(body?.model) ?? stringValue(data.model) ?? stringValue(recordValue(data.config)?.model)),
       item('延迟', formatMs(numberValue(data.latencyMs))),
       item('状态码', numberValue(response?.status)),
       item('成功', booleanLabel(response?.ok)),
@@ -658,9 +663,10 @@ function traceContextGroups(event: AgentTraceEvent, data: Record<string, unknown
     if (previewItems.length > 0) groups.push(group('消息预览', previewItems))
     groups.push(group('请求负载摘要', [
       item('消息条数', messages?.length),
-      item('工具定义', arrayValue(body?.tools)?.length),
-      item('工具选择', modelToolChoiceLabel(stringValue(body?.tool_choice))),
-      item('流式返回', booleanLabel(body?.stream)),
+      item('实际 input', arrayValue(submittedBody?.input)?.length),
+      item('工具定义', submittedTools.length),
+      item('工具选择', modelToolChoiceLabel(modelToolChoiceValue(submittedBody?.tool_choice ?? body?.tool_choice))),
+      item('流式返回', booleanLabel(submittedBody?.stream ?? body?.stream)),
     ]))
     groups.push(group('模型结果', [
       item('结束原因', modelFinishReasonLabel(stringValue(data.finish_reason))),
@@ -736,6 +742,7 @@ function traceModelDetail(event: AgentTraceEvent, data: Record<string, unknown> 
   const request = recordValue(data.request)
   const response = recordValue(data.response)
   const body = recordValue(request?.body)
+  const submittedBody = modelSubmittedBody(body)
   const messages = arrayValue(body?.messages)?.map((message, index) => {
     const record = recordValue(message)
     const role = stringValue(record?.role) ?? 'unknown'
@@ -749,33 +756,25 @@ function traceModelDetail(event: AgentTraceEvent, data: Record<string, unknown> 
     }
   }) ?? []
   const messageGroups = modelMessageGroups(messages)
-  const tools = arrayValue(body?.tools)?.map((tool, index) => {
-    const record = recordValue(tool)
-    const fn = recordValue(record?.function)
-    const parameters = recordValue(fn?.parameters)
-    const properties = recordValue(parameters?.properties)
-    return {
-      index: index + 1,
-      name: stringValue(fn?.name) ?? stringValue(record?.name) ?? `tool_${index + 1}`,
-      description: stringValue(fn?.description),
-      parameterKeys: properties ? Object.keys(properties) : [],
-    }
-  }) ?? []
+  const tools = modelSubmittedTools(body, submittedBody).map((tool, index) => modelToolDetail(tool, index))
   const parsedBody = recordValue(response?.parsedBody)
   const usage = recordValue(data.usage)
   const resultToolCalls = arrayValue(data.tool_calls)
   const headers = headerEntries(recordValue(request?.headers))
+  const toolChoice = modelToolChoiceValue(submittedBody?.tool_choice ?? body?.tool_choice)
   const requestDetail = request ? {
     method: stringValue(request.method),
     url: stringValue(request.url),
-    model: stringValue(body?.model) ?? stringValue(data.model) ?? stringValue(recordValue(data.config)?.model),
+    model: stringValue(submittedBody?.model) ?? stringValue(body?.model) ?? stringValue(data.model) ?? stringValue(recordValue(data.config)?.model),
     messageCount: messages.length > 0 ? String(messages.length) : undefined,
     toolCount: tools.length > 0 ? String(tools.length) : undefined,
-    toolChoice: stringValue(body?.tool_choice),
-    toolChoiceLabel: modelToolChoiceLabel(stringValue(body?.tool_choice)),
-    stream: booleanLabel(body?.stream),
+    toolChoice,
+    toolChoiceLabel: modelToolChoiceLabel(toolChoice),
+    stream: booleanLabel(submittedBody?.stream ?? body?.stream),
     headers,
     ...(body ? { payload: body } : {}),
+    ...(submittedBody ? { submittedPayload: submittedBody } : {}),
+    ...(submittedBody && submittedBody !== body ? { internalPayload: body } : {}),
   } : undefined
   const responseDetail = response ? {
     status: numberValue(response.status) !== undefined ? String(numberValue(response.status)) : undefined,
@@ -783,6 +782,7 @@ function traceModelDetail(event: AgentTraceEvent, data: Record<string, unknown> 
     headers: headerEntries(recordValue(response.headers)),
     content: stringValue(response.content),
     bodyText: stringValue(response.bodyText),
+    ...(response.parsedBody !== undefined ? { parsedBody: response.parsedBody } : {}),
     parsedId: stringValue(parsedBody?.id),
   } : undefined
   const result = {
@@ -890,6 +890,40 @@ function numberValue(value: unknown): number | undefined {
 
 function booleanLabel(value: unknown): string | undefined {
   return typeof value === 'boolean' ? (value ? '是' : '否') : undefined
+}
+
+function modelSubmittedBody(body: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  return recordValue(body?.sdk_body) ?? body
+}
+
+function modelSubmittedTools(body: Record<string, unknown> | undefined, submittedBody: Record<string, unknown> | undefined): unknown[] {
+  const submittedTools = arrayValue(submittedBody?.tools)
+  if (submittedTools) return submittedTools
+  return arrayValue(body?.tools) ?? []
+}
+
+function modelToolChoiceValue(value: unknown): string | undefined {
+  const direct = stringValue(value)
+  if (direct) return direct
+  const record = recordValue(value)
+  if (!record) return undefined
+  const type = stringValue(record.type)
+  const name = stringValue(record.name) ?? stringValue(recordValue(record.function)?.name)
+  if (type && name) return `${type}:${name}`
+  return type ?? name
+}
+
+function modelToolDetail(tool: unknown, index: number): AgentTraceModelToolDetail {
+  const record = recordValue(tool)
+  const toolBody = recordValue(record?.function) ?? record
+  const parameters = recordValue(toolBody?.parameters)
+  const properties = recordValue(parameters?.properties)
+  return {
+    index: index + 1,
+    name: stringValue(toolBody?.name) ?? stringValue(record?.name) ?? `tool_${index + 1}`,
+    description: stringValue(toolBody?.description),
+    parameterKeys: properties ? Object.keys(properties) : [],
+  }
 }
 
 function toolFieldValue(value: unknown): string | undefined {

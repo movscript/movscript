@@ -10,14 +10,14 @@ export function ProductionProposalReviewEmptyState({ onSwitchToStructure }: { on
           <div className="min-w-0">
             <h2 className="type-body font-semibold text-foreground">当前没有 AI 编排提案</h2>
             <p className="mt-1 type-label leading-5 text-muted-foreground">
-              这里显示 AI 给出的编排提案。可以逐条接受、退回，或者回到编排写作区继续编辑编排段和情节。
+              这里显示 AI 给出的编排提案。提案模式下正式项目保持只读；如果暂时不处理提案，可以退出提案模式回到正式编排。
             </p>
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button size="sm" className="gap-1.5 type-label" onClick={onSwitchToStructure}>
             <Route size={12} />
-            回到编排写作
+            退出提案模式
           </Button>
         </div>
       </div>

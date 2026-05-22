@@ -337,6 +337,9 @@ export interface ChatRunActivityStep {
   id: string
   type: 'tool_call' | 'message'
   status: string
+  roundId?: string
+  roundIndex?: number
+  roundLabel?: string
   title?: string
   toolName?: string
   args?: unknown
@@ -354,6 +357,9 @@ export interface ChatRunActivityEvent {
   title: string
   summary?: string
   status: string
+  roundId?: string
+  roundIndex?: number
+  roundLabel?: string
   toolName?: string
   stepId?: string
   data?: unknown

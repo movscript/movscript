@@ -39,12 +39,12 @@ test('assertPlannerRunCanUseTaskGraph protects thread and attached taskGraph bou
     plannerRun: makeRun({ taskGraphId: 'task_graph_2' }),
     taskGraph: makeTaskGraph({ id: 'task_graph_1' }),
     action: 'inspect',
-  }), /cannot inspect task graph task_graph_1/)
+  }), /cannot inspect taskGraph task_graph_1/)
   assert.throws(() => assertPlannerRunCanUseTaskGraph({
     plannerRun: makeRun({ threadId: 'thread_2' }),
     taskGraph: makeTaskGraph({ threadId: 'thread_1' }),
     action: 'inspect',
-  }), /cannot inspect task graph task_graph_1/)
+  }), /cannot inspect taskGraph task_graph_1/)
 })
 
 test('selectReplanPlannerRunId prefers explicit input then planner run then parent then taskGraph root', () => {

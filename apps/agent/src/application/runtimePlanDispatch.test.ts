@@ -86,7 +86,7 @@ test('buildRuntimeTaskGraphDispatchDecision validates requested tasks and prepar
       retryFailed: false,
       requestedTaskIds: ['task_other'],
     },
-  }), /task task_other does not belong to task graph task_graph_1/)
+  }), /task task_other does not belong to taskGraph task_graph_1/)
 })
 
 test('applyRuntimeTaskGraphDispatchDecision applies blocked tasks and worker ownership through callbacks', () => {

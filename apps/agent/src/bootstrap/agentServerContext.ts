@@ -160,7 +160,7 @@ export function createAgentServerContext(): AgentServerContext {
     `runs=${stateStore.listRuns().length}`,
     `plans=${stateStore.listTaskGraphs().length}`,
     `tasks=${stateStore.listTasks().length}`,
-    `operations=${stateStore.listRuntimeOperations().length}`,
+    `operations=${stateStore.listRuntimeWorks().length}`,
     `interactions=${stateStore.listRuntimeInteractions().length}`,
     `continuations=${stateStore.listRuntimeContinuations().length}`,
   ].join(' '))

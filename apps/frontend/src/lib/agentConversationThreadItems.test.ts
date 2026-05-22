@@ -30,7 +30,7 @@ test('buildAgentConversationMessageItems prefers live workflow runs before resul
   assert.equal(items[0]?.beforeMessageWorkflowRuns[0]?.id, 'run_live')
 })
 
-test('buildAgentConversationMessageItems hides historical requires-action assistant summaries', () => {
+test('buildAgentConversationMessageItems keeps historical requires-action messages so activity can render inline', () => {
   const items = buildAgentConversationMessageItems({
     messages: [message({
       id: 'assistant',
@@ -63,10 +63,10 @@ test('buildAgentConversationMessageItems hides historical requires-action assist
 
   assert.equal(items[0]?.liveWorkflowRuns, null)
   assert.equal(items[0]?.beforeMessageWorkflowRuns[0]?.id, 'run_history')
-  assert.equal(items[0]?.showMessage, false)
+  assert.equal(items[0]?.showMessage, true)
 })
 
-test('buildAgentConversationMessageItems hides synthetic requires-action assistant placeholders', () => {
+test('buildAgentConversationMessageItems keeps synthetic requires-action placeholders for inline activity', () => {
   const items = buildAgentConversationMessageItems({
     messages: [message({
       id: 'assistant',
@@ -99,7 +99,7 @@ test('buildAgentConversationMessageItems hides synthetic requires-action assista
   })
 
   assert.equal(items[0]?.beforeMessageWorkflowRuns[0]?.id, 'run_requires_action')
-  assert.equal(items[0]?.showMessage, false)
+  assert.equal(items[0]?.showMessage, true)
 })
 
 test('buildAgentConversationMessageItems keeps substantive assistant content for requires-action runs', () => {

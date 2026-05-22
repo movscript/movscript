@@ -1,15 +1,17 @@
 import { useState } from 'react'
-import { Bot, ChevronRight, Loader2, Route, Workflow, Wrench } from 'lucide-react'
+import { Bot, ChevronRight, Route, Workflow } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { AgentChatMessage, Badge, Button } from '@movscript/ui'
-import { agentTimelineSummary, buildAgentRunTimeline, formatToolCallStreamDetail } from '@/lib/agentTimeline'
+import { agentTimelineSummary, buildAgentRunTimeline } from '@/lib/agentTimeline'
 import { formatAgentDividerTime } from '@/lib/agentMessageDivider'
 import { runStatusLabel } from '@/lib/agentRunUi'
-import { agentToolNameLabel } from '@/lib/agentToolDisplay'
 import { cn } from '@/lib/utils'
 import { agentRunPath } from '@/routes/projectRoutes'
+import { AgentActivityDividerMenu, AgentActivityFeedView, AgentActivityStatusText } from '@/components/agent/AgentActivityFeed'
+import { buildAgentActivityFeed } from '@/lib/agentActivityFeed'
 import type { AgentRun } from '@/lib/localAgentClient'
+import type { AgentInputAnswer } from '@/lib/agentWorkflowInteraction'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/store/agentStore'
 
 function formatActivityTime(value: string | undefined, locale: string) {
@@ -272,101 +274,51 @@ export function RunActivityTitleBubble({
 export function LiveRunActivityBubble({
   run,
   events,
+  approving = false,
+  onApprove,
+  onReject,
+  onAnswerInput,
 }: {
   run: AgentRun | null
   events: ChatRunActivityEvent[]
+  approving?: boolean
+  onApprove?: (approvalIds?: string[]) => void
+  onReject?: (approvalIds?: string[]) => void
+  onAnswerInput?: (requestId: string, answer: AgentInputAnswer) => void
 }) {
   const { t } = useTranslation()
   if (!run && events.length === 0) return null
   const statusLabel = latestModelRetryStatus(events) ?? latestAgentStatusLabel(run, events)
-  const activeTool = activeToolStatus(run, events)
+  const feed = buildAgentActivityFeed({ run, events })
   return (
     <div className="space-y-1">
-      <AgentBubbleStatusText label={statusLabel} />
-      <AgentChatMessage
-        role="assistant"
-        avatar={<Bot size={14} />}
-        data-agent-divider-label={formatAgentDividerTime(run?.startedAt ?? events[0]?.createdAt)}
-        footer={(
-          <Badge variant="outline" className="type-micro leading-4 px-1.5 py-0">
-            {workflowRunStatusLabel('in_progress', t)}
-          </Badge>
-        )}
-      >
-        {activeTool && <ActiveToolStatusCard tool={activeTool} />}
-        <RunActivityPanel
-          run={run}
-          events={events}
-          title={t('agents.chat.messageSections.processOverview')}
-          className={activeTool ? 'mt-2' : 'mt-0'}
-        />
-      </AgentChatMessage>
-    </div>
-  )
-}
-
-function AgentBubbleStatusText({ label }: { label?: string }) {
-  if (!label) return null
-  return (
-    <div className="flex justify-start pl-8">
-      <div className="inline-flex max-w-[80%] items-center gap-1.5 type-tiny leading-4 text-muted-foreground">
-        <Loader2 size={10} className="animate-spin" />
-        <span className="truncate">{label}</span>
-      </div>
-    </div>
-  )
-}
-
-interface ActiveToolStatus {
-  name: string
-  status: string
-  detail?: string
-}
-
-function ActiveToolStatusCard({ tool }: { tool: ActiveToolStatus }) {
-  const { t } = useTranslation()
-  return (
-    <div data-testid="agent-active-tool-status" className="rounded-md border border-border/80 bg-background/70 p-2 shadow-sm">
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <Loader2 size={12} className="shrink-0 animate-spin text-muted-foreground" />
-          <span className="truncate type-caption font-medium text-foreground">正在执行工具</span>
-        </div>
-        <Badge variant="secondary" className="type-micro leading-4 px-1.5 py-0">
-          {tool.status}
-        </Badge>
-      </div>
-      <div className="mt-1 flex min-w-0 items-center gap-1.5 type-tiny text-muted-foreground">
-        <Wrench size={12} className="shrink-0" />
-        <span className="truncate font-mono" title={tool.name}>{agentToolNameLabel(tool.name, t)}</span>
-      </div>
-      {tool.detail && (
-        <p className="mt-1 line-clamp-2 type-tiny leading-relaxed text-muted-foreground">{tool.detail}</p>
+      <AgentActivityStatusText run={run} events={events} fallback={statusLabel} />
+      {feed && (feed.items.length > 0 || feed.rounds.length > 0) && (
+        <AgentChatMessage
+          role="assistant"
+          avatar={<Bot size={14} />}
+          data-agent-divider-label={formatAgentDividerTime(run?.startedAt ?? events[0]?.createdAt)}
+          footer={(
+            <Badge variant="outline" className="type-micro leading-4 px-1.5 py-0">
+              {workflowRunStatusLabel('in_progress', t)}
+            </Badge>
+          )}
+        >
+          {feed.activity && <AgentActivityDividerMenu activity={feed.activity} />}
+          <AgentActivityFeedView
+            run={run}
+            events={events}
+            workflowRun={run}
+            approving={approving}
+            onApprove={onApprove}
+            onReject={onReject}
+            onAnswerInput={onAnswerInput}
+            className="mt-0"
+          />
+        </AgentChatMessage>
       )}
     </div>
   )
-}
-
-function activeToolStatus(run: AgentRun | null, events: ChatRunActivityEvent[]): ActiveToolStatus | null {
-  const activeStep = [...(run?.steps ?? [])].reverse().find((step) => step.type === 'tool_call' && step.status === 'in_progress')
-  if (activeStep?.toolName) {
-    return {
-      name: activeStep.toolName,
-      status: agentStepStatusLabel(activeStep.status),
-      ...(activeStep.title ? { detail: activeStep.title } : {}),
-    }
-  }
-  const latestToolEvent = [...events].reverse().find((event) => event.kind === 'tool_call')
-  if (latestToolEvent && (latestToolEvent.status === 'started' || latestToolEvent.status === 'info')) {
-    const streamTool = formatToolCallStreamDetail(latestToolEvent)
-    const detail = latestToolEvent.summary ?? streamTool?.parseStatus
-    return {
-      name: latestToolEvent.toolName ?? streamTool?.label ?? 'tool',
-      status: latestToolEvent.status === 'started' ? '执行中' : '等待结果',
-      ...(detail ? { detail } : {}),
-    }
-  }
-  return null
 }
 
 function latestAgentStatusLabel(run: AgentRun | null, events: ChatRunActivityEvent[]): string | undefined {

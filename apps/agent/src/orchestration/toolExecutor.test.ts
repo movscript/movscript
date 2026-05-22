@@ -40,11 +40,11 @@ function testOptions(mcpClient: { initialize(): Promise<JSONValue>; callTool(nam
   }
 }
 
-test('executeTool serves runtime operation wait through the runtime catalog manager', async () => {
+test('executeTool serves runtime work wait through the runtime catalog manager', async () => {
   const calls: string[] = []
   const result = await executeTool({
-    name: 'core_operation_wait',
-    args: { operationIds: ['op_42'] },
+    name: 'core_work_wait',
+    args: { workIds: ['op_42'] },
   }, {
     ...testOptions({
       initialize: async () => {
@@ -60,18 +60,14 @@ test('executeTool serves runtime operation wait through the runtime catalog mana
       inspectAgentCatalog: () => ({}),
       updateActiveSkills: () => ({}),
       updateProgressChecklist: () => ({}),
-      spawnSubagent: () => ({}),
-      listSubagents: () => ({}),
-      waitSubagent: () => ({}),
-      startOperation: () => ({}),
-      getOperation: () => ({}),
-      listOperation: () => ({}),
-      waitOperation: (_run: AgentRun, input?: Record<string, JSONValue>) => {
-        calls.push(`runtime.wait:${(input?.operationIds as JSONValue[] | undefined)?.join(',')}`)
+      startWork: () => ({}),
+      getWork: () => ({}),
+      listWork: () => ({}),
+      waitWork: (_run: AgentRun, input?: Record<string, JSONValue>) => {
+        calls.push(`runtime.wait:${(input?.workIds as JSONValue[] | undefined)?.join(',')}`)
         return { status: 'completed', done: true }
       },
-      cancelOperation: () => ({}),
-      cancelSubagent: () => ({}),
+      cancelWork: () => ({}),
     },
   })
 
@@ -564,7 +560,6 @@ test('executeTool hydrates missing setting proposal rows into proposal during dr
         mode: 'snapshot',
         proposal: {
           creative_references: [],
-          asset_slots: [],
         },
       }),
     },
@@ -613,9 +608,7 @@ test('executeTool seeds omitted setting proposal snapshot from current project d
         schema: DRAFT_CONTENT_SCHEMA_IDS.settingProposal,
         scope: 'setting_proposal',
         mode: 'snapshot',
-        proposal: {
-          asset_slots: [],
-        },
+        proposal: {},
       }),
     },
   }, {
@@ -1071,12 +1064,14 @@ test('executeTool ignores invalid production ids for inferred proposal targets',
       productionId: '7',
       content: JSON.stringify({
         schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
+        scope: 'production_proposal',
         mode: 'snapshot',
         productionId: 7,
         proposalScope: 'production',
         proposal: {
           segments: [],
         },
+        impact_notes: [],
       }),
     },
   }, {
@@ -1114,12 +1109,14 @@ test('executeTool drops invalid numeric entity ids from explicit proposal target
       },
       content: JSON.stringify({
         schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
+        scope: 'production_proposal',
         mode: 'snapshot',
         productionId: 7,
         proposalScope: 'production',
         proposal: {
           segments: [],
         },
+        impact_notes: [],
       }),
     },
   }, {

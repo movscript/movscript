@@ -1,4 +1,5 @@
 import type { WorkbenchDecisionRow, WorkbenchScenarioPriority, WorkbenchScenarioStatus } from './workbenchScenarios.ts'
+import { priorityActionLabel, scenarioAction } from './productionTerminology.ts'
 
 export type ContentWorkbenchStatusRecord = {
   status?: string
@@ -6,10 +7,7 @@ export type ContentWorkbenchStatusRecord = {
 }
 
 export function statusLabel(status: WorkbenchScenarioStatus) {
-  if (status === 'blocked') return '阻塞'
-  if (status === 'ready') return '可推进'
-  if (status === 'running') return '运行中'
-  return '待确认'
+  return scenarioAction(status).label
 }
 
 export function statusVariant(status: WorkbenchScenarioStatus) {
@@ -20,9 +18,7 @@ export function statusVariant(status: WorkbenchScenarioStatus) {
 }
 
 export function priorityLabel(priority: WorkbenchScenarioPriority) {
-  if (priority === 'high') return '高'
-  if (priority === 'medium') return '中'
-  return '低'
+  return priorityActionLabel(priority)
 }
 
 export function decisionVariant(tone?: WorkbenchDecisionRow['tone']) {

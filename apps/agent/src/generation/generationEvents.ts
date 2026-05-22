@@ -81,7 +81,7 @@ export function buildGenerationTimeoutEvent(initial: GenerationEvent): Generatio
 }
 
 export function extractGenerationMonitorRequest(call: ToolCall, result: JSONValue | undefined, event: GenerationEvent): GenerationMonitorRequest | undefined {
-  if (call.name === 'core_operation_start') return undefined
+  if (call.name === 'core_work_start') return undefined
   const normalized = normalizeGenerationCall(call, result)
   if (!normalized || normalized.call.name !== 'generation_job_create' || event.terminal) return undefined
   const payload = unwrapToolPayload(normalized.result)
@@ -108,18 +108,18 @@ export function extractGenerationMonitorRequest(call: ToolCall, result: JSONValu
 
 function normalizeGenerationCall(call: ToolCall, result: JSONValue | undefined): { call: ToolCall; result: JSONValue | undefined } | undefined {
   if (isGenerationTool(call.name)) return { call, result }
-  if (call.name !== 'core_operation_start') return undefined
+  if (call.name !== 'core_work_start') return undefined
   const resultRecord = isRecord(result) ? result : undefined
-  const operation = isRecord(resultRecord?.operation) ? resultRecord.operation : undefined
-  const operationResult = isJSONValue(operation?.result) ? operation.result : undefined
-  const request = isJSONRecord(operation?.request)
-    ? cloneJSONValue(operation.request)
+  const work = isRecord(resultRecord?.work) ? resultRecord.work : undefined
+  const workResult = isJSONValue(work?.result) ? work.result : undefined
+  const request = isJSONRecord(work?.request)
+    ? cloneJSONValue(work.request)
     : isJSONRecord(call.args?.request)
       ? cloneJSONValue(call.args.request)
       : {}
   return {
     call: { name: 'generation_job_create', args: request },
-    result: operationResult,
+    result: workResult,
   }
 }
 

@@ -33,7 +33,6 @@ export function buildProductionCurrentOverview(input: {
   return {
     position: [
       `制作：${overviewTitleOfRecord(input.production)}`,
-      input.production?.status ? `状态：${String(input.production.status)}` : '状态：未设置',
       input.scriptVersion ? `剧本：${input.scriptVersion.title}` : '剧本：未绑定',
     ],
     sourceLabel: input.scriptVersion?.title ?? '当前现状',

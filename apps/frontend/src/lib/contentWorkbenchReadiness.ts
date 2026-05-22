@@ -55,8 +55,8 @@ export function buildContentWorkbenchReadinessSummary(gates: ContentWorkbenchGat
     blocked,
     percent,
     tone,
-    title: tone === 'warning' ? '接近可生成' : '生成仍被阻塞',
-    detail: `${blocked} 项检查未通过，优先处理：${firstBlocker?.label ?? '未命名阻塞项'}。`,
+    title: tone === 'warning' ? '接近可生成' : '下一步：补齐生成条件',
+    detail: `${blocked} 项检查未通过，优先处理：${firstBlocker?.label ?? '未命名检查项'}。`,
     primaryBlocker: firstBlocker ? `${firstBlocker.label}：${firstBlocker.detail}` : undefined,
   }
 }

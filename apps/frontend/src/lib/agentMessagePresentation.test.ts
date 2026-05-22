@@ -139,6 +139,53 @@ test('buildAgentMessagePresentation exposes assistant meta as view model fields'
   assert.equal(result.hasDiagnosticSection, true)
 })
 
+test('buildAgentMessagePresentation hides requires-action summary text while preserving inline activity', () => {
+  const result = buildAgentMessagePresentation(message({
+    content: '执行前需要确认：\n- draft_apply: 需要正式写入项目数据',
+    meta: {
+      localRunActivity: {
+        runId: 'run_action',
+        threadId: 'thread_1',
+        status: 'requires_action',
+        createdAt: '2026-05-19T00:00:00.000Z',
+        updatedAt: '2026-05-19T00:00:01.000Z',
+        approvals: [{
+          id: 'approval_1',
+          runId: 'run_action',
+          toolName: 'draft_apply',
+          reason: '需要正式写入项目数据',
+          status: 'pending',
+          createdAt: '2026-05-19T00:00:00.000Z',
+          updatedAt: '2026-05-19T00:00:00.000Z',
+        }],
+        steps: [],
+        events: [],
+      },
+    },
+  }))
+
+  assert.equal(result.displayContent, '')
+  assert.equal(result.hasProcessSection, true)
+  assert.equal(result.localRunActivity?.approvals?.[0]?.id, 'approval_1')
+})
+
+test('buildAgentMessagePresentation hides technical final source summary blocks', () => {
+  const result = buildAgentMessagePresentation({
+    id: 'assistant_1',
+    role: 'assistant',
+    content: [
+      '生成完成。',
+      '',
+      '来源：',
+      '- 生成任务状态：generation_job#19《生成完成，输出资源 #21。》（source=tool_result; evidence=runtime_state）',
+      '- 用户输入：本轮消息（source=user_input; evidence=user_claimed）',
+    ].join('\n'),
+    timestamp: 1,
+  })
+
+  assert.equal(result.displayContent, '生成完成。')
+})
+
 function message(overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {
     id: 'msg_1',

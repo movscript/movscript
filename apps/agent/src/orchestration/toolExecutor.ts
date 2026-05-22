@@ -46,15 +46,11 @@ export interface AgentCatalogToolManager {
   inspectAgentCatalog(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   updateActiveSkills(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   updateProgressChecklist(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
-  spawnSubagent(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
-  listSubagents(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
-  waitSubagent(run: AgentRun, input?: Record<string, JSONValue>): Promise<JSONValue> | JSONValue
-  startOperation(run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue> | JSONValue
-  getOperation(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
-  listOperation(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
-  waitOperation(run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue> | JSONValue
-  cancelOperation(run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue> | JSONValue
-  cancelSubagent(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
+  startWork(run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue> | JSONValue
+  getWork(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
+  listWork(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
+  waitWork(run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue> | JSONValue
+  cancelWork(run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue> | JSONValue
 }
 
 export async function executeTool(call: ToolCall, options: ToolExecutorOptions): Promise<ToolExecutionResult> {
@@ -123,49 +119,29 @@ async function callRuntimeTool(
     return catalogManager.updateProgressChecklist(run, args)
   }
 
-  if (toolName === 'core_subagent_spawn') {
+  if (toolName === 'core_work_start') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.spawnSubagent(run, args)
+    return catalogManager.startWork(run, args, { signal })
   }
 
-  if (toolName === 'core_subagent_list') {
+  if (toolName === 'core_work_get') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.listSubagents(run, args)
+    return catalogManager.getWork(run, args)
   }
 
-  if (toolName === 'core_subagent_wait') {
+  if (toolName === 'core_work_list') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.waitSubagent(run, args)
+    return catalogManager.listWork(run, args)
   }
 
-  if (toolName === 'core_operation_start') {
+  if (toolName === 'core_work_wait') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.startOperation(run, args, { signal })
+    return catalogManager.waitWork(run, args, { signal })
   }
 
-  if (toolName === 'core_operation_get') {
+  if (toolName === 'core_work_cancel') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.getOperation(run, args)
-  }
-
-  if (toolName === 'core_operation_list') {
-    if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.listOperation(run, args)
-  }
-
-  if (toolName === 'core_operation_wait') {
-    if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.waitOperation(run, args, { signal })
-  }
-
-  if (toolName === 'core_operation_cancel') {
-    if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.cancelOperation(run, args, { signal })
-  }
-
-  if (toolName === 'core_subagent_cancel') {
-    if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.cancelSubagent(run, args)
+    return catalogManager.cancelWork(run, args, { signal })
   }
 
   if (toolName === 'movscript_project_standards_get') {

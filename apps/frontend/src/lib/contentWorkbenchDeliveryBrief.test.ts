@@ -35,9 +35,9 @@ test('content workbench delivery brief lists production blockers', () => {
   })
 
   assert.equal(brief.tone, 'blocked')
-  assert.equal(brief.title, '交付包仍有阻塞')
+  assert.equal(brief.title, '下一步：补齐交付条件')
   assert.equal(brief.progress, 0)
-  assert.deepEqual(brief.blockers, ['生成检查仍有 4 项阻塞'])
+  assert.deepEqual(brief.blockers, ['生成检查仍有 4 项待补齐'])
 })
 
 test('content workbench delivery brief allows generation when core inputs are ready', () => {

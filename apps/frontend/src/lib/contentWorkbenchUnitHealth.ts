@@ -134,8 +134,8 @@ export function buildContentWorkbenchUnitHealth(input: ContentWorkbenchUnitHealt
   if (hardBlockers > 0) {
     return {
       tone: 'blocked',
-      title: '制作项不可执行',
-      detail: `${hardBlockers} 个硬性门禁仍在阻塞生成。`,
+      title: '下一步：补齐生成条件',
+      detail: `${hardBlockers} 个硬性门禁需要先补齐。`,
       score,
       checks,
     }
@@ -154,7 +154,7 @@ export function buildContentWorkbenchUnitHealth(input: ContentWorkbenchUnitHealt
   return {
     tone: 'ready',
     title: '制作项可执行',
-    detail: '提示、素材、画面锚点、上下文和审稿状态均已通过。',
+    detail: '提示、素材、画面锚点、上下文和审稿记录均已通过。',
     score,
     checks,
   }

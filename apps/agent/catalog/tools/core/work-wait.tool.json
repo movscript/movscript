@@ -1,16 +1,17 @@
 {
-  "name": "core_operation_wait",
-  "description": "等待一个或多个 runtime operations 进入终态，或直到等待超时。支持 all/any 模式。普通同步工具调用不需要 wait。",
-  "permission": "agent.operation.read",
+  "name": "core_work_wait",
+  "description": "等待一个或多个 runtime works 进入终态，或直到等待超时。支持 all/any 模式。普通同步工具调用不需要 wait。",
+  "permission": "agent.work.read",
   "risk": "read",
   "source": "runtime",
-  "category": "runtime-operation",
+  "category": "runtime-work",
+  "allowedRunRoles": ["planner"],
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["operationIds"],
+    "required": ["workIds"],
     "properties": {
-      "operationIds": {
+      "workIds": {
         "type": "array",
         "items": { "type": "string" },
         "minItems": 1

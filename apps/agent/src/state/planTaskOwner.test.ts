@@ -9,7 +9,7 @@ test('assertRunCanOwnTask accepts runs in the same taskGraph with matching or un
 })
 
 test('assertRunCanOwnTask rejects foreign taskGraph runs and runs attached to another task', () => {
-  assert.throws(() => assertRunCanOwnTask(makeRun({ taskGraphId: 'task_graph_2' }), makeTask()), /does not belong to task graph task_graph_1/)
+  assert.throws(() => assertRunCanOwnTask(makeRun({ taskGraphId: 'task_graph_2' }), makeTask()), /does not belong to taskGraph task_graph_1/)
   assert.throws(() => assertRunCanOwnTask(makeRun({ taskId: 'task_2' }), makeTask()), /attached to task task_2/)
 })
 
@@ -41,7 +41,7 @@ test('resolveTaskOwnerRunId rejects missing or foreign tasks', () => {
     taskGraphId: 'task_graph_1',
     taskIdInput: 'task_1',
     getTask: () => makeTask({ taskGraphId: 'task_graph_2' }),
-  }), /does not belong to task graph task_graph_1/)
+  }), /does not belong to taskGraph task_graph_1/)
 })
 
 function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {

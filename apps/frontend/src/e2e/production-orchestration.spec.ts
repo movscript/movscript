@@ -1,4 +1,5 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
+import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
 
 import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/lib/e2eBootstrap'
 import { buildGenerationAppBootstrap } from './generationAppSeed'
@@ -10,7 +11,7 @@ test('production orchestration renders the screenwriter workspace', async ({ pag
   await openProductionOrchestrationPage(page, testInfo)
 
   await expect(page.getByRole('button', { name: '编排写作' })).toBeVisible()
-  await expect(page.getByRole('button', { name: /AI 提案/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /提案模式/ })).toBeVisible()
   await expect(page.getByText('编排段列表', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: '进入并停顿' })).toBeVisible()
   await expect(page.getByText('制作剧本', { exact: true }).first()).toBeVisible()
@@ -31,10 +32,10 @@ test('production orchestration renders the screenwriter workspace', async ({ pag
   await expect(page.getByRole('button', { name: '绑定主剧本块' })).toBeVisible()
   await page.keyboard.press('Escape')
 
-  await page.getByRole('button', { name: /AI 提案/ }).click()
+  await page.getByRole('button', { name: /提案模式/ }).click()
 
-  await expect(page.getByRole('heading', { name: '当前没有 AI 编排提案' })).toBeVisible()
-  await expect(page.getByText('这里显示 AI 给出的编排提案', { exact: false })).toBeVisible()
+  await expect(page.getByText('正式项目当前只读', { exact: false })).toBeVisible()
+  await expect(page.getByText('编排段列表', { exact: true })).toBeVisible()
 })
 
 test('production orchestration keeps the screenwriter workspace readable on mobile width', async ({ page }, testInfo) => {
@@ -42,22 +43,21 @@ test('production orchestration keeps the screenwriter workspace readable on mobi
   await openProductionOrchestrationPage(page, testInfo)
 
   await expect(page.getByRole('button', { name: '编排写作' })).toBeVisible()
-  await expect(page.getByRole('button', { name: /AI 提案/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /提案模式/ })).toBeVisible()
   await expect(page.getByText('编排段列表', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: '进入并停顿' })).toBeVisible()
   await expect(page.getByText('按编排段、情节和表达条目写清楚这一段戏', { exact: true })).toBeVisible()
 })
 
-test('production orchestration opens both drafts for review', async ({ page }, testInfo) => {
+test('production orchestration opens production proposal mode for active drafts', async ({ page }, testInfo) => {
   await openProductionOrchestrationPage(page, testInfo, {
     draftId: 'production-draft-e2e',
-    projectDraftId: 'project-draft-e2e',
   })
 
-  await expect(page.getByText('项目规范提案审阅', { exact: true })).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText('AI 编排提案', { exact: true })).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByRole('heading', { name: '项目级设定与素材草稿' })).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText('风格统一', { exact: false })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('提案模式', { exact: true })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('正式项目当前只读', { exact: false })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('编排段列表', { exact: true })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('button', { name: '应用提案到项目' })).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText('制作提案草稿', { exact: true })).toBeVisible({ timeout: 10_000 })
 })
 
@@ -219,8 +219,11 @@ async function mockProductionOrchestrationEntities(page: Page) {
           kind: 'production_proposal',
           title: '制作提案草稿',
           content: JSON.stringify({
+            schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
+            scope: 'production_proposal',
             mode: 'snapshot',
             productionId: 301,
+            proposalScope: 'production',
             summary: '制作提案草稿',
             proposal: {
               segments: [{

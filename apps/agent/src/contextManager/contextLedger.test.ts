@@ -132,15 +132,15 @@ test('context ledger extracts refs from MCP text JSON tool wrappers', () => {
   assert.equal(project?.evidence, 'verified')
 })
 
-test('context ledger extracts generation refs from runtime operation payloads', () => {
+test('context ledger extracts generation refs from runtime work payloads', () => {
   const audit = recordToolResultInContextLedgerWithAudit({
     runId: 'run_1',
     threadId: 'thread_1',
     catalogSnapshotId: 'catalog_1',
-    call: { name: 'core_operation_start', args: { kind: 'generation_job', request: {} } },
+    call: { name: 'core_work_start', args: { kind: 'generation_job', request: {} } },
     result: {
       status: 'started',
-      operation: {
+      work: {
         id: 'op_99',
         kind: 'generation_job',
         status: 'waiting',

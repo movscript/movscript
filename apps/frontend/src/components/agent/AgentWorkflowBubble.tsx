@@ -70,7 +70,7 @@ export function LocalAgentWorkflowBubble({
   )
 }
 
-function localAgentApprovalDetails(approval: AgentPendingApprovalRequest) {
+export function localAgentApprovalDetails(approval: AgentPendingApprovalRequest) {
   return (
     <>
       {approval.args && (

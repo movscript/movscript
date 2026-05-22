@@ -52,6 +52,7 @@ export interface AgentDebugCoverageSummary {
   httpResponsesLabel: string
   requestPayloadsLabel: string
   httpResponseBodiesLabel: string
+  tokenUsageLabel: string
   issues: string[]
 }
 
@@ -327,6 +328,7 @@ function buildDebugCoverageSummary(input: {
   const httpResponses = input.modelCalls.filter((call) => call.responseEventId).length
   const requestPayloads = input.modelCalls.filter((call) => call.hasRequestPayload).length
   const httpResponseBodies = input.modelCalls.filter((call) => call.hasResponseBody).length
+  const tokenUsage = modelCallTokenUsage(input.modelCalls)
   const incompleteModelCalls = input.modelCalls.filter((call) => call.status !== 'complete')
   const modelCallsWithoutRequestPayload = input.modelCalls.filter((call) => !call.hasRequestPayload && call.status !== 'result_only')
   const httpResponsesWithoutBody = Math.max(0, httpResponses - httpResponseBodies)
@@ -349,6 +351,7 @@ function buildDebugCoverageSummary(input: {
     httpResponsesLabel: `${httpResponses}`,
     requestPayloadsLabel: `${requestPayloads}`,
     httpResponseBodiesLabel: `${httpResponseBodies}`,
+    tokenUsageLabel: tokenUsage.label,
     issues,
   }
 }
@@ -460,7 +463,10 @@ function modelCallSummaryFromGroup(group: InternalModelCallGroup, index: number,
   const requestData = recordValue(group.request?.data)
   const responseData = recordValue(group.response?.data)
   const resultData = recordValue(group.result?.data)
-  const requestBody = recordValue(recordValue(requestData?.request)?.body) ?? recordValue(recordValue(responseData?.request)?.body)
+  const requestSnapshotBody = recordValue(recordValue(requestData?.request)?.body) ?? recordValue(recordValue(responseData?.request)?.body)
+  const requestBody = modelSubmittedBody(requestSnapshotBody)
+  const messageCount = arrayValue(requestSnapshotBody?.messages)?.length ?? arrayValue(requestBody?.input)?.length
+  const toolCount = arrayValue(requestBody?.tools)?.length ?? arrayValue(requestSnapshotBody?.tools)?.length
   const response = recordValue(responseData?.response)
   const usage = recordValue(resultData?.usage) ?? recordValue(responseData?.usage)
   const responseChars = numberValue(resultData?.content_chars) ?? numberValue(responseData?.content_chars) ?? stringValue(response?.content)?.length
@@ -485,9 +491,9 @@ function modelCallSummaryFromGroup(group: InternalModelCallGroup, index: number,
     ...(group.request?.id ? { requestEventId: group.request.id } : {}),
     ...(group.response?.id ? { responseEventId: group.response.id } : {}),
     ...(group.result?.id ? { resultEventId: group.result.id } : {}),
-    ...(stringValue(requestBody?.model) ?? stringValue(requestData?.model) ?? stringValue(recordValue(requestData?.config)?.model) ? { model: stringValue(requestBody?.model) ?? stringValue(requestData?.model) ?? stringValue(recordValue(requestData?.config)?.model) } : {}),
-    ...(arrayValue(requestBody?.messages) ? { messageCount: String(arrayValue(requestBody?.messages)!.length) } : {}),
-    ...(arrayValue(requestBody?.tools) ? { toolCount: String(arrayValue(requestBody?.tools)!.length) } : {}),
+    ...(stringValue(requestBody?.model) ?? stringValue(requestSnapshotBody?.model) ?? stringValue(requestData?.model) ?? stringValue(recordValue(requestData?.config)?.model) ? { model: stringValue(requestBody?.model) ?? stringValue(requestSnapshotBody?.model) ?? stringValue(requestData?.model) ?? stringValue(recordValue(requestData?.config)?.model) } : {}),
+    ...(messageCount !== undefined ? { messageCount: String(messageCount) } : {}),
+    ...(toolCount !== undefined ? { toolCount: String(toolCount) } : {}),
     ...(numberValue(response?.status) !== undefined ? { httpStatus: String(numberValue(response?.status)) } : {}),
     ...(formatMs(numberValue(responseData?.latencyMs) ?? numberValue(requestData?.latencyMs)) ? { latency: formatMs(numberValue(responseData?.latencyMs) ?? numberValue(requestData?.latencyMs)) } : {}),
     ...(responseChars !== undefined ? { responseChars: String(responseChars) } : {}),
@@ -499,6 +505,20 @@ function modelCallSummaryFromGroup(group: InternalModelCallGroup, index: number,
     hasRequestPayload: !!requestBody,
     hasResponseBody: !!stringValue(response?.bodyText),
   }
+}
+
+function modelSubmittedBody(body: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  return recordValue(body?.sdk_body) ?? body
+}
+
+function modelCallTokenUsage(modelCalls: AgentModelCallSummary[]): { input: number; output: number; total: number; label: string } {
+  const input = modelCalls.reduce((sum, call) => sum + firstNumber(call.inputTokens ?? ''), 0)
+  const output = modelCalls.reduce((sum, call) => sum + firstNumber(call.outputTokens ?? ''), 0)
+  const total = input + output
+  const label = total > 0
+    ? `${formatInteger(total)} tokens，in ${formatInteger(input)} / out ${formatInteger(output)}`
+    : '0 tokens'
+  return { input, output, total, label }
 }
 
 function buildModelCallContexts(input: {
@@ -746,6 +766,7 @@ function buildDebugReportText(input: {
     input.run.warnings && input.run.warnings.length > 0 ? `警告: ${input.run.warnings.join('；')}` : undefined,
     `事件: ${input.coverage.loadedLabel}`,
     `模型调用: ${input.coverage.modelCallsLabel}`,
+    `Token: ${input.coverage.tokenUsageLabel}`,
     `HTTP 响应: ${input.coverage.httpResponsesLabel}`,
     `请求负载: ${input.coverage.requestPayloadsLabel}`,
     `响应正文: ${input.coverage.httpResponseBodiesLabel}`,
@@ -965,6 +986,10 @@ function localizedPromptContextLayer(layer: string | undefined): string | undefi
 
 function firstNumber(value: string): number {
   return Number(value.match(/\d+/)?.[0] ?? 0)
+}
+
+function formatInteger(value: number): string {
+  return Math.round(value).toLocaleString('en-US')
 }
 
 function slashNumbers(value: string): [number, number] {

@@ -215,7 +215,6 @@ test('buildProjectLayerDraftContentForEntries keeps unselected backend rows in s
         creative_references: [
           { id: 7, name: '主角', description: '新的角色说明' },
         ],
-        asset_slots: [],
       },
     }),
   })
@@ -234,6 +233,7 @@ test('buildProjectLayerDraftContentForEntries keeps unselected backend rows in s
   assert.deepEqual(payload.proposal.creative_references.map((item: any) => item.id).sort(), [7, 8])
   assert.equal(payload.proposal.creative_references.find((item: any) => item.id === 7)?.description, '新的角色说明')
   assert.equal(payload.proposal.creative_references.find((item: any) => item.id === 8)?.description, '保留不动')
+  assert.equal(payload.proposal.asset_slots, undefined)
 })
 
 test('buildProjectLayerDraftContentForEntries scopes asset proposal payload to asset slots', () => {
@@ -265,7 +265,7 @@ test('buildProjectLayerDraftContentForEntries scopes asset proposal payload to a
 
   assert.equal(payload.mode, 'snapshot')
   assert.equal(payload.snapshot_base, undefined)
-  assert.deepEqual(payload.proposal.creative_references, [])
+  assert.equal(payload.proposal.creative_references, undefined)
   assert.deepEqual(payload.proposal.asset_slots.map((item: any) => item.name).sort(), ['旧头像', '角色头像'])
 })
 

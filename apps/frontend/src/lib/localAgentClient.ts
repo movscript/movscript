@@ -1058,6 +1058,7 @@ export interface AgentTraceDebugView {
     httpResponsesLabel: string
     requestPayloadsLabel: string
     httpResponseBodiesLabel: string
+    tokenUsageLabel: string
     issues: string[]
   }
   readinessChecklist: Array<{ id: string; label: string; status: 'ok' | 'warning'; detail: string; action: string }>

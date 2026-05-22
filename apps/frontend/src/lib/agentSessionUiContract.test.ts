@@ -96,6 +96,26 @@ test('agent session UI keeps worker trace drilldown contracts', () => {
   assert.match(planOverviewSource, /加载更多/)
 })
 
+test('agent session UI pins live task, plan, and subagent status at top of the thread', () => {
+  const threadSectionSource = readFileSync(resolve('src/components/agent/AgentConversationThreadSection.tsx'), 'utf8')
+  const layoutPropsSource = readFileSync(resolve('src/components/agent/agentChatViewLayoutProps.ts'), 'utf8')
+  const conversationPresentationSource = readFileSync(resolve('src/lib/agentConversationPresentation.ts'), 'utf8')
+  const pinnedStatusShelfSource = readFileSync(resolve('src/components/agent/AgentPinnedStatusShelf.tsx'), 'utf8')
+  const derivedStateSource = readFileSync(resolve('src/components/agent/useAgentChatDerivedState.ts'), 'utf8')
+
+  assert.match(threadSectionSource, /<AgentPinnedStatusShelf/)
+  assert.match(layoutPropsSource, /generationProgressStates: presentation\.generationProgressStates/)
+  assert.match(derivedStateSource, /generationProgressStatesForPinnedStatus/)
+  assert.match(conversationPresentationSource, /showLiveRunActivity/)
+  assert.doesNotMatch(conversationPresentationSource, /blocks\.push\(\.\.\.generationProgressStates/)
+  assert.match(pinnedStatusShelfSource, /data-testid="agent-pinned-status-shelf"/)
+  assert.match(pinnedStatusShelfSource, /label: '生成'/)
+  assert.match(pinnedStatusShelfSource, /label: '子 agent'/)
+  assert.match(pinnedStatusShelfSource, /个子 agent/)
+  assert.match(pinnedStatusShelfSource, /label: 'Plan'/)
+  assert.match(pinnedStatusShelfSource, /查看计划详情/)
+})
+
 test('agent session UI routes pending input answers before starting a new run', () => {
   const chatViewSource = readFileSync(resolve('src/components/agent/AgentChatView.tsx'), 'utf8')
   const chatViewControllerSource = readFileSync(resolve('src/components/agent/useAgentChatViewController.ts'), 'utf8')

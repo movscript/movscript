@@ -252,7 +252,7 @@ export function DeliveryTimelineTrack({
                 <span>类型</span>
                 <span>内容</span>
                 <span>关键帧 / 缺口</span>
-                <span className="text-right">状态</span>
+                <span className="text-right">检查结果</span>
               </div>
               {summary.items.map((item) => (
                 <button

@@ -33,7 +33,7 @@ import type { DeliveryResourceLibraryState, DeliveryResourceTypeFilter } from '@
 import { deliveryStatusLabel, deliveryWorkbenchStatusTone, parsePositiveDeliveryNumber } from '@/lib/deliveryWorkbenchModel'
 import { cn } from '@/lib/utils'
 import type { RawResource } from '@/types'
-import { Badge, Button, Input, Label, Progress as ProgressBar } from '@movscript/ui'
+import { Badge, Button, Input, Label } from '@movscript/ui'
 
 const deliveryMetricIcons: Record<DeliveryOverviewMetricId, LucideIcon> = {
   versions: FileVideo,
@@ -163,8 +163,8 @@ function DeliveryVersionSummaryCard({
         </div>
         <div className="grid grid-cols-3 gap-3 text-right shrink-0">
           <div>
-            <p className={cn('type-title font-semibold tabular-nums', summary.warningCount > 0 ? 'text-amber-600' : 'text-emerald-600')}>{summary.completion}%</p>
-            <p className="mt-1 type-label text-muted-foreground">完成度</p>
+            <p className={cn('type-title-sm font-semibold tabular-nums', summary.warningCount > 0 ? 'text-amber-600' : 'text-emerald-600')}>{summary.readinessLabel}</p>
+            <p className="mt-1 type-label text-muted-foreground">交付就绪</p>
           </div>
           <div>
             <p className="type-title font-semibold tabular-nums">{summary.totalDurationLabel}</p>
@@ -172,16 +172,19 @@ function DeliveryVersionSummaryCard({
           </div>
           <div>
             <p className={cn('type-title font-semibold tabular-nums', summary.warningCount > 0 ? 'text-amber-600' : 'text-foreground')}>{summary.warningCount}</p>
-            <p className="mt-1 type-label text-muted-foreground">待处理</p>
+            <p className="mt-1 type-label text-muted-foreground">待补齐</p>
           </div>
         </div>
       </div>
       <div className="mt-4">
         <div className="mb-2 flex items-center justify-between type-label text-muted-foreground">
-          <span>成片片段锁定进度</span>
+          <span>成片片段锁定检查</span>
           <span>{summary.lockedCount}/{summary.total}</span>
         </div>
-        <ProgressBar value={summary.completion} className="h-1.5" />
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          <WorkbenchKeyValue label="已锁定片段" value={summary.lockedCount} />
+          <WorkbenchKeyValue label="待补齐片段" value={summary.warningCount} />
+        </div>
       </div>
     </div>
   )
@@ -268,7 +271,7 @@ export function DeliveryItemEditor({
           <Input disabled={!editing} type="number" value={item.duration_sec ?? 0} onChange={(event) => onChange({ duration_sec: numberValue(event.target.value) })} />
         </Field>
       </div>
-      <Field label="状态">
+      <Field label="版本记录">
         <select disabled={!editing} className="ms-input h-9 w-full" value={item.status} onChange={(event) => onChange({ status: event.target.value })}>
           {['draft', 'confirmed', 'needs_asset', 'missing', 'locked', 'approved'].map((status) => <option key={status} value={status}>{deliveryStatusLabel(status)}</option>)}
         </select>

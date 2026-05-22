@@ -24,7 +24,7 @@ export interface DeliveryVersionSummary {
   total: number
   lockedCount: number
   warningCount: number
-  completion: number
+  readinessLabel: string
   totalDurationLabel: string
 }
 
@@ -111,7 +111,7 @@ export function buildDeliveryVersionSummary({
     total,
     lockedCount: readiness.lockedCount,
     warningCount,
-    completion: total > 0 ? Math.round((readiness.lockedCount / total) * 100) : 0,
+    readinessLabel: total > 0 ? `${readiness.lockedCount}/${total} 片段锁定` : '暂无片段',
     totalDurationLabel: formatDeliveryDuration(sumDeliveryTimelineDuration(items)),
   }
 }
@@ -126,7 +126,7 @@ export function buildDeliveryVersionDetailFields(version: DeliveryVersion, produ
     },
     {
       id: 'status',
-      label: '状态',
+      label: '版本记录',
       value: deliveryStatusLabel(version.status),
     },
     {

@@ -347,36 +347,36 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
   if (call.name === 'draft_apply_preview') {
     return `草稿 apply preview${isRecord(parsed) && parsed.ok === true ? '通过' : '未通过'}。`
   }
-  if (call.name === 'core_operation_start') {
-    const operation = isRecord(parsed) && isRecord(parsed.operation) ? parsed.operation : {}
-    const kind = typeof operation.kind === 'string' ? operation.kind : 'runtime'
-    const status = typeof operation.status === 'string' ? operation.status : 'started'
-    const operationId = typeof operation.id === 'string' ? ` ${operation.id}` : ''
-    return `${kind} 操作${operationId}已提交，当前状态：${status}${outputResourceSummary(parsed)}。`
+  if (call.name === 'core_work_start') {
+    const work = isRecord(parsed) && isRecord(parsed.work) ? parsed.work : {}
+    const kind = typeof work.kind === 'string' ? work.kind : 'runtime'
+    const status = typeof work.status === 'string' ? work.status : 'started'
+    const workId = typeof work.id === 'string' ? ` ${work.id}` : ''
+    return `${kind} work${workId}已提交，当前状态：${status}${outputResourceSummary(parsed)}。`
   }
-  if (call.name === 'core_operation_get') {
-    const operation = isRecord(parsed) && isRecord(parsed.operation) ? parsed.operation : {}
-    const kind = typeof operation.kind === 'string' ? operation.kind : 'runtime'
-    const status = typeof operation.status === 'string' ? operation.status : 'unknown'
-    const operationId = typeof operation.id === 'string' ? ` ${operation.id}` : ''
-    return `${kind} 操作${operationId}当前状态：${status}${outputResourceSummary(parsed)}。`
+  if (call.name === 'core_work_get') {
+    const work = isRecord(parsed) && isRecord(parsed.work) ? parsed.work : {}
+    const kind = typeof work.kind === 'string' ? work.kind : 'runtime'
+    const status = typeof work.status === 'string' ? work.status : 'unknown'
+    const workId = typeof work.id === 'string' ? ` ${work.id}` : ''
+    return `${kind} work${workId}当前状态：${status}${outputResourceSummary(parsed)}。`
   }
-  if (call.name === 'core_operation_wait') {
+  if (call.name === 'core_work_wait') {
     const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'unknown'
     const completed = isRecord(parsed) && Array.isArray(parsed.completed) ? parsed.completed.length : 0
     const pending = isRecord(parsed) && Array.isArray(parsed.pending) ? parsed.pending.length : 0
     const failed = isRecord(parsed) && Array.isArray(parsed.failed) ? parsed.failed.length : 0
     const cancelled = isRecord(parsed) && Array.isArray(parsed.cancelled) ? parsed.cancelled.length : 0
     const outputResourceId = outputResourceSummary(parsed)
-    if (status === 'timeout') return `等待 runtime operation 超时，仍有 ${pending} 个操作在后台运行。`
-    return `等待 runtime operation 完成（成功 ${completed}，失败 ${failed}，取消 ${cancelled}，待完成 ${pending}${outputResourceId}）。`
+    if (status === 'timeout') return `等待 runtime work 超时，仍有 ${pending} 个 work 在后台运行。`
+    return `等待 runtime work 完成（成功 ${completed}，失败 ${failed}，取消 ${cancelled}，待完成 ${pending}${outputResourceId}）。`
   }
-  if (call.name === 'core_operation_cancel') {
-    const operation = isRecord(parsed) && isRecord(parsed.operation) ? parsed.operation : {}
-    const kind = typeof operation.kind === 'string' ? operation.kind : 'runtime'
-    const status = typeof operation.status === 'string' ? operation.status : 'cancelled'
-    const operationId = typeof operation.id === 'string' ? ` ${operation.id}` : ''
-    return `${kind} 操作${operationId}已请求取消，当前状态：${status}。`
+  if (call.name === 'core_work_cancel') {
+    const work = isRecord(parsed) && isRecord(parsed.work) ? parsed.work : {}
+    const kind = typeof work.kind === 'string' ? work.kind : 'runtime'
+    const status = typeof work.status === 'string' ? work.status : 'cancelled'
+    const workId = typeof work.id === 'string' ? ` ${work.id}` : ''
+    return `${kind} work${workId}已请求取消，当前状态：${status}。`
   }
   return `调用 ${call.name}。`
 }
@@ -396,7 +396,7 @@ function outputResourceSummary(parsed: unknown): string {
     }
     add(value.output_resource_id)
     add(value.outputResourceId)
-    if (isRecord(value.operation)) visit(value.operation)
+    if (isRecord(value.work)) visit(value.work)
     if (isRecord(value.result)) visit(value.result)
     for (const key of ['completed', 'failed', 'cancelled', 'pending']) {
       const items = value[key]

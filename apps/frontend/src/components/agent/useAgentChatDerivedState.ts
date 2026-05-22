@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { buildAgentConversationPresentation } from '@/lib/agentConversationPresentation'
-import { generationProgressListFromEvents } from '@/lib/agentGenerationMedia'
+import { generationProgressStatesForPinnedStatus } from '@/lib/agentPinnedStatus'
 import { isStoppableAgentRun, isTerminalAgentRun } from '@/lib/agentRunControl'
 import { getThinkingBubbleState, type ThinkingBubbleState } from '@/components/agent/AgentChatBubbles'
 import { useAgentChatWorkflowState } from '@/components/agent/useAgentChatWorkflowState'
@@ -53,8 +53,11 @@ export function useAgentChatDerivedState({
   const activeLocalRun = run ?? null
   const buildingSendDraft = runtimeBuilding
   const thinkingState: ThinkingBubbleState = pendingAssistantState ?? getThinkingBubbleState(activeLocalRun, visibleActivityEvents)
-  const generationTraceEvents = visibleActivityEvents.length > 0 ? visibleActivityEvents : (activeLocalRun?.traceEvents ?? [])
-  const generationProgressStates = generationProgressListFromEvents(generationTraceEvents)
+  const generationProgressStates = generationProgressStatesForPinnedStatus({
+    messages,
+    run: activeLocalRun,
+    visibleActivityEvents,
+  })
   const generationProgressState = generationProgressStates.at(-1) ?? null
   const conversationPresentation = useMemo(() => buildAgentConversationPresentation({
     streamingAssistantMessageId,

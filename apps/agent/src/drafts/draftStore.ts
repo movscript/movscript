@@ -709,13 +709,15 @@ function validateProjectLayerProposalDraft(
       validateProjectStyleCustomRules(proposal.project_style.custom_rules, '/proposal/project_style/custom_rules', issues)
     }
   } else {
-    validateProjectLayerProposalPatchArray('creative_references', proposal.creative_references, issues)
-    validateProjectLayerProposalPatchArray('asset_slots', proposal.asset_slots, issues)
     if (options.kind === 'setting') {
+      validateProjectLayerProposalPatchArray('creative_references', proposal.creative_references, issues)
       validateEmptyProjectLayerProposalArray('asset_slots', proposal.asset_slots, issues)
-    }
-    if (options.kind === 'asset_requirement') {
+    } else if (options.kind === 'asset_requirement') {
+      validateProjectLayerProposalPatchArray('asset_slots', proposal.asset_slots, issues)
       validateEmptyProjectLayerProposalArray('creative_references', proposal.creative_references, issues)
+    } else {
+      validateProjectLayerProposalPatchArray('creative_references', proposal.creative_references, issues)
+      validateProjectLayerProposalPatchArray('asset_slots', proposal.asset_slots, issues)
     }
   }
 

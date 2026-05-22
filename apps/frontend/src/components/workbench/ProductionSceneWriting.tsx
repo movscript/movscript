@@ -219,6 +219,7 @@ export function InlineSceneMomentEditor({
   scriptSourceText,
   isSaving,
   isBindingScriptBlock,
+  allowCreateAndBindMomentScriptBlock = true,
   onSave,
   onBindMomentScriptBlock,
   onCreateAndBindMomentScriptBlock,
@@ -229,6 +230,7 @@ export function InlineSceneMomentEditor({
   scriptSourceText: string
   isSaving: boolean
   isBindingScriptBlock: boolean
+  allowCreateAndBindMomentScriptBlock?: boolean
   onSave: (momentId: number, payload: SemanticEntityPayload) => void
   onBindMomentScriptBlock: (momentId: number, scriptBlockId: number | null) => void
   onCreateAndBindMomentScriptBlock: (momentId: number, startLine: number, endLine: number) => void
@@ -272,6 +274,7 @@ export function InlineSceneMomentEditor({
         scriptBlocks={scriptBlocks}
         scriptSourceText={scriptSourceText}
         isSaving={isBindingScriptBlock}
+        allowCreateFromScriptRange={allowCreateAndBindMomentScriptBlock}
         onBindMomentScriptBlock={onBindMomentScriptBlock}
         onCreateAndBindMomentScriptBlock={onCreateAndBindMomentScriptBlock}
       />
@@ -345,6 +348,7 @@ export function ProductionWritingExpressionsPanel({
   creativeReferences,
   lookup,
   isSavingExpressionLine,
+  canDeleteFallbackContentUnits = false,
   onAddExpressionLine,
   onSaveExpressionLine,
   onDeleteExpressionLine,
@@ -355,6 +359,7 @@ export function ProductionWritingExpressionsPanel({
   creativeReferences: ProductionCreativeReferenceRecord[]
   lookup: ProductionWritingLookup
   isSavingExpressionLine: boolean
+  canDeleteFallbackContentUnits?: boolean
   onAddExpressionLine: (momentId: number, order: number, scriptBlockId?: number | null) => void
   onSaveExpressionLine: (target: ProductionWritingExpressionEditTarget, payload: ProductionWritingExpressionSavePayload) => void
   onDeleteExpressionLine: (target: ProductionWritingExpressionEditTarget) => void
@@ -394,6 +399,7 @@ export function ProductionWritingExpressionsPanel({
             line={line}
             speakerOptions={speakerOptions}
             isSaving={isSavingExpressionLine}
+            canDeleteFallbackContentUnits={canDeleteFallbackContentUnits}
             onSave={onSaveExpressionLine}
             onDelete={onDeleteExpressionLine}
           />
@@ -408,6 +414,7 @@ function EditableWritingExpressionLine({
   line,
   speakerOptions,
   isSaving,
+  canDeleteFallbackContentUnits,
   onSave,
   onDelete,
 }: {
@@ -415,6 +422,7 @@ function EditableWritingExpressionLine({
   line: ProductionWritingExpressionLine
   speakerOptions: ProductionSpeakerOption[]
   isSaving: boolean
+  canDeleteFallbackContentUnits: boolean
   onSave: (target: ProductionWritingExpressionEditTarget, payload: ProductionWritingExpressionSavePayload) => void
   onDelete: (target: ProductionWritingExpressionEditTarget) => void
 }) {
@@ -426,6 +434,8 @@ function EditableWritingExpressionLine({
   const changed = !writingExpressionDraftEquals(draft, original)
   const typeLabel = writingTypeLabel(draft.kind)
   const selectedSpeakerValue = speakerOptionValueForDraft(draft.speaker, speakerOptions)
+  const canDeleteLine = line.persisted && line.editTarget.kind === 'writingExpressions'
+    || (canDeleteFallbackContentUnits && line.editTarget.kind === 'fallback' && line.editTarget.id.startsWith('content-unit-'))
   return (
     <details className="group border-b border-border" open={index === 0}>
       <summary className="flex cursor-pointer list-none items-start gap-3 py-2.5 marker:hidden">
@@ -443,7 +453,7 @@ function EditableWritingExpressionLine({
             <p className="mt-1 line-clamp-1 type-caption text-muted-foreground">{[draft.intent, draft.note].filter(Boolean).join(' · ')}</p>
           )}
         </div>
-        {line.persisted && line.editTarget.kind === 'writingExpressions' ? (
+        {canDeleteLine ? (
           <Button
             size="icon-sm"
             variant="ghost"

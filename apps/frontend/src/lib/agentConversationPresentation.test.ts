@@ -46,11 +46,11 @@ test('buildAgentConversationPresentation keeps streaming content while preservin
   })
 
   assert.equal(presentation.hasStreamingAssistantContent, true)
-  assert.deepEqual(presentation.blocks.map((block) => block.type), ['assistant_stream', 'generation_progress', 'live_run_activity'])
-  assert.equal(presentation.liveBlock?.type, 'generation_progress')
+  assert.deepEqual(presentation.blocks.map((block) => block.type), ['assistant_stream', 'live_run_activity'])
+  assert.equal(presentation.liveBlock?.type, 'live_run_activity')
 })
 
-test('buildAgentConversationPresentation keeps generation progress and run activity visible together', () => {
+test('buildAgentConversationPresentation keeps generation progress out of the message timeline', () => {
   const presentation = buildAgentConversationPresentation({
     streamingAssistantText: '',
     loading: true,
@@ -66,11 +66,11 @@ test('buildAgentConversationPresentation keeps generation progress and run activ
     generationProgressStates: [generationState],
   })
 
-  assert.deepEqual(presentation.blocks.map((block) => block.type), ['generation_progress', 'live_run_activity'])
-  assert.equal(presentation.liveBlock?.type, 'generation_progress')
+  assert.deepEqual(presentation.blocks.map((block) => block.type), ['live_run_activity'])
+  assert.equal(presentation.liveBlock?.type, 'live_run_activity')
 })
 
-test('buildAgentConversationPresentation renders one dynamic generation card per job', () => {
+test('buildAgentConversationPresentation keeps generation-only status pinned outside conversation blocks', () => {
   const presentation = buildAgentConversationPresentation({
     streamingAssistantText: '',
     loading: true,
@@ -83,19 +83,26 @@ test('buildAgentConversationPresentation renders one dynamic generation card per
     ],
   })
 
-  const generationBlocks = presentation.blocks.filter((block) => block.type === 'generation_progress')
-  assert.equal(generationBlocks.length, 2)
-  assert.deepEqual(generationBlocks.map((block) => block.id), [
-    'generation-progress-job-42',
-    'generation-progress-job-43',
-  ])
+  assert.deepEqual(presentation.blocks.map((block) => block.type), ['live_run_activity'])
 })
 
-test('buildAgentConversationPresentation keeps run activity visible for non terminal runs', () => {
+test('buildAgentConversationPresentation keeps paused request activity in the thought chain', () => {
   const presentation = buildAgentConversationPresentation({
     streamingAssistantText: '',
     loading: false,
     activeRun: { ...baseRun, status: 'requires_action' },
+    visibleActivityEvents: [],
+    generationProgressState: null,
+  })
+
+  assert.deepEqual(presentation.blocks.map((block) => block.type), ['live_run_activity'])
+})
+
+test('buildAgentConversationPresentation keeps run activity visible while a run is active', () => {
+  const presentation = buildAgentConversationPresentation({
+    streamingAssistantText: '',
+    loading: false,
+    activeRun: { ...baseRun, status: 'in_progress' },
     visibleActivityEvents: [],
     generationProgressState: null,
   })

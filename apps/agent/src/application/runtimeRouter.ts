@@ -80,16 +80,13 @@ import {
   type RuntimeCatalogSettingsBridge,
 } from './runtimeCatalogSettingsBridge.js'
 import {
-  createRuntimeSubagentToolsBridge,
-  type RuntimeSubagentToolsBridge,
-} from './runtimeSubagentToolsBridge.js'
-import {
-  createRuntimeOperationsBridge,
-  type RuntimeOperationsBridge,
-} from './runtimeOperationsBridge.js'
-import { RuntimeOperationManager } from '../operations/runtimeOperationManager.js'
-import { GenerationJobOperationProvider } from '../operations/providers/generationJobOperationProvider.js'
-import { AgentStoreRuntimeOperationStore } from '../operations/runtimeOperationStore.js'
+  createRuntimeWorksBridge,
+  type RuntimeWorksBridge,
+} from './runtimeWorksBridge.js'
+import { RuntimeWorkManager } from '../runtimeWork/runtimeWorkManager.js'
+import { GenerationJobWorkProvider } from '../runtimeWork/providers/generationJobWorkProvider.js'
+import { SubagentRunWorkProvider } from '../runtimeWork/providers/subagentRunWorkProvider.js'
+import { AgentStoreRuntimeWorkStore } from '../runtimeWork/runtimeWorkStore.js'
 import {
   createRuntimeTaskGraphDispatchBridge,
   type RuntimeTaskGraphDispatchBridge,
@@ -351,9 +348,8 @@ export class AgentRuntimeRouter {
   private readonly planDispatch: RuntimeTaskGraphDispatchBridge
   private readonly updateTaskGraph: RuntimeReplanBridge
   private readonly treeCancellation: RuntimeTreeCancellationBridge
-  private readonly subagentTools: RuntimeSubagentToolsBridge
-  private readonly operationManager: RuntimeOperationManager
-  private readonly runtimeOperations: RuntimeOperationsBridge
+  private readonly workManager: RuntimeWorkManager
+  private readonly runtimeWorks: RuntimeWorksBridge
   private readonly memories: RuntimeMemoryOperationsBridge
   private readonly traceReads: RuntimeTraceReadBridge
 
@@ -603,21 +599,20 @@ export class AgentRuntimeRouter {
       store: this.store,
       cancelRun: (runId, cancelInput) => this.cancelRun(runId, cancelInput),
     })
-    this.subagentTools = createRuntimeSubagentToolsBridge({
-      store: this.store,
-      updateTask: (taskId, update) => this.updateTask(taskId, update),
-      dispatchTaskGraph: (dispatchInput) => this.dispatchTaskGraph(dispatchInput),
-      createRun: (runInput) => this.createRun(runInput),
-      cancelSubtree: (runId, cancelInput) => this.treeCancellation.cancelSubtree(runId, cancelInput),
-      getTaskGraphSnapshot: (taskGraphId) => this.getTaskGraphSnapshot(taskGraphId),
-      taskEvents: this.taskEvents,
+    this.workManager = new RuntimeWorkManager({
+      store: new AgentStoreRuntimeWorkStore(this.store),
+      providers: [
+        new GenerationJobWorkProvider(this.mcpClient),
+        new SubagentRunWorkProvider({
+          createRun: (runInput) => this.createRun(runInput),
+          getRun: (runId) => this.store.getRun(runId),
+          listRuns: (query) => this.store.listRuns(query),
+          cancelSubtree: (runId, cancelInput) => this.treeCancellation.cancelSubtree(runId, cancelInput),
+        }),
+      ],
     })
-    this.operationManager = new RuntimeOperationManager({
-      store: new AgentStoreRuntimeOperationStore(this.store),
-      providers: [new GenerationJobOperationProvider(this.mcpClient)],
-    })
-    this.runtimeOperations = createRuntimeOperationsBridge({
-      operationManager: this.operationManager,
+    this.runtimeWorks = createRuntimeWorksBridge({
+      workManager: this.workManager,
       scheduler: this.runtimeScheduler,
       recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
     })
@@ -681,31 +676,15 @@ export class AgentRuntimeRouter {
       now: isoNow(),
     }) as unknown as JSONValue
   }
-  spawnSubagent(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
-    return this.subagentTools.spawnSubagent(run, input)
-  }
+  async startWork(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> { return await this.runtimeWorks.startWork(run, input, options) }
 
-  listSubagents(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
-    return this.subagentTools.listSubagents(run, input)
-  }
+  getWork(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue { return this.runtimeWorks.getWork(run, input) }
 
-  async waitSubagent(run: AgentRun, input: Record<string, JSONValue> = {}): Promise<JSONValue> {
-    return await this.subagentTools.waitSubagent(run, input)
-  }
+  listWork(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue { return this.runtimeWorks.listWork(run, input) }
 
-  async startOperation(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> { return await this.runtimeOperations.startOperation(run, input, options) }
+  async waitWork(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> { return await this.runtimeWorks.waitWork(run, input, options) }
 
-  getOperation(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue { return this.runtimeOperations.getOperation(run, input) }
-
-  listOperation(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue { return this.runtimeOperations.listOperation(run, input) }
-
-  async waitOperation(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> { return await this.runtimeOperations.waitOperation(run, input, options) }
-
-  async cancelOperation(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> { return await this.runtimeOperations.cancelOperation(run, input, options) }
-
-  cancelSubagent(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
-    return this.subagentTools.cancelSubagent(run, input)
-  }
+  async cancelWork(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> { return await this.runtimeWorks.cancelWork(run, input, options) }
 
   createThread(input: CreateThreadInput = {}): AgentThread {
     return this.threads.createThread(input)
@@ -731,7 +710,7 @@ export class AgentRuntimeRouter {
     return buildRuntimeThreadSnapshotV2({
       thread,
       runs: this.store.listRuns({ threadId }),
-      operations: this.store.listRuntimeOperations({ threadId }),
+      works: this.store.listRuntimeWorks({ threadId }),
       interactions: this.store.listRuntimeInteractions({ threadId }),
       continuations: this.store.listRuntimeContinuations({ threadId }),
     })

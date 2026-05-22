@@ -80,6 +80,7 @@ export function buildAgentChatViewLayoutProps({
       approvingLocalRun: presentation.approvingLocalRun,
       bottomRef: presentation.bottomRef,
       conversationBlocks: presentation.conversationPresentation.blocks,
+      generationProgressStates: presentation.generationProgressStates,
       messages: conv.messages,
       planActionBusy,
       planDispatchSettings,

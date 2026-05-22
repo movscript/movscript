@@ -1,4 +1,4 @@
-import type { RuntimeOperation } from '../operations/runtimeOperation.js'
+import type { RuntimeWork } from '../runtimeWork/runtimeWork.js'
 import type {
   AgentRun,
   AgentThread,
@@ -11,13 +11,13 @@ export interface RuntimeThreadSnapshotV2 {
   updatedAt: string
   thread: AgentThread
   runs: AgentRun[]
-  operations: RuntimeOperation[]
+  works: RuntimeWork[]
   interactions: RuntimeInteraction[]
   continuations: RuntimeContinuation[]
   current: {
     activeRunIds: string[]
     waitingRunIds: string[]
-    runningOperationIds: string[]
+    runningWorkIds: string[]
     pendingInteractionIds: string[]
     readyContinuationIds: string[]
   }
@@ -26,7 +26,7 @@ export interface RuntimeThreadSnapshotV2 {
 export function buildRuntimeThreadSnapshotV2(input: {
   thread: AgentThread
   runs: AgentRun[]
-  operations: RuntimeOperation[]
+  works: RuntimeWork[]
   interactions: RuntimeInteraction[]
   continuations: RuntimeContinuation[]
 }): RuntimeThreadSnapshotV2 {
@@ -36,9 +36,9 @@ export function buildRuntimeThreadSnapshotV2(input: {
   const waitingRunIds = input.runs
     .filter((run) => run.status === 'requires_action')
     .map((run) => run.id)
-  const runningOperationIds = input.operations
-    .filter((operation) => operation.status === 'queued' || operation.status === 'running' || operation.status === 'waiting')
-    .map((operation) => operation.id)
+  const runningWorkIds = input.works
+    .filter((work) => work.status === 'queued' || work.status === 'running' || work.status === 'waiting')
+    .map((work) => work.id)
   const pendingInteractionIds = input.interactions
     .filter((interaction) => interaction.status === 'pending')
     .map((interaction) => interaction.id)
@@ -51,19 +51,19 @@ export function buildRuntimeThreadSnapshotV2(input: {
     updatedAt: maxTimestamp([
       input.thread.updatedAt,
       ...input.runs.map((run) => run.updatedAt),
-      ...input.operations.map((operation) => operation.updatedAt),
+      ...input.works.map((work) => work.updatedAt),
       ...input.interactions.map((interaction) => interaction.updatedAt),
       ...input.continuations.map((continuation) => continuation.updatedAt),
     ]),
     thread: input.thread,
     runs: input.runs,
-    operations: input.operations,
+    works: input.works,
     interactions: input.interactions,
     continuations: input.continuations,
     current: {
       activeRunIds,
       waitingRunIds,
-      runningOperationIds,
+      runningWorkIds,
       pendingInteractionIds,
       readyContinuationIds,
     },

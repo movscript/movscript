@@ -100,8 +100,8 @@ export function buildContentWorkbenchPipeline(input: ContentWorkbenchPipelineInp
     {
       key: 'assets',
       label: '素材需求',
-      value: normalized.missingSlotCount > 0 ? `${normalized.missingSlotCount} 缺口` : '可用',
-      detail: normalized.missingSlotCount > 0 ? '素材缺口会阻塞生成' : '素材输入没有显性阻塞',
+      value: normalized.missingSlotCount > 0 ? `${normalized.missingSlotCount} 缺口` : '已覆盖',
+      detail: normalized.missingSlotCount > 0 ? '先补齐素材需求再进入生成' : '素材输入已覆盖当前生成需要',
       blocked: normalized.missingSlotCount > 0,
     },
     {
@@ -158,8 +158,8 @@ export function buildContentWorkbenchPipeline(input: ContentWorkbenchPipelineInp
   const blockedCount = baseSteps.filter((step) => step.blocked).length
 
   return {
-    title: blockedCount > 0 ? '生产链路仍有阻塞' : current.key === 'preview_delivery' && current.tone === 'done' ? '生产链路已交付' : current.key === 'preview_delivery' ? '生产链路待交付' : '生产链路可进入生成',
-    detail: blockedCount > 0 ? `当前卡点：${current.label}，${current.detail}。` : current.key === 'preview_delivery' && current.tone === 'done' ? '制作、生成、预览和交付记录已经闭环。' : current.key === 'preview_delivery' ? '生成结果还需要进入预览或交付版本。' : '制作项、锚点、素材、上下文和审稿状态都已打通。',
+    title: blockedCount > 0 ? `下一步：${current.label}` : current.key === 'preview_delivery' && current.tone === 'done' ? '生产链路已交付' : current.key === 'preview_delivery' ? '下一步：预览交付' : '下一步：启动生成',
+    detail: blockedCount > 0 ? current.detail : current.key === 'preview_delivery' && current.tone === 'done' ? '制作、生成、预览和交付记录已经闭环。' : current.key === 'preview_delivery' ? '生成结果还需要进入预览或交付版本。' : '制作项、锚点、素材、上下文和审稿状态都已打通。',
     currentKey: current.key,
     blockedCount,
     steps,

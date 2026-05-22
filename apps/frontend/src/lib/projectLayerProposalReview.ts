@@ -159,15 +159,18 @@ export function buildProjectLayerDraftContentForEntries(
         })),
     )
     : []
+  const nextProposal = { ...proposal }
+  if (ownsCreativeReferences) delete nextProposal.asset_slots
+  if (ownsAssetSlots) delete nextProposal.creative_references
 
   return JSON.stringify({
     ...content,
     mode: 'snapshot',
     ...(summary ? { summary } : {}),
     proposal: {
-      ...proposal,
-      creative_references: creativeReferences,
-      asset_slots: assetSlots,
+      ...nextProposal,
+      ...(ownsCreativeReferences ? { creative_references: creativeReferences } : {}),
+      ...(ownsAssetSlots ? { asset_slots: assetSlots } : {}),
     },
   }, null, 2)
 }

@@ -79,7 +79,7 @@ test('runAgentGraph pauses again after executing one approved forced call when o
       {
         id: 'approval_1',
         runId: 'run_partial_approval',
-        toolName: 'core_operation_start',
+        toolName: 'core_work_start',
         args: { value: 'a' },
         reason: 'Needs approval.',
         status: 'approved',
@@ -90,7 +90,7 @@ test('runAgentGraph pauses again after executing one approved forced call when o
       {
         id: 'approval_2',
         runId: 'run_partial_approval',
-        toolName: 'core_operation_start',
+        toolName: 'core_work_start',
         args: { value: 'b' },
         reason: 'Needs approval.',
         status: 'pending',
@@ -98,7 +98,7 @@ test('runAgentGraph pauses again after executing one approved forced call when o
         updatedAt: '2026-05-16T00:00:00.000Z',
       },
     ],
-    metadata: { approvedToolNames: ['core_operation_start'] },
+    metadata: { approvedToolNames: ['core_work_start'] },
     createdAt: '2026-05-16T00:00:00.000Z',
     updatedAt: '2026-05-16T00:00:00.000Z',
     steps: [],
@@ -111,7 +111,7 @@ test('runAgentGraph pauses again after executing one approved forced call when o
     },
   }
   const registry = new StaticToolRegistry([
-    tool('core_operation_start', 'generate', true),
+    tool('core_work_start', 'generate', true),
   ])
   const capabilities = resolvedCatalog(registry)
   const calls: string[] = []
@@ -126,7 +126,7 @@ test('runAgentGraph pauses again after executing one approved forced call when o
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
       tools: [
-        { name: 'core_operation_start', mode: 'allow', approval: 'always' },
+        { name: 'core_work_start', mode: 'allow', approval: 'always' },
       ],
     },
     capabilities,
@@ -153,15 +153,12 @@ test('runAgentGraph pauses again after executing one approved forced call when o
       inspectAgentCatalog: () => ({}),
       updateActiveSkills: () => ({}),
       updateProgressChecklist: () => ({}),
-      spawnSubagent: () => ({}),
-      listSubagents: () => ({}),
-      waitSubagent: () => ({}),
-      startOperation: () => {
-        calls.push('core_operation_start')
+      startWork: () => {
+        calls.push('core_work_start')
         return {
           status: 'started',
-          operation: {
-            id: 'op_1',
+          work: {
+            id: 'work_1',
             kind: 'generation_job',
             mode: 'async',
             status: 'waiting',
@@ -172,14 +169,13 @@ test('runAgentGraph pauses again after executing one approved forced call when o
           },
         }
       },
-      getOperation: () => ({}),
-      listOperation: () => ({}),
-      waitOperation: () => ({}),
-      cancelOperation: () => ({}),
-      cancelSubagent: () => ({}),
+      getWork: () => ({}),
+      listWork: () => ({}),
+      waitWork: () => ({}),
+      cancelWork: () => ({}),
     },
-    forcedToolCalls: [{ id: 'call_approval_1', name: 'core_operation_start', args: { value: 'a' } }],
-    approvedToolNames: ['core_operation_start'],
+    forcedToolCalls: [{ id: 'call_approval_1', name: 'core_work_start', args: { value: 'a' } }],
+    approvedToolNames: ['core_work_start'],
     onTrace: (trace) => traces.push({ kind: trace.kind, title: trace.title, data: trace.data }),
     onStepCreate: (_type, _roundIndex, _roundLabel, _roundSource, _toolName, args) => {
       stepArgs = args
@@ -193,9 +189,9 @@ test('runAgentGraph pauses again after executing one approved forced call when o
     assert.deepEqual(result.pendingApprovals.map((approval) => approval.id), ['approval_2'])
     assert.deepEqual(result.toolOutcomes.map((outcome) => outcome.call.id), ['call_approval_1'])
   }
-  assert.deepEqual(calls, ['core_operation_start'])
+  assert.deepEqual(calls, ['core_work_start'])
   assert.deepEqual(stepArgs, { value: 'a' })
-  const completedTrace = traces.find((trace) => trace.kind === 'tool_call' && trace.title === 'Tool completed: core_operation_start')
+  const completedTrace = traces.find((trace) => trace.kind === 'tool_call' && trace.title === 'Tool completed: core_work_start')
   assert.deepEqual((completedTrace?.data as any)?.args, { value: 'a' })
 })
 
@@ -470,6 +466,89 @@ test('runAgentGraph uses frozen run input instead of later thread user messages'
   if (result.status === 'completed') assert.equal(result.finalContent, 'seen:frozen request')
 })
 
+test('runAgentGraph records explicit model round duration trace', async () => {
+  const run: AgentRun = {
+    id: 'run_round_duration',
+    threadId: 'thread_1',
+    status: 'queued',
+    policy,
+    createdAt: '2026-05-16T00:00:00.000Z',
+    updatedAt: '2026-05-16T00:00:00.000Z',
+    steps: [],
+    input: {
+      schema: 'movscript.agent.run-input.v1',
+      userMessage: 'answer directly',
+      sourceMessageId: 'msg_1',
+      executionMode: 'chat',
+      createdAt: '2026-05-16T00:00:00.000Z',
+    },
+  }
+  const router: RuntimeModelRouter = {
+    resolve: () => ({
+      capability: 'reasoning',
+      provider: 'backend-model-config',
+      config: { provider: 'backend-model-config', model: 'test-model', modelConfigId: 1 } as any,
+      source: 'configured',
+    }),
+    describe: () => [],
+    analyzeMultimodal: async () => ({
+      summary: '',
+      observations: [],
+      confidence: 0,
+      route: { capability: 'multimodal', configured: true, source: 'configured' },
+    }),
+    call: async () => ({
+      content: 'done',
+      tool_calls: [],
+      finish_reason: 'stop',
+      usage: { input_tokens: 9, output_tokens: 2 },
+      rawAssistantMessage: { role: 'assistant', content: 'done' },
+      trace: { request: { url: '', method: 'POST', headers: {}, body: {} }, latencyMs: 1 } as any,
+    }),
+  }
+  const traces: Array<{ title: string; status: string; durationMs?: number; data?: unknown }> = []
+
+  const result = await runAgentGraph({
+    run,
+    threadMessages: [
+      { id: 'msg_1', threadId: 'thread_1', role: 'user', content: 'answer directly', createdAt: '2026-05-16T00:00:00.000Z' },
+    ],
+    manifest: DEFAULT_AGENT_MANIFEST,
+    capabilities: emptyTools,
+    skills: [],
+    context: emptyContext(),
+    memories: [],
+    warnings: [],
+    userMessage: run.input?.userMessage,
+    rootUserMessageId: run.input?.sourceMessageId,
+    config: { provider: 'backend-model-config', model: 'test-model', modelConfigId: 1 } as any,
+    modelRouter: router,
+    auth: {},
+    policy,
+    mcpClient: {
+      initialize: async () => null,
+      callTool: async () => ({}),
+    },
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    registry: DEFAULT_TOOL_REGISTRY,
+    onTrace: (trace) => {
+      if (trace.kind === 'model_call') traces.push({ title: trace.title, status: trace.status, durationMs: trace.durationMs, data: trace.data })
+    },
+    onStepCreate: () => 'step_1',
+    onStepComplete: () => undefined,
+  })
+
+  assert.equal(result.status, 'completed')
+  const started = traces.find((trace) => trace.title === 'Model round started')
+  const completed = traces.find((trace) => trace.title === 'Model round completed')
+  assert.equal(started?.status, 'started')
+  assert.equal(completed?.status, 'completed')
+  assert.equal(typeof completed?.durationMs, 'number')
+  assert.ok((completed?.durationMs ?? -1) >= 0)
+  assert.deepEqual((completed?.data as any)?.usage, { input_tokens: 9, output_tokens: 2 })
+})
+
 test('runAgentGraph appends active-run runtime input to the next model turn', async () => {
   const run: AgentRun = {
     id: 'run_runtime_input',
@@ -691,15 +770,11 @@ test('runAgentGraph summarizes catalog skill inspection with active state and to
       }),
       updateActiveSkills: () => ({}),
       updateProgressChecklist: () => ({}),
-      spawnSubagent: () => ({}),
-      listSubagents: () => ({}),
-      waitSubagent: () => ({}),
-startOperation: () => ({}),
-getOperation: () => ({}),
-listOperation: () => ({}),
-waitOperation: () => ({}),
-cancelOperation: () => ({}),
-      cancelSubagent: () => ({}),
+      startWork: () => ({}),
+getWork: () => ({}),
+listWork: () => ({}),
+waitWork: () => ({}),
+      cancelWork: () => ({}),
     },
     onTrace: (trace) => {
       if (trace.kind === 'tool_call' && trace.toolName === 'core_catalog_inspect' && trace.summary) traceSummaries.push(trace.summary)
@@ -818,15 +893,11 @@ test('runAgentGraph summarizes catalog summary inspection with skill and pack st
       }),
       updateActiveSkills: () => ({}),
       updateProgressChecklist: () => ({}),
-      spawnSubagent: () => ({}),
-      listSubagents: () => ({}),
-      waitSubagent: () => ({}),
-startOperation: () => ({}),
-getOperation: () => ({}),
-listOperation: () => ({}),
-waitOperation: () => ({}),
-cancelOperation: () => ({}),
-      cancelSubagent: () => ({}),
+      startWork: () => ({}),
+getWork: () => ({}),
+listWork: () => ({}),
+waitWork: () => ({}),
+      cancelWork: () => ({}),
     },
     onTrace: (trace) => {
       if (trace.kind === 'tool_call' && trace.toolName === 'core_catalog_inspect' && trace.summary) traceSummaries.push(trace.summary)
@@ -1025,15 +1096,11 @@ test('runAgentGraph loads script reading skill when model calls project script t
         }
       },
       updateProgressChecklist: () => ({}),
-      spawnSubagent: () => ({}),
-      listSubagents: () => ({}),
-      waitSubagent: () => ({}),
-startOperation: () => ({}),
-getOperation: () => ({}),
-listOperation: () => ({}),
-waitOperation: () => ({}),
-cancelOperation: () => ({}),
-      cancelSubagent: () => ({}),
+      startWork: () => ({}),
+getWork: () => ({}),
+listWork: () => ({}),
+waitWork: () => ({}),
+      cancelWork: () => ({}),
     },
     onCatalogRefresh: async () => ({
       manifest: {
