@@ -85,7 +85,7 @@ test('draft review path is resolved from the shared frontend draft model helpers
   )
   assert.equal(
     buildDraftReviewPath(draft({ id: 'draft-script', kind: 'production_proposal' })),
-    '/project/scripts?draftId=draft-script',
+    null,
   )
   assert.equal(
     buildDraftReviewPath(draft({
@@ -154,6 +154,6 @@ test('draft artifact review path does not require loading the full draft first',
       draftId: 'draft-note',
       draftKind: 'project_standards_proposal',
     }),
-    null,
+    '/project/standards?draftId=draft-note',
   )
 })

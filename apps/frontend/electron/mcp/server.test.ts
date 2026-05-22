@@ -1721,9 +1721,7 @@ test('draft model MCP tool exposes frontend-owned field and seed contract', asyn
   assert.deepEqual(result.fieldGuide.owns, [
     'snapshot.proposal.segments',
     'snapshot.proposal.segments[].scene_moments',
-    'snapshot.proposal.segments[].scene_moments[].content_units',
-    'snapshot.proposal.segments[].scene_moments[].keyframes',
-    'production_local_requirements',
+    'snapshot.proposal.segments[].scene_moments[].writing_expressions',
   ])
   assert.equal(result.applyBoundary.backendApply, 'production_proposal')
   assert.equal(result.reviewRoute, '/project/production/orchestration?productionId=301&draftId=:draftId')

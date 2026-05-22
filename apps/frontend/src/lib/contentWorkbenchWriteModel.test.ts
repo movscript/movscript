@@ -117,7 +117,7 @@ test('content workbench write model creates a timeline item and missing timeline
     production_id: 1,
     scene_moment_id: 20,
     content_unit_id: 50,
-    kind: 'content_unit_proposal',
+    kind: 'content_unit',
     label: '手部特写',
     start_sec: 8,
     duration_sec: 6,

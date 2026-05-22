@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Handle, Position, NodeResizer } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
 import { useQuery } from '@tanstack/react-query'
@@ -566,13 +566,22 @@ function CanvasGenerationInputPanel({
   const editorRef = useRef<HTMLDivElement>(null)
   const chipObjectUrlsRef = useRef<Set<string>>(new Set())
   const mentionRangeRef = useRef<{ node: Text; start: number; end: number } | null>(null)
+  const syncedPromptRef = useRef<string | null>(null)
+  const renderedResourceKeyRef = useRef<string>('')
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
-  const attachments = selectedInputResources(data)
+  const attachments = useMemo(
+    () => selectedInputResources(data),
+    [data.availableResources, data.inputResourceIds, data.prompt, data.referenceResources],
+  )
   const explicitResourceIds = new Set(data.inputResourceIds ?? [])
   const mentionResources = attachments
     .filter((resource) => !mentionQuery || resource.name.toLowerCase().includes(mentionQuery))
     .slice(0, 8)
-  const resourceById = new Map(attachments.map((resource) => [resource.ID, resource]))
+  const resourceById = useMemo(() => new Map(attachments.map((resource) => [resource.ID, resource])), [attachments])
+  const resourceLookupKey = useMemo(
+    () => attachments.map((resource) => `${resource.ID}:${resource.type}:${resource.name}:${resource.url}:${resource.direct_url ?? ''}`).join('|'),
+    [attachments],
+  )
 
   function editorText() {
     return editorRef.current ? serializeCanvasPrompt(editorRef.current) : ''
@@ -580,6 +589,7 @@ function CanvasGenerationInputPanel({
 
   function handleInput() {
     const text = editorText()
+    syncedPromptRef.current = text
     data.onUpdatePrompt?.(text)
 
     const selection = window.getSelection()
@@ -652,7 +662,9 @@ function CanvasGenerationInputPanel({
 
     setMentionQuery(null)
     mentionRangeRef.current = null
-    data.onUpdatePrompt?.(editorText())
+    const nextText = editorText()
+    syncedPromptRef.current = nextText
+    data.onUpdatePrompt?.(nextText)
     attachCanvasChipMedia(resource, media, editorRef.current, chipObjectUrlsRef.current)
   }
 
@@ -660,7 +672,14 @@ function CanvasGenerationInputPanel({
     const editor = editorRef.current
     if (!editor) return
     const prompt = data.prompt ?? ''
-    if (serializeCanvasPrompt(editor) === prompt) return
+    const currentPrompt = serializeCanvasPrompt(editor)
+    const isFocused = document.activeElement === editor || (document.activeElement ? editor.contains(document.activeElement) : false)
+    if (currentPrompt === prompt && renderedResourceKeyRef.current === resourceLookupKey) {
+      syncedPromptRef.current = prompt
+      return
+    }
+    if (isFocused && syncedPromptRef.current === currentPrompt) return
+    if (isFocused && syncedPromptRef.current === prompt) return
     for (const url of chipObjectUrlsRef.current) URL.revokeObjectURL(url)
     chipObjectUrlsRef.current.clear()
     editor.innerHTML = ''
@@ -683,7 +702,9 @@ function CanvasGenerationInputPanel({
     }
     const after = prompt.slice(lastIndex)
     if (after) editor.appendChild(document.createTextNode(after))
-  }, [data.prompt, resourceById])
+    syncedPromptRef.current = prompt
+    renderedResourceKeyRef.current = resourceLookupKey
+  }, [data.prompt, resourceById, resourceLookupKey])
 
   useEffect(() => {
     return () => {
