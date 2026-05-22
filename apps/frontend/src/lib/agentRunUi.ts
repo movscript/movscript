@@ -318,8 +318,8 @@ export function approvalImpactLabel(approval: Pick<AgentApprovalRequest, 'toolNa
     case 'generation_job_cancel': return '批准后会取消生成任务，未完成的输出可能不再产生。'
     case 'movscript_project_create': return '批准后会创建项目数据。'
     case 'core_memory_delete': return '批准后会删除记忆，后续运行将无法再引用它。'
-    case 'core_subagent_spawn': return '批准后会启动子代理执行分配任务。'
-    case 'core_subagent_cancel': return '批准后会取消子代理及其后续执行。'
+    case 'core_work_start': return '批准后会提交异步任务；生成任务可能消耗额度，子 agent 任务会启动 worker run。'
+    case 'core_work_cancel': return '批准后会取消异步任务；未完成的输出或子 agent 后续执行可能不再产生。'
     default: break
   }
 
@@ -523,7 +523,7 @@ function traceBehavior(event: AgentTraceEvent, data: Record<string, unknown> | u
   if (event.kind === 'assistant' && event.title === 'Assistant message created') return '把最终回复保存为 assistant 消息'
   if (event.kind === 'tool_call' && event.toolName) return `调用 ${agentToolNameLabel(event.toolName)}`
   if (event.kind === 'run' && event.title === 'Worker started') return '启动执行器运行，开始执行分配到的任务'
-  if (event.kind === 'run' && event.title === 'Planner started') return '启动规划器运行，开始编排任务和子代理'
+  if (event.kind === 'run' && event.title === 'Planner started') return '启动规划器运行，开始编排任务和子 agent'
   if (event.kind === 'policy') return '根据 manifest、风险等级和审批模式判断是否允许工具执行'
   if (event.kind === 'context' && eventType === 'context.run_built') return '把页面焦点、技能、工具和记忆整理成本轮运行输入'
   return undefined
@@ -945,7 +945,7 @@ function toolFieldLabel(key: string): string {
   switch (key) {
     case 'artifactId': return '产物 ID'
     case 'findings': return '发现'
-    case 'subagentName': return '子代理'
+    case 'subagentName': return '子 agent'
     case 'taskId': return '任务 ID'
     case 'error': return '错误'
     case 'result': return '结果'
@@ -996,7 +996,7 @@ function localizedTraceTitle(title: string): string | undefined {
     case 'Worker started': return '执行器启动'
     case 'Planner started': return '规划器启动'
     case 'Asset review tool call': return '素材风险审计工具调用'
-    case 'Subagent dispatch tool call': return '子代理调度工具调用'
+    case 'Runtime work dispatch tool call': return '异步任务调度工具调用'
     case 'Thread history compacted': return '压缩线程历史'
     case 'Knowledge searched': return '检索知识库'
     case 'Knowledge loaded': return '加载知识片段'

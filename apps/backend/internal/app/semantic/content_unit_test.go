@@ -709,6 +709,124 @@ func TestDeleteSceneMomentRejectsDownstreamContentUnits(t *testing.T) {
 	}
 }
 
+func TestAbandonSceneMomentMarksDownstreamGraphInactive(t *testing.T) {
+	db := newContentUnitTestDB(t)
+	service := NewService(db)
+	_, _, block := seedContentUnitScriptSource(t, db, 1)
+	moment := model.SceneMoment{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Moment", Status: "confirmed"}
+	if err := db.Create(&moment).Error; err != nil {
+		t.Fatalf("create scene moment: %v", err)
+	}
+	firstUnit := model.ContentUnit{ProjectID: 1, SceneMomentID: &moment.ID, ScriptBlockID: &block.ID, Title: "First unit", Status: "draft"}
+	secondUnit := model.ContentUnit{ProjectID: 1, SceneMomentID: &moment.ID, ScriptBlockID: &block.ID, Title: "Second unit", Status: "confirmed"}
+	if err := db.Create(&firstUnit).Error; err != nil {
+		t.Fatalf("create first content unit: %v", err)
+	}
+	if err := db.Create(&secondUnit).Error; err != nil {
+		t.Fatalf("create second content unit: %v", err)
+	}
+	firstTimelineItem := model.PreviewTimelineItem{ProjectID: 1, PreviewTimelineID: 10, SceneMomentID: &moment.ID, ContentUnitID: &firstUnit.ID, Kind: "content_unit", Status: "draft"}
+	secondTimelineItem := model.PreviewTimelineItem{ProjectID: 1, PreviewTimelineID: 10, ContentUnitID: &secondUnit.ID, Kind: "content_unit", Status: "confirmed"}
+	if err := db.Create(&firstTimelineItem).Error; err != nil {
+		t.Fatalf("create first preview timeline item: %v", err)
+	}
+	if err := db.Create(&secondTimelineItem).Error; err != nil {
+		t.Fatalf("create second preview timeline item: %v", err)
+	}
+	syncSemanticTestRelations(t, db, &moment)
+	syncSemanticTestRelations(t, db, &firstUnit)
+	syncSemanticTestRelations(t, db, &secondUnit)
+	syncSemanticTestRelations(t, db, &firstTimelineItem)
+	syncSemanticTestRelations(t, db, &secondTimelineItem)
+
+	result, err := service.AbandonSceneMoment(context.Background(), 1, strconv.FormatUint(uint64(moment.ID), 10))
+	if err != nil {
+		t.Fatalf("AbandonSceneMoment() error = %v", err)
+	}
+	if result.ContentUnitsUpdated != 2 || result.TimelineItemsRemoved != 2 {
+		t.Fatalf("abandon result = %+v, want 2 content units and 2 timeline items", result)
+	}
+
+	var reloadedMoment model.SceneMoment
+	if err := db.First(&reloadedMoment, moment.ID).Error; err != nil {
+		t.Fatalf("load scene moment: %v", err)
+	}
+	if reloadedMoment.Status != "ignored" {
+		t.Fatalf("scene moment status = %q, want ignored", reloadedMoment.Status)
+	}
+	var ignoredUnits int64
+	if err := db.Model(&model.ContentUnit{}).Where("scene_moment_id = ? AND status = ?", moment.ID, "ignored").Count(&ignoredUnits).Error; err != nil {
+		t.Fatalf("count ignored content units: %v", err)
+	}
+	if ignoredUnits != 2 {
+		t.Fatalf("ignored content units = %d, want 2", ignoredUnits)
+	}
+	var removedItems int64
+	if err := db.Model(&model.PreviewTimelineItem{}).Where("project_id = ? AND status = ?", 1, "removed").Count(&removedItems).Error; err != nil {
+		t.Fatalf("count removed preview timeline items: %v", err)
+	}
+	if removedItems != 2 {
+		t.Fatalf("removed preview timeline items = %d, want 2", removedItems)
+	}
+	var activeBlockerCount int64
+	if err := db.Model(&model.EntityRelation{}).
+		Where("target_type = ? AND target_id = ? AND type = ? AND status = ? AND valid_to IS NULL", "scene_moment", moment.ID, "based_on", "confirmed").
+		Count(&activeBlockerCount).Error; err != nil {
+		t.Fatalf("count active content-unit blocker relations: %v", err)
+	}
+	if activeBlockerCount != 0 {
+		t.Fatalf("active content-unit blocker relations = %d, want 0", activeBlockerCount)
+	}
+}
+
+func TestAbandonContentUnitMarksTimelineGraphInactive(t *testing.T) {
+	db := newContentUnitTestDB(t)
+	service := NewService(db)
+	_, _, block := seedContentUnitScriptSource(t, db, 1)
+	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Unit", Status: "confirmed"}
+	if err := db.Create(&unit).Error; err != nil {
+		t.Fatalf("create content unit: %v", err)
+	}
+	timelineItem := model.PreviewTimelineItem{ProjectID: 1, PreviewTimelineID: 10, ContentUnitID: &unit.ID, Kind: "content_unit", Status: "confirmed"}
+	if err := db.Create(&timelineItem).Error; err != nil {
+		t.Fatalf("create preview timeline item: %v", err)
+	}
+	syncSemanticTestRelations(t, db, &unit)
+	syncSemanticTestRelations(t, db, &timelineItem)
+
+	result, err := service.AbandonContentUnit(context.Background(), 1, strconv.FormatUint(uint64(unit.ID), 10))
+	if err != nil {
+		t.Fatalf("AbandonContentUnit() error = %v", err)
+	}
+	if result.ContentUnitID != unit.ID || result.TimelineItemsRemoved != 1 {
+		t.Fatalf("abandon result = %+v, want content unit %d and 1 timeline item", result, unit.ID)
+	}
+
+	var reloadedUnit model.ContentUnit
+	if err := db.First(&reloadedUnit, unit.ID).Error; err != nil {
+		t.Fatalf("load content unit: %v", err)
+	}
+	if reloadedUnit.Status != "ignored" {
+		t.Fatalf("content unit status = %q, want ignored", reloadedUnit.Status)
+	}
+	var reloadedTimelineItem model.PreviewTimelineItem
+	if err := db.First(&reloadedTimelineItem, timelineItem.ID).Error; err != nil {
+		t.Fatalf("load preview timeline item: %v", err)
+	}
+	if reloadedTimelineItem.Status != "removed" {
+		t.Fatalf("preview timeline item status = %q, want removed", reloadedTimelineItem.Status)
+	}
+	var activeBlockerCount int64
+	if err := db.Model(&model.EntityRelation{}).
+		Where("target_type = ? AND target_id = ? AND source_type = ? AND status = ? AND valid_to IS NULL", "content_unit", unit.ID, "preview_timeline_item", "confirmed").
+		Count(&activeBlockerCount).Error; err != nil {
+		t.Fatalf("count active preview blocker relations: %v", err)
+	}
+	if activeBlockerCount != 0 {
+		t.Fatalf("active preview blocker relations = %d, want 0", activeBlockerCount)
+	}
+}
+
 func TestPatchSceneMomentAllowsMetadataAfterContentUnits(t *testing.T) {
 	db := newContentUnitTestDB(t)
 	service := NewService(db)

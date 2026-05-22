@@ -99,9 +99,9 @@ export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
     requiresApprovalByDefault: false,
   },
   {
-    name: 'core_progress_update',
-    description: 'Update the current thread progress checklist and append an immutable checklist revision snapshot.',
-    permission: 'agent.progress_checklist.write',
+    name: 'core_update_plan',
+    description: 'Create or update the current thread execution plan and append an immutable revision snapshot.',
+    permission: 'agent.plan.write',
     risk: 'write',
     source: 'runtime',
     projectScoped: false,

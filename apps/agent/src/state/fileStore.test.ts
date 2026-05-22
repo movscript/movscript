@@ -314,6 +314,63 @@ test('file trace store preserves replacement semantics for repeated trace ids', 
   }
 })
 
+test('file agent store deleteAllThreads removes persisted state and trace files', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-state-'))
+  try {
+    const statePath = join(dir, 'state.json')
+    const store = new FileAgentStore(statePath)
+    store.createThread({
+      id: 'thread_1',
+      createdAt: '2026-05-21T00:00:00.000Z',
+      updatedAt: '2026-05-21T00:00:00.000Z',
+      messages: [],
+    })
+    store.createRun({
+      id: 'run_1',
+      threadId: 'thread_1',
+      status: 'completed',
+      role: 'planner',
+      policy: {
+        approvalMode: 'interactive',
+        maxToolCalls: 20,
+        maxIterations: 20,
+        allowNetwork: false,
+        allowFileBytes: false,
+      },
+      createdAt: '2026-05-21T00:00:00.000Z',
+      updatedAt: '2026-05-21T00:00:01.000Z',
+      steps: [],
+    })
+    store.appendTraceEvent({
+      id: 'trace_1',
+      runId: 'run_1',
+      kind: 'context',
+      title: 'Trace',
+      status: 'completed',
+      createdAt: '2026-05-21T00:00:01.000Z',
+    })
+    store.flush()
+
+    const traceRunDir = join(dir, 'traces', 'threads', 'thread_1', 'runs', 'run_1')
+    assert.equal(existsSync(traceRunDir), true)
+
+    const deletion = store.deleteAllThreads()
+    const persisted = JSON.parse(readFileSync(statePath, 'utf8')) as { threads?: unknown[]; runs?: unknown[] }
+    const index = JSON.parse(readFileSync(join(dir, 'traces', 'index.json'), 'utf8')) as { threads?: Record<string, unknown>; runs?: Record<string, unknown> }
+
+    assert.equal(deletion.deleted, true)
+    assert.deepEqual(deletion.deletedThreadIds, ['thread_1'])
+    assert.deepEqual(deletion.deletedRunIds, ['run_1'])
+    assert.deepEqual(persisted.threads, [])
+    assert.deepEqual(persisted.runs, [])
+    assert.deepEqual(index.threads, {})
+    assert.deepEqual(index.runs, {})
+    assert.equal(existsSync(traceRunDir), false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('file agent store compacts oversized run step results and rollback records', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-state-'))
   const previousStepLimit = process.env.MOVSCRIPT_AGENT_MAX_PERSISTED_RUN_STEP_RESULT_BYTES
@@ -363,7 +420,7 @@ test('file agent store compacts oversized run step results and rollback records'
         runId: 'run_1',
         type: 'tool_call',
         status: 'completed',
-        toolName: 'movscript_project_script_read',
+        toolName: 'movscript_script_locate',
         result: { payload: 'x'.repeat(20_000) },
         createdAt: '2026-05-21T00:00:00.000Z',
         completedAt: '2026-05-21T00:00:01.000Z',

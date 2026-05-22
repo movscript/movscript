@@ -493,7 +493,7 @@ function resource(uri: string, name: string): MCPResource {
   return { uri, name, mimeType: 'text/markdown' }
 }
 
-async function readResource(uri: string): Promise<MCPJSONValue> {
+export async function readResource(uri: string): Promise<MCPJSONValue> {
   if (uri === 'movscript://ui/current-route') {
     return resourceContent(uri, contextSnapshot.route)
   }
@@ -507,6 +507,18 @@ async function readResource(uri: string): Promise<MCPJSONValue> {
     return resourceContent(uri, await listProjects({}))
   }
 
+  const scriptResource = parseScriptFileURI(uri)
+  if (scriptResource) {
+    const file = await loadReadonlyScriptFile(scriptResource.projectId, scriptResource.scriptVersionId)
+    const range = normalizeScriptLineRange(file.lines.length, {
+      startLine: scriptResource.startLine,
+      endLine: scriptResource.endLine,
+      lineCount: scriptResource.lineCount,
+      maxChars: scriptResource.maxChars,
+    })
+    return scriptFileResourceContent(uri, scriptFileRangePayload(file, range))
+  }
+
   const match = uri.match(/^movscript:\/\/project\/(\d+)\/([a-z-]+)$/)
   if (!match) throw new Error(`Unsupported resource URI: ${uri}`)
 
@@ -515,6 +527,19 @@ async function readResource(uri: string): Promise<MCPJSONValue> {
 
   const data = await backendGet(projectEndpoint(projectId, kind))
   return resourceContent(uri, summarizeResource(data))
+}
+
+function scriptFileResourceContent(uri: string, payload: ScriptFileRangePayload): MCPJSONValue {
+  return {
+    contents: [
+      {
+        uri,
+        mimeType: 'text/plain',
+        text: payload.text,
+      },
+    ],
+    data: toMCPJSONValue(payload),
+  }
 }
 
 function resourceContent(uri: string, value: unknown): MCPJSONValue {
@@ -571,17 +596,25 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_project_script_read',
-      description: 'Read backend project scripts / 剧本 in the current or specified project. Use this for 总剧本、分集剧本、第一集 and any screenplay/library content. This is not the local Agent draft artifact API. Set includeContent when the actual script body is needed.',
+      name: 'movscript_script_locate',
+      description: 'Locate likely screenplay passages across project script-version files from a fuzzy user intent without reading full scripts. Supports multiple query terms, must/should/exclude terms, alias groups, scene-aware scoring, and returns readonly script file refs plus line ranges for core_file_read/search.',
       inputSchema: objectSchema(
         {
           projectId: { type: 'number', description: 'Defaults to the current UI project when omitted.' },
-          scriptId: { type: 'number', description: 'Optional script ID to read one script.' },
-          query: { type: 'string', description: 'Optional text search over title, script_type, summary, description, characters, hook, and plot_summary.' },
-          scriptTitle: { type: 'string', description: 'Optional title match such as 总剧本 or 第一集. Matches exact title first, then substring.' },
-          includeContent: { type: 'boolean', description: 'When true, include script body text up to contentLimit characters per script.' },
-          contentLimit: { type: 'number', description: 'Maximum script body characters per script when includeContent is true. Defaults to 8000.' },
-          limit: { type: 'number', description: 'Maximum scripts to return when scriptId is omitted. Defaults to 50.' },
+          scriptVersionId: { type: 'number', description: 'Preferred immutable script version ID.' },
+          scriptId: { type: 'number', description: 'Optional legacy script ID; matching script versions are searched.' },
+          scriptTitle: { type: 'string', description: 'Optional script title such as 总剧本 or 第一集 when no version ID is known.' },
+          intent: { type: 'string', description: 'Natural-language user request, for example 老张发现纸条那里改得更压抑一点.' },
+          query: { type: 'string', description: 'Single search query alias. Prefer queries for multiple terms.' },
+          queries: { type: 'array', items: { type: 'string' }, description: 'Candidate terms. Any matching term helps ranking.' },
+          must: { type: 'array', items: { type: 'string' }, description: 'Terms that should appear in the returned context window when provided.' },
+          should: { type: 'array', items: { type: 'string' }, description: 'Optional ranking terms.' },
+          exclude: { type: 'array', items: { type: 'string' }, description: 'Terms that exclude a candidate context window.' },
+          aliasGroups: { type: 'array', items: { type: 'array', items: { type: 'string' } }, description: 'Equivalent names or phrases, e.g. [["张建国","老张","父亲"],["纸条","字条","便签"]].' },
+          windowLines: { type: 'number', description: 'Context window radius around matched lines. Defaults to 6.' },
+          limit: { type: 'number', description: 'Maximum candidates to return. Defaults to 5.' },
+          contentLimit: { type: 'number', description: 'Compatibility hint for maximum follow-up read size. Use core_file_read contentLimit for actual file reads.' },
+          includeExcerpt: { type: 'boolean', description: 'When true, include bounded original text excerpts. Defaults to true.' },
         }
       ),
     },
@@ -647,7 +680,7 @@ export function listTools(): MCPTool[] {
       description: 'Return the frontend-owned DraftDomainModel contract for a draft kind and target. This is the single source for draft field ownership, seed policy, review route, apply boundary, and optional hydrated seed data.',
       inputSchema: objectSchema(
         {
-          kind: { type: 'string', enum: ['setting_proposal', 'project_standards_proposal', 'production_proposal', 'script_split_proposal', 'asset_proposal', 'content_unit_proposal'] },
+          kind: { type: 'string', enum: ['setting_proposal', 'project_standards_proposal', 'production_proposal', 'content_unit_proposal', 'asset_proposal'] },
           target: { type: 'object', additionalProperties: true, description: 'Optional target entity anchor. entityType/entityId defaults come from the model and current focus when available.' },
           seedMode: { type: 'string', enum: ['empty', 'snapshot', 'editable_snapshot'], description: 'Defaults to the model seed.defaultMode.' },
           include: { type: 'array', items: { type: 'string' }, description: 'Optional subset of the model seed.include allowlist.' },
@@ -1119,8 +1152,8 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
       return toolText(getFocus())
     case 'movscript_project_list':
       return toolText(await listProjects(args))
-    case 'movscript_project_script_read':
-      return toolText(await readProjectScripts(args))
+    case 'movscript_script_locate':
+      return toolText(await locateScriptPassages(args))
     case 'movscript_creative_reference_query':
       return toolText(await queryCreativeReferences(args))
     case 'movscript_asset_slot_query':
@@ -1964,34 +1997,440 @@ function copyRequiresValueRules(out: Record<string, unknown>, source: Record<str
   if (rules.length > 0) out.requires_value = rules
 }
 
-export async function readProjectScripts(args: Record<string, unknown>): Promise<unknown> {
-  const projectId = getOptionalNumber(args, 'projectId') ?? contextSnapshot.project?.id
-  if (!projectId) throw new Error('projectId is required when no current project is selected')
+interface ReadonlyScriptScene {
+  id: string
+  title: string
+  startLine: number
+  endLine: number
+}
 
-  const scriptId = getOptionalNumber(args, 'scriptId')
-  const query = getOptionalString(args, 'query')
-  const scriptTitle = getOptionalString(args, 'scriptTitle')
-  const includeContent = args.includeContent === true
-  const contentLimit = clampNumber(Math.floor(getOptionalNumber(args, 'contentLimit') ?? 8000), 500, 50000)
-  const limit = Math.max(1, Math.min(Math.floor(getOptionalNumber(args, 'limit') ?? 50), 100))
-  const scripts = await backendList(`/projects/${projectId}/scripts`)
-  const matchedScripts = scripts.filter((script: any) => {
-    if (scriptId && Number(script?.ID ?? script?.id) !== scriptId) return false
-    if (scriptTitle && !scriptMatchesTitle(script, scriptTitle)) return false
-    if (query && !recordMatchesQuery(script, query, ['title', 'script_type', 'summary', 'description', 'characters', 'hook', 'plot_summary'])) return false
-    return true
+interface ReadonlyScriptFile {
+  projectId: number
+  scriptVersionId: number
+  scriptId: number
+  title: string
+  versionNumber?: number
+  updatedAt?: string
+  uri: string
+  text: string
+  lines: string[]
+  scenes: ReadonlyScriptScene[]
+}
+
+interface ScriptLineRange {
+  startLine: number
+  endLine: number
+  maxChars: number
+}
+
+interface ScriptFileRangePayload {
+  projectId: number
+  scriptVersionId: number
+  scriptId: number
+  title: string
+  uri: string
+  startLine: number
+  endLine: number
+  lineCount: number
+  totalLines: number
+  text: string
+  truncated: boolean
+}
+
+interface ScriptTermGroup {
+  label: string
+  terms: string[]
+  kind: 'query' | 'must' | 'should'
+  weight: number
+}
+
+interface ScriptMatchCandidate {
+  file: ReadonlyScriptFile
+  scene: ReadonlyScriptScene
+  startLine: number
+  endLine: number
+  score: number
+  confidence: number
+  matchedTerms: string[]
+  matchedGroups: string[]
+  excerpt?: string
+}
+
+export async function locateScriptPassages(args: Record<string, unknown>): Promise<unknown> {
+  const files = await resolveReadonlyScriptFiles(args)
+  const projectId = getOptionalNumber(args, 'projectId') ?? contextSnapshot.project?.id
+  const windowLines = clampNumber(Math.floor(getOptionalNumber(args, 'windowLines') ?? 6), 1, 30)
+  const limit = normalizeListLimit(args.limit, 5, 20)
+  const includeExcerpt = args.includeExcerpt !== false
+  const intent = getOptionalString(args, 'intent') ?? ''
+  const aliasGroups = normalizeScriptAliasGroups(args.aliasGroups)
+  const explicitQueries = [...normalizeScriptTermList(args.query), ...normalizeScriptTermList(args.queries)]
+  const explicitMust = normalizeScriptTermList(args.must)
+  const explicitShould = normalizeScriptTermList(args.should)
+  const excludeGroups = buildScriptTermGroups(normalizeScriptTermList(args.exclude), [], 'should')
+  const inferredTerms = explicitQueries.length + explicitMust.length + explicitShould.length > 0 ? [] : inferScriptIntentTerms(intent)
+  const queryGroups = buildScriptTermGroups([...explicitQueries, ...inferredTerms], aliasGroups, 'query')
+  const mustGroups = buildScriptTermGroups(explicitMust, aliasGroups, 'must')
+  const shouldGroups = buildScriptTermGroups(explicitShould, aliasGroups, 'should')
+  const groups = [...mustGroups, ...queryGroups, ...shouldGroups]
+  if (groups.length === 0) {
+    return {
+      projectId,
+      scripts: files.map(summarizeReadonlyScriptFile),
+      ambiguity: 'none',
+      candidates: [],
+      suggestedQuestion: '需要提供要定位的人物、场景、道具、台词或事件关键词；也可以从 scripts 列表选择 scriptVersionId。',
+    }
+  }
+
+  const candidatesByKey = new Map<string, ScriptMatchCandidate>()
+  files.forEach((file) => {
+    file.lines.forEach((line, lineIndex) => {
+      const lineMatches = collectScriptMatches(line, groups)
+      if (lineMatches.groups.length === 0) return
+      const centerLine = lineIndex + 1
+      const scene = sceneForLine(file.scenes, centerLine)
+      const startLine = Math.max(scene.startLine, centerLine - windowLines)
+      const endLine = Math.min(scene.endLine, centerLine + windowLines)
+      const key = `${file.uri}:${scene.id}:${startLine}:${endLine}`
+      if (candidatesByKey.has(key)) return
+      const rangeText = scriptLinesText(file.lines, startLine, endLine)
+      if (collectScriptMatches(rangeText, excludeGroups).groups.length > 0) return
+      const rangeMatches = collectScriptMatches(rangeText, groups)
+      const matchedMust = mustGroups.filter((group) => rangeMatches.groups.includes(group.label))
+      if (mustGroups.length > 0 && matchedMust.length < mustGroups.length) return
+      const matchedQuery = queryGroups.filter((group) => rangeMatches.groups.includes(group.label))
+      const matchedShould = shouldGroups.filter((group) => rangeMatches.groups.includes(group.label))
+      const sceneMatches = collectScriptMatches(scene.title, groups)
+      const score = matchedMust.length * 6 + matchedQuery.length * 3 + matchedShould.length * 2 + sceneMatches.groups.length
+      const denominator = Math.max(1, mustGroups.length * 6 + queryGroups.length * 3 + shouldGroups.length * 2)
+      candidatesByKey.set(key, {
+        file,
+        scene,
+        startLine,
+        endLine,
+        score,
+        confidence: Math.min(0.98, Math.max(0.12, score / denominator)),
+        matchedTerms: rangeMatches.terms,
+        matchedGroups: rangeMatches.groups,
+        ...(includeExcerpt ? { excerpt: truncateScriptExcerpt(rangeText, 1800) } : {}),
+      })
+    })
   })
-  const selectedScripts = matchedScripts.slice(0, limit)
+
+  const candidates = dedupeOverlappingScriptCandidates(Array.from(candidatesByKey.values())
+    .sort((a, b) => b.score - a.score || a.startLine - b.startLine)
+  )
+    .slice(0, limit)
+  const ambiguity = scriptLocateAmbiguity(candidates)
 
   return {
     projectId,
-    count: scripts.length,
-    matched: matchedScripts.length,
-    returned: selectedScripts.length,
-    includeContent,
-    contentLimit: includeContent ? contentLimit : 0,
-    scripts: selectedScripts.map((script: any) => summarizeScript(script, { includeContent, contentLimit })),
+    scripts: files.map(summarizeReadonlyScriptFile),
+    query: {
+      intent,
+      queries: explicitQueries,
+      must: explicitMust,
+      should: explicitShould,
+      inferred: inferredTerms,
+      aliasGroups,
+    },
+    ambiguity,
+    suggestedQuestion: ambiguity === 'high' && candidates.length > 1
+      ? `找到多个相近片段：${candidates.slice(0, 2).map((item) => `${item.scene.title}（${item.startLine}-${item.endLine}行）`).join('；')}。需要确认是哪一段。`
+      : undefined,
+    candidates: candidates.map((candidate) => ({
+      scriptVersionId: candidate.file.scriptVersionId,
+      scriptId: candidate.file.scriptId,
+      title: candidate.file.title,
+      uri: candidate.file.uri,
+      sceneId: candidate.scene.id,
+      sceneTitle: candidate.scene.title,
+      lineRange: [candidate.startLine, candidate.endLine],
+      score: candidate.score,
+      confidence: Number(candidate.confidence.toFixed(2)),
+      matchedTerms: candidate.matchedTerms,
+      matchedGroups: candidate.matchedGroups,
+      reason: `匹配 ${candidate.matchedTerms.slice(0, 8).join('、')}`,
+      readRef: {
+        ref: candidate.file.uri,
+        uri: candidate.file.uri,
+        readUri: readonlyScriptFileRangeURI(candidate.file.uri, candidate.startLine, candidate.endLine),
+        rangeUri: readonlyScriptFileRangeURI(candidate.file.uri, candidate.startLine, candidate.endLine),
+        projectId: candidate.file.projectId,
+        scriptVersionId: candidate.file.scriptVersionId,
+        startLine: candidate.startLine,
+        endLine: candidate.endLine,
+      },
+      ...(candidate.excerpt ? { excerpt: candidate.excerpt } : {}),
+    })),
   }
+}
+
+async function resolveReadonlyScriptFiles(args: Record<string, unknown>): Promise<ReadonlyScriptFile[]> {
+  const projectId = getOptionalNumber(args, 'projectId') ?? contextSnapshot.project?.id
+  if (!projectId) throw new Error('projectId is required when no current project is selected')
+  const scriptVersionId = getOptionalNumber(args, 'scriptVersionId')
+  if (scriptVersionId) return [await loadReadonlyScriptFile(projectId, scriptVersionId)]
+
+  const scriptTitle = getOptionalString(args, 'scriptTitle')
+  const scriptId = getOptionalNumber(args, 'scriptId') ?? await resolveScriptIdByTitle(projectId, scriptTitle)
+  const versions = await backendList(`/projects/${projectId}/entities/script-versions`)
+  const candidates = versions
+    .filter((version) => {
+      if (scriptId) return numericValue(version?.script_id ?? version?.scriptId) === scriptId
+      return scriptTitle ? scriptMatchesTitle(version, scriptTitle) : true
+    })
+    .sort(compareScriptVersionsDescending)
+  if (candidates.length === 0) throw new Error(scriptTitle ? `No script version found for title: ${scriptTitle}` : 'No script version found for script_locate')
+  return candidates.map((version) => scriptFileFromVersion(projectId, version))
+}
+
+async function resolveScriptIdByTitle(projectId: number, scriptTitle?: string): Promise<number | undefined> {
+  if (!scriptTitle) return undefined
+  const scripts = await backendList(`/projects/${projectId}/scripts`)
+  const match = scripts.find((script) => scriptMatchesTitle(script, scriptTitle))
+  return numericValue(match?.ID ?? match?.id)
+}
+
+async function loadReadonlyScriptFile(projectId: number, scriptVersionId: number): Promise<ReadonlyScriptFile> {
+  const versions = await backendList(`/projects/${projectId}/entities/script-versions`)
+  const version = versions.find((item) => numericValue(item?.ID ?? item?.id) === scriptVersionId)
+  if (!version) throw new Error(`Script version ${scriptVersionId} not found`)
+  return scriptFileFromVersion(projectId, version)
+}
+
+function scriptFileFromVersion(projectId: number, version: any): ReadonlyScriptFile {
+  const scriptVersionId = numericValue(version?.ID ?? version?.id)
+  if (!scriptVersionId) throw new Error('script version is missing ID')
+  const text = normalizeScriptFileText(String(version?.content || version?.raw_source || ''))
+  const lines = text ? text.split('\n') : []
+  const scenes = buildReadonlyScriptScenes(lines)
+  return {
+    projectId,
+    scriptVersionId,
+    scriptId: numericValue(version?.script_id ?? version?.scriptId) ?? 0,
+    title: String(version?.title ?? `剧本版本 #${scriptVersionId}`),
+    versionNumber: numericValue(version?.version_number ?? version?.versionNumber),
+    updatedAt: textOrUndefined(version?.UpdatedAt ?? version?.updatedAt),
+    uri: readonlyScriptFileURI(projectId, scriptVersionId),
+    text,
+    lines,
+    scenes,
+  }
+}
+
+function summarizeReadonlyScriptFile(file: ReadonlyScriptFile): Record<string, unknown> {
+  return {
+    projectId: file.projectId,
+    scriptVersionId: file.scriptVersionId,
+    scriptId: file.scriptId,
+    title: file.title,
+    versionNumber: file.versionNumber,
+    updatedAt: file.updatedAt,
+    uri: file.uri,
+    ref: file.uri,
+    totalLines: file.lines.length,
+    sceneCount: file.scenes.length,
+  }
+}
+
+function readonlyScriptFileURI(projectId: number, scriptVersionId: number): string {
+  return `movscript://project/${projectId}/script-version/${scriptVersionId}/content`
+}
+
+function readonlyScriptFileRangeURI(uri: string, startLine: number, endLine: number): string {
+  const parsed = new URL(uri)
+  parsed.searchParams.set('startLine', String(startLine))
+  parsed.searchParams.set('endLine', String(endLine))
+  return parsed.toString()
+}
+
+function parseScriptFileURI(uri: string): ({ projectId: number; scriptVersionId: number } & Partial<ScriptLineRange> & { lineCount?: number }) | null {
+  let parsed: URL
+  try {
+    parsed = new URL(uri)
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== 'movscript:' || parsed.hostname !== 'project') return null
+  const parts = parsed.pathname.split('/').filter(Boolean)
+  if (parts.length < 4 || parts[1] !== 'script-version' || parts[3] !== 'content') return null
+  const projectId = numericValue(parts[0])
+  const scriptVersionId = numericValue(parts[2])
+  if (!projectId || !scriptVersionId) return null
+  return {
+    projectId,
+    scriptVersionId,
+    startLine: numericValue(parsed.searchParams.get('startLine')),
+    endLine: numericValue(parsed.searchParams.get('endLine')),
+    lineCount: numericValue(parsed.searchParams.get('lineCount')),
+    maxChars: numericValue(parsed.searchParams.get('maxChars')),
+  }
+}
+
+function normalizeScriptLineRange(totalLines: number, input: { startLine?: number; endLine?: number; lineCount?: number; maxChars?: number }): ScriptLineRange {
+  const safeTotal = Math.max(1, totalLines)
+  const startLine = clampNumber(Math.floor(input.startLine ?? 1), 1, safeTotal)
+  const lineCount = clampNumber(Math.floor(input.lineCount ?? 80), 1, 1000)
+  const endLine = clampNumber(Math.floor(input.endLine ?? (startLine + lineCount - 1)), startLine, safeTotal)
+  const maxChars = clampNumber(Math.floor(input.maxChars ?? 20000), 500, 100000)
+  return { startLine, endLine, maxChars }
+}
+
+function scriptFileRangePayload(file: ReadonlyScriptFile, range: ScriptLineRange): ScriptFileRangePayload {
+  const fullText = scriptLinesText(file.lines, range.startLine, range.endLine)
+  const truncated = fullText.length > range.maxChars
+  return {
+    projectId: file.projectId,
+    scriptVersionId: file.scriptVersionId,
+    scriptId: file.scriptId,
+    title: file.title,
+    uri: file.uri,
+    startLine: range.startLine,
+    endLine: range.endLine,
+    lineCount: Math.max(0, range.endLine - range.startLine + 1),
+    totalLines: file.lines.length,
+    text: truncated ? fullText.slice(0, range.maxChars) : fullText,
+    truncated,
+  }
+}
+
+function buildReadonlyScriptScenes(lines: string[]): ReadonlyScriptScene[] {
+  const starts: Array<{ line: number; title: string }> = []
+  lines.forEach((line, index) => {
+    if (isLikelySceneHeading(line)) starts.push({ line: index + 1, title: line.trim() })
+  })
+  if (starts.length === 0) {
+    return [{ id: 'S01', title: '全文', startLine: 1, endLine: Math.max(1, lines.length) }]
+  }
+  return starts.map((start, index) => ({
+    id: `S${String(index + 1).padStart(2, '0')}`,
+    title: start.title || `场次 ${index + 1}`,
+    startLine: start.line,
+    endLine: (starts[index + 1]?.line ?? lines.length + 1) - 1,
+  }))
+}
+
+function isLikelySceneHeading(line: string): boolean {
+  const text = line.trim()
+  if (!text || text.length > 80) return false
+  return /^(第\s*[一二三四五六七八九十百\d]+\s*场|场景\s*[：:]|[内外]景|INT[.．\s]|EXT[.．\s])/i.test(text)
+}
+
+function normalizeScriptFileText(text: string): string {
+  return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+}
+
+function scriptLinesText(lines: string[], startLine: number, endLine: number): string {
+  return lines.slice(Math.max(0, startLine - 1), Math.max(0, endLine)).join('\n')
+}
+
+function sceneForLine(scenes: ReadonlyScriptScene[], line: number): ReadonlyScriptScene {
+  return scenes.find((scene) => line >= scene.startLine && line <= scene.endLine) ?? scenes[0] ?? { id: 'S01', title: '全文', startLine: 1, endLine: line }
+}
+
+function normalizeScriptTermList(value: unknown): string[] {
+  if (typeof value === 'string' && value.trim()) return [value.trim()]
+  return stringArrayModelField(value)
+}
+
+function normalizeScriptAliasGroups(value: unknown): string[][] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    const terms = normalizeScriptTermList(item)
+    return terms.length > 1 ? [terms] : []
+  })
+}
+
+function buildScriptTermGroups(terms: string[], aliasGroups: string[][], kind: ScriptTermGroup['kind']): ScriptTermGroup[] {
+  const seen = new Set<string>()
+  return terms.flatMap((term) => {
+    const normalized = normalizeSearchText(term)
+    if (!normalized || seen.has(`${kind}:${normalized}`)) return []
+    seen.add(`${kind}:${normalized}`)
+    const aliases = aliasGroups.find((group) => group.some((alias) => normalizeSearchText(alias) === normalized)) ?? [term]
+    const weight = kind === 'must' ? 6 : kind === 'query' ? 3 : 2
+    return [{ label: term, terms: Array.from(new Set([term, ...aliases])), kind, weight }]
+  })
+}
+
+function inferScriptIntentTerms(intent: string): string[] {
+  const chunks = intent
+    .split(/[\s,，。.!！?？:：;；、（）()【】\[\]“”"']+/)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 2 && item.length <= 16)
+  const cjkRuns = Array.from(intent.matchAll(/[\u3400-\u9fff]{2,}/g)).flatMap((match) => {
+    const text = match[0]
+    if (text.length <= 4) return [text]
+    const grams: string[] = []
+    for (let index = 0; index < text.length - 1; index += 1) grams.push(text.slice(index, index + 2))
+    return grams
+  })
+  const stop = new Set(['这个', '那个', '那里', '这里', '一下', '一点', '帮我', '需要', '希望', '改得', '改成'])
+  return Array.from(new Set([...chunks, ...cjkRuns].filter((item) => !stop.has(item)))).slice(0, 24)
+}
+
+function collectScriptMatches(text: string, groups: ScriptTermGroup[]): { groups: string[]; terms: string[] } {
+  const matchedGroups: string[] = []
+  const matchedTerms: string[] = []
+  for (const group of groups) {
+    const term = group.terms.find((candidate) => searchTextIncludes(text, candidate))
+    if (!term) continue
+    matchedGroups.push(group.label)
+    matchedTerms.push(term)
+  }
+  return {
+    groups: Array.from(new Set(matchedGroups)),
+    terms: Array.from(new Set(matchedTerms)),
+  }
+}
+
+function searchTextIncludes(haystack: string, needle: string): boolean {
+  const normalizedHaystack = normalizeSearchText(haystack)
+  const normalizedNeedle = normalizeSearchText(needle)
+  if (!normalizedHaystack || !normalizedNeedle) return false
+  return normalizedHaystack.includes(normalizedNeedle)
+}
+
+function normalizeSearchText(value: string): string {
+  return value.toLowerCase().replace(/[\s,，。.!！?？:：;；、（）()【】\[\]“”"'`~·\-—_/\\]+/g, '')
+}
+
+function truncateScriptExcerpt(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max)}...` : value
+}
+
+function scriptLocateAmbiguity(candidates: ScriptMatchCandidate[]): 'none' | 'low' | 'medium' | 'high' {
+  if (candidates.length === 0) return 'none'
+  if (candidates[0].confidence < 0.55) return 'high'
+  if (candidates.length === 1) return candidates[0].confidence >= 0.75 ? 'low' : 'medium'
+  const gap = candidates[0].confidence - candidates[1].confidence
+  if (gap < 0.12) return 'high'
+  if (gap < 0.24) return 'medium'
+  return 'low'
+}
+
+function dedupeOverlappingScriptCandidates(candidates: ScriptMatchCandidate[]): ScriptMatchCandidate[] {
+  const kept: ScriptMatchCandidate[] = []
+  for (const candidate of candidates) {
+    if (kept.some((item) => item.file.uri === candidate.file.uri && item.scene.id === candidate.scene.id && rangesOverlap(item.startLine, item.endLine, candidate.startLine, candidate.endLine))) {
+      continue
+    }
+    kept.push(candidate)
+  }
+  return kept.sort((a, b) => b.score - a.score || a.startLine - b.startLine)
+}
+
+function rangesOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
+  return Math.max(aStart, bStart) <= Math.min(aEnd, bEnd)
+}
+
+function compareScriptVersionsDescending(a: any, b: any): number {
+  const av = numericValue(a?.version_number ?? a?.versionNumber) ?? 0
+  const bv = numericValue(b?.version_number ?? b?.versionNumber) ?? 0
+  if (bv !== av) return bv - av
+  return (numericValue(b?.ID ?? b?.id) ?? 0) - (numericValue(a?.ID ?? a?.id) ?? 0)
 }
 
 function scriptMatchesTitle(script: any, title: string): boolean {
@@ -2307,23 +2746,12 @@ function normalizeDraftModelKind(value: string): AgentDraftKind {
   case 'setting':
     return 'setting_proposal'
   case 'project_standards_proposal':
-  case 'project_standard_proposal':
-  case 'project_standards':
-  case 'project_standard':
-  case 'project_proposal':
     return 'project_standards_proposal'
   case 'production_proposal':
-  case 'production':
     return 'production_proposal'
-  case 'script_split_proposal':
-  case 'script_split':
-    return 'script_split_proposal'
   case 'asset_proposal':
-  case 'asset_slot_proposal':
-  case 'asset':
     return 'asset_proposal'
   case 'content_unit_proposal':
-  case 'content_unit':
     return 'content_unit_proposal'
   default:
     throw new Error(`Unsupported draft model kind: ${value}`)

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import i18n from '@/i18n'
 import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
-import type { AgentProgressChecklistRevision } from '@/lib/localAgentClient'
+import type { AgentPlanRevision } from '@/lib/localAgentClient'
 import { isRecord } from '@/lib/jsonValue'
 
 export interface ChatMessage {
@@ -114,7 +114,7 @@ export interface ChatMessageMeta {
   generationValidationErrors?: ChatGenerationValidationError[]
   draftArtifacts?: AgentTaskArtifactRef[]
   localRunActivity?: ChatRunActivity
-  progressChecklistRevision?: AgentProgressChecklistRevision
+  planRevision?: AgentPlanRevision
 }
 
 export interface ChatRuntimeMessageRef {

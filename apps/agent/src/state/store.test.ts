@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
+import type { RuntimeWork } from '../runtimeWork/runtimeWork.js'
 import { InMemoryAgentStore } from './store.js'
-import type { AgentRun, AgentTraceEvent } from './types.js'
+import type { AgentRun, AgentTraceEvent, AgentThread, RuntimeContinuation, RuntimeInteraction } from './types.js'
 
 test('listRunTraceEvents paginates stably and returns an empty page for stale cursors', () => {
   const store = new InMemoryAgentStore()
@@ -104,6 +105,89 @@ test('trace storage maintains a bounded debug ledger projection per run', () => 
   assert.ok((ledger?.budget.estimatedChars ?? Number.POSITIVE_INFINITY) <= 32_000)
 })
 
+test('deleteThread physically removes thread-owned state and trace projections', () => {
+  const store = new InMemoryAgentStore()
+  store.createThread(buildThread('thread_1'))
+  store.createThread(buildThread('thread_2'))
+  store.createRun(buildRun())
+  store.createRun({ ...buildRun(), id: 'run_2', threadId: 'thread_2' })
+  store.createTaskGraph({
+    id: 'task_graph_1',
+    threadId: 'thread_1',
+    title: 'Plan',
+    status: 'running',
+    progress: 0,
+    createdAt: '2026-05-06T00:00:00.000Z',
+    updatedAt: '2026-05-06T00:00:00.000Z',
+  })
+  store.createTask({
+    id: 'task_1',
+    taskGraphId: 'task_graph_1',
+    deps: [],
+    title: 'Task',
+    status: 'running',
+    progress: 0,
+    artifacts: [],
+    createdAt: '2026-05-06T00:00:00.000Z',
+    updatedAt: '2026-05-06T00:00:00.000Z',
+  })
+  store.createRuntimeWork(buildRuntimeWork())
+  store.createRuntimeInteraction(buildRuntimeInteraction())
+  store.createRuntimeContinuation(buildRuntimeContinuation())
+  store.appendTraceEvent(buildTraceEvent('trace_1', '2026-05-06T00:00:01.000Z', 'context'))
+
+  const deletion = store.deleteThread('thread_1')
+
+  assert.equal(deletion.deleted, true)
+  assert.deepEqual(deletion.deletedRunIds, ['run_1'])
+  assert.deepEqual(deletion.deletedTaskGraphIds, ['task_graph_1'])
+  assert.deepEqual(deletion.deletedTaskIds, ['task_1'])
+  assert.deepEqual(deletion.deletedRuntimeWorkIds, ['work_1'])
+  assert.deepEqual(deletion.deletedRuntimeInteractionIds, ['interaction_1'])
+  assert.deepEqual(deletion.deletedRuntimeContinuationIds, ['continuation_1'])
+  assert.equal(store.getThread('thread_1'), undefined)
+  assert.equal(store.getRun('run_1'), undefined)
+  assert.equal(store.getTaskGraph('task_graph_1'), undefined)
+  assert.equal(store.getTask('task_1'), undefined)
+  assert.equal(store.getRuntimeWork('work_1'), undefined)
+  assert.equal(store.getRuntimeInteraction('interaction_1'), undefined)
+  assert.equal(store.getRuntimeContinuation('continuation_1'), undefined)
+  assert.deepEqual(store.listRunTraceEvents('run_1'), [])
+  assert.equal(store.getRunDebugLedger('run_1'), undefined)
+  assert.equal(store.getThread('thread_2')?.id, 'thread_2')
+  assert.equal(store.getRun('run_2')?.id, 'run_2')
+})
+
+test('deleteAllThreads clears all persisted session history records', () => {
+  const store = new InMemoryAgentStore()
+  store.createThread(buildThread('thread_1'))
+  store.createThread(buildThread('thread_2'))
+  store.createRun(buildRun())
+  store.createRun({ ...buildRun(), id: 'run_2', threadId: 'thread_2' })
+  store.createRun({ ...buildRun(), id: 'run_orphan', threadId: 'thread_orphan' })
+  store.appendTraceEvent(buildTraceEvent('trace_1', '2026-05-06T00:00:01.000Z', 'context'))
+  store.appendTraceEvent({ ...buildTraceEvent('trace_2', '2026-05-06T00:00:02.000Z', 'tool_call'), runId: 'run_2' })
+
+  const deletion = store.deleteAllThreads()
+
+  assert.equal(deletion.deleted, true)
+  assert.deepEqual(deletion.deletedThreadIds, ['thread_1', 'thread_2'])
+  assert.deepEqual(deletion.deletedRunIds, ['run_1', 'run_2', 'run_orphan'])
+  assert.deepEqual(store.listThreads(), [])
+  assert.deepEqual(store.listRuns(), [])
+  assert.deepEqual(store.listRunTraceEvents('run_1'), [])
+  assert.deepEqual(store.listRunTraceEvents('run_2'), [])
+})
+
+function buildThread(id: string): AgentThread {
+  return {
+    id,
+    createdAt: '2026-05-06T00:00:00.000Z',
+    updatedAt: '2026-05-06T00:00:00.000Z',
+    messages: [],
+  }
+}
+
 function buildRun(): AgentRun {
   return {
     id: 'run_1',
@@ -134,5 +218,44 @@ function buildTraceEvent(id: string, createdAt: string, kind: AgentTraceEvent['k
     status: 'completed',
     createdAt,
     ...(durationMs !== undefined ? { durationMs } : {}),
+  }
+}
+
+function buildRuntimeWork(): RuntimeWork {
+  return {
+    id: 'work_1',
+    threadId: 'thread_1',
+    runId: 'run_1',
+    kind: 'generation_job',
+    mode: 'async',
+    status: 'running',
+    request: {},
+    createdAt: '2026-05-06T00:00:00.000Z',
+    updatedAt: '2026-05-06T00:00:00.000Z',
+  }
+}
+
+function buildRuntimeInteraction(): RuntimeInteraction {
+  return {
+    id: 'interaction_1',
+    threadId: 'thread_1',
+    runId: 'run_1',
+    kind: 'input',
+    status: 'pending',
+    payload: {},
+    createdAt: '2026-05-06T00:00:00.000Z',
+    updatedAt: '2026-05-06T00:00:00.000Z',
+  }
+}
+
+function buildRuntimeContinuation(): RuntimeContinuation {
+  return {
+    id: 'continuation_1',
+    threadId: 'thread_1',
+    runId: 'run_1',
+    status: 'waiting',
+    trigger: { type: 'manual' },
+    createdAt: '2026-05-06T00:00:00.000Z',
+    updatedAt: '2026-05-06T00:00:00.000Z',
   }
 }

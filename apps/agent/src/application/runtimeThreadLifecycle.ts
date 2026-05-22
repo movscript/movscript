@@ -1,6 +1,7 @@
-import type { AgentStore } from '../state/store.js'
+import type { AgentStore, AgentThreadClearResult, AgentThreadDeletionResult } from '../state/store.js'
 import type {
   AgentMessage,
+  AgentSession,
   AgentThread,
   CreateMessageInput,
   CreateThreadInput,
@@ -9,6 +10,7 @@ import type {
 import {
   appendThreadMessage,
   applyThreadUpdate,
+  buildAgentSession,
   buildAgentMessage,
   buildAgentThread,
   validInitialThreadMessageInputs,
@@ -21,18 +23,38 @@ export interface RuntimeThreadCreationResult {
 }
 
 export function createRuntimeThread(input: {
-  store: Pick<AgentStore, 'createThread' | 'getThread' | 'updateThread'>
+  store: Pick<AgentStore, 'createSession' | 'getSession' | 'updateSession' | 'createThread' | 'getThread' | 'updateThread'>
   threadId: string
+  sessionId?: string
   messageId: () => string
   now: () => string
   threadInput?: CreateThreadInput
 }): RuntimeThreadCreationResult {
+  const now = input.now()
+  const requestedSessionId = typeof input.threadInput?.sessionId === 'string' && input.threadInput.sessionId.trim()
+    ? input.threadInput.sessionId.trim()
+    : undefined
+  const session = requestedSessionId
+    ? requireRuntimeSession(input.store, requestedSessionId)
+    : buildAgentSession({
+      id: input.sessionId ?? `session_${input.threadId}`,
+      now,
+      threadInput: input.threadInput,
+    })
+  if (!requestedSessionId) input.store.createSession(session)
   const thread = buildAgentThread({
     id: input.threadId,
-    now: input.now(),
+    sessionId: session.id,
+    now,
     threadInput: input.threadInput,
   })
   input.store.createThread(thread)
+  projectThreadOntoSession({
+    store: input.store,
+    session,
+    thread,
+    now,
+  })
 
   const messages: AgentMessage[] = []
   for (const messageInput of validInitialThreadMessageInputs(input.threadInput ?? {})) {
@@ -48,6 +70,26 @@ export function createRuntimeThread(input: {
   return { thread: requireRuntimeThread(input.store, thread.id), messages }
 }
 
+function requireRuntimeSession(store: Pick<AgentStore, 'getSession'>, id: string): AgentSession {
+  const session = store.getSession(id)
+  if (!session) throw new Error(`session not found: ${id}`)
+  return session
+}
+
+function projectThreadOntoSession(input: {
+  store: Pick<AgentStore, 'updateSession'>
+  session: AgentSession
+  thread: AgentThread
+  now: string
+}): void {
+  const session = input.session
+  if (!session.rootThreadId || input.thread.agentRole === 'root') session.rootThreadId = input.thread.id
+  session.activeThreadId = input.thread.id
+  session.status = input.thread.status
+  session.updatedAt = input.now
+  input.store.updateSession(session)
+}
+
 export function updateRuntimeThread(input: {
   store: Pick<AgentStore, 'getThread' | 'updateThread'>
   threadId: string
@@ -58,6 +100,19 @@ export function updateRuntimeThread(input: {
   applyThreadUpdate({ thread, update: input.update, now: input.now })
   input.store.updateThread(thread)
   return thread
+}
+
+export function deleteRuntimeThread(input: {
+  store: Pick<AgentStore, 'deleteThread'>
+  threadId: string
+}): AgentThreadDeletionResult {
+  return input.store.deleteThread(input.threadId)
+}
+
+export function deleteAllRuntimeThreads(input: {
+  store: Pick<AgentStore, 'deleteAllThreads'>
+}): AgentThreadClearResult {
+  return input.store.deleteAllThreads()
 }
 
 export function addRuntimeThreadMessage(input: {

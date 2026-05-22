@@ -24,7 +24,7 @@ import '@xyflow/react/dist/style.css'
 
 import { api } from '@/lib/api'
 import { invalidateAssetCandidateConsumers } from '@/lib/assetCandidateQueryInvalidation'
-import type { Canvas, CanvasNodeData, CanvasPortDef, CanvasPortValue, CanvasRun, CanvasTask, CanvasType, NodeType, PaginatedResponse, PublicModel, RawResource, ResourceBinding } from '@/types'
+import type { Canvas, CanvasNodeData, CanvasPortDef, CanvasPortValue, CanvasRunStatus, CanvasType, NodeType, PaginatedResponse, PublicModel, RawResource, ResourceBinding } from '@/types'
 import { publicModelId } from '@/lib/modelDisplay'
 import {
 	TextNode, ImageNode, VideoNode, ToolNode,
@@ -32,7 +32,7 @@ import {
 } from './components/CanvasNodes'
 import { ContextMenu } from './components/ContextMenu'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
-import { NodePanel, deriveCanvasReferencePorts } from './components/NodePanel'
+import { deriveCanvasReferencePorts } from './canvasReferencePorts'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { compileClientPlugin, loadClientPlugins, runClientPlugin, type ClientPluginManifest } from '@/lib/clientPlugins'
 import { toast } from '@/store/toastStore'
@@ -43,7 +43,23 @@ import {
   CANVAS_NODE_META,
   NODE_LABELS,
 } from './nodeCatalog'
-import { fetchCanvasNodeModelDiagnostics, formatCanvasNodeModelDiagnostics } from './canvasRunDiagnostics'
+import {
+  canvasRuntimeOrderForNode,
+  collectCanvasNodeInputs,
+  firstRuntimeValue,
+  runtimeResourceIdsForNode,
+  runtimePromptForNode,
+  topoSortCanvasNodes,
+  valuesHaveRuntimeValue,
+  type CanvasRuntimeOutputCache,
+} from '@/lib/canvasRuntimeGraph'
+import {
+  generateCanvasRuntimeMedia,
+  generateCanvasRuntimeText,
+  resolveCanvasRuntimeModel,
+  uploadCanvasRuntimeTextResource,
+} from '@/lib/canvasRuntimeGeneration'
+import { useCanvasRuntimeStore, type CanvasRuntimeRun } from '@/store/canvasRuntimeStore'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
@@ -145,15 +161,12 @@ function createFinalOutputNode(t: (key: string, options?: any) => string): Node 
   }
 }
 
-function shouldRunModelDiagnostics(nodeType?: string, error?: string) {
-  if (['text', 'image', 'video', 'ref_image_gen', 'ref_video_gen', 'multi_angle', 'style_transfer', 'motion_imitation'].includes(String(nodeType))) {
-    return true
-  }
-  return /model/i.test(error ?? '')
-}
-
 function modelFeatureForCanvasNode(nodeType?: string, data?: Partial<CanvasNodeData>) {
   if (nodeType === 'text' && data?.source === 'ai') return { capability: 'text', feature: 'canvas_text' }
+  if (nodeType === 'text_gen') return { capability: 'text', feature: 'canvas_text' }
+  if (nodeType === 'ai_gen' && (data?.outputType ?? 'image') === 'text') return { capability: 'text', feature: 'canvas_text' }
+  if (nodeType === 'ai_gen' && data?.outputType === 'video') return { capability: 'video', feature: 'canvas_video' }
+  if (nodeType === 'ai_gen') return { capability: 'image', feature: 'canvas_image' }
   if (nodeType === 'image' && data?.source === 'ai') return { capability: 'image', feature: 'canvas_image' }
   if (['ref_image_gen', 'multi_angle', 'style_transfer'].includes(String(nodeType))) return { capability: 'image', feature: 'canvas_image' }
   if (nodeType === 'video' && data?.source === 'ai') return { capability: 'video', feature: 'canvas_video' }
@@ -293,65 +306,6 @@ function portLabel(port?: CanvasPortDef) {
   return `${port.label ?? port.id} (${port.type})`
 }
 
-function resourceIdFromTask(task: CanvasTask) {
-  if (task.resource_id) return task.resource_id
-  if (!task.output_values) return undefined
-  try {
-    const outputs = JSON.parse(task.output_values) as Record<string, { resource_id?: number }>
-    return outputs.result?.resource_id
-      ?? outputs.value?.resource_id
-      ?? outputs['']?.resource_id
-      ?? Object.values(outputs).find((value) => value?.resource_id)?.resource_id
-  } catch {
-    return undefined
-  }
-}
-
-function parseTaskInputValues(raw?: string): Record<string, CanvasPortValue[]> {
-  if (!raw) return {}
-  try {
-    const parsed = JSON.parse(raw) as Record<string, CanvasPortValue | CanvasPortValue[] | string | number | boolean | null>
-    return Object.fromEntries(Object.entries(parsed).map(([handle, value]) => {
-      const values = Array.isArray(value) ? value : [value]
-      return [handle, values.map(normalizeCanvasPortValue).filter(Boolean) as CanvasPortValue[]]
-    }).filter(([, values]) => values.length > 0))
-  } catch {
-    return {}
-  }
-}
-
-function parseTaskOutputValues(raw?: string): Record<string, CanvasPortValue> {
-  if (!raw) return {}
-  try {
-    const parsed = JSON.parse(raw) as Record<string, CanvasPortValue | string | number | boolean | null>
-    return Object.fromEntries(
-      Object.entries(parsed)
-        .map(([handle, value]) => [handle, normalizeCanvasPortValue(value)] as const)
-        .filter(([, value]) => !!value)
-    ) as Record<string, CanvasPortValue>
-  } catch {
-    return {}
-  }
-}
-
-function normalizeCanvasPortValue(value: CanvasPortValue | string | number | boolean | null): CanvasPortValue | null {
-  if (value === null || value === undefined) return null
-  if (typeof value === 'string') return { type: 'text', text: value }
-  if (typeof value === 'number') return { type: 'number', number: value }
-  if (typeof value === 'boolean') return { type: 'boolean', boolean: value }
-  return value
-}
-
-function portMatchesHandle(port: CanvasPortDef, handle: string) {
-  return port.id === handle || (port.aliases ?? []).includes(handle)
-}
-
-function taskPortLabel(node: Node | undefined, side: 'source' | 'target', handle: string, t: (key: string, options?: any) => string) {
-  const port = portsForNode(node, side).find((item) => portMatchesHandle(item, handle))
-  if (!port) return handle || (side === 'source' ? 'result' : 'input')
-  return port.labelKey ? t(port.labelKey, { defaultValue: port.label ?? port.id }) : (port.label ?? port.id)
-}
-
 function canvasPortValueSummary(value: CanvasPortValue) {
   if (value.resource_id) return `resource #${value.resource_id}`
   if (value.text !== undefined) return value.text
@@ -372,6 +326,143 @@ function canvasPortValuePreviewText(value: CanvasPortValue) {
   if (value.boolean !== undefined) return value.boolean ? 'true' : 'false'
   if (value.resource_id) return `resource #${value.resource_id}`
   return ''
+}
+
+function textContentFromOutputs(outputs: Record<string, CanvasPortValue>) {
+  const preferredKeys = ['text', 'result', 'value', 'output']
+  for (const key of preferredKeys) {
+    const value = outputs[key]
+    if (!value) continue
+    const text = canvasPortValuePreviewText(value)
+    if (text) return text
+  }
+  for (const value of Object.values(outputs)) {
+    const text = canvasPortValuePreviewText(value)
+    if (text) return text
+  }
+  return undefined
+}
+
+function serializableCanvasNodeData(data: Node['data']) {
+  const {
+    label,
+    cardMode: _cardMode,
+    pluginInputProperties: _pluginInputProperties,
+    availableResources: _availableResources,
+    referenceResources: _referenceResources,
+    runDiagnostics: _runDiagnostics,
+    onRun,
+    onUpdateContent,
+    onUpdatePrompt,
+    onUpdateOutputType,
+    onUpdateModelId,
+    onUpdateAttachments,
+    onUpdateParams,
+    onApprove,
+    onReject,
+    onPush,
+    canvasId: _canvasId,
+    rfNodeId: _rfNodeId,
+    pendingRuntimeInputs: _pendingRuntimeInputs,
+    ...rest
+  } = data as any
+  return { label, data: rest }
+}
+
+function canvasGraphSignature({
+  canvasName,
+  canvasType,
+  nodes,
+  edges,
+  t,
+}: {
+  canvasName: string
+  canvasType: CanvasType
+  nodes: Node[]
+  edges: Edge[]
+  t: (key: string, options?: any) => string
+}) {
+  const nodesToSave = canvasType === 'workflow' ? ensureFinalOutputNode(nodes, t) : nodes
+  return JSON.stringify({
+    name: canvasName,
+    canvasType,
+    nodes: nodesToSave.map((node) => {
+      const { label, data } = serializableCanvasNodeData(node.data)
+      return {
+        id: node.id,
+        type: node.type,
+        label: label ?? '',
+        x: node.position.x,
+        y: node.position.y,
+        parentId: node.parentId ?? null,
+        style: node.style ?? null,
+        data,
+      }
+    }),
+    edges: uniqueEdgesByConnection(edges).map((edge) => ({
+      source: edge.source,
+      target: edge.target,
+      sourceHandle: fromUiHandleId(edge.sourceHandle) ?? null,
+      targetHandle: fromUiHandleId(edge.targetHandle) ?? null,
+    })),
+  })
+}
+
+async function buildCanvasSavePayload({
+  canvasName,
+  canvasType,
+  nodes,
+  edges,
+  t,
+}: {
+  canvasName: string
+  canvasType: CanvasType
+  nodes: Node[]
+  edges: Edge[]
+  t: (key: string, options?: any) => string
+}) {
+  const nodesToSave = canvasType === 'workflow' ? ensureFinalOutputNode(nodes, t) : nodes
+  const defaultModels = await defaultModelsForCanvasSave(nodesToSave)
+  return {
+    name: canvasName,
+    nodes: nodesToSave.map((n) => {
+      const { label, data: rest } = serializableCanvasNodeData(n.data)
+      const request = modelFeatureForCanvasNode(n.type, rest)
+      const defaultModel = request ? defaultModels.get(request.feature) : undefined
+      const dataToSave = {
+        ...rest,
+        ...(defaultModel && !rest.modelId && !rest.modelDbId ? {
+          modelId: publicModelId(defaultModel),
+          modelDbId: defaultModel.id,
+        } : {}),
+      }
+      return {
+        node_id: n.id,
+        type: n.type,
+        label: label ?? '',
+        pos_x: n.position.x,
+        pos_y: n.position.y,
+        data: JSON.stringify({
+          ...dataToSave,
+          _parentId: n.parentId ?? undefined,
+          _style: n.style,
+        }),
+      }
+    }),
+    edges: uniqueEdgesByConnection(edges).map((e) => ({
+      edge_id: e.id,
+      source: e.source,
+      target: e.target,
+      source_handle: fromUiHandleId(e.sourceHandle),
+      target_handle: fromUiHandleId(e.targetHandle),
+    })),
+  }
+}
+
+function nodeAcceptsTextResult(node: Node, data: Partial<CanvasNodeData>) {
+  return node.type === 'text'
+    || node.type === 'text_gen'
+    || (node.type === 'ai_gen' && (data.outputType ?? 'image') === 'text')
 }
 
 interface WorkflowRunOutputItem {
@@ -405,8 +496,8 @@ function resourceFromOutputValue(label: string, value: CanvasPortValue): RawReso
   }
 }
 
-function workflowRunOutputItems(run: CanvasRun | undefined, nodes: Node[], t: (key: string, options?: any) => string): WorkflowRunOutputItem[] {
-  const outputs = parseTaskOutputValues(run?.output_values)
+function workflowRunOutputItems(run: CanvasRuntimeRun | undefined, nodes: Node[], t: (key: string, options?: any) => string): WorkflowRunOutputItem[] {
+  const outputs = run?.outputValues ?? {}
   const usedKeys = new Set<string>()
   const seen = new Set<string>()
   const items: WorkflowRunOutputItem[] = []
@@ -441,6 +532,32 @@ function workflowRunOutputItems(run: CanvasRun | undefined, nodes: Node[], t: (k
   return items
 }
 
+function buildRuntimeWorkflowOutputs(nodes: Node[], outputCache: CanvasRuntimeOutputCache): Record<string, CanvasPortValue> {
+  const outputs: Record<string, CanvasPortValue> = {}
+  for (const node of nodes) {
+    const nodeOutputs = outputCache[node.id]
+    if (!nodeOutputs) continue
+    if (node.type === 'output') {
+      const value = nodeOutputs.value ?? nodeOutputs[node.id] ?? nodeOutputs.result ?? Object.values(nodeOutputs)[0]
+      if (value) outputs[node.id] = value
+      const name = (node.data as Partial<CanvasNodeData>).paramName
+      if (name && value) outputs[name] = value
+      continue
+    }
+    if (node.type === 'resource_sink') {
+      const value = nodeOutputs.result ?? nodeOutputs.value ?? Object.values(nodeOutputs)[0]
+      if (value) outputs[node.id] = value
+    }
+  }
+  if (Object.keys(outputs).length === 0) {
+    for (const node of nodes) {
+      const value = outputCache[node.id]?.result ?? outputCache[node.id]?.value ?? Object.values(outputCache[node.id] ?? {})[0]
+      if (value) outputs[node.id] = value
+    }
+  }
+  return outputs
+}
+
 function hasValueForPort(values: CanvasPortValue[] | undefined) {
   return (values ?? []).some((value) => {
     if (!value) return false
@@ -450,15 +567,6 @@ function hasValueForPort(values: CanvasPortValue[] | undefined) {
       || value.number !== undefined
       || value.boolean !== undefined
   })
-}
-
-function newestCanvasTask(a?: CanvasTask, b?: CanvasTask) {
-  if (!a) return b
-  if (!b) return a
-  const aTime = a.CreatedAt ? new Date(a.CreatedAt).getTime() : 0
-  const bTime = b.CreatedAt ? new Date(b.CreatedAt).getTime() : 0
-  if (aTime !== bTime) return bTime > aTime ? b : a
-  return (b.ID ?? 0) > (a.ID ?? 0) ? b : a
 }
 
 function connectedInputPortIds(nodeId: string, edges: Edge[]) {
@@ -712,15 +820,15 @@ function formatRunTime(value: string | undefined, language: string) {
   })
 }
 
-function formatRunDuration(run: CanvasRun) {
-  if (!run.started_at) return '-'
-  const end = run.finished_at ? new Date(run.finished_at).getTime() : Date.now()
-  const seconds = Math.max(0, Math.round((end - new Date(run.started_at).getTime()) / 1000))
+function formatRunDuration(run: CanvasRuntimeRun) {
+  if (!run.startedAt) return '-'
+  const end = run.finishedAt ? new Date(run.finishedAt).getTime() : Date.now()
+  const seconds = Math.max(0, Math.round((end - new Date(run.startedAt).getTime()) / 1000))
   if (seconds < 60) return `${seconds}s`
   return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
 }
 
-function RunStatusBadge({ status }: { status: CanvasRun['status'] }) {
+function RunStatusBadge({ status }: { status: CanvasRunStatus }) {
   const { t } = useTranslation()
   if (status === 'running' || status === 'pending') {
     return (
@@ -760,18 +868,18 @@ function WorkflowRunHistory({
   onPageChange,
   onSelectRun,
 }: {
-  runs: CanvasRun[]
+	  runs: CanvasRuntimeRun[]
   total: number
   page: number
   pageCount: number
-  statusFilter: 'all' | CanvasRun['status']
-  activeRunId: number | null
+	  statusFilter: 'all' | CanvasRunStatus
+	  activeRunId: string | null
   isLoading: boolean
   embedded?: boolean
   compact?: boolean
-  onStatusFilterChange: (status: 'all' | CanvasRun['status']) => void
-  onPageChange: (page: number) => void
-  onSelectRun: (runId: number) => void
+	  onStatusFilterChange: (status: 'all' | CanvasRunStatus) => void
+	  onPageChange: (page: number) => void
+	  onSelectRun: (runId: string) => void
 }) {
   const { t, i18n } = useTranslation()
   return (
@@ -790,7 +898,7 @@ function WorkflowRunHistory({
           <div className="mt-2 flex items-center gap-2">
             <select
               value={statusFilter}
-              onChange={(e) => onStatusFilterChange(e.target.value as 'all' | CanvasRun['status'])}
+              onChange={(e) => onStatusFilterChange(e.target.value as 'all' | CanvasRunStatus)}
               className="h-7 min-w-0 flex-1 rounded-md border border-border bg-background px-2 type-label text-foreground outline-none"
             >
               <option value="all">{t('canvas.editor.history.allStatuses')}</option>
@@ -819,7 +927,7 @@ function WorkflowRunHistory({
             <ListFilter size={14} className="text-muted-foreground" />
             <select
               value={statusFilter}
-              onChange={(e) => onStatusFilterChange(e.target.value as 'all' | CanvasRun['status'])}
+              onChange={(e) => onStatusFilterChange(e.target.value as 'all' | CanvasRunStatus)}
               className="h-7 rounded-md border border-border bg-background px-2 type-label text-foreground outline-none"
             >
               <option value="all">{t('canvas.editor.history.allStatuses')}</option>
@@ -855,29 +963,25 @@ function WorkflowRunHistory({
             <div className="space-y-2 p-3">
               {runs.map((run) => (
                 <button
-                  key={run.ID}
-                  onClick={() => onSelectRun(run.ID)}
+                  key={run.id}
+                  onClick={() => onSelectRun(run.id)}
                   className={cn(
                     'w-full rounded-lg border border-border bg-card p-3 text-left type-label transition-colors hover:border-foreground/25 hover:bg-muted/20',
-                    activeRunId === run.ID && 'border-primary/50 bg-primary/5'
+                    activeRunId === run.id && 'border-primary/50 bg-primary/5'
                   )}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-foreground">#{run.ID}</span>
+                    <span className="font-semibold text-foreground">#{run.id.slice(-6)}</span>
                     <RunStatusBadge status={run.status} />
-                    <span className="ml-auto type-tiny text-muted-foreground">{formatRunTime(run.started_at ?? run.CreatedAt, i18n.language)}</span>
+                    <span className="ml-auto type-tiny text-muted-foreground">{formatRunTime(run.startedAt, i18n.language)}</span>
                   </div>
                   <div className="mt-2 flex items-center gap-2 type-caption text-muted-foreground">
                     <Clock3 size={12} />
                     <span>{formatRunDuration(run)}</span>
                     <span className="h-1 w-1 rounded-full bg-border" />
-                    <span>{t('canvas.editor.history.snapshotSummary', { nodes: run.snapshot_node_count ?? 0, edges: run.snapshot_edge_count ?? 0 })}</span>
+                    <span>{t('canvas.editor.history.snapshotSummary', { nodes: run.snapshotNodeCount ?? 0, edges: run.snapshotEdgeCount ?? 0 })}</span>
                   </div>
-                  {(run.snapshot_hash || run.error) && (
-                    <p className={cn('mt-1 truncate type-tiny', run.error ? 'text-destructive' : 'font-mono text-muted-foreground/70')} title={run.error || undefined}>
-                      {run.error || run.snapshot_hash?.slice(0, 12)}
-                    </p>
-                  )}
+                  {run.error && <p className="mt-1 truncate type-tiny text-destructive" title={run.error}>{run.error}</p>}
                 </button>
               ))}
             </div>
@@ -892,25 +996,24 @@ function WorkflowRunHistory({
               </div>
               {runs.map((run) => (
                 <button
-                  key={run.ID}
-                  onClick={() => onSelectRun(run.ID)}
+                  key={run.id}
+                  onClick={() => onSelectRun(run.id)}
                   className={cn(
                     'grid w-full grid-cols-[96px_104px_112px_1fr_120px] items-center border-b border-border px-4 py-2 text-left type-label transition-colors hover:bg-muted/40',
-                    activeRunId === run.ID && 'bg-primary/5'
+                    activeRunId === run.id && 'bg-primary/5'
                   )}
                 >
-                  <span className="font-medium text-foreground">#{run.ID}</span>
+                  <span className="font-medium text-foreground">#{run.id.slice(-6)}</span>
                   <RunStatusBadge status={run.status} />
                   <span className="flex items-center gap-1 text-muted-foreground">
                     <Clock3 size={12} />
                     {formatRunDuration(run)}
                   </span>
                   <span className="min-w-0 truncate text-muted-foreground" title={run.error || undefined}>
-                    {t('canvas.editor.history.snapshotSummary', { nodes: run.snapshot_node_count ?? 0, edges: run.snapshot_edge_count ?? 0 })}
-                    {run.snapshot_hash && <span className="ml-2 font-mono type-tiny text-muted-foreground/70">{run.snapshot_hash.slice(0, 8)}</span>}
+                    {t('canvas.editor.history.snapshotSummary', { nodes: run.snapshotNodeCount ?? 0, edges: run.snapshotEdgeCount ?? 0 })}
                     {run.error && <span className="ml-2 text-destructive">{run.error}</span>}
                   </span>
-                  <span className="text-right text-muted-foreground">{formatRunTime(run.started_at ?? run.CreatedAt, i18n.language)}</span>
+                  <span className="text-right text-muted-foreground">{formatRunTime(run.startedAt, i18n.language)}</span>
                 </button>
               ))}
             </>
@@ -942,17 +1045,17 @@ function WorkflowSidePanel({
   canvasId?: number | string
   dependencyBindings: ResourceBinding[]
   activeTab: 'resources' | 'history'
-  runs: CanvasRun[]
+	  runs: CanvasRuntimeRun[]
   total: number
   page: number
   pageCount: number
-  statusFilter: 'all' | CanvasRun['status']
-  activeRunId: number | null
+	  statusFilter: 'all' | CanvasRunStatus
+	  activeRunId: string | null
   isLoading: boolean
   onTabChange: (tab: 'resources' | 'history') => void
-  onStatusFilterChange: (status: 'all' | CanvasRun['status']) => void
-  onPageChange: (page: number) => void
-  onSelectRun: (runId: number) => void
+	  onStatusFilterChange: (status: 'all' | CanvasRunStatus) => void
+	  onPageChange: (page: number) => void
+	  onSelectRun: (runId: string) => void
 }) {
   const { t } = useTranslation()
   const [collapsed, setCollapsed] = useState(false)
@@ -1054,117 +1157,6 @@ function WorkflowSidePanel({
   )
 }
 
-function TaskIOInspector({
-  node,
-  task,
-  activeRun,
-}: {
-  node?: Node
-  task?: CanvasTask
-  activeRun?: CanvasRun
-}) {
-  const { t, i18n } = useTranslation()
-  const inputs = parseTaskInputValues(task?.input_values)
-  const outputs = parseTaskOutputValues(task?.output_values)
-  const inputEntries = Object.entries(inputs).filter(([handle]) => handle !== '')
-  const outputEntries = Object.entries(outputs)
-  return (
-    <section className="shrink-0 border-t border-border bg-muted/10 p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <p className="truncate type-label font-semibold text-foreground">
-            {t('canvas.editor.taskInspector.title', { defaultValue: 'Task I/O' })}
-          </p>
-          <p className="truncate type-tiny text-muted-foreground">
-            {activeRun
-              ? t('canvas.editor.taskInspector.runLabel', { id: activeRun.ID, defaultValue: `Run #${activeRun.ID}` })
-              : task
-                ? t('canvas.editor.taskInspector.latestNodeTask', { defaultValue: 'Latest node run' })
-                : t('canvas.editor.taskInspector.noRun', { defaultValue: 'No run selected' })}
-          </p>
-        </div>
-        {task && <RunStatusBadge status={task.status as CanvasRun['status']} />}
-      </div>
-
-      {!task ? (
-        <p className="rounded-md border border-dashed border-border px-3 py-2 type-label text-muted-foreground">
-          {t('canvas.editor.taskInspector.empty', { defaultValue: 'Run this node or select a workflow run to inspect inputs and outputs.' })}
-        </p>
-      ) : (
-        <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
-          <div className="grid grid-cols-2 gap-2 type-tiny text-muted-foreground">
-            <div className="rounded border border-border bg-background px-2 py-1.5">
-              <span className="block font-medium text-foreground">#{task.ID}</span>
-              {task.node_label || task.node_id || t('canvas.editor.taskInspector.task', { defaultValue: 'Task' })}
-            </div>
-            <div className="rounded border border-border bg-background px-2 py-1.5 text-right">
-              <span className="block font-medium text-foreground">{formatRunTime(task.CreatedAt, i18n.language)}</span>
-              {t('canvas.editor.history.startedAt', { defaultValue: 'Started' })}
-            </div>
-          </div>
-          {task.error && <p className="rounded-md bg-destructive/10 px-2 py-1.5 type-label text-destructive">{task.error}</p>}
-          <TaskValueGroup
-            title={t('canvas.editor.taskInspector.inputs', { defaultValue: 'Inputs' })}
-            empty={t('canvas.editor.taskInspector.noInputs', { defaultValue: 'No recorded inputs' })}
-            entries={inputEntries.map(([handle, values]) => ({
-              handle,
-              label: taskPortLabel(node, 'target', handle, t),
-              values,
-            }))}
-          />
-          <TaskValueGroup
-            title={t('canvas.editor.taskInspector.outputs', { defaultValue: 'Outputs' })}
-            empty={t('canvas.editor.taskInspector.noOutputs', { defaultValue: 'No recorded outputs' })}
-            entries={outputEntries.map(([handle, value]) => ({
-              handle,
-              label: taskPortLabel(node, 'source', handle, t),
-              values: [value],
-            }))}
-          />
-        </div>
-      )}
-    </section>
-  )
-}
-
-function TaskValueGroup({
-  title,
-  empty,
-  entries,
-}: {
-  title: string
-  empty: string
-  entries: Array<{ handle: string; label: string; values: CanvasPortValue[] }>
-}) {
-  return (
-    <div>
-      <p className="mb-1 type-tiny font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
-      {entries.length === 0 ? (
-        <p className="rounded border border-border bg-background px-2 py-1.5 type-label text-muted-foreground">{empty}</p>
-      ) : (
-        <div className="space-y-1.5">
-          {entries.map((entry) => (
-            <div key={entry.handle} className="rounded-md border border-border bg-background px-2 py-1.5">
-              <div className="mb-1 flex items-center justify-between gap-2 type-tiny">
-                <span className="truncate font-medium text-foreground">{entry.label}</span>
-                <span className="font-mono text-muted-foreground">{entry.handle}</span>
-              </div>
-              <div className="space-y-1">
-                {entry.values.map((value, index) => (
-                  <div key={`${entry.handle}-${index}`} className="min-w-0 rounded bg-muted/40 px-2 py-1 type-caption text-muted-foreground">
-                    <span className="mr-1 rounded border border-border bg-background px-1 py-0.5 font-mono type-tiny">{value.type}</span>
-                    <span className="break-words">{canvasPortValueSummary(value) || 'empty'}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function WorkflowRunResultsDialog({
   run,
   nodes,
@@ -1172,7 +1164,7 @@ function WorkflowRunResultsDialog({
   onRemoveResource,
   removingResourceId,
 }: {
-  run: CanvasRun
+	  run: CanvasRuntimeRun
   nodes: Node[]
   onClose: () => void
   onRemoveResource: (resourceId: number) => Promise<void>
@@ -1197,7 +1189,7 @@ function WorkflowRunResultsDialog({
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
           <div>
             <h2 className="type-body font-semibold text-foreground">
-              {t('canvas.editor.runResults.title', { id: run.ID, defaultValue: `Run #${run.ID} results` })}
+              {t('canvas.editor.runResults.title', { id: run.id.slice(-6), defaultValue: `Run #${run.id.slice(-6)} results` })}
             </h2>
             <p className="mt-1 type-label text-muted-foreground">
               {t('canvas.editor.runResults.description', { defaultValue: 'Outputs have been saved to the resource library. Review, download, or remove the items you do not want to keep.' })}
@@ -1298,7 +1290,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([])
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
   const [libraryCollapsed, setLibraryCollapsed] = useState(true)
-  const [inspectorCollapsed, setInspectorCollapsed] = useState(true)
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
   const [dropActive, setDropActive] = useState(false)
 
@@ -1307,21 +1298,33 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   const [inputValues, setInputValues] = useState<Record<string, string>>({})
   const [nodeRunDialog, setNodeRunDialog] = useState<{ nodeId: string; ports: CanvasPortDef[] } | null>(null)
   const [nodeRunValues, setNodeRunValues] = useState<Record<string, string>>({})
-  const [activeRunId, setActiveRunId] = useState<number | null>(null)
-  const [runHistoryPage, setRunHistoryPage] = useState(1)
-  const [runStatusFilter, setRunStatusFilter] = useState<'all' | CanvasRun['status']>('all')
-  const [workflowPanelTab, setWorkflowPanelTab] = useState<'resources' | 'history'>('resources')
-  const [runResultDialogRunId, setRunResultDialogRunId] = useState<number | null>(null)
+	  const [activeRunId, setActiveRunId] = useState<string | null>(null)
+	  const [runHistoryPage, setRunHistoryPage] = useState(1)
+	  const [runStatusFilter, setRunStatusFilter] = useState<'all' | CanvasRunStatus>('all')
+	  const [workflowPanelTab, setWorkflowPanelTab] = useState<'resources' | 'history'>('resources')
+	  const [runResultDialogRunId, setRunResultDialogRunId] = useState<string | null>(null)
   const [removingRunResultResourceId, setRemovingRunResultResourceId] = useState<number | undefined>()
   const [clientPlugins, setClientPlugins] = useState<ClientPluginManifest[]>([])
+  const [runtimeStarting, setRuntimeStarting] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [autoSaveState, setAutoSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
   const fitViewCalledRef = useRef(false)
-  const finalizedRunInvalidatedRef = useRef<number | null>(null)
-  const pendingResultRunIdsRef = useRef<Set<number>>(new Set())
+  const pendingResultRunIdsRef = useRef<Set<string>>(new Set())
+  const hydratingCanvasRef = useRef(false)
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSavedSignatureRef = useRef('')
+  const latestGraphSignatureRef = useRef('')
   const canvasPaneRef = useRef<HTMLDivElement>(null)
   const runHistoryPageSize = 8
-  const setCanvasHeader = useCanvasHeaderStore((s) => s.setHeader)
-  const resetCanvasHeader = useCanvasHeaderStore((s) => s.reset)
+	  const setCanvasHeader = useCanvasHeaderStore((s) => s.setHeader)
+	  const resetCanvasHeader = useCanvasHeaderStore((s) => s.reset)
+	  const runtimeRunsByCanvasId = useCanvasRuntimeStore((s) => s.runsByCanvasId)
+	  const startRuntimeRun = useCanvasRuntimeStore((s) => s.startRun)
+	  const startRuntimeTask = useCanvasRuntimeStore((s) => s.startTask)
+	  const completeRuntimeTask = useCanvasRuntimeStore((s) => s.completeTask)
+	  const failRuntimeTask = useCanvasRuntimeStore((s) => s.failTask)
+	  const finishRuntimeRun = useCanvasRuntimeStore((s) => s.finishRun)
 
   // Load canvas
   const { data: canvas } = useQuery<Canvas>({
@@ -1372,25 +1375,14 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     return map
   }, [referencedWorkflowCanvasQueries])
 
-  const { data: workflowRunsPage, isLoading: workflowRunsLoading } = useQuery<PaginatedResponse<CanvasRun>>({
-    queryKey: ['canvas-runs', id, runHistoryPage, runStatusFilter],
-    queryFn: () => api.get(`/canvases/${id}/runs`, {
-      params: {
-        page: runHistoryPage,
-        page_size: runHistoryPageSize,
-        ...(runStatusFilter !== 'all' ? { status: runStatusFilter } : {}),
-      },
-    }).then((r) => r.data),
-    enabled: !!id,
-    refetchInterval: (query) => {
-      const data = query.state.data as PaginatedResponse<CanvasRun> | undefined
-      return pendingResultRunIdsRef.current.size > 0 || data?.items?.some((run) => run.status === 'running' || run.status === 'pending') ? 2000 : false
-    },
-  })
-  const workflowRuns = workflowRunsPage?.items ?? []
-  const workflowRunTotal = workflowRunsPage?.total ?? 0
-  const workflowRunPageCount = Math.max(1, Math.ceil(workflowRunTotal / runHistoryPageSize))
-  const activeRun = workflowRuns.find((run) => run.ID === activeRunId) ?? workflowRuns[0]
+	  const workflowRunsAll = runtimeRunsByCanvasId[id] ?? []
+	  const workflowRunsFiltered = runStatusFilter === 'all'
+	    ? workflowRunsAll
+	    : workflowRunsAll.filter((run) => run.status === runStatusFilter)
+	  const workflowRunTotal = workflowRunsFiltered.length
+	  const workflowRunPageCount = Math.max(1, Math.ceil(workflowRunTotal / runHistoryPageSize))
+	  const workflowRuns = workflowRunsFiltered.slice((runHistoryPage - 1) * runHistoryPageSize, runHistoryPage * runHistoryPageSize)
+	  const activeRun = workflowRunsAll.find((run) => run.id === activeRunId) ?? workflowRunsAll[0]
 
   useEffect(() => {
     loadClientPlugins()
@@ -1398,27 +1390,19 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
       .catch(() => setClientPlugins([]))
   }, [])
 
-  const { data: activeRunTasks = [] } = useQuery<CanvasTask[]>({
-    queryKey: ['canvas-run-tasks', id, activeRunId],
-    queryFn: () => api.get(`/canvases/${id}/runs/${activeRunId}/tasks`).then((r) => r.data),
-    enabled: !!id && !!activeRunId,
-    refetchInterval: activeRunId && workflowRuns.find((run) => run.ID === activeRunId && (run.status === 'done' || run.status === 'failed')) ? false : activeRunId ? 2000 : false,
-  })
-
-  const resultDialogRun = runResultDialogRunId
-    ? workflowRuns.find((run) => run.ID === runResultDialogRunId) ?? (activeRun?.ID === runResultDialogRunId ? activeRun : undefined)
-    : undefined
+	  const resultDialogRun = runResultDialogRunId
+	    ? workflowRunsAll.find((run) => run.id === runResultDialogRunId)
+	    : undefined
 
   const removeRunResultResource = useMutation({
     mutationFn: (resourceId: number) => api.delete(`/resources/${resourceId}`).then(() => resourceId),
     onMutate: (resourceId) => {
       setRemovingRunResultResourceId(resourceId)
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['resources'] })
-      qc.invalidateQueries({ queryKey: ['canvas-resource-shelf', 'resources'] })
-      qc.invalidateQueries({ queryKey: ['canvas-runs', id] })
-    },
+	    onSuccess: () => {
+	      qc.invalidateQueries({ queryKey: ['resources'] })
+	      qc.invalidateQueries({ queryKey: ['canvas-resource-shelf', 'resources'] })
+	    },
     onError: (err: any) => {
       toast.error(err?.response?.data?.error || err?.message || t('canvas.editor.runResults.removeFailed', { defaultValue: 'Failed to remove resource' }))
     },
@@ -1427,82 +1411,19 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     },
   })
 
-  const selectedNodeId = selectedNodeIds.length > 0 ? selectedNodeIds[selectedNodeIds.length - 1] : undefined
-  const { data: latestSelectedNodeTask } = useQuery<CanvasTask | undefined>({
-    queryKey: ['canvas-node-task', id, selectedNodeId],
-    queryFn: () => api.get(`/canvases/${id}/nodes/${selectedNodeId}/task`, {
-      validateStatus: (status) => status === 200 || status === 404,
-    }).then((r) => r.status === 404 ? undefined : r.data),
-    enabled: !!id && !!selectedNodeId,
-    refetchInterval: (query) => {
-      const status = (query.state.data as CanvasTask | undefined)?.status
-      return status === 'pending' || status === 'running' ? 2000 : false
-    },
-    retry: (failureCount, error: any) => error?.response?.status === 404 ? false : failureCount < 2,
-  })
+	  const selectedNodeId = selectedNodeIds.length > 0 ? selectedNodeIds[selectedNodeIds.length - 1] : undefined
 
   useEffect(() => {
     setRunHistoryPage(1)
   }, [runStatusFilter])
 
-  useEffect(() => {
-    if (canvasType !== 'workflow' || !activeRun) return
-    if (activeRun.status !== 'done' || !activeRun.output_values) return
-    if (!pendingResultRunIdsRef.current.has(activeRun.ID)) return
-    pendingResultRunIdsRef.current.delete(activeRun.ID)
-    setRunResultDialogRunId(activeRun.ID)
-  }, [activeRun?.ID, activeRun?.output_values, activeRun?.status, canvasType])
-
-  useEffect(() => {
-    if (!canvas || activeRunTasks.length === 0) return
-    const nodeIdByDbId = new Map((canvas.nodes ?? []).map((n) => [n.ID, n.node_id]))
-    let cancelled = false
-    async function applyRunTasks() {
-      const diagnosticsByNodeId = new Map<string, CanvasNodeData['runDiagnostics']>()
-      const diagnosticErrorByNodeId = new Map<string, string>()
-      for (const task of activeRunTasks) {
-        const nodeId = task.node_id || nodeIdByDbId.get(task.canvas_node_id)
-        if (!nodeId || task.status !== 'failed' || !shouldRunModelDiagnostics(task.node_type, task.error)) continue
-        try {
-          const diag = await fetchCanvasNodeModelDiagnostics(id, nodeId)
-          diagnosticsByNodeId.set(nodeId, diag)
-          diagnosticErrorByNodeId.set(nodeId, formatCanvasNodeModelDiagnostics(diag))
-        } catch {
-          // Keep the task error when diagnostics cannot be loaded.
-        }
-      }
-      if (cancelled) return
-      setNodes((prev) => prev.map((node) => {
-        const task = activeRunTasks.find((t) => (t.node_id && t.node_id === node.id) || nodeIdByDbId.get(t.canvas_node_id) === node.id)
-        if (!task) return node
-        const d = node.data as unknown as CanvasNodeData
-        const diagnosticError = diagnosticErrorByNodeId.get(node.id)
-        const runDiagnostics = diagnosticsByNodeId.get(node.id)
-        return {
-          ...node,
-          data: {
-            ...d,
-            status: task.status,
-            resourceId: resourceIdFromTask(task) ?? d.resourceId,
-            resource: task.resource ?? d.resource,
-            error: diagnosticError ?? task.error,
-            runDiagnostics: runDiagnostics ?? d.runDiagnostics,
-          },
-        }
-      }))
-    }
-    void applyRunTasks()
-    const isTerminal = activeRunTasks.every((t) => t.status === 'done' || t.status === 'failed')
-    if (isTerminal && activeRunId && finalizedRunInvalidatedRef.current !== activeRunId) {
-      finalizedRunInvalidatedRef.current = activeRunId
-      qc.invalidateQueries({ queryKey: ['canvas-runs', id] })
-    } else if (!isTerminal && activeRunId) {
-      finalizedRunInvalidatedRef.current = null
-    }
-    return () => {
-      cancelled = true
-    }
-  }, [activeRunId, activeRunTasks, canvas, id, qc, setNodes])
+	  useEffect(() => {
+	    if (canvasType !== 'workflow' || !activeRun) return
+	    if (activeRun.status !== 'done' || Object.keys(activeRun.outputValues ?? {}).length === 0) return
+	    if (!pendingResultRunIdsRef.current.has(activeRun.id)) return
+	    pendingResultRunIdsRef.current.delete(activeRun.id)
+	    setRunResultDialogRunId(activeRun.id)
+	  }, [activeRun?.id, activeRun?.outputValues, activeRun?.status, canvasType])
 
   useEffect(() => {
     if (!canvas) return
@@ -1537,8 +1458,23 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     const nextNodes = (canvas.canvas_type ?? 'inspiration') === 'workflow'
       ? ensureFinalOutputNode([...groupNodes, ...childNodes], t)
       : [...groupNodes, ...childNodes]
+    hydratingCanvasRef.current = true
+    const loadedSignature = canvasGraphSignature({
+      canvasName: canvas.name,
+      canvasType: canvas.canvas_type ?? 'inspiration',
+      nodes: nextNodes,
+      edges: loadedEdges,
+      t,
+    })
+    lastSavedSignatureRef.current = loadedSignature
+    latestGraphSignatureRef.current = loadedSignature
+    setHasUnsavedChanges(false)
+    setAutoSaveState('idle')
     setNodes(nextNodes)
     setEdges(loadedEdges)
+    window.setTimeout(() => {
+      hydratingCanvasRef.current = false
+    }, 0)
 
     if (!fitViewCalledRef.current && nextNodes.length > 0) {
       fitViewCalledRef.current = true
@@ -1546,150 +1482,225 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     }
   }, [canvas, t])
 
-  // Poll running nodes
-  useEffect(() => {
-    const runningNodes = nodes.filter((n) => {
-      const d = n.data as unknown as CanvasNodeData
-      return d.status === 'running' || d.status === 'pending'
-    })
-    if (runningNodes.length === 0) return
-    const timer = setInterval(async () => {
-      for (const n of runningNodes) {
-        try {
-          const task: CanvasTask = await api.get(`/canvases/${id}/nodes/${n.id}/task`).then((r) => r.data)
-          if (task.status === 'done' || task.status === 'failed') {
-            const resource = task.resource
-            const resourceId = resourceIdFromTask(task)
-            let error = task.error
-            let runDiagnostics: CanvasNodeData['runDiagnostics']
-            if (task.status === 'failed' && shouldRunModelDiagnostics(n.type, task.error)) {
-              try {
-                runDiagnostics = await fetchCanvasNodeModelDiagnostics(id, n.id)
-                error = formatCanvasNodeModelDiagnostics(runDiagnostics)
-              } catch {
-                error = task.error
-              }
-            }
-            setNodes((prev) => prev.map((node) => {
-              if (node.id !== n.id) return node
-              const d = node.data as unknown as CanvasNodeData
-              return { ...node, data: { ...d, status: task.status, resourceId, resource, error, runDiagnostics } }
-            }))
-          }
-        } catch (err: any) {
-          if (err?.response?.status === 404) {
-            setNodes((prev) => prev.map((node) => {
-              if (node.id !== n.id) return node
-              const d = node.data as unknown as CanvasNodeData
-              return { ...node, data: { ...d, status: 'failed', error: t('canvas.editor.errors.nodeNotFound') } }
-            }))
-          }
-        }
-      }
-    }, 2000)
-    return () => clearInterval(timer)
-  }, [nodes, id, t])
-
   // Save
+  const persistCanvasGraph = useCallback(async (nextNodes: Node[], nextEdges: Edge[]) => {
+    const savedSignature = canvasGraphSignature({
+      canvasName,
+      canvasType,
+      nodes: nextNodes,
+      edges: nextEdges,
+      t,
+    })
+    const payload = await buildCanvasSavePayload({
+      canvasName,
+      canvasType,
+      nodes: nextNodes,
+      edges: nextEdges,
+      t,
+    })
+    await api.put(`/canvases/${id}`, payload)
+    lastSavedSignatureRef.current = savedSignature
+    setHasUnsavedChanges(latestGraphSignatureRef.current !== savedSignature)
+    setAutoSaveState('saved')
+    qc.invalidateQueries({ queryKey: ['canvas', id] })
+  }, [canvasName, canvasType, id, qc, t])
+
   const save = useMutation({
-    mutationFn: async () => {
-      const nodesToSave = canvasType === 'workflow' ? ensureFinalOutputNode(nodes, t) : nodes
-      const defaultModels = await defaultModelsForCanvasSave(nodesToSave)
-      const payload = {
-        name: canvasName,
-        nodes: nodesToSave.map((n) => {
-          const { label, cardMode: _cardMode, pluginInputProperties: _pluginInputProperties, availableResources: _availableResources, referenceResources: _referenceResources, runDiagnostics: _runDiagnostics, onRun, onUpdateContent, onUpdatePrompt, onUpdateOutputType, onUpdateModelId, onUpdateAttachments, onUpdateParams, onApprove, onReject, onPush, canvasId: _canvasId, rfNodeId: _rfNodeId, pendingRuntimeInputs: _pendingRuntimeInputs, ...rest } = n.data as any
-          const request = modelFeatureForCanvasNode(n.type, rest)
-          const defaultModel = request ? defaultModels.get(request.feature) : undefined
-          const dataToSave = {
-            ...rest,
-            ...(defaultModel && !rest.modelId && !rest.modelDbId ? {
-              modelId: publicModelId(defaultModel),
-              modelDbId: defaultModel.id,
-            } : {}),
-          }
-          return {
-            node_id: n.id,
-            type: n.type,
-            label: label ?? '',
-            pos_x: n.position.x,
-            pos_y: n.position.y,
-            // embed parentId and style into data so they survive save/load
-            data: JSON.stringify({
-              ...dataToSave,
-              _parentId: n.parentId ?? undefined,
-              _style: n.style,
-            }),
-          }
-        }),
-        edges: uniqueEdgesByConnection(edges).map((e) => ({
-          edge_id: e.id,
-          source: e.source,
-          target: e.target,
-          source_handle: fromUiHandleId(e.sourceHandle),
-          target_handle: fromUiHandleId(e.targetHandle),
-        })),
-      }
-      return api.put(`/canvases/${id}`, payload)
-    },
+    mutationFn: () => persistCanvasGraph(nodes, edges),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['canvas', id] })
   })
 
-  // Run all
-  const runAll = useMutation({
-    mutationFn: async (values?: Record<string, CanvasPortValue>) => {
-      await save.mutateAsync()
-      return api.post(`/canvases/${id}/run`, { input_values: values ?? {} }).then((r) => r.data)
-    },
-    onSuccess: (data) => {
-      const runId = data?.run?.ID
-      if (runId) {
-        pendingResultRunIdsRef.current.add(runId)
-        setActiveRunId(runId)
-      }
-      setRunStatusFilter('all')
-      setRunHistoryPage(1)
-      setWorkflowPanelTab('history')
-      qc.invalidateQueries({ queryKey: ['canvas-runs', id] })
-      setNodes((prev) => prev.map((n) => {
-        const d = n.data as unknown as CanvasNodeData
-        if (d.source === 'ai' || n.type === 'output' || n.type === 'resource_sink') return { ...n, data: { ...d, status: 'pending', error: undefined } }
-        return n
-      }))
+  useEffect(() => {
+    if (!canvas || hydratingCanvasRef.current) return
+    const signature = canvasGraphSignature({ canvasName, canvasType, nodes, edges, t })
+    latestGraphSignatureRef.current = signature
+    const dirty = signature !== lastSavedSignatureRef.current
+    setHasUnsavedChanges(dirty)
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current)
+      autoSaveTimerRef.current = null
     }
-  })
+    if (!dirty) return
 
-  // Run single node
-  const submitRunNode = useCallback(async (nodeId: string, values?: Record<string, CanvasPortValue>) => {
-    try {
-      await save.mutateAsync()
-      const response = await api.post(`/canvases/${id}/nodes/${nodeId}/run`, { input_values: values ?? {} })
-      qc.setQueryData(['canvas-node-task', id, nodeId], response.data)
-      qc.invalidateQueries({ queryKey: ['canvas-node-task', id, nodeId] })
-      qc.invalidateQueries({ queryKey: ['canvas-runs', id] })
-      setNodes((prev) => prev.map((n) => {
-        if (n.id !== nodeId) return n
-        return { ...n, data: { ...n.data, status: 'pending', error: undefined } }
-      }))
-    } catch (err: any) {
-      let message = err?.response?.data?.error || err?.message || t('canvas.editor.errors.runFailed', { defaultValue: 'Failed to run node' })
-      let runDiagnostics: CanvasNodeData['runDiagnostics']
-      const node = nodes.find((n) => n.id === nodeId)
-      if (shouldRunModelDiagnostics(node?.type, message)) {
-        try {
-          runDiagnostics = await fetchCanvasNodeModelDiagnostics(id, nodeId)
-          message = formatCanvasNodeModelDiagnostics(runDiagnostics)
-        } catch {
-          // Keep the original run error if diagnostics cannot be loaded.
-        }
+    const runtimeActive = runtimeStarting || nodes.some((node) => {
+      const status = (node.data as Partial<CanvasNodeData>).status
+      return status === 'running' || status === 'pending'
+    })
+    if (runtimeActive) return
+
+    autoSaveTimerRef.current = setTimeout(() => {
+      setAutoSaveState('saving')
+      void persistCanvasGraph(nodes, edges).catch((err: any) => {
+        setAutoSaveState('error')
+        toast.error(err?.response?.data?.error || err?.message || t('canvas.editor.autoSaveFailed', { defaultValue: '自动保存失败' }))
+      })
+    }, 1500)
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current)
+        autoSaveTimerRef.current = null
       }
-      toast.error(message)
-      setNodes((prev) => prev.map((n) => {
-        if (n.id !== nodeId) return n
-        return { ...n, data: { ...n.data, status: 'failed', error: message, runDiagnostics } }
-      }))
     }
-  }, [id, nodes, qc, save, t])
+  }, [canvas, canvasName, canvasType, edges, nodes, persistCanvasGraph, runtimeStarting, t])
+
+	  const executeCanvasRuntimeNode = useCallback(async (
+	    node: Node,
+	    inputs: Record<string, CanvasPortValue[]>,
+	  ): Promise<Record<string, CanvasPortValue>> => {
+	    const data = node.data as Partial<CanvasNodeData>
+	    const first = firstRuntimeValue(inputs, ['value', 'input', 'prompt', 'reference', 'image', 'video', 'text'])
+	    if (node.type === 'input') {
+	      const value = first ?? (data.inputValue !== undefined ? { type: data.paramType ?? 'text', text: data.inputValue } as CanvasPortValue : undefined)
+	      return value ? { value, [node.id]: value } : {}
+	    }
+	    if (node.type === 'output') {
+	      return first ? { value: first, [node.id]: first } : {}
+	    }
+	    if (node.type === 'resource_sink') {
+	      if (!first) return {}
+	      if (first.resource_id) return { result: first, value: first }
+	      const text = canvasPortValuePreviewText(first)
+	      if (!text) return { result: first, value: first }
+	      const resource = await uploadCanvasRuntimeTextResource(data.paramName || (data as any).label || node.id, text)
+	      return { result: { type: 'text', text, resource_id: resource.ID, resource }, value: { type: 'text', text, resource_id: resource.ID, resource } }
+	    }
+	    if (node.type === 'text' && data.source !== 'ai') {
+	      const value: CanvasPortValue = data.resourceId
+	        ? { type: 'text', resource_id: data.resourceId, resource: data.resource }
+	        : { type: 'text', text: data.textContent ?? data.inputValue ?? '' }
+	      return { text: value, result: value, value }
+	    }
+	    if ((node.type === 'image' || node.type === 'video') && data.source !== 'ai') {
+	      if (!data.resourceId && !data.resource?.ID) return {}
+	      const resource = data.resource ?? canvasNodeResourceById.get(data.resourceId!)
+	      const value: CanvasPortValue = { type: node.type, resource_id: data.resourceId ?? data.resource!.ID, resource }
+	      return { [node.type]: value, result: value, value }
+	    }
+	    if (node.type === 'plugin_card') {
+	      const resultText = data.pluginResultText
+	      return resultText ? { result: { type: 'text', text: resultText }, text: { type: 'text', text: resultText } } : {}
+	    }
+	    if (node.type === 'canvas') {
+	      throw new Error(t('canvas.editor.errors.referenceWorkflowFrontendRuntime', { defaultValue: '引用工作流节点需要改造成前端子流程后再运行。' }))
+	    }
+	
+	    const outputType = node.type === 'text_gen' ? 'text'
+	      : node.type === 'ai_gen' ? (data.outputType ?? 'image')
+	        : node.type === 'video' || node.type === 'ref_video_gen' || node.type === 'motion_imitation' ? 'video'
+	          : node.type === 'text' ? 'text'
+	            : 'image'
+	    const prompt = runtimePromptForNode(node, inputs)
+	    if (!prompt && outputType !== 'image' && outputType !== 'video') {
+	      throw new Error(t('canvas.editor.errors.promptRequired', { defaultValue: 'Prompt is required' }))
+	    }
+	    if (outputType === 'text') {
+	      const model = await resolveCanvasRuntimeModel(data, 'text', 'canvas_text')
+	      const response = await generateCanvasRuntimeText({
+	        modelId: model.modelId,
+	        modelConfigId: model.modelConfigId,
+	        featureKey: 'canvas_text',
+	        prompt,
+	        params: data.params,
+	        projectId: canvas?.project_id,
+	      })
+	      const value: CanvasPortValue = { type: 'text', text: response.text }
+	      return { text: value, result: value, value }
+	    }
+	    const job = await generateCanvasRuntimeMedia({
+	      nodeType: node.type,
+	      data,
+	      outputType,
+	      prompt,
+	      inputResourceIds: runtimeResourceIdsForNode(node, inputs),
+	      projectId: canvas?.project_id,
+	    })
+	    const resource = job.output_resource
+	    const resourceId = job.output_resource_id ?? resource?.ID ?? job.output_resource_ids?.[0]
+	    if (!resourceId) throw new Error(job.error_msg || 'generation job completed without output resource')
+	    const value: CanvasPortValue = { type: outputType === 'video' ? 'video' : 'image', resource_id: resourceId, resource }
+	    return { [value.type]: value, result: value, value }
+	  }, [canvas?.project_id, canvasNodeResourceById, t])
+
+		  const executeCanvasRuntime = useCallback(async (targetNodeId?: string, values?: Record<string, CanvasPortValue>) => {
+		    const order = targetNodeId
+		      ? canvasRuntimeOrderForNode(targetNodeId, nodes, edges)
+		      : topoSortCanvasNodes(nodes.filter((node) => node.type !== 'group'), edges)
+		    const runnable = order.filter((node) => node.type !== 'group')
+		    let runtimeNodes = nodes
+		    const run = startRuntimeRun({ canvasId: id, nodeIds: runnable.map((node) => node.id), snapshotNodeCount: nodes.length, snapshotEdgeCount: edges.length })
+	    setActiveRunId(run.id)
+	    setRunStatusFilter('all')
+	    setRunHistoryPage(1)
+	    setWorkflowPanelTab('history')
+	    if (!targetNodeId) pendingResultRunIdsRef.current.add(run.id)
+	    const outputCache: CanvasRuntimeOutputCache = {}
+	    try {
+	      for (const node of runnable) {
+	        const inputValue = node.type === 'input' ? (values?.[node.id] ?? values?.value) : undefined
+	        const inputPatch = inputValue
+	          ? { value: inputValue, [node.id]: inputValue }
+	          : node.id === targetNodeId ? values : undefined
+	        const collected = collectCanvasNodeInputs({ nodeId: node.id, nodes, edges, resourceById: canvasNodeResourceById, outputCache, runtimeInputs: inputPatch })
+	        const task = startRuntimeTask({
+	          runId: run.id,
+	          canvasId: id,
+	          nodeId: node.id,
+	          nodeType: node.type,
+	          nodeLabel: (node.data as any)?.label || node.id,
+	          inputValues: collected.values,
+	        })
+	        setNodes((prev) => prev.map((item) => item.id === node.id ? { ...item, data: { ...item.data, status: 'running', error: undefined } } : item))
+	        try {
+	          const outputs = await executeCanvasRuntimeNode(node, collected.values)
+	          outputCache[node.id] = outputs
+	          const outputValue = outputs.result ?? outputs.value ?? Object.values(outputs)[0]
+	          completeRuntimeTask(id, run.id, node.id, {
+	            outputValues: outputs,
+	            resourceId: outputValue?.resource_id,
+	            resource: outputValue?.resource,
+	            jobId: (outputValue?.json as any)?.jobId,
+	          })
+		          const nextRuntimeNodes = runtimeNodes.map((item) => {
+		            if (item.id !== node.id) return item
+		            const currentData = item.data as Partial<CanvasNodeData>
+		            return {
+		              ...item,
+	              data: {
+	                ...item.data,
+	                status: 'done',
+	                error: undefined,
+	                resourceId: outputValue?.resource_id ?? currentData.resourceId,
+	                resource: outputValue?.resource ?? currentData.resource,
+		                textContent: nodeAcceptsTextResult(item, currentData) ? (textContentFromOutputs(outputs) ?? currentData.textContent) : currentData.textContent,
+		              },
+		            }
+		          })
+		          runtimeNodes = nextRuntimeNodes
+		          setNodes(nextRuntimeNodes)
+		          qc.invalidateQueries({ queryKey: ['resources'] })
+		          qc.invalidateQueries({ queryKey: ['canvas-resource-shelf', 'resources'] })
+		          qc.invalidateQueries({ queryKey: ['canvas-node-resources'] })
+	        } catch (err: any) {
+	          const message = err?.response?.data?.error || err?.message || t('canvas.editor.errors.runFailed', { defaultValue: 'Failed to run node' })
+	          failRuntimeTask(id, run.id, node.id, message)
+	          setNodes((prev) => prev.map((item) => item.id === node.id ? { ...item, data: { ...item.data, status: 'failed', error: message } } : item))
+	          throw new Error(message)
+	        }
+		      }
+		      const outputValues = buildRuntimeWorkflowOutputs(runnable, outputCache)
+		      await persistCanvasGraph(runtimeNodes, edges)
+		      finishRuntimeRun(id, run.id, 'done', outputValues)
+	    } catch (err: any) {
+	      const message = err?.message || t('canvas.editor.errors.runFailed', { defaultValue: 'Failed to run node' })
+	      finishRuntimeRun(id, run.id, 'failed', buildRuntimeWorkflowOutputs(runnable, outputCache), message)
+	      toast.error(message)
+	    }
+	  }, [canvasNodeResourceById, completeRuntimeTask, edges, executeCanvasRuntimeNode, failRuntimeTask, finishRuntimeRun, id, nodes, persistCanvasGraph, qc, setNodes, startRuntimeRun, startRuntimeTask, t])
+
+	  const submitRunNode = useCallback(async (nodeId: string, values?: Record<string, CanvasPortValue>) => {
+	    await executeCanvasRuntime(nodeId, values)
+	  }, [executeCanvasRuntime])
 
   const runNode = useCallback(async (nodeId: string) => {
     const node = nodes.find((n) => n.id === nodeId)
@@ -1799,26 +1810,26 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     }
   }, [canvasNodeResourceById, clientPlugins, edges, nodes, setNodes, t])
 
-  // Handle workflow run: save first to ensure all nodes are persisted, then show input dialog if needed
-  async function handleRunWorkflow() {
-    try {
-      await save.mutateAsync()
-    } catch {
-      return
-    }
-    const inputNodes = nodes.filter((n) => n.type === 'input')
-    if (inputNodes.length > 0) {
+	  // Handle workflow run from the current in-memory graph.
+	  async function handleRunWorkflow() {
+	    const inputNodes = nodes.filter((n) => n.type === 'input')
+	    if (inputNodes.length > 0) {
       const initial: Record<string, string> = {}
       inputNodes.forEach((n) => {
         const data = n.data as Partial<CanvasNodeData>
         initial[n.id] = data.inputValue ?? defaultRuntimeValueForPort(portForWorkflowInputNode(n))
       })
-      setInputValues(initial)
-      setRunDialogOpen(true)
-    } else {
-      runAll.mutate({})
-    }
-  }
+	      setInputValues(initial)
+	      setRunDialogOpen(true)
+	    } else {
+	      setRuntimeStarting(true)
+	      try {
+	        await executeCanvasRuntime(undefined, {})
+	      } finally {
+	        setRuntimeStarting(false)
+	      }
+	    }
+	  }
 
   function handleConfirmRun() {
     const encoded: Record<string, CanvasPortValue> = {}
@@ -1840,10 +1851,11 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
         return { ...n, data: { ...n.data, inputValue: inputValues[n.id] } }
       }
       return n
-    }))
-    setRunDialogOpen(false)
-    runAll.mutate(encoded)
-  }
+	    }))
+	    setRunDialogOpen(false)
+	    setRuntimeStarting(true)
+	    void executeCanvasRuntime(undefined, encoded).finally(() => setRuntimeStarting(false))
+	  }
 
   // Approval
   function handleApprove(nodeId: string) {
@@ -2325,13 +2337,42 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   const activeRunStatusLabel = activeRun ? t(`canvas.runStatus.${activeRun.status}`) : undefined
   const workflowRunningCount = workflowRuns.filter((run) => run.status === 'running' || run.status === 'pending').length
   const selectedNodeMeta = selectedNode?.type ? CANVAS_NODE_META[selectedNode.type as NodeType] : undefined
-  const activeRunSelectedNodeTask = selectedNode
-    ? activeRunTasks.find((task) => task.node_id === selectedNode.id)
-    : undefined
-  const selectedNodeTask = newestCanvasTask(activeRunSelectedNodeTask, latestSelectedNodeTask)
-  const selectedNodeTaskRun = selectedNodeTask?.canvas_run_id && selectedNodeTask.canvas_run_id === activeRun?.ID
-    ? activeRun
-    : undefined
+  const savingCanvas = save.isPending || autoSaveState === 'saving'
+  const shouldBlockCanvasExit = hasUnsavedChanges || savingCanvas || runtimeStarting || runningCount > 0
+
+  const requestCanvasExit = useCallback(async (leave: () => void) => {
+    if (runningCount > 0 || runtimeStarting) {
+      const ok = window.confirm(t('canvas.editor.leaveWhileRunningConfirm', {
+        defaultValue: '画布仍在运行中。现在退出可能导致本次运行结果无法写回节点。确定要退出吗？',
+      }))
+      if (!ok) return
+    }
+    if (hasUnsavedChanges || savingCanvas) {
+      const ok = window.confirm(t('canvas.editor.saveBeforeLeaveConfirm', {
+        defaultValue: '画布有未保存改动。是否先保存再退出？',
+      }))
+      if (!ok) return
+      try {
+        setAutoSaveState('saving')
+        await persistCanvasGraph(nodes, edges)
+      } catch (err: any) {
+        setAutoSaveState('error')
+        toast.error(err?.response?.data?.error || err?.message || t('canvas.editor.autoSaveFailed', { defaultValue: '自动保存失败' }))
+        return
+      }
+    }
+    leave()
+  }, [edges, hasUnsavedChanges, nodes, persistCanvasGraph, runningCount, runtimeStarting, savingCanvas, t])
+
+  useEffect(() => {
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!shouldBlockCanvasExit) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [shouldBlockCanvasExit])
 
   useEffect(() => {
     if (!useAppHeader) return
@@ -2345,17 +2386,17 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
       inputCount: workflowStats.inputs,
       processorCount: workflowStats.processors,
       outputCount: workflowStats.outputs,
-      activeRunLabel: canvasType === 'workflow' && activeRun && activeRunStatusLabel
-        ? t('canvas.editor.activeRun', { id: activeRun.ID, status: activeRunStatusLabel })
-        : undefined,
+	      activeRunLabel: canvasType === 'workflow' && activeRun && activeRunStatusLabel
+	        ? t('canvas.editor.activeRun', { id: activeRun.id.slice(-6), status: activeRunStatusLabel })
+	        : undefined,
       workflowRunningCount,
-      saving: save.isPending,
-      startingRun: runAll.isPending,
+      saving: savingCanvas,
+	      startingRun: runtimeStarting,
       onNameChange: setCanvasName,
       onRun: handleRunWorkflow,
       onSave: () => save.mutate(),
     })
-  }, [activeRun?.ID, activeRunStatusLabel, canvasName, canvasType, doneCount, nodes.length, resetCanvasHeader, runAll.isPending, runningCount, save, setCanvasHeader, t, useAppHeader, workflowRunningCount, workflowStats.inputs, workflowStats.outputs, workflowStats.processors])
+  }, [activeRun?.id, activeRunStatusLabel, canvasName, canvasType, doneCount, nodes.length, resetCanvasHeader, runtimeStarting, runningCount, save, savingCanvas, setCanvasHeader, t, useAppHeader, workflowRunningCount, workflowStats.inputs, workflowStats.outputs, workflowStats.processors])
 
   useEffect(() => {
     if (!useAppHeader) return
@@ -2372,7 +2413,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
               {t(`canvas.editor.canvasType.${canvasType}`)}
             </Badge>
           ) : (
-            <Button variant="ghost" size="icon-sm" onClick={() => navigate(ROUTES.canvases)} className="shrink-0">
+            <Button variant="ghost" size="icon-sm" onClick={() => void requestCanvasExit(() => navigate(ROUTES.canvases))} className="shrink-0">
               <ArrowLeft size={16} />
             </Button>
           )}
@@ -2398,7 +2439,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
               {canvasType === 'workflow' && activeRun && activeRunStatusLabel && (
                 <Badge variant={activeRun.status === 'failed' ? 'destructive' : 'outline'} className="hidden shrink-0 gap-1 sm:flex">
                   {(activeRun.status === 'running' || activeRun.status === 'pending') && <Loader2 size={12} className="animate-spin" />}
-                  {t('canvas.editor.activeRun', { id: activeRun.ID, status: activeRunStatusLabel })}
+	                  {t('canvas.editor.activeRun', { id: activeRun.id.slice(-6), status: activeRunStatusLabel })}
                 </Badge>
               )}
               {canvasType === 'workflow' && workflowRunningCount > 1 && (
@@ -2425,17 +2466,21 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
             </Badge>
           )}
 
-          <Button onClick={handleRunWorkflow} disabled={runAll.isPending} size="sm" className="shrink-0">
-            <Play size={12} /> {runAll.isPending ? t('canvas.editor.starting') : t('canvas.editor.startRun')}
+          <Button onClick={handleRunWorkflow} disabled={runtimeStarting} size="sm" className="shrink-0">
+            <Play size={12} /> {runtimeStarting ? t('canvas.editor.starting') : t('canvas.editor.startRun')}
           </Button>
 
-          <Button onClick={() => save.mutate()} disabled={save.isPending} size="sm" variant="outline" className="shrink-0">
-            {save.isPending ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-            {save.isPending ? t('common.saving') : t('common.save')}
+          <Button onClick={() => save.mutate()} disabled={savingCanvas} size="sm" variant="outline" className="shrink-0">
+            {savingCanvas ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+            {savingCanvas
+              ? t('common.saving')
+              : hasUnsavedChanges
+                ? t('canvas.editor.unsaved', { defaultValue: '未保存' })
+                : t('common.save')}
           </Button>
 
           {embedded && onClose && (
-            <Button variant="ghost" size="icon-sm" onClick={onClose} className="shrink-0">
+            <Button variant="ghost" size="icon-sm" onClick={() => void requestCanvasExit(onClose)} className="shrink-0">
               <PanelRightClose size={14} />
             </Button>
           )}
@@ -2689,7 +2734,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
             pageCount={workflowRunPageCount}
             statusFilter={runStatusFilter}
             activeRunId={activeRunId}
-            isLoading={workflowRunsLoading}
+	            isLoading={false}
             onTabChange={setWorkflowPanelTab}
             onStatusFilterChange={setRunStatusFilter}
             onPageChange={setRunHistoryPage}
@@ -2697,73 +2742,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
           />
         </div>
 
-        <aside className={cn(
-          'shrink-0 border-l border-border bg-background transition-all duration-200',
-          inspectorCollapsed ? 'w-12' : 'w-80'
-        )}>
-          <div className="flex h-full flex-col">
-            <div className={cn(
-              'flex h-12 items-center border-b border-border',
-              inspectorCollapsed ? 'justify-center px-0' : 'gap-2 px-3'
-            )}>
-              {!inspectorCollapsed && <PanelRightClose size={14} className="shrink-0 text-muted-foreground" />}
-              {!inspectorCollapsed && <span className="flex-1 type-label font-semibold text-foreground">{t('canvas.editor.inspector')}</span>}
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="shrink-0"
-                onClick={() => setInspectorCollapsed((v) => !v)}
-              >
-                {inspectorCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
-              </Button>
-            </div>
-
-            {!inspectorCollapsed && (
-              selectedNode ? (
-                <div className="flex min-h-0 flex-1 flex-col">
-                  <div className="min-h-0 flex-1 overflow-hidden">
-                    <NodePanel
-                      nodeId={selectedNode.id}
-                      canvasId={Number(id)}
-                      nodeType={selectedNode.type as NodeType}
-                      data={selectedNode.data as unknown as CanvasNodeData}
-                      label={(selectedNode.data as any).label || (selectedNodeMeta ? t(selectedNodeMeta.defaultLabelKey) : NODE_LABELS[selectedNode.type as NodeType])}
-                      allNodes={nodes}
-                      edges={edges}
-                      onUpdate={updateNodeData}
-                      onRun={selectedNode.type === 'plugin_card' ? runLocalPluginNode : runNode}
-                      allowRun={selectedNode.type !== 'group'}
-                    />
-                  </div>
-                  {canvasType === 'workflow' && (
-                    <TaskIOInspector
-                      node={selectedNode}
-                      task={selectedNodeTask}
-                      activeRun={selectedNodeTaskRun}
-                    />
-                  )}
-                </div>
-              ) : (
-                <div className="flex min-h-0 flex-1 flex-col p-4 type-body">
-                  <div className="rounded-lg border border-dashed border-border bg-muted/25 p-4">
-                    <p className="type-body font-medium text-foreground">{t('canvas.editor.noSelectionTitle')}</p>
-                    <p className="mt-1 type-label leading-relaxed text-muted-foreground">{t('canvas.editor.noSelectionDescription')}</p>
-                  </div>
-                  <div className="mt-4 space-y-2 type-label text-muted-foreground">
-                    <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-                      <span>{t('canvas.editor.currentSelection')}</span>
-                      <span>{selectedNodeIds.length}</span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-                      <span>{t('canvas.editor.edgesCount')}</span>
-                      <span>{edges.length}</span>
-                    </div>
-                  </div>
-                </div>
-              )
-            )}
-          </div>
-        </aside>
       </div>
 
       {resultDialogRun && (

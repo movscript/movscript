@@ -109,6 +109,7 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
   const contractResolver = input.contractResolver ?? EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER
   const runtimeContract = contractResolver.find(input.manifest)
   const promptPolicy = resolvePromptProductPolicy(input.manifest.metadata?.promptPolicy)
+  const updatePlanAvailable = input.tools.available.some((tool) => tool.name === 'core_update_plan')
 
   // --- Runtime Contract ---
   debugParts.push({
@@ -119,6 +120,8 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
       input.policy.sandboxMode ? 'Sandbox mode is active: write, generation, and destructive tools are intercepted and simulated.' : undefined,
       `Runtime limits: approvalMode=${input.policy.approvalMode}; maxToolCalls=${input.policy.maxToolCalls}; maxIterations=${input.policy.maxIterations}.`,
       input.policy.workflow ? `Workflow policy: profile=${input.policy.workflow.profile}; includeMemories=${input.policy.workflow.includeMemories !== false}; allowForcedToolCalls=${input.policy.workflow.allowForcedToolCalls !== false}.` : undefined,
+      updatePlanAvailable ? 'Before calling core_update_plan, compare the requested complete plan snapshot with Thread Runtime State.currentPlan. If every task step and status is identical, do not call core_update_plan; answer that the plan is already up to date.' : undefined,
+      updatePlanAvailable ? 'After core_update_plan returns status=updated or status=unchanged, treat that plan update request as satisfied. Do not call core_update_plan again unless the user provides a new or different plan change.' : undefined,
       input.manifest.soul ? `[Agent-specific output contract]\n${input.manifest.soul}` : undefined,
     ].filter(Boolean).join('\n'),
   })
@@ -305,12 +308,10 @@ function resolveRuntimeToolParameters(
   if (tool.name === 'core_memory_create') return CREATE_MEMORY_TOOL_SCHEMA
   if (tool.name === 'core_memory_delete') return MEMORY_ID_TOOL_SCHEMA
   if (tool.name === 'draft_create') return CREATE_DRAFT_TOOL_SCHEMA
-  if (tool.name === 'draft_get') return DRAFT_ID_TOOL_SCHEMA
-  if (tool.name === 'draft_validate') return DRAFT_ID_TOOL_SCHEMA
   if (tool.name === 'draft_apply_preview') return PREVIEW_DRAFT_APPLY_TOOL_SCHEMA
   if (tool.name === 'core_catalog_inspect') return INSPECT_AGENT_CATALOG_TOOL_SCHEMA
   if (tool.name === 'core_skill_update') return UPDATE_ACTIVE_SKILLS_TOOL_SCHEMA
-  if (tool.name === 'core_progress_update') return UPDATE_PROGRESS_CHECKLIST_TOOL_SCHEMA
+  if (tool.name === 'core_update_plan') return UPDATE_PLAN_TOOL_SCHEMA
   if (tool.name === 'movscript_project_create') return CREATE_PROJECT_TOOL_SCHEMA
   return undefined
 }
@@ -604,30 +605,34 @@ const UPDATE_ACTIVE_SKILLS_TOOL_SCHEMA = {
   },
 } satisfies Record<string, unknown>
 
-const UPDATE_PROGRESS_CHECKLIST_TOOL_SCHEMA = {
+const UPDATE_PLAN_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
+    planId: {
+      type: 'string',
+      description: 'Optional user-facing plan id. Use this when the user names the plan, e.g. "plan1".',
+    },
     explanation: {
       type: 'string',
-      description: 'Optional short reason for this checklist update.',
+      description: 'Optional short reason for this plan update.',
     },
-    checklist: {
+    tasks: {
       type: 'array',
-      description: 'Complete current progress checklist. At most one item may be in_progress.',
+      description: 'Complete current execution plan task list. Use this tool whenever the user asks to create, generate, or update a plan. Before calling, compare against Thread Runtime State.currentPlan; if every task step and status is identical, do not call this tool. After this tool returns updated or unchanged for a request, do not call it again for the same plan snapshot. Translate user status words into pending, in_progress, or completed; for example 未就绪, 未开始, 待办, not_ready, and not_started mean pending. At most one task may be in_progress.',
       maxItems: 20,
       items: {
         type: 'object',
         additionalProperties: false,
         properties: {
-          step: { type: 'string', minLength: 1, maxLength: 300 },
-          status: { type: 'string', enum: ['pending', 'in_progress', 'completed'] },
+          step: { type: 'string', minLength: 1, maxLength: 300, description: 'Plan task title or step text.' },
+          status: { type: 'string', enum: ['pending', 'in_progress', 'completed'], description: 'pending means not ready/not started; in_progress means currently active; completed means done.' },
         },
         required: ['step', 'status'],
       },
     },
   },
-  required: ['checklist'],
+  required: ['tasks'],
 } satisfies Record<string, unknown>
 
 const CREATE_DRAFT_TOOL_SCHEMA = {
@@ -637,10 +642,10 @@ const CREATE_DRAFT_TOOL_SCHEMA = {
   properties: {
     kind: {
       type: 'string',
-      enum: ['setting_proposal', 'script_split_proposal', 'script', 'asset_slot', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_standards_proposal', 'production_proposal', 'content_unit_proposal'],
+      enum: ['setting_proposal', 'project_standards_proposal', 'production_proposal', 'content_unit_proposal', 'asset_proposal'],
     },
     title: { type: 'string', description: 'Optional. Auto-generated from kind + project when omitted for proposal drafts.' },
-    content: { type: 'string', description: 'Initial draft content. Structured proposal drafts must be valid JSON. For setting_proposal / asset_proposal, omitted or initially empty proposal snapshot arrays are prefilled from the hydrated current project data as a no-op baseline. After creation, edit the returned draft.filePath with standard file tools instead of replacing content through draft tools.' },
+    content: { type: 'string', description: 'Initial draft content. Structured proposal drafts must be valid JSON. For setting_proposal / asset_proposal, omitted or initially empty proposal snapshot arrays are prefilled from the hydrated current project data as a no-op baseline. After creation, edit agent://draft/{draftId}/content with standard file tools instead of replacing content through draft tools.' },
     projectId: { type: 'number' },
     productionId: { type: 'number', description: 'Optional hint for production_proposal drafts.' },
     source: { type: 'object', additionalProperties: true },
@@ -648,15 +653,6 @@ const CREATE_DRAFT_TOOL_SCHEMA = {
     seed: { type: 'object', additionalProperties: true, description: 'DraftDomainModel/MCP seed contract or hydrated seed summary to persist under metadata.seed.' },
     metadata: { type: 'object', additionalProperties: true },
     proposal: { type: 'boolean', description: 'When true, creates a reviewable proposal draft: adds schema validation, infers target/source, sets default title, and returns {proposalRef, draftId, status}.' },
-  },
-} satisfies Record<string, unknown>
-
-const DRAFT_ID_TOOL_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['draftId'],
-  properties: {
-    draftId: { type: 'string' },
   },
 } satisfies Record<string, unknown>
 

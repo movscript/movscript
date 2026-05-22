@@ -15,11 +15,13 @@ import (
 
 type CanvasHandler struct {
 	CanvasExecService canvasservice.Service
+	aiService         *ai.AIService
 }
 
 func NewCanvasHandler(db *gorm.DB, registry *ai.Registry, svc *ai.AIService, store storage.Storage) *CanvasHandler {
 	return &CanvasHandler{
 		CanvasExecService: canvasservice.NewService(db, registry, svc, nil, nil, store),
+		aiService:         svc,
 	}
 }
 

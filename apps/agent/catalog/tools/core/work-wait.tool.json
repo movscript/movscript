@@ -1,6 +1,6 @@
 {
   "name": "core_work_wait",
-  "description": "等待一个或多个 runtime works 进入终态，或直到等待超时。支持 all/any 模式。普通同步工具调用不需要 wait。",
+  "description": "观察一个或多个 runtime works 的最新状态，并可选择短暂等待终态；未完成时也会立即返回当前状态，work 会继续在后台运行。支持 all/any 模式。普通同步工具调用不需要 wait。",
   "permission": "agent.work.read",
   "risk": "read",
   "source": "runtime",

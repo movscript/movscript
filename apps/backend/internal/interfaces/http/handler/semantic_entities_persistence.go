@@ -23,6 +23,34 @@ func (h *SemanticEntityHandler) DeleteSemanticItemByKind(c *gin.Context, kind st
 	c.Status(http.StatusNoContent)
 }
 
+func (h *SemanticEntityHandler) AbandonSceneMoment(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	result, err := h.semantic.AbandonSceneMoment(c.Request.Context(), projectID, c.Param("sceneMomentId"))
+	if err != nil {
+		if errors.Is(err, semanticapp.ErrNotFound) {
+			c.JSON(http.StatusNotFound, api.NotFound("对象不存在"))
+			return
+		}
+		h.writeSemanticAppError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *SemanticEntityHandler) AbandonContentUnit(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	result, err := h.semantic.AbandonContentUnit(c.Request.Context(), projectID, c.Param("contentUnitId"))
+	if err != nil {
+		if errors.Is(err, semanticapp.ErrNotFound) {
+			c.JSON(http.StatusNotFound, api.NotFound("对象不存在"))
+			return
+		}
+		h.writeSemanticAppError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
 func (h *SemanticEntityHandler) writeSemanticAppError(c *gin.Context, err error) {
 	var invalidInput semanticapp.ErrInvalidInput
 	var forbidden semanticapp.ErrForbidden

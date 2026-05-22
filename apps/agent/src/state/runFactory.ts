@@ -6,6 +6,7 @@ import type { AgentRun, AgentRunInput, AgentRunPolicy, AgentRunRole, JSONValue, 
 
 export interface BuildAgentRunInput {
   id: string
+  sessionId?: string
   threadId: string
   now: string
   agentManifest: AgentManifest
@@ -27,6 +28,7 @@ export interface BuildAgentRunInput {
 export function buildAgentRun(input: BuildAgentRunInput): AgentRun {
   return {
     id: input.id,
+    ...(input.sessionId ? { sessionId: input.sessionId } : {}),
     threadId: input.threadId,
     status: 'queued',
     ...(input.role ? { role: input.role } : {}),

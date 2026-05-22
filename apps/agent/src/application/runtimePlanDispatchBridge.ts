@@ -1,5 +1,5 @@
 import type { AgentStore } from '../state/store.js'
-import type { DispatchTaskGraphInput, DispatchTaskGraphResult } from '../state/types.js'
+import type { AgentThread, CreateThreadInput, DispatchTaskGraphInput, DispatchTaskGraphResult } from '../state/types.js'
 import { applyRuntimeTaskGraphDispatchRequest } from './runtimePlanDispatch.js'
 import type { RuntimeTaskGraphStatusBridge } from './runtimePlanStatusBridge.js'
 import type { RuntimeRunControlBridge } from './runtimeRunControlBridge.js'
@@ -23,6 +23,7 @@ export function createRuntimeTaskGraphDispatchBridge(input: {
   planStatus: RuntimeTaskGraphStatusBridge
   streams: RuntimeStreamBridge
   taskEvents: RuntimeTaskEventBridge
+  createThread?: (input: CreateThreadInput) => AgentThread
   dispatchRequest?: typeof applyRuntimeTaskGraphDispatchRequest
 }): RuntimeTaskGraphDispatchBridge {
   const dispatchRequest = input.dispatchRequest ?? applyRuntimeTaskGraphDispatchRequest
@@ -33,6 +34,7 @@ export function createRuntimeTaskGraphDispatchBridge(input: {
       now: isoNow(),
       nowMs: Date.now(),
       updateTask: (taskId, update) => input.taskUpdate.updateTask(taskId, update),
+      ...(input.createThread ? { createThread: input.createThread } : {}),
       createRun: (runInput) => input.runCreation.createRun(runInput),
       cancelRun: (runId, reason) => input.runControl.cancelRun(runId, { reason }),
       syncTaskFromRun: (runId) => input.taskRunSync.syncTaskFromRun(runId),

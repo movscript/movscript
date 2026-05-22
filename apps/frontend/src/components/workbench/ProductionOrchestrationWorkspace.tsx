@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+
 import type { SemanticEntityPayload, SemanticEntityRecord } from '@/api/semanticEntities'
 import {
   InlineSceneMomentEditor,
@@ -38,20 +40,23 @@ export function ProductionOrchestrationWorkspace({
   selectedMomentId,
   isBindingSceneMomentScriptBlock,
   lookup,
-  onEditSegment,
   onCreateSegment,
   onCreateSceneMoment,
   onSelectSceneMoment,
+  onSaveSegment,
   onBindSceneMomentScriptBlock,
   onCreateAndBindSceneMomentScriptBlock,
   onSaveSceneMoment,
+  onDeleteSceneMoment,
   onLinkReferenceToSceneMoment,
   onUnlinkReferenceFromSceneMoment,
   onSaveExpressionLine,
   onDeleteExpressionLine,
   onAddExpressionLine,
   canDeleteFallbackContentUnits = false,
+  isSavingSegment,
   isSavingSceneMoment,
+  isDeletingSceneMoment,
   isLinkingSceneMomentReference,
   isDeletingSceneMomentReference,
   isSavingExpressionLine,
@@ -67,25 +72,29 @@ export function ProductionOrchestrationWorkspace({
   selectedMomentId: number | null
   isBindingSceneMomentScriptBlock: boolean
   lookup: ProductionWorkspaceLookup
-  onEditSegment: (record: SemanticEntityRecord) => void
   onCreateSegment: () => void
   onCreateSceneMoment: (segmentId: number) => void
   onSelectSceneMoment: (momentId: number) => void
+  onSaveSegment: (segmentId: number, payload: SemanticEntityPayload) => void
   onBindSceneMomentScriptBlock: (momentId: number, scriptBlockId: number | null) => void
   onCreateAndBindSceneMomentScriptBlock: (momentId: number, startLine: number, endLine: number) => void
   onSaveSceneMoment: (momentId: number, payload: SemanticEntityPayload) => void
+  onDeleteSceneMoment: (momentId: number) => void
   onLinkReferenceToSceneMoment: (momentId: number, referenceId: number, role: string) => void
   onUnlinkReferenceFromSceneMoment: (usageId: number) => void
   onSaveExpressionLine: (target: ProductionWritingExpressionEditTarget, payload: ProductionWritingExpressionSavePayload) => void
   onDeleteExpressionLine: (target: ProductionWritingExpressionEditTarget) => void
   onAddExpressionLine: (momentId: number, order: number, scriptBlockId?: number | null) => void
   canDeleteFallbackContentUnits?: boolean
+  isSavingSegment: boolean
   isSavingSceneMoment: boolean
+  isDeletingSceneMoment: boolean
   isLinkingSceneMomentReference: boolean
   isDeletingSceneMomentReference: boolean
   isSavingExpressionLine: boolean
   allowCreateAndBindSceneMomentScriptBlock?: boolean
 }) {
+  const [editingSegmentId, setEditingSegmentId] = useState<number | null>(null)
   const view = buildProductionOrchestrationWorkspaceView({
     segments,
     sceneMoments,
@@ -95,21 +104,29 @@ export function ProductionOrchestrationWorkspace({
     lookup,
   })
 
+  useEffect(() => {
+    if (editingSegmentId && view.selectedSegment?.ID !== editingSegmentId) {
+      setEditingSegmentId(null)
+    }
+  }, [editingSegmentId, view.selectedSegment?.ID])
+
   return (
     <div className="flex h-full min-h-0 flex-col p-4">
       <ProductionStructureWorkspaceLayout
         segments={view.segmentNavigatorItems}
         onCreateSegment={onCreateSegment}
         onCreateSceneMoment={onCreateSceneMoment}
-        onEditSegment={onEditSegment}
+        onEditSegment={(record: SemanticEntityRecord) => setEditingSegmentId(record.ID)}
         onSelectSceneMoment={onSelectSceneMoment}
       >
         <ProductionSelectedSegmentSummary
-          selectedSegmentTitle={view.selectedSegment ? productionOrchestrationRecordTitle(view.selectedSegment) : '未选择编排段'}
-          selectedSegmentSummary={view.selectedSegment ? String(view.selectedSegment.summary ?? view.selectedSegment.content ?? '这一段还没有说明编排功能。') : '选择情节后，这里会显示它所属编排段的节奏任务。'}
+          selectedSegment={view.selectedSegment}
           momentCount={view.selectedSegmentMoments.length}
           lineCount={view.selectedSegmentLineCount}
-          selectedSegmentId={view.selectedSegment?.ID ?? null}
+          isSaving={isSavingSegment}
+          editing={Boolean(view.selectedSegment && editingSegmentId === view.selectedSegment.ID)}
+          onEditingChange={(editing) => setEditingSegmentId(editing && view.selectedSegment ? view.selectedSegment.ID : null)}
+          onSaveSegment={onSaveSegment}
           onCreateSceneMoment={onCreateSceneMoment}
         />
 
@@ -135,9 +152,11 @@ export function ProductionOrchestrationWorkspace({
             scriptBlocks={scriptBlocks}
             scriptSourceText={scriptSourceText}
             isSaving={isSavingSceneMoment}
+            isDeleting={isDeletingSceneMoment}
             isBindingScriptBlock={isBindingSceneMomentScriptBlock}
             allowCreateAndBindMomentScriptBlock={allowCreateAndBindSceneMomentScriptBlock}
             onSave={onSaveSceneMoment}
+            onDelete={onDeleteSceneMoment}
             onBindMomentScriptBlock={onBindSceneMomentScriptBlock}
             onCreateAndBindMomentScriptBlock={onCreateAndBindSceneMomentScriptBlock}
           />

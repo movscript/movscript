@@ -20,6 +20,7 @@ export class GenerationJobWorkProvider implements RuntimeWorkProvider {
     const status = eventStatus(event?.status, event?.terminal)
     return {
       id: makeWorkId(),
+      sessionId: input.sessionId,
       threadId: input.threadId,
       runId: input.runId,
       kind: this.kind,

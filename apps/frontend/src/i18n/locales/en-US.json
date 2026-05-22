@@ -1011,7 +1011,6 @@
         "core_memory_create": "Create memory",
         "movscript_project_create": "Create project",
         "core_memory_delete": "Delete memory",
-        "draft_get": "Read draft",
         "draft_model_get": "Read draft model",
         "movscript_focus_get": "Read current focus",
         "generation_job_get": "Inspect generation job",
@@ -1026,13 +1025,12 @@
         "movscript_asset_slot_query": "Query asset slots",
         "movscript_creative_reference_query": "Query creative references",
         "movscript_production_context_query": "Query production context",
-        "movscript_project_script_read": "Read project scripts",
+        "movscript_script_locate": "Read project scripts",
         "core_user_input_request": "Request user input",
         "knowledge_search": "Search knowledge",
         "core_memory_search": "Search memories",
         "core_work_start": "Start runtime work",
         "core_skill_update": "Update active skills",
-        "draft_validate": "Validate draft",
         "draft_apply_preview": "Preview draft apply",
         "read_file": "Read file",
         "search_file": "Search file",
@@ -1061,8 +1059,8 @@
         "agent_task_graph_read": "Read Agent execution taskGraph",
         "agent_task_graph_write": "Update Agent execution taskGraph",
         "agent_skills_manage": "Manage Agent skills",
-        "agent_subagent_read": "Read subagent status",
-        "agent_subagent_write": "Manage subagents",
+        "agent_work_read": "Read async work",
+        "agent_work_write": "Manage async work",
         "asset_candidate_write": "Write asset candidates",
         "draft_apply": "Apply draft changes",
         "draft_read": "Read draft",
@@ -1254,7 +1252,7 @@
         "run": "Run Draft Tool",
         "assetModelPreset": "Asset proposal model",
         "createAssetDraftPreset": "Create asset draft shell",
-        "validatePreset": "Validate draft",
+        "createProductionDraftPreset": "Create production proposal shell",
         "previewApplyPreset": "Preview apply",
         "refreshTrace": "Refresh Trace"
       },
@@ -2204,7 +2202,14 @@
       "updatedAt": "Updated",
       "content": "Draft content",
       "source": "Source",
-      "target": "Target"
+      "target": "Target",
+      "kindFilters": {
+        "all": "All",
+        "proposal": "Proposals",
+        "script": "Scripts",
+        "note": "Notes/prompts",
+        "other": "Other"
+      }
     },
     "chat": {
       "aiAssistant": "AI Assistant",
@@ -2289,20 +2294,10 @@
         },
         "kinds": {
           "setting_proposal": "Setting proposal",
-          "script": "Script draft",
-          "creative_reference": "Creative reference suggestion",
-          "asset_slot": "Asset need",
-          "content_unit": "Shot suggestion",
-          "prompt": "Prompt",
-          "note": "Review note",
-          "pipeline": "Pipeline proposal",
-          "segment": "Segment proposal",
-          "scene_moment": "Scene moment proposal",
           "asset_proposal": "Asset candidate proposal",
           "project_standards_proposal": "Project standards proposal",
           "production_proposal": "Production proposal",
-          "content_unit_proposal": "Production item proposal",
-          "script_split_proposal": "Script split proposal"
+          "content_unit_proposal": "Production item proposal"
         }
       },
       "modes": {
@@ -2416,8 +2411,8 @@
           "memoryWrite": "Approving will change local agent memory and may affect future suggestions.",
           "memoryDelete": "Approving will delete the selected local agent memory.",
           "catalogReload": "Approving will reload local skills, tools, packs, and profiles from disk.",
-          "subagentSpawn": "Approving will start worker agent runs for scoped task graph tasks.",
-          "subagentCancel": "Approving will cancel the selected worker agent run.",
+            "workStart": "Approving will submit async runtime work; generation jobs may consume quota and subagent work starts worker runs.",
+            "workCancel": "Approving will cancel async runtime work; unfinished outputs or worker follow-up may not be produced.",
           "destructive": "Approving may remove or cancel existing data. Review the details before continuing.",
           "write": "Approving will allow a write action instead of only reading or previewing data.",
           "default": "Approving will let the agent call this tool and continue the run with its result."
@@ -2819,8 +2814,8 @@
             "memoryWrite": "Approving will change local agent memory and may affect future suggestions.",
             "memoryDelete": "Approving will delete the selected local agent memory.",
             "catalogReload": "Approving will reload local skills, tools, packs, and profiles from disk.",
-            "subagentSpawn": "Approving will start worker agent runs for scoped task graph tasks.",
-            "subagentCancel": "Approving will cancel the selected worker agent run.",
+            "workStart": "Approving will submit async runtime work; generation jobs may consume quota and subagent work starts worker runs.",
+          "workCancel": "Approving will cancel async runtime work; unfinished outputs or worker follow-up may not be produced.",
             "destructive": "Approving may remove or cancel existing data. Review the details before continuing.",
             "write": "Approving will allow a write action instead of only reading or previewing data.",
             "default": "Approving will let the agent call this tool and continue the run with its result."
@@ -3934,7 +3929,6 @@
       "projectTaskGraph": "Prep Overview",
       "creation": "Home",
       "workbench": "One-click Production",
-      "workbenchScript": "One-click Production",
       "workbenchCreative": "Setting Prep",
       "workbenchAssets": "Asset Workbench",
       "workbenchContentGeneration": "Content Orchestration",
@@ -4056,7 +4050,6 @@
       "assetProductionWorkbench": "Asset Production Workbench",
       "contentProductionWorkbench": "Production Execution Workbench",
       "workbench": "One-click Production",
-      "workbenchScript": "One-click Production",
       "workbenchCreative": "Setting Prep",
       "workbenchAssets": "Asset Workbench",
       "workbenchDelivery": "Delivery Gate",

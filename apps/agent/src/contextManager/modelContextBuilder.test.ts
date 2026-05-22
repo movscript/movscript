@@ -118,6 +118,59 @@ test('buildContext keeps default chat prompt lean', () => {
   assert.match(built.systemPrompt, /Available tool schemas are attached to the model call/)
 })
 
+test('buildContext tells plan tool users to compare currentPlan before updating', () => {
+  const built = buildContext({
+    manifest: DEFAULT_AGENT_MANIFEST,
+    skills: [],
+    context: {
+      route: { pathname: '/agent' },
+      projects: [],
+      recentResources: [],
+      attachments: [],
+      memories: [],
+      labels: [],
+    },
+    tools: {
+      discovered: [],
+      blocked: [],
+      byName: {},
+      available: [{
+        name: 'core_update_plan',
+        source: 'runtime',
+        registered: true,
+        granted: true,
+        available: true,
+        approval: 'never',
+        requiresApproval: false,
+      }],
+    },
+    policy: {
+      approvalMode: 'interactive',
+      maxToolCalls: 20,
+      maxIterations: 8,
+      allowNetwork: false,
+      allowFileBytes: false,
+    },
+    memories: [],
+    warnings: [],
+    history: [],
+    runtimeState: {
+      schema: 'movscript.thread-runtime-state.v1',
+      currentPlan: {
+        id: 'plan_1',
+        items: [{ step: '整理现状', status: 'completed' }],
+      },
+    },
+    userMessage: '把这个计划更新一下',
+  })
+
+  assert.match(built.systemPrompt, /Before calling core_update_plan/)
+  assert.match(built.systemPrompt, /Thread Runtime State\.currentPlan/)
+  assert.match(built.systemPrompt, /already up to date/)
+  assert.match(built.systemPrompt, /After core_update_plan returns status=updated or status=unchanged/)
+  assert.match(built.systemPrompt, /"currentPlan"/)
+})
+
 test('buildContext explains skill discovery and catalog inspection when a skill index is available', () => {
   const built = buildContext({
     manifest: DEFAULT_AGENT_MANIFEST,
@@ -431,6 +484,30 @@ test('buildRuntimeChatTools exposes runtime work start controls', () => {
   assert.equal(parameters, inputSchema)
   assert.deepEqual(parameters?.properties?.kind?.enum, ['generation_job', 'subagent_run'])
   assert.ok(parameters?.properties?.continuationPolicy)
+})
+
+test('buildRuntimeChatTools describes progress update as plan update', () => {
+  const tools = {
+    discovered: [],
+    blocked: [],
+    byName: {},
+    available: [{
+      name: 'core_update_plan',
+      source: 'runtime' as const,
+      registered: true,
+      granted: true,
+      available: true,
+      approval: 'never' as const,
+      requiresApproval: false,
+    }],
+  }
+  const [tool] = buildRuntimeChatTools(tools)
+  const parameters = tool?.function.parameters as any
+  assert.ok(parameters?.properties?.planId)
+  assert.match(parameters?.properties?.tasks?.description ?? '', /create, generate, or update a plan/)
+  assert.match(parameters?.properties?.tasks?.description ?? '', /currentPlan/)
+  assert.match(parameters?.properties?.tasks?.description ?? '', /do not call it again/)
+  assert.match(parameters?.properties?.tasks?.description ?? '', /未就绪/)
 })
 
 test('buildRuntimeChatTools preserves runtime schema composition for provider adapters', () => {

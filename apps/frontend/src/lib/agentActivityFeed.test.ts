@@ -79,14 +79,14 @@ test('buildAgentActivityFeed renders core draft tools as lightweight blocks', ()
   ])
 })
 
-test('buildAgentActivityFeed renders generation operation details from args and result', () => {
+test('buildAgentActivityFeed renders generation work details from args and result', () => {
   const feed = buildAgentActivityFeed({
     activity: activity({
       steps: [{
-        id: 'step_operation',
+        id: 'step_work',
         type: 'tool_call',
         status: 'completed',
-        toolName: 'core_operation_start',
+        toolName: 'core_work_start',
         args: {
           kind: 'generation_job',
           request: {
@@ -95,7 +95,7 @@ test('buildAgentActivityFeed renders generation operation details from args and 
             output_count: 2,
           },
         },
-        result: { operationId: 'op_1' },
+        result: { workId: 'work_1' },
         durationMs: 1450,
         createdAt: '2026-05-22T01:00:00.000Z',
         completedAt: '2026-05-22T01:00:01.000Z',
@@ -109,21 +109,21 @@ test('buildAgentActivityFeed renders generation operation details from args and 
   assert.equal(item?.durationMs, 1450)
   assert.deepEqual(item?.type === 'block' ? item.lines : [], [
     '类型：生成任务',
-    '任务：op_1',
+    '任务：work_1',
     '类型：image，模型：image-v1，数量：2',
-    '任务已提交，后续结果会从后台任务返回。',
+    '任务已提交，后续结果会从 runtime work 返回。',
   ])
 })
 
-test('buildAgentActivityFeed does not duplicate operation status traces as task cards', () => {
+test('buildAgentActivityFeed does not duplicate work status traces as task cards', () => {
   const feed = buildAgentActivityFeed({
     activity: activity({
       steps: [{
-        id: 'step_operation',
+        id: 'step_work',
         type: 'tool_call',
         status: 'completed',
         roundIndex: 1,
-        toolName: 'core_operation_start',
+        toolName: 'core_work_start',
         args: {
           kind: 'generation_job',
           request: {
@@ -131,20 +131,20 @@ test('buildAgentActivityFeed does not duplicate operation status traces as task 
             model_id: 'gpt-image-2',
           },
         },
-        result: { operationId: 'op_1' },
+        result: { workId: 'work_1' },
         durationMs: 166_000,
         createdAt: '2026-05-22T01:00:10.000Z',
         completedAt: '2026-05-22T01:02:56.000Z',
       }],
       events: [{
-        id: 'trace_operation',
+        id: 'trace_work',
         kind: 'tool_call',
-        title: 'Runtime operation running: generation_job',
+        title: 'Runtime work running: generation_job',
         status: 'info',
         roundIndex: 1,
-        toolName: 'core_operation_start',
+        toolName: 'core_work_start',
         data: {
-          runtimeOperation: { id: 'op_1', kind: 'generation_job', status: 'running' },
+          runtimeWork: { id: 'work_1', kind: 'generation_job', status: 'running' },
           generation: { jobId: 10, toolName: 'generation_job_create', stage: 'queued' },
         },
         createdAt: '2026-05-22T01:00:11.000Z',
@@ -152,15 +152,15 @@ test('buildAgentActivityFeed does not duplicate operation status traces as task 
     }),
   })
 
-  const taskItems = feed?.items.filter((item) => item.type === 'block' && item.title === '启动后台任务')
+  const taskItems = feed?.items.filter((item) => item.type === 'block' && item.title === '提交异步任务')
   assert.equal(taskItems?.length, 1)
   const item = taskItems?.[0]
   assert.equal(item?.durationMs, 166_000)
   assert.deepEqual(item?.type === 'block' ? item.lines : [], [
     '类型：生成任务',
-    '任务：op_1',
+    '任务：work_1',
     '类型：image，模型：gpt-image-2',
-    '任务已提交，后续结果会从后台任务返回。',
+    '任务已提交，后续结果会从 runtime work 返回。',
   ])
 })
 
@@ -179,7 +179,7 @@ test('buildAgentActivityFeed exposes draft file patch as plain text code', () =>
         id: 'step_edit',
         type: 'tool_call',
         status: 'completed',
-        toolName: 'draft_file_edit',
+        toolName: 'core_file_edit',
         args: {
           ref: 'agent://draft/draft_1/content',
           patch,
@@ -250,7 +250,7 @@ test('buildAgentActivityFeed renders model tool-call decisions before execution'
             eventType: 'model.tool_calls.requested',
             tool_calls: [
               { id: 'call_1', name: 'movscript_focus_get', args: {} },
-              { id: 'call_2', name: 'movscript_project_script_read', args: { projectId: 2, contentLimit: 50000 } },
+              { id: 'call_2', name: 'movscript_script_locate', args: { projectId: 2, contentLimit: 50000 } },
               { id: 'call_3', name: 'movscript_creative_reference_query', args: { projectId: 2, query: '舅爷' } },
             ],
           },

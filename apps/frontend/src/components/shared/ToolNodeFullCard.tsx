@@ -5,7 +5,8 @@ import { XCircle, Loader2, ChevronDown, History, ChevronUp } from 'lucide-react'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { publicModelLabel } from '@/lib/modelDisplay'
-import type { RawResource, PublicModel, CanvasTask } from '@/types'
+import type { RawResource, PublicModel } from '@/types'
+import { useCanvasRuntimeStore, type CanvasRuntimeTask } from '@/store/canvasRuntimeStore'
 import { Card, CardHeader, CardTitle, CardContent } from '@movscript/ui'
 import { GenInputCard } from './GenInputCard'
 import { AuthedImage, AuthedVideo } from './AuthedImage'
@@ -33,7 +34,7 @@ export interface ToolNodeFullCardProps {
   rfNodeId?: string
 }
 
-function TaskHistoryItem({ task, outputType, fallbackResource }: { task: CanvasTask; outputType: 'image' | 'video'; fallbackResource?: RawResource }) {
+function TaskHistoryItem({ task, outputType, fallbackResource }: { task: CanvasRuntimeTask; outputType: 'image' | 'video'; fallbackResource?: RawResource }) {
   const { t, i18n } = useTranslation()
   const resource = task.resource ?? fallbackResource
   const outputUrl = resource
@@ -41,7 +42,7 @@ function TaskHistoryItem({ task, outputType, fallbackResource }: { task: CanvasT
     : undefined
   const isRunning = task.status === 'pending' || task.status === 'running'
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
-  const ts = new Date(task.CreatedAt).toLocaleString(locale, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  const ts = new Date(task.startedAt).toLocaleString(locale, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 
   return (
     <div className="border border-border rounded-lg overflow-hidden type-label">
@@ -115,12 +116,12 @@ export function ToolNodeFullCard({
   })
 
   // Per-node gen history (only when inside a canvas)
-  const { data: nodeTasks = [] } = useQuery<CanvasTask[]>({
-    queryKey: ['canvas-node-tasks', canvasId, rfNodeId],
-    queryFn: () => api.get(`/canvases/${canvasId}/nodes/${rfNodeId}/tasks`).then(r => r.data),
-    enabled: !!canvasId && !!rfNodeId,
-    refetchInterval: status === 'pending' || status === 'running' ? 2000 : false,
-  })
+  const runsByCanvasId = useCanvasRuntimeStore((s) => s.runsByCanvasId)
+  const nodeTasks = canvasId && rfNodeId
+    ? (runsByCanvasId[canvasId] ?? [])
+      .map((run) => run.tasks[rfNodeId])
+      .filter((task): task is CanvasRuntimeTask => Boolean(task))
+    : []
 
   const isRunning = status === 'pending' || status === 'running'
   const canGenerate = !isRunning && !!(prompt?.trim())
@@ -269,7 +270,7 @@ export function ToolNodeFullCard({
             {historyExpanded && (
               <div className="mt-2 space-y-2 max-h-80 overflow-y-auto nowheel">
                 {historyTasks.map(task => (
-                  <TaskHistoryItem key={task.ID} task={task} outputType={outputType} />
+                  <TaskHistoryItem key={task.id} task={task} outputType={outputType} />
                 ))}
               </div>
             )}

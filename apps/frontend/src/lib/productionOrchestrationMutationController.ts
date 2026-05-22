@@ -1,4 +1,5 @@
 import {
+  abandonSceneMoment,
   createSemanticEntity,
   deleteSemanticEntity,
   semanticEntityConfig,
@@ -122,6 +123,22 @@ export function buildCreateAndBindSceneMomentScriptBlockMutationOptions(input: P
   }
 }
 
+export function buildUpdateSegmentMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
+  return {
+    mutationFn: async ({ segmentId, payload }: { segmentId: number; payload: SemanticEntityPayload }) => {
+      if (!input.projectId) throw new Error('请先选择项目')
+      return updateSemanticEntity(input.projectId, semanticEntityConfig('segments'), segmentId, payload)
+    },
+    onSuccess: () => {
+      toast.success('编排段已更新')
+      refreshProductionOrchestration(input)
+    },
+    onError: (error: unknown) => {
+      toast.error(productionMutationErrorMessage(error, '保存编排段失败'))
+    },
+  }
+}
+
 export function buildUpdateSceneMomentMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
   return {
     mutationFn: async ({ momentId, payload }: { momentId: number; payload: SemanticEntityPayload }) => {
@@ -134,6 +151,22 @@ export function buildUpdateSceneMomentMutationOptions(input: ProductionOrchestra
     },
     onError: (error: unknown) => {
       toast.error(productionMutationErrorMessage(error, '保存情节失败'))
+    },
+  }
+}
+
+export function buildDeleteSceneMomentMutationOptions(input: ProductionOrchestrationMutationBaseInput) {
+  return {
+    mutationFn: async (momentId: number) => {
+      if (!input.projectId) throw new Error('请先选择项目')
+      return abandonSceneMoment(input.projectId, momentId)
+    },
+    onSuccess: () => {
+      toast.success('情节已删除')
+      refreshProductionOrchestration(input)
+    },
+    onError: (error: unknown) => {
+      toast.error(productionMutationErrorMessage(error, '删除情节失败'))
     },
   }
 }

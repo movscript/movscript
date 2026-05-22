@@ -5,6 +5,7 @@ export const BASE_RETRIEVAL_TOOLS = new Set([
   'core_user_input_request',
   'core_catalog_inspect',
   'core_skill_update',
+  'core_update_plan',
 ])
 
 export const COMMAND_REQUIRED_TOOLS = new Set([

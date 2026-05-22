@@ -1,14 +1,31 @@
-import { type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { GitBranch, Pencil, Plus, Route, ScrollText, Target } from 'lucide-react'
+import { Check, GitBranch, Loader2, Pencil, Plus, Route, ScrollText, Target, X } from 'lucide-react'
 
-import type { SemanticEntityRecord } from '@/api/semanticEntities'
+import type { SemanticEntityPayload, SemanticEntityRecord } from '@/api/semanticEntities'
 import type { ScriptVersion } from '@/api/scriptVersions'
 import {
   ScriptVersionBindingInline,
 } from '@/components/workbench/ProductionScriptBinding'
 import { cn } from '@/lib/utils'
-import { Badge, Button } from '@movscript/ui'
+import { Badge, Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@movscript/ui'
+
+const segmentKindOptions = [
+  { value: 'emotional_function', label: '情绪功能' },
+  { value: 'rhythm_shift', label: '节奏变化' },
+  { value: 'dramatic_function', label: '戏剧功能' },
+  { value: 'setup', label: '铺垫' },
+  { value: 'escalation', label: '升级' },
+  { value: 'release', label: '释放' },
+  { value: 'reversal', label: '反转' },
+  { value: 'transition', label: '转场' },
+]
+
+const segmentStatusOptions = [
+  { value: 'draft', label: '草稿' },
+  { value: 'confirmed', label: '已确认' },
+  { value: 'ignored', label: '已忽略' },
+]
 
 export interface ProductionSegmentNavigatorMoment {
   id: number
@@ -177,9 +194,11 @@ export function ProductionSegmentNavigator({
                       <h3 className="mt-2 line-clamp-2 type-label font-semibold leading-5 text-foreground">{segment.title}</h3>
                       <p className="mt-1 line-clamp-2 type-caption leading-4 text-muted-foreground">{segment.summary}</p>
                     </div>
-                    <Button size="icon-xs" variant="ghost" aria-label={`编辑编排段 ${segment.title}`} onClick={() => onEditSegment(segment.rawRecord)}>
-                      <Pencil size={12} />
-                    </Button>
+                    {segment.active ? (
+                      <Button size="icon-xs" variant="ghost" aria-label={`编辑编排段 ${segment.title}`} onClick={() => onEditSegment(segment.rawRecord)}>
+                        <Pencil size={12} />
+                      </Button>
+                    ) : null}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <Badge variant="outline" className="h-5 rounded-full px-1.5 type-tiny">{segment.moments.length} 情节</Badge>
@@ -229,35 +248,154 @@ export function ProductionSegmentNavigator({
 }
 
 export function ProductionSelectedSegmentSummary({
-  selectedSegmentTitle,
-  selectedSegmentSummary,
+  selectedSegment,
   momentCount,
   lineCount,
-  selectedSegmentId,
+  isSaving,
+  editing,
   onCreateSceneMoment,
+  onEditingChange,
+  onSaveSegment,
 }: {
-  selectedSegmentTitle: string
-  selectedSegmentSummary: string
+  selectedSegment: SemanticEntityRecord | null
   momentCount: number
   lineCount: number
-  selectedSegmentId: number | null
+  isSaving: boolean
+  editing: boolean
   onCreateSceneMoment: (segmentId: number) => void
+  onEditingChange: (editing: boolean) => void
+  onSaveSegment: (segmentId: number, payload: SemanticEntityPayload) => void
 }) {
+  const [draft, setDraft] = useState({
+    title: '',
+    kind: 'emotional_function',
+    summary: '',
+    status: 'draft',
+  })
+
+  useEffect(() => {
+    setDraft({
+      title: stringField(selectedSegment?.title) || stringField(selectedSegment?.name) || '',
+      kind: stringField(selectedSegment?.kind) || 'emotional_function',
+      summary: stringField(selectedSegment?.summary) || stringField(selectedSegment?.content) || '',
+      status: stringField(selectedSegment?.status) || 'draft',
+    })
+  }, [selectedSegment?.ID, selectedSegment?.content, selectedSegment?.kind, selectedSegment?.name, selectedSegment?.status, selectedSegment?.summary, selectedSegment?.title])
+
+  const selectedSegmentId = selectedSegment?.ID ?? null
+  const selectedSegmentTitle = stringField(selectedSegment?.title) || stringField(selectedSegment?.name) || '未选择编排段'
+  const selectedSegmentSummary = stringField(selectedSegment?.summary) || stringField(selectedSegment?.content) || '这一段还没有说明编排功能。'
+  const original = {
+    title: stringField(selectedSegment?.title) || stringField(selectedSegment?.name) || '',
+    kind: stringField(selectedSegment?.kind) || 'emotional_function',
+    summary: stringField(selectedSegment?.summary) || stringField(selectedSegment?.content) || '',
+    status: stringField(selectedSegment?.status) || 'draft',
+  }
+  const changed = Object.keys(draft).some((key) => draft[key as keyof typeof draft].trim() !== original[key as keyof typeof original].trim())
+
+  function resetDraft() {
+    setDraft(original)
+    onEditingChange(false)
+  }
+
+  function saveDraft() {
+    if (!selectedSegmentId || !draft.title.trim()) return
+    onSaveSegment(selectedSegmentId, {
+      title: draft.title.trim(),
+      kind: draft.kind.trim(),
+      summary: draft.summary.trim(),
+      status: draft.status.trim(),
+    })
+    onEditingChange(false)
+  }
+
   return (
     <section className="border-b border-border pb-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 type-caption font-medium text-muted-foreground">
             <Route size={12} />
             当前编排段
           </div>
-          <h2 className="mt-1 type-body font-semibold text-foreground">{selectedSegmentTitle}</h2>
-          <p className="mt-1 type-label leading-5 text-muted-foreground">{selectedSegmentSummary}</p>
+          {editing && selectedSegment ? (
+            <div className="mt-2 grid gap-2">
+              <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_160px_120px]">
+                <label className="block type-label text-muted-foreground">
+                  标题
+                  <Input
+                    value={draft.title}
+                    onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))}
+                    className="mt-1 bg-background type-body"
+                    placeholder="编排段标题"
+                  />
+                </label>
+                <label className="block type-label text-muted-foreground">
+                  情绪功能
+                  <Select value={draft.kind} onValueChange={(value) => setDraft((prev) => ({ ...prev, kind: value }))}>
+                    <SelectTrigger className="mt-1 h-9 bg-background type-label">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {segmentKindOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+                <label className="block type-label text-muted-foreground">
+                  状态
+                  <Select value={draft.status} onValueChange={(value) => setDraft((prev) => ({ ...prev, status: value }))}>
+                    <SelectTrigger className="mt-1 h-9 bg-background type-label">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {segmentStatusOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+              </div>
+              <label className="block type-label text-muted-foreground">
+                情绪 / 节奏 / 戏剧功能说明
+                <Textarea
+                  value={draft.summary}
+                  onChange={(event) => setDraft((prev) => ({ ...prev, summary: event.target.value }))}
+                  className="mt-1 min-h-20 resize-y bg-background type-body leading-6"
+                  placeholder="说明这一段承担的情绪推进、节奏变化或戏剧功能"
+                />
+              </label>
+            </div>
+          ) : (
+            <>
+              <h2 className="mt-1 type-body font-semibold text-foreground">{selectedSegmentTitle}</h2>
+              <p className="mt-1 type-label leading-5 text-muted-foreground">{selectedSegmentSummary}</p>
+            </>
+          )}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Badge variant="outline" className="h-6 rounded-full px-2 type-tiny">{momentCount} 个情节 · {lineCount} 条表达</Badge>
+          {selectedSegment ? (
+            editing ? (
+              <>
+                <Button size="sm" variant="outline" className="gap-1.5 type-label" disabled={isSaving} onClick={resetDraft}>
+                  <X size={12} />
+                  取消
+                </Button>
+                <Button size="sm" className="gap-1.5 type-label" disabled={!draft.title.trim() || !changed || isSaving} onClick={saveDraft}>
+                  {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                  保存编排段
+                </Button>
+              </>
+            ) : (
+              <Button size="sm" variant="outline" className="gap-1.5 type-label" onClick={() => onEditingChange(true)} disabled={isSaving}>
+                <Pencil size={12} />
+                编辑说明
+              </Button>
+            )
+          ) : null}
           {selectedSegmentId ? (
-            <Button size="sm" className="gap-1.5 type-label" onClick={() => onCreateSceneMoment(selectedSegmentId)}>
+            <Button size="sm" className="gap-1.5 type-label" onClick={() => onCreateSceneMoment(selectedSegmentId)} disabled={editing}>
               <Plus size={12} />
               添加情节
             </Button>
@@ -266,6 +404,10 @@ export function ProductionSelectedSegmentSummary({
       </div>
     </section>
   )
+}
+
+function stringField(value: unknown) {
+  return typeof value === 'string' ? value : ''
 }
 
 export function ProductionSceneEditorHeader({

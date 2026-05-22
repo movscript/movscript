@@ -52,7 +52,7 @@ test('production proposal review applies accepted changes over the current snaps
   assert.match(source, /updateProductionProposalDraftText/)
   assert.match(source, /openedDraftQuery\.data\?\.kind === 'production_proposal'/)
   assert.match(source, /workspaceSegments/)
-  assert.match(source, /description: '待补表达'/)
+  assert.match(source, /text: '待补表达'/)
   assert.match(source, /canDeleteFallbackContentUnits=\{proposalModeActive\}/)
   assert.match(source, /正式项目当前只读/)
   assert.match(source, /localAgentClient\.updateDraft/)
@@ -178,6 +178,7 @@ test('production proposal snapshot model hydrates current project entities', () 
       { ID: 41, content_unit_id: 30, title: '内容画面', order: 1 },
     ],
     assetSlots: [{ ID: 50, owner_type: 'scene_moment', owner_id: 10, name: '素材', order: 1 }],
+    writingExpressions: [{ ID: 60, scene_moment_id: 10, kind: 'dialogue', speaker: '人物', text: '对白', intent: '人物表达', order: 1 }],
   })
 
   const moment = snapshot.segments[0]?.scene_moments?.[0]
@@ -185,9 +186,10 @@ test('production proposal snapshot model hydrates current project entities', () 
   assert.equal(moment?.title, '情节')
   assert.equal(moment?.creative_references?.[0]?.name, '人物')
   assert.equal(moment?.creative_references?.[0]?.role, '主视角')
-  assert.equal(moment?.content_units?.[0]?.keyframes?.[0]?.title, '内容画面')
-  assert.equal(moment?.keyframes?.[0]?.title, '情节画面')
-  assert.equal(moment?.asset_slots?.[0]?.name, '素材')
+  assert.equal(moment?.writing_expressions?.[0]?.text, '对白')
+  assert.equal(moment?.content_units?.length ?? 0, 0)
+  assert.equal(moment?.keyframes?.length ?? 0, 0)
+  assert.equal(moment?.asset_slots?.length ?? 0, 0)
 })
 
 test('production proposal review keeps internal delete markers out of apply payloads', () => {

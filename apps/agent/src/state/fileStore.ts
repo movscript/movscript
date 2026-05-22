@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
 import type { RuntimeWork } from '../runtimeWork/runtimeWork.js'
 import type {
+  AgentSession,
   AgentTaskGraph,
   AgentRun,
   AgentRunStep,
@@ -13,7 +14,7 @@ import type {
   RuntimeContinuation,
   RuntimeInteraction,
 } from './types.js'
-import { InMemoryAgentStore, type AgentStore, type AgentTraceQuery } from './store.js'
+import { InMemoryAgentStore, type AgentStore, type AgentThreadClearResult, type AgentThreadDeletionResult, type AgentTraceQuery } from './store.js'
 import { FileTraceStore } from './fileTraceStore.js'
 import type { AgentRunTraceSummary } from './runTrace.js'
 import type { AgentRunDebugLedger } from './runDebugLedger.js'
@@ -21,7 +22,8 @@ import { isRecord } from '../jsonValue.js'
 import { isValidAgentProjectId } from '../context/runtimeContext.js'
 
 interface AgentStateFile {
-  version: 1 | 2 | 3 | 4 | 5
+  version: 6
+  sessions: AgentSession[]
   threads: AgentThread[]
   runs: AgentRun[]
   plans?: AgentTaskGraph[]
@@ -66,6 +68,16 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
     }
   }
 
+  override createSession(session: AgentSession): void {
+    super.createSession(session)
+    this.schedulePersist()
+  }
+
+  override updateSession(session: AgentSession): void {
+    super.updateSession(session)
+    this.schedulePersist()
+  }
+
   override createThread(thread: AgentThread): void {
     super.createThread(thread)
     this.schedulePersist()
@@ -74,6 +86,24 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
   override updateThread(thread: AgentThread): void {
     super.updateThread(thread)
     this.schedulePersist()
+  }
+
+  override deleteThread(threadId: string): AgentThreadDeletionResult {
+    const deletion = super.deleteThread(threadId)
+    if (!deletion.deleted) return deletion
+    this.traceStore.deleteRunTraceEvents(deletion.deletedRunIds, { threadId })
+    this.schedulePersist()
+    this.flush()
+    return deletion
+  }
+
+  override deleteAllThreads(): AgentThreadClearResult {
+    const deletion = super.deleteAllThreads()
+    if (!deletion.deleted) return deletion
+    this.traceStore.deleteRunTraceEvents(deletion.deletedRunIds)
+    this.schedulePersist()
+    this.flush()
+    return deletion
   }
 
   override createRun(run: AgentRun): void {
@@ -219,6 +249,11 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
     let compactedRunCount = 0
     let migratedTraceEventCount = 0
     let debugLedgerCount = 0
+    if (parsed.version !== 6) return false
+    for (const session of arrayValue(parsed.sessions)) {
+      if (!isRecord(session)) continue
+      super.createSession(session as unknown as AgentSession)
+    }
     for (const thread of arrayValue(parsed.threads)) {
       if (!isRecord(thread)) continue
       super.createThread(normalizeThread(thread as unknown as AgentThread))
@@ -271,6 +306,7 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
       `parse=${parseMs}ms`,
       `hydrate=${hydrateMs}ms`,
       `rawBytes=${rawBytes}`,
+      `sessions=${this.listSessions().length}`,
       `threads=${this.listThreads().length}`,
       `runs=${this.listRuns().length}`,
       `compactedRuns=${compactedRunCount}`,
@@ -293,7 +329,8 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
   private persist(): void {
     const runs = this.listRuns().map((run) => compactPersistedRun(run).run)
     const state: AgentStateFile = {
-      version: 5,
+      version: 6,
+      sessions: this.listSessions(),
       threads: this.listThreads(),
       runs,
       plans: this.listTaskGraphs(),

@@ -64,8 +64,6 @@ export const LEGACY_ROUTES = {
   creation: '/creation',
   creativeWorkbench: '/creative-workbench',
   workbench: '/workbench',
-  scriptSplitWorkbench: '/script-split-workbench',
-  workbenchScript: '/workbench/script',
   workbenchCreative: '/workbench/creative',
   workbenchAssets: '/workbench/assets',
   workbenchProduction: '/workbench/production',

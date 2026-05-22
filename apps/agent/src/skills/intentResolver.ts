@@ -143,7 +143,7 @@ const INTENT_KEYWORD_MAPPINGS = [
     '这张图',
     '这张图片',
   ]],
-  ['planner_subagents', ['subagent', 'worker', 'parallel', '并行', '子代理', '分工']],
+  ['planner_subagents', ['subagent', 'worker', 'parallel', '并行', '子 agent', '分工']],
 ] as const
 
 function matchesIntentNeedle(message: string, needle: string, intent: string): boolean {

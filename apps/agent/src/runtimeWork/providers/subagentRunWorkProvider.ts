@@ -1,5 +1,5 @@
 import { isJSONRecord } from '../../jsonValue.js'
-import type { AgentRun, CancelRunInput, CreateRunInput, JSONValue } from '../../state/types.js'
+import type { AgentRun, AgentThread, CancelRunInput, CreateRunInput, CreateThreadInput, JSONValue } from '../../state/types.js'
 import type { RuntimeWork, RuntimeWorkStartInput, RuntimeWorkStatus } from '../runtimeWork.js'
 import type { RuntimeWorkProvider } from '../runtimeWorkProvider.js'
 
@@ -7,6 +7,7 @@ export class SubagentRunWorkProvider implements RuntimeWorkProvider {
   readonly kind = 'subagent_run' as const
 
   constructor(private readonly runtime: {
+    createThread?: (input: CreateThreadInput) => AgentThread
     createRun: (input: CreateRunInput) => AgentRun
     getRun: (runId: string) => AgentRun | undefined
     listRuns: (query?: { threadId?: string; parentRunId?: string }) => AgentRun[]
@@ -16,11 +17,12 @@ export class SubagentRunWorkProvider implements RuntimeWorkProvider {
   async start(input: RuntimeWorkStartInput): Promise<RuntimeWork> {
     const request = input.request
     const now = new Date().toISOString()
+    if (!input.sessionId) throw new Error('subagent run requires sessionId')
     const subagentName = normalizeString(request.subagentName)
       ?? normalizeString(request.name)
       ?? nextSubagentName(new Set(this.runtime.listRuns({ threadId: input.threadId })
         .flatMap((run) => typeof run.metadata?.subagentName === 'string' ? [run.metadata.subagentName] : [])))
-    const title = normalizeString(request.title) ?? normalizeString(request.message) ?? 'Child agent task'
+    const title = normalizeString(request.title) ?? normalizeString(request.message) ?? subagentName ?? 'Child agent task'
     const description = normalizeString(request.description) ?? normalizeString(request.instructions) ?? normalizeString(request.message)
     const instructions = [
       `Child agent task: ${title}`,
@@ -28,8 +30,32 @@ export class SubagentRunWorkProvider implements RuntimeWorkProvider {
       normalizeString(request.expectedOutput) ? `Expected output: ${normalizeString(request.expectedOutput)}` : undefined,
       normalizeString(request.writeScope) ? `Write scope: ${normalizeString(request.writeScope)}` : undefined,
     ].filter(Boolean).join('\n\n')
+    const childThread = this.runtime.createThread?.({
+      sessionId: input.sessionId,
+      title,
+      agentName: subagentName,
+      agentRole: 'worker',
+      parentThreadId: input.threadId,
+      parentRunId: input.runId,
+      metadata: {
+        subagentName,
+        createdByPlannerRunId: input.runId,
+        ...(isJSONRecord(request.metadata) ? { taskMetadata: request.metadata } : {}),
+      },
+    }) ?? {
+      id: input.threadId,
+      sessionId: input.sessionId,
+      agentName: subagentName,
+      agentRole: 'worker',
+      parentThreadId: input.threadId,
+      parentRunId: input.runId,
+      createdAt: now,
+      updatedAt: now,
+      messages: [],
+    }
     const childRun = this.runtime.createRun({
-      threadId: input.threadId,
+      threadId: childThread.id,
+      sessionId: input.sessionId,
       userMessage: instructions,
       role: 'worker',
       parentRunId: input.runId,
@@ -42,7 +68,7 @@ export class SubagentRunWorkProvider implements RuntimeWorkProvider {
       progress: 0,
       metadata: {
         subagentName,
-        childAgent: true,
+        childThreadId: childThread.id,
         createdByPlannerRunId: input.runId,
         ...(isJSONRecord(request.metadata) ? { taskMetadata: request.metadata } : {}),
       },
@@ -55,6 +81,7 @@ export class SubagentRunWorkProvider implements RuntimeWorkProvider {
     })
     return {
       id: makeWorkId(),
+      sessionId: input.sessionId,
       threadId: input.threadId,
       runId: input.runId,
       kind: this.kind,
@@ -63,7 +90,7 @@ export class SubagentRunWorkProvider implements RuntimeWorkProvider {
       request,
       ...(input.continuationPolicy ? { continuationPolicy: input.continuationPolicy } : {}),
       externalHandle: { provider: 'movscript-agent', type: 'agent_run', id: childRun.id },
-      result: summarizeRun(childRun, subagentName),
+      result: summarizeRun(childRun, subagentName, childThread.id),
       ...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),
       ...(input.pollIntervalMs !== undefined ? { pollIntervalMs: input.pollIntervalMs } : {}),
       createdAt: now,
@@ -120,9 +147,12 @@ function isTerminalRun(run: AgentRun): boolean {
     || run.status === 'cancelled'
 }
 
-function summarizeRun(run: AgentRun, subagentName?: string): JSONValue {
+function summarizeRun(run: AgentRun, subagentName?: string, childThreadId?: string): JSONValue {
+  const resolvedChildThreadId = childThreadId ?? (typeof run.metadata?.childThreadId === 'string' ? run.metadata.childThreadId : undefined)
   return {
     runId: run.id,
+    threadId: run.threadId,
+    childThreadId: resolvedChildThreadId,
     status: run.status,
     role: run.role,
     parentRunId: run.parentRunId,

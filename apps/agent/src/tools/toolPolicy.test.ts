@@ -6,7 +6,7 @@ import { StaticToolRegistry } from './toolRegistry.js'
 
 const registry = new StaticToolRegistry([
   {
-    name: 'movscript_project_script_read',
+    name: 'movscript_script_locate',
     description: 'Read project scripts.',
     permission: 'project.read',
     risk: 'read',
@@ -74,8 +74,8 @@ const registry = new StaticToolRegistry([
 
 test('tool policy injects current projectId into project scoped tools', () => {
   const result = applyToolPolicy([
-    { name: 'movscript_project_script_read', args: { limit: 10 } },
-    { name: 'draft_create', args: { kind: 'note', title: 't', content: 'c' } },
+    { name: 'movscript_script_locate', args: { limit: 10 } },
+    { name: 'draft_create', args: { kind: 'project_standards_proposal', title: 't', content: 'c' } },
   ], {
     currentProjectId: 42,
     registry,
@@ -95,7 +95,7 @@ test('tool policy injects current projectId into project scoped tools', () => {
 
 test('tool policy blocks project scoped tools without a current project', () => {
   const result = applyToolPolicy([
-    { name: 'movscript_project_script_read', args: { limit: 10 } },
+    { name: 'movscript_script_locate', args: { limit: 10 } },
   ], { registry })
 
   assert.deepEqual(result.toolCalls, [])
@@ -104,18 +104,18 @@ test('tool policy blocks project scoped tools without a current project', () => 
 
 test('tool policy allows explicit projectId for read-only project scoped tools without a current project', () => {
   const result = applyToolPolicy([
-    { name: 'movscript_project_script_read', args: { projectId: 42, limit: 10 } },
+    { name: 'movscript_script_locate', args: { projectId: 42, limit: 10 } },
   ], { registry })
 
   assert.deepEqual(result.warnings, [])
   assert.equal(result.blockedToolCalls.length, 0)
-  assert.equal(result.toolCalls[0].name, 'movscript_project_script_read')
+  assert.equal(result.toolCalls[0].name, 'movscript_script_locate')
   assert.equal(result.toolCalls[0].args?.projectId, 42)
 })
 
 test('tool policy still requires a current project for non-read project scoped tools', () => {
   const result = applyToolPolicy([
-    { name: 'draft_create', args: { projectId: 42, kind: 'note', title: 't', content: 'c' } },
+    { name: 'draft_create', args: { projectId: 42, kind: 'project_standards_proposal', title: 't', content: 'c' } },
   ], {
     registry,
     manifest: {
@@ -135,7 +135,7 @@ test('tool policy still requires a current project for non-read project scoped t
 test('tool policy blocks project scoped tools with invalid current project ids', () => {
   for (const currentProjectId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY]) {
     const result = applyToolPolicy([
-      { name: 'movscript_project_script_read', args: { limit: 10 } },
+      { name: 'movscript_script_locate', args: { limit: 10 } },
     ], { currentProjectId, registry })
 
     assert.deepEqual(result.toolCalls, [])
@@ -180,13 +180,13 @@ test('tool policy blocks tools outside the whitelist', () => {
 
 test('tool policy blocks registered tools that the manifest does not grant', () => {
   const result = applyToolPolicy([
-    { name: 'draft_create', args: { kind: 'note', title: 't', content: 'c' } },
+    { name: 'draft_create', args: { kind: 'project_standards_proposal', title: 't', content: 'c' } },
   ], {
     currentProjectId: 42,
     registry,
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      tools: [{ name: 'movscript_project_script_read', mode: 'allow' }],
+      tools: [{ name: 'movscript_script_locate', mode: 'allow' }],
     },
   })
 

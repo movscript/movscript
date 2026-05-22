@@ -1,5 +1,7 @@
 import type { RuntimeWork } from '../runtimeWork/runtimeWork.js'
 import type {
+  AgentSession,
+  AgentSessionSummary,
   AgentTaskGraph,
   AgentRun,
   AgentTask,
@@ -27,8 +29,15 @@ export interface AgentTraceQuery {
 }
 
 export interface AgentStore {
+  createSession(session: AgentSession): void
+  updateSession(session: AgentSession): void
+  listSessions(): AgentSession[]
+  listSessionSummaries(): AgentSessionSummary[]
+  getSession(id: string): AgentSession | undefined
   createThread(thread: AgentThread): void
   updateThread(thread: AgentThread): void
+  deleteThread(threadId: string): AgentThreadDeletionResult
+  deleteAllThreads(): AgentThreadClearResult
   listThreads(): AgentThread[]
   listThreadSummaries(): AgentThreadSummary[]
   getThread(id: string): AgentThread | undefined
@@ -66,7 +75,30 @@ export interface AgentStore {
   updateRunDebugLedger(runId: string, ledger: AgentRunDebugLedger): void
 }
 
+export interface AgentThreadDeletionResult {
+  deleted: boolean
+  threadId: string
+  deletedRunIds: string[]
+  deletedTaskGraphIds: string[]
+  deletedTaskIds: string[]
+  deletedRuntimeWorkIds: string[]
+  deletedRuntimeInteractionIds: string[]
+  deletedRuntimeContinuationIds: string[]
+}
+
+export interface AgentThreadClearResult {
+  deleted: boolean
+  deletedThreadIds: string[]
+  deletedRunIds: string[]
+  deletedTaskGraphIds: string[]
+  deletedTaskIds: string[]
+  deletedRuntimeWorkIds: string[]
+  deletedRuntimeInteractionIds: string[]
+  deletedRuntimeContinuationIds: string[]
+}
+
 export interface AgentRunQuery {
+  sessionId?: string
   threadId?: string
   parentRunId?: string
   taskGraphId?: string
@@ -75,6 +107,7 @@ export interface AgentRunQuery {
 }
 
 export interface RuntimeWorkQuery {
+  sessionId?: string
   threadId?: string
   runId?: string
   status?: RuntimeWork['status']
@@ -96,6 +129,7 @@ export interface RuntimeContinuationQuery {
 }
 
 export class InMemoryAgentStore implements AgentStore {
+  private readonly sessions = new Map<string, AgentSession>()
   private readonly threads = new Map<string, AgentThread>()
   private readonly runs = new Map<string, AgentRun>()
   private readonly plans = new Map<string, AgentTaskGraph>()
@@ -106,12 +140,138 @@ export class InMemoryAgentStore implements AgentStore {
   private readonly traceEventsByRun = new Map<string, AgentTraceEvent[]>()
   private readonly debugLedgersByRun = new Map<string, AgentRunDebugLedger>()
 
+  createSession(session: AgentSession): void {
+    this.sessions.set(session.id, clone(session))
+  }
+
+  updateSession(session: AgentSession): void {
+    this.sessions.set(session.id, clone(session))
+  }
+
+  listSessions(): AgentSession[] {
+    return Array.from(this.sessions.values())
+      .map((session) => clone(session))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  }
+
+  listSessionSummaries(): AgentSessionSummary[] {
+    const threadCounts = new Map<string, number>()
+    for (const thread of this.threads.values()) {
+      if (!thread.sessionId) continue
+      threadCounts.set(thread.sessionId, (threadCounts.get(thread.sessionId) ?? 0) + 1)
+    }
+    return this.listSessions().map((session) => toSessionSummary(session, threadCounts.get(session.id) ?? 0))
+  }
+
+  getSession(id: string): AgentSession | undefined {
+    const session = this.sessions.get(id)
+    return session ? clone(session) : undefined
+  }
+
   createThread(thread: AgentThread): void {
     this.threads.set(thread.id, clone(thread))
   }
 
   updateThread(thread: AgentThread): void {
     this.threads.set(thread.id, clone(thread))
+  }
+
+  deleteThread(threadId: string): AgentThreadDeletionResult {
+    const thread = this.threads.get(threadId)
+    const deletedRunIds = Array.from(this.runs.values())
+      .filter((run) => run.threadId === threadId)
+      .map((run) => run.id)
+    const deletedTaskGraphIds = Array.from(this.plans.values())
+      .filter((taskGraph) => taskGraph.threadId === threadId)
+      .map((taskGraph) => taskGraph.id)
+    const deletedTaskGraphIdSet = new Set(deletedTaskGraphIds)
+    const deletedTaskIds = Array.from(this.tasks.values())
+      .filter((task) => deletedTaskGraphIdSet.has(task.taskGraphId))
+      .map((task) => task.id)
+    const deletedRuntimeWorkIds = Array.from(this.runtimeWorks.values())
+      .filter((work) => work.threadId === threadId)
+      .map((work) => work.id)
+    const deletedRuntimeInteractionIds = Array.from(this.runtimeInteractions.values())
+      .filter((interaction) => interaction.threadId === threadId)
+      .map((interaction) => interaction.id)
+    const deletedRuntimeContinuationIds = Array.from(this.runtimeContinuations.values())
+      .filter((continuation) => continuation.threadId === threadId)
+      .map((continuation) => continuation.id)
+
+    if (!thread) {
+      return {
+        deleted: false,
+        threadId,
+        deletedRunIds: [],
+        deletedTaskGraphIds: [],
+        deletedTaskIds: [],
+        deletedRuntimeWorkIds: [],
+        deletedRuntimeInteractionIds: [],
+        deletedRuntimeContinuationIds: [],
+      }
+    }
+
+    this.threads.delete(threadId)
+    for (const runId of deletedRunIds) {
+      this.runs.delete(runId)
+      this.traceEventsByRun.delete(runId)
+      this.debugLedgersByRun.delete(runId)
+    }
+    for (const taskGraphId of deletedTaskGraphIds) this.plans.delete(taskGraphId)
+    for (const taskId of deletedTaskIds) this.tasks.delete(taskId)
+    for (const workId of deletedRuntimeWorkIds) this.runtimeWorks.delete(workId)
+    for (const interactionId of deletedRuntimeInteractionIds) this.runtimeInteractions.delete(interactionId)
+    for (const continuationId of deletedRuntimeContinuationIds) this.runtimeContinuations.delete(continuationId)
+
+    return {
+      deleted: true,
+      threadId,
+      deletedRunIds,
+      deletedTaskGraphIds,
+      deletedTaskIds,
+      deletedRuntimeWorkIds,
+      deletedRuntimeInteractionIds,
+      deletedRuntimeContinuationIds,
+    }
+  }
+
+  deleteAllThreads(): AgentThreadClearResult {
+    const threadIds = Array.from(this.threads.keys())
+    const deletedRunIds = Array.from(this.runs.keys())
+    const deletedTaskGraphIds = Array.from(this.plans.keys())
+    const deletedTaskIds = Array.from(this.tasks.keys())
+    const deletedRuntimeWorkIds = Array.from(this.runtimeWorks.keys())
+    const deletedRuntimeInteractionIds = Array.from(this.runtimeInteractions.keys())
+    const deletedRuntimeContinuationIds = Array.from(this.runtimeContinuations.keys())
+    const deleted = threadIds.length > 0
+      || deletedRunIds.length > 0
+      || deletedTaskGraphIds.length > 0
+      || deletedTaskIds.length > 0
+      || deletedRuntimeWorkIds.length > 0
+      || deletedRuntimeInteractionIds.length > 0
+      || deletedRuntimeContinuationIds.length > 0
+
+    this.sessions.clear()
+    this.threads.clear()
+    this.runs.clear()
+    this.plans.clear()
+    this.tasks.clear()
+    this.runtimeWorks.clear()
+    this.runtimeInteractions.clear()
+    this.runtimeContinuations.clear()
+    this.traceEventsByRun.clear()
+    this.debugLedgersByRun.clear()
+
+    return {
+      deleted,
+      deletedThreadIds: threadIds,
+      deletedRunIds,
+      deletedTaskGraphIds,
+      deletedTaskIds,
+      deletedRuntimeWorkIds,
+      deletedRuntimeInteractionIds,
+      deletedRuntimeContinuationIds,
+    }
   }
 
   listThreads(): AgentThread[] {
@@ -177,6 +337,7 @@ export class InMemoryAgentStore implements AgentStore {
 
   listRuns(query: AgentRunQuery = {}): AgentRun[] {
     return Array.from(this.runs.values())
+      .filter((run) => query.sessionId === undefined || run.sessionId === query.sessionId)
       .filter((run) => query.threadId === undefined || run.threadId === query.threadId)
       .filter((run) => query.parentRunId === undefined || run.parentRunId === query.parentRunId)
       .filter((run) => query.taskGraphId === undefined || run.taskGraphId === query.taskGraphId)
@@ -244,6 +405,7 @@ export class InMemoryAgentStore implements AgentStore {
 
   listRuntimeWorks(query: RuntimeWorkQuery = {}): RuntimeWork[] {
     return Array.from(this.runtimeWorks.values())
+      .filter((work) => query.sessionId === undefined || work.sessionId === query.sessionId)
       .filter((work) => query.threadId === undefined || work.threadId === query.threadId)
       .filter((work) => query.runId === undefined || work.runId === query.runId)
       .filter((work) => query.status === undefined || work.status === query.status)
@@ -379,10 +541,15 @@ export function toThreadSummary(thread: AgentThread): AgentThreadSummary {
   const lastMessage = thread.messages.at(-1)
   return {
     id: thread.id,
+    ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
     ...(thread.title ? { title: thread.title } : {}),
+    ...(thread.agentName ? { agentName: thread.agentName } : {}),
+    ...(thread.agentRole ? { agentRole: thread.agentRole } : {}),
+    ...(thread.parentThreadId ? { parentThreadId: thread.parentThreadId } : {}),
+    ...(thread.parentRunId ? { parentRunId: thread.parentRunId } : {}),
     ...(isValidAgentProjectId(thread.projectId) ? { projectId: thread.projectId } : {}),
     ...(thread.metadata ? { metadata: clone(thread.metadata) } : {}),
-    ...(thread.currentProgressChecklist ? { currentProgressChecklist: clone(thread.currentProgressChecklist) } : {}),
+    ...(thread.currentPlan ? { currentPlan: clone(thread.currentPlan) } : {}),
     archived: thread.archived === true,
     ...(thread.status ? { status: thread.status } : {}),
     ...(thread.activeRunId ? { activeRunId: thread.activeRunId } : {}),
@@ -392,6 +559,21 @@ export function toThreadSummary(thread: AgentThread): AgentThreadSummary {
     updatedAt: thread.updatedAt,
     messageCount: thread.messages.length,
     ...(lastMessage ? { lastMessageAt: lastMessage.createdAt } : {}),
+  }
+}
+
+export function toSessionSummary(session: AgentSession, threadCount: number): AgentSessionSummary {
+  return {
+    id: session.id,
+    ...(session.title ? { title: session.title } : {}),
+    ...(isValidAgentProjectId(session.projectId) ? { projectId: session.projectId } : {}),
+    ...(session.metadata ? { metadata: clone(session.metadata) } : {}),
+    ...(session.rootThreadId ? { rootThreadId: session.rootThreadId } : {}),
+    ...(session.activeThreadId ? { activeThreadId: session.activeThreadId } : {}),
+    ...(session.status ? { status: session.status } : {}),
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    threadCount,
   }
 }
 

@@ -107,6 +107,7 @@ func newSemanticProposalHandlerTestDB(t *testing.T) *gorm.DB {
 		&model.Production{},
 		&model.Segment{},
 		&model.SceneMoment{},
+		&model.WritingExpression{},
 		&model.ContentUnit{},
 		&model.Keyframe{},
 		&model.CreativeReference{},

@@ -347,7 +347,7 @@ test('resolveRuntimeRunSetup applies default tool policy overrides without chang
 
 test('resolveRuntimeRunSetup adds active skill tool grants to custom manifests', async () => {
   const readScriptsTool = {
-    name: 'movscript_project_script_read',
+    name: 'movscript_script_locate',
     description: 'Read project scripts',
     inputSchema: { type: 'object' },
     permission: 'project.script.read',
@@ -371,7 +371,7 @@ test('resolveRuntimeRunSetup adds active skill tool grants to custom manifests',
       instructionTemplate: 'Read scripts.',
       loadMode: 'manual',
       triggers: [{ kind: 'keyword', any: ['剧本'] }],
-      toolRefs: ['tool://movscript_project_script_read'],
+      toolRefs: ['tool://movscript_script_locate'],
     }],
     profiles: [{
       schema: 'movscript.agent.profile.v1',
@@ -392,7 +392,7 @@ test('resolveRuntimeRunSetup adds active skill tool grants to custom manifests',
     name: 'Explicit Manifest',
     tools: [
       { name: 'core_skill_update', mode: 'allow', approval: 'never' },
-      { name: 'movscript_project_script_read', mode: 'deny', approval: 'never' },
+      { name: 'movscript_script_locate', mode: 'deny', approval: 'never' },
     ],
   }
   const run = makeRun({
@@ -415,7 +415,7 @@ test('resolveRuntimeRunSetup adds active skill tool grants to custom manifests',
       toolRegistry: new StaticToolRegistry([
         tool('core_skill_update'),
         {
-          name: 'movscript_project_script_read',
+          name: 'movscript_script_locate',
           description: 'Read project scripts',
           permission: 'project.script.read',
           risk: 'read',
@@ -446,9 +446,9 @@ test('resolveRuntimeRunSetup adds active skill tool grants to custom manifests',
   assert.equal(result.activeManifest.id, 'explicit_manifest')
   assert.deepEqual(result.skills.map((skill) => skill.id), ['movscript.workflow.script_reading'])
   assert.ok(result.activeManifest.tools.some((grant) => grant.name === 'core_skill_update'))
-  assert.equal(result.activeManifest.tools.find((grant) => grant.name === 'movscript_project_script_read')?.mode, 'allow')
+  assert.equal(result.activeManifest.tools.find((grant) => grant.name === 'movscript_script_locate')?.mode, 'allow')
   assert.equal(result.activeManifest.tools.some((grant) => grant.name === 'unrelated_profile_tool'), false)
-  assert.equal(result.capabilities.resolvedTools.byName.movscript_project_script_read?.available, true)
+  assert.equal(result.capabilities.resolvedTools.byName.movscript_script_locate?.available, true)
 })
 
 function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {

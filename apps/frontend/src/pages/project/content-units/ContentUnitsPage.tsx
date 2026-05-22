@@ -26,7 +26,7 @@ import {
   Wand2,
 } from 'lucide-react'
 
-import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { abandonContentUnit, listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { ProjectSurfaceHeader } from '@/components/app/AppPage'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
 import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
@@ -36,6 +36,7 @@ import { readNumberParam, readStringParam, updateContentFilterParams, type Conte
 import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
 import { buildContentWorkbenchRouteSearch } from '@/lib/contentWorkbenchRoute'
 import { unitIdentifier } from '@/lib/productionIdentifiers'
+import { isActiveSemanticEntityRecord } from '@/lib/semanticEntityVisibility'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge, Button, Progress } from '@movscript/ui'
@@ -303,10 +304,13 @@ export default function ContentUnitsPage() {
     enabled: !!projectId,
   })
 
-  const contentUnits = useMemo(() => (contentUnitsQuery.data ?? []).slice().sort(compareByOrder), [contentUnitsQuery.data])
+  const contentUnits = useMemo(
+    () => (contentUnitsQuery.data ?? []).filter(isActiveSemanticEntityRecord).slice().sort(compareByOrder),
+    [contentUnitsQuery.data],
+  )
   const scriptBlocks = scriptBlocksQuery.data ?? []
-  const sceneMoments = sceneMomentsQuery.data ?? []
-  const sections = sectionsQuery.data ?? []
+  const sceneMoments = useMemo(() => (sceneMomentsQuery.data ?? []).filter(isActiveSemanticEntityRecord), [sceneMomentsQuery.data])
+  const sections = useMemo(() => (sectionsQuery.data ?? []).filter(isActiveSemanticEntityRecord), [sectionsQuery.data])
   const keyframes = useMemo(
     () => (keyframesQuery.data ?? []).filter((item) => !isGeneratedKeyframeCandidateRecord(item)),
     [keyframesQuery.data],
@@ -581,6 +585,7 @@ export default function ContentUnitsPage() {
                 setCreatingContentUnit(false)
                 setFilter({ content_unit_id: record.ID, scene_moment_id: record.scene_moment_id as number | undefined, segment_id: record.segment_id as number | undefined })
               }}
+              deleteRecord={(record) => abandonContentUnit(projectId!, record.ID)}
               onDeleted={() => {
                 setCreatingContentUnit(false)
                 setFilter({ content_unit_id: null, selected: null })

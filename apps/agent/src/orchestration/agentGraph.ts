@@ -702,7 +702,7 @@ async function runPolicyNode(state: AgentGraphState, input: AgentGraphInput): Pr
 }
 
 const TOOL_SKILL_ACTIVATION_REPAIRS: Record<string, { skillId: string; reason: string }> = {
-  movscript_project_script_read: {
+  movscript_script_locate: {
     skillId: 'movscript.workflow.script_reading',
     reason: '读取项目剧本需要加载剧本读取 workflow。',
   },
@@ -1290,7 +1290,7 @@ function buildCatalogRefreshCapabilitySnapshot(capabilities: ResolvedToolCatalog
   const keyToolNames = [
     'core_skill_update',
     'core_catalog_inspect',
-    'movscript_project_script_read',
+    'movscript_script_locate',
     'movscript_focus_get',
     'core_user_input_request',
   ]
@@ -1329,11 +1329,11 @@ function buildCatalogRefreshSummary(
   const keyTools = Array.isArray(capabilitySnapshot.keyTools) ? capabilitySnapshot.keyTools : []
   const readScriptsStatus = keyTools
     .flatMap((tool) => {
-      if (!isJSONRecord(tool) || tool.name !== 'movscript_project_script_read') return []
+      if (!isJSONRecord(tool) || tool.name !== 'movscript_script_locate') return []
       const available = tool.available === true ? 'available' : 'blocked'
       const granted = tool.granted === true ? 'granted' : 'not_granted'
       const reason = typeof tool.unavailableReason === 'string' ? `/${tool.unavailableReason}` : ''
-      return [`movscript_project_script_read=${available}/${granted}${reason}`]
+      return [`movscript_script_locate=${available}/${granted}${reason}`]
     })[0]
   return [
     `${availableCount} available tool(s) after catalog change`,
@@ -1532,7 +1532,7 @@ function isBackendWriteTool(name: string): boolean {
 function isRuntimeStateTool(name: string): boolean {
   return name === 'core_skill_update'
     || name === 'core_catalog_inspect'
-    || name === 'core_progress_update'
+    || name === 'core_update_plan'
     || name === 'core_work_start'
     || name === 'core_work_get'
     || name === 'core_work_list'

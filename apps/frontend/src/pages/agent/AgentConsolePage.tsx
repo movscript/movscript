@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Blocks, Bot, Cable, CheckCircle2, ClipboardList, FileSearch, ListTree, RefreshCw, Settings, Terminal, XCircle } from 'lucide-react'
+import { AlertTriangle, Blocks, Bot, Cable, CheckCircle2, ClipboardList, FileSearch, ListTree, RefreshCw, Settings, Terminal, Trash2, XCircle } from 'lucide-react'
 import { Badge, Button, Input, Label } from '@movscript/ui'
 import { AgentConsoleNav } from '@/pages/agent/AgentConsoleNav'
 import { agentRunPath, ROUTES } from '@/routes/projectRoutes'
@@ -62,15 +62,26 @@ export default function AgentConsolePage() {
     queryFn: () => localAgentClient.listRuns().then((result) => result.runs),
     retry: false,
   })
+  const threadsQuery = useQuery({
+    queryKey: ['agent-console-threads', localAgentClient.baseURL],
+    queryFn: () => localAgentClient.listThreads().then((result) => result.threads),
+    retry: false,
+  })
   const draftsQuery = useQuery({
     queryKey: ['agent-console-draft-index', localAgentClient.baseURL],
     queryFn: () => localAgentClient.listDrafts({ status: 'draft', limit: 20 }).then((result) => result.drafts),
     retry: false,
   })
+  const [clearConfirming, setClearConfirming] = useState(false)
+  const [clearingHistory, setClearingHistory] = useState(false)
+  const [clearHistoryError, setClearHistoryError] = useState<string | null>(null)
+  const [clearHistoryResult, setClearHistoryResult] = useState<string | null>(null)
 
   const runs = useMemo(() => sortRuns(runsQuery.data ?? []), [runsQuery.data])
+  const threads = threadsQuery.data ?? []
   const drafts = draftsQuery.data ?? []
   const runSummary = useMemo(() => summarizeRuns(runs), [runs])
+  const executingHistoryRunCount = runSummary.active
   const toolSummary = useMemo(() => {
     const tools = capabilitiesQuery.data?.resolvedTools
     return {
@@ -100,7 +111,7 @@ export default function AgentConsolePage() {
     draftCount: drafts.length,
   }), [drafts.length, healthQuery.error, modelQuery.data?.configured, modelQuery.error, runSummary, toolSummary])
   const attentionIssues = issues.filter((item) => item.tone !== 'ready')
-  const loading = healthQuery.isLoading || modelQuery.isLoading || inspectQuery.isLoading || capabilitiesQuery.isLoading || runsQuery.isLoading || draftsQuery.isLoading
+  const loading = healthQuery.isLoading || modelQuery.isLoading || inspectQuery.isLoading || capabilitiesQuery.isLoading || runsQuery.isLoading || threadsQuery.isLoading || draftsQuery.isLoading
 
   function refreshAll() {
     void healthQuery.refetch()
@@ -108,7 +119,34 @@ export default function AgentConsolePage() {
     void inspectQuery.refetch()
     void capabilitiesQuery.refetch()
     void runsQuery.refetch()
+    void threadsQuery.refetch()
     void draftsQuery.refetch()
+  }
+
+  async function clearThreadHistory() {
+    setClearHistoryError(null)
+    setClearHistoryResult(null)
+    if (!clearConfirming) {
+      setClearConfirming(true)
+      window.setTimeout(() => setClearConfirming(false), 5_000)
+      return
+    }
+    setClearingHistory(true)
+    try {
+      await localAgentClient.ensureRunning()
+      const result = await localAgentClient.deleteAllThreads()
+      setClearConfirming(false)
+      setClearHistoryResult(`已删除 ${result.deletedThreadIds.length} 个会话、${result.deletedRunIds.length} 个 Run。`)
+      await Promise.all([
+        runsQuery.refetch(),
+        threadsQuery.refetch(),
+        draftsQuery.refetch(),
+      ])
+    } catch (error) {
+      setClearHistoryError(errorMessage(error))
+    } finally {
+      setClearingHistory(false)
+    }
   }
 
   return (
@@ -134,6 +172,18 @@ export default function AgentConsolePage() {
                 <Settings size={14} />
                 模型与能力配置
               </Link>
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={clearConfirming ? 'destructive' : 'outline'}
+              onClick={() => void clearThreadHistory()}
+              disabled={clearingHistory || executingHistoryRunCount > 0 || (threads.length === 0 && runSummary.total === 0)}
+              title={executingHistoryRunCount > 0 ? '请先取消运行中的 Run' : '清空历史会话记录'}
+              data-testid="agent-console-header-clear-history"
+            >
+              <Trash2 size={14} />
+              {clearingHistory ? '清空中...' : clearConfirming ? '确认清空历史' : '清空历史'}
             </Button>
             <Button type="button" size="sm" variant="outline" onClick={refreshAll} disabled={loading}>
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
@@ -218,6 +268,20 @@ export default function AgentConsolePage() {
                 <ManagementLink to={ROUTES.agentRuns} icon={<ListTree size={14} />} title="运行记录" detail="统一查看 Run 状态，并进入 trace 详情。" />
                 <ManagementLink to={ROUTES.agentDebug} icon={<Terminal size={14} />} title="高级诊断" detail="Prompt preview、工具控制台、调试包。" />
                 <ManagementLink to={ROUTES.agentDrafts} icon={<FileSearch size={14} />} title="草稿索引" detail={`${drafts.length} 个待业务审阅草稿，可追踪来源。`} />
+              </div>
+              <div className="mt-3 border-t border-border pt-3">
+                <HistoryClearControl
+                  threadCount={threads.length}
+                  runCount={runSummary.total}
+                  draftCount={drafts.length}
+                  executingRunCount={executingHistoryRunCount}
+                  confirming={clearConfirming}
+                  clearing={clearingHistory}
+                  error={clearHistoryError}
+                  result={clearHistoryResult}
+                  onClear={() => void clearThreadHistory()}
+                  onCancel={() => setClearConfirming(false)}
+                />
               </div>
             </ConsolePanel>
           </aside>
@@ -630,6 +694,78 @@ function ManagementLink({ to, icon, title, detail }: { to: string; icon: React.R
         <span className="mt-0.5 block type-caption leading-4 text-muted-foreground">{detail}</span>
       </span>
     </Link>
+  )
+}
+
+function HistoryClearControl({
+  threadCount,
+  runCount,
+  draftCount,
+  executingRunCount,
+  confirming,
+  clearing,
+  error,
+  result,
+  onClear,
+  onCancel,
+}: {
+  threadCount: number
+  runCount: number
+  draftCount: number
+  executingRunCount: number
+  confirming: boolean
+  clearing: boolean
+  error: string | null
+  result: string | null
+  onClear: () => void
+  onCancel: () => void
+}) {
+  const hasHistory = threadCount > 0 || runCount > 0
+  const blocked = executingRunCount > 0
+  return (
+    <div data-testid="agent-console-history-clear" className="rounded-md border border-destructive/30 bg-destructive/5 p-2">
+      <div className="flex items-start gap-2">
+        <Trash2 size={14} className="mt-0.5 shrink-0 text-destructive" />
+        <div className="min-w-0 flex-1">
+          <p className="type-label font-medium text-foreground">历史会话记录</p>
+          <p className="mt-0.5 type-caption leading-4 text-muted-foreground">
+            {threadCount} 个会话 / {runCount} 个 Run。清空会物理删除会话、Run、计划、运行态记录和 trace 文件；{draftCount} 个草稿不会删除。
+          </p>
+          {blocked && (
+            <p className="mt-2 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 type-caption text-amber-700 dark:text-amber-300">
+              有 {executingRunCount} 个正在执行的 Run，先取消后再清空。
+            </p>
+          )}
+          {error && (
+            <p data-testid="agent-console-history-clear-error" role="alert" className="mt-2 rounded border border-destructive/30 bg-destructive/10 px-2 py-1 type-caption text-destructive">
+              {error}
+            </p>
+          )}
+          {result && (
+            <p data-testid="agent-console-history-clear-result" role="status" className="mt-2 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 type-caption text-emerald-700 dark:text-emerald-300">
+              {result}
+            </p>
+          )}
+          <div className="mt-2 flex flex-wrap justify-end gap-2">
+            {confirming && (
+              <Button type="button" size="sm" variant="outline" onClick={onCancel} disabled={clearing}>
+                取消
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              variant={confirming ? 'destructive' : 'outline'}
+              onClick={onClear}
+              disabled={!hasHistory || blocked || clearing}
+              data-testid="agent-console-clear-history"
+            >
+              {clearing ? '清空中...' : confirming ? '确认清空历史' : '清空历史会话'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 

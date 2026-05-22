@@ -111,7 +111,7 @@ test('context ledger extracts refs from MCP text JSON tool wrappers', () => {
     runId: 'run_1',
     threadId: 'thread_1',
     catalogSnapshotId: 'catalog_1',
-    call: { name: 'movscript_project_script_read', args: { projectId: 42 } },
+    call: { name: 'movscript_script_locate', args: { projectId: 42 } },
     result: {
       content: [{
         type: 'text',

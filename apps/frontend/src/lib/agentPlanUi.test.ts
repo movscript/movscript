@@ -142,7 +142,7 @@ test('buildPlanNameConflictViews exposes duplicate subagent names', () => {
     ],
     label: 'Einstein: Research, Draft',
   }])
-  assert.equal(buildPlanStatusExplanation(planSnapshot), '1 个子代理重名 · 1 个执行器运行中 · 1 个被阻塞')
+  assert.equal(buildPlanStatusExplanation(planSnapshot), '1 个子 agent 重名 · 1 个执行器运行中 · 1 个被阻塞')
 })
 
 test('buildPlanTaskViews merges subagent names, blockers, actions, and artifacts', () => {
@@ -339,7 +339,7 @@ test('buildPlanStatusExplanation prefers backend summary when available', () => 
     },
   }))
 
-  assert.equal(explanation, '1 个子代理重名 · 2 个执行器运行中 · 1 个被阻塞 · 2 个待开始')
+  assert.equal(explanation, '1 个子 agent 重名 · 2 个执行器运行中 · 1 个被阻塞 · 2 个待开始')
 })
 
 test('buildPlanOverviewStats prefers backend summary and falls back locally', () => {

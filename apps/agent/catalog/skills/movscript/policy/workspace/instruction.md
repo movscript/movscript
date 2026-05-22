@@ -37,10 +37,11 @@ Draft / Proposal：
 
 Script / 剧本：
 - 剧本是后端项目数据，包含总剧本、分集剧本、正文 content、摘要、人物、钩子、剧情点和排序等字段。
-- 读取剧本列表、指定剧本或剧本正文时，使用 `movscript_project_script_read`；需要理解剧情、人物关系、台词、分场或拆分时必须设置 `includeContent: true`。
+- 读取剧本列表、定位指定剧本或查找剧本正文片段时，使用 `movscript_script_locate`；它会返回跨剧本版本的只读 `movscript://` 文件 ref。需要正文时，用 `core_file_read` 精读 `readRef.ref` 的行号范围。
+- 用户给的是模糊片段、事件、人物别名、道具、场景或“那里/之前那场”时，优先使用 `movscript_script_locate` 定位候选，再用 `core_file_read` 精读返回的只读 `readRef.ref` 与行号范围；不要默认 list all/read all。
 - 缺少当前 projectId 但用户提供了项目名称、项目别名或类似“漫剧1”的项目指称时，先使用 `movscript_project_list` 解析可见项目；不得声称当前工具上下文不能按项目名称检索项目。唯一匹配后再用解析出的 projectId 读取剧本；无匹配或多匹配时再询问。
 - 用户说“剧本草稿”“总剧本草稿”“第一集草稿”时，除非明确给出 Agent 本地 `draftId`，优先理解为后端项目剧本 / Script，而不是本地 Draft artifact。
-- 不要把后端剧本 ID 当作 `draft_get.draftId`；`draft_get` 只接受本地 proposal/draft artifact ID。
+- 不要把后端剧本 ID 当作本地 draftId；剧本正文只能用 `movscript_script_locate` 返回的 `movscript://` ref 再交给 `core_file_read` 读取。
 
 Generation job：
 - 是生成任务，不是媒体结果。

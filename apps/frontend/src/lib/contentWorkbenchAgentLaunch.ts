@@ -79,7 +79,7 @@ export function buildContentWorkbenchVisualPlanLaunchInput({
     ? productions.find((production) => production.ID === row.productionIds[0])
     : undefined
   return {
-    requestId: `content_unit_visual_plan_${unit.ID}_${now().toString(36)}`,
+    requestId: `content_unit_visual_task_graph_${unit.ID}_${now().toString(36)}`,
     projectId,
     productionId: targetProduction?.ID,
     sceneMomentId: row.moment.ID,

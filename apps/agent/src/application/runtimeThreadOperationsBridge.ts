@@ -1,6 +1,8 @@
-import type { AgentStore } from '../state/store.js'
+import type { AgentStore, AgentThreadClearResult, AgentThreadDeletionResult } from '../state/store.js'
 import type {
   AgentMessage,
+  AgentSession,
+  AgentSessionSummary,
   AgentThread,
   AgentThreadSummary,
   CreateMessageInput,
@@ -10,6 +12,8 @@ import type {
 import {
   addRuntimeThreadMessage,
   createRuntimeThread,
+  deleteAllRuntimeThreads,
+  deleteRuntimeThread,
   updateRuntimeThread,
 } from './runtimeThreadLifecycle.js'
 import {
@@ -20,27 +24,38 @@ import {
 import { isoNow, makeId } from './runtimeIdentity.js'
 
 export interface RuntimeThreadOperationsBridge {
+  listSessions: () => AgentSession[]
+  listSessionSummaries: () => AgentSessionSummary[]
+  getSession: (id: string) => AgentSession | undefined
   createThread: (input?: CreateThreadInput) => AgentThread
   listThreads: () => AgentThread[]
   listThreadSummaries: () => AgentThreadSummary[]
   getThread: (id: string) => AgentThread | undefined
   updateThread: (id: string, input: UpdateThreadInput) => AgentThread
+  deleteThread: (id: string) => AgentThreadDeletionResult
+  deleteAllThreads: () => AgentThreadClearResult
   addMessage: (threadId: string, input: CreateMessageInput) => AgentMessage
 }
 
 export function createRuntimeThreadOperationsBridge(input: {
   store: AgentStore
+  sessionId?: () => string
   threadId?: () => string
   messageId?: () => string
   now?: () => string
 }): RuntimeThreadOperationsBridge {
+  const sessionId = input.sessionId ?? (() => makeId('session'))
   const threadId = input.threadId ?? (() => makeId('thread'))
   const messageId = input.messageId ?? (() => makeId('msg'))
   const now = input.now ?? isoNow
   return {
+    listSessions: () => input.store.listSessions(),
+    listSessionSummaries: () => input.store.listSessionSummaries(),
+    getSession: (id) => input.store.getSession(id),
     createThread: (threadInput = {}) => createRuntimeThread({
       store: input.store,
       threadId: threadId(),
+      sessionId: sessionId(),
       messageId,
       now,
       threadInput,
@@ -53,6 +68,13 @@ export function createRuntimeThreadOperationsBridge(input: {
       threadId: id,
       update,
       now: now(),
+    }),
+    deleteThread: (id) => deleteRuntimeThread({
+      store: input.store,
+      threadId: id,
+    }),
+    deleteAllThreads: () => deleteAllRuntimeThreads({
+      store: input.store,
     }),
     addMessage: (id, messageInput) => addRuntimeThreadMessage({
       store: input.store,

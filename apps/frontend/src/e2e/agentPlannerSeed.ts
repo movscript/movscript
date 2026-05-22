@@ -462,9 +462,9 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
       id: `trace_${runId}_tool`,
       runId,
       kind: 'tool_call',
-      title: runId === WORKER_RUN_ID ? 'Asset review tool call' : 'Subagent dispatch tool call',
+      title: runId === WORKER_RUN_ID ? 'Asset review tool call' : 'Runtime work dispatch tool call',
       status: 'completed',
-      toolName: runId === WORKER_RUN_ID ? 'movscript_review_assets' : 'core_subagent_spawn',
+      toolName: runId === WORKER_RUN_ID ? 'movscript_review_assets' : 'core_work_start',
       summary: runId === WORKER_RUN_ID ? 'Found missing hero visual coverage.' : 'Spawned worker Einstein.',
       data: runId === WORKER_RUN_ID
         ? {

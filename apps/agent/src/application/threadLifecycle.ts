@@ -1,18 +1,43 @@
 import { cloneJSONValue, isJSONRecord } from '../jsonValue.js'
 import { buildRuntimeUserMessage, normalizeClientInput, type NormalizedClientInput } from '../context/normalizeClientInput.js'
 import { isValidAgentProjectId } from '../context/runtimeContext.js'
-import type { AgentMessage, AgentThread, CreateMessageInput, CreateThreadInput, JSONValue, UpdateThreadInput } from '../state/types.js'
+import type { AgentMessage, AgentSession, AgentThread, AgentThreadRole, CreateMessageInput, CreateThreadInput, JSONValue, UpdateThreadInput } from '../state/types.js'
 import { isMessageRole } from './assistantMessage.js'
 
-export function buildAgentThread(input: {
+export function buildAgentSession(input: {
   id: string
   now: string
   threadInput?: CreateThreadInput
-}): AgentThread {
+}): AgentSession {
   const threadInput = input.threadInput ?? {}
   return {
     id: input.id,
     ...(typeof threadInput.title === 'string' && threadInput.title.trim() ? { title: threadInput.title.trim() } : {}),
+    ...(isValidAgentProjectId(threadInput.projectId) ? { projectId: threadInput.projectId } : {}),
+    ...(isJSONRecord(threadInput.metadata) ? { metadata: cloneJSONValue(threadInput.metadata) } : {}),
+    status: 'idle',
+    createdAt: input.now,
+    updatedAt: input.now,
+  }
+}
+
+export function buildAgentThread(input: {
+  id: string
+  sessionId?: string
+  now: string
+  threadInput?: CreateThreadInput
+}): AgentThread {
+  const threadInput = input.threadInput ?? {}
+  const agentRole = normalizeAgentThreadRole(threadInput.agentRole)
+    ?? (typeof threadInput.parentThreadId === 'string' && threadInput.parentThreadId.trim() ? 'worker' : 'root')
+  return {
+    id: input.id,
+    ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+    ...(typeof threadInput.title === 'string' && threadInput.title.trim() ? { title: threadInput.title.trim() } : {}),
+    ...(typeof threadInput.agentName === 'string' && threadInput.agentName.trim() ? { agentName: threadInput.agentName.trim() } : {}),
+    agentRole,
+    ...(typeof threadInput.parentThreadId === 'string' && threadInput.parentThreadId.trim() ? { parentThreadId: threadInput.parentThreadId.trim() } : {}),
+    ...(typeof threadInput.parentRunId === 'string' && threadInput.parentRunId.trim() ? { parentRunId: threadInput.parentRunId.trim() } : {}),
     ...(isValidAgentProjectId(threadInput.projectId) ? { projectId: threadInput.projectId } : {}),
     ...(isJSONRecord(threadInput.metadata) ? { metadata: cloneJSONValue(threadInput.metadata) } : {}),
     archived: threadInput.archived === true,
@@ -21,6 +46,10 @@ export function buildAgentThread(input: {
     updatedAt: input.now,
     messages: [],
   }
+}
+
+function normalizeAgentThreadRole(value: unknown): AgentThreadRole | undefined {
+  return value === 'root' || value === 'planner' || value === 'worker' ? value : undefined
 }
 
 export function validInitialThreadMessageInputs(input: CreateThreadInput): CreateMessageInput[] {

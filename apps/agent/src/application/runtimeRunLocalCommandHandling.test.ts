@@ -54,7 +54,7 @@ test('applyRuntimeRunLocalCommandHandling executes generation commands with cata
     catalogManager: {
       inspectAgentCatalog: () => ({}),
       updateActiveSkills: () => ({}),
-      updateProgressChecklist: () => ({}),
+      updatePlan: () => ({}),
       startWork: async (_run, args) => {
         calls.push({ name: 'core_work_start', args })
         return { status: 'started', work: { id: 'work_1', kind: 'generation_job', status: 'running' } } as JSONValue

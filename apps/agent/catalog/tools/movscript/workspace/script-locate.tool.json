@@ -1,0 +1,89 @@
+{
+  "name": "movscript_script_locate",
+  "description": "跨后端项目剧本版本文件定位剧本片段，而不是直接读取完整剧本。支持多关键词、must/should/exclude、人物别名 aliasGroups、场次感知排序，并返回只读 movscript:// 文件 ref 和行号范围供 core_file_read 精读；不传查询词时返回可用 scripts 列表。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "projectId": {
+        "type": "number",
+        "description": "项目 ID；省略时使用当前 UI project。"
+      },
+      "scriptVersionId": {
+        "type": "number",
+        "description": "优先使用的不可变剧本版本 ID。"
+      },
+      "scriptId": {
+        "type": "number",
+        "description": "可选旧版 Script ID；工具会搜索匹配的剧本版本。"
+      },
+      "scriptTitle": {
+        "type": "string",
+        "description": "可选剧本标题，例如“总剧本”或“第一集”。"
+      },
+      "intent": {
+        "type": "string",
+        "description": "用户的自然语言定位意图，例如“老张发现纸条那里改得更压抑一点”。"
+      },
+      "query": {
+        "type": "string",
+        "description": "单个查询词别名；多个查询词优先使用 queries。"
+      },
+      "queries": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "候选关键词；命中任一项都会提高排序。"
+      },
+      "must": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "必须出现在候选上下文窗口中的关键词。"
+      },
+      "should": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "可选加权关键词。"
+      },
+      "exclude": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "排除候选窗口的关键词。"
+      },
+      "aliasGroups": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "description": "等价称呼组，例如 [[\"张建国\",\"老张\",\"父亲\"],[\"纸条\",\"字条\",\"便签\"]]。"
+      },
+      "windowLines": {
+        "type": "number",
+        "description": "匹配行前后返回多少行上下文；默认 6。"
+      },
+      "limit": {
+        "type": "number",
+        "description": "最多返回多少个候选片段；默认 5。"
+      },
+      "contentLimit": {
+        "type": "number",
+        "description": "兼容字段，用于提示后续精读大小；实际读取请在 core_file_read 上设置 contentLimit。"
+      },
+      "includeExcerpt": {
+        "type": "boolean",
+        "description": "是否返回有限原文摘录；默认 true。"
+      }
+    }
+  },
+  "permission": "project.read",
+  "risk": "read",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "requiresSkills": [
+    "movscript.workflow.script_reading"
+  ],
+  "source": "runtime"
+}

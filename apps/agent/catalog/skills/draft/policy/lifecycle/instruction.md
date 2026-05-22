@@ -4,20 +4,23 @@
 核心规则：
 - Draft 是本地审阅 artifact，不是正式项目数据。
 - Proposal 是带 schema 的 draft，用于表达某一层可审阅变更。
-- Draft 不是后端项目剧本 / Script；用户要读“总剧本”“第一集”“分集剧本”或剧本正文时，应使用 `movscript_project_script_read`。
+- Draft 不是后端项目剧本 / Script；用户要读“总剧本”“第一集”“分集剧本”或剧本正文时，应使用 `movscript_script_locate`。
 - 创建、更新或校验 draft 不等于 apply；只有 `draft_apply` 成功返回后，才能说 draft 已应用。
 - 只有明确工具结果或 UI apply 结果证明正式写入完成时，才能说正式数据已改变。
+- 处理多个互相依赖的 proposal 时，一次只解决一件事。默认顺序是 project_standards_proposal -> setting_proposal -> asset_proposal -> production_proposal -> content_unit_proposal。不要在上游 draft 尚未成功写入或交还用户审阅前，继续创建、预览或应用下游 draft。
 
 写入前：
 - 先确认目标层级、draft kind、project/production/entity 锚点。
 - 当前会话已有 draftId 时先读取该 draft；当前会话没有 draftId 且用户发起新提案时直接创建新 draft。
 - 如果缺目标、缺 kind 或缺关键决策，先问窄问题。
+- 如果当前任务缺少上游设定、素材需求或项目规范，先切换到对应上游 proposal。上游 preview 或 apply 失败时，停止下游流程；先查看错误、修复当前 draft 并重试，无法判断如何修复时询问用户。
 
 写入后：
 - 必须报告 `draftId`、`kind`、`status`。
 - 必须说明这是本地审阅状态，还是已通过工具完成正式写入。
 - 对 proposal draft，最终回复前必须先运行一次 dry-run：使用 `draft_apply_preview`。如果 draft kind 暂不支持后端 preview，也要保留该工具返回的本地 validation / skipped 状态。
 - 必须给出下一步 review、continue editing、preview apply 或 apply 动作，并明确 dry-run 是否通过、失败或被跳过。
+- 下游 proposal 只能基于已读正式状态、已应用的上游结果或用户明确接受的审阅交接继续；不要基于刚创建但尚未成功写入数据库的上游 draft 继续推演。
 
 绝不：
 - 不把 proposed draft 说成 accepted、applied、locked 或正式写入。

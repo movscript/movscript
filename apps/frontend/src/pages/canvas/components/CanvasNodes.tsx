@@ -23,6 +23,7 @@ import type { CanvasToolSlot, CanvasToolSlotState, CanvasToolSlotType } from '@/
 import { CanvasIOActionCard } from '@/components/canvas/CanvasIOActionCard'
 import type { CanvasIOState } from '@/components/canvas/CanvasIOActionCard'
 import { MediaViewer } from '@/components/shared/MediaViewer'
+import { resourceIdsFromCanvasPrompt } from '@/lib/canvasRuntimeGraph'
 
 const targetHandleStyle: React.CSSProperties = {
   width: 14, height: 14, borderRadius: '50%',
@@ -466,6 +467,12 @@ function selectedInputResources(data: NodeDataWithHandlers) {
     seen.add(resource.ID)
     resources.push(resource)
   }
+  for (const id of resourceIdsFromCanvasPrompt(data.prompt)) {
+    const resource = byId.get(id)
+    if (!resource || seen.has(resource.ID)) continue
+    seen.add(resource.ID)
+    resources.push(resource)
+  }
   for (const resource of data.referenceResources ?? []) {
     if (seen.has(resource.ID)) continue
     seen.add(resource.ID)
@@ -563,7 +570,6 @@ function CanvasGenerationInputPanel({
   const attachments = selectedInputResources(data)
   const explicitResourceIds = new Set(data.inputResourceIds ?? [])
   const mentionResources = attachments
-    .filter((resource) => resource.type === 'image' || resource.type === 'video')
     .filter((resource) => !mentionQuery || resource.name.toLowerCase().includes(mentionQuery))
     .slice(0, 8)
   const resourceById = new Map(attachments.map((resource) => [resource.ID, resource]))

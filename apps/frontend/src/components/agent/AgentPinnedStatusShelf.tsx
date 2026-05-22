@@ -1,14 +1,15 @@
 import { useState } from 'react'
 import { Badge, Button } from '@movscript/ui'
+import { CheckCircle2, Circle, Dot } from 'lucide-react'
 import { generationJobBadge, generationProgressTitle, generationStatusText } from '@/lib/agentGenerationDisplay'
 import type { GenerationProgressState } from '@/lib/agentGenerationMedia'
 import { buildPlanOverviewStats, buildPlanTaskViews } from '@/lib/agentPlanUi'
 import { agentPlanStatusLabel, runStatusLabel } from '@/lib/agentRunUi'
-import type { AgentProgressChecklist, AgentRun, AgentTaskGraphSnapshot } from '@/lib/localAgentClient'
+import type { AgentPlan, AgentPlanTaskStatus, AgentRun, AgentTaskGraphSnapshot } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
 
 interface AgentPinnedStatusShelfProps {
-  checklist?: AgentProgressChecklist
+  plan?: AgentPlan
   generationProgressStates?: GenerationProgressState[]
   planSnapshot?: AgentTaskGraphSnapshot
 }
@@ -17,7 +18,7 @@ const ACTIVE_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress'
 type PinnedStatusView = 'generation' | 'subagent' | 'plan'
 
 export function AgentPinnedStatusShelf({
-  checklist,
+  plan,
   generationProgressStates = [],
   planSnapshot,
 }: AgentPinnedStatusShelfProps) {
@@ -32,8 +33,8 @@ export function AgentPinnedStatusShelf({
       return timestamp(right.worker?.updatedAt) - timestamp(left.worker?.updatedAt)
     })
   const activeWorkerViews = workerViews.filter((view) => view.worker && ACTIVE_RUN_STATUSES.has(view.worker.status))
-  const hasChecklist = !!checklist && checklist.items.length > 0
-  const hasPlan = !!planSnapshot
+  const hasThreadPlan = !!plan && plan.items.length > 0
+  const hasPlan = hasThreadPlan || !!planSnapshot
   const hasGeneration = generationProgressStates.length > 0
   const hasSubagents = workerViews.length > 0
 
@@ -41,7 +42,7 @@ export function AgentPinnedStatusShelf({
   const views = [
     { id: 'generation' as const, label: '生成', count: generationProgressStates.length },
     { id: 'subagent' as const, label: '子 agent', count: workerViews.length },
-    { id: 'plan' as const, label: 'Plan', count: planStats?.taskCount ?? 0 },
+    { id: 'plan' as const, label: 'Plan', count: plan?.totalCount ?? planStats?.taskCount ?? 0 },
   ]
   const [activeView, setActiveView] = useState<PinnedStatusView>(hasGeneration ? 'generation' : hasSubagents ? 'subagent' : hasPlan ? 'plan' : 'generation')
   const activeCount = [
@@ -49,7 +50,7 @@ export function AgentPinnedStatusShelf({
     activeWorkerViews.length,
     planStats?.activeWorkerCount ?? 0,
   ].reduce((total, count) => Math.max(total, count), 0)
-  if (!hasChecklist && !hasPlan && !hasGeneration && !hasSubagents) return null
+  if (!hasThreadPlan && !hasPlan && !hasGeneration && !hasSubagents) return null
 
   return (
     <header
@@ -67,7 +68,7 @@ export function AgentPinnedStatusShelf({
               {hasGeneration && <span>{liveGenerationStates.length || generationProgressStates.length} 个生成任务</span>}
               {planStats && <span>计划 {planStats.completedTaskCount}/{planStats.taskCount}</span>}
               {workerViews.length > 0 && <span>{workerViews.length} 个子 agent</span>}
-              {hasChecklist && <span>步骤 {checklist.completedCount}/{checklist.totalCount}</span>}
+              {hasThreadPlan && <span>步骤 {plan.completedCount}/{plan.totalCount}</span>}
             </div>
           </div>
           <div className="flex shrink-0 items-center rounded-md bg-muted/60 p-0.5">
@@ -116,36 +117,11 @@ export function AgentPinnedStatusShelf({
             ) : <PinnedEmptyState label="暂无子 agent" />
           )}
           {activeView === 'plan' && (
-            planSnapshot && planStats ? (
-              <div className="space-y-1.5">
-                <div className="flex min-w-0 items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="truncate type-tiny font-medium text-foreground">{planSnapshot.taskGraph.title}</div>
-                    <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 type-micro text-muted-foreground">
-                      <span>{planStats.completedTaskCount}/{planStats.taskCount} 个任务</span>
-                      <span>{Math.round(Math.max(0, Math.min(1, planSnapshot.taskGraph.progress)) * 100)}%</span>
-                      <span>{planStats.activeWorkerCount} 个执行器运行中</span>
-                      {planStats.artifactCount > 0 && <span>{planStats.artifactCount} 个产物</span>}
-                    </div>
-                  </div>
-                  <Badge variant="outline" className="shrink-0 type-min leading-3 px-1 py-0">
-                    {agentPlanStatusLabel(planSnapshot.taskGraph.status)}
-                  </Badge>
-                </div>
-                <div className="h-0.5 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-primary" style={{ width: `${Math.round(Math.max(0, Math.min(1, planSnapshot.taskGraph.progress)) * 100)}%` }} />
-                </div>
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="ghost"
-                  className="h-5 px-1.5 type-micro"
-                  onClick={() => scrollToElement('agent-taskGraph-overview')}
-                >
-                  查看计划详情
-                </Button>
-              </div>
-            ) : <PinnedEmptyState label="暂无 plan" />
+            plan
+              ? <ThreadPlanStatusView plan={plan} planSnapshot={planSnapshot} planStats={planStats} />
+              : planSnapshot && planStats
+                ? <TaskGraphPlanStatusView planSnapshot={planSnapshot} planStats={planStats} />
+                : <PinnedEmptyState label="暂无 plan" />
           )}
         </div>
       </div>
@@ -184,6 +160,125 @@ function GenerationStatusLine({ state }: { state: GenerationProgressState }) {
       </div>
     </div>
   )
+}
+
+function ThreadPlanStatusView({
+  plan,
+  planSnapshot,
+  planStats,
+}: {
+  plan: AgentPlan
+  planSnapshot?: AgentTaskGraphSnapshot
+  planStats?: ReturnType<typeof buildPlanOverviewStats>
+}) {
+  const percent = plan.totalCount > 0 ? Math.round((plan.completedCount / plan.totalCount) * 100) : 0
+  return (
+    <div className="space-y-1.5">
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate type-tiny font-medium text-foreground">Plan updated</div>
+          <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 type-micro text-muted-foreground">
+            <span>{plan.completedCount}/{plan.totalCount} 个步骤</span>
+            <span>{percent}%</span>
+            {plan.explanation && <span className="truncate">{plan.explanation}</span>}
+          </div>
+        </div>
+        <Badge variant="outline" className="shrink-0 type-min leading-3 px-1 py-0">
+          Plan
+        </Badge>
+      </div>
+      <div className="h-0.5 overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+      </div>
+      <div className="space-y-1">
+        {plan.items.slice(0, 4).map((item, index) => (
+          <ThreadPlanStepLine key={`${index}-${item.step}`} step={item.step} status={item.status} />
+        ))}
+      </div>
+      {plan.items.length > 4 && (
+        <div className="type-micro text-muted-foreground">还有 {plan.items.length - 4} 个步骤</div>
+      )}
+      {planSnapshot && planStats && (
+        <div className="flex min-w-0 items-center justify-between gap-2 border-t border-border/60 pt-1.5 type-micro text-muted-foreground">
+          <span className="min-w-0 truncate">执行计划 {planStats.completedTaskCount}/{planStats.taskCount} 个任务</span>
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            className="h-5 shrink-0 px-1.5 type-micro"
+            onClick={() => scrollToElement('agent-taskGraph-overview')}
+          >
+            查看详情
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TaskGraphPlanStatusView({
+  planSnapshot,
+  planStats,
+}: {
+  planSnapshot: AgentTaskGraphSnapshot
+  planStats: ReturnType<typeof buildPlanOverviewStats>
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate type-tiny font-medium text-foreground">{planSnapshot.taskGraph.title}</div>
+          <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 type-micro text-muted-foreground">
+            <span>{planStats.completedTaskCount}/{planStats.taskCount} 个任务</span>
+            <span>{Math.round(Math.max(0, Math.min(1, planSnapshot.taskGraph.progress)) * 100)}%</span>
+            <span>{planStats.activeWorkerCount} 个执行器运行中</span>
+            {planStats.artifactCount > 0 && <span>{planStats.artifactCount} 个产物</span>}
+          </div>
+        </div>
+        <Badge variant="outline" className="shrink-0 type-min leading-3 px-1 py-0">
+          {agentPlanStatusLabel(planSnapshot.taskGraph.status)}
+        </Badge>
+      </div>
+      <div className="h-0.5 overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-primary" style={{ width: `${Math.round(Math.max(0, Math.min(1, planSnapshot.taskGraph.progress)) * 100)}%` }} />
+      </div>
+      <Button
+        type="button"
+        size="xs"
+        variant="ghost"
+        className="h-5 px-1.5 type-micro"
+        onClick={() => scrollToElement('agent-taskGraph-overview')}
+      >
+        查看计划详情
+      </Button>
+    </div>
+  )
+}
+
+function ThreadPlanStepLine({
+  step,
+  status,
+}: {
+  step: string
+  status: AgentPlanTaskStatus
+}) {
+  return (
+    <div className="flex min-w-0 items-start gap-1.5 type-micro">
+      <ThreadPlanStatusIcon status={status} />
+      <span className={cn(
+        'min-w-0 flex-1 truncate',
+        status === 'completed' ? 'text-muted-foreground line-through decoration-muted-foreground/50' : 'text-foreground',
+      )}>
+        {step}
+      </span>
+    </div>
+  )
+}
+
+function ThreadPlanStatusIcon({ status }: { status: AgentPlanTaskStatus }) {
+  if (status === 'completed') return <CheckCircle2 size={12} className="mt-0.5 shrink-0 text-emerald-600" />
+  if (status === 'in_progress') return <Dot size={14} className="shrink-0 text-primary" />
+  return <Circle size={10} className="mt-1 shrink-0 text-muted-foreground" />
 }
 
 function generationStatusKey(state: GenerationProgressState, index: number) {

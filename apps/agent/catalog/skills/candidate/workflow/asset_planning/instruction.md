@@ -41,7 +41,7 @@
 校验：
 - 候选必须命名 asset target，并说明准备方向为什么适合它。
 - 提到的任何生成资源都必须来自已有上下文或已检查的任务结果，不能来自假设的任务。
-- 不要把 `core_work_start` 的 started/queued 结果当作终态；输出资源、失败、取消或超时必须来自 `core_work_wait/get/list`。
+- 不要把 `core_work_start` 的 started/queued 结果当作终态；输出资源、失败、取消或超时必须来自 runtime continuation 回调或 `core_work_wait/get/list`。
 - 候选必须说明与已有设定材料或素材资源的关系：复用哪张/哪个 resource id、延续哪些一致性特征、或缺少哪些参考。
 - 派生候选必须说明所依赖的 canonical/base resource；缺少基本形象、空间标准、物件标准或风格板时，应阻塞派生生成并返回下一步 canonical 候选动作。
 

@@ -49,7 +49,7 @@ test('AgentFileSystem reads, searches, and edits draft content through canonical
 test('AgentFileSystem applies constrained context text patches to draft content', () => {
   const draftStore = new InMemoryAgentDraftStore()
   const draft = draftStore.createDraft({
-    kind: 'note',
+    kind: 'project_standards_proposal',
     title: 'Patchable note',
     content: [
       'line one',

@@ -2,7 +2,7 @@
   "id": "core.pack.agent",
   "version": "1.0.0",
   "name": "Agent Core",
-  "description": "Agent 对自身能力的核心认知层：memory、用户输入、catalog inspection 和 runtime works。",
+  "description": "Agent 对自身能力的核心认知层：memory、文件、用户输入、catalog inspection 和 runtime works。",
   "source": "builtin",
   "resources": {
     "skills": [
@@ -21,9 +21,12 @@
     "core_memory_get",
     "core_memory_create",
     "core_memory_delete",
+    "core_file_read",
+    "core_file_search",
+    "core_file_edit",
     "core_catalog_inspect",
     "core_skill_update",
-    "core_progress_update",
+    "core_update_plan",
     "core_work_start",
     "core_work_get",
     "core_work_list",

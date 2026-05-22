@@ -52,16 +52,6 @@ export function updateRuntimeDraft(input: {
   return input.draftStore.updateDraft(draftId, update)
 }
 
-export function validateRuntimeDraft(input: {
-  draftStore: AgentDraftStore
-  draftId?: unknown
-}): JSONValue {
-  const draftId = requireRuntimeDraftId(input.draftId, 'validate draft')
-  const draft = input.draftStore.getDraft(draftId)
-  if (!draft) throw new Error(`draft not found: ${draftId}`)
-  return validateDraft(draft) as unknown as JSONValue
-}
-
 export function previewRuntimeDraftApply(input: {
   draftStore: AgentDraftStore
   applyInput: ApplyDraftInput

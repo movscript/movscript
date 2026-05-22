@@ -573,7 +573,7 @@ export default function AIAgentRunPage() {
           ) : runQuery.data ? (
             <div className="space-y-3 type-label">
               <Info label="角色" value={runRoleLabel(runQuery.data.role)} />
-              <Info label="子代理" value={subagentName ?? '-'} />
+              <Info label="子 agent" value={subagentName ?? '-'} />
               <Info label="线程" value={runQuery.data.threadId} />
               <Info label="计划" value={runQuery.data.taskGraphId ?? '-'} />
               <Info label="任务" value={runQuery.data.taskId ?? '-'} />

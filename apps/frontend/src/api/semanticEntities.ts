@@ -215,6 +215,27 @@ export async function deleteSemanticEntity(projectId: number, config: SemanticEn
   await api.delete(`${semanticEntityPath(projectId, config)}/${id}`)
 }
 
+export interface AbandonSceneMomentResult {
+  scene_moment_id: number
+  content_units_updated: number
+  timeline_items_removed: number
+}
+
+export async function abandonSceneMoment(projectId: number, id: number) {
+  const { data } = await api.post<AbandonSceneMomentResult>(`/projects/${projectId}/entities/scene-moments/${id}/abandon`)
+  return data
+}
+
+export interface AbandonContentUnitResult {
+  content_unit_id: number
+  timeline_items_removed: number
+}
+
+export async function abandonContentUnit(projectId: number, id: number) {
+  const { data } = await api.post<AbandonContentUnitResult>(`/projects/${projectId}/entities/content-units/${id}/abandon`)
+  return data
+}
+
 export async function getProject(projectId: number) {
   const { data } = await api.get<Project>(`/projects/${projectId}`)
   return data
@@ -280,12 +301,14 @@ export interface ApplyProductionProposalResponse {
     keyframes_created: number
     creative_references_created: number
     creative_reference_usages: number
+    writing_expressions_created: number
   }
   segments: SemanticEntityRecord[]
   scene_moments: SemanticEntityRecord[]
   content_units: SemanticEntityRecord[]
   asset_slots: SemanticEntityRecord[]
   keyframes: SemanticEntityRecord[]
+  writing_expressions: SemanticEntityRecord[]
 }
 
 export async function applyProductionProposal(

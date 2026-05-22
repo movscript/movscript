@@ -2,7 +2,32 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import { resolveToolCatalog } from './capabilityResolver.js'
-import { StaticToolRegistry } from './toolRegistry.js'
+import { DEFAULT_TOOL_REGISTRY, StaticToolRegistry } from './toolRegistry.js'
+
+test('resolveToolCatalog keeps plan updates visible without an active workflow', () => {
+  const catalog = resolveToolCatalog({
+    mcpTools: [],
+    registry: DEFAULT_TOOL_REGISTRY,
+    manifest: DEFAULT_AGENT_MANIFEST,
+    activeSkills: [{
+      id: 'core.persona.default',
+      name: 'Persona',
+      description: '',
+      enabled: true,
+      category: 'persona',
+      instruction: '',
+      resolvedPriority: 1,
+      activationReason: 'profile',
+      compiledInstruction: '',
+      warnings: [],
+      metadata: { kind: 'persona' },
+    }],
+    userMessage: '生成一个plan',
+  })
+
+  assert.equal(catalog.byName.core_update_plan?.available, true)
+  assert.equal(catalog.byName.core_update_plan?.approval, 'never')
+})
 
 test('resolveToolCatalog scopes business tools to active workflow hints', () => {
   const registry = new StaticToolRegistry([

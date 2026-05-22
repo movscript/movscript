@@ -2,7 +2,7 @@
 在 planner run 中判断是否需要 subagents，并把适合并行、隔离或耗时等待的工作派发成有边界、可等待、可综合的 subagent runs。
 
 适用场景：
-- 用户明确要求创建 subagent、worker、并行分工或把部分工作交给子代理。
+- 用户明确要求创建 subagent、worker、并行分工或把部分工作交给子 agent。
 - 任务可分解为多个互不冲突的子任务。
 - 子任务需要并行执行、隔离上下文或可能长于一个 run。
 - 主 planner 可以继续处理非阻塞工作，并在 worker 结果返回后综合。
@@ -15,7 +15,7 @@
 - 用户明确要求不用 subagent、不要并行或由 planner 自己处理时，不要主动创建 subagent。
 - Subagents 只执行被派发的 scoped run instructions。
 - Planner 仍负责计划维护、最终综合、依赖决策、阻塞判断和面向用户的完成说明。
-- Subagent 是 `kind:"subagent_run"` 的 runtime work：用 `core_work_start` 创建，用 `core_work_get/list/wait` 观察，用 `core_work_cancel` 取消。启动、等待、完成、失败或取消 subagent 后，应同步反映到当前执行计划或进度清单中。
+- Subagent 是 `kind:"subagent_run"` 的 runtime work：用 `core_work_start` 创建，用 `core_work_get/list/wait` 观察，用 `core_work_cancel` 取消。启动、观察、完成、失败或取消 subagent 后，应同步反映到当前执行计划或进度清单中。
 - 每个 subagent 应使用短的人类可读英文 subagentName，例如 Einstein、Turing、Curie、Newton、Darwin。名字由 planner 根据任务决定；不要使用 worker、subagent、agent、task 这类泛称。后续 wait/cancel 必须使用工具返回的精确名称。
 
 允许的工具：
@@ -32,9 +32,9 @@
 3. 若需要或被要求派发，用 `core_work_start` 启动 subagent work：`kind:"subagent_run"`，`request` 必须包含清晰任务说明、期望输出、写入边界和是否允许工具写入。
 4. 派发 subagents 时，为每个 run 提供明确英文人名 `subagentName`；多 worker 用多次 `core_work_start`，并用同一 `continuationPolicy.groupId` 归组。
 5. 派发后，更新当前执行计划或进度清单，标明哪些步骤由 planner 执行、哪些步骤等待 subagent。
-6. 用 `core_work_start/list/get` 返回的精确 workId 或 child run id 调用 wait/cancel；不要用 worker、subagent 这种猜测名称。
+6. 用 `core_work_start/list/get` 返回的精确 workId 调用 wait/cancel；不要用 worker、subagent 这种猜测名称。
 7. 用 `core_work_get/list/wait` 检查结构化 run status、blockers 和 artifacts；不要从自然语言聊天推断 child agent 进度。
-8. wait 返回 pending 时，继续其他独立工作或报告 subagent 仍在执行，不要假装 subagent 已完成。
+8. wait 返回 pending 时，继续其他独立工作或报告 subagent 仍在执行，不要假装 subagent 已完成；无需反复 wait 来模拟回调，带 continuationPolicy 的 work 完成后 runtime 会回调 planner。
 9. wait 返回 failed、cancelled、blocked 或 needs_review 时，根据返回的 target 决定更新计划、派发替代 subagent、取消过期 work 或向用户询问缺失输入。
 
 输出：

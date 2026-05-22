@@ -103,24 +103,24 @@ test('projectRuntimeThreadMessages restores user attachments from runtime client
   }])
 })
 
-test('projectRuntimeThreadMessages preserves progress taskGraph revision metadata snapshots', async () => {
+test('projectRuntimeThreadMessages preserves plan revision metadata snapshots', async () => {
   const thread = makeThread({
     messages: [
       makeMessage({
         id: 'msg_taskGraph',
         role: 'assistant',
-        content: 'Progress checklist updated',
+        content: 'Plan updated',
         createdAt: '2026-05-19T00:00:01.000Z',
         metadata: {
-          kind: 'progress_checklist_revision',
-          progressChecklistRevision: {
-            schema: 'movscript.agent.progress-checklist-revision.v1',
-            id: 'progress_checklist_revision_1',
-            taskGraphId: 'progress_checklist_1',
+          kind: 'plan_revision',
+          planRevision: {
+            schema: 'movscript.agent.plan-revision.v1',
+            id: 'plan_revision_1',
+            planId: 'plan_1',
             threadId: 'thread_1',
             snapshot: {
-              schema: 'movscript.agent.progress-checklist.v1',
-              id: 'progress_checklist_1',
+              schema: 'movscript.agent.plan.v1',
+              id: 'plan_1',
               threadId: 'thread_1',
               items: [{ step: 'Wire tool', status: 'in_progress' }],
               completedCount: 0,
@@ -140,8 +140,8 @@ test('projectRuntimeThreadMessages preserves progress taskGraph revision metadat
     deps: { fetchRunGenerationView: async () => emptyGenerationReplay() },
   })
 
-  assert.equal(messages[0].meta?.progressChecklistRevision?.id, 'progress_checklist_revision_1')
-  assert.equal(messages[0].meta?.progressChecklistRevision?.snapshot.items[0].status, 'in_progress')
+  assert.equal(messages[0].meta?.planRevision?.id, 'plan_revision_1')
+  assert.equal(messages[0].meta?.planRevision?.snapshot.items[0].status, 'in_progress')
 })
 
 test('projectRuntimeThreadMessages creates synthetic assistant messages for top-level runs without persisted assistant messages', async () => {

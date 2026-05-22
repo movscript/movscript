@@ -19,7 +19,7 @@ import {
 } from '@/components/agent/AgentMessageContent'
 import { ContextDiagnosticCard } from '@/components/agent/ContextDiagnosticCard'
 import { AgentDraftResultCards } from '@/components/agent/AgentDraftResultCards'
-import { AgentProgressChecklistRevisionCard } from '@/components/agent/AgentProgressChecklistCard'
+import { AgentPlanRevisionCard } from '@/components/agent/AgentPlanCard'
 import { AgentActivityDividerMenu, AgentActivityFeedView } from '@/components/agent/AgentActivityFeed'
 import type { GenerationProgressState } from '@/lib/agentGenerationMedia'
 import type { AgentLivePendingAssistantState } from '@/lib/agentLiveRunActivity'
@@ -172,7 +172,7 @@ export function MessageBubble({
     [historicalGeneratedAttachments, msg],
   )
   const runtimeInput = msg.meta?.runtimeInput
-  const progressChecklistRevision = msg.meta?.progressChecklistRevision
+  const planRevision = msg.meta?.planRevision
   const runtimeInputStatus = runtimeInput?.status
   const runtimeInputLabel = runtimeInput?.status === 'pending'
     ? '等待送达运行中任务'
@@ -252,11 +252,11 @@ export function MessageBubble({
           onApprove={onApproveLocalRun}
           onReject={onRejectLocalRun}
           onAnswerInput={onAnswerLocalRunInput}
-          className={displayContent || progressChecklistRevision ? 'mb-2' : undefined}
+          className={displayContent || planRevision ? 'mb-2' : undefined}
         />
       )}
-      {progressChecklistRevision
-        ? <AgentProgressChecklistRevisionCard revision={progressChecklistRevision} />
+      {planRevision
+        ? <AgentPlanRevisionCard revision={planRevision} />
         : displayContent && <MarkdownContent text={displayContent} attachments={messageAttachments} />}
       {showModelSetupAction && (
         <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2 type-tiny">

@@ -25,9 +25,11 @@ import {
   buildBindSceneMomentScriptBlockMutationOptions,
   buildCreateAndBindSceneMomentScriptBlockMutationOptions,
   buildCreateWritingExpressionMutationOptions,
+  buildDeleteSceneMomentMutationOptions,
   buildDeleteWritingExpressionMutationOptions,
   buildLinkSceneMomentReferenceMutationOptions,
   buildUpdateSceneMomentMutationOptions,
+  buildUpdateSegmentMutationOptions,
   buildUpdateWritingExpressionMutationOptions,
   buildUnlinkSceneMomentReferenceMutationOptions,
 } from '@/lib/productionOrchestrationMutationController'
@@ -47,12 +49,16 @@ import {
   appendProductionProposalDraftCreativeReference,
   appendProductionProposalDraftSceneMoment,
   appendProductionProposalDraftSegment,
+  appendProductionProposalDraftWritingExpression,
   buildProductionProposalDraftClientId,
   removeProductionProposalDraftContentUnit,
   removeProductionProposalDraftCreativeReference,
+  removeProductionProposalDraftSceneMoment,
+  removeProductionProposalDraftWritingExpression,
   replaceProductionProposalDraftContentUnit,
   replaceProductionProposalDraftSceneMoment,
   replaceProductionProposalDraftSegment,
+  replaceProductionProposalDraftWritingExpression,
   updateProductionProposalDraftText,
 } from '@/lib/productionProposalDraftEdit'
 import {
@@ -81,7 +87,6 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
-  Input,
   Label,
   Select,
   SelectContent,
@@ -139,6 +144,8 @@ export default function ProductionOrchestrationPage() {
     scriptBlocks: data?.scriptBlocks ?? [],
   }))
   const updateSceneMomentMutation = useMutation(buildUpdateSceneMomentMutationOptions(mutationBase))
+  const updateSegmentMutation = useMutation(buildUpdateSegmentMutationOptions(mutationBase))
+  const deleteSceneMomentMutation = useMutation(buildDeleteSceneMomentMutationOptions(mutationBase))
   const linkSceneMomentReferenceMutation = useMutation(buildLinkSceneMomentReferenceMutationOptions(mutationBase))
   const unlinkSceneMomentReferenceMutation = useMutation(buildUnlinkSceneMomentReferenceMutationOptions(mutationBase))
   const updateWritingExpressionMutation = useMutation(buildUpdateWritingExpressionMutationOptions(mutationBase))
@@ -211,8 +218,9 @@ export default function ProductionOrchestrationPage() {
       contentUnits: allContentUnits,
       keyframes: allKeyframes,
       assetSlots: allAssetSlots,
+      writingExpressions: allWritingExpressions,
     }),
-    [allAssetSlots, allContentUnits, allCreativeReferences, data?.creativeReferenceUsages, allKeyframes, allSceneMoments, allSegments],
+    [allAssetSlots, allContentUnits, allCreativeReferences, allKeyframes, allSceneMoments, allSegments, allWritingExpressions, data?.creativeReferenceUsages],
   )
   const {
     openedDraftId,
@@ -270,12 +278,6 @@ export default function ProductionOrchestrationPage() {
   const [proposalRevisionDialogOpen, setProposalRevisionDialogOpen] = useState(false)
   const [proposalRevisionInstruction, setProposalRevisionInstruction] = useState('')
   const proposalRevisionCleanupRef = useRef<(() => void) | null>(null)
-  const [proposalSegmentEdit, setProposalSegmentEdit] = useState<{
-    id: number
-    title: string
-    kind: string
-    summary: string
-  } | null>(null)
   const proposalWorkspaceData = useMemo(
     () => proposalPreviewDraft
       ? buildProductionProposalDraftWorkspaceData(proposalPreviewDraft, {
@@ -418,28 +420,17 @@ export default function ProductionOrchestrationPage() {
     }, '已新增到提案草稿')
   }
 
-  function editProposalSegment(record: { ID: number; title?: unknown; kind?: unknown; summary?: unknown; content?: unknown }) {
-    setProposalSegmentEdit({
-      id: record.ID,
-      title: stringPayloadField(record.title) ?? '',
-      kind: stringPayloadField(record.kind) ?? 'emotional_function',
-      summary: stringPayloadField(record.summary) ?? stringPayloadField(record.content) ?? '',
-    })
-  }
-
-  function saveProposalSegmentEdit() {
-    if (!proposalSegmentEdit) return
-    const segmentKey = proposalWorkspaceData?.segmentKeyByWorkspaceId.get(proposalSegmentEdit.id)
+  function saveProposalSegment(segmentId: number, payload: SemanticEntityPayload) {
+    const segmentKey = proposalWorkspaceData?.segmentKeyByWorkspaceId.get(segmentId)
     if (!segmentKey) return
-    const next = proposalSegmentEdit
     void patchProposalDraft((draft) => {
       replaceProductionProposalDraftSegment(draft, segmentKey, {
-        title: next.title.trim(),
-        kind: next.kind.trim(),
-        summary: next.summary.trim(),
+        title: stringPayloadField(payload.title),
+        kind: stringPayloadField(payload.kind),
+        summary: stringPayloadField(payload.summary),
+        status: stringPayloadField(payload.status),
       })
     }, '编排段已保存到提案草稿')
-    setProposalSegmentEdit(null)
   }
 
   function createProposalSceneMoment(segmentId: number) {
@@ -470,6 +461,14 @@ export default function ProductionOrchestrationPage() {
         script_block_id: payload.script_block_id === null ? null : numberPayloadField(payload.script_block_id),
       })
     })
+  }
+
+  function deleteProposalSceneMoment(momentId: number) {
+    const target = proposalWorkspaceData?.sceneMomentKeyByWorkspaceId.get(momentId)
+    if (!target) return
+    void patchProposalDraft((draft) => {
+      removeProductionProposalDraftSceneMoment(draft, target.segmentKey, target.momentKey)
+    }, '情节已从提案草稿移除')
   }
 
   function bindProposalSceneMomentScriptBlock(momentId: number, scriptBlockId: number | null) {
@@ -511,14 +510,35 @@ export default function ProductionOrchestrationPage() {
     target: ProductionWritingExpressionEditTarget,
     payload: ProductionWritingExpressionSavePayload,
   ) {
-    if (target.kind === 'fallback' && target.id.startsWith('moment-action-')) {
+    if (target.kind === 'writingExpressions') {
+      const expressionTarget = proposalWorkspaceData?.writingExpressionKeyByWorkspaceId.get(target.id)
+      if (!expressionTarget) return
+      void patchProposalDraft((draft) => {
+        replaceProductionProposalDraftWritingExpression(draft, expressionTarget.segmentKey, expressionTarget.momentKey, expressionTarget.expressionKey, {
+          kind: payload.kind,
+          speaker: payload.speaker,
+          text: payload.text,
+          note: payload.note,
+          intent: payload.intent,
+          order: payload.order,
+          script_block_id: payload.script_block_id === null ? null : payload.script_block_id,
+        })
+      })
+      return
+    }
+
+    if (target.kind === 'fallback' && !target.id.startsWith('content-unit-')) {
       const momentTarget = proposalWorkspaceData?.sceneMomentKeyByWorkspaceId.get(target.sceneMomentId)
       if (!momentTarget) return
       void patchProposalDraft((draft) => {
-        replaceProductionProposalDraftSceneMoment(draft, momentTarget.segmentKey, momentTarget.momentKey, {
-          action_text: payload.text,
-          description: payload.text,
-          mood: payload.note,
+        appendProductionProposalDraftWritingExpression(draft, momentTarget.segmentKey, momentTarget.momentKey, {
+          client_id: buildProductionProposalDraftClientId('expression'),
+          kind: payload.kind,
+          speaker: payload.speaker,
+          text: payload.text,
+          note: payload.note,
+          intent: payload.intent,
+          order: payload.order ?? target.order,
           script_block_id: payload.script_block_id ?? undefined,
         })
       })
@@ -544,19 +564,28 @@ export default function ProductionOrchestrationPage() {
     const momentTarget = proposalWorkspaceData?.sceneMomentKeyByWorkspaceId.get(momentId)
     if (!momentTarget) return
     void patchProposalDraft((draft) => {
-      appendProductionProposalDraftContentUnit(draft, momentTarget.segmentKey, momentTarget.momentKey, {
-        client_id: buildProductionProposalDraftClientId('unit'),
-        title: '新增表达',
+      appendProductionProposalDraftWritingExpression(draft, momentTarget.segmentKey, momentTarget.momentKey, {
+        client_id: buildProductionProposalDraftClientId('expression'),
         kind: 'action',
-        description: '待补表达',
+        speaker: '场面',
+        text: '待补表达',
+        intent: '',
+        note: '',
         order,
-        status: 'candidate',
         script_block_id: scriptBlockId ?? undefined,
       })
     }, '表达已新增到提案草稿')
   }
 
   function deleteProposalExpressionLine(target: ProductionWritingExpressionEditTarget) {
+    if (target.kind === 'writingExpressions') {
+      const expressionTarget = proposalWorkspaceData?.writingExpressionKeyByWorkspaceId.get(target.id)
+      if (!expressionTarget) return
+      void patchProposalDraft((draft) => {
+        removeProductionProposalDraftWritingExpression(draft, expressionTarget.segmentKey, expressionTarget.momentKey, expressionTarget.expressionKey)
+      }, '表达已从提案草稿移除')
+      return
+    }
     if (target.kind !== 'fallback' || !target.id.startsWith('content-unit-')) return
     const unitId = Number(target.id.replace('content-unit-', ''))
     const unitTarget = proposalWorkspaceData?.contentUnitKeyByWorkspaceId.get(unitId)
@@ -687,13 +716,14 @@ export default function ProductionOrchestrationPage() {
                   isBindingSceneMomentScriptBlock={proposalModeActive ? savingProposalDraft : bindSceneMomentScriptBlockMutation.isPending || createAndBindSceneMomentScriptBlockMutation.isPending}
                   allowCreateAndBindSceneMomentScriptBlock={!proposalModeActive}
                   lookup={workspaceLookup}
-                  onEditSegment={proposalModeActive ? editProposalSegment : pageController.editSegment}
                   onCreateSegment={proposalModeActive ? createProposalSegment : pageController.createSegment}
                   onCreateSceneMoment={proposalModeActive ? createProposalSceneMoment : pageController.createSceneMoment}
                   onSelectSceneMoment={proposalModeActive ? setProposalSelectedMomentId : pageController.selectSceneMoment}
+                  onSaveSegment={proposalModeActive ? saveProposalSegment : (segmentId, payload) => updateSegmentMutation.mutate({ segmentId, payload })}
                   onBindSceneMomentScriptBlock={proposalModeActive ? bindProposalSceneMomentScriptBlock : (momentId, scriptBlockId) => bindSceneMomentScriptBlockMutation.mutate({ momentId, scriptBlockId })}
                   onCreateAndBindSceneMomentScriptBlock={proposalModeActive ? (momentId, _startLine, _endLine) => bindProposalSceneMomentScriptBlock(momentId, null) : (momentId, startLine, endLine) => createAndBindSceneMomentScriptBlockMutation.mutate({ momentId, startLine, endLine })}
                   onSaveSceneMoment={proposalModeActive ? saveProposalSceneMoment : (momentId, payload) => updateSceneMomentMutation.mutate({ momentId, payload })}
+                  onDeleteSceneMoment={proposalModeActive ? deleteProposalSceneMoment : (momentId) => deleteSceneMomentMutation.mutate(momentId)}
                   onLinkReferenceToSceneMoment={proposalModeActive ? linkProposalReferenceToSceneMoment : (momentId, referenceId, role) => linkSceneMomentReferenceMutation.mutate({ momentId, referenceId, role })}
                   onUnlinkReferenceFromSceneMoment={proposalModeActive ? unlinkProposalReferenceFromSceneMoment : (usageId) => unlinkSceneMomentReferenceMutation.mutate(usageId)}
                   onSaveExpressionLine={proposalModeActive ? saveProposalExpressionLine : (target, payload) => updateWritingExpressionMutation.mutate({ target, payload })}
@@ -706,7 +736,9 @@ export default function ProductionOrchestrationPage() {
                   }}
                   onAddExpressionLine={proposalModeActive ? addProposalExpressionLine : (momentId, order, scriptBlockId) => createWritingExpressionMutation.mutate({ momentId, order, scriptBlockId })}
                   canDeleteFallbackContentUnits={proposalModeActive}
+                  isSavingSegment={proposalModeActive ? savingProposalDraft : updateSegmentMutation.isPending}
                   isSavingSceneMoment={proposalModeActive ? savingProposalDraft : updateSceneMomentMutation.isPending}
+                  isDeletingSceneMoment={proposalModeActive ? savingProposalDraft : deleteSceneMomentMutation.isPending}
                   isLinkingSceneMomentReference={proposalModeActive ? savingProposalDraft : linkSceneMomentReferenceMutation.isPending}
                   isDeletingSceneMomentReference={proposalModeActive ? savingProposalDraft : unlinkSceneMomentReferenceMutation.isPending}
                   isSavingExpressionLine={proposalModeActive ? savingProposalDraft : updateWritingExpressionMutation.isPending || createWritingExpressionMutation.isPending || deleteWritingExpressionMutation.isPending}
@@ -716,48 +748,6 @@ export default function ProductionOrchestrationPage() {
           )}
         </main>
       </div>
-
-      <Dialog open={Boolean(proposalSegmentEdit)} onOpenChange={(open) => { if (!open) setProposalSegmentEdit(null) }}>
-        <DialogContent className="w-[560px] max-w-[calc(100vw-32px)]">
-          <DialogTitle>编辑提案编排段</DialogTitle>
-          {proposalSegmentEdit ? (
-            <div className="space-y-3 pt-2">
-              <label className="block">
-                <Label className="mb-1 block type-label text-muted-foreground">标题</Label>
-                <Input
-                  value={proposalSegmentEdit.title}
-                  onChange={(event) => setProposalSegmentEdit((prev) => prev ? { ...prev, title: event.target.value } : prev)}
-                  className="type-body"
-                />
-              </label>
-              <label className="block">
-                <Label className="mb-1 block type-label text-muted-foreground">类型</Label>
-                <Input
-                  value={proposalSegmentEdit.kind}
-                  onChange={(event) => setProposalSegmentEdit((prev) => prev ? { ...prev, kind: event.target.value } : prev)}
-                  className="type-body"
-                />
-              </label>
-              <label className="block">
-                <Label className="mb-1 block type-label text-muted-foreground">摘要</Label>
-                <Textarea
-                  value={proposalSegmentEdit.summary}
-                  onChange={(event) => setProposalSegmentEdit((prev) => prev ? { ...prev, summary: event.target.value } : prev)}
-                  className="min-h-24 resize-y type-body leading-6"
-                />
-              </label>
-              <div className="flex justify-end gap-2 pt-1">
-                <Button size="sm" variant="outline" className="type-label" disabled={savingProposalDraft} onClick={() => setProposalSegmentEdit(null)}>
-                  取消
-                </Button>
-                <Button size="sm" className="type-label" disabled={savingProposalDraft} loading={savingProposalDraft} onClick={saveProposalSegmentEdit}>
-                  保存到提案草稿
-                </Button>
-              </div>
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={proposalReviewOpen} onOpenChange={setProposalReviewOpen}>
         <DialogContent className="flex max-h-[88vh] w-[min(1100px,calc(100vw-32px))] max-w-none flex-col overflow-hidden p-0">
@@ -821,19 +811,6 @@ export default function ProductionOrchestrationPage() {
           title={pageController.createDialog.title}
           onOpenChange={pageController.createDialog.onOpenChange}
           onSaved={pageController.createDialog.onSaved}
-        />
-      )}
-      {pageController.editDialog && (
-        <SemanticEntityCrudDialog
-          open
-          mode="edit"
-          projectId={projectId}
-          config={pageController.editDialog.config}
-          record={pageController.editDialog.record}
-          queryKey={queryKey}
-          title={pageController.editDialog.title}
-          onOpenChange={pageController.editDialog.onOpenChange}
-          onSaved={pageController.editDialog.onSaved}
         />
       )}
     </ProjectWorkbenchShell>

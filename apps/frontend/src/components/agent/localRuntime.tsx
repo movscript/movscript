@@ -90,10 +90,10 @@ function localAgentApprovalImpactI18nText(approval: ApprovalLike, t: ReturnType<
       return t('agents.chat.workflow.approvalImpact.projectCreate')
     case 'core_memory_delete':
       return t('agents.chat.workflow.approvalImpact.memoryDelete')
-    case 'core_subagent_spawn':
-      return t('agents.chat.workflow.approvalImpact.subagentSpawn')
-    case 'core_subagent_cancel':
-      return t('agents.chat.workflow.approvalImpact.subagentCancel')
+    case 'core_work_start':
+      return t('agents.chat.workflow.approvalImpact.workStart', { defaultValue: 'Approving will submit async runtime work; generation jobs may consume quota and subagent runs start worker agents.' })
+    case 'core_work_cancel':
+      return t('agents.chat.workflow.approvalImpact.workCancel', { defaultValue: 'Approving will cancel async runtime work; unfinished outputs or worker follow-up may not be produced.' })
     default:
       break
   }
@@ -261,17 +261,18 @@ export function LocalAgentApprovalRequestCard({
 }
 
 function localAgentApprovalTitle(approval: PendingApproval, t: ReturnType<typeof useTranslation>['t']) {
-  if (approval.toolName !== 'core_operation_start') return agentToolNameLabel(approval.toolName, t)
+  if (approval.toolName !== 'core_work_start') return agentToolNameLabel(approval.toolName, t)
   const args = approval.args && typeof approval.args === 'object' && !Array.isArray(approval.args)
     ? approval.args as Record<string, unknown>
     : undefined
   const kind = typeof args?.kind === 'string' ? args.kind : undefined
   if (kind === 'generation_job') return t('agents.chat.workflow.approvalOperation.generationJob', { defaultValue: '创建生成任务' })
-  return t('agents.chat.workflow.approvalOperation.default', { defaultValue: '执行后台任务' })
+  if (kind === 'subagent_run') return t('agents.chat.workflow.approvalOperation.subagentRun', { defaultValue: '启动子 agent 运行' })
+  return t('agents.chat.workflow.approvalOperation.default', { defaultValue: '提交异步任务' })
 }
 
 function localAgentApprovalReason(approval: PendingApproval, t: ReturnType<typeof useTranslation>['t']) {
-  if (approval.toolName === 'core_operation_start' && /core_operation_start|agent\.operation\.write|operation\.write/i.test(approval.reason)) {
+  if (approval.toolName === 'core_work_start' && /core_work_start|agent\.work\.write|work\.write/i.test(approval.reason)) {
     return t('agents.chat.workflow.approvalOperation.confirmBeforeRun', { defaultValue: '需要用户确认后才能执行。' })
   }
   return approval.reason

@@ -19,7 +19,8 @@
   ],
   "toolRefs": [
     "tool://movscript_focus_get",
-    "tool://draft_get",
+    "tool://core_file_read",
+    "tool://core_file_search",
     "tool://knowledge_search",
     "tool://knowledge_get",
     "tool://core_user_input_request"

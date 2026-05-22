@@ -12,17 +12,16 @@ import {
   rejectRuntimeDraft,
   simulateRuntimeDraftApply,
   updateRuntimeDraft,
-  validateRuntimeDraft,
   type RuntimeDraftBackendApplyClient,
 } from './runtimeDraftOperations.js'
 
-test('runtime draft CRUD helpers normalize inputs and validate drafts', () => {
+test('runtime draft CRUD helpers normalize inputs and preview draft apply', () => {
   const draftStore = new InMemoryAgentDraftStore()
   const draft = createRuntimeLocalDraft({
     draftStore,
     draftInput: {
       projectId: 42,
-      kind: 'script',
+      kind: 'project_standards_proposal',
       title: 'Script',
       content: JSON.stringify({ body: 'Draft content' }),
       source: { threadId: 'thread_1', unsafe: new Date() },
@@ -30,7 +29,7 @@ test('runtime draft CRUD helpers normalize inputs and validate drafts', () => {
   })
 
   assert.equal(getRuntimeDraft({ draftStore, draftId: draft.id })?.id, draft.id)
-  assert.equal(listRuntimeDrafts({ draftStore, query: { projectId: 42, kind: 'script' } }).length, 1)
+  assert.equal(listRuntimeDrafts({ draftStore, query: { projectId: 42, kind: 'project_standards_proposal' } }).length, 1)
 
   const updated = updateRuntimeDraft({
     draftStore,
@@ -38,8 +37,6 @@ test('runtime draft CRUD helpers normalize inputs and validate drafts', () => {
   })
   assert.equal(updated.title, 'Updated script')
   assert.equal(updated.status, 'accepted')
-
-  assert.equal((validateRuntimeDraft({ draftStore, draftId: draft.id }) as { ok?: boolean }).ok, true)
 
   const preview = previewRuntimeDraftApply({
     draftStore,
@@ -53,25 +50,10 @@ test('runtime draft CRUD helpers normalize inputs and validate drafts', () => {
   assert.equal(rejected.rejectedReason, 'not needed')
 })
 
-test('validateRuntimeDraft validates existing drafts and rejects missing ids', () => {
-  const draftStore = new InMemoryAgentDraftStore()
-  const draft = draftStore.createDraft({
-    kind: 'script',
-    title: 'Script',
-    content: 'Draft content',
-  })
-
-  const validation = validateRuntimeDraft({ draftStore, draftId: draft.id }) as { ok?: boolean; draftId?: string }
-
-  assert.equal(validation.ok, true)
-  assert.equal(validation.draftId, draft.id)
-  assert.throws(() => validateRuntimeDraft({ draftStore, draftId: 'missing_draft' }), /draft not found: missing_draft/)
-})
-
 test('simulateRuntimeDraftApply returns local validation failures before backend calls', async () => {
   const draftStore = new InMemoryAgentDraftStore()
   const draft = draftStore.createDraft({
-    kind: 'script',
+    kind: 'project_standards_proposal',
     title: 'Script',
     content: '',
     target: { entityType: 'script', entityId: 1, field: 'content' },
@@ -92,9 +74,14 @@ test('simulateRuntimeDraftApply returns local validation failures before backend
 test('simulateRuntimeDraftApply projects backend preview errors without throwing', async () => {
   const draftStore = new InMemoryAgentDraftStore()
   const draft = draftStore.createDraft({
-    kind: 'script',
+    kind: 'project_standards_proposal',
     title: 'Script',
-    content: 'Updated script',
+    content: JSON.stringify({
+      schema: 'movscript.project_standards_proposal.v1',
+      scope: 'project_standards_proposal',
+      mode: 'snapshot',
+      proposal: { project_style: { custom_rules: [] } },
+    }),
     target: { entityType: 'script', entityId: 1, field: 'content' },
   })
   const backend = fakeBackendApplyClient({
@@ -484,7 +471,7 @@ test('applyRuntimeDraftFromUI prefers mapped owner client_id over stale owner id
 test('applyRuntimeDraftFromUI applies backend results and records backend failures', async () => {
   const draftStore = new InMemoryAgentDraftStore()
   const draft = draftStore.createDraft({
-    kind: 'script',
+    kind: 'project_standards_proposal',
     title: 'Script',
     content: 'Updated script',
     target: { entityType: 'script', entityId: 1, field: 'content' },
@@ -505,7 +492,7 @@ test('applyRuntimeDraftFromUI applies backend results and records backend failur
   assert.equal(draftStore.getDraft(draft.id)?.appliedByUserId, 12)
 
   const failingDraft = draftStore.createDraft({
-    kind: 'script',
+    kind: 'project_standards_proposal',
     title: 'Script',
     content: 'Broken script',
     target: { entityType: 'script', entityId: 2, field: 'content' },

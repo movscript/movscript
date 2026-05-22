@@ -264,6 +264,7 @@ export function useProductionProposalReviewController({
             assetSlots: result.would_apply.asset_slots?.length ?? 0,
             contentUnits: result.would_apply.content_units?.length ?? 0,
             keyframes: result.would_apply.keyframes?.length ?? 0,
+            writingExpressions: result.would_apply.writing_expressions?.length ?? 0,
           },
           semanticChanges: result.semantic_changes ?? [],
           warnings: result.warnings ?? [],

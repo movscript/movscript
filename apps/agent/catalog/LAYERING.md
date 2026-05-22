@@ -9,7 +9,7 @@
 | 产品层 | 拥有 | 示例 |
 | --- | --- | --- |
 | Agent Core | Agent 拥有的 memory、用户输入、catalog inspection 和 planner subagents | `core.pack.agent`, `tools/core/`, `skills/core/` |
-| Draft | 本地审阅 draft CRUD、校验和 preview 工具 | `draft.pack.lifecycle`, `tools/draft/` |
+| Draft | 本地审阅 draft CRUD、preview 和 apply 工具；preview 内置 validation | `draft.pack.lifecycle`, `tools/draft/` |
 | MovScript | 当前任务 focus、项目读取和可审阅 proposal workflows | `movscript.pack.workspace`, `tools/movscript/workspace/`, `skills/movscript/` |
 | Candidate | 候选写入与候选规划 | `tools/candidate/`, `skills/candidate/` |
 | Generation | 模型发现、provider-level generation job contract 和视觉生成执行 | `tools/generation/`, `skills/generation/` |

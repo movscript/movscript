@@ -10,7 +10,7 @@ import {
 test('buildRuntimeCreateDraftInput normalizes project id and runtime draft source', () => {
   assert.deepEqual(buildRuntimeCreateDraftInput({
     projectId: 42,
-    kind: 'note',
+    kind: 'project_standards_proposal',
     title: 'Draft',
     content: 'Content',
     source: { runId: 'run_1', ignored: 'value' },
@@ -18,7 +18,7 @@ test('buildRuntimeCreateDraftInput normalizes project id and runtime draft sourc
     metadata: { userKey: 'value' },
   }), {
     projectId: 42,
-    kind: 'note',
+    kind: 'project_standards_proposal',
     title: 'Draft',
     content: 'Content',
     source: { runId: 'run_1' },

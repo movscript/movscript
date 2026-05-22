@@ -198,7 +198,7 @@ function makeRuntimeSnapshot(
       id: string
       threadId: string
       runId: string
-      operationId?: string
+      workId?: string
       kind: 'approval' | 'input' | 'selection'
       status: 'pending' | 'approved' | 'rejected' | 'answered' | 'cancelled'
       payload: unknown
@@ -217,13 +217,13 @@ function makeRuntimeSnapshot(
     updatedAt: thread.updatedAt,
     thread,
     runs,
-    operations: [],
+    works: [],
     interactions,
     continuations: [],
     current: {
       activeRunIds,
       waitingRunIds,
-      runningOperationIds: [],
+      runningWorkIds: [],
       pendingInteractionIds: interactions.filter((interaction) => interaction.status === 'pending').map((interaction) => interaction.id),
       readyContinuationIds: [],
     },

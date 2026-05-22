@@ -28,6 +28,7 @@ export interface ProductionProposalDraftWorkspaceData {
   segmentKeyByWorkspaceId: Map<number, string>
   sceneMomentKeyByWorkspaceId: Map<number, { segmentKey: string; momentKey: string }>
   contentUnitKeyByWorkspaceId: Map<number, { segmentKey: string; momentKey: string; unitKey: string }>
+  writingExpressionKeyByWorkspaceId: Map<number, { segmentKey: string; momentKey: string; expressionKey: string }>
   referenceUsageByWorkspaceId: Map<number, { segmentKey: string; momentKey: string; referenceKey: string }>
 }
 
@@ -48,6 +49,7 @@ export function buildProductionProposalDraftWorkspaceData(
   const segmentKeyByWorkspaceId = new Map<number, string>()
   const sceneMomentKeyByWorkspaceId = new Map<number, { segmentKey: string; momentKey: string }>()
   const contentUnitKeyByWorkspaceId = new Map<number, { segmentKey: string; momentKey: string; unitKey: string }>()
+  const writingExpressionKeyByWorkspaceId = new Map<number, { segmentKey: string; momentKey: string; expressionKey: string }>()
   const referenceUsageByWorkspaceId = new Map<number, { segmentKey: string; momentKey: string; referenceKey: string }>()
   const referenceById = new Map(input.creativeReferences.map((reference) => [reference.ID, reference]))
 
@@ -108,6 +110,23 @@ export function buildProductionProposalDraftWorkspaceData(
         })
       })
 
+      ;(moment.writing_expressions ?? []).forEach((expression, expressionIndex) => {
+        const expressionKey = productionProposalDraftNodeKey(expression, `expression:${expressionIndex}`)
+        const expressionId = workspaceIdForProposalNode(`${segmentKey}/${momentKey}/${expressionKey}`, expression.id)
+        writingExpressionKeyByWorkspaceId.set(expressionId, { segmentKey, momentKey, expressionKey })
+        writingExpressions.push({
+          ID: expressionId,
+          scene_moment_id: momentId,
+          script_block_id: expression.script_block_id ?? moment.script_block_id ?? undefined,
+          kind: expression.kind as WritingExpressionRecord['kind'],
+          speaker: expression.speaker,
+          text: expression.text,
+          note: expression.note,
+          intent: expression.intent,
+          order: expression.order ?? expressionIndex + 1,
+        })
+      })
+
       ;(moment.creative_references ?? []).forEach((reference, referenceIndex) => {
         const referenceKey = productionProposalDraftNodeKey(reference, `reference:${referenceIndex}`)
         const referenceId = workspaceReferenceId(reference, referenceKey, referenceById)
@@ -152,6 +171,7 @@ export function buildProductionProposalDraftWorkspaceData(
     segmentKeyByWorkspaceId,
     sceneMomentKeyByWorkspaceId,
     contentUnitKeyByWorkspaceId,
+    writingExpressionKeyByWorkspaceId,
     referenceUsageByWorkspaceId,
   }
 }

@@ -5,7 +5,6 @@ import { Clock3 } from 'lucide-react'
 import ReferenceRelationsPage from '@/pages/reference-relations/ReferenceRelationsPage'
 import { cn } from '@/lib/utils'
 import { ScenarioWorkspace } from '@/components/workbench/ScenarioWorkspace'
-import { ScriptSplitWorkbench } from '@/components/workbench/ScriptSplitWorkbench'
 import { SettingPreparationWorkbench } from '@/components/workbench/SettingPreparationWorkbench'
 import { ContentWorkbenchPage } from '@/components/workbench/ContentWorkbenchPage'
 import {
@@ -27,7 +26,6 @@ interface WorkbenchContentProps {
 }
 
 function CategoryContent({ category }: { category: WorkbenchCategory }) {
-  if (category === 'script') return <ScriptSplitWorkbench />
   if (category === 'assets') return <PreProductionAssetWorkspace />
   if (category === 'creative') return <SettingPreparationWorkbench />
   if (category === 'production') return <ContentWorkbenchPage />

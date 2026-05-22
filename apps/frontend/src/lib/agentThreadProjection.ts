@@ -2,7 +2,7 @@ import { assistantResultPayloadForRun, type AgentMessageViewModelDeps } from '@/
 import { attachmentKind } from '@/lib/agentAttachments'
 import { formatLocalAgentAssistantContent } from '@/lib/localAgentResult'
 import { isRecord } from '@/lib/jsonValue'
-import type { AgentMessage, AgentProgressChecklistRevision, AgentRun, AgentThread } from '@/lib/localAgentClient'
+import type { AgentMessage, AgentPlanRevision, AgentRun, AgentThread } from '@/lib/localAgentClient'
 import type { AgentAttachment, ChatMessage, ChatMessageMeta, ChatRunActivityEvent } from '@/store/agentStore'
 
 export interface RuntimeThreadProjectionInput {
@@ -67,8 +67,61 @@ export async function projectRuntimeThreadMessages(input: RuntimeThreadProjectio
 export function mergeProjectedRuntimeMessages(existingMessages: ChatMessage[], projectedMessages: ChatMessage[], threadId: string): ChatMessage[] {
   return [
     ...existingMessages.filter((message) => message.meta?.runtimeMessage?.threadId !== threadId),
-    ...projectedMessages,
+    ...dedupeProjectedRuntimeMessages(projectedMessages),
   ].sort((a, b) => a.timestamp - b.timestamp)
+}
+
+function dedupeProjectedRuntimeMessages(messages: ChatMessage[]): ChatMessage[] {
+  const byKey = new Map<string, ChatMessage>()
+  const passthrough: ChatMessage[] = []
+  for (const message of messages) {
+    const key = runtimeAssistantResultKey(message)
+    if (!key) {
+      passthrough.push(message)
+      continue
+    }
+    const existing = byKey.get(key)
+    byKey.set(key, existing ? richerRuntimeMessage(existing, message) : message)
+  }
+  return [...passthrough, ...byKey.values()].sort((a, b) => a.timestamp - b.timestamp)
+}
+
+function runtimeAssistantResultKey(message: ChatMessage): string | undefined {
+  const runtime = message.meta?.runtimeMessage
+  if (message.meta?.planRevision) return undefined
+  if (message.role !== 'assistant' || !runtime?.threadId || !runtime.runId) return undefined
+  return `${runtime.threadId}:${runtime.runId}`
+}
+
+function richerRuntimeMessage(left: ChatMessage, right: ChatMessage): ChatMessage {
+  const leftHasMessageId = !!left.meta?.runtimeMessage?.messageId
+  const rightHasMessageId = !!right.meta?.runtimeMessage?.messageId
+  const preferred = leftHasMessageId !== rightHasMessageId
+    ? leftHasMessageId ? left : right
+    : runtimeMessageScore(right) >= runtimeMessageScore(left) ? right : left
+  const fallback = preferred === right ? left : right
+  const runtimeMessage = preferred.meta?.runtimeMessage ?? fallback.meta?.runtimeMessage
+  return {
+    ...preferred,
+    content: preferred.content || fallback.content,
+    attachments: preferred.attachments ?? fallback.attachments,
+    meta: {
+      ...fallback.meta,
+      ...preferred.meta,
+      ...(runtimeMessage ? { runtimeMessage } : {}),
+    },
+  }
+}
+
+function runtimeMessageScore(message: ChatMessage): number {
+  const meta = message.meta
+  let score = 0
+  if (meta?.runtimeMessage?.messageId) score += 3
+  if (meta?.localRunActivity) score += 2
+  if (meta?.generationJobs?.length) score += 1
+  if (meta?.draftArtifacts?.length) score += 1
+  if (message.attachments?.length) score += 1
+  return score
 }
 
 async function projectRuntimeMessage(input: {
@@ -81,7 +134,7 @@ async function projectRuntimeMessage(input: {
   const timestamp = runtimeTimestamp(input.message.createdAt)
   const baseMeta: ChatMessageMeta = {
     ...input.existing?.meta,
-    ...progressChecklistRevisionMeta(input.message.metadata),
+    ...planRevisionMeta(input.message.metadata),
     runtimeMessage: {
       threadId: input.message.threadId,
       messageId: input.message.id,
@@ -113,19 +166,19 @@ async function projectRuntimeMessage(input: {
   }
 }
 
-function progressChecklistRevisionMeta(metadata: AgentMessage['metadata']): Pick<ChatMessageMeta, 'progressChecklistRevision'> {
-  if (!isRecord(metadata) || metadata.kind !== 'progress_checklist_revision') return {}
-  const revision = metadata.progressChecklistRevision
-  if (!isProgressChecklistRevision(revision)) return {}
-  return { progressChecklistRevision: revision }
+function planRevisionMeta(metadata: AgentMessage['metadata']): Pick<ChatMessageMeta, 'planRevision'> {
+  if (!isRecord(metadata) || metadata.kind !== 'plan_revision') return {}
+  const revision = metadata.planRevision
+  if (!isPlanRevision(revision)) return {}
+  return { planRevision: revision }
 }
 
-function isProgressChecklistRevision(value: unknown): value is AgentProgressChecklistRevision {
-  if (!isRecord(value) || value.schema !== 'movscript.agent.progress-checklist-revision.v1') return false
-  if (typeof value.id !== 'string' || typeof value.taskGraphId !== 'string' || typeof value.threadId !== 'string') return false
+function isPlanRevision(value: unknown): value is AgentPlanRevision {
+  if (!isRecord(value) || value.schema !== 'movscript.agent.plan-revision.v1') return false
+  if (typeof value.id !== 'string' || typeof value.planId !== 'string' || typeof value.threadId !== 'string') return false
   if (typeof value.createdAt !== 'string' || !isRecord(value.snapshot)) return false
   const snapshot = value.snapshot
-  if (snapshot.schema !== 'movscript.agent.progress-checklist.v1') return false
+  if (snapshot.schema !== 'movscript.agent.plan.v1') return false
   if (typeof snapshot.id !== 'string' || typeof snapshot.threadId !== 'string') return false
   if (!Array.isArray(snapshot.items)) return false
   return snapshot.items.every((item) => (

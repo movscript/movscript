@@ -21,7 +21,7 @@ export interface CompleteSendRunResultDeps {
   setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
   messageStore: Pick<AgentConversationMessageStore, 'updateMessageMeta' | 'setConversationMessages'>
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
-  setPageTaskRunning: (requestId: string, patch: { conversationId: string; run?: AgentRun; threadId?: string; artifacts?: AgentTaskArtifactRef[] }) => void
+  setPageTaskRunning: (requestId: string, patch: { conversationId: string; sessionId?: string; run?: AgentRun; thread?: AgentThread; threadId?: string; artifacts?: AgentTaskArtifactRef[] }) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch: { loading?: boolean; building?: boolean; approving?: boolean; stopping?: boolean; stopRequested?: boolean }) => void
   setPendingHttpEvents: (events: ChatRunActivityEvent[]) => void
   setPendingAssistantState: (state: AgentLivePendingAssistantState | null) => void
@@ -64,7 +64,7 @@ export async function completeSendRunResult(input: {
     deps.updateConversationTitle(deps.userId, deps.conversationId, thread.title.trim())
   }
   if (draft.localRuntime?.requestId) {
-    deps.setPageTaskRunning(draft.localRuntime.requestId, { conversationId: deps.conversationId, run, threadId: thread.id, artifacts })
+    deps.setPageTaskRunning(draft.localRuntime.requestId, { conversationId: deps.conversationId, run, thread, threadId: thread.id, artifacts })
   }
   deps.setConversationRun(deps.conversationId, run, { loading: false, building: false, approving: false, stopping: false, stopRequested: false })
   deps.setPendingHttpEvents([])

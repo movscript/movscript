@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { InMemoryAgentDraftStore } from '../drafts/draftStore.js'
+import { InMemoryAgentDraftStore, validateDraft } from '../drafts/draftStore.js'
 import type { BackendApplyResult } from '../drafts/backendApplyClient.js'
 import { createRuntimeDraftOperationsBridge } from './runtimeDraftOperationsBridge.js'
 
@@ -19,9 +19,18 @@ test('createRuntimeDraftOperationsBridge wires draft CRUD and apply helpers', as
 
   const draft = bridge.createLocalDraft({
     projectId: 42,
-    kind: 'script',
+    kind: 'project_standards_proposal',
     title: 'Script',
-    content: JSON.stringify({ body: 'Draft content' }),
+    content: JSON.stringify({
+      schema: 'movscript.project_standards_proposal.v1',
+      scope: 'project_standards_proposal',
+      mode: 'snapshot',
+      proposal: {
+        project_style: {
+          custom_rules: [],
+        },
+      },
+    }),
   })
   const simulated = await bridge.simulateApplyDraft({
     draftId: draft.id,
@@ -33,7 +42,7 @@ test('createRuntimeDraftOperationsBridge wires draft CRUD and apply helpers', as
 
   assert.equal(bridge.listDrafts({ projectId: 42 }).length, 1)
   assert.equal(bridge.getDraft(draft.id)?.id, draft.id)
-  assert.equal((bridge.validateDraft({ draftId: draft.id }) as { ok?: boolean }).ok, true)
+  assert.equal(validateDraft(draft).ok, true)
   assert.equal(simulated.ok, true)
   assert.equal(simulated.backendApply, backendApply)
   assert.equal(rejected.status, 'rejected')

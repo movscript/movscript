@@ -98,7 +98,6 @@ function inferRouteFromLabels(labels: string[] | undefined) {
   const list = labels ?? []
   if (list.some((label) => /production-orchestrate|production-orchestration/i.test(label))) return { pathname: ROUTES.project.productionOrchestration }
   if (list.some((label) => /creative-workbench|pre-production/i.test(label))) return { pathname: ROUTES.project.preProduction }
-  if (list.some((label) => /script-split/i.test(label))) return { pathname: ROUTES.project.scripts }
   if (list.some((label) => /workbench/i.test(label))) return { pathname: ROUTES.project.contentUnitWorkbench }
   return undefined
 }
@@ -116,7 +115,7 @@ export function buildPageKey(input: {
 function inferPageType(labels: string[] | undefined, pathname?: string): string {
   if (labels?.some((label) => /production-orchestrate|production-orchestration/i.test(label))) return 'production_orchestrate'
   if (labels?.some((label) => /creative-workbench|pre-production/i.test(label))) return 'pre_production'
-  if (labels?.some((label) => /script-split|workbench/i.test(label))) return 'workbench'
+  if (labels?.some((label) => /workbench/i.test(label))) return 'workbench'
   if (pathname?.includes(ROUTES.project.productionOrchestration) || pathname?.includes('/production-orchestrate')) return 'production_orchestrate'
   if (pathname?.includes(ROUTES.project.preProduction) || pathname?.includes('/pre-production') || pathname?.includes('/creative-workbench')) return 'pre_production'
   if (pathname?.includes('/workbench')) return 'workbench'

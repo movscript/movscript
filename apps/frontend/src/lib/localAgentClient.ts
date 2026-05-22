@@ -7,9 +7,26 @@ export type AgentThreadStatus = 'idle' | 'running' | 'requires_action' | 'comple
 export type AgentStepStatus = 'in_progress' | 'completed' | 'failed'
 export type AgentInputRequestStatus = 'pending' | 'answered' | 'cancelled'
 export type AgentRunRole = 'planner' | 'worker'
+export type AgentThreadRole = 'root' | 'planner' | 'worker'
 export type AgentTaskGraphStatus = 'pending' | 'running' | 'blocked' | 'needs_review' | 'done' | 'failed' | 'cancelled'
 export type AgentTaskStatus = 'pending' | 'running' | 'blocked' | 'needs_review' | 'done' | 'failed' | 'cancelled'
-export type AgentProgressChecklistItemStatus = 'pending' | 'in_progress' | 'completed'
+export type AgentPlanTaskStatus = 'pending' | 'in_progress' | 'completed'
+
+export interface AgentSession {
+  id: string
+  title?: string
+  projectId?: number
+  metadata?: Record<string, unknown>
+  rootThreadId?: string
+  activeThreadId?: string
+  status?: AgentThreadStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AgentSessionSummary extends AgentSession {
+  threadCount: number
+}
 
 export interface AgentMessage {
   id: string
@@ -24,11 +41,16 @@ export interface AgentMessage {
 
 export interface AgentThread {
   id: string
+  sessionId?: string
   title?: string
+  agentName?: string
+  agentRole?: AgentThreadRole
+  parentThreadId?: string
+  parentRunId?: string
   projectId?: number
   metadata?: Record<string, unknown>
-  currentProgressChecklist?: AgentProgressChecklist
-  progressChecklistRevisions?: AgentProgressChecklistRevision[]
+  currentPlan?: AgentPlan
+  planRevisions?: AgentPlanRevision[]
   archived?: boolean
   status?: AgentThreadStatus
   activeRunId?: string
@@ -41,10 +63,15 @@ export interface AgentThread {
 
 export interface AgentThreadSummary {
   id: string
+  sessionId?: string
   title?: string
+  agentName?: string
+  agentRole?: AgentThreadRole
+  parentThreadId?: string
+  parentRunId?: string
   projectId?: number
   metadata?: Record<string, unknown>
-  currentProgressChecklist?: AgentProgressChecklist
+  currentPlan?: AgentPlan
   archived: boolean
   status?: AgentThreadStatus
   activeRunId?: string
@@ -56,32 +83,54 @@ export interface AgentThreadSummary {
   lastMessageAt?: string
 }
 
-export interface AgentProgressChecklistItem {
-  step: string
-  status: AgentProgressChecklistItemStatus
+export interface AgentThreadDeletionResult {
+  deleted: boolean
+  threadId: string
+  deletedRunIds: string[]
+  deletedTaskGraphIds: string[]
+  deletedTaskIds: string[]
+  deletedRuntimeWorkIds: string[]
+  deletedRuntimeInteractionIds: string[]
+  deletedRuntimeContinuationIds: string[]
 }
 
-export interface AgentProgressChecklist {
-  schema: 'movscript.agent.progress-checklist.v1'
+export interface AgentThreadClearResult {
+  deleted: boolean
+  deletedThreadIds: string[]
+  deletedRunIds: string[]
+  deletedTaskGraphIds: string[]
+  deletedTaskIds: string[]
+  deletedRuntimeWorkIds: string[]
+  deletedRuntimeInteractionIds: string[]
+  deletedRuntimeContinuationIds: string[]
+}
+
+export interface AgentPlanTask {
+  step: string
+  status: AgentPlanTaskStatus
+}
+
+export interface AgentPlan {
+  schema: 'movscript.agent.plan.v1'
   id: string
   threadId: string
   runId?: string
   explanation?: string
-  items: AgentProgressChecklistItem[]
+  items: AgentPlanTask[]
   completedCount: number
   totalCount: number
   createdAt: string
   updatedAt: string
 }
 
-export interface AgentProgressChecklistRevision {
-  schema: 'movscript.agent.progress-checklist-revision.v1'
+export interface AgentPlanRevision {
+  schema: 'movscript.agent.plan-revision.v1'
   id: string
-  checklistId: string
+  planId: string
   threadId: string
   runId?: string
   explanation?: string
-  snapshot: AgentProgressChecklist
+  snapshot: AgentPlan
   createdAt: string
 }
 
@@ -295,6 +344,7 @@ export interface CompiledPromptPreview {
 
 export interface AgentRun {
   id: string
+  sessionId?: string
   threadId: string
   status: AgentRunStatus
   role?: AgentRunRole
@@ -371,6 +421,7 @@ export interface AgentTask {
 
 export interface AgentTaskGraph {
   id: string
+  sessionId?: string
   threadId: string
   rootRunId?: string
   title: string
@@ -709,15 +760,6 @@ export type AgentMemoryScope = 'global' | 'project' | 'thread'
 export type AgentMemoryKind = 'preference' | 'fact' | 'entity_ref' | 'draft' | 'decision' | 'warning'
 export type AgentDraftKind =
   | 'setting_proposal'
-  | 'script_split_proposal'
-  | 'script'
-  | 'asset_slot'
-  | 'content_unit'
-  | 'prompt'
-  | 'note'
-  | 'pipeline'
-  | 'segment'
-  | 'scene_moment'
   | 'asset_proposal'
   | 'project_standards_proposal'
   | 'production_proposal'
@@ -777,19 +819,6 @@ export interface AgentDraftApplyPreview {
   backendApply?: Record<string, unknown>
 }
 
-export interface AgentDraftValidationIssue {
-  path: string
-  message: string
-  severity: 'error' | 'warning'
-}
-
-export interface AgentDraftValidationResult {
-  ok: boolean
-  draftId: string
-  kind: AgentDraftKind
-  issues: AgentDraftValidationIssue[]
-}
-
 export interface RunMessageResult {
   run: AgentRun
   thread: AgentThread
@@ -813,23 +842,44 @@ export interface AgentThreadRuntimeSnapshot {
   updatedAt: string
   thread: AgentThread
   runs: AgentRun[]
-  operations: RuntimeOperation[]
+  works: RuntimeWork[]
   interactions: RuntimeInteraction[]
   continuations: RuntimeContinuation[]
   current: {
     activeRunIds: string[]
     waitingRunIds: string[]
-    runningOperationIds: string[]
+    runningWorkIds: string[]
     pendingInteractionIds: string[]
     readyContinuationIds: string[]
   }
 }
 
-export interface RuntimeOperation {
+export interface AgentSessionRuntimeSnapshot {
+  schema: 'movscript.session-runtime.v1'
+  updatedAt: string
+  session: AgentSession
+  threads: AgentThread[]
+  taskGraphs: AgentTaskGraphSnapshot[]
+  runs: AgentRun[]
+  works: RuntimeWork[]
+  interactions: RuntimeInteraction[]
+  continuations: RuntimeContinuation[]
+  current: {
+    activeThreadIds: string[]
+    activeRunIds: string[]
+    waitingRunIds: string[]
+    runningWorkIds: string[]
+    pendingInteractionIds: string[]
+    readyContinuationIds: string[]
+  }
+}
+
+export interface RuntimeWork {
   id: string
+  sessionId?: string
   threadId: string
   runId: string
-  kind: 'generation_job'
+  kind: 'generation_job' | 'subagent_run'
   mode: 'async'
   status: 'pending_approval' | 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled' | 'timeout'
   request: unknown
@@ -851,7 +901,7 @@ export interface RuntimeInteraction {
   id: string
   threadId: string
   runId: string
-  operationId?: string
+  workId?: string
   kind: 'approval' | 'input' | 'selection'
   status: 'pending' | 'approved' | 'rejected' | 'answered' | 'cancelled'
   payload: unknown
@@ -867,11 +917,11 @@ export interface RuntimeContinuation {
   runId: string
   status: 'waiting' | 'ready' | 'consumed' | 'cancelled'
   trigger:
-    | { type: 'operation_completed'; operationIds: string[]; mode: 'any' | 'all' }
+    | { type: 'work_completed'; workIds: string[]; mode: 'any' | 'all' }
     | { type: 'interaction_resolved'; interactionIds: string[]; mode: 'any' | 'all' }
     | { type: 'manual' }
   nextInput?: {
-    operationResults?: string[]
+    workResults?: string[]
     interactionResults?: string[]
     message?: string
   }
@@ -1281,12 +1331,32 @@ export class LocalAgentClient {
     }
   }
 
-  createThread(input: { title?: string; projectId?: number } = {}, signal?: AbortSignal): Promise<AgentThread> {
+  listSessions(): Promise<{ sessions: AgentSessionSummary[] }> {
+    return this.getJSON('/sessions')
+  }
+
+  getSession(sessionId: string, signal?: AbortSignal): Promise<AgentSession> {
+    return this.getJSON(`/sessions/${encodeURIComponent(sessionId)}`, { signal })
+  }
+
+  getSessionRuntime(sessionId: string, signal?: AbortSignal): Promise<AgentSessionRuntimeSnapshot> {
+    return this.getJSON(`/sessions/${encodeURIComponent(sessionId)}/runtime`, { signal })
+  }
+
+  createThread(input: { sessionId?: string; title?: string; projectId?: number; agentName?: string; agentRole?: AgentThreadRole; parentThreadId?: string; parentRunId?: string } = {}, signal?: AbortSignal): Promise<AgentThread> {
     return this.postJSON('/threads', input, signal)
   }
 
   listThreads(): Promise<{ threads: AgentThreadSummary[] }> {
     return this.getJSON('/threads')
+  }
+
+  deleteThread(threadId: string, signal?: AbortSignal): Promise<AgentThreadDeletionResult> {
+    return this.deleteJSON(`/threads/${encodeURIComponent(threadId)}`, signal)
+  }
+
+  deleteAllThreads(signal?: AbortSignal): Promise<AgentThreadClearResult> {
+    return this.deleteJSON('/threads', signal)
   }
 
   addMessage(threadId: string, content: string, clientInput?: AgentClientInput, signal?: AbortSignal): Promise<AgentMessage> {
@@ -1805,10 +1875,6 @@ export class LocalAgentClient {
 
   updateDraft(draftId: string, input: { status?: AgentDraftStatus; title?: string; content?: string; target?: Record<string, unknown>; metadata?: Record<string, unknown> }): Promise<AgentDraft> {
     return this.patchJSON(`/drafts/${encodeURIComponent(draftId)}`, input)
-  }
-
-  validateDraft(draftId: string): Promise<AgentDraftValidationResult> {
-    return this.postJSON(`/drafts/${encodeURIComponent(draftId)}/validate`, {})
   }
 
   previewApplyDraft(draftId: string, input: { target?: Record<string, unknown>; targetEntityType?: string; targetEntityId?: number | string; targetField?: string; currentValue?: unknown; proposedValue?: unknown } = {}): Promise<AgentDraftApplyPreview> {

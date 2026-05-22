@@ -41,6 +41,9 @@ export function ProductionProposalAppliedResultPanel({
           {appliedCounts.scene_moments_created > 0 && (
             <span className="rounded bg-emerald-500/10 px-1.5 py-1">情节 +{appliedCounts.scene_moments_created}</span>
           )}
+          {appliedCounts.writing_expressions_created > 0 && (
+            <span className="rounded bg-emerald-500/10 px-1.5 py-1">表达 +{appliedCounts.writing_expressions_created}</span>
+          )}
           {appliedCounts.creative_references_created > 0 && (
             <span className="rounded bg-emerald-500/10 px-1.5 py-1">设定资料 +{appliedCounts.creative_references_created}</span>
           )}
@@ -102,8 +105,8 @@ export function ProductionProposalSimulationResultPanel({
         <div className="mt-2 grid grid-cols-3 gap-1.5 text-center type-tiny text-emerald-700 dark:text-emerald-300">
           <span className="rounded bg-emerald-500/10 px-1.5 py-1">编排段 +{simulationResult.counts.segments_created}</span>
           <span className="rounded bg-emerald-500/10 px-1.5 py-1">情节 +{simulationResult.counts.scene_moments_created}</span>
+          <span className="rounded bg-emerald-500/10 px-1.5 py-1">表达 +{simulationResult.counts.writing_expressions_created}</span>
           <span className="rounded bg-emerald-500/10 px-1.5 py-1">内容 +{simulationResult.counts.content_units_created}</span>
-          <span className="rounded bg-emerald-500/10 px-1.5 py-1">画面锚点 +{simulationResult.counts.keyframes_created}</span>
           <span className="rounded bg-emerald-500/10 px-1.5 py-1">设定资料 +{simulationResult.counts.creative_references_created}</span>
           <span className="rounded bg-emerald-500/10 px-1.5 py-1">素材需求 +{simulationResult.counts.asset_slots_created}</span>
           <span className="rounded bg-emerald-500/10 px-1.5 py-1">引用 +{simulationResult.counts.creative_reference_usages}</span>
@@ -120,6 +123,7 @@ export function ProductionProposalSimulationResultPanel({
           <div className="mt-2 grid grid-cols-2 gap-1.5 text-center type-tiny sm:grid-cols-3">
             <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回编排段 {simulationResult.backendPreview.returned.segments}</span>
             <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回情节 {simulationResult.backendPreview.returned.sceneMoments}</span>
+            <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回表达 {simulationResult.backendPreview.returned.writingExpressions}</span>
             <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回内容 {simulationResult.backendPreview.returned.contentUnits}</span>
             <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回画面锚点 {simulationResult.backendPreview.returned.keyframes}</span>
             <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回素材 {simulationResult.backendPreview.returned.assetSlots}</span>

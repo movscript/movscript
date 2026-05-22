@@ -45,6 +45,7 @@ import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
 import { productionIdentifier, sceneIdentifier, unitIdentifier } from '@/lib/productionIdentifiers'
+import { isActiveSemanticEntityRecord } from '@/lib/semanticEntityVisibility'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
@@ -256,10 +257,16 @@ export default function SegmentsPage() {
     enabled: !!projectId,
   })
 
-  const segments = useMemo(() => (segmentsQuery.data ?? []).slice().sort(compareByOrder), [segmentsQuery.data])
+  const segments = useMemo(
+    () => (segmentsQuery.data ?? []).filter(isActiveSemanticEntityRecord).slice().sort(compareByOrder),
+    [segmentsQuery.data],
+  )
   const scriptBlocks = scriptBlocksQuery.data ?? []
-  const sceneMoments = useMemo(() => (sceneMomentsQuery.data ?? []).slice().sort(compareByOrder), [sceneMomentsQuery.data])
-  const contentUnits = contentUnitsQuery.data ?? []
+  const sceneMoments = useMemo(
+    () => (sceneMomentsQuery.data ?? []).filter(isActiveSemanticEntityRecord).slice().sort(compareByOrder),
+    [sceneMomentsQuery.data],
+  )
+  const contentUnits = useMemo(() => (contentUnitsQuery.data ?? []).filter(isActiveSemanticEntityRecord), [contentUnitsQuery.data])
   const keyframes = useMemo(
     () => (keyframesQuery.data ?? []).filter((item) => !isGeneratedKeyframeCandidateRecord(item)),
     [keyframesQuery.data],

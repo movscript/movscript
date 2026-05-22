@@ -335,6 +335,88 @@ func TestPreviewProductionProposalReportsContentUnitsAndKeyframes(t *testing.T) 
 	}
 }
 
+func TestApplyProductionProposalCreatesAndDeletesWritingExpressions(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+	production := createProposalTestProduction(t, db, 1)
+
+	resp, err := service.ApplyProductionProposal(ctx, 1, ApplyProductionProposalRequest{
+		Mode:         "snapshot",
+		ProductionID: production.ID,
+		Proposal: &ProposalTree{Segments: []ProposalSegmentNode{{
+			ClientID: "segment-1",
+			Title:    "Opening",
+			SceneMoments: []ProposalSceneMomentNode{{
+				ClientID: "scene-1",
+				Title:    "Arrival",
+				WritingExpressions: []ProposalWritingExpressionNode{{
+					ClientID: "expr-1",
+					Kind:     "dialogue",
+					Speaker:  "Lin Xia",
+					Text:     "We should leave now.",
+					Intent:   "人物表达",
+					Order:    1,
+				}},
+			}},
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("apply proposal: %v", err)
+	}
+	if resp.Counts.WritingExpressionsCreated != 1 || len(resp.WritingExpressions) != 1 {
+		t.Fatalf("writing expression response = %+v count %+v", resp.WritingExpressions, resp.Counts)
+	}
+	expressionID := resp.WritingExpressions[0].ID
+
+	_, err = service.ApplyProductionProposal(ctx, 1, ApplyProductionProposalRequest{
+		Mode:         "snapshot",
+		ProductionID: production.ID,
+		Proposal: &ProposalTree{Segments: []ProposalSegmentNode{{
+			ID:    &resp.Segments[0].ID,
+			Title: "Opening",
+			SceneMoments: []ProposalSceneMomentNode{{
+				ID:    &resp.SceneMoments[0].ID,
+				Title: "Arrival revised",
+			}},
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("apply proposal without expression ownership: %v", err)
+	}
+	var expressionCount int64
+	if err := db.Model(&model.WritingExpression{}).Where("id = ?", expressionID).Count(&expressionCount).Error; err != nil {
+		t.Fatalf("count expression: %v", err)
+	}
+	if expressionCount != 1 {
+		t.Fatalf("expression count after omitted field = %d, want 1", expressionCount)
+	}
+
+	_, err = service.ApplyProductionProposal(ctx, 1, ApplyProductionProposalRequest{
+		Mode:         "snapshot",
+		ProductionID: production.ID,
+		Proposal: &ProposalTree{Segments: []ProposalSegmentNode{{
+			ID:    &resp.Segments[0].ID,
+			Title: "Opening",
+			SceneMoments: []ProposalSceneMomentNode{{
+				ID:                 &resp.SceneMoments[0].ID,
+				Title:              "Arrival revised again",
+				WritingExpressions: []ProposalWritingExpressionNode{},
+			}},
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("apply proposal deleting expression: %v", err)
+	}
+	expressionCount = 0
+	if err := db.Model(&model.WritingExpression{}).Where("id = ?", expressionID).Count(&expressionCount).Error; err != nil {
+		t.Fatalf("count expression after delete: %v", err)
+	}
+	if expressionCount != 0 {
+		t.Fatalf("expression count = %d, want 0", expressionCount)
+	}
+}
+
 func TestApplyProductionProposalSnapshotDeletesOmittedTree(t *testing.T) {
 	db := newProposalTestDB(t)
 	service := NewService(db)
@@ -356,6 +438,21 @@ func TestApplyProductionProposalSnapshotDeletesOmittedTree(t *testing.T) {
 		t.Fatalf("create kept moment: %v", err)
 	}
 	syncSemanticTestRelations(t, db, &keptMoment)
+	keptUnit := model.ContentUnit{ProjectID: 1, ProductionID: &production.ID, SegmentID: &keptSegment.ID, SceneMomentID: &keptMoment.ID, Title: "Downstream unit", Kind: "shot", Status: "draft"}
+	if err := db.Create(&keptUnit).Error; err != nil {
+		t.Fatalf("create kept content unit: %v", err)
+	}
+	syncSemanticTestRelations(t, db, &keptUnit)
+	keptKeyframe := model.Keyframe{ProjectID: 1, ProductionID: &production.ID, SceneMomentID: &keptMoment.ID, ContentUnitID: &keptUnit.ID, Title: "Downstream keyframe", Status: "generated"}
+	if err := db.Create(&keptKeyframe).Error; err != nil {
+		t.Fatalf("create kept keyframe: %v", err)
+	}
+	syncSemanticTestRelations(t, db, &keptKeyframe)
+	keptSlot := model.AssetSlot{ProjectID: 1, ProductionID: &production.ID, OwnerType: "scene_moment", OwnerID: &keptMoment.ID, Name: "Downstream asset", Kind: "image", Status: "missing"}
+	if err := db.Create(&keptSlot).Error; err != nil {
+		t.Fatalf("create kept asset slot: %v", err)
+	}
+	syncSemanticTestRelations(t, db, &keptSlot)
 	if err := db.Create(&removedMoment).Error; err != nil {
 		t.Fatalf("create removed moment: %v", err)
 	}
@@ -410,6 +507,27 @@ func TestApplyProductionProposalSnapshotDeletesOmittedTree(t *testing.T) {
 	}
 	if removedUsageCount != 0 {
 		t.Fatalf("removed usage count = %d, want 0", removedUsageCount)
+	}
+	var keptUnitCount int64
+	if err := db.Model(&model.ContentUnit{}).Where("id = ?", keptUnit.ID).Count(&keptUnitCount).Error; err != nil {
+		t.Fatalf("count kept content unit: %v", err)
+	}
+	if keptUnitCount != 1 {
+		t.Fatalf("kept content unit count = %d, want 1", keptUnitCount)
+	}
+	var keptKeyframeCount int64
+	if err := db.Model(&model.Keyframe{}).Where("id = ?", keptKeyframe.ID).Count(&keptKeyframeCount).Error; err != nil {
+		t.Fatalf("count kept keyframe: %v", err)
+	}
+	if keptKeyframeCount != 1 {
+		t.Fatalf("kept keyframe count = %d, want 1", keptKeyframeCount)
+	}
+	var keptSlotCount int64
+	if err := db.Model(&model.AssetSlot{}).Where("id = ?", keptSlot.ID).Count(&keptSlotCount).Error; err != nil {
+		t.Fatalf("count kept asset slot: %v", err)
+	}
+	if keptSlotCount != 1 {
+		t.Fatalf("kept asset slot count = %d, want 1", keptSlotCount)
 	}
 }
 
@@ -623,6 +741,7 @@ func newProposalTestDB(t *testing.T) *gorm.DB {
 		&model.Production{},
 		&model.Segment{},
 		&model.SceneMoment{},
+		&model.WritingExpression{},
 		&model.ContentUnit{},
 		&model.Keyframe{},
 		&model.CreativeReference{},

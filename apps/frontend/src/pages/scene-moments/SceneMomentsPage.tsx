@@ -18,7 +18,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 
-import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { abandonSceneMoment, listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
 import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
 import { AppEmptyState, AppMetricCard, ProjectSurfaceHeader } from '@/components/app/AppPage'
@@ -27,6 +27,7 @@ import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityIn
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { makeContentFilterSearch, readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
+import { isActiveSemanticEntityRecord } from '@/lib/semanticEntityVisibility'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge, Button, Progress } from '@movscript/ui'
@@ -186,9 +187,12 @@ export default function SceneMomentsPage() {
     enabled: !!projectId,
   })
 
-  const segments = segmentsQuery.data ?? []
-  const moments = useMemo(() => (sceneMomentsQuery.data ?? []).slice().sort(compareByOrder), [sceneMomentsQuery.data])
-  const contentUnits = contentUnitsQuery.data ?? []
+  const segments = useMemo(() => (segmentsQuery.data ?? []).filter(isActiveSemanticEntityRecord), [segmentsQuery.data])
+  const moments = useMemo(
+    () => (sceneMomentsQuery.data ?? []).filter(isActiveSemanticEntityRecord).slice().sort(compareByOrder),
+    [sceneMomentsQuery.data],
+  )
+  const contentUnits = useMemo(() => (contentUnitsQuery.data ?? []).filter(isActiveSemanticEntityRecord), [contentUnitsQuery.data])
   const scriptBlocks = scriptBlocksQuery.data ?? []
   const keyframes = useMemo(
     () => (keyframesQuery.data ?? []).filter((item) => !isGeneratedKeyframeCandidateRecord(item)),
@@ -462,6 +466,7 @@ export default function SceneMomentsPage() {
                 setCreatingMoment(false)
                 setFilter({ scene_moment_id: record.ID, segment_id: record.segment_id as number | undefined })
               }}
+              deleteRecord={(record) => abandonSceneMoment(projectId!, record.ID)}
               onDeleted={() => {
                 setCreatingMoment(false)
                 setFilter({ scene_moment_id: null })

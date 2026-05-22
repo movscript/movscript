@@ -1,4 +1,3 @@
-import type { JSONValue } from '../types.js'
 import { parseAgentFileRef } from './agentFileRef.js'
 import type {
   AgentFileChangeSet,
@@ -19,7 +18,6 @@ export interface AgentFileProvider {
     precondition?: AgentFileEditPrecondition
     createdByRunId?: string
   }): AgentFileEditResult
-  validate?(ref: string): JSONValue
 }
 
 export class AgentFileSystem {
@@ -38,7 +36,7 @@ export class AgentFileSystem {
   }
 
   search(input: { ref: string; query: string; limit?: number }): AgentFileSearchResult {
-    if (!input.query.trim()) throw new Error('draft_file_search requires query')
+    if (!input.query.trim()) throw new Error('core_file_search requires query')
     return this.providerFor(input.ref).search(input.ref, {
       query: input.query,
       limit: input.limit,
@@ -52,19 +50,13 @@ export class AgentFileSystem {
     createdByRunId?: string
   }): AgentFileEditResult {
     if (!Array.isArray(input.edits) || input.edits.length === 0) {
-      throw new Error('draft_file_edit requires at least one edit')
+      throw new Error('core_file_edit requires at least one edit')
     }
     return this.providerFor(input.ref).edit(input.ref, {
       edits: input.edits,
       precondition: input.precondition,
       createdByRunId: input.createdByRunId,
     })
-  }
-
-  validate(input: { ref: string }): JSONValue {
-    const provider = this.providerFor(input.ref)
-    if (!provider.validate) throw new Error(`agent file provider does not support validation: ${provider.provider}`)
-    return provider.validate(input.ref)
   }
 
   private providerFor(ref: string): AgentFileProvider {

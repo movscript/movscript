@@ -23,7 +23,13 @@ import { useProjectStore } from '@/store/projectStore'
 import { cn } from '@/lib/utils'
 import { AgentConsoleNav } from '@/pages/agent/AgentConsoleNav'
 
-const DRAFT_KINDS: AgentDraftKind[] = ['script_split_proposal', 'script', 'asset_slot', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_standards_proposal', 'production_proposal', 'content_unit_proposal']
+const DRAFT_KINDS: AgentDraftKind[] = [
+  'setting_proposal',
+  'project_standards_proposal',
+  'asset_proposal',
+  'production_proposal',
+  'content_unit_proposal',
+]
 
 type ProjectFilter = 'all' | 'current'
 
@@ -32,14 +38,12 @@ export default function AIDraftsPage() {
   const navigate = useNavigate()
   const currentProject = useProjectStore((s) => s.current)
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
-  const [kind, setKind] = useState<AgentDraftKind | 'all'>('all')
+  const [kindFilter, setKindFilter] = useState<AgentDraftKind | 'all'>('all')
   const [projectFilter, setProjectFilter] = useState<ProjectFilter>('all')
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const query = {
     ...(projectFilter === 'current' && currentProject ? { projectId: currentProject.ID } : {}),
-    ...(kind !== 'all' ? { kind } : {}),
-    status: 'draft' as AgentDraftStatus,
     limit: 100,
   }
   const draftsQuery = useQuery<AgentDraft[]>({
@@ -52,18 +56,24 @@ export default function AIDraftsPage() {
   })
   const drafts = useMemo(() => {
     const needle = search.trim().toLowerCase()
-    const rows = draftsQuery.data ?? []
+    const rows = (draftsQuery.data ?? []).filter((draft) => kindFilter === 'all' || draft.kind === kindFilter)
     if (!needle) return rows
-    return rows.filter((draft) => [
-      draft.id,
-      draft.title,
-      draft.content,
-      draft.createdByThreadId,
-      draft.createdByRunId,
-      sourceValue(draft, 'threadId'),
-      sourceValue(draft, 'runId'),
-    ].some((value) => (value ?? '').toLowerCase().includes(needle)))
-  }, [draftsQuery.data, search])
+    return rows.filter((draft) => {
+      const kindLabel = t(`agents.chat.drafts.kinds.${draft.kind}`)
+      return [
+        draft.id,
+        draft.kind,
+        kindLabel,
+        draft.title,
+        draft.content,
+        draft.status,
+        draft.createdByThreadId,
+        draft.createdByRunId,
+        sourceValue(draft, 'threadId'),
+        sourceValue(draft, 'runId'),
+      ].some((value) => (value ?? '').toLowerCase().includes(needle))
+    })
+  }, [draftsQuery.data, kindFilter, search, t])
   const selectedDraft = drafts.find((draft) => draft.id === selectedId) ?? drafts[0] ?? null
   const openDraftPath = selectedDraft ? buildDraftReviewPath(selectedDraft) : null
 
@@ -114,7 +124,7 @@ export default function AIDraftsPage() {
                   <SelectItem value="current" disabled={!currentProject}>{t('agents.draftHistory.currentProject')}</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={kind} onValueChange={(next) => setKind(next as AgentDraftKind | 'all')}>
+              <Select value={kindFilter} onValueChange={(next) => setKindFilter(next as AgentDraftKind | 'all')}>
                 <SelectTrigger size="sm" className="h-8 type-label"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t('agents.chat.drafts.filters.allKinds')}</SelectItem>

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentTaskGraph, AgentRun, AgentTask, CreateRunInput, UpdateTaskGraphTaskInput } from '../state/types.js'
+import type { AgentThread, AgentTaskGraph, AgentRun, AgentTask, CreateRunInput, CreateThreadInput, UpdateTaskGraphTaskInput } from '../state/types.js'
 import {
   applyRuntimeTaskGraphDispatch,
   applyRuntimeTaskGraphDispatchDecision,
@@ -101,6 +101,7 @@ test('applyRuntimeTaskGraphDispatchDecision applies blocked tasks and worker own
   store.createTask(blockedTask)
 
   const createdRunInputs: CreateRunInput[] = []
+  const createdThreadInputs: CreateThreadInput[] = []
   const blockedEvents: string[] = []
   const dispatchedEvents: string[] = []
 
@@ -116,10 +117,22 @@ test('applyRuntimeTaskGraphDispatchDecision applies blocked tasks and worker own
     subagentNameByTaskId: new Map([['task_ready', 'Einstein']]),
     now: '2026-01-01T00:00:01.000Z',
     updateTask: (taskId, update) => applyTaskUpdate(store, taskId, update),
+    createThread: (input) => {
+      createdThreadInputs.push(input)
+      return makeThread({
+        id: 'thread_worker',
+        sessionId: typeof input.sessionId === 'string' ? input.sessionId : undefined,
+        agentName: typeof input.agentName === 'string' ? input.agentName : undefined,
+        agentRole: input.agentRole === 'root' || input.agentRole === 'planner' || input.agentRole === 'worker' ? input.agentRole : undefined,
+        parentThreadId: typeof input.parentThreadId === 'string' ? input.parentThreadId : undefined,
+        parentRunId: typeof input.parentRunId === 'string' ? input.parentRunId : undefined,
+      })
+    },
     createRun: (input) => {
       createdRunInputs.push(input)
       const run = makeRun({
         id: 'run_worker',
+        threadId: String(input.threadId),
         role: 'worker',
         parentRunId: typeof input.parentRunId === 'string' ? input.parentRunId : undefined,
         taskGraphId: typeof input.taskGraphId === 'string' ? input.taskGraphId : undefined,
@@ -144,7 +157,17 @@ test('applyRuntimeTaskGraphDispatchDecision applies blocked tasks and worker own
   assert.equal(store.getTask('task_blocked')?.status, 'pending')
   assert.equal(store.getTask('task_blocked')?.blockedReason, 'Waiting for dependency task(s): task_ready')
   assert.equal(store.getTask('task_ready')?.ownerRunId, 'run_worker')
-  assert.deepEqual(createdRunInputs[0]?.metadata, { subagentName: 'Einstein' })
+  assert.deepEqual(createdThreadInputs[0], {
+    sessionId: 'session_1',
+    title: 'Task',
+    agentName: 'Einstein',
+    agentRole: 'worker',
+    parentThreadId: 'thread_1',
+    parentRunId: 'run_planner',
+    metadata: { subagentName: 'Einstein', taskGraphId: 'task_graph_1', taskId: 'task_ready' },
+  })
+  assert.equal(createdRunInputs[0]?.threadId, 'thread_worker')
+  assert.deepEqual(createdRunInputs[0]?.metadata, { subagentName: 'Einstein', childThreadId: 'thread_worker' })
   assert.equal(createdRunInputs[0]?.taskId, 'task_ready')
 })
 
@@ -324,6 +347,7 @@ test('applyRuntimeTaskGraphDispatchRequest resolves the request and applies the 
 function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph {
   return {
     id: 'task_graph_1',
+    sessionId: 'session_1',
     threadId: 'thread_1',
     rootRunId: 'run_planner',
     title: 'TaskGraph',
@@ -331,6 +355,20 @@ function makeTaskGraph(overrides: Partial<AgentTaskGraph> = {}): AgentTaskGraph 
     progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function makeThread(overrides: Partial<AgentThread> = {}): AgentThread {
+  return {
+    id: 'thread_1',
+    sessionId: 'session_1',
+    agentRole: 'root',
+    archived: false,
+    status: 'idle',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    messages: [],
     ...overrides,
   }
 }

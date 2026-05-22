@@ -249,47 +249,6 @@ export const productionProposalSchema = {
               order: { type: 'number' },
               status: { type: 'string' },
               script_block_id: nullableNumberSchema,
-              content_units: {
-                type: 'array',
-                items: objectSchema(['title', 'kind'], {
-                  id: { type: 'number' },
-                  client_id: clientIdSchema,
-                  unit_code: { type: 'string' },
-                  title: { type: 'string' },
-                  kind: { type: 'string' },
-                  description: { type: 'string' },
-                  shot_size: { type: 'string' },
-                  camera_angle: { type: 'string' },
-                  duration_sec: { type: 'number' },
-                  order: { type: 'number' },
-                  status: { type: 'string' },
-                  script_block_id: nullableNumberSchema,
-                  keyframes: {
-                    type: 'array',
-                    items: objectSchema(['title'], {
-                      id: { type: 'number' },
-                      client_id: clientIdSchema,
-                      title: { type: 'string' },
-                      description: { type: 'string' },
-                      prompt: { type: 'string' },
-                      order: { type: 'number' },
-                      status: { type: 'string' },
-                    }),
-                  },
-                }),
-              },
-              keyframes: {
-                type: 'array',
-                items: objectSchema(['title'], {
-                  id: { type: 'number' },
-                  client_id: clientIdSchema,
-                  title: { type: 'string' },
-                  description: { type: 'string' },
-                  prompt: { type: 'string' },
-                  order: { type: 'number' },
-                  status: { type: 'string' },
-                }),
-              },
               creative_references: {
                 type: 'array',
                 items: objectSchema(['id'], {
@@ -299,15 +258,18 @@ export const productionProposalSchema = {
                   role: { type: 'string' },
                 }),
               },
-              asset_slots: {
+              writing_expressions: {
                 type: 'array',
-                items: objectSchema(['name', 'kind'], {
+                items: objectSchema(['kind', 'text'], {
                   id: { type: 'number' },
                   client_id: clientIdSchema,
-                  name: { type: 'string' },
-                  kind: { enum: ['image', 'video', 'audio', 'text'] },
-                  description: { type: 'string' },
-                  priority: { type: 'string' },
+                  kind: { enum: ['dialogue', 'action', 'narration', 'subtitle', 'visual'] },
+                  speaker: { type: 'string' },
+                  text: { type: 'string' },
+                  note: { type: 'string' },
+                  intent: { type: 'string' },
+                  order: { type: 'number' },
+                  script_block_id: nullableNumberSchema,
                 }),
               },
             }),
@@ -322,17 +284,18 @@ export const productionProposalSchema = {
     '# movscript.production_proposal.v1',
     '',
     'Content shape:',
-    '{ schema: "movscript.production_proposal.v1", scope: "production_proposal", mode: "snapshot", productionId: number, proposalScope: "production", proposal: { segments: Array<{ id?, client_id?, title, kind?, summary?, order?, status?, script_block_id?: number|null, scene_moments: Array<{ id?, client_id?, scene_code?, title, time_text?, location_text?, action_text?, mood?, description?, order?, status?, script_block_id?: number|null, content_units?: Array<{ id?, client_id?, unit_code?, title, kind, description?, script_block_id?: number|null, keyframes? }>, keyframes?: Array<{ id?, client_id?, title, description?, prompt? }>, creative_references?: Array<{ id, role? }>, asset_slots?: Array<{ id?, client_id?, name, kind, description?, priority? }> }> }> }, impact_notes?: string[], summary? }',
+    '{ schema: "movscript.production_proposal.v1", scope: "production_proposal", mode: "snapshot", productionId: number, proposalScope: "production", proposal: { segments: Array<{ id?, client_id?, title, kind?, summary?, order?, status?, script_block_id?: number|null, scene_moments: Array<{ id?, client_id?, scene_code?, title, time_text?, location_text?, action_text?, mood?, description?, order?, status?, script_block_id?: number|null, creative_references?: Array<{ id, role? }>, writing_expressions?: Array<{ id?, client_id?, kind: "dialogue"|"action"|"narration"|"subtitle"|"visual", speaker?, text, note?, intent?, order?, script_block_id?: number|null }> }> }> }, impact_notes?: string[], summary? }',
     '',
     'Rules:',
     '- productionId is required and must match the selected production.',
     '- This schema is snapshot-only. Do not use action fields.',
     '- Start from the backend seed snapshot, edit that tree, keep existing ids on retained nodes, omit nodes that should be removed, and add new nodes without ids.',
-    '- Existing segments, scene_moments, content_units, keyframes, or production asset_slots omitted from the snapshot are treated as removals by backend apply.',
-    '- Preserve existing scene_code and unit_code when present; leave them blank on new nodes unless you have a user-specified production identifier, because the backend assigns stable forward-only identifiers.',
-    '- Each scene_moment should include at least one creative_references reuse node or one asset_slots node unless the gap is intentionally explained in impact_notes.',
+    '- Existing segments, scene_moments, creative reference usages, or writing_expressions omitted from the snapshot are treated as removals by backend apply.',
+    '- Preserve existing scene_code when present; leave it blank on new nodes unless you have a user-specified production identifier, because the backend assigns stable forward-only identifiers.',
+    '- Each scene_moment should include at least one creative_references reuse node unless the gap is intentionally explained in impact_notes.',
     '- Use creative_references with existing project-level ids; do not create project-level creative references here.',
-    '- Use asset_slots for production-local material slots owned by the scene moment; do not create final media resources.',
+    '- Use writing_expressions for dialogue, action, narration, subtitle, and visual expression lines inside the scene moment.',
+    '- Do not create content_units, keyframes, asset_slots, final media resources, or media generation jobs here; hand those gaps to content_unit_proposal or asset_proposal.',
   ].join('\n'),
   examples: [{
     name: 'basic',
@@ -350,7 +313,7 @@ export const productionProposalSchema = {
             client_id: 'moment-1',
             title: 'Opening beat',
             creative_references: [{ id: 1, role: 'character' }],
-            asset_slots: [{ client_id: 'slot-1', name: 'Opening room reference', kind: 'image' }],
+            writing_expressions: [{ client_id: 'expr-1', kind: 'action', speaker: 'Scene', text: 'The protagonist waits at the old doorway.' }],
           }],
         }],
       },
@@ -571,49 +534,12 @@ export const assetProposalSchema = {
   }],
 } satisfies DraftSchemaDefinition
 
-export const scriptSplitProposalSchema = {
-  id: 'movscript.script_split_proposal.v1',
-  kind: 'script_split_proposal',
-  category: 'script',
-  scope: 'project',
-  title: 'Script Split Proposal',
-  version: '1.0.0',
-  status: 'active',
-  jsonSchema: objectSchema(['schema', 'source_title', 'episode_drafts'], {
-    schema: { const: 'movscript.script_split_proposal.v1' },
-    source_title: { type: 'string' },
-    source_summary: { type: 'string' },
-    global_settings: { type: 'object' },
-    episode_drafts: {
-      type: 'array',
-      items: objectSchema(['order', 'title', 'start_line', 'end_line', 'action'], {
-        order: { type: 'number' },
-        title: { type: 'string' },
-        summary: { type: 'string' },
-        start_line: { type: 'number' },
-        end_line: { type: 'number' },
-        action: { enum: ['create', 'update'] },
-        production_action: { enum: ['create', 'update', 'skip'] },
-      }),
-    },
-    warnings: { type: 'array', items: { type: 'string' } },
-    confidence: { type: 'number' },
-  }),
-  promptSummary: [
-    '# movscript.script_split_proposal.v1',
-    'Content shape: { schema, source_title, source_summary?, global_settings?, episode_drafts: Array<{ order, title, summary?, start_line, end_line, action, production_action? }>, warnings?, confidence? }',
-    'Rules: use line numbers only; never copy raw script body text into the draft.',
-  ].join('\n'),
-  examples: [{ name: 'basic', content: { schema: 'movscript.script_split_proposal.v1', source_title: 'Pilot', episode_drafts: [{ order: 1, title: 'Episode 1', start_line: 1, end_line: 20, action: 'create', production_action: 'create' }] } }],
-} satisfies DraftSchemaDefinition
-
 export const DRAFT_SCHEMA_REGISTRY = {
   [settingProposalSchema.id]: settingProposalSchema,
   [projectStandardsProposalSchema.id]: projectStandardsProposalSchema,
   [productionProposalSchema.id]: productionProposalSchema,
   [contentUnitProposalSchema.id]: contentUnitProposalSchema,
   [assetProposalSchema.id]: assetProposalSchema,
-  [scriptSplitProposalSchema.id]: scriptSplitProposalSchema,
 } as const satisfies Record<string, DraftSchemaDefinition>
 
 export const DRAFT_CONTENT_SCHEMA_IDS = {
@@ -622,7 +548,6 @@ export const DRAFT_CONTENT_SCHEMA_IDS = {
   productionProposal: productionProposalSchema.id,
   contentUnitProposal: contentUnitProposalSchema.id,
   assetProposal: assetProposalSchema.id,
-  scriptSplit: scriptSplitProposalSchema.id,
 } as const
 
 export const DRAFT_SCHEMA_IDS = Object.keys(DRAFT_SCHEMA_REGISTRY)
@@ -634,24 +559,14 @@ export const DRAFT_SCOPES = {
   productionProposal: productionProposalSchema.kind,
   contentUnitProposal: contentUnitProposalSchema.kind,
   assetProposal: assetProposalSchema.kind,
-  scriptSplit: scriptSplitProposalSchema.kind,
 } as const
 
 export const DRAFT_KIND_VALUES = [
   'setting_proposal',
-  'script_split_proposal',
-  'script',
-  'asset_slot',
-  'content_unit',
-  'prompt',
-  'note',
-  'pipeline',
-  'segment',
-  'scene_moment',
-  'asset_proposal',
   'project_standards_proposal',
   'production_proposal',
   'content_unit_proposal',
+  'asset_proposal',
 ] as const satisfies readonly DraftKind[]
 
 export type DraftKindValue = typeof DRAFT_KIND_VALUES[number]

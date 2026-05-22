@@ -1,6 +1,6 @@
 {
   "name": "draft_create",
-  "description": "创建本地 draft，并写出真实 draft JSON 文件。返回的 draft.filePath 是后续正文编辑的权威路径；创建后正文修改应使用 agent 文件编辑工具直接改该文件，再调用 draft_validate 或 draft_apply_preview。",
+  "description": "创建本地 draft，并写出真实 draft JSON 文件。创建成功后，正文编辑的权威 ref 是 agent://draft/{draftId}/content；后续正文修改必须使用 core_file_read/core_file_search/core_file_edit 处理该 ref，再调用 draft_apply_preview 做 validation 与 dry-run。",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -33,7 +33,7 @@
       },
       "content": {
         "type": "string",
-        "description": "Draft 初始正文。创建 proposal draft 时必须传 JSON.stringify 后的 canonical JSON 字符串；顶层必须包含 schema 字段。setting_proposal / asset_proposal 是完整 snapshot 语义；如果正文没有 snapshot_base，runtime 会自动从当前 DraftDomainModel hydrate 当前数据并补齐。若 proposal.creative_references / proposal.asset_slots 被省略，runtime 会用当前 snapshot 预填为 no-op 提案；显式传空数组才表示完整目标 snapshot 为空。snapshot_base 中存在但 proposal 中不存在的项目会被视为删除。创建成功后不要再通过工具参数替换正文，改用 draft.filePath 的真实文件编辑。"
+        "description": "Draft 初始正文。创建 proposal draft 时必须传 JSON.stringify 后的 canonical JSON 字符串；顶层必须包含 schema 字段。setting_proposal / asset_proposal 是完整 snapshot 语义；如果正文没有 snapshot_base，runtime 会自动从当前 DraftDomainModel hydrate 当前数据并补齐。若 proposal.creative_references / proposal.asset_slots 被省略，runtime 会用当前 snapshot 预填为 no-op 提案；显式传空数组才表示完整目标 snapshot 为空。snapshot_base 中存在但 proposal 中不存在的项目会被视为删除。创建成功后不要再通过工具参数替换正文，改用 agent://draft/{draftId}/content 的真实文件编辑。"
       },
       "projectId": {
         "type": "number"

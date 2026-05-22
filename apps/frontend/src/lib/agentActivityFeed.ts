@@ -125,25 +125,23 @@ interface ToolActivityRecord {
 
 const CORE_TOOL_NAMES = new Set([
   'draft_create',
-  'draft_file_edit',
-  'draft_file_validate',
-  'draft_validate',
+  'core_file_edit',
   'draft_apply_preview',
   'draft_apply',
-  'core_operation_start',
-  'core_operation_wait',
-  'core_operation_get',
-  'core_operation_cancel',
+  'core_work_start',
+  'core_work_wait',
+  'core_work_get',
+  'core_work_cancel',
   'generation_job_create',
   'candidate_asset_slot_attach',
   'candidate_keyframe_attach',
 ])
 
-const OPERATION_STATUS_TOOL_NAMES = new Set([
-  'core_operation_start',
-  'core_operation_wait',
-  'core_operation_get',
-  'core_operation_cancel',
+const WORK_STATUS_TOOL_NAMES = new Set([
+  'core_work_start',
+  'core_work_wait',
+  'core_work_get',
+  'core_work_cancel',
 ])
 
 export function buildAgentActivityFeed(input: {
@@ -345,14 +343,14 @@ function toolEventCoveredByStep(
   coveredStepIds: Set<string>,
 ): boolean {
   if (event.stepId && coveredStepIds.has(event.stepId)) return true
-  if (!event.toolName || !OPERATION_STATUS_TOOL_NAMES.has(event.toolName)) return false
+  if (!event.toolName || !WORK_STATUS_TOOL_NAMES.has(event.toolName)) return false
 
   const data = recordValue(event.data)
   const hasExecutionPayload = data?.args !== undefined || data?.result !== undefined || data?.error !== undefined
   if (hasExecutionPayload) return false
 
-  const isOperationStatusTrace = data?.runtimeOperation !== undefined || data?.generation !== undefined
-  if (!isOperationStatusTrace) return false
+  const isWorkStatusTrace = data?.runtimeWork !== undefined || data?.generation !== undefined
+  if (!isWorkStatusTrace) return false
 
   return steps.some((step) => {
     if (step.type !== 'tool_call' || step.toolName !== event.toolName) return false
@@ -407,20 +405,12 @@ function coreToolActivityBlock(record: ToolActivityRecord): AgentActivityBlockIt
     ]))
   }
 
-  if (record.toolName === 'draft_file_edit') {
+  if (record.toolName === 'core_file_edit') {
     return block(record, 'draft', '修改草稿正文', compactLines([
       stringValue(args?.ref) ? `文件：${stringValue(args?.ref)}` : undefined,
       draftEditSummary(args, result),
       statusLine,
     ]), patchCodeView(args))
-  }
-
-  if (record.toolName === 'draft_validate' || record.toolName === 'draft_file_validate') {
-    return block(record, 'draft', '校验草稿', compactLines([
-      draftIdLine(args) ?? draftIdLine(result),
-      validationSummary(result),
-      statusLine,
-    ]))
   }
 
   if (record.toolName === 'draft_apply_preview') {
@@ -441,21 +431,21 @@ function coreToolActivityBlock(record: ToolActivityRecord): AgentActivityBlockIt
     ]))
   }
 
-  if (record.toolName === 'core_operation_start') {
-    const operationKind = stringValue(args?.kind)
-    return block(record, 'task', '启动后台任务', compactLines([
-      operationKind ? `类型：${operationKindLabel(operationKind)}` : undefined,
-      operationIdLine(result),
+  if (record.toolName === 'core_work_start') {
+    const workKind = stringValue(args?.kind)
+    return block(record, 'task', '提交异步任务', compactLines([
+      workKind ? `类型：${workKindLabel(workKind)}` : undefined,
+      workIdLine(result),
       generationRequestSummary(record.args),
-      '任务已提交，后续结果会从后台任务返回。',
+      '任务已提交，后续结果会从 runtime work 返回。',
       statusLine,
     ]))
   }
 
-  if (record.toolName === 'core_operation_wait' || record.toolName === 'core_operation_get' || record.toolName === 'core_operation_cancel') {
-    return block(record, 'task', operationToolTitle(record.toolName), compactLines([
-      operationIdLine(args) ?? operationIdLine(result),
-      operationStatusLine(result),
+  if (record.toolName === 'core_work_wait' || record.toolName === 'core_work_get' || record.toolName === 'core_work_cancel') {
+    return block(record, 'task', workToolTitle(record.toolName), compactLines([
+      workIdLine(args) ?? workIdLine(result),
+      workStatusLine(result),
       statusLine,
     ]))
   }
@@ -818,34 +808,25 @@ function compactPatchText(text: string): string {
   return `${trimmed.slice(0, 3900).trimEnd()}\n\n... 已截断 ${trimmed.length - 3900} 字符`
 }
 
-function validationSummary(result: Record<string, unknown> | undefined): string | undefined {
-  const ok = typeof result?.ok === 'boolean' ? result.ok : undefined
-  const valid = typeof result?.valid === 'boolean' ? result.valid : undefined
-  const errors = Array.isArray(result?.errors) ? result.errors.length : undefined
-  const warnings = Array.isArray(result?.warnings) ? result.warnings.length : undefined
-  if (ok === true || valid === true) return warnings ? `校验通过，${warnings} 条提醒。` : '校验通过。'
-  if (ok === false || valid === false) return `校验未通过${errors !== undefined ? `，${errors} 个问题` : ''}。`
-  return stringValue(result?.message)
-}
-
-function operationKindLabel(kind: string): string {
+function workKindLabel(kind: string): string {
   if (kind === 'generation_job') return '生成任务'
+  if (kind === 'subagent_run') return '子 agent 运行'
   return kind
 }
 
-function operationToolTitle(toolName: string): string {
-  if (toolName === 'core_operation_wait') return '等待后台任务'
-  if (toolName === 'core_operation_cancel') return '取消后台任务'
-  return '查看后台任务'
+function workToolTitle(toolName: string): string {
+  if (toolName === 'core_work_wait') return '观察异步任务'
+  if (toolName === 'core_work_cancel') return '取消异步任务'
+  return '查看异步任务'
 }
 
-function operationIdLine(value: Record<string, unknown> | undefined): string | undefined {
-  const id = stringValue(value?.operationId) ?? stringValue(value?.operation_id) ?? stringValue(value?.id)
+function workIdLine(value: Record<string, unknown> | undefined): string | undefined {
+  const id = stringValue(value?.workId) ?? stringValue(value?.work_id) ?? stringValue(value?.id) ?? stringValue(recordValue(value?.work)?.id)
   return id ? `任务：${id}` : undefined
 }
 
-function operationStatusLine(result: Record<string, unknown> | undefined): string | undefined {
-  const status = stringValue(result?.status) ?? stringValue(recordValue(result?.operation)?.status)
+function workStatusLine(result: Record<string, unknown> | undefined): string | undefined {
+  const status = stringValue(result?.status) ?? stringValue(recordValue(result?.work)?.status)
   const message = stringValue(result?.message)
   if (status && message) return `状态：${status}，${message}`
   if (status) return `状态：${status}`

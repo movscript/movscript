@@ -17,9 +17,35 @@ export type AgentStepStatus = 'in_progress' | 'completed' | 'failed'
 export type AgentApprovalStatus = 'pending' | 'approved' | 'rejected'
 export type AgentInputRequestStatus = 'pending' | 'answered' | 'cancelled'
 export type AgentRunRole = 'planner' | 'worker'
+export type AgentThreadRole = 'root' | 'planner' | 'worker'
 export type AgentTaskGraphStatus = 'pending' | 'running' | 'blocked' | 'needs_review' | 'done' | 'failed' | 'cancelled'
 export type AgentTaskStatus = 'pending' | 'running' | 'blocked' | 'needs_review' | 'done' | 'failed' | 'cancelled'
-export type AgentProgressChecklistItemStatus = 'pending' | 'in_progress' | 'completed'
+export type AgentPlanTaskStatus = 'pending' | 'in_progress' | 'completed'
+
+export interface AgentSession {
+  id: string
+  title?: string
+  projectId?: number
+  metadata?: Record<string, JSONValue>
+  rootThreadId?: string
+  activeThreadId?: string
+  status?: AgentThreadStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AgentSessionSummary {
+  id: string
+  title?: string
+  projectId?: number
+  metadata?: Record<string, JSONValue>
+  rootThreadId?: string
+  activeThreadId?: string
+  status?: AgentThreadStatus
+  createdAt: string
+  updatedAt: string
+  threadCount: number
+}
 
 export interface AgentMessage {
   id: string
@@ -34,11 +60,16 @@ export interface AgentMessage {
 
 export interface AgentThread {
   id: string
+  sessionId?: string
   title?: string
+  agentName?: string
+  agentRole?: AgentThreadRole
+  parentThreadId?: string
+  parentRunId?: string
   projectId?: number
   metadata?: Record<string, JSONValue>
-  currentProgressChecklist?: AgentProgressChecklist
-  progressChecklistRevisions?: AgentProgressChecklistRevision[]
+  currentPlan?: AgentPlan
+  planRevisions?: AgentPlanRevision[]
   archived?: boolean
   status?: AgentThreadStatus
   activeRunId?: string
@@ -51,10 +82,15 @@ export interface AgentThread {
 
 export interface AgentThreadSummary {
   id: string
+  sessionId?: string
   title?: string
+  agentName?: string
+  agentRole?: AgentThreadRole
+  parentThreadId?: string
+  parentRunId?: string
   projectId?: number
   metadata?: Record<string, JSONValue>
-  currentProgressChecklist?: AgentProgressChecklist
+  currentPlan?: AgentPlan
   archived: boolean
   status?: AgentThreadStatus
   activeRunId?: string
@@ -66,32 +102,32 @@ export interface AgentThreadSummary {
   lastMessageAt?: string
 }
 
-export interface AgentProgressChecklistItem {
+export interface AgentPlanTask {
   step: string
-  status: AgentProgressChecklistItemStatus
+  status: AgentPlanTaskStatus
 }
 
-export interface AgentProgressChecklist {
-  schema: 'movscript.agent.progress-checklist.v1'
+export interface AgentPlan {
+  schema: 'movscript.agent.plan.v1'
   id: string
   threadId: string
   runId?: string
   explanation?: string
-  items: AgentProgressChecklistItem[]
+  items: AgentPlanTask[]
   completedCount: number
   totalCount: number
   createdAt: string
   updatedAt: string
 }
 
-export interface AgentProgressChecklistRevision {
-  schema: 'movscript.agent.progress-checklist-revision.v1'
+export interface AgentPlanRevision {
+  schema: 'movscript.agent.plan-revision.v1'
   id: string
-  checklistId: string
+  planId: string
   threadId: string
   runId?: string
   explanation?: string
-  snapshot: AgentProgressChecklist
+  snapshot: AgentPlan
   createdAt: string
 }
 
@@ -163,6 +199,7 @@ export interface AgentTraceEvent {
 
 export interface AgentRun {
   id: string
+  sessionId?: string
   threadId: string
   status: AgentRunStatus
   role?: AgentRunRole
@@ -253,6 +290,7 @@ export interface AgentRunInput {
 
 export interface AgentTaskGraph {
   id: string
+  sessionId?: string
   threadId: string
   rootRunId?: string
   title: string
@@ -814,8 +852,13 @@ export interface AgentRuntimeRouterOptions {
 }
 
 export interface CreateThreadInput {
+  sessionId?: unknown
   messages?: Array<{ role?: unknown; content?: unknown }>
   title?: unknown
+  agentName?: unknown
+  agentRole?: unknown
+  parentThreadId?: unknown
+  parentRunId?: unknown
   projectId?: unknown
   metadata?: unknown
   archived?: unknown
@@ -830,6 +873,7 @@ export interface CreateMessageInput {
 }
 
 export interface CreateRunInput {
+  sessionId?: unknown
   threadId?: unknown
   userMessage?: unknown
   sourceMessageId?: unknown
@@ -851,6 +895,7 @@ export interface CreateRunInput {
 }
 
 export interface CreateToolRunInput {
+  sessionId?: unknown
   threadId?: unknown
   title?: unknown
   message?: unknown
@@ -871,6 +916,7 @@ export interface CreateToolRunInput {
 }
 
 export interface PreviewRunInput {
+  sessionId?: unknown
   threadId?: unknown
   message?: unknown
   agentManifest?: unknown
@@ -898,6 +944,7 @@ export interface CancelRunInput {
 }
 
 export interface CreateTaskGraphInput {
+  sessionId?: unknown
   threadId?: unknown
   title?: unknown
   goal?: unknown

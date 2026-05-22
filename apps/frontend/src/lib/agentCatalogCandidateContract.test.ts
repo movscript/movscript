@@ -19,10 +19,11 @@ test('agent catalog keeps candidate generation contracts for deploy', () => {
   assert.match(JSON.stringify(visualWorkflow.triggers), /关键帧候选/)
   assert.match(JSON.stringify(visualWorkflow.triggers), /visual anchor candidate/)
 
-  const runtimeOperationStart = readJson('tools/core/operation-start.tool.json')
-  assert.match(runtimeOperationStart.description, /kind:"generation_job"/)
-  assert.equal(runtimeOperationStart.inputSchema.properties.kind.enum.includes('generation_job'), true)
-  assert.ok(runtimeOperationStart.inputSchema.properties.request)
+  const runtimeWorkStart = readJson('tools/core/work-start.tool.json')
+  assert.match(runtimeWorkStart.description, /kind:\"generation_job\"/)
+  assert.equal(runtimeWorkStart.inputSchema.properties.kind.enum.includes('generation_job'), true)
+  assert.equal(runtimeWorkStart.inputSchema.properties.kind.enum.includes('subagent_run'), true)
+  assert.ok(runtimeWorkStart.inputSchema.properties.request)
 
   const assetTool = readJson('tools/candidate/asset-slot-attach.tool.json')
   assert.equal(assetTool.inputSchema.properties.asset_slot_id.minimum, 1)

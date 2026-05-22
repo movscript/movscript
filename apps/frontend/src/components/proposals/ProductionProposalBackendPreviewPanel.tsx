@@ -84,6 +84,7 @@ export function ProductionProposalBackendPreviewSemanticSummary({
 function productionProposalChangeKindLabel(kind: string) {
   if (kind === 'segment') return '编排段'
   if (kind === 'scene_moment') return '情节'
+  if (kind === 'writing_expression') return '表达'
   if (kind === 'content_unit') return '内容'
   if (kind === 'keyframe') return '画面锚点'
   if (kind === 'creative_reference') return '设定'

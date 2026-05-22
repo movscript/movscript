@@ -1,0 +1,85 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+
+import {
+  canvasRuntimeOrderForNode,
+  collectCanvasNodeInputs,
+  inputResourceIdsFromValues,
+  resourceIdsFromCanvasPrompt,
+  runtimeResourceIdsForNode,
+  runtimePromptForNode,
+} from './canvasRuntimeGraph'
+
+test('single node runtime collects connected upstream resource inputs from unsaved graph state', () => {
+  const nodes = [
+    {
+      id: 'ref-image',
+      type: 'image',
+      position: { x: 0, y: 0 },
+      data: {
+        source: 'upload',
+        resourceId: 42,
+        resource: { ID: 42, owner_id: 1, type: 'image', name: 'ref.png', url: '/api/v1/resources/42/file', size: 1, mime_type: 'image/png' },
+      },
+    },
+    {
+      id: 'gen',
+      type: 'ref_image_gen',
+      position: { x: 200, y: 0 },
+      data: { source: 'ai', prompt: 'make a poster' },
+    },
+  ]
+  const edges = [
+    { id: 'e1', source: 'ref-image', target: 'gen', sourceHandle: 'out:image', targetHandle: 'in:reference' },
+  ]
+
+  const inputs = collectCanvasNodeInputs({ nodeId: 'gen', nodes, edges })
+
+  assert.deepEqual(inputResourceIdsFromValues(inputs.values), [42])
+  assert.equal(inputs.values.reference[0].type, 'image')
+  assert.equal(inputs.values.reference[0].resource_id, 42)
+})
+
+test('single node runtime order includes upstream generated dependencies before target', () => {
+  const nodes = [
+    { id: 'prompt', type: 'text', position: { x: 0, y: 0 }, data: { source: 'manual', textContent: 'cyberpunk alley' } },
+    { id: 'image-a', type: 'image', position: { x: 200, y: 0 }, data: { source: 'ai', prompt: 'base' } },
+    { id: 'image-b', type: 'ref_image_gen', position: { x: 400, y: 0 }, data: { source: 'ai', prompt: 'variant' } },
+  ]
+  const edges = [
+    { id: 'e1', source: 'prompt', target: 'image-a', sourceHandle: 'out:text', targetHandle: 'in:prompt' },
+    { id: 'e2', source: 'image-a', target: 'image-b', sourceHandle: 'out:image', targetHandle: 'in:reference' },
+  ]
+
+  assert.deepEqual(canvasRuntimeOrderForNode('image-b', nodes, edges).map((node) => node.id), ['prompt', 'image-a', 'image-b'])
+})
+
+test('runtime prompt combines node prompt and connected upstream text', () => {
+  const node = { id: 'gen', type: 'text_gen', position: { x: 0, y: 0 }, data: { source: 'ai', prompt: 'polish this' } }
+  const prompt = runtimePromptForNode(node, {
+    prompt: [{ type: 'text', text: 'rough draft' }],
+  })
+
+  assert.equal(prompt, 'polish this\n\nrough draft')
+})
+
+test('runtime resource ids keep inline prompt mentions before other canvas inputs', () => {
+  const node = {
+    id: 'gen',
+    type: 'ref_image_gen',
+    position: { x: 0, y: 0 },
+    data: {
+      source: 'ai',
+      prompt: 'use @[resource:55] then @[resource:42] in place',
+      inputResourceIds: [42, 99],
+    },
+  }
+
+  assert.deepEqual(resourceIdsFromCanvasPrompt(node.data.prompt), [55, 42])
+  assert.deepEqual(runtimeResourceIdsForNode(node, {
+    reference: [
+      { type: 'image', resource_id: 42 },
+      { type: 'image', resource_id: 77 },
+    ],
+  }), [55, 42, 99, 77])
+})

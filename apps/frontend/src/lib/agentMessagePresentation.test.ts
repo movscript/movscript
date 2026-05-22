@@ -123,7 +123,7 @@ test('buildAgentMessagePresentation exposes assistant meta as view model fields'
       draftArtifacts: [{
         type: 'draft',
         draftId: 'draft_1',
-        draftKind: 'content_unit',
+        draftKind: 'content_unit_proposal',
       }],
     },
   }))

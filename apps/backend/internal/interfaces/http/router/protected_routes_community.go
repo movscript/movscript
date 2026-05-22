@@ -107,11 +107,5 @@ func registerCanvasRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.PUT("/canvases/:id", h.canvases.Save)
 	protected.DELETE("/canvases/:id", h.canvases.Delete)
 	protected.GET("/canvases/:id/nodes/:nodeId/model-diagnostics", h.canvases.DiagnoseNodeModel)
-	protected.POST("/canvases/:id/nodes/:nodeId/run", h.canvases.RunNode)
-	protected.GET("/canvases/:id/nodes/:nodeId/task", h.canvases.GetNodeTask)
-	protected.GET("/canvases/:id/nodes/:nodeId/tasks", h.canvases.ListNodeTasks)
-	protected.POST("/canvases/:id/run", h.canvases.RunCanvas)
-	protected.GET("/canvases/:id/runs", h.canvases.ListRuns)
-	protected.GET("/canvases/:id/runs/:runId", h.canvases.GetRun)
-	protected.GET("/canvases/:id/runs/:runId/tasks", h.canvases.ListRunTasks)
+	protected.POST("/canvas-runtime/text", h.canvases.GenerateRuntimeText)
 }

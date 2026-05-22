@@ -9,7 +9,6 @@ import (
 	relationapp "github.com/movscript/movscript/internal/app/relation"
 	domainrelation "github.com/movscript/movscript/internal/domain/relation"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
-	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
 )
 
 type ProposalSegmentNode struct {
@@ -25,22 +24,23 @@ type ProposalSegmentNode struct {
 }
 
 type ProposalSceneMomentNode struct {
-	ID                 *uint                     `json:"id"`
-	ClientID           string                    `json:"client_id"`
-	SceneCode          string                    `json:"scene_code"`
-	Title              string                    `json:"title"`
-	TimeText           string                    `json:"time_text"`
-	LocationText       string                    `json:"location_text"`
-	ActionText         string                    `json:"action_text"`
-	Mood               string                    `json:"mood"`
-	Description        string                    `json:"description"`
-	Order              int                       `json:"order"`
-	Status             string                    `json:"status"`
-	ScriptBlockID      *uint                     `json:"script_block_id"`
-	ContentUnits       []ProposalContentUnitNode `json:"content_units"`
-	CreativeReferences []ProposalCreativeRefNode `json:"creative_references"`
-	AssetSlots         []ProposalAssetSlotNode   `json:"asset_slots"`
-	Keyframes          []ProposalKeyframeNode    `json:"keyframes"`
+	ID                 *uint                           `json:"id"`
+	ClientID           string                          `json:"client_id"`
+	SceneCode          string                          `json:"scene_code"`
+	Title              string                          `json:"title"`
+	TimeText           string                          `json:"time_text"`
+	LocationText       string                          `json:"location_text"`
+	ActionText         string                          `json:"action_text"`
+	Mood               string                          `json:"mood"`
+	Description        string                          `json:"description"`
+	Order              int                             `json:"order"`
+	Status             string                          `json:"status"`
+	ScriptBlockID      *uint                           `json:"script_block_id"`
+	ContentUnits       []ProposalContentUnitNode       `json:"content_units"`
+	CreativeReferences []ProposalCreativeRefNode       `json:"creative_references"`
+	AssetSlots         []ProposalAssetSlotNode         `json:"asset_slots"`
+	Keyframes          []ProposalKeyframeNode          `json:"keyframes"`
+	WritingExpressions []ProposalWritingExpressionNode `json:"writing_expressions"`
 }
 
 type ProposalContentUnitNode struct {
@@ -67,6 +67,18 @@ type ProposalKeyframeNode struct {
 	Prompt      string `json:"prompt"`
 	Order       int    `json:"order"`
 	Status      string `json:"status"`
+}
+
+type ProposalWritingExpressionNode struct {
+	ID            *uint  `json:"id"`
+	ClientID      string `json:"client_id"`
+	Kind          string `json:"kind"`
+	Speaker       string `json:"speaker"`
+	Text          string `json:"text"`
+	Note          string `json:"note"`
+	Intent        string `json:"intent"`
+	Order         int    `json:"order"`
+	ScriptBlockID *uint  `json:"script_block_id"`
 }
 
 type ProposalCreativeRefNode struct {
@@ -188,13 +200,14 @@ type ProposalTree struct {
 }
 
 type ApplyProductionProposalResponse struct {
-	ProductionID uint                         `json:"production_id"`
-	Counts       ProposalApplyCounts          `json:"counts"`
-	Segments     []domainsemantic.Segment     `json:"segments"`
-	SceneMoments []domainsemantic.SceneMoment `json:"scene_moments"`
-	ContentUnits []domainsemantic.ContentUnit `json:"content_units"`
-	AssetSlots   []domainsemantic.AssetSlot   `json:"asset_slots"`
-	Keyframes    []domainsemantic.Keyframe    `json:"keyframes"`
+	ProductionID       uint                               `json:"production_id"`
+	Counts             ProposalApplyCounts                `json:"counts"`
+	Segments           []domainsemantic.Segment           `json:"segments"`
+	SceneMoments       []domainsemantic.SceneMoment       `json:"scene_moments"`
+	ContentUnits       []domainsemantic.ContentUnit       `json:"content_units"`
+	AssetSlots         []domainsemantic.AssetSlot         `json:"asset_slots"`
+	Keyframes          []domainsemantic.Keyframe          `json:"keyframes"`
+	WritingExpressions []domainsemantic.WritingExpression `json:"writing_expressions"`
 }
 
 type PreviewProductionProposalApplyResponse struct {
@@ -227,6 +240,7 @@ type ProposalApplyCounts struct {
 	KeyframesCreated          int `json:"keyframes_created"`
 	CreativeReferencesCreated int `json:"creative_references_created"`
 	CreativeReferenceUsages   int `json:"creative_reference_usages"`
+	WritingExpressionsCreated int `json:"writing_expressions_created"`
 }
 
 func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, req ApplyProductionProposalRequest) (*ApplyProductionProposalResponse, error) {
@@ -329,6 +343,8 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 	keptKeyframeIDs := make(map[uint]struct{})
 	keptAssetSlotIDs := make(map[uint]struct{})
 	keptCreativeReferenceUsageIDs := make(map[uint]struct{})
+	keptWritingExpressionIDs := make(map[uint]struct{})
+	writingExpressionManagedSceneMomentIDs := make(map[uint]struct{})
 	for i, segNode := range req.Proposal.Segments {
 		var segmentID uint
 		if segNode.ID != nil && *segNode.ID > 0 {
@@ -499,6 +515,63 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 				}
 			}
 
+			for expressionIndex, expressionNode := range smNode.WritingExpressions {
+				var expressionID uint
+				if expressionNode.ID != nil && *expressionNode.ID > 0 {
+					item, err := s.PatchWritingExpression(ctx, projectID, fmt.Sprint(*expressionNode.ID), WritingExpressionInput{
+						SceneMomentID: sceneMomentID,
+						ScriptBlockID: expressionNode.ScriptBlockID,
+						Order:         fallbackInt(expressionNode.Order, expressionIndex+1),
+						Kind:          expressionNode.Kind,
+						Speaker:       expressionNode.Speaker,
+						Text:          expressionNode.Text,
+						Note:          expressionNode.Note,
+						Intent:        expressionNode.Intent,
+					})
+					if err != nil {
+						return nil, productionProposalApplyLinkError(projectID, req, productionProposalLinkContext{
+							Path:          fmt.Sprintf("/proposal/segments/%d/scene_moments/%d/writing_expressions/%d/id", i, j, expressionIndex),
+							EntityType:    "writing_expression",
+							EntityID:      expressionNode.ID,
+							ClientID:      expressionNode.ClientID,
+							Title:         expressionNode.Text,
+							SegmentID:     &segmentID,
+							SceneMomentID: &sceneMomentID,
+						}, err)
+					}
+					expressionID = item.ID
+				} else {
+					item, err := s.CreateWritingExpression(ctx, projectID, WritingExpressionInput{
+						SceneMomentID: sceneMomentID,
+						ScriptBlockID: expressionNode.ScriptBlockID,
+						Order:         fallbackInt(expressionNode.Order, expressionIndex+1),
+						Kind:          expressionNode.Kind,
+						Speaker:       expressionNode.Speaker,
+						Text:          expressionNode.Text,
+						Note:          expressionNode.Note,
+						Intent:        expressionNode.Intent,
+					})
+					if err != nil {
+						return nil, productionProposalApplyLinkError(projectID, req, productionProposalLinkContext{
+							Path:          fmt.Sprintf("/proposal/segments/%d/scene_moments/%d/writing_expressions/%d/id", i, j, expressionIndex),
+							EntityType:    "writing_expression",
+							EntityID:      expressionNode.ID,
+							ClientID:      expressionNode.ClientID,
+							Title:         expressionNode.Text,
+							SegmentID:     &segmentID,
+							SceneMomentID: &sceneMomentID,
+						}, err)
+					}
+					resp.WritingExpressions = append(resp.WritingExpressions, item)
+					resp.Counts.WritingExpressionsCreated++
+					expressionID = item.ID
+				}
+				keptWritingExpressionIDs[expressionID] = struct{}{}
+			}
+			if smNode.WritingExpressions != nil {
+				writingExpressionManagedSceneMomentIDs[sceneMomentID] = struct{}{}
+			}
+
 			for k, cuNode := range smNode.ContentUnits {
 				var contentUnitID uint
 				if cuNode.ID != nil && *cuNode.ID > 0 {
@@ -643,7 +716,7 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 			}
 		}
 	}
-	if err := s.applyProductionProposalSnapshotOmissions(ctx, projectID, req, keptSegmentIDs, keptSceneMomentIDs, keptContentUnitIDs, keptKeyframeIDs, keptAssetSlotIDs, keptCreativeReferenceUsageIDs); err != nil {
+	if err := s.applyProductionProposalSnapshotOmissions(ctx, projectID, req, keptSegmentIDs, keptSceneMomentIDs, keptContentUnitIDs, keptKeyframeIDs, keptAssetSlotIDs, keptCreativeReferenceUsageIDs, keptWritingExpressionIDs, writingExpressionManagedSceneMomentIDs); err != nil {
 		return nil, err
 	}
 	return resp, nil
@@ -742,6 +815,16 @@ func buildProductionProposalPreviewSemanticChanges(proposal *ProposalTree) []Pro
 				ClientID: moment.ClientID,
 				ID:       moment.ID,
 			})
+			for _, expression := range moment.WritingExpressions {
+				changes = append(changes, ProductionProposalPreviewSemanticChange{
+					Kind:     "writing_expression",
+					Action:   snapshotChangeAction(expression.ID),
+					Title:    fallbackProposalTitle(expression.Text, expression.ClientID, "表达条目"),
+					Parent:   momentParent,
+					ClientID: expression.ClientID,
+					ID:       expression.ID,
+				})
+			}
 			for _, unit := range moment.ContentUnits {
 				unitTitle := fallbackProposalTitle(unit.Title, unit.ClientID, "制作项")
 				changes = append(changes, ProductionProposalPreviewSemanticChange{
@@ -817,10 +900,10 @@ func buildProductionProposalPreviewWarnings(proposal *ProposalTree, resp *ApplyP
 			})
 		}
 		for _, moment := range segment.SceneMoments {
-			if len(moment.CreativeReferences) == 0 && len(moment.AssetSlots) == 0 {
+			if len(moment.CreativeReferences) == 0 {
 				warnings = append(warnings, ProductionProposalPreviewWarning{
 					Code:    "SCENE_MOMENT_WITHOUT_CONTEXT",
-					Message: fmt.Sprintf("情景 %q 没有设定引用或素材需求，后续生成上下文可能不足。", fallbackProposalTitle(moment.Title, moment.ClientID, "情景")),
+					Message: fmt.Sprintf("情景 %q 没有设定引用，后续生成上下文可能不足。", fallbackProposalTitle(moment.Title, moment.ClientID, "情景")),
 				})
 			}
 		}
@@ -838,6 +921,8 @@ func (s *Service) applyProductionProposalSnapshotOmissions(
 	keptKeyframeIDs map[uint]struct{},
 	keptAssetSlotIDs map[uint]struct{},
 	keptCreativeReferenceUsageIDs map[uint]struct{},
+	keptWritingExpressionIDs map[uint]struct{},
+	writingExpressionManagedSceneMomentIDs map[uint]struct{},
 ) error {
 	segments, err := s.proposalSnapshotTargets(ctx, projectID, domainrelation.NewEntityRef("production", req.ProductionID), domainrelation.CategoryStructure, domainrelation.TypeContains, "segment")
 	if err != nil {
@@ -864,46 +949,25 @@ func (s *Service) applyProductionProposalSnapshotOmissions(
 		}
 	}
 
-	contentUnits, err := s.proposalSnapshotTargets(ctx, projectID, domainrelation.NewEntityRef("production", req.ProductionID), domainrelation.CategoryStructure, domainrelation.TypeContains, "content_unit")
-	if err != nil {
-		return err
-	}
-	for _, unitID := range contentUnits {
-		if _, ok := keptContentUnitIDs[unitID]; ok {
-			continue
-		}
-		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, domainworkflow.EntityKindContentUnit, fmt.Sprint(unitID)); err != nil {
-			return err
-		}
-	}
-
-	keyframes, err := s.proposalSnapshotTargets(ctx, projectID, domainrelation.NewEntityRef("production", req.ProductionID), domainrelation.CategoryStructure, domainrelation.TypeHasKeyframe, "keyframe")
-	if err != nil {
-		return err
-	}
-	for _, keyframeID := range keyframes {
-		if _, ok := keptKeyframeIDs[keyframeID]; ok {
-			continue
-		}
-		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, domainworkflow.EntityKindKeyframe, fmt.Sprint(keyframeID)); err != nil {
-			return err
-		}
-	}
-
-	slots, err := s.proposalSnapshotTargets(ctx, projectID, domainrelation.NewEntityRef("production", req.ProductionID), domainrelation.CategoryAsset, "", "asset_slot")
-	if err != nil {
-		return err
-	}
-	for _, slotID := range slots {
-		if _, ok := keptAssetSlotIDs[slotID]; ok {
-			continue
-		}
-		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, domainworkflow.EntityKindAssetSlot, fmt.Sprint(slotID)); err != nil {
-			return err
-		}
-	}
-
 	for momentID := range productionSceneMomentIDs {
+		if _, managed := writingExpressionManagedSceneMomentIDs[momentID]; managed {
+			expressions, err := s.ListWritingExpressions(ctx, WritingExpressionFilter{
+				ProjectID:     projectID,
+				SceneMomentID: momentID,
+			})
+			if err != nil {
+				return err
+			}
+			for _, expression := range expressions {
+				if _, ok := keptWritingExpressionIDs[expression.ID]; ok {
+					continue
+				}
+				if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, "writing_expression", fmt.Sprint(expression.ID)); err != nil {
+					return err
+				}
+			}
+		}
+
 		usageIDs, err := s.proposalSnapshotRelationMetadataIDs(ctx, projectID, domainrelation.NewEntityRef("scene_moment", momentID), domainrelation.CategoryCreative, domainrelation.TypeUses, "creative_reference", "creative_reference_usage_id")
 		if err != nil {
 			return err

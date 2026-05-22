@@ -13,6 +13,7 @@ export interface RuntimeWorkExternalHandle {
 
 export interface RuntimeWork {
   id: string
+  sessionId?: string
   threadId: string
   runId: string
   kind: RuntimeWorkKind
@@ -34,6 +35,7 @@ export interface RuntimeWork {
 }
 
 export interface RuntimeWorkStartInput {
+  sessionId?: string
   threadId: string
   runId: string
   kind: RuntimeWorkKind

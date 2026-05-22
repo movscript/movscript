@@ -48,13 +48,9 @@ type AgentToolConsoleResult = {
 const DRAFT_RUNTIME_TOOL_NAMES = [
   'draft_model_get',
   'draft_create',
-  'draft_get',
-  'draft_validate',
   'draft_apply_preview',
 ] as const
 const DRAFT_ID_REQUIRED_TOOLS = new Set<string>([
-  'draft_get',
-  'draft_validate',
   'draft_apply_preview',
 ])
 const DEBUG_SUMMARY_MAX_DEPTH = 5
@@ -185,9 +181,10 @@ export default function AIAgentDebugPage() {
       } catch {
         return current
       }
-      if (!isDefaultCreateAssetProposalDraftArgs(parsed)) return current
       if (parsed.projectId === debugProject?.ID) return current
-      return formatJson(defaultCreateAssetProposalDraftArgs(debugProject?.ID))
+      if (isDefaultCreateAssetProposalDraftArgs(parsed)) return formatJson(defaultCreateAssetProposalDraftArgs(debugProject?.ID))
+      if (isDefaultCreateProductionProposalDraftArgs(parsed)) return formatJson(defaultCreateProductionProposalDraftArgs(debugProject?.ID))
+      return current
     })
   }, [debugProject?.ID, draftToolName])
 
@@ -387,6 +384,7 @@ export default function AIAgentDebugPage() {
       )
       setDraftToolArgsText(formatJson(parsed))
       validateDraftRuntimeToolArgs(draftToolName, parsed)
+      const productionId = draftRuntimeDebugProductionId(parsed)
       const result = await localAgentClient.runMessageStream({
         title: `Draft runtime debug: ${draftToolName}`,
         message: `Run ${draftToolName} from Agent Debug draft runtime panel.`,
@@ -408,7 +406,8 @@ export default function AIAgentDebugPage() {
                 description: debugProject.description,
               }
               : undefined,
-            labels: ['agent-debug', 'draft-runtime'],
+            ...(productionId !== undefined ? { productionId } : {}),
+            labels: draftRuntimeDebugLabels(parsed),
           },
         },
       }, {
@@ -860,17 +859,9 @@ export default function AIAgentDebugPage() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() => setDraftToolPreset('draft_get', defaultDraftRuntimeToolArgs('draft_get', draftRuntimeLastDraftId ?? undefined))}
+                      onClick={() => setDraftToolPreset('draft_create', defaultCreateProductionProposalDraftArgs(debugProject?.ID))}
                     >
-                      {t('agents.debug.draftRuntime.getDraftPreset')}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setDraftToolPreset('draft_validate', defaultDraftRuntimeToolArgs('draft_validate', draftRuntimeLastDraftId ?? undefined))}
-                    >
-                      {t('agents.debug.draftRuntime.validatePreset')}
+                      {t('agents.debug.draftRuntime.createProductionDraftPreset')}
                     </Button>
                     <Button
                       type="button"
@@ -1904,6 +1895,14 @@ function isDefaultCreateAssetProposalDraftArgs(args: Record<string, unknown>): b
     && args.content.includes('Debug asset proposal draft shell')
 }
 
+function isDefaultCreateProductionProposalDraftArgs(args: Record<string, unknown>): boolean {
+  return args.kind === 'production_proposal'
+    && args.title === 'Debug production proposal'
+    && args.proposal === true
+    && typeof args.content === 'string'
+    && args.content.includes('Debug production proposal draft shell')
+}
+
 function defaultCreateAssetProposalDraftArgs(projectId?: number): Record<string, unknown> {
   const content = {
     schema: 'movscript.asset_proposal.v1',
@@ -1915,7 +1914,7 @@ function defaultCreateAssetProposalDraftArgs(projectId?: number): Record<string,
     },
     summary: 'Debug asset proposal draft shell. Runtime will prefill omitted proposal.asset_slots from the current project data.',
     next_actions: [
-      'Use the returned draft.filePath to edit proposal.asset_slots before validation or apply preview.',
+      'Use agent://draft/{draftId}/content with file tools to edit proposal.asset_slots before apply preview.',
       'Leaving proposal.asset_slots equal to the hydrated current asset slots represents no asset-slot change.',
     ],
   }
@@ -1931,6 +1930,64 @@ function defaultCreateAssetProposalDraftArgs(projectId?: number): Record<string,
   }
 }
 
+function defaultCreateProductionProposalDraftArgs(projectId?: number): Record<string, unknown> {
+  const productionId = 0
+  const content = {
+    schema: 'movscript.production_proposal.v1',
+    scope: 'production_proposal',
+    mode: 'snapshot',
+    productionId,
+    proposalScope: 'production',
+    proposal: {
+      segments: [{
+        client_id: 'debug-segment-1',
+        title: 'Debug production segment',
+        scene_moments: [{
+          client_id: 'debug-scene-moment-1',
+          title: 'Debug scene moment',
+          description: 'Replace this shell with a real production beat before apply preview.',
+          asset_slots: [{
+            client_id: 'debug-production-slot-1',
+            name: 'Debug production reference',
+            kind: 'image',
+            description: 'Replace with a production-local material need.',
+          }],
+        }],
+      }],
+    },
+    impact_notes: [
+      'Debug production proposal draft shell. Replace productionId=0 with the selected production id before apply preview.',
+      'Keep project-level settings and asset requirements in setting_proposal or asset_proposal; this draft owns production structure only.',
+    ],
+    summary: 'Debug production proposal draft shell.',
+  }
+  return {
+    kind: 'production_proposal',
+    title: 'Debug production proposal',
+    ...(projectId ? { projectId } : {}),
+    productionId,
+    content: JSON.stringify(content, null, 2),
+    source: {
+      entityType: 'production',
+      pageKey: 'agent_debug_draft_runtime',
+      pageType: 'agent_debug',
+      pageRoute: ROUTES.agentDebug,
+    },
+    target: {
+      entityType: 'production',
+      field: 'proposal',
+      ...(projectId ? { projectId } : {}),
+      productionId,
+    },
+    metadata: {
+      debugPreset: 'production_proposal',
+      proposalScope: 'production',
+      requiresProductionIdReplacement: true,
+    },
+    proposal: true,
+  }
+}
+
 function defaultDraftRuntimeToolArgs(toolName: string, draftId?: string): Record<string, unknown> {
   if (toolName === 'draft_model_get') {
     return {
@@ -1941,6 +1998,17 @@ function defaultDraftRuntimeToolArgs(toolName: string, draftId?: string): Record
   }
   if (DRAFT_ID_REQUIRED_TOOLS.has(toolName)) return { draftId: draftId ?? '' }
   return {}
+}
+
+function draftRuntimeDebugLabels(args: Record<string, unknown>): string[] {
+  const labels = ['agent-debug', 'draft-runtime']
+  const kind = typeof args.kind === 'string' && args.kind.trim() ? args.kind.trim() : ''
+  if (kind) labels.push(kind, `draft-runtime:${kind}`)
+  return labels
+}
+
+function draftRuntimeDebugProductionId(args: Record<string, unknown>): number | undefined {
+  return typeof args.productionId === 'number' && Number.isSafeInteger(args.productionId) && args.productionId > 0 ? args.productionId : undefined
 }
 
 function extractDraftIdFromToolRun(run: AgentRun): string | null {

@@ -15,7 +15,7 @@ import { isRecord } from './jsonValue.js'
 import type { JSONValue } from './types.js'
 import type { AgentTraceQuery } from './state/store.js'
 import { AGENT_TRACE_EVENT_KINDS, type AgentTraceEventKind } from './state/types.js'
-import { isActiveRunStatus } from './state/runStatus.js'
+import { isActiveRunStatus, isExecutingRunStatus } from './state/runStatus.js'
 import { buildRuntimeInputMessageMetadata } from './state/runtimeRunInputs.js'
 import { isValidMemoryProjectId } from './memory/types.js'
 import { isValidAgentProjectId, isValidAgentReferenceId } from './context/runtimeContext.js'
@@ -353,12 +353,6 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
-      const draftValidateMatch = url.pathname.match(/^\/drafts\/([^/]+)\/validate$/)
-      if (draftValidateMatch && req.method === 'POST') {
-        writeJSON(res, 200, context.runtimeRouter.validateDraft({ draftId: draftValidateMatch[1] }))
-        return
-      }
-
       const draftApplyPreviewMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply-preview$/)
       if (draftApplyPreviewMatch && req.method === 'POST') {
         const body = await readOptionalJSONObject(req, 'apply preview body')
@@ -405,8 +399,53 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
+      if (req.method === 'GET' && url.pathname === '/sessions') {
+        writeJSON(res, 200, { sessions: context.runtimeRouter.listSessionSummaries() })
+        return
+      }
+
+      const sessionMatch = url.pathname.match(/^\/sessions\/([^/]+)$/)
+      if (sessionMatch && req.method === 'GET') {
+        const session = context.runtimeRouter.getSession(sessionMatch[1])
+        if (!session) {
+          writeJSON(res, 404, { error: 'session not found' })
+          return
+        }
+        writeJSON(res, 200, session)
+        return
+      }
+
+      const sessionRuntimeMatch = url.pathname.match(/^\/sessions\/([^/]+)\/runtime$/)
+      if (sessionRuntimeMatch && req.method === 'GET') {
+        const snapshot = context.runtimeRouter.getSessionRuntimeSnapshot(sessionRuntimeMatch[1])
+        if (!snapshot) {
+          writeJSON(res, 404, { error: 'session not found' })
+          return
+        }
+        writeJSON(res, 200, snapshot)
+        return
+      }
+
       if (req.method === 'GET' && url.pathname === '/threads') {
         writeJSON(res, 200, { threads: context.runtimeRouter.listThreadSummaries() })
+        return
+      }
+
+      if (req.method === 'DELETE' && url.pathname === '/threads') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'thread history deletion is only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'thread history deletion rejects cross-site browser requests' })
+          return
+        }
+        const activeRun = context.runtimeRouter.listRuns().find((run) => isExecutingRunStatus(run.status))
+        if (activeRun) {
+          writeJSON(res, 409, { error: 'active runs must be cancelled before deleting thread history', runId: activeRun.id })
+          return
+        }
+        writeJSON(res, 200, context.runtimeRouter.deleteAllThreads())
         return
       }
 
@@ -423,6 +462,29 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       if (threadMatch && req.method === 'PATCH') {
         const body = await readOptionalJSONObject(req, 'thread update body')
         writeJSON(res, 200, context.runtimeRouter.updateThread(threadMatch[1], body))
+        return
+      }
+      if (threadMatch && req.method === 'DELETE') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'thread deletion is only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'thread deletion rejects cross-site browser requests' })
+          return
+        }
+        const threadId = decodeURIComponent(threadMatch[1])
+        const thread = context.runtimeRouter.getThread(threadId)
+        if (!thread) {
+          writeJSON(res, 404, { error: 'thread not found' })
+          return
+        }
+        const activeRun = context.runtimeRouter.listRunsByThread(threadId).find((run) => isExecutingRunStatus(run.status))
+        if (activeRun) {
+          writeJSON(res, 409, { error: 'active runs must be cancelled before deleting thread', runId: activeRun.id })
+          return
+        }
+        writeJSON(res, 200, context.runtimeRouter.deleteThread(threadId))
         return
       }
 

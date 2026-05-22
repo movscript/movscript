@@ -10,6 +10,8 @@ import (
 	"github.com/movscript/movscript/internal/infra/ai"
 )
 
+type nodeData = canvasdomain.NodeData
+
 type NodeModelDiagnostics struct {
 	CanvasID             uint                       `json:"canvas_id"`
 	NodeID               string                     `json:"node_id"`
@@ -94,8 +96,8 @@ func (h *Service) DiagnoseNodeModel(ctx context.Context, canvasID uint, nodeID s
 		return diag, nil
 	}
 
-	diag.Capability = capabilityForCanvasNodeType(node.Type)
-	diag.FeatureKey = featureKeyForCanvasNodeType(node.Type)
+	diag.Capability = capabilityForCanvasNodeType(node.Type, nd.OutputType)
+	diag.FeatureKey = featureKeyForCanvasNodeType(node.Type, nd.OutputType)
 	h.fillAvailableModels(ctx, &diag)
 	h.diagnoseNodeRoute(ctx, &diag, nd)
 	return diag, nil
@@ -283,15 +285,60 @@ func addRawFieldProblems(diag *NodeModelDiagnostics) {
 	}
 }
 
-func featureKeyForCanvasNodeType(nodeType string) string {
-	switch nodeType {
+func featureKeyForCanvasNodeType(nodeType string, outputType ...string) string {
+	kind := generationKindForCanvasNode(nodeType, nodeData{OutputType: firstOptionalString(outputType)})
+	switch kind {
 	case "text":
 		return "canvas_text"
-	case "image", "ref_image_gen", "multi_angle", "style_transfer":
+	case "image":
 		return "canvas_image"
-	case "video", "ref_video_gen", "motion_imitation":
+	case "video":
 		return "canvas_video"
 	default:
 		return ""
 	}
+}
+
+func generationKindForCanvasNode(nodeType string, nd nodeData) string {
+	if nodeType == "ai_gen" {
+		switch strings.TrimSpace(nd.OutputType) {
+		case "text", "video", "audio":
+			return strings.TrimSpace(nd.OutputType)
+		default:
+			return "image"
+		}
+	}
+	switch nodeType {
+	case "text", "text_gen":
+		return "text"
+	case "image", "ref_image_gen", "multi_angle", "style_transfer":
+		return "image"
+	case "video", "ref_video_gen", "motion_imitation":
+		return "video"
+	case "audio":
+		return "audio"
+	default:
+		return ""
+	}
+}
+
+func capabilityForCanvasNodeType(nodeType string, outputType ...string) string {
+	kind := generationKindForCanvasNode(nodeType, nodeData{OutputType: firstOptionalString(outputType)})
+	switch kind {
+	case "text":
+		return ai.CapabilityText
+	case "image":
+		return ai.CapabilityImage
+	case "video":
+		return ai.CapabilityVideo
+	default:
+		return ""
+	}
+}
+
+func firstOptionalString(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
 }

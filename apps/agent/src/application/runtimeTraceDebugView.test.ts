@@ -79,7 +79,7 @@ test('buildRuntimeTraceDebugView summarizes OpenAI Responses sdk_body payloads',
   const sdkBody = {
     model: 'gpt-5.5',
     input: [{ role: 'user', content: 'hello responses' }],
-    tools: [{ type: 'function', name: 'draft_file_edit' }],
+    tools: [{ type: 'function', name: 'core_file_edit' }],
     tool_choice: 'auto',
   }
   const events: AgentTraceEvent[] = [

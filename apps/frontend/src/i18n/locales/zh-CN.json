@@ -1011,7 +1011,6 @@
         "core_memory_create": "创建记忆",
         "movscript_project_create": "创建项目",
         "core_memory_delete": "删除记忆",
-        "draft_get": "读取草稿",
         "draft_model_get": "读取草稿模型",
         "movscript_focus_get": "读取当前焦点",
         "generation_job_get": "查看生成任务",
@@ -1026,13 +1025,12 @@
         "movscript_asset_slot_query": "查询素材槽",
         "movscript_creative_reference_query": "查询创意参考",
         "movscript_production_context_query": "查询制作上下文",
-        "movscript_project_script_read": "读取项目剧本",
+        "movscript_script_locate": "读取项目剧本",
         "core_user_input_request": "请求用户补充",
         "knowledge_search": "搜索知识",
         "core_memory_search": "搜索记忆",
         "core_work_start": "启动运行工作",
         "core_skill_update": "更新启用技能",
-        "draft_validate": "校验草稿",
         "draft_apply_preview": "预览应用草稿",
         "read_file": "读取文件",
         "search_file": "搜索文件",
@@ -1061,8 +1059,8 @@
         "agent_task_graph_read": "读取 Agent 执行计划",
         "agent_task_graph_write": "更新 Agent 执行计划",
         "agent_skills_manage": "管理 Agent 技能",
-        "agent_subagent_read": "读取子代理状态",
-        "agent_subagent_write": "管理子代理",
+        "agent_work_read": "读取异步任务",
+        "agent_work_write": "管理异步任务",
         "asset_candidate_write": "写入素材候选",
         "draft_apply": "应用草稿变更",
         "draft_read": "读取草稿",
@@ -1248,13 +1246,13 @@
         "refreshTrace": "刷新 Trace"
       },
       "draftRuntime": {
-        "boundary": "这里专门调用 Agent Runtime 本地 draft 工具，用来验证 draft model seed、创建草稿、校验和 preview apply。它不是外部 MCP。",
+        "boundary": "这里专门调用 Agent Runtime 本地 draft 工具，用来验证 draft model seed、创建草稿以及 preview apply。它不是外部 MCP。",
         "tool": "Draft Runtime 工具",
         "args": "JSON 参数",
         "run": "执行 Draft 工具",
         "assetModelPreset": "Asset proposal 模型",
         "createAssetDraftPreset": "创建 asset draft 壳",
-        "validatePreset": "Validate draft",
+        "createProductionDraftPreset": "创建 production proposal 壳",
         "previewApplyPreset": "Preview apply",
         "refreshTrace": "刷新 Trace"
       },
@@ -2204,7 +2202,14 @@
       "updatedAt": "更新时间",
       "content": "草稿内容",
       "source": "来源",
-      "target": "目标"
+      "target": "目标",
+      "kindFilters": {
+        "all": "全部",
+        "proposal": "提案",
+        "script": "剧本",
+        "note": "备注/提示词",
+        "other": "其他"
+      }
     },
     "chat": {
       "aiAssistant": "AI 助手",
@@ -2289,20 +2294,10 @@
         },
         "kinds": {
           "setting_proposal": "设定资料提案",
-          "script": "剧本草稿",
-          "creative_reference": "设定资料建议",
-          "asset_slot": "素材需求",
-          "content_unit": "镜头建议",
-          "prompt": "提示词",
-          "note": "审阅备注",
-          "pipeline": "流程提案",
-          "segment": "编排段提案",
-          "scene_moment": "情节提案",
           "asset_proposal": "素材候选提案",
           "project_standards_proposal": "项目规范提案",
           "production_proposal": "制作提案",
-          "content_unit_proposal": "制作项提案",
-          "script_split_proposal": "剧本划分提案"
+          "content_unit_proposal": "制作项提案"
         }
       },
       "modes": {
@@ -2416,8 +2411,8 @@
           "memoryWrite": "通过后会修改本地 Agent 记忆，可能影响之后的建议。",
           "memoryDelete": "通过后会删除选中的本地 Agent 记忆。",
           "catalogReload": "通过后会从磁盘重新加载本地 skills、tools、packs 和 profiles。",
-          "subagentSpawn": "通过后会为计划任务启动 worker agent 运行。",
-          "subagentCancel": "通过后会取消选中的 worker agent 运行。",
+          "workStart": "通过后会提交异步 runtime work；生成任务可能消耗额度，子 agent 任务会启动 worker run。",
+          "workCancel": "通过后会取消异步 runtime work；未完成输出或 worker 后续执行可能不再产生。",
           "destructive": "通过后可能删除或取消已有数据，请先确认细节。",
           "write": "通过后会允许一次写入操作，而不只是读取或预览数据。",
           "default": "通过后 Agent 会调用这个工具，并用调用结果继续运行。"
@@ -2703,8 +2698,8 @@
             "memoryWrite": "通过后会修改本地 Agent 记忆，可能影响之后的建议。",
             "memoryDelete": "通过后会删除选中的本地 Agent 记忆。",
             "catalogReload": "通过后会从磁盘重新加载本地 skills、tools、packs 和 profiles。",
-            "subagentSpawn": "通过后会为计划任务启动 worker agent 运行。",
-            "subagentCancel": "通过后会取消选中的 worker agent 运行。",
+            "workStart": "通过后会提交异步 runtime work；生成任务可能消耗额度，子 agent 任务会启动 worker run。",
+            "workCancel": "通过后会取消异步 runtime work；未完成输出或 worker 后续执行可能不再产生。",
             "destructive": "通过后可能删除或取消已有数据，请先确认细节。",
             "write": "通过后会允许一次写入操作，而不只是读取或预览数据。",
             "default": "通过后 Agent 会调用这个工具，并用调用结果继续运行。"
@@ -3818,7 +3813,6 @@
       "projectTaskGraph": "筹备总览",
       "creation": "首页",
       "workbench": "一键制作",
-      "workbenchScript": "一键制作",
       "workbenchCreative": "设定准备",
       "workbenchAssets": "素材工作台",
       "workbenchContentGeneration": "内容编排",
@@ -3940,7 +3934,6 @@
       "assetProductionWorkbench": "素材制作工作台",
       "contentProductionWorkbench": "制作执行工作台",
       "workbench": "一键制作",
-      "workbenchScript": "一键制作",
       "workbenchCreative": "设定准备",
       "workbenchAssets": "素材工作台",
       "workbenchDelivery": "交付门禁",

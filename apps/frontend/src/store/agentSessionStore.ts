@@ -28,6 +28,7 @@ export interface AgentPageTaskState {
   payload: AgentPageTaskPayload & { requestId: string; taskType: string }
   artifacts?: AgentTaskArtifactRef[]
   conversationId?: string
+  sessionId?: string
   threadId?: string
   runId?: string
   run?: AgentRun
@@ -41,6 +42,7 @@ export interface AgentPageTaskState {
 export interface AgentConversationRuntimeState {
   conversationId: string
   requestId?: string
+  sessionId?: string
   threadId?: string
   runId?: string
   run?: AgentRun
@@ -54,8 +56,8 @@ export interface AgentConversationRuntimeState {
   updatedAt: number
 }
 
-export interface AgentStandaloneSessionState {
-  sessionId: string
+export interface AgentStandaloneTaskState {
+  taskId: string
   taskType: string
   title?: string
   prompt: string
@@ -75,21 +77,23 @@ interface AgentSessionStore {
   pageTasks: Record<string, AgentPageTaskState>
   conversationRuntimes: Record<string, AgentConversationRuntimeState>
   localThreadIdsByConversation: Record<string, string>
-  standaloneSessions: Record<string, AgentStandaloneSessionState>
+  sessionIdsByConversation: Record<string, string>
+  standaloneTasks: Record<string, AgentStandaloneTaskState>
 
   enqueuePageTask: (payload: AgentPageTaskPayload) => AgentPageTaskPayload & { requestId: string; taskType: string }
   claimNextQueuedPageTask: () => (AgentPageTaskPayload & { requestId: string; taskType: string }) | null
   attachPageTaskConversation: (requestId: string, conversationId: string) => void
-  setPageTaskRunning: (requestId: string | undefined, patch: { conversationId?: string; run?: AgentRun; threadId?: string; artifacts?: AgentTaskArtifactRef[] }) => void
+  setPageTaskRunning: (requestId: string | undefined, patch: { conversationId?: string; sessionId?: string; run?: AgentRun; thread?: AgentThread; threadId?: string; artifacts?: AgentTaskArtifactRef[] }) => void
   updatePageTaskFromRuntime: (payload: { requestId?: string; run?: AgentRun; thread?: AgentThread; error?: string; artifacts?: AgentTaskArtifactRef[]; status?: 'completed' | 'error' | 'cancelled' }) => void
 
   setConversationRuntime: (conversationId: string, patch: Partial<Omit<AgentConversationRuntimeState, 'conversationId' | 'updatedAt'>>) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch?: Partial<Omit<AgentConversationRuntimeState, 'conversationId' | 'run' | 'runId' | 'threadId' | 'status' | 'updatedAt'>>) => void
   clearConversationRuntime: (conversationId: string) => void
   setLocalThreadId: (conversationId: string, threadId: string) => void
-  startStandaloneSession: (input: { sessionId: string; taskType: string; title?: string; prompt: string }) => void
-  updateStandaloneSession: (sessionId: string, patch: Partial<Omit<AgentStandaloneSessionState, 'sessionId' | 'taskType' | 'prompt' | 'startedAt'>>) => void
-  settleStandaloneSession: (payload: { sessionId: string; status: 'completed' | 'cancelled' | 'error' | 'requires_action'; run?: AgentRun; thread?: AgentThread; result?: string; error?: string }) => void
+  setConversationSessionId: (conversationId: string, sessionId: string) => void
+  startStandaloneTask: (input: { taskId: string; taskType: string; title?: string; prompt: string }) => void
+  updateStandaloneTask: (taskId: string, patch: Partial<Omit<AgentStandaloneTaskState, 'taskId' | 'taskType' | 'prompt' | 'startedAt'>>) => void
+  settleStandaloneTask: (payload: { taskId: string; status: 'completed' | 'cancelled' | 'error' | 'requires_action'; run?: AgentRun; thread?: AgentThread; result?: string; error?: string }) => void
 }
 
 function genTaskId() {
@@ -157,7 +161,8 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
       pageTasks: {},
       conversationRuntimes: {},
       localThreadIdsByConversation: {},
-      standaloneSessions: {},
+      sessionIdsByConversation: {},
+      standaloneTasks: {},
 
       enqueuePageTask: (payload) => {
         const normalized = normalizeTaskPayload(payload)
@@ -173,6 +178,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
                 status: existing?.status ?? 'queued',
                 payload: normalized,
                 conversationId: existing?.conversationId,
+                sessionId: existing?.sessionId,
                 threadId: existing?.threadId,
                 runId: existing?.runId,
                 run: existing?.run,
@@ -225,15 +231,19 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
           const task = state.pageTasks[requestId]
           if (!task) return {}
           const run = patch.run ?? task.run
+          const thread = patch.thread ?? task.thread
+          const sessionId = patch.sessionId ?? thread?.sessionId ?? run?.sessionId ?? task.sessionId
           return {
             pageTasks: {
               ...state.pageTasks,
               [requestId]: {
                 ...task,
                 conversationId: patch.conversationId ?? task.conversationId,
-                threadId: patch.threadId ?? run?.threadId ?? task.threadId,
+                sessionId,
+                threadId: patch.threadId ?? thread?.id ?? run?.threadId ?? task.threadId,
                 runId: run?.id ?? task.runId,
                 run,
+                thread,
                 artifacts: patch.artifacts ?? task.artifacts,
                 status: 'running',
                 updatedAt: Date.now(),
@@ -257,6 +267,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
                 status: pageTaskStatusFromRuntime(payload, task.status),
                 run: payload.run ?? task.run,
                 thread: payload.thread ?? task.thread,
+                sessionId: payload.thread?.sessionId ?? payload.run?.sessionId ?? task.sessionId,
                 runId: payload.run?.id ?? task.runId,
                 threadId: payload.thread?.id ?? payload.run?.threadId ?? task.threadId,
                 artifacts: payload.artifacts ?? task.artifacts,
@@ -270,13 +281,18 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
       },
 
       setConversationRuntime: (conversationId, patch) => set((state) => {
+        const sessionId = patch.sessionId ?? state.conversationRuntimes[conversationId]?.sessionId
         return {
+          sessionIdsByConversation: sessionId
+            ? { ...state.sessionIdsByConversation, [conversationId]: sessionId }
+            : state.sessionIdsByConversation,
           conversationRuntimes: {
             ...state.conversationRuntimes,
             [conversationId]: {
               ...defaultConversationRuntime(conversationId),
               ...(state.conversationRuntimes[conversationId] ?? {}),
               ...patch,
+              ...(sessionId ? { sessionId } : {}),
               updatedAt: Date.now(),
             },
           },
@@ -284,7 +300,11 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
       }),
 
       setConversationRun: (conversationId, run, patch = {}) => set((state) => {
+        const sessionId = patch.sessionId ?? run.sessionId ?? state.conversationRuntimes[conversationId]?.sessionId
         return {
+          sessionIdsByConversation: sessionId
+            ? { ...state.sessionIdsByConversation, [conversationId]: sessionId }
+            : state.sessionIdsByConversation,
           conversationRuntimes: {
             ...state.conversationRuntimes,
             [conversationId]: {
@@ -293,6 +313,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
               ...patch,
               run: compactRun(run),
               runId: run.id,
+              ...(sessionId ? { sessionId } : {}),
               threadId: run.threadId,
               status: run.status,
               updatedAt: Date.now(),
@@ -323,13 +344,29 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         },
       })),
 
-      startStandaloneSession: ({ sessionId, taskType, title, prompt }) => set((state) => {
+      setConversationSessionId: (conversationId, sessionId) => set((state) => ({
+        sessionIdsByConversation: {
+          ...state.sessionIdsByConversation,
+          [conversationId]: sessionId,
+        },
+        conversationRuntimes: {
+          ...state.conversationRuntimes,
+          [conversationId]: {
+            ...defaultConversationRuntime(conversationId),
+            ...(state.conversationRuntimes[conversationId] ?? {}),
+            sessionId,
+            updatedAt: Date.now(),
+          },
+        },
+      })),
+
+      startStandaloneTask: ({ taskId, taskType, title, prompt }) => set((state) => {
         const now = Date.now()
         return {
-          standaloneSessions: {
-            ...state.standaloneSessions,
-            [sessionId]: {
-              sessionId,
+          standaloneTasks: {
+            ...state.standaloneTasks,
+            [taskId]: {
+              taskId,
               taskType,
               title,
               prompt,
@@ -341,13 +378,13 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         }
       }),
 
-      updateStandaloneSession: (sessionId, patch) => set((state) => {
-        const current = state.standaloneSessions[sessionId]
+      updateStandaloneTask: (taskId, patch) => set((state) => {
+        const current = state.standaloneTasks[taskId]
         if (!current) return {}
         return {
-          standaloneSessions: {
-            ...state.standaloneSessions,
-            [sessionId]: {
+          standaloneTasks: {
+            ...state.standaloneTasks,
+            [taskId]: {
               ...current,
               ...patch,
               updatedAt: Date.now(),
@@ -356,14 +393,14 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         }
       }),
 
-      settleStandaloneSession: (payload) => set((state) => {
-        const current = state.standaloneSessions[payload.sessionId]
+      settleStandaloneTask: (payload) => set((state) => {
+        const current = state.standaloneTasks[payload.taskId]
         if (!current) return {}
         const now = Date.now()
         return {
-          standaloneSessions: {
-            ...state.standaloneSessions,
-            [payload.sessionId]: {
+          standaloneTasks: {
+            ...state.standaloneTasks,
+            [payload.taskId]: {
               ...current,
               status: payload.status,
               run: payload.run ?? current.run,
@@ -383,11 +420,13 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
       name: 'agent-session-store-v2',
       partialize: (state) => ({
         localThreadIdsByConversation: state.localThreadIdsByConversation,
+        sessionIdsByConversation: state.sessionIdsByConversation,
         conversationRuntimes: Object.fromEntries(
           Object.entries(state.conversationRuntimes)
             .filter(([, runtime]) => runtime.threadId || runtime.runId)
             .map(([conversationId, runtime]) => [conversationId, {
               ...defaultConversationRuntime(conversationId),
+              sessionId: runtime.sessionId,
               threadId: runtime.threadId,
               runId: runtime.runId,
               status: runtime.status,
@@ -406,6 +445,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         return {
           ...currentState,
           localThreadIdsByConversation: normalizeStringRecord(persisted?.localThreadIdsByConversation),
+          sessionIdsByConversation: normalizeStringRecord(persisted?.sessionIdsByConversation),
           conversationRuntimes: normalizeConversationRuntimes(persisted?.conversationRuntimes),
         }
       },
@@ -428,11 +468,13 @@ function normalizeConversationRuntimes(value: unknown): Record<string, AgentConv
       .flatMap(([conversationId, runtime]) => {
         if (!runtime || typeof runtime !== 'object' || Array.isArray(runtime)) return []
         const record = runtime as Record<string, unknown>
+        const sessionId = typeof record.sessionId === 'string' && record.sessionId ? record.sessionId : undefined
         const threadId = typeof record.threadId === 'string' && record.threadId ? record.threadId : undefined
         const runId = typeof record.runId === 'string' && record.runId ? record.runId : undefined
         if (!threadId && !runId) return []
         return [[conversationId, {
           ...defaultConversationRuntime(conversationId),
+          ...(sessionId ? { sessionId } : {}),
           ...(threadId ? { threadId } : {}),
           ...(runId ? { runId } : {}),
           ...(typeof record.status === 'string' ? { status: record.status } : {}),

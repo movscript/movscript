@@ -22,9 +22,14 @@ export function buildModelToolResultContext(input: {
   error?: string
 }): ModelToolResultContext {
   const call = { name: formatToolNameForDisplay(input.call.name), args: input.call.args ?? {} }
+  const runtimeInstruction = planToolResultInstruction(input.call.name, input.result)
   const payload = input.error
     ? withContextBoundary({ error: input.error, call })
-    : withContextBoundary({ result: input.result ?? null, call })
+    : withContextBoundary({
+      result: input.result ?? null,
+      call,
+      ...(runtimeInstruction ? { runtimeInstruction } : {}),
+    })
   const raw = JSON.stringify(payload)
   const maxToolResultChars = Math.min(DEFAULT_MAX_TOOL_RESULT_CHARS, maxRetrievedContextChars(input.run))
   if (raw.length <= maxToolResultChars) {
@@ -36,6 +41,7 @@ export function buildModelToolResultContext(input: {
     : withContextBoundary({
       result: summarizeJSONValue(input.result, maxInlineBodyChars(maxToolResultChars)),
       call: payload.call,
+      ...(runtimeInstruction ? { runtimeInstruction } : {}),
       contextControl: {
         originalChars: raw.length,
         renderedAs: 'summary',
@@ -53,6 +59,17 @@ export function buildModelToolResultContext(input: {
     originalChars: raw.length,
     renderedChars: content.length,
     reason: content.length < summary.length ? 'budget_dropped' : 'summarized',
+  }
+}
+
+function planToolResultInstruction(toolName: string, result: JSONValue | undefined): JSONValue | undefined {
+  if (toolName !== 'core_update_plan' || !isRecord(result)) return undefined
+  if (result.status !== 'updated' && result.status !== 'unchanged') return undefined
+  return {
+    requestSatisfied: true,
+    nextAction: 'final_answer_or_continue_with_non_plan_work',
+    doNotRepeatToolCall: 'core_update_plan',
+    reason: 'The current plan snapshot has already been handled. Do not call core_update_plan again unless the user provides a different plan change.',
   }
 }
 

@@ -74,6 +74,7 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
               type="button"
               size="xs"
               variant="outline"
+              data-testid="agent-generated-bulk-candidate-open"
               className="h-6 px-2 type-micro"
               onClick={() => setCandidateDialogAttachments(candidateAttachments)}
             >
@@ -227,7 +228,7 @@ function GeneratedCandidateAttachDialog({
   const { data: targetRecords = [], isFetching: loadingTargets } = useQuery({
     queryKey: ['agent-generated-candidate-targets', projectId, targetConfig.entityKind],
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig(targetConfig.entityKind)),
-    enabled: open && !!projectId && candidateAttachments.length > 0,
+    enabled: open && !!projectId && hasCandidateAttachments,
     staleTime: 30_000,
   })
   const normalizedQuery = targetQuery.trim().toLowerCase()
@@ -415,7 +416,7 @@ function GeneratedCandidateAttachDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[88vh] w-[min(880px,calc(100vw-32px))] overflow-hidden p-0">
+      <DialogContent data-testid={viewerAttachment ? 'agent-generated-resource-candidate' : 'agent-generated-bulk-candidate'} className="max-h-[88vh] w-[min(880px,calc(100vw-32px))] overflow-hidden p-0">
         <DialogHeader className="border-b border-border px-4 py-3">
           <DialogTitle>加入候选</DialogTitle>
           <DialogDescription>
@@ -443,7 +444,7 @@ function GeneratedCandidateAttachDialog({
                       <AttachmentIcon type={attachment.type} size={12} />
                       <div className="min-w-0 flex-1">
                         <p className="truncate type-tiny font-medium text-foreground">{attachment.name}</p>
-                        <p className="truncate type-micro text-muted-foreground">{resourceId !== undefined ? `#${resourceId}` : '无资源 ID'} · {attachment.type}</p>
+                        <p className="truncate type-micro text-muted-foreground">{resourceId !== undefined ? `#${resourceId}` : '未返回资源 ID'} · {attachment.type}</p>
                       </div>
                       {attached && <Badge variant="outline" className="type-micro">已加入</Badge>}
                     </div>
@@ -541,7 +542,7 @@ function GeneratedCandidateAttachDialog({
             关闭
           </Button>
           <Button type="button" onClick={attachCandidates} disabled={!canAttach}>
-            {attachStatus === 'attaching' ? '加入中' : attachStatus === 'attached' ? '已全部加入' : attachStatus === 'partial' ? '重试未完成项' : `加入 ${pendingCandidateAttachments.length} 个候选`}
+            {attachStatus === 'attaching' ? '加入中' : attachStatus === 'attached' ? '已全部加入' : attachStatus === 'partial' ? '重试未完成项' : '全部加入候选'}
           </Button>
         </DialogFooter>
       </DialogContent>

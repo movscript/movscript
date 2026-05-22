@@ -33,7 +33,7 @@ test('MCPBackendApplyClient applies draft reviews through frontend MCP without b
   const review: ApplyDraftReview = {
     draftId: 'draft-1',
     draftTitle: 'Draft',
-    draftKind: 'content_unit',
+    draftKind: 'content_unit_proposal',
     target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
     currentValue: 'old',
     proposedValue: 'new',
@@ -87,7 +87,7 @@ test('MCPBackendApplyClient rejects non-plain backend apply tool results', async
   await assert.rejects(() => client.applyReview({
     draftId: 'draft-3',
     draftTitle: 'Draft',
-    draftKind: 'content_unit',
+    draftKind: 'content_unit_proposal',
     target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
     currentValue: 'old',
     proposedValue: 'new',

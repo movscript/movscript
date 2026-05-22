@@ -1,6 +1,6 @@
 {
-  "name": "draft_file_edit",
-  "description": "编辑 agent 文件系统中的文本对象。调用前应先 draft_file_read 获取 revision，并把该 revision 作为 baseRevision 传入以避免覆盖并发修改。返回 changeSet 记录本次 edit。",
+  "name": "core_file_edit",
+  "description": "编辑 agent 文件系统中的文本对象。调用前应先 core_file_read 获取 revision，并把该 revision 作为 baseRevision 传入以避免覆盖并发修改。返回 changeSet 记录本次 edit。只读 MCP resource（例如 movscript:// 剧本 ref）不可编辑。",
   "permission": "agent.file.write",
   "risk": "draft",
   "source": "runtime",
@@ -20,7 +20,7 @@
       },
       "baseRevision": {
         "type": "string",
-        "description": "从 draft_file_read 得到的 revision。提供后必须与当前文件 revision 一致。"
+        "description": "从 core_file_read 得到的 revision。提供后必须与当前文件 revision 一致。"
       },
       "patch": {
         "type": "string",

@@ -11,7 +11,7 @@
 
 允许的工具：
 - Focus：{{tool:movscript_focus_get}}
-- Draft：{{tool:draft_get}} {{tool:draft_create}} {{tool:draft_file_read}} {{tool:draft_file_search}} {{tool:draft_file_edit}} {{tool:draft_validate}} {{tool:draft_apply_preview}}。正文编辑使用文件工具修改 `draft.filePath` 指向的真实 JSON 文件。
+- Draft：{{tool:draft_create}} {{tool:core_file_read}} {{tool:core_file_search}} {{tool:core_file_edit}} {{tool:draft_apply_preview}}。已知 draftId 时直接读取 `agent://draft/{draftId}/content`；正文编辑使用文件工具修改同一个真实 JSON 文件 ref；修改后用 `draft_apply_preview` 做 validation 与 dry-run。
 - 缺少目标时询问：{{tool:core_user_input_request}}
 
 路由规则：

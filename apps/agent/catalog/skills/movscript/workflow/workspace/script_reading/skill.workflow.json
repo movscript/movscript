@@ -37,10 +37,12 @@
   "toolRefs": [
     "tool://movscript_focus_get",
     "tool://movscript_project_list",
-    "tool://movscript_project_script_read",
+    "tool://movscript_script_locate",
+    "tool://core_file_read",
+    "tool://core_file_search",
     "tool://core_user_input_request"
   ],
   "toolScope": "intersect",
-  "outputContract": "返回已读取的后端剧本 ID、标题、是否包含正文、截断状态和基于工具结果的剧本事实。",
+  "outputContract": "返回已定位或读取的后端剧本版本 ID、标题、只读 ref、行号范围、截断状态和基于工具结果的剧本事实。",
   "instructionTemplatePath": "instruction.md"
 }

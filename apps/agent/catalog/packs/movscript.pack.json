@@ -30,7 +30,7 @@
     "movscript_focus_get",
     "movscript_project_list",
     "movscript_project_standards_get",
-    "movscript_project_script_read",
+    "movscript_script_locate",
     "movscript_creative_reference_query",
     "movscript_asset_slot_query",
     "movscript_production_context_query",

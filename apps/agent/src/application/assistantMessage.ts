@@ -14,15 +14,23 @@ export function isMessageRole(value: unknown): value is AgentMessageRole {
 
 export function combineAssistantTurnContents(contents: string[], fallback: string): string {
   const turns: string[] = []
+  const seen = new Set<string>()
   for (const content of contents) {
     const trimmed = content.trim()
     if (!trimmed) continue
-    if (turns.at(-1) === trimmed) continue
+    const key = normalizedAssistantTurnKey(trimmed)
+    if (seen.has(key)) continue
+    seen.add(key)
     turns.push(trimmed)
   }
   const fallbackContent = fallback.trim()
-  if (fallbackContent && turns.at(-1) !== fallbackContent) turns.push(fallbackContent)
+  const fallbackKey = normalizedAssistantTurnKey(fallbackContent)
+  if (fallbackContent && !seen.has(fallbackKey)) turns.push(fallbackContent)
   return turns.join('\n\n')
+}
+
+function normalizedAssistantTurnKey(content: string): string {
+  return content.replace(/\s+/g, ' ').trim()
 }
 
 export function buildFinalAssistantContent(input: {
@@ -340,9 +348,6 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
     const label = typeof draftId === 'string' && draftId.length > 0 ? ` ${draftId}` : ''
     const isProposal = isRecord(parsed) && typeof parsed.proposalRef === 'string'
     return isProposal ? `创建对话提案草稿${label}。` : `创建本地草稿${label}。`
-  }
-  if (call.name === 'draft_validate') {
-    return '校验本地草稿。'
   }
   if (call.name === 'draft_apply_preview') {
     return `草稿 apply preview${isRecord(parsed) && parsed.ok === true ? '通过' : '未通过'}。`

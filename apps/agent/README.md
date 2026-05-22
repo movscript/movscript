@@ -63,8 +63,10 @@ curl http://127.0.0.1:28765/health
 | `POST` | `/drafts/:id/reject` | Mark a local draft rejected. |
 | `POST` | `/threads` | Agent thread creation. |
 | `GET` | `/threads` | Agent thread summaries. |
+| `DELETE` | `/threads` | Physically delete all thread history, related runs, plans, runtime records, and trace files. Queued or in-progress runs must be cancelled first; waiting `requires_action` history is deletable. |
 | `GET` | `/threads/:id` | Read one agent thread. |
 | `PATCH` | `/threads/:id` | Update agent thread metadata. |
+| `DELETE` | `/threads/:id` | Physically delete one thread, its related runs, plans, runtime records, and trace files. Queued or in-progress runs must be cancelled first; waiting `requires_action` history is deletable. |
 | `POST` | `/threads/:id/messages` | Add agent thread message. |
 | `POST` | `/threads/:id/runs` | The only public entrypoint that creates and executes an agent run for a thread. Diagnostic single-tool runs also enter here through `toolCall`. |
 | `POST` | `/runs/preview` | Read-only preview of context, prompt, first tool calls, and approval gates without creating or executing a run. |

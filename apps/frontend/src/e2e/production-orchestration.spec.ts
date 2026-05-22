@@ -36,6 +36,11 @@ test('production orchestration renders the screenwriter workspace', async ({ pag
 
   await expect(page.getByText('正式项目当前只读', { exact: false })).toBeVisible()
   await expect(page.getByText('编排段列表', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Agent 调整提案' }).click()
+  await expect(page.getByRole('dialog').getByRole('heading', { name: '让 Agent 调整提案' })).toBeVisible()
+  await page.getByPlaceholder('例如：把开场压缩成一个情节；强化主角和产品设定的关联；补齐缺少素材需求的镜头。').fill('强化主角和空间设定的关联')
+  await expect(page.getByText('Agent 会读取并编辑当前 production proposal draft 文件', { exact: false })).toBeVisible()
+  await page.getByRole('button', { name: '取消' }).click()
 })
 
 test('production orchestration keeps the screenwriter workspace readable on mobile width', async ({ page }, testInfo) => {
@@ -58,6 +63,8 @@ test('production orchestration opens production proposal mode for active drafts'
   await expect(page.getByText('正式项目当前只读', { exact: false })).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText('编排段列表', { exact: true })).toBeVisible({ timeout: 10_000 })
   await expect(page.getByRole('button', { name: '应用提案到项目' })).toBeVisible({ timeout: 10_000 })
+  await page.getByRole('button', { name: 'Agent 调整提案' }).click()
+  await expect(page.getByRole('dialog').getByRole('heading', { name: '让 Agent 调整提案' })).toBeVisible()
   await expect(page.getByText('制作提案草稿', { exact: true })).toBeVisible({ timeout: 10_000 })
 })
 
@@ -169,6 +176,26 @@ async function mockProductionOrchestrationEntities(page: Page) {
     })
   })
 
+  let createdProductionDraftContent = ''
+  await page.route('http://127.0.0.1:28765/draft', async (route) => {
+    const input = await route.request().postDataJSON().catch(() => ({})) as { content?: string }
+    createdProductionDraftContent = typeof input.content === 'string' ? input.content : createdProductionDraftContent
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 'production-draft-created-e2e',
+        projectId: PROJECT_ID,
+        kind: 'production_proposal',
+        title: '制作提案草稿',
+        content: createdProductionDraftContent,
+        status: 'draft',
+        createdAt: '2026-05-11T12:00:00.000Z',
+        updatedAt: '2026-05-11T12:00:00.000Z',
+      }),
+    })
+  })
+
   await page.route('http://127.0.0.1:28765/drafts**', async (route) => {
     const url = new URL(route.request().url())
     const pathname = url.pathname
@@ -209,16 +236,16 @@ async function mockProductionOrchestrationEntities(page: Page) {
       })
       return
     }
-    if (pathname.endsWith('/production-draft-e2e')) {
+    if (pathname.endsWith('/production-draft-e2e') || pathname.endsWith('/production-draft-created-e2e')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          id: 'production-draft-e2e',
+          id: pathname.endsWith('/production-draft-created-e2e') ? 'production-draft-created-e2e' : 'production-draft-e2e',
           projectId: PROJECT_ID,
           kind: 'production_proposal',
           title: '制作提案草稿',
-          content: JSON.stringify({
+          content: createdProductionDraftContent || JSON.stringify({
             schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
             scope: 'production_proposal',
             mode: 'snapshot',
@@ -238,6 +265,7 @@ async function mockProductionOrchestrationEntities(page: Page) {
                 }],
               }],
             },
+            impact_notes: [],
           }),
           status: 'draft',
           createdAt: '2026-05-11T12:00:00.000Z',

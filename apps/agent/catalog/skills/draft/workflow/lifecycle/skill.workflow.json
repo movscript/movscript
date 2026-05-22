@@ -3,7 +3,7 @@
   "kind": "workflow",
   "version": "1.0.0",
   "name": "Draft Lifecycle",
-  "description": "通用本地 draft 读取、创建、编辑、校验、dry-run preview 和汇报流程。",
+  "description": "通用本地 draft 读取、创建、编辑、dry-run preview 和汇报流程；preview 内置 validation。",
   "priority": 740,
   "enabled": true,
   "triggers": [
@@ -24,12 +24,10 @@
   ],
   "toolRefs": [
     "tool://draft_model_get",
-    "tool://draft_get",
-    "tool://draft_file_read",
-    "tool://draft_file_search",
-    "tool://draft_file_edit",
+    "tool://core_file_read",
+    "tool://core_file_search",
+    "tool://core_file_edit",
     "tool://draft_create",
-    "tool://draft_validate",
     "tool://draft_apply_preview",
     "tool://draft_apply",
     "tool://core_user_input_request"

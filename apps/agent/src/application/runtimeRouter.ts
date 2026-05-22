@@ -10,7 +10,7 @@ import { MemoryManager } from '../memory/memoryManager.js'
 import { InMemoryAgentMemoryStore, type AgentMemoryStore } from '../memory/memoryStore.js'
 import type { AgentMemory, MemoryQuery } from '../memory/types.js'
 import { KnowledgeManager, loadAgentKnowledgeStore } from '../knowledge/index.js'
-import { InMemoryAgentStore, type AgentStore, type AgentTraceQuery } from '../state/store.js'
+import { InMemoryAgentStore, type AgentStore, type AgentThreadClearResult, type AgentThreadDeletionResult, type AgentTraceQuery } from '../state/store.js'
 import type { ToolRegistry } from '../tools/toolRegistry.js'
 import {
   InMemoryAgentDraftStore,
@@ -29,10 +29,11 @@ import {
   type AgentRuntimeContractResolver,
 } from '../contracts/runtimeContract.js'
 import { defaultRunPolicy } from '../state/runPolicy.js'
+import { isExecutingRunStatus } from '../state/runStatus.js'
 import { RuntimeRunControllerRegistry } from './runLifecycleControl.js'
 import { numberField } from './runtimeScalarInput.js'
 import { RuntimeRunAuthRegistry } from './runAuth.js'
-import { updateRuntimeProgressChecklist } from './runtimeProgressChecklistTools.js'
+import { updateRuntimePlan } from './runtimePlanTools.js'
 import {
   requireRuntimeTask,
   requireRuntimeThread,
@@ -165,7 +166,9 @@ import {
   type RuntimeTraceReadBridge,
 } from './runtimeTraceReadBridge.js'
 import {
+  buildRuntimeSessionSnapshotV1,
   buildRuntimeThreadSnapshotV2,
+  type RuntimeSessionSnapshotV1,
   type RuntimeThreadSnapshotV2,
 } from './runtimeThreadSnapshot.js'
 import { RuntimeScheduler } from './runtimeScheduler.js'
@@ -174,6 +177,8 @@ import { RuntimeEventSubscriberRegistry } from './runtimeEventSubscribers.js'
 import { isoNow, makeId } from './runtimeIdentity.js'
 import type {
   AgentApprovalRequest,
+  AgentSession,
+  AgentSessionSummary,
   AgentTaskGraph,
   AgentTaskGraphSnapshot,
   AgentTaskGraphStreamEvent,
@@ -215,6 +220,8 @@ import type {
 export type {
   AgentMessage,
   AgentMessageRole,
+  AgentSession,
+  AgentSessionSummary,
   AgentTaskGraph,
   AgentTaskGraphSnapshot,
   AgentTaskGraphStreamEvent,
@@ -587,6 +594,7 @@ export class AgentRuntimeRouter {
       planStatus: this.planStatus,
       streams: this.streams,
       taskEvents: this.taskEvents,
+      createThread: (threadInput) => this.createThread(threadInput),
     })
     this.updateTaskGraph = createRuntimeReplanBridge({
       store: this.store,
@@ -604,6 +612,7 @@ export class AgentRuntimeRouter {
       providers: [
         new GenerationJobWorkProvider(this.mcpClient),
         new SubagentRunWorkProvider({
+          createThread: (threadInput) => this.createThread(threadInput),
           createRun: (runInput) => this.createRun(runInput),
           getRun: (runId) => this.store.getRun(runId),
           listRuns: (query) => this.store.listRuns(query),
@@ -668,8 +677,8 @@ export class AgentRuntimeRouter {
     return this.catalogOperations.updateActiveSkills(run, input)
   }
 
-  updateProgressChecklist(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
-    return updateRuntimeProgressChecklist({
+  updatePlan(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
+    return updateRuntimePlan({
       store: this.store,
       run,
       request: input,
@@ -688,6 +697,18 @@ export class AgentRuntimeRouter {
 
   createThread(input: CreateThreadInput = {}): AgentThread {
     return this.threads.createThread(input)
+  }
+
+  listSessions(): AgentSession[] {
+    return this.threads.listSessions()
+  }
+
+  listSessionSummaries(): AgentSessionSummary[] {
+    return this.threads.listSessionSummaries()
+  }
+
+  getSession(id: string): AgentSession | undefined {
+    return this.threads.getSession(id)
   }
 
   listThreads(): AgentThread[] {
@@ -716,6 +737,34 @@ export class AgentRuntimeRouter {
     })
   }
 
+  getSessionRuntimeSnapshot(sessionId: string): RuntimeSessionSnapshotV1 | undefined {
+    const session = this.getSession(sessionId)
+    if (!session) return undefined
+    const threads = this.store.listThreads().filter((thread) => thread.sessionId === sessionId)
+    for (const thread of threads) this.runtimeScheduler.advanceThread(thread.id)
+    const refreshedThreads = this.store.listThreads().filter((thread) => thread.sessionId === sessionId)
+    const threadIds = new Set(refreshedThreads.map((thread) => thread.id))
+    const taskGraphSnapshots = this.store.listTaskGraphs()
+      .filter((taskGraph) => taskGraph.sessionId === sessionId || threadIds.has(taskGraph.threadId))
+      .map((taskGraph) => this.getTaskGraphSnapshot(taskGraph.id))
+    const runs = this.store.listRuns({ sessionId })
+    const runIds = new Set(runs.map((run) => run.id))
+    const works = this.store.listRuntimeWorks({ sessionId })
+    const interactions = this.store.listRuntimeInteractions()
+      .filter((interaction) => threadIds.has(interaction.threadId) || runIds.has(interaction.runId))
+    const continuations = this.store.listRuntimeContinuations()
+      .filter((continuation) => threadIds.has(continuation.threadId) || runIds.has(continuation.runId))
+    return buildRuntimeSessionSnapshotV1({
+      session,
+      threads: refreshedThreads,
+      taskGraphSnapshots,
+      runs,
+      works,
+      interactions,
+      continuations,
+    })
+  }
+
   approveInteraction(interactionId: string): RuntimeInteractionApprovalResult {
     return this.runtimeScheduler.approveInteraction(interactionId)
   }
@@ -726,6 +775,18 @@ export class AgentRuntimeRouter {
 
   updateThread(id: string, input: UpdateThreadInput): AgentThread {
     return this.threads.updateThread(id, input)
+  }
+
+  deleteThread(id: string): AgentThreadDeletionResult {
+    const activeRun = this.store.listRuns({ threadId: id }).find((run) => isExecutingRunStatus(run.status))
+    if (activeRun) throw new Error(`thread has active run: ${activeRun.id}`)
+    return this.threads.deleteThread(id)
+  }
+
+  deleteAllThreads(): AgentThreadClearResult {
+    const activeRun = this.store.listRuns().find((run) => isExecutingRunStatus(run.status))
+    if (activeRun) throw new Error(`thread has active run: ${activeRun.id}`)
+    return this.threads.deleteAllThreads()
   }
 
   addMessage(threadId: string, input: CreateMessageInput): AgentMessage {
@@ -909,10 +970,6 @@ export class AgentRuntimeRouter {
     metadata?: unknown
   }): AgentDraft {
     return this.drafts.updateDraft(input)
-  }
-
-  validateDraft(input: { draftId?: unknown }): JSONValue {
-    return this.drafts.validateDraft(input)
   }
 
   previewApplyDraft(input: {

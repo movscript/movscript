@@ -388,7 +388,7 @@ export function ContentWorkbenchPage() {
   const runningJobCount = data?.jobs.filter((job) => job.status === 'pending' || job.status === 'running').length ?? 0
   const completedJobCount = data?.jobs.filter((job) => job.status === 'succeeded').length ?? 0
   const selectedProductionIdSet = new Set(selected?.productionIds ?? [])
-  const selectedPreviewItemCount = data?.previewTimelineItems.filter((item) => (
+  const selectedPreviewItemCount = data?.previewTimelineItems.filter((item) => isVisibleContentWorkbenchRecord(item) && (
     selectedProductionIdSet.has(numberOf(item.production_id)) ||
     (selected?.moment.ID && numberOf(item.scene_moment_id) === selected.moment.ID) ||
     (selectedUnit?.ID && numberOf(item.content_unit_id) === selectedUnit.ID)

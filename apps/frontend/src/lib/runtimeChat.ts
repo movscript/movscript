@@ -39,18 +39,18 @@ export async function runRuntimeMessage(input: {
   onRunUpdate?: RunMessageOptions['onRunUpdate']
   onStreamEvent?: RunMessageOptions['onStreamEvent']
   onAssistantDelta?: RunMessageOptions['onAssistantDelta']
-  sessionId?: string
-  sessionTaskType?: string
+  standaloneTaskId?: string
+  standaloneTaskType?: string
 }): Promise<RunMessageResult> {
   await localAgentClient.ensureRunning()
   await syncRuntimeModelConfig(input.modelId, {
     ...(input.modelAPIKind ? { apiKind: input.modelAPIKind } : {}),
     ...(input.modelBaseURL ? { baseURL: input.modelBaseURL } : {}),
   })
-  if (input.sessionId) {
-    useAgentSessionStore.getState().startStandaloneSession({
-      sessionId: input.sessionId,
-      taskType: input.sessionTaskType ?? 'standalone_run',
+  if (input.standaloneTaskId) {
+    useAgentSessionStore.getState().startStandaloneTask({
+      taskId: input.standaloneTaskId,
+      taskType: input.standaloneTaskType ?? 'standalone_run',
       title: input.title,
       prompt: input.message,
     })
@@ -68,9 +68,9 @@ export async function runRuntimeMessage(input: {
       ...(input.onStreamEvent ? { onStreamEvent: input.onStreamEvent } : {}),
       ...(input.onAssistantDelta ? { onAssistantDelta: input.onAssistantDelta } : {}),
     })
-    if (input.sessionId) {
-      useAgentSessionStore.getState().settleStandaloneSession({
-        sessionId: input.sessionId,
+    if (input.standaloneTaskId) {
+      useAgentSessionStore.getState().settleStandaloneTask({
+        taskId: input.standaloneTaskId,
         status: runResult.run.status === 'cancelled'
           ? 'cancelled'
           : runResult.run.status === 'failed'
@@ -84,9 +84,9 @@ export async function runRuntimeMessage(input: {
     }
     return runResult
   } catch (error) {
-    if (input.sessionId) {
-      useAgentSessionStore.getState().settleStandaloneSession({
-        sessionId: input.sessionId,
+    if (input.standaloneTaskId) {
+      useAgentSessionStore.getState().settleStandaloneTask({
+        taskId: input.standaloneTaskId,
         status: 'error',
         error: error instanceof Error ? error.message : String(error),
       })

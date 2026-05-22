@@ -176,7 +176,7 @@ export function AgentPlanOverviewPanel({
         <div data-testid="agent-taskGraph-name-conflicts" className="mt-2 space-y-1 rounded border border-destructive/30 bg-destructive/5 px-2 py-1.5 type-micro leading-relaxed text-destructive">
           {nameConflicts.map((conflict) => (
             <div key={conflict.subagentName} className="min-w-0">
-              <div className="truncate font-medium">子代理重名 · {conflict.subagentName}</div>
+              <div className="truncate font-medium">子 agent 重名 · {conflict.subagentName}</div>
               <div className="mt-1 space-y-0.5">
                 {conflict.entries.map((entry) => (
                   <div key={entry.taskId} className="flex min-w-0 items-center justify-between gap-2 rounded bg-background/70 px-1.5 py-0.5 text-muted-foreground">
@@ -327,7 +327,7 @@ export function AgentPlanOverviewPanel({
                   {artifact.sourceRunId && <span className="truncate">运行 {artifact.sourceRunId}</span>}
                   {artifact.sourceTaskId && <span className="truncate">来源任务 {artifact.sourceTaskTitle ?? artifact.sourceTaskId}</span>}
                   {artifact.sourceTaskStatus && <span>{agentTaskStatusLabel(artifact.sourceTaskStatus)}</span>}
-                  {artifact.subagentName && <span className="truncate">子代理 {artifact.subagentName}</span>}
+                  {artifact.subagentName && <span className="truncate">子 agent {artifact.subagentName}</span>}
                   {artifact.toolName && <span className="truncate">工具 {artifact.toolName}</span>}
                   {artifact.policy && <span className="truncate">策略 {artifact.policy}</span>}
                 </div>

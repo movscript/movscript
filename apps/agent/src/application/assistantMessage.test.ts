@@ -21,7 +21,7 @@ test('assistant message surfaces missing project warning', () => {
 test('assistant message describes successful and failed tool outcomes', () => {
   const content = buildAssistantContent('搜索并写草稿', [
     {
-      call: { name: 'draft_create', args: { kind: 'note' } },
+      call: { name: 'draft_create', args: { kind: 'project_standards_proposal' } },
       error: 'create failed',
     },
   ])
@@ -31,27 +31,27 @@ test('assistant message describes successful and failed tool outcomes', () => {
 test('assistant message describes tool reads', () => {
   const content = buildAssistantContent('/taskGraph 第一场', [
     {
-      call: { name: 'movscript_project_script_read', args: { projectId: 42 } },
+      call: { name: 'movscript_script_locate', args: { projectId: 42 } },
       result: toolText({ counts: { scripts: 3 } }),
     },
   ], [], [], makeRun())
 
   assert.throws(() => JSON.parse(content))
-  assert.match(content, /movscript_project_script_read/i)
+  assert.match(content, /movscript_script_locate/i)
 })
 
 test('assistant message extracts tool calls from model JSON content', () => {
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
     tool_calls: [
       {
-        name: 'movscript_project_script_read',
+        name: 'movscript_script_locate',
         parameters: { project_id: 1 },
       },
     ],
   }))
 
   assert.equal(toolCalls.length, 1)
-  assert.equal(toolCalls[0].name, 'movscript_project_script_read')
+  assert.equal(toolCalls[0].name, 'movscript_script_locate')
   assert.equal(toolCalls[0].args?.project_id, 1)
   assert.equal(toolCalls[0].args?.projectId, 1)
 })
@@ -66,7 +66,7 @@ test('assistant message ignores invalid model-emitted project and production ids
           production_id: 7.5,
           projectId: 0,
           productionId: Number.NaN,
-          kind: 'note',
+          kind: 'project_standards_proposal',
         },
       },
     ],
@@ -148,16 +148,16 @@ test('assistant message extracts a single tool call returned as JSON content', (
 test('assistant message extracts model-emitted single tool_call wrapper', () => {
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
     tool_call: {
-      tool_name: 'draft_get',
+      tool_name: 'core_file_read',
       parameters: {
-        draftId: 'draft_1',
+        ref: 'agent://draft/draft_1/content',
       },
     },
   }))
 
   assert.equal(toolCalls.length, 1)
-  assert.equal(toolCalls[0].name, 'draft_get')
-  assert.equal(toolCalls[0].args?.draftId, 'draft_1')
+  assert.equal(toolCalls[0].name, 'core_file_read')
+  assert.equal(toolCalls[0].args?.ref, 'agent://draft/draft_1/content')
 })
 
 test('isMessageRole accepts only thread-visible message roles', () => {
@@ -170,6 +170,13 @@ test('isMessageRole accepts only thread-visible message roles', () => {
 test('combineAssistantTurnContents trims empty turns and avoids adjacent duplicates', () => {
   assert.equal(combineAssistantTurnContents([' first ', 'first', '', 'second'], 'second'), 'first\n\nsecond')
   assert.equal(combineAssistantTurnContents([], ' fallback '), 'fallback')
+})
+
+test('combineAssistantTurnContents avoids repeated final text across non-adjacent model turns', () => {
+  assert.equal(
+    combineAssistantTurnContents(['Final answer', 'Tool preface', 'Final answer'], 'Final   answer'),
+    'Final answer\n\nTool preface',
+  )
 })
 
 test('buildFinalAssistantContent keeps normal final replies free of technical source summaries', () => {
@@ -230,7 +237,7 @@ function makeRun(): AgentRun {
         runId: 'run_test',
       type: 'tool_call',
       status: 'completed',
-      toolName: 'movscript_project_script_read',
+      toolName: 'movscript_script_locate',
       args: { projectId: 42 },
       createdAt: '2026-05-03T00:00:00.000Z',
       completedAt: '2026-05-03T00:00:00.000Z',

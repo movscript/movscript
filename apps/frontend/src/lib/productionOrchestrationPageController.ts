@@ -43,11 +43,6 @@ interface ProductionOrchestrationCreateDialogState extends ProductionOrchestrati
   onSaved: (record: SemanticEntityRecord) => void
 }
 
-interface ProductionOrchestrationEditDialogState extends ProductionOrchestrationDialogState {
-  record: SemanticEntityRecord
-  onSaved: () => void
-}
-
 export function useProductionOrchestrationPageController({
   projectId,
   searchParams,
@@ -68,7 +63,6 @@ export function useProductionOrchestrationPageController({
   refetch: () => Promise<unknown> | unknown
 }) {
   const [createType, setCreateType] = useState<EntityFilter | null>(null)
-  const [editEntry, setEditEntry] = useState<{ type: EntityFilter; record: SemanticEntityRecord } | null>(null)
   const [selectedWritingMomentId, setSelectedWritingMomentId] = useState<number | null>(null)
   const [createSegmentId, setCreateSegmentId] = useState<number | null>(null)
 
@@ -97,10 +91,6 @@ export function useProductionOrchestrationPageController({
       next.set('scene_moment_id', String(momentId))
       return next
     }, { replace: true })
-  }
-
-  function editSegment(record: SemanticEntityRecord) {
-    setEditEntry({ type: 'segments', record })
   }
 
   function createSegment() {
@@ -148,10 +138,6 @@ export function useProductionOrchestrationPageController({
     closeCreateDialog()
   }
 
-  function closeEditDialog() {
-    setEditEntry(null)
-  }
-
   const createDialog = createType && createType !== 'all'
     ? {
         config: semanticEntityConfig(createType as SemanticEntityKind),
@@ -164,25 +150,11 @@ export function useProductionOrchestrationPageController({
       } satisfies ProductionOrchestrationCreateDialogState
     : null
 
-  const editDialog = editEntry
-    ? {
-        config: semanticEntityConfig(editEntry.type as SemanticEntityKind),
-        record: editEntry.record,
-        title: `编辑${productionOrchestrationEntityLabels[editEntry.type] ?? ''}`,
-        onOpenChange: (open: boolean) => {
-          if (!open) closeEditDialog()
-        },
-        onSaved: closeEditDialog,
-      } satisfies ProductionOrchestrationEditDialogState
-    : null
-
   return {
     selectedWritingMomentId,
     createDialog,
-    editDialog,
     handleSelectProduction,
     selectSceneMoment,
-    editSegment,
     createSegment,
     createSceneMoment,
   }

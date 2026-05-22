@@ -39,6 +39,7 @@ export function assistantMessageForRun(thread: AgentThread | undefined, run: Age
 export function toStreamRun(run: AgentRun): AgentRunStreamRun {
   return {
     id: run.id,
+    sessionId: run.sessionId,
     threadId: run.threadId,
     status: run.status,
     ...(run.role ? { role: run.role } : {}),

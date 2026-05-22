@@ -59,6 +59,7 @@ type repository interface {
 	CreateContentUnit(ctx context.Context, item domainsemantic.ContentUnit) (domainsemantic.ContentUnit, error)
 	LoadContentUnit(ctx context.Context, projectID uint, id string) (domainsemantic.ContentUnit, error)
 	PatchContentUnit(ctx context.Context, item domainsemantic.ContentUnit, patch domainsemantic.ContentUnitPatch) (domainsemantic.ContentUnit, error)
+	AbandonContentUnit(ctx context.Context, projectID uint, contentUnitID uint) (AbandonContentUnitResult, error)
 	NextUnitCode(ctx context.Context, projectID uint, sceneMomentID uint, kind string) (string, error)
 	ListKeyframes(ctx context.Context, filter KeyframeFilter) ([]domainsemantic.Keyframe, error)
 	CreateKeyframe(ctx context.Context, item domainsemantic.Keyframe) (domainsemantic.Keyframe, error)
@@ -146,6 +147,7 @@ type repository interface {
 	CreateCreativeRelationship(ctx context.Context, item domainsemantic.CreativeRelationship) (domainsemantic.CreativeRelationship, error)
 	LoadCreativeRelationship(ctx context.Context, projectID uint, id string) (domainsemantic.CreativeRelationship, error)
 	PatchCreativeRelationship(ctx context.Context, item domainsemantic.CreativeRelationship, patch domainsemantic.CreativeRelationshipPatch) (domainsemantic.CreativeRelationship, error)
+	AbandonSceneMoment(ctx context.Context, projectID uint, sceneMomentID uint) (AbandonSceneMomentResult, error)
 	DeleteProjectItemByKind(ctx context.Context, projectID uint, kind string, id string) (uint, error)
 	EnsureProductionInProject(ctx context.Context, projectID uint, productionID uint) error
 	EnsureProductionTextBlockInProject(ctx context.Context, projectID uint, blockID uint) error

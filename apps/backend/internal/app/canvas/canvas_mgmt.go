@@ -45,11 +45,6 @@ type CanvasSaveInput struct {
 	Edges      []canvasdomain.CanvasEdge
 }
 
-type CanvasRunListPage struct {
-	Items []canvasdomain.CanvasRun
-	Total int64
-}
-
 type EntityWriteAuditFilter struct {
 	OwnerID     uint
 	CanvasID    uint
@@ -197,44 +192,6 @@ func (h *Service) getNode(ctx context.Context, canvasID uint, nodeID string) (ca
 
 func (h *Service) GetNode(ctx context.Context, canvasID uint, nodeID string) (canvasdomain.CanvasNode, error) {
 	return h.getNode(ctx, canvasID, nodeID)
-}
-
-func (h *Service) ListRuns(ctx context.Context, canvasID uint, status string, pageMode bool, page int, pageSize int) (CanvasRunListPage, error) {
-	return h.canvasRepo().ListRuns(ctx, canvasID, status, pageMode, page, pageSize)
-}
-
-func (h *Service) GetRun(ctx context.Context, canvasID uint, runID string) (canvasdomain.CanvasRun, error) {
-	return h.canvasRepo().GetRun(ctx, canvasID, runID)
-}
-
-func (h *Service) ListRunTasks(ctx context.Context, canvasID uint, runID string) ([]canvasdomain.CanvasTask, error) {
-	return h.canvasRepo().ListRunTasks(ctx, canvasID, runID)
-}
-
-func (h *Service) LatestNodeTask(ctx context.Context, canvasID string, ownerID uint, orgID *uint, nodeID string) (canvasdomain.CanvasTask, string, error) {
-	if _, err := h.getOwnedCanvas(ctx, canvasID, ownerID, orgID); err != nil {
-		return canvasdomain.CanvasTask{}, "", err
-	}
-	node, task, err := h.canvasRepo().LatestNodeTask(ctx, canvasID, nodeID)
-	if err != nil {
-		return task, node.Type, err
-	}
-	task = h.LazyBackfillCanvasTaskOutputs(task, node.Type)
-	return task, node.Type, nil
-}
-
-func (h *Service) ListNodeTasks(ctx context.Context, canvasID string, ownerID uint, orgID *uint, nodeID string) ([]canvasdomain.CanvasTask, string, error) {
-	if _, err := h.getOwnedCanvas(ctx, canvasID, ownerID, orgID); err != nil {
-		return nil, "", err
-	}
-	node, tasks, err := h.canvasRepo().ListNodeTasks(ctx, canvasID, nodeID)
-	if err != nil {
-		return nil, node.Type, err
-	}
-	for i := range tasks {
-		tasks[i] = h.LazyBackfillCanvasTaskOutputs(tasks[i], node.Type)
-	}
-	return tasks, node.Type, nil
 }
 
 func (h *Service) inOrgScope(ctx context.Context, entityOrgID *uint, currentOrgID *uint, ownerID uint, userID uint) bool {

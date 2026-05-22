@@ -37,7 +37,7 @@ test('refreshRuntimeAgentGraphCatalog captures current snapshot and refreshes de
     run,
     catalogSnapshots,
     mcpClient: new FakeCapabilityClient([{
-      name: 'movscript_project_script_read',
+      name: 'movscript_script_locate',
       description: 'Read project scripts',
       inputSchema: { type: 'object' },
     }]),
@@ -77,7 +77,7 @@ test('refreshRuntimeAgentGraphCatalog preserves explicit run manifest across cat
     run,
     catalogSnapshots,
     mcpClient: new FakeCapabilityClient([{
-      name: 'movscript_project_script_read',
+      name: 'movscript_script_locate',
       description: 'Read project scripts',
       inputSchema: { type: 'object' },
     }]),
@@ -127,7 +127,7 @@ test('refreshRuntimeAgentGraphCatalog resolves layered default profile when avai
     run,
     catalogSnapshots,
     mcpClient: new FakeCapabilityClient([{
-      name: 'movscript_project_script_read',
+      name: 'movscript_script_locate',
       description: 'Read project scripts',
       inputSchema: { type: 'object' },
     }]),
@@ -207,7 +207,7 @@ test('refreshRuntimeAgentGraphCatalog merges requested skill grants into explici
       ],
     },
     tools: [{
-      name: 'movscript_project_script_read',
+      name: 'movscript_script_locate',
       description: 'Read project scripts',
       permission: 'project.script.read',
       risk: 'read',
@@ -216,7 +216,7 @@ test('refreshRuntimeAgentGraphCatalog merges requested skill grants into explici
       requiresApprovalByDefault: false,
     }],
     layeredTools: [{
-      name: 'movscript_project_script_read',
+      name: 'movscript_script_locate',
       description: 'Read project scripts',
       inputSchema: { type: 'object' },
       permission: 'project.script.read',
@@ -236,7 +236,7 @@ test('refreshRuntimeAgentGraphCatalog merges requested skill grants into explici
       instructionTemplate: 'Read scripts.',
       loadMode: 'manual',
       triggers: [{ kind: 'keyword', any: ['剧本'] }],
-      toolRefs: ['tool://movscript_project_script_read'],
+      toolRefs: ['tool://movscript_script_locate'],
     }],
     profiles: [{
       schema: 'movscript.agent.profile.v1',
@@ -265,7 +265,7 @@ test('refreshRuntimeAgentGraphCatalog merges requested skill grants into explici
     id: 'snapshot_1',
     defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
     toolRegistry: new StaticToolRegistry([{
-      name: 'movscript_project_script_read',
+      name: 'movscript_script_locate',
       description: 'Read project scripts',
       permission: 'project.script.read',
       risk: 'read',
@@ -290,7 +290,7 @@ test('refreshRuntimeAgentGraphCatalog merges requested skill grants into explici
     run,
     catalogSnapshots,
     mcpClient: new FakeCapabilityClient([{
-      name: 'movscript_project_script_read',
+      name: 'movscript_script_locate',
       description: 'Read project scripts',
       inputSchema: { type: 'object' },
     }]),
@@ -303,11 +303,11 @@ test('refreshRuntimeAgentGraphCatalog merges requested skill grants into explici
   assert.equal(result.manifest.id, 'explicit_manifest')
   assert.deepEqual(result.skills.map((skill) => skill.id), ['movscript.workflow.script_reading'])
   assert.ok(result.manifest.tools.some((grant) => grant.name === 'core_skill_update'))
-  assert.ok(result.manifest.tools.some((grant) => grant.name === 'movscript_project_script_read'))
+  assert.ok(result.manifest.tools.some((grant) => grant.name === 'movscript_script_locate'))
   assert.equal(
-    result.capabilities.byName.movscript_project_script_read?.available,
+    result.capabilities.byName.movscript_script_locate?.available,
     true,
-    JSON.stringify(result.capabilities.byName.movscript_project_script_read),
+    JSON.stringify(result.capabilities.byName.movscript_script_locate),
   )
 })
 

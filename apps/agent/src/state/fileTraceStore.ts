@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { gunzipSync, gzipSync } from 'node:zlib'
 import type { AgentTraceQuery } from './store.js'
@@ -120,6 +120,32 @@ export class FileTraceStore {
       byKind: { ...runIndex.byKind },
       ...(runIndex.latestEvent ? { latestEvent: clone(runIndex.latestEvent) } : {}),
     }
+  }
+
+  deleteRunTraceEvents(runIds: string[], options: { threadId?: string } = {}): string[] {
+    const uniqueRunIds = Array.from(new Set(runIds))
+    const deletedRunIds: string[] = []
+    for (const runId of uniqueRunIds) {
+      const runIndex = this.index.runs[runId]
+      if (!runIndex) continue
+      const traceThreadId = options.threadId ?? runIndex.threadId
+      const runDir = join(this.rootDir, 'threads', safePathSegment(traceThreadId ?? threadIdForPath(runIndex)), 'runs', safePathSegment(runId))
+      rmSync(runDir, { recursive: true, force: true })
+      delete this.index.runs[runId]
+      deletedRunIds.push(runId)
+    }
+    if (deletedRunIds.length > 0) {
+      this.rebuildThreadIndex()
+      if (options.threadId && !this.index.threads[options.threadId]) {
+        const threadDir = join(this.rootDir, 'threads', safePathSegment(options.threadId))
+        rmSync(threadDir, { recursive: true, force: true })
+      }
+      if (!options.threadId && Object.keys(this.index.threads).length === 0) {
+        rmSync(join(this.rootDir, 'threads'), { recursive: true, force: true })
+      }
+      this.persistIndex()
+    }
+    return deletedRunIds
   }
 
   private readRunTraceEvents(runId: string): AgentTraceEvent[] {

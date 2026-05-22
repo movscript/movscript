@@ -48,7 +48,7 @@ test('ContextManager builds bounded tool result context for model turn feedback'
       updatedAt: '2026-01-01T00:00:00.000Z',
       steps: [],
     },
-    call: { name: 'movscript_project_script_read', args: { projectId: 42 } },
+    call: { name: 'movscript_script_locate', args: { projectId: 42 } },
     result: {
       projectId: 42,
       scripts: [{ id: 1, title: 'Long Script', content: '雨夜便利店。'.repeat(500) }],
@@ -254,10 +254,10 @@ test('ContextManager builds bounded tool-result drop trace only when content is 
       updatedAt: '2026-01-01T00:00:00.000Z',
       steps: [],
     },
-    call: { name: 'movscript_project_script_read', args: { projectId: 42 } },
+    call: { name: 'movscript_script_locate', args: { projectId: 42 } },
     result: { content: '长正文'.repeat(500) },
   })
-  const trace = contextManager.buildToolResultDroppedTrace('movscript_project_script_read', dropped)
+  const trace = contextManager.buildToolResultDroppedTrace('movscript_script_locate', dropped)
 
   assert.equal(trace?.data.eventType, 'context.item_dropped')
   assert.equal(typeof trace?.data.originalChars, 'number')

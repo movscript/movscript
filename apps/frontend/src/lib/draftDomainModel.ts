@@ -37,16 +37,10 @@ export interface DraftDomainModel {
 
 const productionRelatedKinds: AgentDraftKind[] = [
   'production_proposal',
-  'pipeline',
-  'segment',
-  'scene_moment',
-  'content_unit',
-  'asset_slot',
 ]
 
 const contentUnitRelatedKinds: AgentDraftKind[] = [
   'content_unit_proposal',
-  'content_unit',
 ]
 
 export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainModel>> = {
@@ -143,23 +137,21 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
         'creative_references',
         'segments',
         'scene_moments',
-        'content_units',
-        'keyframes',
+        'writing_expressions',
         'creative_reference_usages',
-        'asset_slot_usages',
         'unresolved_requirements',
       ],
       maxDepth: 3,
-      conflictKeys: ['production.updatedAt', 'production_script_brief.scriptVersionUpdatedAt', 'project_scripts[].UpdatedAt', 'creative_references[].updatedAt', 'segments[].updatedAt', 'scene_moments[].updatedAt', 'content_units[].updatedAt', 'keyframes[].updatedAt'],
+      conflictKeys: ['production.updatedAt', 'production_script_brief.scriptVersionUpdatedAt', 'project_scripts[].UpdatedAt', 'creative_references[].updatedAt', 'segments[].updatedAt', 'scene_moments[].updatedAt', 'writing_expressions[].updatedAt'],
     },
     fieldGuide: {
-      owns: ['snapshot.proposal.segments', 'snapshot.proposal.segments[].scene_moments', 'snapshot.proposal.segments[].scene_moments[].content_units', 'snapshot.proposal.segments[].scene_moments[].keyframes', 'production_local_requirements'],
-      references: ['project', 'creative_references', 'asset_slots', 'creative_reference_usages', 'asset_slot_usages'],
-      forbids: ['action_patch_payloads', 'new_project_level_creative_references', 'new_project_level_asset_slots', 'final_media_generation_jobs'],
+      owns: ['snapshot.proposal.segments', 'snapshot.proposal.segments[].scene_moments', 'snapshot.proposal.segments[].scene_moments[].writing_expressions'],
+      references: ['project', 'creative_references', 'creative_reference_usages'],
+      forbids: ['action_patch_payloads', 'new_project_level_creative_references', 'new_project_level_asset_slots', 'content_units', 'keyframes', 'asset_slots', 'final_media_generation_jobs'],
     },
     applyBoundary: {
       backendApply: 'production_proposal',
-      writableEntityTypes: ['segment', 'scene_moment', 'content_unit', 'keyframe', 'creative_reference_usage', 'asset_slot_usage'],
+      writableEntityTypes: ['segment', 'scene_moment', 'writing_expression', 'creative_reference_usage'],
     },
     routes: {
       fallback: ROUTES.project.productionOrchestration,
@@ -190,32 +182,6 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
     routes: {
       fallback: ROUTES.project.contentUnitWorkbench,
       reviewTemplate: `${ROUTES.project.contentUnitWorkbench}?view=review&scene_moment_id=:targetEntityId&draftId=:draftId`,
-    },
-  },
-  script_split_proposal: {
-    kind: 'script_split_proposal',
-    title: 'Script split proposal',
-    targetEntityType: 'script_source',
-    contentSchemaId: 'movscript.script_split_proposal.v1',
-    seed: {
-      defaultMode: 'editable_snapshot',
-      allowedModes: ['empty', 'snapshot', 'editable_snapshot'],
-      include: ['source_script', 'project_scripts', 'productions'],
-      maxDepth: 2,
-      conflictKeys: ['source_script.hash', 'project_scripts[].UpdatedAt'],
-    },
-    fieldGuide: {
-      owns: ['episode_drafts', 'script_split_taskGraph'],
-      references: ['source_script', 'project_scripts', 'productions'],
-      forbids: ['raw_script_body_copy', 'production_entity_apply_without_review'],
-    },
-    applyBoundary: {
-      backendApply: 'draft_only',
-      writableEntityTypes: ['script', 'production'],
-    },
-    routes: {
-      fallback: ROUTES.project.scripts,
-      reviewTemplate: `${ROUTES.project.scripts}?draftId=:draftId`,
     },
   },
 }
@@ -257,10 +223,6 @@ export function buildDraftReviewPath(draft: AgentDraft): string | null {
     targetEntityId,
   })
   if (workbenchReviewPath) return workbenchReviewPath
-
-  if (draft.kind === 'script_split_proposal') {
-    return withRouteParams(ROUTES.project.scripts, { draftId: draft.id })
-  }
 
   if (sourceEntityType === 'asset_slot' || targetEntityType === 'asset_slot') {
     const assetSlotId = sourceEntityId ?? targetEntityId

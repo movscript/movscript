@@ -23,6 +23,7 @@ export function buildAgentTaskGraph(input: {
   const warnings = input.plannerWarnings ?? []
   return {
     id: input.id,
+    sessionId: input.thread.sessionId,
     threadId: input.thread.id,
     title: normalizeNonEmptyString(input.planInput.title) ?? input.thread.title ?? 'Agent task graph',
     status: input.taskCount > 0 ? 'pending' : 'blocked',

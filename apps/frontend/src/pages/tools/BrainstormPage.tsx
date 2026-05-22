@@ -189,8 +189,8 @@ export default function BrainstormPage() {
         modelId: selectedModel ? publicModelId(selectedModel) : undefined,
         timeoutMs: 60_000,
         pollMs: 400,
-        sessionId: `brainstorm_${entryId}`,
-        sessionTaskType: 'brainstorm',
+        standaloneTaskId: `brainstorm_${entryId}`,
+        standaloneTaskType: 'brainstorm',
       })
       const resp = formatLocalAgentAssistantContent(run, thread)
 

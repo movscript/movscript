@@ -12,7 +12,7 @@ Draft schema：{{schema:movscript.project_standards_proposal.v1.id}}
 
 输入：
 - 当前 focus 中的 project、production 风格需求、用户提出的全局制作规范、镜头语言或风格约束。
-- 后端项目剧本 / Script 正文。项目规范必须先基于剧本题材、人物关系、情绪曲线、场景密度、对白节奏和目标 production 语境判断风格是否适合。
+- 后端项目剧本 / Script 正文或定位片段。项目规范必须基于剧本题材、人物关系、情绪曲线、场景密度、对白节奏和目标 production 语境判断风格是否适合；局部证据优先用定位片段，全局判断才读取较大范围正文。
 - 用户给出的画幅、镜头大小、运镜、灯光、色彩、质感、节奏、禁用规则、质检口径、命名/文本/素材/交付规则和跨 production 复用要求。
 
 边界：
@@ -34,20 +34,20 @@ Draft schema：{{schema:movscript.project_standards_proposal.v1.id}}
 
 允许的工具：
 - Focus：{{tool:movscript_focus_get}}
-- 项目剧本：{{tool:movscript_project_script_read}}
+- 剧本定位/列表：{{tool:movscript_script_locate}}；精读使用 {{tool:core_file_read}} 读取返回的 `readRef.ref` 行号范围。
 - Draft 模型：{{tool:draft_model_get}}
-- Draft 读取/创建/校验：{{tool:draft_get}} {{tool:draft_create}} {{tool:draft_file_read}} {{tool:draft_file_search}} {{tool:draft_file_edit}} {{tool:draft_validate}} {{tool:draft_apply_preview}}。正文编辑使用文件工具修改 `draft.filePath` 指向的真实 JSON 文件。
+- Draft 文件/创建/预览：{{tool:draft_create}} {{tool:core_file_read}} {{tool:core_file_search}} {{tool:core_file_edit}} {{tool:draft_apply_preview}}。已知 draftId 时直接读取 `agent://draft/{draftId}/content`；正文编辑使用文件工具修改同一个真实 JSON 文件 ref；修改后用 `draft_apply_preview` 做 validation 与 dry-run。
 - 用户输入：{{tool:core_user_input_request}}
 
 流程：
 1. 读取当前 focus。如果 projectId 缺失且无法推断，用 core_user_input_request 询问。
-2. 调用 movscript_project_script_read 读取当前 project 的剧本正文，优先读取总剧本、第一集或与当前 production 相关的剧本；需要判断风格时必须传 includeContent: true，并用足够的 contentLimit。
-3. 如果项目没有剧本、工具无法返回正文或正文被严重截断，仍可创建 draft，但风格、节奏、镜头语言只能写为待确认或用户已明确给出的规则；不要凭空选择“写实”“电影感”“赛博”等风格。
+2. 先判断需要的是局部证据还是全局判断：局部人物、场景、对白节奏、情绪钩子或用户模糊描述，优先用 `movscript_script_locate` 定位，再用 `core_file_read` 精读 `readRef.ref` 行号范围；全局题材、整体节奏、场景密度或全剧风格判断，才用 `core_file_read` 读取目标 ref 的较大范围正文。
+3. 如果项目没有剧本、工具无法返回正文、定位候选不明确或正文被严重截断，仍可创建 draft，但风格、节奏、镜头语言只能写为待确认或用户已明确给出的规则；不要凭空选择“写实”“电影感”“赛博”等风格。
 4. 获取 project_standards_proposal 的 draft model 契约；若暂不可用，使用 schema fallback 并在输出中说明。
 5. 如果当前会话已有 project_standards_proposal draftId，先读取它；否则用 proposal=true 创建一个，source/target 记录 project 锚点，并把 MCP 返回的 seed/modelRef 作为 draft_create.seed 传入。
-6. 修改现有 draft 前必须先读取 draft 并记录 `draft.filePath`。
+6. 修改现有 draft 前必须先用 `core_file_read` 读取 `agent://draft/{draftId}/content`。
 7. 只通过真实文件局部编辑 `proposal.project_style`；draft 中不得出现 creative_references 或 asset_slots。
-8. Validate draft。当前 applyBoundary 若为 draft_only，不运行正式 preview apply；只报告本地 validation 状态和未决规范。
+8. 运行 `draft_apply_preview`。当前 applyBoundary 若为 draft_only，不运行正式 apply；只报告 preview 返回的 validation 状态和未决规范。
 
 内容规则：
 - 所有风格、摄影语言、灯光、色彩和节奏判断必须能回指到剧本证据、用户明确要求或已读取的项目上下文；证据不足时放入 impact_notes 或未决决策。

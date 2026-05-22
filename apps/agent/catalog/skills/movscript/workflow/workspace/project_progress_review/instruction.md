@@ -12,8 +12,8 @@
 
 允许的工具：
 - Focus：{{tool:movscript_focus_get}}
-- 项目剧本：{{tool:movscript_project_script_read}}
-- Draft：{{tool:draft_get}}
+- 项目剧本：{{tool:movscript_script_locate}}
+- Draft 文件：{{tool:core_file_read}} {{tool:core_file_search}}。已知 draftId 时直接读取 `agent://draft/{draftId}/content`。
 
 流程：
 1. 读取 focus，确认要总结的是 project、production 还是已选实体。

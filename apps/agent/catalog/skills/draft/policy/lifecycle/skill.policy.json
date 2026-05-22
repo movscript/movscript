@@ -8,8 +8,6 @@
   "enabled": true,
   "scope": "global",
   "toolRefs": [
-    "tool://draft_get",
-    "tool://draft_validate",
     "tool://draft_apply_preview"
   ],
   "outputContract": "明确说明 artifact 是本地审阅状态，还是已批准的后端写入目标。",

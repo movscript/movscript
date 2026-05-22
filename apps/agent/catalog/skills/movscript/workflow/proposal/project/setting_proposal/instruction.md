@@ -8,7 +8,7 @@ Draft schema：{{schema:movscript.setting_proposal.v1.id}}
 输入锚点：
 - 当前 focus 中的 project、selected creative reference 或用户描述的设定目标。
 - 用户提供的人物、地点、道具、产品/品牌、风格、世界规则、关系、时代背景、限制条件或合并要求。
-- 如 focus 对相关角色关系、地点边界或历史延续信息不足，优先读取项目剧本（含正文）建立设定事实。
+- 如 focus 对相关角色关系、地点边界或历史延续信息不足，优先定位并精读相关剧本片段建立设定事实；只有需要全局世界观或全剧结构判断时才读取较大范围正文。
 
 边界：
 - 只维护 project 层设定资料：人物、地点、道具、产品/品牌、风格、世界规则、时代背景、限制条件、关系和合并候选。
@@ -26,16 +26,16 @@ Draft schema：{{schema:movscript.setting_proposal.v1.id}}
 
 允许的工具：
 - Focus：{{tool:movscript_focus_get}}
-- 项目剧本：{{tool:movscript_project_script_read}}（请使用 `includeContent: true`）
+- 剧本定位/列表：{{tool:movscript_script_locate}}；精读使用 {{tool:core_file_read}} 读取返回的 `readRef.ref` 行号范围。
 - Draft 模型/当前数据检查：{{tool:draft_model_get}}
-- Draft：{{tool:draft_get}} {{tool:draft_create}} {{tool:draft_file_read}} {{tool:draft_file_search}} {{tool:draft_file_edit}} {{tool:draft_validate}} {{tool:draft_apply_preview}}。正文编辑使用文件工具修改 `draft.filePath` 指向的真实 JSON 文件。
+- Draft：{{tool:draft_create}} {{tool:core_file_read}} {{tool:core_file_search}} {{tool:core_file_edit}} {{tool:draft_apply_preview}}。已知 draftId 时直接读取 `agent://draft/{draftId}/content`；正文编辑使用文件工具修改同一个真实 JSON 文件 ref；修改后用 `draft_apply_preview` 做 validation 与 dry-run。
 - 缺少目标时询问：{{tool:core_user_input_request}}
 
 流程：
 1. 读取 focus，确认 projectId；无法确认时询问。
-2. 先读取项目剧本正文（`movscript_project_script_read` + `includeContent: true`），作为角色延续、道具规则、场景边界和 world-building 约束的事实来源。
+2. 不要默认读取完整剧本。先按用户目标、人物别名、地点、道具、事件或场景提示调用 `movscript_script_locate`，再用 `core_file_read` 精读候选 `readRef.ref` 行号范围；只有需要全局世界观/全剧结构判断时，才用 `core_file_read` 读取目标 ref 的较大范围正文并说明截断情况。
 3. 如果当前会话已有 setting_proposal draftId，先读取它；否则创建本地 proposal draft，source/target 记录 project 锚点；不需要先调用 `draft_model_get`，runtime 会自动把当前设定资料补入 `proposal.creative_references`。
-4. 修改前必须读取 draft 并记录 `draft.filePath`，然后通过真实文件局部编辑 `proposal.creative_references`，并把它维护为完整目标 snapshot。
+4. 修改前必须用 `core_file_read` 读取 `agent://draft/{draftId}/content`，然后通过真实文件局部编辑 `proposal.creative_references`，并把它维护为完整目标 snapshot。
 5. 只有 draft 缺少 seed/snapshot、seed 明确过期、或 validate/preview 指出基准冲突时，才重新获取 draft model contract 来刷新基准；不要调用 creative reference 查询工具替代当前 draft 基准。
 6. 查询 creative references 只用于补充、核对和解决冲突，不得把“本轮没有查询到”解释为删除；删除只能通过相对 snapshot base 省略已有 id 表达。
 7. 只编辑 setting/creative reference 相关 snapshot 字段。不要写 `fields` wrapper、action 或 operations。更新已有设定必须保留 id；新设定使用 client_id，apply 成功后以后端 canonical snapshot 为准。

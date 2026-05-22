@@ -10,6 +10,11 @@ test('isToolVisibleForActiveBehavior exposes only core management tools by defau
     userMessage: 'hello',
   }), true)
   assert.equal(isToolVisibleForActiveBehavior({
+    toolName: 'core_update_plan',
+    activeSkills: [],
+    userMessage: '生成一个plan',
+  }), true)
+  assert.equal(isToolVisibleForActiveBehavior({
     toolName: 'movscript_focus_get',
     activeSkills: [],
     userMessage: 'hello',

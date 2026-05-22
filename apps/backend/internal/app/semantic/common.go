@@ -103,7 +103,7 @@ func (s *Service) deleteBlockerFrom(ctx context.Context, entityKind string, proj
 		if err != nil {
 			return 0, err
 		}
-		return len(edgesWithTargetType(edges, entityKind)), err
+		return len(activeDeleteBlockerEdges(edgesWithTargetType(edges, entityKind))), err
 	}}
 }
 
@@ -118,8 +118,21 @@ func (s *Service) deleteBlockerTo(ctx context.Context, entityKind string, projec
 		if err != nil {
 			return 0, err
 		}
-		return len(edgesWithSourceType(edges, entityKind)), err
+		return len(activeDeleteBlockerEdges(edgesWithSourceType(edges, entityKind))), err
 	}}
+}
+
+func activeDeleteBlockerEdges(edges []domainrelation.Edge) []domainrelation.Edge {
+	matches := make([]domainrelation.Edge, 0, len(edges))
+	for _, edge := range edges {
+		switch strings.TrimSpace(edge.Status) {
+		case "ignored", "rejected", "archived", "removed", "abandoned":
+			continue
+		default:
+			matches = append(matches, edge)
+		}
+	}
+	return matches
 }
 
 func edgesWithTargetType(edges []domainrelation.Edge, targetType string) []domainrelation.Edge {

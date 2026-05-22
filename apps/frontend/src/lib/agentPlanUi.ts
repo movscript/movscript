@@ -191,7 +191,7 @@ export function buildPlanStatusExplanation(snapshot: AgentTaskGraphSnapshot): st
   const activeRuns = snapshot.summary?.activeWorkerCount ?? activeWorkerRunCount(snapshot)
   const nameConflictCount = snapshot.summary?.nameConflictCount ?? nameConflicts.length
   const parts: string[] = []
-  if (nameConflictCount > 0) parts.push(`${nameConflictCount} 个子代理重名`)
+  if (nameConflictCount > 0) parts.push(`${nameConflictCount} 个子 agent 重名`)
   if (activeRuns > 0) parts.push(`${activeRuns} 个执行器运行中`)
   if (counts.blocked > 0) parts.push(`${counts.blocked} 个被阻塞`)
   if (counts.needs_review > 0) parts.push(`${counts.needs_review} 个待复核`)

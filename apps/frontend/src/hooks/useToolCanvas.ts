@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { buildGenerationJobPayload } from '@/lib/generationJobPayload'
 import { publicModelId } from '@/lib/modelDisplay'
-import type { NodeType, PublicModel, RawResource } from '@/types'
+import type { Job, NodeType, PublicModel, RawResource } from '@/types'
 import { useTranslation } from 'react-i18next'
 
 export type ToolStatus = 'idle' | 'pending' | 'running' | 'done' | 'failed'
@@ -16,26 +17,8 @@ export interface ToolCanvasState {
   error: string | undefined
 }
 
-const TOOL_NODE_ID = 'tool-node-1'
-
-function getStoredCanvasId(nodeType: NodeType): number | null {
-  try {
-    const raw = localStorage.getItem(`tool_canvas_${nodeType}`)
-    return raw ? parseInt(raw, 10) : null
-  } catch { return null }
-}
-
-function setStoredCanvasId(nodeType: NodeType, id: number) {
-  try { localStorage.setItem(`tool_canvas_${nodeType}`, String(id)) } catch {}
-}
-
-function clearStoredCanvasId(nodeType: NodeType) {
-  try { localStorage.removeItem(`tool_canvas_${nodeType}`) } catch {}
-}
-
 export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video', options?: { promptRequired?: boolean }) {
   const { t } = useTranslation()
-  const canvasIdRef = useRef<number | null>(getStoredCanvasId(nodeType))
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const [state, setState] = useState<ToolCanvasState>({
@@ -71,26 +54,6 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
     }
   }, [])
 
-  async function ensureCanvas(): Promise<number> {
-    if (canvasIdRef.current) {
-      try {
-        await api.get(`/canvases/${canvasIdRef.current}`)
-        return canvasIdRef.current
-      } catch {
-        clearStoredCanvasId(nodeType)
-        canvasIdRef.current = null
-      }
-    }
-    const data = await api.post('/canvases', {
-      name: t('tools.canvasName', { type: nodeType }),
-      nodes: [],
-      edges: [],
-    }).then((r) => r.data as { ID: number })
-    canvasIdRef.current = data.ID
-    setStoredCanvasId(nodeType, data.ID)
-    return data.ID
-  }
-
   async function run() {
     if (options?.promptRequired !== false && !state.prompt.trim()) return
     if (pollRef.current) clearInterval(pollRef.current)
@@ -98,47 +61,33 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
     setState((s) => ({ ...s, status: 'pending', error: undefined, outputResource: undefined }))
 
     try {
-      const cid = await ensureCanvas()
       const fallbackModel = models[0]
       const modelId = state.modelId || (fallbackModel ? publicModelId(fallbackModel) : '')
+      const jobType = capability === 'video'
+        ? (state.inputResources.length > 0 ? 'video_i2v' : 'video')
+        : (state.inputResources.length > 0 ? 'image_edit' : 'image')
 
-      await api.put(`/canvases/${cid}`, {
-        name: t('tools.canvasName', { type: nodeType }),
-        nodes: [{
-          node_id: TOOL_NODE_ID,
-          type: nodeType,
-          label: nodeType,
-          pos_x: 100,
-          pos_y: 100,
-          data: JSON.stringify({
-            source: 'ai',
-            modelId,
-            prompt: state.prompt,
-            ...(state.inputResources[0] ? { resourceId: state.inputResources[0].ID } : {}),
-            ...(state.inputResources.length > 1 ? { resourceIds: state.inputResources.map((r) => r.ID) } : {}),
-          }),
-        }],
-        edges: [],
-      })
-
-      await api.post(`/canvases/${cid}/nodes/${TOOL_NODE_ID}/run`)
+      const job = await api.post('/jobs', buildGenerationJobPayload({
+        modelId,
+        jobType,
+        title: t('tools.canvasName', { type: nodeType }),
+        prompt: state.prompt,
+        params: {},
+        inputResourceIds: state.inputResources.map((resource) => resource.ID),
+        featureKey: nodeType,
+      })).then((r) => r.data as Job)
       setState((s) => ({ ...s, status: 'running' }))
 
       pollRef.current = setInterval(async () => {
         try {
-          const task = await api.get(`/canvases/${cid}/nodes/${TOOL_NODE_ID}/task`).then((r) => r.data as { status: string; resource_id?: number; error?: string })
-          if (task.status === 'done' || task.status === 'failed') {
+          const latest = await api.get(`/jobs/${job.ID}`).then((r) => r.data as Job)
+          if (latest.status === 'succeeded' || latest.status === 'failed' || latest.status === 'cancelled') {
             if (pollRef.current) clearInterval(pollRef.current)
-            let outputResource: RawResource | undefined
-            if (task.resource_id) {
-              const list = await api.get('/resources').then((r) => r.data as RawResource[])
-              outputResource = list.find((r) => r.ID === task.resource_id)
-            }
             setState((s) => ({
               ...s,
-              status: task.status as ToolStatus,
-              outputResource,
-              error: task.error,
+              status: latest.status === 'succeeded' ? 'done' : 'failed',
+              outputResource: latest.output_resource,
+              error: latest.error_msg,
             }))
           }
         } catch {

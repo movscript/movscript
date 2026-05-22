@@ -51,6 +51,20 @@ export interface ProposalKeyframeNode {
   __delete?: boolean
 }
 
+export interface ProposalWritingExpressionNode {
+  id?: number
+  client_id?: string
+  kind?: 'dialogue' | 'action' | 'narration' | 'subtitle' | 'visual' | string
+  speaker?: string
+  text?: string
+  note?: string
+  intent?: string
+  order?: number
+  script_block_id?: number | null
+  before?: Record<string, unknown>
+  __delete?: boolean
+}
+
 export interface ProposalCreativeRefNode {
   id?: number
   client_id?: string
@@ -90,6 +104,7 @@ export interface ProposalSceneMomentNode {
   creative_references?: ProposalCreativeRefNode[]
   asset_slots?: ProposalAssetSlotNode[]
   keyframes?: ProposalKeyframeNode[]
+  writing_expressions?: ProposalWritingExpressionNode[]
   rationale?: string
   before?: Record<string, unknown>
   __delete?: boolean
@@ -130,6 +145,7 @@ export interface ApplyProductionProposalCounts {
   keyframes_created: number
   creative_references_created: number
   creative_reference_usages: number
+  writing_expressions_created: number
 }
 
 export interface ProposalSimulationResult {
@@ -149,6 +165,7 @@ export interface ProposalSimulationResult {
       assetSlots: number
       contentUnits: number
       keyframes: number
+      writingExpressions: number
     }
     semanticChanges: ProductionProposalPreviewSemanticChange[]
     warnings: ProductionProposalPreviewWarning[]
@@ -158,7 +175,7 @@ export interface ProposalSimulationResult {
 export interface ProposalReviewNode {
   key: string
   action: ProposalSnapshotAction
-  kind: 'segment' | 'scene_moment' | 'content_unit' | 'keyframe' | 'creative_reference' | 'asset_slot'
+  kind: 'segment' | 'scene_moment' | 'content_unit' | 'keyframe' | 'creative_reference' | 'asset_slot' | 'writing_expression'
 }
 
 export interface ProductionProposalSnapshotRecord {
@@ -174,6 +191,7 @@ export interface BuildCurrentProductionProposalSnapshotInput {
   contentUnits: ProductionProposalSnapshotRecord[]
   keyframes: ProductionProposalSnapshotRecord[]
   assetSlots: ProductionProposalSnapshotRecord[]
+  writingExpressions: ProductionProposalSnapshotRecord[]
 }
 
 export function parseProductionProposalDraft(draft: AgentDraft): ProposalDraftContent | null {
@@ -215,10 +233,7 @@ export function parseProductionProposalDraft(draft: AgentDraft): ProposalDraftCo
 export function buildCurrentProductionProposalSnapshot(input: BuildCurrentProductionProposalSnapshotInput): { segments: ProposalSegmentNode[] } {
   const creativeReferenceById = new Map(input.creativeReferences.map((reference) => [reference.ID, reference]))
   const referencesBySceneMoment = new Map<number, ProposalCreativeRefNode[]>()
-  const assetSlotsBySceneMoment = new Map<number, ProductionProposalSnapshotRecord[]>()
-  const unitsBySceneMoment = new Map<number, ProductionProposalSnapshotRecord[]>()
-  const keyframesBySceneMoment = new Map<number, ProductionProposalSnapshotRecord[]>()
-  const keyframesByContentUnit = new Map<number, ProductionProposalSnapshotRecord[]>()
+  const expressionsBySceneMoment = new Map<number, ProductionProposalSnapshotRecord[]>()
 
   for (const usage of input.creativeReferenceUsages) {
     if (String(usage.owner_type ?? '') !== 'scene_moment') continue
@@ -235,25 +250,10 @@ export function buildCurrentProductionProposalSnapshot(input: BuildCurrentProduc
     })
   }
 
-  for (const slot of input.assetSlots) {
-    if (String(slot.owner_type ?? '') !== 'scene_moment') continue
-    const ownerId = positiveRecordNumber(slot.owner_id)
-    if (!ownerId) continue
-    pushSnapshotGroupedRecord(assetSlotsBySceneMoment, ownerId, slot)
-  }
-  for (const unit of input.contentUnits) {
-    const sceneMomentId = positiveRecordNumber(unit.scene_moment_id)
+  for (const expression of input.writingExpressions) {
+    const sceneMomentId = positiveRecordNumber(expression.scene_moment_id)
     if (!sceneMomentId) continue
-    pushSnapshotGroupedRecord(unitsBySceneMoment, sceneMomentId, unit)
-  }
-  for (const keyframe of input.keyframes) {
-    const contentUnitId = positiveRecordNumber(keyframe.content_unit_id)
-    if (contentUnitId) {
-      pushSnapshotGroupedRecord(keyframesByContentUnit, contentUnitId, keyframe)
-      continue
-    }
-    const sceneMomentId = positiveRecordNumber(keyframe.scene_moment_id)
-    if (sceneMomentId) pushSnapshotGroupedRecord(keyframesBySceneMoment, sceneMomentId, keyframe)
+    pushSnapshotGroupedRecord(expressionsBySceneMoment, sceneMomentId, expression)
   }
 
   return {
@@ -262,21 +262,6 @@ export function buildCurrentProductionProposalSnapshot(input: BuildCurrentProduc
         .filter((moment) => Number(moment.segment_id) === segment.ID)
         .sort(proposalSnapshotByOrder)
         .map((moment) => {
-          const contentUnits = (unitsBySceneMoment.get(moment.ID) ?? []).slice().sort(proposalSnapshotByOrder).map((unit) => ({
-            id: unit.ID,
-            client_id: stringRecordValue(unit.client_id),
-            title: stringRecordValue(unit.title) || proposalSnapshotTitleOfRecord(unit),
-            kind: stringRecordValue(unit.kind),
-            unit_code: stringRecordValue(unit.unit_code),
-            description: stringRecordValue(unit.description),
-            shot_size: stringRecordValue(unit.shot_size),
-            camera_angle: stringRecordValue(unit.camera_angle),
-            duration_sec: positiveRecordNumber(unit.duration_sec),
-            order: positiveRecordNumber(unit.order),
-            status: stringRecordValue(unit.status),
-            script_block_id: positiveRecordNumber(unit.script_block_id),
-            keyframes: (keyframesByContentUnit.get(unit.ID) ?? []).slice().sort(proposalSnapshotByOrder).map(proposalKeyframeFromRecord),
-          }))
           return {
             id: moment.ID,
             client_id: stringRecordValue(moment.client_id),
@@ -290,18 +275,8 @@ export function buildCurrentProductionProposalSnapshot(input: BuildCurrentProduc
             order: positiveRecordNumber(moment.order),
             status: stringRecordValue(moment.status),
             script_block_id: positiveRecordNumber(moment.script_block_id),
-            content_units: contentUnits,
-            keyframes: (keyframesBySceneMoment.get(moment.ID) ?? []).slice().sort(proposalSnapshotByOrder).map(proposalKeyframeFromRecord),
             creative_references: (referencesBySceneMoment.get(moment.ID) ?? []).slice(),
-            asset_slots: (assetSlotsBySceneMoment.get(moment.ID) ?? []).slice().sort(proposalSnapshotByOrder).map((slot) => ({
-              id: slot.ID,
-              client_id: stringRecordValue(slot.client_id),
-              name: stringRecordValue(slot.name) || proposalSnapshotTitleOfRecord(slot),
-              kind: stringRecordValue(slot.kind),
-              description: stringRecordValue(slot.description),
-              priority: stringRecordValue(slot.priority),
-              source_label: '当前项目',
-            })),
+            writing_expressions: (expressionsBySceneMoment.get(moment.ID) ?? []).slice().sort(proposalSnapshotByOrder).map(proposalWritingExpressionFromRecord),
           } satisfies ProposalSceneMomentNode
         })
       return {
@@ -317,16 +292,17 @@ export function buildCurrentProductionProposalSnapshot(input: BuildCurrentProduc
       } satisfies ProposalSegmentNode
     }),
   }
-
-  function proposalKeyframeFromRecord(keyframe: ProductionProposalSnapshotRecord): ProposalKeyframeNode {
+  function proposalWritingExpressionFromRecord(expression: ProductionProposalSnapshotRecord): ProposalWritingExpressionNode {
     return {
-      id: keyframe.ID,
-      client_id: stringRecordValue(keyframe.client_id),
-      title: stringRecordValue(keyframe.title) || proposalSnapshotTitleOfRecord(keyframe),
-      description: stringRecordValue(keyframe.description),
-      prompt: stringRecordValue(keyframe.prompt),
-      order: positiveRecordNumber(keyframe.order),
-      status: stringRecordValue(keyframe.status),
+      id: expression.ID,
+      client_id: stringRecordValue(expression.client_id),
+      kind: stringRecordValue(expression.kind),
+      speaker: stringRecordValue(expression.speaker),
+      text: stringRecordValue(expression.text),
+      note: stringRecordValue(expression.note),
+      intent: stringRecordValue(expression.intent),
+      order: positiveRecordNumber(expression.order),
+      script_block_id: positiveRecordNumber(expression.script_block_id) ?? null,
     }
   }
 }
@@ -402,6 +378,19 @@ export function buildProposalSemanticDiff(segments: ProposalSegmentNode[]): Prop
         before: proposalBeforeText(moment.before, ['action_text', 'description', 'title']),
         after: compactParts([moment.action_text, moment.description]),
       })
+      ;(moment.writing_expressions ?? []).forEach((expression, expressionIndex) => {
+        const expressionKey = proposalNodeDecisionKey('writing_expression', expression, `${momentFallback}-expression-${expressionIndex}`)
+        children.push({
+          key: expressionKey,
+          acceptKeys: [segmentKey, momentKey, expressionKey],
+          title: expression.text || `表达条目 ${expressionIndex + 1}`,
+          detail: compactParts([expression.kind, expression.speaker, expression.intent, expression.note]),
+          action: proposalSnapshotAction(expression),
+          kind: 'content',
+          before: proposalBeforeText(expression.before, ['kind', 'speaker', 'text', 'intent', 'note']),
+          after: compactParts([expression.text, expression.intent, expression.note]),
+        })
+      })
       ;(moment.content_units ?? []).forEach((unit, unitIndex) => {
         const unitFallback = `${momentFallback}-content-${unitIndex}`
         const unitKey = proposalNodeDecisionKey('content_unit', unit, unitFallback)
@@ -476,7 +465,7 @@ export function buildProposalSemanticDiff(segments: ProposalSegmentNode[]): Prop
       nodeKeys: [segmentKey, ...children.map((item) => item.key)],
       stats: [
         `${moments.length} 情节`,
-        `${children.filter((item) => item.kind === 'content').length} 内容分镜`,
+        `${children.filter((item) => item.kind === 'content').length} 表达`,
         `${children.filter((item) => item.kind === 'reference').length} 设定引用`,
         `${children.filter((item) => item.kind === 'asset').length} 素材需求`,
       ],
@@ -532,6 +521,20 @@ export function buildProposalApplyPreview(segments: ProposalSegmentNode[], decis
         action: proposalSnapshotAction(moment),
         parent: segmentTitle,
       }, momentDecision, momentBlocked)
+
+      ;(moment.writing_expressions ?? []).forEach((expression, expressionIndex) => {
+        const expressionKey = proposalNodeDecisionKey('writing_expression', expression, `${momentFallback}-expression-${expressionIndex}`)
+        const expressionDecision = decisions[expressionKey]
+        const expressionBlocked = expressionDecision === 'accepted' && (segmentDecision !== 'accepted' || momentDecision !== 'accepted')
+        pushByDecision({
+          key: expressionKey,
+          title: expression.text || `表达条目 ${expressionIndex + 1}`,
+          detail: compactParts([expression.kind, expression.speaker, expression.intent, expression.note]),
+          kind: 'writing_expression',
+          action: proposalSnapshotAction(expression),
+          parent: `${segmentTitle} / ${momentTitle}`,
+        }, expressionDecision, expressionBlocked)
+      })
 
       ;(moment.content_units ?? []).forEach((unit, unitIndex) => {
         const unitFallback = `${momentFallback}-content-${unitIndex}`
@@ -669,6 +672,7 @@ export function countProposalActions(segments: ProposalSegmentNode[]) {
     add(segment)
     for (const moment of segment.scene_moments ?? []) {
       add(moment)
+      for (const expression of moment.writing_expressions ?? []) add(expression)
       for (const unit of moment.content_units ?? []) {
         add(unit)
         for (const keyframe of unit.keyframes ?? []) add(keyframe)
@@ -699,6 +703,7 @@ export function buildProposalSimulationResult({
     keyframes_created: 0,
     creative_references_created: 0,
     creative_reference_usages: 0,
+    writing_expressions_created: 0,
   }
   const actions = { create: 0, update: 0, delete: 0 }
   const addAction = (node: { id?: number | null; __delete?: boolean }) => {
@@ -714,6 +719,10 @@ export function buildProposalSimulationResult({
     for (const moment of segment.scene_moments ?? []) {
       addAction(moment)
       if (!snapshotNodeHasID(moment)) counts.scene_moments_created += 1
+      for (const expression of moment.writing_expressions ?? []) {
+        addAction(expression)
+        if (!snapshotNodeHasID(expression)) counts.writing_expressions_created += 1
+      }
       for (const unit of moment.content_units ?? []) {
         addAction(unit)
         if (!snapshotNodeHasID(unit)) counts.content_units_created += 1
@@ -792,6 +801,15 @@ export function buildMergedProductionProposal(
         return
       }
       const targetMoment = upsertMomentNode(targetSegment, moment)
+      ;(moment.writing_expressions ?? []).forEach((expression, expressionIndex) => {
+        const expressionKey = proposalNodeDecisionKey('writing_expression', expression, `${momentFallback}-expression-${expressionIndex}`)
+        if (decisions[expressionKey] !== 'accepted') return
+        if (expression.__delete) {
+          targetMoment.writing_expressions = removeNodeById(targetMoment.writing_expressions ?? [], expression.id)
+          return
+        }
+        targetMoment.writing_expressions = upsertNode(targetMoment.writing_expressions ?? [], expression)
+      })
       ;(moment.content_units ?? []).forEach((unit, unitIndex) => {
         const unitFallback = `${momentFallback}-content-${unitIndex}`
         const unitKey = proposalNodeDecisionKey('content_unit', unit, unitFallback)
@@ -933,6 +951,11 @@ function collectSegmentProposalReviewNodes(segment: ProposalSegmentNode, index: 
 function collectSceneProposalReviewNodes(moment: ProposalSceneMomentNode, fallback: string): ProposalReviewNode[] {
   return [
     { key: proposalNodeDecisionKey('scene_moment', moment, fallback), action: proposalSnapshotAction(moment), kind: 'scene_moment' },
+    ...(moment.writing_expressions ?? []).map((expression, index) => ({
+      key: proposalNodeDecisionKey('writing_expression', expression, `${fallback}-expression-${index}`),
+      action: proposalSnapshotAction(expression),
+      kind: 'writing_expression' as const,
+    })),
     ...(moment.content_units ?? []).flatMap((unit, index) => {
       const unitFallback = `${fallback}-content-${index}`
       return [
@@ -1008,8 +1031,9 @@ function pruneUnchangedProposalMoment(proposed: ProposalSceneMomentNode, current
   const prunedKeyframes = pruneUnchangedProposalNodes(proposed.keyframes ?? [], current.keyframes ?? [], ['keyframes'])
   const prunedCreativeReferences = pruneUnchangedProposalNodes(proposed.creative_references ?? [], current.creative_references ?? [], ['creative_references'])
   const prunedAssetSlots = pruneUnchangedProposalNodes(proposed.asset_slots ?? [], current.asset_slots ?? [], ['asset_slots'])
-  const hasOwnChange = !proposalOwnFieldsEqual(proposed, current, ['content_units', 'creative_references', 'asset_slots', 'keyframes'])
-  const hasChildChanges = prunedContentUnits.length > 0 || prunedKeyframes.length > 0 || prunedCreativeReferences.length > 0 || prunedAssetSlots.length > 0
+  const prunedWritingExpressions = pruneUnchangedProposalNodes(proposed.writing_expressions ?? [], current.writing_expressions ?? [], ['writing_expressions'])
+  const hasOwnChange = !proposalOwnFieldsEqual(proposed, current, ['content_units', 'creative_references', 'asset_slots', 'keyframes', 'writing_expressions'])
+  const hasChildChanges = prunedContentUnits.length > 0 || prunedKeyframes.length > 0 || prunedCreativeReferences.length > 0 || prunedAssetSlots.length > 0 || prunedWritingExpressions.length > 0
   if (!hasOwnChange && !hasChildChanges) return null
   return {
     ...proposed,
@@ -1017,6 +1041,7 @@ function pruneUnchangedProposalMoment(proposed: ProposalSceneMomentNode, current
     keyframes: prunedKeyframes,
     creative_references: prunedCreativeReferences,
     asset_slots: prunedAssetSlots,
+    writing_expressions: prunedWritingExpressions,
   }
 }
 
@@ -1084,6 +1109,13 @@ function appendDeletedMomentChildren(proposed: ProposalSceneMomentNode, current:
     current.creative_references ?? [],
     markProposalCreativeReferenceDeleted,
   )
+  if (Object.prototype.hasOwnProperty.call(proposed, 'writing_expressions')) {
+    proposed.writing_expressions = appendDeletedNodes(
+      proposed.writing_expressions ?? [],
+      current.writing_expressions ?? [],
+      markProposalWritingExpressionDeleted,
+    )
+  }
   for (const unit of proposed.content_units ?? []) {
     if (!snapshotNodeHasID(unit)) continue
     const currentUnit = (current.content_units ?? []).find((item) => item.id === unit.id)
@@ -1130,6 +1162,7 @@ function upsertMomentNode(segment: ProposalSegmentNode, moment: ProposalSceneMom
     keyframes: existing?.keyframes ?? [],
     creative_references: existing?.creative_references ?? [],
     asset_slots: existing?.asset_slots ?? [],
+    writing_expressions: existing?.writing_expressions ?? [],
   }
   if (snapshotNodeHasID(nextMoment)) {
     const index = moments.findIndex((item) => item.id === nextMoment.id)
@@ -1199,6 +1232,7 @@ function markProposalMomentDeleted(moment: ProposalSceneMomentNode): ProposalSce
     keyframes: (moment.keyframes ?? []).map(markProposalKeyframeDeleted),
     creative_references: [],
     asset_slots: (moment.asset_slots ?? []).map(markProposalAssetSlotDeleted),
+    writing_expressions: (moment.writing_expressions ?? []).map(markProposalWritingExpressionDeleted),
   }
 }
 
@@ -1220,6 +1254,10 @@ function markProposalCreativeReferenceDeleted(reference: ProposalCreativeRefNode
 
 function markProposalAssetSlotDeleted(slot: ProposalAssetSlotNode): ProposalAssetSlotNode {
   return { ...cloneProposalNode(slot), __delete: true }
+}
+
+function markProposalWritingExpressionDeleted(expression: ProposalWritingExpressionNode): ProposalWritingExpressionNode {
+  return { ...cloneProposalNode(expression), __delete: true }
 }
 
 function proposalBeforeText(before: Record<string, unknown> | undefined, keys: string[]) {

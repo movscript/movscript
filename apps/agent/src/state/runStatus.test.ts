@@ -9,6 +9,7 @@ import {
   applyRunFailure,
   DEFAULT_RUN_CANCEL_REASON,
   isActiveRunStatus,
+  isExecutingRunStatus,
   isFinishedOrCancelledRunStatus,
   isFinishedRunStatus,
 } from './runStatus.js'
@@ -18,6 +19,13 @@ test('isActiveRunStatus treats queued in-progress and requires-action runs as ac
   assert.equal(isActiveRunStatus('in_progress'), true)
   assert.equal(isActiveRunStatus('requires_action'), true)
   assert.equal(isActiveRunStatus('completed'), false)
+})
+
+test('isExecutingRunStatus excludes waiting-for-action runs', () => {
+  assert.equal(isExecutingRunStatus('queued'), true)
+  assert.equal(isExecutingRunStatus('in_progress'), true)
+  assert.equal(isExecutingRunStatus('requires_action'), false)
+  assert.equal(isExecutingRunStatus('completed'), false)
 })
 
 test('finished run status excludes cancellation and pending interaction states', () => {

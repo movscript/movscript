@@ -200,7 +200,7 @@ export function buildProductionProposalRevisionAgentPanelDraftPayload(input: Pro
     clientInput: buildCommandFirstClientInput({
       message: [
         `请调整当前 production_proposal 草稿：${input.productionLabel}。`,
-        `必须把 draft content 当作文件处理：先使用 draft_file_read 读取 ${draftFileRef}，再使用 draft_file_edit 修改同一个 ref；不要直接写正式 production graph。`,
+        `必须把 draft content 当作文件处理：先使用 core_file_read 读取 ${draftFileRef}，再使用 core_file_edit 修改同一个 ref；不要直接写正式 production graph。`,
         '修改完成后简要说明调整了哪些段落、情节、内容项或素材需求。不要调用 draft_apply，除非用户明确要求提交且经过确认。',
         instruction ? `用户调整要求：${instruction}` : '',
       ].filter(Boolean).join('\n\n'),

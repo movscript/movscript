@@ -4,7 +4,9 @@ import type {
   AgentTaskGraph,
   AgentRun,
   AgentTask,
+  AgentThread,
   CreateRunInput,
+  CreateThreadInput,
   DispatchTaskGraphInput,
   DispatchTaskGraphResult,
   UpdateTaskGraphTaskInput,
@@ -95,6 +97,7 @@ export function applyRuntimeTaskGraphDispatchDecision(input: {
   subagentNameByTaskId: Map<string, string>
   now: string
   updateTask: (taskId: string, update: UpdateTaskGraphTaskInput) => AgentTask
+  createThread?: (input: CreateThreadInput) => AgentThread
   createRun: (input: CreateRunInput) => AgentRun
   onTaskBlocked?: (task: AgentTask) => void
   onTaskDispatched?: (task: AgentTask, previousTask: AgentTask) => void
@@ -122,10 +125,31 @@ export function applyRuntimeTaskGraphDispatchDecision(input: {
           subagentName,
         },
       })
+    const workerThread = input.createThread?.({
+      sessionId: input.taskGraph.sessionId,
+      title: workerTask.title,
+      agentName: subagentName,
+      agentRole: 'worker',
+      parentThreadId: input.taskGraph.threadId,
+      parentRunId: input.plannerRun.id,
+      metadata: {
+        subagentName,
+        taskGraphId: input.taskGraph.id,
+        taskId: workerTask.id,
+      },
+    }) ?? {
+      id: input.taskGraph.threadId,
+      sessionId: input.taskGraph.sessionId,
+      agentRole: 'worker',
+      createdAt: input.now,
+      updatedAt: input.now,
+      messages: [],
+    }
     const run = input.createRun(buildDispatchWorkerRunInput({
       taskGraph: input.taskGraph,
       plannerRun: input.plannerRun,
       task: workerTask,
+      workerThread,
       subagentName,
       dispatchInput: input.dispatchInput,
     }))
@@ -155,6 +179,7 @@ export function applyRuntimeTaskGraphDispatch(input: {
   timedOutRunIds: string[]
   now: string
   updateTask: (taskId: string, update: UpdateTaskGraphTaskInput) => AgentTask
+  createThread?: (input: CreateThreadInput) => AgentThread
   createRun: (input: CreateRunInput) => AgentRun
   recomputeTaskGraph: (taskGraphId: string) => void
   onTaskBlocked?: (task: AgentTask) => void
@@ -174,6 +199,7 @@ export function applyRuntimeTaskGraphDispatch(input: {
     subagentNameByTaskId,
     now: input.now,
     updateTask: input.updateTask,
+    createThread: input.createThread,
     createRun: input.createRun,
     onTaskBlocked: input.onTaskBlocked,
     onTaskDispatched: input.onTaskDispatched,
@@ -198,6 +224,7 @@ export function applyRuntimeTaskGraphDispatchFlow(input: {
   nowMs: number
   updateTask: (taskId: string, update: UpdateTaskGraphTaskInput) => AgentTask
   createRun: (input: CreateRunInput) => AgentRun
+  createThread?: (input: CreateThreadInput) => AgentThread
   cancelRun: (runId: string, reason: string) => void
   syncTaskFromRun: (runId: string) => void
   recomputeTaskGraph: (taskGraphId: string) => void
@@ -241,6 +268,7 @@ export function applyRuntimeTaskGraphDispatchFlow(input: {
     timedOutRunIds,
     now: input.now,
     updateTask: input.updateTask,
+    createThread: input.createThread,
     createRun: input.createRun,
     recomputeTaskGraph: input.recomputeTaskGraph,
     onTaskBlocked: input.onTaskBlocked,
@@ -255,6 +283,7 @@ export function applyRuntimeTaskGraphDispatchRequest(input: {
   nowMs: number
   updateTask: (taskId: string, update: UpdateTaskGraphTaskInput) => AgentTask
   createRun: (input: CreateRunInput) => AgentRun
+  createThread?: (input: CreateThreadInput) => AgentThread
   cancelRun: (runId: string, reason: string) => void
   syncTaskFromRun: (runId: string) => void
   recomputeTaskGraph: (taskGraphId: string) => void
@@ -277,6 +306,7 @@ export function applyRuntimeTaskGraphDispatchRequest(input: {
     now: input.now,
     nowMs: input.nowMs,
     updateTask: input.updateTask,
+    createThread: input.createThread,
     createRun: input.createRun,
     cancelRun: input.cancelRun,
     syncTaskFromRun: input.syncTaskFromRun,

@@ -499,6 +499,165 @@ test('thread runs endpoint lists only runs from the requested thread', async () 
   })
 })
 
+test('thread delete endpoint physically deletes one thread history when no run is active', async () => {
+  const calls: string[] = []
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      getThread: (threadId: string) => threadId === 'thread_1'
+        ? { id: threadId, messages: [], createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:00.000Z' }
+        : undefined,
+      listRunsByThread: () => [{ id: 'run_1', threadId: 'thread_1', status: 'completed' }],
+      deleteThread: (threadId: string) => {
+        calls.push(`delete:${threadId}`)
+        return {
+          deleted: true,
+          threadId,
+          deletedRunIds: ['run_1'],
+          deletedTaskGraphIds: [],
+          deletedTaskIds: [],
+          deletedRuntimeWorkIds: [],
+          deletedRuntimeInteractionIds: [],
+          deletedRuntimeContinuationIds: [],
+        }
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'DELETE', '/threads/thread_1')
+
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(JSON.parse(response.body), {
+    deleted: true,
+    threadId: 'thread_1',
+    deletedRunIds: ['run_1'],
+    deletedTaskGraphIds: [],
+    deletedTaskIds: [],
+    deletedRuntimeWorkIds: [],
+    deletedRuntimeInteractionIds: [],
+    deletedRuntimeContinuationIds: [],
+  })
+  assert.deepEqual(calls, ['delete:thread_1'])
+})
+
+test('thread delete endpoint rejects active runs before deleting state', async () => {
+  const calls: string[] = []
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      getThread: (threadId: string) => ({ id: threadId, messages: [], createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:00.000Z' }),
+      listRunsByThread: () => [{ id: 'run_active', threadId: 'thread_1', status: 'in_progress' }],
+      deleteThread: () => {
+        calls.push('delete')
+        return { deleted: true }
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'DELETE', '/threads/thread_1')
+
+  assert.equal(response.statusCode, 409)
+  assert.deepEqual(JSON.parse(response.body), {
+    error: 'active runs must be cancelled before deleting thread',
+    runId: 'run_active',
+  })
+  assert.deepEqual(calls, [])
+})
+
+test('threads delete endpoint clears all history when no run is active', async () => {
+  const calls: string[] = []
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      listRuns: () => [{ id: 'run_1', threadId: 'thread_1', status: 'completed' }],
+      deleteAllThreads: () => {
+        calls.push('deleteAll')
+        return {
+          deleted: true,
+          deletedThreadIds: ['thread_1'],
+          deletedRunIds: ['run_1'],
+          deletedTaskGraphIds: [],
+          deletedTaskIds: [],
+          deletedRuntimeWorkIds: [],
+          deletedRuntimeInteractionIds: [],
+          deletedRuntimeContinuationIds: [],
+        }
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'DELETE', '/threads')
+
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(JSON.parse(response.body), {
+    deleted: true,
+    deletedThreadIds: ['thread_1'],
+    deletedRunIds: ['run_1'],
+    deletedTaskGraphIds: [],
+    deletedTaskIds: [],
+    deletedRuntimeWorkIds: [],
+    deletedRuntimeInteractionIds: [],
+    deletedRuntimeContinuationIds: [],
+  })
+  assert.deepEqual(calls, ['deleteAll'])
+})
+
+test('threads delete endpoint clears waiting history runs', async () => {
+  const calls: string[] = []
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      listRuns: () => [{ id: 'run_active', threadId: 'thread_1', status: 'requires_action' }],
+      deleteAllThreads: () => {
+        calls.push('deleteAll')
+        return {
+          deleted: true,
+          deletedThreadIds: ['thread_1'],
+          deletedRunIds: ['run_active'],
+          deletedTaskGraphIds: [],
+          deletedTaskIds: [],
+          deletedRuntimeWorkIds: [],
+          deletedRuntimeInteractionIds: [],
+          deletedRuntimeContinuationIds: [],
+        }
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'DELETE', '/threads')
+
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(JSON.parse(response.body), {
+    deleted: true,
+    deletedThreadIds: ['thread_1'],
+    deletedRunIds: ['run_active'],
+    deletedTaskGraphIds: [],
+    deletedTaskIds: [],
+    deletedRuntimeWorkIds: [],
+    deletedRuntimeInteractionIds: [],
+    deletedRuntimeContinuationIds: [],
+  })
+  assert.deepEqual(calls, ['deleteAll'])
+})
+
+test('threads delete endpoint rejects executing runs before clearing history', async () => {
+  const calls: string[] = []
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      listRuns: () => [{ id: 'run_active', threadId: 'thread_1', status: 'queued' }],
+      deleteAllThreads: () => {
+        calls.push('deleteAll')
+        return { deleted: true }
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'DELETE', '/threads')
+
+  assert.equal(response.statusCode, 409)
+  assert.deepEqual(JSON.parse(response.body), {
+    error: 'active runs must be cancelled before deleting thread history',
+    runId: 'run_active',
+  })
+  assert.deepEqual(calls, [])
+})
+
 test('thread runtime endpoint returns a consistent thread and run snapshot', async () => {
   const thread = {
     id: 'thread_1',
@@ -620,6 +779,61 @@ test('thread runtime endpoint indexes pending interaction runs for frontend reco
   assert.deepEqual(body.current.pendingInteractionIds, ['interaction_input_1'])
   assert.deepEqual(body.interactions.map((interaction: { id: string }) => interaction.id), ['interaction_input_1'])
   assert.equal(body.updatedAt, '2026-05-19T00:00:03.000Z')
+})
+
+test('session runtime endpoint returns aggregate plan, child agent, and work state', async () => {
+  const session = {
+    id: 'session_1',
+    rootThreadId: 'thread_root',
+    activeThreadId: 'thread_child',
+    createdAt: '2026-05-19T00:00:00.000Z',
+    updatedAt: '2026-05-19T00:00:05.000Z',
+  }
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      getSessionRuntimeSnapshot: (sessionId: string) => sessionId === 'session_1'
+        ? {
+          schema: 'movscript.session-runtime.v1',
+          updatedAt: '2026-05-19T00:00:05.000Z',
+          session,
+          threads: [
+            { id: 'thread_root', sessionId: 'session_1', agentRole: 'root', messages: [] },
+            { id: 'thread_child', sessionId: 'session_1', agentRole: 'worker', parentThreadId: 'thread_root', messages: [] },
+          ],
+          taskGraphs: [{
+            taskGraph: { id: 'task_graph_1', sessionId: 'session_1', threadId: 'thread_root', rootRunId: 'run_root', status: 'running' },
+            tasks: [{ id: 'task_1', taskGraphId: 'task_graph_1', ownerRunId: 'run_child', status: 'running' }],
+            runs: [{ id: 'run_root', sessionId: 'session_1', threadId: 'thread_root', status: 'in_progress' }],
+          }],
+          runs: [
+            { id: 'run_root', sessionId: 'session_1', threadId: 'thread_root', status: 'in_progress' },
+            { id: 'run_child', sessionId: 'session_1', threadId: 'thread_child', parentRunId: 'run_root', status: 'queued' },
+          ],
+          works: [{ id: 'work_1', sessionId: 'session_1', threadId: 'thread_child', runId: 'run_child', kind: 'generation_job', status: 'waiting' }],
+          interactions: [],
+          continuations: [],
+          current: {
+            activeThreadIds: ['thread_root'],
+            activeRunIds: ['run_root', 'run_child'],
+            waitingRunIds: [],
+            runningWorkIds: ['work_1'],
+            pendingInteractionIds: [],
+            readyContinuationIds: [],
+          },
+        }
+        : undefined,
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'GET', '/sessions/session_1/runtime')
+  const body = JSON.parse(response.body)
+
+  assert.equal(response.statusCode, 200)
+  assert.equal(body.schema, 'movscript.session-runtime.v1')
+  assert.equal(body.session.id, 'session_1')
+  assert.deepEqual(body.threads.map((thread: { id: string }) => thread.id), ['thread_root', 'thread_child'])
+  assert.deepEqual(body.taskGraphs.map((snapshot: { taskGraph: { id: string } }) => snapshot.taskGraph.id), ['task_graph_1'])
+  assert.deepEqual(body.current.runningWorkIds, ['work_1'])
 })
 
 test('thread runs endpoint returns not found for missing threads', async () => {
@@ -857,7 +1071,7 @@ test('default tool policy endpoint saves requested runtime tool overrides', asyn
     },
   } as unknown as AgentServerContext)
 
-  const toolGrants = [{ name: 'draft_validate', mode: 'deny' }]
+  const toolGrants = [{ name: 'draft_apply_preview', mode: 'deny' }]
   const response = await dispatch(handler, 'POST', '/agent-tools/default-policy', JSON.stringify({ toolGrants }))
 
   assert.equal(response.statusCode, 200)
@@ -992,7 +1206,7 @@ test('draft creation drops invalid numeric business reference ids', async () => 
   } as unknown as AgentServerContext)
 
   const response = await dispatch(handler, 'POST', '/draft', JSON.stringify({
-    kind: 'note',
+    kind: 'project_standards_proposal',
     content: 'Draft',
     source: {
       entityType: 'scene_moment',

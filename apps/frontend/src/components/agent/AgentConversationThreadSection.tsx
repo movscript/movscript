@@ -23,7 +23,7 @@ import type { AgentInputAnswer } from '@/lib/agentWorkflowInteraction'
 import type { AgentConversationBlock } from '@/lib/agentConversationPresentation'
 import type { GenerationProgressState } from '@/lib/agentGenerationMedia'
 import type { PlanDispatchSettings } from '@/lib/agentPlanActions'
-import type { AgentTaskGraphSnapshot, AgentProgressChecklist, AgentRun } from '@/lib/localAgentClient'
+import type { AgentTaskGraphSnapshot, AgentPlan, AgentRun } from '@/lib/localAgentClient'
 import type { ChatMessage } from '@/store/agentStore'
 
 export interface AgentConversationThreadSectionProps {
@@ -88,7 +88,7 @@ export function AgentConversationThreadSection({
   onUpdatePlanDispatchSettings,
 }: AgentConversationThreadSectionProps) {
   const { t } = useTranslation()
-  const currentProgressChecklist = latestProgressChecklistFromMessages(messages)
+  const currentPlan = latestPlanFromMessages(messages)
   const liveActivityRunIds = new Set(conversationBlocks
     .filter((block) => block.type === 'live_run_activity' && block.run?.id)
     .map((block) => block.type === 'live_run_activity' ? block.run?.id : undefined)
@@ -97,7 +97,7 @@ export function AgentConversationThreadSection({
   return (
     <AgentBody className="flex flex-col">
       <AgentPinnedStatusShelf
-        checklist={currentProgressChecklist}
+        plan={currentPlan}
         generationProgressStates={generationProgressStates}
         planSnapshot={activePlanSnapshot}
       />
@@ -205,10 +205,10 @@ export function AgentConversationThreadSection({
   )
 }
 
-function latestProgressChecklistFromMessages(messages: ChatMessage[]): AgentProgressChecklist | undefined {
+function latestPlanFromMessages(messages: ChatMessage[]): AgentPlan | undefined {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const checklist = messages[index].meta?.progressChecklistRevision?.snapshot
-    if (checklist) return checklist
+    const plan = messages[index].meta?.planRevision?.snapshot
+    if (plan) return plan
   }
   return undefined
 }

@@ -7,7 +7,7 @@ import { handleSendAbort, handleSendFailure } from '@/lib/agentSendError'
 import { prepareSendRuntime } from '@/lib/agentSendRuntimeReadiness'
 import { handleSendRunUpdate, handleSendStreamEvent, type AgentSendRunUpdateDeps } from '@/lib/agentSendStream'
 import { createLocalAgentStopAbortError } from '@/lib/agentRunControl'
-import { localAgentClient, type AgentProgressChecklistRevision, type AgentRun, type AgentRunStreamEvent, type AgentThread } from '@/lib/localAgentClient'
+import { localAgentClient, type AgentPlanRevision, type AgentRun, type AgentRunStreamEvent, type AgentThread } from '@/lib/localAgentClient'
 import { syncRuntimeModelConfig } from '@/lib/runtimeChat'
 import { fetchResourceById } from '@/lib/agentMessageViewModel'
 import { isRecord } from '@/lib/jsonValue'
@@ -35,7 +35,7 @@ export interface CommitAgentSendDraftDeps {
   setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
   setLocalThreadId: (conversationId: string, threadId: string) => void
-  setPageTaskRunning: (requestId: string | undefined, patch: { conversationId?: string; run?: AgentRun; threadId?: string; artifacts?: AgentTaskArtifactRef[] }) => void
+  setPageTaskRunning: (requestId: string | undefined, patch: { conversationId?: string; sessionId?: string; run?: AgentRun; thread?: AgentThread; threadId?: string; artifacts?: AgentTaskArtifactRef[] }) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch?: ConversationRunPatch) => void
   setConversationRuntime: (conversationId: string, patch: ConversationRuntimePatch) => void
   setLiveTraceEvents: (action: ActivityEventsAction) => void
@@ -182,9 +182,9 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
           updateActivityEvents,
           recordLiveTraceEvent: deps.recordLiveTraceEvent,
         })
-        const progressChecklistMessage = progressChecklistMessageFromStreamEvent(event)
-        if (progressChecklistMessage) {
-          deps.messageStore.upsertMessage(deps.userId, deps.conversationId, progressChecklistMessage.id, progressChecklistMessage.message)
+        const planMessage = planMessageFromStreamEvent(event)
+        if (planMessage) {
+          deps.messageStore.upsertMessage(deps.userId, deps.conversationId, planMessage.id, planMessage.message)
         }
         if (event.type === 'trace' && event.event.title === 'Runtime input consumed') {
           const data = event.event.data && typeof event.event.data === 'object'
@@ -290,16 +290,20 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
   }
 }
 
-function progressChecklistMessageFromStreamEvent(event: AgentRunStreamEvent): {
+function planMessageFromStreamEvent(event: AgentRunStreamEvent): {
   id: string
   message: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp: number }
 } | undefined {
-  if (event.type !== 'trace' || event.event.toolName !== 'core_progress_update' || !isRecord(event.event.data)) return undefined
+  if (
+    event.type !== 'trace'
+    || event.event.toolName !== 'core_update_plan'
+    || !isRecord(event.event.data)
+  ) return undefined
   const result = event.event.data.result
   if (!isRecord(result)) return undefined
   const revision = result.revision
   const runtimeMessage = result.message
-  if (!isProgressChecklistRevision(revision) || !isRecord(runtimeMessage)) return undefined
+  if (!isPlanRevision(revision) || !isRecord(runtimeMessage)) return undefined
   const messageId = typeof runtimeMessage.id === 'string' && runtimeMessage.id ? runtimeMessage.id : revision.id
   const threadId = typeof runtimeMessage.threadId === 'string' && runtimeMessage.threadId ? runtimeMessage.threadId : revision.threadId
   const runId = typeof runtimeMessage.runId === 'string' && runtimeMessage.runId ? runtimeMessage.runId : event.runId
@@ -309,9 +313,9 @@ function progressChecklistMessageFromStreamEvent(event: AgentRunStreamEvent): {
     id: `runtime:${messageId}`,
     message: {
       role: 'assistant',
-      content: typeof runtimeMessage.content === 'string' && runtimeMessage.content ? runtimeMessage.content : 'Progress checklist updated',
+      content: typeof runtimeMessage.content === 'string' && runtimeMessage.content ? runtimeMessage.content : 'Plan updated',
       meta: {
-        progressChecklistRevision: revision,
+        planRevision: revision,
         runtimeMessage: {
           threadId,
           messageId,
@@ -323,11 +327,11 @@ function progressChecklistMessageFromStreamEvent(event: AgentRunStreamEvent): {
   }
 }
 
-function isProgressChecklistRevision(value: unknown): value is AgentProgressChecklistRevision {
-  if (!isRecord(value) || value.schema !== 'movscript.agent.progress-checklist-revision.v1') return false
-  if (typeof value.id !== 'string' || typeof value.taskGraphId !== 'string' || typeof value.threadId !== 'string') return false
+function isPlanRevision(value: unknown): value is AgentPlanRevision {
+  if (!isRecord(value) || value.schema !== 'movscript.agent.plan-revision.v1') return false
+  if (typeof value.id !== 'string' || typeof value.planId !== 'string' || typeof value.threadId !== 'string') return false
   if (typeof value.createdAt !== 'string' || !isRecord(value.snapshot)) return false
   const snapshot = value.snapshot
-  if (snapshot.schema !== 'movscript.agent.progress-checklist.v1') return false
+  if (snapshot.schema !== 'movscript.agent.plan.v1') return false
   return Array.isArray(snapshot.items)
 }

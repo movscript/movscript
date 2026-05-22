@@ -152,7 +152,7 @@ test('runAgentGraph pauses again after executing one approved forced call when o
     catalogManager: {
       inspectAgentCatalog: () => ({}),
       updateActiveSkills: () => ({}),
-      updateProgressChecklist: () => ({}),
+      updatePlan: () => ({}),
       startWork: () => {
         calls.push('core_work_start')
         return {
@@ -763,13 +763,13 @@ test('runAgentGraph summarizes catalog skill inspection with active state and to
           kind: 'workflow',
           name: 'Script Reading',
           loadMode: 'manual',
-          toolRefs: ['tool://movscript_project_script_read', 'tool://core_user_input_request'],
+          toolRefs: ['tool://movscript_script_locate', 'tool://core_user_input_request'],
         },
         active: true,
         coveredByEnabledPack: true,
       }),
       updateActiveSkills: () => ({}),
-      updateProgressChecklist: () => ({}),
+      updatePlan: () => ({}),
       startWork: () => ({}),
 getWork: () => ({}),
 listWork: () => ({}),
@@ -786,7 +786,7 @@ waitWork: () => ({}),
   assert.equal(result.status, 'completed')
   assert.match(traceSummaries.join('\n'), /catalog skill movscript\.workflow\.script_reading/)
   assert.match(traceSummaries.join('\n'), /active=true/)
-  assert.match(traceSummaries.join('\n'), /tools=movscript_project_script_read, core_user_input_request/)
+  assert.match(traceSummaries.join('\n'), /tools=movscript_script_locate, core_user_input_request/)
 })
 
 test('runAgentGraph summarizes catalog summary inspection with skill and pack state', async () => {
@@ -892,7 +892,7 @@ test('runAgentGraph summarizes catalog summary inspection with skill and pack st
         availableSkillIds: ['movscript.workflow.script_reading', 'movscript.workflow.asset_proposal'],
       }),
       updateActiveSkills: () => ({}),
-      updateProgressChecklist: () => ({}),
+      updatePlan: () => ({}),
       startWork: () => ({}),
 getWork: () => ({}),
 listWork: () => ({}),
@@ -946,7 +946,7 @@ test('runAgentGraph loads script reading skill when model calls project script t
     requiresApproval: false,
   }
   const readScriptsTool: AgentDebugTool = {
-    name: 'movscript_project_script_read',
+    name: 'movscript_script_locate',
     description: 'Read project scripts',
     source: 'mcp',
     registered: true,
@@ -971,7 +971,7 @@ test('runAgentGraph loads script reading skill when model calls project script t
     blocked: [readScriptsTool],
     byName: {
       core_skill_update: updateActiveSkillsTool,
-      movscript_project_script_read: readScriptsTool,
+      movscript_script_locate: readScriptsTool,
     },
   }
   const manifest: AgentManifest = {
@@ -994,7 +994,7 @@ test('runAgentGraph loads script reading skill when model calls project script t
       requiresApprovalByDefault: false,
     },
     {
-      name: 'movscript_project_script_read',
+      name: 'movscript_script_locate',
       description: 'Read project scripts',
       permission: 'project.script.read',
       risk: 'read',
@@ -1032,7 +1032,7 @@ test('runAgentGraph loads script reading skill when model calls project script t
             id: 'call_read_scripts',
             type: 'function',
             function: {
-              name: 'movscript_project_script_read',
+              name: 'movscript_script_locate',
               arguments: JSON.stringify({ projectId: 5, scriptTitle: '总剧本', includeContent: true }),
             },
           }],
@@ -1095,7 +1095,7 @@ test('runAgentGraph loads script reading skill when model calls project script t
           activeSkillIds: ['movscript.workflow.script_reading'],
         }
       },
-      updateProgressChecklist: () => ({}),
+      updatePlan: () => ({}),
       startWork: () => ({}),
 getWork: () => ({}),
 listWork: () => ({}),
@@ -1107,7 +1107,7 @@ waitWork: () => ({}),
         ...manifest,
         tools: [
           ...manifest.tools,
-          { name: 'movscript_project_script_read', mode: 'allow', approval: 'never' },
+          { name: 'movscript_script_locate', mode: 'allow', approval: 'never' },
         ],
       },
       capabilities: {
@@ -1116,7 +1116,7 @@ waitWork: () => ({}),
         blocked: [],
         byName: {
           core_skill_update: updateActiveSkillsTool,
-          movscript_project_script_read: activeReadScriptsTool,
+          movscript_script_locate: activeReadScriptsTool,
         },
       },
       skills: [{
@@ -1147,12 +1147,12 @@ waitWork: () => ({}),
   assert.equal(result.status, 'completed')
   assert.deepEqual(updateInputs, [{
     load: ['movscript.workflow.script_reading'],
-    reason: '工具 movscript_project_script_read 需要加载 movscript.workflow.script_reading。',
+    reason: '工具 movscript_script_locate 需要加载 movscript.workflow.script_reading。',
   }])
   assert.match(traceSummaries.join('\n'), /loaded=movscript\.workflow\.script_reading/)
   assert.match(catalogRefreshSummaries.join('\n'), /manifest=test\.core-only/)
-  assert.match(catalogRefreshSummaries.join('\n'), /movscript_project_script_read=available\/granted/)
-  assert.equal((catalogRefreshData[0] as any)?.manifest?.tools?.some((grant: any) => grant.name === 'movscript_project_script_read'), true)
-  assert.equal((catalogRefreshData[0] as any)?.capabilitySnapshot?.keyTools?.some((tool: any) => tool.name === 'movscript_project_script_read' && tool.available === true && tool.granted === true), true)
+  assert.match(catalogRefreshSummaries.join('\n'), /movscript_script_locate=available\/granted/)
+  assert.equal((catalogRefreshData[0] as any)?.manifest?.tools?.some((grant: any) => grant.name === 'movscript_script_locate'), true)
+  assert.equal((catalogRefreshData[0] as any)?.capabilitySnapshot?.keyTools?.some((tool: any) => tool.name === 'movscript_script_locate' && tool.available === true && tool.granted === true), true)
   if (result.status === 'completed') assert.equal(result.finalContent, 'skill loaded')
 })

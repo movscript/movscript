@@ -8,6 +8,10 @@ export function isActiveRunStatus(status: AgentRun['status']): boolean {
   return status === 'queued' || status === 'in_progress' || status === 'requires_action'
 }
 
+export function isExecutingRunStatus(status: AgentRun['status']): boolean {
+  return status === 'queued' || status === 'in_progress'
+}
+
 export function isFinishedRunStatus(status: AgentRun['status']): boolean {
   return status === 'completed' || status === 'completed_with_warnings' || status === 'failed'
 }

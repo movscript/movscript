@@ -43,7 +43,6 @@ test('project workbench definitions own proposal kinds at the correct layer', ()
   assert.equal(getProjectWorkbenchDefinitionForProposalKind('asset_proposal')?.id, 'pre_production')
   assert.equal(getProjectWorkbenchDefinitionForProposalKind('production_proposal')?.id, 'creative_taskGraph')
   assert.equal(getProjectWorkbenchDefinitionForProposalKind('content_unit_proposal')?.id, 'content_orchestration')
-  assert.equal(getProjectWorkbenchDefinitionForProposalKind('script_split_proposal'), null)
 })
 
 test('project workbench review paths are generated from review query contracts', () => {

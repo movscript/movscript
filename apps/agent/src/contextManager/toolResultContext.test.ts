@@ -19,7 +19,7 @@ function testRun(): AgentRun {
 test('buildModelToolResultContext summarizes oversized tool result bodies', () => {
   const result = buildModelToolResultContext({
     run: testRun(),
-    call: { name: 'movscript_project_script_read', args: { projectId: 42 } },
+    call: { name: 'movscript_script_locate', args: { projectId: 42 } },
     result: {
       projectId: 42,
       scripts: [{
@@ -57,6 +57,26 @@ test('buildModelToolResultContext leaves small tool results intact', () => {
   })
 })
 
+test('buildModelToolResultContext marks completed plan updates as satisfied', () => {
+  const result = buildModelToolResultContext({
+    run: testRun(),
+    call: { name: 'core_update_plan', args: { tasks: [{ step: '整理现状', status: 'completed' }] } },
+    result: {
+      status: 'unchanged',
+      plan: {
+        id: 'plan_1',
+        items: [{ step: '整理现状', status: 'completed' }],
+      },
+    },
+  })
+
+  assert.equal(result.dropped, false)
+  const payload = JSON.parse(result.content)
+  assert.equal(payload.runtimeInstruction.requestSatisfied, true)
+  assert.equal(payload.runtimeInstruction.doNotRepeatToolCall, 'core_update_plan')
+  assert.match(payload.runtimeInstruction.reason, /different plan change/)
+})
+
 test('buildModelToolResultContext reads context budget from agent manifest metadata', () => {
   const result = buildModelToolResultContext({
     run: {
@@ -71,7 +91,7 @@ test('buildModelToolResultContext reads context budget from agent manifest metad
         metadata: { limits: { maxRetrievedContextChars: 1000 } },
       },
     },
-    call: { name: 'movscript_project_script_read', args: { projectId: 42 } },
+    call: { name: 'movscript_script_locate', args: { projectId: 42 } },
     result: {
       projectId: 42,
       scripts: [{ id: 1, title: 'Long Script', content: '雨夜便利店。'.repeat(500) }],
@@ -89,7 +109,7 @@ test('buildModelToolResultContext keeps script bodies up to the inline limit in 
       ...testRun(),
       metadata: { limits: { maxRetrievedContextChars: 24000 } },
     },
-    call: { name: 'movscript_project_script_read', args: { projectId: 42 } },
+    call: { name: 'movscript_script_locate', args: { projectId: 42 } },
     result: {
       projectId: 42,
       scripts: [{
@@ -113,7 +133,7 @@ test('buildModelToolResultContext does not parse embedded JSON with non-finite n
       ...testRun(),
       metadata: { limits: { maxRetrievedContextChars: 2000 } },
     },
-    call: { name: 'movscript_project_script_read', args: { projectId: 42 } },
+    call: { name: 'movscript_script_locate', args: { projectId: 42 } },
     result: {
       text: '{"score":1e999,"body":"This body would otherwise be parsed."}',
       filler: 'x'.repeat(3000),

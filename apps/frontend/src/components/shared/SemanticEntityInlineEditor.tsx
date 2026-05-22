@@ -56,6 +56,7 @@ interface SemanticEntityInlineEditorProps {
   resetToken?: number
   idScope?: string
   editKey?: string | number | null
+  deleteRecord?: (record: SemanticEntityRecord) => Promise<unknown>
   onSaved?: (record: SemanticEntityRecord) => void
   onDeleted?: (record: SemanticEntityRecord) => void
 }
@@ -99,6 +100,7 @@ export function SemanticEntityInlineEditor({
   resetToken,
   idScope,
   editKey,
+  deleteRecord,
   onSaved,
   onDeleted,
 }: SemanticEntityInlineEditorProps) {
@@ -204,6 +206,7 @@ export function SemanticEntityInlineEditor({
   const deleteMutation = useMutation({
     mutationFn: () => {
       if (!projectId || !record) throw new Error('missing record')
+      if (deleteRecord) return deleteRecord(record)
       return deleteSemanticEntity(projectId, config, record.ID)
     },
     onSuccess: () => {

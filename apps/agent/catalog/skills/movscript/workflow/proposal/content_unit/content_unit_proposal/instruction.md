@@ -28,7 +28,7 @@ Draft schema：{{schema:movscript.content_unit_proposal.v1.id}}
 - Focus：{{tool:movscript_focus_get}}
 - Production context：{{tool:movscript_production_context_query}}
 - Project 设定和素材槽查询：{{tool:movscript_creative_reference_query}} {{tool:movscript_asset_slot_query}}
-- Draft：{{tool:draft_get}} {{tool:draft_create}} {{tool:draft_file_read}} {{tool:draft_file_search}} {{tool:draft_file_edit}} {{tool:draft_validate}} {{tool:draft_apply_preview}}。正文编辑使用文件工具修改 `draft.filePath` 指向的真实 JSON 文件。
+- Draft：{{tool:draft_create}} {{tool:core_file_read}} {{tool:core_file_search}} {{tool:core_file_edit}} {{tool:draft_apply_preview}}。已知 draftId 时直接读取 `agent://draft/{draftId}/content`；正文编辑使用文件工具修改同一个真实 JSON 文件 ref；修改后用 `draft_apply_preview` 做 validation 与 dry-run。
 - Knowledge：{{tool:knowledge_search}} {{tool:knowledge_get}}
 - 缺少目标时询问：{{tool:core_user_input_request}}
 
@@ -43,7 +43,7 @@ Draft schema：{{schema:movscript.content_unit_proposal.v1.id}}
 1. 读取 focus，确认 production、segment、scene moment 或用户希望结构化的内容范围。
 2. 如有 production、segment、scene moment 或 content unit 锚点，读取 production context；优先围绕当前 scene moment 的剧情定位、情绪、动作、冲突和信息释放，不要脱离情节另写一段。
 3. 从 production context 中识别 scene moment、segment 或 content unit 已绑定的 creative references / asset slots；必要时调用 `movscript_creative_reference_query` / `movscript_asset_slot_query` 核对已有设定、状态、usage 和素材槽。若情节必须依赖缺失的角色、地点、道具、关系或世界规则，先交接 setting_proposal，不要在 content unit 描述或 prompt 中临时补造。
-4. 如果当前会话已有 content_unit_proposal draftId，先读取它并记录 `draft.filePath`；否则创建新的 proposal draft。
+4. 如果当前会话已有 content_unit_proposal draftId，先用 `core_file_read` 读取 `agent://draft/{draftId}/content`；否则创建新的 proposal draft。
 5. 将情节拆成可审阅的 content units，并写明每个 unit 的表达目标、时长、画面意图、剧情信息、情绪转折、钩子设计和文本/节奏要点；`kind` 只表达产出轨道，不表达叙事功能。
 6. 对分镜类 unit，尽量补齐可拍摄细节：`story_purpose`、`emotional_intent`、`shot`、`performance`、`lighting`、`blocking`、`sound`、`transition`。镜头参数应包括景别、机位、镜头运动、焦点/构图和建议时长；人物动作应包含表情、视线、停顿、手部或身体细节；光线应说明方向、明暗、色温或阴影关系。
 7. 如果用户要求“视觉计划”“调度图”“blocking”“故事板简述”或当前制作项已有锚点，应在对应 unit 中补 `visual_taskGraph` 和 `storyboard_brief`：`visual_taskGraph` 包含 `space`、`blocking`、`camera_path`、`beats`、`props`、`lighting`、`risks`；`storyboard_brief` 包含 `purpose`、`subject`、`composition`、`action_moment`、`emotion`、`keyframe_suggestions`。这些字段是制作计划，不是已生成媒体。

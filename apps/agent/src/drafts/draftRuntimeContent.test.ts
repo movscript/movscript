@@ -47,7 +47,7 @@ test('canonicalizeProjectStandardsProposalDraftContent preserves project standar
 })
 
 test('canonicalizeProjectStandardsProposalDraftContent rejects unsupported or malformed inputs', () => {
-  assert.equal(canonicalizeProjectStandardsProposalDraftContent(draft({ kind: 'script' }), backendApply({ canonical_snapshot: {} })), undefined)
+  assert.equal(canonicalizeProjectStandardsProposalDraftContent(draft({ kind: 'project_standards_proposal' }), backendApply({ canonical_snapshot: {} })), undefined)
   assert.equal(canonicalizeProjectStandardsProposalDraftContent(draft({ content: 'not json' }), backendApply({ canonical_snapshot: {} })), undefined)
   assert.equal(canonicalizeProjectStandardsProposalDraftContent(draft(), backendApply({ other: true })), undefined)
 })

@@ -13,6 +13,7 @@ import { listSemanticEntities, semanticEntityConfig, type GenerationContext, typ
 import { api } from '@/lib/api'
 import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
 import { normalizeAssetSlotStatus } from '@/lib/contentWorkbenchStatus'
+import { isActiveSemanticEntityRecord } from '@/lib/semanticEntityVisibility'
 import {
   byOrder,
   clampProgress,
@@ -172,8 +173,8 @@ export function buildContentGenerationMomentRows(data?: ProductionWorkbenchData)
   if (!data) return []
   const productions = data.productions ?? []
   const segments = data.segments ?? []
-  const sceneMoments = data.sceneMoments ?? []
-  const contentUnits = data.contentUnits ?? []
+  const sceneMoments = (data.sceneMoments ?? []).filter(isVisibleContentWorkbenchRecord)
+  const contentUnits = (data.contentUnits ?? []).filter(isVisibleContentWorkbenchRecord)
   const assetSlotsData = data.assetSlots ?? []
   const keyframesData = (data.keyframes ?? []).filter((keyframe) => !isGeneratedKeyframeCandidateRecord(keyframe))
   const scriptBlocksData = data.scriptBlocks ?? []
@@ -232,7 +233,7 @@ export function buildContentGenerationMomentRows(data?: ProductionWorkbenchData)
       const missingSlots = effectiveAssetSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
       const previewTimelineIds = bestPreviewTimelineIdsForProductionIds(productionIds, data)
       const previewTimelineItems = scopedPreviewTimelineItems(
-        data.previewTimelineItems,
+        (data.previewTimelineItems ?? []).filter(isVisibleContentWorkbenchRecord),
         previewTimelineIds,
         (item) => (
           Number(item.scene_moment_id) === moment.ID ||
@@ -265,7 +266,7 @@ export function buildContentGenerationMomentRows(data?: ProductionWorkbenchData)
 }
 
 export function isVisibleContentWorkbenchRecord(record: ContentWorkbenchRecord) {
-  return !['ignored', 'merged'].includes(String(record.status ?? '').toLowerCase())
+  return isActiveSemanticEntityRecord(record)
 }
 
 export function buildMomentStandards(row: ContentGenerationMomentRow | null, jobs: Job[]): WorkbenchGate[] {

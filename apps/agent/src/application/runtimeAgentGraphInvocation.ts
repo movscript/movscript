@@ -19,6 +19,7 @@ import type {
   AgentCapabilitiesResponse,
   AgentDebugContextPanel,
   AgentMessage,
+  AgentPlan,
   AgentRun,
   AgentTraceEvent,
   AgentTraceEventKind,
@@ -203,9 +204,14 @@ function buildThreadRuntimeStateForPrompt(input: {
   run: AgentRun
   store: Pick<
     AgentStore,
-    'listRuns' | 'listRuntimeWorks' | 'listRuntimeInteractions' | 'listRuntimeContinuations'
+    | 'getThread'
+    | 'listRuns'
+    | 'listRuntimeWorks'
+    | 'listRuntimeInteractions'
+    | 'listRuntimeContinuations'
   >
 }): JSONValue {
+  const thread = input.store.getThread(input.run.threadId)
   const runs = input.store.listRuns({ threadId: input.run.threadId })
   const works = input.store.listRuntimeWorks({ threadId: input.run.threadId })
   const interactions = input.store.listRuntimeInteractions({ threadId: input.run.threadId })
@@ -217,6 +223,7 @@ function buildThreadRuntimeStateForPrompt(input: {
     activeRunIds: runs
       .filter((run) => run.status === 'queued' || run.status === 'in_progress' || run.status === 'requires_action')
       .map((run) => run.id),
+    ...(thread?.currentPlan ? { currentPlan: runtimePlanSnapshot(thread.currentPlan) } : {}),
     works: works.map((work) => ({
       id: work.id,
       kind: work.kind,
@@ -246,6 +253,20 @@ function buildThreadRuntimeStateForPrompt(input: {
         nextInput: continuation.nextInput,
         updatedAt: continuation.updatedAt,
       })),
+  } as unknown as JSONValue
+}
+
+function runtimePlanSnapshot(plan: AgentPlan): JSONValue {
+  return {
+    id: plan.id,
+    runId: plan.runId,
+    updatedAt: plan.updatedAt,
+    completedCount: plan.completedCount,
+    totalCount: plan.totalCount,
+    items: plan.items.map((item) => ({
+      step: item.step,
+      status: item.status,
+    })),
   } as unknown as JSONValue
 }
 

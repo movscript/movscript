@@ -40,7 +40,7 @@ test('default profile prompt composition covers global policy and triggered work
 
   assert.match(prompt.systemPrompt, /Project Standards Proposal/)
   assert.match(prompt.systemPrompt, /Proposal First/)
-  assert.match(prompt.systemPrompt, /movscript_project_script_read/)
+  assert.match(prompt.systemPrompt, /movscript_script_locate/)
   assert.match(prompt.systemPrompt, /项目规范必须先基于剧本题材/)
   assert.match(prompt.systemPrompt, /定义 agent 对自身运行能力的稳定认知/)
   assert.match(prompt.systemPrompt, /能力发现、上下文读取、记忆、用户输入、catalog、审批状态和 runtime works/)

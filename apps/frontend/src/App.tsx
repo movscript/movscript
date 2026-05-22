@@ -290,11 +290,17 @@ function LegacyRedirect({ to }: { to: string }) {
   return <Navigate to={withSearch(to, search)} replace />
 }
 
-function CanvasHeaderControls() {
+function CanvasHeaderLeft() {
   const navigate = useNavigate()
   const iconButtonClass = 'flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground'
+  const canvasName = useCanvasHeaderStore((s) => s.canvasName)
+  const canvasType = useCanvasHeaderStore((s) => s.canvasType)
+  const nodeCount = useCanvasHeaderStore((s) => s.nodeCount)
+  const runningCount = useCanvasHeaderStore((s) => s.runningCount)
+  const activeRunLabel = useCanvasHeaderStore((s) => s.activeRunLabel)
+  const onNameChange = useCanvasHeaderStore((s) => s.onNameChange)
   return (
-    <div className="flex shrink-0 items-center gap-1">
+    <div className="flex min-w-0 max-w-[36vw] items-center gap-1.5 overflow-hidden">
       <button
         type="button"
         className={iconButtonClass}
@@ -304,6 +310,50 @@ function CanvasHeaderControls() {
       >
         <ArrowLeft size={12} />
       </button>
+      <Badge variant="outline" className="h-6 shrink-0 gap-1 px-2 type-tiny font-medium">
+        {canvasType === 'workflow' ? <Zap size={12} /> : <Lightbulb size={12} />}
+        {i18n.t(`canvas.editor.canvasType.${canvasType}`)}
+      </Badge>
+      <input
+        className="app-window-no-drag min-w-[92px] flex-1 border-none bg-transparent type-label font-semibold text-foreground outline-none"
+        value={canvasName}
+        onChange={(event) => onNameChange?.(event.target.value)}
+        placeholder={i18n.t('canvas.editor.untitled')}
+      />
+      <Badge variant="outline" className="hidden h-6 shrink-0 items-center gap-1 border-border type-tiny font-medium leading-none text-muted-foreground sm:flex">
+        <Workflow size={12} />
+        {i18n.t('canvas.editor.nodesCount', { count: nodeCount })}
+      </Badge>
+      {runningCount > 0 && (
+        <Badge variant="secondary" className="h-6 shrink-0 gap-1 type-tiny">
+          <Loader2 size={12} className="animate-spin" />
+          {i18n.t('canvas.editor.runningCount', { count: runningCount })}
+        </Badge>
+      )}
+      {canvasType === 'workflow' && activeRunLabel && (
+        <Badge variant="outline" className="hidden h-6 max-w-[160px] gap-1 truncate type-tiny 2xl:flex">{activeRunLabel}</Badge>
+      )}
+    </div>
+  )
+}
+
+function CanvasHeaderActions() {
+  const navigate = useNavigate()
+  const onRun = useCanvasHeaderStore((s) => s.onRun)
+  const onSave = useCanvasHeaderStore((s) => s.onSave)
+  const saving = useCanvasHeaderStore((s) => s.saving)
+  const startingRun = useCanvasHeaderStore((s) => s.startingRun)
+  const iconButtonClass = 'flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground'
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <Button onClick={onRun} disabled={!onRun || startingRun} size="sm" className="h-6 rounded-md px-2 type-tiny">
+        <Play size={12} />
+        <span className="hidden md:inline">{startingRun ? i18n.t('canvas.editor.starting') : i18n.t('canvas.editor.startRun')}</span>
+      </Button>
+      <Button onClick={onSave} disabled={!onSave || saving} size="sm" variant="outline" className="h-6 rounded-md px-2 type-tiny">
+        {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+        <span className="hidden md:inline">{saving ? i18n.t('common.saving') : i18n.t('common.save')}</span>
+      </Button>
       <button
         type="button"
         className={iconButtonClass}
@@ -322,80 +372,6 @@ function CanvasHeaderControls() {
       >
         <BriefcaseBusiness size={12} />
       </button>
-    </div>
-  )
-}
-
-function CanvasHeaderCenter() {
-  const canvasName = useCanvasHeaderStore((s) => s.canvasName)
-  const canvasType = useCanvasHeaderStore((s) => s.canvasType)
-  const nodeCount = useCanvasHeaderStore((s) => s.nodeCount)
-  const runningCount = useCanvasHeaderStore((s) => s.runningCount)
-  const doneCount = useCanvasHeaderStore((s) => s.doneCount)
-  const inputCount = useCanvasHeaderStore((s) => s.inputCount)
-  const processorCount = useCanvasHeaderStore((s) => s.processorCount)
-  const outputCount = useCanvasHeaderStore((s) => s.outputCount)
-  const activeRunLabel = useCanvasHeaderStore((s) => s.activeRunLabel)
-  const workflowRunningCount = useCanvasHeaderStore((s) => s.workflowRunningCount)
-  const onNameChange = useCanvasHeaderStore((s) => s.onNameChange)
-  return (
-    <div className="flex min-w-0 items-center gap-2">
-      <Badge variant="outline" className="h-6 shrink-0 gap-1 px-2 type-tiny font-medium">
-        {canvasType === 'workflow' ? <Zap size={12} /> : <Lightbulb size={12} />}
-        {i18n.t(`canvas.editor.canvasType.${canvasType}`)}
-      </Badge>
-      <input
-        className="app-window-no-drag min-w-[120px] max-w-[260px] flex-1 border-none bg-transparent type-label font-semibold text-foreground outline-none"
-        value={canvasName}
-        onChange={(event) => onNameChange?.(event.target.value)}
-        placeholder={i18n.t('canvas.editor.untitled')}
-      />
-      <Badge variant="outline" className="hidden h-6 shrink-0 items-center gap-1 border-border type-tiny font-medium leading-none text-muted-foreground sm:flex">
-        <Workflow size={12} />
-        {i18n.t('canvas.editor.nodesCount', { count: nodeCount })}
-      </Badge>
-      {runningCount > 0 && (
-        <Badge variant="secondary" className="h-6 shrink-0 gap-1 type-tiny">
-          <Loader2 size={12} className="animate-spin" />
-          {i18n.t('canvas.editor.runningCount', { count: runningCount })}
-        </Badge>
-      )}
-      {canvasType === 'workflow' && activeRunLabel && (
-        <Badge variant="outline" className="hidden h-6 shrink-0 gap-1 type-tiny sm:flex">{activeRunLabel}</Badge>
-      )}
-      {canvasType === 'workflow' && workflowRunningCount > 1 && (
-        <Badge variant="secondary" className="hidden h-6 shrink-0 type-tiny sm:flex">
-          {i18n.t('canvas.editor.parallelRuns', { count: workflowRunningCount })}
-        </Badge>
-      )}
-      <div className="hidden min-w-0 items-center gap-1.5 truncate type-tiny text-muted-foreground xl:flex">
-        <span>{i18n.t('canvas.editor.stats.inputs', { count: inputCount })}</span>
-        <span className="h-1 w-1 rounded-full bg-border" />
-        <span>{i18n.t('canvas.editor.stats.processors', { count: processorCount })}</span>
-        <span className="h-1 w-1 rounded-full bg-border" />
-        <span>{i18n.t('canvas.editor.stats.outputs', { count: outputCount })}</span>
-        <span className="h-1 w-1 rounded-full bg-border" />
-        <span>{i18n.t('canvas.editor.stats.done', { count: doneCount })}</span>
-      </div>
-    </div>
-  )
-}
-
-function CanvasHeaderActions() {
-  const onRun = useCanvasHeaderStore((s) => s.onRun)
-  const onSave = useCanvasHeaderStore((s) => s.onSave)
-  const saving = useCanvasHeaderStore((s) => s.saving)
-  const startingRun = useCanvasHeaderStore((s) => s.startingRun)
-  return (
-    <div className="flex shrink-0 items-center gap-1">
-      <Button onClick={onRun} disabled={!onRun || startingRun} size="sm" className="h-6 rounded-md px-2 type-tiny">
-        <Play size={12} /> {startingRun ? i18n.t('canvas.editor.starting') : i18n.t('canvas.editor.startRun')}
-      </Button>
-      <Button onClick={onSave} disabled={!onSave || saving} size="sm" variant="outline" className="h-6 rounded-md px-2 type-tiny">
-        {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-        {saving ? i18n.t('common.saving') : i18n.t('common.save')}
-      </Button>
-      <CanvasHeaderControls />
     </div>
   )
 }
@@ -533,7 +509,7 @@ export default function App() {
           <Route path={ROUTES.canvasEditor} element={
             <OrgGuard>
               <WorkspaceShell
-                header={<Header centerContent={<CanvasHeaderCenter />} appControls={<CanvasHeaderActions />} />}
+                header={<Header leftControls={<CanvasHeaderLeft />} appControls={<CanvasHeaderActions />} />}
                 contentPaddingClassName="p-0"
                 contentFrameClassName="rounded-none border-0"
               >
@@ -607,8 +583,6 @@ export default function App() {
               <Route path={LEGACY_ROUTES.creativeWorkbench} element={<ProjectGuard><LegacyPreProductionSettingsRedirect /></ProjectGuard>} />
               <Route path={LEGACY_ROUTES.creation} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.overview} /></ProjectGuard>} />
               <Route path={LEGACY_ROUTES.workbench} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.overview} /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.scriptSplitWorkbench} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.scripts} /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.workbenchScript} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.scripts} /></ProjectGuard>} />
               <Route path={LEGACY_ROUTES.workbenchCreative} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.preProduction} /></ProjectGuard>} />
               <Route path={LEGACY_ROUTES.workbenchAssets} element={<ProjectGuard><LegacyPreProductionAssetsRedirect /></ProjectGuard>} />
               <Route path={ROUTES.project.contentUnitWorkbench} element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="production" showCategoryTabs={false} /></ProjectGuard>} />

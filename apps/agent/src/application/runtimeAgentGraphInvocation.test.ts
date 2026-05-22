@@ -13,6 +13,7 @@ import type { AgentCatalogToolManager } from '../orchestration/toolExecutor.js'
 import { InMemoryAgentStore } from '../state/store.js'
 import type {
   AgentCapabilitiesResponse,
+  AgentPlan,
   AgentRun,
   AgentRunStep,
   AgentTraceEvent,
@@ -146,6 +147,38 @@ test('invokeRuntimeAgentGraph does not reinject approval tool calls already forc
   assert.equal(captured?.forcedToolCalls, undefined)
 })
 
+test('invokeRuntimeAgentGraph includes current plan in runtime state', async () => {
+  const run = makeRun()
+  const currentPlan: AgentPlan = {
+    schema: 'movscript.agent.plan.v1',
+    id: 'plan_1',
+    threadId: run.threadId,
+    runId: 'run_previous',
+    items: [
+      { step: 'Inspect current state', status: 'completed' },
+      { step: 'Update prompt policy', status: 'in_progress' },
+    ],
+    completedCount: 1,
+    totalCount: 2,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:01:00.000Z',
+  }
+  let captured: AgentGraphInput | undefined
+
+  await invokeRuntimeAgentGraph({
+    ...baseInvocationInput(run, { currentPlan }),
+    invokeGraph: async (input) => {
+      captured = input
+      return { status: 'completed', finalContent: 'done', assistantContents: ['done'], toolOutcomes: [], warnings: [] }
+    },
+  })
+
+  const runtimeState = captured?.runtimeState as any
+  assert.equal(runtimeState?.currentPlan?.id, 'plan_1')
+  assert.deepEqual(runtimeState?.currentPlan?.items, currentPlan.items)
+  assert.equal(runtimeState?.currentPlan?.completedCount, 1)
+})
+
 test('invokeRuntimeAgentGraph exposes catalog refresh callback with latest snapshot resolution', async () => {
   const run = makeRun({ metadata: { manifestSource: 'default' } })
   const refreshedRegistry = new StaticToolRegistry([tool('tool_refreshed')])
@@ -189,8 +222,17 @@ test('invokeRuntimeAgentGraph fails before graph execution when model config is 
   )
 })
 
-function baseInvocationInput(run: AgentRun): Parameters<typeof invokeRuntimeAgentGraph>[0] {
+function baseInvocationInput(run: AgentRun, options: { currentPlan?: AgentPlan } = {}): Parameters<typeof invokeRuntimeAgentGraph>[0] {
   const store = new InMemoryAgentStore()
+  store.createThread({
+    id: run.threadId,
+    status: 'running',
+    archived: false,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: options.currentPlan?.updatedAt ?? '2026-01-01T00:00:00.000Z',
+    ...(options.currentPlan ? { currentPlan: options.currentPlan } : {}),
+    messages: [],
+  })
   store.createRun(run)
   const memoryManager = new MemoryManager(new InMemoryAgentMemoryStore())
   return {
@@ -337,7 +379,7 @@ function emptyCatalogManager(): AgentCatalogToolManager {
   return {
     inspectAgentCatalog: () => ({}),
     updateActiveSkills: () => ({}),
-    updateProgressChecklist: () => ({}),
+    updatePlan: () => ({}),
       startWork: () => ({}),
 getWork: () => ({}),
 listWork: () => ({}),

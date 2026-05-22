@@ -4,6 +4,7 @@ import {
   type SemanticEntityKind,
   type SemanticEntityRecord,
 } from '@/api/semanticEntities'
+import { isActiveSemanticEntityRecord } from '@/lib/semanticEntityVisibility'
 import type { ProductionWritingExpressionType as WritingExpressionType } from '@/lib/productionWritingExpressions'
 
 export type ProductionRecord = SemanticEntityRecord & { script_version_id?: number; name?: string }
@@ -128,6 +129,10 @@ export interface OrchestrationData {
   keyframes: KeyframeRecord[]
 }
 
+export function isActiveProductionOrchestrationRecord(record: SemanticEntityRecord) {
+  return isActiveSemanticEntityRecord(record)
+}
+
 export const PRODUCTION_ORCHESTRATION_ENTITY_KINDS = [
   'productions',
   'segments',
@@ -157,12 +162,12 @@ export async function loadProductionOrchestrationData(projectId: number): Promis
 
   return {
     productions: productions as ProductionRecord[],
-    segments: segments as SegmentRecord[],
-    sceneMoments: sceneMoments as SceneMomentRecord[],
+    segments: (segments as SegmentRecord[]).filter(isActiveProductionOrchestrationRecord),
+    sceneMoments: (sceneMoments as SceneMomentRecord[]).filter(isActiveProductionOrchestrationRecord),
     creativeReferences: creativeReferences as CreativeReferenceRecord[],
     creativeReferenceUsages,
     assetSlots: assetSlots as AssetSlotRecord[],
-    contentUnits: contentUnits as ContentUnitRecord[],
+    contentUnits: (contentUnits as ContentUnitRecord[]).filter(isActiveProductionOrchestrationRecord),
     scriptBlocks: scriptBlocks as ScriptBlockRecord[],
     writingExpressions: writingExpressions as WritingExpressionRecord[],
     keyframes: keyframes as KeyframeRecord[],

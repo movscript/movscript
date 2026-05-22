@@ -19,7 +19,7 @@
 
 允许的工具：
 - Focus：{{tool:movscript_focus_get}}
-- Draft：{{tool:draft_get}}
+- Draft 文件：{{tool:core_file_read}} {{tool:core_file_search}}。已知 draftId 时直接读取 `agent://draft/{draftId}/content`。
 - Knowledge：{{tool:knowledge_search}} {{tool:knowledge_get}}
 - 缺少目标时询问：{{tool:core_user_input_request}}
 

@@ -174,6 +174,17 @@ type PatchSceneMomentInput struct {
 	MetadataJSON  string `json:"metadata_json"`
 }
 
+type AbandonSceneMomentResult struct {
+	SceneMomentID        uint `json:"scene_moment_id"`
+	ContentUnitsUpdated  int  `json:"content_units_updated"`
+	TimelineItemsRemoved int  `json:"timeline_items_removed"`
+}
+
+type AbandonContentUnitResult struct {
+	ContentUnitID        uint `json:"content_unit_id"`
+	TimelineItemsRemoved int  `json:"timeline_items_removed"`
+}
+
 type WritingExpressionFilter struct {
 	ProjectID     uint
 	SceneMomentID uint

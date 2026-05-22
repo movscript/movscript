@@ -29,7 +29,7 @@ function testRun(): AgentRun {
   }
 }
 
-function testOptions(mcpClient: { initialize(): Promise<JSONValue>; callTool(name: string, args?: Record<string, JSONValue>): Promise<JSONValue> }) {
+function testOptions(mcpClient: { initialize(): Promise<JSONValue>; callTool(name: string, args?: Record<string, JSONValue>): Promise<JSONValue>; readResource?(uri: string): Promise<JSONValue> }) {
   return {
     run: testRun(),
     mcpClient,
@@ -59,7 +59,7 @@ test('executeTool serves runtime work wait through the runtime catalog manager',
     catalogManager: {
       inspectAgentCatalog: () => ({}),
       updateActiveSkills: () => ({}),
-      updateProgressChecklist: () => ({}),
+      updatePlan: () => ({}),
       startWork: () => ({}),
       getWork: () => ({}),
       listWork: () => ({}),
@@ -111,25 +111,6 @@ test('executeTool serves runtime knowledge search and bounded get', async () => 
   assert.match((body.result as any)?.contentHash, /^sha256:/)
   assert.equal(typeof (body.result as any)?.sourcePath, 'string')
   assert.equal(((body.result as any)?.content as string).length <= 32, true)
-})
-
-test('executeTool explains numeric draft ids are not backend script ids', async () => {
-  const options = {
-    ...testOptions({
-      async initialize(): Promise<JSONValue> {
-        return {}
-      },
-      async callTool(): Promise<JSONValue> {
-        throw new Error('MCP should not be called for local draft tools')
-      },
-    }),
-    draftStore: new InMemoryAgentDraftStore(),
-  }
-
-  await assert.rejects(
-    () => executeTool({ name: 'draft_get', args: { draftId: 3 } }, options),
-    /not backend project script IDs.*movscript_project_script_read/s,
-  )
 })
 
 test('executeTool reads project standards from backend project data with context fallback', async () => {
@@ -324,6 +305,15 @@ test('executeTool seeds omitted asset proposal snapshot from current project dat
         schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
         scope: 'asset_proposal',
         mode: 'snapshot',
+        slot: {
+          ID: 9,
+          project_id: 42,
+          owner: { Type: 'creative_reference', ID: 7 },
+          name: 'Existing portrait',
+          Kind: 'image',
+          CreatedAt: '2026-05-21T00:00:00Z',
+          UpdatedAt: '2026-05-21T00:00:00Z',
+        },
         proposal: {
           creative_references: [],
           candidate_plans: [],
@@ -340,7 +330,7 @@ test('executeTool seeds omitted asset proposal snapshot from current project dat
           seed: {
             data: {
               asset_slots: [{
-                client_id: 'slot-existing-9',
+                proposal_client_id: 'slot-existing-9',
                 ID: 9,
                 project_id: 42,
                 owner_type: 'creative_reference',
@@ -381,6 +371,81 @@ test('executeTool seeds omitted asset proposal snapshot from current project dat
     resource_id: 12,
     locked_asset_slot_id: 13,
   })
+  assert.deepEqual(content.slot, {
+    id: 9,
+    owner: { type: 'creative_reference', id: 7 },
+    kind: 'image',
+    name: 'Existing portrait',
+  })
+  assert.equal(validateDraft(draft).ok, true)
+  assert.equal((draft.metadata as any)?.proposalBaseHydrated, true)
+  assert.equal((draft.metadata as any)?.proposalSnapshotSeeded, true)
+})
+
+test('executeTool normalizes hydrated setting proposal rows during draft creation', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const result = await executeTool({
+    name: 'draft_create',
+    args: {
+      kind: 'setting_proposal',
+      proposal: true,
+      projectId: 42,
+      content: JSON.stringify({
+        schema: DRAFT_CONTENT_SCHEMA_IDS.settingProposal,
+        scope: 'setting_proposal',
+        mode: 'snapshot',
+        proposal: {
+          creative_references: [],
+        },
+      }),
+    },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        return {
+          seed: {
+            data: {
+              creative_references: [{
+                ID: 14,
+                project_id: 42,
+                proposal_client_id: 'cr_tongzilou_old_room',
+                kind: 'location',
+                name: '筒子楼老屋/旧屋',
+                description: '周建国一家1982年初居住的狭小旧屋。',
+                content: '需要保持空间连续性。',
+                importance: 'core',
+                status: 'needs_review',
+                profile_json: '',
+                tags_json: '',
+                CreatedAt: '2026-05-21T00:00:00Z',
+                UpdatedAt: '2026-05-21T00:00:00Z',
+              }],
+            },
+          },
+        }
+      },
+    }),
+    draftStore,
+  })
+
+  assert.equal((result.result as any)?.status, 'created')
+  const draft = draftStore.listDrafts()[0]!
+  const content = JSON.parse(draft.content)
+  assert.deepEqual(content.proposal.creative_references, [{
+    client_id: 'cr_tongzilou_old_room',
+    id: 14,
+    kind: 'location',
+    name: '筒子楼老屋/旧屋',
+    description: '周建国一家1982年初居住的狭小旧屋。',
+    content: '需要保持空间连续性。',
+    importance: 'core',
+    status: 'needs_review',
+    profile_json: '',
+    tags_json: '',
+  }])
   assert.equal(validateDraft(draft).ok, true)
   assert.equal((draft.metadata as any)?.proposalBaseHydrated, true)
   assert.equal((draft.metadata as any)?.proposalSnapshotSeeded, true)
@@ -757,7 +822,7 @@ test('executeTool edits draft files with explicit file revision preconditions', 
 
   await assert.rejects(
     () => executeTool({
-      name: 'draft_file_edit',
+      name: 'core_file_edit',
       args: {
         ref: draftContentFileRef(draft.id),
         baseRevision: 'sha256:stale',
@@ -772,7 +837,7 @@ test('executeTool edits draft files with explicit file revision preconditions', 
   )
 
   const read = await executeTool({
-    name: 'draft_file_read',
+    name: 'core_file_read',
     args: { ref: draftContentFileRef(draft.id), jsonPointer: '/proposal/asset_slots' },
   }, options)
 
@@ -782,7 +847,7 @@ test('executeTool edits draft files with explicit file revision preconditions', 
   const original = draftStore.getDraft(draft.id)?.content ?? ''
   const next = original.replace('"candidate_plans":[]', '"candidate_plans":[{"name":"TaskGraph A"}]')
   const edited = await executeTool({
-    name: 'draft_file_edit',
+    name: 'core_file_edit',
     args: {
       ref: draftContentFileRef(draft.id),
       baseRevision: (read.result as any).revision,
@@ -853,7 +918,7 @@ test('executeTool delegates agent file tools to the injected file system without
   }
 
   const read = await executeTool({
-    name: 'draft_file_read',
+    name: 'core_file_read',
     args: { ref: '/workspace/notes.md' },
   }, options)
   assert.equal((read.result as any)?.draft, undefined)
@@ -861,7 +926,7 @@ test('executeTool delegates agent file tools to the injected file system without
   assert.equal((read.result as any)?.content, 'alpha\nbeta\ngamma')
 
   const rangedRead = await executeTool({
-    name: 'draft_file_read',
+    name: 'core_file_read',
     args: { ref: '/workspace/notes.md', startLine: 2, lineCount: 1 },
   }, options)
   assert.equal((rangedRead.result as any)?.content, 'beta')
@@ -870,7 +935,7 @@ test('executeTool delegates agent file tools to the injected file system without
   assert.equal((rangedRead.result as any)?.totalLines, 3)
 
   const edited = await executeTool({
-    name: 'draft_file_edit',
+    name: 'core_file_edit',
     args: {
       ref: '/workspace/notes.md',
       edits: [{
@@ -883,6 +948,61 @@ test('executeTool delegates agent file tools to the injected file system without
   assert.equal((edited.result as any)?.draft, undefined)
   assert.equal((edited.result as any)?.replacementCount, 1)
   assert.equal(files.get('/workspace/notes.md'), 'alpha\ndelta\ngamma')
+})
+
+test('executeTool reads and searches readonly movscript resources through core file tools', async () => {
+  const resourceReads: string[] = []
+  const options = testOptions({
+    async initialize(): Promise<JSONValue> {
+      return {}
+    },
+    async callTool(): Promise<JSONValue> {
+      throw new Error('MCP tools should not be called for resource file reads')
+    },
+    async readResource(uri: string): Promise<JSONValue> {
+      resourceReads.push(uri)
+      return {
+        contents: [{
+          uri,
+          mimeType: 'text/plain',
+          text: '第一行\n老张把字条塞进伞柄\n第三行',
+        }],
+      }
+    },
+  })
+
+  const read = await executeTool({
+    name: 'core_file_read',
+    args: {
+      ref: 'movscript://project/5/script-version/13/content',
+      startLine: 2,
+      lineCount: 1,
+    },
+  }, options)
+  assert.equal(resourceReads[0], 'movscript://project/5/script-version/13/content?startLine=2&lineCount=1&maxChars=20000')
+  assert.equal((read.result as any)?.file.provider, 'mcp')
+  assert.equal((read.result as any)?.content, '第一行\n老张把字条塞进伞柄\n第三行')
+
+  const searched = await executeTool({
+    name: 'core_file_search',
+    args: {
+      ref: 'movscript://project/5/script-version/13/content',
+      query: '字条',
+    },
+  }, options)
+  assert.equal((searched.result as any)?.matchCount, 1)
+  assert.equal((searched.result as any)?.matches[0].line, 2)
+
+  await assert.rejects(
+    () => executeTool({
+      name: 'core_file_edit',
+      args: {
+        ref: 'movscript://project/5/script-version/13/content',
+        edits: [{ type: 'replace_text', oldText: '字条', newText: '纸条' }],
+      },
+    }, options),
+    /cannot edit readonly MCP resource/,
+  )
 })
 
 test('executeTool applies valid proposal drafts through runtime apply tool', async () => {
@@ -950,7 +1070,7 @@ test('executeTool ignores non-plain runtime draft source and metadata records', 
   const result = await executeTool({
     name: 'draft_create',
     args: {
-      kind: 'note',
+      kind: 'project_standards_proposal',
       title: 'Runtime draft',
       content: 'Draft content',
       source: new RuntimeRecord() as unknown as JSONValue,
@@ -999,7 +1119,7 @@ test('executeTool drops invalid numeric page entity ids from runtime draft sourc
   await executeTool({
     name: 'draft_create',
     args: {
-      kind: 'note',
+      kind: 'project_standards_proposal',
       title: 'Runtime draft',
       content: 'Draft content',
     },

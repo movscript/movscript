@@ -27,6 +27,7 @@ export function createRuntimeWorksBridge(input: {
   return {
     startWork: async (run, request = {}, options = {}) => {
       const work = await input.workManager.start({
+        sessionId: run.sessionId,
         threadId: run.threadId,
         runId: run.id,
         kind: normalizeKind(request.kind),

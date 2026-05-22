@@ -1,0 +1,136 @@
+package handler
+
+import (
+	"net/http"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/movscript/movscript/internal/infra/ai"
+)
+
+// GenerateRuntimeText is a stateless canvas runtime primitive. The frontend owns
+// graph execution and run records; the backend only resolves credentials/models
+// and performs the protected provider call.
+func (h *CanvasHandler) GenerateRuntimeText(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+	if h.aiService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai service is not configured"})
+		return
+	}
+
+	var req struct {
+		ModelID       string         `json:"model_id"`
+		ModelConfigID uint           `json:"model_config_id"`
+		FeatureKey    string         `json:"feature_key"`
+		Prompt        string         `json:"prompt"`
+		Params        map[string]any `json:"params"`
+		ProjectID     *uint          `json:"project_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	req.Prompt = strings.TrimSpace(req.Prompt)
+	if req.Prompt == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "prompt is required"})
+		return
+	}
+
+	featureKey := strings.TrimSpace(req.FeatureKey)
+	if featureKey == "" {
+		featureKey = "canvas_text"
+	}
+	route, err := h.resolveCanvasRuntimeTextRoute(req.ModelID, req.ModelConfigID, featureKey)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	textReq := ai.TextRequest{
+		PromptName:  featureKey,
+		Messages:    []ai.Message{{Role: "user", Content: req.Prompt}},
+		MaxTokens:   intParam(req.Params, "max_tokens", 0),
+		Temperature: floatParam(req.Params, "temperature", -1),
+		JSONMode:    boolParam(req.Params, "json_mode", false),
+	}
+	resp, err := h.aiService.CallTextWithUsage(c.Request.Context(), user.ID, route.ModelConfigID, textReq, ai.UsageContext{
+		OrgID:     currentOrgID(c),
+		ProjectID: req.ProjectID,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"type":            "text",
+		"text":            resp.Content,
+		"model_id":        route.ModelID,
+		"model_config_id": route.ModelConfigID,
+		"usage":           resp.Usage,
+	})
+}
+
+func (h *CanvasHandler) resolveCanvasRuntimeTextRoute(modelID string, modelConfigID uint, featureKey string) (ai.ModelRoute, error) {
+	if strings.TrimSpace(modelID) != "" || modelConfigID != 0 {
+		return h.aiService.ResolveModelRoute(ai.ModelRouteRequest{
+			ModelID:       modelID,
+			ModelConfigID: modelConfigID,
+			Capability:    ai.CapabilityText,
+		})
+	}
+	modelConfigID, modelID, err := h.aiService.GetForFeature(featureKey)
+	if err != nil {
+		return ai.ModelRoute{}, err
+	}
+	return h.aiService.ResolveModelRoute(ai.ModelRouteRequest{
+		ModelID:       modelID,
+		ModelConfigID: modelConfigID,
+		Capability:    ai.CapabilityText,
+	})
+}
+
+func intParam(params map[string]any, key string, fallback int) int {
+	value, ok := params[key]
+	if !ok {
+		return fallback
+	}
+	switch typed := value.(type) {
+	case float64:
+		return int(typed)
+	case int:
+		return typed
+	default:
+		return fallback
+	}
+}
+
+func floatParam(params map[string]any, key string, fallback float32) float32 {
+	value, ok := params[key]
+	if !ok {
+		return fallback
+	}
+	switch typed := value.(type) {
+	case float64:
+		return float32(typed)
+	case float32:
+		return typed
+	default:
+		return fallback
+	}
+}
+
+func boolParam(params map[string]any, key string, fallback bool) bool {
+	value, ok := params[key]
+	if !ok {
+		return fallback
+	}
+	typed, ok := value.(bool)
+	if !ok {
+		return fallback
+	}
+	return typed
+}

@@ -45,6 +45,7 @@ func registerSemanticEntityRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.GET("/projects/:id/entities/scene-moments", h.semanticEntities.ListSceneMoments)
 	protected.POST("/projects/:id/entities/scene-moments", h.semanticEntities.CreateSceneMoment)
 	protected.PATCH("/projects/:id/entities/scene-moments/:sceneMomentId", h.semanticEntities.PatchSceneMoment)
+	protected.POST("/projects/:id/entities/scene-moments/:sceneMomentId/abandon", h.semanticEntities.AbandonSceneMoment)
 	protected.DELETE("/projects/:id/entities/scene-moments/:sceneMomentId", func(c *gin.Context) {
 		h.semanticEntities.DeleteSemanticItemByKind(c, "scene_moment", c.Param("sceneMomentId"))
 	})
@@ -76,6 +77,7 @@ func registerSemanticEntityRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.POST("/projects/:id/entities/content-units", h.semanticEntities.CreateContentUnit)
 	protected.POST("/projects/:id/entities/content-units/:contentUnitId/generation-context", h.semanticEntities.BuildGenerationContext)
 	protected.PATCH("/projects/:id/entities/content-units/:contentUnitId", h.semanticEntities.PatchContentUnit)
+	protected.POST("/projects/:id/entities/content-units/:contentUnitId/abandon", h.semanticEntities.AbandonContentUnit)
 	protected.DELETE("/projects/:id/entities/content-units/:contentUnitId", func(c *gin.Context) {
 		h.semanticEntities.DeleteSemanticItemByKind(c, "content_unit", c.Param("contentUnitId"))
 	})

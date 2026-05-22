@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
-import { applyDraftReview, attachAssetSlotCandidate, attachKeyframeCandidate, buildGenerationModelParamRules, buildGenerationParamValidationAudit, callComfyUITool, callWebUITool, createGenerationJob, getDraftModelContract, listModels, listTools, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, queryCreativeReferences, queryProductionContext, readProjectScripts, setMCPAPIBaseURL, setMCPGenerationToolsSettings, summarizeModelContractForAgent, testMCPGenerationToolServer, updateMCPContextSnapshot, waitGenerationJobs } from './server'
+import { applyDraftReview, attachAssetSlotCandidate, attachKeyframeCandidate, buildGenerationModelParamRules, buildGenerationParamValidationAudit, callComfyUITool, callWebUITool, createGenerationJob, getDraftModelContract, listModels, listTools, locateScriptPassages, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, queryCreativeReferences, queryProductionContext, readResource, setMCPAPIBaseURL, setMCPGenerationToolsSettings, summarizeModelContractForAgent, testMCPGenerationToolServer, updateMCPContextSnapshot, waitGenerationJobs } from './server'
 
 test('normalizeBackendHTTPErrorForMCP preserves structured generation validation details', () => {
   const body = {
@@ -1028,61 +1028,176 @@ test('admin comfyui connector imports history outputs through backend proxy', as
 
 
 
-test('script MCP tool exposes backend script identity and content controls', () => {
-  const tool = listTools().find((item) => item.name === 'movscript_project_script_read')
-  assert.ok(tool)
-  assert.match(tool.description, /backend project scripts/)
-  assert.match(tool.description, /not the local Agent draft artifact API/)
-  const properties = schemaProperties(tool.inputSchema)
-  assert.ok(properties.projectId)
-  assert.ok(properties.scriptId)
-  assert.ok(properties.query)
-  assert.ok(properties.scriptTitle)
-  assert.ok(properties.includeContent)
-  assert.ok(properties.contentLimit)
-  assert.ok(properties.limit)
+test('script locate tool is exposed for fuzzy evidence retrieval', () => {
+  const locateTool = listTools().find((item) => item.name === 'movscript_script_locate')
+  assert.ok(locateTool)
+  assert.match(locateTool.description, /fuzzy user intent/)
+  const locateProperties = schemaProperties(locateTool.inputSchema)
+  assert.ok(locateProperties.intent)
+  assert.ok(locateProperties.queries)
+  assert.ok(locateProperties.must)
+  assert.ok(locateProperties.aliasGroups)
+  assert.equal(listTools().some((item) => item.name === 'movscript_script_file_read'), false)
+  assert.equal(listTools().some((item) => item.name === 'movscript_project_script_read'), false)
 })
 
-test('readProjectScripts filters project scripts by title and returns requested body', async () => {
+test('locateScriptPassages ranks fuzzy alias matches and returns readonly read refs', async () => {
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
-    '/projects/5/scripts': [
+    '/projects/5/entities/script-versions': [
       {
-        ID: 3,
+        ID: 12,
         project_id: 5,
-        title: '总剧本',
-        script_type: 'series_bible',
-        summary: '甜妻主线。',
-        content: '好运甜妻总剧本正文。第一幕，便利店相遇。',
+        script_id: 3,
+        version_number: 2,
+        title: '第一集 v2',
+        content: [
+          '第1场 雨夜 巷口',
+          '林夏站在路灯下。',
+          '老张从伞骨里发现一张字条。',
+          '他没有说话，只把字条攥进掌心。',
+          '第2场 白天 店内',
+          '老板催促众人开会。',
+        ].join('\n'),
         UpdatedAt: '2026-05-18T00:00:00.000Z',
-      },
-      {
-        ID: 4,
-        project_id: 5,
-        title: '第一集',
-        script_type: 'episode',
-        summary: '第一集摘要。',
-        content: '第一集正文。',
-        UpdatedAt: '2026-05-18T00:00:01.000Z',
       },
     ],
   }) as typeof fetch
   const previousBaseURL = 'http://localhost:8765'
   setMCPAPIBaseURL('http://mock.backend')
   try {
-    const result = await readProjectScripts({
+    const result = await locateScriptPassages({
       projectId: 5,
-      scriptTitle: '总剧本',
-      includeContent: true,
-      contentLimit: 500,
+      scriptVersionId: 12,
+      intent: '老张发现纸条那里',
+      must: ['张建国', '纸条'],
+      should: ['发现'],
+      aliasGroups: [['张建国', '老张', '父亲'], ['纸条', '字条', '便签']],
+      windowLines: 1,
     }) as Record<string, any>
 
-    assert.equal(result.count, 2)
-    assert.equal(result.matched, 1)
-    assert.equal(result.returned, 1)
-    assert.equal(result.scripts[0].ID, 3)
-    assert.equal(result.scripts[0].title, '总剧本')
-    assert.equal(result.scripts[0].content, '好运甜妻总剧本正文。第一幕，便利店相遇。')
+    assert.equal(result.scripts.length, 1)
+    assert.equal(result.scripts[0].scriptVersionId, 12)
+    assert.equal(result.scripts[0].uri, 'movscript://project/5/script-version/12/content')
+    assert.equal(result.candidates.length, 1)
+    assert.equal(result.candidates[0].scriptVersionId, 12)
+    assert.equal(result.candidates[0].uri, 'movscript://project/5/script-version/12/content')
+    assert.equal(result.candidates[0].sceneId, 'S01')
+    assert.deepEqual(result.candidates[0].lineRange, [2, 4])
+    assert.deepEqual(result.candidates[0].readRef, {
+      ref: 'movscript://project/5/script-version/12/content',
+      uri: 'movscript://project/5/script-version/12/content',
+      readUri: 'movscript://project/5/script-version/12/content?startLine=2&endLine=4',
+      rangeUri: 'movscript://project/5/script-version/12/content?startLine=2&endLine=4',
+      projectId: 5,
+      scriptVersionId: 12,
+      startLine: 2,
+      endLine: 4,
+    })
+    assert.match(result.candidates[0].excerpt, /老张从伞骨里发现一张字条/)
+  } finally {
+    setMCPAPIBaseURL(previousBaseURL)
+    globalThis.fetch = previousFetch
+  }
+})
+
+test('locateScriptPassages searches across script version files when no script is specified', async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = mockFetch({
+    '/projects/5/entities/script-versions': [
+      {
+        ID: 12,
+        project_id: 5,
+        script_id: 3,
+        version_number: 1,
+        title: '总剧本',
+        content: '第1场 客厅\n林夏整理旧照片。',
+      },
+      {
+        ID: 13,
+        project_id: 5,
+        script_id: 4,
+        version_number: 1,
+        title: '第一集',
+        content: '第1场 雨夜 巷口\n老张把字条塞进伞柄。',
+      },
+    ],
+  }) as typeof fetch
+  const previousBaseURL = 'http://localhost:8765'
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await locateScriptPassages({
+      projectId: 5,
+      must: ['老张', '字条'],
+      windowLines: 1,
+    }) as Record<string, any>
+
+    assert.equal(result.scripts.length, 2)
+    assert.equal(result.candidates.length, 1)
+    assert.equal(result.candidates[0].scriptVersionId, 13)
+    assert.equal(result.candidates[0].readRef.ref, 'movscript://project/5/script-version/13/content')
+  } finally {
+    setMCPAPIBaseURL(previousBaseURL)
+    globalThis.fetch = previousFetch
+  }
+})
+
+test('locateScriptPassages does not fall back to an unrelated latest version for missing titles', async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = mockFetch({
+    '/projects/5/scripts': [],
+    '/projects/5/entities/script-versions': [
+      {
+        ID: 12,
+        project_id: 5,
+        script_id: 3,
+        version_number: 2,
+        title: '总剧本',
+        content: '第1场 雨夜 巷口\n林夏站在路灯下。',
+      },
+    ],
+  }) as typeof fetch
+  const previousBaseURL = 'http://localhost:8765'
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    await assert.rejects(
+      () => locateScriptPassages({
+        projectId: 5,
+        scriptTitle: '第一集',
+        queries: ['雨夜'],
+      }),
+      /No script version found for title: 第一集/
+    )
+  } finally {
+    setMCPAPIBaseURL(previousBaseURL)
+    globalThis.fetch = previousFetch
+  }
+})
+
+test('readResource maps readonly script file URIs to plain text resources', async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = mockFetch({
+    '/projects/5/entities/script-versions': [
+      {
+        ID: 12,
+        project_id: 5,
+        script_id: 3,
+        title: '第一集 v2',
+        content: '第一行\n第二行\n第三行\n第四行',
+      },
+    ],
+  }) as typeof fetch
+  const previousBaseURL = 'http://localhost:8765'
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await readResource('movscript://project/5/script-version/12/content?startLine=2&endLine=3') as Record<string, any>
+
+    assert.equal(result.contents[0].uri, 'movscript://project/5/script-version/12/content?startLine=2&endLine=3')
+    assert.equal(result.contents[0].mimeType, 'text/plain')
+    assert.equal(result.contents[0].text, '第二行\n第三行')
+    assert.equal(result.data.scriptVersionId, 12)
+    assert.equal(result.data.startLine, 2)
+    assert.equal(result.data.endLine, 3)
   } finally {
     setMCPAPIBaseURL(previousBaseURL)
     globalThis.fetch = previousFetch

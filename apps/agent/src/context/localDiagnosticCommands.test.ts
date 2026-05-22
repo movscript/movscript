@@ -215,7 +215,7 @@ test('context diagnostic metadata preserves tool resolution chain', () => {
         },
       }],
       blocked: [{
-        name: 'movscript_project_script_read',
+        name: 'movscript_script_locate',
         source: 'runtime',
         registered: true,
         granted: true,

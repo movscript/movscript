@@ -493,9 +493,10 @@ function countOccurrences(text: string, needle: string): number {
 }
 
 export function normalizeDraftKind(value: unknown): AgentDraftKind {
-  return typeof value === 'string' && (DRAFT_KIND_VALUES as readonly string[]).includes(value)
-    ? value as AgentDraftKind
-    : 'note'
+  if (typeof value !== 'string') return 'project_standards_proposal'
+  const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, '_')
+  if ((DRAFT_KIND_VALUES as readonly string[]).includes(normalized)) return normalized as AgentDraftKind
+  return 'project_standards_proposal'
 }
 
 export function validateDraft(draft: AgentDraft): AgentDraftValidationResult {
@@ -506,9 +507,7 @@ export function validateDraft(draft: AgentDraft): AgentDraftValidationResult {
   if (!draft.content.trim()) {
     issues.push({ path: '/content', message: 'Draft content is required.', severity: 'error' })
   }
-  if (draft.kind === 'script_split_proposal') {
-    validateScriptSplitDraft(draft, issues)
-  } else if (draft.kind === 'setting_proposal') {
+  if (draft.kind === 'setting_proposal') {
     validateProjectLayerProposalDraft(draft, issues, { kind: 'setting' })
   } else if (draft.kind === 'project_standards_proposal') {
     validateProjectLayerProposalDraft(draft, issues, { kind: 'project_standards' })
@@ -582,80 +581,6 @@ function normalizeDraftIdValue(value: unknown): number | string | undefined {
 
 function isValidDraftReferenceId(value: unknown): value is number | string {
   return isValidDraftProjectId(value) || (typeof value === 'string' && value.trim().length > 0)
-}
-
-function validateScriptSplitDraft(draft: AgentDraft, issues: AgentDraftValidationIssue[]): void {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(draft.content)
-  } catch {
-    issues.push({ path: '/content', message: 'Script split draft content must be valid JSON.', severity: 'error' })
-    return
-  }
-  if (!isRecord(parsed)) {
-    issues.push({ path: '/content', message: 'Script split draft content must be a JSON object.', severity: 'error' })
-    return
-  }
-  if (parsed.schema !== DRAFT_CONTENT_SCHEMA_IDS.scriptSplit) {
-    issues.push({ path: '/schema', message: `Script split draft schema must be ${DRAFT_CONTENT_SCHEMA_IDS.scriptSplit}.`, severity: 'error' })
-  }
-  if (!isRecord(parsed.global_settings)) {
-    issues.push({ path: '/global_settings', message: 'Script split draft requires global_settings.', severity: 'error' })
-  }
-  if (!isRecord(parsed.source_script)) {
-    issues.push({ path: '/source_script', message: 'Script split draft requires source_script.', severity: 'error' })
-  } else {
-    if (numberValue(parsed.source_script.line_count ?? parsed.source_script.lineCount) === undefined) {
-      issues.push({ path: '/source_script/line_count', message: 'Script split draft requires source_script.line_count.', severity: 'error' })
-    }
-    if (hasScriptSplitBodyText(parsed.source_script)) {
-      issues.push({ path: '/source_script/content', message: 'Script split draft must not store source script body text; use line_count and episode line ranges.', severity: 'error' })
-    }
-  }
-  const episodes = parsed.episode_drafts
-  if (!Array.isArray(episodes) || episodes.length === 0) {
-    issues.push({ path: '/episode_drafts', message: 'Script split draft requires at least one episode draft.', severity: 'error' })
-    return
-  }
-  episodes.forEach((episode, index) => {
-    const base = `/episode_drafts/${index}`
-    if (!isRecord(episode)) {
-      issues.push({ path: base, message: 'Episode draft must be an object.', severity: 'error' })
-      return
-    }
-    for (const key of ['order', 'title', 'summary', 'action', 'existing_script_id']) {
-      if (!(key in episode)) issues.push({ path: `${base}/${key}`, message: `Episode draft missing ${key}.`, severity: 'error' })
-    }
-    const startLine = numberValue(episode.start_line ?? episode.startLine ?? episode.start)
-    const endLine = numberValue(episode.end_line ?? episode.endLine ?? episode.end)
-    if (startLine === undefined || startLine < 1) {
-      issues.push({ path: `${base}/start_line`, message: 'Episode draft requires a valid start_line.', severity: 'error' })
-    }
-    if (endLine === undefined || endLine < 1) {
-      issues.push({ path: `${base}/end_line`, message: 'Episode draft requires a valid end_line.', severity: 'error' })
-    } else if (startLine !== undefined && endLine < startLine) {
-      issues.push({ path: `${base}/end_line`, message: 'Episode draft end_line must be greater than or equal to start_line.', severity: 'error' })
-    }
-    if (hasScriptSplitBodyText(episode)) {
-      issues.push({ path: `${base}/content`, message: 'Episode draft must not store script body text; use start_line/end_line.', severity: 'error' })
-    }
-    if (!isRecord(episode.global_context)) {
-      issues.push({ path: `${base}/global_context`, message: 'Episode draft requires global_context.', severity: 'error' })
-    }
-    const productionAction = typeof episode.production_action === 'string'
-      ? episode.production_action
-      : typeof episode.productionAction === 'string'
-        ? episode.productionAction
-        : ''
-    if (productionAction && !['create', 'update', 'skip'].includes(productionAction)) {
-      issues.push({ path: `${base}/production_action`, message: 'Episode draft production_action must be create, update, or skip.', severity: 'error' })
-    }
-    const explicitProductionId = episode.existing_production_id ?? episode.existingProductionId
-    const existingProductionId = numberValue(explicitProductionId)
-    if (explicitProductionId !== undefined && explicitProductionId !== null && (existingProductionId === undefined || existingProductionId <= 0)) {
-      issues.push({ path: `${base}/existing_production_id`, message: 'Episode draft existing_production_id must be a positive id or null.', severity: 'error' })
-    }
-  })
 }
 
 function validateProjectLayerProposalDraft(
@@ -1208,11 +1133,6 @@ function isProjectLayerProposalAssetSlotOwnerType(value: string): boolean {
 
 function snapshotNodeName(node: Record<string, unknown>): boolean {
   return typeof node.name === 'string' && node.name.trim().length > 0
-}
-
-function hasScriptSplitBodyText(value: Record<string, unknown>): boolean {
-  return ['content', 'text', 'body', 'rawText', 'raw_text', 'sourceText', 'source_text']
-    .some((key) => typeof value[key] === 'string' && value[key].trim().length > 0)
 }
 
 function normalizeStoredDraft(draft: AgentDraft): AgentDraft {

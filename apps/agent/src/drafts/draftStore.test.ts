@@ -12,7 +12,7 @@ test('listDrafts filters by threadId and runId', () => {
 
   const threadDraft = store.createDraft({
     projectId: 1,
-    kind: 'script_split_proposal',
+    kind: 'production_proposal',
     title: 'thread draft',
     content: '{}',
     createdByThreadId: 'thread-1',
@@ -26,7 +26,7 @@ test('listDrafts filters by threadId and runId', () => {
   })
   store.createDraft({
     projectId: 1,
-    kind: 'note',
+    kind: 'project_standards_proposal',
     title: 'other draft',
     content: '{}',
     createdByRunId: 'run-9',
@@ -480,7 +480,7 @@ test('validateDraft rejects mutation-shaped project standards proposal content',
           payload: {},
         }],
       },
-      operations: [],
+      legacy_mutations: [],
       impact_notes: [],
       createdAt: '2026-05-08T00:00:00.000Z',
     }),
@@ -488,7 +488,6 @@ test('validateDraft rejects mutation-shaped project standards proposal content',
 
   const validation = validateDraft(draft)
   assert.equal(validation.ok, false)
-  assert.match(JSON.stringify(validation.issues), /operations/)
   assert.match(JSON.stringify(validation.issues), /operation fields/)
   assert.match(JSON.stringify(validation.issues), /target_id/)
   assert.match(JSON.stringify(validation.issues), /source_ids/)
@@ -708,7 +707,7 @@ test('file draft store persists draft content files across rebuilds', () => {
     const store = new FileAgentDraftStore(draftPath)
     const draft = store.createDraft({
       projectId: 42,
-      kind: 'note',
+      kind: 'project_standards_proposal',
       title: 'Review note',
       content: 'Check storyboard-line gaps.',
       source: { entityType: 'scene_moment', entityId: 12 },
@@ -736,7 +735,7 @@ test('file draft store treats draft content files as authoritative', () => {
     const store = new FileAgentDraftStore(draftPath)
     const draft = store.createDraft({
       projectId: 42,
-      kind: 'note',
+      kind: 'project_standards_proposal',
       title: 'Review note',
       content: 'before',
     })
@@ -759,7 +758,7 @@ test('file draft store normalizes invalid persisted reference ids on load', () =
       drafts: [{
         id: 'draft_1',
         projectId: 42.5,
-        kind: 'note',
+        kind: 'project_standards_proposal',
         title: 'Persisted draft',
         content: 'Persisted content',
         status: 'draft',

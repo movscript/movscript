@@ -218,9 +218,11 @@ export function InlineSceneMomentEditor({
   scriptBlocks,
   scriptSourceText,
   isSaving,
+  isDeleting = false,
   isBindingScriptBlock,
   allowCreateAndBindMomentScriptBlock = true,
   onSave,
+  onDelete,
   onBindMomentScriptBlock,
   onCreateAndBindMomentScriptBlock,
 }: {
@@ -229,9 +231,11 @@ export function InlineSceneMomentEditor({
   scriptBlocks: ProductionScriptBlockRecord[]
   scriptSourceText: string
   isSaving: boolean
+  isDeleting?: boolean
   isBindingScriptBlock: boolean
   allowCreateAndBindMomentScriptBlock?: boolean
   onSave: (momentId: number, payload: SemanticEntityPayload) => void
+  onDelete?: (momentId: number) => void
   onBindMomentScriptBlock: (momentId: number, scriptBlockId: number | null) => void
   onCreateAndBindMomentScriptBlock: (momentId: number, startLine: number, endLine: number) => void
 }) {
@@ -316,26 +320,45 @@ export function InlineSceneMomentEditor({
           placeholder="情绪目标、节奏停顿或表演提醒；具体动作请写到表达条目"
         />
       </label>
-      <div className="mt-3 flex justify-end gap-2">
-        {changed && (
-          <Button size="sm" variant="ghost" className="px-2 type-label" disabled={isSaving} onClick={() => setDraft(original)}>
-            取消
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        {onDelete ? (
+          <Button
+            size="sm"
+            variant="destructive"
+            className="gap-1.5 px-2 type-label"
+            loading={isDeleting}
+            disabled={isSaving || isDeleting}
+            onClick={() => {
+              const title = firstText(moment.title) || `情节 #${moment.ID}`
+              if (!window.confirm(`确定删除情节「${title}」吗？相关表达、制作项或素材需求可能需要重新归属。`)) return
+              onDelete(moment.ID)
+            }}
+          >
+            <Trash2 size={12} />
+            删除情节
           </Button>
-        )}
-        <Button
-          size="sm"
-          className="gap-1.5 px-2 type-label"
-          disabled={!changed || isSaving}
-          onClick={() => onSave(moment.ID, {
-            title: draft.title.trim(),
-            description: draft.description.trim(),
-            mood: draft.mood.trim(),
-            time_text: draft.time_text.trim(),
-          })}
-        >
-          {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-          保存情节
-        </Button>
+        ) : <span />}
+        <div className="flex justify-end gap-2">
+          {changed && (
+            <Button size="sm" variant="ghost" className="px-2 type-label" disabled={isSaving || isDeleting} onClick={() => setDraft(original)}>
+              取消
+            </Button>
+          )}
+          <Button
+            size="sm"
+            className="gap-1.5 px-2 type-label"
+            disabled={!changed || isSaving || isDeleting}
+            onClick={() => onSave(moment.ID, {
+              title: draft.title.trim(),
+              description: draft.description.trim(),
+              mood: draft.mood.trim(),
+              time_text: draft.time_text.trim(),
+            })}
+          >
+            {isSaving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+            保存情节
+          </Button>
+        </div>
       </div>
     </section>
   )

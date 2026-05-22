@@ -66,10 +66,17 @@ test('content workbench model builds scene moment rows with scoped units, refere
 
 test('content workbench model filters hidden records and generated keyframe candidates', () => {
   const rows = buildContentGenerationMomentRows(data({
-    sceneMoments: [record({ ID: 20, title: '敲门' })],
+    sceneMoments: [
+      record({ ID: 20, title: '敲门' }),
+      record({ ID: 21, title: '废弃情节', status: 'ignored' }),
+    ],
     creativeReferences: [
       record({ ID: 30, name: '主角' }),
       record({ ID: 31, name: '废弃设定', status: 'ignored' }),
+    ],
+    contentUnits: [
+      record({ ID: 50, scene_moment_id: 20, title: '保留制作项' }),
+      record({ ID: 51, scene_moment_id: 20, title: '废弃制作项', status: 'ignored' }),
     ],
     keyframes: [
       record({ ID: 70, scene_moment_id: 20, title: '正式关键帧' }),
@@ -83,11 +90,19 @@ test('content workbench model filters hidden records and generated keyframe cand
         }),
       }),
     ],
+    previewTimelineItems: [
+      record({ ID: 80, scene_moment_id: 20, content_unit_id: 50 }),
+      record({ ID: 81, scene_moment_id: 20, content_unit_id: 51, status: 'removed' }),
+    ],
   }))
 
   assert.equal(isVisibleContentWorkbenchRecord(record({ ID: 1, status: 'merged' })), false)
+  assert.equal(isVisibleContentWorkbenchRecord(record({ ID: 2, status: 'removed' })), false)
+  assert.equal(rows.length, 1)
   assert.equal(rows[0].references.map((item) => item.ID).includes(31), false)
+  assert.equal(rows[0].units.map((item) => item.ID).includes(51), false)
   assert.equal(rows[0].keyframes.map((item) => item.ID).includes(71), false)
+  assert.equal(rows[0].previewTimelineItems.map((item) => item.ID).includes(81), false)
 })
 
 test('content workbench model builds fallback and backend generation gates', () => {

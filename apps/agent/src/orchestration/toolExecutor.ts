@@ -15,7 +15,8 @@ import type { KnowledgeManager } from '../knowledge/knowledgeManager.js'
 import { buildRetrievedContextStore, countRetrievedContextChars, selectRetrievedContext, uniqueRetrievedContextRefs } from '../contextManager/retrievedContextStore.js'
 import { isValidAgentEntityId, isValidAgentProjectId, isValidAgentReferenceId } from '../context/runtimeContext.js'
 import { AgentFileSystem, type AgentFileEdit } from '../files/agentFileSystem.js'
-import { DraftFileProvider, draftContentFileRef } from '../files/providers/draftFileProvider.js'
+import { contentRevision, type AgentFileSearchMatch } from '../files/agentFileEdit.js'
+import { DraftFileProvider } from '../files/providers/draftFileProvider.js'
 
 export type ToolSource = 'runtime' | 'mcp' | 'sandbox'
 
@@ -30,7 +31,7 @@ export interface ToolExecutionResult {
 
 export interface ToolExecutorOptions {
   run: AgentRun
-  mcpClient: Pick<MCPClient, 'initialize' | 'callTool'>
+  mcpClient: Pick<MCPClient, 'initialize' | 'callTool'> & { readResource?: (uri: string) => Promise<JSONValue> }
   draftStore: AgentDraftStore
   backendApplyClient: BackendApplyClient
   fileSystem?: AgentFileSystem
@@ -45,7 +46,7 @@ export interface ToolExecutorOptions {
 export interface AgentCatalogToolManager {
   inspectAgentCatalog(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   updateActiveSkills(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
-  updateProgressChecklist(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
+  updatePlan(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   startWork(run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }): Promise<JSONValue> | JSONValue
   getWork(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   listWork(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
@@ -114,9 +115,9 @@ async function callRuntimeTool(
     return catalogManager.updateActiveSkills(run, args)
   }
 
-  if (toolName === 'core_progress_update') {
+  if (toolName === 'core_update_plan') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.updateProgressChecklist(run, args)
+    return catalogManager.updatePlan(run, args)
   }
 
   if (toolName === 'core_work_start') {
@@ -187,33 +188,18 @@ async function callRuntimeTool(
     }) as unknown as JSONValue
   }
 
-  if (toolName === 'draft_get') {
-    const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
-    if (!draftId) throw new Error('get_draft requires draftId')
-    const draft = draftStore.getDraft(draftId)
-    if (!draft) {
-      const scriptHint = /^\d+$/.test(draftId)
-        ? ' draft_get only reads Agent local review draft artifacts, not backend project script IDs. To read 总剧本、第一集、分集剧本, or script body content, call movscript_project_script_read with projectId, scriptId or scriptTitle, and includeContent: true.'
-        : ''
-      throw new Error(`draft not found: ${draftId}.${scriptHint}`)
-    }
-    return {
-      draft,
-      file: {
-        provider: 'draft',
-        ref: draftContentFileRef(draft.id),
-        id: draft.id,
-        kind: draft.kind,
-        title: draft.title,
-        updatedAt: draft.updatedAt,
-      },
-      validation: validateDraft(draft),
-    } as unknown as JSONValue
-  }
-
-  if (toolName === 'draft_file_read') {
+  if (toolName === 'core_file_read') {
     const ref = stringField(args.ref)
-    if (!ref) throw new Error('draft_file_read requires ref')
+    if (!ref) throw new Error('core_file_read requires ref')
+    if (isMCPResourceFileRef(ref)) {
+      const read = await readMCPResourceFile(mcpClient, ref, {
+        startLine: positiveIntegerField(args.startLine ?? args.start_line),
+        lineCount: positiveIntegerField(args.lineCount ?? args.line_count),
+        contentLimit: Math.max(1, Math.min(Math.floor(numberField(args.contentLimit ?? args.content_limit) ?? 20000), 100000)),
+        signal,
+      })
+      return read as unknown as JSONValue
+    }
     const read = fileSystem.read({ ref })
     const jsonPointer = stringField(args.jsonPointer ?? args.json_pointer)
     const startLine = positiveIntegerField(args.startLine ?? args.start_line)
@@ -256,12 +242,25 @@ async function callRuntimeTool(
     } as unknown as JSONValue
   }
 
-  if (toolName === 'draft_file_search') {
+  if (toolName === 'core_file_search') {
     const ref = stringField(args.ref)
-    if (!ref) throw new Error('draft_file_search requires ref')
+    if (!ref) throw new Error('core_file_search requires ref')
     const query = stringField(args.query)
     const limit = Math.max(1, Math.min(Math.floor(numberField(args.limit) ?? 20), 100))
-    if (!query) throw new Error('draft_file_search requires query')
+    if (!query) throw new Error('core_file_search requires query')
+    if (isMCPResourceFileRef(ref)) {
+      const read = await readMCPResourceFile(mcpClient, ref, { signal })
+      const matches = searchPlainTextContent(String(read.content ?? ''), query, limit)
+      return {
+        status: 'searched',
+        file: read.file,
+        ref,
+        revision: read.revision,
+        query,
+        matches: matches as unknown as JSONValue,
+        matchCount: matches.length,
+      } as unknown as JSONValue
+    }
     const result = fileSystem.search({ ref, query, limit })
     return {
       status: 'searched',
@@ -274,9 +273,10 @@ async function callRuntimeTool(
     } as unknown as JSONValue
   }
 
-  if (toolName === 'draft_file_edit') {
+  if (toolName === 'core_file_edit') {
     const ref = stringField(args.ref)
-    if (!ref) throw new Error('draft_file_edit requires ref')
+    if (!ref) throw new Error('core_file_edit requires ref')
+    if (isMCPResourceFileRef(ref)) throw new Error(`core_file_edit cannot edit readonly MCP resource: ${ref}`)
     const edits = normalizeAgentFileEdits(args.edits, args.patch)
     const baseRevision = stringField(args.baseRevision ?? args.base_revision)
     const result = fileSystem.edit({
@@ -292,28 +292,6 @@ async function callRuntimeTool(
       changeSet: result.changeSet as unknown as JSONValue,
       replacementCount: result.changeSet.replacementCount,
       ...(result.validation !== undefined ? { validation: result.validation } : {}),
-    } as unknown as JSONValue
-  }
-
-  if (toolName === 'draft_file_validate') {
-    const ref = stringField(args.ref)
-    if (!ref) throw new Error('draft_file_validate requires ref')
-    return {
-      status: 'validated',
-      ref,
-      validation: fileSystem.validate({ ref }),
-    } as unknown as JSONValue
-  }
-
-  if (toolName === 'draft_validate') {
-    const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
-    if (!draftId) throw new Error('validate_draft requires draftId')
-    const draft = draftStore.getDraft(draftId)
-    if (!draft) throw new Error(`draft not found: ${draftId}`)
-    return {
-      status: 'validated',
-      draft,
-      validation: validateDraft(draft),
     } as unknown as JSONValue
   }
 
@@ -551,27 +529,18 @@ function positiveInteger(value: unknown): number | undefined {
 }
 
 function normalizeProposalDraftKind(value: JSONValue | undefined): AgentDraftKind | undefined {
-  return value === 'script_split_proposal'
-    || value === 'setting_proposal'
-    || value === 'script'
-    || value === 'asset_slot'
-    || value === 'content_unit'
-    || value === 'prompt'
-    || value === 'note'
-    || value === 'pipeline'
-    || value === 'segment'
-    || value === 'scene_moment'
-    || value === 'asset_proposal'
-    || value === 'project_standards_proposal'
-    || value === 'production_proposal'
-    || value === 'content_unit_proposal'
-    ? value
-    : undefined
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, '_')
+  if (normalized === 'setting_proposal') return 'setting_proposal'
+  if (normalized === 'project_standards_proposal') return 'project_standards_proposal'
+  if (normalized === 'production_proposal') return 'production_proposal'
+  if (normalized === 'content_unit_proposal') return 'content_unit_proposal'
+  if (normalized === 'asset_proposal') return 'asset_proposal'
+  return undefined
 }
 
 function isStructuredProposalDraftKind(value: JSONValue | undefined): boolean {
-  return value === 'script_split_proposal'
-    || value === 'setting_proposal'
+  return value === 'setting_proposal'
     || value === 'asset_proposal'
     || value === 'project_standards_proposal'
     || value === 'production_proposal'
@@ -587,10 +556,8 @@ function normalizeProposalDraftContent(value: JSONValue | undefined): string | u
 }
 
 function validateStructuredProposalDraftContent(kind: AgentDraftKind, content: string): Record<string, JSONValue> | undefined {
-  const requiredSchema = kind === 'script_split_proposal'
-    ? DRAFT_CONTENT_SCHEMA_IDS.scriptSplit
-    : kind === 'setting_proposal'
-      ? DRAFT_CONTENT_SCHEMA_IDS.settingProposal
+  const requiredSchema = kind === 'setting_proposal'
+    ? DRAFT_CONTENT_SCHEMA_IDS.settingProposal
     : kind === 'project_standards_proposal'
       ? DRAFT_CONTENT_SCHEMA_IDS.projectStandardsProposal
       : kind === 'production_proposal'
@@ -971,14 +938,79 @@ function selectLineRange(content: string, input: { startLine: number; lineCount:
   }
 }
 
+function isMCPResourceFileRef(ref: string): boolean {
+  return ref.startsWith('movscript://')
+}
+
+async function readMCPResourceFile(
+  mcpClient: Pick<MCPClient, 'initialize' | 'callTool'> & { readResource?: (uri: string) => Promise<JSONValue> },
+  ref: string,
+  options: { startLine?: number; lineCount?: number; contentLimit?: number; signal?: AbortSignal } = {},
+): Promise<Record<string, JSONValue>> {
+  if (!mcpClient.readResource) throw new Error('core_file_read requires MCP resource read support for movscript:// refs')
+  await mcpClient.initialize({ signal: options.signal })
+  const resourceRef = withMCPResourceRange(ref, options)
+  const raw = await mcpClient.readResource(resourceRef)
+  const text = textFromMCPResource(raw)
+  const contentLimit = Math.max(1, Math.min(Math.floor(options.contentLimit ?? 20000), 100000))
+  const content = text.length > contentLimit ? text.slice(0, contentLimit) : text
+  return {
+    status: 'read',
+    file: {
+      provider: 'mcp',
+      kind: 'readonly_resource',
+      ref,
+      id: ref,
+      metadata: isJSONRecord(raw) && isJSONValue(raw.data) ? { data: raw.data } : undefined,
+    } as unknown as JSONValue,
+    ref,
+    revision: contentRevision(text),
+    contentLength: text.length,
+    content,
+    truncated: text.length > contentLimit,
+  }
+}
+
+function withMCPResourceRange(ref: string, options: { startLine?: number; lineCount?: number; contentLimit?: number }): string {
+  if (options.startLine === undefined && options.lineCount === undefined && options.contentLimit === undefined) return ref
+  const url = new URL(ref)
+  if (options.startLine !== undefined) url.searchParams.set('startLine', String(options.startLine))
+  if (options.lineCount !== undefined) url.searchParams.set('lineCount', String(options.lineCount))
+  if (options.contentLimit !== undefined) url.searchParams.set('maxChars', String(options.contentLimit))
+  return url.toString()
+}
+
+function textFromMCPResource(value: JSONValue): string {
+  if (!isJSONRecord(value) || !Array.isArray(value.contents)) throw new Error('MCP resource read returned invalid contents')
+  const firstText = value.contents.find((item) => isJSONRecord(item) && typeof item.text === 'string')
+  if (!isJSONRecord(firstText) || typeof firstText.text !== 'string') throw new Error('MCP resource read returned no text content')
+  return firstText.text
+}
+
+function searchPlainTextContent(content: string, query: string, limit: number): AgentFileSearchMatch[] {
+  const matches: AgentFileSearchMatch[] = []
+  const lines = content.split(/\r?\n/)
+  for (let index = 0; index < lines.length && matches.length < limit; index += 1) {
+    const line = lines[index] ?? ''
+    const column = line.indexOf(query)
+    if (column === -1) continue
+    matches.push({
+      line: index + 1,
+      column: column + 1,
+      excerpt: line.length > 240 ? `${line.slice(0, 237)}...` : line,
+    })
+  }
+  return matches
+}
+
 function normalizeAgentFileEdits(value: JSONValue | undefined, patch: JSONValue | undefined): AgentFileEdit[] {
   if (typeof patch === 'string' && patch.trim()) {
-    if (value !== undefined) throw new Error('draft_file_edit accepts either edits or patch, not both')
+    if (value !== undefined) throw new Error('core_file_edit accepts either edits or patch, not both')
     return [{ type: 'apply_patch', patch }]
   }
-  if (!Array.isArray(value)) throw new Error('draft_file_edit requires edits or patch')
+  if (!Array.isArray(value)) throw new Error('core_file_edit requires edits or patch')
   return value.map((edit) => {
-    if (!isJSONRecord(edit)) throw new Error('draft_file_edit edit must be an object')
+    if (!isJSONRecord(edit)) throw new Error('core_file_edit edit must be an object')
     if (edit.type === 'apply_patch') {
       if (typeof edit.patch !== 'string') throw new Error('apply_patch edit requires patch')
       return { type: 'apply_patch', patch: edit.patch }
@@ -1097,49 +1129,78 @@ function normalizeProjectLayerProposalSnapshotContent(
   kind: Extract<AgentDraftKind, 'setting_proposal' | 'asset_proposal'>,
   parsed: Record<string, JSONValue>,
 ): Record<string, JSONValue> {
-  if (kind !== 'asset_proposal') return parsed
   const proposal = isJSONRecord(parsed.proposal) ? parsed.proposal : undefined
-  const nextProposal = proposal && Array.isArray(proposal.asset_slots)
-    ? { ...proposal, asset_slots: normalizeAssetProposalSnapshotSlots(proposal.asset_slots) }
+  const nextProposal = proposal && kind === 'setting_proposal' && Array.isArray(proposal.creative_references)
+    ? { ...proposal, creative_references: normalizeSettingProposalSnapshotReferences(proposal.creative_references) }
+    : proposal && kind === 'asset_proposal' && Array.isArray(proposal.asset_slots)
+      ? { ...proposal, asset_slots: normalizeAssetProposalSnapshotSlots(proposal.asset_slots) }
     : proposal
+  const nextSlot = kind === 'asset_proposal' && isJSONRecord(parsed.slot)
+    ? normalizeAssetProposalSnapshotSlot(parsed.slot)
+    : undefined
   return {
     ...parsed,
     ...(nextProposal ? { proposal: nextProposal } : {}),
+    ...(nextSlot ? { slot: nextSlot } : {}),
   }
 }
 
-function normalizeAssetProposalSnapshotSlots(value: JSONValue[]): JSONValue[] {
+function normalizeSettingProposalSnapshotReferences(value: JSONValue[]): JSONValue[] {
   return value.map((item) => {
     if (!isJSONRecord(item)) return item
     const normalized: Record<string, JSONValue> = {}
-    setNormalizedField(normalized, 'client_id', normalizedString(item.client_id))
+    setNormalizedField(normalized, 'client_id', normalizedString(item.client_id) ?? normalizedString(item.proposal_client_id) ?? normalizedString(item.ClientID) ?? normalizedString(item.ProposalClientID))
     setNormalizedField(normalized, 'id', normalizedNumber(item.id) ?? normalizedNumber(item.ID))
-    setNormalizedOwner(normalized, item.owner)
-    setNormalizedField(normalized, 'production_id', normalizedNumber(item.production_id) ?? normalizedNumber(item.ProductionID))
-    setNormalizedField(normalized, 'creative_reference_id', normalizedNumber(item.creative_reference_id) ?? normalizedNumber(item.CreativeReferenceID))
-    setNormalizedField(normalized, 'creative_reference_state_id', normalizedNumber(item.creative_reference_state_id) ?? normalizedNumber(item.CreativeReferenceStateID))
-    setNormalizedField(normalized, 'owner_type', normalizedString(item.owner_type) ?? normalizedString(item.OwnerType))
-    setNormalizedField(normalized, 'owner_id', normalizedNumber(item.owner_id) ?? normalizedNumber(item.OwnerID))
+    setNormalizedField(normalized, 'merge_candidates', Array.isArray(item.merge_candidates) ? item.merge_candidates : undefined)
+    setNormalizedField(normalized, 'source_script_id', normalizedNumber(item.source_script_id) ?? normalizedNumber(item.SourceScriptID))
+    setNormalizedField(normalized, 'source_analysis_id', normalizedNumber(item.source_analysis_id) ?? normalizedNumber(item.SourceAnalysisID))
     setNormalizedField(normalized, 'kind', normalizedString(item.kind) ?? normalizedString(item.Kind))
     setNormalizedField(normalized, 'name', normalizedString(item.name) ?? normalizedString(item.Name))
+    setNormalizedField(normalized, 'alias', normalizedString(item.alias) ?? normalizedString(item.Alias))
     setNormalizedField(normalized, 'description', normalizedString(item.description) ?? normalizedString(item.Description))
-    setNormalizedField(normalized, 'slot_key', normalizedString(item.slot_key) ?? normalizedString(item.SlotKey))
-    setNormalizedField(normalized, 'prompt_hint', normalizedString(item.prompt_hint) ?? normalizedString(item.PromptHint))
-    setNormalizedField(normalized, 'priority', normalizedString(item.priority) ?? normalizedString(item.Priority))
+    setNormalizedField(normalized, 'content', normalizedString(item.content) ?? normalizedString(item.Content))
+    setNormalizedField(normalized, 'importance', normalizedString(item.importance) ?? normalizedString(item.Importance))
     setNormalizedField(normalized, 'status', normalizedString(item.status) ?? normalizedString(item.Status))
-    setNormalizedField(normalized, 'resource_id', normalizedNumber(item.resource_id) ?? normalizedNumber(item.ResourceID))
-    setNormalizedField(normalized, 'locked_asset_slot_id', normalizedNumber(item.locked_asset_slot_id) ?? normalizedNumber(item.LockedAssetSlotID))
-    setNormalizedField(normalized, 'metadata_json', normalizedString(item.metadata_json) ?? normalizedString(item.MetadataJSON))
+    setNormalizedField(normalized, 'profile_json', normalizedString(item.profile_json) ?? normalizedString(item.ProfileJSON))
+    setNormalizedField(normalized, 'tags_json', normalizedString(item.tags_json) ?? normalizedString(item.TagsJSON))
     return normalized
   })
+}
+
+function normalizeAssetProposalSnapshotSlots(value: JSONValue[]): JSONValue[] {
+  return value.map(normalizeAssetProposalSnapshotSlot)
+}
+
+function normalizeAssetProposalSnapshotSlot(item: JSONValue): JSONValue {
+  if (!isJSONRecord(item)) return item
+  const normalized: Record<string, JSONValue> = {}
+  setNormalizedField(normalized, 'client_id', normalizedString(item.client_id) ?? normalizedString(item.ClientID) ?? normalizedString(item.proposal_client_id) ?? normalizedString(item.ProposalClientID))
+  setNormalizedField(normalized, 'id', normalizedNumber(item.id) ?? normalizedNumber(item.ID))
+  setNormalizedOwner(normalized, item.owner)
+  setNormalizedField(normalized, 'production_id', normalizedNumber(item.production_id) ?? normalizedNumber(item.ProductionID))
+  setNormalizedField(normalized, 'creative_reference_id', normalizedNumber(item.creative_reference_id) ?? normalizedNumber(item.CreativeReferenceID))
+  setNormalizedField(normalized, 'creative_reference_state_id', normalizedNumber(item.creative_reference_state_id) ?? normalizedNumber(item.CreativeReferenceStateID))
+  setNormalizedField(normalized, 'owner_type', normalizedString(item.owner_type) ?? normalizedString(item.OwnerType))
+  setNormalizedField(normalized, 'owner_id', normalizedNumber(item.owner_id) ?? normalizedNumber(item.OwnerID))
+  setNormalizedField(normalized, 'kind', normalizedString(item.kind) ?? normalizedString(item.Kind))
+  setNormalizedField(normalized, 'name', normalizedString(item.name) ?? normalizedString(item.Name))
+  setNormalizedField(normalized, 'description', normalizedString(item.description) ?? normalizedString(item.Description))
+  setNormalizedField(normalized, 'slot_key', normalizedString(item.slot_key) ?? normalizedString(item.SlotKey))
+  setNormalizedField(normalized, 'prompt_hint', normalizedString(item.prompt_hint) ?? normalizedString(item.PromptHint))
+  setNormalizedField(normalized, 'priority', normalizedString(item.priority) ?? normalizedString(item.Priority))
+  setNormalizedField(normalized, 'status', normalizedString(item.status) ?? normalizedString(item.Status))
+  setNormalizedField(normalized, 'resource_id', normalizedNumber(item.resource_id) ?? normalizedNumber(item.ResourceID))
+  setNormalizedField(normalized, 'locked_asset_slot_id', normalizedNumber(item.locked_asset_slot_id) ?? normalizedNumber(item.LockedAssetSlotID))
+  setNormalizedField(normalized, 'metadata_json', normalizedString(item.metadata_json) ?? normalizedString(item.MetadataJSON))
+  return normalized
 }
 
 function setNormalizedOwner(out: Record<string, JSONValue>, value: JSONValue | undefined): void {
   if (!isJSONRecord(value)) return
   const owner: Record<string, JSONValue> = {}
-  setNormalizedField(owner, 'type', normalizedString(value.type))
-  setNormalizedField(owner, 'id', normalizedNumber(value.id))
-  setNormalizedField(owner, 'client_id', normalizedString(value.client_id))
+  setNormalizedField(owner, 'type', normalizedString(value.type) ?? normalizedString(value.Type))
+  setNormalizedField(owner, 'id', normalizedNumber(value.id) ?? normalizedNumber(value.ID))
+  setNormalizedField(owner, 'client_id', normalizedString(value.client_id) ?? normalizedString(value.ClientID) ?? normalizedString(value.proposal_client_id) ?? normalizedString(value.ProposalClientID))
   if (owner.type !== undefined) out.owner = owner
 }
 
@@ -1195,7 +1256,7 @@ async function hydrateProjectLayerSnapshotBase(input: {
         : fallback?.value
       if (!Array.isArray(creativeReferences)) throw new Error(missingHydratedSeedMessage('creative_references', seed, fallback))
       return {
-        snapshotBase: { creative_references: creativeReferences as JSONValue },
+        snapshotBase: { creative_references: normalizeSettingProposalSnapshotReferences(creativeReferences as JSONValue[]) as JSONValue },
         ...(seed ? { seed } : {}),
       }
     }
@@ -1374,7 +1435,7 @@ async function previewDraftApply(
       message: 'Draft failed local validation. Update the draft and preview again.',
     } as unknown as JSONValue
   }
-  if (draft.kind === 'asset_proposal' || draft.kind === 'content_unit_proposal' || draft.kind === 'script_split_proposal') {
+  if (draft.kind === 'asset_proposal' || draft.kind === 'content_unit_proposal') {
     return {
       ok: true,
       stage: 'local_validation',

@@ -146,7 +146,7 @@ test('createRuntimeTraceReadBridge hydrates compact trace data for debug views',
         sdk_body: {
           model: 'gpt-5.5',
           input: [{ role: 'user', content: 'full request content' }],
-          tools: [{ type: 'function', name: 'draft_file_edit' }],
+          tools: [{ type: 'function', name: 'core_file_edit' }],
         },
       },
     },

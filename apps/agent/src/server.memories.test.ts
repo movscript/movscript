@@ -200,7 +200,7 @@ test('draft apply endpoint is an application-layer action outside agent runs', a
   const handler = createAgentRequestListener(buildServerContext(runtime))
   const draft = runtime.createLocalDraft({
     projectId: 42,
-    kind: 'content_unit',
+    kind: 'content_unit_proposal',
     title: 'Description update',
     content: 'New description',
     target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
@@ -393,7 +393,7 @@ test('legacy public tool run endpoint is no longer an execution entrypoint', asy
     progress: 0.7,
     blockedReason: 'external status injection',
     toolCall: {
-      name: 'movscript_project_script_read',
+      name: 'movscript_script_locate',
       args: { projectId: 42 },
     },
   })

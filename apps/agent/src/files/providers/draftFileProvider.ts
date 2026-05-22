@@ -55,7 +55,7 @@ export class DraftFileProvider implements AgentFileProvider {
     const draft = this.requireDraft(ref)
     const baseRevision = contentRevision(draft.content)
     if (input.precondition?.baseRevision && input.precondition.baseRevision !== baseRevision) {
-      throw new Error(`draft_file_edit baseRevision mismatch: expected ${input.precondition.baseRevision}, current ${baseRevision}`)
+      throw new Error(`core_file_edit baseRevision mismatch: expected ${input.precondition.baseRevision}, current ${baseRevision}`)
     }
     const edited = applyAgentFileEdits(draft.content, input.edits)
     const updated = this.draftStore.updateDraft(draft.id, { content: edited.content })
@@ -78,10 +78,6 @@ export class DraftFileProvider implements AgentFileProvider {
       contentLength: updated.content.length,
       validation,
     }
-  }
-
-  validate(ref: string): JSONValue {
-    return validateDraft(this.requireDraft(ref)) as unknown as JSONValue
   }
 
   private requireDraft(ref: string) {

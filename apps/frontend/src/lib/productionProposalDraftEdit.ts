@@ -6,6 +6,7 @@ import {
   type ProposalCreativeRefNode,
   type ProposalSceneMomentNode,
   type ProposalSegmentNode,
+  type ProposalWritingExpressionNode,
 } from '@/lib/productionProposalReviewModel'
 
 export interface EditableProductionProposalDraftJson extends Record<string, unknown> {
@@ -184,6 +185,58 @@ export function appendProductionProposalDraftContentUnit(
   return true
 }
 
+export function replaceProductionProposalDraftWritingExpression(
+  draft: EditableProductionProposalDraftJson,
+  segmentKey: string,
+  momentKey: string,
+  expressionKey: string,
+  nextExpression: ProposalWritingExpressionNode,
+) {
+  const moment = findSceneMoment(draft, segmentKey, momentKey)
+  if (!moment) return false
+  const expressions = moment.writing_expressions ?? []
+  const index = expressions.findIndex((expression, expressionIndex) => (
+    productionProposalDraftNodeKey(expression, `expression:${expressionIndex}`) === expressionKey
+  ))
+  if (index < 0) return false
+  expressions[index] = { ...expressions[index], ...withoutUndefined(nextExpression) }
+  moment.writing_expressions = expressions
+  return true
+}
+
+export function removeProductionProposalDraftWritingExpression(
+  draft: EditableProductionProposalDraftJson,
+  segmentKey: string,
+  momentKey: string,
+  expressionKey: string,
+) {
+  const moment = findSceneMoment(draft, segmentKey, momentKey)
+  if (!moment) return false
+  const expressions = moment.writing_expressions ?? []
+  const nextExpressions = expressions.filter((expression, expressionIndex) => (
+    productionProposalDraftNodeKey(expression, `expression:${expressionIndex}`) !== expressionKey
+  ))
+  moment.writing_expressions = nextExpressions
+  return nextExpressions.length !== expressions.length
+}
+
+export function appendProductionProposalDraftWritingExpression(
+  draft: EditableProductionProposalDraftJson,
+  segmentKey: string,
+  momentKey: string,
+  expression: ProposalWritingExpressionNode,
+) {
+  const moment = findSceneMoment(draft, segmentKey, momentKey)
+  if (!moment) return false
+  const expressions = moment.writing_expressions ?? []
+  expressions.push({
+    ...expression,
+    order: expression.order ?? expressions.length + 1,
+  })
+  moment.writing_expressions = expressions
+  return true
+}
+
 export function appendProductionProposalDraftCreativeReference(
   draft: EditableProductionProposalDraftJson,
   segmentKey: string,
@@ -220,7 +273,7 @@ export function removeProductionProposalDraftCreativeReference(
   return nextReferences.length !== references.length
 }
 
-export function buildProductionProposalDraftClientId(prefix: 'segment' | 'moment' | 'unit') {
+export function buildProductionProposalDraftClientId(prefix: 'segment' | 'moment' | 'unit' | 'expression') {
   return `proposal_${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 }
 

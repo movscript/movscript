@@ -1,8 +1,8 @@
 目标：
-处理当前会话内本地 draft 生命周期动作：读取、创建、编辑、校验、dry-run preview、汇报审阅状态和准备 apply。
+处理当前会话内本地 draft 生命周期动作：读取、创建、编辑、dry-run preview、汇报审阅状态和准备 apply；`draft_apply_preview` 内置 validation。
 
 适用场景：
-- 用户明确要求查看、创建、修改、校验、preview 或继续某个 draft。
+- 用户明确要求查看、创建、修改、preview 或继续某个 draft。
 - 其他 workflow 需要通用 draft 生命周期支持，但业务内容结构仍由具体业务 workflow 决定。
 
 输入锚点：
@@ -17,17 +17,17 @@
 
 允许的工具：
 - 模型契约：{{tool:draft_model_get}}
-- 读取/定位：{{tool:draft_get}} {{tool:draft_file_read}} {{tool:draft_file_search}}。大 draft 优先用 search 定位，再用 `draft_file_read` 的 startLine/lineCount 局部读取相关上下文。
-- 正文写入：使用 agent 的文件编辑工具 {{tool:draft_file_edit}} 修改 `draft.filePath` 指向的真实 JSON 文件；优先使用带 `baseRevision` 的受限上下文文本 patch。该 patch 不是 JSON Patch，也不是通用 diff；它只按已读取到的文本上下文做最小 hunk 编辑，必须让 oldText 在当前文件中精确匹配一次。
-- 创建/校验/preview/apply：{{tool:draft_create}} {{tool:draft_validate}} {{tool:draft_apply_preview}} {{tool:draft_apply}}
+- 读取/定位：{{tool:core_file_read}} {{tool:core_file_search}}。已知 draftId 时直接读取 `agent://draft/{draftId}/content`。大 draft 优先用 search 定位，再用 `core_file_read` 的 startLine/lineCount 局部读取相关上下文。
+- 正文写入：使用 agent 的文件编辑工具 {{tool:core_file_edit}} 修改 `agent://draft/{draftId}/content` 指向的真实 JSON 文件；优先使用带 `baseRevision` 的受限上下文文本 patch。该 patch 不是 JSON Patch，也不是通用 diff；它只按已读取到的文本上下文做最小 hunk 编辑，必须让 oldText 在当前文件中精确匹配一次。
+- 创建/preview/apply：{{tool:draft_create}} {{tool:draft_apply_preview}} {{tool:draft_apply}}
 - 缺失决策：{{tool:core_user_input_request}}
 
 流程：
 1. 按具体业务 workflow/schema 准备 draft 内容；只有需要调试字段归属、刷新已有 draft 基准、或 preview 指出基准缺失时，才读取模型契约。
-2. 若用户或当前会话上下文给了 draftId，先 get 该 draft，记录返回的 `draft.filePath`。这是正文的权威文件路径。
+2. 若用户或当前会话上下文给了 draftId，直接用 `core_file_read` 读取 `agent://draft/{draftId}/content`。这是正文的权威文件 ref。
 3. 若当前会话没有 draftId 且用户是在发起新提案，直接 create draft；不要跨会话查找旧 draft。
 4. 创建修改型 draft 时应带 target/source 页面或实体锚点。setting_proposal / asset_proposal 若缺少 `snapshot_base`，`draft_create` 会自动从当前 DraftDomainModel hydrate 基准并存入 draft；若 proposal snapshot 数组被省略，会同步预填当前 snapshot，表示默认不变。
-5. 修改现有 draft 正文时，把 draft 当作真实文件：用 {{tool:draft_file_read}} / {{tool:draft_file_search}} 读取，必要时按行号分段查看；用 {{tool:draft_file_edit}} 编辑 `draft.filePath`，只做最小局部上下文文本 patch。不要通过 draft 工具传完整 `content`，不要覆盖未知字段，不要凭空重建整个 draft。未编辑的内容必须视为保留，不得把“没读到”解释成“应该删除”。
+5. 修改现有 draft 正文时，把 draft 当作真实文件：用 {{tool:core_file_read}} / {{tool:core_file_search}} 读取 `agent://draft/{draftId}/content`，必要时按行号分段查看；用 {{tool:core_file_edit}} 编辑同一个 ref，只做最小局部上下文文本 patch。不要通过 draft 工具传完整 `content`，不要覆盖未知字段，不要凭空重建整个 draft。未编辑的内容必须视为保留，不得把“没读到”解释成“应该删除”。
 6. 每次 create/update 后都要检查工具返回的 draftId、kind、status、validation 或 preview_apply 结果。
 7. 创建或修改 proposal draft 后，最终回复前必须调用 `draft_apply_preview` 做 dry-run。preview 会先做本地 schema validation，再在支持的 kind 上调用后端 apply-preview；不正式写入。
 8. preview_apply 失败时，先根据返回的 validation path、backend error 或 review diff 做最小修复，再重新 preview_apply；无法安全修复时，把失败阶段、错误路径和阻塞项汇报给用户。

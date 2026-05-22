@@ -6,7 +6,7 @@ export interface ProductionProposalApplyPreviewItem {
   key: string
   title: string
   detail: string
-  kind: 'segment' | 'scene_moment' | 'content_unit' | 'keyframe' | 'creative_reference' | 'asset_slot'
+  kind: 'segment' | 'scene_moment' | 'content_unit' | 'keyframe' | 'creative_reference' | 'asset_slot' | 'writing_expression'
   action?: ProductionProposalSnapshotAction
   parent?: string
 }
@@ -110,6 +110,7 @@ function ProductionProposalActionBadge({ action, compact = false }: { action: Pr
 function productionProposalApplyPreviewKindLabel(kind: ProductionProposalApplyPreviewItem['kind']) {
   if (kind === 'segment') return '编排段'
   if (kind === 'scene_moment') return '情节'
+  if (kind === 'writing_expression') return '表达'
   if (kind === 'content_unit') return '内容'
   if (kind === 'keyframe') return '画面锚点'
   if (kind === 'creative_reference') return '设定'

@@ -10,7 +10,7 @@ Draft schema：{{schema:movscript.asset_proposal.v1.id}}
 输入：
 - 当前 focus 中的 project、production、selected asset slot 或 asset need。
 - 用户给出的素材目标、输出类型、prompt 方向、参考资源、风格限制、模型能力需求、角色/场景定位和验收标准。
-- 若 focus 未提供充足角色-场景关系时，在决策前先读取剧本正文进行交叉确认。
+- 若 focus 未提供充足角色-场景关系时，在决策前先定位并精读相关剧本片段进行交叉确认；不要默认读取完整剧本。
 - 现有 creative references、setting_proposal draft、已应用设定 snapshot，以及素材要引用的角色、地点、道具、世界规则或风格参考。
 
 边界：
@@ -24,6 +24,7 @@ Draft schema：{{schema:movscript.asset_proposal.v1.id}}
 - Draft 内容必须落在 asset proposal schema 内，不写 content unit 结构或 production segments。
 - 不创建或修改 project 层 creative reference；设定资料使用 setting_proposal。
 - asset_proposal 必须引用设定来保证数据完整性：涉及人物、地点、道具、世界规则或风格参考的 asset slot / candidate taskGraph，要使用已有 creative reference 的后端 id 作为 owner、references 或上下文来源。若设定不存在或只有临时描述，先交接 setting_proposal 创建或补齐设定，再继续素材提案。
+- 交接 setting_proposal 后，不要继续基于未写入的设定 draft 创建或预览 asset_proposal。先完成设定 draft 的 validate / preview / review；若写入失败，先修复设定或询问用户，不能继续素材。
 - 不把候选计划说成已生成、已选中、已绑定或已锁定的素材。
 - asset_proposal draft 是可编辑的后端 snapshot。素材需求条目直接写在 `proposal.asset_slots[]` 上，不使用 `fields` wrapper、action 或 operations。
 - `proposal.asset_slots` 是完整目标快照，不是局部操作列表。更新或保留已有 draft 时，必须保留每个已有 asset slot 的原始 `id`；未修改的 slot 也要原样放回 `proposal.asset_slots`，不得重新生成、重编号、替换或通过重排改变已有 id。只有草稿中不存在的全新 slot 才能不带 `id` 或按系统规则生成新 id。用户明确要求移除某个已有 slot 时，从 `proposal.asset_slots` 省略该 id；省略表示删除/移出。
@@ -39,22 +40,22 @@ Draft schema：{{schema:movscript.asset_proposal.v1.id}}
 
 允许的工具：
 - Focus：{{tool:movscript_focus_get}}
-- 项目剧本：{{tool:movscript_project_script_read}}（请使用 `includeContent: true`）
+- 剧本定位/列表：{{tool:movscript_script_locate}}；精读使用 {{tool:core_file_read}} 读取返回的 `readRef.ref` 行号范围。
 - 设定/素材查询：{{tool:movscript_creative_reference_query}} {{tool:movscript_asset_slot_query}} {{tool:movscript_production_context_query}}
-- Draft：{{tool:draft_get}} {{tool:draft_model_get}} {{tool:draft_create}} {{tool:draft_file_read}} {{tool:draft_file_search}} {{tool:draft_file_edit}} {{tool:draft_validate}} {{tool:draft_apply_preview}}。正文编辑使用文件工具修改 `draft.filePath` 指向的真实 JSON 文件。
+- Draft：{{tool:draft_model_get}} {{tool:draft_create}} {{tool:core_file_read}} {{tool:core_file_search}} {{tool:core_file_edit}} {{tool:draft_apply_preview}}。已知 draftId 时直接读取 `agent://draft/{draftId}/content`；正文编辑使用文件工具修改同一个真实 JSON 文件 ref；修改后用 `draft_apply_preview` 做 validation 与 dry-run。
 - 缺少目标时询问：{{tool:core_user_input_request}}
 
 流程：
 1. 读取 focus，确认用户是在整理素材需求清单，还是在为已选素材需求规划候选。
-2. 读取 focus 后，先拉取项目剧本正文（`movscript_project_script_read` + `includeContent: true`），并优先从剧本中提取角色关系、场景边界、道具与拍摄语义。
-3. 若是素材需求清单：当前会话已有 asset_proposal draftId 时先读取它并记录 `draft.filePath`，然后在 `proposal.asset_slots` 上通过真实文件局部编辑，不要从空数组重建；没有现有 draft 时创建新 draft，runtime 会自动把当前素材需求补入 `proposal.asset_slots`。查询 creative references 和现有 asset slots 只用于补充、核对和解决冲突；对每个涉及人物、地点、道具、世界规则或风格参考的素材需求，确认有可引用的 creative reference 后端 id。缺设定时先创建或更新 setting_proposal，并在输出中把 asset_proposal 标记为等待设定应用。维护 `proposal.asset_slots` 作为系统持有的完整目标 snapshot：新增只向 `/proposal/asset_slots` 追加新条目，更新只改具体条目字段，删除/移出则从 `proposal.asset_slots` 省略该 id；未编辑的素材需求必须保留，绝不因为本轮只处理单个设定而省略其他条目。`proposal.creative_references` 和 `proposal.candidate_plans` 保持空数组。若查询到核心人物、主场景、核心道具或风格参考类 creative reference，必须先检查是否已有 owner 指向该 reference 的 canonical / base asset slot；没有就补一个，并用稳定 `slot_key` 表达用途，例如 `canonical_character_design`、`top_down_floor_taskGraph`、`canonical_prop_design` 或 `base_style_board`。若查询到场景/地点/空间类 creative reference，必须检查是否已有 owner 指向该 reference 的俯视图 asset slot；没有就补一个。
+2. 读取 focus 后，先按素材目标、人物别名、地点、道具、事件、场景或用户模糊描述调用 `movscript_script_locate`，再用 `core_file_read` 精读候选 `readRef.ref` 行号范围，并从片段中提取角色关系、场景边界、道具与拍摄语义；只有需要全局素材盘点或全剧结构判断时，才用 `core_file_read` 读取目标 ref 的较大范围正文并说明截断情况。
+3. 若是素材需求清单：当前会话已有 asset_proposal draftId 时先用 `core_file_read` 读取 `agent://draft/{draftId}/content`，然后在 `proposal.asset_slots` 上通过真实文件局部编辑，不要从空数组重建；没有现有 draft 时创建新 draft，runtime 会自动把当前素材需求补入 `proposal.asset_slots`。查询 creative references 和现有 asset slots 只用于补充、核对和解决冲突；对每个涉及人物、地点、道具、世界规则或风格参考的素材需求，确认有可引用的 creative reference 后端 id。缺设定时先创建或更新 setting_proposal，并停止当前素材写入，在输出中说明 asset_proposal 等待设定应用。维护 `proposal.asset_slots` 作为系统持有的完整目标 snapshot：新增只向 `/proposal/asset_slots` 追加新条目，更新只改具体条目字段，删除/移出则从 `proposal.asset_slots` 省略该 id；未编辑的素材需求必须保留，绝不因为本轮只处理单个设定而省略其他条目。`proposal.creative_references` 和 `proposal.candidate_plans` 保持空数组。若查询到核心人物、主场景、核心道具或风格参考类 creative reference，必须先检查是否已有 owner 指向该 reference 的 canonical / base asset slot；没有就补一个，并用稳定 `slot_key` 表达用途，例如 `canonical_character_design`、`top_down_floor_taskGraph`、`canonical_prop_design` 或 `base_style_board`。若查询到场景/地点/空间类 creative reference，必须检查是否已有 owner 指向该 reference 的俯视图 asset slot；没有就补一个。
 4. 若是候选方案：确认 asset slot 或 asset need。若没有 assetSlotId 且不能通过查询唯一定位，先询问用户；若素材需求尚不存在，先在同一个 asset_proposal draft 的 `proposal.asset_slots` 创建锚点，不要创建别的 kind。
 5. 在规划候选前，先读取相关 setting_proposal / asset_proposal draft。若 setting draft 已经应用，必须重新基于后端 snapshot 获取真实 creative reference id；不要沿用旧 client_id。若 setting draft 尚未应用，只能把素材提案标记为依赖该 setting draft，不能伪造后端 id。素材锚点再用查询工具检查 asset slots、asset slot ownership、production context、已知 reference resources 或已有候选资源。
 6. 如果 creative reference 查询返回 `total_count > 0` 但 `count` 或 `returned` 为 0，说明当前筛选没有可用设定明细；应回到 draft seed/snapshot 或放宽筛选，不要据此判定“有设定但没有可编辑明细”。
 7. 将候选拆成 prompt、参考资源、输出类型、模型能力需求、风险和 acceptance criteria。候选方案必须先判断目标是 canonical 还是派生：canonical 候选用于确定基本形象/空间/物件/风格；派生候选必须列出依赖的 canonical asset slot 或 resource id。若 canonical 还没有可引用 resource，派生候选写入 risks / acceptance_criteria / next_actions 为 `blocked: waiting_for_base_asset`，不要把它当作可立即生成目标。
 8. 对角色和场景写清一致性要求：延续已存在的人物外貌、服装识别点、年代/地域/空间设定、光线气质和可复用范围；缺少可引用设定时先补 setting_proposal，缺少参考资源时标记为待补齐。对角色候选，必须先规划基础形象，再规划服装状态、动作状态、情绪状态或镜头内关键帧；对场景/地点/空间候选，必须优先规划或引用该场景的俯视图素材位，再规划透视美术图、氛围图或细节图。
 9. 处理剧情描述与视觉定位冲突时，以全局角色定位为准。主角、核心反派、重要常驻角色即使剧情里被说“丑”“狼狈”“不起眼”，也不要生成真实低质或不可用的丑化形象；应转译为朴素、疲惫、被环境压低、妆发状态差、衣着不合身等可表演且仍可长期复用的视觉特征，除非用户明确要求丑化。
-10. 用 {{tool:draft_file_search}} 定位相关素材位或数组插入点，再用 {{tool:draft_file_read}} 的 startLine/lineCount 读取足够的局部上下文；随后用 {{tool:draft_file_edit}} 对 draft JSON 文件做受限上下文文本 patch。patch 的 oldText 必须在整个文件中只出现一次；必须把 `"proposal"`、`"asset_slots"`、相邻数组边界或后续唯一字段纳入 hunk，确保只命中 `proposal.asset_slots`。patch 只表达已读文本附近的最小 hunk，不能当 JSON Patch、operation 列表或完整 snapshot 替换使用。编辑后的内容必须仍是直接 snapshot 条目。不要用完整 `content` 或完整 `proposal.asset_slots` 替换来表达局部编辑。
+10. 用 {{tool:core_file_search}} 定位相关素材位或数组插入点，再用 {{tool:core_file_read}} 的 startLine/lineCount 读取足够的局部上下文；随后用 {{tool:core_file_edit}} 对 draft JSON 文件做受限上下文文本 patch。patch 的 oldText 必须在整个文件中只出现一次；必须把 `"proposal"`、`"asset_slots"`、相邻数组边界或后续唯一字段纳入 hunk，确保只命中 `proposal.asset_slots`。patch 只表达已读文本附近的最小 hunk，不能当 JSON Patch、operation 列表或完整 snapshot 替换使用。编辑后的内容必须仍是直接 snapshot 条目。不要用完整 `content` 或完整 `proposal.asset_slots` 替换来表达局部编辑。
 11. 先 validate；如果支持 preview apply，运行 preview apply 并修复具体错误路径。
 12. 如果用户要求立即生成，交接到 visual_generation workflow，不在此 workflow 中调用生成工具。
 

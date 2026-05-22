@@ -62,10 +62,10 @@ test('agentTraceView shows refreshed manifest after active skill updates', () =>
   const view = agentTraceView(traceEvent({
     kind: 'tool_catalog',
     title: 'Agent catalog refreshed',
-    summary: '2 available tool(s) after catalog change; manifest=test.core-only; tools=2; movscript_project_script_read=available/granted.',
+    summary: '2 available tool(s) after catalog change; manifest=test.core-only; tools=2; movscript_script_locate=available/granted.',
     data: {
       skillIds: ['movscript.workflow.script_reading'],
-      availableToolNames: ['core_skill_update', 'movscript_project_script_read'],
+      availableToolNames: ['core_skill_update', 'movscript_script_locate'],
       manifest: {
         id: 'test.core-only',
         version: '0.1.0',
@@ -75,15 +75,15 @@ test('agentTraceView shows refreshed manifest after active skill updates', () =>
         toolCount: 2,
         tools: [
           { name: 'core_skill_update', mode: 'allow', approval: 'never' },
-          { name: 'movscript_project_script_read', mode: 'allow', approval: 'never' },
+          { name: 'movscript_script_locate', mode: 'allow', approval: 'never' },
         ],
       },
       capabilitySnapshot: {
         keyTools: [
           { name: 'core_skill_update', available: true, granted: true, approval: 'never' },
-          { name: 'movscript_project_script_read', available: true, granted: true, approval: 'never' },
+          { name: 'movscript_script_locate', available: true, granted: true, approval: 'never' },
         ],
-        availableToolNames: ['core_skill_update', 'movscript_project_script_read'],
+        availableToolNames: ['core_skill_update', 'movscript_script_locate'],
         blockedTools: [],
       },
       warningCount: 0,
@@ -95,8 +95,8 @@ test('agentTraceView shows refreshed manifest after active skill updates', () =>
   assert.ok(manifestGroup)
   assert.ok(keyToolsGroup)
   assert.equal(manifestGroup.items.find((item) => item.label === 'Manifest ID')?.value, 'test.core-only')
-  assert.match(manifestGroup.items.find((item) => item.label === '工具授权')?.value ?? '', /movscript_project_script_read:allow\/never/)
-  assert.equal(keyToolsGroup.items.find((item) => item.label === 'movscript_project_script_read')?.value, 'available / granted / approval=never')
+  assert.match(manifestGroup.items.find((item) => item.label === '工具授权')?.value ?? '', /movscript_script_locate:allow\/never/)
+  assert.equal(keyToolsGroup.items.find((item) => item.label === 'movscript_script_locate')?.value, 'available / granted / approval=never')
 })
 
 test('agentTraceView separates model HTTP request and impact', () => {
@@ -149,7 +149,7 @@ test('agentTraceView exposes Responses SDK payload as submitted model request', 
     input: [{ role: 'user', content: 'review trace detail' }],
     tools: [{
       type: 'function',
-      name: 'draft_file_edit',
+      name: 'core_file_edit',
       description: 'Edit draft text',
       parameters: {
         type: 'object',
@@ -189,7 +189,7 @@ test('agentTraceView exposes Responses SDK payload as submitted model request', 
   assert.deepEqual(view.modelDetail?.request?.internalPayload, internalBody)
   assert.deepEqual(view.modelDetail?.tools, [{
     index: 1,
-    name: 'draft_file_edit',
+    name: 'core_file_edit',
     description: 'Edit draft text',
     parameterKeys: ['draftId', 'patch'],
   }])
@@ -537,15 +537,15 @@ test('agentTraceView localizes common planner and worker trace fallbacks', () =>
   }))
   const dispatchView = agentTraceView(traceEvent({
     kind: 'tool_call',
-    title: 'Subagent dispatch tool call',
-    toolName: 'core_subagent_spawn',
+    title: 'Runtime work dispatch tool call',
+    toolName: 'core_work_start',
     summary: 'Spawned worker Einstein.',
   }))
 
   assert.equal(workerView.title, '执行器启动')
   assert.equal(workerView.summary, '发现缺少主视觉覆盖。')
   assert.match(workerView.behavior ?? '', /启动执行器运行/)
-  assert.equal(dispatchView.title, '子代理调度工具调用')
+  assert.equal(dispatchView.title, '异步任务调度工具调用')
   assert.equal(dispatchView.summary, '已启动执行器 Einstein。')
   const responseView = agentTraceView(traceEvent({
     kind: 'model_call',

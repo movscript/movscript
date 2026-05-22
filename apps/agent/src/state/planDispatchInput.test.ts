@@ -81,7 +81,7 @@ test('buildDispatchWorkerRunInput binds worker runs to planner, taskGraph, task,
     }),
     subagentName: 'Researcher',
     dispatchInput: {
-      approvedToolNames: ['movscript_project_script_read'],
+      approvedToolNames: ['movscript_script_locate'],
       backendAuthToken: 'token',
       backendAPIBaseURL: 'http://backend',
       sandboxMode: true,
@@ -97,7 +97,7 @@ test('buildDispatchWorkerRunInput binds worker runs to planner, taskGraph, task,
   assert.deepEqual(input.metadata, { subagentName: 'Researcher' })
   assert.deepEqual(input.agentManifest, DEFAULT_AGENT_MANIFEST)
   assert.deepEqual(input.policy, plannerRun.policy)
-  assert.deepEqual(input.approvedToolNames, ['movscript_project_script_read'])
+  assert.deepEqual(input.approvedToolNames, ['movscript_script_locate'])
   assert.equal(input.backendAuthToken, 'token')
   assert.equal(input.backendAPIBaseURL, 'http://backend')
   assert.equal(input.sandboxMode, true)

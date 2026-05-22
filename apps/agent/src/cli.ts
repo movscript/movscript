@@ -33,7 +33,7 @@ async function main() {
   }
 
   if (command === 'draft') {
-    const kind = getFlag(args, '--kind') || 'note'
+    const kind = getFlag(args, '--kind') || 'project_standards_proposal'
     const title = getFlag(args, '--title') || 'Untitled draft'
     const content = getFlag(args, '--content') || ''
     const projectId = getNumberFlag(args, '--project-id')

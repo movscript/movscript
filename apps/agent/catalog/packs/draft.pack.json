@@ -2,7 +2,7 @@
   "id": "draft.pack.lifecycle",
   "version": "1.0.0",
   "name": "Drafts",
-  "description": "本地审阅 draft schema、编辑、校验和 dry-run preview 工具。",
+  "description": "本地审阅 draft schema、dry-run preview 和 apply 工具；正文读写通过 core file tools 完成，preview 内置 validation。",
   "source": "builtin",
   "resources": {
     "skills": [
@@ -10,8 +10,7 @@
       "draft/workflow/lifecycle"
     ],
     "tools": [
-      "draft",
-      "draft/files"
+      "draft"
     ]
   },
   "schemas": [
@@ -22,14 +21,8 @@
     "movscript.content_unit_proposal.v1"
   ],
   "tools": [
-    "draft_get",
-    "draft_file_read",
-    "draft_file_search",
-    "draft_file_edit",
-    "draft_file_validate",
     "draft_model_get",
     "draft_create",
-    "draft_validate",
     "draft_apply_preview",
     "draft_apply"
   ],

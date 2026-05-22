@@ -56,6 +56,7 @@ export function buildRuntimeCreateRun(input: {
   })
   const run = buildAgentRun({
     id: runId,
+    sessionId: thread.sessionId,
     threadId: thread.id,
     agentManifest,
     policy,
@@ -107,6 +108,7 @@ export function buildRuntimeCreateToolRun(input: {
   })
   const run = buildAgentRun({
     id: runId,
+    sessionId: thread.sessionId,
     threadId: thread.id,
     agentManifest,
     policy,

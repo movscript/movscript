@@ -83,7 +83,7 @@ async function main() {
   const snapshotIds = idsOf(snapshotSlots)
   const proposalIds = idsOf(proposalSlots)
 
-  const validation = await postJSON(`${agentBaseURL}/drafts/${encodeURIComponent(draft.id)}/validate`, {})
+  const applyPreview = await postJSON(`${agentBaseURL}/drafts/${encodeURIComponent(draft.id)}/apply-preview`, {})
   const report = {
     projectId,
     draftId: draft.id,
@@ -103,9 +103,10 @@ async function main() {
     missingFromDraftSnapshotBase: difference(expectedIds, snapshotIds),
     missingFromDraftProposal: difference(expectedIds, proposalIds),
     extraInDraftProposal: difference(proposalIds, expectedIds),
-    validation: {
-      ok: validation.ok === true,
-      issues: Array.isArray(validation.issues) ? validation.issues : [],
+    applyPreview: {
+      ok: applyPreview.ok === true,
+      stage: typeof applyPreview.stage === 'string' ? applyPreview.stage : undefined,
+      issues: Array.isArray(applyPreview.validation?.issues) ? applyPreview.validation.issues : [],
     },
   }
 

@@ -5,7 +5,6 @@ export type DraftSchemaCategory =
   | 'production'
   | 'content_unit'
   | 'asset'
-  | 'script'
 
 export type DraftScope = 'project' | 'production' | 'content_unit' | 'asset'
 
@@ -15,15 +14,6 @@ export type DraftKind =
   | 'production_proposal'
   | 'content_unit_proposal'
   | 'asset_proposal'
-  | 'script_split_proposal'
-  | 'script'
-  | 'asset_slot'
-  | 'content_unit'
-  | 'prompt'
-  | 'note'
-  | 'pipeline'
-  | 'segment'
-  | 'scene_moment'
 
 export interface DraftSchemaDefinition {
   id: string

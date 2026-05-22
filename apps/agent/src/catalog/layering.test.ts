@@ -61,15 +61,14 @@ test('layered catalog registry exposes schema/tool/skill/pack/profile boundaries
   const registry = catalog.layeredRegistry
 
   assert.ok(registry.schemas.has('movscript.project_standards_proposal.v1'))
-  assert.ok(registry.tools.has('draft_validate'))
   assert.ok(registry.tools.has('draft_apply_preview'))
   assert.ok(registry.tools.has('draft_model_get'))
   assert.ok(registry.tools.has('knowledge_search'))
   assert.ok(registry.tools.has('knowledge_get'))
-  const readScriptsTool = registry.tools.get('movscript_project_script_read')
+  const readScriptsTool = registry.tools.get('movscript_script_locate')
   assert.ok(readScriptsTool)
   assert.match(readScriptsTool.description, /后端项目剧本/)
-  assert.match(readScriptsTool.description, /不要用 draft_get 读取剧本/)
+  assert.match(readScriptsTool.description, /core_file_read 精读/)
   const readScriptsProperties = schemaProperties(readScriptsTool.inputSchema)
   assert.ok(readScriptsProperties.scriptId)
   assert.ok(readScriptsProperties.scriptTitle)
@@ -166,13 +165,12 @@ test('draft lifecycle workflow describes read-before-write draft handling', () =
   const workflow = catalog.layeredRegistry.skills.get('draft.workflow.lifecycle')
 
   assert.ok(workflow?.kind === 'workflow')
-  assert.ok(workflow.toolRefs.includes('tool://draft_get'))
+  assert.ok(workflow.toolRefs.includes('tool://core_file_read'))
   assert.ok(workflow.toolRefs.includes('tool://draft_create'))
-  assert.ok(workflow.toolRefs.includes('tool://draft_validate'))
   assert.ok(workflow.toolRefs.includes('tool://draft_apply_preview'))
   assert.equal(workflow.toolRefs.includes('tool://movscript_list_drafts'), false)
   assert.match(workflow.instructionTemplate, /当前会话没有 draftId/)
-  assert.match(workflow.instructionTemplate, /若用户或当前会话上下文给了 draftId，先 get 该 draft/)
+  assert.match(workflow.instructionTemplate, /agent:\/\/draft\/\{draftId\}\/content/)
   assert.match(workflow.instructionTemplate, /不要跨会话查找旧 draft/)
   assert.match(workflow.instructionTemplate, /绝不在未读取当前会话现有 draft 前直接覆盖写入/)
 
@@ -574,9 +572,10 @@ test('manual script reading skill is discovered before it exposes script tools',
     activeSkills: coreOnly.skills,
     userMessage: message,
   })
-  assert.equal(coreTools.byName.movscript_project_script_read?.available, false)
-  assert.equal(coreTools.byName.movscript_project_script_read?.unavailableReason, 'workflow_scope')
+  assert.equal(coreTools.byName.movscript_script_locate?.available, false)
+  assert.equal(coreTools.byName.movscript_script_locate?.unavailableReason, 'workflow_scope')
   assert.equal(coreTools.byName.core_skill_update?.available, true)
+  assert.equal(coreTools.byName.core_update_plan?.available, true)
 
   const loaded = resolveRuntimeLayers({
     registry: catalog.layeredRegistry,
@@ -595,7 +594,7 @@ test('manual script reading skill is discovered before it exposes script tools',
     activeSkills: loaded.skills,
     userMessage: message,
   })
-  assert.equal(loadedTools.byName.movscript_project_script_read?.available, true)
+  assert.equal(loadedTools.byName.movscript_script_locate?.available, true)
 })
 
 test('manual script reading skill overrides tool-policy deny for its script tool', () => {
@@ -613,7 +612,7 @@ test('manual script reading skill overrides tool-policy deny for its script tool
   }
   const defaultToolGrants = catalog.manifest.tools.map((grant) => ({
     ...grant,
-    mode: grant.name === 'movscript_project_script_read' ? 'deny' as const : grant.mode,
+    mode: grant.name === 'movscript_script_locate' ? 'deny' as const : grant.mode,
   }))
 
   const coreOnly = resolveRuntimeLayers({
@@ -637,8 +636,8 @@ test('manual script reading skill overrides tool-policy deny for its script tool
     activeSkills: coreOnly.skills,
     userMessage: message,
   })
-  assert.equal(coreTools.byName.movscript_project_script_read?.available, false)
-  assert.equal(coreTools.byName.movscript_project_script_read?.unavailableReason, 'workflow_scope')
+  assert.equal(coreTools.byName.movscript_script_locate?.available, false)
+  assert.equal(coreTools.byName.movscript_script_locate?.unavailableReason, 'workflow_scope')
 
   const loaded = resolveRuntimeLayers({
     registry: catalog.layeredRegistry,
@@ -647,7 +646,7 @@ test('manual script reading skill overrides tool-policy deny for its script tool
     debugContext,
     requestedSkillIds: ['movscript.workflow.script_reading'],
   })
-  assert.equal(loaded.manifest.tools.find((grant) => grant.name === 'movscript_project_script_read')?.mode, 'allow')
+  assert.equal(loaded.manifest.tools.find((grant) => grant.name === 'movscript_script_locate')?.mode, 'allow')
   const loadedTools = resolveToolCatalog({
     mcpTools: [],
     registry: catalog.registry,
@@ -656,8 +655,8 @@ test('manual script reading skill overrides tool-policy deny for its script tool
     activeSkills: loaded.skills,
     userMessage: message,
   })
-  assert.equal(loadedTools.byName.movscript_project_script_read?.available, true)
-  assert.equal(loadedTools.byName.movscript_project_script_read?.granted, true)
+  assert.equal(loadedTools.byName.movscript_script_locate?.available, true)
+  assert.equal(loadedTools.byName.movscript_script_locate?.granted, true)
 })
 
 test('visual generation prompt exposes backend generation validation error codes', () => {
@@ -702,7 +701,7 @@ test('image edit wording with image context activates visual generation tools', 
     baseManifest: catalog.manifest,
     message,
     debugContext: {
-      route: { pathname: '/script-split-workbench' },
+      route: { pathname: '/scripts' },
       projects: [{ id: 4, name: '测试项目' }],
       project: { id: 4, name: '测试项目' },
       selection: null,
@@ -810,7 +809,6 @@ test('pre-production prep routes to setting and asset proposal drafts without ge
     userMessage: message,
   })
   assert.ok(tools.available.some((tool) => tool.name === 'draft_create'))
-  assert.ok(tools.available.some((tool) => tool.name === 'draft_validate'))
   assert.ok(tools.available.some((tool) => tool.name === 'draft_apply_preview'))
   assert.equal(tools.byName.core_work_start?.unavailableReason, 'workflow_scope')
 })
@@ -826,7 +824,6 @@ test('workflow skills use isolated skill directories', () => {
   assert.equal(existsSync(new URL('workflow/asset-proposal.workflow.md', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('workflow/content-unit-proposal.workflow.md', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('workflow/content-unit-media-proposal.workflow.md', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('workflow/script-split.workflow.md', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('workflow/setting-prep.workflow.md', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('workflow/script-writing.workflow.md', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('workflow/project-progress.workflow.md', CATALOG_SKILLS_DIR)), false)
@@ -842,7 +839,6 @@ test('workflow skills use isolated skill directories', () => {
   assert.equal(existsSync(new URL('movscript/workflow/proposal/asset/asset_proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
   assert.equal(existsSync(new URL('movscript/workflow/proposal/content_unit/content_unit_proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
   assert.equal(existsSync(new URL('movscript/workflow/proposal/content-unit/content-unit-media-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('movscript/workflow/planning/script-split/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('movscript/workflow/proposal/project/setting_prep/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
   assert.equal(existsSync(new URL('movscript/workflow/writing/script-writing/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('movscript/workflow/workspace/project_progress_review/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
@@ -864,7 +860,6 @@ test('target-state skill and tool files define the active runtime resources', ()
   assert.ok(workflow.schemaRefs?.includes('schema://movscript.project_standards_proposal.v1'))
   assert.match(workflow.instructionTemplate, /目标：\n产出或编辑一个本地 project_standards_proposal draft/)
   assert.match(workflow.instructionTemplate, /\{\{schema:movscript\.project_standards_proposal\.v1\}\}/)
-  assert.equal(catalog.layeredRegistry.skills.has('movscript.workflow.script-split'), false)
   assert.equal(catalog.layeredRegistry.skills.has('movscript.workflow.script-writing'), false)
   assert.equal(catalog.layeredRegistry.skills.has('movscript.workflow.creative-workbench'), false)
   assert.ok(inputTool)
@@ -1069,7 +1064,7 @@ test('profile resolution, trigger selection, prompt refs, and tool scope work to
   profile.enabledWorkflows = [workflow.id]
   profile.enabledPolicies = [policy.id]
   profile.toolGrants = [
-    { name: 'draft_validate', mode: 'allow', approval: 'never' },
+    { name: 'draft_apply_preview', mode: 'allow', approval: 'never' },
     { name: 'core_work_start', mode: 'allow', approval: 'always' },
     { name: 'core_user_input_request', mode: 'allow', approval: 'never' },
   ]
@@ -1100,7 +1095,7 @@ test('profile resolution, trigger selection, prompt refs, and tool scope work to
     ctx,
     activeWorkflows: selected.workflows,
   })
-  assert.ok(tools.available.some((tool) => tool.name === 'draft_validate'))
+  assert.ok(tools.available.some((tool) => tool.name === 'draft_apply_preview'))
   assert.ok(tools.available.some((tool) => tool.name === 'core_user_input_request'))
   assert.equal(tools.available.some((tool) => tool.name === 'core_work_start'), false)
 })
@@ -1118,7 +1113,7 @@ test('org and user profile overrides can only narrow runtime capability', () => 
     enabledWorkflows: ['movscript.workflow.project_standards_proposal'],
     enabledPolicies: ['draft.policy.lifecycle', 'core.policy.runtime', 'movscript.policy.workspace'],
     toolGrants: [
-      { name: 'draft_validate', mode: 'allow' as const, approval: 'always' as const },
+      { name: 'draft_apply_preview', mode: 'allow' as const, approval: 'always' as const },
       { name: 'draft_create', mode: 'deny' as const },
     ],
     limits: { maxActiveWorkflows: 1 },
@@ -1133,7 +1128,7 @@ test('org and user profile overrides can only narrow runtime capability', () => 
     enabledWorkflows: ['movscript.workflow.project_standards_proposal'],
     enabledPolicies: [],
     toolGrants: [
-      { name: 'draft_validate', mode: 'deny' as const },
+      { name: 'draft_apply_preview', mode: 'deny' as const },
     ],
   }
 
@@ -1145,7 +1140,7 @@ test('org and user profile overrides can only narrow runtime capability', () => 
   assert.deepEqual(resolved.warnings, [])
   assert.deepEqual(resolved.profile.enabledPacks, ['core.pack.agent', 'draft.pack.lifecycle', 'movscript.pack.workspace'])
   assert.deepEqual(resolved.profile.enabledWorkflows, ['movscript.workflow.project_standards_proposal'])
-  assert.equal(resolved.profile.toolGrants.find((grant) => grant.name === 'draft_validate')?.mode, 'deny')
+  assert.equal(resolved.profile.toolGrants.find((grant) => grant.name === 'draft_apply_preview')?.mode, 'deny')
   assert.equal(resolved.profile.toolGrants.find((grant) => grant.name === 'draft_create')?.mode, 'deny')
   assert.equal(resolved.profile.limits?.maxActiveWorkflows, 1)
   assert.deepEqual(resolved.profile.resolvedFrom?.layers.map((layer) => layer.source), ['default', 'org', 'user'])
@@ -1164,7 +1159,7 @@ test('org and user profile overrides are rejected as a whole when they add or lo
     enabledWorkflows: [],
     enabledPolicies: [],
     toolGrants: [
-      { name: 'draft_validate', mode: 'allow' as const, approval: 'never' as const },
+      { name: 'draft_apply_preview', mode: 'allow' as const, approval: 'never' as const },
       { name: 'core_work_start', mode: 'allow' as const, approval: 'never' as const },
     ],
   }

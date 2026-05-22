@@ -1,4 +1,4 @@
-import type { AgentTaskGraph, AgentRun, AgentTask, CreateRunInput, DispatchTaskGraphInput } from './types.js'
+import type { AgentTaskGraph, AgentRun, AgentTask, AgentThread, CreateRunInput, DispatchTaskGraphInput } from './types.js'
 import { normalizePositiveInteger, normalizeStringList } from './planTaskInput.js'
 import { buildAgentRunTaskInputSnapshot } from './runInput.js'
 import { formatWorkerTaskMessage } from './workerTaskPrompt.js'
@@ -53,11 +53,12 @@ export function buildDispatchWorkerRunInput(input: {
   taskGraph: AgentTaskGraph
   plannerRun: AgentRun
   task: AgentTask
+  workerThread?: AgentThread
   subagentName: string
   dispatchInput: DispatchTaskGraphInput
 }): CreateRunInput {
   return {
-    threadId: input.taskGraph.threadId,
+    threadId: input.workerThread?.id ?? input.taskGraph.threadId,
     userMessage: formatWorkerTaskMessage(input.taskGraph, input.task),
     task: buildAgentRunTaskInputSnapshot(input.task),
     role: 'worker',
@@ -65,7 +66,10 @@ export function buildDispatchWorkerRunInput(input: {
     taskGraphId: input.taskGraph.id,
     taskId: input.task.id,
     progress: 0,
-    metadata: { subagentName: input.subagentName },
+    metadata: {
+      subagentName: input.subagentName,
+      ...(input.workerThread?.id ? { childThreadId: input.workerThread.id } : {}),
+    },
     agentManifest: input.dispatchInput.agentManifest ?? input.plannerRun.agentManifest,
     approvedToolNames: input.dispatchInput.approvedToolNames,
     policy: input.dispatchInput.policy ?? input.plannerRun.policy,

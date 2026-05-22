@@ -48,7 +48,7 @@ test('retrieved context store selects records by source, ref type, prefix, and b
         source: 'draft',
         evidence: 'draft',
         title: 'Draft',
-        summary: 'draft_get result reference (runtime)',
+        summary: 'core_file_read result reference (runtime)',
         charCount: 50,
         retrievedAt: '2026-01-01T00:00:00.000Z',
         usedInPrompt: true,
