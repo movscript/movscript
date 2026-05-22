@@ -28,11 +28,12 @@ export async function hydrateRuntimeThreadConversation(input: {
   existingMessages: ChatMessage[]
   hydratedKeys: Set<string>
   signal: AbortSignal
+  force?: boolean
 }, deps: HydrateRuntimeThreadConversationDeps): Promise<RuntimeThreadConversationHydrationStatus> {
   const threadId = input.threadId.trim()
   if (!threadId) return 'skipped'
   const hydrateKey = runtimeThreadHydrationKey(input.conversationId, threadId)
-  if (input.hydratedKeys.has(hydrateKey)) return 'skipped'
+  if (!input.force && input.hydratedKeys.has(hydrateKey)) return 'skipped'
   input.hydratedKeys.add(hydrateKey)
   try {
     const projection = await (deps.loadProjection ?? defaultLoadProjection)({

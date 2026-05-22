@@ -28,6 +28,26 @@ test('handleSendRunUpdate preserves preparing tool call while next state falls b
   assert.equal(calls[0], 'pending:preparing_tool_call')
 })
 
+test('handleSendRunUpdate clears preparing tool call once matching tool step exists', () => {
+  const calls: string[] = []
+  const deps = depsFixture(calls, { currentPending: { status: 'preparing_tool_call', toolName: 'core_work_start' } })
+
+  handleSendRunUpdate(makeRun({
+    status: 'in_progress',
+    steps: [{
+      id: 'step_1',
+      runId: 'run_1',
+      type: 'tool_call',
+      status: 'completed',
+      toolName: 'core_work_start',
+      createdAt: '2026-05-19T00:00:01.000Z',
+      completedAt: '2026-05-19T00:00:02.000Z',
+    }],
+  }), deps)
+
+  assert.equal(calls[0], 'pending:thinking')
+})
+
 test('handleSendRunUpdate clears pending assistant state for terminal runs and refreshes catalog context', () => {
   const calls: string[] = []
   const deps = depsFixture(calls)

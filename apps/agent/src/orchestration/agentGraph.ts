@@ -8,6 +8,7 @@ import type { KnowledgeManager } from '../knowledge/knowledgeManager.js'
 import type { AgentDraftStore } from '../drafts/draftStore.js'
 import type { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import type { ConfiguredRuntimeModelConfig, RuntimeModelAuthContext, RuntimeModelChatMessage, RuntimeModelChatToolCall } from '../model/modelConfig.js'
+import type { ModelCallResult } from '../model/modelClient.js'
 import type { ToolRegistry } from '../tools/toolRegistry.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
 import type { SkillDiscoverySummary } from '../contextManager/modelContextBuilder.js'
@@ -395,69 +396,80 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
       toolCount: tools.length,
     },
   })
-  const modelResult = await modelRouter.call({
-    capability: 'reasoning',
-    messages,
-    tools,
-    toolChoice: tools.length > 0 ? 'auto' : undefined,
-    auth: input.auth,
-    signal: input.signal,
-    onTrace: (event) => {
-      if (event.phase === 'stream') {
-        const isToolCallStream = event.stream?.kind === 'tool_call'
-        const volatileKey = isToolCallStream
-          ? toolCallStreamTraceKey(currentRoundIndex, event.stream?.toolCall)
-          : undefined
+  let modelResult: ModelCallResult
+  try {
+    modelResult = await modelRouter.call({
+      capability: 'reasoning',
+      messages,
+      tools,
+      toolChoice: tools.length > 0 ? 'auto' : undefined,
+      auth: input.auth,
+      signal: input.signal,
+      onTrace: (event) => {
+        if (event.phase === 'stream') {
+          const isToolCallStream = event.stream?.kind === 'tool_call'
+          const volatileKey = isToolCallStream
+            ? toolCallStreamTraceKey(currentRoundIndex, event.stream?.toolCall)
+            : undefined
+          input.onTrace({
+            kind: event.stream?.kind === 'reasoning' ? 'reasoning' : isToolCallStream ? 'tool_call' : 'model_call',
+            title: event.stream?.kind === 'reasoning'
+              ? 'Model reasoning delta'
+              : isToolCallStream ? 'Model tool call delta' : 'Model stream delta',
+            summary: isToolCallStream
+              ? formatToolCallStreamSummary(event.stream?.toolCall)
+              : event.stream?.delta ? event.stream.delta.slice(0, 180) : undefined,
+            status: 'info',
+            roundIndex: currentRoundIndex,
+            roundLabel,
+            roundSource: 'model',
+            data: { phase: event.phase, stream: event.stream, latencyMs: event.trace.latencyMs },
+            volatile: true,
+            ...(volatileKey ? { volatileKey } : {}),
+          })
+          return
+        }
         input.onTrace({
-          kind: event.stream?.kind === 'reasoning' ? 'reasoning' : isToolCallStream ? 'tool_call' : 'model_call',
-          title: event.stream?.kind === 'reasoning'
-            ? 'Model reasoning delta'
-            : isToolCallStream ? 'Model tool call delta' : 'Model stream delta',
-          summary: isToolCallStream
-            ? formatToolCallStreamSummary(event.stream?.toolCall)
-            : event.stream?.delta ? event.stream.delta.slice(0, 180) : undefined,
-          status: 'info',
+          kind: 'model_call',
+          title: event.phase === 'request'
+            ? 'Model HTTP request sent'
+            : event.phase === 'response'
+              ? 'Model HTTP response received'
+              : event.phase === 'retry' ? 'Model retry scheduled' : 'Model HTTP call failed',
+          summary: event.phase === 'retry' && event.retry
+            ? `Rate limited or temporarily unavailable. Retry ${event.retry.nextAttempt}/${event.retry.maxAttempts} in ${Math.round(event.retry.delayMs / 1000)}s.`
+            : event.error ?? (event.trace.response ? `HTTP ${event.trace.response.status} in ${event.trace.latencyMs}ms` : undefined),
+          status: event.phase === 'request' ? 'started' : event.phase === 'error' ? 'failed' : event.phase === 'retry' ? 'info' : event.trace.response?.ok === false ? 'failed' : 'completed',
           roundIndex: currentRoundIndex,
           roundLabel,
           roundSource: 'model',
-          data: { phase: event.phase, stream: event.stream, latencyMs: event.trace.latencyMs },
-          volatile: true,
-          ...(volatileKey ? { volatileKey } : {}),
+          data: { phase: event.phase, ...event.trace, ...(event.error ? { error: event.error } : {}), ...(event.retry ? { retry: event.retry } : {}) },
+          ...(event.phase === 'response' || event.phase === 'error' ? { durationMs: event.trace.latencyMs } : {}),
         })
-        return
-      }
-      input.onTrace({
-        kind: 'model_call',
-        title: event.phase === 'request'
-          ? 'Model HTTP request sent'
-          : event.phase === 'response'
-            ? 'Model HTTP response received'
-            : event.phase === 'retry' ? 'Model retry scheduled' : 'Model HTTP call failed',
-        summary: event.phase === 'retry' && event.retry
-          ? `Rate limited or temporarily unavailable. Retry ${event.retry.nextAttempt}/${event.retry.maxAttempts} in ${Math.round(event.retry.delayMs / 1000)}s.`
-          : event.error ?? (event.trace.response ? `HTTP ${event.trace.response.status} in ${event.trace.latencyMs}ms` : undefined),
-        status: event.phase === 'request' ? 'started' : event.phase === 'error' ? 'failed' : event.phase === 'retry' ? 'info' : event.trace.response?.ok === false ? 'failed' : 'completed',
-        roundIndex: currentRoundIndex,
-        roundLabel,
-        roundSource: 'model',
-        data: { phase: event.phase, ...event.trace, ...(event.error ? { error: event.error } : {}), ...(event.retry ? { retry: event.retry } : {}) },
-        ...(event.phase === 'response' || event.phase === 'error' ? { durationMs: event.trace.latencyMs } : {}),
-      })
-    },
-  }).catch((error) => {
+      },
+    })
+  } catch (error) {
     if (isAbortError(error) || input.signal?.aborted) throw error
     const message = error instanceof Error ? error.message : String(error)
-    const finalContent = formatRecoverableModelError(message)
+    const pendingInputRequest = buildModelRetryInputRequest(input.run.id, message)
+    input.onTrace({
+      kind: 'input',
+      title: 'Model call recovery required',
+      summary: pendingInputRequest.summary,
+      status: 'blocked',
+      roundIndex: currentRoundIndex,
+      roundLabel,
+      roundSource: 'model',
+      data: { error: message, inputRequests: [pendingInputRequest] },
+    })
     return {
-      content: finalContent,
-      tool_calls: [],
-      finish_reason: 'stop',
-      rawAssistantMessage: { role: 'assistant' as const, content: finalContent },
-      usage: undefined,
-      recoverableError: true,
+      status: 'requires_action' as const,
+      pendingApprovals: [],
+      pendingInputRequests: [pendingInputRequest],
+      requestedCalls: [],
       warnings: [`模型调用未完成：${message}`],
     }
-  })
+  }
   throwIfAborted(input.signal)
 
   const roundDurationMs = Math.max(0, Date.now() - roundStartedAtMs)
@@ -539,13 +551,25 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
   }
 }
 
-function formatRecoverableModelError(message: string): string {
-  return [
-    '模型这次没有完成回复。',
-    '请重试；如果连续失败，可以缩短输入或补充更明确的编排范围。',
-    '',
-    `错误信息：${message}`,
-  ].join('\n')
+function buildModelRetryInputRequest(runId: string, message: string): AgentInputRequest {
+  const now = new Date().toISOString()
+  return {
+    id: makeId('input_model_retry'),
+    runId,
+    title: '模型调用需要恢复',
+    summary: `模型请求没有完成：${message}`,
+    question: '修复登录状态或模型配置后，继续当前 run。',
+    inputType: 'confirmation',
+    choices: [{
+      id: 'retry',
+      label: '修复后重试',
+      description: '使用当前登录状态和模型配置继续这个 run。',
+    }],
+    allowCustomAnswer: false,
+    status: 'pending',
+    createdAt: now,
+    updatedAt: now,
+  }
 }
 
 async function runPolicyNode(state: AgentGraphState, input: AgentGraphInput): Promise<Partial<AgentGraphState>> {

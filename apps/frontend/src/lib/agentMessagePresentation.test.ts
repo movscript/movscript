@@ -139,6 +139,16 @@ test('buildAgentMessagePresentation exposes assistant meta as view model fields'
   assert.equal(result.hasDiagnosticSection, true)
 })
 
+test('buildAgentMessagePresentation hides internal run status breadcrumbs', () => {
+  const result = buildAgentMessagePresentation(message({
+    meta: {
+      contextLabels: ['run completed', '已恢复本地 Runtime', 'Restored Local Runtime', 'Project Alpha'],
+    },
+  }))
+
+  assert.deepEqual(result.contextLabels, ['Project Alpha'])
+})
+
 test('buildAgentMessagePresentation hides requires-action summary text while preserving inline activity', () => {
   const result = buildAgentMessagePresentation(message({
     content: '执行前需要确认：\n- draft_apply: 需要正式写入项目数据',

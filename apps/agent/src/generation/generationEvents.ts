@@ -146,11 +146,10 @@ function unwrapToolPayload(result: JSONValue | undefined): JSONValue | undefined
 }
 
 function inferStage(toolName: string, status: string, terminal: boolean): GenerationEventStage {
-  if (status === 'completed') return 'completed'
+  if (isCompletedStatus(status)) return 'completed'
   if (status === 'timeout') return 'timeout'
-  if (status === 'succeeded') return 'completed'
-  if (status === 'failed') return 'failed'
-  if (status === 'cancelled') return 'cancelled'
+  if (isFailedStatus(status)) return 'failed'
+  if (isCancelledStatus(status)) return 'cancelled'
   if (toolName === 'generation_job_create' && !terminal) return 'created'
   return 'observed'
 }
@@ -169,11 +168,10 @@ function defaultMonitorHeartbeatMs(event: GenerationEvent): number {
 
 function defaultMessage(toolName: string, jobId: number | undefined, status: string, progress: number | undefined, outputResourceIds: number[]): string {
   const jobLabel = jobId !== undefined ? `Job #${jobId}` : '生成任务'
-  if (status === 'completed') return `${jobLabel} 生成完成${outputResourceIds.length > 0 ? `，输出资源 ${outputResourceIds.map((id) => `#${id}`).join('、')}` : ''}。`
   if (status === 'timeout') return `${jobLabel} 仍在后台运行，已达到本次监控等待时间。`
-  if (status === 'succeeded') return `${jobLabel} 生成完成${outputResourceIds.length > 0 ? `，输出资源 ${outputResourceIds.map((id) => `#${id}`).join('、')}` : ''}。`
-  if (status === 'failed') return `${jobLabel} 生成失败。`
-  if (status === 'cancelled') return `${jobLabel} 已取消。`
+  if (isCompletedStatus(status)) return `${jobLabel} 生成完成${outputResourceIds.length > 0 ? `，输出资源 ${outputResourceIds.map((id) => `#${id}`).join('、')}` : ''}。`
+  if (isFailedStatus(status)) return `${jobLabel} 生成失败。`
+  if (isCancelledStatus(status)) return `${jobLabel} 已取消。`
   if (toolName === 'generation_job_create') return `${jobLabel} 已创建，当前状态：${status}。`
   return `${jobLabel} 仍在运行，当前状态：${status}${progress !== undefined ? `，进度 ${progress}%` : ''}。`
 }
@@ -185,8 +183,46 @@ function isGenerationTool(toolName: string): boolean {
 }
 
 function isTerminalStatus(status: string): boolean {
-  return status === 'succeeded' || status === 'failed' || status === 'cancelled'
+  return isCompletedStatus(status) || isFailedStatus(status) || isCancelledStatus(status)
 }
+
+function isCompletedStatus(status: string): boolean {
+  return COMPLETED_STATUSES.has(normalizeStatus(status))
+}
+
+function isFailedStatus(status: string): boolean {
+  return FAILED_STATUSES.has(normalizeStatus(status))
+}
+
+function isCancelledStatus(status: string): boolean {
+  return CANCELLED_STATUSES.has(normalizeStatus(status))
+}
+
+function normalizeStatus(status: string): string {
+  return status.trim().toLowerCase()
+}
+
+const COMPLETED_STATUSES = new Set([
+  'succeeded',
+  'succeed',
+  'success',
+  'completed',
+  'complete',
+  'done',
+  'finish',
+  'finished',
+])
+
+const FAILED_STATUSES = new Set([
+  'failed',
+  'failure',
+  'error',
+])
+
+const CANCELLED_STATUSES = new Set([
+  'cancelled',
+  'canceled',
+])
 
 function statusFromJob(value: unknown): string | undefined {
   return stringField(value, 'status')

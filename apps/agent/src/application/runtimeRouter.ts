@@ -88,6 +88,7 @@ import { RuntimeWorkManager } from '../runtimeWork/runtimeWorkManager.js'
 import { GenerationJobWorkProvider } from '../runtimeWork/providers/generationJobWorkProvider.js'
 import { SubagentRunWorkProvider } from '../runtimeWork/providers/subagentRunWorkProvider.js'
 import { AgentStoreRuntimeWorkStore } from '../runtimeWork/runtimeWorkStore.js'
+import { isTerminalRuntimeWorkStatus, type RuntimeWork } from '../runtimeWork/runtimeWork.js'
 import {
   createRuntimeTaskGraphDispatchBridge,
   type RuntimeTaskGraphDispatchBridge,
@@ -547,6 +548,7 @@ export class AgentRuntimeRouter {
       store: this.store,
       runControl: this.runControl,
       continueRun: (runInput) => this.createRun(runInput),
+      getRunAuth: (runId) => this.runAuth.get(runId),
       now: () => isoNow(),
     })
     this.runCreation = createRuntimeRunCreationBridge({
@@ -723,9 +725,9 @@ export class AgentRuntimeRouter {
     return this.threads.getThread(id)
   }
 
-  getThreadRuntimeSnapshot(threadId: string): RuntimeThreadSnapshotV2 | undefined {
+  async getThreadRuntimeSnapshot(threadId: string): Promise<RuntimeThreadSnapshotV2 | undefined> {
     if (!this.getThread(threadId)) return undefined
-    this.runtimeScheduler.advanceThread(threadId)
+    await this.reconcileRuntimeWorksForOpenedThread(threadId)
     const thread = this.getThread(threadId)
     if (!thread) return undefined
     return buildRuntimeThreadSnapshotV2({
@@ -737,11 +739,11 @@ export class AgentRuntimeRouter {
     })
   }
 
-  getSessionRuntimeSnapshot(sessionId: string): RuntimeSessionSnapshotV1 | undefined {
+  async getSessionRuntimeSnapshot(sessionId: string): Promise<RuntimeSessionSnapshotV1 | undefined> {
     const session = this.getSession(sessionId)
     if (!session) return undefined
     const threads = this.store.listThreads().filter((thread) => thread.sessionId === sessionId)
-    for (const thread of threads) this.runtimeScheduler.advanceThread(thread.id)
+    for (const thread of threads) await this.reconcileRuntimeWorksForOpenedThread(thread.id)
     const refreshedThreads = this.store.listThreads().filter((thread) => thread.sessionId === sessionId)
     const threadIds = new Set(refreshedThreads.map((thread) => thread.id))
     const taskGraphSnapshots = this.store.listTaskGraphs()
@@ -763,6 +765,76 @@ export class AgentRuntimeRouter {
       interactions,
       continuations,
     })
+  }
+
+  private async reconcileRuntimeWorksForOpenedThread(threadId: string): Promise<void> {
+    const works = this.store.listRuntimeWorks({ threadId })
+    for (const work of works) {
+      const observed = await this.observeRuntimeWorkForOpen(work)
+      if (!observed) continue
+      if (isTerminalRuntimeWorkStatus(observed.status)) {
+        this.runtimeScheduler.evaluateContinuationsForWork(observed)
+      }
+    }
+    this.materializeContinuationResumeInteractions(threadId)
+  }
+
+  private async observeRuntimeWorkForOpen(work: RuntimeWork): Promise<RuntimeWork | undefined> {
+    if (isTerminalRuntimeWorkStatus(work.status)) return work
+    try {
+      return await this.workManager.observe(work.id)
+    } catch (error) {
+      const run = this.store.getRun(work.runId)
+      if (run) {
+        this.streams.recordTraceEvent(run, {
+          kind: 'tool_call',
+          title: `Runtime work observe failed: ${work.kind}`,
+          summary: error instanceof Error ? error.message : String(error),
+          status: 'failed',
+          toolName: 'core_work_wait',
+          data: { runtimeWorkId: work.id },
+        })
+      }
+      return undefined
+    }
+  }
+
+  private materializeContinuationResumeInteractions(threadId: string): void {
+    const now = isoNow()
+    const readyContinuations = this.store.listRuntimeContinuations({ threadId, status: 'ready' })
+    for (const continuation of readyContinuations) {
+      if (this.hasContinuationResumeInteraction(continuation.id)) continue
+      const works = this.store.listRuntimeWorks({ runId: continuation.runId })
+        .filter((work) => continuation.trigger.type === 'work_completed' && continuation.trigger.workIds.includes(work.id))
+      this.store.createRuntimeInteraction({
+        id: `interaction_${continuation.id}_resume`,
+        threadId: continuation.threadId,
+        runId: continuation.runId,
+        ...(works[0]?.id ? { workId: works[0].id } : {}),
+        kind: 'selection',
+        status: 'pending',
+        payload: {
+          type: 'runtime_continuation_resume',
+          continuationId: continuation.id,
+          workIds: works.map((work) => work.id),
+          title: '异步任务已完成',
+          summary: '检测到上次提交的异步任务已有结果。可以基于这些结果启动一个新的接续 run，继续原任务。',
+          question: '是否基于已完成的异步任务结果继续原任务？',
+        },
+        createdAt: now,
+        updatedAt: now,
+      })
+    }
+  }
+
+  private hasContinuationResumeInteraction(continuationId: string): boolean {
+    return this.store.listRuntimeInteractions()
+      .some((interaction) => {
+        const payload = interaction.payload && typeof interaction.payload === 'object' && !Array.isArray(interaction.payload)
+          ? interaction.payload as Record<string, unknown>
+          : undefined
+        return payload?.type === 'runtime_continuation_resume' && payload.continuationId === continuationId
+      })
   }
 
   approveInteraction(interactionId: string): RuntimeInteractionApprovalResult {

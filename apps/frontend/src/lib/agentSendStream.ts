@@ -37,7 +37,7 @@ export function handleSendRunUpdate(nextRun: AgentRun, deps: AgentSendRunUpdateD
   if (nextRun.status === 'in_progress' || nextRun.status === 'queued') {
     const nextThinkingState = deps.thinkingStateForRun(nextRun)
     deps.setPendingAssistantState((current) =>
-      current?.status === 'preparing_tool_call' && nextThinkingState.status === 'thinking'
+      shouldPreservePreparingToolCall(current, nextThinkingState, nextRun)
         ? current
         : nextThinkingState
     )
@@ -101,4 +101,16 @@ export function handleSendStreamEvent(event: AgentRunStreamEvent, deps: AgentSen
     )))
   }
   deps.recordLiveTraceEvent(event)
+}
+
+function shouldPreservePreparingToolCall(
+  current: AgentLivePendingAssistantState | null,
+  next: AgentLivePendingAssistantState,
+  run: AgentRun,
+): boolean {
+  if (current?.status !== 'preparing_tool_call' || next.status !== 'thinking') return false
+  return !run.steps.some((step) => (
+    step.type === 'tool_call'
+    && (!current.toolName || step.toolName === current.toolName)
+  ))
 }

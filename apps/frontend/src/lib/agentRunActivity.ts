@@ -204,6 +204,7 @@ function pendingAssistantStateFromTrace(event: ChatRunActivityEvent): LiveRunPen
       ...(toolName ? { toolName } : {}),
     }
   }
+  if (event.kind === 'model_call' && (event.status === 'completed' || event.status === 'failed' || event.status === 'blocked')) return null
   return undefined
 }
 

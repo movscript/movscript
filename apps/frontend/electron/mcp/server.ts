@@ -10,6 +10,9 @@ import {
 import {
   generationJobMessage,
   getJobId,
+  isCancelledGenerationStatus,
+  isCompletedGenerationStatus,
+  isFailedGenerationStatus,
   isTerminalGenerationStatus,
   normalizeGenerationJob,
   stringValue,
@@ -3601,9 +3604,9 @@ function buildWaitGenerationJobsResult(input: {
   timeoutMs: number
   heartbeatMs: number
 }): Record<string, unknown> {
-  const completed = input.jobs.filter((job) => stringValue(job.status) === 'succeeded')
-  const failed = input.jobs.filter((job) => stringValue(job.status) === 'failed')
-  const cancelled = input.jobs.filter((job) => stringValue(job.status) === 'cancelled')
+  const completed = input.jobs.filter((job) => isCompletedGenerationStatus(stringValue(job.status) ?? 'unknown'))
+  const failed = input.jobs.filter((job) => isFailedGenerationStatus(stringValue(job.status) ?? 'unknown'))
+  const cancelled = input.jobs.filter((job) => isCancelledGenerationStatus(stringValue(job.status) ?? 'unknown'))
   const pending = input.jobs.filter((job) => job.terminal !== true)
   const outputResourceIds = uniquePositiveNumberArray(input.jobs.flatMap((job) => (
     Array.isArray(job.output_resource_ids) ? job.output_resource_ids : [job.output_resource_id]
@@ -4586,7 +4589,7 @@ async function waitForGenerationJob(jobId: number, timeoutMs: number, pollInterv
   while (Date.now() <= deadline) {
     latest = await backendGet(`/jobs/${jobId}`)
     const status = isRecord(latest) && typeof latest.status === 'string' ? latest.status : ''
-    if (status === 'succeeded' || status === 'failed' || status === 'cancelled') return latest
+    if (isTerminalGenerationStatus(status)) return latest
     await sleep(pollIntervalMs)
   }
   throw new Error(`generation job ${jobId} did not finish within ${timeoutMs}ms`)

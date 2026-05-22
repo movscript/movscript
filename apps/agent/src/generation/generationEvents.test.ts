@@ -241,3 +241,46 @@ test('generation events can recover from invalid data via JSON content text', ()
   assert.equal(event.jobId, 123)
   assert.equal(event.stage, 'completed')
 })
+
+test('generation events treat backend terminal status aliases as final states', () => {
+  const completed = buildGenerationEvent({
+    name: 'generation_job_get',
+    args: {},
+  }, {
+    data: {
+      status: 'finished',
+      jobId: 123,
+      output_resource_id: 456,
+    },
+  })
+  assert.ok(completed)
+  assert.equal(completed.terminal, true)
+  assert.equal(completed.stage, 'completed')
+  assert.equal(completed.message, 'Job #123 生成完成，输出资源 #456。')
+
+  const failed = buildGenerationEvent({
+    name: 'generation_job_get',
+    args: {},
+  }, {
+    data: {
+      status: 'error',
+      jobId: 124,
+    },
+  })
+  assert.ok(failed)
+  assert.equal(failed.terminal, true)
+  assert.equal(failed.stage, 'failed')
+
+  const cancelled = buildGenerationEvent({
+    name: 'generation_job_get',
+    args: {},
+  }, {
+    data: {
+      status: 'canceled',
+      jobId: 125,
+    },
+  })
+  assert.ok(cancelled)
+  assert.equal(cancelled.terminal, true)
+  assert.equal(cancelled.stage, 'cancelled')
+})

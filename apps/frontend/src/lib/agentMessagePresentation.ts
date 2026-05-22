@@ -76,7 +76,7 @@ export function buildAgentMessagePresentation(
   )
   return {
     contextDiagnostic,
-    contextLabels: msg.meta?.contextLabels ?? [],
+    contextLabels: visibleContextLabels(msg.meta?.contextLabels ?? [], isUser),
     draftArtifacts,
     isUser,
     generationJobs,
@@ -95,6 +95,16 @@ export function buildAgentMessagePresentation(
     hasDiagnosticSection,
     missingTextOutputResourceIds,
   }
+}
+
+function visibleContextLabels(labels: string[], isUser: boolean): string[] {
+  void isUser
+  return labels.filter((label) => {
+    const normalized = label.trim()
+    if (/^run\s+\S+$/i.test(normalized)) return false
+    if (/^(?:已恢复本地\s*Runtime|Restored Local Runtime|Restored)$/i.test(normalized)) return false
+    return true
+  })
 }
 
 function isRequiredActionSummaryContent(content: string, activity: NonNullable<ChatMessageMeta['localRunActivity']>): boolean {

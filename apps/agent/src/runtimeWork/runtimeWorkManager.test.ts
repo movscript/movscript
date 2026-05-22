@@ -45,6 +45,33 @@ test('RuntimeWorkManager starts and waits generation job works', async () => {
   assert.deepEqual(calls.map((call) => call.name), ['generation_job_create', 'generation_job_get'])
 })
 
+test('RuntimeWorkManager completes generation job works from backend status aliases', async () => {
+  const manager = new RuntimeWorkManager({
+    providers: [new GenerationJobWorkProvider({
+      initialize: async () => ({}),
+      callTool: async (name, args = {}) => {
+        if (name === 'generation_job_create') {
+          return { data: { jobId: 43, status: 'queued', terminal: false } } as JSONValue
+        }
+        return { data: { jobId: args.jobId, status: 'finished', output_resource_id: 9002 } } as JSONValue
+      },
+    })],
+  })
+
+  const work = await manager.start({
+    threadId: 'thread_1',
+    runId: 'run_1',
+    kind: 'generation_job',
+    request: { prompt: 'make image', job_type: 'image' },
+  })
+
+  const wait = await manager.wait({ workIds: [work.id], timeoutMs: 0 })
+
+  assert.equal(wait.status, 'completed')
+  assert.equal(wait.done, true)
+  assert.equal(wait.completed[0]?.status, 'completed')
+})
+
 test('RuntimeWorkManager can cancel generation job works', async () => {
   const manager = new RuntimeWorkManager({
     providers: [new GenerationJobWorkProvider({

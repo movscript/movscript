@@ -66,6 +66,39 @@ test('projectRuntimeThreadMessages preserves existing local message ids for runt
   })
 })
 
+test('projectRuntimeThreadMessages upgrades matching local user echoes to runtime-backed messages', async () => {
+  const thread = makeThread({
+    messages: [
+      makeMessage({
+        id: 'msg_user',
+        role: 'user',
+        content: 'Create image',
+        createdAt: '2026-05-19T00:00:01.000Z',
+        clientInput: { visibleMessage: 'Create image', attachments: [] },
+      }),
+    ],
+  })
+  const existing: ChatMessage = {
+    id: 'local_user_message',
+    role: 'user',
+    content: 'Create image',
+    meta: { modelId: 1, agentName: 'Local Runtime', permissionMode: 'ask' },
+    timestamp: 1,
+  }
+
+  const messages = await projectRuntimeThreadMessages({
+    thread,
+    existingMessages: [existing],
+    deps: { fetchRunGenerationView: async () => emptyGenerationReplay() },
+  })
+
+  assert.equal(messages[0].id, 'local_user_message')
+  assert.deepEqual(messages[0].meta?.runtimeMessage, {
+    threadId: 'thread_1',
+    messageId: 'msg_user',
+  })
+})
+
 test('projectRuntimeThreadMessages restores user attachments from runtime client input', async () => {
   const thread = makeThread({
     messages: [
@@ -142,6 +175,81 @@ test('projectRuntimeThreadMessages preserves plan revision metadata snapshots', 
 
   assert.equal(messages[0].meta?.planRevision?.id, 'plan_revision_1')
   assert.equal(messages[0].meta?.planRevision?.snapshot.items[0].status, 'in_progress')
+})
+
+test('projectRuntimeThreadMessages does not attach final run payload to plan revisions', async () => {
+  const thread = makeThread({
+    messages: [
+      makeMessage({
+        id: 'msg_plan',
+        role: 'assistant',
+        content: 'Plan updated',
+        createdAt: '2026-05-19T00:00:01.000Z',
+        runId: 'run_1',
+        metadata: {
+          kind: 'plan_revision',
+          planRevision: {
+            schema: 'movscript.agent.plan-revision.v1',
+            id: 'plan_revision_1',
+            planId: 'plan_1',
+            threadId: 'thread_1',
+            runId: 'run_1',
+            snapshot: {
+              schema: 'movscript.agent.plan.v1',
+              id: 'plan_1',
+              threadId: 'thread_1',
+              runId: 'run_1',
+              items: [{ step: 'Generate', status: 'completed' }],
+              completedCount: 1,
+              totalCount: 1,
+              createdAt: NOW,
+              updatedAt: NOW,
+            },
+            createdAt: NOW,
+          },
+        },
+      }),
+    ],
+  })
+  const run = makeRun({ id: 'run_1', assistantMessageId: 'msg_plan' })
+
+  const messages = await projectRuntimeThreadMessages({
+    thread,
+    runs: [run],
+    deps: {
+      fetchRunGenerationView: async () => ({
+        jobs: [{
+          jobId: 27,
+          status: 'succeeded',
+          terminal: true,
+          outputResourceId: 30,
+        }],
+        latestJob: null,
+        outputResourceIds: [30],
+        outputResources: [{
+          ID: 30,
+          owner_id: 1,
+          type: 'image',
+          name: 'result.png',
+          url: '/api/v1/resources/30/file',
+          size: 100,
+          mime_type: 'image/png',
+        }],
+        metadataByResourceId: new Map(),
+        active: 0,
+        terminal: 1,
+        succeeded: 1,
+        failed: 0,
+        cancelled: 0,
+        timeout: 0,
+      }),
+    },
+  })
+
+  assert.equal(messages[0].meta?.planRevision?.id, 'plan_revision_1')
+  assert.equal(messages[0].meta?.generationJobs, undefined)
+  assert.equal(messages[0].meta?.localRunActivity, undefined)
+  assert.equal(messages[0].attachments, undefined)
 })
 
 test('projectRuntimeThreadMessages creates synthetic assistant messages for top-level runs without persisted assistant messages', async () => {

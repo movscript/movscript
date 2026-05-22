@@ -135,6 +135,23 @@ test('hydrateRuntimeThreadConversation skips duplicate hydration keys', async ()
   assert.deepEqual(calls, [])
 })
 
+test('hydrateRuntimeThreadConversation can force refresh an already hydrated thread', async () => {
+  const calls: string[] = []
+  const hydratedKeys = new Set(['conv_1:thread_1'])
+  const status = await hydrateRuntimeThreadConversation({
+    userId: 'user_1',
+    conversationId: 'conv_1',
+    threadId: 'thread_1',
+    existingMessages: [],
+    hydratedKeys,
+    signal: new AbortController().signal,
+    force: true,
+  }, depsFixture(calls))
+
+  assert.equal(status, 'hydrated')
+  assert.equal(calls[0], 'load:thread_1:0:false')
+})
+
 test('hydrateRuntimeThreadConversation releases the hydration key when aborted before commit', async () => {
   const calls: string[] = []
   const hydratedKeys = new Set<string>()

@@ -197,6 +197,18 @@ export function MessageBubble({
     hasResultSection,
     hasDiagnosticSection,
   } = presentation
+  const hasActivityContent = !isUser && !!localRunActivity && runActivityHasVisibleContent(localRunActivity)
+  const hasMessageBody = isUser
+    ? !!displayContent.trim() || compactAttachments.length > 0
+    : hasActivityContent
+      || !!planRevision
+      || !!displayContent.trim()
+      || showModelSetupAction
+      || hasResultSection
+      || hasDiagnosticSection
+  const hasFooter = contextLabels.length > 0 || !!runtimeInputLabel
+
+  if (!hasMessageBody && !hasFooter) return null
 
   function copy() {
     navigator.clipboard.writeText(msg.content)
@@ -210,6 +222,10 @@ export function MessageBubble({
       avatar={isUser ? '我' : <Bot size={14} />}
       author={isUser ? 'You' : undefined}
       time={isUser ? time : undefined}
+      data-agent-message-id={msg.id}
+      data-agent-runtime-thread-id={msg.meta?.runtimeMessage?.threadId}
+      data-agent-runtime-message-id={msg.meta?.runtimeMessage?.messageId}
+      data-agent-runtime-run-id={msg.meta?.runtimeMessage?.runId}
       data-agent-divider-label={!isUser ? agentMessageDividerLabel(time, localRunActivity) : undefined}
       actions={isUser ? (
         <Button
@@ -243,8 +259,8 @@ export function MessageBubble({
         </div>
       )}
     >
-      {!isUser && localRunActivity && <AgentActivityDividerMenu activity={localRunActivity} />}
-      {!isUser && localRunActivity && (
+      {!isUser && hasActivityContent && <AgentActivityDividerMenu activity={localRunActivity} />}
+      {!isUser && hasActivityContent && (
         <AgentActivityFeedView
           activity={localRunActivity}
           workflowRun={workflowRun}
@@ -307,6 +323,14 @@ export function MessageBubble({
       )}
     </AgentChatMessage>
   )
+}
+
+function runActivityHasVisibleContent(activity: NonNullable<ChatMessage['meta']>['localRunActivity']): boolean {
+  if (!activity) return false
+  return (activity.steps?.length ?? 0) > 0
+    || (activity.events?.length ?? 0) > 0
+    || (activity.approvals?.length ?? 0) > 0
+    || (activity.inputs?.length ?? 0) > 0
 }
 
 export function StreamingAssistantBubble({ content }: { content: string }) {

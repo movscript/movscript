@@ -75,12 +75,50 @@ export class GenerationJobWorkProvider implements RuntimeWorkProvider {
 }
 
 function eventStatus(status: string | undefined, terminal: boolean | undefined): RuntimeWorkStatus {
-  if (status === 'completed' || status === 'succeeded') return 'completed'
-  if (status === 'failed') return 'failed'
-  if (status === 'cancelled') return 'cancelled'
+  if (status && isCompletedStatus(status)) return 'completed'
+  if (status && isFailedStatus(status)) return 'failed'
+  if (status && isCancelledStatus(status)) return 'cancelled'
   if (terminal === true) return 'completed'
   return 'waiting'
 }
+
+function isCompletedStatus(status: string): boolean {
+  return COMPLETED_STATUSES.has(normalizeStatus(status))
+}
+
+function isFailedStatus(status: string): boolean {
+  return FAILED_STATUSES.has(normalizeStatus(status))
+}
+
+function isCancelledStatus(status: string): boolean {
+  return CANCELLED_STATUSES.has(normalizeStatus(status))
+}
+
+function normalizeStatus(status: string): string {
+  return status.trim().toLowerCase()
+}
+
+const COMPLETED_STATUSES = new Set([
+  'succeeded',
+  'succeed',
+  'success',
+  'completed',
+  'complete',
+  'done',
+  'finish',
+  'finished',
+])
+
+const FAILED_STATUSES = new Set([
+  'failed',
+  'failure',
+  'error',
+])
+
+const CANCELLED_STATUSES = new Set([
+  'cancelled',
+  'canceled',
+])
 
 function normalizePayload(value: JSONValue): JSONValue {
   const payload = unwrapToolPayload(value)

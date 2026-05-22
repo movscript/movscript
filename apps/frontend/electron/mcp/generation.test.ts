@@ -118,8 +118,14 @@ test('getGenerationStage reads provider stage variants', () => {
 
 test('generation terminal and message helpers describe final and active jobs', () => {
   assert.equal(isTerminalGenerationStatus('succeeded'), true)
+  assert.equal(isTerminalGenerationStatus('finished'), true)
+  assert.equal(isTerminalGenerationStatus('success'), true)
+  assert.equal(isTerminalGenerationStatus('completed'), true)
+  assert.equal(isTerminalGenerationStatus('canceled'), true)
   assert.equal(isTerminalGenerationStatus('running'), false)
   assert.equal(generationJobMessage(7, { status: 'succeeded', output_resource_id: 3 }), '生成完成，输出资源 #3。')
+  assert.equal(generationJobMessage(7, { status: 'finished', output_resource_id: 3 }), '生成完成，输出资源 #3。')
   assert.equal(generationJobMessage(7, { status: 'failed', error: 'provider failed' }), '生成失败：provider failed。')
+  assert.equal(generationJobMessage(7, { status: 'error', error: 'provider failed' }), '生成失败：provider failed。')
   assert.equal(generationJobMessage(7, { status: 'running', progress: 25, stage: 'rendering' }), '生成任务 Job #7 仍在进行中，状态：running，进度 25%，阶段：rendering。')
 })

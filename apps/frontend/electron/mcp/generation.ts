@@ -60,27 +60,65 @@ export function getGenerationStage(job: Record<string, unknown>): string | undef
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
+export function isCompletedGenerationStatus(status: string): boolean {
+  return COMPLETED_GENERATION_STATUSES.has(normalizeGenerationStatus(status))
+}
+
+export function isFailedGenerationStatus(status: string): boolean {
+  return FAILED_GENERATION_STATUSES.has(normalizeGenerationStatus(status))
+}
+
+export function isCancelledGenerationStatus(status: string): boolean {
+  return CANCELLED_GENERATION_STATUSES.has(normalizeGenerationStatus(status))
+}
+
 export function isTerminalGenerationStatus(status: string): boolean {
-  return status === 'succeeded' || status === 'failed' || status === 'cancelled'
+  return isCompletedGenerationStatus(status) || isFailedGenerationStatus(status) || isCancelledGenerationStatus(status)
 }
 
 export function generationJobMessage(jobId: number, normalized: Record<string, unknown>): string {
   const status = stringValue(normalized.status) ?? 'unknown'
-  if (status === 'succeeded') {
+  if (isCompletedGenerationStatus(status)) {
     const outputResourceIds = Array.isArray(normalized.output_resource_ids)
       ? uniquePositiveNumbers(normalized.output_resource_ids)
       : []
     if (outputResourceIds.length > 1) return `生成完成，输出资源 ${outputResourceIds.map((id) => `#${id}`).join('、')}。`
     return `生成完成${typeof normalized.output_resource_id === 'number' ? `，输出资源 #${normalized.output_resource_id}` : ''}。`
   }
-  if (status === 'failed') {
+  if (isFailedGenerationStatus(status)) {
     return `生成失败${typeof normalized.error === 'string' ? `：${normalized.error}` : ''}。`
   }
-  if (status === 'cancelled') return `生成任务 Job #${jobId} 已取消。`
+  if (isCancelledGenerationStatus(status)) return `生成任务 Job #${jobId} 已取消。`
   const progress = typeof normalized.progress === 'number' ? `，进度 ${normalized.progress}%` : ''
   const stage = typeof normalized.stage === 'string' ? `，阶段：${normalized.stage}` : ''
   return `生成任务 Job #${jobId} 仍在进行中，状态：${status}${progress}${stage}。`
 }
+
+function normalizeGenerationStatus(status: string): string {
+  return status.trim().toLowerCase()
+}
+
+const COMPLETED_GENERATION_STATUSES = new Set([
+  'succeeded',
+  'succeed',
+  'success',
+  'completed',
+  'complete',
+  'done',
+  'finish',
+  'finished',
+])
+
+const FAILED_GENERATION_STATUSES = new Set([
+  'failed',
+  'failure',
+  'error',
+])
+
+const CANCELLED_GENERATION_STATUSES = new Set([
+  'cancelled',
+  'canceled',
+])
 
 export function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined

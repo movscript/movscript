@@ -417,7 +417,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const sessionRuntimeMatch = url.pathname.match(/^\/sessions\/([^/]+)\/runtime$/)
       if (sessionRuntimeMatch && req.method === 'GET') {
-        const snapshot = context.runtimeRouter.getSessionRuntimeSnapshot(sessionRuntimeMatch[1])
+        const snapshot = await context.runtimeRouter.getSessionRuntimeSnapshot(sessionRuntimeMatch[1])
         if (!snapshot) {
           writeJSON(res, 404, { error: 'session not found' })
           return
@@ -511,7 +511,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const threadRuntimeMatch = url.pathname.match(/^\/threads\/([^/]+)\/runtime$/)
       if (threadRuntimeMatch && req.method === 'GET') {
-        const snapshot = context.runtimeRouter.getThreadRuntimeSnapshot(threadRuntimeMatch[1])
+        const snapshot = await context.runtimeRouter.getThreadRuntimeSnapshot(threadRuntimeMatch[1])
         if (!snapshot) {
           writeJSON(res, 404, { error: 'thread not found' })
           return

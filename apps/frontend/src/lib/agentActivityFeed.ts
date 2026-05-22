@@ -162,8 +162,9 @@ export function buildAgentActivityFeed(input: {
     .map(approvalRequestItem)
   const decisionItems = modelDecisionItems(activity)
 
-  const items = [...decisionItems, ...toolItems, ...inputItems, ...approvalItems]
+  const items = coalesceConsecutiveActivityItems([...decisionItems, ...toolItems, ...inputItems, ...approvalItems]
     .sort((left, right) => timestamp(left.createdAt) - timestamp(right.createdAt))
+  )
   const rounds = buildActivityRounds(snapshot.rounds, items)
 
   return {
@@ -175,6 +176,60 @@ export function buildAgentActivityFeed(input: {
     totals: snapshot.totals,
     activity,
   }
+}
+
+function coalesceConsecutiveActivityItems(items: AgentActivityItem[]): AgentActivityItem[] {
+  const result: AgentActivityItem[] = []
+  for (const item of items) {
+    const previous = result.at(-1)
+    if (!previous || !canCoalesceActivityItems(previous, item)) {
+      result.push(item)
+      continue
+    }
+    result[result.length - 1] = mergeRepeatedActivityItems(previous, item)
+  }
+  return result
+}
+
+function canCoalesceActivityItems(left: AgentActivityItem, right: AgentActivityItem): boolean {
+  const leftKey = repeatableActivityKey(left)
+  if (!leftKey) return false
+  return leftKey === repeatableActivityKey(right)
+}
+
+function repeatableActivityKey(item: AgentActivityItem): string | undefined {
+  if (item.type !== 'block') return undefined
+  if (item.toolName !== 'core_work_wait' && item.toolName !== 'core_work_get') return undefined
+  const workLine = item.lines.find((line) => line.startsWith('任务：')) ?? ''
+  return [
+    item.type,
+    item.toolName,
+    item.tone,
+    item.title.replace(/\s+×\d+$/, ''),
+    item.roundIndex ?? '',
+    workLine,
+  ].join('\u0000')
+}
+
+function mergeRepeatedActivityItems(left: AgentActivityItem, right: AgentActivityItem): AgentActivityItem {
+  if (left.type !== 'block' || right.type !== 'block') return left
+  const repeatCount = activityRepeatCount(left) + activityRepeatCount(right)
+  return {
+    ...left,
+    id: `${left.id}:repeat-${repeatCount}`,
+    title: `${left.title.replace(/\s+×\d+$/, '')} ×${repeatCount}`,
+    lines: right.lines,
+    status: right.status,
+    durationMs: sumNumbers(left.durationMs, right.durationMs),
+    detail: right.detail ?? left.detail,
+    code: right.code ?? left.code,
+  }
+}
+
+function activityRepeatCount(item: AgentActivityItem): number {
+  if (item.type !== 'block') return 1
+  const match = item.title.match(/\s+×(\d+)$/)
+  return match ? Number(match[1]) || 1 : 1
 }
 
 export function agentActivityFeedMarkdown(feed: AgentActivityFeed): string {
@@ -677,6 +732,7 @@ function toolDebugDetail(record: ToolActivityRecord): AgentActivityDebugDetail |
 }
 
 function latestStatusText(activity: ChatRunActivity): string | undefined {
+  if (!isActiveActivityStatus(activity.status)) return undefined
   const latest = [...activity.events].reverse().find((event) => event.status === 'started' || event.status === 'info')
   if (!latest) return undefined
   if (latest.kind === 'model_call') {
@@ -691,6 +747,10 @@ function latestStatusText(activity: ChatRunActivity): string | undefined {
   if (activity.status === 'queued') return '等待 agent 开始'
   if (activity.status === 'in_progress') return 'agent 正在运行'
   return undefined
+}
+
+function isActiveActivityStatus(status: string): boolean {
+  return status === 'queued' || status === 'in_progress' || status === 'requires_action'
 }
 
 function fallbackToolText(record: ToolActivityRecord): string {

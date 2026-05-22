@@ -50,7 +50,6 @@ export async function assistantResultPayloadForRun(
   return {
     ...(attachments.length > 0 ? { attachments } : {}),
     meta: {
-      contextLabels: [`run ${run.status}`],
       runtimeMessage: {
         threadId: run.threadId,
         runId: run.id,

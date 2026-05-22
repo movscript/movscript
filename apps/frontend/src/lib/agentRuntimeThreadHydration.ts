@@ -66,20 +66,63 @@ export async function loadRuntimeThreadProjection(input: {
 
 function attachRuntimeInteractionIds(runs: AgentRun[], interactions: RuntimeInteraction[] | undefined): AgentRun[] {
   const interactionByApprovalId = new Map<string, string>()
+  const continuationApprovalsByRunId = new Map<string, NonNullable<AgentRun['pendingApprovals']>>()
   for (const interaction of interactions ?? []) {
-    if (interaction.kind !== 'approval') continue
     const payload = isRecord(interaction.payload) ? interaction.payload : undefined
-    const approvalId = typeof payload?.approvalId === 'string' ? payload.approvalId : undefined
-    if (approvalId) interactionByApprovalId.set(approvalId, interaction.id)
+    if (interaction.kind === 'approval') {
+      const approvalId = typeof payload?.approvalId === 'string' ? payload.approvalId : undefined
+      if (approvalId) interactionByApprovalId.set(approvalId, interaction.id)
+      continue
+    }
+    const continuationApproval = continuationResumeApprovalFromInteraction(interaction, payload)
+    if (continuationApproval) {
+      const approvals = continuationApprovalsByRunId.get(interaction.runId) ?? []
+      approvals.push(continuationApproval)
+      continuationApprovalsByRunId.set(interaction.runId, approvals)
+    }
   }
-  if (interactionByApprovalId.size === 0) return runs
+  if (interactionByApprovalId.size === 0 && continuationApprovalsByRunId.size === 0) return runs
   return runs.map((run) => ({
     ...run,
-    pendingApprovals: (run.pendingApprovals ?? []).map((approval) => {
+    pendingApprovals: [
+      ...(run.pendingApprovals ?? []).map((approval) => {
       const interactionId = interactionByApprovalId.get(approval.id)
       return interactionId ? { ...approval, interactionId } : approval
-    }),
+      }),
+      ...(continuationApprovalsByRunId.get(run.id) ?? []),
+    ],
   }))
+}
+
+function continuationResumeApprovalFromInteraction(
+  interaction: RuntimeInteraction,
+  payload: Record<string, unknown> | undefined,
+): NonNullable<AgentRun['pendingApprovals']>[number] | undefined {
+  if (interaction.kind !== 'selection' || payload?.type !== 'runtime_continuation_resume') return undefined
+  const continuationId = typeof payload.continuationId === 'string' ? payload.continuationId : undefined
+  if (!continuationId) return undefined
+  const status = interaction.status === 'approved' ? 'approved' : interaction.status === 'rejected' ? 'rejected' : interaction.status === 'pending' ? 'pending' : undefined
+  if (!status) return undefined
+  return {
+    id: `runtime-continuation-${continuationId}`,
+    runId: interaction.runId,
+    interactionId: interaction.id,
+    toolName: 'runtime_continuation_resume',
+    args: {
+      continuationId,
+      workIds: Array.isArray(payload.workIds) ? payload.workIds : [],
+    },
+    reason: typeof payload.summary === 'string'
+      ? payload.summary
+      : '检测到异步任务已有结果，可以启动一个新的接续 run。',
+    risk: 'resume',
+    permission: 'runtime.continuation',
+    status,
+    createdAt: interaction.createdAt,
+    updatedAt: interaction.updatedAt,
+    ...(interaction.resolvedAt && status === 'approved' ? { approvedAt: interaction.resolvedAt } : {}),
+    ...(interaction.resolvedAt && status === 'rejected' ? { rejectedAt: interaction.resolvedAt } : {}),
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

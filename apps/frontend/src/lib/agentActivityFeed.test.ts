@@ -164,6 +164,69 @@ test('buildAgentActivityFeed does not duplicate work status traces as task cards
   ])
 })
 
+test('buildAgentActivityFeed compacts consecutive runtime work observations', () => {
+  const feed = buildAgentActivityFeed({
+    activity: activity({
+      steps: Array.from({ length: 5 }, (_, index) => ({
+        id: `step_wait_${index + 1}`,
+        type: 'tool_call' as const,
+        status: 'completed' as const,
+        roundIndex: 1,
+        toolName: 'core_work_wait',
+        args: { workId: 'work_1' },
+        result: { workId: 'work_1', status: 'running' },
+        durationMs: 100,
+        createdAt: `2026-05-22T01:00:0${index}.000Z`,
+        completedAt: `2026-05-22T01:00:0${index}.100Z`,
+      })),
+    }),
+  })
+
+  assert.equal(feed?.items.length, 1)
+  const item = feed?.items[0]
+  assert.equal(item?.type, 'block')
+  assert.equal(item?.type === 'block' ? item.title : '', '观察异步任务 ×5')
+  assert.equal(item?.durationMs, 500)
+})
+
+test('buildAgentActivityFeed compacts runtime work observations when the latest status changes', () => {
+  const feed = buildAgentActivityFeed({
+    activity: activity({
+      steps: [{
+        id: 'step_wait_1',
+        type: 'tool_call',
+        status: 'completed',
+        roundIndex: 1,
+        toolName: 'core_work_wait',
+        args: { workId: 'work_1' },
+        result: { workId: 'work_1', status: 'running' },
+        durationMs: 100,
+        createdAt: '2026-05-22T01:00:00.000Z',
+      }, {
+        id: 'step_wait_2',
+        type: 'tool_call',
+        status: 'completed',
+        roundIndex: 1,
+        toolName: 'core_work_wait',
+        args: { workId: 'work_1' },
+        result: { workId: 'work_1', status: 'completed' },
+        durationMs: 150,
+        createdAt: '2026-05-22T01:00:01.000Z',
+      }],
+    }),
+  })
+
+  assert.equal(feed?.items.length, 1)
+  const item = feed?.items[0]
+  assert.equal(item?.type, 'block')
+  assert.equal(item?.type === 'block' ? item.title : '', '观察异步任务 ×2')
+  assert.deepEqual(item?.type === 'block' ? item.lines : [], [
+    '任务：work_1',
+    '状态：completed',
+  ])
+  assert.equal(item?.durationMs, 250)
+})
+
 test('buildAgentActivityFeed exposes draft file patch as plain text code', () => {
   const patch = [
     '*** Begin Patch',

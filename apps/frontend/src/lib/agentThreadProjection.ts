@@ -16,6 +16,7 @@ export interface RuntimeThreadProjectionInput {
 export async function projectRuntimeThreadMessages(input: RuntimeThreadProjectionInput): Promise<ChatMessage[]> {
   const runs = [...(input.runs ?? [])].filter(isTopLevelUserFacingRun)
   const existingByRuntimeMessageId = existingRuntimeMessageMap(input.existingMessages ?? [], input.thread.id)
+  const existingLocalUserEchoesByKey = existingLocalUserEchoMap(input.existingMessages ?? [])
   const existingAssistantByRuntimeRunId = existingAssistantRuntimeRunMap(input.existingMessages ?? [], input.thread.id)
   const runsBySourceMessageId = new Map<string, AgentRun>()
   const runsByAssistantMessageId = new Map<string, AgentRun>()
@@ -37,7 +38,7 @@ export async function projectRuntimeThreadMessages(input: RuntimeThreadProjectio
     messages.push(await projectRuntimeMessage({
       message,
       run,
-      existing: existingByRuntimeMessageId.get(message.id),
+      existing: existingByRuntimeMessageId.get(message.id) ?? (message.role === 'user' ? consumeExistingLocalUserEcho(existingLocalUserEchoesByKey, message) : undefined),
       liveEvents: run ? input.liveEventsByRunId?.[run.id] : undefined,
       deps: input.deps,
     }))
@@ -178,6 +179,16 @@ async function projectRuntimeMessage(input: {
     },
   }
   if (input.message.role === 'assistant' && input.run) {
+    if (baseMeta.planRevision) {
+      return {
+        id: input.existing?.id ?? `runtime:${input.message.id}`,
+        role: 'assistant',
+        content: input.message.content,
+        attachments: input.existing?.attachments,
+        meta: baseMeta,
+        timestamp,
+      }
+    }
     const payload = await assistantResultPayloadForRun(input.run, input.liveEvents ?? [], input.message.content, input.deps)
     return {
       id: input.existing?.id ?? `runtime:${input.message.id}`,
@@ -254,6 +265,52 @@ function existingRuntimeMessageMap(messages: ChatMessage[], threadId: string): M
     byRuntimeId.set(runtime.messageId, message)
   }
   return byRuntimeId
+}
+
+function existingLocalUserEchoMap(messages: ChatMessage[]): Map<string, ChatMessage[]> {
+  const byKey = new Map<string, ChatMessage[]>()
+  for (const message of messages) {
+    if (!isLocalRuntimeUserEcho(message)) continue
+    const key = localUserEchoKeyFromText(message.content)
+    if (!key) continue
+    const list = byKey.get(key) ?? []
+    list.push(message)
+    byKey.set(key, list)
+  }
+  for (const list of byKey.values()) {
+    list.sort((a, b) => a.timestamp - b.timestamp)
+  }
+  return byKey
+}
+
+function consumeExistingLocalUserEcho(byKey: Map<string, ChatMessage[]>, message: AgentMessage): ChatMessage | undefined {
+  const key = runtimeUserEchoKey(message)
+  if (!key) return undefined
+  return byKey.get(key)?.shift()
+}
+
+function isLocalRuntimeUserEcho(message: ChatMessage): boolean {
+  const meta = message.meta
+  return message.role === 'user'
+    && !meta?.runtimeMessage
+    && (!!meta?.agentName || meta?.modelId !== undefined || !!meta?.permissionMode)
+}
+
+function runtimeUserEchoKey(message: AgentMessage): string {
+  const clientInput = isRecord(message.clientInput) ? message.clientInput : undefined
+  const visibleMessage = typeof clientInput?.visibleMessage === 'string' && clientInput.visibleMessage.trim()
+    ? clientInput.visibleMessage
+    : typeof clientInput?.message === 'string'
+      ? clientInput.message
+      : message.content
+  return localUserEchoKeyFromText(visibleMessage)
+}
+
+function localUserEchoKeyFromText(text: string): string {
+  return text
+    .split(/\n\n\[(?:用户附件引用|用户随消息提供的附件)\]/)[0]
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function existingAssistantRuntimeRunMap(messages: ChatMessage[], threadId: string): Map<string, ChatMessage> {

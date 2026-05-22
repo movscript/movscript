@@ -440,6 +440,65 @@ test('runtime builds envelope context from client input without frontend prompt 
   assert.equal(preview.promptPreview?.messages.at(-1)?.content.includes('moment-ref.png'), true)
 })
 
+test('thread runtime snapshot observes completed async work and asks before starting continuation run', async () => {
+  const store = new InMemoryAgentStore()
+  const client = new FakeMCPClient()
+  client.toolHandlers.set('generation_job_get', (args) => ({
+    jobId: args.jobId,
+    status: 'finished',
+    output_resource_id: 9001,
+  }))
+  const runtime = createTestRuntime({ mcpClient: client, store })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '生成一张图' }] })
+  const run: AgentRun = {
+    id: 'run_1',
+    threadId: thread.id,
+    status: 'completed',
+    policy: {
+      approvalMode: 'interactive',
+      maxToolCalls: 8,
+      maxIterations: 8,
+      allowNetwork: false,
+      allowFileBytes: false,
+    },
+    createdAt: '2026-05-21T00:00:00.000Z',
+    updatedAt: '2026-05-21T00:00:00.000Z',
+    completedAt: '2026-05-21T00:00:01.000Z',
+    steps: [],
+  }
+  store.createRun(run)
+  store.createRuntimeWork({
+    id: 'work_1',
+    threadId: thread.id,
+    runId: run.id,
+    kind: 'generation_job',
+    mode: 'async',
+    status: 'waiting',
+    request: { prompt: 'image' },
+    continuationPolicy: { mode: 'any_completed' },
+    externalHandle: { provider: 'movscript', type: 'generation_job', id: 42 },
+    createdAt: '2026-05-21T00:00:00.000Z',
+    updatedAt: '2026-05-21T00:00:00.000Z',
+  })
+  store.createRuntimeContinuation({
+    id: 'continuation_work_1',
+    threadId: thread.id,
+    runId: run.id,
+    status: 'waiting',
+    trigger: { type: 'work_completed', workIds: ['work_1'], mode: 'any' },
+    createdAt: '2026-05-21T00:00:00.000Z',
+    updatedAt: '2026-05-21T00:00:00.000Z',
+  })
+
+  const snapshot = await runtime.getThreadRuntimeSnapshot(thread.id)
+
+  assert.equal(snapshot?.works[0]?.status, 'completed')
+  assert.equal(snapshot?.continuations[0]?.status, 'ready')
+  assert.equal(snapshot?.interactions[0]?.kind, 'selection')
+  assert.equal(snapshot?.interactions[0]?.status, 'pending')
+  assert.equal(store.listRuns({ threadId: thread.id }).length, 1)
+})
+
 test('preview activates only triggered layered skills instead of loading every profile workflow', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42

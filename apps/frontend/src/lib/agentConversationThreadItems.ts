@@ -20,6 +20,7 @@ export function buildAgentConversationMessageItems({
 }): AgentConversationMessageItem[] {
   return messages.flatMap((message) => {
     if (isWorkflowAnswerEchoMessage(message, workflowAnswerEchoes)) return []
+    if (message.meta?.planRevision) return []
     const liveWorkflowRuns = workflowRunsByResultMessageId.get(message.id) ?? null
     const historicalWorkflowRun = liveWorkflowRuns ? null : workflowRunFromActivity(message.meta?.localRunActivity)
     const beforeMessageWorkflowRuns = liveWorkflowRuns ?? (historicalWorkflowRun ? [historicalWorkflowRun] : [])

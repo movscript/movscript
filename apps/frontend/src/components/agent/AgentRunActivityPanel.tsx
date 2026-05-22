@@ -300,7 +300,7 @@ export function LiveRunActivityBubble({
           data-agent-divider-label={formatAgentDividerTime(run?.startedAt ?? events[0]?.createdAt)}
           footer={(
             <Badge variant="outline" className="type-micro leading-4 px-1.5 py-0">
-              {workflowRunStatusLabel('in_progress', t)}
+              {workflowRunStatusLabel(run?.status ?? 'in_progress', t)}
             </Badge>
           )}
         >
@@ -322,6 +322,7 @@ export function LiveRunActivityBubble({
 }
 
 function latestAgentStatusLabel(run: AgentRun | null, events: ChatRunActivityEvent[]): string | undefined {
+  if (run && isTerminalRunStatus(run.status)) return undefined
   const latest = [...events].reverse().find((event) => event.status === 'started' || event.status === 'info' || event.status === 'completed' || event.status === 'failed' || event.status === 'blocked')
   if (latest && latest.status !== 'started' && latest.status !== 'info') return undefined
   if (latest?.title === 'Model HTTP request sent') return '正在请求模型'
@@ -332,6 +333,10 @@ function latestAgentStatusLabel(run: AgentRun | null, events: ChatRunActivityEve
   if (run?.status === 'queued') return '等待 agent 开始'
   if (run?.status === 'in_progress') return 'agent 正在运行'
   return undefined
+}
+
+function isTerminalRunStatus(status: AgentRun['status']): boolean {
+  return status === 'completed' || status === 'completed_with_warnings' || status === 'failed' || status === 'cancelled'
 }
 
 function latestModelRetryStatus(events: ChatRunActivityEvent[]): string | undefined {

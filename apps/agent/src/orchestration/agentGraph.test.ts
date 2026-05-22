@@ -549,6 +549,88 @@ test('runAgentGraph records explicit model round duration trace', async () => {
   assert.deepEqual((completed?.data as any)?.usage, { input_tokens: 9, output_tokens: 2 })
 })
 
+test('runAgentGraph pauses for retry when the model call fails', async () => {
+  const run: AgentRun = {
+    id: 'run_model_retry',
+    threadId: 'thread_1',
+    status: 'queued',
+    policy,
+    createdAt: '2026-05-16T00:00:00.000Z',
+    updatedAt: '2026-05-16T00:00:00.000Z',
+    steps: [],
+    input: {
+      schema: 'movscript.agent.run-input.v1',
+      userMessage: 'answer directly',
+      sourceMessageId: 'msg_1',
+      executionMode: 'chat',
+      createdAt: '2026-05-16T00:00:00.000Z',
+    },
+  }
+  const router: RuntimeModelRouter = {
+    resolve: () => ({
+      capability: 'reasoning',
+      provider: 'backend-model-config',
+      config: { provider: 'backend-model-config', model: 'test-model', modelConfigId: 1 } as any,
+      source: 'configured',
+    }),
+    describe: () => [],
+    analyzeMultimodal: async () => ({
+      summary: '',
+      observations: [],
+      confidence: 0,
+      route: { capability: 'multimodal', configured: true, source: 'configured' },
+    }),
+    call: async () => {
+      throw new Error('openai_responses requires a backend auth token')
+    },
+  }
+  const traces: Array<{ kind: string; title: string; status: string; summary?: string }> = []
+
+  const result = await runAgentGraph({
+    run,
+    threadMessages: [
+      { id: 'msg_1', threadId: 'thread_1', role: 'user', content: 'answer directly', createdAt: '2026-05-16T00:00:00.000Z' },
+    ],
+    manifest: DEFAULT_AGENT_MANIFEST,
+    capabilities: emptyTools,
+    skills: [],
+    context: emptyContext(),
+    memories: [],
+    warnings: [],
+    userMessage: run.input?.userMessage,
+    rootUserMessageId: run.input?.sourceMessageId,
+    config: { provider: 'backend-model-config', model: 'test-model', modelConfigId: 1 } as any,
+    modelRouter: router,
+    auth: {},
+    policy,
+    mcpClient: {
+      initialize: async () => null,
+      callTool: async () => ({}),
+    },
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    registry: DEFAULT_TOOL_REGISTRY,
+    onTrace: (trace) => traces.push({ kind: trace.kind, title: trace.title, status: trace.status, summary: trace.summary }),
+    onStepCreate: () => 'step_1',
+    onStepComplete: () => undefined,
+  })
+
+  assert.equal(result.status, 'requires_action')
+  if (result.status === 'requires_action') {
+    assert.equal(result.pendingApprovals.length, 0)
+    assert.equal(result.pendingInputRequests?.length, 1)
+    assert.equal(result.pendingInputRequests?.[0]?.title, '模型调用需要恢复')
+    assert.equal(result.pendingInputRequests?.[0]?.choices[0]?.id, 'retry')
+    assert.match(result.pendingInputRequests?.[0]?.summary ?? '', /backend auth token/)
+    assert.deepEqual(result.warnings, ['模型调用未完成：openai_responses requires a backend auth token'])
+    assert.deepEqual(result.messages, [])
+  }
+  const recoveryTrace = traces.find((trace) => trace.title === 'Model call recovery required')
+  assert.equal(recoveryTrace?.kind, 'input')
+  assert.equal(recoveryTrace?.status, 'blocked')
+  assert.match(recoveryTrace?.summary ?? '', /backend auth token/)
+})
+
 test('runAgentGraph appends active-run runtime input to the next model turn', async () => {
   const run: AgentRun = {
     id: 'run_runtime_input',

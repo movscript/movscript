@@ -30,6 +30,42 @@ test('buildAgentConversationMessageItems prefers live workflow runs before resul
   assert.equal(items[0]?.beforeMessageWorkflowRuns[0]?.id, 'run_live')
 })
 
+test('buildAgentConversationMessageItems hides plan revision messages from the chat timeline', () => {
+  const items = buildAgentConversationMessageItems({
+    messages: [
+      message({
+        id: 'plan_revision_message',
+        role: 'assistant',
+        content: 'Plan updated',
+        meta: {
+          planRevision: {
+            schema: 'movscript.agent.plan-revision.v1',
+            id: 'plan_revision_1',
+            planId: 'plan_1',
+            threadId: 'thread_1',
+            snapshot: {
+              schema: 'movscript.agent.plan.v1',
+              id: 'plan_1',
+              threadId: 'thread_1',
+              items: [{ step: 'Generate', status: 'completed' }],
+              completedCount: 1,
+              totalCount: 1,
+              createdAt: '2026-05-19T00:00:00.000Z',
+              updatedAt: '2026-05-19T00:00:00.000Z',
+            },
+            createdAt: '2026-05-19T00:00:00.000Z',
+          },
+        },
+      }),
+      message({ id: 'assistant', role: 'assistant', content: 'done' }),
+    ],
+    workflowAnswerEchoes: new Set(),
+    workflowRunsByResultMessageId: new Map(),
+  })
+
+  assert.deepEqual(items.map((item) => item.message.id), ['assistant'])
+})
+
 test('buildAgentConversationMessageItems keeps historical requires-action messages so activity can render inline', () => {
   const items = buildAgentConversationMessageItems({
     messages: [message({
