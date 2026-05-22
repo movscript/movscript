@@ -140,7 +140,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build plugin packages
-        run: pnpm --filter "./packages/*" build && pnpm --filter "./plugins/*" build
+        run: pnpm --filter "./packages/*" build && pnpm --filter movcli build && pnpm --filter "./plugins/*" build
 
       - name: Collect plugin artifacts
         run: pnpm run release -- collect
