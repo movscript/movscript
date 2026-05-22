@@ -6,6 +6,7 @@ apps/frontend/dist-electron/
 apps/frontend/out/
 apps/frontend/release/
 apps/frontend/movscript-agent/
+apps/frontend/electron.vite.config.*.mjs
 apps/frontend/src/api/generated.ts
 apps/frontend/vendor/ffmpeg/*/
 apps/frontend/test-results/

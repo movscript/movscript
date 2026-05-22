@@ -318,6 +318,9 @@ function validateGeneratedSourceBoundaries() {
   if (existsSync(resolve(repoRoot, 'apps/frontend/src/api/generated.ts'))) {
     errors.push('apps/frontend/src/api/generated.ts must not be committed without a maintained source contract; use typed domain clients instead of stale generated OpenAPI output')
   }
+  if (!/^apps\/frontend\/electron\.vite\.config\.\*\.mjs$/m.test(rootGitignore)) {
+    errors.push('.gitignore must exclude transient electron-vite config transpilation output')
+  }
   if (!/^apps\/frontend\/vendor\/ffmpeg\/\*\/$/m.test(rootGitignore)) {
     errors.push('.gitignore must exclude staged desktop ffmpeg platform directories while keeping apps/frontend/vendor/ffmpeg/README.md tracked')
   }
@@ -591,6 +594,7 @@ function validateRepositoryScriptFileBoundaries() {
   for (const path of discoverRepositoryScripts()) {
     if (manifestScriptFiles.has(path)) continue
     if (path.startsWith('tests/')) continue
+    if (isGeneratedToolScript(path)) continue
     errors.push(`${path} is an unmanaged script file; move maintained automation into a governed script root with a manifest entry, or keep test-only helpers under tests/`)
   }
 }
@@ -848,6 +852,10 @@ function discoverPluginExampleScriptFiles() {
     .map((path) => relative(repoRoot, path).split(/[/\\]+/).join('/'))
     .filter((path) => path.includes('/scripts/') && scriptExtensions.has(extname(path)))
     .sort()
+}
+
+function isGeneratedToolScript(path) {
+  return /^apps\/frontend\/electron\.vite\.config\.\d+\.mjs$/.test(path)
 }
 
 function walk(directory, scripts) {

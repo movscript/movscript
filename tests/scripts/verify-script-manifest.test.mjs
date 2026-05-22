@@ -259,6 +259,22 @@ test('verify-script-manifest rejects unmanaged shell scripts outside governed ro
   }
 })
 
+test('verify-script-manifest ignores transient electron-vite config output', async () => {
+  const root = await createFixtureRepo()
+  try {
+    await writeText(join(root, 'apps/frontend/electron.vite.config.1779384487772.mjs'), [
+      '// electron.vite.config.ts',
+      'export default {}',
+      '',
+    ].join('\n'))
+
+    const output = await runVerifier(root)
+    assert.match(output, /Script manifest verification passed/)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('verify-script-manifest rejects frontend deploy preparation under scripts agent', async () => {
   const root = await createFixtureRepo()
   try {
@@ -908,13 +924,13 @@ test('verify-script-manifest rejects manifest entries above the script file budg
   try {
     const surfacesPath = join(root, 'scripts/script-surfaces.json')
     const surfaces = JSON.parse(await readFile(surfacesPath, 'utf8'))
-    surfaces.maxMaintainedScriptFiles = 12
+    surfaces.maxMaintainedScriptFiles = 13
     await writeJSON(surfacesPath, surfaces)
 
     await assert.rejects(
       runVerifier(root),
       (error) => {
-        assert.match(String(error.stderr), /script manifest has 13 maintained scripts, exceeding scripts\/script-surfaces\.json maxMaintainedScriptFiles 12/)
+        assert.match(String(error.stderr), /script manifest has 14 maintained scripts, exceeding scripts\/script-surfaces\.json maxMaintainedScriptFiles 13/)
         return true
       },
     )
@@ -1398,6 +1414,7 @@ async function createFixtureRepo(options = {}) {
   await writeText(join(root, 'Makefile'), fixtureMakefile())
   await writeText(join(root, 'apps/backend/Dockerfile'), fixtureBackendDockerfile())
   await writeText(join(root, 'apps/agent/scripts/build-server-bundle.mjs'), '#!/usr/bin/env node\n')
+  await writeText(join(root, 'apps/agent/scripts/check-asset-proposal-draft-slots.mjs'), '#!/usr/bin/env node\n')
   await writeText(join(root, 'apps/agent/scripts/dev-watch.mjs'), '#!/usr/bin/env node\n')
   await writeText(join(root, 'apps/backend/scripts/build.mjs'), "process.env.GOCACHE || '/private/tmp/movscript-go-cache'\n")
   await writeText(join(root, 'apps/frontend/scripts/prepare-agent-deploy.mjs'), '#!/usr/bin/env node\n')
@@ -1442,6 +1459,7 @@ async function createFixtureRepo(options = {}) {
 
   await writeManifest(root, [
     'apps/agent/scripts/build-server-bundle.mjs',
+    'apps/agent/scripts/check-asset-proposal-draft-slots.mjs',
     'apps/agent/scripts/dev-watch.mjs',
     'apps/backend/scripts/build.mjs',
     'apps/frontend/scripts/prepare-agent-deploy.mjs',
@@ -1540,6 +1558,7 @@ function fixtureDockerignore() {
 
 function fixtureGitignore() {
   return [
+    'apps/frontend/electron.vite.config.*.mjs',
     'apps/frontend/vendor/ffmpeg/*/',
     'apps/movcli/bundle.js',
     'apps/movcli/manifest.json',
@@ -1628,6 +1647,7 @@ function fixturePackageScripts() {
     },
     'apps/agent/package.json': {
       build: 'node scripts/build-server-bundle.mjs',
+      'check:asset-proposal-slots': 'node scripts/check-asset-proposal-draft-slots.mjs',
       dev: 'node scripts/dev-watch.mjs',
       test: 'node ../../scripts/run-node-tests.mjs "src/**/*.test.ts"',
       'test:context-management': 'node ../../scripts/run-node-tests.mjs --suite context-management && pnpm run typecheck',

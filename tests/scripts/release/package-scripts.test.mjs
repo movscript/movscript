@@ -123,10 +123,11 @@ test('pnpm workspace includes every governed source package family', () => {
 
 test('package-local script files stay in the canonical manifest inventory', () => {
   const manifestScriptPaths = new Set(scriptManifest.entries.map((entry) => entry.path))
-  assert.equal(scriptSurfaces.maxMaintainedScriptFiles, 13)
-  assert.equal(scriptManifest.entries.length, 13)
+  assert.equal(scriptSurfaces.maxMaintainedScriptFiles, 14)
+  assert.equal(scriptManifest.entries.length, 14)
   assert.deepEqual([...manifestScriptPaths].filter((path) => !path.startsWith('scripts/')).sort(), [
     'apps/agent/scripts/build-server-bundle.mjs',
+    'apps/agent/scripts/check-asset-proposal-draft-slots.mjs',
     'apps/agent/scripts/dev-watch.mjs',
     'apps/backend/scripts/build.mjs',
     'apps/frontend/scripts/prepare-agent-deploy.mjs',
@@ -185,6 +186,7 @@ test('workspace ignores generated package and frontend build outputs', () => {
   assert.match(rootGitignore, /^apps\/frontend\/out\/$/m)
   assert.match(rootGitignore, /^apps\/frontend\/release\/$/m)
   assert.match(rootGitignore, /^apps\/frontend\/movscript-agent\/$/m)
+  assert.match(rootGitignore, /^apps\/frontend\/electron\.vite\.config\.\*\.mjs$/m)
   assert.match(rootGitignore, /^apps\/frontend\/src\/api\/generated\.ts$/m)
   assert.match(rootGitignore, /^apps\/frontend\/vendor\/ffmpeg\/\*\/$/m)
 })
