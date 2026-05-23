@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
-import { AgentRuntimeRouter, type AgentTaskGraphSnapshot, type AgentRun, type AgentRunStreamEvent } from './runtimeRouter.js'
+import { AgentRuntimeRouter, type AgentTaskGraphSnapshot, type AgentRun, type AgentInternalRunSignal } from './runtimeRouter.js'
 import type { JSONValue } from '../types.js'
 import { FileAgentStore } from '../state/fileStore.js'
 import { InMemoryAgentStore } from '../state/store.js'
@@ -16,7 +16,7 @@ import { InMemoryAgentCatalogStateStore } from '../catalog/state.js'
 import { loadAgentPluginCatalog } from '../catalog/loader.js'
 import { DEFAULT_TOOL_REGISTRY, StaticToolRegistry } from '../tools/toolRegistry.js'
 import { normalizeClientInput } from '../context/normalizeClientInput.js'
-import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
+import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/drafts'
 
 process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(mkdtempSync(join(tmpdir(), 'movscript-agent-runtime-test-')), 'model-config.json')
 
@@ -1239,7 +1239,7 @@ test('agent runtime streams generated thread titles before run completion', asyn
     const runtime = createTestRuntime({ mcpClient: new FakeMCPClient() })
     const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个雨夜便利店短片' }] })
     const run = runtime.createRun({ threadId: thread.id })
-    const events: AgentRunStreamEvent[] = []
+    const events: AgentInternalRunSignal[] = []
     const unsubscribe = runtime.subscribeRunStream(run.id, (event) => events.push(event))
     const completed = await waitForRun(runtime, run.id)
     unsubscribe()

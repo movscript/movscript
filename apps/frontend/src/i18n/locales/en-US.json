@@ -2279,6 +2279,34 @@
       "createAndUseProject": "Create and use",
       "resourceContext": "Asset library",
       "autoTaskGraph": "Planning mode",
+      "pinnedStatus": {
+        "title": "Current status",
+        "tabs": {
+          "generation": "gen",
+          "worker": "worker",
+          "plan": "plan"
+        },
+        "activeRunsCount": "{{count}} running",
+        "generationTasksCount": "{{count}} gen tasks",
+        "planProgress": "plan {{completed}}/{{total}}",
+        "workersCount": "{{count}} workers",
+        "threadPlanSteps": "steps {{completed}}/{{total}}",
+        "empty": {
+          "generation": "No gen tasks",
+          "worker": "No workers",
+          "plan": "No plan"
+        },
+        "planUpdated": "plan updated",
+        "stepsCount": "{{completed}}/{{total}} steps",
+        "executionPlanProgress": "execution plan {{completed}}/{{total}} tasks",
+        "viewDetails": "View details",
+        "tasksCount": "{{completed}}/{{total}} tasks",
+        "workersRunningCount": "{{count}} workers running",
+        "artifactsCount": "{{count}} artifacts",
+        "viewPlanDetails": "View plan details",
+        "collapse": "Collapse current status",
+        "expand": "Expand current status"
+      },
       "drafts": {
         "title": "Review Items",
         "filters": {
@@ -3081,6 +3109,8 @@
       "starting": "Starting...",
       "startRun": "Start Run",
       "nodeLibrary": "Node Library",
+      "expandNodeLibrary": "Expand node library",
+      "collapseNodeLibrary": "Collapse node library",
       "nodeLibraryHint": "Drag nodes onto the canvas, or click to add them to the viewport center",
       "emptyTitle": "Drag input, AI processing, and output nodes from the left",
       "emptyDescription": "You can also right-click the canvas to insert nodes. Select a node to configure its model, prompt, and media source on the right.",

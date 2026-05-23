@@ -1,16 +1,16 @@
 import { agentToolNameLabel } from '@/lib/agentToolDisplay'
 import { buildRunActivitySnapshot, type RunActivityRoundSnapshot, type RunActivityTokenUsage } from '@/lib/agentRunActivitySnapshot'
 import { isRecord } from '@/lib/jsonValue'
+import { buildAgentRunTimeline, type AgentRunTimeline, type AgentRunTimelineRound } from '@movscript/conversation'
 import type { AgentRun } from '@/lib/localAgentClient'
-import type { ChatRunActivity, ChatRunActivityApproval, ChatRunActivityEvent, ChatRunActivityInputRequest } from '@/store/agentStore'
+import type { ChatRunActivity, ChatRunActivityEvent } from '@/store/agentStore'
 
-export type AgentActivityTone = 'read' | 'draft' | 'write' | 'task' | 'wait' | 'system' | 'error'
+export type AgentActivityTone = 'read' | 'draft' | 'write' | 'task' | 'system' | 'error'
 
 export type AgentActivityItem =
   | AgentActivityDecisionItem
   | AgentActivityLineItem
   | AgentActivityBlockItem
-  | AgentActivityRequestItem
 
 export interface AgentActivityDecisionItem {
   id: string
@@ -56,21 +56,6 @@ export interface AgentActivityBlockItem {
   roundIndex?: number
   roundLabel?: string
   toolName?: string
-}
-
-export interface AgentActivityRequestItem {
-  id: string
-  type: 'request'
-  tone: 'wait'
-  requestKind: 'input' | 'approval'
-  requestId: string
-  title: string
-  lines: string[]
-  status: string
-  createdAt: string
-  durationMs?: number
-  roundIndex?: number
-  roundLabel?: string
 }
 
 export interface AgentActivityDebugDetail {
@@ -152,20 +137,11 @@ export function buildAgentActivityFeed(input: {
   const snapshot = buildRunActivitySnapshot(input)
   if (!snapshot) return undefined
   const { activity } = snapshot
+  const timeline = buildAgentRunTimeline(activity)
 
-  const toolItems = toolActivityRecords(activity).map(toolActivityItem)
-  const inputItems = (activity.inputs ?? [])
-    .filter((input) => input.status === 'pending' || input.status === 'answered' || input.status === 'cancelled')
-    .map(inputRequestItem)
-  const approvalItems = (activity.approvals ?? [])
-    .filter((approval) => approval.status === 'pending' || approval.status === 'approved' || approval.status === 'rejected')
-    .map(approvalRequestItem)
-  const decisionItems = modelDecisionItems(activity)
-
-  const items = coalesceConsecutiveActivityItems([...decisionItems, ...toolItems, ...inputItems, ...approvalItems]
-    .sort((left, right) => timestamp(left.createdAt) - timestamp(right.createdAt))
-  )
-  const rounds = buildActivityRounds(snapshot.rounds, items)
+  const itemIndex = buildActivityItemIndex(activity)
+  const rounds = buildTimelineActivityRounds(timeline, snapshot.rounds, itemIndex)
+  const items = rounds.flatMap((round) => round.items)
 
   return {
     runId: activity.runId,
@@ -175,6 +151,20 @@ export function buildAgentActivityFeed(input: {
     items,
     totals: snapshot.totals,
     activity,
+  }
+}
+
+interface ActivityItemIndex {
+  decisionsById: Map<string, AgentActivityDecisionItem>
+  systemItems: AgentActivityLineItem[]
+  toolsById: Map<string, AgentActivityItem>
+}
+
+function buildActivityItemIndex(activity: ChatRunActivity): ActivityItemIndex {
+  return {
+    decisionsById: new Map(modelDecisionItems(activity).map((item) => [item.id, item])),
+    systemItems: systemActivityItems(activity),
+    toolsById: new Map(toolActivityRecords(activity).map((record) => [record.id, toolActivityItem(record)])),
   }
 }
 
@@ -288,6 +278,7 @@ function modelDecisionItems(activity: ChatRunActivity): AgentActivityDecisionIte
     const data = recordValue(event.data)
     const calls = arrayValue(data?.tool_calls)
       ?.map((call) => modelDecisionToolCall(recordValue(call)))
+      .filter((call) => call?.name !== 'core_user_input_request')
       .filter((call): call is ModelDecisionToolCall => !!call) ?? []
     if (calls.length === 0) return []
     const eventDurationMs = typeof event.durationMs === 'number'
@@ -536,131 +527,146 @@ function coreToolActivityBlock(record: ToolActivityRecord): AgentActivityBlockIt
   return block(record, fallbackToolTone(record.toolName), agentToolNameLabel(record.toolName), compactLines([statusLine]))
 }
 
-function inputRequestItem(request: ChatRunActivityInputRequest): AgentActivityRequestItem {
-  return {
-    id: `input-${request.id}`,
-    type: 'request',
-    tone: 'wait',
-    requestKind: 'input',
-    requestId: request.id,
-    title: request.status === 'pending' ? '等待你补充信息' : request.status === 'answered' ? '已收到你的补充' : '用户输入已取消',
-    lines: compactLines([
-      request.question,
-      request.answer?.text ? `回复：${request.answer.text}` : undefined,
-      request.answer?.choiceIds?.length ? `选择：${request.answer.choiceIds.join('、')}` : undefined,
-    ]),
-    status: request.status,
-    createdAt: request.createdAt,
-  }
-}
-
-function approvalRequestItem(approval: ChatRunActivityApproval): AgentActivityRequestItem {
-  return {
-    id: `approval-${approval.id}`,
-    type: 'request',
-    tone: 'wait',
-    requestKind: 'approval',
-    requestId: approval.id,
-    title: approval.status === 'pending' ? '等待你确认工具执行' : approval.status === 'approved' ? '你已确认工具执行' : '你已拒绝工具执行',
-    lines: compactLines([
-      `工具：${agentToolNameLabel(approval.toolName)}`,
-      approval.reason,
-      approval.permission ? `权限：${approval.permission}` : undefined,
-      approval.risk ? `风险：${approval.risk}` : undefined,
-    ]),
-    status: approval.status,
-    createdAt: approval.createdAt,
-  }
-}
-
-function buildActivityRounds(modelRounds: RunActivityRoundSnapshot[], items: AgentActivityItem[]): AgentActivityRound[] {
-  const itemsByRound = new Map<number, AgentActivityItem[]>()
-  const fallbackItems: AgentActivityItem[] = []
-  for (const item of items) {
-    if (item.roundIndex !== undefined) {
-      const list = itemsByRound.get(item.roundIndex) ?? []
-      list.push(item)
-      itemsByRound.set(item.roundIndex, list)
-    } else {
-      fallbackItems.push(item)
-    }
-  }
-
-  const rounds: AgentActivityRound[] = modelRounds.map((round) => {
-    const roundItems = (itemsByRound.get(round.index) ?? []).sort((left, right) => timestamp(left.createdAt) - timestamp(right.createdAt))
-    const status = round.failed
-      ? 'failed' as const
-      : roundItems.length > 0
-        ? 'tool_calls' as const
-        : round.finished ? 'final' as const : 'thinking' as const
-    return {
-      id: `round-${round.index}`,
-      index: round.index,
-      label: roundLabel(round.index, status, round),
-      status,
-      items: roundItems,
-      ...(round.durationMs !== undefined ? { durationMs: round.durationMs } : {}),
-      ...(round.usage ? { usage: round.usage } : {}),
-    }
-  })
-
-  const knownRoundIndexes = new Set(modelRounds.map((round) => round.index))
-  for (const [roundIndex, roundItems] of itemsByRound) {
-    if (knownRoundIndexes.has(roundIndex)) continue
-    rounds.push({
-      id: `round-${roundIndex}`,
-      index: roundIndex,
-      label: roundLabel(roundIndex, 'tool_calls'),
-      status: 'tool_calls',
-      items: roundItems.sort((left, right) => timestamp(left.createdAt) - timestamp(right.createdAt)),
-    })
-  }
-
-  if (fallbackItems.length > 0) {
-    const inferred = assignFallbackItemsToRounds(fallbackItems, modelRounds)
-    for (const [roundIndex, roundItems] of inferred) {
-      if (roundIndex === 'unknown') continue
-      const existing = rounds.find((round) => round.index === roundIndex)
-      if (existing) {
-        existing.items = [...existing.items, ...roundItems].sort((left, right) => timestamp(left.createdAt) - timestamp(right.createdAt))
-        existing.status = existing.items.length > 0 ? 'tool_calls' : existing.status
-      } else {
-        rounds.push({
-          id: `round-${roundIndex}`,
-          index: roundIndex,
-          label: roundLabel(roundIndex, 'tool_calls'),
-          status: 'tool_calls',
-          items: roundItems.sort((left, right) => timestamp(left.createdAt) - timestamp(right.createdAt)),
-        })
+function buildTimelineActivityRounds(
+  timeline: AgentRunTimeline,
+  modelRounds: RunActivityRoundSnapshot[],
+  index: ActivityItemIndex,
+): AgentActivityRound[] {
+  const telemetryByIndex = new Map(modelRounds.map((round) => [round.index, round]))
+  return timeline.rounds
+    .map((round, position) => {
+      const telemetry = round.index !== undefined ? telemetryByIndex.get(round.index) : undefined
+      const items = coalesceConsecutiveActivityItems([
+        ...round.decisions
+          .map((decision) => index.decisionsById.get(decision.id))
+          .filter((item): item is AgentActivityDecisionItem => Boolean(item)),
+        ...round.toolExecutions
+          .map((tool) => index.toolsById.get(tool.id))
+          .filter((item): item is AgentActivityItem => Boolean(item)),
+        ...index.systemItems
+          .filter((item) => systemActivityRoundId(item, timeline.rounds) === round.id),
+      ].sort(compareActivityItems))
+      const status = activityRoundStatus(round, items)
+      return {
+        id: round.id,
+        ...(round.index !== undefined ? { index: round.index } : {}),
+        label: timelineRoundLabel(round, position, status, telemetry),
+        status,
+        items,
+        ...(telemetry?.durationMs !== undefined ? { durationMs: telemetry.durationMs } : {}),
+        ...(telemetry?.usage ? { usage: telemetry.usage } : {}),
       }
-    }
-    const unknownItems = inferred.get('unknown') ?? []
-    if (unknownItems.length > 0) {
-      rounds.push({
-        id: 'round-unknown',
-        label: '运行调用',
-        status: 'tool_calls',
-        items: unknownItems.sort((left, right) => timestamp(left.createdAt) - timestamp(right.createdAt)),
-      })
-    }
-  }
-
-  return rounds
-    .filter((round) => round.items.length > 0 || round.status === 'thinking' || round.status === 'final' || round.status === 'failed')
-    .sort((left, right) => (left.index ?? Number.MAX_SAFE_INTEGER) - (right.index ?? Number.MAX_SAFE_INTEGER))
+    })
+    .filter((round) => round.items.length > 0 || round.status === 'failed')
 }
 
-function assignFallbackItemsToRounds(items: AgentActivityItem[], rounds: RunActivityRoundSnapshot[]): Map<number | 'unknown', AgentActivityItem[]> {
-  const result = new Map<number | 'unknown', AgentActivityItem[]>()
-  for (const item of items) {
-    const itemTime = timestamp(item.createdAt)
-    const round = [...rounds].reverse().find((candidate) => timestamp(candidate.startedAt) <= itemTime)
-    const key = round?.index ?? 'unknown'
-    const list = result.get(key) ?? []
-    list.push(item)
-    result.set(key, list)
+function systemActivityRoundId(
+  item: AgentActivityLineItem,
+  rounds: AgentRunTimeline['rounds'],
+): string {
+  const key = activityRoundKeyForItem(item, rounds)
+  if (key !== 'round-unknown') return key
+  return rounds[0]?.id ?? key
+}
+
+function activityRoundKeyForItem(
+  item: { createdAt: string; roundIndex?: number },
+  rounds: Array<Pick<AgentActivityRound, 'id' | 'index'> & { startedAt?: string }>,
+): string {
+  if (item.roundIndex !== undefined) return `round-${item.roundIndex}`
+  const itemTime = timestamp(item.createdAt)
+  const explicitRounds = rounds
+    .filter((round) => round.index !== undefined)
+    .sort(compareActivityRoundsByStart)
+  const candidates = explicitRounds.length > 0 ? explicitRounds : [...rounds].sort(compareActivityRoundsByStart)
+  const round = [...candidates].reverse().find((candidate) => timestamp(candidate.startedAt) <= itemTime)
+  return round?.id ?? 'round-unknown'
+}
+
+function compareActivityRoundsByStart(
+  left: Pick<AgentActivityRound, 'id' | 'index'> & { startedAt?: string },
+  right: Pick<AgentActivityRound, 'id' | 'index'> & { startedAt?: string },
+): number {
+  if (left.index !== undefined && right.index !== undefined && left.index !== right.index) {
+    return left.index - right.index
   }
-  return result
+  return timestamp(left.startedAt) - timestamp(right.startedAt)
+    || left.id.localeCompare(right.id)
+}
+
+function systemActivityItems(activity: ChatRunActivity): AgentActivityLineItem[] {
+  return activity.events.flatMap((event) => {
+    if (event.kind !== 'run') return []
+    const text = runLifecycleEventText(event)
+    if (!text) return []
+    const data = recordValue(event.data)
+    return [{
+      id: `event-${event.id}`,
+      type: 'line',
+      tone: 'system',
+      text,
+      ...(data ? { detail: { result: data } } : {}),
+      status: event.status,
+      createdAt: event.createdAt,
+      ...(event.durationMs !== undefined ? { durationMs: event.durationMs } : {}),
+      ...(event.roundIndex !== undefined ? { roundIndex: event.roundIndex } : {}),
+      ...(event.roundLabel ? { roundLabel: event.roundLabel } : {}),
+    }]
+  })
+}
+
+function runLifecycleEventText(event: ChatRunActivityEvent): string | undefined {
+  const data = recordValue(event.data)
+  const eventType = stringValue(data?.eventType)
+  if (eventType === 'runtime.recovery.interrupted') {
+    return '运行中断：runtime 重启时这个 run 尚未结束，已暂停等待继续或取消。'
+  }
+  if (eventType === 'runtime.recovery.resumed') {
+    return '恢复继续：沿用同一个 run 重新调度，之前已完成的步骤保留为历史。'
+  }
+  if (eventType === 'runtime.recovery.queued_rescheduled') {
+    return '运行恢复：启动时发现已排队的 run，已重新调度。'
+  }
+  if (event.title === 'Run cancelled') {
+    const reason = event.summary ?? stringValue(data?.reason)
+    if (reason === 'Runtime recovery cancelled by user.') {
+      return '恢复已取消：保留中断前的执行记录，后续可以从新消息开始。'
+    }
+    return reason ? `运行已取消：${reason}` : '运行已取消。'
+  }
+  return undefined
+}
+
+function compareActivityItems(left: AgentActivityItem, right: AgentActivityItem): number {
+  return timestamp(left.createdAt) - timestamp(right.createdAt)
+    || activityItemOrder(left) - activityItemOrder(right)
+    || left.id.localeCompare(right.id)
+}
+
+function activityItemOrder(item: AgentActivityItem): number {
+  if (item.type === 'decision') return 0
+  if (item.type === 'line' && item.tone === 'system') return 1
+  return 2
+}
+
+function activityRoundStatus(round: AgentRunTimelineRound, items: AgentActivityItem[]): AgentActivityRound['status'] {
+  if (round.failed) return 'failed'
+  if (items.length > 0) return 'tool_calls'
+  return round.finished ? 'final' : 'thinking'
+}
+
+function timelineRoundLabel(
+  round: AgentRunTimelineRound,
+  position: number,
+  status: AgentActivityRound['status'],
+  telemetry?: RunActivityRoundSnapshot,
+): string {
+  if (round.index !== undefined) return roundLabel(round.index, status, telemetry)
+  const prefix = `运行片段 ${position + 1}`
+  if (status === 'tool_calls') return `${prefix}：调用工具`
+  if (status === 'final') return `${prefix}：形成回复`
+  if (status === 'failed') return `${prefix}：请求失败`
+  return `${prefix}：运行中`
 }
 
 function roundLabel(index: number, status: AgentActivityRound['status'], telemetry?: Pick<RunActivityRoundSnapshot, 'durationMs' | 'usage'>) {

@@ -2,13 +2,13 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { loadRuntimeThreadProjection } from './agentRuntimeThreadHydration'
-import type { AgentRun, AgentThread } from './localAgentClient'
+import type { AgentRun, AgentRuntimeSnapshotV2, AgentThread } from './localAgentClient'
 
 const NOW = '2026-05-19T00:00:00.000Z'
 
 test('loadRuntimeThreadProjection loads thread runs and merges ensured runs before projecting messages', async () => {
   const thread = makeThread()
-  const listedRun = makeRun({ id: 'run_listed', input: { sourceMessageId: 'msg_user', userMessage: 'Use the tool' } })
+  const listedRun = makeRun({ id: 'run_listed', input: runInput({ sourceMessageId: 'msg_user', userMessage: 'Use the tool' }) })
   const ensuredRun = makeRun({ id: 'run_ensured', status: 'requires_action' })
   const result = await loadRuntimeThreadProjection({
     threadId: 'thread_1',
@@ -30,7 +30,7 @@ test('loadRuntimeThreadProjection loads thread runs and merges ensured runs befo
 test('loadRuntimeThreadProjection prefers a combined thread runtime snapshot when available', async () => {
   const calls: string[] = []
   const thread = makeThread()
-  const listedRun = makeRun({ id: 'run_listed', input: { sourceMessageId: 'msg_user', userMessage: 'Use the tool' } })
+  const listedRun = makeRun({ id: 'run_listed', input: runInput({ sourceMessageId: 'msg_user', userMessage: 'Use the tool' }) })
 
   const result = await loadRuntimeThreadProjection({
     threadId: 'thread_1',
@@ -232,6 +232,16 @@ function makeRun(input: Partial<AgentRun> & { id: string }): AgentRun {
   }
 }
 
+function runInput(input: { sourceMessageId: string; userMessage: string }): NonNullable<AgentRun['input']> {
+  return {
+    schema: 'movscript.agent.run-input.v1',
+    userMessage: input.userMessage,
+    sourceMessageId: input.sourceMessageId,
+    executionMode: 'chat',
+    createdAt: NOW,
+  }
+}
+
 function makeRuntimeSnapshot(
   thread: AgentThread,
   runs: AgentRun[],
@@ -252,24 +262,29 @@ function makeRuntimeSnapshot(
       resolvedAt?: string
     }>
   } = {},
-) {
+) : AgentRuntimeSnapshotV2 {
   const activeRunIds = options.activeRunIds ?? []
   const waitingRunIds = options.waitingRunIds ?? []
   const interactions = options.interactions ?? []
   return {
-    schema: 'movscript.thread-runtime.v2' as const,
-    updatedAt: thread.updatedAt,
-    thread,
-    runs,
-    works: [],
-    interactions,
-    continuations: [],
-    current: {
-      activeRunIds,
-      waitingRunIds,
-      runningWorkIds: [],
-      pendingInteractionIds: interactions.filter((interaction) => interaction.status === 'pending').map((interaction) => interaction.id),
-      readyContinuationIds: [],
+    schema: 'movscript.agent.runtime-snapshot.v2',
+    protocolVersion: 'movscript.agent.protocol.v1',
+    scope: { type: 'thread', id: thread.id },
+    cursor: `snapshot:${thread.id}:0`,
+    ordinal: 0,
+    generatedAt: thread.updatedAt,
+    entities: {
+      threads: [thread],
+      runs: runs.map((run) => (
+        activeRunIds.includes(run.id)
+          ? { ...run, status: 'in_progress' }
+          : waitingRunIds.includes(run.id)
+            ? { ...run, status: 'requires_action' }
+            : run
+      )),
+      interactions,
+      works: [],
+      continuations: [],
     },
   }
 }

@@ -1,4 +1,4 @@
-import type { AgentMessage, AgentRunStreamEvent, AgentThread } from '../state/types.js'
+import type { AgentMessage, AgentInternalRunSignal, AgentThread } from '../state/types.js'
 import {
   applyThreadTitleGenerationFallback,
   applyThreadTitleGenerationResult,
@@ -18,7 +18,7 @@ export async function ensureRuntimeThreadTitle(input: {
   now: () => string
   updateThread: (thread: AgentThread) => void
   runId?: string
-  emitRunStreamEvent?: (runId: string, event: AgentRunStreamEvent) => void
+  emitRunStreamEvent?: (runId: string, event: AgentInternalRunSignal) => void
   resolveModelConfig?: () => ConfiguredRuntimeModelConfig | undefined
   callModel?: (input: ModelCallInput) => Promise<ModelCallResult>
 }): Promise<AgentThread | undefined> {
@@ -94,7 +94,7 @@ export function applyRuntimeThreadTitleRequest(input: {
   now: () => string
   updateThread: (thread: AgentThread) => void
   runId?: string
-  emitRunStreamEvent?: (runId: string, event: AgentRunStreamEvent) => void
+  emitRunStreamEvent?: (runId: string, event: AgentInternalRunSignal) => void
   resolveModelConfig?: () => ConfiguredRuntimeModelConfig | undefined
   callModel?: (input: ModelCallInput) => Promise<ModelCallResult>
 }): Promise<AgentThread | undefined> {

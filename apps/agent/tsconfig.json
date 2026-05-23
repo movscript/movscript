@@ -10,7 +10,8 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@movscript/draft-schemas": ["../../packages/draft-schemas/src/index.ts"]
+      "@movscript/protocol": ["../../packages/protocol/src/index.ts"],
+      "@movscript/drafts": ["../../packages/drafts/src/index.ts"]
     },
     "types": [
       "node"

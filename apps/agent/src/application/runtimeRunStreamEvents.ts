@@ -14,7 +14,7 @@ import type { AgentRunRoundInfo } from '../state/runRound.js'
 import type {
   AgentMessage,
   AgentRun,
-  AgentRunStreamEvent,
+  AgentInternalRunSignal,
   AgentTraceEvent,
   AgentTraceEventKind,
 } from '../state/types.js'
@@ -38,7 +38,7 @@ export function recordRuntimeRunTraceEvent(input: {
     durationMs?: number
     completedAt?: string
   }
-  emitRunStreamEvent: (runId: string, event: AgentRunStreamEvent) => void
+  emitRunStreamEvent: (runId: string, event: AgentInternalRunSignal) => void
 }): AgentTraceEvent {
   const event = appendTraceEvent({
     id: input.traceId,
@@ -85,7 +85,7 @@ export function emitRuntimeVolatileTraceEvent(input: {
     data?: unknown
     volatileKey?: string
   }
-  emitRunStreamEvent: (runId: string, event: AgentRunStreamEvent) => void
+  emitRunStreamEvent: (runId: string, event: AgentInternalRunSignal) => void
 }): void {
   const event: AgentTraceEvent = {
     id: input.trace.volatileKey ? `trace_live_${input.trace.volatileKey}` : input.traceId,
@@ -114,7 +114,7 @@ export function emitRuntimeVolatileTraceEvent(input: {
 export function replayRuntimeRunStream(input: {
   run: AgentRun
   store: Pick<AgentStore, 'getThread' | 'listRunTraceEvents'>
-  listener: (event: AgentRunStreamEvent) => void
+  listener: (event: AgentInternalRunSignal) => void
 }): void {
   const streamRun = toStreamRun(input.run)
   input.listener({ type: 'run', run: streamRun })
@@ -144,7 +144,7 @@ export function replayRuntimeRunStream(input: {
 export function emitRuntimeRunSnapshot(input: {
   run: AgentRun
   done?: boolean
-  emitRunStreamEvent: (runId: string, event: AgentRunStreamEvent) => void
+  emitRunStreamEvent: (runId: string, event: AgentInternalRunSignal) => void
 }): void {
   const streamRun = toStreamRun(input.run)
   input.emitRunStreamEvent(input.run.id, { type: 'run', run: streamRun })
@@ -156,7 +156,7 @@ export function emitRuntimeRunSnapshot(input: {
 export function emitRuntimeAssistantMessage(input: {
   run: AgentRun
   message: AgentMessage
-  emitRunStreamEvent: (runId: string, event: AgentRunStreamEvent) => void
+  emitRunStreamEvent: (runId: string, event: AgentInternalRunSignal) => void
 }): void {
   input.emitRunStreamEvent(input.run.id, {
     type: 'assistant_message',
@@ -170,7 +170,7 @@ function emitTraceDerivedRunStreamEvents(input: {
   event: AgentTraceEvent
   run: AgentRun
   getThread: (threadId: string) => ReturnType<AgentStore['getThread']>
-  emitRunStreamEvent: (runId: string, event: AgentRunStreamEvent) => void
+  emitRunStreamEvent: (runId: string, event: AgentInternalRunSignal) => void
 }): void {
   emitTraceDeltaEvent({
     event: input.event,
@@ -191,7 +191,7 @@ function emitTraceDerivedRunStreamEvents(input: {
 function emitTraceDeltaEvent(input: {
   event: AgentTraceEvent
   runId: string
-  emitRunStreamEvent: (runId: string, event: AgentRunStreamEvent) => void
+  emitRunStreamEvent: (runId: string, event: AgentInternalRunSignal) => void
 }): void {
   const assistantDelta = assistantDeltaFromTraceEvent(input.event)
   if (assistantDelta) {

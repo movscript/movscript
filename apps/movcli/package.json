@@ -1,5 +1,5 @@
 {
-  "name": "movcli",
+  "name": "@movscript/cli",
   "version": "0.2.0",
   "description": "MovScript CLI — init, build, and manage plugins",
   "type": "module",

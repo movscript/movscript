@@ -16,6 +16,20 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
+func TestGeneratedResourceNameUsesJobTitle(t *testing.T) {
+	job := &model.Job{Model: gorm.Model{ID: 38}, Title: "雨夜门口/纸条?"}
+	if got := generatedResourceName(job, "image", "png"); got != "雨夜门口_纸条.png" {
+		t.Fatalf("generated resource name = %q", got)
+	}
+}
+
+func TestGeneratedResourceNameFallsBackToJobID(t *testing.T) {
+	job := &model.Job{Model: gorm.Model{ID: 38}}
+	if got := generatedResourceName(job, "image", "png"); got != "job_38_image.png" {
+		t.Fatalf("generated resource fallback name = %q", got)
+	}
+}
+
 func TestCallProviderWithTimeout(t *testing.T) {
 	start := time.Now()
 	_, err := callProviderWithTimeout(context.Background(), 20*time.Millisecond, func(ctx context.Context) (string, error) {

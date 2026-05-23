@@ -146,7 +146,7 @@ function generationTraceForWork(toolName: string, work: RuntimeWork) {
     : toolName === 'core_work_cancel'
       ? 'generation_job_cancel'
       : 'generation_job_get'
-  return buildGenerationEvent({ name: backendToolName, args }, work.result)
+  return buildGenerationEvent({ name: backendToolName, args }, work.result as JSONValue | undefined)
 }
 
 function normalizeKind(value: unknown): RuntimeWorkKind {

@@ -7,7 +7,7 @@ import type { RuntimeModelRouter } from '../model/modelRouter.js'
 import { DEFAULT_TOOL_REGISTRY, StaticToolRegistry } from '../tools/toolRegistry.js'
 import type { AgentDebugTool, AgentRun, AgentRunPolicy, JSONValue, ResolvedToolCatalog } from '../state/types.js'
 import { runAgentGraph } from './agentGraph.js'
-import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
+import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/drafts'
 
 const policy: AgentRunPolicy = {
   approvalMode: 'interactive',

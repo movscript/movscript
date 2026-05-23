@@ -1,7 +1,8 @@
 import type { CSSProperties, KeyboardEvent, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MessageSquareText, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { conversationDisplayTitle } from '@/components/agent/AgentConversationList'
+import type { AgentRuntimeStatusLight } from '@/lib/agentRuntimeStatusLight'
 import type { Conversation } from '@/store/agentStore'
 
 export interface AgentConversationTabsProps {
@@ -12,6 +13,7 @@ export interface AgentConversationTabsProps {
   onOpenKeyboardMenu: (event: KeyboardEvent, conversationId: string) => void
   onOpenMenu: (event: MouseEvent, conversationId: string) => void
   onSelectConversation: (id: string) => void
+  runtimeStatusLights?: Partial<Record<string, AgentRuntimeStatusLight>>
 }
 
 export function AgentConversationTabs({
@@ -22,6 +24,7 @@ export function AgentConversationTabs({
   onOpenKeyboardMenu,
   onOpenMenu,
   onSelectConversation,
+  runtimeStatusLights,
 }: AgentConversationTabsProps) {
   const { t } = useTranslation()
 
@@ -35,6 +38,8 @@ export function AgentConversationTabs({
     >
       {conversations.map((item) => {
         const title = conversationDisplayTitle(item, t)
+        const runtimeStatusLight = runtimeStatusLights?.[item.id]
+        const tabLabel = runtimeStatusLight ? `${title}，Runtime ${runtimeStatusLight.label}` : title
         return (
           <div
             key={item.id}
@@ -46,7 +51,7 @@ export function AgentConversationTabs({
               type="button"
               role="tab"
               aria-selected={item.id === activeConversationId}
-              aria-label={title}
+              aria-label={tabLabel}
               className="ai-agent-panel-conversation-tab-main"
               title={`${title} · ${t('agents.chat.tabActions')}`}
               onClick={() => {
@@ -60,7 +65,14 @@ export function AgentConversationTabs({
                 onCloseConversation(item.id)
               }}
             >
-              <MessageSquareText size={12} aria-hidden="true" />
+              {runtimeStatusLight ? (
+                <span
+                  className="ai-agent-panel-conversation-tab-runtime-light"
+                  data-runtime-state={runtimeStatusLight.state}
+                  aria-hidden="true"
+                  title={runtimeStatusLight.detail}
+                />
+              ) : null}
               <span className="ai-agent-panel-conversation-tab-title">{title}</span>
               {item.messages.length > 0 ? (
                 <span className="ai-agent-panel-conversation-tab-count" aria-label={t('agents.chat.messagesCount', { count: item.messages.length })}>

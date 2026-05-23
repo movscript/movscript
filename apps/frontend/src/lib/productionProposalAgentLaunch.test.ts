@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test, { mock } from 'node:test'
-import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
+import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/drafts'
 
 import { localAgentClient, type AgentDraft } from './localAgentClient'
 import {

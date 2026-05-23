@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { ModelCallInput, ModelCallResult } from '../model/modelClient.js'
 import type { ConfiguredRuntimeModelConfig } from '../model/modelConfig.js'
-import type { AgentMessage, AgentRunStreamEvent, AgentThread } from '../state/types.js'
+import type { AgentMessage, AgentInternalRunSignal, AgentThread } from '../state/types.js'
 import { applyRuntimeThreadTitleRequest, ensureRuntimeThreadTitle } from './runtimeThreadTitle.js'
 
 test('ensureRuntimeThreadTitle generates and persists a model title', async () => {
@@ -38,7 +38,7 @@ test('ensureRuntimeThreadTitle generates and persists a model title', async () =
 test('ensureRuntimeThreadTitle emits a thread_title event after title persistence', async () => {
   const thread = makeThread()
   const userMessage = makeMessage({ content: '请帮我写一个雨夜短片。' })
-  const events: AgentRunStreamEvent[] = []
+  const events: AgentInternalRunSignal[] = []
 
   await ensureRuntimeThreadTitle({
     thread,
@@ -65,7 +65,7 @@ test('applyRuntimeThreadTitleRequest bridges persistence and stream callbacks', 
   const thread = makeThread()
   const userMessage = makeMessage({ content: '请帮我写一个雨夜短片。' })
   const updates: AgentThread[] = []
-  const events: AgentRunStreamEvent[] = []
+  const events: AgentInternalRunSignal[] = []
 
   const result = await applyRuntimeThreadTitleRequest({
     thread,

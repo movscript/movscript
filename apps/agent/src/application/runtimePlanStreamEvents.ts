@@ -8,7 +8,7 @@ import type {
   AgentTaskGraphSnapshot,
   AgentTaskGraphStreamEvent,
   AgentRun,
-  AgentRunStreamEvent,
+  AgentInternalRunSignal,
   AgentTask,
 } from '../state/types.js'
 
@@ -23,7 +23,7 @@ export function replayRuntimePlanStream(input: {
 }
 
 export function emitRuntimePlanRunStreamEvent(input: {
-  event: AgentRunStreamEvent
+  event: AgentInternalRunSignal
   getRun: (runId: string) => AgentRun | undefined
   hasPlanSubscribers: (taskGraphId: string) => boolean
   getTaskGraphSnapshot: (taskGraphId: string) => AgentTaskGraphSnapshot

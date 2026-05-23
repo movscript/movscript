@@ -1,6 +1,8 @@
-import { fetchResourceById, type AgentMessageViewModelDeps } from '@/lib/agentMessageViewModel'
-import { localAgentClient, type AgentRun, type AgentThread, type LocalAgentClient, type RuntimeInteraction } from '@/lib/localAgentClient'
-import { projectRuntimeThreadMessages } from '@/lib/agentThreadProjection'
+import { assistantResultPayloadForRun, fetchResourceById, type AgentMessageViewModelDeps } from '@/lib/agentMessageViewModel'
+import { localAgentClient, type AgentRun, type AgentThread, type LocalAgentClient } from '@/lib/localAgentClient'
+import { runtimeStatusLightFromThreadRuntimeSnapshot, type AgentRuntimeStatusLight } from '@/lib/agentRuntimeStatusLight'
+import { buildRuntimeThreadConversationProjection } from '@movscript/conversation'
+import { formatLocalAgentAssistantContent } from '@/lib/localAgentResult'
 import type { ChatMessage, ChatRunActivityEvent } from '@/store/agentStore'
 import type { RawResource } from '@/types'
 
@@ -12,6 +14,7 @@ export interface RuntimeThreadHydrationResult {
   currentRun?: AgentRun
   actionableRuns: AgentRun[]
   messages: ChatMessage[]
+  runtimeStatusLight: AgentRuntimeStatusLight
 }
 
 export interface RuntimeThreadHydrationDeps extends AgentMessageViewModelDeps {
@@ -31,155 +34,53 @@ export async function loadRuntimeThreadProjection(input: {
   const snapshot = input.thread || !client.getThreadRuntime
     ? undefined
     : await client.getThreadRuntime(input.threadId, input.signal)
-  const thread = input.thread ?? snapshot?.thread ?? await client.getThread(input.threadId, input.signal)
-  const snapshotRuns = snapshot?.runs
+  const thread = input.thread
+    ?? snapshot?.entities.threads?.find((candidate) => candidate.id === input.threadId)
+    ?? await client.getThread(input.threadId, input.signal)
+  const snapshotRuns = snapshot?.entities.runs?.filter((run) => run.threadId === thread.id)
   const runProjection = snapshotRuns
     ? { threadId: thread.id, runs: snapshotRuns }
     : await client.listRunsByThread(thread.id, input.signal).catch((error) => {
       if (input.signal?.aborted) throw error
       return { threadId: thread.id, runs: [] }
     })
-  const runs = attachRuntimeInteractionIds(mergeRuns(runProjection.runs, input.ensureRuns ?? []), snapshot?.interactions)
-  const actionableRuns = resolveActionableRuns(runs, snapshot?.interactions)
-  const currentRun = resolveCurrentRun({
-    runs,
-    actionableRuns,
-    snapshotRunIds: [
-      ...(snapshot?.current.waitingRunIds ?? []),
-      ...(snapshot?.current.activeRunIds ?? []),
-    ],
-    activeRunId: thread.activeRunId,
-    lastRunId: thread.lastRunId,
-  })
-  const messages = await projectRuntimeThreadMessages({
+  const projection = await buildRuntimeThreadConversationProjection<ChatMessage, AgentRun, AgentThread, AgentMessageViewModelDeps>({
     thread,
-    runs,
+    runs: runProjection.runs,
+    ensureRuns: input.ensureRuns,
+    interactions: snapshot?.entities.interactions?.filter((interaction) => interaction.threadId === thread.id),
+    current: runtimeThreadCurrentFromV2(snapshot, thread.id),
     existingMessages: input.existingMessages,
     liveEventsByRunId: input.liveEventsByRunId,
     deps: {
-      ...deps,
-      fetchResourceById: deps.fetchResourceById ?? fetchResourceById,
+      assistantResultPayloadForRun: (run, liveEvents, assistantContent, payloadDeps) =>
+        assistantResultPayloadForRun(run as AgentRun, liveEvents as ChatRunActivityEvent[], assistantContent, payloadDeps),
+      assistantResultPayloadDeps: {
+        ...deps,
+        fetchResourceById: deps.fetchResourceById ?? fetchResourceById,
+      },
+      formatAssistantContent: (run, runtimeThread) =>
+        formatLocalAgentAssistantContent(run as AgentRun, runtimeThread as Pick<AgentThread, 'messages'>),
+      localUserEchoContentKey,
     },
   })
-  return { thread, runs, currentRun, actionableRuns, messages }
+  return { ...projection, runtimeStatusLight: runtimeStatusLightFromThreadRuntimeSnapshot(snapshot) }
 }
 
-function attachRuntimeInteractionIds(runs: AgentRun[], interactions: RuntimeInteraction[] | undefined): AgentRun[] {
-  const interactionByApprovalId = new Map<string, string>()
-  const continuationApprovalsByRunId = new Map<string, NonNullable<AgentRun['pendingApprovals']>>()
-  for (const interaction of interactions ?? []) {
-    const payload = isRecord(interaction.payload) ? interaction.payload : undefined
-    if (interaction.kind === 'approval') {
-      const approvalId = typeof payload?.approvalId === 'string' ? payload.approvalId : undefined
-      if (approvalId) interactionByApprovalId.set(approvalId, interaction.id)
-      continue
-    }
-    const continuationApproval = continuationResumeApprovalFromInteraction(interaction, payload)
-    if (continuationApproval) {
-      const approvals = continuationApprovalsByRunId.get(interaction.runId) ?? []
-      approvals.push(continuationApproval)
-      continuationApprovalsByRunId.set(interaction.runId, approvals)
-    }
-  }
-  if (interactionByApprovalId.size === 0 && continuationApprovalsByRunId.size === 0) return runs
-  return runs.map((run) => ({
-    ...run,
-    pendingApprovals: [
-      ...(run.pendingApprovals ?? []).map((approval) => {
-      const interactionId = interactionByApprovalId.get(approval.id)
-      return interactionId ? { ...approval, interactionId } : approval
-      }),
-      ...(continuationApprovalsByRunId.get(run.id) ?? []),
-    ],
-  }))
-}
-
-function continuationResumeApprovalFromInteraction(
-  interaction: RuntimeInteraction,
-  payload: Record<string, unknown> | undefined,
-): NonNullable<AgentRun['pendingApprovals']>[number] | undefined {
-  if (interaction.kind !== 'selection' || payload?.type !== 'runtime_continuation_resume') return undefined
-  const continuationId = typeof payload.continuationId === 'string' ? payload.continuationId : undefined
-  if (!continuationId) return undefined
-  const status = interaction.status === 'approved' ? 'approved' : interaction.status === 'rejected' ? 'rejected' : interaction.status === 'pending' ? 'pending' : undefined
-  if (!status) return undefined
+function runtimeThreadCurrentFromV2(
+  snapshot: Awaited<ReturnType<LocalAgentClient['getThreadRuntime']>> | undefined,
+  threadId: string,
+): { activeRunIds?: string[]; waitingRunIds?: string[] } | undefined {
+  if (!snapshot) return undefined
+  const runs = snapshot.entities.runs?.filter((run) => run.threadId === threadId) ?? []
   return {
-    id: `runtime-continuation-${continuationId}`,
-    runId: interaction.runId,
-    interactionId: interaction.id,
-    toolName: 'runtime_continuation_resume',
-    args: {
-      continuationId,
-      workIds: Array.isArray(payload.workIds) ? payload.workIds : [],
-    },
-    reason: typeof payload.summary === 'string'
-      ? payload.summary
-      : '检测到异步任务已有结果，可以启动一个新的接续 run。',
-    risk: 'resume',
-    permission: 'runtime.continuation',
-    status,
-    createdAt: interaction.createdAt,
-    updatedAt: interaction.updatedAt,
-    ...(interaction.resolvedAt && status === 'approved' ? { approvedAt: interaction.resolvedAt } : {}),
-    ...(interaction.resolvedAt && status === 'rejected' ? { rejectedAt: interaction.resolvedAt } : {}),
+    activeRunIds: runs.filter((run) => run.status === 'queued' || run.status === 'in_progress').map((run) => run.id),
+    waitingRunIds: runs.filter((run) => run.status === 'requires_action').map((run) => run.id),
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function mergeRuns(primary: AgentRun[], ensured: AgentRun[]): AgentRun[] {
-  const byId = new Map<string, AgentRun>()
-  for (const run of primary) byId.set(run.id, run)
-  for (const run of ensured) {
-    if (!byId.has(run.id)) byId.set(run.id, run)
-  }
-  return Array.from(byId.values())
-}
-
-function resolveCurrentRun(input: {
-  runs: AgentRun[]
-  actionableRuns: AgentRun[]
-  snapshotRunIds?: string[]
-  activeRunId?: string
-  lastRunId?: string
-}): AgentRun | undefined {
-  const byId = new Map(input.runs.map((run) => [run.id, run]))
-  return input.actionableRuns[0]
-    ?? (input.snapshotRunIds ?? []).map((runId) => byId.get(runId)).find((run): run is AgentRun => !!run)
-    ?? (input.activeRunId ? byId.get(input.activeRunId) : undefined)
-    ?? (input.lastRunId ? byId.get(input.lastRunId) : undefined)
-    ?? [...input.runs].sort(compareRunsByUpdatedAtDesc)[0]
-}
-
-function resolveActionableRuns(runs: AgentRun[], interactions: Array<{ runId: string; status: string }> | undefined): AgentRun[] {
-  const byId = new Map(runs.map((run) => [run.id, run]))
-  const actionableRunIds = Array.from(new Set((interactions ?? [])
-    .filter((interaction) => interaction.status === 'pending')
-    .map((interaction) => interaction.runId)))
-  if (actionableRunIds?.length) {
-    const indexed = actionableRunIds
-      .map((runId) => byId.get(runId))
-      .filter((run): run is AgentRun => !!run)
-    if (indexed.length > 0) return indexed
-  }
-  return runs.filter(runNeedsUserAction).sort(compareRunsByUpdatedAtDesc)
-}
-
-function runNeedsUserAction(run: AgentRun): boolean {
-  return run.status === 'requires_action'
-    && (
-      (run.pendingApprovals ?? []).some((approval) => approval.status === 'pending')
-      || (run.pendingInputRequests ?? []).some((request) => request.status === 'pending')
-    )
-}
-
-function compareRunsByUpdatedAtDesc(a: AgentRun, b: AgentRun): number {
-  return timestamp(b.updatedAt ?? b.createdAt) - timestamp(a.updatedAt ?? a.createdAt)
-}
-
-function timestamp(value: string | undefined): number {
-  const parsed = value ? Date.parse(value) : NaN
-  return Number.isFinite(parsed) ? parsed : 0
+function localUserEchoContentKey(text: string): string {
+  return (text.split(/\n\n\[(?:用户附件引用|用户随消息提供的附件)\]/)[0] ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }

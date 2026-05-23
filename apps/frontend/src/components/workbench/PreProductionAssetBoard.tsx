@@ -310,15 +310,39 @@ function ReferencePrepItem({
       onClick={onSelect}
       onContextMenu={onContextMenu}
       active={selected}
-      media={(
-        <div className="flex h-16 w-20 items-center justify-center rounded-md border border-border bg-muted/30 text-muted-foreground">
-          <Sparkles size={18} />
-        </div>
-      )}
+      media={<ReferencePrepMedia cluster={cluster} />}
       title={referenceTitle(cluster.reference)}
       description={`${referenceKindLabel(cluster.reference?.kind)} · ${cluster.rows.length} 个素材 · 缺 ${cluster.missing} · 待选 ${cluster.candidate}`}
       status={<WorkbenchStatusBadge tone={coverage.tone} label={coverage.label} />}
     />
+  )
+}
+
+function ReferencePrepMedia({ cluster }: { cluster: ReferenceAssetCluster }) {
+  const previews = referenceVisualPreviewSlots(cluster)
+  if (previews.length === 0) {
+    return (
+      <div className="flex h-16 w-20 items-center justify-center rounded-md border border-border bg-muted/30 text-muted-foreground">
+        <Sparkles size={18} />
+      </div>
+    )
+  }
+  if (previews.length === 1) {
+    return <SlotThumb slot={previews[0]} className="h-16 w-20" />
+  }
+  return (
+    <div className="relative h-16 w-20 overflow-hidden rounded-md border border-border bg-muted/30 p-1">
+      <div className="grid h-full grid-cols-2 grid-rows-2 gap-1">
+        {previews.slice(0, 4).map((slot) => (
+          <SlotThumb key={slot.ID} slot={slot} className="h-full w-full rounded-[3px] border-0" />
+        ))}
+      </div>
+      {previews.length > 4 ? (
+        <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1 type-tiny leading-4 text-white">
+          +{previews.length - 4}
+        </span>
+      ) : null}
+    </div>
   )
 }
 
@@ -443,6 +467,31 @@ function clusterPreviewSlots(cluster: ReferenceAssetCluster) {
     locked: locked.slice(0, 4),
     candidates: candidates.slice(0, 4),
   }
+}
+
+function referenceVisualPreviewSlots(cluster: ReferenceAssetCluster) {
+  const previews: AssetSlotRecord[] = []
+  const seen = new Set<number>()
+  const add = (slot?: AssetSlotRecord) => {
+    if (!slot || seen.has(slot.ID) || !slotHasVisualPreview(slot)) return
+    seen.add(slot.ID)
+    previews.push(slot)
+  }
+  for (const row of cluster.rows) add(row.lockedSlot)
+  for (const row of cluster.rows) add(row.slot)
+  for (const row of cluster.rows) {
+    for (const candidate of row.candidates) add(candidate.candidate_asset_slot)
+  }
+  return previews
+}
+
+function slotHasVisualPreview(slot?: AssetSlotRecord) {
+  const resource = slot?.resource
+  if (!resource?.url) return false
+  return resource.type === 'image'
+    || resource.type === 'video'
+    || resource.mime_type?.startsWith('image/')
+    || resource.mime_type?.startsWith('video/')
 }
 
 function ClusterPreviewStrip({

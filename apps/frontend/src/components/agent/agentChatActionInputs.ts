@@ -41,6 +41,7 @@ export function buildAgentChatActionBindingsInput({
       setConversationRun: store.setConversationRun,
       messageStore: {
         addMessage: store.messageStore.addMessage,
+        updateMessageMeta: store.messageStore.updateMessageMeta,
       },
       liveEvents: () => runtime.liveTraceEventsRef.current,
       refreshAgentCatalogContext: context.refreshAgentCatalogContext,

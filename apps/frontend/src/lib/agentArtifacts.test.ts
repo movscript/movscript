@@ -15,7 +15,7 @@ test('extractAgentTaskArtifacts ignores non-plain draft result objects', () => {
     status: 'completed',
     createdAt: '2026-05-17T00:00:00.000Z',
     updatedAt: '2026-05-17T00:00:01.000Z',
-    policy: { maxToolCalls: 10, maxIterations: 6 },
+    policy: { approvalMode: 'interactive', maxToolCalls: 10, maxIterations: 6, allowNetwork: false, allowFileBytes: false },
     steps: [{
       id: 'step_1',
       runId: 'run_1',
@@ -24,7 +24,7 @@ test('extractAgentTaskArtifacts ignores non-plain draft result objects', () => {
       result: new RuntimeDraftResult(),
       createdAt: '2026-05-17T00:00:00.000Z',
     }],
-  } as AgentRun
+  } as unknown as AgentRun
 
   assert.deepEqual(extractAgentTaskArtifacts(run), [])
 })

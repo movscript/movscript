@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentMessage, AgentRun, AgentRunStreamEvent, AgentThread } from '../state/types.js'
+import type { AgentMessage, AgentRun, AgentInternalRunSignal, AgentThread } from '../state/types.js'
 import {
   emitRuntimeAssistantMessage,
   emitRuntimeRunSnapshot,
@@ -16,7 +16,7 @@ test('recordRuntimeRunTraceEvent persists trace and emits derived assistant stre
   const assistant = makeMessage({ id: 'msg_assistant', role: 'assistant', content: 'done', runId: run.id })
   store.createThread(makeThread({ messages: [assistant] }))
   store.createRun(run)
-  const events: AgentRunStreamEvent[] = []
+  const events: AgentInternalRunSignal[] = []
 
   const trace = recordRuntimeRunTraceEvent({
     store,
@@ -41,7 +41,7 @@ test('recordRuntimeRunTraceEvent persists trace and emits derived assistant stre
 
 test('emitRuntimeVolatileTraceEvent emits transient tool traces and assistant deltas without persistence', () => {
   const run = makeRun()
-  const events: AgentRunStreamEvent[] = []
+  const events: AgentInternalRunSignal[] = []
 
   emitRuntimeVolatileTraceEvent({
     run,
@@ -84,7 +84,7 @@ test('replayRuntimeRunStream replays snapshot, title, trace deltas, assistant me
     },
     emitRunStreamEvent: () => {},
   })
-  const events: AgentRunStreamEvent[] = []
+  const events: AgentInternalRunSignal[] = []
 
   replayRuntimeRunStream({ run, store, listener: (event) => events.push(event) })
 
@@ -96,7 +96,7 @@ test('replayRuntimeRunStream replays snapshot, title, trace deltas, assistant me
 test('emitRuntimeRunSnapshot and emitRuntimeAssistantMessage project stream events', () => {
   const run = makeRun()
   const assistant = makeMessage({ id: 'msg_assistant', role: 'assistant', content: 'done', runId: run.id })
-  const events: AgentRunStreamEvent[] = []
+  const events: AgentInternalRunSignal[] = []
 
   emitRuntimeRunSnapshot({ run, done: true, emitRunStreamEvent: (_runId, event) => events.push(event) })
   emitRuntimeAssistantMessage({ run, message: assistant, emitRunStreamEvent: (_runId, event) => events.push(event) })

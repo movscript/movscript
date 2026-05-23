@@ -895,12 +895,12 @@ Acceptance:
 
 Verification status:
 
-- Passed: `pnpm --filter movscript-agent test`, `pnpm --filter movscript-agent typecheck`, and `pnpm --filter movscript-agent build`.
-- Passed: `pnpm --filter movscript-frontend test`, `pnpm --filter movscript-frontend typecheck`, and `pnpm --filter movscript-frontend build`.
-- Latest local package checks: `pnpm --filter movscript-agent test` passed with 1028 tests, `pnpm --filter movscript-agent typecheck` passed, and `pnpm --filter movscript-frontend test` passed with 288 tests.
+- Passed: `pnpm --filter @movscript/agent test`, `pnpm --filter @movscript/agent typecheck`, and `pnpm --filter @movscript/agent build`.
+- Passed: `pnpm --filter @movscript/desktop test`, `pnpm --filter @movscript/desktop typecheck`, and `pnpm --filter @movscript/desktop build`.
+- Latest local package checks: `pnpm --filter @movscript/agent test` passed with 1028 tests, `pnpm --filter @movscript/agent typecheck` passed, and `pnpm --filter @movscript/desktop test` passed with 288 tests.
 - Passed: `pnpm run test`, `pnpm run typecheck`, `pnpm run test:backend`, `pnpm run test:agent-run-debugging`, and `pnpm run test:release-scripts`.
 - Latest targeted AgentRun debugging gate: `pnpm run test:agent-run-debugging` passed with 91 Node self-tests, 71 focused frontend tests, and frontend typecheck.
-- Passed: concurrent `pnpm --filter movscript-agent build` and `pnpm --filter movscript-frontend build`, confirming the shared draft-schema build lock prevents declaration-output races.
+- Passed: concurrent `pnpm --filter @movscript/agent build` and `pnpm --filter @movscript/desktop build`, confirming the shared draft-schema build lock prevents declaration-output races.
 - Blocked in the current sandbox: `pnpm run test:agent-run-debugging:e2e` cannot start the Playwright dev server because listening on `127.0.0.1:4179` fails with `EPERM`. The preflighted acceptance summary records `cleanArtifacts.status: 0`, `environment.preflightPort: 4179`, `browser.failure: local web server listen blocked by environment on 127.0.0.1:4179 (EPERM)`, `screenshotArtifacts.status: 1`, `screenshotDiagnostics.missingScreenshots` with all six required screenshots, and recommends rerunning in an environment that permits localhost listeners or setting `MOVSCRIPT_E2E_BASE_URL` to an already running frontend. A file-based `MOVSCRIPT_E2E_BASE_URL=file://.../out/renderer/index.html` probe also could not launch Chromium because the sandbox denied Chromium's Mach port registration. The browser assertions did not run, so final visual trace acceptance still needs an environment that permits both localhost serving or an external frontend URL and Playwright browser launch.
 
 Completion audit:

@@ -1,7 +1,63 @@
 import type { MCPClient } from '../mcpClient.js'
+import { AGENT_TRACE_EVENT_KINDS as PROTOCOL_AGENT_TRACE_EVENT_KINDS } from '@movscript/protocol'
+import type {
+  AgentCapabilitiesResponse as ProtocolAgentCapabilitiesResponse,
+  AgentApprovalRequest as ProtocolAgentApprovalRequest,
+  AgentApprovalStatus as ProtocolAgentApprovalStatus,
+  CompiledPromptPreview as ProtocolCompiledPromptPreview,
+  AgentDebugContextPanel as ProtocolAgentDebugContextPanel,
+  AgentDebugTool as ProtocolAgentDebugTool,
+  AgentClientInput as ProtocolAgentClientInput,
+  AgentInputChoice as ProtocolAgentInputChoice,
+  AgentInputRequest as ProtocolAgentInputRequest,
+  AgentInputRequestStatus as ProtocolAgentInputRequestStatus,
+  AgentMessage as ProtocolAgentMessage,
+  AgentMessageRole as ProtocolAgentMessageRole,
+  AgentPlan as ProtocolAgentPlan,
+  AgentPlanRevision as ProtocolAgentPlanRevision,
+  AgentPlanTask as ProtocolAgentPlanTask,
+  AgentPlanTaskStatus as ProtocolAgentPlanTaskStatus,
+  AgentRun as ProtocolAgentRun,
+  AgentRunDebugTrace as ProtocolAgentRunDebugTrace,
+  AgentRunInput as ProtocolAgentRunInput,
+  AgentRunPolicy as ProtocolAgentRunPolicy,
+  AgentRunPreview as ProtocolAgentRunPreview,
+  AgentRunRole as ProtocolAgentRunRole,
+  AgentRunStatus as ProtocolAgentRunStatus,
+  AgentRunStep as ProtocolAgentRunStep,
+  AgentSession as ProtocolAgentSession,
+  AgentSessionSummary as ProtocolAgentSessionSummary,
+  AgentStepStatus as ProtocolAgentStepStatus,
+  AgentTask as ProtocolAgentTask,
+  AgentTaskArtifact as ProtocolAgentTaskArtifact,
+  AgentTaskGraph as ProtocolAgentTaskGraph,
+  AgentTaskGraphSnapshot as ProtocolAgentTaskGraphSnapshot,
+  AgentTaskGraphStatus as ProtocolAgentTaskGraphStatus,
+  AgentTaskGraphSummary as ProtocolAgentTaskGraphSummary,
+  AgentTaskStatus as ProtocolAgentTaskStatus,
+  AgentThreadRole as ProtocolAgentThreadRole,
+  AgentThreadStatus as ProtocolAgentThreadStatus,
+  AgentThread as ProtocolAgentThread,
+  AgentThreadSummary as ProtocolAgentThreadSummary,
+  AgentTraceEvent as ProtocolAgentTraceEvent,
+  AgentTraceEventKind as ProtocolAgentTraceEventKind,
+  AgentWorkflowConfig as ProtocolAgentWorkflowConfig,
+  AgentWorkflowProfile as ProtocolAgentWorkflowProfile,
+  DispatchTaskGraphResult as ProtocolDispatchTaskGraphResult,
+  ResolvedAgentSkill as ProtocolResolvedAgentSkill,
+  ResolvedToolCatalog as ProtocolResolvedToolCatalog,
+  RuntimeContinuation as ProtocolRuntimeContinuation,
+  RuntimeContinuationStatus as ProtocolRuntimeContinuationStatus,
+  RuntimeInteraction as ProtocolRuntimeInteraction,
+  RuntimeInteractionKind as ProtocolRuntimeInteractionKind,
+  RuntimeInteractionStatus as ProtocolRuntimeInteractionStatus,
+  ToolUnavailableReason,
+  ToolCall as ProtocolToolCall,
+  UpdateTaskGraphResult as ProtocolUpdateTaskGraphResult,
+} from '@movscript/protocol'
 import type { JSONValue, MCPResource, MCPTool } from '../types.js'
 import type { AgentManifest } from '../catalog/agentManifest.js'
-import type { RegisteredTool, ToolRiskLevel } from '../tools/toolRegistry.js'
+import type { RegisteredTool } from '../tools/toolRegistry.js'
 import type { AgentCatalogStateStore } from '../catalog/state.js'
 import type { AgentDraftStore } from '../drafts/draftStore.js'
 import type { BackendApplyClient } from '../drafts/backendApplyClient.js'
@@ -10,355 +66,62 @@ import type { AgentUpdateState } from '../updates/updatePolicy.js'
 
 export type { JSONValue, MCPResource, MCPTool } from '../types.js'
 
-export type AgentMessageRole = 'system' | 'user' | 'assistant'
-export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed' | 'cancelled'
-export type AgentThreadStatus = 'idle' | 'running' | 'requires_action' | 'completed' | 'failed' | 'cancelled'
-export type AgentStepStatus = 'in_progress' | 'completed' | 'failed'
-export type AgentApprovalStatus = 'pending' | 'approved' | 'rejected'
-export type AgentInputRequestStatus = 'pending' | 'answered' | 'cancelled'
-export type AgentRunRole = 'planner' | 'worker'
-export type AgentThreadRole = 'root' | 'planner' | 'worker'
-export type AgentTaskGraphStatus = 'pending' | 'running' | 'blocked' | 'needs_review' | 'done' | 'failed' | 'cancelled'
-export type AgentTaskStatus = 'pending' | 'running' | 'blocked' | 'needs_review' | 'done' | 'failed' | 'cancelled'
-export type AgentPlanTaskStatus = 'pending' | 'in_progress' | 'completed'
+export type AgentMessageRole = ProtocolAgentMessageRole
+export type AgentRunStatus = ProtocolAgentRunStatus
+export type AgentThreadStatus = ProtocolAgentThreadStatus
+export type AgentStepStatus = ProtocolAgentStepStatus
+export type AgentApprovalStatus = ProtocolAgentApprovalStatus
+export type AgentInputRequestStatus = ProtocolAgentInputRequestStatus
+export type AgentRunRole = ProtocolAgentRunRole
+export type AgentThreadRole = ProtocolAgentThreadRole
+export type AgentTaskGraphStatus = ProtocolAgentTaskGraphStatus
+export type AgentTaskStatus = ProtocolAgentTaskStatus
+export type AgentPlanTaskStatus = ProtocolAgentPlanTaskStatus
 
-export interface AgentSession {
-  id: string
-  title?: string
-  projectId?: number
-  metadata?: Record<string, JSONValue>
-  rootThreadId?: string
-  activeThreadId?: string
-  status?: AgentThreadStatus
-  createdAt: string
-  updatedAt: string
-}
+export type AgentSession = ProtocolAgentSession
 
-export interface AgentSessionSummary {
-  id: string
-  title?: string
-  projectId?: number
-  metadata?: Record<string, JSONValue>
-  rootThreadId?: string
-  activeThreadId?: string
-  status?: AgentThreadStatus
-  createdAt: string
-  updatedAt: string
-  threadCount: number
-}
+export type AgentSessionSummary = ProtocolAgentSessionSummary
 
-export interface AgentMessage {
-  id: string
-  threadId: string
-  role: AgentMessageRole
-  content: string
-  clientInput?: JSONValue
-  runId?: string
-  metadata?: Record<string, JSONValue>
-  createdAt: string
-}
+export type AgentMessage = ProtocolAgentMessage
 
-export interface AgentThread {
-  id: string
-  sessionId?: string
-  title?: string
-  agentName?: string
-  agentRole?: AgentThreadRole
-  parentThreadId?: string
-  parentRunId?: string
-  projectId?: number
-  metadata?: Record<string, JSONValue>
-  currentPlan?: AgentPlan
-  planRevisions?: AgentPlanRevision[]
-  archived?: boolean
-  status?: AgentThreadStatus
-  activeRunId?: string
-  lastRunId?: string
-  lastRunStatus?: AgentRunStatus
-  createdAt: string
-  updatedAt: string
-  messages: AgentMessage[]
-}
+export type AgentThread = ProtocolAgentThread
 
-export interface AgentThreadSummary {
-  id: string
-  sessionId?: string
-  title?: string
-  agentName?: string
-  agentRole?: AgentThreadRole
-  parentThreadId?: string
-  parentRunId?: string
-  projectId?: number
-  metadata?: Record<string, JSONValue>
-  currentPlan?: AgentPlan
-  archived: boolean
-  status?: AgentThreadStatus
-  activeRunId?: string
-  lastRunId?: string
-  lastRunStatus?: AgentRunStatus
-  createdAt: string
-  updatedAt: string
-  messageCount: number
-  lastMessageAt?: string
-}
+export type AgentThreadSummary = ProtocolAgentThreadSummary
 
-export interface AgentPlanTask {
-  step: string
-  status: AgentPlanTaskStatus
-}
+export type AgentPlanTask = ProtocolAgentPlanTask
 
-export interface AgentPlan {
-  schema: 'movscript.agent.plan.v1'
-  id: string
-  threadId: string
-  runId?: string
-  explanation?: string
-  items: AgentPlanTask[]
-  completedCount: number
-  totalCount: number
-  createdAt: string
-  updatedAt: string
-}
+export type AgentPlan = ProtocolAgentPlan
 
-export interface AgentPlanRevision {
-  schema: 'movscript.agent.plan-revision.v1'
-  id: string
-  planId: string
-  threadId: string
-  runId?: string
-  explanation?: string
-  snapshot: AgentPlan
-  createdAt: string
-}
+export type AgentPlanRevision = ProtocolAgentPlanRevision
 
-export interface AgentRunStep {
-  id: string
-  runId: string
-  type: 'tool_call' | 'message'
-  status: AgentStepStatus
-  roundId?: string
-  roundIndex?: number
-  roundLabel?: string
-  roundSource?: 'setup' | 'runtime_rule' | 'model' | 'approval' | 'final'
-  title?: string
-  toolName?: string
-  args?: Record<string, JSONValue>
-  result?: JSONValue
-  error?: string
-  errorData?: JSONValue
-  sandboxed?: boolean
-  durationMs?: number
-  createdAt: string
-  completedAt?: string
-}
+export type AgentRunStep = ProtocolAgentRunStep
 
-export const AGENT_TRACE_EVENT_KINDS = [
-  'run',
-  'thread',
-  'message',
-  'context',
-  'memory',
-  'manifest',
-  'skill',
-  'tool_catalog',
-  'prompt',
-  'policy',
-  'reasoning',
-  'tool_call',
-  'model_call',
-  'approval',
-  'input',
-  'assistant',
-  'task',
-  'taskGraph',
-  'error',
-] as const
+export const AGENT_TRACE_EVENT_KINDS = PROTOCOL_AGENT_TRACE_EVENT_KINDS
 
-export type AgentTraceEventKind = typeof AGENT_TRACE_EVENT_KINDS[number]
+export type AgentTraceEventKind = ProtocolAgentTraceEventKind
 
-export interface AgentTraceEvent {
-  id: string
-  runId: string
-  kind: AgentTraceEventKind
-  title: string
-  summary?: string
-  status: 'started' | 'completed' | 'blocked' | 'failed' | 'info'
-  roundId?: string
-  roundIndex?: number
-  roundLabel?: string
-  roundSource?: 'setup' | 'runtime_rule' | 'model' | 'approval' | 'final'
-  agentId?: string
-  parentAgentId?: string
-  stepId?: string
-  toolName?: string
-  data?: JSONValue
-  durationMs?: number
-  createdAt: string
-  completedAt?: string
-}
+export type AgentTraceEvent = ProtocolAgentTraceEvent
 
-export interface AgentRun {
-  id: string
-  sessionId?: string
-  threadId: string
-  status: AgentRunStatus
-  role?: AgentRunRole
-  parentRunId?: string
-  taskGraphId?: string
-  taskId?: string
-  progress?: number
-  blockedReason?: string
-  input?: AgentRunInput
-  agentManifest?: AgentManifest
-  pendingApprovals?: AgentApprovalRequest[]
-  pendingInputRequests?: AgentInputRequest[]
-  policy: AgentRunPolicy
-  metadata?: Record<string, JSONValue>
-  createdAt: string
-  updatedAt: string
-  startedAt?: string
-  completedAt?: string
-  failedAt?: string
-  cancelledAt?: string
-  error?: string
-  warnings?: string[]
-  assistantMessageId?: string
-  steps: AgentRunStep[]
-  traceEvents?: AgentTraceEvent[]
-}
+export type AgentRun = ProtocolAgentRun
 
-export type RuntimeInteractionKind = 'approval' | 'input' | 'selection'
-export type RuntimeInteractionStatus = 'pending' | 'approved' | 'rejected' | 'answered' | 'cancelled'
+export type RuntimeInteractionKind = ProtocolRuntimeInteractionKind
+export type RuntimeInteractionStatus = ProtocolRuntimeInteractionStatus
+export type RuntimeInteraction = ProtocolRuntimeInteraction
 
-export interface RuntimeInteraction {
-  id: string
-  threadId: string
-  runId: string
-  workId?: string
-  kind: RuntimeInteractionKind
-  status: RuntimeInteractionStatus
-  payload: JSONValue
-  result?: JSONValue
-  createdAt: string
-  updatedAt: string
-  resolvedAt?: string
-}
+export type RuntimeContinuationStatus = ProtocolRuntimeContinuationStatus
+export type RuntimeContinuation = ProtocolRuntimeContinuation
 
-export type RuntimeContinuationStatus = 'waiting' | 'ready' | 'consumed' | 'cancelled'
+export type AgentRunInput = ProtocolAgentRunInput
 
-export interface RuntimeContinuation {
-  id: string
-  threadId: string
-  runId: string
-  status: RuntimeContinuationStatus
-  trigger:
-    | { type: 'work_completed'; workIds: string[]; mode: 'any' | 'all' }
-    | { type: 'interaction_resolved'; interactionIds: string[]; mode: 'any' | 'all' }
-    | { type: 'manual' }
-  nextInput?: {
-    workResults?: string[]
-    interactionResults?: string[]
-    message?: string
-  }
-  createdAt: string
-  updatedAt: string
-  consumedAt?: string
-  cancelledAt?: string
-}
-
-export interface AgentRunInput {
-  schema: 'movscript.agent.run-input.v1'
-  userMessage: string
-  clientInput?: JSONValue
-  sourceMessageId?: string
-  executionMode: 'chat' | 'tool' | 'worker' | 'resume'
-  parent?: {
-    runId?: string
-    taskGraphId?: string
-    taskId?: string
-  }
-  task?: {
-    id: string
-    title: string
-    description?: string
-    instructions: string
-    expectedArtifacts?: string[]
-  }
-  forcedToolCall?: ToolCall
-  createdAt: string
-}
-
-export interface AgentTaskGraph {
-  id: string
-  sessionId?: string
-  threadId: string
-  rootRunId?: string
-  title: string
-  status: AgentTaskGraphStatus
-  progress: number
-  blockedReason?: string
-  metadata?: Record<string, JSONValue>
-  createdAt: string
-  updatedAt: string
-  completedAt?: string
-  failedAt?: string
-  cancelledAt?: string
-}
-
-export interface AgentTaskArtifact {
-  id: string
-  type: string
-  title?: string
-  uri?: string
-  metadata?: Record<string, JSONValue>
-  createdAt: string
-}
-
-export interface AgentTask {
-  id: string
-  taskGraphId: string
-  parentId?: string
-  deps: string[]
-  title: string
-  description?: string
-  status: AgentTaskStatus
-  progress: number
-  ownerRunId?: string
-  blockedReason?: string
-  artifacts: AgentTaskArtifact[]
-  metadata?: Record<string, JSONValue>
-  createdAt: string
-  updatedAt: string
-  startedAt?: string
-  completedAt?: string
-  failedAt?: string
-  cancelledAt?: string
-}
-
-export interface AgentTaskGraphSnapshot {
-  taskGraph: AgentTaskGraph
-  tasks: AgentTask[]
+export type AgentTaskGraph = ProtocolAgentTaskGraph
+export type AgentTaskArtifact = ProtocolAgentTaskArtifact
+export type AgentTask = ProtocolAgentTask
+export type AgentTaskGraphSnapshot = Omit<ProtocolAgentTaskGraphSnapshot, 'runs'> & {
   runs: AgentRun[]
-  nameConflicts?: Array<{
-    subagentName: string
-    taskIds: string[]
-  }>
-  summary?: AgentTaskGraphSummary
 }
+export type AgentTaskGraphSummary = ProtocolAgentTaskGraphSummary
 
-export interface AgentTaskGraphSummary {
-  taskCount: number
-  taskStatusCounts: Record<AgentTaskStatus, number>
-  workerCount: number
-  activeWorkerCount: number
-  artifactCount: number
-  nameConflictCount: number
-  blockedTaskIds: string[]
-  needsReviewTaskIds: string[]
-  failedTaskIds: string[]
-}
-
-export type AgentRunStreamRun = AgentRun & {
+export type AgentInternalRunSignalRun = AgentRun & {
   streamPartial?: true
 }
 
@@ -376,7 +139,7 @@ export type AgentTaskGraphStreamEvent =
   | {
     type: 'run'
     taskGraphId: string
-    run: AgentRunStreamRun
+    run: AgentInternalRunSignalRun
     snapshot: AgentTaskGraphSnapshot
   }
   | {
@@ -391,16 +154,16 @@ export type AgentTaskGraphStreamEvent =
     snapshot: AgentTaskGraphSnapshot
   }
 
-export type AgentRunStreamEvent =
+export type AgentInternalRunSignal =
   | {
     type: 'run'
-    run: AgentRunStreamRun
+    run: AgentInternalRunSignalRun
   }
   | {
     type: 'trace'
     runId: string
     event: AgentTraceEvent
-    run?: AgentRunStreamRun
+    run?: AgentInternalRunSignalRun
   }
   | {
     type: 'assistant_delta'
@@ -411,13 +174,13 @@ export type AgentRunStreamEvent =
     roundIndex?: number
     roundLabel?: string
     createdAt: string
-    run?: AgentRunStreamRun
+    run?: AgentInternalRunSignalRun
   }
   | {
     type: 'assistant_message'
     runId: string
     message: AgentMessage
-    run: AgentRunStreamRun
+    run: AgentInternalRunSignalRun
   }
   | {
     type: 'thread_title'
@@ -428,182 +191,22 @@ export type AgentRunStreamEvent =
   }
   | {
     type: 'done'
-    run: AgentRunStreamRun
+    run: AgentInternalRunSignalRun
   }
 
-export type AgentThreadStreamEvent = AgentRunStreamEvent & {
+export type AgentInternalThreadSignal = AgentInternalRunSignal & {
   threadId: string
 }
 
-export interface AgentRunPreview {
-  id: string
-  threadId?: string
-  message: string
-  status: 'preview'
-  agentManifest?: AgentManifest
-  currentProjectId?: number
-  context?: AgentDebugContextPanel
-  skills?: ResolvedAgentSkill[]
-  tools?: ResolvedToolCatalog
-  policy?: AgentRunPolicy
-  promptPreview?: CompiledPromptPreview
-  debug?: AgentRunDebugTrace
-  toolCalls: ToolCall[]
-  pendingApprovals: AgentApprovalRequest[]
-  warnings: string[]
-  memoryIds: string[]
-  memoryCount: number
-  createdAt: string
-}
+export type AgentRunPreview = ProtocolAgentRunPreview
 
-export interface AgentApprovalRequest {
-  id: string
-  runId: string
-  interactionId?: string
-  toolName: string
-  args?: Record<string, JSONValue>
-  preview?: JSONValue
-  reason: string
-  risk?: string
-  permission?: string
-  status: AgentApprovalStatus
-  createdAt: string
-  updatedAt: string
-  approvedAt?: string
-  rejectedAt?: string
-}
+export type AgentApprovalRequest = ProtocolAgentApprovalRequest
 
-export interface AgentInputChoice {
-  id: string
-  label: string
-  description?: string
-}
+export type AgentInputChoice = ProtocolAgentInputChoice
 
-export interface AgentInputRequest {
-  id: string
-  runId: string
-  title: string
-  summary?: string
-  question: string
-  inputType: 'choice' | 'text' | 'confirmation'
-  choices: AgentInputChoice[]
-  allowCustomAnswer: boolean
-  status: AgentInputRequestStatus
-  createdAt: string
-  updatedAt: string
-  answeredAt?: string
-  answer?: {
-    choiceIds?: string[]
-    text?: string
-  }
-}
+export type AgentInputRequest = ProtocolAgentInputRequest
 
-export interface AgentDebugContextPanel {
-  route: {
-    pathname: string
-    search?: string
-    hash?: string
-  }
-  projects: Array<{
-    id: number
-    name: string
-    description?: string
-    status?: string
-    totalEpisodes?: number
-  }>
-  projectsError?: string
-  project?: {
-    id: number
-    name?: string
-    status?: string
-    description?: string
-    aspect_ratio?: string
-    visual_style?: string
-    project_style?: string
-  }
-  productionId?: number
-  user?: {
-    id: number
-    username: string
-    systemRole?: string
-  }
-  selection?: {
-    entityType: string
-    entityId: number | string
-    label?: string
-  } | null
-  recentResources: Array<{
-    id: number
-    name: string
-    type: string
-    mimeType?: string
-    size?: number
-  }>
-  attachments: Array<{
-    id: string
-    name: string
-    type: string
-    resourceId?: number
-  }>
-  memories: Array<{
-    id: string
-    projectId: number
-    title: string
-    kind: string
-    content: string
-  }>
-  labels: string[]
-  statusDigest?: string[]
-  rawContextHints?: string[]
-  agentTaskGraph?: {
-    id: string
-    title: string
-    status: AgentTaskGraphStatus
-    progress: number
-    role?: AgentRunRole
-    currentTaskId?: string
-    rootRunId?: string
-    tasks: Array<{
-      id: string
-      subagentName?: string
-      title: string
-      status: AgentTaskStatus
-      progress: number
-      deps: string[]
-      ownerRunId?: string
-      blockedReason?: string
-    }>
-    workers: Array<{
-      id: string
-      subagentName?: string
-      status: AgentRunStatus
-      taskId?: string
-      parentRunId?: string
-      progress?: number
-      blockedReason?: string
-    }>
-    nameConflicts?: Array<{
-      subagentName: string
-      taskIds: string[]
-    }>
-    artifacts: Array<{
-      id: string
-      type: string
-      title?: string
-      uri?: string
-      taskId: string
-      subagentName?: string
-      sourceRunId?: string
-      sourceTaskId?: string
-      sourceTaskTitle?: string
-      sourceTaskStatus?: AgentTaskStatus
-      sourceTaskOwnerRunId?: string
-      toolName?: string
-      policy?: string
-    }>
-    summary?: AgentTaskGraphSummary
-  }
-}
+export type AgentDebugContextPanel = ProtocolAgentDebugContextPanel
 
 export interface AgentClientAttachmentRef {
   id?: string
@@ -656,182 +259,26 @@ export interface AgentClientUISnapshot {
   labels?: string[]
 }
 
-export interface AgentClientInput {
-  message?: unknown
-  attachments?: unknown
-  uiSnapshot?: unknown
-}
+export type AgentClientInput = Partial<ProtocolAgentClientInput>
 
-export interface ResolvedAgentSkill {
-  id: string
-  name: string
-  description: string
-  version?: string
-  category?: string
-  categories?: string[]
-  enabled: boolean
-  priority?: number
-  instruction: string
-  outputContract?: string
-  toolHints?: string[]
-  metadata?: Record<string, JSONValue>
-  resolvedPriority: number
-  activationReason: 'profile' | 'trigger' | 'default'
-  compiledInstruction: string
-  warnings: string[]
-}
+export type ResolvedAgentSkill = ProtocolResolvedAgentSkill
+export type { ToolUnavailableReason }
+export type AgentDebugTool = ProtocolAgentDebugTool
+export type ResolvedToolCatalog = ProtocolResolvedToolCatalog
 
-export type ToolUnavailableReason =
-  | 'mcp_unavailable'
-  | 'unregistered'
-  | 'not_granted'
-  | 'denied'
-  | 'inactive'
-  | 'missing_permission'
-  | 'missing_project'
-  | 'approval_required'
-  | 'schema_invalid'
-  | 'wrong_run_role'
-  | 'workflow_scope'
+export type AgentRunPolicy = ProtocolAgentRunPolicy
 
-export interface AgentDebugTool {
-  name: string
-  description?: string
-  inputSchema?: JSONValue
-  outputSchema?: JSONValue
-  source: 'mcp' | 'runtime' | 'plugin'
-  category?: string
-  categories?: string[]
-  registered: boolean
-  granted: boolean
-  permission?: string
-  risk?: ToolRiskLevel
-  projectScoped?: boolean
-  approval: 'never' | 'always' | 'on_write'
-  available: boolean
-  unavailableReason?: ToolUnavailableReason
-  requiresApproval: boolean
-  resolution?: {
-    authorized: boolean
-    visible: boolean
-    reason?: ToolUnavailableReason
-    grantSource: 'manifest' | 'none'
-    approval: 'never' | 'always' | 'on_write'
-    activeSkillIds: string[]
-  }
-}
+export type AgentWorkflowProfile = ProtocolAgentWorkflowProfile
 
-export interface ResolvedToolCatalog {
-  discovered: AgentDebugTool[]
-  available: AgentDebugTool[]
-  blocked: AgentDebugTool[]
-  byName: Record<string, AgentDebugTool>
-}
+export type AgentWorkflowConfig = ProtocolAgentWorkflowConfig
 
-export interface AgentRunPolicy {
-  approvalMode: 'interactive' | 'auto_readonly' | 'auto'
-  sandboxMode?: boolean
-  maxToolCalls: number
-  maxIterations: number
-  allowNetwork: boolean
-  allowFileBytes: boolean
-  workflow?: AgentWorkflowConfig
-  costLimit?: {
-    currency: string
-    amount: number
-  }
-}
+export type CompiledPromptPreview = ProtocolCompiledPromptPreview
 
-export type AgentWorkflowProfile = 'standard' | 'compact' | 'deep'
+export type AgentRunDebugTrace = ProtocolAgentRunDebugTrace
 
-export interface AgentWorkflowConfig {
-  profile: AgentWorkflowProfile
-  includeMemories?: boolean
-  allowForcedToolCalls?: boolean
-}
-
-export interface CompiledPromptPreview {
-  system: string
-  messages: Array<{ role: string; content: string }>
-  debugParts: Array<{
-    id: string
-    kind: 'soul' | 'skill' | 'context' | 'policy' | 'tool'
-    title: string
-    content: string
-  }>
-  promptStats?: {
-    totalChars: number
-    systemChars?: number
-    conversationChars?: number
-    budget?: {
-      limitChars: number
-      usedChars: number
-      remainingChars: number
-      usageRatio: number
-      status: string
-    }
-    parts: Array<{ id: string; title: string; kind: string; layer: string; chars: number }>
-    byLayer: Record<string, number>
-    byContextLayer?: Record<string, number>
-  }
-}
-
-export interface AgentRunDebugTrace {
-  manifestId: string
-  manifestVersion: string
-  skillIds: string[]
-  availableToolNames: string[]
-  blockedTools: Array<{
-    name: string
-    reason?: ToolUnavailableReason
-  }>
-  promptPartIds: string[]
-  model?: AgentManifest['model']
-  layerTrace?: {
-    profileId: string
-    profileVersion: string
-    profileLayers: Array<{ source: string; id: string; version: string }>
-    personaId?: string
-    policyIds: string[]
-    workflowIds: string[]
-    intentSignals?: Array<{
-      intent: string
-      source: string
-      confidence: string
-      evidence: string
-    }>
-    workflowTriggers?: Array<{
-      id: string
-      matched: boolean
-      matchedTriggerKind?: string
-      priority: number
-      selected: boolean
-      reason: string
-    }>
-  }
-}
-
-export interface AgentCapabilitiesResponse {
-  defaultAgentManifest: AgentManifest
+export type AgentCapabilitiesResponse = Omit<ProtocolAgentCapabilitiesResponse, 'updates' | 'registry'> & {
   updates?: AgentUpdateState
-  pluginCatalog?: {
-    skillsDir: string
-    toolsDir: string
-    builtinSkillsDir?: string
-    builtinToolsDir?: string
-    skillCount: number
-    toolCount: number
-    metadata?: Record<string, JSONValue>
-  }
-  mcp: {
-    connected: boolean
-    resources: MCPResource[]
-    tools: MCPTool[]
-    error?: string
-  }
   registry: RegisteredTool[]
-  resolvedTools: ResolvedToolCatalog
-  warnings: string[]
 }
 
 export interface AgentRuntimeRouterOptions {
@@ -865,6 +312,7 @@ export interface CreateThreadInput {
 }
 
 export interface CreateMessageInput {
+  id?: unknown
   role?: unknown
   content?: unknown
   clientInput?: unknown
@@ -978,12 +426,8 @@ export interface DispatchTaskGraphInput {
   sandboxMode?: unknown
 }
 
-export interface DispatchTaskGraphResult {
-  taskGraph: AgentTaskGraph
+export type DispatchTaskGraphResult = Omit<ProtocolDispatchTaskGraphResult, 'spawnedRuns'> & {
   spawnedRuns: AgentRun[]
-  blockedTaskIds: string[]
-  retriedTaskIds: string[]
-  timedOutRunIds: string[]
 }
 
 export interface UpdateTaskGraphInput extends DispatchTaskGraphInput {
@@ -999,11 +443,7 @@ export interface UpdateTaskGraphInput extends DispatchTaskGraphInput {
   dispatch?: unknown
 }
 
-export interface UpdateTaskGraphResult {
-  taskGraph: AgentTaskGraph
-  createdTaskIds: string[]
-  updatedTaskIds: string[]
-  resetTaskIds: string[]
+export type UpdateTaskGraphResult = Omit<ProtocolUpdateTaskGraphResult, 'dispatch'> & {
   dispatch?: DispatchTaskGraphResult
 }
 
@@ -1038,6 +478,7 @@ export interface AnswerRunInputRequestInput {
   requestId?: unknown
   choiceIds?: unknown
   text?: unknown
+  sourceMessageId?: unknown
   backendAuthToken?: unknown
   backendAPIBaseURL?: unknown
 }
@@ -1048,12 +489,7 @@ export interface UpdateThreadInput {
   metadata?: unknown
 }
 
-export interface ToolCall {
-  id?: string
-  name: string
-  args?: Record<string, JSONValue>
-  arguments?: Record<string, JSONValue>
-}
+export type ToolCall = ProtocolToolCall
 
 export interface ToolCallOutcome {
   call: ToolCall

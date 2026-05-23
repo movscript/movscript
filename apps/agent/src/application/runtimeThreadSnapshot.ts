@@ -9,7 +9,7 @@ import type {
 } from '../state/types.js'
 
 export interface RuntimeThreadSnapshotV2 {
-  schema: 'movscript.thread-runtime.v2'
+  schema: 'movscript.agent.internal-thread-snapshot.v1'
   updatedAt: string
   thread: AgentThread
   runs: AgentRun[]
@@ -26,7 +26,7 @@ export interface RuntimeThreadSnapshotV2 {
 }
 
 export interface RuntimeSessionSnapshotV1 {
-  schema: 'movscript.session-runtime.v1'
+  schema: 'movscript.agent.internal-session-snapshot.v1'
   updatedAt: string
   session: AgentSession
   threads: AgentThread[]
@@ -69,7 +69,7 @@ export function buildRuntimeThreadSnapshotV2(input: {
     .map((continuation) => continuation.id)
 
   return {
-    schema: 'movscript.thread-runtime.v2',
+    schema: 'movscript.agent.internal-thread-snapshot.v1',
     updatedAt: maxTimestamp([
       input.thread.updatedAt,
       ...input.runs.map((run) => run.updatedAt),
@@ -121,7 +121,7 @@ export function buildRuntimeSessionSnapshotV1(input: {
     .map((continuation) => continuation.id)
 
   return {
-    schema: 'movscript.session-runtime.v1',
+    schema: 'movscript.agent.internal-session-snapshot.v1',
     updatedAt: maxTimestamp([
       input.session.updatedAt,
       ...input.threads.map((thread) => thread.updatedAt),

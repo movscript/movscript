@@ -13,14 +13,15 @@ import {
 import { describeRuntimeModelCapabilities } from './model/modelRouter.js'
 import { isRecord } from './jsonValue.js'
 import type { JSONValue } from './types.js'
-import type { AgentTraceQuery } from './state/store.js'
-import { AGENT_TRACE_EVENT_KINDS, type AgentTraceEventKind } from './state/types.js'
+import { AGENT_TRACE_EVENT_KINDS, type AgentRuntimeEventV2, type AgentRuntimeSnapshotV2, type AgentTraceEventKind, type AgentTraceQuery } from '@movscript/protocol'
 import { isActiveRunStatus, isExecutingRunStatus } from './state/runStatus.js'
 import { buildRuntimeInputMessageMetadata } from './state/runtimeRunInputs.js'
 import { isValidMemoryProjectId } from './memory/types.js'
 import { isValidAgentProjectId, isValidAgentReferenceId } from './context/runtimeContext.js'
 import { installAgentSkillBundle, listAgentSkillBundlePlugins, uninstallAgentSkillBundle, type AgentSkillBundleFile } from './catalog/skillBundleInstaller.js'
 import { RuntimeModelConfigInputError } from './model/modelConfig.js'
+import type { AgentInternalRunSignal, AgentTaskGraphStreamEvent, AgentInternalThreadSignal } from './state/types.js'
+import type { RuntimeSessionSnapshotV1, RuntimeThreadSnapshotV2 } from './application/runtimeThreadSnapshot.js'
 
 installAgentLogTimestamps('server')
 
@@ -422,7 +423,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           writeJSON(res, 404, { error: 'session not found' })
           return
         }
-        writeJSON(res, 200, snapshot)
+        writeJSON(res, 200, sessionRuntimeSnapshotV2(snapshot))
         return
       }
 
@@ -516,7 +517,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           writeJSON(res, 404, { error: 'thread not found' })
           return
         }
-        writeJSON(res, 200, snapshot)
+        writeJSON(res, 200, threadRuntimeSnapshotV2(snapshot))
         return
       }
 
@@ -540,6 +541,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         const activeRunPolicy = body.activeRunPolicy === 'new_run' ? 'new_run' : 'runtime_input'
         if (activeRun && isActiveRunStatus(activeRun.status) && activeRunPolicy !== 'new_run') {
           const message = context.runtimeRouter.addMessage(threadRunMatch[1], {
+            ...(typeof body.sourceMessageId === 'string' && body.sourceMessageId.trim() ? { id: body.sourceMessageId.trim() } : {}),
             role: 'user',
             content,
             runId: activeRun.id,
@@ -582,6 +584,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           return
         }
         const message = context.runtimeRouter.addMessage(threadRunMatch[1], {
+          ...(typeof body.sourceMessageId === 'string' && body.sourceMessageId.trim() ? { id: body.sourceMessageId.trim() } : {}),
           role: 'user',
           content,
           ...(body.clientInput !== undefined ? { clientInput: body.clientInput } : {}),
@@ -1109,6 +1112,50 @@ function logSlowRequest(method: string | undefined, pathname: string, requestSta
   console.info(`[agent] request slow ${method ?? 'UNKNOWN'} ${pathname} total=${totalMs}ms handler=${Date.now() - handlerStartedAt}ms`)
 }
 
+function threadRuntimeSnapshotV2(snapshot: RuntimeThreadSnapshotV2): AgentRuntimeSnapshotV2 {
+  return {
+    schema: 'movscript.agent.runtime-snapshot.v2',
+    protocolVersion: 'movscript.agent.protocol.v1',
+    scope: { type: 'thread', id: snapshot.thread.id },
+    cursor: `runtime-snapshot:thread:${snapshot.thread.id}:0`,
+    ordinal: 0,
+    generatedAt: snapshot.updatedAt,
+    entities: {
+      threads: [snapshot.thread],
+      messages: snapshot.thread.messages,
+      runs: snapshot.runs,
+      works: snapshot.works,
+      interactions: snapshot.interactions,
+      continuations: snapshot.continuations,
+      ...(snapshot.thread.currentPlan ? { plans: [snapshot.thread.currentPlan] } : {}),
+      ...(snapshot.thread.planRevisions?.length ? { planRevisions: snapshot.thread.planRevisions } : {}),
+    },
+  }
+}
+
+function sessionRuntimeSnapshotV2(snapshot: RuntimeSessionSnapshotV1): AgentRuntimeSnapshotV2 {
+  return {
+    schema: 'movscript.agent.runtime-snapshot.v2',
+    protocolVersion: 'movscript.agent.protocol.v1',
+    scope: { type: 'session', id: snapshot.session.id },
+    cursor: `runtime-snapshot:session:${snapshot.session.id}:0`,
+    ordinal: 0,
+    generatedAt: snapshot.updatedAt,
+    entities: {
+      sessions: [snapshot.session],
+      threads: snapshot.threads,
+      messages: snapshot.threads.flatMap((thread) => thread.messages),
+      runs: snapshot.runs,
+      works: snapshot.works,
+      interactions: snapshot.interactions,
+      continuations: snapshot.continuations,
+      taskGraphs: snapshot.taskGraphs,
+      plans: snapshot.threads.flatMap((thread) => thread.currentPlan ? [thread.currentPlan] : []),
+      planRevisions: snapshot.threads.flatMap((thread) => thread.planRevisions ?? []),
+    },
+  }
+}
+
 function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, runId: string): void {
   if (!runtime.getRun(runId)) {
     writeJSON(res, 404, { error: 'run not found' })
@@ -1139,10 +1186,12 @@ function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: Age
     if (end && !res.writableEnded) res.end()
   }
 
+  let ordinal = 0
   unsubscribe = runtime.subscribeRunStream(runId, (event) => {
     if (closed || res.writableEnded) return
-    writeSSE(res, event.type, event)
-    if (event.type === 'done') {
+    const runtimeEvent = runtimeEventFromRunStream({ runtime, scope: { type: 'run', id: runId }, ordinal: ++ordinal, event })
+    writeSSE(res, 'runtime_event', runtimeEvent, runtimeEvent.cursor)
+    if (runtimeEvent.kind === 'scope.done') {
       if (subscribed) cleanup(true)
       else closeAfterSubscribe = true
     }
@@ -1181,9 +1230,11 @@ function streamThreadEvents(req: IncomingMessage, res: ServerResponse, runtime: 
     if (end && !res.writableEnded) res.end()
   }
 
+  let ordinal = 0
   unsubscribe = runtime.subscribeThreadStream(threadId, (event) => {
     if (closed || res.writableEnded) return
-    writeSSE(res, event.type, event)
+    const runtimeEvent = runtimeEventFromThreadStream({ runtime, scope: { type: 'thread', id: threadId }, ordinal: ++ordinal, event })
+    writeSSE(res, 'runtime_event', runtimeEvent, runtimeEvent.cursor)
   })
 
   req.on('close', () => cleanup(false))
@@ -1219,10 +1270,12 @@ function streamPlanEvents(req: IncomingMessage, res: ServerResponse, runtime: Ag
     if (end && !res.writableEnded) res.end()
   }
 
+  let ordinal = 0
   unsubscribe = runtime.subscribePlanStream(taskGraphId, (event) => {
     if (closed || res.writableEnded) return
-    writeSSE(res, event.type, event)
-    if (event.type === 'done') {
+    const runtimeEvent = runtimeEventFromPlanStream({ scope: { type: 'plan', id: taskGraphId }, ordinal: ++ordinal, event })
+    writeSSE(res, 'runtime_event', runtimeEvent, runtimeEvent.cursor)
+    if (runtimeEvent.kind === 'scope.done') {
       if (subscribed) cleanup(true)
       else closeAfterSubscribe = true
     }
@@ -1233,13 +1286,169 @@ function streamPlanEvents(req: IncomingMessage, res: ServerResponse, runtime: Ag
   req.on('close', () => cleanup(false))
 }
 
-function writeSSE(res: ServerResponse, eventName: string, value: unknown): void {
+function writeSSE(res: ServerResponse, eventName: string, value: unknown, id?: string): void {
+  if (id) res.write(`id: ${id}\n`)
   res.write(`event: ${eventName}\n`)
   const data = JSON.stringify(value)
   for (const line of data.split(/\r?\n/)) {
     res.write(`data: ${line}\n`)
   }
   res.write('\n')
+}
+
+function runtimeEventFromThreadStream(input: {
+  runtime: AgentRuntimeRouter
+  scope: { type: 'thread'; id: string }
+  ordinal: number
+  event: AgentInternalThreadSignal
+}): AgentRuntimeEventV2 {
+  return runtimeEventFromRunStream(input)
+}
+
+function runtimeEventFromPlanStream(input: {
+  scope: { type: 'plan'; id: string }
+  ordinal: number
+  event: AgentTaskGraphStreamEvent
+}): AgentRuntimeEventV2 {
+  const emittedAt = planStreamEventTime(input.event)
+  const base = {
+    schema: 'movscript.agent.runtime-event.v2' as const,
+    protocolVersion: 'movscript.agent.protocol.v1' as const,
+    id: `runtime-event:${input.scope.type}:${input.scope.id}:${input.ordinal}`,
+    scope: input.scope,
+    ordinal: input.ordinal,
+    cursor: `runtime-event:${input.scope.type}:${input.scope.id}:${input.ordinal}`,
+    emittedAt,
+  }
+  if (input.event.type === 'run') {
+    return {
+      ...base,
+      kind: 'run.upserted',
+      causality: { threadId: input.event.run.threadId, runId: input.event.run.id, taskGraphId: input.event.taskGraphId, taskId: input.event.run.taskId },
+      entity: { type: 'run', value: input.event.run },
+    }
+  }
+  if (input.event.type === 'trace') {
+    return {
+      ...base,
+      kind: 'trace.upserted',
+      causality: { runId: input.event.runId, traceId: input.event.event.id, stepId: input.event.event.stepId, taskGraphId: input.event.taskGraphId },
+      entity: { type: 'trace', value: input.event.event },
+    }
+  }
+  if (input.event.type === 'done') {
+    return {
+      ...base,
+      kind: 'scope.done',
+      causality: { taskGraphId: input.event.snapshot.taskGraph.id },
+    }
+  }
+  return {
+    ...base,
+    kind: 'task_graph.upserted',
+    causality: {
+      taskGraphId: input.event.snapshot.taskGraph.id,
+      ...(input.event.type === 'task' ? { taskId: input.event.task.id } : {}),
+    },
+    entity: { type: 'task_graph', value: input.event.snapshot },
+  }
+}
+
+function runtimeEventFromRunStream(input: {
+  runtime: AgentRuntimeRouter
+  scope: { type: 'run' | 'thread'; id: string }
+  ordinal: number
+  event: AgentInternalRunSignal | AgentInternalThreadSignal
+}): AgentRuntimeEventV2 {
+  const emittedAt = runtimeStreamEventTime(input.event)
+  const base = {
+    schema: 'movscript.agent.runtime-event.v2' as const,
+    protocolVersion: 'movscript.agent.protocol.v1' as const,
+    id: `runtime-event:${input.scope.type}:${input.scope.id}:${input.ordinal}`,
+    scope: input.scope,
+    ordinal: input.ordinal,
+    cursor: `runtime-event:${input.scope.type}:${input.scope.id}:${input.ordinal}`,
+    emittedAt,
+  }
+  if (input.event.type === 'run') {
+    return {
+      ...base,
+      kind: 'run.upserted',
+      causality: { threadId: input.event.run.threadId, runId: input.event.run.id, taskGraphId: input.event.run.taskGraphId, taskId: input.event.run.taskId },
+      entity: { type: 'run', value: input.event.run },
+    }
+  }
+  if (input.event.type === 'trace') {
+    const run = input.runtime.getRun(input.event.runId)
+    return {
+      ...base,
+      kind: 'trace.upserted',
+      causality: { threadId: run?.threadId, runId: input.event.runId, traceId: input.event.event.id, stepId: input.event.event.stepId, taskGraphId: run?.taskGraphId, taskId: run?.taskId },
+      entity: { type: 'trace', value: input.event.event },
+    }
+  }
+  if (input.event.type === 'assistant_delta') {
+    const run = input.runtime.getRun(input.event.runId)
+    return {
+      ...base,
+      kind: 'assistant.delta',
+      causality: { threadId: run?.threadId, runId: input.event.runId, traceId: input.event.traceEventId, taskGraphId: run?.taskGraphId, taskId: run?.taskId },
+      assistantDelta: {
+        runId: input.event.runId,
+        traceId: input.event.traceEventId,
+        delta: input.event.delta,
+        accumulated: input.event.accumulated,
+        createdAt: input.event.createdAt,
+        ...(typeof input.event.roundIndex === 'number' ? { roundIndex: input.event.roundIndex } : {}),
+        ...(input.event.roundLabel ? { roundLabel: input.event.roundLabel } : {}),
+      },
+    }
+  }
+  if (input.event.type === 'assistant_message') {
+    return {
+      ...base,
+      kind: 'message.upserted',
+      causality: { threadId: input.event.message.threadId, runId: input.event.runId, messageId: input.event.message.id, taskGraphId: input.event.run.taskGraphId, taskId: input.event.run.taskId },
+      entity: { type: 'message', value: input.event.message },
+    }
+  }
+  if (input.event.type === 'thread_title') {
+    const thread = input.runtime.getThread(input.event.threadId)
+    if (!thread) {
+      return {
+        ...base,
+        kind: 'scope.done',
+        causality: { threadId: input.event.threadId, runId: input.event.runId },
+      }
+    }
+    return {
+      ...base,
+      kind: 'thread.upserted',
+      causality: { threadId: thread.id, runId: input.event.runId },
+      entity: { type: 'thread', value: thread },
+    }
+  }
+  return {
+    ...base,
+    kind: 'scope.done',
+    causality: { threadId: input.event.run.threadId, runId: input.event.run.id, taskGraphId: input.event.run.taskGraphId, taskId: input.event.run.taskId },
+  }
+}
+
+function planStreamEventTime(event: AgentTaskGraphStreamEvent): string {
+  if (event.type === 'trace') return event.event.createdAt
+  if (event.type === 'run') return event.run.updatedAt
+  if (event.type === 'task') return event.task.updatedAt
+  return event.snapshot.taskGraph.updatedAt
+}
+
+function runtimeStreamEventTime(event: AgentInternalRunSignal | AgentInternalThreadSignal): string {
+  if (event.type === 'assistant_delta') return event.createdAt
+  if (event.type === 'trace') return event.event.createdAt
+  if (event.type === 'assistant_message') return event.message.createdAt
+  if (event.type === 'thread_title') return event.updatedAt
+  if ('run' in event) return event.run.updatedAt
+  return new Date().toISOString()
 }
 
 const AGENT_TRACE_EVENT_KIND_SET = new Set<AgentTraceEventKind>(AGENT_TRACE_EVENT_KINDS)

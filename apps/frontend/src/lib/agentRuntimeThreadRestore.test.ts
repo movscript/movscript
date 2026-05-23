@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import { restoreRuntimeThreadConversation, type RestoreRuntimeThreadDeps } from './agentRuntimeThreadRestore'
 import type { RuntimeThreadHydrationResult } from './agentRuntimeThreadHydration'
+import { STOPPED_RUNTIME_STATUS_LIGHT } from './agentRuntimeStatusLight'
 import type { AgentRun, AgentThread } from './localAgentClient'
 import type { ChatMessage, Conversation } from '@/store/agentStore'
 
@@ -123,6 +124,7 @@ function runtimeProjection(overrides: Partial<RuntimeThreadHydrationResult> = {}
     currentRun: overrides.currentRun,
     actionableRuns: overrides.actionableRuns ?? [],
     messages: overrides.messages ?? [message()],
+    runtimeStatusLight: overrides.runtimeStatusLight ?? STOPPED_RUNTIME_STATUS_LIGHT,
   }
 }
 

@@ -1,4 +1,10 @@
-export type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue }
+import type {
+  JSONValue,
+  MCPResource as ProtocolMCPResource,
+  MCPTool as ProtocolMCPTool,
+} from '@movscript/protocol'
+
+export type { JSONValue } from '@movscript/protocol'
 
 export interface JSONRPCRequest {
   jsonrpc: '2.0'
@@ -18,18 +24,13 @@ export interface JSONRPCResponse<T = JSONValue> {
   }
 }
 
-export interface MCPResource {
-  uri: string
+export type MCPResource = ProtocolMCPResource & {
   name: string
-  description?: string
-  mimeType?: string
 }
 
-export interface MCPTool {
-  name: string
+export type MCPTool = ProtocolMCPTool & {
   description: string
   inputSchema: JSONValue
-  outputSchema?: JSONValue
 }
 
 export interface MCPClientOptions {

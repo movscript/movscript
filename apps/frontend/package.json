@@ -1,13 +1,13 @@
 {
-  "name": "movscript-frontend",
+  "name": "@movscript/desktop",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "pnpm --filter @movscript/conversation... build && electron-vite dev",
     "dev:local": "node scripts/run-with-env.mjs MOVSCRIPT_BACKEND_POLICY=spawn MOVSCRIPT_AI_STREAM_DEBUG=1 pnpm run dev",
-    "build": "node scripts/prepare-agent-deploy.mjs && electron-vite build",
+    "build": "pnpm --filter @movscript/conversation... build && node scripts/prepare-agent-deploy.mjs && electron-vite build",
     "dist": "pnpm run build && electron-builder --publish never",
     "test": "node ../../scripts/run-node-tests.mjs \"src/**/*.test.ts\" \"src/**/*.test.tsx\" \"electron/**/*.test.ts\"",
     "test:agent-run-debugging": "node ../../scripts/run-node-tests.mjs --suite agent-run-debugging && pnpm run typecheck",
@@ -40,7 +40,10 @@
     ]
   },
   "dependencies": {
-    "@movscript/draft-schemas": "workspace:*",
+    "@movscript/event-state": "workspace:*",
+    "@movscript/conversation": "workspace:*",
+    "@movscript/protocol": "workspace:*",
+    "@movscript/drafts": "workspace:*",
     "@movscript/tokens": "workspace:*",
     "@movscript/ui": "workspace:*",
     "@radix-ui/react-avatar": "^1.1.11",

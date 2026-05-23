@@ -1,5 +1,6 @@
 import type { AgentRun } from '@/lib/localAgentClient'
 import type { ChatMessage, ChatRunActivity } from '@/store/agentStore'
+import type { JSONValue } from '@movscript/protocol'
 
 export type AgentInputAnswer = { choiceIds?: string[]; text?: string }
 export type AgentPendingInputRequest = NonNullable<AgentRun['pendingInputRequests']>[number]
@@ -82,7 +83,9 @@ export function workflowAnswerEchoesForMessages(messages: ChatMessage[], workflo
 }
 
 export function isWorkflowAnswerEchoMessage(message: ChatMessage, echoes: Set<string>): boolean {
-  return message.role === 'user' && echoes.has(message.content.trim())
+  if (message.role !== 'user') return false
+  const content = message.content.trim()
+  return echoes.has(content) || content.startsWith('[用户补充信息]')
 }
 
 export function workflowRunFromActivity(activity: ChatRunActivity | undefined): AgentRun | null {
@@ -118,8 +121,8 @@ export function workflowRunFromActivity(activity: ChatRunActivity | undefined): 
         runId: approval.runId ?? activity.runId,
         ...(approval.interactionId ? { interactionId: approval.interactionId } : {}),
         toolName: approval.toolName,
-        ...(approval.args ? { args: approval.args } : {}),
-        ...(approval.preview !== undefined ? { preview: approval.preview } : {}),
+        ...(approval.args ? { args: approval.args as Record<string, JSONValue> } : {}),
+        ...(approval.preview !== undefined ? { preview: approval.preview as JSONValue } : {}),
         reason: approval.reason,
         ...(approval.risk ? { risk: approval.risk } : {}),
         ...(approval.permission ? { permission: approval.permission } : {}),

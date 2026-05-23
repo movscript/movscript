@@ -203,6 +203,45 @@ test('RuntimeScheduler approves continuation resume interactions by creating a n
   assert.equal(store.getRuntimeContinuation('continuation_work_1')?.status, 'consumed')
 })
 
+test('RuntimeScheduler returns resolved continuation interactions idempotently', () => {
+  const store = new InMemoryAgentStore()
+  const now = '2026-05-21T00:00:00.000Z'
+  store.createRun(makeRun())
+  store.createRun(makeRun({ id: 'run_continuation', parentRunId: 'run_1', status: 'queued' }))
+  store.createRuntimeInteraction({
+    id: 'interaction_continuation_work_1_resume',
+    threadId: 'thread_1',
+    runId: 'run_1',
+    kind: 'selection',
+    status: 'approved',
+    payload: { type: 'runtime_continuation_resume', continuationId: 'continuation_work_1' },
+    result: { runId: 'run_continuation', runStatus: 'queued', continuationId: 'continuation_work_1' },
+    resolvedAt: now,
+    createdAt: now,
+    updatedAt: now,
+  })
+  const scheduler = new RuntimeScheduler({
+    store,
+    now: () => now,
+    runControl: {
+      approveRun: () => {
+        throw new Error('approval is not part of this scenario')
+      },
+      rejectRun: () => {
+        throw new Error('rejection is not part of this scenario')
+      },
+    },
+    continueRun: () => {
+      throw new Error('resolved continuation must not create another run')
+    },
+  })
+
+  const result = scheduler.approveInteraction('interaction_continuation_work_1_resume')
+
+  assert.equal(result.interaction.status, 'approved')
+  assert.equal(result.run.id, 'run_continuation')
+})
+
 test('RuntimeScheduler rejects continuation resume interactions by cancelling the continuation', () => {
   const store = new InMemoryAgentStore()
   const now = '2026-05-21T00:00:00.000Z'

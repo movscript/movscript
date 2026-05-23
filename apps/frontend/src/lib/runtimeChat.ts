@@ -2,14 +2,10 @@ import type {
   AgentClientInput,
   RunMessageOptions,
   RunMessageResult,
+  RuntimeModelAPIKind,
 } from '@/lib/localAgentClient'
 import { localAgentClient } from '@/lib/localAgentClient'
 import { useAgentSessionStore } from '@/store/agentSessionStore'
-
-export type RuntimeModelAPIKind =
-  | 'openai_chat_completions'
-  | 'openai_responses'
-  | 'anthropic_messages'
 
 export async function syncRuntimeModelConfig(
   modelId?: string | null,
@@ -37,8 +33,7 @@ export async function runRuntimeMessage(input: {
   timeoutMs?: number
   pollMs?: number
   onRunUpdate?: RunMessageOptions['onRunUpdate']
-  onStreamEvent?: RunMessageOptions['onStreamEvent']
-  onAssistantDelta?: RunMessageOptions['onAssistantDelta']
+  onRuntimeEvent?: RunMessageOptions['onRuntimeEvent']
   standaloneTaskId?: string
   standaloneTaskType?: string
 }): Promise<RunMessageResult> {
@@ -65,8 +60,7 @@ export async function runRuntimeMessage(input: {
       ...(input.timeoutMs ? { timeoutMs: input.timeoutMs } : {}),
       ...(input.pollMs ? { pollMs: input.pollMs } : {}),
       ...(input.onRunUpdate ? { onRunUpdate: input.onRunUpdate } : {}),
-      ...(input.onStreamEvent ? { onStreamEvent: input.onStreamEvent } : {}),
-      ...(input.onAssistantDelta ? { onAssistantDelta: input.onAssistantDelta } : {}),
+      ...(input.onRuntimeEvent ? { onRuntimeEvent: input.onRuntimeEvent } : {}),
     })
     if (input.standaloneTaskId) {
       useAgentSessionStore.getState().settleStandaloneTask({

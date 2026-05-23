@@ -21,9 +21,9 @@ import { ContextDiagnosticCard } from '@/components/agent/ContextDiagnosticCard'
 import { AgentDraftResultCards } from '@/components/agent/AgentDraftResultCards'
 import { AgentPlanRevisionCard } from '@/components/agent/AgentPlanCard'
 import { AgentActivityDividerMenu, AgentActivityFeedView } from '@/components/agent/AgentActivityFeed'
+import { buildAgentActivityFeed } from '@/lib/agentActivityFeed'
 import type { GenerationProgressState } from '@/lib/agentGenerationMedia'
 import type { AgentLivePendingAssistantState } from '@/lib/agentLiveRunActivity'
-import type { AgentInputAnswer } from '@/lib/agentWorkflowInteraction'
 import type { AgentRun } from '@/lib/localAgentClient'
 import type { ChatMessage, ChatRunActivityEvent } from '@/store/agentStore'
 
@@ -140,19 +140,9 @@ function formatDurationLabel(ms: number) {
 export function MessageBubble({
   msg,
   projectId,
-  workflowRun,
-  approvingLocalRun = false,
-  onApproveLocalRun,
-  onRejectLocalRun,
-  onAnswerLocalRunInput,
 }: {
   msg: ChatMessage
   projectId?: number
-  workflowRun?: AgentRun | null
-  approvingLocalRun?: boolean
-  onApproveLocalRun?: (approvalIds?: string[]) => void
-  onRejectLocalRun?: (approvalIds?: string[]) => void
-  onAnswerLocalRunInput?: (requestId: string, answer: AgentInputAnswer) => void
 }) {
   const { t, i18n } = useTranslation()
   const apiBaseURL = useAppSettingsStore((s) => s.settings.apiBaseURL)
@@ -263,11 +253,6 @@ export function MessageBubble({
       {!isUser && hasActivityContent && (
         <AgentActivityFeedView
           activity={localRunActivity}
-          workflowRun={workflowRun}
-          approving={approvingLocalRun}
-          onApprove={onApproveLocalRun}
-          onReject={onRejectLocalRun}
-          onAnswerInput={onAnswerLocalRunInput}
           className={displayContent || planRevision ? 'mb-2' : undefined}
         />
       )}
@@ -326,11 +311,8 @@ export function MessageBubble({
 }
 
 function runActivityHasVisibleContent(activity: NonNullable<ChatMessage['meta']>['localRunActivity']): boolean {
-  if (!activity) return false
-  return (activity.steps?.length ?? 0) > 0
-    || (activity.events?.length ?? 0) > 0
-    || (activity.approvals?.length ?? 0) > 0
-    || (activity.inputs?.length ?? 0) > 0
+  const feed = activity ? buildAgentActivityFeed({ activity }) : undefined
+  return !!feed && (feed.items.length > 0 || feed.rounds.length > 0)
 }
 
 export function StreamingAssistantBubble({ content }: { content: string }) {

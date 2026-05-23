@@ -9,8 +9,8 @@ import {
 import { localAgentClient, type AgentRun, type AgentThread } from '@/lib/localAgentClient'
 import type { GenerationProgressState } from '@/lib/agentGenerationMedia'
 import type { AgentLivePendingAssistantState } from '@/lib/agentLiveRunActivity'
-import type { AgentConversationMessageStore } from '@/lib/agentConversationMessageStore'
-import type { ChatRunActivityEvent } from '@/store/agentStore'
+import { appendAssistantConversationMessage, type AgentConversationMessageStore } from '@movscript/conversation'
+import type { ChatMessage, ChatMessageMeta, ChatRunActivityEvent } from '@/store/agentStore'
 
 export async function cancelGenerationJobIfActive(state: GenerationProgressState | null): Promise<void> {
   if (!state || state.terminal || state.jobId === undefined) return
@@ -38,7 +38,7 @@ export interface UseAgentRunStopActionInput {
   setConversationRuntime: (conversationId: string, patch: Parameters<StopLocalRunActionDeps['setConversationRuntime']>[0]) => void
   appendAssistantRunResult: (run: AgentRun, thread: AgentThread, liveEvents: ChatRunActivityEvent[]) => Promise<unknown>
   liveEvents: () => ChatRunActivityEvent[]
-  messageStore: Pick<AgentConversationMessageStore, 'addMessage'>
+  messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'addMessage'>
 }
 
 export function useAgentRunStopAction({
@@ -78,7 +78,11 @@ export function useAgentRunStopAction({
     getThread: (threadId) => localAgentClient.getThread(threadId),
     appendAssistantRunResult,
     liveEvents,
-    addAssistantMessage: (message) => messageStore.addMessage(userId, conversationId, message),
+    addAssistantMessage: (content, meta) => appendAssistantConversationMessage<ChatMessage, ChatMessageMeta>({
+      content,
+      ...(meta ? { meta } : {}),
+      deps: { userId, conversationId, messageStore },
+    }),
   }), [
     activeSendAbortControllerRef,
     appendAssistantRunResult,

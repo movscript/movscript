@@ -311,14 +311,14 @@ test('legacy direct run endpoints are not public runtime entrypoints', async () 
   assert.deepEqual(calls, [])
 })
 
-test('thread run endpoint appends a user message and creates a run bound to that message', async () => {
+test('thread run endpoint appends a user message with the client message id and creates a run bound to that message', async () => {
   const calls: Array<{ endpoint: string; input: Record<string, unknown> }> = []
   const handler = createAgentRequestListener({
     runtimeRouter: {
       getThread: (threadId: string) => ({ id: threadId, status: 'idle', createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:00.000Z', messages: [] }),
       addMessage: (threadId: string, input: Record<string, unknown>) => {
         calls.push({ endpoint: 'message', input: { threadId, ...input } })
-        return { id: 'msg_bound', threadId, role: 'user', content: input.content, createdAt: '2026-05-19T00:00:00.000Z' }
+        return { id: input.id ?? 'msg_bound', threadId, role: 'user', content: input.content, createdAt: '2026-05-19T00:00:00.000Z' }
       },
       createRun: (input: Record<string, unknown>) => {
         calls.push({ endpoint: 'run', input })
@@ -331,14 +331,14 @@ test('thread run endpoint appends a user message and creates a run bound to that
     message: 'Continue safely',
     clientInput: { visibleMessage: 'Continue safely', attachments: [] },
     policy: { maxIterations: 2 },
-    sourceMessageId: 'ignored_client_source',
+    sourceMessageId: 'local_msg_bound',
   }))
 
   assert.equal(response.statusCode, 201)
   assert.deepEqual(JSON.parse(response.body), {
     run: { id: 'run_bound', threadId: 'thread_1', status: 'queued' },
     message: {
-      id: 'msg_bound',
+      id: 'local_msg_bound',
       threadId: 'thread_1',
       role: 'user',
       content: 'Continue safely',
@@ -350,6 +350,7 @@ test('thread run endpoint appends a user message and creates a run bound to that
       endpoint: 'message',
       input: {
         threadId: 'thread_1',
+        id: 'local_msg_bound',
         role: 'user',
         content: 'Continue safely',
         clientInput: { visibleMessage: 'Continue safely', attachments: [] },
@@ -361,7 +362,7 @@ test('thread run endpoint appends a user message and creates a run bound to that
         clientInput: { visibleMessage: 'Continue safely', attachments: [] },
         policy: { maxIterations: 2 },
         threadId: 'thread_1',
-        sourceMessageId: 'msg_bound',
+        sourceMessageId: 'local_msg_bound',
         role: 'planner',
       },
     },
@@ -430,7 +431,7 @@ test('thread run endpoint appends runtime input to an active run instead of crea
       addMessage: (threadId: string, input: Record<string, unknown>) => {
         calls.push({ endpoint: 'message', input: { threadId, ...input } })
         return {
-          id: 'msg_runtime_input',
+          id: input.id ?? 'msg_runtime_input',
           threadId,
           role: 'user',
           content: input.content,
@@ -448,6 +449,7 @@ test('thread run endpoint appends runtime input to an active run instead of crea
 
   const response = await dispatch(handler, 'POST', '/threads/thread_1/runs', JSON.stringify({
     message: '先别继续，改成图片方案',
+    sourceMessageId: 'local_runtime_input',
   }))
 
   assert.equal(response.statusCode, 202)
@@ -455,7 +457,7 @@ test('thread run endpoint appends runtime input to an active run instead of crea
   assert.deepEqual(body.runtimeInput, {
     accepted: true,
     runId: 'run_active',
-    messageId: 'msg_runtime_input',
+    messageId: 'local_runtime_input',
     status: 'accepted',
   })
   assert.equal(body.run.id, 'run_active')
@@ -464,6 +466,7 @@ test('thread run endpoint appends runtime input to an active run instead of crea
       endpoint: 'message',
       input: {
         threadId: 'thread_1',
+        id: 'local_runtime_input',
         role: 'user',
         content: '先别继续，改成图片方案',
         runId: 'run_active',
@@ -669,7 +672,7 @@ test('thread runtime endpoint returns a consistent thread and run snapshot', asy
     runtimeRouter: {
       getThreadRuntimeSnapshot: (threadId: string) => threadId === 'thread_1'
         ? {
-          schema: 'movscript.thread-runtime.v2',
+          schema: 'movscript.agent.internal-thread-snapshot.v1',
           updatedAt: '2026-05-19T00:00:01.000Z',
           thread,
           runs: [{ id: 'run_1', threadId: 'thread_1', status: 'completed' }],
@@ -692,19 +695,19 @@ test('thread runtime endpoint returns a consistent thread and run snapshot', asy
 
   assert.equal(response.statusCode, 200)
   assert.deepEqual(JSON.parse(response.body), {
-    schema: 'movscript.thread-runtime.v2',
-    updatedAt: '2026-05-19T00:00:01.000Z',
-    thread,
-    runs: [{ id: 'run_1', threadId: 'thread_1', status: 'completed' }],
-    works: [],
-    interactions: [],
-    continuations: [],
-    current: {
-      activeRunIds: [],
-      waitingRunIds: [],
-      runningWorkIds: [],
-      pendingInteractionIds: [],
-      readyContinuationIds: [],
+    schema: 'movscript.agent.runtime-snapshot.v2',
+    protocolVersion: 'movscript.agent.protocol.v1',
+    scope: { type: 'thread', id: 'thread_1' },
+    cursor: 'runtime-snapshot:thread:thread_1:0',
+    ordinal: 0,
+    generatedAt: '2026-05-19T00:00:01.000Z',
+    entities: {
+      threads: [thread],
+      messages: thread.messages,
+      runs: [{ id: 'run_1', threadId: 'thread_1', status: 'completed' }],
+      works: [],
+      interactions: [],
+      continuations: [],
     },
   })
 })
@@ -739,7 +742,7 @@ test('thread runtime endpoint indexes pending interaction runs for frontend reco
     runtimeRouter: {
       getThreadRuntimeSnapshot: (threadId: string) => threadId === 'thread_1'
         ? {
-          schema: 'movscript.thread-runtime.v2',
+          schema: 'movscript.agent.internal-thread-snapshot.v1',
           updatedAt: '2026-05-19T00:00:03.000Z',
           thread,
           runs: [
@@ -774,11 +777,12 @@ test('thread runtime endpoint indexes pending interaction runs for frontend reco
   const body = JSON.parse(response.body)
 
   assert.equal(response.statusCode, 200)
-  assert.equal(body.schema, 'movscript.thread-runtime.v2')
-  assert.deepEqual(body.current.waitingRunIds, ['run_pending'])
-  assert.deepEqual(body.current.pendingInteractionIds, ['interaction_input_1'])
-  assert.deepEqual(body.interactions.map((interaction: { id: string }) => interaction.id), ['interaction_input_1'])
-  assert.equal(body.updatedAt, '2026-05-19T00:00:03.000Z')
+  assert.equal(body.schema, 'movscript.agent.runtime-snapshot.v2')
+  assert.equal(body.protocolVersion, 'movscript.agent.protocol.v1')
+  assert.deepEqual(body.scope, { type: 'thread', id: 'thread_1' })
+  assert.deepEqual(body.entities.runs.map((run: { id: string }) => run.id), ['run_completed', 'run_pending'])
+  assert.deepEqual(body.entities.interactions.map((interaction: { id: string }) => interaction.id), ['interaction_input_1'])
+  assert.equal(body.generatedAt, '2026-05-19T00:00:03.000Z')
 })
 
 test('session runtime endpoint returns aggregate plan, child agent, and work state', async () => {
@@ -793,7 +797,7 @@ test('session runtime endpoint returns aggregate plan, child agent, and work sta
     runtimeRouter: {
       getSessionRuntimeSnapshot: (sessionId: string) => sessionId === 'session_1'
         ? {
-          schema: 'movscript.session-runtime.v1',
+          schema: 'movscript.agent.internal-session-snapshot.v1',
           updatedAt: '2026-05-19T00:00:05.000Z',
           session,
           threads: [
@@ -829,11 +833,12 @@ test('session runtime endpoint returns aggregate plan, child agent, and work sta
   const body = JSON.parse(response.body)
 
   assert.equal(response.statusCode, 200)
-  assert.equal(body.schema, 'movscript.session-runtime.v1')
-  assert.equal(body.session.id, 'session_1')
-  assert.deepEqual(body.threads.map((thread: { id: string }) => thread.id), ['thread_root', 'thread_child'])
-  assert.deepEqual(body.taskGraphs.map((snapshot: { taskGraph: { id: string } }) => snapshot.taskGraph.id), ['task_graph_1'])
-  assert.deepEqual(body.current.runningWorkIds, ['work_1'])
+  assert.equal(body.schema, 'movscript.agent.runtime-snapshot.v2')
+  assert.equal(body.protocolVersion, 'movscript.agent.protocol.v1')
+  assert.equal(body.entities.sessions[0].id, 'session_1')
+  assert.deepEqual(body.entities.threads.map((thread: { id: string }) => thread.id), ['thread_root', 'thread_child'])
+  assert.deepEqual(body.entities.taskGraphs.map((snapshot: { taskGraph: { id: string } }) => snapshot.taskGraph.id), ['task_graph_1'])
+  assert.deepEqual(body.entities.works.map((work: { id: string }) => work.id), ['work_1'])
 })
 
 test('thread runs endpoint returns not found for missing threads', async () => {
@@ -919,6 +924,32 @@ test('thread stream endpoint returns not found for missing threads', async () =>
 
   assert.equal(response.statusCode, 404)
   assert.equal(JSON.parse(response.body).error, 'thread not found')
+})
+
+test('run input endpoint preserves the client source message id', async () => {
+  const calls: Array<Record<string, unknown>> = []
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      answerRunInputRequest: (runId: string, input: Record<string, unknown>) => {
+        calls.push({ runId, ...input })
+        return { id: runId, threadId: 'thread_1', status: 'queued' }
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'POST', '/runs/run_1/input', JSON.stringify({
+    requestId: 'input_1',
+    text: '继续',
+    sourceMessageId: 'local_answer_1',
+  }))
+
+  assert.equal(response.statusCode, 202)
+  assert.deepEqual(calls, [{
+    runId: 'run_1',
+    requestId: 'input_1',
+    text: '继续',
+    sourceMessageId: 'local_answer_1',
+  }])
 })
 
 test('agent skill bundle install endpoint writes plugin skills and reloads catalog', async () => {

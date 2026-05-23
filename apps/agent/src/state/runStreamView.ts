@@ -1,9 +1,9 @@
 import { isRecord } from '../jsonValue.js'
-import type { AgentMessage, AgentRun, AgentRunStreamEvent, AgentRunStreamRun, AgentThread, AgentTraceEvent } from './types.js'
+import type { AgentMessage, AgentRun, AgentInternalRunSignal, AgentInternalRunSignalRun, AgentThread, AgentTraceEvent } from './types.js'
 
-export type AgentAssistantDeltaStreamEvent = Omit<Extract<AgentRunStreamEvent, { type: 'assistant_delta' }>, 'runId' | 'traceEventId' | 'createdAt' | 'run'>
+export type AgentAssistantDeltaInternalSignal = Omit<Extract<AgentInternalRunSignal, { type: 'assistant_delta' }>, 'runId' | 'traceEventId' | 'createdAt' | 'run'>
 
-export function assistantDeltaFromTraceEvent(event: AgentTraceEvent): AgentAssistantDeltaStreamEvent | undefined {
+export function assistantDeltaFromTraceEvent(event: AgentTraceEvent): AgentAssistantDeltaInternalSignal | undefined {
   const data = isRecord(event.data) ? event.data : undefined
   const stream = isRecord(data?.stream) ? data.stream : undefined
   if (stream?.kind !== 'content') return undefined
@@ -36,7 +36,7 @@ export function assistantMessageForRun(thread: AgentThread | undefined, run: Age
   return [...thread.messages].reverse().find((message) => message.role === 'assistant' && message.runId === run.id)
 }
 
-export function toStreamRun(run: AgentRun): AgentRunStreamRun {
+export function toStreamRun(run: AgentRun): AgentInternalRunSignalRun {
   return {
     id: run.id,
     sessionId: run.sessionId,

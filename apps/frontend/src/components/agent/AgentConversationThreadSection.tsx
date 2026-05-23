@@ -9,6 +9,7 @@ import {
   AgentThread,
 } from '@movscript/ui'
 import { AgentPlanOverviewPanel } from '@/components/agent/AgentPlanOverviewPanel'
+import { LocalAgentWorkflowBubble } from '@/components/agent/AgentWorkflowBubble'
 import { AgentPinnedStatusShelf } from '@/components/agent/AgentPinnedStatusShelf'
 import { LiveRunActivityBubble } from '@/components/agent/AgentRunActivityPanel'
 import {
@@ -18,13 +19,14 @@ import {
   ThinkingBubble,
   type ThinkingBubbleState,
 } from '@/components/agent/AgentChatBubbles'
-import { buildAgentConversationMessageItems } from '@/lib/agentConversationThreadItems'
+import { buildAgentConversationThreadItems, type AgentConversationMessageItem } from '@/lib/agentConversationThreadItems'
 import type { AgentInputAnswer } from '@/lib/agentWorkflowInteraction'
 import type { AgentConversationBlock } from '@/lib/agentConversationPresentation'
 import type { GenerationProgressState } from '@/lib/agentGenerationMedia'
 import type { PlanDispatchSettings } from '@/lib/agentPlanActions'
 import type { AgentTaskGraphSnapshot, AgentPlan, AgentRun } from '@/lib/localAgentClient'
 import type { ChatMessage } from '@/store/agentStore'
+import { cn } from '@/lib/utils'
 
 export interface AgentConversationThreadSectionProps {
   activePlanSnapshot?: AgentTaskGraphSnapshot
@@ -89,10 +91,44 @@ export function AgentConversationThreadSection({
 }: AgentConversationThreadSectionProps) {
   const { t } = useTranslation()
   const currentPlan = latestPlanFromMessages(messages)
+  const activeRunId = activeRun?.id
+  const suppressedWorkflowRunIds = activeRunId && !isTerminalAgentRunStatus(activeRun?.status)
+    ? new Set([activeRunId])
+    : new Set<string>()
+  const threadItems = buildAgentConversationThreadItems({
+    messages,
+    workflowAnswerEchoes,
+    workflowRunsByResultMessageId,
+    suppressedWorkflowRunIds,
+  })
+  const activeRunHasThreadGroup = !!activeRunId
+    && threadItems.some((item) => item.type === 'run_group' && item.runId === activeRunId)
   const liveActivityRunIds = new Set(conversationBlocks
     .filter((block) => block.type === 'live_run_activity' && block.run?.id)
     .map((block) => block.type === 'live_run_activity' ? block.run?.id : undefined)
     .filter((id): id is string => Boolean(id)))
+  const renderConversationBlock = (block: AgentConversationBlock) => {
+    if (block.type === 'assistant_stream') {
+      return <StreamingAssistantBubble key={block.id} content={block.content} />
+    }
+    if (block.type === 'generation_progress') {
+      return <GenerationProgressBubble key={block.id} state={block.state} />
+    }
+    if (block.type === 'live_run_activity') {
+      return (
+        <LiveRunActivityBubble
+          key={block.id}
+          run={block.run}
+          events={block.events}
+          approving={approvingLocalRun}
+          onApprove={(approvalIds) => block.run && onApproveLocalRun(block.run.id, approvalIds)}
+          onReject={(approvalIds) => block.run && onRejectLocalRun(block.run.id, approvalIds)}
+          onAnswerInput={(requestId, answer) => block.run && onAnswerLocalRunInput(block.run.id, requestId, answer)}
+        />
+      )
+    }
+    return <ThinkingBubble key={block.id} run={activeRun} state={thinkingState} />
+  }
 
   return (
     <AgentBody className="flex flex-col">
@@ -130,51 +166,53 @@ export function AgentConversationThreadSection({
             </AgentSuggestions>
           </AgentEmpty>
         )}
-        {buildAgentConversationMessageItems({
-          messages,
-          workflowAnswerEchoes,
-          workflowRunsByResultMessageId,
-        }).map(({ beforeMessageWorkflowRuns, liveWorkflowRuns, message, showMessage }) => {
-          const workflowRun = liveWorkflowRuns?.[0] ?? beforeMessageWorkflowRuns[0] ?? null
-          const canInteractWithWorkflowRun = !!liveWorkflowRuns?.length
-          return (
-            <React.Fragment key={message.id}>
-              {showMessage && (
-                <MessageBubble
-                  msg={message}
-                  projectId={projectId}
-                  workflowRun={workflowRun}
-                  approvingLocalRun={approvingLocalRun}
-                  onApproveLocalRun={workflowRun && canInteractWithWorkflowRun ? (approvalIds) => onApproveLocalRun(workflowRun.id, approvalIds) : undefined}
-                  onRejectLocalRun={workflowRun && canInteractWithWorkflowRun ? (approvalIds) => onRejectLocalRun(workflowRun.id, approvalIds) : undefined}
-                  onAnswerLocalRunInput={workflowRun && canInteractWithWorkflowRun ? (requestId, answer) => onAnswerLocalRunInput(workflowRun.id, requestId, answer) : undefined}
-                />
-              )}
-            </React.Fragment>
-          )
-        })}
-        {conversationBlocks.map((block) => {
-          if (block.type === 'assistant_stream') {
-            return <StreamingAssistantBubble key={block.id} content={block.content} />
-          }
-          if (block.type === 'generation_progress') {
-            return <GenerationProgressBubble key={block.id} state={block.state} />
-          }
-          if (block.type === 'live_run_activity') {
+        {threadItems.map((threadItem) => {
+          if (threadItem.type === 'message') {
             return (
-              <LiveRunActivityBubble
-                key={block.id}
-                run={block.run}
-                events={block.events}
-                approving={approvingLocalRun}
-                onApprove={(approvalIds) => block.run && onApproveLocalRun(block.run.id, approvalIds)}
-                onReject={(approvalIds) => block.run && onRejectLocalRun(block.run.id, approvalIds)}
-                onAnswerInput={(requestId, answer) => block.run && onAnswerLocalRunInput(block.run.id, requestId, answer)}
+              <ThreadMessageBubble
+                key={threadItem.id}
+                item={threadItem.item}
+                projectId={projectId}
+                approvingLocalRun={approvingLocalRun}
+                onApproveLocalRun={onApproveLocalRun}
+                onRejectLocalRun={onRejectLocalRun}
+                onAnswerLocalRunInput={onAnswerLocalRunInput}
               />
             )
           }
-          return <ThinkingBubble key={block.id} run={activeRun} state={thinkingState} />
+          return (
+            <div
+              key={threadItem.id}
+              className={cn(
+                'space-y-2 border-l border-border/80 pl-3',
+                threadItem.items.some((item) => item.message.role === 'user') && 'py-1',
+              )}
+              data-agent-run-group-id={threadItem.runId}
+            >
+              {threadItem.items.map((item) => (
+                <ThreadMessageBubble
+                  key={item.message.id}
+                  item={item}
+                  projectId={projectId}
+                  approvingLocalRun={approvingLocalRun}
+                  onApproveLocalRun={onApproveLocalRun}
+                  onRejectLocalRun={onRejectLocalRun}
+                  onAnswerLocalRunInput={onAnswerLocalRunInput}
+                />
+              ))}
+              {activeRunId === threadItem.runId && conversationBlocks.map(renderConversationBlock)}
+            </div>
+          )
         })}
+        {activeRunId && !activeRunHasThreadGroup && conversationBlocks.length > 0 && (
+          <div
+            className="space-y-2 border-l border-border/80 pl-3 py-1"
+            data-agent-run-group-id={activeRunId}
+          >
+            {conversationBlocks.map(renderConversationBlock)}
+          </div>
+        )}
+        {!activeRunId && conversationBlocks.map(renderConversationBlock)}
         {showLocalWorkflow && workflowRunsWithoutResultMessage.filter((run) => !liveActivityRunIds.has(run.id)).map((run) => (
           <LiveRunActivityBubble
             key={`workflow-live-${run.id}`}
@@ -203,6 +241,50 @@ export function AgentConversationThreadSection({
       </AgentThread>
     </AgentBody>
   )
+}
+
+function ThreadMessageBubble({
+  item,
+  projectId,
+  approvingLocalRun,
+  onApproveLocalRun,
+  onRejectLocalRun,
+  onAnswerLocalRunInput,
+}: {
+  item: AgentConversationMessageItem
+  projectId?: number
+  approvingLocalRun: boolean
+  onApproveLocalRun: (runId: string, approvalIds?: string[]) => void
+  onRejectLocalRun: (runId: string, approvalIds?: string[]) => void
+  onAnswerLocalRunInput: (runId: string, requestId: string, answer: AgentInputAnswer) => void
+}) {
+  const { beforeMessageWorkflowRuns, liveWorkflowRuns, message, showMessage } = item
+  const workflowRuns = liveWorkflowRuns ?? beforeMessageWorkflowRuns
+  const canInteractWithWorkflowRun = !!liveWorkflowRuns?.length
+  return (
+    <React.Fragment>
+      {workflowRuns.map((workflowRun) => (
+        <LocalAgentWorkflowBubble
+          key={`workflow-${workflowRun.id}-${message.id}`}
+          run={workflowRun}
+          approving={approvingLocalRun}
+          onApprove={canInteractWithWorkflowRun ? (approvalIds) => onApproveLocalRun(workflowRun.id, approvalIds) : undefined}
+          onReject={canInteractWithWorkflowRun ? (approvalIds) => onRejectLocalRun(workflowRun.id, approvalIds) : undefined}
+          onAnswerInput={canInteractWithWorkflowRun ? (requestId, answer) => onAnswerLocalRunInput(workflowRun.id, requestId, answer) : undefined}
+        />
+      ))}
+      {showMessage && (
+        <MessageBubble
+          msg={message}
+          projectId={projectId}
+        />
+      )}
+    </React.Fragment>
+  )
+}
+
+function isTerminalAgentRunStatus(status: AgentRun['status'] | undefined): boolean {
+  return status === 'completed' || status === 'completed_with_warnings' || status === 'failed' || status === 'cancelled'
 }
 
 function latestPlanFromMessages(messages: ChatMessage[]): AgentPlan | undefined {

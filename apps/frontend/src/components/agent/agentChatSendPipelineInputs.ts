@@ -3,6 +3,9 @@ import type {
   BuildAgentChatInteractionControllerInputOptions,
 } from '@/components/agent/agentChatInteractionInputTypes'
 import { sendActiveRunRuntimeInput } from '@/lib/agentRuntimeInput'
+import { isTerminalAgentRun } from '@/lib/agentRunControl'
+import { appendAssistantConversationMessage } from '@movscript/conversation'
+import type { ChatMessage, ChatMessageMeta } from '@/store/agentStore'
 
 export function buildAgentChatSendPipelineInput({
   activeLocalRun,
@@ -88,6 +91,7 @@ export function buildAgentChatSendPipelineInput({
       setConversationRuntimeThreadId: store.setConversationRuntimeThreadId,
       setConversationRun: store.setConversationRun,
       setSubmittedInteractionRuns: runtime.setSubmittedInteractionRuns,
+      setRuntimeStatusLight: runtime.setRuntimeStatusLight,
       updateConversationTitle: store.updateConversationTitle,
       messageStore: {
         setConversationMessages: store.messageStore.setConversationMessages,
@@ -102,6 +106,10 @@ export function buildAgentChatSendPipelineInput({
       answeringPendingInput: presentation.answeringPendingInput,
       activePendingInputRequest: presentation.activePendingInputRequest,
       canAnswerPendingInputWithText: presentation.canAnswerPendingInputWithText,
+      canSendActiveRunRuntimeInput: canSendActiveRunRuntimeInput({
+        run: activeLocalRun ?? store.conversationRuntime?.run ?? null,
+        threadId: store.localThreadId ?? store.conversationRuntime?.threadId ?? activeLocalRun?.threadId,
+      }),
       modelId: composer.modelId,
       debugBeforeSend: runtime.debugBeforeSend,
       pendingSendDraft: runtime.pendingSendDraft,
@@ -111,7 +119,14 @@ export function buildAgentChatSendPipelineInput({
       onExternalDraftConsumed,
       updateDraft: composer.updateDraft,
       setMentionRange: composer.setMentionRange,
-      addAssistantMessage: (content) => store.messageStore.addMessage(userId, conv.id, { role: 'assistant', content }),
+      addAssistantMessage: (content) => appendAssistantConversationMessage<ChatMessage, ChatMessageMeta>({
+        content,
+        deps: {
+          userId,
+          conversationId: conv.id,
+          messageStore: store.messageStore,
+        },
+      }),
       setConversationBuilding: (patch) => store.setConversationRuntime(conv.id, patch),
       sendActiveRunRuntimeInput: async ({ content, attachments }) => {
         const run = activeLocalRun ?? store.conversationRuntime?.run
@@ -137,4 +152,11 @@ export function buildAgentChatSendPipelineInput({
       setPendingSendDraft: runtime.setPendingSendDraft,
     },
   }
+}
+
+function canSendActiveRunRuntimeInput(input: {
+  run: NonNullable<BuildAgentChatInteractionControllerInputOptions['activeLocalRun']> | null
+  threadId?: string
+}): boolean {
+  return !!input.run && !isTerminalAgentRun(input.run) && !!input.threadId?.trim()
 }

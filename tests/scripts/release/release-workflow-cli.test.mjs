@@ -24,7 +24,7 @@ test('release workflow full runs check, packaging, plugins, and collection', () 
     ['Run release checks', 'node', ['scripts/release/release-workflow.mjs', 'check']],
     ['Build desktop package', 'node', ['scripts/release/release-workflow.mjs', 'package-desktop']],
     ['Build workspace packages', 'pnpm', ['--filter', './packages/*', 'build']],
-    ['Build movcli', 'pnpm', ['--filter', 'movcli', 'build']],
+    ['Build movcli', 'pnpm', ['--filter', '@movscript/cli', 'build']],
     ['Build plugins', 'pnpm', ['--filter', './plugins/*', 'build']],
     ['Collect release artifacts', 'node', ['scripts/release/release-workflow.mjs', 'collect']],
   ])
@@ -149,8 +149,8 @@ test('runReleaseWorkflowCli dispatches desktop packaging through release command
     logError: undefined,
   })
   assert.deepEqual(calls.map((call) => call.slice(0, 2)), [
-    ['pnpm', ['--filter', 'movscript-frontend', 'build']],
-    ['pnpm', ['--filter', 'movscript-frontend', 'exec', 'electron-builder', '--mac', '--arm64', '--publish', 'never']],
+    ['pnpm', ['--filter', '@movscript/desktop', 'build']],
+    ['pnpm', ['--filter', '@movscript/desktop', 'exec', 'electron-builder', '--mac', '--arm64', '--publish', 'never']],
   ])
 })
 

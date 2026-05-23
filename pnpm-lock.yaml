@@ -10,9 +10,9 @@ importers:
 
   apps/admin:
     dependencies:
-      '@movscript/draft-schemas':
+      '@movscript/drafts':
         specifier: workspace:*
-        version: link:../../packages/draft-schemas
+        version: link:../../packages/drafts
       '@movscript/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens
@@ -98,9 +98,12 @@ importers:
       '@langchain/langgraph':
         specifier: ^1.2.9
         version: 1.2.9(@langchain/core@1.1.44(openai@6.38.0(zod@4.4.2)))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@4.4.2)
-      '@movscript/draft-schemas':
+      '@movscript/drafts':
         specifier: workspace:*
-        version: link:../../packages/draft-schemas
+        version: link:../../packages/drafts
+      '@movscript/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       openai:
         specifier: ^6.38.0
         version: 6.38.0(zod@4.4.2)
@@ -125,9 +128,18 @@ importers:
 
   apps/frontend:
     dependencies:
-      '@movscript/draft-schemas':
+      '@movscript/conversation':
         specifier: workspace:*
-        version: link:../../packages/draft-schemas
+        version: link:../../packages/conversation
+      '@movscript/drafts':
+        specifier: workspace:*
+        version: link:../../packages/drafts
+      '@movscript/event-state':
+        specifier: workspace:*
+        version: link:../../packages/event-state
+      '@movscript/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@movscript/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens
@@ -296,11 +308,49 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
-  packages/draft-schemas:
+  packages/conversation:
+    dependencies:
+      '@movscript/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.17
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  packages/drafts:
     devDependencies:
       tsup:
         specifier: ^8.5.0
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  packages/event-state:
+    dependencies:
+      '@movscript/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.17
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
@@ -316,12 +366,21 @@ importers:
 
   packages/plugin-sdk/examples/scene-summary:
     devDependencies:
+      '@movscript/cli':
+        specifier: workspace:*
+        version: link:../../../../apps/movcli
       '@movscript/plugin-sdk':
         specifier: workspace:*
         version: link:../..
-      movcli:
-        specifier: workspace:*
-        version: link:../../../../apps/movcli
+
+  packages/protocol:
+    devDependencies:
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
 
   packages/tokens:
     devDependencies:
@@ -395,21 +454,21 @@ importers:
 
   plugins/image-generator:
     devDependencies:
+      '@movscript/cli':
+        specifier: workspace:*
+        version: link:../../apps/movcli
       '@movscript/plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
-      movcli:
-        specifier: workspace:*
-        version: link:../../apps/movcli
 
   plugins/video-generator:
     devDependencies:
+      '@movscript/cli':
+        specifier: workspace:*
+        version: link:../../apps/movcli
       '@movscript/plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
-      movcli:
-        specifier: workspace:*
-        version: link:../../apps/movcli
 
 packages:
 

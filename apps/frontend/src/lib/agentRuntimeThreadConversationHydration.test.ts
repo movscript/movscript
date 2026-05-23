@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import { hydrateRuntimeThreadConversation, type HydrateRuntimeThreadConversationDeps } from './agentRuntimeThreadConversationHydration'
 import type { RuntimeThreadHydrationResult } from './agentRuntimeThreadHydration'
+import { WAITING_RUNTIME_STATUS_LIGHT } from './agentRuntimeStatusLight'
 import type { AgentRun, AgentThread } from './localAgentClient'
 import type { ChatMessage } from '@/store/agentStore'
 
@@ -152,6 +153,23 @@ test('hydrateRuntimeThreadConversation can force refresh an already hydrated thr
   assert.equal(calls[0], 'load:thread_1:0:false')
 })
 
+test('hydrateRuntimeThreadConversation publishes the derived runtime status light', async () => {
+  const calls: string[] = []
+  await hydrateRuntimeThreadConversation({
+    userId: 'user_1',
+    conversationId: 'conv_1',
+    threadId: 'thread_1',
+    existingMessages: [],
+    hydratedKeys: new Set(),
+    signal: new AbortController().signal,
+  }, depsFixture(calls, {
+    projection: projection({ runtimeStatusLight: WAITING_RUNTIME_STATUS_LIGHT }),
+    recordStatusLight: true,
+  }))
+
+  assert.equal(calls.includes('status:waiting'), true)
+})
+
 test('hydrateRuntimeThreadConversation releases the hydration key when aborted before commit', async () => {
   const calls: string[] = []
   const hydratedKeys = new Set<string>()
@@ -181,6 +199,7 @@ function depsFixture(
   options: {
     projection?: RuntimeThreadHydrationResult
     loadProjection?: HydrateRuntimeThreadConversationDeps['loadProjection']
+    recordStatusLight?: boolean
   } = {},
 ): HydrateRuntimeThreadConversationDeps {
   return {
@@ -200,6 +219,9 @@ function depsFixture(
     setSubmittedInteractionRuns: (updater) => {
       calls.push(`submitted:${updater([]).map((run) => run.id).join(',')}`)
     },
+    ...(options.recordStatusLight ? { setRuntimeStatusLight: (status) => {
+      calls.push(`status:${status.state}`)
+    } } : {}),
     updateConversationTitle: (_userId, conversationId, title) => {
       calls.push(`title:${conversationId}:${title}`)
     },
@@ -219,6 +241,7 @@ function projection(overrides: Partial<RuntimeThreadHydrationResult> = {}): Runt
     currentRun: overrides.currentRun ?? overrides.runs?.[0] ?? run({ threadId: runtimeThread.id }),
     actionableRuns: overrides.actionableRuns ?? [],
     messages: overrides.messages ?? [message({ meta: { runtimeMessage: { threadId: runtimeThread.id, messageId: 'msg_1' } } })],
+    runtimeStatusLight: overrides.runtimeStatusLight ?? WAITING_RUNTIME_STATUS_LIGHT,
   }
 }
 

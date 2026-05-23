@@ -21,6 +21,7 @@ export interface UseAgentSendActionsInput {
   answeringPendingInput: boolean
   activePendingInputRequest: PendingInputRequestRef | null | undefined
   canAnswerPendingInputWithText: boolean
+  canSendActiveRunRuntimeInput: boolean
   modelId: number | null
   debugBeforeSend: boolean
   pendingSendDraft: AgentSendDraft | null
@@ -53,6 +54,7 @@ export function useAgentSendActions({
   answeringPendingInput,
   activePendingInputRequest,
   canAnswerPendingInputWithText,
+  canSendActiveRunRuntimeInput,
   modelId,
   debugBeforeSend,
   pendingSendDraft,
@@ -63,7 +65,7 @@ export function useAgentSendActions({
   updateDraft,
   setMentionRange,
   answerActiveLocalRunInput,
-  sendActiveRunRuntimeInput: _sendActiveRunRuntimeInput,
+  sendActiveRunRuntimeInput,
   addAssistantMessage,
   setConversationBuilding,
   buildSendDraft,
@@ -117,6 +119,14 @@ export function useAgentSendActions({
       await answerActiveLocalRunInput(activePendingInputRequest.id, { text })
       return
     }
+    if (canSendActiveRunRuntimeInput) {
+      const content = input.trim()
+      const attachments = composerAttachments
+      updateDraft({ input: '', attachments: [] })
+      setMentionRange(null)
+      await sendActiveRunRuntimeInput({ content, attachments })
+      return
+    }
     if (!modelId) {
       addAssistantMessage(labels.selectModelFirst)
       return
@@ -146,9 +156,11 @@ export function useAgentSendActions({
     answeringPendingInput,
     activePendingInputRequest,
     canAnswerPendingInputWithText,
+    canSendActiveRunRuntimeInput,
     updateDraft,
     setMentionRange,
     answerActiveLocalRunInput,
+    sendActiveRunRuntimeInput,
     modelId,
     addAssistantMessage,
     labels,

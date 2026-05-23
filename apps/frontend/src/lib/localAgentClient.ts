@@ -1,673 +1,141 @@
 import { useUserStore } from '@/store/userStore'
 import { getAPIV1BaseURL } from '@/lib/config'
+import { AGENT_RUNTIME_EVENT_V2_SCHEMA, AGENT_TRACE_EVENT_KINDS } from '@movscript/protocol'
+import { runtimeRunFromEvent, runtimeRunIdFromEvent } from '@movscript/event-state'
+import type {
+  AgentApprovalRequest,
+  AgentCapabilitiesResponse,
+  AgentCatalogProfile,
+  AgentCatalogSkill,
+  AgentClientInput,
+  AgentDebugTool,
+  AgentDebugContextPanel,
+  AgentInspectResponse,
+  AgentInputRequest,
+  AgentManifest,
+  AgentMessage,
+  AgentMessageRole,
+  AgentPlan,
+  AgentPlanRevision,
+  AgentPlanTask,
+  AgentPlanTaskStatus,
+  AgentRun,
+  AgentRunInput,
+  AgentRunPolicy,
+  AgentRunRole,
+  AgentRunPreview,
+  AgentRunStatus,
+  AgentRunStep,
+  AgentRunTracePage,
+  AgentRunTraceSummary,
+  AgentRuntimeEventV2,
+  AgentRuntimeSnapshotV2,
+  AgentSession,
+  AgentSessionSummary,
+  AgentStepStatus,
+  AgentTask,
+  AgentTaskArtifact,
+  AgentTaskGraph,
+  AgentTaskGraphSnapshot,
+  AgentTaskGraphStatus,
+  AgentTaskStatus,
+  AgentThread,
+  AgentThreadClearResult,
+  AgentThreadDeletionResult,
+  AgentThreadRole,
+  AgentThreadResolution,
+  AgentThreadSummary,
+  AgentThreadStatus,
+  AgentTraceEvent,
+  AgentTraceEventKind,
+  AgentTraceQuery,
+  CompiledPromptPreview,
+  DispatchTaskGraphResult,
+  ResolvedAgentSkill,
+  ResolvedToolCatalog,
+  RuntimeModelCapabilityRoutePublic,
+  RuntimeModelAPIKind,
+  RuntimeModelConfigPublic,
+  RuntimeModelCredentialStatusPublic,
+  RuntimeModelTestResult,
+  CreateMessageRunResult,
+  RunMessageResult,
+  RuntimeContinuation,
+  RuntimeInteraction,
+  RuntimeWork,
+  ToolCall,
+  UpdateTaskGraphResult,
+} from '@movscript/protocol'
 
-export type AgentMessageRole = 'system' | 'user' | 'assistant'
-export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed' | 'cancelled'
-export type AgentThreadStatus = 'idle' | 'running' | 'requires_action' | 'completed' | 'failed' | 'cancelled'
-export type AgentStepStatus = 'in_progress' | 'completed' | 'failed'
-export type AgentInputRequestStatus = 'pending' | 'answered' | 'cancelled'
-export type AgentRunRole = 'planner' | 'worker'
-export type AgentThreadRole = 'root' | 'planner' | 'worker'
-export type AgentTaskGraphStatus = 'pending' | 'running' | 'blocked' | 'needs_review' | 'done' | 'failed' | 'cancelled'
-export type AgentTaskStatus = 'pending' | 'running' | 'blocked' | 'needs_review' | 'done' | 'failed' | 'cancelled'
-export type AgentPlanTaskStatus = 'pending' | 'in_progress' | 'completed'
-
-export interface AgentSession {
-  id: string
-  title?: string
-  projectId?: number
-  metadata?: Record<string, unknown>
-  rootThreadId?: string
-  activeThreadId?: string
-  status?: AgentThreadStatus
-  createdAt: string
-  updatedAt: string
+export { AGENT_TRACE_EVENT_KINDS }
+export type {
+  AgentApprovalRequest,
+  AgentCapabilitiesResponse,
+  AgentCatalogProfile,
+  AgentCatalogSkill,
+  AgentClientInput,
+  AgentDebugTool,
+  AgentDebugContextPanel,
+  AgentInspectResponse,
+  AgentInputRequest,
+  AgentManifest,
+  AgentMessage,
+  AgentMessageRole,
+  AgentPlan,
+  AgentPlanRevision,
+  AgentPlanTask,
+  AgentPlanTaskStatus,
+  AgentRun,
+  AgentRunInput,
+  AgentRunPolicy,
+  AgentRunRole,
+  AgentRunPreview,
+  AgentRunStatus,
+  AgentRunStep,
+  AgentRunTracePage,
+  AgentRunTraceSummary,
+  AgentRuntimeEventV2,
+  AgentRuntimeSnapshotV2,
+  AgentSession,
+  AgentSessionSummary,
+  AgentStepStatus,
+  AgentTask,
+  AgentTaskArtifact,
+  AgentTaskGraph,
+  AgentTaskGraphSnapshot,
+  AgentTaskGraphStatus,
+  AgentTaskStatus,
+  AgentThread,
+  AgentThreadClearResult,
+  AgentThreadDeletionResult,
+  AgentThreadRole,
+  AgentThreadResolution,
+  AgentThreadSummary,
+  AgentThreadStatus,
+  AgentTraceEvent,
+  AgentTraceEventKind,
+  AgentTraceQuery,
+  CompiledPromptPreview,
+  DispatchTaskGraphResult,
+  ResolvedAgentSkill,
+  ResolvedToolCatalog,
+  RuntimeModelCapabilityRoutePublic,
+  RuntimeModelAPIKind,
+  RuntimeModelConfigPublic,
+  RuntimeModelCredentialStatusPublic,
+  RuntimeModelTestResult,
+  CreateMessageRunResult,
+  RunMessageResult,
+  RuntimeContinuation,
+  RuntimeInteraction,
+  RuntimeWork,
+  ToolCall,
+  UpdateTaskGraphResult,
 }
 
-export interface AgentSessionSummary extends AgentSession {
-  threadCount: number
-}
-
-export interface AgentMessage {
-  id: string
-  threadId: string
-  role: AgentMessageRole
-  content: string
-  clientInput?: unknown
-  runId?: string
-  metadata?: Record<string, unknown>
-  createdAt: string
-}
-
-export interface AgentThread {
-  id: string
-  sessionId?: string
-  title?: string
-  agentName?: string
-  agentRole?: AgentThreadRole
-  parentThreadId?: string
-  parentRunId?: string
-  projectId?: number
-  metadata?: Record<string, unknown>
-  currentPlan?: AgentPlan
-  planRevisions?: AgentPlanRevision[]
-  archived?: boolean
-  status?: AgentThreadStatus
-  activeRunId?: string
-  lastRunId?: string
-  lastRunStatus?: AgentRunStatus
-  createdAt: string
-  updatedAt: string
-  messages: AgentMessage[]
-}
-
-export interface AgentThreadSummary {
-  id: string
-  sessionId?: string
-  title?: string
-  agentName?: string
-  agentRole?: AgentThreadRole
-  parentThreadId?: string
-  parentRunId?: string
-  projectId?: number
-  metadata?: Record<string, unknown>
-  currentPlan?: AgentPlan
-  archived: boolean
-  status?: AgentThreadStatus
-  activeRunId?: string
-  lastRunId?: string
-  lastRunStatus?: AgentRunStatus
-  createdAt: string
-  updatedAt: string
-  messageCount: number
-  lastMessageAt?: string
-}
-
-export interface AgentThreadDeletionResult {
-  deleted: boolean
-  threadId: string
-  deletedRunIds: string[]
-  deletedTaskGraphIds: string[]
-  deletedTaskIds: string[]
-  deletedRuntimeWorkIds: string[]
-  deletedRuntimeInteractionIds: string[]
-  deletedRuntimeContinuationIds: string[]
-}
-
-export interface AgentThreadClearResult {
-  deleted: boolean
-  deletedThreadIds: string[]
-  deletedRunIds: string[]
-  deletedTaskGraphIds: string[]
-  deletedTaskIds: string[]
-  deletedRuntimeWorkIds: string[]
-  deletedRuntimeInteractionIds: string[]
-  deletedRuntimeContinuationIds: string[]
-}
-
-export interface AgentPlanTask {
-  step: string
-  status: AgentPlanTaskStatus
-}
-
-export interface AgentPlan {
-  schema: 'movscript.agent.plan.v1'
-  id: string
-  threadId: string
-  runId?: string
-  explanation?: string
-  items: AgentPlanTask[]
-  completedCount: number
-  totalCount: number
-  createdAt: string
-  updatedAt: string
-}
-
-export interface AgentPlanRevision {
-  schema: 'movscript.agent.plan-revision.v1'
-  id: string
-  planId: string
-  threadId: string
-  runId?: string
-  explanation?: string
-  snapshot: AgentPlan
-  createdAt: string
-}
-
-export interface AgentRunStep {
-  id: string
-  runId: string
-  type: 'tool_call' | 'message'
-  status: AgentStepStatus
-  roundId?: string
-  roundIndex?: number
-  roundLabel?: string
-  roundSource?: 'setup' | 'runtime_rule' | 'model' | 'approval' | 'final'
-  title?: string
-  toolName?: string
-  args?: Record<string, unknown>
-  result?: unknown
-  error?: string
-  errorData?: unknown
-  sandboxed?: boolean
-  durationMs?: number
-  createdAt: string
-  completedAt?: string
-}
-
-export const AGENT_TRACE_EVENT_KINDS = [
-  'run',
-  'thread',
-  'message',
-  'context',
-  'memory',
-  'manifest',
-  'skill',
-  'tool_catalog',
-  'prompt',
-  'policy',
-  'reasoning',
-  'tool_call',
-  'model_call',
-  'approval',
-  'input',
-  'assistant',
-  'task',
-  'taskGraph',
-  'error',
-] as const
-
-export type AgentTraceEventKind = typeof AGENT_TRACE_EVENT_KINDS[number]
-
-export interface AgentTraceEvent {
-  id: string
-  runId: string
-  kind: AgentTraceEventKind
-  title: string
-  summary?: string
-  status: 'started' | 'completed' | 'blocked' | 'failed' | 'info'
-  roundId?: string
-  roundIndex?: number
-  roundLabel?: string
-  roundSource?: 'setup' | 'runtime_rule' | 'model' | 'approval' | 'final'
-  agentId?: string
-  parentAgentId?: string
-  stepId?: string
-  toolName?: string
-  data?: unknown
-  durationMs?: number
-  createdAt: string
-  completedAt?: string
-}
-
-export interface AgentToolCall {
-  name: string
-  args?: Record<string, unknown>
-}
-
-export interface AgentManifest {
-  schema: 'movscript.agent.current'
-  id: string
-  version: string
-  name: string
-  description?: string
-  soul?: string
-  tools: Array<{
-    name: string
-    mode: 'allow' | 'deny'
-    approval?: 'never' | 'always' | 'on_write'
-  }>
-  skills?: Array<{
-    id: string
-    enabled?: boolean
-  }>
-  model?: {
-    provider?: string
-    modelId?: string
-    platformModelId?: number
-  }
-  metadata?: Record<string, unknown>
-}
-
-export interface AgentCatalogSkill {
-  id: string
-  kind?: 'persona' | 'workflow' | 'policy' | 'expertise'
-  name: string
-  description: string
-  version?: string
-  category?: string
-  categories?: string[]
-  enabled: boolean
-  priority?: number
-  instruction: string
-  instructionTemplate?: string
-  loadMode?: 'core' | 'on_demand' | 'manual'
-  activationScope?: 'turn' | 'run' | 'thread'
-  tags?: string[]
-  aliases?: string[]
-  useWhen?: string[]
-  dependencies?: string[]
-  conflicts?: string[]
-  toolRefs?: string[]
-  schemaRefs?: string[]
-  tokenEstimate?: number
-  outputContract?: string
-  toolHints?: string[]
-  metadata?: Record<string, unknown>
-}
-
-export interface AgentCatalogProfile {
-  schema: 'movscript.agent.profile.v1'
-  id: string
-  version: string
-  name: string
-  description?: string
-  enabledPacks: string[]
-  persona: string | null
-  enabledWorkflows: string[]
-  enabledPolicies: string[]
-  toolGrants: Array<{
-    name: string
-    mode: 'allow' | 'deny'
-    approval?: 'never' | 'always' | 'on_write'
-  }>
-  model?: {
-    provider: string
-    modelId: string
-    platformModelId?: string
-    routes?: unknown[]
-  }
-  limits?: Record<string, number>
-  metadata?: Record<string, unknown>
-}
-
-export interface AgentDebugContextPanel {
-  route: { pathname: string; search?: string; hash?: string }
-  projects?: Array<{ id: number; name: string; description?: string; status?: string; totalEpisodes?: number }>
-  projectsError?: string
-  project?: { id: number; name?: string; status?: string; description?: string; aspect_ratio?: string; visual_style?: string; project_style?: string }
-  productionId?: number
-  user?: { id: number; username: string; systemRole?: string }
-  selection?: { entityType: string; entityId: number | string; label?: string } | null
-  recentResources: Array<{ id: number; name: string; type: string; mimeType?: string; size?: number }>
-  attachments: Array<{ id: string; name: string; type: string; resourceId?: number }>
-  memories: Array<{ id: string; scope: string; kind: string; content: string }>
-  labels: string[]
-  statusDigest?: string[]
-  rawContextHints?: string[]
-}
-
-export interface ResolvedAgentSkill extends AgentCatalogSkill {
-  resolvedPriority: number
-  activationReason: 'profile' | 'trigger' | 'default'
-  compiledInstruction: string
-  warnings: string[]
-}
-
-export interface AgentDebugTool {
-  name: string
-  description?: string
-  inputSchema?: unknown
-  outputSchema?: unknown
-  source: 'mcp' | 'runtime' | 'plugin'
-  registered: boolean
-  granted: boolean
-  permission?: string
-  risk?: 'read' | 'draft' | 'write' | 'generate' | 'destructive' | 'ui'
-  projectScoped?: boolean
-  approval: 'never' | 'always' | 'on_write'
-  available: boolean
-  unavailableReason?: string
-  requiresApproval: boolean
-  resolution?: {
-    authorized: boolean
-    visible: boolean
-    reason?: string
-    grantSource: 'manifest' | 'none'
-    approval: 'never' | 'always' | 'on_write'
-    activeSkillIds: string[]
-  }
-}
-
-export interface ResolvedToolCatalog {
-  discovered: AgentDebugTool[]
-  available: AgentDebugTool[]
-  blocked: AgentDebugTool[]
-  byName: Record<string, AgentDebugTool>
-}
-
-export interface CompiledPromptPreview {
-  system: string
-  messages: Array<{ role: string; content: string }>
-  debugParts: Array<{ id: string; kind: string; title: string; content: string }>
-}
-
-export interface AgentRun {
-  id: string
-  sessionId?: string
-  threadId: string
-  status: AgentRunStatus
-  role?: AgentRunRole
-  parentRunId?: string
-  taskGraphId?: string
-  taskId?: string
-  progress?: number
-  blockedReason?: string
-  input?: AgentRunInput
-  agentManifest?: AgentManifest
-  pendingApprovals?: AgentApprovalRequest[]
-  pendingInputRequests?: AgentInputRequest[]
-  policy: AgentRunPolicy
-  metadata?: Record<string, unknown>
-  createdAt: string
-  updatedAt: string
-  startedAt?: string
-  completedAt?: string
-  failedAt?: string
-  cancelledAt?: string
-  error?: string
-  warnings?: string[]
-  assistantMessageId?: string
-  steps: AgentRunStep[]
-  traceEvents?: AgentTraceEvent[]
-  streamPartial?: true
-}
-
-export interface AgentRunInput {
-  schema?: 'movscript.agent.run-input.v1'
-  userMessage?: string
-  sourceMessageId?: string
-  executionMode?: 'chat' | 'tool' | 'worker' | 'resume'
-  clientInput?: unknown
-  parent?: {
-    runId?: string
-    taskGraphId?: string
-    taskId?: string
-  }
-  task?: {
-    id?: string
-  }
-}
-
-export interface AgentTaskArtifact {
-  id: string
-  type: string
-  title?: string
-  uri?: string
-  metadata?: Record<string, unknown>
-  createdAt: string
-}
-
-export interface AgentTask {
-  id: string
-  taskGraphId: string
-  parentId?: string
-  deps: string[]
-  title: string
-  description?: string
-  status: AgentTaskStatus
-  progress: number
-  ownerRunId?: string
-  blockedReason?: string
-  artifacts: AgentTaskArtifact[]
-  metadata?: Record<string, unknown>
-  createdAt: string
-  updatedAt: string
-  startedAt?: string
-  completedAt?: string
-  failedAt?: string
-  cancelledAt?: string
-}
-
-export interface AgentTaskGraph {
-  id: string
-  sessionId?: string
-  threadId: string
-  rootRunId?: string
-  title: string
-  status: AgentTaskGraphStatus
-  progress: number
-  blockedReason?: string
-  metadata?: Record<string, unknown>
-  createdAt: string
-  updatedAt: string
-  completedAt?: string
-  failedAt?: string
-  cancelledAt?: string
-}
-
-export interface AgentTaskGraphSnapshot {
-  taskGraph: AgentTaskGraph
-  tasks: AgentTask[]
-  runs: AgentRun[]
-  nameConflicts?: Array<{
-    subagentName: string
-    taskIds: string[]
-  }>
-  summary?: {
-    taskCount: number
-    taskStatusCounts: Record<AgentTask['status'], number>
-    workerCount: number
-    activeWorkerCount: number
-    artifactCount: number
-    nameConflictCount: number
-    blockedTaskIds: string[]
-    needsReviewTaskIds: string[]
-    failedTaskIds: string[]
-  }
-}
-
-export interface DispatchTaskGraphResult {
-  taskGraph: AgentTaskGraph
-  spawnedRuns: AgentRun[]
-  blockedTaskIds: string[]
-  retriedTaskIds: string[]
-  timedOutRunIds: string[]
-}
-
-export interface UpdateTaskGraphResult {
-  taskGraph: AgentTaskGraph
-  createdTaskIds: string[]
-  updatedTaskIds: string[]
-  resetTaskIds: string[]
-  dispatch?: DispatchTaskGraphResult
-}
-
-export interface AgentRunPreview {
-  id: string
-  threadId?: string
-  message: string
-  status: 'preview'
-  agentManifest?: AgentManifest
-  currentProjectId?: number
-  context?: AgentDebugContextPanel
-  skills?: ResolvedAgentSkill[]
-  tools?: ResolvedToolCatalog
-  policy?: AgentRunPolicy
-  promptPreview?: CompiledPromptPreview
-  debug?: Record<string, unknown>
-  toolCalls: AgentToolCall[]
-  pendingApprovals: AgentApprovalRequest[]
-  warnings: string[]
-  memoryIds: string[]
-  memoryCount: number
-  createdAt: string
-}
-
-export interface AgentClientInput {
-  message: string
-  attachments?: Array<{
-    id?: string
-    name?: string
-    type?: string
-    mimeType?: string
-    size?: number
-    resourceId?: number
-  }>
-  uiSnapshot?: {
-    route?: {
-      pathname?: string
-      search?: string
-      hash?: string
-    }
-    pageContext?: {
-      pageKey?: string
-      pageType?: string
-      pageRoute?: string
-      pageEntityType?: string
-      pageEntityId?: number | string
-      draftId?: string
-    }
-    project?: {
-      id?: number
-      name?: string
-      status?: string
-      description?: string
-    }
-    productionId?: number
-    draftId?: string
-    agent?: {
-      key?: string
-      name?: string
-    }
-    selection?: {
-      entityType?: string
-      entityId?: number | string
-      label?: string
-    } | null
-    recentResources?: Array<{
-      id?: number
-      name?: string
-      type?: string
-      mimeType?: string
-      size?: number
-    }>
-    labels?: string[]
-  }
-}
-
-export interface AgentRunPolicy {
-  approvalMode: 'interactive' | 'auto_readonly' | 'auto'
-  sandboxMode?: boolean
-  maxToolCalls: number
-  maxIterations: number
-  allowNetwork: boolean
-  allowFileBytes: boolean
-  workflow?: {
-    profile: 'standard' | 'compact' | 'deep'
-    includeMemories?: boolean
-    allowForcedToolCalls?: boolean
-  }
-  costLimit?: {
-    currency: string
-    amount: number
-  }
-}
+export type AgentToolCall = ToolCall
 
 export type AgentRunPolicyOverride = Partial<Pick<AgentRunPolicy, 'approvalMode' | 'sandboxMode' | 'maxToolCalls' | 'maxIterations' | 'workflow'>>
-
-export interface AgentCapabilitiesResponse {
-  defaultAgentManifest: AgentManifest
-  pluginCatalog?: {
-    skillsDir: string
-    toolsDir: string
-    builtinSkillsDir?: string
-    builtinToolsDir?: string
-    skillCount: number
-    toolCount: number
-  }
-  mcp: {
-    connected: boolean
-    resources: Array<{ uri: string; name?: string; description?: string; mimeType?: string }>
-    tools: Array<{ name: string; description?: string; inputSchema?: unknown }>
-    error?: string
-  }
-  registry: Array<{
-    name: string
-    description: string
-    permission: string
-    risk: string
-    projectScoped: boolean
-    requiresApprovalByDefault: boolean
-  }>
-  resolvedTools: ResolvedToolCatalog
-  warnings: string[]
-}
-
-export interface AgentInspectResponse {
-  mcpEndpoint: string
-  resources: Array<{ uri: string; name?: string; description?: string; mimeType?: string }>
-  tools: Array<{ name: string; description?: string; inputSchema?: unknown }>
-  registeredTools: Array<{
-    name: string
-    description: string
-    permission: string
-    risk: AgentDebugTool['risk']
-    projectScoped: boolean
-    requiresApprovalByDefault: boolean
-    source?: string
-    category?: string
-    categories?: string[]
-  }>
-  skills: AgentCatalogSkill[]
-  profiles: AgentCatalogProfile[]
-  defaultAgentManifest: AgentManifest
-  pluginCatalog?: {
-    skillsDir: string
-    toolsDir: string
-    builtinSkillsDir?: string
-    builtinToolsDir?: string
-    skillCount: number
-    toolCount: number
-    skillPlugins?: Array<{
-      pluginId: string
-      path: string
-    }>
-    warnings?: string[]
-  }
-}
-
-export interface AgentApprovalRequest {
-  id: string
-  runId: string
-  interactionId?: string
-  toolName: string
-  args?: Record<string, unknown>
-  preview?: unknown
-  reason: string
-  risk?: string
-  permission?: string
-  status: 'pending' | 'approved' | 'rejected'
-  createdAt: string
-  updatedAt: string
-  approvedAt?: string
-  rejectedAt?: string
-}
-
-export interface AgentInputChoice {
-  id: string
-  label: string
-  description?: string
-}
-
-export interface AgentInputRequest {
-  id: string
-  runId: string
-  title: string
-  summary?: string
-  question: string
-  inputType: 'choice' | 'text' | 'confirmation'
-  choices: AgentInputChoice[]
-  allowCustomAnswer: boolean
-  status: AgentInputRequestStatus
-  createdAt: string
-  updatedAt: string
-  answeredAt?: string
-  answer?: {
-    choiceIds?: string[]
-    text?: string
-  }
-}
 
 export interface AgentHealth {
   ok: boolean
@@ -696,63 +164,6 @@ export interface AgentHealth {
     skillCount: number
     toolCount: number
     warnings?: string[]
-  }
-}
-
-export interface RuntimeModelConfigPublic {
-  configured: boolean
-  provider: 'backend-model-config'
-  modelConfigId?: number
-  model: string
-  apiKind?: 'openai_chat_completions' | 'openai_responses' | 'anthropic_messages'
-  baseURL?: string
-  apiKeyConfigured?: boolean
-  useForChat: boolean
-  useForPlanner: boolean
-  updatedAt?: string
-  source: 'file' | 'none'
-  credentialStatus?: RuntimeModelCredentialStatusPublic
-  capabilities?: RuntimeModelCapabilityRoutePublic[]
-}
-
-export interface RuntimeModelCredentialStatusPublic {
-  required: boolean
-  configured: boolean
-  sourceEnv: string[]
-  acceptedEnv: string[]
-}
-
-export interface RuntimeModelCapabilityRoutePublic {
-  capability: 'reasoning' | 'text' | 'planning' | 'multimodal'
-  configured: boolean
-  provider?: 'backend-model-config'
-  modelConfigId?: number
-  model?: string
-  source: 'configured' | 'chat-config-fallback' | 'planner-config' | 'disabled' | 'unconfigured'
-}
-
-export interface RuntimeModelTestResult {
-  ok: boolean
-  provider: string
-  model: string
-  apiKind?: 'openai_chat_completions' | 'openai_responses' | 'anthropic_messages'
-  modelConfigId?: number
-  latencyMs: number
-  content: string
-  request: {
-    url: string
-    method: 'POST'
-    headers: Record<string, string>
-    body: {
-      model: string
-      messages: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string | null }>
-      stream?: boolean
-      temperature?: number
-      response_format?: { type: 'json_object' }
-      tools?: unknown
-      tool_choice?: unknown
-      sdk_body?: unknown
-    } & Record<string, unknown>
   }
 }
 
@@ -819,126 +230,6 @@ export interface AgentDraftApplyPreview {
   backendApply?: Record<string, unknown>
 }
 
-export interface RunMessageResult {
-  run: AgentRun
-  thread: AgentThread
-  threadResolution: AgentThreadResolution
-  sourceMessage?: AgentMessage
-}
-
-export interface CreateMessageRunResult {
-  run: AgentRun
-  message: AgentMessage
-  runtimeInput?: {
-    accepted: boolean
-    runId: string
-    messageId: string
-    status: string
-  }
-}
-
-export interface AgentThreadRuntimeSnapshot {
-  schema: 'movscript.thread-runtime.v2'
-  updatedAt: string
-  thread: AgentThread
-  runs: AgentRun[]
-  works: RuntimeWork[]
-  interactions: RuntimeInteraction[]
-  continuations: RuntimeContinuation[]
-  current: {
-    activeRunIds: string[]
-    waitingRunIds: string[]
-    runningWorkIds: string[]
-    pendingInteractionIds: string[]
-    readyContinuationIds: string[]
-  }
-}
-
-export interface AgentSessionRuntimeSnapshot {
-  schema: 'movscript.session-runtime.v1'
-  updatedAt: string
-  session: AgentSession
-  threads: AgentThread[]
-  taskGraphs: AgentTaskGraphSnapshot[]
-  runs: AgentRun[]
-  works: RuntimeWork[]
-  interactions: RuntimeInteraction[]
-  continuations: RuntimeContinuation[]
-  current: {
-    activeThreadIds: string[]
-    activeRunIds: string[]
-    waitingRunIds: string[]
-    runningWorkIds: string[]
-    pendingInteractionIds: string[]
-    readyContinuationIds: string[]
-  }
-}
-
-export interface RuntimeWork {
-  id: string
-  sessionId?: string
-  threadId: string
-  runId: string
-  kind: 'generation_job' | 'subagent_run'
-  mode: 'async'
-  status: 'pending_approval' | 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled' | 'timeout'
-  request: unknown
-  continuationPolicy?: {
-    mode: 'none' | 'any_completed' | 'all_completed' | 'all_settled' | 'manual_selection'
-    groupId?: string
-  }
-  externalHandle?: { provider: string; type: string; id: string | number }
-  result?: unknown
-  error?: string
-  timeoutMs?: number
-  pollIntervalMs?: number
-  createdAt: string
-  updatedAt: string
-  completedAt?: string
-}
-
-export interface RuntimeInteraction {
-  id: string
-  threadId: string
-  runId: string
-  workId?: string
-  kind: 'approval' | 'input' | 'selection'
-  status: 'pending' | 'approved' | 'rejected' | 'answered' | 'cancelled'
-  payload: unknown
-  result?: unknown
-  createdAt: string
-  updatedAt: string
-  resolvedAt?: string
-}
-
-export interface RuntimeContinuation {
-  id: string
-  threadId: string
-  runId: string
-  status: 'waiting' | 'ready' | 'consumed' | 'cancelled'
-  trigger:
-    | { type: 'work_completed'; workIds: string[]; mode: 'any' | 'all' }
-    | { type: 'interaction_resolved'; interactionIds: string[]; mode: 'any' | 'all' }
-    | { type: 'manual' }
-  nextInput?: {
-    workResults?: string[]
-    interactionResults?: string[]
-    message?: string
-  }
-  createdAt: string
-  updatedAt: string
-  consumedAt?: string
-  cancelledAt?: string
-}
-
-export interface AgentThreadResolution {
-  requestedThreadId?: string
-  threadId: string
-  reusedExistingThread: boolean
-  createdNewThread: boolean
-  missingRequestedThread: boolean
-}
-
 export class LocalAgentHTTPError extends Error {
   constructor(
     readonly status: number,
@@ -955,64 +246,7 @@ export function isLocalAgentNotFoundError(error: unknown): boolean {
     : error instanceof Error && /^local agent returned 404:/.test(error.message)
 }
 
-export type AgentRunStreamEvent =
-  | {
-    type: 'run'
-    run: AgentRun
-  }
-  | {
-    type: 'trace'
-    runId: string
-    event: AgentTraceEvent
-    run?: AgentRun
-  }
-  | {
-    type: 'assistant_delta'
-    runId: string
-    traceEventId: string
-    delta: string
-    accumulated: string
-    roundIndex?: number
-    roundLabel?: string
-    createdAt: string
-    run?: AgentRun
-  }
-  | {
-    type: 'assistant_message'
-    runId: string
-    message: AgentMessage
-    run: AgentRun
-  }
-  | {
-    type: 'thread_title'
-    runId: string
-    threadId: string
-    title: string
-    updatedAt: string
-  }
-  | {
-    type: 'done'
-    run: AgentRun
-  }
-
-export type AgentThreadStreamEvent = AgentRunStreamEvent & {
-  threadId: string
-}
-
-export interface AgentRunTraceResponse {
-  runId: string
-  events: AgentTraceEvent[]
-  total?: number
-  hasMore?: boolean
-  nextCursor?: string
-}
-
-export interface AgentRunTraceSummary {
-  runId: string
-  total: number
-  byKind: Partial<Record<AgentTraceEventKind, number>>
-  latestEvent?: AgentTraceEvent
-}
+export type AgentRunTraceResponse = AgentRunTracePage
 
 export interface AgentRunDebugLedger {
   schema: 'movscript.agent.run-debug-ledger.v1'
@@ -1270,8 +504,8 @@ export interface AgentSkillBundleUninstallResult {
 
 export interface RunMessageOptions {
   onRunUpdate?: (run: AgentRun) => void
-  onStreamEvent?: (event: AgentRunStreamEvent) => void
-  onAssistantDelta?: (event: Extract<AgentRunStreamEvent, { type: 'assistant_delta' }>) => void
+  onSourceMessage?: (message: AgentMessage, run: AgentRun) => void
+  onRuntimeEvent?: (event: AgentRuntimeEventV2) => void
   timeoutMs?: number
   streamRequestTimeoutMs?: number
   pollMs?: number
@@ -1281,7 +515,7 @@ export interface RunMessageOptions {
 }
 
 export interface ThreadStreamOptions {
-  onStreamEvent?: (event: AgentThreadStreamEvent) => void
+  onRuntimeEvent?: (event: AgentRuntimeEventV2) => void
   signal?: AbortSignal
 }
 
@@ -1320,7 +554,7 @@ export class LocalAgentClient {
     } catch (healthError) {
       const ensureAgentRuntime = canStartLocalAgentFromClient() ? window.api?.ensureAgentRuntime : undefined
       if (!ensureAgentRuntime) {
-        throw new Error(`当前窗口没有桌面客户端启动能力。请用 Electron 桌面端打开，或手动运行：pnpm --filter movscript-agent dev`)
+        throw new Error(`当前窗口没有桌面客户端启动能力。请用 Electron 桌面端打开，或手动运行：pnpm --filter @movscript/agent dev`)
       }
 
       const status = await ensureAgentRuntime({ baseURL: this.baseURL })
@@ -1339,7 +573,7 @@ export class LocalAgentClient {
     return this.getJSON(`/sessions/${encodeURIComponent(sessionId)}`, { signal })
   }
 
-  getSessionRuntime(sessionId: string, signal?: AbortSignal): Promise<AgentSessionRuntimeSnapshot> {
+  getSessionRuntime(sessionId: string, signal?: AbortSignal): Promise<AgentRuntimeSnapshotV2> {
     return this.getJSON(`/sessions/${encodeURIComponent(sessionId)}/runtime`, { signal })
   }
 
@@ -1369,6 +603,7 @@ export class LocalAgentClient {
 
   createMessageRun(threadId: string, input: {
     message: string
+    sourceMessageId?: string
     toolCall?: AgentToolCall
     agentManifest?: AgentManifest
     approvedToolNames?: string[]
@@ -1392,7 +627,7 @@ export class LocalAgentClient {
     return this.getJSON(`/threads/${encodeURIComponent(threadId)}/runs`, { signal })
   }
 
-  getThreadRuntime(threadId: string, signal?: AbortSignal): Promise<AgentThreadRuntimeSnapshot> {
+  getThreadRuntime(threadId: string, signal?: AbortSignal): Promise<AgentRuntimeSnapshotV2> {
     return this.getJSON(`/threads/${encodeURIComponent(threadId)}/runtime`, { signal })
   }
 
@@ -1437,7 +672,7 @@ export class LocalAgentClient {
   saveModelConfig(input: {
     modelConfigId?: number
     model: string
-    apiKind?: 'openai_chat_completions' | 'openai_responses' | 'anthropic_messages'
+    apiKind?: RuntimeModelAPIKind
     baseURL?: string
     apiKey?: string
     useForChat?: boolean
@@ -1454,7 +689,7 @@ export class LocalAgentClient {
     message?: string
     modelConfigId?: number
     model?: string
-    apiKind?: 'openai_chat_completions' | 'openai_responses' | 'anthropic_messages'
+    apiKind?: RuntimeModelAPIKind
     baseURL?: string
     apiKey?: string
     useForChat?: boolean
@@ -1545,7 +780,7 @@ export class LocalAgentClient {
     return this.postJSON(`/runs/${encodeURIComponent(runId)}/cancel-tree`, input, signal)
   }
 
-  getRunTraceEvents(runId: string, query: { cursor?: string; limit?: number; kind?: AgentTraceEventKind } = {}): Promise<AgentRunTraceResponse> {
+  getRunTraceEvents(runId: string, query: AgentTraceQuery = {}): Promise<AgentRunTraceResponse> {
     const params = new URLSearchParams()
     if (query.cursor) params.set('cursor', query.cursor)
     if (typeof query.limit === 'number') params.set('limit', String(query.limit))
@@ -1577,7 +812,7 @@ export class LocalAgentClient {
     return this.getJSON(`/runs/${encodeURIComponent(runId)}/generation-view`)
   }
 
-  answerRunInput(runId: string, input: { requestId?: string; choiceIds?: string[]; text?: string }, signal?: AbortSignal): Promise<AgentRun> {
+  answerRunInput(runId: string, input: { requestId?: string; choiceIds?: string[]; text?: string; sourceMessageId?: string }, signal?: AbortSignal): Promise<AgentRun> {
     return this.postJSON(`/runs/${encodeURIComponent(runId)}/input`, input, signal)
   }
 
@@ -1685,7 +920,8 @@ export class LocalAgentClient {
       const parsed = parseSSEBlock(block)
       if (!parsed) return
       try {
-        options.onStreamEvent?.(JSON.parse(parsed.data) as AgentThreadStreamEvent)
+        const event = parseRuntimeEvent(parsed.data)
+        if (event) options.onRuntimeEvent?.(event)
       } catch {
         return
       }
@@ -1728,17 +964,13 @@ export class LocalAgentClient {
     try {
       await this.streamThread(threadId, {
         signal: controller.signal,
-        onStreamEvent: (event) => {
-          options.onStreamEvent?.(event)
-          if (streamEventRunId(event) !== runId) return
-          if ('run' in event && event.run) {
-            latestRun = event.run
-          }
-          if ((event.type === 'run' || event.type === 'done' || event.type === 'assistant_message') && event.run) {
-            options.onRunUpdate?.(event.run)
-          }
-          if (event.type === 'assistant_delta') {
-            options.onAssistantDelta?.(event)
+        onRuntimeEvent: (event) => {
+          options.onRuntimeEvent?.(event)
+          if (runtimeRunIdFromEvent(event) !== runId) return
+          const eventRun = runtimeRunFromEvent(event)
+          if (eventRun) {
+            latestRun = eventRun
+            options.onRunUpdate?.(eventRun)
           }
           if (latestRun && TERMINAL_RUN_STATUSES.has(latestRun.status)) {
             settled = true
@@ -1778,21 +1010,13 @@ export class LocalAgentClient {
     const processBlock = (block: string): AgentRun | undefined => {
       const parsed = parseSSEBlock(block)
       if (!parsed) return undefined
-      let event: AgentRunStreamEvent
-      try {
-        event = JSON.parse(parsed.data) as AgentRunStreamEvent
-      } catch {
-        return undefined
-      }
-      options.onStreamEvent?.(event)
-      if ('run' in event && event.run) {
-        latestRun = event.run
-      }
-      if ((event.type === 'run' || event.type === 'done' || event.type === 'assistant_message') && event.run) {
-        options.onRunUpdate?.(event.run)
-      }
-      if (event.type === 'assistant_delta') {
-        options.onAssistantDelta?.(event)
+      const event = parseRuntimeEvent(parsed.data)
+      if (!event) return undefined
+      options.onRuntimeEvent?.(event)
+      const eventRun = runtimeRunFromEvent(event)
+      if (eventRun) {
+        latestRun = eventRun
+        options.onRunUpdate?.(eventRun)
       }
       if (TERMINAL_RUN_STATUSES.has(latestRun.status)) return latestRun
       return undefined
@@ -1900,6 +1124,7 @@ export class LocalAgentClient {
   async runMessageStream(input: {
     threadId?: string
     message: string
+    sourceMessageId?: string
     title?: string
     projectId?: number
     clientInput?: AgentClientInput
@@ -1911,6 +1136,7 @@ export class LocalAgentClient {
     const thread = resolvedThread.thread
     const created = await this.createMessageRun(thread.id, {
       message: input.message,
+      ...(input.sourceMessageId ? { sourceMessageId: input.sourceMessageId } : {}),
       ...(input.toolCall ? { toolCall: input.toolCall } : {}),
       ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
       ...(input.approvedToolNames?.length ? { approvedToolNames: input.approvedToolNames } : {}),
@@ -1919,6 +1145,7 @@ export class LocalAgentClient {
       ...(options.runPolicy ? { policy: options.runPolicy } : {}),
     }, options.signal)
     const run = created.run
+    options.onSourceMessage?.(created.message, run)
     options.onRunUpdate?.(run)
     if (created.runtimeInput?.accepted) {
       const finalThread = await this.getThread(thread.id)
@@ -2081,7 +1308,7 @@ async function withRuntimeModelConfigError<T>(promise: Promise<T>): Promise<T> {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (message.includes('local agent returned 404')) {
-      throw new Error('当前 Agent 版本不支持模型配置接口。请重启桌面端，或停止旧进程后重新运行：pnpm --filter movscript-agent dev')
+      throw new Error('当前 Agent 版本不支持模型配置接口。请重启桌面端，或停止旧进程后重新运行：pnpm --filter @movscript/agent dev')
     }
     throw error
   }
@@ -2104,10 +1331,9 @@ function parseSSEBlock(block: string): { event?: string; data: string } | undefi
   return { event, data: dataLines.join('\n').trim() }
 }
 
-function streamEventRunId(event: AgentRunStreamEvent): string | undefined {
-  if ('run' in event && event.run) return event.run.id
-  if ('runId' in event) return event.runId
-  return undefined
+function parseRuntimeEvent(data: string): AgentRuntimeEventV2 | undefined {
+  const value = JSON.parse(data) as AgentRuntimeEventV2
+  return value?.schema === AGENT_RUNTIME_EVENT_V2_SCHEMA ? value : undefined
 }
 
 function sleepWithAbort(ms: number, signal?: AbortSignal): Promise<void> {

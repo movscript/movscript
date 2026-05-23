@@ -1,7 +1,24 @@
 import { existsSync, readFileSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
+import { RUNTIME_MODEL_API_KINDS } from '@movscript/protocol'
+import type {
+  RuntimeModelAPIKind,
+  RuntimeModelConfigPublic,
+  RuntimeModelCredentialStatusPublic,
+  RuntimeModelRequestSnapshotPublic,
+  RuntimeModelTestResult,
+} from '@movscript/protocol'
 import { atomicWriteJSON, resolveAgentStatePath } from '../state/fileStore.js'
 import { isRecord } from '../jsonValue.js'
+
+export { RUNTIME_MODEL_API_KINDS }
+export type {
+  RuntimeModelAPIKind,
+  RuntimeModelConfigPublic,
+  RuntimeModelTestResult,
+}
+export type RuntimeModelCredentialStatus = RuntimeModelCredentialStatusPublic
+export type RuntimeModelRequestSnapshot = RuntimeModelRequestSnapshotPublic
 
 export interface RuntimeModelConfig {
   provider: 'backend-model-config'
@@ -13,21 +30,6 @@ export interface RuntimeModelConfig {
   useForChat: boolean
   useForPlanner: boolean
   updatedAt: string
-}
-
-export interface RuntimeModelConfigPublic {
-  configured: boolean
-  provider: 'backend-model-config'
-  modelConfigId?: number
-  model: string
-  apiKind: RuntimeModelAPIKind
-  baseURL?: string
-  apiKeyConfigured: boolean
-  useForChat: boolean
-  useForPlanner: boolean
-  updatedAt?: string
-  source: 'file' | 'none'
-  credentialStatus: RuntimeModelCredentialStatus
 }
 
 export interface RuntimeModelConfigInput {
@@ -42,43 +44,12 @@ export interface RuntimeModelConfigInput {
 
 export type ConfiguredRuntimeModelConfig = RuntimeModelConfig & { model: string }
 
-export interface RuntimeModelCredentialStatus {
-  required: boolean
-  configured: boolean
-  sourceEnv: string[]
-  acceptedEnv: string[]
-}
-
 export interface RuntimeModelAuthContext {
   backendAuthToken?: string
   backendAPIBaseURL?: string
 }
 
 export class RuntimeModelConfigInputError extends Error {}
-
-export const RUNTIME_MODEL_API_KINDS = [
-  'openai_chat_completions',
-  'openai_responses',
-  'anthropic_messages',
-] as const
-
-export type RuntimeModelAPIKind = typeof RUNTIME_MODEL_API_KINDS[number]
-
-export interface RuntimeModelRequestSnapshot {
-  url: string
-  method: 'POST'
-  headers: Record<string, string>
-  body: Record<string, unknown> & {
-    model: string
-    messages: RuntimeModelChatMessage[]
-    stream?: boolean
-    temperature?: number
-    response_format?: { type: 'json_object' }
-    tools?: unknown
-    tool_choice?: unknown
-    sdk_body?: unknown
-  }
-}
 
 export interface RuntimeModelResponseSnapshot {
   status: number
@@ -94,17 +65,6 @@ export interface RuntimeModelHTTPTrace {
   request: RuntimeModelRequestSnapshot
   response?: RuntimeModelResponseSnapshot
   latencyMs: number
-}
-
-export interface RuntimeModelTestResult {
-  ok: boolean
-  provider: string
-  model: string
-  apiKind: RuntimeModelAPIKind
-  modelConfigId?: number
-  latencyMs: number
-  content: string
-  request: RuntimeModelRequestSnapshot
 }
 
 export interface RuntimeModelChatToolCall {

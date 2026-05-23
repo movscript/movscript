@@ -1,31 +1,13 @@
-import type { JSONValue } from '../types.js'
+import type {
+  AgentManifest,
+  AgentToolApprovalMode,
+  AgentToolGrantMode,
+} from '@movscript/protocol'
 import { isJSONRecord, isRecord } from '../jsonValue.js'
 
-export type AgentManifestSchema = 'movscript.agent.current'
-export type AgentToolGrantMode = 'allow' | 'deny'
-export type AgentToolApprovalMode = 'never' | 'always' | 'on_write'
-
-export interface AgentToolGrant {
-  name: string
-  mode: AgentToolGrantMode
-  approval?: AgentToolApprovalMode
-}
-
-export interface AgentManifest {
-  schema: AgentManifestSchema
-  id: string
-  version: string
-  name: string
-  description?: string
-  soul?: string
-  tools: AgentToolGrant[]
-  model?: {
-    provider?: string
-    modelId?: string
-    platformModelId?: number
-  }
-  metadata?: Record<string, JSONValue>
-}
+export type { AgentManifest, AgentToolApprovalMode, AgentToolGrantMode }
+export type AgentManifestSchema = AgentManifest['schema']
+export type AgentToolGrant = AgentManifest['tools'][number]
 
 export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
   schema: 'movscript.agent.current',

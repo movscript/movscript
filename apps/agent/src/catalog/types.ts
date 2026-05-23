@@ -1,4 +1,4 @@
-import type { DraftKind, DraftScope, DraftSchemaDefinition, JSONSchema7 } from '@movscript/draft-schemas'
+import type { DraftKind, DraftScope, DraftSchemaDefinition, JSONSchema7 } from '@movscript/drafts'
 import type { JSONValue } from '../types.js'
 import type { ToolRiskLevel } from '../tools/toolRegistry.js'
 import type { KnowledgeCollection } from '../knowledge/types.js'

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useStreamingAssistantBuffer } from '@/lib/agentStreamingAssistant'
 import { useAgentLiveRunActivity } from '@/lib/agentLiveRunActivity'
 import type { AgentSendDraft } from '@/lib/agentSendDraft'
+import { STOPPED_RUNTIME_STATUS_LIGHT } from '@/lib/agentRuntimeStatusLight'
 import type { AgentRun } from '@/lib/localAgentClient'
 import { useAgentConversationRunReset } from '@/components/agent/useAgentConversationRunReset'
 
@@ -17,6 +18,7 @@ export function useAgentChatRuntimeState({
   const [debugBeforeSend, setDebugBeforeSend] = useState(false)
   const [planActionBusy, setPlanActionBusy] = useState(false)
   const [pendingSendDraft, setPendingSendDraft] = useState<AgentSendDraft | null>(null)
+  const [runtimeStatusLight, setRuntimeStatusLight] = useState(STOPPED_RUNTIME_STATUS_LIGHT)
   const [submittedInteractionRuns, setSubmittedInteractionRuns] = useState<AgentRun[]>([])
   const cancelRequestedRunIdsRef = useRef<Set<string>>(new Set())
   const activeSendAbortControllerRef = useRef<AbortController | null>(null)
@@ -67,7 +69,9 @@ export function useAgentChatRuntimeState({
     setPendingHttpEvents,
     setPendingSendDraft,
     setPlanActionBusy,
+    setRuntimeStatusLight,
     setSubmittedInteractionRuns,
+    runtimeStatusLight,
     streamingAssistantMessageId,
     streamingAssistantText,
     submittedInteractionRuns,

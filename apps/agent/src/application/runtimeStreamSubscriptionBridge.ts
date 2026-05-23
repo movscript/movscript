@@ -1,11 +1,11 @@
 import type { AgentStore } from '../state/store.js'
-import type { AgentTaskGraphStreamEvent, AgentRunStreamEvent, AgentThreadStreamEvent } from '../state/types.js'
+import type { AgentTaskGraphStreamEvent, AgentInternalRunSignal, AgentInternalThreadSignal } from '../state/types.js'
 import { requireRuntimeTaskGraph, requireRuntimeRun, requireRuntimeThread } from './runtimeStoreLookup.js'
 import type { RuntimeStreamBridge } from './runtimeStreamBridge.js'
 
 export interface RuntimeStreamSubscriptionBridge {
-  subscribeRunStream: (runId: string, listener: (event: AgentRunStreamEvent) => void) => () => void
-  subscribeThreadStream: (threadId: string, listener: (event: AgentThreadStreamEvent) => void) => () => void
+  subscribeRunStream: (runId: string, listener: (event: AgentInternalRunSignal) => void) => () => void
+  subscribeThreadStream: (threadId: string, listener: (event: AgentInternalThreadSignal) => void) => () => void
   subscribePlanStream: (taskGraphId: string, listener: (event: AgentTaskGraphStreamEvent) => void) => () => void
 }
 

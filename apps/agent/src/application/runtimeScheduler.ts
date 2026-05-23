@@ -180,7 +180,7 @@ export class RuntimeScheduler {
   private approveContinuationInteraction(interactionId: string): { interaction: RuntimeInteraction; run: AgentRun } | undefined {
     const interaction = this.input.store.getRuntimeInteraction(interactionId)
     if (!isContinuationResumeInteraction(interaction)) return undefined
-    if (interaction.status !== 'pending') throw new Error(`runtime interaction ${interactionId} is not pending`)
+    if (interaction.status !== 'pending') return this.resolvedContinuationInteractionResult(interaction)
     const continuation = this.input.store.getRuntimeContinuation(continuationIdFromInteraction(interaction))
     if (!continuation) throw new Error(`runtime continuation not found: ${continuationIdFromInteraction(interaction)}`)
     if (continuation.status !== 'ready') throw new Error(`runtime continuation ${continuation.id} is not ready`)
@@ -200,7 +200,7 @@ export class RuntimeScheduler {
   private rejectContinuationInteraction(interactionId: string): { interaction: RuntimeInteraction; run: AgentRun } | undefined {
     const interaction = this.input.store.getRuntimeInteraction(interactionId)
     if (!isContinuationResumeInteraction(interaction)) return undefined
-    if (interaction.status !== 'pending') throw new Error(`runtime interaction ${interactionId} is not pending`)
+    if (interaction.status !== 'pending') return this.resolvedContinuationInteractionResult(interaction)
     const continuation = this.input.store.getRuntimeContinuation(continuationIdFromInteraction(interaction))
     if (!continuation) throw new Error(`runtime continuation not found: ${continuationIdFromInteraction(interaction)}`)
     const now = this.input.now()
@@ -217,6 +217,14 @@ export class RuntimeScheduler {
     })
     const run = this.input.store.getRun(continuation.runId)
     if (!run) throw new Error(`run not found: ${continuation.runId}`)
+    return { interaction, run }
+  }
+
+  private resolvedContinuationInteractionResult(interaction: RuntimeInteraction): { interaction: RuntimeInteraction; run: AgentRun } {
+    const result = isRecord(interaction.result) ? interaction.result : undefined
+    const runId = typeof result?.runId === 'string' ? result.runId : interaction.runId
+    const run = this.input.store.getRun(runId)
+    if (!run) throw new Error(`run not found: ${runId}`)
     return { interaction, run }
   }
 

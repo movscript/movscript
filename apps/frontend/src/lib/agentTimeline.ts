@@ -4,6 +4,7 @@ import { agentTraceView, approvalStatusLabel, traceEventStatusLabel, traceKindLa
 import { agentToolNameLabel } from '@/lib/agentToolDisplay'
 import type { AgentRun, AgentTraceEvent } from '@/lib/localAgentClient'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/store/agentStore'
+import type { JSONValue } from '@movscript/protocol'
 
 export type AgentTimelineItemType = 'approval' | 'input_request' | 'tool_call' | 'message' | 'generation_job' | 'http' | 'trace_event'
 
@@ -199,7 +200,7 @@ function activityTraceView(event: ChatRunActivityEvent, runId: string) {
     ...(event.summary ? { summary: event.summary } : {}),
     ...(event.toolName ? { toolName: event.toolName } : {}),
     ...(event.stepId ? { stepId: event.stepId } : {}),
-    ...(event.data !== undefined ? { data: event.data } : {}),
+    ...(event.data !== undefined ? { data: event.data as JSONValue } : {}),
     createdAt: event.createdAt,
     ...(event.completedAt ? { completedAt: event.completedAt } : {}),
   })

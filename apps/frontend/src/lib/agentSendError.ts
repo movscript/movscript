@@ -1,7 +1,7 @@
 import type { AgentPanelRunSettledPayload } from '@/lib/agentPanelBridge'
-import type { AgentConversationMessageStore } from '@/lib/agentConversationMessageStore'
+import { appendAssistantConversationMessage, type AgentConversationMessageStore } from '@movscript/conversation'
 import type { AgentConversationRuntimeState } from '@/store/agentSessionStore'
-import type { ChatRunActivityEvent } from '@/store/agentStore'
+import type { ChatMessage, ChatMessageMeta, ChatRunActivityEvent } from '@/store/agentStore'
 
 type ConversationRuntimePatch = Partial<Omit<AgentConversationRuntimeState, 'conversationId' | 'updatedAt'>>
 
@@ -10,7 +10,7 @@ export interface SendErrorCleanupDeps {
   conversationId: string
   requestId?: string
   streamingMessageId: () => string | null
-  messageStore: Pick<AgentConversationMessageStore, 'removeMessage'>
+  messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'removeMessage'>
   setPendingAssistantState: (state: null) => void
   setPendingHttpEvents: (events: ChatRunActivityEvent[]) => void
   resetStreamingAssistant: () => void
@@ -19,7 +19,7 @@ export interface SendErrorCleanupDeps {
 }
 
 export interface SendFailureDeps extends SendErrorCleanupDeps {
-  messageStore: Pick<AgentConversationMessageStore, 'addMessage' | 'removeMessage'>
+  messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'addMessage' | 'removeMessage'>
   toastError: (error: unknown) => void
   assistantErrorContent: (message: string) => string
 }
@@ -39,9 +39,13 @@ export function handleSendFailure(error: unknown, deps: SendFailureDeps): void {
   const message = errorMessage(error)
   deps.toastError(error)
   cleanupStreamingState(deps)
-  deps.messageStore.addMessage(deps.userId, deps.conversationId, {
-    role: 'assistant',
+  appendAssistantConversationMessage<ChatMessage, ChatMessageMeta>({
     content: deps.assistantErrorContent(message),
+    deps: {
+      userId: deps.userId,
+      conversationId: deps.conversationId,
+      messageStore: deps.messageStore,
+    },
   })
   deps.setConversationRuntime(deps.conversationId, { error: message, loading: false, building: false })
   deps.notifyRunSettled({

@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { History, PanelRightClose, Plus } from 'lucide-react'
 import { AgentHeader, Button } from '@movscript/ui'
 import { AgentConversationTabs } from '@/components/agent/AgentConversationTabs'
+import { useAgentConversationTabRuntimeStatusLights } from '@/components/agent/useAgentConversationTabRuntimeStatusLights'
+import type { AgentRuntimeStatusLight } from '@/lib/agentRuntimeStatusLight'
 import type { Conversation } from '@/store/agentStore'
 
 type ConversationTabMenuState = {
@@ -24,6 +26,7 @@ export interface AgentChatHeaderSectionProps {
   onCollapse: () => void
   showCollapse?: boolean
   showConversationControls?: boolean
+  activeConversationRuntimeStatusLight?: AgentRuntimeStatusLight
   onNewConversation: () => void
   onSelectConversation: (id: string) => void
 }
@@ -37,6 +40,7 @@ export function AgentChatHeaderSection({
   onCollapse,
   showCollapse = true,
   showConversationControls = true,
+  activeConversationRuntimeStatusLight,
   onNewConversation,
   onSelectConversation,
 }: AgentChatHeaderSectionProps) {
@@ -46,6 +50,12 @@ export function AgentChatHeaderSection({
     if (ordered.some((item) => item.id === activeConversation.id)) return ordered
     return [activeConversation, ...ordered]
   }, [activeConversation, conversations])
+  const tabRuntimeStatusLights = useAgentConversationTabRuntimeStatusLights(conversationTabs)
+  const runtimeStatusLights = useMemo(() => {
+    if (!activeConversationRuntimeStatusLight) return tabRuntimeStatusLights
+    if (activeConversationRuntimeStatusLight.state === 'stopped' && tabRuntimeStatusLights[activeConversation.id]) return tabRuntimeStatusLights
+    return { ...tabRuntimeStatusLights, [activeConversation.id]: activeConversationRuntimeStatusLight }
+  }, [activeConversation.id, activeConversationRuntimeStatusLight, tabRuntimeStatusLights])
   const [tabContextMenu, setTabContextMenu] = useState<ConversationTabMenuState>(null)
   const closeAllConversationTabs = useCallback(() => {
     onCloseConversations(conversationTabs.map((item) => item.id))
@@ -181,6 +191,7 @@ export function AgentChatHeaderSection({
             <AgentConversationTabs
               activeConversationId={activeConversation.id}
               conversations={conversationTabs}
+              runtimeStatusLights={runtimeStatusLights}
               onCloseConversation={onCloseConversation}
               onCloseTabContextMenu={closeTabContextMenu}
               onOpenKeyboardMenu={openConversationTabKeyboardMenu}

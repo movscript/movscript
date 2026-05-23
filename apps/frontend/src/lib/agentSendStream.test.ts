@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { handleSendRunUpdate, handleSendStreamEvent, type AgentSendRunUpdateDeps } from './agentSendStream'
+import { handleSendRunUpdate, handleSendRuntimeEvent, type AgentSendRunUpdateDeps } from './agentSendStream'
 import type { AgentLivePendingAssistantState } from './agentLiveRunActivity'
-import type { AgentRun } from './localAgentClient'
+import type { AgentRun, AgentRuntimeEventV2 } from './localAgentClient'
 import type { ChatRunActivityEvent } from '@/store/agentStore'
 
 test('handleSendRunUpdate projects in-progress run into thinking, task, and conversation state', () => {
@@ -101,27 +101,27 @@ test('handleSendRunUpdate recovers latest run when cancel reports already finish
   assert.equal(calls.includes('setRun:run_1:completed:false:false:false'), true)
 })
 
-test('handleSendStreamEvent trims thread titles, completes started http events, and records the event', () => {
+test('handleSendRuntimeEvent trims thread titles, completes started http events, and records the event', () => {
   const calls: string[] = []
   let events = [
     event({ id: 'http-request-local-create-thread', status: 'started' }),
     event({ id: 'agent-step-1', status: 'started' }),
   ]
 
-  handleSendStreamEvent({ type: 'thread_title', runId: 'run_1', threadId: 'thread_1', title: '  New title  ', updatedAt: '2026-05-19T00:00:00.000Z' }, {
+  handleSendRuntimeEvent(runtimeThreadEvent('  New title  '), {
     updateConversationTitle: (title) => calls.push(`title:${title}`),
     updateActivityEvents: (updater) => { events = updater(events) },
-    recordLiveTraceEvent: (streamEvent) => calls.push(`record:${streamEvent.type}`),
+    recordLiveTraceEvent: (runtimeEvent) => calls.push(`record:${runtimeEvent.kind}`),
     now: () => new Date('2026-05-19T00:00:01.000Z'),
   })
-  handleSendStreamEvent({ type: 'run', run: makeRun({ status: 'in_progress' }) }, {
+  handleSendRuntimeEvent(runtimeRunEvent(makeRun({ status: 'in_progress' })), {
     updateConversationTitle: (title) => calls.push(`title:${title}`),
     updateActivityEvents: (updater) => { events = updater(events) },
-    recordLiveTraceEvent: (streamEvent) => calls.push(`record:${streamEvent.type}`),
+    recordLiveTraceEvent: (runtimeEvent) => calls.push(`record:${runtimeEvent.kind}`),
     now: () => new Date('2026-05-19T00:00:01.000Z'),
   })
 
-  assert.deepEqual(calls, ['title:New title', 'record:thread_title', 'record:run'])
+  assert.deepEqual(calls, ['title:New title', 'record:thread.upserted', 'record:run.upserted'])
   assert.equal(events[0]?.status, 'completed')
   assert.equal(events[0]?.completedAt, '2026-05-19T00:00:01.000Z')
   assert.equal(events[1]?.status, 'started')
@@ -192,6 +192,45 @@ function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
     updatedAt: '2026-05-19T00:00:00.000Z',
     steps: [],
     ...overrides,
+  }
+}
+
+function runtimeThreadEvent(title: string): AgentRuntimeEventV2 {
+  return {
+    schema: 'movscript.agent.runtime-event.v2',
+    protocolVersion: 'movscript.agent.protocol.v1',
+    id: 'runtime-event:thread-title',
+    scope: { type: 'thread', id: 'thread_1' },
+    ordinal: 1,
+    cursor: 'runtime-event:thread-title',
+    emittedAt: '2026-05-19T00:00:00.000Z',
+    kind: 'thread.upserted',
+    causality: { threadId: 'thread_1' },
+    entity: {
+      type: 'thread',
+      value: {
+        id: 'thread_1',
+        title,
+        createdAt: '2026-05-19T00:00:00.000Z',
+        updatedAt: '2026-05-19T00:00:00.000Z',
+        messages: [],
+      },
+    },
+  }
+}
+
+function runtimeRunEvent(run: AgentRun): AgentRuntimeEventV2 {
+  return {
+    schema: 'movscript.agent.runtime-event.v2',
+    protocolVersion: 'movscript.agent.protocol.v1',
+    id: 'runtime-event:run',
+    scope: { type: 'thread', id: run.threadId },
+    ordinal: 2,
+    cursor: 'runtime-event:run',
+    emittedAt: run.updatedAt,
+    kind: 'run.upserted',
+    causality: { threadId: run.threadId, runId: run.id },
+    entity: { type: 'run', value: run },
   }
 }
 

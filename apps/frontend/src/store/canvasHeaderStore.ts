@@ -15,7 +15,9 @@ interface CanvasHeaderState {
   workflowRunningCount: number
   saving: boolean
   startingRun: boolean
+  libraryCollapsed: boolean
   onNameChange?: (name: string) => void
+  onToggleLibrary?: () => void
   onRun?: () => void
   onSave?: () => void
   setHeader: (patch: Partial<Omit<CanvasHeaderState, 'setHeader' | 'reset'>>) => void
@@ -36,7 +38,9 @@ const INITIAL_STATE: Omit<CanvasHeaderState, 'setHeader' | 'reset'> = {
   workflowRunningCount: 0,
   saving: false,
   startingRun: false,
+  libraryCollapsed: true,
   onNameChange: undefined,
+  onToggleLibrary: undefined,
   onRun: undefined,
   onSave: undefined,
 }

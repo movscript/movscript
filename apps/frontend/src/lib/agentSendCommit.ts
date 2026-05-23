@@ -5,18 +5,22 @@ import { debugHttpRequestEvents, setActivityEventStatus, upsertActivityEvent } f
 import { completeSendRunResult } from '@/lib/agentSendCompletion'
 import { handleSendAbort, handleSendFailure } from '@/lib/agentSendError'
 import { prepareSendRuntime } from '@/lib/agentSendRuntimeReadiness'
-import { handleSendRunUpdate, handleSendStreamEvent, type AgentSendRunUpdateDeps } from '@/lib/agentSendStream'
+import { handleSendRunUpdate, handleSendRuntimeEvent, type AgentSendRunUpdateDeps } from '@/lib/agentSendStream'
 import { createLocalAgentStopAbortError } from '@/lib/agentRunControl'
-import { localAgentClient, type AgentPlanRevision, type AgentRun, type AgentRunStreamEvent, type AgentThread } from '@/lib/localAgentClient'
+import { localAgentClient, type AgentRun, type AgentRuntimeEventV2, type AgentThread } from '@/lib/localAgentClient'
 import { syncRuntimeModelConfig } from '@/lib/runtimeChat'
 import { fetchResourceById } from '@/lib/agentMessageViewModel'
-import { isRecord } from '@/lib/jsonValue'
 import { stripAttachmentPreviewUrl } from '@/components/agent/useAgentComposerController'
-import { useAgentStore, type AgentAttachment, type ChatMessage, type ChatRunActivityEvent } from '@/store/agentStore'
+import { useAgentStore, type AgentAttachment, type ChatMessage, type ChatMessageMeta, type ChatRunActivityEvent } from '@/store/agentStore'
 import { useAgentSessionStore, type AgentConversationRuntimeState, type AgentPageTaskState } from '@/store/agentSessionStore'
 import type { AgentSendDraft } from '@/lib/agentSendDraft'
 import type { AgentLivePendingAssistantState } from '@/lib/agentLiveRunActivity'
-import type { AgentConversationMessageStore } from '@/lib/agentConversationMessageStore'
+import {
+  appendAssistantConversationMessage,
+  appendUserConversationMessage,
+  type AgentConversationMessageStore,
+} from '@movscript/conversation'
+import { runtimeAssistantDeltaFromEvent } from '@movscript/event-state'
 
 type ActivityEventsAction = SetStateAction<ChatRunActivityEvent[]>
 type ConversationRuntimePatch = Partial<Omit<AgentConversationRuntimeState, 'conversationId' | 'updatedAt'>>
@@ -31,7 +35,7 @@ export interface CommitAgentSendDraftDeps {
   activeSendAbortControllerRef: MutableRefObject<AbortController | null>
   cancelRequestedRunIds: Set<string>
   liveTraceEventsRef: MutableRefObject<ChatRunActivityEvent[]>
-  messageStore: AgentConversationMessageStore
+  messageStore: AgentConversationMessageStore<ChatMessage, ChatMessageMeta>
   setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
   setLocalThreadId: (conversationId: string, threadId: string) => void
@@ -44,7 +48,7 @@ export interface CommitAgentSendDraftDeps {
   resetStreamingAssistant: () => void
   updateStreamingAssistantText: (runId: string, text: string, roundIndex?: number) => void
   getStreamingAssistantMessageId: () => string | null
-  recordLiveTraceEvent: (event: AgentRunStreamEvent) => void
+  recordLiveTraceEvent: (event: AgentRuntimeEventV2) => void
   appendAssistantRunResult: (run: AgentRun, thread: AgentThread, liveEvents: ChatRunActivityEvent[]) => Promise<unknown>
   revokeAttachmentPreviewUrls: (items: AgentAttachment[]) => void
   setMentionRange: (range: null) => void
@@ -64,7 +68,14 @@ export interface CommitAgentSendDraftDeps {
 
 export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAgentSendDraftDeps): Promise<void> {
   if (!draft.model.id) {
-    deps.messageStore.addMessage(deps.userId, deps.conversationId, { role: 'assistant', content: deps.labels.selectModelFirst })
+    appendAssistantConversationMessage<ChatMessage, ChatMessageMeta>({
+      content: deps.labels.selectModelFirst,
+      deps: {
+        userId: deps.userId,
+        conversationId: deps.conversationId,
+        messageStore: deps.messageStore,
+      },
+    })
     notifyAgentPanelRunSettled({
       requestId: draft.localRuntime?.requestId,
       status: 'error',
@@ -84,8 +95,7 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
   deps.setLiveTraceEvents(httpEvents)
   deps.setPendingHttpEvents(httpEvents)
   deps.setPendingAssistantState({ status: 'preparing_request' })
-  const localUserMessageId = deps.messageStore.addMessage(deps.userId, deps.conversationId, {
-    role: 'user',
+  const localUserMessageId = appendUserConversationMessage<ChatMessage, ChatMessageMeta>({
     content: draft.visibleUserContent,
     attachments: messageAttachments,
     meta: {
@@ -93,6 +103,14 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
       agentName: deps.labels.localRuntime,
       permissionMode: draft.settings.permissionMode,
       contextLabels: draft.contextLabels,
+      runtimeInput: {
+        status: 'pending',
+      },
+    },
+    deps: {
+      userId: deps.userId,
+      conversationId: deps.conversationId,
+      messageStore: deps.messageStore,
     },
   })
   if (draft.localRuntime?.requestId) {
@@ -142,6 +160,7 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
     const runResult = await localAgentClient.runMessageStream({
       threadId: draft.localRuntime?.diagnosticCommand ? undefined : draft.localRuntime?.threadId,
       message: draft.localRuntime?.clientInput?.message ?? draft.visibleUserContent,
+      sourceMessageId: localUserMessageId,
       clientInput: draft.localRuntime?.clientInput,
       ...(draft.localRuntime?.title ? { title: draft.localRuntime.title } : {}),
       projectId: draft.localRuntime?.projectId,
@@ -171,43 +190,37 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
           getRun: (runId) => localAgentClient.getRun(runId),
         })
       },
-      onAssistantDelta: (event) => {
+      onSourceMessage: (sourceMessage, run) => {
         if (sendController.signal.aborted) return
-        deps.updateStreamingAssistantText(event.runId, event.accumulated)
+        deps.messageStore.updateMessageMeta(deps.userId, deps.conversationId, localUserMessageId, {
+          modelId: draft.model.id,
+          agentName: deps.labels.localRuntime,
+          permissionMode: draft.settings.permissionMode,
+          contextLabels: draft.contextLabels,
+          runtimeInput: {
+            threadId: sourceMessage.threadId,
+            runId: run.id,
+            messageId: sourceMessage.id,
+            status: 'accepted',
+          },
+          runtimeMessage: {
+            threadId: sourceMessage.threadId,
+            messageId: sourceMessage.id,
+            runId: run.id,
+          },
+        })
       },
-      onStreamEvent: (event) => {
+      onRuntimeEvent: (event) => {
         if (sendController.signal.aborted) return
-        handleSendStreamEvent(event, {
+        const delta = runtimeAssistantDeltaFromEvent(event)
+        if (delta) {
+          deps.updateStreamingAssistantText(delta.runId, delta.accumulated, delta.roundIndex)
+        }
+        handleSendRuntimeEvent(event, {
           updateConversationTitle: (title) => deps.updateConversationTitle(deps.userId, deps.conversationId, title),
           updateActivityEvents,
           recordLiveTraceEvent: deps.recordLiveTraceEvent,
         })
-        const planMessage = planMessageFromStreamEvent(event)
-        if (planMessage) {
-          deps.messageStore.upsertMessage(deps.userId, deps.conversationId, planMessage.id, planMessage.message)
-        }
-        if (event.type === 'trace' && event.event.title === 'Runtime input consumed') {
-          const data = event.event.data && typeof event.event.data === 'object'
-            ? event.event.data as { messageIds?: unknown }
-            : undefined
-          const messageIds = Array.isArray(data?.messageIds)
-            ? data.messageIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
-            : []
-          if (messageIds.length > 0) {
-            const messages = useAgentStore.getState().getConversations(deps.userId)
-              .find((item) => item.id === deps.conversationId)?.messages ?? []
-            for (const message of messages) {
-              if (message.meta?.runtimeMessage?.messageId && messageIds.includes(message.meta.runtimeMessage.messageId)) {
-                deps.messageStore.updateMessageMeta(deps.userId, deps.conversationId, message.id, {
-                  runtimeInput: {
-                    ...(message.meta.runtimeInput ?? { status: 'accepted' }),
-                    status: 'consumed',
-                  },
-                })
-              }
-            }
-          }
-        }
       },
     })
     if (sendController.signal.aborted) throw sendController.signal.reason ?? createLocalAgentStopAbortError()
@@ -218,7 +231,6 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
         userId: deps.userId,
         conversationId: deps.conversationId,
         localUserMessageId,
-        conversationMessages: deps.conversationMessages,
         liveEvents: () => deps.liveTraceEventsRef.current,
         setLiveEventsRef: (events) => {
           deps.liveTraceEventsRef.current = events
@@ -245,6 +257,13 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
       },
     })
   } catch (error) {
+    markUnacceptedUserMessageFailed({
+      error,
+      userId: deps.userId,
+      conversationId: deps.conversationId,
+      messageId: localUserMessageId,
+      messageStore: deps.messageStore,
+    })
     if (deps.isLocalAgentAbortError(error) || sendController.signal.aborted) {
       handleSendAbort(error, {
         userId: deps.userId,
@@ -277,7 +296,7 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
       setConversationRuntime: deps.setConversationRuntime,
       notifyRunSettled: notifyAgentPanelRunSettled,
       toastError: deps.toastError,
-      assistantErrorContent: (errorMessage) => `本地 Agent 暂不可用。\n\n启动命令：\`pnpm --filter movscript-agent dev\`\n健康检查：\`${localAgentClient.baseURL}/health\`\n\n错误：${errorMessage}`,
+      assistantErrorContent: (errorMessage) => `本地 Agent 暂不可用。\n\n启动命令：\`pnpm --filter @movscript/agent dev\`\n健康检查：\`${localAgentClient.baseURL}/health\`\n\n错误：${errorMessage}`,
     })
   } finally {
     if (deps.activeSendAbortControllerRef.current === sendController) {
@@ -290,48 +309,22 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
   }
 }
 
-function planMessageFromStreamEvent(event: AgentRunStreamEvent): {
-  id: string
-  message: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp: number }
-} | undefined {
-  if (
-    event.type !== 'trace'
-    || event.event.toolName !== 'core_update_plan'
-    || !isRecord(event.event.data)
-  ) return undefined
-  const result = event.event.data.result
-  if (!isRecord(result)) return undefined
-  const revision = result.revision
-  const runtimeMessage = result.message
-  if (!isPlanRevision(revision) || !isRecord(runtimeMessage)) return undefined
-  const messageId = typeof runtimeMessage.id === 'string' && runtimeMessage.id ? runtimeMessage.id : revision.id
-  const threadId = typeof runtimeMessage.threadId === 'string' && runtimeMessage.threadId ? runtimeMessage.threadId : revision.threadId
-  const runId = typeof runtimeMessage.runId === 'string' && runtimeMessage.runId ? runtimeMessage.runId : event.runId
-  const createdAt = typeof runtimeMessage.createdAt === 'string' ? runtimeMessage.createdAt : revision.createdAt
-  const timestamp = Date.parse(createdAt)
-  return {
-    id: `runtime:${messageId}`,
-    message: {
-      role: 'assistant',
-      content: typeof runtimeMessage.content === 'string' && runtimeMessage.content ? runtimeMessage.content : 'Plan updated',
-      meta: {
-        planRevision: revision,
-        runtimeMessage: {
-          threadId,
-          messageId,
-          runId,
-        },
-      },
-      timestamp: Number.isFinite(timestamp) ? timestamp : Date.now(),
+function markUnacceptedUserMessageFailed(input: {
+  error: unknown
+  userId: string
+  conversationId: string
+  messageId: string
+  messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'updateMessageMeta'>
+}): void {
+  const conversation = useAgentStore.getState().getConversations(input.userId)
+    .find((item) => item.id === input.conversationId)
+  const message = conversation?.messages.find((item) => item.id === input.messageId)
+  if (message?.meta?.runtimeInput?.status !== 'pending' || message.meta.runtimeMessage?.messageId) return
+  input.messageStore.updateMessageMeta(input.userId, input.conversationId, input.messageId, {
+    runtimeInput: {
+      ...message.meta.runtimeInput,
+      status: 'failed',
+      error: input.error instanceof Error ? input.error.message : String(input.error),
     },
-  }
-}
-
-function isPlanRevision(value: unknown): value is AgentPlanRevision {
-  if (!isRecord(value) || value.schema !== 'movscript.agent.plan-revision.v1') return false
-  if (typeof value.id !== 'string' || typeof value.planId !== 'string' || typeof value.threadId !== 'string') return false
-  if (typeof value.createdAt !== 'string' || !isRecord(value.snapshot)) return false
-  const snapshot = value.snapshot
-  if (snapshot.schema !== 'movscript.agent.plan.v1') return false
-  return Array.isArray(snapshot.items)
+  })
 }

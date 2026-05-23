@@ -19,17 +19,39 @@ import {
 } from './agentPlannerSeed'
 import { mockGenerationAppShell } from './generationAppShell'
 
+async function seedPlannerAgentBootstrap(page: Page, baseURL: string, options: { clipboardWriteError?: string } = {}) {
+  const seed = buildPlannerAgentBootstrap(baseURL) as unknown
+  await (page as unknown as {
+    addInitScript(
+      script: (arg: { key: string; seed: unknown; clipboardWriteError?: string }) => void,
+      arg: { key: string; seed: unknown; clipboardWriteError?: string },
+    ): Promise<unknown>
+  }).addInitScript(({ key, seed, clipboardWriteError }) => {
+    window.localStorage.setItem(key, JSON.stringify(seed))
+    window.localStorage.setItem('movscript.language', 'zh-CN')
+    if (clipboardWriteError) {
+      Object.defineProperty(window.navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          writeText: async () => {
+            throw new Error(clipboardWriteError)
+          },
+          readText: async () => '',
+        },
+      })
+    }
+  }, {
+    key: E2E_BOOTSTRAP_STORAGE_KEY,
+    seed,
+    ...(options.clipboardWriteError ? { clipboardWriteError: options.clipboardWriteError } : {}),
+  })
+}
+
 test('planner run exposes taskGraph overview and run detail drilldown', async ({ page }, testInfo) => {
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await page.addInitScript(({ key, seed }) => {
-    window.localStorage.setItem(key, JSON.stringify(seed))
-    window.localStorage.setItem('movscript.language', 'zh-CN')
-  }, {
-    key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed: buildPlannerAgentBootstrap(String(baseURL)),
-  })
+  await seedPlannerAgentBootstrap(page, String(baseURL))
 
   await mockGenerationAppShell(page)
   await mockPlannerAgentRuntime(page)
@@ -359,13 +381,7 @@ test('planner run detail remains usable on mobile width', async ({ page }, testI
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.addInitScript(({ key, seed }) => {
-    window.localStorage.setItem(key, JSON.stringify(seed))
-    window.localStorage.setItem('movscript.language', 'zh-CN')
-  }, {
-    key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed: buildPlannerAgentBootstrap(String(baseURL)),
-  })
+  await seedPlannerAgentBootstrap(page, String(baseURL))
 
   await mockGenerationAppShell(page)
   await mockPlannerAgentRuntime(page)
@@ -386,13 +402,7 @@ test('planner worker cancel failure is visible on run detail', async ({ page }, 
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await page.addInitScript(({ key, seed }) => {
-    window.localStorage.setItem(key, JSON.stringify(seed))
-    window.localStorage.setItem('movscript.language', 'zh-CN')
-  }, {
-    key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed: buildPlannerAgentBootstrap(String(baseURL)),
-  })
+  await seedPlannerAgentBootstrap(page, String(baseURL))
 
   await mockGenerationAppShell(page)
   await mockPlannerAgentRuntime(page, { failCancel: true })
@@ -414,13 +424,7 @@ test('planner run detail can load all paginated trace events', async ({ page }, 
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await page.addInitScript(({ key, seed }) => {
-    window.localStorage.setItem(key, JSON.stringify(seed))
-    window.localStorage.setItem('movscript.language', 'zh-CN')
-  }, {
-    key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed: buildPlannerAgentBootstrap(String(baseURL)),
-  })
+  await seedPlannerAgentBootstrap(page, String(baseURL))
 
   await mockGenerationAppShell(page)
   await mockPlannerAgentRuntime(page, { longWorkerTrace: true })
@@ -453,13 +457,7 @@ test('planner run detail stops debug bundle copy when full trace load fails', as
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await page.addInitScript(({ key, seed }) => {
-    window.localStorage.setItem(key, JSON.stringify(seed))
-    window.localStorage.setItem('movscript.language', 'zh-CN')
-  }, {
-    key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed: buildPlannerAgentBootstrap(String(baseURL)),
-  })
+  await seedPlannerAgentBootstrap(page, String(baseURL))
 
   await mockGenerationAppShell(page)
   await mockPlannerAgentRuntime(page, { longWorkerTrace: true, failTraceAfterCursorOnce: true })
@@ -480,13 +478,7 @@ test('planner run detail surfaces failed model call summary', async ({ page }, t
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await page.addInitScript(({ key, seed }) => {
-    window.localStorage.setItem(key, JSON.stringify(seed))
-    window.localStorage.setItem('movscript.language', 'zh-CN')
-  }, {
-    key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed: buildPlannerAgentBootstrap(String(baseURL)),
-  })
+  await seedPlannerAgentBootstrap(page, String(baseURL))
 
   await mockGenerationAppShell(page)
   await mockPlannerAgentRuntime(page, { failedModelTrace: true })
@@ -509,13 +501,7 @@ test('planner run detail can retry after trace load failure', async ({ page }, t
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await page.addInitScript(({ key, seed }) => {
-    window.localStorage.setItem(key, JSON.stringify(seed))
-    window.localStorage.setItem('movscript.language', 'zh-CN')
-  }, {
-    key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed: buildPlannerAgentBootstrap(String(baseURL)),
-  })
+  await seedPlannerAgentBootstrap(page, String(baseURL))
 
   await mockGenerationAppShell(page)
   await mockPlannerAgentRuntime(page, { failTraceOnce: true })
@@ -532,22 +518,7 @@ test('planner run detail shows debug report copy failure', async ({ page }, test
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await page.addInitScript(({ key, seed }) => {
-    window.localStorage.setItem(key, JSON.stringify(seed))
-    window.localStorage.setItem('movscript.language', 'zh-CN')
-    Object.defineProperty(window.navigator, 'clipboard', {
-      configurable: true,
-      value: {
-        writeText: async () => {
-          throw new Error('clipboard denied by test')
-        },
-        readText: async () => '',
-      },
-    })
-  }, {
-    key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed: buildPlannerAgentBootstrap(String(baseURL)),
-  })
+  await seedPlannerAgentBootstrap(page, String(baseURL), { clipboardWriteError: 'clipboard denied by test' })
 
   await mockGenerationAppShell(page)
   await mockPlannerAgentRuntime(page)
@@ -564,13 +535,7 @@ test('planner run detail can retry after trace summary failure', async ({ page }
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await page.addInitScript(({ key, seed }) => {
-    window.localStorage.setItem(key, JSON.stringify(seed))
-    window.localStorage.setItem('movscript.language', 'zh-CN')
-  }, {
-    key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed: buildPlannerAgentBootstrap(String(baseURL)),
-  })
+  await seedPlannerAgentBootstrap(page, String(baseURL))
 
   await mockGenerationAppShell(page)
   await mockPlannerAgentRuntime(page, { failTraceSummaryOnce: true })
@@ -588,13 +553,7 @@ test('planner run detail exposes taskGraph context load failures as alerts', asy
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await page.addInitScript(({ key, seed }) => {
-    window.localStorage.setItem(key, JSON.stringify(seed))
-    window.localStorage.setItem('movscript.language', 'zh-CN')
-  }, {
-    key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed: buildPlannerAgentBootstrap(String(baseURL)),
-  })
+  await seedPlannerAgentBootstrap(page, String(baseURL))
 
   await mockGenerationAppShell(page)
   await mockPlannerAgentRuntime(page, { failPlanSnapshotTimes: 2 })
@@ -613,13 +572,7 @@ test('planner run detail exposes missing run load failures as alerts', async ({ 
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await page.addInitScript(({ key, seed }) => {
-    window.localStorage.setItem(key, JSON.stringify(seed))
-    window.localStorage.setItem('movscript.language', 'zh-CN')
-  }, {
-    key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed: buildPlannerAgentBootstrap(String(baseURL)),
-  })
+  await seedPlannerAgentBootstrap(page, String(baseURL))
 
   await mockGenerationAppShell(page)
   await mockPlannerAgentRuntime(page)
@@ -635,13 +588,7 @@ test('planner run detail can retry after run detail load failure', async ({ page
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await page.addInitScript(({ key, seed }) => {
-    window.localStorage.setItem(key, JSON.stringify(seed))
-    window.localStorage.setItem('movscript.language', 'zh-CN')
-  }, {
-    key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed: buildPlannerAgentBootstrap(String(baseURL)),
-  })
+  await seedPlannerAgentBootstrap(page, String(baseURL))
 
   await mockGenerationAppShell(page)
   await mockPlannerAgentRuntime(page, { failRunOnce: true })
@@ -658,13 +605,7 @@ test('planner worker approval can be resolved from run detail', async ({ page },
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await page.addInitScript(({ key, seed }) => {
-    window.localStorage.setItem(key, JSON.stringify(seed))
-    window.localStorage.setItem('movscript.language', 'zh-CN')
-  }, {
-    key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed: buildPlannerAgentBootstrap(String(baseURL)),
-  })
+  await seedPlannerAgentBootstrap(page, String(baseURL))
 
   await mockGenerationAppShell(page)
   await mockPlannerAgentRuntime(page)
@@ -699,13 +640,7 @@ test('planner worker approval failure is visible on run detail', async ({ page }
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await page.addInitScript(({ key, seed }) => {
-    window.localStorage.setItem(key, JSON.stringify(seed))
-    window.localStorage.setItem('movscript.language', 'zh-CN')
-  }, {
-    key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed: buildPlannerAgentBootstrap(String(baseURL)),
-  })
+  await seedPlannerAgentBootstrap(page, String(baseURL))
 
   await mockGenerationAppShell(page)
   await mockPlannerAgentRuntime(page, { failApproval: true })
@@ -722,13 +657,7 @@ test('planner worker input can be answered from run detail', async ({ page }, te
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await page.addInitScript(({ key, seed }) => {
-    window.localStorage.setItem(key, JSON.stringify(seed))
-    window.localStorage.setItem('movscript.language', 'zh-CN')
-  }, {
-    key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed: buildPlannerAgentBootstrap(String(baseURL)),
-  })
+  await seedPlannerAgentBootstrap(page, String(baseURL))
 
   await mockGenerationAppShell(page)
   await mockPlannerAgentRuntime(page)
@@ -760,13 +689,7 @@ test('planner worker input failure is visible on run detail', async ({ page }, t
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
 
-  await page.addInitScript(({ key, seed }) => {
-    window.localStorage.setItem(key, JSON.stringify(seed))
-    window.localStorage.setItem('movscript.language', 'zh-CN')
-  }, {
-    key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed: buildPlannerAgentBootstrap(String(baseURL)),
-  })
+  await seedPlannerAgentBootstrap(page, String(baseURL))
 
   await mockGenerationAppShell(page)
   await mockPlannerAgentRuntime(page, { failInput: true })

@@ -20,36 +20,20 @@ import {
   type AgentActivityRound,
   type AgentActivityTone,
 } from '@/lib/agentActivityFeed'
-import {
-  LocalAgentApprovalRequestCard,
-  LocalAgentInputRequestCard,
-} from '@/components/agent/localRuntime'
-import { localAgentApprovalDetails } from '@/components/agent/AgentWorkflowBubble'
 import { cn } from '@/lib/utils'
 import { agentRunPath } from '@/routes/projectRoutes'
 import type { AgentRun } from '@/lib/localAgentClient'
-import type { AgentInputAnswer } from '@/lib/agentWorkflowInteraction'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/store/agentStore'
 
 export function AgentActivityFeedView({
   activity,
   run,
   events,
-  workflowRun,
-  approving = false,
-  onApprove,
-  onReject,
-  onAnswerInput,
   className,
 }: {
   activity?: ChatRunActivity
   run?: AgentRun | null
   events?: ChatRunActivityEvent[]
-  workflowRun?: AgentRun | null
-  approving?: boolean
-  onApprove?: (approvalIds?: string[]) => void
-  onReject?: (approvalIds?: string[]) => void
-  onAnswerInput?: (requestId: string, answer: AgentInputAnswer) => void
   className?: string
 }) {
   const [expandedDebugItems, setExpandedDebugItems] = useState<Set<string>>(() => new Set())
@@ -71,11 +55,6 @@ export function AgentActivityFeedView({
         <AgentActivityRoundSection
           key={round.id}
           round={round}
-          workflowRun={workflowRun}
-          approving={approving}
-          onApprove={onApprove}
-          onReject={onReject}
-          onAnswerInput={onAnswerInput}
           expandedDebugItems={expandedDebugItems}
           onToggleDebugItem={toggleDebugItem}
         />
@@ -175,20 +154,10 @@ export function AgentActivityDividerMenu({
 
 function AgentActivityRoundSection({
   round,
-  workflowRun,
-  approving,
-  onApprove,
-  onReject,
-  onAnswerInput,
   expandedDebugItems,
   onToggleDebugItem,
 }: {
   round: AgentActivityRound
-  workflowRun?: AgentRun | null
-  approving?: boolean
-  onApprove?: (approvalIds?: string[]) => void
-  onReject?: (approvalIds?: string[]) => void
-  onAnswerInput?: (requestId: string, answer: AgentInputAnswer) => void
   expandedDebugItems: Set<string>
   onToggleDebugItem: (itemId: string) => void
 }) {
@@ -204,11 +173,6 @@ function AgentActivityRoundSection({
             <AgentActivityItemRow
               key={item.id}
               item={item}
-              workflowRun={workflowRun}
-              approving={approving}
-              onApprove={onApprove}
-              onReject={onReject}
-              onAnswerInput={onAnswerInput}
               expanded={expandedDebugItems.has(item.id)}
               onToggleDebug={() => onToggleDebugItem(item.id)}
             />
@@ -225,20 +189,10 @@ function AgentActivityRoundSection({
 
 function AgentActivityItemRow({
   item,
-  workflowRun,
-  approving,
-  onApprove,
-  onReject,
-  onAnswerInput,
   expanded = false,
   onToggleDebug,
 }: {
   item: AgentActivityItem
-  workflowRun?: AgentRun | null
-  approving?: boolean
-  onApprove?: (approvalIds?: string[]) => void
-  onReject?: (approvalIds?: string[]) => void
-  onAnswerInput?: (requestId: string, answer: AgentInputAnswer) => void
   expanded?: boolean
   onToggleDebug?: () => void
 }) {
@@ -258,51 +212,6 @@ function AgentActivityItemRow({
           )}
         </div>
         {expanded && item.detail && <AgentActivityDebugDetailView detail={item.detail} />}
-      </div>
-    )
-  }
-
-  if (item.type === 'request') {
-    const inputRequest = item.requestKind === 'input'
-      ? workflowRun?.pendingInputRequests?.find((request) => request.id === item.requestId)
-      : undefined
-    const approval = item.requestKind === 'approval'
-      ? workflowRun?.pendingApprovals?.find((candidate) => candidate.id === item.requestId)
-      : undefined
-    if (inputRequest) {
-      return (
-        <div className="py-2">
-          <LocalAgentInputRequestCard
-            request={inputRequest}
-            disabled={approving || inputRequest.status !== 'pending' || !onAnswerInput}
-            onAnswer={(answer) => onAnswerInput?.(inputRequest.id, answer)}
-            className="min-h-0 border-amber-500/25 bg-amber-500/5 shadow-none"
-          />
-        </div>
-      )
-    }
-    if (approval) {
-      return (
-        <div className="py-2">
-          <LocalAgentApprovalRequestCard
-            approval={approval}
-            approving={approving}
-            onApprove={onApprove}
-            onReject={onReject}
-            approvalDetails={localAgentApprovalDetails}
-            className="border-amber-500/25 bg-amber-500/5 shadow-none"
-          />
-        </div>
-      )
-    }
-    return (
-      <div className="py-2">
-        <div className="rounded-md border border-amber-500/25 bg-amber-500/5 px-2 py-1.5">
-          <div className="type-tiny font-medium text-amber-800 dark:text-amber-300">{item.title}</div>
-          {item.lines.map((line) => (
-            <div key={line} className="mt-0.5 type-tiny leading-relaxed text-muted-foreground">{line}</div>
-          ))}
-        </div>
       </div>
     )
   }
@@ -403,7 +312,7 @@ function toneLabel(tone: AgentActivityTone): string {
   if (tone === 'draft') return '草稿'
   if (tone === 'write') return '写入'
   if (tone === 'task') return '任务'
-  if (tone === 'wait') return '等待'
+  if (tone === 'system') return '系统'
   if (tone === 'error') return '错误'
   return '处理'
 }
@@ -413,7 +322,6 @@ function toneTextClass(tone: AgentActivityTone): string {
   if (tone === 'draft') return 'text-amber-700 dark:text-amber-300'
   if (tone === 'write') return 'text-destructive'
   if (tone === 'task') return 'text-green-700 dark:text-green-300'
-  if (tone === 'wait') return 'text-violet-700 dark:text-violet-300'
   if (tone === 'error') return 'text-destructive'
   return 'text-muted-foreground'
 }
@@ -423,7 +331,6 @@ function toneBorderClass(tone: AgentActivityTone): string {
   if (tone === 'draft') return 'border-l-amber-500'
   if (tone === 'write') return 'border-l-destructive'
   if (tone === 'task') return 'border-l-green-600'
-  if (tone === 'wait') return 'border-l-violet-600'
   if (tone === 'error') return 'border-l-destructive'
   return 'border-l-muted-foreground/40'
 }

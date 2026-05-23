@@ -3,7 +3,7 @@ import { dirname, join, resolve } from 'node:path'
 import type { JSONValue } from '../types.js'
 import { isJSONValue, isRecord } from '../jsonValue.js'
 import { atomicWriteJSON, resolveAgentStatePath } from '../state/fileStore.js'
-import { DRAFT_CONTENT_SCHEMA_IDS, DRAFT_KIND_VALUES, type DraftKindValue } from '@movscript/draft-schemas'
+import { DRAFT_CONTENT_SCHEMA_IDS, DRAFT_KIND_VALUES, type DraftKindValue } from '@movscript/drafts'
 
 // AgentDraft is a local runtime/client review artifact. It is the protocol shape
 // used to pass proposed changes to the UI for preview, revision, approval, or

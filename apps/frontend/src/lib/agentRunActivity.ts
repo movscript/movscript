@@ -1,6 +1,7 @@
-import type { AgentRun, AgentRunStreamEvent, AgentTraceEvent } from '@/lib/localAgentClient'
+import type { AgentRun, AgentRuntimeEventV2, AgentTraceEvent } from '@/lib/localAgentClient'
 import { isRecord } from '@/lib/jsonValue'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/store/agentStore'
+import { runtimeTraceFromEvent } from '@movscript/event-state'
 
 export interface LiveRunPendingAssistantState {
   status: 'preparing_tool_call' | 'calling_tool'
@@ -139,9 +140,9 @@ export function mergeLiveRunActivityEvent(current: ChatRunActivityEvent[], item:
   return [...httpItems, ...(Number.isFinite(limit) ? runtimeItems.slice(-limit) : runtimeItems)]
 }
 
-export function projectLiveRunStreamTraceEvent(event: AgentRunStreamEvent): LiveRunTraceProjection | null {
-  if (event.type !== 'trace') return null
-  const trace = event.event
+export function projectLiveRunRuntimeTraceEvent(event: AgentRuntimeEventV2): LiveRunTraceProjection | null {
+  const trace = runtimeTraceFromEvent(event)
+  if (!trace) return null
   if (!isLiveRunActivityTraceKind(trace.kind)) return null
   const activityEvent = chatRunActivityEventFromTrace(trace)
   const pendingAssistantState = pendingAssistantStateFromTrace(activityEvent)

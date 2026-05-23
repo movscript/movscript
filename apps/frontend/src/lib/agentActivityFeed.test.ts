@@ -298,7 +298,6 @@ test('buildAgentActivityFeed groups tool calls by model http round', () => {
     itemCount: round.items.length,
   })), [
     { label: '第 1 轮思考：决定调用工具', status: 'tool_calls', itemCount: 2 },
-    { label: '第 2 轮思考：形成回复', status: 'final', itemCount: 0 },
   ])
 })
 
@@ -353,13 +352,7 @@ test('buildAgentActivityFeed shows model round latency and token usage', () => {
     }),
   })
 
-  assert.equal(feed?.rounds[0]?.label, '第 1 轮思考：形成回复（1.2s · 1,234 tokens，in 1,200 / out 34）')
-  assert.equal(feed?.rounds[0]?.durationMs, 1234)
-  assert.deepEqual(feed?.rounds[0]?.usage, {
-    inputTokens: 1200,
-    outputTokens: 34,
-    totalTokens: 1234,
-  })
+  assert.deepEqual(feed?.rounds, [])
   assert.equal(feed ? feedTotalsLine(feed) : undefined, '累计：模型 1 次 · 2.0s · 1,234 tokens，in 1,200 / out 34')
 })
 
@@ -388,8 +381,139 @@ test('buildAgentActivityFeed prefers explicit model round duration records', () 
     }),
   })
 
-  assert.equal(feed?.rounds[0]?.label, '第 1 轮思考：形成回复（1.2s · 42 tokens，in 40 / out 2）')
-  assert.equal(feed?.rounds[0]?.durationMs, 1200)
+  assert.deepEqual(feed?.rounds, [])
+  assert.equal(feed ? feedTotalsLine(feed) : undefined, '累计：模型 1 次 · 2.0s · 42 tokens，in 40 / out 2')
+})
+
+test('buildAgentActivityFeed keeps user input requests out of the process feed', () => {
+  const feed = buildAgentActivityFeed({
+    activity: activity({
+      status: 'requires_action',
+      events: [{
+        id: 'event_decision_input',
+        kind: 'model_call',
+        title: 'Model tool calls requested',
+        status: 'completed',
+        roundIndex: 1,
+        roundLabel: 'Model turn 1',
+        data: {
+          tool_calls: [
+            { id: 'call_input', name: 'core_user_input_request', args: { question: 'What next?' } },
+          ],
+        },
+        createdAt: '2026-05-22T01:00:00.000Z',
+      }, {
+        id: 'event_input_required',
+        kind: 'input',
+        title: 'User input required',
+        status: 'blocked',
+        roundIndex: 1,
+        roundLabel: 'Model turn 1',
+        createdAt: '2026-05-22T01:00:01.000Z',
+      }],
+      inputs: [{
+        id: 'input_1',
+        title: '需要补充信息',
+        question: '可以。请告诉我你希望我接下来处理什么任务？',
+        inputType: 'text',
+        choices: [],
+        allowCustomAnswer: true,
+        status: 'pending',
+        createdAt: '2026-05-22T01:00:01.000Z',
+        updatedAt: '2026-05-22T01:00:01.000Z',
+      }],
+    }),
+  })
+
+  assert.deepEqual(feed?.rounds, [])
+  assert.deepEqual(feed?.items, [])
+})
+
+test('buildAgentActivityFeed shows interrupted runtime recovery as a system boundary', () => {
+  const feed = buildAgentActivityFeed({
+    activity: activity({
+      status: 'requires_action',
+      events: [{
+        id: 'event_recovery_interrupted',
+        kind: 'run',
+        title: 'Interrupted run recovered',
+        status: 'blocked',
+        summary: 'Runtime restarted while this run was in progress.',
+        data: {
+          eventType: 'runtime.recovery.interrupted',
+        },
+        createdAt: '2026-05-22T01:00:01.000Z',
+      }],
+    }),
+  })
+
+  assert.equal(feed?.items.length, 1)
+  const item = feed?.items[0]
+  assert.equal(item?.type, 'line')
+  assert.equal(item?.tone, 'system')
+  assert.equal(item?.type === 'line' ? item.text : '', '运行中断：runtime 重启时这个 run 尚未结束，已暂停等待继续或取消。')
+})
+
+test('buildAgentActivityFeed shows resumed recovery without duplicating the same run history', () => {
+  const feed = buildAgentActivityFeed({
+    activity: activity({
+      status: 'in_progress',
+      events: [{
+        id: 'event_recovery_resumed',
+        kind: 'run',
+        title: 'Interrupted run resumed',
+        status: 'info',
+        data: {
+          eventType: 'runtime.recovery.resumed',
+        },
+        createdAt: '2026-05-22T01:00:00.500Z',
+      }, {
+        ...modelEvent('model_decision_1', 'Model tool calls requested', 1, 'completed', '2026-05-22T01:00:01.000Z'),
+        data: {
+          tool_calls: [
+            { id: 'call_1', name: 'movscript_focus_get', args: {} },
+          ],
+        },
+      }],
+      steps: [{
+        id: 'step_focus',
+        type: 'tool_call',
+        status: 'completed',
+        roundIndex: 1,
+        toolName: 'movscript_focus_get',
+        createdAt: '2026-05-22T01:00:02.000Z',
+      }],
+    }),
+  })
+
+  assert.deepEqual(feed?.items.map((item) => item.type === 'line' ? item.text : item.title), [
+    '恢复继续：沿用同一个 run 重新调度，之前已完成的步骤保留为历史。',
+    '模型决定调用 1 个工具',
+    '已读取数据：读取当前焦点',
+  ])
+})
+
+test('buildAgentActivityFeed labels recovery cancellation as terminal history', () => {
+  const feed = buildAgentActivityFeed({
+    activity: activity({
+      status: 'cancelled',
+      events: [{
+        id: 'event_recovery_cancelled',
+        kind: 'run',
+        title: 'Run cancelled',
+        status: 'info',
+        summary: 'Runtime recovery cancelled by user.',
+        data: {
+          reason: 'Runtime recovery cancelled by user.',
+        },
+        createdAt: '2026-05-22T01:00:01.000Z',
+      }],
+    }),
+  })
+
+  const item = feed?.items[0]
+  assert.equal(item?.type, 'line')
+  assert.equal(item?.type === 'line' ? item.text : '', '恢复已取消：保留中断前的执行记录，后续可以从新消息开始。')
 })
 
 test('agentActivityFeedMarkdown copies human-readable activity instead of raw json', () => {
@@ -416,7 +540,7 @@ test('agentActivityFeedMarkdown copies human-readable activity instead of raw js
   assert.doesNotMatch(markdown, /"asset_slot_id"/)
 })
 
-test('buildAgentActivityFeed renders user approvals as request cards', () => {
+test('buildAgentActivityFeed keeps user approvals out of the process feed', () => {
   const feed = buildAgentActivityFeed({
     activity: activity({
       approvals: [{
@@ -432,14 +556,92 @@ test('buildAgentActivityFeed renders user approvals as request cards', () => {
     }),
   })
 
-  const item = feed?.items[0]
-  assert.equal(item?.type, 'request')
-  assert.equal(item?.type === 'request' ? item.title : '', '等待你确认工具执行')
-  assert.deepEqual(item?.type === 'request' ? item.lines : [], [
-    '工具：应用草稿',
-    '需要正式写入项目数据',
-    '权限：draft.apply',
-    '风险：write',
+  assert.deepEqual(feed?.rounds, [])
+  assert.deepEqual(feed?.items, [])
+})
+
+test('buildAgentActivityFeed leaves approvals to workflow cards when rendering tool results', () => {
+  const feed = buildAgentActivityFeed({
+    activity: activity({
+      steps: [{
+        id: 'step_candidate',
+        type: 'tool_call',
+        status: 'completed',
+        toolName: 'candidate_asset_slot_attach',
+        args: { asset_slot_id: 9, resource_id: 88 },
+        result: { message: 'candidate created' },
+        createdAt: '2026-05-22T01:00:00.000Z',
+      }],
+      approvals: [{
+        id: 'approval_1',
+        toolName: 'candidate_asset_slot_attach',
+        reason: '需要确认写入素材候选',
+        permission: 'asset_candidate.write',
+        risk: 'write',
+        status: 'approved',
+        createdAt: '2026-05-22T01:00:00.000Z',
+        updatedAt: '2026-05-22T01:00:00.000Z',
+      }],
+    }),
+  })
+
+  assert.deepEqual(feed?.items.map((item) => item.type === 'block' || item.type === 'decision' ? item.title : item.id), [
+    '写入素材候选',
+  ])
+})
+
+test('buildAgentActivityFeed keeps model tool-call order without approval rows', () => {
+  const feed = buildAgentActivityFeed({
+    activity: activity({
+      events: [{
+        id: 'event_decision',
+        kind: 'model_call',
+        title: 'Model tool calls requested',
+        status: 'completed',
+        roundIndex: 1,
+        createdAt: '2026-05-22T01:00:00.000Z',
+        data: {
+          tool_calls: [
+            { id: 'call_focus', name: 'movscript_focus_get', args: {} },
+            { id: 'call_write', name: 'candidate_asset_slot_attach', args: { asset_slot_id: 9, resource_id: 88 } },
+          ],
+        },
+      }],
+      steps: [{
+        id: 'step_focus',
+        type: 'tool_call',
+        status: 'completed',
+        roundIndex: 1,
+        toolName: 'movscript_focus_get',
+        createdAt: '2026-05-22T01:00:01.000Z',
+      }, {
+        id: 'step_candidate',
+        type: 'tool_call',
+        status: 'completed',
+        roundIndex: 1,
+        toolName: 'candidate_asset_slot_attach',
+        args: { asset_slot_id: 9, resource_id: 88 },
+        result: { message: 'candidate created' },
+        createdAt: '2026-05-22T01:00:02.000Z',
+      }],
+      approvals: [{
+        id: 'approval_1',
+        toolName: 'candidate_asset_slot_attach',
+        args: { asset_slot_id: 9, resource_id: 88 },
+        reason: '需要确认写入素材候选',
+        permission: 'asset_candidate.write',
+        risk: 'write',
+        status: 'approved',
+        createdAt: '2026-05-22T01:00:00.500Z',
+        updatedAt: '2026-05-22T01:00:00.500Z',
+      }],
+    }),
+  })
+
+  assert.deepEqual(feed?.items.map((item) => item.type === 'block' || item.type === 'decision' ? item.title : item.id), [
+    '模型决定调用 2 个工具',
+    'step-step_focus',
+    '写入素材候选',
   ])
 })
 

@@ -1,4 +1,6 @@
-import type { AgentRun, AgentTraceEvent } from '../state/types.js'
+import type { AgentRun, AgentTraceEvent, JSONValue } from '../state/types.js'
+import type { RuntimeWork } from '../runtimeWork/runtimeWork.js'
+import { buildGenerationEvent } from '../generation/generationEvents.js'
 
 export interface AgentGenerationProgressState {
   jobId?: number
@@ -69,11 +71,13 @@ interface GenerationTraceEventLike {
 export function buildRuntimeRunGenerationView(input: {
   run: AgentRun
   events: AgentTraceEvent[]
+  works?: RuntimeWork[]
   generatedAt?: string
 }): AgentRunGenerationView {
   const eventLikes: GenerationTraceEventLike[] = [
     ...input.run.steps.map((step) => ({ data: step.result, createdAt: step.createdAt, completedAt: step.completedAt })),
     ...input.events,
+    ...(input.works ?? []).map(generationEventLikeFromWork).filter((event): event is GenerationTraceEventLike => !!event),
   ]
   const replay = replayGenerationTrace(eventLikes)
   return {
@@ -93,6 +97,22 @@ export function buildRuntimeRunGenerationView(input: {
     failed: replay.failed,
     cancelled: replay.cancelled,
     timeout: replay.timeout,
+  }
+}
+
+function generationEventLikeFromWork(work: RuntimeWork): GenerationTraceEventLike | undefined {
+  if (work.kind !== 'generation_job' || work.result === undefined) return undefined
+  const jobId = work.externalHandle?.id
+  const request = work.request && typeof work.request === 'object' && !Array.isArray(work.request)
+    ? work.request as Record<string, JSONValue>
+    : {}
+  const args = typeof jobId === 'number' ? { jobId } : request
+  const event = buildGenerationEvent({ name: 'generation_job_get', args }, work.result as JSONValue | undefined)
+  if (!event) return undefined
+  return {
+    data: { generation: event },
+    createdAt: work.updatedAt,
+    completedAt: work.completedAt,
   }
 }
 

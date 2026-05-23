@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Badge, Button } from '@movscript/ui'
-import { CheckCircle2, Circle, Dot } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronUp, Circle, Dot } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { generationJobBadge, generationProgressTitle, generationStatusText } from '@/lib/agentGenerationDisplay'
 import type { GenerationProgressState } from '@/lib/agentGenerationMedia'
 import { buildPlanOverviewStats, buildPlanTaskViews } from '@/lib/agentPlanUi'
@@ -22,6 +23,7 @@ export function AgentPinnedStatusShelf({
   generationProgressStates = [],
   planSnapshot,
 }: AgentPinnedStatusShelfProps) {
+  const { t } = useTranslation()
   const liveGenerationStates = generationProgressStates.filter((state) => !state.terminal)
   const taskViews = planSnapshot ? buildPlanTaskViews(planSnapshot) : []
   const workerViews = taskViews
@@ -40,11 +42,12 @@ export function AgentPinnedStatusShelf({
 
   const planStats = planSnapshot ? buildPlanOverviewStats(planSnapshot) : undefined
   const views = [
-    { id: 'generation' as const, label: '生成', count: generationProgressStates.length },
-    { id: 'subagent' as const, label: '子 agent', count: workerViews.length },
-    { id: 'plan' as const, label: 'Plan', count: plan?.totalCount ?? planStats?.taskCount ?? 0 },
+    { id: 'generation' as const, label: t('agents.chat.pinnedStatus.tabs.generation'), count: generationProgressStates.length },
+    { id: 'subagent' as const, label: t('agents.chat.pinnedStatus.tabs.worker'), count: workerViews.length },
+    { id: 'plan' as const, label: t('agents.chat.pinnedStatus.tabs.plan'), count: plan?.totalCount ?? planStats?.taskCount ?? 0 },
   ]
   const [activeView, setActiveView] = useState<PinnedStatusView>(hasGeneration ? 'generation' : hasSubagents ? 'subagent' : hasPlan ? 'plan' : 'generation')
+  const [collapsed, setCollapsed] = useState(false)
   const activeCount = [
     liveGenerationStates.length > 0 ? liveGenerationStates.length : 0,
     activeWorkerViews.length,
@@ -58,72 +61,103 @@ export function AgentPinnedStatusShelf({
       className="z-20 shrink-0 border-b border-border/70 bg-background px-2 py-2"
     >
       <div className="rounded-md border border-border bg-background shadow-sm">
-        <div className="flex min-h-10 items-center justify-between gap-2 border-b border-border/60 px-2.5 py-1.5">
+        <div
+          role="button"
+          tabIndex={0}
+          aria-expanded={!collapsed}
+          aria-controls="agent-pinned-status-shelf-body"
+          className={cn(
+            'flex min-h-10 cursor-pointer items-center justify-between gap-2 px-2.5 py-1.5 outline-none transition-colors hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background',
+            !collapsed && 'border-b border-border/60',
+          )}
+          onClick={() => setCollapsed((value) => !value)}
+          onKeyDown={(event) => {
+            if (event.target !== event.currentTarget) return
+            if (event.key !== 'Enter' && event.key !== ' ') return
+            event.preventDefault()
+            setCollapsed((value) => !value)
+          }}
+          title={collapsed ? t('agents.chat.pinnedStatus.expand') : t('agents.chat.pinnedStatus.collapse')}
+        >
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 type-tiny font-medium text-foreground">
-              <span>当前状态</span>
-              {activeCount > 0 && <span className="type-micro font-normal text-muted-foreground">{activeCount} 个运行中</span>}
+              <span>{t('agents.chat.pinnedStatus.title')}</span>
+              {!collapsed && activeCount > 0 && <span className="type-micro font-normal text-muted-foreground">{t('agents.chat.pinnedStatus.activeRunsCount', { count: activeCount })}</span>}
             </div>
-            <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 type-micro text-muted-foreground">
-              {hasGeneration && <span>{liveGenerationStates.length || generationProgressStates.length} 个生成任务</span>}
-              {planStats && <span>计划 {planStats.completedTaskCount}/{planStats.taskCount}</span>}
-              {workerViews.length > 0 && <span>{workerViews.length} 个子 agent</span>}
-              {hasThreadPlan && <span>步骤 {plan.completedCount}/{plan.totalCount}</span>}
-            </div>
+            {!collapsed && (
+              <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 type-micro text-muted-foreground">
+                {hasGeneration && <span>{t('agents.chat.pinnedStatus.generationTasksCount', { count: liveGenerationStates.length || generationProgressStates.length })}</span>}
+                {planStats && <span>{t('agents.chat.pinnedStatus.planProgress', { completed: planStats.completedTaskCount, total: planStats.taskCount })}</span>}
+                {workerViews.length > 0 && <span>{t('agents.chat.pinnedStatus.workersCount', { count: workerViews.length })}</span>}
+                {hasThreadPlan && <span>{t('agents.chat.pinnedStatus.threadPlanSteps', { completed: plan.completedCount, total: plan.totalCount })}</span>}
+              </div>
+            )}
           </div>
-          <div className="flex shrink-0 items-center rounded-md bg-muted/60 p-0.5">
-            {views.map((view) => (
-              <button
-                key={view.id}
-                type="button"
-                className={cn(
-                  'rounded px-2 py-1 type-micro transition-colors',
-                  activeView === view.id ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
-                )}
-                onClick={() => setActiveView(view.id)}
-              >
-                {view.label}
-                <span className="ml-1 text-muted-foreground">{view.count}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="max-h-56 overflow-y-auto overscroll-contain px-2.5 py-2">
-          {activeView === 'generation' && (
-            hasGeneration ? (
-              <div className="space-y-1.5">
-                {generationProgressStates.map((state, index) => (
-                  <GenerationStatusLine key={generationStatusKey(state, index)} state={state} />
+          <div className="flex shrink-0 items-center gap-1.5">
+            {!collapsed && (
+              <div className="flex items-center rounded-md bg-muted/60 p-0.5">
+                {views.map((view) => (
+                  <button
+                    key={view.id}
+                    type="button"
+                    className={cn(
+                      'rounded px-2 py-1 type-micro transition-colors',
+                      activeView === view.id ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                    )}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setActiveView(view.id)
+                    }}
+                  >
+                    {view.label}
+                    <span className="ml-1 text-muted-foreground">{view.count}</span>
+                  </button>
                 ))}
               </div>
-            ) : <PinnedEmptyState label="暂无生成任务" />
-          )}
-          {activeView === 'subagent' && (
-            hasSubagents ? (
-              <div className="space-y-1.5">
-                {workerViews.map((view) => view.worker && (
-                  <div key={view.worker.id} className="flex min-w-0 items-center justify-between gap-2 type-micro">
-                    <div className="min-w-0">
-                      <div className="truncate font-medium text-foreground">{view.subagentName ?? view.worker.subagentName ?? view.task.title}</div>
-                      <div className="truncate text-muted-foreground">{view.task.title}</div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1 text-muted-foreground">
-                      {typeof view.worker.progress === 'number' && <span>{Math.round(Math.max(0, Math.min(1, view.worker.progress)) * 100)}%</span>}
-                      <Badge variant="outline" className="type-min leading-3 px-1 py-0">{runStatusLabel(view.worker.status)}</Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : <PinnedEmptyState label="暂无子 agent" />
-          )}
-          {activeView === 'plan' && (
-            plan
-              ? <ThreadPlanStatusView plan={plan} planSnapshot={planSnapshot} planStats={planStats} />
-              : planSnapshot && planStats
-                ? <TaskGraphPlanStatusView planSnapshot={planSnapshot} planStats={planStats} />
-                : <PinnedEmptyState label="暂无 plan" />
-          )}
+            )}
+            {collapsed
+              ? <ChevronDown size={14} className="text-muted-foreground" aria-hidden="true" />
+              : <ChevronUp size={14} className="text-muted-foreground" aria-hidden="true" />}
+          </div>
         </div>
+        {!collapsed && (
+          <div id="agent-pinned-status-shelf-body" className="h-28 overflow-y-auto overscroll-contain px-2.5 py-2">
+            {activeView === 'generation' && (
+              hasGeneration ? (
+                <div className="space-y-1.5">
+                  {generationProgressStates.map((state, index) => (
+                    <GenerationStatusLine key={generationStatusKey(state, index)} state={state} />
+                  ))}
+                </div>
+              ) : <PinnedEmptyState label={t('agents.chat.pinnedStatus.empty.generation')} />
+            )}
+            {activeView === 'subagent' && (
+              hasSubagents ? (
+                <div className="space-y-1.5">
+                  {workerViews.map((view) => view.worker && (
+                    <div key={view.worker.id} className="flex min-w-0 items-center justify-between gap-2 type-micro">
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-foreground">{view.subagentName ?? view.worker.subagentName ?? view.task.title}</div>
+                        <div className="truncate text-muted-foreground">{view.task.title}</div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1 text-muted-foreground">
+                        {typeof view.worker.progress === 'number' && <span>{Math.round(Math.max(0, Math.min(1, view.worker.progress)) * 100)}%</span>}
+                        <Badge variant="outline" className="type-min leading-3 px-1 py-0">{runStatusLabel(view.worker.status)}</Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : <PinnedEmptyState label={t('agents.chat.pinnedStatus.empty.worker')} />
+            )}
+            {activeView === 'plan' && (
+              plan
+                ? <ThreadPlanStatusView plan={plan} planSnapshot={planSnapshot} planStats={planStats} />
+                : planSnapshot && planStats
+                  ? <TaskGraphPlanStatusView planSnapshot={planSnapshot} planStats={planStats} />
+                  : <PinnedEmptyState label={t('agents.chat.pinnedStatus.empty.plan')} />
+            )}
+          </div>
+        )}
       </div>
     </header>
   )
@@ -131,7 +165,7 @@ export function AgentPinnedStatusShelf({
 
 function PinnedEmptyState({ label }: { label: string }) {
   return (
-    <div className="flex min-h-12 items-center justify-center rounded border border-dashed border-border/70 bg-muted/20 type-micro text-muted-foreground">
+    <div className="flex h-full min-h-12 items-center justify-center rounded border border-dashed border-border/70 bg-muted/20 type-micro text-muted-foreground">
       {label}
     </div>
   )
@@ -171,20 +205,21 @@ function ThreadPlanStatusView({
   planSnapshot?: AgentTaskGraphSnapshot
   planStats?: ReturnType<typeof buildPlanOverviewStats>
 }) {
+  const { t } = useTranslation()
   const percent = plan.totalCount > 0 ? Math.round((plan.completedCount / plan.totalCount) * 100) : 0
   return (
     <div className="space-y-1.5">
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="min-w-0">
-          <div className="truncate type-tiny font-medium text-foreground">Plan updated</div>
+          <div className="truncate type-tiny font-medium text-foreground">{t('agents.chat.pinnedStatus.planUpdated')}</div>
           <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 type-micro text-muted-foreground">
-            <span>{plan.completedCount}/{plan.totalCount} 个步骤</span>
+            <span>{t('agents.chat.pinnedStatus.stepsCount', { completed: plan.completedCount, total: plan.totalCount })}</span>
             <span>{percent}%</span>
             {plan.explanation && <span className="truncate">{plan.explanation}</span>}
           </div>
         </div>
         <Badge variant="outline" className="shrink-0 type-min leading-3 px-1 py-0">
-          Plan
+          {t('agents.chat.pinnedStatus.tabs.plan')}
         </Badge>
       </div>
       <div className="h-0.5 overflow-hidden rounded-full bg-muted">
@@ -197,7 +232,7 @@ function ThreadPlanStatusView({
       </div>
       {planSnapshot && planStats && (
         <div className="flex min-w-0 items-center justify-between gap-2 border-t border-border/60 pt-1.5 type-micro text-muted-foreground">
-          <span className="min-w-0 truncate">执行计划 {planStats.completedTaskCount}/{planStats.taskCount} 个任务</span>
+          <span className="min-w-0 truncate">{t('agents.chat.pinnedStatus.executionPlanProgress', { completed: planStats.completedTaskCount, total: planStats.taskCount })}</span>
           <Button
             type="button"
             size="xs"
@@ -205,7 +240,7 @@ function ThreadPlanStatusView({
             className="h-5 shrink-0 px-1.5 type-micro"
             onClick={() => scrollToElement('agent-taskGraph-overview')}
           >
-            查看详情
+            {t('agents.chat.pinnedStatus.viewDetails')}
           </Button>
         </div>
       )}
@@ -220,16 +255,17 @@ function TaskGraphPlanStatusView({
   planSnapshot: AgentTaskGraphSnapshot
   planStats: ReturnType<typeof buildPlanOverviewStats>
 }) {
+  const { t } = useTranslation()
   return (
     <div className="space-y-1.5">
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="truncate type-tiny font-medium text-foreground">{planSnapshot.taskGraph.title}</div>
           <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 type-micro text-muted-foreground">
-            <span>{planStats.completedTaskCount}/{planStats.taskCount} 个任务</span>
+            <span>{t('agents.chat.pinnedStatus.tasksCount', { completed: planStats.completedTaskCount, total: planStats.taskCount })}</span>
             <span>{Math.round(Math.max(0, Math.min(1, planSnapshot.taskGraph.progress)) * 100)}%</span>
-            <span>{planStats.activeWorkerCount} 个执行器运行中</span>
-            {planStats.artifactCount > 0 && <span>{planStats.artifactCount} 个产物</span>}
+            <span>{t('agents.chat.pinnedStatus.workersRunningCount', { count: planStats.activeWorkerCount })}</span>
+            {planStats.artifactCount > 0 && <span>{t('agents.chat.pinnedStatus.artifactsCount', { count: planStats.artifactCount })}</span>}
           </div>
         </div>
         <Badge variant="outline" className="shrink-0 type-min leading-3 px-1 py-0">
@@ -246,7 +282,7 @@ function TaskGraphPlanStatusView({
         className="h-5 px-1.5 type-micro"
         onClick={() => scrollToElement('agent-taskGraph-overview')}
       >
-        查看计划详情
+        {t('agents.chat.pinnedStatus.viewPlanDetails')}
       </Button>
     </div>
   )

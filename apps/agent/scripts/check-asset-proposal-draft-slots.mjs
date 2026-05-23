@@ -22,7 +22,7 @@ async function main() {
   const focus = await readMCPFocus(mcpEndpoint)
   const projectId = numberArg(args.projectId ?? args['project-id']) ?? projectIdFromFocus(focus)
   if (!projectId) {
-    throw new Error('Usage: pnpm --filter movscript-agent check:asset-proposal-slots -- [--project-id <id>] [--agent-url http://127.0.0.1:28765] [--mcp-endpoint http://127.0.0.1:18765/mcp] [--backend-url http://localhost:8765] [--include-inactive]. No --project-id was provided and current MCP focus has no project.id.')
+    throw new Error('Usage: pnpm --filter @movscript/agent check:asset-proposal-slots -- [--project-id <id>] [--agent-url http://127.0.0.1:28765] [--mcp-endpoint http://127.0.0.1:18765/mcp] [--backend-url http://localhost:8765] [--include-inactive]. No --project-id was provided and current MCP focus has no project.id.')
   }
 
   const currentSlotsRaw = await backendList(`${backendBaseURL}/projects/${projectId}/entities/asset-slots?include_internal=true`, authToken)

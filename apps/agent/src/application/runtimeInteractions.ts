@@ -62,12 +62,13 @@ export function materializeRuntimeApprovalInteractions(input: {
 }
 
 export function approveRuntimeInteraction(input: {
-  store: Pick<AgentStore, 'getRuntimeInteraction' | 'updateRuntimeInteraction'>
+  store: Pick<AgentStore, 'getRuntimeInteraction' | 'updateRuntimeInteraction' | 'getRun'>
   interactionId: string
   now: string
   approveRun: (runId: string, approvalInput: ApproveRunInput) => AgentRun
 }): RuntimeInteractionApprovalResult {
-  const interaction = requirePendingApprovalInteraction(input.store, input.interactionId)
+  const interaction = requireApprovalInteraction(input.store, input.interactionId)
+  if (interaction.status !== 'pending') return resolvedInteractionResult(input.store, interaction)
   const approvalId = approvalIdFromInteraction(interaction)
   const run = input.approveRun(interaction.runId, { approvalIds: [approvalId] })
   interaction.status = 'approved'
@@ -79,12 +80,13 @@ export function approveRuntimeInteraction(input: {
 }
 
 export function rejectRuntimeInteraction(input: {
-  store: Pick<AgentStore, 'getRuntimeInteraction' | 'updateRuntimeInteraction'>
+  store: Pick<AgentStore, 'getRuntimeInteraction' | 'updateRuntimeInteraction' | 'getRun'>
   interactionId: string
   now: string
   rejectRun: (runId: string, rejectionInput: RejectRunInput) => AgentRun
 }): RuntimeInteractionApprovalResult {
-  const interaction = requirePendingApprovalInteraction(input.store, input.interactionId)
+  const interaction = requireApprovalInteraction(input.store, input.interactionId)
+  if (interaction.status !== 'pending') return resolvedInteractionResult(input.store, interaction)
   const approvalId = approvalIdFromInteraction(interaction)
   const run = input.rejectRun(interaction.runId, { approvalIds: [approvalId] })
   interaction.status = 'rejected'
@@ -95,15 +97,26 @@ export function rejectRuntimeInteraction(input: {
   return { interaction, run }
 }
 
-function requirePendingApprovalInteraction(
+function requireApprovalInteraction(
   store: Pick<AgentStore, 'getRuntimeInteraction'>,
   interactionId: string,
 ): RuntimeInteraction {
   const interaction = store.getRuntimeInteraction(interactionId)
   if (!interaction) throw new Error(`runtime interaction not found: ${interactionId}`)
   if (interaction.kind !== 'approval') throw new Error(`runtime interaction ${interactionId} is not an approval`)
-  if (interaction.status !== 'pending') throw new Error(`runtime interaction ${interactionId} is not pending`)
   return interaction
+}
+
+function resolvedInteractionResult(
+  store: Pick<AgentStore, 'getRun'>,
+  interaction: RuntimeInteraction,
+): RuntimeInteractionApprovalResult {
+  const resultRunId = isRecord(interaction.result) && typeof interaction.result.runId === 'string'
+    ? interaction.result.runId
+    : undefined
+  const run = store.getRun(resultRunId ?? interaction.runId)
+  if (!run) throw new Error(`run not found: ${resultRunId ?? interaction.runId}`)
+  return { interaction, run }
 }
 
 function approvalIdFromInteraction(interaction: RuntimeInteraction): string {

@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { defaultRunPolicy } from '../state/runPolicy.js'
 import type { AgentRun, AgentTraceEvent } from '../state/types.js'
+import type { RuntimeWork } from '../runtimeWork/runtimeWork.js'
 import { buildRuntimeRunGenerationView } from './runtimeGenerationView.js'
 
 test('buildRuntimeRunGenerationView replays generation progress and media from run trace', () => {
@@ -66,6 +67,35 @@ test('buildRuntimeRunGenerationView replays generation progress and media from r
   assert.equal(view.succeeded, 1)
 })
 
+test('buildRuntimeRunGenerationView lets observed runtime work update stale generation traces', () => {
+  const run = makeRun()
+  const events: AgentTraceEvent[] = [
+    trace('trace_1', {
+      generation: {
+        jobId: 7,
+        status: 'unknown',
+        stage: 'created',
+        terminal: false,
+      },
+    }),
+  ]
+  const view = buildRuntimeRunGenerationView({
+    run,
+    events,
+    works: [generationWork()],
+    generatedAt: '2026-01-01T00:00:10.000Z',
+  })
+
+  assert.equal(view.jobs.length, 1)
+  assert.equal(view.latestJob?.jobId, 7)
+  assert.equal(view.latestJob?.status, 'completed')
+  assert.equal(view.latestJob?.stage, 'completed')
+  assert.equal(view.latestJob?.terminal, true)
+  assert.deepEqual(view.outputResourceIds, [41])
+  assert.equal(view.terminal, 1)
+  assert.equal(view.active, 0)
+})
+
 function makeRun(): AgentRun {
   return {
     id: 'run_1',
@@ -76,6 +106,28 @@ function makeRun(): AgentRun {
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     steps: [],
+  }
+}
+
+function generationWork(): RuntimeWork {
+  return {
+    id: 'work_1',
+    threadId: 'thread_1',
+    runId: 'run_1',
+    kind: 'generation_job',
+    mode: 'async',
+    status: 'completed',
+    request: { prompt: 'image' },
+    externalHandle: { provider: 'movscript', type: 'generation_job', id: 7 },
+    result: {
+      status: 'completed',
+      terminal: true,
+      jobId: 7,
+      outputResourceIds: [41],
+    },
+    createdAt: '2026-01-01T00:00:01.000Z',
+    updatedAt: '2026-01-01T00:00:03.000Z',
+    completedAt: '2026-01-01T00:00:03.000Z',
   }
 }
 

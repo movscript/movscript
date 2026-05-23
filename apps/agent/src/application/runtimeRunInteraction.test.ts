@@ -72,6 +72,13 @@ test('answerRuntimeRunInputRequest records the answer and appends an intentional
   assert.equal(run?.pendingInputRequests?.[0]?.status, 'answered')
   assert.deepEqual(run?.pendingInputRequests?.[0]?.answer, { choiceIds: ['script'], text: '补充说明' })
   assert.equal(result.message.id, 'msg_answer')
+  assert.equal(result.message.runId, 'run_1')
+  assert.deepEqual(result.message.metadata, {
+    kind: 'runtime_input',
+    targetRunId: 'run_1',
+    mode: 'soft',
+    status: 'accepted',
+  })
   assert.equal(thread?.messages[0]?.role, 'user')
   assert.match(thread?.messages[0]?.content ?? '', /选择目标内容/)
   assert.match(thread?.messages[0]?.content ?? '', /补充说明/)

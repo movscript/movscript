@@ -1,32 +1,46 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import {
+  appendConversationMessage,
+  normalizeConvsByUser as normalizeAgentConvsByUser,
+  normalizeConversations,
+  normalizeDraftsByConversation,
+  normalizeMessages as normalizeAgentMessages,
+  patchConversationMessageMeta,
+  removeConversationMessage,
+  replaceConversationMessages,
+  upsertConversationMessage,
+} from '@movscript/conversation'
 import i18n from '@/i18n'
-import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
-import type { AgentPlanRevision } from '@/lib/localAgentClient'
 import { isRecord } from '@/lib/jsonValue'
+import type {
+  AgentAttachment as ProtocolAgentAttachment,
+  AgentChatMessage,
+  AgentChatMessageMeta,
+  AgentContextDiagnostic,
+  AgentContextDiagnosticTool,
+  AgentConversation,
+  AgentConversationDraft,
+  AgentGenerationInputPreflightError,
+  AgentGenerationInputRequirement,
+  AgentGenerationInputRequirements,
+  AgentGenerationJob,
+  AgentGenerationParamAudit,
+  AgentGenerationParamPreflightError,
+  AgentGenerationSubmittedInputs,
+  AgentGenerationValidationError,
+  AgentRunActivity,
+  AgentRunActivityApproval,
+  AgentRunActivityEvent,
+  AgentRunActivityInputRequest,
+  AgentRunActivityStep,
+  AgentRuntimeInputRef,
+  AgentRuntimeMessageRef,
+} from '@movscript/protocol'
 
-export interface ChatMessage {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  attachments?: AgentAttachment[]
-  meta?: ChatMessageMeta
-  timestamp: number
-}
-
-export interface Conversation {
-  id: string
-  title: string
-  messages: ChatMessage[]
-  runtimeThreadId?: string
-  createdAt: number
-  updatedAt: number
-}
-
-export interface ConversationDraft {
-  input: string
-  attachments: AgentAttachment[]
-}
+export type ChatMessage = AgentChatMessage
+export type Conversation = AgentConversation
+export type ConversationDraft = AgentConversationDraft
 
 export interface AgentSettings {
   modelId: number | null
@@ -80,293 +94,25 @@ export interface AgentRunPreset {
   planWorkerTimeoutMs: number
 }
 
-export interface AgentAttachment {
-  id: string
-  name: string
-  type: 'image' | 'video' | 'audio' | 'text' | 'file'
-  mimeType: string
-  size: number
-  url?: string
-  previewUrl?: string
-  resourceId?: number
-  generated?: {
-    jobId?: number
-    jobType?: string
-    providerName?: string
-    modelDisplay?: string
-    modelIdentifier?: string
-    modelConfigId?: number
-    status?: string
-    stage?: string
-  }
-}
-
-export interface ChatMessageMeta {
-  modelId?: number | null
-  agentName?: string
-  permissionMode?: AgentPermissionMode
-  contextLabels?: string[]
-  runtimeMessage?: ChatRuntimeMessageRef
-  runtimeInput?: ChatRuntimeInputRef
-  contextDiagnostic?: ChatContextDiagnostic
-  generationJobs?: ChatGenerationJob[]
-  generationParamAudits?: ChatGenerationParamAudit[]
-  generationValidationErrors?: ChatGenerationValidationError[]
-  draftArtifacts?: AgentTaskArtifactRef[]
-  localRunActivity?: ChatRunActivity
-  planRevision?: AgentPlanRevision
-}
-
-export interface ChatRuntimeMessageRef {
-  threadId: string
-  messageId?: string
-  runId?: string
-}
-
-export interface ChatRuntimeInputRef {
-  threadId?: string
-  runId?: string
-  messageId?: string
-  status: 'pending' | 'accepted' | 'consumed' | 'failed'
-  error?: string
-}
-
-export interface ChatContextDiagnostic {
-  schema: 'movscript.local_context_diagnostic.v1'
-  command?: Record<string, unknown>
-  modelGatewayCalled: boolean
-  messages: Array<{ role: string; content: string }>
-  systemPrompt?: string
-  debugParts: Array<{ id: string; kind: string; title: string; content: string }>
-  promptStats?: {
-    totalChars: number
-    systemChars?: number
-    conversationChars?: number
-    budget?: {
-      limitChars: number
-      usedChars: number
-      remainingChars: number
-      usageRatio: number
-      status: string
-    }
-    parts: Array<{ id: string; title: string; kind: string; layer: string; chars: number }>
-    byLayer: Record<string, number>
-    byContextLayer?: Record<string, number>
-  }
-  tools: {
-    available: ChatContextDiagnosticTool[]
-    blocked: ChatContextDiagnosticTool[]
-    discoveredCount: number
-    modelTools: Array<{ name: string; description?: string; parameters?: unknown }>
-  }
-  skills: Array<{
-    id: string
-    name: string
-    category?: string
-    activationReason?: string
-    resolvedPriority?: number
-  }>
-  warnings: string[]
-}
-
-export interface ChatContextDiagnosticTool {
-  name: string
-  description?: string
-  source?: string
-  registered?: boolean
-  granted?: boolean
-  available?: boolean
-  permission?: string
-  risk?: string
-  projectScoped?: boolean
-  approval?: string
-  requiresApproval?: boolean
-  unavailableReason?: string
-  inputSchema?: unknown
-  outputSchema?: unknown
-  resolution?: {
-    authorized: boolean
-    visible: boolean
-    reason?: string
-    grantSource: 'manifest' | 'none'
-    approval: 'never' | 'always' | 'on_write'
-    activeSkillIds: string[]
-  }
-}
-
-export interface ChatGenerationJob {
-  jobId?: number
-  jobType?: string
-  providerName?: string
-  modelDisplay?: string
-  modelIdentifier?: string
-  modelConfigId?: number
-  status: string
-  stage?: string
-  progress?: number
-  terminal: boolean
-  outputResourceId?: number
-  outputResourceIds?: number[]
-  message?: string
-  firstSeenAt?: string
-  updatedAt?: string
-  completedAt?: string
-}
-
-export interface ChatGenerationParamAudit {
-  stepId?: string
-  jobId?: number
-  auditVersion?: number
-  modelConfigId?: number
-  modelContractLoaded: boolean
-  paramsSchemaLoaded: boolean
-  paramsSchemaRuleCount?: number
-  supportedParams: string[]
-  providedExtraParams: string[]
-  submittedExtraParams: string[]
-  droppedExtraParams: string[]
-  droppedTopLevelParams: string[]
-  dropReasons?: Record<string, string>
-  renamedExtraParams?: Record<string, string>
-  extraParamsParseError?: string
-  preflightErrors?: ChatGenerationParamPreflightError[]
-  inputRequirements?: ChatGenerationInputRequirements
-  submittedInputs?: ChatGenerationSubmittedInputs
-  inputPreflightErrors?: ChatGenerationInputPreflightError[]
-  repairNote?: string
-}
-
-export interface ChatGenerationInputRequirement {
-  min: number
-  max: number
-}
-
-export interface ChatGenerationInputRequirements {
-  image: ChatGenerationInputRequirement
-  video: ChatGenerationInputRequirement
-}
-
-export interface ChatGenerationSubmittedInputs {
-  image: number
-  video: number
-}
-
-export interface ChatGenerationParamPreflightError {
-  code: string
-  field: string
-  message: string
-  allowedValues?: Array<string | number | boolean>
-  suggestedFix?: Record<string, unknown>
-}
-
-export interface ChatGenerationInputPreflightError {
-  code: string
-  field: 'image' | 'video'
-  message: string
-  requiredMin: number
-  allowedMax: number
-  actualCount: number
-}
-
-export interface ChatGenerationValidationError {
-  stepId?: string
-  code: string
-  field?: string
-  message: string
-  allowedValues?: Array<string | number | boolean>
-  suggestedFix?: Record<string, unknown>
-  requiredMin?: number
-  allowedMax?: number
-  actualCount?: number
-}
-
-export interface ChatRunActivity {
-  runId: string
-  threadId: string
-  status: string
-  createdAt: string
-  updatedAt: string
-  startedAt?: string
-  completedAt?: string
-  failedAt?: string
-  error?: string
-  warnings?: string[]
-  approvals?: ChatRunActivityApproval[]
-  inputs?: ChatRunActivityInputRequest[]
-  steps: ChatRunActivityStep[]
-  events: ChatRunActivityEvent[]
-}
-
-export interface ChatRunActivityApproval {
-  id: string
-  runId?: string
-  interactionId?: string
-  toolName: string
-  args?: Record<string, unknown>
-  preview?: unknown
-  reason: string
-  risk?: string
-  permission?: string
-  status: string
-  createdAt: string
-  updatedAt: string
-  approvedAt?: string
-  rejectedAt?: string
-}
-
-export interface ChatRunActivityInputRequest {
-  id: string
-  runId?: string
-  title: string
-  summary?: string
-  question: string
-  inputType: string
-  choices: Array<{ id: string; label: string; description?: string }>
-  allowCustomAnswer: boolean
-  status: string
-  createdAt: string
-  updatedAt: string
-  answeredAt?: string
-  answer?: {
-    choiceIds?: string[]
-    text?: string
-  }
-}
-
-export interface ChatRunActivityStep {
-  id: string
-  type: 'tool_call' | 'message'
-  status: string
-  roundId?: string
-  roundIndex?: number
-  roundLabel?: string
-  title?: string
-  toolName?: string
-  args?: unknown
-  result?: unknown
-  error?: string
-  sandboxed?: boolean
-  durationMs?: number
-  createdAt: string
-  completedAt?: string
-}
-
-export interface ChatRunActivityEvent {
-  id: string
-  kind: string
-  title: string
-  summary?: string
-  status: string
-  roundId?: string
-  roundIndex?: number
-  roundLabel?: string
-  toolName?: string
-  stepId?: string
-  data?: unknown
-  durationMs?: number
-  createdAt: string
-  completedAt?: string
-}
+export type AgentAttachment = ProtocolAgentAttachment
+export type ChatMessageMeta = AgentChatMessageMeta
+export type ChatRuntimeMessageRef = AgentRuntimeMessageRef
+export type ChatRuntimeInputRef = AgentRuntimeInputRef
+export type ChatContextDiagnostic = AgentContextDiagnostic
+export type ChatContextDiagnosticTool = AgentContextDiagnosticTool
+export type ChatGenerationJob = AgentGenerationJob
+export type ChatGenerationParamAudit = AgentGenerationParamAudit
+export type ChatGenerationInputRequirement = AgentGenerationInputRequirement
+export type ChatGenerationInputRequirements = AgentGenerationInputRequirements
+export type ChatGenerationSubmittedInputs = AgentGenerationSubmittedInputs
+export type ChatGenerationParamPreflightError = AgentGenerationParamPreflightError
+export type ChatGenerationInputPreflightError = AgentGenerationInputPreflightError
+export type ChatGenerationValidationError = AgentGenerationValidationError
+export type ChatRunActivity = AgentRunActivity
+export type ChatRunActivityApproval = AgentRunActivityApproval
+export type ChatRunActivityInputRequest = AgentRunActivityInputRequest
+export type ChatRunActivityStep = AgentRunActivityStep
+export type ChatRunActivityEvent = AgentRunActivityEvent
 
 // Per-user conversation state
 export interface UserConvState {
@@ -417,9 +163,9 @@ function getUserState(store: Pick<AgentStore, 'convsByUser'>, userId: string): U
   const existing = store.convsByUser[userId]
   if (!existing) return defaultUserState()
   return {
-    conversations: normalizeConversations(existing.conversations),
+    conversations: normalizeConversations<Conversation>(existing.conversations),
     activeConversationId: existing.activeConversationId ?? null,
-    draftsByConversation: normalizeDraftsByConversation(existing.draftsByConversation),
+    draftsByConversation: normalizeDraftsByConversation<ConversationDraft>(existing.draftsByConversation),
   }
 }
 
@@ -557,6 +303,7 @@ export const useAgentStore = create<AgentStore>()(
 
     addMessage: (userId, conversationId, msg) => {
       const id = genId()
+      const now = Date.now()
       set((state) => {
         const cur = getUserState(state, userId)
         return {
@@ -566,7 +313,7 @@ export const useAgentStore = create<AgentStore>()(
               ...cur,
               conversations: cur.conversations.map((c) =>
                 c.id === conversationId
-                  ? { ...c, messages: [...c.messages, { ...msg, id, timestamp: msg.timestamp ?? Date.now() }], updatedAt: Date.now() }
+                  ? appendConversationMessage(c, msg, { createId: () => id, now: () => now }).conversation
                   : c
               ),
             },
@@ -586,12 +333,7 @@ export const useAgentStore = create<AgentStore>()(
             ...cur,
             conversations: cur.conversations.map((c) => {
               if (c.id !== conversationId) return c
-              const existingIndex = c.messages.findIndex((message) => message.id === messageId)
-              const nextMessage = { ...msg, id: messageId, timestamp: msg.timestamp ?? (existingIndex >= 0 ? c.messages[existingIndex].timestamp : now) }
-              const messages = existingIndex >= 0
-                ? c.messages.map((message, index) => index === existingIndex ? nextMessage : message)
-                : [...c.messages, nextMessage]
-              return { ...c, messages, updatedAt: now }
+              return upsertConversationMessage(c, messageId, msg, { now: () => now })
             }),
           },
         },
@@ -600,18 +342,18 @@ export const useAgentStore = create<AgentStore>()(
 
     setConversationMessages: (userId, conversationId, messages) => set((state) => {
       const cur = getUserState(state, userId)
-      const normalizedMessages = normalizeMessages(messages)
+      const normalizedMessages = normalizeAgentMessages<ChatMessage>(messages, {
+        createId: genId,
+        now: () => Date.now(),
+      })
+      const now = Date.now()
       return {
         convsByUser: {
           ...state.convsByUser,
           [userId]: {
             ...cur,
             conversations: cur.conversations.map((c) => c.id === conversationId
-              ? {
-                ...c,
-                messages: normalizedMessages,
-                updatedAt: Date.now(),
-              }
+              ? replaceConversationMessages(c, normalizedMessages, { now: () => now })
               : c),
           },
         },
@@ -620,6 +362,7 @@ export const useAgentStore = create<AgentStore>()(
 
     updateMessageMeta: (userId, conversationId, messageId, meta) => set((state) => {
       const cur = getUserState(state, userId)
+      const now = Date.now()
       return {
         convsByUser: {
           ...state.convsByUser,
@@ -627,13 +370,7 @@ export const useAgentStore = create<AgentStore>()(
             ...cur,
             conversations: cur.conversations.map((c) => {
               if (c.id !== conversationId) return c
-              return {
-                ...c,
-                messages: c.messages.map((message) => message.id === messageId
-                  ? { ...message, meta: { ...message.meta, ...meta } }
-                  : message),
-                updatedAt: Date.now(),
-              }
+              return patchConversationMessageMeta(c, messageId, meta, { now: () => now })
             }),
           },
         },
@@ -642,6 +379,7 @@ export const useAgentStore = create<AgentStore>()(
 
     removeMessage: (userId, conversationId, messageId) => set((state) => {
       const cur = getUserState(state, userId)
+      const now = Date.now()
       return {
         convsByUser: {
           ...state.convsByUser,
@@ -649,7 +387,7 @@ export const useAgentStore = create<AgentStore>()(
             ...cur,
             conversations: cur.conversations.map((c) =>
               c.id === conversationId
-                ? { ...c, messages: c.messages.filter((message) => message.id !== messageId), updatedAt: Date.now() }
+                ? removeConversationMessage(c, messageId, { now: () => now })
                 : c
             ),
           },
@@ -748,123 +486,12 @@ export const useAgentStore = create<AgentStore>()(
   ),
 )
 
-export function normalizeConvsByUser(value?: Record<string, UserConvState> | null): Record<string, UserConvState> {
-  if (!value || typeof value !== 'object') return {}
-  return Object.fromEntries(
-    Object.entries(value).map(([userId, state]) => {
-      const conversations = normalizeConversations(state?.conversations)
-      const activeConversationId = typeof state?.activeConversationId === 'string'
-        && conversations.some((conversation) => conversation.id === state.activeConversationId)
-        ? state.activeConversationId
-        : conversations[0]?.id ?? null
-      return [userId, {
-        conversations,
-        activeConversationId,
-        draftsByConversation: normalizeDraftsByConversation(state?.draftsByConversation),
-      }]
-    }),
-  )
-}
-
-function normalizeConversations(value: unknown): Conversation[] {
-  if (!Array.isArray(value)) return []
-  return value
-    .filter(isRecord)
-    .map((conversation) => {
-      const now = Date.now()
-      const id = typeof conversation.id === 'string' && conversation.id ? conversation.id : genId()
-      const messages = normalizeMessages(conversation.messages)
-      return {
-        id,
-        title: typeof conversation.title === 'string' && conversation.title.trim() ? conversation.title : i18n.t('agents.chat.newConversation'),
-        messages,
-        ...(typeof conversation.runtimeThreadId === 'string' && conversation.runtimeThreadId.trim() ? { runtimeThreadId: conversation.runtimeThreadId.trim() } : {}),
-        createdAt: numberOrFallback(conversation.createdAt, messages[0]?.timestamp ?? now),
-        updatedAt: numberOrFallback(conversation.updatedAt, messages[messages.length - 1]?.timestamp ?? now),
-      }
-    })
-}
-
-function normalizeMessages(value: unknown): ChatMessage[] {
-  if (!Array.isArray(value)) return []
-  return value
-    .filter(isRecord)
-    .map((message) => {
-      const role = message.role === 'assistant' ? 'assistant' : 'user'
-      return {
-        id: typeof message.id === 'string' && message.id ? message.id : genId(),
-        role,
-        content: typeof message.content === 'string' ? message.content : '',
-        timestamp: numberOrFallback(message.timestamp, Date.now()),
-        ...(Array.isArray(message.attachments) ? { attachments: normalizeAttachments(message.attachments) } : {}),
-        ...(isRecord(message.meta) ? { meta: message.meta as ChatMessageMeta } : {}),
-      }
-    })
-}
-
-function normalizeDraftsByConversation(value: unknown): Record<string, ConversationDraft> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>)
-      .flatMap(([conversationId, draft]) => {
-        if (!isRecord(draft)) return []
-        return [[conversationId, {
-          input: typeof draft.input === 'string' ? draft.input : '',
-          attachments: normalizeAttachments(draft.attachments),
-        }]]
-      }),
-  )
-}
-
-function normalizeAttachments(value: unknown): AgentAttachment[] {
-  if (!Array.isArray(value)) return []
-  return value
-    .filter(isRecord)
-    .map((attachment) => normalizeAttachment(attachment))
-}
-
-function normalizeAttachment(attachment: Record<string, unknown>): AgentAttachment {
-  const resourceId = numberOrUndefined(attachment.resourceId)
-  const type = normalizeAttachmentType(attachment.type)
-  const url = normalizeAttachmentUrl(typeof attachment.url === 'string' ? attachment.url : undefined, resourceId)
-  return {
-    id: typeof attachment.id === 'string' && attachment.id ? attachment.id : resourceId !== undefined ? `res-${resourceId}` : genId(),
-    name: typeof attachment.name === 'string' && attachment.name.trim() ? attachment.name : resourceId !== undefined ? `resource-${resourceId}` : 'attachment',
-    type,
-    mimeType: typeof attachment.mimeType === 'string' && attachment.mimeType ? attachment.mimeType : defaultMimeType(type),
-    size: numberOrFallback(attachment.size, 0),
-    ...(url ? { url } : {}),
-    ...(resourceId !== undefined ? { resourceId } : {}),
-    ...(isRecord(attachment.generated) ? { generated: attachment.generated as AgentAttachment['generated'] } : {}),
-  }
-}
-
-function normalizeAttachmentUrl(url: string | undefined, resourceId: number | undefined): string | undefined {
-  if (resourceId !== undefined && (!url || url.startsWith('blob:') || url.startsWith('data:'))) {
-    return `/api/v1/resources/${resourceId}/file`
-  }
-  return url
-}
-
-function normalizeAttachmentType(value: unknown): AgentAttachment['type'] {
-  return value === 'image' || value === 'video' || value === 'audio' || value === 'text' || value === 'file' ? value : 'file'
-}
-
-function defaultMimeType(type: AgentAttachment['type']): string {
-  if (type === 'image') return 'image/png'
-  if (type === 'video') return 'video/mp4'
-  if (type === 'audio') return 'audio/mpeg'
-  if (type === 'text') return 'text/plain'
-  return 'application/octet-stream'
-}
-
-function numberOrFallback(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
-}
-
-function numberOrUndefined(value: unknown): number | undefined {
-  const numeric = Number(value)
-  return Number.isInteger(numeric) && numeric > 0 ? numeric : undefined
+function normalizeConvsByUser(value?: Record<string, UserConvState> | null): Record<string, UserConvState> {
+  return normalizeAgentConvsByUser<Conversation, ConversationDraft>(value, {
+    createId: genId,
+    defaultTitle: i18n.t('agents.chat.newConversation'),
+    now: () => Date.now(),
+  })
 }
 
 export function normalizeAgentSettings(settings?: Partial<AgentSettings> | null): AgentSettings {

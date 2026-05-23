@@ -1,35 +1,35 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { markRuntimeMessagesRestored, mergeRuntimeThreadProjectionMessages, runtimeThreadHydrationKey } from './agentRuntimeConversationSync'
-import type { ChatMessage } from '@/store/agentStore'
+import { markRuntimeMessagesRestored, mergeRuntimeThreadProjectionMessages, runtimeThreadHydrationKey } from './index'
+import type { AgentChatMessage } from '@movscript/protocol'
 
 test('runtimeThreadHydrationKey scopes hydration by conversation and runtime thread', () => {
   assert.equal(runtimeThreadHydrationKey('conv_1', 'thread_1'), 'conv_1:thread_1')
 })
 
 test('mergeRuntimeThreadProjectionMessages replaces only messages from the projected runtime thread', () => {
-  const localMessage: ChatMessage = {
+  const localMessage: AgentChatMessage = {
     id: 'local_message',
     role: 'assistant',
     content: 'local status',
     timestamp: 1,
   }
-  const oldRuntimeMessage: ChatMessage = {
+  const oldRuntimeMessage: AgentChatMessage = {
     id: 'old_runtime',
     role: 'assistant',
     content: 'old',
     meta: { runtimeMessage: { threadId: 'thread_1', runId: 'run_old' } },
     timestamp: 2,
   }
-  const otherRuntimeMessage: ChatMessage = {
+  const otherRuntimeMessage: AgentChatMessage = {
     id: 'other_runtime',
     role: 'assistant',
     content: 'other',
     meta: { runtimeMessage: { threadId: 'thread_other', runId: 'run_other' } },
     timestamp: 3,
   }
-  const projectedMessage: ChatMessage = {
+  const projectedMessage: AgentChatMessage = {
     id: 'projected_runtime',
     role: 'assistant',
     content: 'projected',
@@ -46,14 +46,14 @@ test('mergeRuntimeThreadProjectionMessages replaces only messages from the proje
 })
 
 test('mergeRuntimeThreadProjectionMessages collapses duplicate projected assistant results for the same run', () => {
-  const projectedMessage: ChatMessage = {
+  const projectedMessage: AgentChatMessage = {
     id: 'runtime:msg_1',
     role: 'assistant',
     content: 'done',
     meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'msg_1', runId: 'run_1' } },
     timestamp: 10,
   }
-  const duplicateRunResult: ChatMessage = {
+  const duplicateRunResult: AgentChatMessage = {
     id: 'runtime-run:run_1:assistant',
     role: 'assistant',
     content: 'done',
@@ -71,7 +71,7 @@ test('mergeRuntimeThreadProjectionMessages collapses duplicate projected assista
     },
     timestamp: 11,
   }
-  const planRevisionMessage: ChatMessage = {
+  const planRevisionMessage: AgentChatMessage = {
     id: 'runtime:plan_1',
     role: 'assistant',
     content: 'Plan updated',
@@ -110,7 +110,7 @@ test('mergeRuntimeThreadProjectionMessages collapses duplicate projected assista
 })
 
 test('mergeRuntimeThreadProjectionMessages keeps separate plan revisions for the same run', () => {
-  const revision = (id: string): ChatMessage => ({
+  const revision = (id: string): AgentChatMessage => ({
     id: `runtime:${id}`,
     role: 'assistant',
     content: 'Plan updated',
@@ -148,7 +148,7 @@ test('mergeRuntimeThreadProjectionMessages keeps separate plan revisions for the
 })
 
 test('markRuntimeMessagesRestored prepends restore context without dropping existing metadata', () => {
-  const messages: ChatMessage[] = [{
+  const messages: AgentChatMessage[] = [{
     id: 'runtime_user',
     role: 'user',
     content: 'Continue',

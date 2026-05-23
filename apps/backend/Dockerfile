@@ -11,7 +11,7 @@ COPY apps/admin/package.json ./apps/admin/package.json
 COPY apps/agent/package.json ./apps/agent/package.json
 COPY apps/frontend/package.json ./apps/frontend/package.json
 COPY apps/movcli/package.json ./apps/movcli/package.json
-COPY packages/draft-schemas/package.json ./packages/draft-schemas/package.json
+COPY packages/drafts/package.json ./packages/drafts/package.json
 COPY packages/plugin-sdk/package.json ./packages/plugin-sdk/package.json
 COPY packages/plugin-sdk/examples/scene-summary/package.json ./packages/plugin-sdk/examples/scene-summary/package.json
 COPY packages/tokens/package.json ./packages/tokens/package.json
@@ -19,11 +19,11 @@ COPY packages/ui/package.json ./packages/ui/package.json
 COPY plugins/image-generator/package.json ./plugins/image-generator/package.json
 COPY plugins/video-generator/package.json ./plugins/video-generator/package.json
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm install --frozen-lockfile --filter movscript-admin... --store-dir /pnpm/store
+    pnpm install --frozen-lockfile --filter @movscript/admin... --store-dir /pnpm/store
 COPY packages ./packages
 COPY apps/frontend/src ./apps/frontend/src
 COPY apps/admin ./apps/admin
-RUN pnpm --filter movscript-admin build
+RUN pnpm --filter @movscript/admin build
 
 FROM golang:1.25-alpine AS builder
 WORKDIR /src/apps/backend

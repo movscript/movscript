@@ -1,5 +1,5 @@
 import type { AgentRun, AgentTraceEvent } from '../state/types.js'
-import type { AgentRunTraceSummary } from '../state/runTrace.js'
+import type { AgentRunTraceSummary } from '@movscript/protocol'
 
 const DEBUG_BUNDLE_SCHEMA = 'movscript.agent-run-debug-bundle.v1'
 const DEBUG_BUNDLE_SCHEMA_URL = 'https://movscript.dev/schemas/agent-run-debug-bundle-v1.schema.json'

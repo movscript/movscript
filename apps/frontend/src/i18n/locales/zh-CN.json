@@ -2279,6 +2279,34 @@
       "createAndUseProject": "创建并使用",
       "resourceContext": "素材库",
       "autoTaskGraph": "规划模式",
+      "pinnedStatus": {
+        "title": "当前状态",
+        "tabs": {
+          "generation": "生成",
+          "worker": "执行",
+          "plan": "计划"
+        },
+        "activeRunsCount": "{{count}} 个运行中",
+        "generationTasksCount": "{{count}} 个生成任务",
+        "planProgress": "计划 {{completed}}/{{total}}",
+        "workersCount": "{{count}} 个执行项",
+        "threadPlanSteps": "步骤 {{completed}}/{{total}}",
+        "empty": {
+          "generation": "暂无生成任务",
+          "worker": "暂无执行项",
+          "plan": "暂无计划"
+        },
+        "planUpdated": "计划已更新",
+        "stepsCount": "{{completed}}/{{total}} 个步骤",
+        "executionPlanProgress": "执行计划 {{completed}}/{{total}} 个任务",
+        "viewDetails": "查看详情",
+        "tasksCount": "{{completed}}/{{total}} 个任务",
+        "workersRunningCount": "{{count}} 个执行项运行中",
+        "artifactsCount": "{{count}} 个产物",
+        "viewPlanDetails": "查看计划详情",
+        "collapse": "折叠当前状态",
+        "expand": "展开当前状态"
+      },
       "drafts": {
         "title": "待确认建议",
         "filters": {
@@ -2965,6 +2993,8 @@
       "starting": "启动中…",
       "startRun": "启动运行",
       "nodeLibrary": "节点库",
+      "expandNodeLibrary": "展开节点库",
+      "collapseNodeLibrary": "收起节点库",
       "nodeLibraryHint": "拖拽节点到画布，或点击添加到视口中心",
       "emptyTitle": "从左侧拖入输入、AI 处理和输出节点",
       "emptyDescription": "右键画布也可以快速插入节点。选中节点后在右侧配置模型、提示词和素材来源。",

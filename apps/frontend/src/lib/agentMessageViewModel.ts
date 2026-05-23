@@ -175,15 +175,22 @@ async function generationReplayFromRun(
     ...liveEvents,
   ]
   const replay = replayGenerationTrace(traceEvents)
-  if (replay.jobs.length > 0) return replay
-  if (liveEvents.length === 0 || isTerminalRun(run)) {
+  if (shouldFetchAuthoritativeGenerationView(run, replay)) {
     try {
-      return await fetchRunGenerationViewForGeneratedAttachments(run.id)
+      const view = await fetchRunGenerationViewForGeneratedAttachments(run.id)
+      if (view.jobs.length > 0 || replay.jobs.length === 0) return view
     } catch {
       // Fall back to local run data when the view endpoint is unavailable.
     }
   }
+  if (replay.jobs.length > 0) return replay
   return replay
+}
+
+function shouldFetchAuthoritativeGenerationView(run: AgentRun, replay: GenerationTraceReplay): boolean {
+  if (isTerminalRun(run)) return true
+  if (replay.jobs.length === 0) return true
+  return replay.jobs.some((job) => job.status === 'unknown')
 }
 
 function isTerminalRun(run: AgentRun): boolean {

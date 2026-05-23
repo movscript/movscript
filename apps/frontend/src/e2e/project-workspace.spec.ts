@@ -41,12 +41,15 @@ test('project workspace reviews project standards proposal', async ({ page }, te
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('project workspace E2E requires a baseURL')
 
-  await page.addInitScript(({ key, seed }) => {
+  const seed = buildGenerationAppBootstrap(String(baseURL)) as unknown
+  await (page as unknown as {
+    addInitScript(script: (arg: { key: string; seed: unknown }) => void, arg: { key: string; seed: unknown }): Promise<unknown>
+  }).addInitScript(({ key, seed }) => {
     window.localStorage.setItem(key, JSON.stringify(seed))
     window.localStorage.setItem('movscript.language', 'zh-CN')
   }, {
     key: E2E_BOOTSTRAP_STORAGE_KEY,
-    seed: buildGenerationAppBootstrap(String(baseURL)),
+    seed,
   })
 
   await mockGenerationAppShell(page)

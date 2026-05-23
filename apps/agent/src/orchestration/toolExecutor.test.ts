@@ -8,7 +8,7 @@ import { MemoryManager } from '../memory/memoryManager.js'
 import { InMemoryAgentMemoryStore } from '../memory/memoryStore.js'
 import { InMemoryAgentDraftStore, validateDraft } from '../drafts/draftStore.js'
 import { executeTool } from './toolExecutor.js'
-import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
+import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/drafts'
 import { draftContentFileRef } from '../files/providers/draftFileProvider.js'
 
 function testRun(): AgentRun {

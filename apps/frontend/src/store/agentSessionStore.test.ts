@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { conversationIdForLocalThread, pageTaskStatusFromRuntime } from './agentSessionStore'
+import { conversationIdForRuntimeThread } from '@movscript/conversation'
+import { pageTaskStatusFromRuntime } from './agentSessionStore'
 
-test('conversationIdForLocalThread resolves persisted direct conversation mappings first', () => {
-  assert.equal(conversationIdForLocalThread({
+test('conversationIdForRuntimeThread resolves persisted direct conversation mappings first', () => {
+  assert.equal(conversationIdForRuntimeThread({
     threadId: 'thread_1',
     localThreadIdsByConversation: {
       conv_direct: 'thread_1',
@@ -18,8 +19,8 @@ test('conversationIdForLocalThread resolves persisted direct conversation mappin
   }), 'conv_direct')
 })
 
-test('conversationIdForLocalThread falls back to the latest runtime mapping', () => {
-  assert.equal(conversationIdForLocalThread({
+test('conversationIdForRuntimeThread falls back to the latest runtime mapping', () => {
+  assert.equal(conversationIdForRuntimeThread({
     threadId: 'thread_1',
     localThreadIdsByConversation: {},
     conversationRuntimes: {
@@ -39,8 +40,8 @@ test('conversationIdForLocalThread falls back to the latest runtime mapping', ()
   }), 'conv_new')
 })
 
-test('conversationIdForLocalThread returns undefined for unmapped runtime threads', () => {
-  assert.equal(conversationIdForLocalThread({
+test('conversationIdForRuntimeThread returns undefined for unmapped runtime threads', () => {
+  assert.equal(conversationIdForRuntimeThread({
     threadId: 'thread_missing',
     localThreadIdsByConversation: {
       conv_direct: 'thread_1',

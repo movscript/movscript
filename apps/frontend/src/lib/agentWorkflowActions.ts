@@ -1,12 +1,14 @@
 import { formatLocalAgentAssistantContent } from '@/lib/localAgentResult'
 import {
+  formatInputAnswerForChat,
   optimisticApprovalRun,
   optimisticInputAnswerRun,
   upsertWorkflowRunSnapshot,
   type AgentInputAnswer,
 } from '@/lib/agentWorkflowInteraction'
+import type { AgentConversationMessageStore, AssistantConversationMessageAppender } from '@movscript/conversation'
 import type { AgentRun, AgentThread, RuntimeInteraction } from '@/lib/localAgentClient'
-import type { ChatMessage, ChatRunActivityEvent } from '@/store/agentStore'
+import type { ChatMessage, ChatMessageMeta, ChatRunActivityEvent } from '@/store/agentStore'
 
 export type WorkflowConversationRuntimePatch = {
   approving?: boolean
@@ -15,10 +17,13 @@ export type WorkflowConversationRuntimePatch = {
 }
 
 export interface AgentWorkflowActionDeps {
+  userId: string
+  conversationId: string
   setSubmittedInteractionRuns: (updater: (current: AgentRun[]) => AgentRun[]) => void
   setConversationRuntime: (patch: WorkflowConversationRuntimePatch) => void
   setConversationRun: (run: AgentRun, patch: WorkflowConversationRuntimePatch) => void
-  addAssistantMessage: (message: Pick<ChatMessage, 'role' | 'content'> & { meta?: ChatMessage['meta'] }) => void
+  messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'addMessage' | 'updateMessageMeta'>
+  addAssistantMessage: AssistantConversationMessageAppender<ChatMessage['meta']>
   getThread: (threadId: string) => Promise<AgentThread>
   streamFollowUpRun: (runId: string) => Promise<AgentRun>
   appendAssistantRunResult: (run: AgentRun, thread: AgentThread, liveEvents: ChatRunActivityEvent[]) => Promise<unknown>
@@ -52,10 +57,7 @@ export async function approveWorkflowRunAction(input: {
     }
     if (deps.runTouchesAgentCatalog(finalRun)) deps.refreshAgentCatalogContext()
   } catch (error) {
-    deps.addAssistantMessage({
-      role: 'assistant',
-      content: `工具确认失败：${error instanceof Error ? error.message : String(error)}`,
-    })
+    deps.addAssistantMessage(`工具确认失败：${error instanceof Error ? error.message : String(error)}`)
   } finally {
     deps.setConversationRuntime({ approving: false, loading: false })
   }
@@ -79,17 +81,10 @@ export async function rejectWorkflowRunAction(input: {
     deps.setSubmittedInteractionRuns((current) => upsertWorkflowRunSnapshot(current, rejectedRun))
     deps.setConversationRun(rejectedRun, { approving: true, loading: true })
     const thread = await deps.getThread(rejectedRun.threadId)
-    deps.addAssistantMessage({
-      role: 'assistant',
-      content: formatLocalAgentAssistantContent(rejectedRun, thread),
-      meta: { contextLabels: [`run ${rejectedRun.status}`] },
-    })
+    deps.addAssistantMessage(formatLocalAgentAssistantContent(rejectedRun, thread), { contextLabels: [`run ${rejectedRun.status}`] })
     if (deps.runTouchesAgentCatalog(rejectedRun)) deps.refreshAgentCatalogContext()
   } catch (error) {
-    deps.addAssistantMessage({
-      role: 'assistant',
-      content: `工具拒绝失败：${error instanceof Error ? error.message : String(error)}`,
-    })
+    deps.addAssistantMessage(`工具拒绝失败：${error instanceof Error ? error.message : String(error)}`)
   } finally {
     deps.setConversationRuntime({ approving: false, loading: false })
   }
@@ -134,14 +129,47 @@ export async function answerWorkflowRunInputAction(input: {
   run: AgentRun
   requestId: string
   answer: AgentInputAnswer
-  answerRunInput: (runId: string, input: { requestId: string } & AgentInputAnswer) => Promise<AgentRun>
+  answerRunInput: (runId: string, input: { requestId: string; sourceMessageId?: string } & AgentInputAnswer) => Promise<AgentRun>
   deps: AgentWorkflowActionDeps
 }): Promise<void> {
   const { run, requestId, answer, answerRunInput, deps } = input
+  const pendingRequest = (run.pendingInputRequests ?? []).find((request) => request.id === requestId && request.status === 'pending')
+  const localMessageId = pendingRequest
+    ? deps.messageStore.addMessage(deps.userId, deps.conversationId, {
+      role: 'user',
+      content: formatInputAnswerForChat(pendingRequest, answer),
+      meta: {
+        runtimeInput: {
+          threadId: run.threadId,
+          runId: run.id,
+          status: 'pending',
+        },
+      },
+    })
+    : undefined
   deps.setSubmittedInteractionRuns((current) => upsertWorkflowRunSnapshot(current, optimisticInputAnswerRun(run, requestId, answer)))
   deps.setConversationRuntime({ approving: true, loading: true, error: undefined })
   try {
-    const answeredRun = await answerRunInput(run.id, { requestId, ...answer })
+    const answeredRun = await answerRunInput(run.id, {
+      requestId,
+      ...answer,
+      ...(localMessageId ? { sourceMessageId: localMessageId } : {}),
+    })
+    if (localMessageId) {
+      deps.messageStore.updateMessageMeta(deps.userId, deps.conversationId, localMessageId, {
+        runtimeInput: {
+          threadId: run.threadId,
+          runId: answeredRun.id,
+          messageId: localMessageId,
+          status: 'accepted',
+        },
+        runtimeMessage: {
+          threadId: run.threadId,
+          runId: answeredRun.id,
+          messageId: localMessageId,
+        },
+      })
+    }
     deps.setSubmittedInteractionRuns((current) => upsertWorkflowRunSnapshot(current, answeredRun))
     deps.setConversationRun(answeredRun, { approving: true, loading: true })
     const finalRun = await deps.streamFollowUpRun(answeredRun.id)
@@ -152,10 +180,17 @@ export async function answerWorkflowRunInputAction(input: {
     }
     if (deps.runTouchesAgentCatalog(finalRun)) deps.refreshAgentCatalogContext()
   } catch (error) {
-    deps.addAssistantMessage({
-      role: 'assistant',
-      content: `补充信息提交失败：${error instanceof Error ? error.message : String(error)}`,
-    })
+    if (localMessageId) {
+      deps.messageStore.updateMessageMeta(deps.userId, deps.conversationId, localMessageId, {
+        runtimeInput: {
+          threadId: run.threadId,
+          runId: run.id,
+          status: 'failed',
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
+    }
+    deps.addAssistantMessage(`补充信息提交失败：${error instanceof Error ? error.message : String(error)}`)
   } finally {
     deps.setConversationRuntime({ approving: false, loading: false })
   }

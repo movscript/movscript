@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/movscript/movscript/internal/domain/media"
 	"github.com/movscript/movscript/internal/infra/ai"
@@ -37,7 +38,7 @@ func (w *Worker) saveBytes(ctx context.Context, job *persistencemodel.Job, data 
 		mimeType = normalizedMime
 	}
 	resType := typeFromMime(mimeType)
-	name := fmt.Sprintf("job_%d_%s.%s", job.ID, resType, extFromMime(mimeType))
+	name := generatedResourceName(job, resType, extFromMime(mimeType))
 	key := fmt.Sprintf("gen_%d_%s", job.ID, name)
 
 	r := persistencemodel.RawResource{
@@ -112,7 +113,7 @@ func (w *Worker) saveResult(ctx context.Context, job *persistencemodel.Job, prov
 	}
 
 	resType := typeFromMime(mimeType)
-	name := fmt.Sprintf("job_%d_%s.%s", job.ID, resType, extFromMime(mimeType))
+	name := generatedResourceName(job, resType, extFromMime(mimeType))
 	key := fmt.Sprintf("gen_%d_%s", job.ID, name)
 
 	r := persistencemodel.RawResource{
@@ -136,6 +137,40 @@ func (w *Worker) saveResult(ctx context.Context, job *persistencemodel.Job, prov
 
 	w.db.Model(&r).Update("file_path", "stored:"+key)
 	return r.ID, nil
+}
+
+func generatedResourceName(job *persistencemodel.Job, resType string, ext string) string {
+	base := generatedResourceBaseName(strings.TrimSpace(job.Title))
+	if base == "" {
+		base = fmt.Sprintf("job_%d_%s", job.ID, resType)
+	}
+	ext = strings.TrimPrefix(strings.TrimSpace(ext), ".")
+	if ext == "" {
+		return base
+	}
+	return base + "." + ext
+}
+
+func generatedResourceBaseName(title string) string {
+	const maxRunes = 80
+	var b strings.Builder
+	lastWasUnderscore := false
+	written := 0
+	for _, r := range title {
+		if written >= maxRunes {
+			break
+		}
+		keep := unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' || r == '_' || r == ' '
+		if keep {
+			b.WriteRune(r)
+			lastWasUnderscore = false
+		} else if !lastWasUnderscore {
+			b.WriteRune('_')
+			lastWasUnderscore = true
+		}
+		written++
+	}
+	return strings.Trim(b.String(), " ._")
 }
 
 func (w *Worker) resourceURL(id *uint) (string, error) {

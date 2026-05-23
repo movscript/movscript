@@ -5,7 +5,7 @@
     "outDir": "dist",
     "rootDir": "src",
     "paths": {
-      "@movscript/draft-schemas": ["../../packages/draft-schemas/dist/index.d.ts"]
+      "@movscript/drafts": ["../../packages/drafts/dist/index.d.ts"]
     }
   },
   "exclude": [

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { isLocalAgentNotFoundError, LocalAgentClient, LocalAgentHTTPError, type AgentMessage, type AgentRun, type AgentThread } from './localAgentClient'
+import { isLocalAgentNotFoundError, LocalAgentClient, LocalAgentHTTPError, type AgentMessage, type AgentRun, type AgentRuntimeEventV2, type AgentThread } from './localAgentClient'
 
 test('runMessageStream reports when a saved thread id is reused', async () => {
   const requests: string[] = []
@@ -12,7 +12,7 @@ test('runMessageStream reports when a saved thread id is reused', async () => {
     if (url.pathname === '/threads/thread_existing') return jsonResponse(thread)
     if (url.pathname === '/threads/thread_existing/runs') return jsonResponse(messageRunFixture('run_1', 'thread_existing', 'completed'))
     if (url.pathname === '/threads/thread_existing/stream') {
-      return new Response(`data: ${JSON.stringify({ type: 'done', threadId: 'thread_existing', run: runFixture('run_1', 'thread_existing', 'completed') })}\n\n`, {
+      return new Response(`data: ${JSON.stringify(runtimeRunEvent(runFixture('run_1', 'thread_existing', 'completed'), 1))}\n\n`, {
         status: 200,
         headers: { 'Content-Type': 'text/event-stream' },
       })
@@ -52,7 +52,7 @@ test('runMessageStream reports when a missing saved thread id is replaced by a n
     if (url.pathname === '/threads/thread_new') return jsonResponse(thread)
     if (url.pathname === '/threads/thread_new/runs') return jsonResponse(messageRunFixture('run_1', 'thread_new', 'completed'))
     if (url.pathname === '/threads/thread_new/stream') {
-      return new Response(`data: ${JSON.stringify({ type: 'done', threadId: 'thread_new', run: runFixture('run_1', 'thread_new', 'completed') })}\n\n`, {
+      return new Response(`data: ${JSON.stringify(runtimeRunEvent(runFixture('run_1', 'thread_new', 'completed'), 1))}\n\n`, {
         status: 200,
         headers: { 'Content-Type': 'text/event-stream' },
       })
@@ -162,16 +162,24 @@ test('getThreadRuntime reads the combined thread runtime snapshot endpoint', asy
     requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
     if (url.pathname === '/threads/thread_1/runtime') {
       return jsonResponse({
-        thread: threadFixture('thread_1'),
-        runs: [runFixture('run_1', 'thread_1', 'completed')],
+        schema: 'movscript.agent.runtime-snapshot.v2',
+        protocolVersion: 'movscript.agent.protocol.v1',
+        scope: { type: 'thread', id: 'thread_1' },
+        cursor: 'snapshot:thread_1:0',
+        ordinal: 0,
+        generatedAt: '2026-05-16T00:00:01.000Z',
+        entities: {
+          threads: [threadFixture('thread_1')],
+          runs: [runFixture('run_1', 'thread_1', 'completed')],
+        },
       })
     }
     return new Response('not found', { status: 404 })
   }, async () => {
     const result = await new LocalAgentClient('http://local.test').getThreadRuntime('thread_1')
 
-    assert.equal(result.thread.id, 'thread_1')
-    assert.deepEqual(result.runs.map((run) => run.id), ['run_1'])
+    assert.equal(result.entities.threads?.[0]?.id, 'thread_1')
+    assert.deepEqual(result.entities.runs?.map((run) => run.id), ['run_1'])
     assert.deepEqual(requests, ['GET /threads/thread_1/runtime'])
   })
 })
@@ -179,6 +187,7 @@ test('getThreadRuntime reads the combined thread runtime snapshot endpoint', asy
 test('runMessageStream reports thread resolution on the streaming path', async () => {
   const requests: string[] = []
   const runBodies: Array<Record<string, unknown>> = []
+  const sourceMessages: Array<{ messageId: string; runId: string }> = []
   const thread = threadFixture('thread_stream')
   const run = runFixture('run_stream', 'thread_stream', 'completed')
   await withFetch(async (input, init) => {
@@ -192,7 +201,7 @@ test('runMessageStream reports thread resolution on the streaming path', async (
       return jsonResponse({ run, message: messageFixture('msg_stream', 'thread_stream', 'continue') })
     }
     if (url.pathname === '/threads/thread_stream/stream') {
-      return new Response(`data: ${JSON.stringify({ type: 'done', threadId: 'thread_stream', run })}\n\n`, {
+      return new Response(`data: ${JSON.stringify(runtimeRunEvent(run, 1))}\n\n`, {
         status: 200,
         headers: { 'Content-Type': 'text/event-stream' },
       })
@@ -202,7 +211,14 @@ test('runMessageStream reports thread resolution on the streaming path', async (
     const result = await new LocalAgentClient('http://local.test').runMessageStream({
       threadId: 'thread_missing',
       message: 'continue',
-    }, { timeoutMs: 1000, pollMs: 1 })
+      sourceMessageId: 'local_msg_stream',
+    }, {
+      onSourceMessage: (message, run) => {
+        sourceMessages.push({ messageId: message.id, runId: run.id })
+      },
+      timeoutMs: 1000,
+      pollMs: 1,
+    })
 
     assert.equal(result.run.id, 'run_stream')
     assert.equal(result.sourceMessage?.id, 'msg_stream')
@@ -217,7 +233,9 @@ test('runMessageStream reports thread resolution on the streaming path', async (
     assert.ok(requests.includes('GET /threads/thread_stream/stream'))
     assert.equal(requests.includes('GET /runs/run_stream/stream'), false)
     assert.equal(runBodies[0]?.message, 'continue')
+    assert.equal(runBodies[0]?.sourceMessageId, 'local_msg_stream')
     assert.equal(runBodies[0]?.activeRunPolicy, 'new_run')
+    assert.deepEqual(sourceMessages, [{ messageId: 'msg_stream', runId: 'run_stream' }])
   })
 })
 
@@ -235,7 +253,7 @@ test('runMessageStream falls back to run stream when thread stream is unavailabl
     if (url.pathname === '/threads/thread_stream/stream') return new Response('not found', { status: 404 })
     if (url.pathname === '/runs/run_stream') return jsonResponse(run)
     if (url.pathname === '/runs/run_stream/stream') {
-      return new Response(`data: ${JSON.stringify({ type: 'done', run })}\n\n`, {
+      return new Response(`data: ${JSON.stringify(runtimeRunEvent(run, 1))}\n\n`, {
         status: 200,
         headers: { 'Content-Type': 'text/event-stream' },
       })
@@ -260,19 +278,19 @@ test('streamThread reads thread-scoped runtime stream events', async () => {
     const url = new URL(String(input))
     requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
     if (url.pathname === '/threads/thread_stream/stream') {
-      return new Response(`data: ${JSON.stringify({ type: 'run', threadId: 'thread_stream', run })}\n\n`, {
+      return new Response(`data: ${JSON.stringify(runtimeRunEvent(run, 1))}\n\n`, {
         status: 200,
         headers: { 'Content-Type': 'text/event-stream' },
       })
     }
     return new Response('not found', { status: 404 })
   }, async () => {
-    const events: Array<{ type: string; threadId: string }> = []
+    const events: Array<{ kind: string; threadId?: string }> = []
     await new LocalAgentClient('http://local.test').streamThread('thread_stream', {
-      onStreamEvent: (event) => events.push({ type: event.type, threadId: event.threadId }),
+      onRuntimeEvent: (event) => events.push({ kind: event.kind, threadId: event.causality?.threadId }),
     })
 
-    assert.deepEqual(events, [{ type: 'run', threadId: 'thread_stream' }])
+    assert.deepEqual(events, [{ kind: 'run.upserted', threadId: 'thread_stream' }])
     assert.deepEqual(requests, ['GET /threads/thread_stream/stream'])
   })
 })
@@ -295,7 +313,7 @@ test('streamRun reconnects after a per-request stream timeout', async () => {
         })
       }
       const run = runFixture('run_reconnect', 'thread_stream', 'completed')
-      return new Response(`data: ${JSON.stringify({ type: 'done', run })}\n\n`, {
+      return new Response(`data: ${JSON.stringify(runtimeRunEvent(run, 1))}\n\n`, {
         status: 200,
         headers: { 'Content-Type': 'text/event-stream' },
       })
@@ -303,7 +321,7 @@ test('streamRun reconnects after a per-request stream timeout', async () => {
     return new Response('not found', { status: 404 })
   }, async () => {
     const result = await new LocalAgentClient('http://local.test').streamRun('run_reconnect', {
-      timeoutMs: 100,
+      timeoutMs: 1000,
       streamRequestTimeoutMs: 1,
       pollMs: 1,
     })
@@ -496,6 +514,21 @@ function traceEvent(id: string) {
     status: 'completed',
     durationMs: 42,
     createdAt: '2026-05-16T00:00:00.000Z',
+  }
+}
+
+function runtimeRunEvent(run: AgentRun, ordinal: number): AgentRuntimeEventV2 {
+  return {
+    schema: 'movscript.agent.runtime-event.v2',
+    protocolVersion: 'movscript.agent.protocol.v1',
+    id: `runtime-event:${run.id}:${ordinal}`,
+    scope: { type: 'thread', id: run.threadId },
+    ordinal,
+    cursor: `runtime-event:${run.id}:${ordinal}`,
+    emittedAt: run.updatedAt,
+    kind: 'run.upserted',
+    causality: { threadId: run.threadId, runId: run.id },
+    entity: { type: 'run', value: run },
   }
 }
 

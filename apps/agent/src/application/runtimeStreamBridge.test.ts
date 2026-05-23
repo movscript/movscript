@@ -6,8 +6,8 @@ import type {
   AgentTaskGraphSnapshot,
   AgentTaskGraphStreamEvent,
   AgentRun,
-  AgentRunStreamEvent,
-  AgentThreadStreamEvent,
+  AgentInternalRunSignal,
+  AgentInternalThreadSignal,
   AgentTask,
 } from '../state/types.js'
 import { RuntimeEventSubscriberRegistry } from './runtimeEventSubscribers.js'
@@ -17,7 +17,7 @@ test('createRuntimeStreamBridge records run traces and forwards trace events to 
   const store = new InMemoryAgentStore()
   const run = makeRun({ taskGraphId: 'task_graph_1' })
   store.createRun(run)
-  const runEvents: AgentRunStreamEvent[] = []
+  const runEvents: AgentInternalRunSignal[] = []
   const planEvents: AgentTaskGraphStreamEvent[] = []
   const bridge = createBridge(store)
 
@@ -38,7 +38,7 @@ test('createRuntimeStreamBridge replays and forwards run stream events to thread
   const store = new InMemoryAgentStore()
   const run = makeRun({ status: 'completed' })
   store.createRun(run)
-  const threadEvents: AgentThreadStreamEvent[] = []
+  const threadEvents: AgentInternalThreadSignal[] = []
   const bridge = createBridge(store)
 
   bridge.subscribeThreadStream('thread_1', (event) => threadEvents.push(event))
@@ -56,7 +56,7 @@ test('createRuntimeStreamBridge closes run and taskGraph subscribers on terminal
   const store = new InMemoryAgentStore()
   const run = makeRun({ taskGraphId: 'task_graph_1', status: 'completed' })
   store.createRun(run)
-  const runEvents: AgentRunStreamEvent[] = []
+  const runEvents: AgentInternalRunSignal[] = []
   const planEvents: AgentTaskGraphStreamEvent[] = []
   const bridge = createBridge(store, { planStatus: 'done' })
 
@@ -73,8 +73,8 @@ function createBridge(store: InMemoryAgentStore, input: { planStatus?: AgentTask
   let traceId = 0
   return createRuntimeStreamBridge({
     store,
-    runSubscribers: new RuntimeEventSubscriberRegistry<AgentRunStreamEvent>(),
-    threadSubscribers: new RuntimeEventSubscriberRegistry<AgentThreadStreamEvent>(),
+    runSubscribers: new RuntimeEventSubscriberRegistry<AgentInternalRunSignal>(),
+    threadSubscribers: new RuntimeEventSubscriberRegistry<AgentInternalThreadSignal>(),
     planSubscribers: new RuntimeEventSubscriberRegistry<AgentTaskGraphStreamEvent>(),
     getTaskGraphSnapshot: () => snapshot({ status: input.planStatus ?? 'running' }),
     createTraceId: () => `trace_${++traceId}`,

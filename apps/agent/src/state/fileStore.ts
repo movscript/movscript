@@ -14,9 +14,9 @@ import type {
   RuntimeContinuation,
   RuntimeInteraction,
 } from './types.js'
-import { InMemoryAgentStore, type AgentStore, type AgentThreadClearResult, type AgentThreadDeletionResult, type AgentTraceQuery } from './store.js'
+import type { AgentRunTraceSummary, AgentTraceQuery } from '@movscript/protocol'
+import { InMemoryAgentStore, type AgentStore, type AgentThreadClearResult, type AgentThreadDeletionResult } from './store.js'
 import { FileTraceStore } from './fileTraceStore.js'
-import type { AgentRunTraceSummary } from './runTrace.js'
 import type { AgentRunDebugLedger } from './runDebugLedger.js'
 import { isRecord } from '../jsonValue.js'
 import { isValidAgentProjectId } from '../context/runtimeContext.js'
@@ -179,7 +179,7 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
   }
 
   override listRunTraceEvents(runId: string, query: AgentTraceQuery = {}): AgentTraceEvent[] {
-    return this.traceStore.listRunTraceEvents(runId, query)
+    return this.traceStore.listRunTraceEvents(runId, query) as AgentTraceEvent[]
   }
 
   override getRunTraceEventData(runId: string, eventId: string): unknown | undefined {

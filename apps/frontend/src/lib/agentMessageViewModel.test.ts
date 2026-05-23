@@ -307,6 +307,60 @@ test('assistantResultPayloadForRun falls back to generation view when live event
   }
 })
 
+test('assistantResultPayloadForRun lets the generation view repair stale unknown trace jobs', async () => {
+  const payload = await assistantResultPayloadForRun(baseRun(), [], '', {
+    fetchRunTraceEvents: async () => [{
+      id: 'trace_unknown_generation',
+      runId: 'run_1',
+      kind: 'tool_call',
+      title: 'Generation created',
+      status: 'completed',
+      createdAt: '2026-05-09T08:00:01.000Z',
+      data: {
+        generation: {
+          jobId: 53,
+          status: 'unknown',
+          stage: 'created',
+          terminal: false,
+        },
+      },
+    }],
+    fetchRunGenerationView: async () => ({
+      jobs: [{
+        jobId: 53,
+        jobType: 'image',
+        modelDisplay: 'View Model',
+        status: 'completed',
+        stage: 'completed',
+        terminal: true,
+        outputResourceId: 91,
+      }],
+      latestJob: {
+        jobId: 53,
+        jobType: 'image',
+        modelDisplay: 'View Model',
+        status: 'completed',
+        stage: 'completed',
+        terminal: true,
+        outputResourceId: 91,
+      },
+      outputResourceIds: [91],
+      outputResources: [],
+      metadataByResourceId: new Map(),
+      active: 0,
+      terminal: 1,
+      succeeded: 0,
+      failed: 0,
+      cancelled: 0,
+      timeout: 0,
+    }),
+  })
+
+  assert.equal(payload.meta.generationJobs?.[0]?.jobId, 53)
+  assert.equal(payload.meta.generationJobs?.[0]?.status, 'completed')
+  assert.equal(payload.meta.generationJobs?.[0]?.terminal, true)
+})
+
 test('hydrateHistoricalGeneratedAttachments restores text-only output resource cards', async () => {
   const resource: RawResource = {
     ID: 42,

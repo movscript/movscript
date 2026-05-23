@@ -370,6 +370,13 @@ export function answerRuntimeRunInputRequest(input: {
     threadId: thread.id,
     role: 'user',
     content: formatInputAnswerMessage(answer.request, answer.choiceIds, answer.text),
+    runId: run.id,
+    metadata: {
+      kind: 'runtime_input',
+      targetRunId: run.id,
+      mode: 'soft',
+      status: 'accepted',
+    },
     id: input.messageId,
     now: input.now,
   })

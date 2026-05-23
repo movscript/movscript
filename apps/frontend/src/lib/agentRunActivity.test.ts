@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { compactRunActivity, liveTraceEventKey, mergeLiveRunActivityEvent, projectLiveRunStreamTraceEvent } from './agentRunActivity'
-import type { AgentRun, AgentRunStreamEvent } from './localAgentClient'
+import { compactRunActivity, liveTraceEventKey, mergeLiveRunActivityEvent, projectLiveRunRuntimeTraceEvent } from './agentRunActivity'
+import type { AgentRun, AgentRuntimeEventV2, AgentTraceEvent } from './localAgentClient'
 import type { ChatRunActivityEvent } from '@/store/agentStore'
 
 test('liveTraceEventKey ignores non-plain live tool call payloads', () => {
@@ -119,22 +119,18 @@ test('compactRunActivity preserves approval and input request state', () => {
   assert.deepEqual(activity.inputs?.[0]?.answer, { choiceIds: ['a'] })
 })
 
-test('projectLiveRunStreamTraceEvent maps visible trace events and pending assistant state', () => {
-  const event: AgentRunStreamEvent = {
-    type: 'trace',
+test('projectLiveRunRuntimeTraceEvent maps visible trace events and pending assistant state', () => {
+  const event = runtimeTraceEvent({
+    id: 'trace_tool',
     runId: 'run_1',
-    event: {
-      id: 'trace_tool',
-      runId: 'run_1',
-      kind: 'tool_call',
-      title: 'Calling tool',
-      status: 'started',
-      toolName: 'movscript_read_context',
-      createdAt: '2026-05-17T00:00:00.000Z',
-    },
-  }
+    kind: 'tool_call',
+    title: 'Calling tool',
+    status: 'started',
+    toolName: 'movscript_read_context',
+    createdAt: '2026-05-17T00:00:00.000Z',
+  })
 
-  const projected = projectLiveRunStreamTraceEvent(event)
+  const projected = projectLiveRunRuntimeTraceEvent(event)
 
   assert.equal(projected?.activityEvent.id, 'trace_tool')
   assert.deepEqual(projected?.pendingAssistantState, {
@@ -143,29 +139,25 @@ test('projectLiveRunStreamTraceEvent maps visible trace events and pending assis
   })
 })
 
-test('projectLiveRunStreamTraceEvent derives preparing tool state from model tool-call deltas', () => {
-  const event: AgentRunStreamEvent = {
-    type: 'trace',
+test('projectLiveRunRuntimeTraceEvent derives preparing tool state from model tool-call deltas', () => {
+  const event = runtimeTraceEvent({
+    id: 'trace_model',
     runId: 'run_1',
-    event: {
-      id: 'trace_model',
-      runId: 'run_1',
-      kind: 'model_call',
-      title: 'Model tool call delta',
-      status: 'info',
-      data: {
-        stream: {
-          kind: 'tool_call',
-          toolCall: {
-            name: 'draft_create',
-          },
+    kind: 'model_call',
+    title: 'Model tool call delta',
+    status: 'info',
+    data: {
+      stream: {
+        kind: 'tool_call',
+        toolCall: {
+          name: 'draft_create',
         },
       },
-      createdAt: '2026-05-17T00:00:00.000Z',
     },
-  }
+    createdAt: '2026-05-17T00:00:00.000Z',
+  })
 
-  const projected = projectLiveRunStreamTraceEvent(event)
+  const projected = projectLiveRunRuntimeTraceEvent(event)
 
   assert.deepEqual(projected?.pendingAssistantState, {
     status: 'preparing_tool_call',
@@ -173,34 +165,26 @@ test('projectLiveRunStreamTraceEvent derives preparing tool state from model too
   })
 })
 
-test('projectLiveRunStreamTraceEvent clears pending state on terminal tool traces and ignores hidden kinds', () => {
-  const completedTool: AgentRunStreamEvent = {
-    type: 'trace',
+test('projectLiveRunRuntimeTraceEvent clears pending state on terminal tool traces and ignores hidden kinds', () => {
+  const completedTool = runtimeTraceEvent({
+    id: 'trace_done',
     runId: 'run_1',
-    event: {
-      id: 'trace_done',
-      runId: 'run_1',
-      kind: 'tool_call',
-      title: 'Tool finished',
-      status: 'completed',
-      createdAt: '2026-05-17T00:00:00.000Z',
-    },
-  }
-  const hidden: AgentRunStreamEvent = {
-    type: 'trace',
+    kind: 'tool_call',
+    title: 'Tool finished',
+    status: 'completed',
+    createdAt: '2026-05-17T00:00:00.000Z',
+  })
+  const hidden = runtimeTraceEvent({
+    id: 'trace_message',
     runId: 'run_1',
-    event: {
-      id: 'trace_message',
-      runId: 'run_1',
-      kind: 'message',
-      title: 'Internal message',
-      status: 'info',
-      createdAt: '2026-05-17T00:00:00.000Z',
-    },
-  }
+    kind: 'message',
+    title: 'Internal message',
+    status: 'info',
+    createdAt: '2026-05-17T00:00:00.000Z',
+  })
 
-  assert.equal(projectLiveRunStreamTraceEvent(completedTool)?.pendingAssistantState, null)
-  assert.equal(projectLiveRunStreamTraceEvent(hidden), null)
+  assert.equal(projectLiveRunRuntimeTraceEvent(completedTool)?.pendingAssistantState, null)
+  assert.equal(projectLiveRunRuntimeTraceEvent(hidden), null)
 })
 
 test('mergeLiveRunActivityEvent replaces by live key and keeps http setup events outside runtime limit', () => {
@@ -264,3 +248,18 @@ test('mergeLiveRunActivityEvent keeps complete live history unless a caller asks
 
   assert.deepEqual(merged.map((event) => event.id), ['trace_context_1', 'trace_context_2', 'trace_context_3'])
 })
+
+function runtimeTraceEvent(trace: AgentTraceEvent): AgentRuntimeEventV2 {
+  return {
+    schema: 'movscript.agent.runtime-event.v2',
+    protocolVersion: 'movscript.agent.protocol.v1',
+    id: `runtime-event:${trace.id}`,
+    scope: { type: 'thread', id: 'thread_1' },
+    ordinal: 1,
+    cursor: `runtime-event:${trace.id}`,
+    emittedAt: trace.createdAt,
+    kind: 'trace.upserted',
+    causality: { threadId: 'thread_1', runId: trace.runId, traceId: trace.id },
+    entity: { type: 'trace', value: trace },
+  }
+}

@@ -1,4 +1,4 @@
-import { DRAFT_CONTENT_SCHEMA_IDS, DRAFT_SCOPES } from '@movscript/draft-schemas'
+import { DRAFT_CONTENT_SCHEMA_IDS, DRAFT_SCOPES } from '@movscript/drafts'
 
 export const ASSET_PROPOSAL_DRAFT_SCHEMA = DRAFT_CONTENT_SCHEMA_IDS.assetProposal
 export const ASSET_PROPOSAL_SCOPE = DRAFT_SCOPES.assetProposal

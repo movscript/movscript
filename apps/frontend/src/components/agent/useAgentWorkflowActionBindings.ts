@@ -7,8 +7,8 @@ import {
 } from '@/lib/agentWorkflowActions'
 import { localAgentClient, type AgentRun, type AgentThread } from '@/lib/localAgentClient'
 import type { AgentInputAnswer } from '@/lib/agentWorkflowInteraction'
-import type { AgentConversationMessageStore } from '@/lib/agentConversationMessageStore'
-import type { ChatRunActivityEvent } from '@/store/agentStore'
+import { appendAssistantConversationMessage, type AgentConversationMessageStore } from '@movscript/conversation'
+import type { ChatMessage, ChatMessageMeta, ChatRunActivityEvent } from '@/store/agentStore'
 
 export interface UseAgentWorkflowActionBindingsInput {
   conversationId: string
@@ -19,7 +19,7 @@ export interface UseAgentWorkflowActionBindingsInput {
   setSubmittedInteractionRuns: (updater: (current: AgentRun[]) => AgentRun[]) => void
   setConversationRuntime: (conversationId: string, patch: Parameters<AgentWorkflowActionDeps['setConversationRuntime']>[0]) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch: Parameters<AgentWorkflowActionDeps['setConversationRun']>[1]) => void
-  messageStore: Pick<AgentConversationMessageStore, 'addMessage'>
+  messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'addMessage' | 'updateMessageMeta'>
   streamFollowUpRun: (runId: string) => Promise<AgentRun>
   appendAssistantRunResult: (run: AgentRun, thread: AgentThread, liveEvents: ChatRunActivityEvent[]) => Promise<unknown>
   liveEvents: () => ChatRunActivityEvent[]
@@ -44,10 +44,17 @@ export function useAgentWorkflowActionBindings({
   refreshAgentCatalogContext,
 }: UseAgentWorkflowActionBindingsInput) {
   const deps = useMemo<AgentWorkflowActionDeps>(() => ({
+    userId,
+    conversationId,
     setSubmittedInteractionRuns,
     setConversationRuntime: (patch) => setConversationRuntime(conversationId, patch),
     setConversationRun: (run, patch) => setConversationRun(conversationId, run, patch),
-    addAssistantMessage: (message) => messageStore.addMessage(userId, conversationId, message),
+    messageStore,
+    addAssistantMessage: (content, meta) => appendAssistantConversationMessage<ChatMessage, ChatMessageMeta>({
+      content,
+      ...(meta ? { meta } : {}),
+      deps: { userId, conversationId, messageStore },
+    }),
     getThread: (threadId) => localAgentClient.getThread(threadId),
     streamFollowUpRun,
     appendAssistantRunResult,

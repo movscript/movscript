@@ -1,0 +1,134 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+
+import { buildAgentRunTimeline } from './index'
+import type { AgentRunActivity } from '@movscript/protocol'
+
+test('buildAgentRunTimeline orders rounds, decisions, tools, approvals, then results structurally', () => {
+  const timeline = buildAgentRunTimeline(activity({
+    events: [{
+      id: 'event_decision',
+      kind: 'model_call',
+      title: 'Model tool calls requested',
+      status: 'completed',
+      roundIndex: 1,
+      data: {
+        tool_calls: [
+          { id: 'call_read', name: 'movscript_focus_get', args: {} },
+          { id: 'call_write', name: 'candidate_asset_slot_attach', args: { asset_slot_id: 9, resource_id: 88 } },
+        ],
+      },
+      createdAt: '2026-05-22T01:00:00.000Z',
+    }],
+    approvals: [{
+      id: 'approval_write',
+      toolName: 'candidate_asset_slot_attach',
+      args: { resource_id: 88, asset_slot_id: 9 },
+      reason: 'confirm write',
+      status: 'approved',
+      createdAt: '2026-05-22T01:00:00.100Z',
+      updatedAt: '2026-05-22T01:00:02.000Z',
+      approvedAt: '2026-05-22T01:00:02.000Z',
+    }],
+    steps: [{
+      id: 'step_read',
+      type: 'tool_call',
+      status: 'completed',
+      roundIndex: 1,
+      toolName: 'movscript_focus_get',
+      createdAt: '2026-05-22T01:00:00.500Z',
+      completedAt: '2026-05-22T01:00:00.800Z',
+    }, {
+      id: 'step_write',
+      type: 'tool_call',
+      status: 'completed',
+      roundIndex: 1,
+      toolName: 'candidate_asset_slot_attach',
+      args: { asset_slot_id: 9, resource_id: 88 },
+      result: { message: 'candidate created' },
+      createdAt: '2026-05-22T01:00:03.000Z',
+      completedAt: '2026-05-22T01:00:04.000Z',
+    }],
+  }))
+
+  assert.deepEqual(timeline.rounds.map((round) => round.index), [1])
+  assert.deepEqual(timeline.rounds[0]?.decisions[0]?.toolCalls.map((call) => call.name), [
+    'movscript_focus_get',
+    'candidate_asset_slot_attach',
+  ])
+  assert.deepEqual(timeline.rounds[0]?.toolExecutions.map((tool) => tool.id), [
+    'step-step_read',
+    'step-step_write',
+  ])
+  assert.deepEqual(timeline.rounds[0]?.toolExecutions.map((tool) => tool.decisionOrder), [0, 1])
+  const write = timeline.rounds[0]?.toolExecutions[1]
+  assert.equal(write?.approvals[0]?.id, 'approval_write')
+  assert.equal(write?.step?.id, 'step_write')
+})
+
+test('buildAgentRunTimeline keeps approval-only tools as executions before results exist', () => {
+  const timeline = buildAgentRunTimeline(activity({
+    approvals: [{
+      id: 'approval_write',
+      toolName: 'candidate_asset_slot_attach',
+      args: { asset_slot_id: 9 },
+      reason: 'confirm write',
+      status: 'pending',
+      createdAt: '2026-05-22T01:00:01.000Z',
+      updatedAt: '2026-05-22T01:00:01.000Z',
+    }],
+  }))
+
+  assert.equal(timeline.rounds.length, 1)
+  assert.deepEqual(timeline.rounds[0]?.toolExecutions.map((tool) => ({
+    id: tool.id,
+    toolName: tool.toolName,
+    approvalIds: tool.approvals.map((approval) => approval.id),
+    hasStep: Boolean(tool.step),
+  })), [{
+    id: 'approval-approval_write',
+    toolName: 'candidate_asset_slot_attach',
+    approvalIds: ['approval_write'],
+    hasStep: false,
+  }])
+})
+
+test('buildAgentRunTimeline treats blocked input traces as waiting instead of failures', () => {
+  const timeline = buildAgentRunTimeline(activity({
+    events: [{
+      id: 'event_input_required',
+      kind: 'input',
+      title: 'User input required',
+      status: 'blocked',
+      roundIndex: 1,
+      createdAt: '2026-05-22T01:00:00.000Z',
+    }],
+    inputs: [{
+      id: 'input_1',
+      title: 'Need input',
+      question: 'What next?',
+      inputType: 'text',
+      choices: [],
+      allowCustomAnswer: true,
+      status: 'pending',
+      createdAt: '2026-05-22T01:00:00.000Z',
+      updatedAt: '2026-05-22T01:00:00.000Z',
+    }],
+  }))
+
+  assert.equal(timeline.rounds[0]?.failed, false)
+  assert.deepEqual(timeline.rounds[0]?.inputs.map((input) => input.id), ['input_1'])
+})
+
+function activity(overrides: Partial<AgentRunActivity> = {}): AgentRunActivity {
+  return {
+    runId: 'run_1',
+    threadId: 'thread_1',
+    status: 'completed',
+    createdAt: '2026-05-22T01:00:00.000Z',
+    updatedAt: '2026-05-22T01:00:05.000Z',
+    steps: [],
+    events: [],
+    ...overrides,
+  }
+}

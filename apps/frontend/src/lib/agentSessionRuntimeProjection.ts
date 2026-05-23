@@ -1,6 +1,6 @@
 import type {
+  AgentRuntimeSnapshotV2,
   AgentRun,
-  AgentSessionRuntimeSnapshot,
   AgentTaskGraphSnapshot,
   AgentThread,
   RuntimeWork,
@@ -13,7 +13,16 @@ export interface AgentSessionRuntimeView {
   plans: AgentTaskGraphSnapshot[]
   childAgents: AgentSessionChildAgentView[]
   generationWorks: RuntimeWork[]
-  current: AgentSessionRuntimeSnapshot['current']
+  current: AgentSessionRuntimeCurrentView
+}
+
+export interface AgentSessionRuntimeCurrentView {
+  activeThreadIds: string[]
+  activeRunIds: string[]
+  waitingRunIds: string[]
+  runningWorkIds: string[]
+  pendingInteractionIds: string[]
+  readyContinuationIds: string[]
 }
 
 export interface AgentSessionChildAgentView {
@@ -28,25 +37,29 @@ export interface AgentSessionChildAgentView {
   generationWorks: RuntimeWork[]
 }
 
-export function buildAgentSessionRuntimeView(snapshot: AgentSessionRuntimeSnapshot): AgentSessionRuntimeView {
-  const threadsById = new Map(snapshot.threads.map((thread) => [thread.id, thread]))
-  const runsById = new Map(snapshot.runs.map((run) => [run.id, run]))
-  const runsByThreadId = groupRunsByThread(snapshot.runs)
-  const generationWorks = snapshot.works.filter((work) => work.kind === 'generation_job')
+export function buildAgentSessionRuntimeView(snapshot: AgentRuntimeSnapshotV2): AgentSessionRuntimeView {
+  const session = snapshot.entities.sessions?.[0]
+  const threads = snapshot.entities.threads ?? []
+  const runs = snapshot.entities.runs ?? []
+  const works = snapshot.entities.works ?? []
+  const threadsById = new Map(threads.map((thread) => [thread.id, thread]))
+  const runsById = new Map(runs.map((run) => [run.id, run]))
+  const runsByThreadId = groupRunsByThread(runs)
+  const generationWorks = works.filter((work) => work.kind === 'generation_job')
   const generationWorksByRunId = groupWorksByRun(generationWorks)
-  const rootThread = snapshot.session.rootThreadId
-    ? threadsById.get(snapshot.session.rootThreadId)
-    : snapshot.threads.find((thread) => thread.agentRole === 'root' || !thread.parentThreadId)
-  const activeThread = snapshot.session.activeThreadId
-    ? threadsById.get(snapshot.session.activeThreadId)
+  const rootThread = session?.rootThreadId
+    ? threadsById.get(session.rootThreadId)
+    : threads.find((thread) => thread.agentRole === 'root' || !thread.parentThreadId)
+  const activeThread = session?.activeThreadId
+    ? threadsById.get(session.activeThreadId)
     : undefined
 
   return {
-    sessionId: snapshot.session.id,
+    sessionId: session?.id ?? snapshot.scope.id,
     rootThread,
     activeThread,
-    plans: snapshot.taskGraphs,
-    childAgents: snapshot.threads
+    plans: snapshot.entities.taskGraphs ?? [],
+    childAgents: threads
       .filter((thread) => thread.parentThreadId || thread.agentRole === 'worker')
       .map((thread) => buildChildAgentView({
         thread,
@@ -56,7 +69,22 @@ export function buildAgentSessionRuntimeView(snapshot: AgentSessionRuntimeSnapsh
       }))
       .sort(compareChildAgents),
     generationWorks,
-    current: snapshot.current,
+    current: currentViewFromSnapshot(snapshot),
+  }
+}
+
+function currentViewFromSnapshot(snapshot: AgentRuntimeSnapshotV2): AgentSessionRuntimeCurrentView {
+  const runs = snapshot.entities.runs ?? []
+  const works = snapshot.entities.works ?? []
+  const interactions = snapshot.entities.interactions ?? []
+  const continuations = snapshot.entities.continuations ?? []
+  return {
+    activeThreadIds: [...new Set(runs.filter((run) => run.status === 'queued' || run.status === 'in_progress').map((run) => run.threadId))],
+    activeRunIds: runs.filter((run) => run.status === 'queued' || run.status === 'in_progress').map((run) => run.id),
+    waitingRunIds: runs.filter((run) => run.status === 'requires_action').map((run) => run.id),
+    runningWorkIds: works.filter((work) => work.status === 'running').map((work) => work.id),
+    pendingInteractionIds: interactions.filter((interaction) => interaction.status === 'pending').map((interaction) => interaction.id),
+    readyContinuationIds: continuations.filter((continuation) => continuation.status === 'ready').map((continuation) => continuation.id),
   }
 }
 

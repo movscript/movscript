@@ -1,5 +1,5 @@
 {
-  "name": "movscript-backend",
+  "name": "@movscript/backend",
   "version": "0.1.0",
   "private": true,
   "scripts": {

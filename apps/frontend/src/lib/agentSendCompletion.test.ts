@@ -145,7 +145,6 @@ function depsFixture(calls: string[]): CompleteSendRunResultDeps {
     userId: 'user_1',
     conversationId: 'conv_1',
     localUserMessageId: 'local_user',
-    conversationMessages: [chatMessage({ id: 'local_user', role: 'user', content: 'Hello' })],
     liveEvents: () => [activityEvent({ id: 'http-request-local-create-thread' })],
     setLiveEventsRef: (events) => {
       calls.push(`liveRef:${events.length}`)

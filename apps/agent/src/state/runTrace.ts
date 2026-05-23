@@ -1,5 +1,12 @@
+import type { AgentRunTracePage } from '@movscript/protocol'
 import { isRecord } from '../jsonValue.js'
-import type { AgentRun, AgentRunStep, AgentTraceEvent, AgentTraceEventKind, JSONValue } from './types.js'
+import type {
+  AgentRun,
+  AgentRunStep,
+  AgentTraceEvent,
+  AgentTraceEventKind,
+  JSONValue,
+} from './types.js'
 import type { AgentRunRoundInfo } from './runRound.js'
 
 const MAX_TRACE_DATA_DEPTH = 20
@@ -118,21 +125,6 @@ export interface BuildRunTracePageInput {
   eventsPlusOne: AgentTraceEvent[]
   limit: number
   total: number
-}
-
-export interface AgentRunTracePage {
-  runId: string
-  events: AgentTraceEvent[]
-  total: number
-  hasMore: boolean
-  nextCursor?: string
-}
-
-export interface AgentRunTraceSummary {
-  runId: string
-  total: number
-  byKind: Partial<Record<AgentTraceEventKind, number>>
-  latestEvent?: AgentTraceEvent
 }
 
 export function buildRunTracePage(input: BuildRunTracePageInput): AgentRunTracePage {

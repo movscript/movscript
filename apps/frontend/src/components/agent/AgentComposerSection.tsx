@@ -17,6 +17,7 @@ import {
   ComposerAttachmentChip,
   MentionResourceOption,
 } from '@/components/agent/AgentMentionEditor'
+import type { AgentPendingRuntimeInputQueueItem } from '@/lib/agentConversationThreadItems'
 import type { AgentAttachment } from '@/store/agentStore'
 
 type MentionStateHandler = ComponentProps<typeof AgentMentionEditor>['onMentionState']
@@ -39,6 +40,7 @@ export interface AgentComposerSectionProps {
   loading: boolean
   mentionResults: AgentAttachment[]
   mentionRangeActive: boolean
+  pendingRuntimeInputQueue: AgentPendingRuntimeInputQueueItem[]
   stoppingLocalRun: boolean
   uploading: boolean
   onAcceptMention: () => boolean
@@ -75,6 +77,7 @@ export function AgentComposerSection({
   loading,
   mentionResults,
   mentionRangeActive,
+  pendingRuntimeInputQueue,
   stoppingLocalRun,
   uploading,
   onAcceptMention,
@@ -108,6 +111,28 @@ export function AgentComposerSection({
           {activePendingInputTitle ?? t('agents.chat.inputHint')}
         </p>
       </div>
+      {pendingRuntimeInputQueue.length > 0 && (
+        <div className="mb-2 space-y-1.5 rounded-md border border-border bg-muted/25 px-2 py-1.5">
+          <div className="flex items-center justify-between gap-2 type-tiny text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <Loader2 size={10} className="animate-spin" />
+              等待加入运行
+            </span>
+            <span>{pendingRuntimeInputQueue.length}</span>
+          </div>
+          <div className="space-y-1">
+            {pendingRuntimeInputQueue.map((item) => (
+              <div
+                key={item.id}
+                className="truncate rounded border border-border/60 bg-background/60 px-2 py-1 type-tiny text-foreground"
+                title={item.content}
+              >
+                {item.content || '空消息'}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <AgentComposer
         className={cn('ai-agent-panel-composer', draggingFiles && 'ai-agent-panel-composer--dragging')}
         onDragEnter={onComposerDragEnter}

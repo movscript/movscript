@@ -11,7 +11,7 @@ import type {
   RuntimeContinuation,
   RuntimeInteraction,
 } from './types.js'
-import type { AgentRunTraceSummary } from './runTrace.js'
+import type { AgentRunTraceSummary, AgentTraceQuery } from '@movscript/protocol'
 import {
   applyTraceEventToDebugLedger,
   buildRunDebugLedgerFromTrace,
@@ -21,12 +21,6 @@ import {
 } from './runDebugLedger.js'
 import { isJSONValue } from '../jsonValue.js'
 import { isValidAgentProjectId } from '../context/runtimeContext.js'
-
-export interface AgentTraceQuery {
-  cursor?: string
-  limit?: number
-  kind?: AgentTraceEvent['kind']
-}
 
 export interface AgentStore {
   createSession(session: AgentSession): void

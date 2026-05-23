@@ -1,5 +1,5 @@
 {
-  "name": "movscript-admin",
+  "name": "@movscript/admin",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@movscript/draft-schemas": "workspace:*",
+    "@movscript/drafts": "workspace:*",
     "@movscript/tokens": "workspace:*",
     "@movscript/ui": "workspace:*",
     "@radix-ui/react-toast": "^1.2.4",

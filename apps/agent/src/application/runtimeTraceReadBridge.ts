@@ -1,7 +1,9 @@
-import type { AgentStore, AgentTraceQuery } from '../state/store.js'
-import { buildRunTracePage, normalizeTracePageLimit, type AgentRunTracePage, type AgentRunTraceSummary } from '../state/runTrace.js'
+import type { AgentRunTracePage, AgentRunTraceSummary, AgentTraceQuery } from '@movscript/protocol'
+import type { AgentStore } from '../state/store.js'
 import { buildRunDebugLedgerFromTrace, resolveRunDebugEvidence, type AgentRunDebugEvidence, type AgentRunDebugLedger } from '../state/runDebugLedger.js'
+import { buildRunTracePage, normalizeTracePageLimit } from '../state/runTrace.js'
 import type { AgentTraceEvent } from '../state/types.js'
+import type { RuntimeWork } from '../runtimeWork/runtimeWork.js'
 import { requireRuntimeRun } from './runtimeStoreLookup.js'
 import { buildRuntimeRunGenerationView, type AgentRunGenerationView } from './runtimeGenerationView.js'
 import { buildRuntimeTraceDebugView, type AgentTraceDebugView } from './runtimeTraceDebugView.js'
@@ -18,7 +20,9 @@ export interface RuntimeTraceReadBridge {
 }
 
 export function createRuntimeTraceReadBridge(input: {
-  store: Pick<AgentStore, 'getRun' | 'listRunTraceEvents' | 'getRunTraceEventData' | 'countRunTraceEvents' | 'summarizeRunTraceEvents' | 'getRunDebugLedger'>
+  store: Pick<AgentStore, 'getRun' | 'listRunTraceEvents' | 'getRunTraceEventData' | 'countRunTraceEvents' | 'summarizeRunTraceEvents' | 'getRunDebugLedger'> & {
+    listRuntimeWorks?: (query?: { runId?: string }) => RuntimeWork[]
+  }
 }): RuntimeTraceReadBridge {
   const requireRun = (runId: string) => requireRuntimeRun(input.store, runId)
 
@@ -98,6 +102,7 @@ export function createRuntimeTraceReadBridge(input: {
       return buildRuntimeRunGenerationView({
         run,
         events,
+        works: input.store.listRuntimeWorks?.({ runId }),
       })
     },
   }

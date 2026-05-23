@@ -134,8 +134,8 @@ function depsFixture(calls: string[]): StopLocalRunActionDeps {
       status: 'completed',
       createdAt: '2026-05-19T00:00:00.000Z',
     }] satisfies ChatRunActivityEvent[],
-    addAssistantMessage: (message) => {
-      calls.push(`assistant:${message.content}`)
+    addAssistantMessage: (content) => {
+      calls.push(`assistant:${content}`)
     },
   }
 }

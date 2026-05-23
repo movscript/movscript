@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
 import { FileAgentDraftStore, InMemoryAgentDraftStore, validateDraft } from './draftStore.js'
-import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
+import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/drafts'
 
 test('listDrafts filters by threadId and runId', () => {
   const store = new InMemoryAgentDraftStore()

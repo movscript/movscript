@@ -89,6 +89,36 @@ test('workflow echo helpers hide user answer echoes restored from run activity',
   assert.equal(isWorkflowAnswerEchoMessage(message, echoes), true)
 })
 
+test('workflow echo helpers hide accepted runtime input answer echoes', () => {
+  const message: ChatMessage = {
+    id: 'msg_echo',
+    role: 'user',
+    content: '[用户补充信息]\n标题：需要补充信息\n问题：可以。请告诉我你希望我接下来处理什么任务？\n输入：你好',
+    timestamp: 1,
+    meta: {
+      runtimeMessage: { threadId: 'thread_1', messageId: 'msg_echo', runId: 'run_1' },
+      runtimeInput: { threadId: 'thread_1', messageId: 'msg_echo', runId: 'run_1', status: 'accepted' },
+    },
+  }
+  const echoes = new Set([message.content.trim()])
+
+  assert.equal(isWorkflowAnswerEchoMessage(message, echoes), true)
+})
+
+test('workflow echo helpers hide local input answer drafts before echoes hydrate', () => {
+  const message: ChatMessage = {
+    id: 'msg_echo',
+    role: 'user',
+    content: '[用户补充信息]\n标题：需要补充信息\n问题：可以。请告诉我你希望我接下来处理什么任务？\n输入：你好',
+    timestamp: 1,
+    meta: {
+      runtimeInput: { threadId: 'thread_1', runId: 'run_1', status: 'pending' },
+    },
+  }
+
+  assert.equal(isWorkflowAnswerEchoMessage(message, new Set()), true)
+})
+
 test('workflow echo helpers keep hiding legacy user answer echoes', () => {
   const message: ChatMessage = {
     id: 'msg_echo',

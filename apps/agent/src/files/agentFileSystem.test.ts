@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
+import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/drafts'
 import { InMemoryAgentDraftStore } from '../drafts/draftStore.js'
 import { AgentFileSystem } from './agentFileSystem.js'
 import { DraftFileProvider, draftContentFileRef } from './providers/draftFileProvider.js'

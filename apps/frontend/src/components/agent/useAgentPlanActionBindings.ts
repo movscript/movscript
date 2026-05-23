@@ -10,7 +10,8 @@ import {
   type PlanDispatchSettings,
 } from '@/lib/agentPlanActions'
 import { localAgentClient, type AgentTaskGraphSnapshot, type AgentRun } from '@/lib/localAgentClient'
-import type { AgentConversationMessageStore } from '@/lib/agentConversationMessageStore'
+import { appendAssistantConversationMessage, type AgentConversationMessageStore } from '@movscript/conversation'
+import type { ChatMessage, ChatMessageMeta } from '@/store/agentStore'
 
 export interface UseAgentPlanActionBindingsInput {
   conversationId: string
@@ -21,7 +22,7 @@ export interface UseAgentPlanActionBindingsInput {
   dispatchSettings: PlanDispatchSettings
   setBusy: (busy: boolean) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch: Parameters<AgentPlanActionDeps['setConversationRun']>[1]) => void
-  messageStore: Pick<AgentConversationMessageStore, 'addMessage'>
+  messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'addMessage'>
   refetchPlanSnapshot: () => Promise<unknown>
 }
 
@@ -40,7 +41,11 @@ export function useAgentPlanActionBindings({
   const deps = useMemo<AgentPlanActionDeps>(() => ({
     setBusy,
     setConversationRun: (nextRun, patch) => setConversationRun(conversationId, nextRun, patch),
-    addAssistantMessage: (message) => messageStore.addMessage(userId, conversationId, message),
+    addAssistantMessage: (content, meta) => appendAssistantConversationMessage<ChatMessage, ChatMessageMeta>({
+      content,
+      ...(meta ? { meta } : {}),
+      deps: { userId, conversationId, messageStore },
+    }),
     dispatchTaskGraph: (taskGraphId, input) => localAgentClient.dispatchTaskGraph(taskGraphId, input),
     replanRun: (runId, input) => localAgentClient.replanRun(runId, input),
     updateTask: (taskId, input) => localAgentClient.updateTask(taskId, input),

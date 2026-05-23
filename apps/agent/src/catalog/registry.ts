@@ -1,4 +1,4 @@
-import { DRAFT_SCHEMA_REGISTRY } from '@movscript/draft-schemas'
+import { DRAFT_SCHEMA_REGISTRY } from '@movscript/drafts'
 import type { AgentManifest } from './agentManifest.js'
 import type { RegisteredTool } from '../tools/toolRegistry.js'
 import { isRecord } from '../jsonValue.js'

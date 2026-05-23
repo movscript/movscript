@@ -1,11 +1,13 @@
 import { useEffect, useRef } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { fetchResourceById } from '@/lib/agentMessageViewModel'
-import type { AgentConversationMessageStore } from '@/lib/agentConversationMessageStore'
+import type { AgentConversationMessageStore } from '@movscript/conversation'
 import { loadRuntimeThreadProjection } from '@/lib/agentRuntimeThreadHydration'
 import { hydrateRuntimeThreadConversation } from '@/lib/agentRuntimeThreadConversationHydration'
-import { localAgentClient, type AgentRun, type AgentThreadStreamEvent } from '@/lib/localAgentClient'
-import { useAgentStore, type ChatMessage } from '@/store/agentStore'
+import { STOPPED_RUNTIME_STATUS_LIGHT, type AgentRuntimeStatusLight } from '@/lib/agentRuntimeStatusLight'
+import { localAgentClient, type AgentRun } from '@/lib/localAgentClient'
+import { useAgentStore, type ChatMessage, type ChatMessageMeta } from '@/store/agentStore'
+import { runtimeThreadProjectionShouldRefresh } from '@movscript/event-state'
 
 export interface UseAgentRuntimeThreadHydrationInput {
   userId: string
@@ -20,8 +22,9 @@ export interface UseAgentRuntimeThreadHydrationInput {
   setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch?: { loading?: boolean; building?: boolean; approving?: boolean; stopping?: boolean; stopRequested?: boolean }) => void
   setSubmittedInteractionRuns: Dispatch<SetStateAction<AgentRun[]>>
+  setRuntimeStatusLight: (status: AgentRuntimeStatusLight) => void
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
-  messageStore: Pick<AgentConversationMessageStore, 'setConversationMessages'>
+  messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'setConversationMessages'>
 }
 
 export function useAgentRuntimeThreadHydration({
@@ -37,6 +40,7 @@ export function useAgentRuntimeThreadHydration({
   setConversationRuntimeThreadId,
   setConversationRun,
   setSubmittedInteractionRuns,
+  setRuntimeStatusLight,
   updateConversationTitle,
   messageStore,
 }: UseAgentRuntimeThreadHydrationInput) {
@@ -44,9 +48,14 @@ export function useAgentRuntimeThreadHydration({
   const streamHydrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
+    if (localThreadId.trim()) return
+    setRuntimeStatusLight(STOPPED_RUNTIME_STATUS_LIGHT)
+  }, [localThreadId, setRuntimeStatusLight])
+
+  useEffect(() => {
     const threadId = localThreadId.trim()
     if (!threadId) return
-    if (loading || building || runtimeLoading || runtimeBuilding) return
+    if (building || runtimeBuilding) return
     const controller = new AbortController()
     const existingMessages = useAgentStore.getState().getConversations(userId).find((item) => item.id === conversationId)?.messages ?? conversationMessages
     void hydrateRuntimeThreadConversation({
@@ -68,6 +77,7 @@ export function useAgentRuntimeThreadHydration({
       setConversationRuntimeThreadId,
       setConversationRun,
       setSubmittedInteractionRuns,
+      setRuntimeStatusLight,
       updateConversationTitle,
       messageStore,
     }).catch(() => undefined)
@@ -86,6 +96,7 @@ export function useAgentRuntimeThreadHydration({
     setConversationRuntimeThreadId,
     setConversationRun,
     setSubmittedInteractionRuns,
+    setRuntimeStatusLight,
     setLocalThreadId,
     updateConversationTitle,
     userId,
@@ -94,7 +105,7 @@ export function useAgentRuntimeThreadHydration({
   useEffect(() => {
     const threadId = localThreadId.trim()
     if (!threadId) return
-    if (loading || building || runtimeLoading || runtimeBuilding) return
+    if (building || runtimeBuilding) return
     const controller = new AbortController()
     const hydrateFromStream = () => {
       if (controller.signal.aborted) return
@@ -119,6 +130,7 @@ export function useAgentRuntimeThreadHydration({
         setConversationRuntimeThreadId,
         setConversationRun,
         setSubmittedInteractionRuns,
+        setRuntimeStatusLight,
         updateConversationTitle,
         messageStore,
       }).catch(() => undefined)
@@ -132,8 +144,8 @@ export function useAgentRuntimeThreadHydration({
     }
     void localAgentClient.streamThread(threadId, {
       signal: controller.signal,
-      onStreamEvent: (event) => {
-        if (shouldHydrateRuntimeThreadFromStream(event)) scheduleHydration()
+      onRuntimeEvent: (event) => {
+        if (runtimeThreadProjectionShouldRefresh(event)) scheduleHydration()
       },
     }).catch(() => undefined)
     return () => {
@@ -155,15 +167,9 @@ export function useAgentRuntimeThreadHydration({
     setConversationRuntimeThreadId,
     setConversationRun,
     setSubmittedInteractionRuns,
+    setRuntimeStatusLight,
     setLocalThreadId,
     updateConversationTitle,
     userId,
   ])
-}
-
-function shouldHydrateRuntimeThreadFromStream(event: AgentThreadStreamEvent): boolean {
-  return event.type === 'run'
-    || event.type === 'done'
-    || event.type === 'assistant_message'
-    || event.type === 'thread_title'
 }

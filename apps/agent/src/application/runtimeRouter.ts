@@ -10,7 +10,8 @@ import { MemoryManager } from '../memory/memoryManager.js'
 import { InMemoryAgentMemoryStore, type AgentMemoryStore } from '../memory/memoryStore.js'
 import type { AgentMemory, MemoryQuery } from '../memory/types.js'
 import { KnowledgeManager, loadAgentKnowledgeStore } from '../knowledge/index.js'
-import { InMemoryAgentStore, type AgentStore, type AgentThreadClearResult, type AgentThreadDeletionResult, type AgentTraceQuery } from '../state/store.js'
+import type { AgentTraceQuery } from '@movscript/protocol'
+import { InMemoryAgentStore, type AgentStore, type AgentThreadClearResult, type AgentThreadDeletionResult } from '../state/store.js'
 import type { ToolRegistry } from '../tools/toolRegistry.js'
 import {
   InMemoryAgentDraftStore,
@@ -191,8 +192,8 @@ import type {
   AgentRunPreview,
   AgentRun,
   AgentTraceEvent,
-  AgentRunStreamEvent,
-  AgentThreadStreamEvent,
+  AgentInternalRunSignal,
+  AgentInternalThreadSignal,
   AgentRunStep,
   AgentRuntimeRouterOptions,
   AgentCapabilitiesResponse,
@@ -230,7 +231,7 @@ export type {
   AgentRunRole,
   AgentRunPreview,
   AgentRunStatus,
-  AgentRunStreamEvent,
+  AgentInternalRunSignal,
   AgentRunStep,
   AgentRuntimeRouterOptions,
   AgentApprovalRequest,
@@ -329,8 +330,8 @@ export class AgentRuntimeRouter {
   private readonly updateState?: AgentCapabilitiesResponse['updates']
   private readonly runControllers = new RuntimeRunControllerRegistry()
   private readonly runAuth = new RuntimeRunAuthRegistry()
-  private readonly runStreamSubscribers = new RuntimeEventSubscriberRegistry<AgentRunStreamEvent>()
-  private readonly threadStreamSubscribers = new RuntimeEventSubscriberRegistry<AgentThreadStreamEvent>()
+  private readonly runStreamSubscribers = new RuntimeEventSubscriberRegistry<AgentInternalRunSignal>()
+  private readonly threadStreamSubscribers = new RuntimeEventSubscriberRegistry<AgentInternalThreadSignal>()
   private readonly planStreamSubscribers = new RuntimeEventSubscriberRegistry<AgentTaskGraphStreamEvent>()
   private readonly postRunRecordTasks = new RuntimeDeferredTaskRegistry()
   private readonly streams: RuntimeStreamBridge
@@ -959,11 +960,11 @@ export class AgentRuntimeRouter {
 
   getRunGenerationView(runId: string): ReturnType<RuntimeTraceReadBridge['getRunGenerationView']> { return this.traceReads.getRunGenerationView(runId) }
 
-  subscribeRunStream(runId: string, listener: (event: AgentRunStreamEvent) => void): () => void {
+  subscribeRunStream(runId: string, listener: (event: AgentInternalRunSignal) => void): () => void {
     return this.streamSubscriptions.subscribeRunStream(runId, listener)
   }
 
-  subscribeThreadStream(threadId: string, listener: (event: AgentThreadStreamEvent) => void): () => void {
+  subscribeThreadStream(threadId: string, listener: (event: AgentInternalThreadSignal) => void): () => void {
     return this.streamSubscriptions.subscribeThreadStream(threadId, listener)
   }
 

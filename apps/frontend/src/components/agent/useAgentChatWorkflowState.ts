@@ -21,19 +21,10 @@ export function useAgentChatWorkflowState({
   const interactionRuns = useMemo(() => interactionRunsForTaskGraph(activePlanSnapshot, run), [activePlanSnapshot, run])
   const actionableLocalRun = actionableLocalRuns[0] ?? null
   const workflowRuns = useMemo(() => workflowRunsForChat(submittedInteractionRuns, interactionRuns), [interactionRuns, submittedInteractionRuns])
-  const workflowRunsByResultMessageId = useMemo(() => {
-    const workflowRunById = new Map(workflowRuns.map((workflowRun) => [workflowRun.id, workflowRun]))
-    const insertedRunIds = new Set<string>()
-    const runsByMessageId = new Map<string, AgentRun[]>()
-    for (const message of messages) {
-      const runId = message.meta?.localRunActivity?.runId
-      const workflowRun = runId ? workflowRunById.get(runId) : undefined
-      if (!workflowRun || insertedRunIds.has(workflowRun.id)) continue
-      insertedRunIds.add(workflowRun.id)
-      runsByMessageId.set(message.id, [workflowRun])
-    }
-    return runsByMessageId
-  }, [messages, workflowRuns])
+  const workflowRunsByResultMessageId = useMemo(
+    () => buildWorkflowRunsByResultMessageId({ messages, workflowRuns }),
+    [messages, workflowRuns],
+  )
   const workflowRunsWithoutResultMessage = useMemo(() => {
     const insertedRunIds = new Set(Array.from(workflowRunsByResultMessageId.values()).flat().map((workflowRun) => workflowRun.id))
     return workflowRuns.filter((workflowRun) => !insertedRunIds.has(workflowRun.id))
@@ -56,4 +47,24 @@ export function useAgentChatWorkflowState({
     workflowRunsByResultMessageId,
     workflowRunsWithoutResultMessage,
   }
+}
+
+export function buildWorkflowRunsByResultMessageId({
+  messages,
+  workflowRuns,
+}: {
+  messages: ChatMessage[]
+  workflowRuns: AgentRun[]
+}): Map<string, AgentRun[]> {
+  const workflowRunById = new Map(workflowRuns.map((workflowRun) => [workflowRun.id, workflowRun]))
+  const insertedRunIds = new Set<string>()
+  const runsByMessageId = new Map<string, AgentRun[]>()
+  for (const message of messages) {
+    const runId = message.meta?.localRunActivity?.runId
+    const workflowRun = runId ? workflowRunById.get(runId) : undefined
+    if (!workflowRun || insertedRunIds.has(workflowRun.id)) continue
+    insertedRunIds.add(workflowRun.id)
+    runsByMessageId.set(message.id, [workflowRun])
+  }
+  return runsByMessageId
 }

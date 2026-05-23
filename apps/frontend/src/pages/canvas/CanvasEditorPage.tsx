@@ -76,6 +76,8 @@ import {
   Layers3,
   Loader2,
   MousePointer2,
+  PanelLeftClose,
+  PanelLeftOpen,
   PanelRightClose,
   Play,
   Save,
@@ -1290,6 +1292,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([])
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
   const [libraryCollapsed, setLibraryCollapsed] = useState(true)
+  const toggleLibraryCollapsed = useCallback(() => setLibraryCollapsed((value) => !value), [])
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
   const [dropActive, setDropActive] = useState(false)
 
@@ -2392,11 +2395,13 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
       workflowRunningCount,
       saving: savingCanvas,
 	      startingRun: runtimeStarting,
+      libraryCollapsed,
       onNameChange: setCanvasName,
+      onToggleLibrary: toggleLibraryCollapsed,
       onRun: handleRunWorkflow,
       onSave: () => save.mutate(),
     })
-  }, [activeRun?.id, activeRunStatusLabel, canvasName, canvasType, doneCount, nodes.length, resetCanvasHeader, runtimeStarting, runningCount, save, savingCanvas, setCanvasHeader, t, useAppHeader, workflowRunningCount, workflowStats.inputs, workflowStats.outputs, workflowStats.processors])
+  }, [activeRun?.id, activeRunStatusLabel, canvasName, canvasType, doneCount, libraryCollapsed, nodes.length, resetCanvasHeader, runtimeStarting, runningCount, save, savingCanvas, setCanvasHeader, t, toggleLibraryCollapsed, useAppHeader, workflowRunningCount, workflowStats.inputs, workflowStats.outputs, workflowStats.processors])
 
   useEffect(() => {
     if (!useAppHeader) return
@@ -2417,6 +2422,21 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
               <ArrowLeft size={16} />
             </Button>
           )}
+
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={toggleLibraryCollapsed}
+            className="shrink-0"
+            title={libraryCollapsed
+              ? t('canvas.editor.expandNodeLibrary', { defaultValue: '展开节点库' })
+              : t('canvas.editor.collapseNodeLibrary', { defaultValue: '收起节点库' })}
+            aria-label={libraryCollapsed
+              ? t('canvas.editor.expandNodeLibrary', { defaultValue: '展开节点库' })
+              : t('canvas.editor.collapseNodeLibrary', { defaultValue: '收起节点库' })}
+          >
+            {libraryCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
+          </Button>
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
@@ -2493,21 +2513,12 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
           libraryCollapsed ? 'w-12' : 'w-72'
         )}>
           <div className="flex h-full flex-col">
-            <div className={cn(
-              'flex h-12 items-center border-b border-sidebar-border',
-              libraryCollapsed ? 'justify-center px-0' : 'gap-2 px-3'
-            )}>
-              {!libraryCollapsed && <Layers3 size={14} className="shrink-0 text-muted-foreground" />}
-              {!libraryCollapsed && <span className="flex-1 type-label font-semibold text-foreground">{t('canvas.editor.nodeLibrary')}</span>}
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="shrink-0"
-                onClick={() => setLibraryCollapsed((v) => !v)}
-              >
-                {libraryCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-              </Button>
-            </div>
+            {!libraryCollapsed && (
+              <div className="flex h-12 items-center gap-2 border-b border-sidebar-border px-3">
+                <Layers3 size={14} className="shrink-0 text-muted-foreground" />
+                <span className="flex-1 type-label font-semibold text-foreground">{t('canvas.editor.nodeLibrary')}</span>
+              </div>
+            )}
 
             {libraryCollapsed ? (
               <div className="min-h-0 flex-1 overflow-y-auto px-1.5 py-2">

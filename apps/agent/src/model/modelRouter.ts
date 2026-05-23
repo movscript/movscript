@@ -1,31 +1,24 @@
 import type { ModelCallInput, ModelCallResult } from './modelClient.js'
+import { RUNTIME_MODEL_CAPABILITIES } from '@movscript/protocol'
+import type {
+  RuntimeModelCapability,
+  RuntimeModelCapabilityRoutePublic,
+  RuntimeModelRouteSource,
+} from '@movscript/protocol'
 import { callModel } from './modelClient.js'
 import type { ConfiguredRuntimeModelConfig } from './modelConfig.js'
 
-export const RUNTIME_MODEL_CAPABILITIES = ['reasoning', 'text', 'planning', 'multimodal'] as const
-
-export type RuntimeModelCapability = typeof RUNTIME_MODEL_CAPABILITIES[number]
-
-export type RuntimeModelRouteSource =
-  | 'configured'
-  | 'chat-config-fallback'
-  | 'planner-config'
-  | 'disabled'
-  | 'unconfigured'
+export { RUNTIME_MODEL_CAPABILITIES }
+export type {
+  RuntimeModelCapability,
+  RuntimeModelCapabilityRoutePublic,
+  RuntimeModelRouteSource,
+}
 
 export interface RuntimeModelCapabilityRoute {
   capability: RuntimeModelCapability
   provider: ConfiguredRuntimeModelConfig['provider']
   config: ConfiguredRuntimeModelConfig
-  source: RuntimeModelRouteSource
-}
-
-export interface RuntimeModelCapabilityRoutePublic {
-  capability: RuntimeModelCapability
-  configured: boolean
-  provider?: ConfiguredRuntimeModelConfig['provider']
-  modelConfigId?: number
-  model?: string
   source: RuntimeModelRouteSource
 }
 

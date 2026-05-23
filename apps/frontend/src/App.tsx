@@ -1,6 +1,11 @@
 import React, { useEffect } from 'react'
 import { BrowserRouter, HashRouter, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom'
-import { Sidebar } from './components/layout/Sidebar'
+import {
+  Sidebar,
+  SIDEBAR_DEFAULT_WIDTH,
+  SIDEBAR_WIDTH_STORAGE_KEY,
+  clampSidebarWidth,
+} from './components/layout/Sidebar'
 import { Header } from './components/layout/Header'
 import { AIAgentPanel } from './components/layout/AIAgentPanel'
 import { WorkspaceShell } from './components/layout/WorkspaceShell'
@@ -51,7 +56,7 @@ import AgentConsolePage from './pages/agent/AgentConsolePage'
 import AgentRunsPage from './pages/agent/AgentRunsPage'
 import i18n from './i18n'
 import { MCPContextBridge } from './mcp/MCPContextBridge'
-import { ArrowLeft, BriefcaseBusiness, HardDrive, Loader2, Lightbulb, PanelLeftClose, PanelLeftOpen, Play, Save, Workflow, Zap } from 'lucide-react'
+import { ArrowLeft, BriefcaseBusiness, ChevronsLeft, HardDrive, Loader2, Lightbulb, Minus, PanelLeftClose, PanelLeftOpen, Play, Plus, Save, Workflow, Zap } from 'lucide-react'
 import { runtimeRoutes } from '@runtime'
 import { getProjectWorkbenchDefinition } from './pages/project/projectSurfaces'
 import { LEGACY_ROUTES, ROUTES, mergeSearch, withSearch } from './routes/projectRoutes'
@@ -298,6 +303,8 @@ function CanvasHeaderLeft() {
   const nodeCount = useCanvasHeaderStore((s) => s.nodeCount)
   const runningCount = useCanvasHeaderStore((s) => s.runningCount)
   const activeRunLabel = useCanvasHeaderStore((s) => s.activeRunLabel)
+  const libraryCollapsed = useCanvasHeaderStore((s) => s.libraryCollapsed)
+  const onToggleLibrary = useCanvasHeaderStore((s) => s.onToggleLibrary)
   const onNameChange = useCanvasHeaderStore((s) => s.onNameChange)
   return (
     <div className="flex min-w-0 max-w-[36vw] items-center gap-1.5 overflow-hidden">
@@ -309,6 +316,20 @@ function CanvasHeaderLeft() {
         aria-label={i18n.t('header.titles.canvases', { defaultValue: 'Canvases' })}
       >
         <ArrowLeft size={12} />
+      </button>
+      <button
+        type="button"
+        className={iconButtonClass}
+        onClick={onToggleLibrary}
+        disabled={!onToggleLibrary}
+        title={libraryCollapsed
+          ? i18n.t('canvas.editor.expandNodeLibrary', { defaultValue: '展开节点库' })
+          : i18n.t('canvas.editor.collapseNodeLibrary', { defaultValue: '收起节点库' })}
+        aria-label={libraryCollapsed
+          ? i18n.t('canvas.editor.expandNodeLibrary', { defaultValue: '展开节点库' })
+          : i18n.t('canvas.editor.collapseNodeLibrary', { defaultValue: '收起节点库' })}
+      >
+        {libraryCollapsed ? <PanelLeftOpen size={12} /> : <PanelLeftClose size={12} />}
       </button>
       <Badge variant="outline" className="h-6 shrink-0 gap-1 px-2 type-tiny font-medium">
         {canvasType === 'workflow' ? <Zap size={12} /> : <Lightbulb size={12} />}
@@ -387,13 +408,22 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
   const current = useProjectStore((s) => s.current)
   const workMode = useAppSettingsStore((s) => s.settings.workMode)
   const agentMode = workMode === 'agent' && !!current && isAgentCoveredProjectRoute(pathname)
+  const projectsHomeMode = pathname === ROUTES.projects
   const [detailSidebarState, setDetailSidebarState] = React.useState<'expanded' | 'collapsed' | 'hidden'>('expanded')
+  const [detailSidebarWidth, setDetailSidebarWidth] = React.useState(() => {
+    if (typeof window === 'undefined') return SIDEBAR_DEFAULT_WIDTH
+    const saved = Number(window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY))
+    return Number.isFinite(saved) ? clampSidebarWidth(saved) : SIDEBAR_DEFAULT_WIDTH
+  })
   const lastVisibleDetailSidebarState = React.useRef<'expanded' | 'collapsed'>('expanded')
   const detailSidebarHidden = detailSidebarState === 'hidden'
   const detailSidebarCollapsed = detailSidebarState === 'collapsed'
-  const setVisibleDetailSidebarState = React.useCallback((state: 'expanded' | 'collapsed') => {
-    lastVisibleDetailSidebarState.current = state
-    setDetailSidebarState(state)
+  React.useEffect(() => {
+    if (detailSidebarHidden || detailSidebarCollapsed) return
+    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(detailSidebarWidth))
+  }, [detailSidebarCollapsed, detailSidebarHidden, detailSidebarWidth])
+  const adjustDetailSidebarWidth = React.useCallback((delta: number) => {
+    setDetailSidebarWidth((width) => clampSidebarWidth(width + delta))
   }, [])
   const toggleHiddenDetailSidebar = React.useCallback(() => {
     setDetailSidebarState((state) => {
@@ -402,16 +432,60 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       return 'hidden'
     })
   }, [])
+  const toggleCollapsedDetailSidebar = React.useCallback(() => {
+    setDetailSidebarState((state) => {
+      if (state === 'hidden') return state
+      const next = state === 'collapsed' ? 'expanded' : 'collapsed'
+      lastVisibleDetailSidebarState.current = next
+      return next
+    })
+  }, [])
+  const headerSidebarButtonClass = 'app-window-sidebar-toggle flex shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground'
   const sidebarHeaderControl = (
-    <button
-      type="button"
-      className="app-window-sidebar-toggle flex shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-      onClick={toggleHiddenDetailSidebar}
-      title={detailSidebarHidden ? '展开左侧栏' : '隐藏左侧栏'}
-      aria-label={detailSidebarHidden ? '展开左侧栏' : '隐藏左侧栏'}
-    >
-      {detailSidebarHidden ? <PanelLeftOpen size={12} /> : <PanelLeftClose size={12} />}
-    </button>
+    <div className="flex shrink-0 items-center gap-1">
+      {!detailSidebarHidden && !detailSidebarCollapsed && (
+        <>
+          <button
+            type="button"
+            className={headerSidebarButtonClass}
+            onClick={() => adjustDetailSidebarWidth(-12)}
+            title="缩窄左侧栏"
+            aria-label="缩窄左侧栏"
+          >
+            <Minus size={12} />
+          </button>
+          <button
+            type="button"
+            className={headerSidebarButtonClass}
+            onClick={() => adjustDetailSidebarWidth(12)}
+            title="加宽左侧栏"
+            aria-label="加宽左侧栏"
+          >
+            <Plus size={12} />
+          </button>
+        </>
+      )}
+      {!detailSidebarHidden && (
+        <button
+          type="button"
+          className={headerSidebarButtonClass}
+          onClick={toggleCollapsedDetailSidebar}
+          title={detailSidebarCollapsed ? '展开左侧栏' : '缩略左侧栏'}
+          aria-label={detailSidebarCollapsed ? '展开左侧栏' : '缩略左侧栏'}
+        >
+          {detailSidebarCollapsed ? <PanelLeftOpen size={12} /> : <ChevronsLeft size={12} />}
+        </button>
+      )}
+      <button
+        type="button"
+        className={headerSidebarButtonClass}
+        onClick={toggleHiddenDetailSidebar}
+        title={detailSidebarHidden ? '显示左侧栏' : '隐藏左侧栏'}
+        aria-label={detailSidebarHidden ? '显示左侧栏' : '隐藏左侧栏'}
+      >
+        {detailSidebarHidden ? <PanelLeftOpen size={12} /> : <PanelLeftClose size={12} />}
+      </button>
+    </div>
   )
 
   const shell = (
@@ -431,14 +505,12 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
       ) : (
         <WorkspaceShell
           sidebar={detailSidebarHidden ? undefined : (
-            <Sidebar
-              collapsed={detailSidebarCollapsed}
-              onCollapse={() => setVisibleDetailSidebarState('collapsed')}
-              onExpand={() => setVisibleDetailSidebarState('expanded')}
-            />
+            <Sidebar collapsed={detailSidebarCollapsed} width={detailSidebarWidth} />
           )}
           header={<Header leftControls={sidebarHeaderControl} />}
           assistantPanel={<AIAgentPanel />}
+          contentPaddingClassName={projectsHomeMode ? 'p-0' : undefined}
+          contentFrameClassName={projectsHomeMode ? 'app-content-frame--plain' : undefined}
         >
           <RouteErrorBoundary>{children}</RouteErrorBoundary>
         </WorkspaceShell>

@@ -32,7 +32,7 @@ const cleanCommand = cleanCommandOverride ?? [
 const playwrightCommand = commandOverride ?? [
   'pnpm',
   '--filter',
-  'movscript-frontend',
+  '@movscript/desktop',
   'exec',
   'playwright',
   'test',

@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { answerWorkflowRunInputAction, approveWorkflowRunAction, rejectWorkflowRunAction, type AgentWorkflowActionDeps } from './agentWorkflowActions'
 import type { AgentRun, AgentThread } from './localAgentClient'
-import type { ChatRunActivityEvent } from '@/store/agentStore'
+import type { ChatMessageMeta, ChatRunActivityEvent } from '@/store/agentStore'
 
 test('approveWorkflowRunAction applies optimistic approval, streams follow-up, and appends final result', async () => {
   const calls: string[] = []
@@ -70,11 +70,49 @@ test('answerWorkflowRunInputAction reports failures through assistant messages a
     deps,
   })
 
-  assert.deepEqual(calls, ['runtime:true', 'assistant:补充信息提交失败：backend offline', 'runtime:false'])
+  assert.deepEqual(calls, [
+    'addMessage:local_1:pending',
+    'runtime:true',
+    'messageMeta:local_1:failed:undefined',
+    'assistant:补充信息提交失败：backend offline',
+    'runtime:false',
+  ])
+})
+
+test('answerWorkflowRunInputAction keeps input answers pending until the runtime accepts the local message id', async () => {
+  const calls: string[] = []
+  const deps = depsFixture(calls)
+
+  await answerWorkflowRunInputAction({
+    run: makeRun({
+      pendingInputRequests: [inputRequest('input_1', 'pending')],
+    }),
+    requestId: 'input_1',
+    answer: { text: 'More context' },
+    answerRunInput: async (_runId, input) => {
+      calls.push(`answer:${input.sourceMessageId}`)
+      return makeRun({ status: 'in_progress' })
+    },
+    deps,
+  })
+
+  assert.deepEqual(calls, [
+    'addMessage:local_1:pending',
+    'runtime:true',
+    'answer:local_1',
+    'messageMeta:local_1:accepted:local_1',
+    'setRun:in_progress',
+    'stream',
+    'getThread',
+    'append:completed',
+    'runtime:false',
+  ])
 })
 
 function depsFixture(calls: string[]): AgentWorkflowActionDeps {
   return {
+    userId: 'user_1',
+    conversationId: 'conv_1',
     setSubmittedInteractionRuns: (updater) => {
       updater([])
     },
@@ -84,8 +122,17 @@ function depsFixture(calls: string[]): AgentWorkflowActionDeps {
     setConversationRun: (run) => {
       calls.push(`setRun:${run.status}`)
     },
-    addAssistantMessage: (message) => {
-      calls.push(`assistant:${message.meta?.contextLabels?.[0] ?? message.content}`)
+    messageStore: {
+      addMessage: (_userId, _conversationId, message) => {
+        calls.push(`addMessage:local_1:${message.meta?.runtimeInput?.status}`)
+        return 'local_1'
+      },
+      updateMessageMeta: (_userId, _conversationId, messageId, meta: ChatMessageMeta) => {
+        calls.push(`messageMeta:${messageId}:${meta.runtimeInput?.status}:${meta.runtimeMessage?.messageId}`)
+      },
+    },
+    addAssistantMessage: (content, meta) => {
+      calls.push(`assistant:${meta?.contextLabels?.[0] ?? content}`)
     },
     getThread: async () => {
       calls.push('getThread')

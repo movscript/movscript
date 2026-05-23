@@ -119,7 +119,7 @@ export function createRuntimeRunControlBridge(input: {
         store: input.store,
         runId,
         answerInput,
-        messageId: makeId('msg'),
+        messageId: answerInputSourceMessageId(answerInput) ?? makeId('msg'),
         now: isoNow,
         recordTrace: (targetRun, trace) => input.streams.recordTraceEvent(targetRun, trace),
         emitRunSnapshot: (targetRun) => input.streams.emitRunSnapshot(targetRun),
@@ -128,4 +128,10 @@ export function createRuntimeRunControlBridge(input: {
       })
     },
   }
+}
+
+function answerInputSourceMessageId(input: AnswerRunInputRequestInput): string | undefined {
+  if (typeof input.sourceMessageId !== 'string') return undefined
+  const id = input.sourceMessageId.trim()
+  return id.length > 0 ? id : undefined
 }

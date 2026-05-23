@@ -60,6 +60,40 @@ test('approveRuntimeInteraction resolves one interaction and delegates selected 
   assert.equal(store.getRuntimeInteraction('interaction_approval_2')?.status, 'pending')
 })
 
+test('approveRuntimeInteraction is idempotent for already resolved interactions', () => {
+  const store = new InMemoryAgentStore()
+  const run = makeRun()
+  store.createRun(run)
+  materializeRuntimeApprovalInteractions({
+    store,
+    run,
+    approvals: [approval('approval_1')],
+    now: '2026-05-21T00:00:00.000Z',
+  })
+  store.updateRuntimeInteraction({
+    ...store.getRuntimeInteraction('interaction_approval_1')!,
+    status: 'approved',
+    result: { runId: run.id, runStatus: 'queued' },
+    resolvedAt: '2026-05-21T00:00:02.000Z',
+    updatedAt: '2026-05-21T00:00:02.000Z',
+  })
+  let delegated = false
+
+  const result = approveRuntimeInteraction({
+    store,
+    interactionId: 'interaction_approval_1',
+    now: '2026-05-21T00:00:03.000Z',
+    approveRun: () => {
+      delegated = true
+      return run
+    },
+  })
+
+  assert.equal(delegated, false)
+  assert.equal(result.interaction.status, 'approved')
+  assert.equal(result.run.id, run.id)
+})
+
 function makeRun(): AgentRun {
   return {
     id: 'run_1',

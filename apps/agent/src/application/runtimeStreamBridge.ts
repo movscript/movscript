@@ -5,8 +5,8 @@ import type {
   AgentTaskGraphSnapshot,
   AgentTaskGraphStreamEvent,
   AgentRun,
-  AgentRunStreamEvent,
-  AgentThreadStreamEvent,
+  AgentInternalRunSignal,
+  AgentInternalThreadSignal,
   AgentTask,
   AgentTraceEvent,
   AgentTraceEventKind,
@@ -27,12 +27,12 @@ import {
 } from './runtimeRunStreamEvents.js'
 
 export interface RuntimeStreamBridge {
-  subscribeRunStream: (run: AgentRun, listener: (event: AgentRunStreamEvent) => void) => () => void
-  subscribeThreadStream: (threadId: string, listener: (event: AgentThreadStreamEvent) => void) => () => void
+  subscribeRunStream: (run: AgentRun, listener: (event: AgentInternalRunSignal) => void) => () => void
+  subscribeThreadStream: (threadId: string, listener: (event: AgentInternalThreadSignal) => void) => () => void
   subscribePlanStream: (taskGraphId: string, listener: (event: AgentTaskGraphStreamEvent) => void) => () => void
   recordTraceEvent: (run: AgentRun, trace: RuntimeTraceInput) => AgentTraceEvent
   emitVolatileTraceEvent: (run: AgentRun, trace: RuntimeVolatileTraceInput) => void
-  emitRunStreamEvent: (runId: string, event: AgentRunStreamEvent) => void
+  emitRunStreamEvent: (runId: string, event: AgentInternalRunSignal) => void
   emitRunSnapshot: (run: AgentRun, options?: { done?: boolean }) => void
   emitAssistantMessage: (run: AgentRun, message: AgentMessage) => void
   emitPlanTaskEvent: (taskGraphId: string, task: AgentTask) => void
@@ -68,8 +68,8 @@ export interface RuntimeVolatileTraceInput {
 
 export function createRuntimeStreamBridge(input: {
   store: Pick<AgentStore, 'appendTraceEvent' | 'getRun' | 'getThread' | 'listRuns' | 'listRunTraceEvents'>
-  runSubscribers: RuntimeEventSubscriberRegistry<AgentRunStreamEvent>
-  threadSubscribers: RuntimeEventSubscriberRegistry<AgentThreadStreamEvent>
+  runSubscribers: RuntimeEventSubscriberRegistry<AgentInternalRunSignal>
+  threadSubscribers: RuntimeEventSubscriberRegistry<AgentInternalThreadSignal>
   planSubscribers: RuntimeEventSubscriberRegistry<AgentTaskGraphStreamEvent>
   getTaskGraphSnapshot: (taskGraphId: string) => AgentTaskGraphSnapshot
   createTraceId: () => string
@@ -155,7 +155,7 @@ export function createRuntimeStreamBridge(input: {
   return bridge
 }
 
-function threadIdForRunStreamEvent(event: AgentRunStreamEvent, getRun: (runId: string) => AgentRun | undefined): string | undefined {
+function threadIdForRunStreamEvent(event: AgentInternalRunSignal, getRun: (runId: string) => AgentRun | undefined): string | undefined {
   if (event.type === 'thread_title') return event.threadId
   if ('run' in event && event.run) return event.run.threadId
   if ('runId' in event) return getRun(event.runId)?.threadId

@@ -184,6 +184,11 @@
   background: hsl(var(--background));
 }
 
+.app-content-frame--plain {
+  border-radius: 0;
+  background: transparent;
+}
+
 .app-window-header {
   --app-window-titlebar-height: 34px;
 
@@ -459,6 +464,261 @@
   color: hsl(var(--muted-foreground));
   font-size: var(--ms-text-label);
   line-height: 19px;
+}
+
+.projects-page .app-page-header__icon {
+  background: transparent;
+  box-shadow: none;
+}
+
+.projects-region {
+  border-top: 1px solid hsl(var(--border));
+}
+
+.projects-region__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.projects-region__title {
+  color: hsl(var(--foreground));
+  font-size: var(--ms-text-body);
+  font-weight: 650;
+  line-height: 20px;
+}
+
+.projects-region__description {
+  margin-top: 2px;
+  color: hsl(var(--muted-foreground));
+  font-size: var(--ms-text-label);
+  line-height: 18px;
+}
+
+.projects-region__count {
+  flex-shrink: 0;
+  color: hsl(var(--muted-foreground));
+  font-size: var(--ms-text-label);
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.projects-region__body {
+  padding: 16px 0;
+}
+
+.projects-list-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) minmax(180px, 0.9fr) minmax(220px, 0.8fr) auto;
+  gap: 18px;
+  align-items: center;
+  min-width: 0;
+  border-left: 2px solid transparent;
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 16px 0 16px 10px;
+  transition: border-color 160ms ease;
+}
+
+.projects-list-row:last-child {
+  border-bottom: 0;
+}
+
+.projects-list-row:hover {
+  border-left-color: hsl(var(--primary));
+}
+
+.projects-list-row__progress {
+  min-width: 0;
+}
+
+.projects-list-row__stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.projects-list-row__actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+@media (max-width: 1180px) {
+  .projects-list-row {
+    grid-template-columns: minmax(220px, 1fr) minmax(200px, 0.9fr) auto;
+  }
+
+  .projects-list-row__stats {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(4, minmax(90px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .projects-list-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .projects-list-row__stats {
+    grid-column: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .projects-list-row__actions {
+    justify-content: flex-start;
+  }
+}
+
+
+.project-overview-page .project-surface-header__icon {
+  background: transparent;
+}
+
+.project-overview-hero-grid,
+.project-overview-split {
+  display: grid;
+  gap: 28px;
+}
+
+.project-overview-hero-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.project-overview-split {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.project-overview-region,
+.project-overview-section,
+.project-overview-lane {
+  min-width: 0;
+  border-top: 1px solid hsl(var(--border));
+  padding-top: 16px;
+}
+
+.project-overview-region--primary {
+  border-top-color: hsl(var(--foreground) / 0.38);
+}
+
+.project-overview-section__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.project-overview-stat {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid hsl(var(--border));
+  padding-bottom: 12px;
+}
+
+.project-overview-stat__label,
+.project-overview-stat__detail {
+  overflow: hidden;
+  color: hsl(var(--muted-foreground));
+  font-size: var(--ms-text-label);
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-overview-stat__value {
+  margin-top: 6px;
+  color: hsl(var(--foreground));
+  font-size: var(--ms-text-page-title);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  line-height: 28px;
+}
+
+.project-overview-stat__detail {
+  margin-top: 2px;
+}
+
+.project-overview-stat__icon {
+  margin-top: 1px;
+  flex-shrink: 0;
+  color: hsl(var(--muted-foreground));
+}
+
+.project-overview-pipeline-step,
+.project-overview-entry {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  border-left: 2px solid transparent;
+  border-bottom: 1px solid hsl(var(--border));
+  color: inherit;
+  transition: border-color 160ms ease;
+}
+
+.project-overview-pipeline-step {
+  min-width: 136px;
+  flex: 1;
+  padding: 9px 0 9px 10px;
+}
+
+.project-overview-entry {
+  padding: 10px 0 10px 10px;
+}
+
+.project-overview-pipeline-step:hover,
+.project-overview-entry:hover,
+.project-overview-lane:hover {
+  border-left-color: hsl(var(--primary));
+}
+
+.project-overview-lane {
+  display: flex;
+  min-height: 222px;
+  flex-direction: column;
+  border-left: 2px solid transparent;
+  padding-left: 10px;
+  padding-bottom: 2px;
+  transition: border-color 160ms ease;
+}
+
+.project-overview-lane__summary,
+.project-overview-next-entry,
+.project-overview-meta-cell {
+  border-top: 1px solid hsl(var(--border));
+  padding-top: 10px;
+}
+
+.project-overview-lane__summary {
+  margin-top: 14px;
+}
+
+.project-overview-next-entry {
+  margin-top: 18px;
+}
+
+.project-overview-meta-cell {
+  min-width: 0;
+}
+
+@media (min-width: 1280px) {
+  .project-overview-hero-grid {
+    grid-template-columns: minmax(0, 1fr) 390px;
+  }
+
+  .project-overview-split {
+    grid-template-columns: minmax(0, 1fr) 430px;
+  }
 }
 
 .workbench-section {
@@ -1300,6 +1560,26 @@
 
 .ai-agent-panel-conversation-tab-main svg {
   flex: 0 0 auto;
+}
+
+.ai-agent-panel-conversation-tab-runtime-light {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px hsl(var(--background)), 0 0 0 2px hsl(var(--border) / 0.8);
+}
+
+.ai-agent-panel-conversation-tab-runtime-light[data-runtime-state="stopped"] {
+  background: rgb(239 68 68);
+}
+
+.ai-agent-panel-conversation-tab-runtime-light[data-runtime-state="waiting"] {
+  background: rgb(245 158 11);
+}
+
+.ai-agent-panel-conversation-tab-runtime-light[data-runtime-state="active"] {
+  background: rgb(16 185 129);
 }
 
 .ai-agent-panel-conversation-tab-title {

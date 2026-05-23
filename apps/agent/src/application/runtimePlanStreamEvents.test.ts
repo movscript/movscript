@@ -5,7 +5,7 @@ import type {
   AgentTaskGraphSnapshot,
   AgentTaskGraphStreamEvent,
   AgentRun,
-  AgentRunStreamEvent,
+  AgentInternalRunSignal,
   AgentTask,
 } from '../state/types.js'
 import {
@@ -29,7 +29,7 @@ test('replayRuntimePlanStream emits snapshot and done for terminal plans', () =>
 test('emitRuntimePlanRunStreamEvent projects run and trace events into taskGraph stream events', () => {
   const events: Array<{ taskGraphId: string; event: AgentTaskGraphStreamEvent }> = []
   const run = makeRun({ id: 'run_1', taskGraphId: 'task_graph_1' })
-  const traceEvent: AgentRunStreamEvent = {
+  const traceEvent: AgentInternalRunSignal = {
     type: 'trace',
     runId: run.id,
     event: {

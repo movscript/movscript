@@ -57,7 +57,7 @@
 最近一次前端聚焦验证（2026-05-17）：
 
 ```bash
-pnpm --filter movscript-frontend exec node --import tsx --test src/lib/localAgentClient.test.ts src/lib/agentRunActivity.test.ts src/lib/agentRunUiView.test.ts src/lib/agentGenerationUiContract.test.tsx src/lib/agentTraceDebugData.test.ts src/lib/agentPlanUi.test.ts src/lib/jsonValue.test.ts src/lib/agentArtifacts.test.ts src/store/agentStore.test.ts
+pnpm --filter @movscript/desktop exec node --import tsx --test src/lib/localAgentClient.test.ts src/lib/agentRunActivity.test.ts src/lib/agentRunUiView.test.ts src/lib/agentGenerationUiContract.test.tsx src/lib/agentTraceDebugData.test.ts src/lib/agentPlanUi.test.ts src/lib/jsonValue.test.ts src/lib/agentArtifacts.test.ts src/store/agentStore.test.ts
 ```
 
 结果：71 passed。
@@ -65,7 +65,7 @@ pnpm --filter movscript-frontend exec node --import tsx --test src/lib/localAgen
 最近一次前端全量测试（2026-05-17）：
 
 ```bash
-pnpm --filter movscript-frontend test
+pnpm --filter @movscript/desktop test
 ```
 
 结果：288 passed。
@@ -73,7 +73,7 @@ pnpm --filter movscript-frontend test
 最近一次前端类型检查（2026-05-17）：
 
 ```bash
-pnpm --filter movscript-frontend typecheck
+pnpm --filter @movscript/desktop typecheck
 ```
 
 结果：passed。
@@ -81,7 +81,7 @@ pnpm --filter movscript-frontend typecheck
 最近一次 Agent 全量测试（2026-05-17）：
 
 ```bash
-pnpm --filter movscript-agent test
+pnpm --filter @movscript/agent test
 ```
 
 结果：1028 passed。
@@ -89,7 +89,7 @@ pnpm --filter movscript-agent test
 最近一次 Agent 类型检查（2026-05-17）：
 
 ```bash
-pnpm --filter movscript-agent typecheck
+pnpm --filter @movscript/agent typecheck
 ```
 
 结果：passed。
@@ -105,15 +105,15 @@ pnpm run typecheck
 最近一次 Agent 构建（2026-05-17）：
 
 ```bash
-pnpm --filter movscript-agent build
+pnpm --filter @movscript/agent build
 ```
 
-结果：passed，包含 `@movscript/draft-schemas` 构建、agent TypeScript build 和 server bundle 构建。
+结果：passed，包含 `@movscript/drafts` 构建、agent TypeScript build 和 server bundle 构建。
 
 最近一次前端生产构建（2026-05-17）：
 
 ```bash
-pnpm --filter movscript-frontend build
+pnpm --filter @movscript/desktop build
 ```
 
 结果：passed，包含 `prepare-agent-deploy` 触发的 agent build、Electron main/preload build 和 renderer build。
@@ -121,7 +121,7 @@ pnpm --filter movscript-frontend build
 最近一次 Admin 测试（2026-05-17）：
 
 ```bash
-pnpm --filter movscript-admin test
+pnpm --filter @movscript/admin test
 ```
 
 结果：69 passed。
@@ -129,7 +129,7 @@ pnpm --filter movscript-admin test
 最近一次 Admin 类型检查（2026-05-17）：
 
 ```bash
-pnpm --filter movscript-admin typecheck
+pnpm --filter @movscript/admin typecheck
 ```
 
 结果：passed。
@@ -229,7 +229,7 @@ pnpm run test:release-scripts
 Playwright 用例发现校验：
 
 ```bash
-pnpm --filter movscript-frontend exec playwright test src/e2e/agent-planner.spec.ts --project=chromium --list
+pnpm --filter @movscript/desktop exec playwright test src/e2e/agent-planner.spec.ts --project=chromium --list
 ```
 
 结果：通过，`agent-planner.spec.ts` 在 `chromium` project 下可发现 16 个用例。当前剩余失败点不是用例发现，而是当前沙箱的端口监听和浏览器启动权限。
@@ -273,7 +273,7 @@ MOVSCRIPT_E2E_BASE_URL=http://127.0.0.1:4179 pnpm run test:agent-run-debugging:e
 默认 Playwright Chromium 复核（2026-05-16）：
 
 ```bash
-MOVSCRIPT_E2E_BASE_URL=http://127.0.0.1:4179 pnpm --filter movscript-frontend exec playwright test src/e2e/agent-planner.spec.ts --project=chromium --grep "planner run exposes plan overview"
+MOVSCRIPT_E2E_BASE_URL=http://127.0.0.1:4179 pnpm --filter @movscript/desktop exec playwright test src/e2e/agent-planner.spec.ts --project=chromium --grep "planner run exposes plan overview"
 ```
 
 结果：浏览器路径已切到 Playwright 缓存的 `chromium_headless_shell`，不再依赖系统 Chrome；但当前沙箱仍因 `bootstrap_check_in org.chromium.Chromium.MachPortRendezvousServer... Permission denied (1100)` 触发 `SIGTRAP`，未进入页面断言。

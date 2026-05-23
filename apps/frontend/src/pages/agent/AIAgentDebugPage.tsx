@@ -19,6 +19,7 @@ import {
   type AgentInspectResponse,
   type AgentRun,
   type AgentRunPreview,
+  type AgentToolCall,
   type RuntimeModelConfigPublic,
 } from '@/lib/localAgentClient'
 import { api } from '@/lib/api'
@@ -313,7 +314,7 @@ export default function AIAgentDebugPage() {
       const result = await localAgentClient.runMessageStream({
         title: `Debug tool: ${toolName}`,
         message: `Run ${toolName} from Agent Debug tool console.`,
-        toolCall: { name: toolName, args: parsed },
+        toolCall: { name: toolName, args: parsed as AgentToolCall['args'] },
         approvedToolNames: [toolName],
         clientInput: {
           message: `Run ${toolName}`,
@@ -388,7 +389,7 @@ export default function AIAgentDebugPage() {
       const result = await localAgentClient.runMessageStream({
         title: `Draft runtime debug: ${draftToolName}`,
         message: `Run ${draftToolName} from Agent Debug draft runtime panel.`,
-        toolCall: { name: draftToolName, args: parsed },
+        toolCall: { name: draftToolName, args: parsed as AgentToolCall['args'] },
         approvedToolNames: [draftToolName],
         clientInput: {
           message: `Run ${draftToolName}`,

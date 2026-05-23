@@ -1,5 +1,5 @@
 {
-  "name": "@movscript/draft-schemas",
+  "name": "@movscript/drafts",
   "version": "0.1.0",
   "description": "Shared draft schema registry for MovScript proposal contracts.",
   "license": "MIT",

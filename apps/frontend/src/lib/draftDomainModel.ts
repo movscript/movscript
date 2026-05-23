@@ -1,4 +1,4 @@
-import { getActiveSchemaForKind, getDraftSchemaEntry, type JSONSchema7 } from '@movscript/draft-schemas'
+import { getActiveSchemaForKind, getDraftSchemaEntry, type JSONSchema7 } from '@movscript/drafts'
 import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
 import { isRecord } from '@/lib/jsonValue'
 import type { AgentDraft, AgentDraftKind } from '@/lib/localAgentClient'

@@ -9,7 +9,6 @@ import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
 import { Label } from '@movscript/ui'
-import { Badge } from '@movscript/ui'
 import { Progress } from '@movscript/ui'
 import {
   Dialog,
@@ -24,7 +23,7 @@ import { openAdminConsole } from '@/lib/adminConsole'
 import { projectListQueryKey, projectProgressQueryKey } from '@/lib/projectQueries'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
 import { useUserStore } from '@/store/userStore'
-import { AppEmptyState, AppMetricCard, AppPage, AppPageHeader, AppSection } from '@/components/app/AppPage'
+import { AppEmptyState, AppPage, AppPageHeader } from '@/components/app/AppPage'
 import { SemanticStatusBadge } from '@/components/app/SemanticStatusBadge'
 import { semanticStatusLabel } from '@/components/app/semantic'
 
@@ -60,7 +59,7 @@ interface ProjectProgress {
   }
 }
 
-function ProjectCard({
+function ProjectListRow({
   project,
   onOpen,
   onDelete,
@@ -84,76 +83,86 @@ function ProjectCard({
 
   const contentUnits = progress?.content_units
   const approvedPct = contentUnits && contentUnits.total > 0 ? Math.round((contentUnits.approved / contentUnits.total) * 100) : 0
+  const stats = progress ? [
+    { label: t('entities.scripts'), value: progress.scripts },
+    { label: t('entities.segments'), value: progress.segments },
+    { label: t('entities.assetSlots'), value: progress.asset_slots },
+    { label: t('pages.projects.members'), value: progress.members },
+  ] : []
 
   return (
-    <div className="bg-card border border-border shadow-sm rounded-xl overflow-hidden transition-all duration-200">
-      <div className="p-4 space-y-3">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <p className="font-medium text-foreground truncate">{project.name}</p>
-            {project.description && (
-              <p className="type-label text-muted-foreground mt-0.5 truncate">{project.description}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <SemanticStatusBadge status={status} label={statusLabelKey ? t(statusLabelKey) : semanticStatusLabel(status)} />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onOpen(project)}
-              className="type-label gap-1"
-            >
-              {t('pages.projects.enter')} <ArrowRight size={14} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => onDelete(project.ID)}
-              className="text-muted-foreground hover:text-destructive"
-            >
-              <Trash2 size={14} />
-            </Button>
-          </div>
+    <div className="projects-list-row">
+      <div className="min-w-0">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onOpen(project)}
+            className="min-w-0 truncate text-left type-body font-semibold text-foreground transition-colors hover:text-primary"
+          >
+            {project.name}
+          </button>
+          <SemanticStatusBadge status={status} label={statusLabelKey ? t(statusLabelKey) : semanticStatusLabel(status)} />
         </div>
-
-        {/* Status steps */}
-        <div className="flex gap-0.5">
+        {project.description ? (
+          <p className="mt-1 truncate type-label text-muted-foreground">{project.description}</p>
+        ) : null}
+        <div className="mt-3 flex gap-0.5">
           {STATUS_STEPS.map((step, i) => (
             <button
               key={step.status}
+              type="button"
               onClick={() => onStatusChange(project.ID, step.status)}
               title={t(step.labelKey)}
-              className={`flex-1 h-1.5 rounded-full transition-colors ${
-                i <= statusIdx ? 'bg-primary' : 'bg-muted hover:bg-muted-foreground/20'
+              aria-label={t(step.labelKey)}
+              className={`h-1.5 flex-1 rounded-full transition-colors ${
+                i <= statusIdx ? 'bg-primary' : 'border border-border bg-transparent hover:border-muted-foreground/40'
               }`}
             />
           ))}
         </div>
+      </div>
 
-        {/* Stats */}
-        {progress && (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {[
-              { label: t('entities.scripts'), value: progress.scripts },
-              { label: t('entities.segments'), value: progress.segments },
-              { label: t('entities.assetSlots'), value: progress.asset_slots },
-              { label: t('pages.projects.members'), value: progress.members },
-            ].map((s) => (
-              <AppMetricCard key={s.label} label={s.label} value={s.value} compact />
-            ))}
-          </div>
-        )}
-
-        {/* Content unit progress */}
-        {contentUnits && contentUnits.total > 0 && (
-          <div className="space-y-1">
-            <div className="flex justify-between type-label text-muted-foreground">
-              <span>{t('pages.projects.contentUnitProgress')}</span>
-              <span className="tabular-nums">{t('pages.projects.approvedCount', { approved: contentUnits.approved, total: contentUnits.total })}</span>
+      <div className="projects-list-row__progress">
+        {contentUnits && contentUnits.total > 0 ? (
+          <>
+            <div className="flex justify-between gap-3 type-label text-muted-foreground">
+              <span className="truncate">{t('pages.projects.contentUnitProgress')}</span>
+              <span className="shrink-0 tabular-nums">{t('pages.projects.approvedCount', { approved: contentUnits.approved, total: contentUnits.total })}</span>
             </div>
-            <Progress value={approvedPct} className="h-1.5" />
-          </div>
+            <Progress value={approvedPct} className="mt-2 h-1.5" />
+          </>
+        ) : (
+          <p className="type-label text-muted-foreground">{t('pages.projects.contentUnitProgress')}</p>
         )}
+      </div>
+
+      <dl className="projects-list-row__stats">
+        {stats.length > 0 ? stats.map((s) => (
+          <div key={s.label} className="min-w-0">
+            <dt className="truncate type-tiny text-muted-foreground">{s.label}</dt>
+            <dd className="mt-0.5 type-body-sm font-semibold tabular-nums text-foreground">{s.value}</dd>
+          </div>
+        )) : null}
+      </dl>
+
+      <div className="projects-list-row__actions">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onOpen(project)}
+          className="type-label gap-1"
+        >
+          {t('pages.projects.enter')} <ArrowRight size={14} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => onDelete(project.ID)}
+          className="text-muted-foreground hover:text-destructive"
+          aria-label={t('common.delete')}
+        >
+          <Trash2 size={14} />
+        </Button>
       </div>
     </div>
   )
@@ -221,7 +230,6 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
     <AppEmptyState
       icon={FolderOpen}
       title={t('pages.projects.empty')}
-      detail={t('pages.projects.emptyHint')}
       action={(
         <Button onClick={onCreateClick} className="gap-2">
           <Plus size={14} /> {t('pages.projects.createFirst')}
@@ -303,7 +311,7 @@ export default function ProjectsPage() {
     && !adminPromptDismissed
 
   return (
-    <AppPage width="normal">
+    <AppPage width="normal" className="projects-page">
       <AppPageHeader
         icon={FolderOpen}
         title={t('pages.projects.myProjects')}
@@ -316,9 +324,9 @@ export default function ProjectsPage() {
       />
 
       {showAdminPrompt && (
-        <div className="mb-5 rounded-lg border border-primary/30 bg-primary/5 p-4 type-body">
+        <div className="mb-5 border-l-2 border-primary px-4 py-3 type-body">
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center text-primary">
               <Settings2 size={16} />
             </div>
             <div className="min-w-0 flex-1">
@@ -349,15 +357,19 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      <AppSection title={t('pages.projects.myProjects')} action={<Badge variant="outline">{projects.length}</Badge>}>
+      <section className="projects-region" aria-label={t('pages.projects.myProjects')}>
         {isLoading ? (
-          <p className="type-body text-muted-foreground">{t('common.loadingShort')}</p>
+          <div className="projects-region__body">
+            <p className="type-body text-muted-foreground">{t('common.loadingShort')}</p>
+          </div>
         ) : projects.length === 0 ? (
-          <EmptyState onCreateClick={() => setShowCreate(true)} />
+          <div className="projects-region__body">
+            <EmptyState onCreateClick={() => setShowCreate(true)} />
+          </div>
         ) : (
-          <div className="space-y-3">
+          <div className="projects-list">
             {projects.map((p) => (
-              <ProjectCard
+              <ProjectListRow
                 key={p.ID}
                 project={p}
                 onOpen={handleOpen}
@@ -367,7 +379,7 @@ export default function ProjectsPage() {
             ))}
           </div>
         )}
-      </AppSection>
+      </section>
 
       {showCreate && (
         <CreateProjectModal

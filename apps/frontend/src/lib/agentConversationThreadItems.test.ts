@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { buildAgentConversationMessageItems } from './agentConversationThreadItems'
+import { buildAgentConversationMessageItems, buildAgentConversationThreadItems, buildPendingRuntimeInputQueueItems } from './agentConversationThreadItems'
 import type { AgentRun } from './localAgentClient'
 import type { ChatMessage } from '@/store/agentStore'
 
@@ -28,6 +28,43 @@ test('buildAgentConversationMessageItems prefers live workflow runs before resul
 
   assert.equal(items[0]?.liveWorkflowRuns?.[0]?.id, 'run_live')
   assert.equal(items[0]?.beforeMessageWorkflowRuns[0]?.id, 'run_live')
+})
+
+test('buildAgentConversationMessageItems suppresses mapped workflow runs reserved for live activity', () => {
+  const liveRun = run({ id: 'run_live' })
+  const items = buildAgentConversationMessageItems({
+    messages: [message({
+      id: 'assistant',
+      role: 'assistant',
+      content: 'done',
+      meta: { localRunActivity: runActivity('run_live') },
+    })],
+    workflowAnswerEchoes: new Set(),
+    workflowRunsByResultMessageId: new Map([['assistant', [liveRun]]]),
+    suppressedWorkflowRunIds: new Set(['run_live']),
+  })
+
+  assert.deepEqual(items[0]?.liveWorkflowRuns, [])
+  assert.deepEqual(items[0]?.beforeMessageWorkflowRuns, [])
+  assert.equal(items[0]?.showMessage, true)
+})
+
+test('buildAgentConversationMessageItems suppresses historical workflow fallback for runs reserved for live activity', () => {
+  const items = buildAgentConversationMessageItems({
+    messages: [message({
+      id: 'assistant',
+      role: 'assistant',
+      content: 'done',
+      meta: { localRunActivity: runActivity('run_live') },
+    })],
+    workflowAnswerEchoes: new Set(),
+    workflowRunsByResultMessageId: new Map(),
+    suppressedWorkflowRunIds: new Set(['run_live']),
+  })
+
+  assert.equal(items[0]?.liveWorkflowRuns, null)
+  assert.deepEqual(items[0]?.beforeMessageWorkflowRuns, [])
+  assert.equal(items[0]?.showMessage, true)
 })
 
 test('buildAgentConversationMessageItems hides plan revision messages from the chat timeline', () => {
@@ -172,6 +209,215 @@ test('buildAgentConversationMessageItems keeps substantive assistant content for
 
   assert.equal(items[0]?.showMessage, true)
 })
+
+test('buildAgentConversationThreadItems keeps trigger messages outside run groups and nests runtime inputs', () => {
+  const items = buildAgentConversationThreadItems({
+    messages: [
+      message({
+        id: 'trigger',
+        role: 'user',
+        content: 'Start work',
+        timestamp: 1,
+        meta: {
+          runtimeMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1' },
+          runtimeInput: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1', status: 'accepted' },
+        },
+      }),
+      message({
+        id: 'supplement',
+        role: 'user',
+        content: 'Add this constraint',
+        timestamp: 2,
+        meta: {
+          runtimeMessage: { threadId: 'thread_1', messageId: 'msg_supplement', runId: 'run_1' },
+          runtimeInput: { threadId: 'thread_1', messageId: 'msg_supplement', runId: 'run_1', status: 'accepted' },
+        },
+      }),
+      message({
+        id: 'assistant',
+        role: 'assistant',
+        content: 'Done',
+        timestamp: 3,
+        meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'msg_assistant', runId: 'run_1' } },
+      }),
+    ],
+    workflowAnswerEchoes: new Set(),
+    workflowRunsByResultMessageId: new Map(),
+  })
+
+  assert.equal(items[0]?.type, 'message')
+  assert.equal(items[0]?.type === 'message' ? items[0].item.message.id : undefined, 'trigger')
+  assert.equal(items[1]?.type, 'run_group')
+  assert.equal(items[1]?.type === 'run_group' ? items[1].runId : undefined, 'run_1')
+  assert.deepEqual(items[1]?.type === 'run_group' ? items[1].items.map((item) => item.message.id) : [], [
+    'supplement',
+    'assistant',
+  ])
+})
+
+test('buildAgentConversationThreadItems keeps pending runtime inputs in the composer queue until accepted', () => {
+  const messages = [
+    message({
+      id: 'trigger',
+      role: 'user',
+      content: 'Start work',
+      timestamp: 1,
+      meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'msg_trigger', runId: 'run_1' } },
+    }),
+    message({
+      id: 'pending',
+      role: 'user',
+      content: 'Add this once the run accepts it',
+      timestamp: 2,
+      meta: {
+        runtimeInput: { threadId: 'thread_1', runId: 'run_1', status: 'pending' },
+      },
+    }),
+    message({
+      id: 'assistant',
+      role: 'assistant',
+      content: 'Working',
+      timestamp: 3,
+      meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'msg_assistant', runId: 'run_1' } },
+    }),
+  ]
+  const threadItems = buildAgentConversationThreadItems({
+    messages,
+    workflowAnswerEchoes: new Set(),
+    workflowRunsByResultMessageId: new Map(),
+  })
+  const pendingQueue = buildPendingRuntimeInputQueueItems(messages)
+
+  assert.deepEqual(threadItems.flatMap((item) => item.type === 'message'
+    ? [item.item.message.id]
+    : item.items.map((messageItem) => messageItem.message.id)), [
+    'trigger',
+    'assistant',
+  ])
+  assert.deepEqual(pendingQueue.map((item) => ({
+    id: item.id,
+    runId: item.runId,
+    content: item.content,
+  })), [{
+    id: 'pending',
+    runId: 'run_1',
+    content: 'Add this once the run accepts it',
+  }])
+})
+
+test('buildAgentConversationThreadItems filters pending local workflow input answer drafts', () => {
+  const items = buildAgentConversationThreadItems({
+    messages: [
+      message({
+        id: 'trigger',
+        role: 'user',
+        content: 'Start work',
+        timestamp: 1,
+        meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1' } },
+      }),
+      message({
+        id: 'answer',
+        role: 'user',
+        content: '[用户补充信息]\n标题：需要补充信息\n问题：可以。请告诉我你希望我接下来处理什么任务？\n输入：你好',
+        timestamp: 2,
+        meta: {
+          runtimeInput: { threadId: 'thread_1', runId: 'run_1', status: 'pending' },
+        },
+      }),
+    ],
+    workflowAnswerEchoes: new Set(),
+    workflowRunsByResultMessageId: new Map(),
+  })
+
+  assert.deepEqual(items.flatMap((item) => item.type === 'message'
+    ? [item.item.message.id]
+    : item.items.map((messageItem) => messageItem.message.id)), ['trigger'])
+})
+
+test('buildAgentConversationThreadItems filters accepted workflow input answer echoes', () => {
+  const items = buildAgentConversationThreadItems({
+    messages: [
+      message({
+        id: 'trigger',
+        role: 'user',
+        content: 'Start work',
+        timestamp: 1,
+        meta: { runtimeMessage: { threadId: 'thread_1', messageId: 'trigger', runId: 'run_1' } },
+      }),
+      message({
+        id: 'answer',
+        role: 'user',
+        content: '[用户补充信息]\n标题：需要补充信息\n问题：可以。请告诉我你希望我接下来处理什么任务？\n输入：你好',
+        timestamp: 2,
+        meta: {
+          runtimeMessage: { threadId: 'thread_1', messageId: 'answer', runId: 'run_1' },
+          runtimeInput: { threadId: 'thread_1', messageId: 'answer', runId: 'run_1', status: 'accepted' },
+        },
+      }),
+    ],
+    workflowAnswerEchoes: new Set(['[用户补充信息]\n标题：需要补充信息\n问题：可以。请告诉我你希望我接下来处理什么任务？\n输入：你好']),
+    workflowRunsByResultMessageId: new Map(),
+  })
+
+  assert.deepEqual(items.flatMap((item) => item.type === 'message'
+    ? [item.item.message.id]
+    : item.items.map((messageItem) => messageItem.message.id)), ['trigger'])
+})
+
+test('buildAgentConversationThreadItems keeps new trigger messages pending until runtime accepts them', () => {
+  const messages = [
+    message({
+      id: 'local_trigger',
+      role: 'user',
+      content: 'Start work',
+      timestamp: 1,
+      meta: {
+        runtimeInput: { status: 'pending' },
+      },
+    }),
+  ]
+  const threadItems = buildAgentConversationThreadItems({
+    messages,
+    workflowAnswerEchoes: new Set(),
+    workflowRunsByResultMessageId: new Map(),
+  })
+  const pendingQueue = buildPendingRuntimeInputQueueItems(messages)
+
+  assert.deepEqual(threadItems, [])
+  assert.deepEqual(pendingQueue.map((item) => ({
+    id: item.id,
+    runId: item.runId,
+    content: item.content,
+  })), [{
+    id: 'local_trigger',
+    runId: undefined,
+    content: 'Start work',
+  }])
+})
+
+function runActivity(runId: string): NonNullable<ChatMessage['meta']>['localRunActivity'] {
+  return {
+    runId,
+    threadId: 'thread_1',
+    status: 'requires_action',
+    createdAt: '2026-05-19T00:00:00.000Z',
+    updatedAt: '2026-05-19T00:00:01.000Z',
+    inputs: [{
+      id: 'input_1',
+      runId,
+      title: '需要补充信息',
+      question: '请补充约束',
+      inputType: 'text',
+      choices: [],
+      allowCustomAnswer: true,
+      status: 'pending',
+      createdAt: '2026-05-19T00:00:00.000Z',
+      updatedAt: '2026-05-19T00:00:00.000Z',
+    }],
+    steps: [],
+    events: [],
+  }
+}
 
 function message(overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {

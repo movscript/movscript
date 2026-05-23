@@ -9,7 +9,8 @@ export function formatAgentDividerTime(date: string | number | Date | undefined,
 export function agentMessageDividerLabel(time: string, activity?: ChatRunActivity) {
   if (!activity || !isRunActivityTerminal(activity.status)) return time
   const metrics = runActivityMetrics(activity)
-  return `${time} · 耗时 ${metrics.duration} · 调用 ${metrics.toolCalls} 次 · Token ${metrics.tokens ?? '--'}`
+  const parts = runActivityDividerMetricParts(activity, metrics)
+  return parts.length > 0 ? [time, ...parts].join(' · ') : time
 }
 
 function dividerLocale() {
@@ -26,13 +27,54 @@ function isRunActivityTerminal(status: string) {
 function runActivityMetrics(activity: ChatRunActivity) {
   const endedAt = activity.completedAt ?? activity.failedAt ?? activity.updatedAt
   const duration = formatRunDuration(activity.startedAt ?? activity.createdAt, endedAt)
+  const modelCalls = countRunActivityModelCalls(activity)
   const toolCalls = activity.steps.filter((step) => step.type === 'tool_call').length
   const tokens = totalRunActivityTokens(activity)
   return {
     duration,
+    modelCalls,
     toolCalls,
     tokens: tokens > 0 ? tokens.toLocaleString() : undefined,
   }
+}
+
+function runActivityDividerMetricParts(activity: ChatRunActivity, metrics: ReturnType<typeof runActivityMetrics>) {
+  const hasModelCalls = metrics.modelCalls > 0
+  const hasToolCalls = metrics.toolCalls > 0
+  const hasInteractions = (activity.approvals?.length ?? 0) > 0 || (activity.inputs?.length ?? 0) > 0
+  const hasProblem = Boolean(activity.error)
+    || (activity.warnings?.length ?? 0) > 0
+    || activity.status === 'failed'
+    || activity.status === 'cancelled'
+    || activity.status === 'completed_with_warnings'
+
+  if (!hasModelCalls && !hasToolCalls && !hasInteractions && !hasProblem) return []
+
+  const parts: string[] = []
+  if (metrics.duration !== '--') parts.push(`耗时 ${metrics.duration}`)
+  if (hasModelCalls) parts.push(`调用 ${metrics.modelCalls} 次`)
+  if (hasToolCalls) parts.push(`工具 ${metrics.toolCalls} 次`)
+  if (metrics.tokens) parts.push(`Token ${metrics.tokens}`)
+  return parts
+}
+
+function countRunActivityModelCalls(activity: ChatRunActivity) {
+  const responseRounds = new Set<number>()
+  let fallbackResponses = 0
+  for (const event of activity.events) {
+    if (event.kind !== 'model_call' || event.title !== 'Model HTTP response received') continue
+    if (event.roundIndex !== undefined) responseRounds.add(event.roundIndex)
+    else fallbackResponses += 1
+  }
+  if (responseRounds.size || fallbackResponses) return responseRounds.size + fallbackResponses
+
+  const telemetryRounds = new Set<number>()
+  for (const event of activity.events) {
+    if (event.kind === 'model_call' && event.roundIndex !== undefined) telemetryRounds.add(event.roundIndex)
+  }
+  if (telemetryRounds.size) return telemetryRounds.size
+
+  return activity.events.some((event) => event.kind === 'model_call') ? 1 : 0
 }
 
 function formatRunDuration(start: string | undefined, end: string | undefined) {

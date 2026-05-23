@@ -1,3 +1,4 @@
+import type { AssistantConversationMessageAppender } from '@movscript/conversation'
 import type { AgentRun, AgentThread } from '@/lib/localAgentClient'
 import type { ChatMessage, ChatRunActivityEvent } from '@/store/agentStore'
 
@@ -23,7 +24,7 @@ export interface StopLocalRunActionDeps {
   getThread: (threadId: string) => Promise<AgentThread>
   appendAssistantRunResult: (run: AgentRun, thread: AgentThread, liveEvents: ChatRunActivityEvent[]) => Promise<unknown>
   liveEvents: () => ChatRunActivityEvent[]
-  addAssistantMessage: (message: Pick<ChatMessage, 'role' | 'content'> & { meta?: ChatMessage['meta'] }) => void
+  addAssistantMessage: AssistantConversationMessageAppender<ChatMessage['meta']>
   now?: () => Date
 }
 
@@ -103,10 +104,7 @@ export function stopLocalRunAction(input: {
           }
           return
         }
-        deps.addAssistantMessage({
-          role: 'assistant',
-          content: `停止当前会话失败：${message}`,
-        })
+        deps.addAssistantMessage(`停止当前会话失败：${message}`)
       })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -115,10 +113,7 @@ export function stopLocalRunAction(input: {
         deps.setConversationRun(latestRun, { stopRequested: false, stopping: false, loading: false })
       }).catch(() => undefined)
     } else {
-      deps.addAssistantMessage({
-        role: 'assistant',
-        content: `停止当前会话失败：${message}`,
-      })
+      deps.addAssistantMessage(`停止当前会话失败：${message}`)
     }
   } finally {
     deps.setConversationRuntime({ stopRequested: false, stopping: false, loading: false, building: false })

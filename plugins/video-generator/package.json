@@ -9,6 +9,6 @@
   },
   "devDependencies": {
     "@movscript/plugin-sdk": "workspace:*",
-    "movcli": "workspace:*"
+    "@movscript/cli": "workspace:*"
   }
 }

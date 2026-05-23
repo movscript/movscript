@@ -3,7 +3,9 @@ import type { useAgentChatComposerState } from '@/components/agent/useAgentChatC
 import type { useAgentChatInteractionController } from '@/components/agent/useAgentChatInteractionController'
 import type { useAgentChatPresentationState } from '@/components/agent/useAgentChatPresentationState'
 import type { useAgentChatRuntimeState } from '@/components/agent/useAgentChatRuntimeState'
+import { buildPendingRuntimeInputQueueItems } from '@/lib/agentConversationThreadItems'
 import type { PlanDispatchSettings } from '@/lib/agentPlanActions'
+import { runtimeStatusLightFromActiveRun } from '@/lib/agentRuntimeStatusLight'
 import type { AgentRun } from '@/lib/localAgentClient'
 import type { Conversation } from '@/store/agentStore'
 import type { Project } from '@/types'
@@ -71,6 +73,7 @@ export function buildAgentChatViewLayoutProps({
       onCollapse,
       onNewConversation,
       onSelectConversation,
+      activeConversationRuntimeStatusLight: runtimeStatusLightFromActiveRun(activeLocalRun, runtime.runtimeStatusLight),
       showCollapse,
       showConversationControls,
     },
@@ -122,6 +125,7 @@ export function buildAgentChatViewLayoutProps({
       loading,
       mentionResults: composer.mentionResults,
       mentionRangeActive: !!composer.mentionRange,
+      pendingRuntimeInputQueue: buildPendingRuntimeInputQueueItems(conv.messages),
       stoppingLocalRun: presentation.stoppingLocalRun,
       uploading: composer.uploading,
       onAcceptMention: () => {

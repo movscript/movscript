@@ -79,9 +79,15 @@ export function createRuntimeThreadOperationsBridge(input: {
     addMessage: (id, messageInput) => addRuntimeThreadMessage({
       store: input.store,
       threadId: id,
-      messageId: messageId(),
+      messageId: messageInputId(messageInput) ?? messageId(),
       now: now(),
       messageInput,
     }),
   }
+}
+
+function messageInputId(input: CreateMessageInput): string | undefined {
+  if (typeof input.id !== 'string') return undefined
+  const id = input.id.trim()
+  return id.length > 0 ? id : undefined
 }

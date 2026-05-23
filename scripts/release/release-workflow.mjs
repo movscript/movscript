@@ -30,7 +30,7 @@ const isWindows = process.platform === 'win32'
 const pnpmCommand = 'pnpm'
 const prepareDesktopSteps = [
   ['Build workspace packages', pnpmCommand, ['--filter', './packages/*', 'build']],
-  ['Build admin app', pnpmCommand, ['--filter', 'movscript-admin', 'build']],
+  ['Build admin app', pnpmCommand, ['--filter', '@movscript/admin', 'build']],
   ['Copy admin assets into backend bundle', 'node', ['apps/backend/scripts/build.mjs', 'copy-admin-assets']],
 ]
 const releaseAssetExtensions = new Set([
@@ -55,7 +55,7 @@ export function releaseWorkflowSteps(mode) {
       ['Run release checks', 'node', ['scripts/release/release-workflow.mjs', 'check']],
       ['Build desktop package', 'node', ['scripts/release/release-workflow.mjs', 'package-desktop']],
       ['Build workspace packages', 'pnpm', ['--filter', './packages/*', 'build']],
-      ['Build movcli', 'pnpm', ['--filter', 'movcli', 'build']],
+      ['Build movcli', 'pnpm', ['--filter', '@movscript/cli', 'build']],
       ['Build plugins', 'pnpm', ['--filter', './plugins/*', 'build']],
       ['Collect release artifacts', 'node', ['scripts/release/release-workflow.mjs', 'collect']],
     ]
@@ -184,8 +184,8 @@ export function runDesktopPackageCli(args = [], options = {}) {
   if (prepared === false) return
 
   const steps = [
-    ['Build frontend desktop bundle', pnpm, ['--filter', 'movscript-frontend', 'build']],
-    ['Build frontend desktop artifact', pnpm, ['--filter', 'movscript-frontend', 'exec', 'electron-builder', ...plan.builderArgs]],
+    ['Build frontend desktop bundle', pnpm, ['--filter', '@movscript/desktop', 'build']],
+    ['Build frontend desktop artifact', pnpm, ['--filter', '@movscript/desktop', 'exec', 'electron-builder', ...plan.builderArgs]],
   ]
 
   for (const [label, command, commandArgs] of steps) {
@@ -254,7 +254,7 @@ export function prepareDesktopPackage(root = repoRoot, options = {}) {
   }
   const targetSteps = [
     ...prepareDesktopSteps.slice(0, 2),
-    ['Build backend binary', pnpmCommand, ['--filter', 'movscript-backend', 'build'], { env: buildEnv }],
+    ['Build backend binary', pnpmCommand, ['--filter', '@movscript/backend', 'build'], { env: buildEnv }],
     ...prepareDesktopSteps.slice(2),
   ]
 

@@ -9,6 +9,7 @@ import { runStatusLabel } from '@/lib/agentRunUi'
 import { cn } from '@/lib/utils'
 import { agentRunPath } from '@/routes/projectRoutes'
 import { AgentActivityDividerMenu, AgentActivityFeedView, AgentActivityStatusText } from '@/components/agent/AgentActivityFeed'
+import { LocalAgentWorkflowBubble } from '@/components/agent/AgentWorkflowBubble'
 import { buildAgentActivityFeed } from '@/lib/agentActivityFeed'
 import type { AgentRun } from '@/lib/localAgentClient'
 import type { AgentInputAnswer } from '@/lib/agentWorkflowInteraction'
@@ -293,6 +294,13 @@ export function LiveRunActivityBubble({
   return (
     <div className="space-y-1">
       <AgentActivityStatusText run={run} events={events} fallback={statusLabel} />
+      <LocalAgentWorkflowBubble
+        run={run}
+        approving={approving}
+        onApprove={onApprove}
+        onReject={onReject}
+        onAnswerInput={onAnswerInput}
+      />
       {feed && (feed.items.length > 0 || feed.rounds.length > 0) && (
         <AgentChatMessage
           role="assistant"
@@ -308,11 +316,6 @@ export function LiveRunActivityBubble({
           <AgentActivityFeedView
             run={run}
             events={events}
-            workflowRun={run}
-            approving={approving}
-            onApprove={onApprove}
-            onReject={onReject}
-            onAnswerInput={onAnswerInput}
             className="mt-0"
           />
         </AgentChatMessage>

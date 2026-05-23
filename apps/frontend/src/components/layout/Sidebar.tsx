@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -13,7 +13,6 @@ import {
   Cable,
   ChevronDown,
   ChevronRight,
-  ChevronsLeft,
   CirclePlay,
   CircleUserRound,
   ExternalLink,
@@ -31,7 +30,6 @@ import {
   LogOut,
   Move,
   Palette,
-  PanelLeftOpen,
   Plug,
   Puzzle,
   Radar,
@@ -48,7 +46,6 @@ import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
 import { api } from '@/lib/api'
 import { Avatar, AvatarFallback } from '@movscript/ui'
-import { Button } from '@movscript/ui'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@movscript/ui'
 import { loadClientPlugins } from '@/lib/clientPlugins'
 import { openAdminConsole } from '@/lib/adminConsole'
@@ -75,12 +72,12 @@ const PLUGIN_NAV_ICONS: LucideIcon[] = [
   ToyBrick,
 ]
 
-const SIDEBAR_WIDTH_STORAGE_KEY = 'movscript-sidebar-width'
-const SIDEBAR_DEFAULT_WIDTH = 216
-const SIDEBAR_MIN_WIDTH = 176
-const SIDEBAR_MAX_WIDTH = 312
+export const SIDEBAR_WIDTH_STORAGE_KEY = 'movscript-sidebar-width'
+export const SIDEBAR_DEFAULT_WIDTH = 216
+export const SIDEBAR_MIN_WIDTH = 176
+export const SIDEBAR_MAX_WIDTH = 312
 
-function clampSidebarWidth(width: number) {
+export function clampSidebarWidth(width: number) {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width))
 }
 
@@ -175,14 +172,12 @@ function Section({ title, defaultOpen = true, children, collapsed = false }: {
 
 interface SidebarProps {
   collapsed?: boolean
-  onCollapse?: () => void
-  onExpand?: () => void
+  width?: number
 }
 
 export function Sidebar({
   collapsed = false,
-  onCollapse,
-  onExpand,
+  width = SIDEBAR_DEFAULT_WIDTH,
 }: SidebarProps) {
   const { t } = useTranslation()
   const current = useProjectStore((s) => s.current)
@@ -194,58 +189,11 @@ export function Sidebar({
   const apiBaseURL = useAppSettingsStore((s) => s.settings.apiBaseURL)
   const navigate = useNavigate()
   const { pathname } = useLocation()
-  const resizeStart = useRef({ x: 0, width: SIDEBAR_DEFAULT_WIDTH })
-
   const currentMembership = orgMemberships.find((m) => m.org_id === currentOrgID)
 
   const [installedPlugins, setInstalledPlugins] = useState<import('@/lib/clientPlugins').ClientPluginManifest[]>([])
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    if (typeof window === 'undefined') return SIDEBAR_DEFAULT_WIDTH
-    const saved = Number(window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY))
-    return Number.isFinite(saved) ? clampSidebarWidth(saved) : SIDEBAR_DEFAULT_WIDTH
-  })
-  const [resizing, setResizing] = useState(false)
   useEffect(() => { loadClientPlugins().then(setInstalledPlugins) }, [pathname])
 
-  useEffect(() => {
-    if (collapsed) return
-    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth))
-  }, [collapsed, sidebarWidth])
-
-  useEffect(() => {
-    if (!resizing) return
-
-    const handlePointerMove = (event: PointerEvent) => {
-      const delta = event.clientX - resizeStart.current.x
-      setSidebarWidth(clampSidebarWidth(resizeStart.current.width + delta))
-    }
-    const handlePointerUp = () => setResizing(false)
-    const previousCursor = document.body.style.cursor
-    const previousUserSelect = document.body.style.userSelect
-
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-    window.addEventListener('pointermove', handlePointerMove)
-    window.addEventListener('pointerup', handlePointerUp)
-
-    return () => {
-      document.body.style.cursor = previousCursor
-      document.body.style.userSelect = previousUserSelect
-      window.removeEventListener('pointermove', handlePointerMove)
-      window.removeEventListener('pointerup', handlePointerUp)
-    }
-  }, [resizing])
-
-  const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (collapsed) return
-    event.preventDefault()
-    resizeStart.current = { x: event.clientX, width: sidebarWidth }
-    setResizing(true)
-  }
-
-  const adjustSidebarWidth = (delta: number) => {
-    setSidebarWidth((width) => clampSidebarWidth(width + delta))
-  }
 
   const { isError: projectNotFound } = useQuery({
     queryKey: ['project', current?.ID],
@@ -262,48 +210,18 @@ export function Sidebar({
     <aside
       className={cn(
         'relative bg-sidebar border-r border-sidebar-border flex flex-col shrink-0 overflow-hidden',
-        resizing ? '' : 'transition-[width] duration-200',
+        'transition-[width] duration-200',
         collapsed && 'w-11'
       )}
-      style={collapsed ? undefined : { width: sidebarWidth }}
+      style={collapsed ? undefined : { width }}
     >
-      <div className={cn(
-        'flex shrink-0 items-center border-b border-sidebar-border',
-        collapsed ? 'justify-center px-1 py-1.5' : 'justify-between px-2 py-1.5'
-      )}>
-        {!collapsed && (
+      {!collapsed && (
+        <div className="flex shrink-0 items-center border-b border-sidebar-border px-2 py-1.5">
           <span className="min-w-0 truncate px-1 type-caption font-semibold text-muted-foreground">
             {t('sidebar.title', { defaultValue: '导航' })}
           </span>
-        )}
-        <div className="flex shrink-0 items-center gap-1">
-          {collapsed ? (
-            <Button
-              type="button"
-              size="icon-xs"
-              variant="ghost"
-              onClick={onExpand}
-              aria-label="展开左侧栏"
-              title="展开左侧栏"
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <PanelLeftOpen size={11} />
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              size="icon-xs"
-              variant="ghost"
-              onClick={onCollapse}
-              aria-label="缩略左侧栏"
-              title="缩略左侧栏"
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <ChevronsLeft size={11} />
-            </Button>
-          )}
         </div>
-      </div>
+      )}
       <nav className={cn('flex-1 overflow-y-auto py-3', collapsed ? 'px-1.5' : 'px-2')}>
 
         {/* Project */}
@@ -448,34 +366,6 @@ export function Sidebar({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      )}
-      {!collapsed && (
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="调整左侧栏宽度"
-          aria-valuemin={SIDEBAR_MIN_WIDTH}
-          aria-valuemax={SIDEBAR_MAX_WIDTH}
-          aria-valuenow={sidebarWidth}
-          tabIndex={0}
-          className={cn(
-            'absolute right-0 top-0 h-full w-2 translate-x-1 cursor-col-resize outline-none',
-            'after:absolute after:left-1/2 after:top-0 after:h-full after:w-px after:-translate-x-1/2 after:bg-transparent after:transition-colors',
-            'hover:after:bg-sidebar-border focus-visible:after:bg-ring',
-            resizing && 'after:bg-ring'
-          )}
-          onPointerDown={startResize}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowLeft') {
-              event.preventDefault()
-              adjustSidebarWidth(event.shiftKey ? -32 : -12)
-            }
-            if (event.key === 'ArrowRight') {
-              event.preventDefault()
-              adjustSidebarWidth(event.shiftKey ? 32 : 12)
-            }
-          }}
-        />
       )}
     </aside>
   )

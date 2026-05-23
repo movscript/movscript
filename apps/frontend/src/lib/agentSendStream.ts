@@ -3,9 +3,10 @@ import { generationProgressFromEvents } from '@/lib/agentGenerationMedia'
 import { isStoppableAgentRun, isTerminalAgentRun, type RunControlRuntimePatch } from '@/lib/agentRunControl'
 import type { AgentLivePendingAssistantState } from '@/lib/agentLiveRunActivity'
 import { setActivityEventStatus } from '@/lib/agentSendActivity'
-import type { AgentRun, AgentRunStreamEvent } from '@/lib/localAgentClient'
+import type { AgentRun, AgentRuntimeEventV2 } from '@/lib/localAgentClient'
 import type { AgentPageTaskState } from '@/store/agentSessionStore'
 import type { ChatRunActivityEvent } from '@/store/agentStore'
+import { runtimeRunFromEvent, runtimeThreadTitleFromEvent } from '@movscript/event-state'
 
 export interface AgentSendRunUpdateDeps {
   conversationId: string
@@ -28,7 +29,7 @@ export interface AgentSendRunUpdateDeps {
 export interface AgentSendStreamEventDeps {
   updateConversationTitle: (title: string) => void
   updateActivityEvents: (updater: (events: ChatRunActivityEvent[]) => ChatRunActivityEvent[]) => void
-  recordLiveTraceEvent: (event: AgentRunStreamEvent) => void
+  recordLiveTraceEvent: (event: AgentRuntimeEventV2) => void
   now?: () => Date
 }
 
@@ -88,11 +89,12 @@ export function handleSendRunUpdate(nextRun: AgentRun, deps: AgentSendRunUpdateD
     })
 }
 
-export function handleSendStreamEvent(event: AgentRunStreamEvent, deps: AgentSendStreamEventDeps): void {
-  if (event.type === 'thread_title' && event.title.trim()) {
-    deps.updateConversationTitle(event.title.trim())
+export function handleSendRuntimeEvent(event: AgentRuntimeEventV2, deps: AgentSendStreamEventDeps): void {
+  const title = runtimeThreadTitleFromEvent(event)
+  if (title) {
+    deps.updateConversationTitle(title)
   }
-  if (event.type === 'run' && event.run?.id) {
+  if (runtimeRunFromEvent(event)?.id) {
     const completedAt = (deps.now ?? (() => new Date()))().toISOString()
     deps.updateActivityEvents((current) => current.map((item) => (
       item.status === 'started' && item.id.startsWith('http-request-')

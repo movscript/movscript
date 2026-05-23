@@ -8,7 +8,7 @@ import {
 
 test('prepare-agent-deploy writes a runtime-only agent package manifest', () => {
   const runtimePackage = createRuntimePackageJson({
-    name: 'movscript-agent',
+    name: '@movscript/agent',
     version: '0.1.0',
     private: true,
     type: 'module',
@@ -31,7 +31,7 @@ test('prepare-agent-deploy writes a runtime-only agent package manifest', () => 
   })
 
   assert.deepEqual(runtimePackage, {
-    name: 'movscript-agent',
+    name: '@movscript/agent',
     version: '0.1.0',
     private: true,
     type: 'module',

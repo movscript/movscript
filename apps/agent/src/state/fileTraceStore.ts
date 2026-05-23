@@ -1,10 +1,9 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { gunzipSync, gzipSync } from 'node:zlib'
-import type { AgentTraceQuery } from './store.js'
-import type { AgentTraceEvent, AgentTraceEventKind, JSONValue } from './types.js'
-import type { AgentRunTraceSummary } from './runTrace.js'
+import type { AgentRunTraceSummary, AgentTraceQuery } from '@movscript/protocol'
 import { isRecord } from '../jsonValue.js'
+import type { AgentTraceEvent, AgentTraceEventKind, JSONValue } from './types.js'
 
 interface FileTraceIndex {
   version: 1

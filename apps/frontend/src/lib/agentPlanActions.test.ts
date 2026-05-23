@@ -157,8 +157,8 @@ function depsFixture(calls: string[]): AgentPlanActionDeps {
     setConversationRun: (run, patch) => {
       calls.push(`setRun:${run.id}:${patch.loading === true}`)
     },
-    addAssistantMessage: (message) => {
-      calls.push(`assistant:${message.content}`)
+    addAssistantMessage: (content) => {
+      calls.push(`assistant:${content}`)
     },
     dispatchTaskGraph: async (_taskGraphId, input) => {
       calls.push(`dispatch:${input.plannerRunId}`)
