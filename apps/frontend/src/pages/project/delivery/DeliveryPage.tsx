@@ -26,7 +26,7 @@ import {
   type ExportRecord,
   type Production,
 } from '@/api/deliveryEntities'
-import { AppMetricCard, ProjectSurfaceHeader, SemanticStatusBadge, accentToneClass, semanticToneClass, type SemanticTone } from '@movscript/ui'
+import { AppEmptyState, AppMetricCard, ProjectSurfaceHeader, SemanticStatusBadge, accentToneClass, semanticToneClass } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge, Button, Progress } from '@movscript/ui'
@@ -80,11 +80,11 @@ export default function DeliveryPage() {
         />
 
         <section className="grid grid-cols-5 gap-3">
-          <MetricCard icon={Boxes} label="制作" value={aggregate.productions} detail="当前项目制作单元" tone="info" />
-          <MetricCard icon={Film} label="交付版本" value={aggregate.versions} detail="DeliveryVersion" tone="info" />
-          <MetricCard icon={Download} label="已导出" value={aggregate.exported} detail="成功导出记录" tone="success" />
-          <MetricCard icon={ShieldCheck} label="阻塞项" value={aggregate.blockers} detail="缺素材资源或未批准" tone="warning" />
-          <MetricCard icon={CheckCircle2} label="平均就绪" value={`${aggregate.avg}%`} detail="版本放行准备度" tone="info" />
+          <AppMetricCard icon={Boxes} label="制作" value={aggregate.productions} detail="当前项目制作单元" tone="info" />
+          <AppMetricCard icon={Film} label="交付版本" value={aggregate.versions} detail="DeliveryVersion" tone="info" />
+          <AppMetricCard icon={Download} label="已导出" value={aggregate.exported} detail="成功导出记录" tone="success" />
+          <AppMetricCard icon={ShieldCheck} label="阻塞项" value={aggregate.blockers} detail="缺素材资源或未批准" tone="warning" />
+          <AppMetricCard icon={CheckCircle2} label="平均就绪" value={`${aggregate.avg}%`} detail="版本放行准备度" tone="info" />
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -98,9 +98,9 @@ export default function DeliveryPage() {
             </div>
             <div className="divide-y divide-border">
               {centerQuery.isLoading ? (
-                <EmptyState icon={RefreshCcw} title="正在加载" detail="读取交付版本和导出记录" />
+                <AppEmptyState icon={RefreshCcw} title="正在加载" detail="读取交付版本和导出记录" />
               ) : rows.length === 0 ? (
-                <EmptyState icon={Truck} title="暂无交付对象" detail="先创建制作，然后进入交付工作台查看交付版本和成片状态" />
+                <AppEmptyState icon={Truck} title="暂无交付对象" detail="先创建制作，然后进入交付工作台查看交付版本和成片状态" />
               ) : (
                 rows.map((row) => <DeliveryProductionRow key={row.production.ID} row={row} />)
               )}
@@ -235,10 +235,6 @@ function DeliveryProductionRow({ row }: { row: DeliveryCenterRow }) {
   )
 }
 
-function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIcon; label: string; value: number | string; detail: string; tone: SemanticTone }) {
-  return <AppMetricCard icon={Icon} label={label} value={value} detail={detail} tone={tone} />
-}
-
 function ModeCard({ icon: Icon, title, detail }: { icon: LucideIcon; title: string; detail: string }) {
   return (
     <div className="rounded-md border border-border bg-background p-3">
@@ -247,16 +243,6 @@ function ModeCard({ icon: Icon, title, detail }: { icon: LucideIcon; title: stri
         <p className="type-body font-medium">{title}</p>
       </div>
       <p className="mt-2 type-label leading-5 text-muted-foreground">{detail}</p>
-    </div>
-  )
-}
-
-function EmptyState({ icon: Icon, title, detail }: { icon: LucideIcon; title: string; detail: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
-      <Icon size={24} className="text-muted-foreground" />
-      <p className="mt-3 type-body font-medium">{title}</p>
-      <p className="mt-1 type-label text-muted-foreground">{detail}</p>
     </div>
   )
 }

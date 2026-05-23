@@ -59,7 +59,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       <Comp
         ref={ref}
         className={cn(
-          "ms-button",
+          "ms-control ms-button",
           `ms-button--${normalizedVariant}`,
           `ms-button--${normalizedSize}`,
           loading && "ms-button--loading",

@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import type { LucideIcon } from 'lucide-react'
 import {
   AlertTriangle,
   Boxes,
@@ -21,13 +20,12 @@ import {
 import { abandonSceneMoment, listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
 import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
-import { AppEmptyState, AppMetricCard, ProjectSurfaceHeader, SemanticStatusBadge, accentToneClass, type SemanticTone } from '@movscript/ui'
+import { AppEmptyState, AppInlineMeta, AppKeyValue, AppMetricCard, AppPanel, AppSurfaceItem, AppTextEmptyState, ProjectSurfaceHeader, SemanticStatusBadge, WorkbenchListItem, WorkbenchSurfaceItem, accentToneClass } from '@movscript/ui'
 import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { makeContentFilterSearch, readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
 import { isActiveSemanticEntityRecord } from '@/lib/semanticEntityVisibility'
-import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge, Button, Progress } from '@movscript/ui'
 import { ROUTES } from '@/routes/projectRoutes'
@@ -331,10 +329,10 @@ export default function SceneMomentsPage() {
         )}
         overview={(
           <section className="grid grid-cols-4 gap-3">
-          <MetricCard icon={Film} label="情景" value={momentWorkspaces.length} detail={`${filteredMoments.length} 个符合当前筛选`} tone="info" />
-          <MetricCard icon={Layers3} label="所属编排段" value={new Set(moments.map((item) => item.segment_id).filter(Boolean)).size} detail="情景通过编排段进入制作结构" tone="info" />
-          <MetricCard icon={ShieldCheck} label="可推进" value={readyCount} detail={`${averageReadiness}% 平均准备度`} tone="success" />
-          <MetricCard icon={AlertTriangle} label="待处理" value={attentionCount} detail={`估算总时长 ${formatDuration(totalDuration)}`} tone="warning" />
+          <AppMetricCard icon={Film} label="情景" value={momentWorkspaces.length} detail={`${filteredMoments.length} 个符合当前筛选`} tone="info" />
+          <AppMetricCard icon={Layers3} label="所属编排段" value={new Set(moments.map((item) => item.segment_id).filter(Boolean)).size} detail="情景通过编排段进入制作结构" tone="info" />
+          <AppMetricCard icon={ShieldCheck} label="可推进" value={readyCount} detail={`${averageReadiness}% 平均准备度`} tone="success" />
+          <AppMetricCard icon={AlertTriangle} label="待处理" value={attentionCount} detail={`估算总时长 ${formatDuration(totalDuration)}`} tone="warning" />
           </section>
         )}
         filters={(
@@ -381,12 +379,12 @@ export default function SceneMomentsPage() {
           />
         )}
         list={(
-            <Panel title="情景列表" icon={Route}>
+            <AppPanel title="情景列表" icon={Route}>
               <div className="max-h-[760px] space-y-2 overflow-auto pr-1">
                 {isLoading ? (
-                  <EmptyState title="正在加载情景" detail="读取情景和上游编排段" compact />
+                  <AppEmptyState icon={Film} title="正在加载情景" detail="读取情景和上游编排段" compact />
                 ) : filteredMoments.length === 0 ? (
-                  <EmptyState title="暂无情景" detail="可从编排段页或剧本拆解生成情景" compact />
+                  <AppEmptyState icon={Film} title="暂无情景" detail="可从编排段页或剧本拆解生成情景" compact />
                 ) : (
                   filteredMoments.map((item) => (
                     <MomentButton
@@ -398,17 +396,17 @@ export default function SceneMomentsPage() {
                   ))
                 )}
               </div>
-            </Panel>
+            </AppPanel>
         )}
         preview={(
-          <Panel title="制作项设计" icon={Boxes}>
+          <AppPanel title="制作项设计" icon={Boxes}>
             <RelatedList
               records={selected?.contentUnits ?? []}
               scriptBlocksById={scriptBlocksById}
               empty="当前情景暂无制作项"
               onSelect={(record) => setFilter({ content_unit_id: record.ID })}
             />
-          </Panel>
+          </AppPanel>
         )}
         detail={(
           <>
@@ -435,7 +433,7 @@ export default function SceneMomentsPage() {
                 subtitle: creatingMoment ? '项目情景' : selected ? `情景 #${selected.moment.ID}` : '项目情景',
                 summary: creatingMoment ? '补充时间、地点、条件、动作和情绪后，情景就可以承接制作项与素材需求。' : selected?.moment.description || selected?.moment.action_text || '暂无情景描述。',
                 accentClassName: accentToneClass('teal', 'gradient'),
-                status: <StatusBadge status={creatingMoment ? 'draft' : selected?.moment.status ?? 'draft'} />,
+                status: <SemanticStatusBadge status={creatingMoment ? 'draft' : selected?.moment.status ?? 'draft'} label={statusLabel(creatingMoment ? 'draft' : selected?.moment.status ?? 'draft')} />,
                 stats: selected && !creatingMoment ? [
                   { label: '时间', value: selected.moment.time_text || '未设定' },
                   { label: '地点', value: selected.moment.location_text || '未设定' },
@@ -464,38 +462,38 @@ export default function SceneMomentsPage() {
         downstream={<div />}
         bottom={(
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-5">
-            <Panel title="来源剧本块" icon={ScrollText}>
+            <AppPanel title="来源剧本块" icon={ScrollText}>
               {selected?.scriptBlock ? (
-                <div className="rounded-md border border-border bg-background px-3 py-2">
+                <AppSurfaceItem>
                   <p className="truncate type-label font-medium text-foreground">{scriptBlockSourceLabel(selected.scriptBlock)}</p>
                   <p className="mt-1 line-clamp-4 type-caption leading-4 text-muted-foreground">{String(selected.scriptBlock.content ?? '').trim() || '暂无剧本块正文'}</p>
-                </div>
+                </AppSurfaceItem>
               ) : (
-                <p className="rounded-md border border-dashed border-border px-3 py-3 type-label text-muted-foreground">当前情景暂无稳定剧本块来源</p>
+                <AppTextEmptyState>当前情景暂无稳定剧本块来源</AppTextEmptyState>
               )}
-            </Panel>
-            <Panel title="涉及到的设定资料" icon={Sparkles}>
+            </AppPanel>
+            <AppPanel title="涉及到的设定资料" icon={Sparkles}>
               <RelatedList
                 records={selected?.references ?? []}
                 empty="当前情景暂无设定资料引用"
                 onSelect={(record) => setFilter({ reference_id: record.ID })}
               />
-            </Panel>
-            <Panel title="所需要的素材需求" icon={PackageCheck}>
+            </AppPanel>
+            <AppPanel title="所需要的素材需求" icon={PackageCheck}>
               <RelatedList
                 records={selected?.assetSlots ?? []}
                 empty="当前情景暂无素材需求"
                 onSelect={(record) => setFilter({ asset_slot_id: record.ID })}
               />
-            </Panel>
-            <Panel title="需要产出的制作项" icon={Boxes}>
+            </AppPanel>
+            <AppPanel title="需要产出的制作项" icon={Boxes}>
               <RelatedList
                 records={selected?.contentUnits ?? []}
                 scriptBlocksById={scriptBlocksById}
                 empty="当前情景暂无制作项"
                 onSelect={(record) => setFilter({ content_unit_id: record.ID })}
               />
-            </Panel>
+            </AppPanel>
           </div>
         )}
       />
@@ -515,38 +513,32 @@ export default function SceneMomentsPage() {
 
 function MomentButton({ item, selected, onClick }: { item: MomentWorkspace; selected: boolean; onClick: () => void }) {
   return (
-    <button
-      type="button"
+    <WorkbenchListItem
       onClick={onClick}
-      className={cn(
-        'w-full rounded-lg border bg-background p-3 text-left transition-all hover:border-primary/50 hover:shadow-sm',
-        selected ? 'border-primary ring-1 ring-primary' : 'border-border',
-      )}
+      active={selected}
+      className="p-3"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate type-body font-semibold text-foreground">{titleOf(item.moment)}</p>
           <p className="mt-0.5 truncate type-caption text-muted-foreground">{item.segment ? titleOf(item.segment) : '未绑定编排段'}</p>
         </div>
-        <StatusBadge status={item.moment.status ?? 'draft'} />
+        <SemanticStatusBadge status={item.moment.status ?? 'draft'} label={statusLabel(item.moment.status ?? 'draft')} />
       </div>
       <p className="mt-2 line-clamp-2 type-label leading-5 text-muted-foreground">{item.moment.description || item.moment.action_text || '暂无情景描述'}</p>
       {item.scriptBlock ? (
-        <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-0.5 type-tiny text-muted-foreground">
-          <ScrollText size={12} className="shrink-0" />
-          <span className="truncate">{scriptBlockSourceLabel(item.scriptBlock)}</span>
-        </div>
+        <AppInlineMeta icon={ScrollText} className="mt-2">{scriptBlockSourceLabel(item.scriptBlock)}</AppInlineMeta>
       ) : null}
       <div className="mt-3 grid grid-cols-3 gap-2">
-        <MiniStat label="内容" value={item.contentUnits.length} />
-        <MiniStat label="设定资料" value={item.references.length} />
-        <MiniStat label="素材需求" value={item.assetSlots.length} />
+        <AppKeyValue label="内容" value={item.contentUnits.length} strong />
+        <AppKeyValue label="设定资料" value={item.references.length} strong />
+        <AppKeyValue label="素材需求" value={item.assetSlots.length} strong />
       </div>
       <div className="mt-3 flex items-center gap-2">
         <Progress value={item.readiness} className="h-1.5 flex-1" />
         <span className="w-9 text-right type-caption tabular-nums text-muted-foreground">{item.readiness}%</span>
       </div>
-    </button>
+    </WorkbenchListItem>
   )
 }
 
@@ -562,7 +554,7 @@ function RelatedList({
   onSelect?: (record: RelatedRecord) => void
 }) {
   if (records.length === 0) {
-    return <p className="rounded-md border border-dashed border-border px-3 py-3 type-label text-muted-foreground">{empty}</p>
+    return <AppTextEmptyState>{empty}</AppTextEmptyState>
   }
 
   return (
@@ -576,64 +568,28 @@ function RelatedList({
                 <p className="truncate type-label font-medium text-foreground">{titleOf(record)}</p>
                 <p className="mt-0.5 line-clamp-2 type-caption leading-4 text-muted-foreground">{record.description || record.content || record.prompt || record.prompt_hint || record.visual_intent || record.kind || `ID ${record.ID}`}</p>
                 {record.script_block_id ? (
-                  <div className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-0.5 type-tiny text-muted-foreground">
-                    <ScrollText size={12} className="shrink-0" />
-                    <span className="truncate">{scriptBlockSourceLabel(scriptBlock) || `剧本块 #${record.script_block_id}`}</span>
-                  </div>
+                  <AppInlineMeta icon={ScrollText} className="mt-1">{scriptBlockSourceLabel(scriptBlock) || `剧本块 #${record.script_block_id}`}</AppInlineMeta>
                 ) : null}
                 {scriptBlock?.content ? (
                   <p className="mt-1 line-clamp-2 type-caption leading-4 text-muted-foreground">{String(scriptBlock.content)}</p>
                 ) : null}
               </div>
-              <StatusBadge status={record.status ?? 'draft'} />
+              <SemanticStatusBadge status={record.status ?? 'draft'} label={statusLabel(record.status ?? 'draft')} />
             </div>
           </>
         )
         return onSelect ? (
-          <button key={record.ID} type="button" onClick={() => onSelect(record)} className="w-full rounded-md border border-border bg-background px-3 py-2 text-left hover:border-primary/40">
+          <WorkbenchListItem key={record.ID} onClick={() => onSelect(record)} className="px-3 py-2">
             {content}
-          </button>
+          </WorkbenchListItem>
         ) : (
-          <div key={record.ID} className="rounded-md border border-border bg-background px-3 py-2">
+          <WorkbenchSurfaceItem key={record.ID} className="px-3 py-2">
             {content}
-          </div>
+          </WorkbenchSurfaceItem>
         )
       })}
     </div>
   )
-}
-
-function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIcon; label: string; value: string | number; detail: string; tone: SemanticTone }) {
-  return <AppMetricCard icon={Icon} label={label} value={value} detail={detail} tone={tone} />
-}
-
-function Panel({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: React.ReactNode }) {
-  return (
-    <section className="rounded-lg border border-border bg-card">
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
-        <Icon size={14} className="text-muted-foreground" />
-        <p className="type-body font-semibold text-foreground">{title}</p>
-      </div>
-      <div className="p-3">{children}</div>
-    </section>
-  )
-}
-
-function MiniStat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-md border border-border bg-background px-2.5 py-2">
-      <p className="type-tiny text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate type-label font-semibold text-foreground">{value}</p>
-    </div>
-  )
-}
-
-function StatusBadge({ status }: { status: string }) {
-  return <SemanticStatusBadge status={status} label={statusLabel(status)} />
-}
-
-function EmptyState({ title, detail, compact = false }: { title: string; detail: string; compact?: boolean }) {
-  return <AppEmptyState icon={Film} title={title} detail={detail} compact={compact} />
 }
 
 function normalizeStatusFilter(value: string): StatusFilter {

@@ -22,7 +22,7 @@ import { installAgentSkillBundle, listAgentSkillBundlePlugins, uninstallAgentSki
 import { RuntimeModelConfigInputError } from './model/modelConfig.js'
 import type { AgentInternalRunSignal, AgentTaskGraphStreamEvent, AgentInternalThreadSignal } from './state/types.js'
 import type { RuntimeSessionSnapshotV1, RuntimeThreadSnapshotV2 } from './application/runtimeThreadSnapshot.js'
-import type { RuntimeTelemetryRegistry } from './telemetry/runtimeTelemetry.js'
+import { RuntimeTelemetryRegistry } from './telemetry/runtimeTelemetry.js'
 
 installAgentLogTimestamps('server')
 
@@ -60,23 +60,28 @@ class AgentHTTPError extends Error {
 }
 
 export function createAgentRequestListener(context: AgentServerContext, options: AgentRequestListenerOptions = {}): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
+  const telemetry = context.telemetry ?? new RuntimeTelemetryRegistry()
   return async (req, res) => {
     const requestStartedAt = Date.now()
     setHeaders(res)
     const requestPath = requestPathname(req)
-    const requestOperationId = context.telemetry.beginOperation({
+    const requestOperationId = telemetry.beginOperation({
       kind: 'http_request',
       method: req.method,
       requestPath,
     })
-    context.telemetry.markPhase(requestOperationId, 'request_received')
-    res.once('finish', () => {
-      context.telemetry.finishOperation(requestOperationId, res.statusCode >= 400 ? 'error' : 'success', {
+    telemetry.markPhase(requestOperationId, 'request_received')
+    const onResponseFinish = () => {
+      telemetry.finishOperation(requestOperationId, res.statusCode >= 400 ? 'error' : 'success', {
         statusCode: res.statusCode,
         method: req.method ?? 'UNKNOWN',
         requestPath,
       })
-    })
+    }
+    const responseEvents = res as ServerResponse & { once?: (event: string, listener: () => void) => unknown }
+    if (typeof responseEvents.once === 'function') {
+      responseEvents.once('finish', onResponseFinish)
+    }
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204)
@@ -88,12 +93,12 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       const url = new URL(req.url || '/', `http://${req.headers.host || '127.0.0.1'}`)
 
       if (req.method === 'GET' && url.pathname === '/metrics') {
-        writeText(res, 200, context.telemetry.prometheusText(), 'text/plain; version=0.0.4; charset=utf-8')
+        writeText(res, 200, await telemetry.prometheusTextAsync(), 'text/plain; version=0.0.4; charset=utf-8')
         return
       }
 
       if (req.method === 'GET' && url.pathname === '/runtime/telemetry') {
-        writeJSON(res, 200, context.telemetry.snapshot())
+        writeJSON(res, 200, telemetry.snapshot())
         return
       }
 
@@ -560,7 +565,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       if (threadRunMatch && req.method === 'POST') {
         const body = withRequestAuth(await readOptionalJSONObject(req, 'thread run body'), req)
-        context.telemetry.markPhase(requestOperationId, 'body_read')
+        telemetry.markPhase(requestOperationId, 'body_read')
         const content = typeof body.message === 'string' && body.message.trim()
           ? body.message
           : typeof body.content === 'string' && body.content.trim()
@@ -596,7 +601,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           return
         }
         if (body.toolCall !== undefined) {
-          const toolRunOperationId = context.telemetry.beginOperation({ kind: 'tool_run_create', threadId: threadRunMatch[1] })
+          const toolRunOperationId = telemetry.beginOperation({ kind: 'tool_run_create', threadId: threadRunMatch[1] })
           const {
             message: _message,
             content: _content,
@@ -610,10 +615,10 @@ export function createAgentRequestListener(context: AgentServerContext, options:
               threadId: threadRunMatch[1],
               message: content,
             }))
-            context.telemetry.markPhase(toolRunOperationId, 'run_created', { runId: run.id, status: run.status })
-            context.telemetry.finishOperation(toolRunOperationId, 'success', { runId: run.id, status: run.status })
+            telemetry.markPhase(toolRunOperationId, 'run_created', { runId: run.id, status: run.status })
+            telemetry.finishOperation(toolRunOperationId, 'success', { runId: run.id, status: run.status })
           } catch (error) {
-            context.telemetry.finishOperation(toolRunOperationId, 'error', { error: error instanceof Error ? error.message : String(error) })
+            telemetry.finishOperation(toolRunOperationId, 'error', { error: error instanceof Error ? error.message : String(error) })
             throw error
           }
           const updatedThread = context.runtimeRouter.getThread(threadRunMatch[1])
@@ -630,14 +635,14 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           content,
           ...(body.clientInput !== undefined ? { clientInput: body.clientInput } : {}),
         })
-        context.telemetry.markPhase(requestOperationId, 'message_created', { threadId: threadRunMatch[1], messageId: message.id })
+        telemetry.markPhase(requestOperationId, 'message_created', { threadId: threadRunMatch[1], messageId: message.id })
         const {
           message: _message,
           content: _content,
           sourceMessageId: _sourceMessageId,
           ...runBody
         } = body
-        const runCreateOperationId = context.telemetry.beginOperation({ kind: 'run_create', threadId: threadRunMatch[1] })
+        const runCreateOperationId = telemetry.beginOperation({ kind: 'run_create', threadId: threadRunMatch[1] })
         let run
         try {
           run = context.runtimeRouter.createRun(asPlannerUserRun({
@@ -645,14 +650,14 @@ export function createAgentRequestListener(context: AgentServerContext, options:
             threadId: threadRunMatch[1],
             sourceMessageId: message.id,
           }))
-          context.telemetry.markPhase(runCreateOperationId, 'run_created', { runId: run.id, status: run.status })
-          context.telemetry.finishOperation(runCreateOperationId, 'success', { runId: run.id, status: run.status })
+          telemetry.markPhase(runCreateOperationId, 'run_created', { runId: run.id, status: run.status })
+          telemetry.finishOperation(runCreateOperationId, 'success', { runId: run.id, status: run.status })
         } catch (error) {
-          context.telemetry.finishOperation(runCreateOperationId, 'error', { error: error instanceof Error ? error.message : String(error) })
+          telemetry.finishOperation(runCreateOperationId, 'error', { error: error instanceof Error ? error.message : String(error) })
           throw error
         }
-        context.telemetry.markPhase(requestOperationId, 'run_created', { runId: run.id, threadId: run.threadId, status: run.status })
-        context.telemetry.recordMetric({
+        telemetry.markPhase(requestOperationId, 'run_created', { runId: run.id, threadId: run.threadId, status: run.status })
+        telemetry.recordMetric({
           name: 'movscript_agent_run_create_total',
           value: 1,
           unit: 'count',
@@ -834,20 +839,20 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const runStreamMatch = url.pathname.match(/^\/runs\/([^/]+)\/stream$/)
       if (runStreamMatch && req.method === 'GET') {
-        streamRunEvents(req, res, context.runtimeRouter, runStreamMatch[1], context.telemetry)
+        streamRunEvents(req, res, context.runtimeRouter, runStreamMatch[1], telemetry)
         return
       }
 
       const interactionApproveMatch = url.pathname.match(/^\/interactions\/([^/]+)\/approve$/)
       if (interactionApproveMatch && req.method === 'POST') {
-        const operationId = context.telemetry.beginOperation({ kind: 'interaction_approve', meta: { interactionId: interactionApproveMatch[1] } })
+        const operationId = telemetry.beginOperation({ kind: 'interaction_approve', meta: { interactionId: interactionApproveMatch[1] } })
         try {
           const result = context.runtimeRouter.approveInteraction(interactionApproveMatch[1])
-          context.telemetry.markPhase(operationId, 'interaction_resolved', { runId: result.run.id, status: result.run.status })
-          context.telemetry.finishOperation(operationId, 'success', { runId: result.run.id, status: result.run.status })
+          telemetry.markPhase(operationId, 'interaction_resolved', { runId: result.run.id, status: result.run.status })
+          telemetry.finishOperation(operationId, 'success', { runId: result.run.id, status: result.run.status })
           writeJSON(res, 202, result)
         } catch (error) {
-          context.telemetry.finishOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
+          telemetry.finishOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
           throw error
         }
         return
@@ -855,14 +860,14 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const interactionRejectMatch = url.pathname.match(/^\/interactions\/([^/]+)\/reject$/)
       if (interactionRejectMatch && req.method === 'POST') {
-        const operationId = context.telemetry.beginOperation({ kind: 'interaction_reject', meta: { interactionId: interactionRejectMatch[1] } })
+        const operationId = telemetry.beginOperation({ kind: 'interaction_reject', meta: { interactionId: interactionRejectMatch[1] } })
         try {
           const result = context.runtimeRouter.rejectInteraction(interactionRejectMatch[1])
-          context.telemetry.markPhase(operationId, 'interaction_resolved', { runId: result.run.id, status: result.run.status })
-          context.telemetry.finishOperation(operationId, 'success', { runId: result.run.id, status: result.run.status })
+          telemetry.markPhase(operationId, 'interaction_resolved', { runId: result.run.id, status: result.run.status })
+          telemetry.finishOperation(operationId, 'success', { runId: result.run.id, status: result.run.status })
           writeJSON(res, 200, result)
         } catch (error) {
-          context.telemetry.finishOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
+          telemetry.finishOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
           throw error
         }
         return

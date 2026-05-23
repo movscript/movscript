@@ -1,0 +1,202 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "movscript_agent_operation_duration_ms{quantile=\"0.95\"}",
+          "legendFormat": "operation p95 {{kind}} {{status}}",
+          "refId": "A"
+        },
+        {
+          "expr": "movscript_agent_trace_span_duration_ms{quantile=\"0.95\"}",
+          "legendFormat": "span p95 {{kind}} {{status}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Agent Latency P95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "movscript_agent_operation_active",
+          "legendFormat": "active {{kind}}",
+          "refId": "A"
+        },
+        {
+          "expr": "movscript_agent_slow_operation_total",
+          "legendFormat": "slow operations",
+          "refId": "B"
+        },
+        {
+          "expr": "movscript_agent_error_operation_total",
+          "legendFormat": "operation errors",
+          "refId": "C"
+        }
+      ],
+      "title": "Runtime Pressure",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "movscript_agent_trace_event_total",
+          "legendFormat": "{{kind}} {{status}} {{tool_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Trace Event Mix",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "movscript_agent_slow_trace_span_total",
+          "legendFormat": "slow spans",
+          "refId": "A"
+        },
+        {
+          "expr": "movscript_agent_error_trace_span_total",
+          "legendFormat": "failed spans",
+          "refId": "B"
+        }
+      ],
+      "title": "Trace Health",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": [
+    "movscript",
+    "agent",
+    "observability"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "MovScript Agent Observability",
+  "uid": "movscript-agent-observability",
+  "version": 1,
+  "weekStart": ""
+}

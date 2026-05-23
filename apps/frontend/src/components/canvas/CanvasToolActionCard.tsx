@@ -13,7 +13,7 @@ import {
   Text,
   Video,
 } from 'lucide-react'
-import { accentToneClass, Button, semanticToneClass, type AccentTone } from '@movscript/ui'
+import { accentToneClass, Button, SemanticStatusBadge, semanticToneClass, type AccentTone, type SemanticTone } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 
 export type CanvasToolSource = 'ai' | 'plugin'
@@ -117,7 +117,7 @@ export function CanvasToolActionCard({
               <SourceBadge source={source} className={accentToneClass(resolvedTone, 'badge')} />
               <p className="min-w-0 flex-1 truncate type-body font-semibold leading-5 text-foreground">{title}</p>
               {status && (
-                <StatusBadge label={status} />
+                <SemanticStatusBadge status={canvasToolStatusKey(status)} label={status} tone={canvasToolStatusTone(status)} />
               )}
             </div>
             {subtitle && <p className="mt-1 truncate type-caption text-muted-foreground">{subtitle}</p>}
@@ -219,21 +219,20 @@ function SourceBadge({ source, className }: { source: CanvasToolSource; classNam
   )
 }
 
-function StatusBadge({ label }: { label: string }) {
-  const running = label.includes('运行') || label.includes('等待')
-  const done = label.includes('完成') || label.includes('就绪')
-  const failed = label.includes('失败')
-  return (
-    <span className={cn(
-      'shrink-0 rounded-full px-1.5 py-0.5 type-tiny font-medium leading-none',
-      done && semanticToneClass('success', 'badge'),
-      running && !done && semanticToneClass('info', 'badge'),
-      failed && 'bg-destructive/10 text-destructive',
-      !running && !done && !failed && 'bg-muted text-muted-foreground',
-    )}>
-      {label}
-    </span>
-  )
+function canvasToolStatusTone(label: string): SemanticTone {
+  if (label.includes('完成') || label.includes('就绪')) return 'success'
+  if (label.includes('运行') || label.includes('等待')) return 'info'
+  if (label.includes('失败')) return 'danger'
+  return 'neutral'
+}
+
+function canvasToolStatusKey(label: string) {
+  if (label.includes('完成')) return 'completed'
+  if (label.includes('就绪')) return 'ready'
+  if (label.includes('运行')) return 'running'
+  if (label.includes('等待')) return 'waiting'
+  if (label.includes('失败')) return 'failed'
+  return 'draft'
 }
 
 function ToolSlotRow({

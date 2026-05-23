@@ -14,6 +14,7 @@ import {
 } from '../contracts/runtimeContract.js'
 import { buildAgentUpdateState } from '../updates/updatePolicy.js'
 import { RuntimeTelemetryRegistry } from '../telemetry/runtimeTelemetry.js'
+import { createRuntimeOtlpExporterFromEnv } from '../telemetry/runtimeOtlpExporter.js'
 import type { AgentPluginCatalog } from '../catalog/loader.js'
 import type { CatalogIssue } from '../catalog/types.js'
 
@@ -155,7 +156,9 @@ export function createAgentServerContext(): AgentServerContext {
   const client = new MCPClient({ endpoint: mcpEndpoint })
   const backendApplyClient = new MCPBackendApplyClient(client)
   const runtimeContractResolver = EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER
-  const telemetry = new RuntimeTelemetryRegistry()
+  const telemetry = new RuntimeTelemetryRegistry({
+    externalExporter: createRuntimeOtlpExporterFromEnv(),
+  })
   const store = timeStartupStep('state-store', () => new FileAgentStore(statePath), (stateStore) => [
     pathDiagnostic(statePath),
     `trace=${traceIndexDiagnostic(stateStore.tracePath)}`,
@@ -198,6 +201,7 @@ export function createAgentServerContext(): AgentServerContext {
     },
     pluginWarnings: pluginCatalog.warnings,
     updateState,
+    telemetry,
   }), () => [
     `registeredTools=${runtimeRouterToolCountSafe(pluginCatalog)}`,
     `catalogState=${pathDiagnostic(catalogStatePath)}`,

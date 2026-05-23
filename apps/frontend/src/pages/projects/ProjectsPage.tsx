@@ -223,22 +223,6 @@ function CreateProjectModal({ onClose, onCreate }: {
   )
 }
 
-function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
-  const { t } = useTranslation()
-
-  return (
-    <AppEmptyState
-      icon={FolderOpen}
-      title={t('pages.projects.empty')}
-      action={(
-        <Button onClick={onCreateClick} className="gap-2">
-          <Plus size={14} /> {t('pages.projects.createFirst')}
-        </Button>
-      )}
-    />
-  )
-}
-
 export default function ProjectsPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -364,7 +348,15 @@ export default function ProjectsPage() {
           </div>
         ) : projects.length === 0 ? (
           <div className="projects-region__body">
-            <EmptyState onCreateClick={() => setShowCreate(true)} />
+            <AppEmptyState
+              icon={FolderOpen}
+              title={t('pages.projects.empty')}
+              action={(
+                <Button onClick={() => setShowCreate(true)} className="gap-2">
+                  <Plus size={14} /> {t('pages.projects.createFirst')}
+                </Button>
+              )}
+            />
           </div>
         ) : (
           <div className="projects-list">

@@ -1,5 +1,5 @@
 import { AlertCircle } from 'lucide-react'
-import { ReviewCallout, ReviewStat } from '@movscript/ui'
+import { AppPanel, ReviewCallout, ReviewStat } from '@movscript/ui'
 
 import type {
   ProductionProposalPreviewSemanticChange,
@@ -61,22 +61,16 @@ export function ProductionProposalBackendPreviewSemanticSummary({
         </ReviewCallout>
       )}
       {changes.length > 0 && (
-        <div className="rounded-md border border-border/60 bg-muted/30 p-2">
-          <div className="flex items-center justify-between gap-2">
-            <p className="type-caption font-semibold text-foreground">后端 Diff</p>
-            <span className="rounded bg-background px-1.5 py-0.5 type-tiny text-muted-foreground">{changes.length}</span>
-          </div>
-          <div className="mt-1.5 space-y-1">
-            {changes.slice(0, 6).map((change, index) => (
-              <div key={`${change.kind}-${change.client_id ?? change.id ?? index}`} className="flex items-center gap-1.5 rounded bg-background/70 px-2 py-1">
-                <ProductionProposalDiffActionBadge action={change.action} compact />
-                <span className="min-w-0 flex-1 truncate type-tiny font-medium text-foreground">{change.title}</span>
-                <span className="shrink-0 type-tiny text-muted-foreground">{productionProposalChangeKindLabel(change.kind)}</span>
-              </div>
-            ))}
-            {changes.length > 6 && <p className="type-tiny text-muted-foreground">还有 {changes.length - 6} 项未显示</p>}
-          </div>
-        </div>
+        <AppPanel title="后端 Diff" action={<ReviewStat tone="neutral">{changes.length}</ReviewStat>} bodyClassName="space-y-1">
+          {changes.slice(0, 6).map((change, index) => (
+            <div key={`${change.kind}-${change.client_id ?? change.id ?? index}`} className="flex items-center gap-1.5 rounded bg-background/70 px-2 py-1">
+              <ProductionProposalDiffActionBadge action={change.action} compact />
+              <span className="min-w-0 flex-1 truncate type-tiny font-medium text-foreground">{change.title}</span>
+              <span className="shrink-0 type-tiny text-muted-foreground">{productionProposalChangeKindLabel(change.kind)}</span>
+            </div>
+          ))}
+          {changes.length > 6 && <p className="type-tiny text-muted-foreground">还有 {changes.length - 6} 项未显示</p>}
+        </AppPanel>
       )}
     </div>
   )

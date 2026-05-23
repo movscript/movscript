@@ -20,8 +20,10 @@ import { ResourceLibraryPicker } from '@/components/shared/ResourceLibraryPicker
 import {
   semanticToneClass,
   type SemanticTone,
+  WorkbenchEmptyState,
   WorkbenchKeyValue,
   WorkbenchMetric,
+  WorkbenchSection,
   WorkbenchStatusBadge,
 } from '@movscript/ui'
 import type { DeliveryGateCheck, DeliveryReadiness } from '@/lib/deliveryWorkbenchModel'
@@ -110,30 +112,29 @@ export function DeliveryVersionDetailPanel({
 }) {
   const fields = buildDeliveryVersionDetailFields(version, productions)
   return (
-    <section className="rounded-lg border border-border bg-card">
-      <div className="border-b border-border p-4">
-        <div className="mb-2 flex flex-wrap items-center gap-2">
+    <WorkbenchSection
+      title="版本详情"
+      className="bg-card"
+      action={(
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <WorkbenchStatusBadge tone={deliveryWorkbenchStatusTone(version.status ?? 'draft')} label={deliveryStatusLabel(version.status ?? 'draft')} />
-          {version.is_primary && <span className="rounded bg-primary/10 px-2 py-1 type-label text-primary">主版本</span>}
-          {version.production_id && <span className="rounded bg-muted px-2 py-1 type-label text-muted-foreground">制作 #{version.production_id}</span>}
-          {version.preview_timeline_id && <span className="rounded bg-muted px-2 py-1 type-label text-muted-foreground">预览 #{version.preview_timeline_id}</span>}
+          {version.is_primary && <Badge variant="primary">主版本</Badge>}
+          {version.production_id && <Badge variant="secondary">制作 #{version.production_id}</Badge>}
+          {version.preview_timeline_id && <Badge variant="secondary">预览 #{version.preview_timeline_id}</Badge>}
         </div>
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="type-body font-semibold">版本详情</h2>
-        </div>
-      </div>
-      <div className="grid gap-3 p-4 sm:grid-cols-2">
-        {fields.map((field) => (
-          <WorkbenchKeyValue
-            key={field.id}
-            label={field.label}
-            value={field.value}
-            strong={field.strong}
-            className={field.className}
-          />
-        ))}
-      </div>
-    </section>
+      )}
+      bodyClassName="grid gap-3 p-4 sm:grid-cols-2"
+    >
+      {fields.map((field) => (
+        <WorkbenchKeyValue
+          key={field.id}
+          label={field.label}
+          value={field.value}
+          strong={field.strong}
+          className={field.className}
+        />
+      ))}
+    </WorkbenchSection>
   )
 }
 
@@ -148,35 +149,22 @@ function DeliveryVersionSummaryCard({
 }) {
   const summary = buildDeliveryVersionSummary({ version, items, readiness })
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <BadgeCheck size={16} className={summary.warningCount > 0 ? semanticToneClass('warning', 'icon') : semanticToneClass('success', 'icon')} />
-            <h2 className="type-body font-semibold text-foreground">{summary.title}</h2>
-            <WorkbenchStatusBadge tone={deliveryWorkbenchStatusTone(summary.status)} label={deliveryStatusLabel(summary.status)} />
-            {summary.isPrimary && (
-              <Badge className="type-tiny bg-primary/10 text-primary">主版本</Badge>
-            )}
-          </div>
-          <p className="mt-2 type-body text-muted-foreground line-clamp-2">
-            {summary.description}
-          </p>
+    <WorkbenchSection
+      icon={BadgeCheck}
+      title={summary.title}
+      description={summary.description}
+      className="bg-card"
+      action={(
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <WorkbenchStatusBadge tone={deliveryWorkbenchStatusTone(summary.status)} label={deliveryStatusLabel(summary.status)} />
+          {summary.isPrimary ? <Badge variant="primary">主版本</Badge> : null}
         </div>
-        <div className="grid grid-cols-3 gap-3 text-right shrink-0">
-          <div>
-            <p className={cn('type-title-sm font-semibold tabular-nums', summary.warningCount > 0 ? semanticToneClass('warning', 'icon') : semanticToneClass('success', 'icon'))}>{summary.readinessLabel}</p>
-            <p className="mt-1 type-label text-muted-foreground">交付就绪</p>
-          </div>
-          <div>
-            <p className="type-title font-semibold tabular-nums">{summary.totalDurationLabel}</p>
-            <p className="mt-1 type-label text-muted-foreground">总时长</p>
-          </div>
-          <div>
-            <p className={cn('type-title font-semibold tabular-nums', summary.warningCount > 0 ? semanticToneClass('warning', 'icon') : 'text-foreground')}>{summary.warningCount}</p>
-            <p className="mt-1 type-label text-muted-foreground">待补齐</p>
-          </div>
-        </div>
+      )}
+    >
+      <div className="grid gap-3 sm:grid-cols-3">
+        <WorkbenchMetric label="交付就绪" value={summary.readinessLabel} tone={summary.warningCount > 0 ? 'warning' : 'success'} compact />
+        <WorkbenchMetric label="总时长" value={summary.totalDurationLabel} compact />
+        <WorkbenchMetric label="待补齐" value={summary.warningCount} tone={summary.warningCount > 0 ? 'warning' : 'neutral'} compact />
       </div>
       <div className="mt-4">
         <div className="mb-2 flex items-center justify-between type-label text-muted-foreground">
@@ -188,24 +176,24 @@ function DeliveryVersionSummaryCard({
           <WorkbenchKeyValue label="待补齐片段" value={summary.warningCount} />
         </div>
       </div>
-    </div>
+    </WorkbenchSection>
   )
 }
 
 function DeliveryGateCheckPanel({ checks }: { checks: DeliveryGateCheck[] }) {
   const warningCount = checks.filter((check) => check.status !== 'passed').length
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <ShieldCheck size={16} className={semanticToneClass('success', 'icon')} />
-          <h2 className="type-body font-semibold text-foreground">导出门禁</h2>
-        </div>
-        <Badge variant="secondary" className="type-tiny">
+    <WorkbenchSection
+      icon={ShieldCheck}
+      title="导出门禁"
+      className="bg-card"
+      action={(
+        <Badge variant="secondary">
           {warningCount > 0 ? `需处理 ${warningCount} 项` : '全部通过'}
         </Badge>
-      </div>
-      <div className="mt-4 space-y-2">
+      )}
+    >
+      <div className="space-y-2">
         {checks.map((check) => {
           const meta = gateMeta[check.status]
           const Icon = meta.icon
@@ -225,7 +213,7 @@ function DeliveryGateCheckPanel({ checks }: { checks: DeliveryGateCheck[] }) {
           )
         })}
       </div>
-    </div>
+    </WorkbenchSection>
   )
 }
 
@@ -288,16 +276,17 @@ export function DeliveryItemEditor({
 
 export function DeliveryExportPanel({ exportRecords, onCreate, creating }: { exportRecords: ExportRecord[]; onCreate: () => void; creating: boolean }) {
   return (
-    <div className="rounded-lg border border-border p-3">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <Label className="type-label font-medium text-muted-foreground">导出记录</Label>
+    <WorkbenchSection
+      title="导出记录"
+      action={(
         <Button size="sm" variant="outline" className="gap-1.5" onClick={onCreate} loading={creating}>
           <Plus size={14} />
           新建
         </Button>
-      </div>
+      )}
+    >
       {exportRecords.length === 0 ? (
-        <p className="py-4 text-center type-label text-muted-foreground">尚未创建导出记录</p>
+        <WorkbenchEmptyState title="尚未创建导出记录" compact />
       ) : (
         <div className="space-y-2">
           {exportRecords.map((record) => (
@@ -311,7 +300,7 @@ export function DeliveryExportPanel({ exportRecords, onCreate, creating }: { exp
           ))}
         </div>
       )}
-    </div>
+    </WorkbenchSection>
   )
 }
 
@@ -395,21 +384,21 @@ export function EmptyDeliveryTimeline({
   onSeed: () => void
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 p-10 text-center text-muted-foreground">
-      <Video size={24} className="opacity-40" />
-      <p className="type-body font-medium text-foreground">暂无交付片段</p>
-      <p className="max-w-sm type-label leading-relaxed">
-        {sourceCount > 0
+    <WorkbenchEmptyState
+      icon={Video}
+      title="暂无交付片段"
+      description={
+        sourceCount > 0
           ? `内容工作区已有 ${sourceCount} 个${sourceLabel}，可以先带入交付时间线，再微调剪辑顺序、时长和采用资源。`
-          : '添加交付片段后，可以微调剪辑顺序、时长和采用资源。'}
-      </p>
-      {canSeed ? (
+          : '添加交付片段后，可以微调剪辑顺序、时长和采用资源。'
+      }
+      action={canSeed ? (
         <Button size="sm" className="gap-2" onClick={onSeed} loading={loading}>
           <Plus size={14} />
           带入制作时间线
         </Button>
       ) : null}
-    </div>
+    />
   )
 }
 

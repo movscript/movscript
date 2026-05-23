@@ -13,7 +13,7 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
       <div
         ref={ref}
         data-size={size}
-        className={cn("ms-card", size === "sm" && "ms-card--sm", className)}
+        className={cn("ms-frame ms-card", size === "sm" && "ms-card--sm", className)}
         {...props}
       />
     );
@@ -24,7 +24,7 @@ Card.displayName = "Card";
 
 export const CardHeader = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-card__header", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-stack ms-frame__header ms-card__header", className)} {...props} />;
   }
 );
 
@@ -32,7 +32,7 @@ CardHeader.displayName = "CardHeader";
 
 export const CardTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => {
-    return <h3 ref={ref} className={cn("ms-card__title", className)} {...props} />;
+    return <h3 ref={ref} className={cn("ms-frame__title ms-card__title", className)} {...props} />;
   }
 );
 
@@ -42,14 +42,14 @@ export const CardDescription = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => {
-  return <div ref={ref} className={cn("ms-card__description", className)} {...props} />;
+  return <div ref={ref} className={cn("ms-frame__description ms-card__description", className)} {...props} />;
 });
 
 CardDescription.displayName = "CardDescription";
 
 export const CardContent = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-card__content", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-frame__body ms-card__content", className)} {...props} />;
   }
 );
 
@@ -57,7 +57,7 @@ CardContent.displayName = "CardContent";
 
 export const CardFooter = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-card__footer", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-action-row ms-card__footer", className)} {...props} />;
   }
 );
 

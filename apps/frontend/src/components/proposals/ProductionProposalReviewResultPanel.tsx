@@ -1,5 +1,5 @@
 import { Check, CheckCircle2, Eye, GitBranch, Loader2 } from 'lucide-react'
-import { Badge, Button, ReviewCallout, ReviewStat, semanticToneClass } from '@movscript/ui'
+import { AppPanel, Badge, Button, ReviewCallout, ReviewStat, semanticToneClass } from '@movscript/ui'
 
 import {
   ProductionProposalApplyGatePanel,
@@ -106,13 +106,13 @@ export function ProductionProposalSimulationResultPanel({
       </ReviewCallout>
 
       {simulationResult.backendPreview && (
-        <div className="rounded-lg border border-border bg-background p-3">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 size={14} className={semanticToneClass('success', 'icon')} />
-            <p className="type-label font-semibold text-foreground">写入预检结果</p>
-            <Badge variant="secondary" className="ml-auto h-5 rounded-full px-2 type-tiny">未写库</Badge>
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-1.5 text-center type-tiny sm:grid-cols-3">
+        <AppPanel
+          icon={CheckCircle2}
+          iconClassName={semanticToneClass('success', 'icon')}
+          title="写入预检结果"
+          action={<Badge variant="secondary" className="h-5 rounded-full px-2 type-tiny">未写库</Badge>}
+        >
+          <div className="grid grid-cols-2 gap-1.5 text-center type-tiny sm:grid-cols-3">
             <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回编排段 {simulationResult.backendPreview.returned.segments}</span>
             <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回情节 {simulationResult.backendPreview.returned.sceneMoments}</span>
             <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回表达 {simulationResult.backendPreview.returned.writingExpressions}</span>
@@ -125,18 +125,14 @@ export function ProductionProposalSimulationResultPanel({
             changes={simulationResult.backendPreview.semanticChanges}
             warnings={simulationResult.backendPreview.warnings}
           />
-        </div>
+        </AppPanel>
       )}
 
       <ProductionProposalApplyGatePanel gate={applyGate} />
       {backendPreviewIssue && <ProductionProposalBackendPreviewIssuePanel issue={backendPreviewIssue} />}
       <ProductionProposalApplyPreviewPanel preview={simulationResult.preview} />
-      <div className="rounded-lg border border-border bg-background p-3">
-        <div className="flex items-center gap-2">
-          <GitBranch size={14} className="text-primary" />
-          <p className="type-label font-semibold text-foreground">继续审阅提案</p>
-        </div>
-        <p className="mt-1 type-caption leading-4 text-muted-foreground">
+      <AppPanel icon={GitBranch} iconClassName={semanticToneClass('info', 'icon')} title="继续审阅提案">
+        <p className="type-caption leading-4 text-muted-foreground">
           预检结果保留在上方；如果继续调整接受或拒绝，系统会自动清除旧预检结果并回到最新决策。
         </p>
         <div className="mt-3">
@@ -147,7 +143,7 @@ export function ProductionProposalSimulationResultPanel({
             onSetDecisions={onSetDecisions}
           />
         </div>
-      </div>
+      </AppPanel>
       <div className={cn('grid gap-2', previewOnly ? 'grid-cols-1' : 'grid-cols-2')}>
         <Button size="sm" variant="outline" className="type-label" disabled={applying} onClick={onHide}>
           隐藏预检结果

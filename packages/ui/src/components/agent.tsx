@@ -20,7 +20,7 @@ export const AgentShell = React.forwardRef<HTMLDivElement, AgentShellProps>(
       <div
         ref={ref}
         data-density={density}
-        className={cn("ms-agent-shell", `ms-agent-shell--${density}`, className)}
+        className={cn("ms-agent-container ms-agent-shell", `ms-agent-shell--${density}`, className)}
         {...props}
       />
     );
@@ -39,7 +39,7 @@ AgentSidebar.displayName = "AgentSidebar";
 
 export const AgentSidebarHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-sidebar__header", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-bar ms-agent-sidebar__header", className)} {...props} />;
   }
 );
 
@@ -82,10 +82,14 @@ export const AgentConversationItem = React.forwardRef<HTMLButtonElement, AgentCo
       >
         <span className="ms-agent-conversation__indicator" aria-hidden="true" />
         <span className="ms-agent-conversation__body">
-          <span className="ms-agent-conversation__title">{title}</span>
-          {description ? <span className="ms-agent-conversation__description">{description}</span> : null}
+          <span className="ms-agent-text ms-agent-text--truncate ms-agent-conversation__title">{title}</span>
+          {description ? (
+            <span className="ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-conversation__description">
+              {description}
+            </span>
+          ) : null}
         </span>
-        {meta ? <span className="ms-agent-conversation__meta">{meta}</span> : null}
+        {meta ? <span className="ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-conversation__meta">{meta}</span> : null}
       </button>
     );
   }
@@ -103,7 +107,7 @@ AgentMain.displayName = "AgentMain";
 
 export const AgentHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-header", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-bar ms-agent-header", className)} {...props} />;
   }
 );
 
@@ -111,7 +115,7 @@ AgentHeader.displayName = "AgentHeader";
 
 export const AgentHeaderContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-header__content", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-titleblock ms-agent-header__content", className)} {...props} />;
   }
 );
 
@@ -119,7 +123,7 @@ AgentHeaderContent.displayName = "AgentHeaderContent";
 
 export const AgentHeaderActions = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-header__actions", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-actions ms-agent-header__actions", className)} {...props} />;
   }
 );
 
@@ -127,7 +131,7 @@ AgentHeaderActions.displayName = "AgentHeaderActions";
 
 export const AgentTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => {
-    return <h1 ref={ref} className={cn("ms-agent-title", className)} {...props} />;
+    return <h1 ref={ref} className={cn("ms-agent-text ms-agent-text--truncate ms-agent-title", className)} {...props} />;
   }
 );
 
@@ -135,7 +139,7 @@ AgentTitle.displayName = "AgentTitle";
 
 export const AgentSubtitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => {
-    return <p ref={ref} className={cn("ms-agent-subtitle", className)} {...props} />;
+    return <p ref={ref} className={cn("ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-subtitle", className)} {...props} />;
   }
 );
 
@@ -151,7 +155,7 @@ export const AgentStatus = React.forwardRef<HTMLSpanElement, AgentStatusProps>(
       <span
         ref={ref}
         data-state={state}
-        className={cn("ms-agent-status", `ms-agent-status--${state}`, className)}
+        className={cn("ms-agent-pill ms-agent-status", `ms-agent-status--${state}`, className)}
         {...props}
       >
         <CircleIcon className="ms-agent-status__icon" />
@@ -183,7 +187,7 @@ export const AgentEmpty = React.forwardRef<HTMLDivElement, React.HTMLAttributes<
   ({ className, children, ...props }, ref) => {
     return (
       <div ref={ref} className={cn("ms-agent-empty", className)} {...props}>
-        <span className="ms-agent-empty__icon" aria-hidden="true">
+        <span className="ms-agent-avatar ms-agent-empty__icon" aria-hidden="true">
           <SparklesIcon />
         </span>
         {children}
@@ -222,7 +226,7 @@ export interface AgentMessageAvatarProps extends React.HTMLAttributes<HTMLDivEle
 export const AgentMessageAvatar = React.forwardRef<HTMLDivElement, AgentMessageAvatarProps>(
   ({ className, label, children, ...props }, ref) => {
     return (
-      <div ref={ref} className={cn("ms-agent-message__avatar", className)} {...props}>
+      <div ref={ref} className={cn("ms-agent-avatar ms-agent-message__avatar", className)} {...props}>
         {children ?? label}
       </div>
     );
@@ -241,7 +245,7 @@ AgentMessageBody.displayName = "AgentMessageBody";
 
 export const AgentMessageMeta = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-message__meta", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-cluster ms-agent-message__meta", className)} {...props} />;
   }
 );
 
@@ -249,7 +253,7 @@ AgentMessageMeta.displayName = "AgentMessageMeta";
 
 export const AgentMessageContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-message__content", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-bubble ms-agent-message__content", className)} {...props} />;
   }
 );
 
@@ -257,7 +261,7 @@ AgentMessageContent.displayName = "AgentMessageContent";
 
 export const AgentMessageActions = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-message__actions", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-cluster ms-agent-message__actions", className)} {...props} />;
   }
 );
 
@@ -308,17 +312,17 @@ export const AgentToolCall = React.forwardRef<HTMLDivElement, AgentToolCallProps
       <div
         ref={ref}
         data-state={state}
-        className={cn("ms-agent-tool", `ms-agent-tool--${state}`, className)}
+        className={cn("ms-frame ms-agent-frame ms-agent-tool", `ms-agent-tool--${state}`, className)}
         {...props}
       >
         {(title || meta) ? (
-          <div className="ms-agent-tool__header">
+          <div className="ms-frame__header ms-agent-tool__header">
             <span className="ms-agent-tool__state" aria-hidden="true" />
-            {title ? <span className="ms-agent-tool__title">{title}</span> : null}
-            {meta ? <span className="ms-agent-tool__meta">{meta}</span> : null}
+            {title ? <span className="ms-agent-text ms-agent-text--truncate ms-frame__title ms-agent-tool__title">{title}</span> : null}
+            {meta ? <span className="ms-agent-text ms-agent-text--meta ms-agent-tool__meta">{meta}</span> : null}
           </div>
         ) : null}
-        {children ? <div className="ms-agent-tool__content">{children}</div> : null}
+        {children ? <div className="ms-frame__body ms-agent-tool__content">{children}</div> : null}
       </div>
     );
   }
@@ -355,7 +359,7 @@ AgentStep.displayName = "AgentStep";
 
 export const AgentSuggestions = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-suggestions", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-cluster ms-agent-cluster--wrap ms-agent-suggestions", className)} {...props} />;
   }
 );
 
@@ -363,7 +367,7 @@ AgentSuggestions.displayName = "AgentSuggestions";
 
 export const AgentSuggestion = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
   ({ className, type = "button", ...props }, ref) => {
-    return <button ref={ref} type={type} className={cn("ms-agent-suggestion", className)} {...props} />;
+    return <button ref={ref} type={type} className={cn("ms-control ms-agent-pill ms-agent-suggestion", className)} {...props} />;
   }
 );
 
@@ -379,7 +383,7 @@ AgentContextPanel.displayName = "AgentContextPanel";
 
 export const AgentMetric = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-metric", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-stack ms-agent-field ms-agent-metric", className)} {...props} />;
   }
 );
 
@@ -387,7 +391,7 @@ AgentMetric.displayName = "AgentMetric";
 
 export const AgentWorkspace = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-workspace", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-stack ms-agent-workspace", className)} {...props} />;
   }
 );
 
@@ -395,7 +399,7 @@ AgentWorkspace.displayName = "AgentWorkspace";
 
 export const AgentContextBar = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-contextbar", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-cluster ms-agent-cluster--wrap ms-agent-contextbar", className)} {...props} />;
   }
 );
 
@@ -411,7 +415,7 @@ export const AgentContextChip = React.forwardRef<HTMLDivElement, AgentContextChi
       <div
         ref={ref}
         data-tone={tone}
-        className={cn("ms-agent-contextchip", `ms-agent-contextchip--${tone}`, className)}
+        className={cn("ms-agent-pill ms-agent-contextchip", `ms-agent-contextchip--${tone}`, className)}
         {...props}
       />
     );
@@ -436,20 +440,20 @@ export const AgentRunCard = React.forwardRef<HTMLDivElement, AgentRunCardProps>(
         ref={ref}
         data-tone={tone}
         data-selected={selected ? "true" : undefined}
-        className={cn("ms-agent-run-card", `ms-agent-run-card--${tone}`, className)}
+        className={cn("ms-frame ms-agent-frame ms-agent-run-card", `ms-agent-run-card--${tone}`, className)}
         {...props}
       >
         {(title || eyebrow || meta || actions) ? (
-          <div className="ms-agent-run-card__header">
-            <div className="ms-agent-run-card__heading">
+          <div className="ms-frame__header ms-agent-frame__header ms-agent-run-card__header">
+            <div className="ms-frame__heading ms-agent-run-card__heading">
               {eyebrow ? <span className="ms-agent-run-card__eyebrow">{eyebrow}</span> : null}
-              {title ? <span className="ms-agent-run-card__title">{title}</span> : null}
-              {meta ? <span className="ms-agent-run-card__meta">{meta}</span> : null}
+              {title ? <span className="ms-agent-text ms-agent-text--truncate ms-frame__title ms-agent-run-card__title">{title}</span> : null}
+              {meta ? <span className="ms-agent-text ms-agent-text--meta ms-agent-run-card__meta">{meta}</span> : null}
             </div>
-            {actions ? <div className="ms-agent-run-card__actions">{actions}</div> : null}
+            {actions ? <div className="ms-agent-cluster ms-agent-run-card__actions">{actions}</div> : null}
           </div>
         ) : null}
-        {children ? <div className="ms-agent-run-card__body">{children}</div> : null}
+        {children ? <div className="ms-agent-stack ms-frame__body ms-agent-run-card__body">{children}</div> : null}
       </div>
     );
   }
@@ -459,7 +463,7 @@ AgentRunCard.displayName = "AgentRunCard";
 
 export const AgentRunCardGrid = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-run-card__grid", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-stack ms-agent-run-card__grid", className)} {...props} />;
   }
 );
 
@@ -473,9 +477,9 @@ export interface AgentRunFieldProps extends React.HTMLAttributes<HTMLDivElement>
 export const AgentRunField = React.forwardRef<HTMLDivElement, AgentRunFieldProps>(
   ({ className, label, value, children, ...props }, ref) => {
     return (
-      <div ref={ref} className={cn("ms-agent-run-field", className)} {...props}>
-        {label ? <span className="ms-agent-run-field__label">{label}</span> : null}
-        {value ? <span className="ms-agent-run-field__value">{value}</span> : null}
+      <div ref={ref} className={cn("ms-agent-stack ms-agent-field ms-agent-run-field", className)} {...props}>
+        {label ? <span className="ms-agent-text ms-agent-text--truncate ms-agent-text--muted ms-agent-run-field__label">{label}</span> : null}
+        {value ? <span className="ms-agent-text ms-agent-text--truncate ms-agent-run-field__value">{value}</span> : null}
         {children}
       </div>
     );
@@ -494,7 +498,7 @@ export const AgentToolStep = React.forwardRef<HTMLDivElement, AgentToolStepProps
       <div
         ref={ref}
         data-state={state}
-        className={cn("ms-agent-tool-step", `ms-agent-tool-step--${state}`, className)}
+        className={cn("ms-agent-stack ms-agent-field ms-agent-tool-step", `ms-agent-tool-step--${state}`, className)}
         {...props}
       />
     );
@@ -505,7 +509,7 @@ AgentToolStep.displayName = "AgentToolStep";
 
 export const AgentWorkSurface = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-work-surface", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-container ms-agent-work-surface", className)} {...props} />;
   }
 );
 
@@ -513,7 +517,7 @@ AgentWorkSurface.displayName = "AgentWorkSurface";
 
 export const AgentWorkHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-work-header", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-bar ms-agent-work-header", className)} {...props} />;
   }
 );
 
@@ -521,7 +525,7 @@ AgentWorkHeader.displayName = "AgentWorkHeader";
 
 export const AgentWorkTitleBlock = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-work-title", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-stack ms-agent-titleblock ms-agent-work-title", className)} {...props} />;
   }
 );
 
@@ -529,7 +533,7 @@ AgentWorkTitleBlock.displayName = "AgentWorkTitleBlock";
 
 export const AgentWorkActions = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-work-actions", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-actions ms-agent-work-actions", className)} {...props} />;
   }
 );
 
@@ -537,7 +541,7 @@ AgentWorkActions.displayName = "AgentWorkActions";
 
 export const AgentWorkBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-work-body", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-stack ms-agent-work-body", className)} {...props} />;
   }
 );
 
@@ -545,7 +549,7 @@ AgentWorkBody.displayName = "AgentWorkBody";
 
 export const AgentWorkLane = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-work-lane", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-scrollarea ms-agent-work-lane", className)} {...props} />;
   }
 );
 
@@ -553,7 +557,7 @@ AgentWorkLane.displayName = "AgentWorkLane";
 
 export const AgentWorkRail = React.forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>(
   ({ className, ...props }, ref) => {
-    return <aside ref={ref} className={cn("ms-agent-work-rail", className)} {...props} />;
+    return <aside ref={ref} className={cn("ms-agent-scrollarea ms-agent-work-rail", className)} {...props} />;
   }
 );
 
@@ -561,7 +565,7 @@ AgentWorkRail.displayName = "AgentWorkRail";
 
 export const AgentCommandBar = React.forwardRef<HTMLFormElement, React.FormHTMLAttributes<HTMLFormElement>>(
   ({ className, ...props }, ref) => {
-    return <form ref={ref} className={cn("ms-agent-commandbar", className)} {...props} />;
+    return <form ref={ref} className={cn("ms-agent-stack ms-agent-commandbar", className)} {...props} />;
   }
 );
 
@@ -575,14 +579,14 @@ export interface AgentInstructionCardProps extends Omit<React.HTMLAttributes<HTM
 export const AgentInstructionCard = React.forwardRef<HTMLDivElement, AgentInstructionCardProps>(
   ({ className, title, meta, children, ...props }, ref) => {
     return (
-      <div ref={ref} className={cn("ms-agent-instruction", className)} {...props}>
+      <div ref={ref} className={cn("ms-frame ms-agent-frame ms-agent-instruction", className)} {...props}>
         {(title || meta) ? (
-          <div className="ms-agent-instruction__header">
-            {title ? <span className="ms-agent-instruction__title">{title}</span> : null}
-            {meta ? <span className="ms-agent-instruction__meta">{meta}</span> : null}
+          <div className="ms-frame__header ms-agent-frame__header ms-agent-instruction__header">
+            {title ? <span className="ms-agent-text ms-agent-text--truncate ms-frame__title ms-agent-instruction__title">{title}</span> : null}
+            {meta ? <span className="ms-agent-text ms-agent-text--meta ms-agent-instruction__meta">{meta}</span> : null}
           </div>
         ) : null}
-        {children ? <div className="ms-agent-instruction__body">{children}</div> : null}
+        {children ? <div className="ms-frame__body ms-agent-instruction__body">{children}</div> : null}
       </div>
     );
   }
@@ -598,14 +602,14 @@ export interface AgentRailSectionProps extends Omit<React.HTMLAttributes<HTMLDiv
 export const AgentRailSection = React.forwardRef<HTMLDivElement, AgentRailSectionProps>(
   ({ className, title, action, children, ...props }, ref) => {
     return (
-      <div ref={ref} className={cn("ms-agent-rail-section", className)} {...props}>
+      <div ref={ref} className={cn("ms-frame ms-agent-frame ms-agent-rail-section", className)} {...props}>
         {(title || action) ? (
-          <div className="ms-agent-rail-section__header">
-            {title ? <span className="ms-agent-rail-section__title">{title}</span> : null}
-            {action ? <span className="ms-agent-rail-section__action">{action}</span> : null}
+          <div className="ms-frame__header ms-agent-frame__header ms-agent-rail-section__header">
+            {title ? <span className="ms-agent-text ms-agent-text--truncate ms-frame__title ms-agent-rail-section__title">{title}</span> : null}
+            {action ? <span className="ms-agent-text ms-agent-text--meta ms-agent-rail-section__action">{action}</span> : null}
           </div>
         ) : null}
-        {children ? <div className="ms-agent-rail-section__body">{children}</div> : null}
+        {children ? <div className="ms-agent-stack ms-frame__body ms-agent-rail-section__body">{children}</div> : null}
       </div>
     );
   }
@@ -615,7 +619,7 @@ AgentRailSection.displayName = "AgentRailSection";
 
 export const AgentComposer = React.forwardRef<HTMLFormElement, React.FormHTMLAttributes<HTMLFormElement>>(
   ({ className, ...props }, ref) => {
-    return <form ref={ref} className={cn("ms-agent-composer", className)} {...props} />;
+    return <form ref={ref} className={cn("ms-agent-stack ms-agent-composer", className)} {...props} />;
   }
 );
 
@@ -623,7 +627,7 @@ AgentComposer.displayName = "AgentComposer";
 
 export const AgentComposerToolbar = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    return <div ref={ref} className={cn("ms-agent-composer__toolbar", className)} {...props} />;
+    return <div ref={ref} className={cn("ms-agent-cluster ms-agent-cluster--between ms-agent-composer__toolbar", className)} {...props} />;
   }
 );
 
@@ -659,7 +663,7 @@ export const AgentComposerAction = React.forwardRef<HTMLButtonElement, AgentComp
         ref={ref}
         type={type}
         data-active={active ? "true" : undefined}
-        className={cn("ms-agent-composer__action", className)}
+        className={cn("ms-control ms-agent-composer__action", className)}
         {...props}
       >
         {children ?? <PaperclipIcon />}
@@ -685,7 +689,7 @@ export const AgentComposerSubmit = React.forwardRef<HTMLButtonElement, AgentComp
         type={type}
         aria-label={accessibleLabel}
         data-running={running ? "true" : undefined}
-        className={cn("ms-agent-composer__submit", className)}
+        className={cn("ms-control ms-agent-composer__submit", className)}
         {...props}
       >
         {children ?? (running ? <StopIcon /> : <ArrowUpIcon />)}

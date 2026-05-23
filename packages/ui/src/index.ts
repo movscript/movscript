@@ -1,5 +1,8 @@
 export {
   AppEmptyState,
+  AppDisclosure,
+  AppInfoBlock,
+  AppInlineMeta,
   AppInlineError,
   AppKeyValue,
   AppMetricCard,
@@ -8,6 +11,7 @@ export {
   AppPanel,
   AppSection,
   AppStateMessage,
+  AppSurfaceItem,
   AppTextEmptyState,
   ProjectSurfaceHeader,
   type IconComponent
@@ -33,6 +37,7 @@ export {
   WorkbenchListItem,
   WorkbenchMetric,
   WorkbenchSection,
+  WorkbenchSurfaceItem,
   WorkbenchStatusBadge,
   WorkbenchThumbnail,
   type WorkbenchDensity,
@@ -138,6 +143,7 @@ export {
   CardTitle,
   type CardProps
 } from "./components/card";
+export { CheckboxField, type CheckboxFieldProps } from "./components/checkbox";
 export {
   Dialog,
   DialogClose,
@@ -172,6 +178,7 @@ export { Label, type LabelProps } from "./components/label";
 export { Progress, type ProgressProps } from "./components/progress";
 export { ScrollArea, ScrollBar } from "./components/scroll-area";
 export {
+  NativeSelect,
   Select,
   SelectContent,
   SelectGroup,

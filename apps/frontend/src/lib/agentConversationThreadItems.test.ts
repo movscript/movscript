@@ -135,7 +135,7 @@ test('buildAgentConversationMessageItems keeps historical requires-action messag
   })
 
   assert.equal(items[0]?.liveWorkflowRuns, null)
-  assert.equal(items[0]?.beforeMessageWorkflowRuns[0]?.id, 'run_history')
+  assert.deepEqual(items[0]?.beforeMessageWorkflowRuns, [])
   assert.equal(items[0]?.showMessage, true)
 })
 
@@ -171,7 +171,7 @@ test('buildAgentConversationMessageItems keeps synthetic requires-action placeho
     workflowRunsByResultMessageId: new Map(),
   })
 
-  assert.equal(items[0]?.beforeMessageWorkflowRuns[0]?.id, 'run_requires_action')
+  assert.deepEqual(items[0]?.beforeMessageWorkflowRuns, [])
   assert.equal(items[0]?.showMessage, true)
 })
 

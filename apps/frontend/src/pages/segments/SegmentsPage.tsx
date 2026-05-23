@@ -39,7 +39,7 @@ import {
 } from '@/api/semanticEntities'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
 import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
-import { AppEmptyState, AppMetricCard, ProjectSurfaceHeader, SemanticStatusBadge, accentToneClass, semanticToneClass } from '@movscript/ui'
+import { AppDisclosure, AppEmptyState, AppInfoBlock, AppInlineMeta, AppKeyValue, AppMetricCard, AppPanel, AppSection, AppSurfaceItem, AppTextEmptyState, ProjectSurfaceHeader, SemanticStatusBadge, WorkbenchList, WorkbenchListItem, WorkbenchSurfaceItem, accentToneClass, semanticToneClass } from '@movscript/ui'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
@@ -48,7 +48,7 @@ import { isActiveSemanticEntityRecord } from '@/lib/semanticEntityVisibility'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
-import { Badge, Button, Input, Label, Progress as ProgressBar, Textarea } from '@movscript/ui'
+import { Badge, Button, CheckboxField, Input, Label, NativeSelect, Progress as ProgressBar, Textarea } from '@movscript/ui'
 
 type StatusFilter = 'all' | 'ready' | 'attention' | 'confirmed'
 
@@ -425,10 +425,10 @@ export default function SegmentsPage() {
         )}
         overview={(
           <section className="grid grid-cols-4 gap-3">
-          <MetricCard icon={BookOpenText} label="编排段" value={segmentWorkspaces.length} detail={`${visibleSegments.length} 个符合当前筛选`} tone="info" />
-          <MetricCard icon={Film} label="情景" value={sceneMoments.length} detail="编排段内部的具体时空与动作上下文" tone="info" />
-          <MetricCard icon={ShieldCheck} label="可推进" value={readyCount} detail={`${averageReadiness}% 平均准备度`} tone="success" />
-          <MetricCard icon={AlertTriangle} label="待处理" value={attentionCount} detail={`估算总时长 ${formatDuration(totalDuration)}`} tone="warning" />
+          <AppMetricCard icon={BookOpenText} label="编排段" value={segmentWorkspaces.length} detail={`${visibleSegments.length} 个符合当前筛选`} tone="info" />
+          <AppMetricCard icon={Film} label="情景" value={sceneMoments.length} detail="编排段内部的具体时空与动作上下文" tone="info" />
+          <AppMetricCard icon={ShieldCheck} label="可推进" value={readyCount} detail={`${averageReadiness}% 平均准备度`} tone="success" />
+          <AppMetricCard icon={AlertTriangle} label="待处理" value={attentionCount} detail={`估算总时长 ${formatDuration(totalDuration)}`} tone="warning" />
           </section>
         )}
         filters={(
@@ -460,23 +460,19 @@ export default function SegmentsPage() {
           />
         )}
         list={(
-            <section className="rounded-lg border border-border bg-card">
-              <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                <div>
-                  <p className="type-body font-semibold text-foreground">编排段清单</p>
-                  <p className="mt-0.5 type-label text-muted-foreground">以卡片方式管理本集的情绪、节奏和戏剧功能段；可选填剧本版本作为来源引用。</p>
-                </div>
-                <Badge variant="outline" className="type-tiny">{visibleSegments.length} / {segmentWorkspaces.length}</Badge>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 p-4">
+            <AppSection
+              title="编排段清单"
+              description="以卡片方式管理本集的情绪、节奏和戏剧功能段；可选填剧本版本作为来源引用。"
+              action={<Badge variant="outline" className="type-tiny">{visibleSegments.length} / {segmentWorkspaces.length}</Badge>}
+            >
+              <WorkbenchList className="gap-3">
                 {isLoading ? (
                   <div>
-                    <EmptyState title="正在加载编排段" detail="读取编排段和关联对象" compact />
+                    <AppEmptyState icon={Film} title="正在加载编排段" detail="读取编排段和关联对象" compact />
                   </div>
                 ) : visibleSegments.length === 0 ? (
                   <div>
-                    <EmptyState title="暂无编排段" detail="可以直接新建编排段，剧本版本只是可选来源引用" compact />
+                    <AppEmptyState icon={Film} title="暂无编排段" detail="可以直接新建编排段，剧本版本只是可选来源引用" compact />
                   </div>
                 ) : (
                   visibleSegments.map((item) => (
@@ -488,28 +484,25 @@ export default function SegmentsPage() {
                     />
                   ))
                 )}
-              </div>
-            </section>
+              </WorkbenchList>
+            </AppSection>
         )}
         preview={(
           <>
-            <section className="rounded-lg border border-border bg-card">
-              <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                <div>
-                  <p className="type-body font-semibold text-foreground">情景与制作项设计</p>
-                  <p className="mt-0.5 type-label text-muted-foreground">选择编排段后，在这里查看它持有的多个情景，以及每个情景关联的制作项设计。</p>
-                </div>
-                <Badge variant="outline" className="type-tiny">{selectedSegment ? `${selectedSegment.sceneMoments.length} 情景 / ${selectedSegment.contentUnits.length} 制作项` : '-'}</Badge>
-              </div>
-
+            <AppSection
+              title="情景与制作项设计"
+              description="选择编排段后，在这里查看它持有的多个情景，以及每个情景关联的制作项设计。"
+              action={<Badge variant="outline" className="type-tiny">{selectedSegment ? `${selectedSegment.sceneMoments.length} 情景 / ${selectedSegment.contentUnits.length} 制作项` : '-'}</Badge>}
+              bodyClassName={selectedSegment ? 'p-4' : undefined}
+            >
               {!selectedSegment ? (
-                <EmptyState title="未选择编排段" detail="从编排段清单选择一个编排段查看制作项设计" />
+                <AppEmptyState icon={Film} title="未选择编排段" detail="从编排段清单选择一个编排段查看制作项设计" />
               ) : (
-                <div className="grid grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] gap-4 p-4">
+                <div className="grid grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] gap-4">
                   <div className="space-y-3">
                     <SectionTitle icon={Film} title="编排段持有的情景" count={selectedSegment.sceneMoments.length} />
                     {selectedSegment.sceneMoments.length === 0 ? (
-                      <EmptyState title="暂无情景" detail="编排段还没有拆分出情景" compact />
+                      <AppEmptyState icon={Film} title="暂无情景" detail="编排段还没有拆分出情景" compact />
                     ) : (
                       selectedSegment.sceneMoments.map((sceneMoment) => (
                         <SceneMomentRow
@@ -527,7 +520,7 @@ export default function SegmentsPage() {
                   <div className="space-y-3">
                     <SectionTitle icon={Boxes} title="制作项设计" count={selectedSegment.contentUnits.length} />
                     {selectedSegment.contentUnits.length === 0 ? (
-                      <EmptyState title="暂无制作项设计" detail="确认情景后可生成镜头、字幕卡、旁白或转场制作项" compact />
+                      <AppEmptyState icon={Film} title="暂无制作项设计" detail="确认情景后可生成镜头、字幕卡、旁白或转场制作项" compact />
                     ) : (
                       selectedSegment.contentUnits.map((item) => (
                         <ContentUnitRow
@@ -545,7 +538,7 @@ export default function SegmentsPage() {
                   </div>
                 </div>
               )}
-            </section>
+            </AppSection>
           </>
         )}
         detail={(
@@ -587,13 +580,10 @@ export default function SegmentsPage() {
 
 function SegmentButton({ item, selected, onClick }: { item: SegmentWorkspace; selected: boolean; onClick: () => void }) {
   return (
-    <button
-      type="button"
+    <WorkbenchListItem
       onClick={onClick}
-      className={cn(
-        'w-full rounded-lg border bg-background p-3 text-left transition-all hover:border-primary/50 hover:shadow-sm',
-        selected ? 'border-primary ring-1 ring-primary' : 'border-border',
-      )}
+      active={selected}
+      className="p-3"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -608,24 +598,21 @@ function SegmentButton({ item, selected, onClick }: { item: SegmentWorkspace; se
           </div>
           <p className="mt-2 line-clamp-2 type-label leading-5 text-muted-foreground">{item.segment.summary || item.segment.content || '暂无情绪、节奏或戏剧功能说明'}</p>
           {item.scriptBlock ? (
-            <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 type-caption text-muted-foreground">
-              <ScrollText size={12} className="shrink-0" />
-              <span className="truncate">{scriptBlockSourceLabel(item.scriptBlock)}</span>
-            </div>
+            <AppInlineMeta icon={ScrollText} className="mt-2 py-1 type-caption">{scriptBlockSourceLabel(item.scriptBlock)}</AppInlineMeta>
           ) : null}
         </div>
-        <StatusBadge status={item.segment.status ?? 'draft'} />
+        <SemanticStatusBadge status={item.segment.status ?? 'draft'} label={statusLabel(item.segment.status ?? 'draft')} />
       </div>
       <div className="mt-3 grid grid-cols-3 gap-2">
-        <MiniStat label="情景" value={item.sceneMoments.length} />
-        <MiniStat label="内容" value={item.contentUnits.length} />
-        <MiniStat label="素材需求" value={item.assetSlots.length} />
+        <AppKeyValue label="情景" value={item.sceneMoments.length} strong />
+        <AppKeyValue label="内容" value={item.contentUnits.length} strong />
+        <AppKeyValue label="素材需求" value={item.assetSlots.length} strong />
       </div>
       <div className="mt-3 flex items-center gap-2">
         <ProgressBar value={item.readiness} className="h-1.5 flex-1" />
         <span className="w-9 text-right type-caption tabular-nums text-muted-foreground">{item.readiness}%</span>
       </div>
-    </button>
+    </WorkbenchListItem>
   )
 }
 
@@ -725,9 +712,9 @@ function SegmentDetailCard({
 
   if (!record && !defaults) {
     return (
-      <section className="rounded-lg border border-border bg-card">
-        <EmptyState title="未选择编排段" detail="从左侧编排段列表选择一个情绪、节奏或戏剧功能段，或新建编排段后直接编辑详情" />
-      </section>
+      <AppPanel>
+        <AppEmptyState icon={Film} title="未选择编排段" detail="从左侧编排段列表选择一个情绪、节奏或戏剧功能段，或新建编排段后直接编辑详情" />
+      </AppPanel>
     )
   }
 
@@ -746,7 +733,7 @@ function SegmentDetailCard({
 
   return (
     <>
-    <section className="overflow-hidden rounded-lg border border-border bg-card">
+    <AppPanel className="overflow-hidden" bodyClassName="p-0">
       <form id={formId} onSubmit={submit}>
         <div className={cn('border-b border-border p-5', accentToneClass('cyan', 'gradient'))}>
         <div className="flex items-start justify-between gap-4">
@@ -796,7 +783,7 @@ function SegmentDetailCard({
                 surface="plain"
               />
             ) : (
-              <StatusBadge status={status} />
+              <SemanticStatusBadge status={status} label={statusLabel(status)} />
             )}
             {record && !isEditing ? (
               <div className="flex items-center gap-2">
@@ -846,7 +833,7 @@ function SegmentDetailCard({
           </div>
         </div>
         {isEditing ? (
-          <div className="mt-4 rounded-lg border border-white/50 bg-background/70 p-3 shadow-sm backdrop-blur">
+          <AppSurfaceItem variant="overlay" className="mt-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <p className="type-label font-semibold text-foreground">核心信息</p>
               <p className="type-caption text-muted-foreground">用于列表、筛选和来源追溯</p>
@@ -856,7 +843,7 @@ function SegmentDetailCard({
                 <SegmentInlineField key={key} field={fieldByKey.get(key)!} value={form[key]} disabled={lockedFields.has(key)} lockReason={lockedFields.has(key) ? sourceLockReason : undefined} onChange={(value) => updateField(key, value)} />
               ) : null)}
             </div>
-          </div>
+          </AppSurfaceItem>
         ) : null}
         </div>
         {item ? (
@@ -882,21 +869,18 @@ function SegmentDetailCard({
               </SegmentEditSection>
             ) : null}
             {advancedFields.filter((field) => !compactEditFields.includes(field.key)).length > 0 ? (
-              <details className="overflow-hidden rounded-lg border border-border bg-muted/20">
-                <summary className="cursor-pointer px-4 py-3 type-label font-semibold text-foreground">高级字段</summary>
-                <div className="grid gap-3 border-t border-border bg-card/60 p-3">
-                  {advancedFields.filter((field) => !compactEditFields.includes(field.key)).map((field) => (
-                    <SegmentInlineField key={field.key} field={field} value={form[field.key]} disabled={lockedFields.has(field.key)} lockReason={lockedFields.has(field.key) ? sourceLockReason : undefined} onChange={(value) => updateField(field.key, value)} textareaRows={field.key.endsWith('_json') ? 6 : 3} />
-                  ))}
-                </div>
-              </details>
+              <AppDisclosure title="高级字段">
+                {advancedFields.filter((field) => !compactEditFields.includes(field.key)).map((field) => (
+                  <SegmentInlineField key={field.key} field={field} value={form[field.key]} disabled={lockedFields.has(field.key)} lockReason={lockedFields.has(field.key) ? sourceLockReason : undefined} onChange={(value) => updateField(field.key, value)} textareaRows={field.key.endsWith('_json') ? 6 : 3} />
+                ))}
+              </AppDisclosure>
             ) : null}
           </div>
         ) : record ? (
           <SegmentReadOnlyDetails fields={fields} record={record} scriptBlock={item?.scriptBlock ?? null} />
         ) : null}
       </form>
-    </section>
+    </AppPanel>
     {record && projectId && (
       <PreviewDrawer
         open={previewOpen}
@@ -925,13 +909,10 @@ function SceneMomentRow({
   onSelect: () => void
 }) {
   return (
-    <button
-      type="button"
+    <WorkbenchListItem
       onClick={onSelect}
-      className={cn(
-        'w-full rounded-lg border bg-background p-3 text-left transition-colors hover:border-primary/50',
-        selected ? 'border-primary ring-1 ring-primary' : 'border-border',
-      )}
+      active={selected}
+      className="p-3"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -941,7 +922,7 @@ function SceneMomentRow({
           </div>
           <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">{sceneMoment.description || sceneMoment.action_text || sceneMoment.condition_text || '暂无情景描述'}</p>
         </div>
-        <StatusBadge status={sceneMoment.status ?? 'draft'} />
+        <SemanticStatusBadge status={sceneMoment.status ?? 'draft'} label={statusLabel(sceneMoment.status ?? 'draft')} />
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <InfoChip icon={Clock3} label={sceneMoment.time_text || '时间未定'} />
@@ -952,7 +933,7 @@ function SceneMomentRow({
         {sceneMoment.mood ? <Badge variant="outline" className="type-tiny">{sceneMoment.mood}</Badge> : null}
         {assetGapCount > 0 ? <Badge variant="warning" className="type-tiny">缺口 {assetGapCount}</Badge> : null}
       </div>
-    </button>
+    </WorkbenchListItem>
   )
 }
 
@@ -974,13 +955,10 @@ function ContentUnitRow({
   onSelect: () => void
 }) {
   return (
-    <button
-      type="button"
+    <WorkbenchListItem
       onClick={onSelect}
-      className={cn(
-        'w-full rounded-lg border bg-background p-3 text-left transition-colors hover:border-primary/50',
-        selected ? 'border-primary ring-1 ring-primary' : 'border-border',
-      )}
+      active={selected}
+      className="p-3"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -990,7 +968,7 @@ function ContentUnitRow({
           </div>
           <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">{item.description || item.prompt || '暂无制作项描述或提示词'}</p>
         </div>
-        <StatusBadge status={item.status ?? 'draft'} />
+        <SemanticStatusBadge status={item.status ?? 'draft'} label={statusLabel(item.status ?? 'draft')} />
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
         <Badge variant="outline" className="type-tiny">{item.kind ?? '制作项'}</Badge>
@@ -1000,7 +978,7 @@ function ContentUnitRow({
         {item.duration_sec ? <Badge variant="outline" className="type-tiny">{formatDuration(item.duration_sec)}</Badge> : null}
         {scriptBlock ? <Badge variant="outline" className="max-w-full truncate type-tiny">{scriptBlockSourceLabel(scriptBlock)}</Badge> : null}
       </div>
-    </button>
+    </WorkbenchListItem>
   )
 }
 
@@ -1010,30 +988,26 @@ function SceneMomentDetail({ sceneMoment, segment }: { sceneMoment: SceneMomentR
   }
 
   return (
-    <section className="rounded-lg border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <Film size={14} className="text-muted-foreground" />
-          <p className="type-body font-semibold text-foreground">当前情景</p>
-        </div>
-        <StatusBadge status={sceneMoment.status ?? 'draft'} />
-      </div>
-      <div className="space-y-3 p-3">
+    <AppPanel
+      icon={Film}
+      title="当前情景"
+      action={<SemanticStatusBadge status={sceneMoment.status ?? 'draft'} label={statusLabel(sceneMoment.status ?? 'draft')} />}
+      bodyClassName="space-y-3 p-3"
+    >
         <div>
           <p className="type-body font-semibold text-foreground">{titleOf(sceneMoment)}</p>
           <p className="mt-1 type-label text-muted-foreground">{segment ? `来自 ${titleOf(segment)}` : '未绑定编排段'}</p>
         </div>
-        {sceneIdentifier(sceneMoment) ? <InfoBlock label="编号" value={sceneIdentifier(sceneMoment)} /> : null}
-        <InfoBlock label="描述" value={sceneMoment.description || '暂无描述'} />
+        {sceneIdentifier(sceneMoment) ? <AppInfoBlock label="编号" value={sceneIdentifier(sceneMoment)} /> : null}
+        <AppInfoBlock label="描述" value={sceneMoment.description || '暂无描述'} />
         <div className="grid grid-cols-2 gap-2">
-          <MiniStat label="时间" value={sceneMoment.time_text || '-'} />
-          <MiniStat label="地点" value={sceneMoment.location_text || '-'} />
+          <AppKeyValue label="时间" value={sceneMoment.time_text || '-'} strong />
+          <AppKeyValue label="地点" value={sceneMoment.location_text || '-'} strong />
         </div>
-        <InfoBlock label="条件" value={sceneMoment.condition_text || '-'} />
-        <InfoBlock label="动作" value={sceneMoment.action_text || '-'} />
-        <InfoBlock label="情绪" value={sceneMoment.mood || '-'} />
-      </div>
-    </section>
+        <AppInfoBlock label="条件" value={sceneMoment.condition_text || '-'} />
+        <AppInfoBlock label="动作" value={sceneMoment.action_text || '-'} />
+        <AppInfoBlock label="情绪" value={sceneMoment.mood || '-'} />
+    </AppPanel>
   )
 }
 
@@ -1043,28 +1017,27 @@ function ContentUnitDetail({ contentUnit, sceneMoment, scriptBlock }: { contentU
   }
 
   return (
-    <section className="rounded-lg border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <Boxes size={14} className="text-muted-foreground" />
-          <p className="type-body font-semibold text-foreground">当前制作项设计</p>
-        </div>
+    <AppPanel
+      icon={Boxes}
+      title="当前制作项设计"
+      action={(
         <div className="flex items-center gap-2">
           {productionIdentifier(sceneMoment, contentUnit) ? <Badge variant="outline" className="type-tiny">{productionIdentifier(sceneMoment, contentUnit)}</Badge> : null}
-          <StatusBadge status={contentUnit.status ?? 'draft'} />
+          <SemanticStatusBadge status={contentUnit.status ?? 'draft'} label={statusLabel(contentUnit.status ?? 'draft')} />
         </div>
-      </div>
-      <div className="space-y-3 p-3">
+      )}
+      bodyClassName="space-y-3 p-3"
+    >
         <div>
           <p className="type-body font-semibold text-foreground">{titleOf(contentUnit)}</p>
           <p className="mt-1 type-label text-muted-foreground">{contentUnit.kind ?? '制作项'} · {formatDuration(contentUnit.duration_sec)}</p>
         </div>
-        {productionIdentifier(sceneMoment, contentUnit) ? <InfoBlock label="编号" value={productionIdentifier(sceneMoment, contentUnit)} /> : null}
-        <InfoBlock label="所属情景" value={sceneIdentifier(sceneMoment) || (sceneMoment ? titleOf(sceneMoment) : '未绑定情景')} />
-        <InfoBlock label="来源剧本块" value={scriptBlock ? scriptBlockSourceLabel(scriptBlock) : contentUnit.script_block_id ? `剧本块 #${contentUnit.script_block_id}` : '未绑定剧本块'} />
-        {scriptBlock ? <InfoBlock label="来源文本" value={String(scriptBlock.content ?? '').trim() || '暂无剧本块正文'} /> : null}
-        <InfoBlock label="创作提示" value={contentUnit.prompt || contentUnit.description || '暂无提示词'} />
-        <InfoBlock label="运镜" value={compactJoin([
+        {productionIdentifier(sceneMoment, contentUnit) ? <AppInfoBlock label="编号" value={productionIdentifier(sceneMoment, contentUnit)} /> : null}
+        <AppInfoBlock label="所属情景" value={sceneIdentifier(sceneMoment) || (sceneMoment ? titleOf(sceneMoment) : '未绑定情景')} />
+        <AppInfoBlock label="来源剧本块" value={scriptBlock ? scriptBlockSourceLabel(scriptBlock) : contentUnit.script_block_id ? `剧本块 #${contentUnit.script_block_id}` : '未绑定剧本块'} />
+        {scriptBlock ? <AppInfoBlock label="来源文本" value={String(scriptBlock.content ?? '').trim() || '暂无剧本块正文'} /> : null}
+        <AppInfoBlock label="创作提示" value={contentUnit.prompt || contentUnit.description || '暂无提示词'} />
+        <AppInfoBlock label="运镜" value={compactJoin([
           contentUnit.shot_size,
           contentUnit.camera_angle,
           contentUnit.camera_motion,
@@ -1074,8 +1047,7 @@ function ContentUnitDetail({ contentUnit, sceneMoment, scriptBlock }: { contentU
           contentUnit.focal_length,
           contentUnit.focus_subject,
         ]) || '暂无运镜参数'} />
-      </div>
-    </section>
+    </AppPanel>
   )
 }
 
@@ -1091,7 +1063,7 @@ function SegmentReadOnlyDetails({ fields, record, scriptBlock }: { fields: Seman
     <div className="space-y-4 border-t border-border p-4">
       {scriptBlock ? (
         <SegmentPreviewSection title="来源剧本块">
-          <div className="rounded-md border border-border/70 bg-card px-3 py-2.5">
+          <AppSurfaceItem>
             <div className="flex flex-wrap items-center gap-2 type-caption text-muted-foreground">
               <ScrollText size={12} />
               <span>{scriptBlockSourceLabel(scriptBlock)}</span>
@@ -1101,7 +1073,7 @@ function SegmentReadOnlyDetails({ fields, record, scriptBlock }: { fields: Seman
             <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words type-body leading-relaxed text-foreground">
               {String(scriptBlock.content ?? '').trim() || '暂无剧本块正文'}
             </p>
-          </div>
+          </AppSurfaceItem>
         </SegmentPreviewSection>
       ) : null}
       {contentField ? (
@@ -1123,42 +1095,27 @@ function SegmentReadOnlyDetails({ fields, record, scriptBlock }: { fields: Seman
 }
 
 function SegmentPreviewSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-lg border border-border bg-background/70 p-3">
-      <p className="mb-3 type-label font-semibold text-foreground">{title}</p>
-      {children}
-    </section>
-  )
+  return <AppPanel title={title}>{children}</AppPanel>
 }
 
 function SegmentPreviewValue({ field, value, prominent = false }: { field: SemanticEntityField; value: unknown; prominent?: boolean }) {
   const displayValue = segmentDisplayValue(field, value)
   return (
-    <div className={cn(
-      'rounded-md border border-border/70 bg-card px-3 py-2.5',
-      prominent && 'bg-card/80',
-    )}>
-      <p className="type-caption font-medium text-muted-foreground">{field.label}</p>
-      <p className={cn(
+    <AppInfoBlock
+      label={field.label}
+      value={displayValue}
+      surface="card"
+      prominent={prominent}
+      valueClassName={cn(
         'mt-1 whitespace-pre-wrap break-words type-body leading-relaxed text-foreground',
         field.key.endsWith('_json') && 'max-h-44 overflow-auto rounded bg-background p-2 font-mono type-label',
-      )}>
-        {displayValue}
-      </p>
-    </div>
+      )}
+    />
   )
 }
 
 function SegmentEditSection({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-lg border border-border bg-background/70 p-3">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="type-label font-semibold text-foreground">{title}</p>
-        {description ? <p className="type-caption text-muted-foreground">{description}</p> : null}
-      </div>
-      {children}
-    </section>
-  )
+  return <AppSection title={title} description={description}>{children}</AppSection>
 }
 
 function SegmentInlineField({
@@ -1189,11 +1146,11 @@ function SegmentInlineField({
   onChange: (value: string | boolean) => void
 }) {
   const id = `segment-detail-field-${field.key}`
-  const controlClassName = cn('border-border/70 bg-background/90 shadow-none', compact && 'h-8 type-label', inputClassName)
+  const controlSize = compact ? 'sm' : 'default'
+  const controlClassName = cn(inputClassName)
   const options = segmentFieldOptions(field)
-
-  return (
-    <div className={cn('min-w-0', surface === 'card' && 'rounded-md border border-border/70 bg-card p-3')}>
+  const content = (
+    <>
       {!hideLabel ? <Label htmlFor={id} required={field.required} className="mb-1.5 block type-label font-medium text-muted-foreground">{label ?? field.label}</Label> : null}
       {field.type === 'textarea' ? (
         <Textarea
@@ -1204,29 +1161,31 @@ function SegmentInlineField({
           value={String(value ?? '')}
           rows={textareaRows ?? (field.key.endsWith('_json') ? 5 : 4)}
           placeholder={field.placeholder}
+          variant="subtle"
           className={cn(controlClassName, field.key.endsWith('_json') && 'font-mono type-label')}
           onChange={(event) => onChange(event.target.value)}
         />
       ) : field.type === 'select' ? (
-        <select
+        <NativeSelect
           id={id}
           required={field.required}
           disabled={disabled}
           aria-invalid={invalid || undefined}
           value={String(value ?? '')}
           onChange={(event) => onChange(event.target.value)}
-          className={cn('w-full rounded-md border px-3 type-body text-foreground outline-none focus:ring-1 focus:ring-ring', compact ? 'h-8 type-label' : 'h-9', controlClassName)}
+          controlSize={controlSize}
+          variant="subtle"
+          className={controlClassName}
         >
           <option value="">未设置</option>
           {options.map((option) => (
             <option key={option.value} value={option.value}>{option.label}</option>
           ))}
-        </select>
+        </NativeSelect>
       ) : field.type === 'boolean' ? (
-        <label className={cn('flex items-center gap-2 rounded-md border border-border/70 bg-background/90 px-3 type-body text-foreground', compact ? 'h-8 type-label' : 'h-9', disabled && 'opacity-60')}>
-          <input type="checkbox" checked={Boolean(value)} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
+        <CheckboxField checked={Boolean(value)} disabled={disabled} onCheckedChange={onChange} controlSize={controlSize} variant="subtle">
           启用
-        </label>
+        </CheckboxField>
       ) : (
         <Input
           id={id}
@@ -1237,13 +1196,19 @@ function SegmentInlineField({
           step={field.type === 'number' ? 'any' : undefined}
           value={String(value ?? '')}
           placeholder={field.placeholder}
+          controlSize={controlSize}
+          variant="subtle"
           className={controlClassName}
           onChange={(event) => onChange(event.target.value)}
         />
       )}
       {lockReason ? <p className={cn('mt-1 type-caption font-medium', semanticToneClass('warning', 'icon'))}>{lockReason}</p> : field.helper ? <p className="mt-1 type-caption text-muted-foreground">{field.helper}</p> : null}
-    </div>
+    </>
   )
+
+  return surface === 'card'
+    ? <AppSurfaceItem className="p-3">{content}</AppSurfaceItem>
+    : <div className="min-w-0">{content}</div>
 }
 
 function sourceLockReasonText(status?: SourceLockStatus) {
@@ -1251,10 +1216,6 @@ function sourceLockReasonText(status?: SourceLockStatus) {
   const first = status.reasons[0]
   if (!first) return '来源已锁定，已有下游对象引用当前记录'
   return `${first.message}${status.reasons.length > 1 ? ` 等 ${status.reasons.length} 类下游对象` : ''}`
-}
-
-function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIcon; label: string; value: string | number; detail: string; tone: 'success' | 'warning' | 'info' | 'neutral' }) {
-  return <AppMetricCard icon={Icon} label={label} value={value} detail={detail} tone={tone} />
 }
 
 function RelatedPanel({
@@ -1271,22 +1232,15 @@ function RelatedPanel({
   scriptBlocksById?: Map<number, ScriptBlockRecord>
 }) {
   return (
-    <section className="rounded-lg border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <Icon size={14} className="text-muted-foreground" />
-          <p className="type-body font-semibold text-foreground">{title}</p>
-        </div>
-        <Badge variant="outline" className="type-tiny">{records.length}</Badge>
-      </div>
-      <div className="space-y-2 p-3">
+    <AppPanel icon={Icon} title={title} action={<Badge variant="outline" className="type-tiny">{records.length}</Badge>}>
+      <div className="space-y-2">
         {records.length === 0 ? (
-          <p className="rounded-md border border-dashed border-border px-3 py-3 type-label text-muted-foreground">{empty}</p>
+          <AppTextEmptyState>{empty}</AppTextEmptyState>
         ) : (
           records.slice(0, 5).map((record) => <RelatedRow key={record.ID} record={record} scriptBlocksById={scriptBlocksById} />)
         )}
       </div>
-    </section>
+    </AppPanel>
   )
 }
 
@@ -1299,7 +1253,7 @@ function RelatedRow({ record, scriptBlocksById }: { record: RelatedRecord | Scen
     ? String(item.content ?? '').trim() || String(item.kind ?? `ID ${item.ID}`)
     : item.description || item.content || item.visual_intent || item.prompt || item.prompt_hint || item.kind || `ID ${item.ID}`
   return (
-    <div className="rounded-md border border-border bg-background px-3 py-2">
+    <WorkbenchSurfaceItem className="px-3 py-2">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-1.5">
@@ -1308,19 +1262,16 @@ function RelatedRow({ record, scriptBlocksById }: { record: RelatedRecord | Scen
           </div>
           <p className="mt-0.5 line-clamp-2 type-caption leading-4 text-muted-foreground">{detail}</p>
         </div>
-        <StatusBadge status={item.status ?? item.priority ?? 'draft'} />
+        <SemanticStatusBadge status={item.status ?? item.priority ?? 'draft'} label={statusLabel(item.status ?? item.priority ?? 'draft')} />
       </div>
       <div className="mt-2 flex items-center gap-1.5 type-tiny text-muted-foreground">
         {item.kind ? <span>{item.kind}</span> : null}
         {item.duration_sec ? <span>{formatDuration(item.duration_sec)}</span> : null}
       </div>
       {item.script_block_id && !isScriptBlockRecord(item) ? (
-        <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-0.5 type-tiny text-muted-foreground">
-          <ScrollText size={12} className="shrink-0" />
-          <span className="truncate">{sourceBlock ? scriptBlockSourceLabel(sourceBlock) : `剧本块 #${item.script_block_id}`}</span>
-        </div>
+        <AppInlineMeta icon={ScrollText} className="mt-2">{sourceBlock ? scriptBlockSourceLabel(sourceBlock) : `剧本块 #${item.script_block_id}`}</AppInlineMeta>
       ) : null}
-    </div>
+    </WorkbenchSurfaceItem>
   )
 }
 
@@ -1328,26 +1279,8 @@ function isScriptBlockRecord(record: RelatedRecord & SceneMomentRecord & Segment
   return record.script_version_id !== undefined && (record.start_line !== undefined || record.end_line !== undefined)
 }
 
-function MiniStat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-md border border-border bg-background px-2.5 py-2">
-      <p className="type-tiny text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate type-label font-semibold text-foreground">{value}</p>
-    </div>
-  )
-}
-
 function HeroStat({ icon: Icon, label, value, tone = 'neutral' }: { icon: LucideIcon; label: string; value: string | number; tone?: 'success' | 'warning' | 'info' | 'neutral' }) {
-  const toneClass = tone === 'neutral' ? 'text-foreground' : semanticToneClass(tone, 'icon')
-  return (
-    <div className="rounded-md border border-border bg-background p-3">
-      <div className="flex items-center gap-2 type-label text-muted-foreground">
-        <Icon size={14} />
-        <span>{label}</span>
-      </div>
-      <p className={cn('mt-2 truncate type-title-sm font-semibold tabular-nums', toneClass)}>{value}</p>
-    </div>
-  )
+  return <AppMetricCard icon={Icon} label={label} value={value} tone={tone} compact />
 }
 
 function SectionTitle({ icon: Icon, title, count }: { icon: LucideIcon; title: string; count: number }) {
@@ -1364,28 +1297,8 @@ function SectionTitle({ icon: Icon, title, count }: { icon: LucideIcon; title: s
 
 function InfoChip({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
-    <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1.5">
-      <Icon size={12} className="shrink-0 text-muted-foreground" />
-      <span className="truncate type-caption text-muted-foreground">{label}</span>
-    </div>
+    <AppInlineMeta icon={Icon} className="w-full bg-card py-1.5 type-caption">{label}</AppInlineMeta>
   )
-}
-
-function InfoBlock({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="type-label font-semibold text-muted-foreground">{label}</p>
-      <p className="mt-1 whitespace-pre-wrap break-words type-body leading-relaxed text-foreground">{value}</p>
-    </div>
-  )
-}
-
-function StatusBadge({ status }: { status: string }) {
-  return <SemanticStatusBadge status={status} label={statusLabel(status)} />
-}
-
-function EmptyState({ title, detail, compact = false }: { title: string; detail: string; compact?: boolean }) {
-  return <AppEmptyState icon={Film} title={title} detail={detail} compact={compact} />
 }
 
 function calculateReadiness(

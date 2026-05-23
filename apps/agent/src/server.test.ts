@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import { createAgentRequestListener, normalizeTraceQuery } from './server.js'
 import type { AgentServerContext } from './bootstrap/agentServerContext.js'
 import { RuntimeModelConfigStore } from './model/modelConfig.js'
+import { RuntimeTelemetryRegistry } from './telemetry/runtimeTelemetry.js'
 
 test('normalizeTraceQuery accepts bounded pagination and known trace kind', () => {
   const result = normalizeTraceQuery(new URL('http://127.0.0.1/runs/run_1/trace?cursor=trace_1&limit=25&kind=model_call'))
@@ -45,6 +46,28 @@ test('normalizeTraceQuery rejects unknown trace kind', () => {
   assert.equal(result.ok, false)
   if (result.ok) return
   assert.match(result.error, /invalid trace kind/)
+})
+
+test('telemetry endpoints expose runtime snapshot and prometheus-compatible metrics', async () => {
+  const telemetry = new RuntimeTelemetryRegistry()
+  telemetry.recordSpan({
+    runId: 'run_1',
+    threadId: 'thread_1',
+    kind: 'tool_call',
+    name: 'Tool call: movscript_focus_get',
+    status: 'completed',
+    durationMs: 45,
+    toolName: 'movscript_focus_get',
+  })
+  const handler = createAgentRequestListener({ telemetry } as unknown as AgentServerContext)
+
+  const snapshot = await dispatch(handler, 'GET', '/runtime/telemetry')
+  const metrics = await dispatch(handler, 'GET', '/metrics')
+
+  assert.equal(snapshot.statusCode, 200)
+  assert.equal(JSON.parse(snapshot.body).summary.spanCount, 1)
+  assert.equal(metrics.statusCode, 200)
+  assert.match(metrics.body, /movscript_agent_trace_span_duration_ms_count\{kind="tool_call",status="completed",tool_name="movscript_focus_get"\} 1/)
 })
 
 test('trace read endpoints return 404 for missing runs instead of surfacing facade errors', async () => {

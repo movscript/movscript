@@ -1708,8 +1708,13 @@ function timelineToolExecutions(
   }
 
   for (const execution of executions) {
-    const decisionOrder = timelineDecisionOrderForExecution(execution, decisionOrderCandidates)
-    if (decisionOrder !== undefined) execution.decisionOrder = decisionOrder
+    const decisionMatch = timelineDecisionMatchForExecution(execution, decisionOrderCandidates)
+    if (decisionMatch) {
+      execution.decisionOrder = decisionMatch.order
+      if (execution.roundIndex === undefined && decisionMatch.roundIndex !== undefined) execution.roundIndex = decisionMatch.roundIndex
+      if (!execution.roundLabel && decisionMatch.roundLabel) execution.roundLabel = decisionMatch.roundLabel
+      if (!execution.roundSource && decisionMatch.roundSource) execution.roundSource = decisionMatch.roundSource
+    }
     execution.approvals.sort(compareTimelineApprovals)
   }
   return executions.sort(compareTimelineToolExecutions)
@@ -1720,6 +1725,8 @@ interface TimelineDecisionOrderCandidate {
   toolName: string
   argsSignature?: string
   roundIndex?: number
+  roundLabel?: string
+  roundSource?: AgentRunActivityEvent['roundSource']
   used: boolean
 }
 
@@ -1731,15 +1738,17 @@ function timelineDecisionOrderCandidates(decisions: AgentRunTimelineDecision[]):
       toolName: call.name,
       ...(call.args !== undefined ? { argsSignature: timelineArgsSignature(call.args) } : {}),
       ...(decision.event.roundIndex !== undefined ? { roundIndex: decision.event.roundIndex } : {}),
+      ...(decision.event.roundLabel ? { roundLabel: decision.event.roundLabel } : {}),
+      ...(decision.event.roundSource ? { roundSource: decision.event.roundSource } : {}),
       used: false,
     }))
   ))
 }
 
-function timelineDecisionOrderForExecution(
+function timelineDecisionMatchForExecution(
   execution: AgentRunTimelineToolExecution,
   candidates: TimelineDecisionOrderCandidate[],
-): number | undefined {
+): TimelineDecisionOrderCandidate | undefined {
   const sameTool = candidates.filter((candidate) => !candidate.used && candidate.toolName === execution.toolName)
   if (sameTool.length === 0) return undefined
   const argsSignature = timelineExecutionArgsSignature(execution)
@@ -1754,7 +1763,7 @@ function timelineDecisionOrderForExecution(
     .sort((left, right) => left.order - right.order)[0]
   if (!candidate) return undefined
   candidate.used = true
-  return candidate.order
+  return candidate
 }
 
 function timelineExecutionArgsSignature(execution: AgentRunTimelineToolExecution): string | undefined {

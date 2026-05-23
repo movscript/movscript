@@ -13,10 +13,19 @@ import {
 import { MediaViewer, downloadResource, resolveResourceUrl } from '@/components/shared/MediaViewer'
 import { ResourceListItem } from '@/components/shared/ResourcePanel'
 import { ResourceCandidateAttachPanel, candidateResourceFromRawResource } from '@/components/shared/ResourceCandidateAttachPanel'
-import { ProjectSurfaceHeader, accentToneClass, semanticToneClass } from '@movscript/ui'
-import { Button } from '@movscript/ui'
+import {
+  Badge,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  ProjectSurfaceHeader,
+  accentToneClass,
+  semanticToneClass,
+} from '@movscript/ui'
 import * as Dialog from '@radix-ui/react-dialog'
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useTranslation } from 'react-i18next'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 import { toast } from '@/store/toastStore'
@@ -1082,15 +1091,15 @@ function ResourceContextMenu({
         {t('pages.resources.selectedCount', { count: resources.length, defaultValue: `${resources.length} selected` })}
       </div>
       {canShareToTeam && (
-        <button className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-muted" onClick={onShareToTeam}>
+        <Button type="button" variant="ghost" size="sm" className="h-auto w-full justify-start rounded-none px-3 py-1.5" onClick={onShareToTeam}>
           <Share2 size={14} />
           {t('pages.resources.shareToTeam', { defaultValue: '加入团队资源库' })}
-        </button>
+        </Button>
       )}
-      <button className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-muted" onClick={onShareToProject}>
+      <Button type="button" variant="ghost" size="sm" className="h-auto w-full justify-start rounded-none px-3 py-1.5" onClick={onShareToProject}>
         <FolderOpen size={14} />
         {t('pages.resources.shareToProject', { defaultValue: '分享给项目' })}
-      </button>
+      </Button>
     </div>
   )
 }
@@ -1169,70 +1178,63 @@ function ResourceCard({
             />
           </label>
         )}
-        <DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
-          <DropdownMenu.Trigger asChild>
-            <button
-              className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="absolute right-1 top-1 bg-black/60 text-white opacity-0 transition-opacity hover:bg-black/70 group-hover:opacity-100"
               title={t('pages.resources.actions')}
             >
               <MoreHorizontal size={12} />
-            </button>
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Portal>
-            <DropdownMenu.Content
-              className="bg-background border border-border rounded-lg shadow-lg py-1 min-w-36 z-50 type-body"
-              align="end"
-              sideOffset={4}
-            >
-              <DropdownMenu.Item
-                className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
+            </Button>
+          </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" sideOffset={4}>
+              <DropdownMenuItem
                 onSelect={onDownload}
               >
                 <Download size={14} />
                 {t('shared.mediaViewer.download')}
-              </DropdownMenu.Item>
+              </DropdownMenuItem>
               {!isSharedView && (
-                <DropdownMenu.Item
-                  className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
+                <DropdownMenuItem
                   onSelect={onRename}
                 >
                   <Pencil size={14} />
                   {t('pages.resources.renameResource')}
-                </DropdownMenu.Item>
+                </DropdownMenuItem>
               )}
               {!isSharedView && (
-                <DropdownMenu.Item
-                  className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
+                <DropdownMenuItem
                   onSelect={onMove}
                 >
                   <MoveRight size={14} />
                   {t('pages.resources.moveToFolder')}
-                </DropdownMenu.Item>
+                </DropdownMenuItem>
               )}
               {!isSharedView && resource.type === 'video' && onClip && (
-                <DropdownMenu.Item
-                  className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
+                <DropdownMenuItem
                   onSelect={onClip}
                 >
                   <Scissors size={14} />
                   {t('pages.resources.clipVideo')}
-                </DropdownMenu.Item>
+                </DropdownMenuItem>
               )}
               {!isSharedView && onDelete && (
                 <>
-                  <DropdownMenu.Separator className="my-1 border-t border-border" />
-                  <DropdownMenu.Item
-                    className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-destructive"
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive"
                     onSelect={onDelete}
                   >
                     <Trash2 size={14} />
                     {t('common.delete')}
-                  </DropdownMenu.Item>
+                  </DropdownMenuItem>
                 </>
               )}
-            </DropdownMenu.Content>
-          </DropdownMenu.Portal>
-        </DropdownMenu.Root>
+            </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* Shared badge */}
         {resource.is_shared && (
@@ -1706,46 +1708,47 @@ export default function ResourcesPage() {
                     thumbSize="md"
                     draggable
                     trailing={
-                      <DropdownMenu.Root>
-                      <DropdownMenu.Trigger asChild>
-                        <button
-                          className="w-6 h-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-all shrink-0"
+                      <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          className="shrink-0 text-muted-foreground opacity-0 transition-all hover:text-foreground group-hover:opacity-100"
                           onClick={e => e.stopPropagation()}
                         >
                           <MoreHorizontal size={14} />
-                        </button>
-                      </DropdownMenu.Trigger>
-                      <DropdownMenu.Portal>
-                        <DropdownMenu.Content className="bg-background border border-border rounded-lg shadow-lg py-1 min-w-36 z-50 type-body" align="end" sideOffset={4}>
-                          <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => downloadResource(resolveResourceUrl(r), r.name)}>
+                        </Button>
+                      </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" sideOffset={4}>
+                          <DropdownMenuItem onSelect={() => downloadResource(resolveResourceUrl(r), r.name)}>
                             <Download size={14} />{t('shared.mediaViewer.download')}
-                          </DropdownMenu.Item>
+                          </DropdownMenuItem>
                           {!isSharedView && (
-                            <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => setRenameResource(r)}>
+                            <DropdownMenuItem onSelect={() => setRenameResource(r)}>
                               <Pencil size={14} />{t('pages.resources.renameResource')}
-                            </DropdownMenu.Item>
+                            </DropdownMenuItem>
                           )}
                           {!isSharedView && (
-                            <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => setMoveResource(r)}>
+                            <DropdownMenuItem onSelect={() => setMoveResource(r)}>
                               <MoveRight size={14} />{t('pages.resources.moveToFolder')}
-                            </DropdownMenu.Item>
+                            </DropdownMenuItem>
                           )}
                           {!isSharedView && r.type === 'video' && (
-                            <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => setClipResource(r)}>
+                            <DropdownMenuItem onSelect={() => setClipResource(r)}>
                               <Scissors size={14} />{t('pages.resources.clipVideo')}
-                            </DropdownMenu.Item>
+                            </DropdownMenuItem>
                           )}
                           {!isSharedView && (
                             <>
-                              <DropdownMenu.Separator className="my-1 border-t border-border" />
-                              <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-destructive" onSelect={() => remove.mutate(r.ID)}>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-destructive" onSelect={() => remove.mutate(r.ID)}>
                                 <Trash2 size={14} />{t('common.delete')}
-                              </DropdownMenu.Item>
+                              </DropdownMenuItem>
                             </>
                           )}
-                        </DropdownMenu.Content>
-                      </DropdownMenu.Portal>
-                    </DropdownMenu.Root>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                     }
                     previewProjectId={currentProject?.ID}
                   />
@@ -1875,53 +1878,48 @@ function FolderItem({
       {isShared && <span title={t('pages.resources.sharedTitle')}><Globe size={10} className={accentToneClass('blue', 'icon', 'shrink-0')} /></span>}
 
       {badge != null && (
-        <span className="bg-muted text-muted-foreground rounded-full px-1.5 type-tiny">{badge}</span>
+        <Badge variant="secondary">{badge}</Badge>
       )}
 
       {(onEdit || onDelete || onPermissions) && (
-        <DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
-          <DropdownMenu.Trigger asChild>
-            <button
-              className="w-4 h-4 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-all shrink-0"
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="shrink-0 opacity-0 transition-all group-hover:opacity-100"
               onClick={e => e.stopPropagation()}
             >
               <MoreHorizontal size={12} />
-            </button>
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Portal>
-            <DropdownMenu.Content
-              className="bg-background border border-border rounded-lg shadow-lg py-1 min-w-28 z-50 type-label"
-              align="end"
-              sideOffset={4}
-            >
+            </Button>
+          </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" sideOffset={4}>
               {onEdit && (
-                <DropdownMenu.Item
-                  className="px-3 py-1.5 cursor-pointer hover:bg-muted text-foreground"
+                <DropdownMenuItem
                   onSelect={() => { onEdit(); setMenuOpen(false) }}
                 >
                   {t('pages.resources.edit')}
-                </DropdownMenu.Item>
+                </DropdownMenuItem>
               )}
               {onPermissions && (
-                <DropdownMenu.Item
-                  className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
+                <DropdownMenuItem
                   onSelect={() => { onPermissions(); setMenuOpen(false) }}
                 >
                   <ShieldCheck size={12} />
                   {t('pages.resources.permissionSettings')}
-                </DropdownMenu.Item>
+                </DropdownMenuItem>
               )}
               {onDelete && (
-                <DropdownMenu.Item
-                  className="px-3 py-1.5 cursor-pointer hover:bg-muted text-destructive"
+                <DropdownMenuItem
+                  className="text-destructive"
                   onSelect={() => { onDelete(); setMenuOpen(false) }}
                 >
                   {t('common.delete')}
-                </DropdownMenu.Item>
+                </DropdownMenuItem>
               )}
-            </DropdownMenu.Content>
-          </DropdownMenu.Portal>
-        </DropdownMenu.Root>
+            </DropdownMenuContent>
+        </DropdownMenu>
       )}
     </div>
   )

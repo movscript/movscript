@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { ReviewCallout, ReviewStat, type ReviewTone } from '@movscript/ui'
+import { AppKeyValue, ReviewCallout, ReviewStat, type ReviewTone } from '@movscript/ui'
 
 import { cn } from '@/lib/utils'
 
@@ -65,13 +65,16 @@ function ProductionProposalStatusCard({
 
 function ProductionProposalMetric({ icon: Icon, label, value }: ProductionProposalReviewMetric) {
   return (
-    <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 py-2 type-label">
-      <span className="flex items-center gap-1.5 text-muted-foreground">
-        <Icon size={12} />
-        {label}
-      </span>
-      <span className="font-medium text-foreground">{value}</span>
-    </div>
+    <AppKeyValue
+      label={(
+        <span className="flex items-center gap-1.5">
+          <Icon size={12} />
+          {label}
+        </span>
+      )}
+      value={value}
+      strong
+    />
   )
 }
 

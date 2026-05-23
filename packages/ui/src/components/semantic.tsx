@@ -282,16 +282,19 @@ export function SemanticStatusBadge({
   status,
   label,
   tone,
+  icon,
   className,
 }: {
   status?: string | null;
   label?: ReactNode;
   tone?: SemanticTone;
+  icon?: ReactNode;
   className?: string;
 }) {
   const badgeClass = tone ? semanticToneClass(tone, "badge") : semanticStatusClass(status, "badge");
   return (
     <Badge variant="outline" className={cn("ms-semantic-status-badge", badgeClass, className)}>
+      {icon ? <span className="ms-semantic-status-badge__icon">{icon}</span> : null}
       {label ?? semanticStatusLabel(status)}
     </Badge>
   );

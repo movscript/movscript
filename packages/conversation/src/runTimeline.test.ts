@@ -93,6 +93,61 @@ test('buildAgentRunTimeline keeps approval-only tools as executions before resul
   }])
 })
 
+test('buildAgentRunTimeline keeps late approval-only tools in their decision round', () => {
+  const timeline = buildAgentRunTimeline(activity({
+    events: [{
+      id: 'event_decision_first',
+      kind: 'model_call',
+      title: 'Model tool calls requested',
+      status: 'completed',
+      roundIndex: 1,
+      roundLabel: 'First tool round',
+      roundSource: 'model',
+      data: {
+        tool_calls: [
+          { id: 'call_create', name: 'core_work_start', args: { kind: 'generation_job', prompt: 'A' } },
+        ],
+      },
+      createdAt: '2026-05-22T01:00:00.000Z',
+    }, {
+      id: 'event_decision_second',
+      kind: 'model_call',
+      title: 'Model tool calls requested',
+      status: 'completed',
+      roundIndex: 2,
+      data: {
+        tool_calls: [
+          { id: 'call_wait', name: 'core_work_wait', args: { workId: 'work_1' } },
+        ],
+      },
+      createdAt: '2026-05-22T01:00:05.000Z',
+    }],
+    approvals: [{
+      id: 'approval_create',
+      toolName: 'core_work_start',
+      args: { kind: 'generation_job', prompt: 'A' },
+      reason: 'confirm generation',
+      status: 'pending',
+      createdAt: '2026-05-22T01:00:06.000Z',
+      updatedAt: '2026-05-22T01:00:06.000Z',
+    }],
+  }))
+
+  assert.deepEqual(timeline.rounds.map((round) => round.index), [1, 2])
+  assert.deepEqual(timeline.rounds[0]?.toolExecutions.map((tool) => ({
+    id: tool.id,
+    roundIndex: tool.roundIndex,
+    roundLabel: tool.roundLabel,
+    approvalIds: tool.approvals.map((approval) => approval.id),
+  })), [{
+    id: 'approval-approval_create',
+    roundIndex: 1,
+    roundLabel: 'First tool round',
+    approvalIds: ['approval_create'],
+  }])
+  assert.deepEqual(timeline.rounds[1]?.toolExecutions, [])
+})
+
 test('buildAgentRunTimeline treats blocked input traces as waiting instead of failures', () => {
   const timeline = buildAgentRunTimeline(activity({
     events: [{

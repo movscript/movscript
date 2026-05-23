@@ -31,6 +31,15 @@ Health check:
 curl http://127.0.0.1:28765/health
 ```
 
+Observability endpoints:
+
+```bash
+curl http://127.0.0.1:28765/metrics
+curl http://127.0.0.1:28765/runtime/telemetry
+```
+
+The agent uses a three-layer observability model: Prometheus-compatible metrics for trend aggregation, trace-derived spans for per-run diagnosis, and structured diagnostic logs for slow/error hints. Long-term aggregation belongs in Prometheus/Grafana or an OpenTelemetry backend; the frontend console only reads the recent local window. See `observability/README.md` for a Prometheus scrape config and Grafana dashboard starter.
+
 ## Packaging
 
 `apps/agent` is the canonical source tree. The Electron frontend build runs `apps/frontend/scripts/prepare-agent-deploy.mjs`, which builds this package and copies only `dist/`, `catalog/`, and a minimal `package.json` into `apps/frontend/movscript-agent`. Treat that frontend directory as a generated packaged-runtime artifact, not a second implementation.
@@ -51,6 +60,8 @@ curl http://127.0.0.1:28765/health
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/health` | Server health and plugin catalog metadata. |
+| `GET` | `/metrics` | Prometheus-compatible metrics for agent operations and trace spans. |
+| `GET` | `/runtime/telemetry` | Recent in-memory runtime telemetry snapshot: operations, spans, metrics, logs, retention metadata. |
 | `GET` | `/inspect` | MCP resources/tools plus registered agent tools and skills. |
 | `GET` | `/capabilities` | Agent capabilities, optionally for a project. |
 | `GET` | `/tools` | Registered tool metadata. |

@@ -587,9 +587,9 @@ export default function AIAgentDebugPage() {
 
       <main className="min-h-0 flex-1 overflow-y-auto p-4">
         {debugQuery.isLoading ? (
-          <StateMessage icon={<Loader2 size={16} className="animate-spin" />} text={t('common.loading')} />
+          <AppStateMessage icon={<Loader2 size={16} className="animate-spin" />} text={t('common.loading')} />
         ) : debugQuery.error ? (
-          <StateMessage
+          <AppStateMessage
             icon={<XCircle size={16} />}
             tone="danger"
             text={redactAgentTraceDebugText(debugQuery.error instanceof Error ? debugQuery.error.message : String(debugQuery.error))}
@@ -609,31 +609,31 @@ export default function AIAgentDebugPage() {
 
             <TabsContent value="overview" className="space-y-4">
               <section className="grid gap-3 md:grid-cols-4">
-                <MetricCard label={t('agents.debug.metrics.runtime')} value={runtimeOnline ? t('agents.debug.status.online') : t('agents.debug.status.offline')} />
-                <MetricCard label={t('agents.debug.metrics.activeRuns')} value={String(runHealth.active)} />
-                <MetricCard label={t('agents.debug.metrics.waitingRuns')} value={String(runHealth.waiting)} />
-                <MetricCard label={t('agents.debug.metrics.failedRuns')} value={String(runHealth.failed)} />
+                <AppMetricCard label={t('agents.debug.metrics.runtime')} value={runtimeOnline ? t('agents.debug.status.online') : t('agents.debug.status.offline')} />
+                <AppMetricCard label={t('agents.debug.metrics.activeRuns')} value={String(runHealth.active)} />
+                <AppMetricCard label={t('agents.debug.metrics.waitingRuns')} value={String(runHealth.waiting)} />
+                <AppMetricCard label={t('agents.debug.metrics.failedRuns')} value={String(runHealth.failed)} />
               </section>
 
               <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-                <Panel title={t('agents.debug.panels.runtime')}>
+                <AppPanel icon={Bot} title={t('agents.debug.panels.runtime')}>
                   <div className="grid gap-2 type-label md:grid-cols-2">
-                    <SummaryItem label={t('agents.debug.fields.baseUrl')} value={redactAgentTraceDebugText(localAgentClient.baseURL)} />
-                    <SummaryItem label={t('agents.debug.fields.lastUpdated')} value={debugQuery.data.lastUpdated ? new Date(debugQuery.data.lastUpdated).toLocaleString() : '-'} />
-                    <SummaryItem label="MCP" value={debugQuery.data.capabilities.mcp.connected ? t('agents.debug.status.online') : t('agents.debug.status.offline')} />
-                    <SummaryItem label={t('agents.debug.fields.skillsDir')} value={debugQuery.data.inspect.pluginCatalog?.skillsDir ?? t('agents.debug.values.unknown')} />
-                    <SummaryItem label={t('agents.debug.fields.toolsDir')} value={debugQuery.data.inspect.pluginCatalog?.toolsDir ?? t('agents.debug.values.unknown')} />
+                    <AppKeyValue label={t('agents.debug.fields.baseUrl')} value={redactAgentTraceDebugText(localAgentClient.baseURL)} />
+                    <AppKeyValue label={t('agents.debug.fields.lastUpdated')} value={debugQuery.data.lastUpdated ? new Date(debugQuery.data.lastUpdated).toLocaleString() : '-'} />
+                    <AppKeyValue label="MCP" value={debugQuery.data.capabilities.mcp.connected ? t('agents.debug.status.online') : t('agents.debug.status.offline')} />
+                    <AppKeyValue label={t('agents.debug.fields.skillsDir')} value={debugQuery.data.inspect.pluginCatalog?.skillsDir ?? t('agents.debug.values.unknown')} />
+                    <AppKeyValue label={t('agents.debug.fields.toolsDir')} value={debugQuery.data.inspect.pluginCatalog?.toolsDir ?? t('agents.debug.values.unknown')} />
                   </div>
                   <div data-testid="agent-debug-runtime-model-config" className="mt-3 rounded-md border border-border bg-muted/20 p-2">
                     <p className="type-label font-medium text-foreground">{t('agents.debug.panels.runtimeModelConfig')}</p>
                     {debugQuery.data.modelConfig ? (
                       <div className="mt-2 grid gap-2 type-label md:grid-cols-2">
-                        <SummaryItem label={t('agents.debug.fields.modelConfigured')} value={debugQuery.data.modelConfig.configured ? t('agents.debug.status.enabled') : t('agents.debug.status.disabled')} />
-                        <SummaryItem label={t('agents.debug.fields.model')} value={debugModelConfigValue(debugQuery.data.modelConfig)} />
-                        <SummaryItem label={t('agents.debug.fields.apiKind')} value={debugQuery.data.modelConfig.apiKind ?? 'openai_chat_completions'} />
-                        <SummaryItem label={t('agents.debug.fields.modelCredentials')} value={debugModelCredentialStatusLabel(debugQuery.data.modelConfig, t)} />
-                        <SummaryItem label={t('agents.debug.fields.modelRoutes')} value={debugModelRouteSummary(debugQuery.data.modelConfig)} />
-                        <SummaryItem label={t('agents.debug.fields.modelSource')} value={debugQuery.data.modelConfig.source} />
+                        <AppKeyValue label={t('agents.debug.fields.modelConfigured')} value={debugQuery.data.modelConfig.configured ? t('agents.debug.status.enabled') : t('agents.debug.status.disabled')} />
+                        <AppKeyValue label={t('agents.debug.fields.model')} value={debugModelConfigValue(debugQuery.data.modelConfig)} />
+                        <AppKeyValue label={t('agents.debug.fields.apiKind')} value={debugQuery.data.modelConfig.apiKind ?? 'openai_chat_completions'} />
+                        <AppKeyValue label={t('agents.debug.fields.modelCredentials')} value={debugModelCredentialStatusLabel(debugQuery.data.modelConfig, t)} />
+                        <AppKeyValue label={t('agents.debug.fields.modelRoutes')} value={debugModelRouteSummary(debugQuery.data.modelConfig)} />
+                        <AppKeyValue label={t('agents.debug.fields.modelSource')} value={debugQuery.data.modelConfig.source} />
                       </div>
                     ) : (
                       <ReviewCallout data-testid="agent-debug-model-config-read-error" tone="warning" compact className="mt-2 type-caption leading-4">
@@ -656,9 +656,9 @@ export default function AIAgentDebugPage() {
                       </div>
                     </ReviewCallout>
                   )}
-                </Panel>
+                </AppPanel>
 
-                <Panel title={t('agents.debug.panels.previewInput')}>
+                <AppPanel icon={Bot} title={t('agents.debug.panels.previewInput')}>
                   <div className="space-y-2">
                     <Textarea
                       value={previewMessage}
@@ -675,26 +675,26 @@ export default function AIAgentDebugPage() {
                       </div>
                     )}
                   </div>
-                </Panel>
+                </AppPanel>
               </section>
 
               <section className="grid gap-4 lg:grid-cols-2">
-                <Panel title={t('agents.debug.panels.triage')}>
+                <AppPanel icon={Bot} title={t('agents.debug.panels.triage')}>
                   <DebugTriagePanel items={triageItems} />
-                </Panel>
-                <Panel title={t('agents.debug.panels.remediationTaskGraph')}>
+                </AppPanel>
+                <AppPanel icon={Bot} title={t('agents.debug.panels.remediationTaskGraph')}>
                   <DebugRemediationTaskGraph items={remediationTaskGraph} previewLoading={previewLoading} onRunPreview={() => void runPreview()} />
-                </Panel>
-                <Panel title={t('agents.debug.panels.observationCoverage')}>
+                </AppPanel>
+                <AppPanel icon={Bot} title={t('agents.debug.panels.observationCoverage')}>
                   <DebugObservationCoverage items={observationItems} previewLoading={previewLoading} onRunPreview={() => void runPreview()} />
-                </Panel>
-                <Panel title={t('agents.debug.panels.evidenceChecklist')}>
+                </AppPanel>
+                <AppPanel icon={Bot} title={t('agents.debug.panels.evidenceChecklist')}>
                   <DebugEvidenceChecklistPanel items={evidenceChecklist} />
-                </Panel>
-                <Panel title={t('agents.debug.panels.runIssueSummary')}>
+                </AppPanel>
+                <AppPanel icon={Bot} title={t('agents.debug.panels.runIssueSummary')}>
                   <RunIssueSummary groups={runHealth.issueGroups} />
-                </Panel>
-                <Panel title={t('agents.debug.panels.runAttention')}>
+                </AppPanel>
+                <AppPanel icon={Bot} title={t('agents.debug.panels.runAttention')}>
                   <div data-testid="agent-debug-run-attention" className="space-y-2">
                     {runHealth.attention.length === 0 ? (
                       <EmptyText>{t('agents.debug.empty.noRunAttention')}</EmptyText>
@@ -702,8 +702,8 @@ export default function AIAgentDebugPage() {
                       <RunListRow key={run.id} run={run} />
                     ))}
                   </div>
-                </Panel>
-                <Panel title={t('agents.debug.panels.mcpResources')}>
+                </AppPanel>
+                <AppPanel icon={Bot} title={t('agents.debug.panels.mcpResources')}>
                   {debugQuery.data.capabilities.mcp.resources.length === 0 ? (
                     <EmptyText>{t('agents.debug.empty.noResources')}</EmptyText>
                   ) : (
@@ -713,10 +713,10 @@ export default function AIAgentDebugPage() {
                       ))}
                     </div>
                   )}
-                </Panel>
-                <Panel title={t('agents.debug.panels.latestPreview')}>
+                </AppPanel>
+                <AppPanel icon={Bot} title={t('agents.debug.panels.latestPreview')}>
                   {preview ? <PreviewSummary preview={preview} /> : <EmptyText>{t('agents.debug.empty.runPreviewHint')}</EmptyText>}
-                </Panel>
+                </AppPanel>
               </section>
             </TabsContent>
 
@@ -726,7 +726,7 @@ export default function AIAgentDebugPage() {
             </TabsContent>
 
             <TabsContent value="toolConsole" className="grid gap-4 lg:grid-cols-[minmax(0,420px)_1fr]">
-              <Panel title={t('agents.debug.panels.toolConsole')}>
+              <AppPanel icon={Bot} title={t('agents.debug.panels.toolConsole')}>
                 <div className="space-y-3">
                   <ReviewCallout tone="warning" compact className="type-caption leading-4">
                     {t('agents.debug.toolConsole.warning')}
@@ -750,10 +750,10 @@ export default function AIAgentDebugPage() {
                   </label>
                   {selectedTool && (
                     <div className="grid gap-2 type-label md:grid-cols-2">
-                      <SummaryItem label={t('agents.debug.table.source')} value={selectedTool.source} />
-                      <SummaryItem label={t('agents.debug.table.risk')} value={selectedTool.risk ?? '-'} />
-                      <SummaryItem label={t('agents.debug.table.permission')} value={selectedTool.permission ?? '-'} />
-                      <SummaryItem label={t('agents.debug.table.approval')} value={selectedTool.approval} />
+                      <AppKeyValue label={t('agents.debug.table.source')} value={selectedTool.source} />
+                      <AppKeyValue label={t('agents.debug.table.risk')} value={selectedTool.risk ?? '-'} />
+                      <AppKeyValue label={t('agents.debug.table.permission')} value={selectedTool.permission ?? '-'} />
+                      <AppKeyValue label={t('agents.debug.table.approval')} value={selectedTool.approval} />
                     </div>
                   )}
                   <label className="block type-label font-medium text-foreground">
@@ -784,8 +784,8 @@ export default function AIAgentDebugPage() {
                   )}
                   {toolRunResult?.run && (
                     <div className="grid gap-2 type-label md:grid-cols-2">
-                      <SummaryItem label="Run ID" value={toolRunResult.run.id} />
-                      <SummaryItem label={t('agents.debug.table.status')} value={toolRunResult.run.status} />
+                      <AppKeyValue label="Run ID" value={toolRunResult.run.id} />
+                      <AppKeyValue label={t('agents.debug.table.status')} value={toolRunResult.run.status} />
                     </div>
                   )}
                   {toolRunResult?.run.id && (
@@ -797,7 +797,7 @@ export default function AIAgentDebugPage() {
                     </Button>
                   )}
                 </div>
-              </Panel>
+              </AppPanel>
               <div className="space-y-4">
                 <JsonPanel title={t('agents.debug.panels.toolSchema')} value={selectedTool?.inputSchema} emptyText={t('agents.debug.empty.noToolSelected')} />
                 <JsonPanel title={t('agents.debug.panels.toolConsoleOutput')} value={extractToolConsoleOutput(toolRunResult)} emptyText={t('agents.debug.empty.noToolConsoleResult')} />
@@ -806,7 +806,7 @@ export default function AIAgentDebugPage() {
             </TabsContent>
 
             <TabsContent value="draftRuntime" className="grid gap-4 lg:grid-cols-[minmax(0,460px)_1fr]">
-              <Panel title={t('agents.debug.panels.draftRuntime')}>
+              <AppPanel icon={Bot} title={t('agents.debug.panels.draftRuntime')}>
                 <div className="space-y-3">
                   <div className="rounded-md border border-border bg-muted/20 p-2 type-caption leading-4 text-muted-foreground">
                     {t('agents.debug.draftRuntime.boundary')}
@@ -827,10 +827,10 @@ export default function AIAgentDebugPage() {
                   </label>
                   {selectedDraftTool && (
                     <div className="grid gap-2 type-label md:grid-cols-2">
-                      <SummaryItem label={t('agents.debug.table.source')} value={selectedDraftTool.source} />
-                      <SummaryItem label={t('agents.debug.table.risk')} value={selectedDraftTool.risk ?? '-'} />
-                      <SummaryItem label={t('agents.debug.table.permission')} value={selectedDraftTool.permission ?? '-'} />
-                      <SummaryItem label={t('agents.debug.table.approval')} value={selectedDraftTool.approval} />
+                      <AppKeyValue label={t('agents.debug.table.source')} value={selectedDraftTool.source} />
+                      <AppKeyValue label={t('agents.debug.table.risk')} value={selectedDraftTool.risk ?? '-'} />
+                      <AppKeyValue label={t('agents.debug.table.permission')} value={selectedDraftTool.permission ?? '-'} />
+                      <AppKeyValue label={t('agents.debug.table.approval')} value={selectedDraftTool.approval} />
                     </div>
                   )}
                   <label className="block type-label font-medium text-foreground">
@@ -901,12 +901,12 @@ export default function AIAgentDebugPage() {
                   )}
                   {draftToolRunResult?.run && (
                     <div className="grid gap-2 type-label md:grid-cols-2">
-                      <SummaryItem label="Run ID" value={draftToolRunResult.run.id} />
-                      <SummaryItem label={t('agents.debug.table.status')} value={draftToolRunResult.run.status} />
+                      <AppKeyValue label="Run ID" value={draftToolRunResult.run.id} />
+                      <AppKeyValue label={t('agents.debug.table.status')} value={draftToolRunResult.run.status} />
                     </div>
                   )}
                 </div>
-              </Panel>
+              </AppPanel>
               <div className="space-y-4">
                 <JsonPanel title={t('agents.debug.panels.draftRuntimeSchema')} value={selectedDraftTool?.inputSchema} emptyText={t('agents.debug.empty.noDraftRuntimeToolSelected')} />
                 <JsonPanel title={t('agents.debug.panels.draftRuntimeOutput')} value={extractToolConsoleOutput(draftToolRunResult)} emptyText={t('agents.debug.empty.noDraftRuntimeResult')} />
@@ -916,7 +916,7 @@ export default function AIAgentDebugPage() {
             </TabsContent>
 
             <TabsContent value="prompt" className="grid gap-4 lg:grid-cols-2">
-              <Panel title={t('agents.debug.panels.promptParts')}>
+              <AppPanel icon={Bot} title={t('agents.debug.panels.promptParts')}>
                 {preview?.promptPreview ? (
                   <div className="space-y-2">
                     {preview.promptPreview.debugParts.map((part) => (
@@ -928,24 +928,24 @@ export default function AIAgentDebugPage() {
                     ))}
                   </div>
                 ) : <EmptyText>{t('agents.debug.empty.runPromptPreviewHint')}</EmptyText>}
-              </Panel>
+              </AppPanel>
               <JsonPanel title={t('agents.debug.panels.outboundMessages')} value={preview?.promptPreview?.messages} emptyText={t('agents.debug.empty.runPromptPreviewHint')} />
             </TabsContent>
 
             <TabsContent value="context" className="grid gap-4 lg:grid-cols-2">
-              <Panel title={t('agents.debug.panels.currentProject')}>
+              <AppPanel icon={Bot} title={t('agents.debug.panels.currentProject')}>
                 {debugProject ? (
                   <div className="space-y-2 type-label">
-                    <SummaryItem label={t('agents.debug.fields.project')} value={`#${debugProject.ID} ${debugProject.name}`} />
-                    <SummaryItem label={t('agents.debug.fields.route')} value={window.location.pathname} />
+                    <AppKeyValue label={t('agents.debug.fields.project')} value={`#${debugProject.ID} ${debugProject.name}`} />
+                    <AppKeyValue label={t('agents.debug.fields.route')} value={window.location.pathname} />
                   </div>
                 ) : <EmptyText>{t('agents.debug.empty.noProject')}</EmptyText>}
-              </Panel>
+              </AppPanel>
               <JsonPanel title={t('agents.debug.panels.contextJson')} value={preview?.context} emptyText={t('agents.debug.empty.runContextPreviewHint')} />
             </TabsContent>
 
             <TabsContent value="runs" className="space-y-4">
-              <Panel title={t('agents.debug.tabs.runs')}>
+              <AppPanel icon={Bot} title={t('agents.debug.tabs.runs')}>
                 {debugQuery.data.runs.length === 0 ? <EmptyText>{t('agents.debug.values.none')}</EmptyText> : (
                   <div className="space-y-2">
                     {debugQuery.data.runs.slice(0, 30).map((run) => (
@@ -953,7 +953,7 @@ export default function AIAgentDebugPage() {
                     ))}
                   </div>
                 )}
-              </Panel>
+              </AppPanel>
             </TabsContent>
 
             <TabsContent value="raw" className="space-y-4">
@@ -977,10 +977,6 @@ function RuntimeStatusBadge({ online, loading }: { online: boolean; loading: boo
       {online ? t('agents.debug.status.runtimeOnline') : t('agents.debug.status.runtimeOffline')}
     </Badge>
   )
-}
-
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return <AppMetricCard label={label} value={value} />
 }
 
 function DebugObservationCoverage({
@@ -1254,7 +1250,7 @@ function DebugBundleFieldGuide() {
     'modelConfigError',
   ] as const
   return (
-    <Panel title={t('agents.debug.panels.debugBundleFieldGuide')}>
+    <AppPanel icon={Bot} title={t('agents.debug.panels.debugBundleFieldGuide')}>
       <div data-testid="agent-debug-bundle-field-guide" className="grid gap-2 type-label md:grid-cols-2">
         {fields.map((field) => (
           <div key={field} data-testid="agent-debug-bundle-field-guide-item" className="rounded-md border border-border bg-muted/20 p-2">
@@ -1263,16 +1259,8 @@ function DebugBundleFieldGuide() {
           </div>
         ))}
       </div>
-    </Panel>
+    </AppPanel>
   )
-}
-
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return <AppPanel icon={Bot} title={title}>{children}</AppPanel>
-}
-
-function SummaryItem({ label, value }: { label: string; value?: string | number | null }) {
-  return <AppKeyValue label={label} value={value} />
 }
 
 function ListRow({
@@ -1326,9 +1314,9 @@ function PreviewSummary({ preview }: { preview: AgentRunPreview }) {
   return (
     <div className="space-y-3">
       <div className="grid gap-2 type-label md:grid-cols-3">
-        <SummaryItem label={t('agents.debug.fields.project')} value={preview.currentProjectId ?? t('agents.debug.values.none')} />
-        <SummaryItem label={t('agents.debug.fields.memoryCount')} value={preview.memoryCount} />
-        <SummaryItem label={t('agents.debug.fields.toolCalls')} value={preview.toolCalls.length} />
+        <AppKeyValue label={t('agents.debug.fields.project')} value={preview.currentProjectId ?? t('agents.debug.values.none')} />
+        <AppKeyValue label={t('agents.debug.fields.memoryCount')} value={preview.memoryCount} />
+        <AppKeyValue label={t('agents.debug.fields.toolCalls')} value={preview.toolCalls.length} />
       </div>
       <div className="space-y-2">
         {preview.toolCalls.length === 0 ? <EmptyText>{t('agents.debug.empty.runPlanPreviewHint')}</EmptyText> : preview.toolCalls.map((toolCall, index) => (
@@ -1358,7 +1346,7 @@ function PreviewSummary({ preview }: { preview: AgentRunPreview }) {
 
 function JsonPanel({ title, value, emptyText }: { title: string; value?: unknown; emptyText?: string }) {
   return (
-    <Panel title={title}>
+    <AppPanel icon={Bot} title={title}>
       {value === undefined || value === null ? (
         <EmptyText>{emptyText ?? '-'}</EmptyText>
       ) : (
@@ -1366,16 +1354,12 @@ function JsonPanel({ title, value, emptyText }: { title: string; value?: unknown
           {formatJson(value)}
         </pre>
       )}
-    </Panel>
+    </AppPanel>
   )
 }
 
 function EmptyText({ children }: { children: React.ReactNode }) {
   return <AppTextEmptyState className="border-0 bg-transparent p-0 type-label">{children}</AppTextEmptyState>
-}
-
-function StateMessage({ icon, text, tone = 'muted' }: { icon: React.ReactNode; text: string; tone?: 'muted' | 'danger' }) {
-  return <AppStateMessage icon={icon} tone={tone === 'danger' ? 'danger' : 'neutral'}>{text}</AppStateMessage>
 }
 
 function runStatusVariant(status: string) {

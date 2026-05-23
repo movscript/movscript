@@ -710,8 +710,8 @@ test('buildAgentActivityFeed keeps model tool-call order with approval rows', ()
 
   assert.deepEqual(feed?.items.map((item) => item.type === 'block' || item.type === 'decision' ? item.title : item.id), [
     '模型决定调用 2 个工具',
-    'approval-approval_1',
     'step-step_focus',
+    'approval-approval_1',
     '写入素材候选',
   ])
 })

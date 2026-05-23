@@ -6,6 +6,7 @@ import {
   semanticToneClass,
   WorkbenchEmptyState,
   WorkbenchEntityCard,
+  WorkbenchSection,
   WorkbenchStatusBadge,
   WorkbenchThumbnail,
 } from '@movscript/ui'
@@ -322,18 +323,15 @@ function QueueSectionPanel({
   onShowAll?: () => void
 }) {
   return (
-    <section className={cn('flex min-h-[180px] min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-background', className)}>
-      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-border bg-background px-3 py-2.5">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 type-label text-muted-foreground">
-            <PackageCheck size={14} />
-            <span className="font-semibold text-foreground">{title}</span>
-            <span>·</span>
-            <span>{detail}</span>
-          </div>
-          <p className="mt-1 line-clamp-1 type-tiny text-muted-foreground">{description}</p>
-        </div>
+    <WorkbenchSection
+      icon={PackageCheck}
+      title={title}
+      description={description}
+      className={cn('flex min-h-[180px] min-w-0 flex-col', className)}
+      bodyClassName="min-h-0 flex-1 overflow-y-auto p-3 pr-2"
+      action={(
         <div className="flex shrink-0 flex-wrap justify-end gap-1">
+          <WorkbenchStatusBadge tone="neutral" label={detail} />
           {onShowAll ? (
             <Button size="sm" variant="ghost" className="h-7 px-2 type-tiny" onClick={onShowAll}>
               全部
@@ -347,11 +345,10 @@ function QueueSectionPanel({
             折叠
           </Button>
         </div>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3 pr-2">
-        {children}
-      </div>
-    </section>
+      )}
+    >
+      {children}
+    </WorkbenchSection>
   )
 }
 
@@ -365,17 +362,18 @@ function CollapsedQueueSection({
   onExpand: () => void
 }) {
   return (
-    <button
+    <Button
       type="button"
-      className="flex shrink-0 items-center justify-between gap-3 rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2 text-left transition-colors hover:border-primary/50 hover:bg-muted/40"
+      variant="outline"
+      className="h-auto shrink-0 justify-between gap-3 border-dashed bg-muted/20 px-3 py-2 text-left hover:border-primary/50 hover:bg-muted/40 [&_.ms-button__content]:w-full [&_.ms-button__content]:justify-between"
       onClick={onExpand}
     >
       <span className="flex min-w-0 items-center gap-2">
         <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
         <span className="truncate type-label font-semibold text-foreground">{title}已折叠</span>
       </span>
-      <span className="shrink-0 rounded-full bg-background px-2 py-0.5 type-tiny text-muted-foreground">{count} 项</span>
-    </button>
+      <WorkbenchStatusBadge tone="neutral" label={`${count} 项`} />
+    </Button>
   )
 }
 
@@ -571,28 +569,22 @@ function ReferenceClusterButton({
   const title = referenceTitle(cluster.reference)
   const previews = clusterPreviewSlots(cluster)
   return (
-    <button
+    <WorkbenchEntityCard
       onClick={onSelect}
       onContextMenu={onContextMenu}
-      className={cn(
-        'w-full rounded-md border p-2 text-left transition-colors hover:border-primary/50',
-        selected ? 'border-primary bg-primary/5' : 'border-border bg-background',
-      )}
+      active={selected}
+      title={title}
+      description={referenceKindLabel(cluster.reference?.kind)}
+      status={<WorkbenchStatusBadge tone="neutral" label={cluster.rows.length} />}
+      className="w-full p-2 hover:border-primary/50"
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="truncate type-label font-semibold text-foreground">{title}</p>
-          <p className="mt-0.5 truncate type-tiny text-muted-foreground">{referenceKindLabel(cluster.reference?.kind)}</p>
-        </div>
-        <Badge variant="outline" className="type-tiny">{cluster.rows.length}</Badge>
-      </div>
       {previews.locked.length > 0 || previews.candidates.length > 0 ? (
         <div className="mt-2 space-y-1.5">
           {previews.locked.length > 0 ? (
             <ClusterPreviewStrip label="已选" tone="locked" previews={previews.locked} />
           ) : null}
           {previews.candidates.length > 0 ? (
-            <ClusterPreviewStrip label="待选" tone="candidate" previews={previews.candidates} />
+          <ClusterPreviewStrip label="待选" tone="candidate" previews={previews.candidates} />
           ) : null}
         </div>
       ) : null}
@@ -601,7 +593,7 @@ function ReferenceClusterButton({
         <CountPill tone="info" label={`待选 ${cluster.candidate}`} />
         <CountPill tone="success" label={`已选 ${cluster.locked}`} />
       </div>
-    </button>
+    </WorkbenchEntityCard>
   )
 }
 
@@ -694,25 +686,24 @@ function ClusterPreviewStrip({
 
 function DraftReferenceClusterButton() {
   return (
-    <div className="w-full rounded-md border border-primary bg-primary/5 p-2 text-left ring-1 ring-primary/30">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="truncate type-label font-semibold text-foreground">未命名设定</p>
-          <p className="mt-0.5 truncate type-tiny text-muted-foreground">人物 · 编辑中</p>
-        </div>
-        <Badge variant="outline" className="type-tiny">新建</Badge>
-      </div>
+    <WorkbenchEntityCard
+      title="未命名设定"
+      description="人物 · 编辑中"
+      status={<WorkbenchStatusBadge tone="info" label="新建" />}
+      active
+      className="w-full p-2"
+    >
       <div className="mt-2 grid grid-cols-3 gap-1 type-tiny">
         <CountPill tone="warning" label="缺 0" />
         <CountPill tone="info" label="待选 0" />
         <CountPill tone="success" label="已选 0" />
       </div>
-    </div>
+    </WorkbenchEntityCard>
   )
 }
 
 function CountPill({ tone, label }: { tone: 'warning' | 'info' | 'success'; label: string }) {
-  return <span className={cn('rounded px-1.5 py-1', semanticToneClass(tone, 'badge'))}>{label}</span>
+  return <WorkbenchStatusBadge tone={tone} label={label} className="w-full" />
 }
 
 function ReferenceAssetTile({

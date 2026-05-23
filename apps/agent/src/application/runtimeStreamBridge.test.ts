@@ -12,6 +12,7 @@ import type {
 } from '../state/types.js'
 import { RuntimeEventSubscriberRegistry } from './runtimeEventSubscribers.js'
 import { createRuntimeStreamBridge } from './runtimeStreamBridge.js'
+import { RuntimeTelemetryRegistry } from '../telemetry/runtimeTelemetry.js'
 
 test('createRuntimeStreamBridge records run traces and forwards trace events to taskGraph subscribers', () => {
   const store = new InMemoryAgentStore()
@@ -32,6 +33,28 @@ test('createRuntimeStreamBridge records run traces and forwards trace events to 
   assert.equal(trace.id, 'trace_1')
   assert.deepEqual(runEvents.map((event) => event.type), ['run', 'trace'])
   assert.deepEqual(planEvents.map((event) => event.type), ['snapshot', 'trace'])
+})
+
+test('createRuntimeStreamBridge mirrors persisted trace events into runtime telemetry spans', () => {
+  const store = new InMemoryAgentStore()
+  const run = makeRun()
+  const telemetry = new RuntimeTelemetryRegistry()
+  store.createRun(run)
+  const bridge = createBridge(store, { telemetry })
+
+  bridge.recordTraceEvent(run, {
+    kind: 'tool_call',
+    title: 'Tool call: movscript_focus_get',
+    status: 'completed',
+    toolName: 'movscript_focus_get',
+    durationMs: 42,
+  })
+
+  const snapshot = telemetry.snapshot()
+  assert.equal(snapshot.spans.length, 1)
+  assert.equal(snapshot.spans[0]?.kind, 'tool_call')
+  assert.equal(snapshot.spans[0]?.toolName, 'movscript_focus_get')
+  assert.equal(snapshot.metrics.some((sample) => sample.name === 'movscript_agent_trace_span_duration_ms'), true)
 })
 
 test('createRuntimeStreamBridge replays and forwards run stream events to thread subscribers', () => {
@@ -133,7 +156,7 @@ test('createRuntimeStreamBridge closes run and taskGraph subscribers on terminal
   assert.deepEqual(planEvents.map((event) => event.type), ['snapshot', 'done', 'run', 'done'])
 })
 
-function createBridge(store: InMemoryAgentStore, input: { planStatus?: AgentTaskGraph['status'] } = {}) {
+function createBridge(store: InMemoryAgentStore, input: { planStatus?: AgentTaskGraph['status']; telemetry?: RuntimeTelemetryRegistry } = {}) {
   let traceId = 0
   return createRuntimeStreamBridge({
     store,
@@ -144,6 +167,7 @@ function createBridge(store: InMemoryAgentStore, input: { planStatus?: AgentTask
     getTaskGraphSnapshot: () => snapshot({ status: input.planStatus ?? 'running' }),
     createTraceId: () => `trace_${++traceId}`,
     now: () => '2026-01-01T00:00:01.000Z',
+    ...(input.telemetry ? { telemetry: input.telemetry } : {}),
   })
 }
 

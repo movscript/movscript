@@ -26,7 +26,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
-import { Button } from '@movscript/ui'
+import { AppPanel, Button } from '@movscript/ui'
 import { ResourcePanel } from '@/components/shared/ResourcePanel'
 import { resolveResourceUrl } from '@/components/shared/MediaViewer'
 import { api } from '@/lib/api'
@@ -698,11 +698,7 @@ export default function VideoEditPage() {
                   )}
                 </div>
 
-                <div className="rounded-lg border border-border bg-card p-3">
-                  <div className="mb-3 flex items-center justify-between">
-                    <p className="type-body font-medium text-foreground">预览控制</p>
-                    <span className="type-label tabular-nums text-muted-foreground">{formatTime(playheadMs)}</span>
-                  </div>
+                <AppPanel title="预览控制" action={<span className="type-label tabular-nums text-muted-foreground">{formatTime(playheadMs)}</span>}>
                   <div className="flex flex-wrap gap-2">
                     <ToolbarButton icon={<StepBack size={14} />} label="-1s" onClick={() => nudgePlayhead(-1000)} />
                     <ToolbarButton icon={playing ? <Pause size={14} /> : <Play size={14} />} label={playing ? '暂停' : '播放'} onClick={togglePreviewPlayback} disabled={!previewResource} />
@@ -742,7 +738,7 @@ export default function VideoEditPage() {
                       {projectError}
                     </div>
                   )}
-                </div>
+                </AppPanel>
               </div>
 
               <TimelineEditor
@@ -1245,7 +1241,7 @@ function Inspector({
 }) {
   return (
     <div className="space-y-4">
-      <Panel title="片段属性" icon={<FileJson size={14} />}>
+      <AppPanel title="片段属性" icon={FileJson}>
         {selectedClip ? (
           <div className="space-y-3">
             <Readout label="类型" value={selectedClip.kind} />
@@ -1320,9 +1316,9 @@ function Inspector({
         ) : (
           <p className="type-label leading-5 text-muted-foreground">选择时间线片段后可微调入点、时长、音量和字幕文本。</p>
         )}
-      </Panel>
+      </AppPanel>
 
-      <Panel title="脚本粗剪" icon={<Captions size={14} />}>
+      <AppPanel title="脚本粗剪" icon={Captions}>
         <textarea
           value={scriptDraft}
           onChange={event => onScriptDraftChange(event.target.value)}
@@ -1333,9 +1329,9 @@ function Inspector({
           <Plus size={14} />
           从当前播放头生成字幕轨
         </Button>
-      </Panel>
+      </AppPanel>
 
-      <Panel title="标记点" icon={<BookmarkPlus size={14} />}>
+      <AppPanel title="标记点" icon={BookmarkPlus}>
         <div className="space-y-2">
           {timeline.markers.length === 0 && <p className="type-label text-muted-foreground">暂无标记，当前播放头 {formatTime(playheadMs)}。</p>}
           {timeline.markers.map(marker => (
@@ -1348,20 +1344,8 @@ function Inspector({
             </div>
           ))}
         </div>
-      </Panel>
+      </AppPanel>
     </div>
-  )
-}
-
-function Panel({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
-  return (
-    <section className="rounded-lg border border-border bg-card p-3">
-      <div className="mb-3 flex items-center gap-2 type-body font-medium text-foreground">
-        {icon}
-        {title}
-      </div>
-      {children}
-    </section>
   )
 }
 

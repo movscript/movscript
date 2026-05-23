@@ -182,14 +182,17 @@ export function buildAgentActivityFeed(input: {
 
 interface ActivityItemIndex {
   actionItems: Array<AgentActivityInputRequestItem | AgentActivityApprovalRequestItem>
+  actionItemsById: Map<string, AgentActivityInputRequestItem | AgentActivityApprovalRequestItem>
   decisionsById: Map<string, AgentActivityDecisionItem>
   systemItems: AgentActivityLineItem[]
   toolsById: Map<string, AgentActivityItem>
 }
 
 function buildActivityItemIndex(activity: ChatRunActivity): ActivityItemIndex {
+  const actionItems = workflowActionItems(activity)
   return {
-    actionItems: workflowActionItems(activity),
+    actionItems,
+    actionItemsById: new Map(actionItems.map((item) => [item.id, item])),
     decisionsById: new Map(modelDecisionItems(activity).map((item) => [item.id, item])),
     systemItems: systemActivityItems(activity),
     toolsById: new Map(toolActivityRecords(activity).map((record) => [record.id, toolActivityItem(record)])),
@@ -588,18 +591,45 @@ function buildTimelineActivityRounds(
   return timeline.rounds
     .map((round, position) => {
       const telemetry = round.index !== undefined ? telemetryByIndex.get(round.index) : undefined
-      const items = coalesceConsecutiveActivityItems([
-        ...round.decisions
+      const consumedActionItemIds = new Set<string>()
+      const toolExecutionItems = round.toolExecutions.flatMap((tool) => {
+        const items: AgentActivityItem[] = []
+        for (const approval of tool.approvals) {
+          const actionItem = index.actionItemsById.get(`approval-${approval.id}`)
+          if (!actionItem) continue
+          consumedActionItemIds.add(actionItem.id)
+          items.push(actionItem)
+        }
+        const toolItem = index.toolsById.get(tool.id)
+        if (toolItem) items.push(toolItem)
+        return items.sort(compareActivityItems)
+      })
+      const decisionItems = round.decisions
           .map((decision) => index.decisionsById.get(decision.id))
-          .filter((item): item is AgentActivityDecisionItem => Boolean(item)),
-        ...round.toolExecutions
-          .map((tool) => index.toolsById.get(tool.id))
-          .filter((item): item is AgentActivityItem => Boolean(item)),
+          .filter((item): item is AgentActivityDecisionItem => Boolean(item))
+          .sort(compareActivityItems)
+      const remainingItems = [
         ...index.actionItems
+          .filter((item) => !consumedActionItemIds.has(item.id))
           .filter((item) => systemActivityRoundId(item, timeline.rounds) === round.id),
-        ...index.systemItems
-          .filter((item) => systemActivityRoundId(item, timeline.rounds) === round.id),
-      ].sort(compareActivityItems))
+      ].sort(compareActivityItems)
+      const structuredItems = [...decisionItems, ...toolExecutionItems]
+      const firstStructuredItemTime = Math.min(...structuredItems.map((item) => timestamp(item.createdAt)))
+      const systemItems = index.systemItems
+        .filter((item) => systemActivityRoundId(item, timeline.rounds) === round.id)
+        .sort(compareActivityItems)
+      const leadingSystemItems = Number.isFinite(firstStructuredItemTime)
+        ? systemItems.filter((item) => timestamp(item.createdAt) <= firstStructuredItemTime)
+        : systemItems
+      const trailingSystemItems = Number.isFinite(firstStructuredItemTime)
+        ? systemItems.filter((item) => timestamp(item.createdAt) > firstStructuredItemTime)
+        : []
+      const items = coalesceConsecutiveActivityItems([
+        ...leadingSystemItems,
+        ...structuredItems,
+        ...remainingItems,
+        ...trailingSystemItems,
+      ])
       const status = activityRoundStatus(round, items)
       return {
         id: round.id,

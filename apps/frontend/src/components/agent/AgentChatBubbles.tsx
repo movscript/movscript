@@ -26,7 +26,9 @@ import { buildAgentActivityFeed } from '@/lib/agentActivityFeed'
 import type { GenerationProgressState } from '@/lib/agentGenerationMedia'
 import { shouldRenderRuntimeStatusOnly, type RuntimeStatusMessage } from '@/lib/agentRuntimeStatusMessage'
 import type { AgentLivePendingAssistantState } from '@/lib/agentLiveRunActivity'
+import { localAgentApprovalDetails } from '@/components/agent/AgentWorkflowBubble'
 import type { AgentRun } from '@/lib/localAgentClient'
+import type { AgentInputAnswer } from '@/lib/agentWorkflowInteraction'
 import type { ChatMessage, ChatRunActivityEvent } from '@/store/agentStore'
 
 export type ThinkingBubbleState = AgentLivePendingAssistantState
@@ -150,9 +152,21 @@ function formatDurationLabel(ms: number) {
 export function MessageBubble({
   msg,
   projectId,
+  liveWorkflowRun,
+  liveWorkflowEvents = [],
+  approvingLocalRun = false,
+  onApproveLocalRun,
+  onRejectLocalRun,
+  onAnswerLocalRunInput,
 }: {
   msg: ChatMessage
   projectId?: number
+  liveWorkflowRun?: AgentRun | null
+  liveWorkflowEvents?: ChatRunActivityEvent[]
+  approvingLocalRun?: boolean
+  onApproveLocalRun?: (runId: string, approvalIds?: string[]) => void
+  onRejectLocalRun?: (runId: string, approvalIds?: string[]) => void
+  onAnswerLocalRunInput?: (runId: string, requestId: string, answer: AgentInputAnswer) => void
 }) {
   const { t, i18n } = useTranslation()
   const apiBaseURL = useAppSettingsStore((s) => s.settings.apiBaseURL)
@@ -199,7 +213,12 @@ export function MessageBubble({
     hasResultSection,
     hasDiagnosticSection,
   } = presentation
-  const hasActivityContent = !isUser && !!localRunActivity && runActivityHasVisibleContent(localRunActivity)
+  const activityFeedRun = !isUser ? liveWorkflowRun ?? null : null
+  const hasActivityContent = !isUser && (
+    activityFeedRun
+      ? runActivityHasVisibleContent(undefined, activityFeedRun, liveWorkflowEvents)
+      : !!localRunActivity && runActivityHasVisibleContent(localRunActivity)
+  )
   const hasMessageBody = isUser
     ? !!displayContent.trim() || compactAttachments.length > 0
     : hasActivityContent
@@ -271,11 +290,18 @@ export function MessageBubble({
         </div>
       )}
     >
-      {!isUser && hasActivityContent && <AgentActivityDividerMenu activity={localRunActivity} />}
+      {!isUser && hasActivityContent && !activityFeedRun && <AgentActivityDividerMenu activity={localRunActivity} />}
       {!isUser && hasActivityContent && (
         <AgentActivityFeedView
-          activity={localRunActivity}
+          activity={activityFeedRun ? undefined : localRunActivity}
+          run={activityFeedRun}
+          events={activityFeedRun ? liveWorkflowEvents : undefined}
           className={displayContent || planRevision ? 'mb-2' : undefined}
+          approving={approvingLocalRun}
+          onApprove={activityFeedRun && onApproveLocalRun ? (approvalIds) => onApproveLocalRun(activityFeedRun.id, approvalIds) : undefined}
+          onReject={activityFeedRun && onRejectLocalRun ? (approvalIds) => onRejectLocalRun(activityFeedRun.id, approvalIds) : undefined}
+          onAnswerInput={activityFeedRun && onAnswerLocalRunInput ? (requestId, answer) => onAnswerLocalRunInput(activityFeedRun.id, requestId, answer) : undefined}
+          approvalDetails={localAgentApprovalDetails}
         />
       )}
       {planRevision
@@ -332,8 +358,8 @@ export function MessageBubble({
   )
 }
 
-function runActivityHasVisibleContent(activity: NonNullable<ChatMessage['meta']>['localRunActivity']): boolean {
-  const feed = activity ? buildAgentActivityFeed({ activity }) : undefined
+function runActivityHasVisibleContent(activity?: NonNullable<ChatMessage['meta']>['localRunActivity'], run?: AgentRun | null, events?: ChatRunActivityEvent[]): boolean {
+  const feed = buildAgentActivityFeed({ activity, run, events })
   return !!feed && (feed.items.length > 0 || feed.rounds.length > 0)
 }
 

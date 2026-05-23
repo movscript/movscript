@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight, CheckCircle2, FileText, Loader2 } from 'lucide-react'
-import { Badge, Button, semanticToneClass } from '@movscript/ui'
+import { AppEmptyState, AppKeyValue, AppPanel, AppStateMessage, AppTextEmptyState, Badge, Button, ReviewCallout } from '@movscript/ui'
 
 import type { AgentDraft } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
@@ -59,35 +59,31 @@ export function ProjectStandardsProposalReviewPanel({
     >
       <div className="mt-3 min-h-0 space-y-3 overflow-y-auto">
         {loading ? (
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-3 type-label text-muted-foreground">
-            <Loader2 size={12} className="animate-spin" />
-            读取草稿…
-          </div>
+          <AppStateMessage icon={<Loader2 size={12} className="animate-spin" />} text="读取草稿…" />
         ) : null}
         {!loading && drafts.length === 0 ? (
           <EmptyProposalBlock title="暂无项目规范草稿" detail="从上方发起项目规范提案后，AI 对核心规范和扩展规则的建议会进入这里审阅。" />
         ) : null}
         {drafts.map(({ draft, proposalView, styleRows }) => (
-          <div key={draft.id} className="rounded-lg border border-border bg-background p-3 last:mb-0">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="truncate type-label font-semibold text-foreground">{draft.title}</p>
-                <p className="mt-1 type-tiny text-muted-foreground">{formatDraftDate(draft.updatedAt)} · {draft.id}</p>
-              </div>
+          <AppPanel
+            key={draft.id}
+            title={draft.title}
+            className="last:mb-0"
+            action={
               <div className="flex items-center gap-2">
                 <Badge variant={draftStatusVariant(draft.status)} className="shrink-0 type-tiny">{draftStatusLabel(draft.status)}</Badge>
                 <Badge variant="outline" className="type-tiny">{styleRows.length} 条标准</Badge>
               </div>
-            </div>
+            }
+            bodyClassName="space-y-3"
+          >
+            <p className="type-tiny text-muted-foreground">{formatDraftDate(draft.updatedAt)} · {draft.id}</p>
 
             {proposalView ? (
-              <div className="mt-3 space-y-3">
-                <div className={`rounded-md border p-2.5 ${semanticToneClass('info', 'surface')}`}>
+              <>
+                <ReviewCallout tone="info" compact title="项目规范提案">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="type-tiny font-medium text-foreground">项目规范提案</p>
-                      <p className="mt-1 type-tiny leading-4 text-muted-foreground">{proposalView.summary}</p>
-                    </div>
+                    <p className="min-w-0 flex-1 type-tiny leading-4 text-muted-foreground">{proposalView.summary}</p>
                     <div className="flex flex-wrap items-center gap-1.5 type-tiny">
                       <Badge variant="secondary" className="h-5 rounded-full px-1.5">{styleRows.length} 条规范</Badge>
                       <Badge variant="outline" className="h-5 rounded-full px-1.5">写入 Project</Badge>
@@ -108,39 +104,41 @@ export function ProjectStandardsProposalReviewPanel({
                       </Button>
                     </div>
                   </div>
-                </div>
+                </ReviewCallout>
 
                 {styleRows.length > 0 ? (
                   <div className="grid gap-2 md:grid-cols-2">
                     {styleRows.map((row) => (
-                      <div key={row.key} className="rounded-md border border-border bg-card px-3 py-2">
-                        <p className="type-tiny font-medium text-muted-foreground">{row.label}</p>
-                        <div className="mt-1 flex items-start gap-1.5 type-tiny leading-4">
-                          <span className="min-w-0 flex-1 truncate text-muted-foreground line-through">{row.before || '未设置'}</span>
-                          <ArrowRight size={10} className="mt-0.5 shrink-0 text-muted-foreground" />
-                          <span className={cn('min-w-0 flex-1 whitespace-pre-wrap', row.changed ? 'text-foreground' : 'text-muted-foreground')}>{row.after}</span>
-                        </div>
-                      </div>
+                      <AppKeyValue
+                        key={row.key}
+                        label={row.label}
+                        valueClassName="whitespace-normal"
+                        value={
+                          <span className="flex items-start gap-1.5 type-tiny leading-4">
+                            <span className="min-w-0 flex-1 truncate text-muted-foreground line-through">{row.before || '未设置'}</span>
+                            <ArrowRight size={10} className="mt-0.5 shrink-0 text-muted-foreground" />
+                            <span className={cn('min-w-0 flex-1 whitespace-pre-wrap', row.changed ? 'text-foreground' : 'text-muted-foreground')}>{row.after}</span>
+                          </span>
+                        }
+                      />
                     ))}
                   </div>
                 ) : (
-                  <div className="rounded-md border border-dashed border-border bg-background px-3 py-4 type-tiny text-muted-foreground">
+                  <AppTextEmptyState>
                     这份草稿还没有填写 project_style。
-                  </div>
+                  </AppTextEmptyState>
                 )}
 
                 {proposalView.impactNotes.length > 0 ? (
-                  <div className="space-y-1 rounded-md border border-border bg-background/70 p-2">
-                    <p className="type-tiny font-medium text-foreground">影响说明</p>
+                  <ReviewCallout tone="neutral" compact title="影响说明">
                     {proposalView.impactNotes.slice(0, 4).map((note, index) => (
                       <p key={`${draft.id}-impact-${index}`} className="type-tiny leading-4 text-muted-foreground">{note}</p>
                     ))}
-                  </div>
+                  </ReviewCallout>
                 ) : null}
 
-                <div className="rounded-md border border-border bg-muted/20 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="type-tiny font-medium text-foreground">历史</p>
+                <ReviewCallout tone="neutral" compact title="历史">
+                  <div className="flex justify-end">
                     <Button size="xs" variant="outline" className="gap-1.5 px-2 type-tiny" asChild>
                       <Link to={ROUTES.agentDrafts}>
                         <FileText size={12} />
@@ -148,14 +146,14 @@ export function ProjectStandardsProposalReviewPanel({
                       </Link>
                     </Button>
                   </div>
-                </div>
-              </div>
+                </ReviewCallout>
+              </>
             ) : (
-              <div className="mt-3 rounded-md border border-dashed border-border bg-background px-3 py-4 type-tiny text-muted-foreground">
+              <AppTextEmptyState>
                 无法解析这份草稿的差异。
-              </div>
+              </AppTextEmptyState>
             )}
-          </div>
+          </AppPanel>
         ))}
       </div>
     </ProposalReviewShell>
@@ -164,10 +162,7 @@ export function ProjectStandardsProposalReviewPanel({
 
 function EmptyProposalBlock({ title, detail }: { title: string; detail: string }) {
   return (
-    <div className="rounded-md border border-dashed border-border bg-background px-4 py-6 text-center">
-      <p className="type-body font-medium text-foreground">{title}</p>
-      <p className="mt-1 type-label leading-5 text-muted-foreground">{detail}</p>
-    </div>
+    <AppEmptyState title={title} detail={detail} compact />
   )
 }
 

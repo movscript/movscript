@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Blocks, Bot, Cable, CheckCircle2, ClipboardList, FileSearch, ListTree, RefreshCw, Settings, Terminal, Trash2, XCircle } from 'lucide-react'
-import { Badge, Button, Input, Label, ReviewCallout, semanticToneClass } from '@movscript/ui'
+import { AppInlineError, AppTextEmptyState, Badge, Button, Input, Label, ReviewCallout, semanticToneClass } from '@movscript/ui'
 import { AgentConsoleNav } from '@/pages/agent/AgentConsoleNav'
 import { agentRunPath, ROUTES } from '@/routes/projectRoutes'
 import { runRoleLabel, runStatusLabel } from '@/lib/agentRunUi'
@@ -239,7 +239,7 @@ export default function AgentConsolePage() {
 
             <ConsolePanel title="最近运行" icon={<ListTree size={14} />} action={<ConsoleLink to={ROUTES.agentRuns}>查看全部</ConsoleLink>}>
               {runsQuery.error ? (
-                <InlineError>{errorMessage(runsQuery.error)}</InlineError>
+                <AppInlineError className="p-3">{errorMessage(runsQuery.error)}</AppInlineError>
               ) : runs.length === 0 ? (
                 <EmptyText>还没有 Agent 运行记录。</EmptyText>
               ) : (
@@ -773,12 +773,8 @@ function ConsoleLink({ to, children }: { to: string; children: React.ReactNode }
   return <Link to={to} className="type-caption font-medium text-primary hover:underline">{children}</Link>
 }
 
-function InlineError({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 type-label text-destructive">{children}</div>
-}
-
 function EmptyText({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-md border border-border bg-muted/20 p-3 type-label text-muted-foreground">{children}</div>
+  return <AppTextEmptyState>{children}</AppTextEmptyState>
 }
 
 function buildConsoleIssues(input: {

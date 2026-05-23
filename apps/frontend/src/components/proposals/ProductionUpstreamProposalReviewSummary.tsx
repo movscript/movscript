@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { PackageCheck, Sparkles } from 'lucide-react'
-import { Badge, Button, semanticToneClass } from '@movscript/ui'
+import { AppKeyValue, AppPanel, AppSection, AppTextEmptyState, Badge, Button, semanticToneClass } from '@movscript/ui'
 
 import type { AgentDraft } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
@@ -57,18 +57,12 @@ export function ProductionUpstreamProposalReviewSummary({
   const hasDraft = Boolean(settingDraft || assetProposalDraft)
 
   return (
-    <section className="rounded-lg border border-border bg-background p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 type-caption font-medium text-muted-foreground">
-            <Sparkles size={12} />
-            上游提案审阅
-          </div>
-          <h2 className="mt-1 type-body font-semibold text-foreground">设定与素材需求草稿</h2>
-          <p className="mt-1 type-label leading-5 text-muted-foreground">
-            {projectName} · {productionName}
-          </p>
-        </div>
+    <AppSection
+      icon={Sparkles}
+      eyebrow="上游提案审阅"
+      title="设定与素材需求草稿"
+      description={`${projectName} · ${productionName}`}
+      action={
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={hasDraft ? 'secondary' : 'outline'} className="h-6 rounded-full px-2 type-tiny">
             {hasDraft ? '已加载' : '未加载'}
@@ -90,17 +84,21 @@ export function ProductionUpstreamProposalReviewSummary({
             </Button>
           ) : null}
         </div>
-      </div>
+      }
+      bodyClassName="space-y-4"
+    >
       {settingView || assetProposalView ? (
-        <div className="mt-4 space-y-3">
+        <div className="space-y-3">
           <div className="grid gap-2 sm:grid-cols-4">
-            <SummaryCount label="设定资料" value={settingView?.creativeReferences.length ?? 0} />
-            <SummaryCount label="素材需求" value={assetProposalView?.assetSlots.length ?? 0} />
-            <SummaryCount label="影响说明" value={(settingView?.impactNotes.length ?? 0) + (assetProposalView?.impactNotes.length ?? 0)} />
-            <div className={`rounded-md border px-3 py-2 ${semanticToneClass('danger', 'surface')}`}>
-              <p className={`type-tiny ${semanticToneClass('danger', 'icon')}`}>删除候选</p>
-              <p className={`mt-1 type-label font-medium ${semanticToneClass('danger', 'icon')}`}>{deletedCount} 项</p>
-            </div>
+            <AppKeyValue label="设定资料" value={`${settingView?.creativeReferences.length ?? 0} 项`} strong />
+            <AppKeyValue label="素材需求" value={`${assetProposalView?.assetSlots.length ?? 0} 项`} strong />
+            <AppKeyValue label="影响说明" value={`${(settingView?.impactNotes.length ?? 0) + (assetProposalView?.impactNotes.length ?? 0)} 项`} strong />
+            <AppKeyValue
+              label="删除候选"
+              value={<span className={semanticToneClass('danger', 'icon')}>{deletedCount} 项</span>}
+              strong
+              className={semanticToneClass('danger', 'surface')}
+            />
           </div>
           <p className="type-caption leading-5 text-muted-foreground">{[settingView?.summary, assetProposalView?.summary].filter(Boolean).join(' / ')}</p>
           <div className="grid gap-3 lg:grid-cols-2">
@@ -109,20 +107,11 @@ export function ProductionUpstreamProposalReviewSummary({
           </div>
         </div>
       ) : (
-        <div className="mt-3 rounded-md border border-dashed border-border bg-muted/20 px-3 py-4 type-label text-muted-foreground">
+        <AppTextEmptyState>
           还没有上游提案草稿。生成制作提案时，如果 agent 发现必须补齐项目级设定或素材需求，这里会显示对应草稿。
-        </div>
+        </AppTextEmptyState>
       )}
-    </section>
-  )
-}
-
-function SummaryCount({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
-      <p className="type-tiny text-muted-foreground">{label}</p>
-      <p className="mt-1 type-label font-medium text-foreground">{value} 项</p>
-    </div>
+    </AppSection>
   )
 }
 
@@ -136,21 +125,18 @@ function EntryPreview({
   entries: InlineProjectLayerProposalEntry[]
 }) {
   return (
-    <div className="rounded-md border border-border bg-muted/10 p-3">
-      <p className="type-tiny font-medium text-foreground">{title}</p>
-      <div className="mt-2 space-y-2">
-        {entries.slice(0, 4).map((entry) => (
-          <div key={entry.key} className={cn('rounded border px-2 py-1.5 type-tiny', entry.changeType === 'deleted' ? semanticToneClass('danger', 'surface') : 'border-border bg-background')}>
-            <div className="flex items-start justify-between gap-2">
-              <span className="font-medium text-foreground">{entry.title}</span>
-              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 type-micro text-muted-foreground">{entry.target}</span>
-            </div>
-            <p className="mt-1 line-clamp-2 text-muted-foreground">{entry.detail}</p>
+    <AppPanel title={title} bodyClassName="space-y-2">
+      {entries.slice(0, 4).map((entry) => (
+        <div key={entry.key} className={cn('rounded border px-2 py-1.5 type-tiny', entry.changeType === 'deleted' ? semanticToneClass('danger', 'surface') : 'border-border bg-background')}>
+          <div className="flex items-start justify-between gap-2">
+            <span className="font-medium text-foreground">{entry.title}</span>
+            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 type-micro text-muted-foreground">{entry.target}</span>
           </div>
-        ))}
-        {!entries.length ? <p className="type-tiny text-muted-foreground">{empty}</p> : null}
-      </div>
-    </div>
+          <p className="mt-1 line-clamp-2 text-muted-foreground">{entry.detail}</p>
+        </div>
+      ))}
+      {!entries.length ? <p className="type-tiny text-muted-foreground">{empty}</p> : null}
+    </AppPanel>
   )
 }
 

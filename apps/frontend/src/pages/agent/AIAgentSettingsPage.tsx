@@ -1487,15 +1487,15 @@ export default function AIAgentSettingsPage() {
 
       <main className="min-h-0 flex-1 overflow-y-auto p-4">
         {runtimeQuery.isLoading || modelsQuery.isLoading ? (
-          <StateMessage icon={<Loader2 size={16} className="animate-spin" />} text={t('common.loading')} />
+          <AppStateMessage icon={<Loader2 size={16} className="animate-spin" />} text={t('common.loading')} />
         ) : runtimeQuery.error ? (
-          <StateMessage icon={<XCircle size={16} />} tone="danger" text={settingsErrorMessage(runtimeQuery.error)} />
+          <AppStateMessage icon={<XCircle size={16} />} tone="danger" text={settingsErrorMessage(runtimeQuery.error)} />
         ) : modelsQuery.error ? (
-          <StateMessage icon={<XCircle size={16} />} tone="danger" text={settingsErrorMessage(modelsQuery.error)} />
+          <AppStateMessage icon={<XCircle size={16} />} tone="danger" text={settingsErrorMessage(modelsQuery.error)} />
         ) : (
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
             <section className="space-y-4">
-              <Panel id="agent-settings-model" title={t('agents.settings.modelPanel')}>
+              <AppPanel icon={Bot} id="agent-settings-model" title={t('agents.settings.modelPanel')}>
                 <div className="grid gap-4">
                   <div>
                     <label className="mb-1.5 block type-label font-medium text-foreground">
@@ -1623,10 +1623,10 @@ export default function AIAgentSettingsPage() {
 
                   {usesModelCatalog && selectedModel && (
                     <div className="grid gap-2 type-label sm:grid-cols-2">
-                      <SummaryItem label={t('agents.settings.fields.modelId')} value={publicModelId(selectedModel)} />
-                      <SummaryItem label={t('agents.settings.fields.capabilities')} value={selectedModel.capabilities.join(', ') || '-'} />
-                      <SummaryItem label={t('agents.settings.fields.provider')} value={selectedModel.provider_name || '-'} />
-                      <SummaryItem label={t('agents.settings.fields.configId')} value={`#${selectedModel.id}`} />
+                      <AppKeyValue label={t('agents.settings.fields.modelId')} value={publicModelId(selectedModel)} />
+                      <AppKeyValue label={t('agents.settings.fields.capabilities')} value={selectedModel.capabilities.join(', ') || '-'} />
+                      <AppKeyValue label={t('agents.settings.fields.provider')} value={selectedModel.provider_name || '-'} />
+                      <AppKeyValue label={t('agents.settings.fields.configId')} value={`#${selectedModel.id}`} />
                     </div>
                   )}
 
@@ -1652,18 +1652,18 @@ export default function AIAgentSettingsPage() {
                     </Button>
                   </div>
 
-                  {saveError && <InlineError>{saveError}</InlineError>}
+                  {saveError && <AppInlineError>{saveError}</AppInlineError>}
                 </div>
-              </Panel>
+              </AppPanel>
 
-              <Panel title={t('agents.settings.testPanel')}>
+              <AppPanel icon={Bot} title={t('agents.settings.testPanel')}>
                 <div className="space-y-3">
                   <Textarea
                     value={testMessage}
                     onChange={(event) => setTestMessage(event.target.value)}
                     className="min-h-24 type-label"
                   />
-                  {testError && <InlineError>{testError}</InlineError>}
+                  {testError && <AppInlineError>{testError}</AppInlineError>}
                   {testResult && (
                     <div className="rounded-md border border-border bg-muted/20 p-3">
                       <div className="flex flex-wrap items-center gap-2">
@@ -1679,9 +1679,9 @@ export default function AIAgentSettingsPage() {
                     </div>
                   )}
                 </div>
-              </Panel>
+              </AppPanel>
 
-              <Panel id="agent-settings-run-presets" title={t('agents.settings.runPresetsPanel')}>
+              <AppPanel icon={Bot} id="agent-settings-run-presets" title={t('agents.settings.runPresetsPanel')}>
                 <div className="space-y-3">
                   <div className="grid gap-3 rounded-md border border-border bg-muted/20 p-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                     <div>
@@ -1724,10 +1724,10 @@ export default function AIAgentSettingsPage() {
                       </div>
                     </div>
                     <div className="grid gap-2 type-label sm:grid-cols-2">
-                      <SummaryItem label={t('agents.settings.runPresetFields.maxToolCalls')} value={activeRunPreset.maxToolCalls} />
-                      <SummaryItem label={t('agents.settings.runPresetFields.maxIterations')} value={activeRunPreset.maxIterations} />
-                      <SummaryItem label={t('agents.settings.runPresetFields.permissionMode')} value={t(`agents.settings.runPresetPermissionModes.${activeRunPreset.permissionMode}`)} />
-                      <SummaryItem label={t('agents.settings.runPresetFields.planWorkers')} value={activeRunPreset.planMaxWorkers} />
+                      <AppKeyValue label={t('agents.settings.runPresetFields.maxToolCalls')} value={activeRunPreset.maxToolCalls} />
+                      <AppKeyValue label={t('agents.settings.runPresetFields.maxIterations')} value={activeRunPreset.maxIterations} />
+                      <AppKeyValue label={t('agents.settings.runPresetFields.permissionMode')} value={t(`agents.settings.runPresetPermissionModes.${activeRunPreset.permissionMode}`)} />
+                      <AppKeyValue label={t('agents.settings.runPresetFields.planWorkers')} value={activeRunPreset.planMaxWorkers} />
                     </div>
                   </div>
                   <div data-testid="agent-run-preset-editor" className="rounded-md border border-border bg-muted/20 p-2">
@@ -1833,13 +1833,13 @@ export default function AIAgentSettingsPage() {
                   <div data-testid="agent-run-preset-effective-policy" className="rounded-md border border-border bg-background p-2">
                     <p className="type-label font-medium text-foreground">{t('agents.settings.effectiveRunPolicy')}</p>
                     <div className="mt-2 grid gap-2 type-label sm:grid-cols-2 lg:grid-cols-4">
-                      <SummaryItem label={t('agents.settings.runPresetFields.maxToolCalls')} value={activeRunPreset.maxToolCalls} />
-                      <SummaryItem label={t('agents.settings.runPresetFields.maxIterations')} value={activeRunPreset.maxIterations} />
-                      <SummaryItem label={t('agents.settings.runPresetFields.permissionMode')} value={t(`agents.settings.runPresetPermissionModes.${activeRunPreset.permissionMode}`)} />
-                      <SummaryItem label={t('agents.settings.runPresetFields.autoTaskGraph')} value={activeRunPreset.autoTaskGraph ? t('agents.settings.values.enabled') : t('agents.settings.values.disabled')} />
-                      <SummaryItem label={t('agents.settings.runPresetFields.planWorkers')} value={activeRunPreset.planMaxWorkers} />
-                      <SummaryItem label={t('agents.settings.runPresetFields.planAttempts')} value={activeRunPreset.planMaxTaskAttempts} />
-                      <SummaryItem label={t('agents.settings.runPresetFields.planTimeout')} value={formatDurationMinutes(activeRunPreset.planWorkerTimeoutMs)} />
+                      <AppKeyValue label={t('agents.settings.runPresetFields.maxToolCalls')} value={activeRunPreset.maxToolCalls} />
+                      <AppKeyValue label={t('agents.settings.runPresetFields.maxIterations')} value={activeRunPreset.maxIterations} />
+                      <AppKeyValue label={t('agents.settings.runPresetFields.permissionMode')} value={t(`agents.settings.runPresetPermissionModes.${activeRunPreset.permissionMode}`)} />
+                      <AppKeyValue label={t('agents.settings.runPresetFields.autoTaskGraph')} value={activeRunPreset.autoTaskGraph ? t('agents.settings.values.enabled') : t('agents.settings.values.disabled')} />
+                      <AppKeyValue label={t('agents.settings.runPresetFields.planWorkers')} value={activeRunPreset.planMaxWorkers} />
+                      <AppKeyValue label={t('agents.settings.runPresetFields.planAttempts')} value={activeRunPreset.planMaxTaskAttempts} />
+                      <AppKeyValue label={t('agents.settings.runPresetFields.planTimeout')} value={formatDurationMinutes(activeRunPreset.planWorkerTimeoutMs)} />
                     </div>
                   </div>
                   <div className="grid gap-2 md:grid-cols-3">
@@ -1853,30 +1853,30 @@ export default function AIAgentSettingsPage() {
                     ))}
                   </div>
                 </div>
-              </Panel>
+              </AppPanel>
 
-              <Panel id="agent-settings-skills" title={t('agents.settings.skillsPanel')}>
+              <AppPanel icon={Bot} id="agent-settings-skills" title={t('agents.settings.skillsPanel')}>
                 {catalogQuery.isLoading ? (
-                  <StateMessage icon={<Loader2 size={16} className="animate-spin" />} text={t('common.loading')} />
+                  <AppStateMessage icon={<Loader2 size={16} className="animate-spin" />} text={t('common.loading')} />
                 ) : catalogQuery.error ? (
-                  <StateMessage icon={<XCircle size={16} />} tone="danger" text={settingsErrorMessage(catalogQuery.error)} />
+                  <AppStateMessage icon={<XCircle size={16} />} tone="danger" text={settingsErrorMessage(catalogQuery.error)} />
                 ) : (
                   <div className="space-y-3">
                     <div className="grid gap-2 type-label sm:grid-cols-4">
-                      <SummaryItem label={t('agents.settings.skillFields.installed')} value={skillStats.installed} />
-                      <SummaryItem label={t('agents.settings.skillFields.enabled')} value={skillStats.enabled} />
-                      <SummaryItem label={t('agents.settings.skillFields.core')} value={skillStats.core} />
-                      <SummaryItem label={t('agents.settings.skillFields.onDemand')} value={skillStats.onDemand} />
+                      <AppKeyValue label={t('agents.settings.skillFields.installed')} value={skillStats.installed} />
+                      <AppKeyValue label={t('agents.settings.skillFields.enabled')} value={skillStats.enabled} />
+                      <AppKeyValue label={t('agents.settings.skillFields.core')} value={skillStats.core} />
+                      <AppKeyValue label={t('agents.settings.skillFields.onDemand')} value={skillStats.onDemand} />
                     </div>
                     <div data-testid="agent-settings-skill-governance" className="rounded-md border border-border bg-background p-2">
                       <p className="type-label font-medium text-foreground">{t('agents.settings.skillGovernancePanel')}</p>
                       <p className="mt-0.5 type-caption leading-4 text-muted-foreground">{t('agents.settings.skillGovernanceHelp')}</p>
                       <div className="mt-2 grid gap-2 type-label sm:grid-cols-5">
-                        <SummaryItem label={t('agents.settings.skillGovernanceFields.versioned')} value={skillGovernanceStats.versioned} />
-                        <SummaryItem label={t('agents.settings.skillSources.core')} value={skillGovernanceStats.core} />
-                        <SummaryItem label={t('agents.settings.skillSources.plugin')} value={skillGovernanceStats.plugin} />
-                        <SummaryItem label={t('agents.settings.skillSources.local')} value={skillGovernanceStats.local} />
-                        <SummaryItem label={t('agents.settings.skillTrustLevels.review')} value={skillGovernanceStats.review} />
+                        <AppKeyValue label={t('agents.settings.skillGovernanceFields.versioned')} value={skillGovernanceStats.versioned} />
+                        <AppKeyValue label={t('agents.settings.skillSources.core')} value={skillGovernanceStats.core} />
+                        <AppKeyValue label={t('agents.settings.skillSources.plugin')} value={skillGovernanceStats.plugin} />
+                        <AppKeyValue label={t('agents.settings.skillSources.local')} value={skillGovernanceStats.local} />
+                        <AppKeyValue label={t('agents.settings.skillTrustLevels.review')} value={skillGovernanceStats.review} />
                       </div>
                     </div>
 
@@ -1887,7 +1887,7 @@ export default function AIAgentSettingsPage() {
                       </Button>
                       {catalogReloadedAt && <span className="type-caption text-muted-foreground">{t('agents.settings.reloadCatalogDone', { time: new Date(catalogReloadedAt).toLocaleTimeString() })}</span>}
                     </div>
-                    {catalogReloadError && <InlineError>{catalogReloadError}</InlineError>}
+                    {catalogReloadError && <AppInlineError>{catalogReloadError}</AppInlineError>}
 
                     <div className="rounded-md border border-border bg-muted/20 p-2">
                       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1933,9 +1933,9 @@ export default function AIAgentSettingsPage() {
                         </p>
                       )}
                       {!skillBundleInstallError && skillBundleDraftValidation.error && (
-                        <div className="mt-2" data-testid="agent-settings-skill-bundle-draft-error"><InlineError>{skillBundleDraftValidation.error}</InlineError></div>
+                        <div className="mt-2" data-testid="agent-settings-skill-bundle-draft-error"><AppInlineError>{skillBundleDraftValidation.error}</AppInlineError></div>
                       )}
-                      {skillBundleInstallError && <div className="mt-2"><InlineError>{skillBundleInstallError}</InlineError></div>}
+                      {skillBundleInstallError && <div className="mt-2"><AppInlineError>{skillBundleInstallError}</AppInlineError></div>}
                       {skillBundleInstallResult && (
                         <p className="mt-2 type-caption text-muted-foreground">
                           {t('agents.settings.installSkillBundleDone', { count: skillBundleInstallResult.installedFiles.length, pluginId: skillBundleInstallResult.pluginId })}
@@ -1994,9 +1994,9 @@ export default function AIAgentSettingsPage() {
                         </div>
                         <p className="mt-1 type-caption leading-4 text-muted-foreground">{t('agents.settings.uninstallSkillBundleHelp')}</p>
                         {!skillBundleUninstallError && skillBundleUninstallPluginIdInvalid && (
-                          <div className="mt-2" data-testid="agent-settings-uninstall-plugin-id-error"><InlineError>{t('agents.settings.uninstallSkillBundlePluginIdInvalid')}</InlineError></div>
+                          <div className="mt-2" data-testid="agent-settings-uninstall-plugin-id-error"><AppInlineError>{t('agents.settings.uninstallSkillBundlePluginIdInvalid')}</AppInlineError></div>
                         )}
-                        {skillBundleUninstallError && <div className="mt-2"><InlineError>{skillBundleUninstallError}</InlineError></div>}
+                        {skillBundleUninstallError && <div className="mt-2"><AppInlineError>{skillBundleUninstallError}</AppInlineError></div>}
                         {skillBundleUninstallResult && (
                           <p className="mt-2 type-caption text-muted-foreground">
                             {skillBundleUninstallResult.removed
@@ -2017,7 +2017,7 @@ export default function AIAgentSettingsPage() {
                       </Button>
                       <span className="type-caption text-muted-foreground">{t('agents.settings.skillPolicyEditHelp')}</span>
                     </div>
-                    {skillPolicySaveError && <InlineError>{skillPolicySaveError}</InlineError>}
+                    {skillPolicySaveError && <AppInlineError>{skillPolicySaveError}</AppInlineError>}
                     {skillPolicyIssues.length > 0 && (
                       <ReviewCallout tone="warning" compact>
                         <p className={`type-label font-medium ${semanticToneClass('warning', 'icon')}`}>{t('agents.settings.skillPolicyIssues')}</p>
@@ -2061,20 +2061,20 @@ export default function AIAgentSettingsPage() {
                     </div>
                   </div>
                 )}
-              </Panel>
+              </AppPanel>
 
-              <Panel id="agent-settings-profiles" title={t('agents.settings.profilesPanel')}>
+              <AppPanel icon={Bot} id="agent-settings-profiles" title={t('agents.settings.profilesPanel')}>
                 {catalogQuery.isLoading ? (
-                  <StateMessage icon={<Loader2 size={16} className="animate-spin" />} text={t('common.loading')} />
+                  <AppStateMessage icon={<Loader2 size={16} className="animate-spin" />} text={t('common.loading')} />
                 ) : catalogQuery.error ? (
-                  <StateMessage icon={<XCircle size={16} />} tone="danger" text={settingsErrorMessage(catalogQuery.error)} />
+                  <AppStateMessage icon={<XCircle size={16} />} tone="danger" text={settingsErrorMessage(catalogQuery.error)} />
                 ) : (
                   <div className="space-y-3">
                     <div className="grid gap-2 type-label sm:grid-cols-4">
-                      <SummaryItem label={t('agents.settings.profileFields.total')} value={catalogQuery.data?.profiles.length ?? 0} />
-                      <SummaryItem label={t('agents.settings.profileFields.current')} value={currentProfile?.name ?? '-'} />
-                      <SummaryItem label={t('agents.settings.profileFields.packs')} value={currentProfile?.enabledPacks.length ?? 0} />
-                      <SummaryItem label={t('agents.settings.profileFields.toolGrants')} value={currentProfile?.toolGrants.length ?? 0} />
+                      <AppKeyValue label={t('agents.settings.profileFields.total')} value={catalogQuery.data?.profiles.length ?? 0} />
+                      <AppKeyValue label={t('agents.settings.profileFields.current')} value={currentProfile?.name ?? '-'} />
+                      <AppKeyValue label={t('agents.settings.profileFields.packs')} value={currentProfile?.enabledPacks.length ?? 0} />
+                      <AppKeyValue label={t('agents.settings.profileFields.toolGrants')} value={currentProfile?.toolGrants.length ?? 0} />
                     </div>
 
                     {(catalogQuery.data?.profiles.length ?? 0) > 0 && (
@@ -2103,7 +2103,7 @@ export default function AIAgentSettingsPage() {
                         </div>
                       </div>
                     )}
-                    {profileSaveError && <InlineError>{profileSaveError}</InlineError>}
+                    {profileSaveError && <AppInlineError>{profileSaveError}</AppInlineError>}
 
                     {selectedProfile && selectedProfile.id !== currentProfile?.id && (
                       <div className="space-y-2">
@@ -2126,26 +2126,26 @@ export default function AIAgentSettingsPage() {
                     ))}
                   </div>
                 )}
-              </Panel>
+              </AppPanel>
 
-              <Panel id="agent-settings-tools" title={t('agents.settings.toolPolicyPanel')}>
+              <AppPanel icon={Bot} id="agent-settings-tools" title={t('agents.settings.toolPolicyPanel')}>
                 {capabilitiesQuery.isLoading ? (
-                  <StateMessage icon={<Loader2 size={16} className="animate-spin" />} text={t('common.loading')} />
+                  <AppStateMessage icon={<Loader2 size={16} className="animate-spin" />} text={t('common.loading')} />
                 ) : capabilitiesQuery.error ? (
-                  <StateMessage icon={<XCircle size={16} />} tone="danger" text={settingsErrorMessage(capabilitiesQuery.error)} />
+                  <AppStateMessage icon={<XCircle size={16} />} tone="danger" text={settingsErrorMessage(capabilitiesQuery.error)} />
                 ) : (
                   <div className="space-y-3">
                     <div className="grid gap-2 type-label sm:grid-cols-4">
-                      <SummaryItem label={t('agents.settings.toolPolicyFields.discovered')} value={toolStats.discovered} />
-                      <SummaryItem label={t('agents.settings.toolPolicyFields.available')} value={toolStats.available} />
-                      <SummaryItem label={t('agents.settings.toolPolicyFields.blocked')} value={toolStats.blocked} />
-                      <SummaryItem label={t('agents.settings.toolPolicyFields.requiresApproval')} value={toolStats.requiresApproval} />
+                      <AppKeyValue label={t('agents.settings.toolPolicyFields.discovered')} value={toolStats.discovered} />
+                      <AppKeyValue label={t('agents.settings.toolPolicyFields.available')} value={toolStats.available} />
+                      <AppKeyValue label={t('agents.settings.toolPolicyFields.blocked')} value={toolStats.blocked} />
+                      <AppKeyValue label={t('agents.settings.toolPolicyFields.requiresApproval')} value={toolStats.requiresApproval} />
                     </div>
 
                     <div className="grid gap-2 type-label sm:grid-cols-3">
-                      <SummaryItem label={t('agents.settings.toolPolicyFields.writeRisk')} value={toolStats.writeRisk} />
-                      <SummaryItem label={t('agents.settings.toolPolicyFields.projectScoped')} value={toolStats.projectScoped} />
-                      <SummaryItem label={t('agents.settings.toolPolicyFields.profileGrants')} value={currentProfile?.toolGrants.length ?? 0} />
+                      <AppKeyValue label={t('agents.settings.toolPolicyFields.writeRisk')} value={toolStats.writeRisk} />
+                      <AppKeyValue label={t('agents.settings.toolPolicyFields.projectScoped')} value={toolStats.projectScoped} />
+                      <AppKeyValue label={t('agents.settings.toolPolicyFields.profileGrants')} value={currentProfile?.toolGrants.length ?? 0} />
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
@@ -2159,7 +2159,7 @@ export default function AIAgentSettingsPage() {
                       <span className="type-caption text-muted-foreground">{t('agents.settings.toolPolicyEditHelp')}</span>
                     </div>
                     {hasToolPolicyChange && <ToolPolicyDiffPreview items={toolPolicyDiffItems} />}
-                    {toolPolicySaveError && <InlineError>{toolPolicySaveError}</InlineError>}
+                    {toolPolicySaveError && <AppInlineError>{toolPolicySaveError}</AppInlineError>}
                     {toolPolicyDraftIssues.length > 0 && (
                       <ReviewCallout data-testid="agent-settings-tool-policy-draft-issues" tone="warning" compact>
                         <p className={`type-label font-medium ${semanticToneClass('warning', 'icon')}`}>{t('agents.settings.toolPolicyDraftIssues')}</p>
@@ -2261,39 +2261,39 @@ export default function AIAgentSettingsPage() {
                     )}
                   </div>
                 )}
-              </Panel>
+              </AppPanel>
             </section>
 
             <aside className="space-y-4">
-              <Panel title={t('agents.settings.configurationMapPanel')}>
+              <AppPanel icon={Bot} title={t('agents.settings.configurationMapPanel')}>
                 <ConfigurationMapPanel onJump={scrollToSettingsSection} />
-              </Panel>
+              </AppPanel>
 
-              <Panel title={t('agents.settings.currentRuntime')}>
+              <AppPanel icon={Bot} title={t('agents.settings.currentRuntime')}>
                 <div className="space-y-2 type-label">
-                  <SummaryItem label={t('agents.settings.fields.baseUrl')} value={redactAgentTraceDebugText(localAgentClient.baseURL)} />
-                  <SummaryItem label={t('agents.settings.fields.configuredModel')} value={configuredModelLabel} />
-                  <SummaryItem label={t('agents.settings.fields.apiKind')} value={effectiveConfig?.apiKind ?? DEFAULT_API_KIND} />
-                  <SummaryItem label={t('agents.settings.fields.modelBaseUrl')} value={redactAgentTraceDebugText(effectiveConfig?.baseURL || apiKindBaseURLPlaceholder(effectiveConfig?.apiKind ?? DEFAULT_API_KIND))} />
-                  <SummaryItem label={t('agents.settings.fields.modelCredentials')} value={modelCredentialStatusLabel} />
-                  <SummaryItem label={t('agents.settings.fields.source')} value={effectiveConfig?.source ?? 'none'} />
-                  <SummaryItem label={t('agents.settings.fields.updatedAt')} value={effectiveConfig?.updatedAt ? new Date(effectiveConfig.updatedAt).toLocaleString() : '-'} />
+                  <AppKeyValue label={t('agents.settings.fields.baseUrl')} value={redactAgentTraceDebugText(localAgentClient.baseURL)} />
+                  <AppKeyValue label={t('agents.settings.fields.configuredModel')} value={configuredModelLabel} />
+                  <AppKeyValue label={t('agents.settings.fields.apiKind')} value={effectiveConfig?.apiKind ?? DEFAULT_API_KIND} />
+                  <AppKeyValue label={t('agents.settings.fields.modelBaseUrl')} value={redactAgentTraceDebugText(effectiveConfig?.baseURL || apiKindBaseURLPlaceholder(effectiveConfig?.apiKind ?? DEFAULT_API_KIND))} />
+                  <AppKeyValue label={t('agents.settings.fields.modelCredentials')} value={modelCredentialStatusLabel} />
+                  <AppKeyValue label={t('agents.settings.fields.source')} value={effectiveConfig?.source ?? 'none'} />
+                  <AppKeyValue label={t('agents.settings.fields.updatedAt')} value={effectiveConfig?.updatedAt ? new Date(effectiveConfig.updatedAt).toLocaleString() : '-'} />
                 </div>
-              </Panel>
+              </AppPanel>
 
-              <Panel title={t('agents.settings.actionItemsPanel')}>
+              <AppPanel icon={Bot} title={t('agents.settings.actionItemsPanel')}>
                 <SettingsActionItemsPanel items={settingsActionItems} feedback={settingsActionFeedback} onJump={scrollToSettingsSection} onQuickFix={applySettingsActionQuickFix} />
-              </Panel>
+              </AppPanel>
 
-              <Panel title={t('agents.settings.readinessPanel')}>
+              <AppPanel icon={Bot} title={t('agents.settings.readinessPanel')}>
                 <SettingsReadinessPanel items={readinessItems} />
-              </Panel>
+              </AppPanel>
 
-              <Panel title={t('agents.settings.settingsAuditPanel')}>
+              <AppPanel icon={Bot} title={t('agents.settings.settingsAuditPanel')}>
                 <SettingsAuditTrailPanel entries={agentSettings.auditTrail} onClear={clearSettingsAudit} />
-              </Panel>
+              </AppPanel>
 
-              <Panel id="agent-settings-snapshot" title={t('agents.settings.settingsSnapshotPanel')}>
+              <AppPanel icon={Bot} id="agent-settings-snapshot" title={t('agents.settings.settingsSnapshotPanel')}>
                 <div className="space-y-2">
                   <div className="flex flex-wrap gap-2">
                     <input
@@ -2368,30 +2368,30 @@ export default function AIAgentSettingsPage() {
                     />
                   )}
                   {selectedSettingsSnapshotForImport && <SettingsSnapshotImpactPreview snapshot={selectedSettingsSnapshotForImport} />}
-                  {settingsSnapshotError && <InlineError>{settingsSnapshotError}</InlineError>}
+                  {settingsSnapshotError && <AppInlineError>{settingsSnapshotError}</AppInlineError>}
                   {!settingsSnapshotError && parsedSettingsSnapshot && !settingsSnapshotHasSelectedImportScope && (
-                    <InlineError>{t('agents.settings.settingsSnapshotImportScopeEmpty')}</InlineError>
+                    <AppInlineError>{t('agents.settings.settingsSnapshotImportScopeEmpty')}</AppInlineError>
                   )}
                   {!settingsSnapshotError && settingsSnapshotValidation.error && (
-                    <InlineError>{t('agents.settings.settingsSnapshotInvalid', { error: settingsSnapshotValidation.error })}</InlineError>
+                    <AppInlineError>{t('agents.settings.settingsSnapshotInvalid', { error: settingsSnapshotValidation.error })}</AppInlineError>
                   )}
                   {!settingsSnapshotError && !settingsSnapshotValidation.error && settingsSnapshotNeedsCatalog && !catalogQuery.data && (
-                    <InlineError>{t('agents.settings.settingsSnapshotCatalogUnavailable')}</InlineError>
+                    <AppInlineError>{t('agents.settings.settingsSnapshotCatalogUnavailable')}</AppInlineError>
                   )}
                   {!settingsSnapshotError && !settingsSnapshotValidation.error && settingsSnapshotNeedsCapabilities && !capabilitiesQuery.data && (
-                    <InlineError>{t('agents.settings.settingsSnapshotCapabilitiesUnavailable')}</InlineError>
+                    <AppInlineError>{t('agents.settings.settingsSnapshotCapabilitiesUnavailable')}</AppInlineError>
                   )}
                   {!settingsSnapshotError && !settingsSnapshotValidation.error && settingsSnapshotNeedsModelCatalog && !modelsQuery.data && (
-                    <InlineError>{t('agents.settings.settingsSnapshotModelCatalogUnavailable')}</InlineError>
+                    <AppInlineError>{t('agents.settings.settingsSnapshotModelCatalogUnavailable')}</AppInlineError>
                   )}
                   {!settingsSnapshotError && settingsSnapshotReferenceIssues.length > 0 && (
-                    <InlineError>{t('agents.settings.settingsSnapshotInvalid', { error: settingsSnapshotReferenceIssues.map((issue) => issue.message).join('; ') })}</InlineError>
+                    <AppInlineError>{t('agents.settings.settingsSnapshotInvalid', { error: settingsSnapshotReferenceIssues.map((issue) => issue.message).join('; ') })}</AppInlineError>
                   )}
                   {settingsSnapshotMessage && <p className="type-caption text-muted-foreground">{settingsSnapshotMessage}</p>}
                 </div>
-              </Panel>
+              </AppPanel>
 
-              <Panel title={t('agents.settings.modelRoutesPanel')}>
+              <AppPanel icon={Bot} title={t('agents.settings.modelRoutesPanel')}>
                 {modelRoutes.length === 0 ? (
                   <p className="type-label text-muted-foreground">{t('agents.settings.modelRoutesEmpty')}</p>
                 ) : (
@@ -2416,10 +2416,10 @@ export default function AIAgentSettingsPage() {
                     ))}
                   </div>
                 )}
-              </Panel>
+              </AppPanel>
 
               {usesModelCatalog ? (
-                <Panel title={t('agents.settings.availableModels')}>
+                <AppPanel icon={Bot} title={t('agents.settings.availableModels')}>
                   {textModels.length === 0 ? (
                     <p className="type-label text-muted-foreground">{t('agents.settings.noTextModels')}</p>
                   ) : (
@@ -2443,11 +2443,11 @@ export default function AIAgentSettingsPage() {
                       ))}
                     </div>
                   )}
-                </Panel>
+                </AppPanel>
               ) : (
-                <Panel title={t('agents.settings.providerModelPanel')}>
+                <AppPanel icon={Bot} title={t('agents.settings.providerModelPanel')}>
                   <p className="type-label leading-5 text-muted-foreground">{t('agents.settings.providerModelPanelHelp')}</p>
-                </Panel>
+                </AppPanel>
               )}
             </aside>
           </div>
@@ -3580,13 +3580,13 @@ function SettingsSnapshotSummary({ snapshot }: { snapshot: AgentSettingsSnapshot
     <div data-testid="agent-settings-snapshot-summary" className="rounded-md border border-border bg-muted/20 p-2">
       <p className="type-label font-medium text-foreground">{t('agents.settings.settingsSnapshotSummary')}</p>
       <div className="mt-2 grid gap-2 type-caption sm:grid-cols-2">
-        <SummaryItem label={t('agents.settings.settingsSnapshotFields.exportedAt')} value={new Date(snapshot.exportedAt).toLocaleString()} />
-        <SummaryItem label={t('agents.settings.settingsSnapshotFields.model')} value={snapshot.modelConfig?.model ? redactAgentTraceDebugText(snapshot.modelConfig.model) : '-'} />
-        <SummaryItem label={t('agents.settings.settingsSnapshotFields.profile')} value={snapshot.defaultProfileId ?? '-'} />
-        <SummaryItem label={t('agents.settings.settingsSnapshotFields.skills')} value={snapshot.skillPolicy?.length ?? 0} />
-        <SummaryItem label={t('agents.settings.settingsSnapshotFields.tools')} value={snapshot.toolPolicy?.length ?? 0} />
-        <SummaryItem label={t('agents.settings.settingsSnapshotFields.runPresets')} value={snapshot.runPresets?.length ?? 0} />
-        <SummaryItem label={t('agents.settings.settingsSnapshotFields.activeRunPreset')} value={snapshot.activeRunPresetId ?? '-'} />
+        <AppKeyValue label={t('agents.settings.settingsSnapshotFields.exportedAt')} value={new Date(snapshot.exportedAt).toLocaleString()} />
+        <AppKeyValue label={t('agents.settings.settingsSnapshotFields.model')} value={snapshot.modelConfig?.model ? redactAgentTraceDebugText(snapshot.modelConfig.model) : '-'} />
+        <AppKeyValue label={t('agents.settings.settingsSnapshotFields.profile')} value={snapshot.defaultProfileId ?? '-'} />
+        <AppKeyValue label={t('agents.settings.settingsSnapshotFields.skills')} value={snapshot.skillPolicy?.length ?? 0} />
+        <AppKeyValue label={t('agents.settings.settingsSnapshotFields.tools')} value={snapshot.toolPolicy?.length ?? 0} />
+        <AppKeyValue label={t('agents.settings.settingsSnapshotFields.runPresets')} value={snapshot.runPresets?.length ?? 0} />
+        <AppKeyValue label={t('agents.settings.settingsSnapshotFields.activeRunPreset')} value={snapshot.activeRunPresetId ?? '-'} />
       </div>
     </div>
   )
@@ -4469,10 +4469,6 @@ function apiModeCapabilityBadgeVariant(badge: 'recommended' | 'managed' | 'compa
   return 'outline'
 }
 
-function Panel({ id, title, children }: { id?: string; title: string; children: React.ReactNode }) {
-  return <AppPanel id={id} icon={Bot} title={title}>{children}</AppPanel>
-}
-
 function ToggleRow({ checked, onChange, title, description }: { checked: boolean; onChange: (checked: boolean) => void; title: string; description: string }) {
   return (
     <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-muted/20 p-2">
@@ -4488,16 +4484,4 @@ function ToggleRow({ checked, onChange, title, description }: { checked: boolean
       </span>
     </label>
   )
-}
-
-function SummaryItem({ label, value }: { label: string; value?: string | number | null }) {
-  return <AppKeyValue label={label} value={value} />
-}
-
-function InlineError({ children }: { children: React.ReactNode }) {
-  return <AppInlineError>{children}</AppInlineError>
-}
-
-function StateMessage({ icon, text, tone = 'muted' }: { icon: React.ReactNode; text: string; tone?: 'muted' | 'danger' }) {
-  return <AppStateMessage icon={icon} tone={tone === 'danger' ? 'danger' : 'neutral'}>{text}</AppStateMessage>
 }

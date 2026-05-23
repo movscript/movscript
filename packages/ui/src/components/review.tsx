@@ -31,7 +31,7 @@ export function ChangeActionBadge({
   return (
     <span
       className={cn(
-        "ms-change-action-badge",
+        "ms-inline-badge ms-inline-badge--center ms-change-action-badge",
         compact && "ms-change-action-badge--compact",
         semanticToneClass(changeActionTone(action), "icon"),
         className,
@@ -61,7 +61,7 @@ export function ReviewCallout({
   return (
     <div {...props} className={cn("ms-review-callout", compact && "ms-review-callout--compact", semanticToneClass(tone, "surface"), className)}>
       {(Icon || title) && (
-        <div className="ms-review-callout__header">
+        <div className="ms-surface__heading ms-review-callout__header">
           {Icon && <Icon size={14} className="ms-review-callout__icon" />}
           {title && <p className="ms-review-callout__title">{title}</p>}
         </div>
@@ -80,7 +80,7 @@ export function ReviewStat({
   children: ReactNode;
   className?: string;
 }) {
-  return <span className={cn("ms-review-stat", semanticToneClass(tone, "badge"), className)}>{children}</span>;
+  return <span className={cn("ms-inline-badge ms-inline-badge--center ms-review-stat", semanticToneClass(tone, "badge"), className)}>{children}</span>;
 }
 
 export function ReviewDecisionBadge({
@@ -91,7 +91,7 @@ export function ReviewDecisionBadge({
   className?: string;
 }) {
   return (
-    <span className={cn("ms-review-decision-badge", semanticToneClass(decision === "accepted" ? "success" : "danger", "badge"), className)}>
+    <span className={cn("ms-inline-badge ms-review-decision-badge", semanticToneClass(decision === "accepted" ? "success" : "danger", "badge"), className)}>
       {decision === "accepted" ? "已接受" : "已拒绝"}
     </span>
   );

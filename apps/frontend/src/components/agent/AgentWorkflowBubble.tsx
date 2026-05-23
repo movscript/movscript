@@ -6,11 +6,8 @@ import {
   isDraftApplyPreview,
   safeJSONStringify,
 } from '@/components/agent/AgentDebugPreviewDialog'
-import {
-  LocalAgentApprovalRequestCard,
-  LocalAgentInputRequestCard,
-  type LocalAgentApprovalRequest,
-} from '@/components/agent/localRuntime'
+import { AgentActivityFeedView } from '@/components/agent/AgentActivityFeed'
+import { type LocalAgentApprovalRequest } from '@/components/agent/localRuntime'
 import { AuthedImage } from '@/components/shared/AuthedImage'
 import { formatAgentDividerTime } from '@/lib/agentMessageDivider'
 import { resourceFileUrl } from '@/lib/contentWorkbenchStatus'
@@ -43,34 +40,21 @@ export function LocalAgentWorkflowBubble({
   const interactions = workflowInteractions(run)
   if (interactions.length === 0) return null
   return (
-    <>
-      {interactions.map((interaction) => {
-        return (
-          <AgentChatMessage
-            key={`${run.id}-${interaction.id}`}
-            role="assistant"
-            avatar={<Bot size={14} />}
-            data-agent-divider-label={formatAgentDividerTime(interaction.createdAt)}
-          >
-            {interaction.kind === 'input' ? (
-              <LocalAgentInputRequestCard
-                request={interaction.request}
-                disabled={approving || interaction.request.status !== 'pending' || !onAnswerInput}
-                onAnswer={(answer) => onAnswerInput?.(interaction.request.id, answer)}
-              />
-            ) : (
-              <LocalAgentApprovalRequestCard
-                approval={interaction.approval}
-                approving={approving}
-                onApprove={onApprove}
-                onReject={onReject}
-                approvalDetails={(approval) => localAgentApprovalDetails(approval)}
-              />
-            )}
-          </AgentChatMessage>
-        )
-      })}
-    </>
+    <AgentChatMessage
+      role="assistant"
+      avatar={<Bot size={14} />}
+      data-agent-divider-label={formatAgentDividerTime(interactions[0]?.createdAt)}
+    >
+      <AgentActivityFeedView
+        run={run}
+        className="mt-0"
+        approving={approving}
+        onApprove={onApprove}
+        onReject={onReject}
+        onAnswerInput={onAnswerInput}
+        approvalDetails={(approval) => localAgentApprovalDetails(approval)}
+      />
+    </AgentChatMessage>
   )
 }
 

@@ -468,6 +468,7 @@ export class AgentRuntimeRouter {
       getTaskGraphSnapshot: (taskGraphId) => this.getTaskGraphSnapshot(taskGraphId),
       createTraceId: () => makeId('trace'),
       now: () => isoNow(),
+      ...(options.telemetry ? { telemetry: options.telemetry } : {}),
     })
     this.streamSubscriptions = createRuntimeStreamSubscriptionBridge({
       store: this.store,

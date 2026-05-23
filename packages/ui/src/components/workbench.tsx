@@ -15,7 +15,8 @@ export function WorkbenchSection({
   children,
   className,
   bodyClassName,
-}: {
+  ...props
+}: HTMLAttributes<HTMLElement> & {
   title?: ReactNode;
   description?: ReactNode;
   icon?: WorkbenchIconComponent;
@@ -25,27 +26,27 @@ export function WorkbenchSection({
   bodyClassName?: string;
 }) {
   return (
-    <section className={cn("workbench-section", className)}>
+    <section className={cn("ms-surface workbench-section", className)} {...props}>
       {title || description || Icon || action ? (
-        <div className="workbench-section__header">
-          <div className="workbench-section__heading">
-            {Icon ? <Icon size={14} className="workbench-section__icon" /> : null}
-            <div className="workbench-section__copy">
-              {title ? <h2 className="workbench-section__title">{title}</h2> : null}
-              {description ? <p className="workbench-section__description">{description}</p> : null}
+        <div className="ms-surface__header workbench-section__header">
+          <div className="ms-surface__heading workbench-section__heading">
+            {Icon ? <Icon size={14} className="ms-surface__icon workbench-section__icon" /> : null}
+            <div className="ms-surface__copy workbench-section__copy">
+              {title ? <h2 className="ms-surface__title workbench-section__title">{title}</h2> : null}
+              {description ? <p className="ms-surface__description workbench-section__description">{description}</p> : null}
             </div>
           </div>
-          {action ? <div className="workbench-section__action">{action}</div> : null}
+          {action ? <div className="ms-surface__action workbench-section__action">{action}</div> : null}
         </div>
       ) : null}
-      <div className={cn("workbench-section__body", bodyClassName)}>{children}</div>
+      <div className={cn("ms-surface__body workbench-section__body", bodyClassName)}>{children}</div>
     </section>
   );
 }
 
 export function WorkbenchList({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("workbench-list", className)} {...props}>
+    <div className={cn("ms-workbench-list workbench-list", className)} {...props}>
       {children}
     </div>
   );
@@ -62,9 +63,26 @@ export function WorkbenchListItem({
   density?: WorkbenchDensity;
 }) {
   return (
-    <button type="button" data-active={active ? "true" : undefined} data-density={density} className={cn("workbench-list-item", className)} {...props}>
+    <button type="button" data-active={active ? "true" : undefined} data-density={density} className={cn("ms-workbench-selectable workbench-list-item", className)} {...props}>
       {children}
     </button>
+  );
+}
+
+export function WorkbenchSurfaceItem({
+  active,
+  density = "normal",
+  className,
+  children,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & {
+  active?: boolean;
+  density?: WorkbenchDensity;
+}) {
+  return (
+    <div data-active={active ? "true" : undefined} data-density={density} className={cn("ms-workbench-selectable workbench-list-item", className)} {...props}>
+      {children}
+    </div>
   );
 }
 
@@ -89,16 +107,16 @@ export function WorkbenchEntityCard({
   action?: ReactNode;
 }) {
   return (
-    <button type="button" data-active={active ? "true" : undefined} className={cn("workbench-entity-card", className)} {...props}>
+    <button type="button" data-active={active ? "true" : undefined} className={cn("ms-workbench-selectable ms-workbench-row workbench-entity-card", className)} {...props}>
       {media ? <div className="workbench-entity-card__media">{media}</div> : null}
-      <div className="workbench-entity-card__content">
-        <div className="workbench-entity-card__main">
+      <div className="ms-workbench-row workbench-entity-card__content">
+        <div className="ms-workbench-copy workbench-entity-card__main">
           <p className="workbench-entity-card__title">{title}</p>
           {description ? <p className="workbench-entity-card__description">{description}</p> : null}
-          {meta ? <div className="workbench-entity-card__meta">{meta}</div> : null}
+          {meta ? <div className="ms-workbench-wrap workbench-entity-card__meta">{meta}</div> : null}
         </div>
         {status || action ? (
-          <div className="workbench-entity-card__aside">
+          <div className="ms-workbench-side workbench-entity-card__aside">
             {status}
             {action}
           </div>
@@ -126,11 +144,11 @@ export function WorkbenchThumbnail({
   className?: string;
 } & HTMLAttributes<HTMLDivElement>) {
   return (
-    <div data-fit={fit} data-ratio={ratio} className={cn("workbench-thumbnail", className)} {...props}>
+    <div data-fit={fit} data-ratio={ratio} className={cn("ms-workbench-media-frame workbench-thumbnail", className)} {...props}>
       {children ? (
         <div className="workbench-thumbnail__media">{children}</div>
       ) : (
-        <div className="workbench-thumbnail__fallback">
+        <div className="ms-empty-state workbench-thumbnail__fallback">
           <Icon size={16} />
           {label ? <span>{label}</span> : null}
         </div>
@@ -151,7 +169,7 @@ export function WorkbenchStatusBadge({
   className?: string;
 }) {
   const badgeClass = tone ? semanticToneClass(tone, "badge") : semanticStatusClass(status, "badge");
-  return <span className={cn("workbench-status-badge", badgeClass, className)}>{label ?? semanticStatusLabel(status)}</span>;
+  return <span className={cn("ms-inline-badge ms-inline-badge--center ms-inline-badge--truncate workbench-status-badge", badgeClass, className)}>{label ?? semanticStatusLabel(status)}</span>;
 }
 
 export function WorkbenchMetric({
@@ -172,19 +190,19 @@ export function WorkbenchMetric({
   className?: string;
 }) {
   return (
-    <div className={cn("workbench-metric", compact && "workbench-metric--compact", className)}>
-      <div className="workbench-metric__row">
-        <div className="workbench-metric__copy">
-          <p className="workbench-metric__label">{label}</p>
-          <p className="workbench-metric__value">{value}</p>
+    <div className={cn("ms-stat-card workbench-metric", compact && "workbench-metric--compact", className)}>
+      <div className="ms-stat-card__row workbench-metric__row">
+        <div className="ms-stat-card__copy workbench-metric__copy">
+          <p className="ms-stat-card__label workbench-metric__label">{label}</p>
+          <p className="ms-stat-card__value workbench-metric__value">{value}</p>
         </div>
         {Icon ? (
-          <span className="workbench-metric__icon">
+          <span className="ms-center ms-stat-card__icon workbench-metric__icon">
             <Icon size={compact ? 14 : 16} className={semanticToneClass(tone, "icon")} />
           </span>
         ) : null}
       </div>
-      {detail ? <p className="workbench-metric__detail">{detail}</p> : null}
+      {detail ? <p className="ms-stat-card__detail workbench-metric__detail">{detail}</p> : null}
     </div>
   );
 }
@@ -201,9 +219,9 @@ export function WorkbenchKeyValue({
   className?: string;
 }) {
   return (
-    <div className={cn("workbench-key-value", className)}>
-      <p className="workbench-key-value__label">{label}</p>
-      <p className={cn("workbench-key-value__value", strong && "workbench-key-value__value--strong")}>{value || "无"}</p>
+    <div className={cn("ms-key-value workbench-key-value", className)}>
+      <p className="ms-key-value__label workbench-key-value__label">{label}</p>
+      <p className={cn("ms-key-value__value workbench-key-value__value", strong && "workbench-key-value__value--strong")}>{value || "无"}</p>
     </div>
   );
 }
@@ -224,15 +242,15 @@ export function WorkbenchEmptyState({
   className?: string;
 }) {
   return (
-    <div className={cn("workbench-empty-state", compact && "workbench-empty-state--compact", className)}>
+    <div className={cn("ms-empty-state workbench-empty-state", compact && "workbench-empty-state--compact", className)}>
       {Icon ? (
-        <span className="workbench-empty-state__icon">
+        <span className="ms-center ms-empty-state__icon workbench-empty-state__icon">
           <Icon size={compact ? 16 : 22} />
         </span>
       ) : null}
-      <p className="workbench-empty-state__title">{title}</p>
-      {description ? <p className="workbench-empty-state__description">{description}</p> : null}
-      {action ? <div className="workbench-empty-state__action">{action}</div> : null}
+      <p className="ms-empty-state__title workbench-empty-state__title">{title}</p>
+      {description ? <p className="ms-empty-state__description workbench-empty-state__description">{description}</p> : null}
+      {action ? <div className="ms-empty-state__action workbench-empty-state__action">{action}</div> : null}
     </div>
   );
 }

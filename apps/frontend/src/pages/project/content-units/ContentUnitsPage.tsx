@@ -27,7 +27,26 @@ import {
 } from 'lucide-react'
 
 import { abandonContentUnit, listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
-import { AppMetricCard, ProjectSurfaceHeader, SemanticStatusBadge, semanticToneClass, type SemanticTone } from '@movscript/ui'
+import {
+  AppDisclosure,
+  AppEmptyState,
+  AppInfoBlock,
+  AppKeyValue,
+  AppMetricCard,
+  AppPanel,
+  AppSection,
+  AppSurfaceItem,
+  AppTextEmptyState,
+  Badge,
+  Button,
+  ProjectSurfaceHeader,
+  Progress,
+  SemanticStatusBadge,
+  WorkbenchList,
+  WorkbenchListItem,
+  WorkbenchSurfaceItem,
+  semanticToneClass,
+} from '@movscript/ui'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
 import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
 import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
@@ -39,7 +58,6 @@ import { unitIdentifier } from '@/lib/productionIdentifiers'
 import { isActiveSemanticEntityRecord } from '@/lib/semanticEntityVisibility'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
-import { Badge, Button, Progress } from '@movscript/ui'
 import { ROUTES } from '@/routes/projectRoutes'
 
 type StatusFilter = 'all' | 'ready' | 'attention' | 'locked'
@@ -466,12 +484,12 @@ export default function ContentUnitsPage() {
           />
         )}
         overview={(
-          <section className="grid grid-cols-2 overflow-hidden rounded-md border border-border bg-card md:grid-cols-4" data-testid="content-units-summary-strip">
-          <MetricCard icon={Boxes} label="制作项" value={unitViewModels.length} detail="从候选收敛到最终目标" tone="info" />
-          <MetricCard icon={ShieldCheck} label="可编排" value={readyCount} detail="情景、设定资料和素材需求输入已满足" tone="success" />
-          <MetricCard icon={Play} label="候选目标" value={contentTargetCount} detail="关键帧、画面、语音和字幕" tone="info" />
-          <MetricCard icon={LockKeyhole} label="已锁定" value={lockedCount} detail={`${averageReadiness}% 平均编排准备度`} tone="success" />
-          </section>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4" data-testid="content-units-summary-strip">
+          <AppMetricCard icon={Boxes} label="制作项" value={unitViewModels.length} detail="从候选收敛到最终目标" tone="info" compact />
+          <AppMetricCard icon={ShieldCheck} label="可编排" value={readyCount} detail="情景、设定资料和素材需求输入已满足" tone="success" compact />
+          <AppMetricCard icon={Play} label="候选目标" value={contentTargetCount} detail="关键帧、画面、语音和字幕" tone="info" compact />
+          <AppMetricCard icon={LockKeyhole} label="已锁定" value={lockedCount} detail={`${averageReadiness}% 平均编排准备度`} tone="success" compact />
+          </div>
         )}
         filters={(
           <ContentFilterBar
@@ -516,33 +534,28 @@ export default function ContentUnitsPage() {
           />
         )}
         list={(
-          <section className="rounded-lg border border-border bg-card">
-              <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                <div>
-                  <p className="type-body font-semibold text-foreground">制作项清单</p>
-                  <p className="mt-0.5 type-label text-muted-foreground">每一项都是可被内容编排工作台检查、复核和锁定的生产颗粒。</p>
-                </div>
-              </div>
-
-              <div className="max-h-[760px] overflow-auto">
-                {isLoading ? (
-                  <EmptyState title="正在加载制作项" detail="读取制作项、情景和创作输入关系" />
-                ) : filteredUnits.length === 0 ? (
-                  <EmptyState title="暂无制作项" detail="可先进入内容编排工作台拆解制作项骨架，再回到这里查看清单和关联对象。" />
-                ) : (
-                <div className="grid grid-cols-1 gap-3 p-4">
-                  {filteredUnits.map((item) => (
-                    <ContentUnitCard
-                      key={item.unit.ID}
-                      item={item}
-                      selected={selected?.unit.ID === item.unit.ID}
-                      onSelect={() => setFilter({ content_unit_id: item.unit.ID, segment_id: item.unit.segment_id ?? null, scene_moment_id: item.unit.scene_moment_id ?? null })}
-                    />
-                  ))}
-                </div>
-                )}
-              </div>
-          </section>
+          <AppSection
+            title="制作项清单"
+            description="每一项都是可被内容编排工作台检查、复核和锁定的生产颗粒。"
+            bodyClassName="max-h-[760px] overflow-auto"
+          >
+            {isLoading ? (
+              <AppEmptyState icon={Boxes} title="正在加载制作项" detail="读取制作项、情景和创作输入关系" />
+            ) : filteredUnits.length === 0 ? (
+              <AppEmptyState icon={Boxes} title="暂无制作项" detail="可先进入内容编排工作台拆解制作项骨架，再回到这里查看清单和关联对象。" />
+            ) : (
+              <WorkbenchList>
+                {filteredUnits.map((item) => (
+                  <ContentUnitCard
+                    key={item.unit.ID}
+                    item={item}
+                    selected={selected?.unit.ID === item.unit.ID}
+                    onSelect={() => setFilter({ content_unit_id: item.unit.ID, segment_id: item.unit.segment_id ?? null, scene_moment_id: item.unit.scene_moment_id ?? null })}
+                  />
+                ))}
+              </WorkbenchList>
+            )}
+          </AppSection>
         )}
         detail={(
           <>
@@ -568,7 +581,7 @@ export default function ContentUnitsPage() {
                 subtitle: creatingContentUnit ? '制作项' : selected ? `${kindLabel(selected.unit.kind)} · 制作项 #${selected.unit.ID}` : '制作项',
                 summary: creatingContentUnit ? '创建后可继续补充创作提示、运镜参数，并收拢关键帧、画面、语音和字幕候选。' : selected?.unit.description || selected?.unit.prompt || '暂无内容描述或创作提示。',
                 compact: true,
-                status: <StatusBadge status={creatingContentUnit ? 'draft' : selected?.unit.status ?? 'draft'} />,
+                status: <SemanticStatusBadge status={creatingContentUnit ? 'draft' : selected?.unit.status ?? 'draft'} label={statusMeta[creatingContentUnit ? 'draft' : selected?.unit.status ?? 'draft']?.label ?? (creatingContentUnit ? 'draft' : selected?.unit.status ?? 'draft')} />,
                 stats: selected && !creatingContentUnit ? [
                   { label: '类型', value: kindLabel(selected.unit.kind) },
                   { label: '时长', value: formatDuration(selected.unit.duration_sec) },
@@ -690,14 +703,10 @@ function ContentUnitCard({
   const identifier = unitIdentifier(item.unit)
 
   return (
-    <button
-      type="button"
+    <WorkbenchListItem
       onClick={onSelect}
+      active={selected}
       data-testid="content-unit-list-card"
-      className={cn(
-        'rounded-md border bg-background px-3 py-2.5 text-left transition-colors hover:border-primary/50 hover:bg-primary/5',
-        selected ? 'border-primary ring-1 ring-primary' : 'border-border',
-      )}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -708,7 +717,7 @@ function ContentUnitCard({
           <p className="mt-0.5 truncate type-caption text-muted-foreground">{kindLabel(item.unit.kind)} · {formatDuration(item.unit.duration_sec)} · {sceneMomentTitle}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <StatusBadge status={status} compact />
+          <SemanticStatusBadge status={status} label={statusMeta[status]?.label ?? (status || '未知')} className="shrink-0 type-micro" />
           <Badge variant={item.readiness >= 70 ? 'success' : item.readiness > 0 ? 'secondary' : 'outline'} className="type-tiny">{item.readiness}%</Badge>
         </div>
       </div>
@@ -721,7 +730,7 @@ function ContentUnitCard({
         <span>候选 {candidateTotal(item.targets)}</span>
         {item.missingAssets.length > 0 ? <span className={semanticToneClass('warning', 'icon')}>缺口 {item.missingAssets.length}</span> : null}
       </div>
-    </button>
+    </WorkbenchListItem>
   )
 }
 
@@ -735,9 +744,9 @@ function ContentUnitDetail({
   const [previewOpen, setPreviewOpen] = useState(false)
   if (!item) {
     return (
-      <section className="rounded-lg border border-border bg-card p-4">
-        <EmptyState title="未选择制作项" detail="从中间清单选择一个制作项查看上下文" compact />
-      </section>
+      <AppPanel>
+        <AppEmptyState icon={Boxes} title="未选择制作项" detail="从中间清单选择一个制作项查看上下文" compact />
+      </AppPanel>
     )
   }
 
@@ -748,14 +757,14 @@ function ContentUnitDetail({
 
   return (
     <>
-    <section className="rounded-lg border border-border bg-card">
+    <AppPanel bodyClassName="p-0">
       <div className="border-b border-border p-3">
         <div className="flex items-start justify-between gap-3">
           <span className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
             <Eye size={16} />
           </span>
           <div className="flex shrink-0 items-center gap-2">
-            <StatusBadge status={item.unit.status ?? 'draft'} />
+            <SemanticStatusBadge status={item.unit.status ?? 'draft'} label={statusMeta[item.unit.status ?? 'draft']?.label ?? (item.unit.status ?? 'draft')} />
             <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setPreviewOpen(true)}>
               <Clapperboard size={14} />
               预览
@@ -786,35 +795,37 @@ function ContentUnitDetail({
         <CheckRow ok={item.missingAssets.length === 0} label="素材需求可收敛" detail={item.missingAssets.length ? `${item.missingAssets.length} 个素材需求待补齐` : `${item.assetSlots.length} 个素材需求可用或未要求`} />
         <CheckRow ok={item.targets.some((target) => target.status !== 'missing')} label="有候选目标" detail={targetSummary(item.targets)} />
         <div className="grid grid-cols-2 gap-2">
-          <MiniStat label="设定资料" value={item.references.length} />
-          <MiniStat label="素材需求" value={item.assetSlots.length} />
-          <MiniStat label="候选目标" value={`${item.targets.filter((target) => target.status !== 'missing').length}/4`} />
-          <MiniStat label="候选总数" value={candidateTotal(item.targets)} />
+          <AppKeyValue label="设定资料" value={item.references.length} strong />
+          <AppKeyValue label="素材需求" value={item.assetSlots.length} strong />
+          <AppKeyValue label="候选目标" value={`${item.targets.filter((target) => target.status !== 'missing').length}/4`} strong />
+          <AppKeyValue label="候选总数" value={candidateTotal(item.targets)} strong />
         </div>
-        <details className="rounded-md border border-border bg-background" data-testid="content-unit-detail-context">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 type-body font-medium text-foreground">
-            <span>详细上下文</span>
-            <Badge variant="outline" className="type-tiny">文本 / 运镜</Badge>
-          </summary>
-          <div className="space-y-3 border-t border-border p-2.5">
-            <InfoBlock label="情景" value={item.sceneMoment?.description || item.sceneMoment?.action_text || '暂无情景描述'} />
-            <InfoBlock label="来源剧本块" value={item.scriptBlock ? scriptBlockSourceLabel(item.scriptBlock) : item.unit.script_block_id ? `剧本块 #${item.unit.script_block_id}` : '未绑定剧本块'} />
-            {item.scriptBlock ? <InfoBlock label="来源文本" value={String(item.scriptBlock.content ?? '').trim() || '暂无剧本块正文'} /> : null}
-            <InfoBlock label="创作提示" value={item.unit.prompt || item.unit.description || '暂无提示词'} />
-            <InfoBlock label="运镜设计" value={cameraSummary(item.unit) || '暂无运镜参数'} />
+        <AppDisclosure
+          title={(
+            <span className="flex w-full items-center justify-between gap-2">
+              <span>详细上下文</span>
+              <Badge variant="outline" className="type-tiny">文本 / 运镜</Badge>
+            </span>
+          )}
+          data-testid="content-unit-detail-context"
+        >
+            <AppInfoBlock label="情景" value={item.sceneMoment?.description || item.sceneMoment?.action_text || '暂无情景描述'} />
+            <AppInfoBlock label="来源剧本块" value={item.scriptBlock ? scriptBlockSourceLabel(item.scriptBlock) : item.unit.script_block_id ? `剧本块 #${item.unit.script_block_id}` : '未绑定剧本块'} />
+            {item.scriptBlock ? <AppInfoBlock label="来源文本" value={String(item.scriptBlock.content ?? '').trim() || '暂无剧本块正文'} /> : null}
+            <AppInfoBlock label="创作提示" value={item.unit.prompt || item.unit.description || '暂无提示词'} />
+            <AppInfoBlock label="运镜设计" value={cameraSummary(item.unit) || '暂无运镜参数'} />
             <div className="grid grid-cols-2 gap-2">
-              <MiniStat label="景别" value={cameraOptionLabel('shot_size', item.unit.shot_size)} />
-              <MiniStat label="机位" value={cameraOptionLabel('camera_angle', item.unit.camera_angle)} />
-              <MiniStat label="运镜" value={cameraOptionLabel('camera_motion', item.unit.camera_motion)} />
-              <MiniStat label="速度" value={cameraOptionLabel('camera_speed', item.unit.camera_speed)} />
+              <AppKeyValue label="景别" value={cameraOptionLabel('shot_size', item.unit.shot_size)} strong />
+              <AppKeyValue label="机位" value={cameraOptionLabel('camera_angle', item.unit.camera_angle)} strong />
+              <AppKeyValue label="运镜" value={cameraOptionLabel('camera_motion', item.unit.camera_motion)} strong />
+              <AppKeyValue label="速度" value={cameraOptionLabel('camera_speed', item.unit.camera_speed)} strong />
             </div>
-            <InfoBlock label="起始构图" value={item.unit.composition_start || '-'} />
-            <InfoBlock label="结束构图" value={item.unit.composition_end || '-'} />
-            <InfoBlock label="运镜备注" value={item.unit.camera_notes || '-'} />
-          </div>
-        </details>
+            <AppInfoBlock label="起始构图" value={item.unit.composition_start || '-'} />
+            <AppInfoBlock label="结束构图" value={item.unit.composition_end || '-'} />
+            <AppInfoBlock label="运镜备注" value={item.unit.camera_notes || '-'} />
+        </AppDisclosure>
       </div>
-    </section>
+    </AppPanel>
     {projectId && (
       <PreviewDrawer
         open={previewOpen}
@@ -829,54 +840,36 @@ function ContentUnitDetail({
   )
 }
 
-function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIcon; label: string; value: string | number; detail: string; tone: SemanticTone }) {
-  return <AppMetricCard icon={Icon} label={label} value={value} detail={detail} tone={tone} compact />
-}
-
 function RelatedPanel({ title, icon: Icon, records, empty }: { title: string; icon: LucideIcon; records: Array<{ id: number; title: string; subtitle: string; status?: string }>; empty: string }) {
   return (
-    <section className="rounded-lg border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <Icon size={14} className="text-muted-foreground" />
-          <p className="type-body font-semibold text-foreground">{title}</p>
-        </div>
-        <Badge variant="outline" className="type-tiny">{records.length}</Badge>
-      </div>
-      <div className="space-y-2 p-3">
+    <AppPanel icon={Icon} title={title} action={<Badge variant="outline" className="type-tiny">{records.length}</Badge>}>
+      <div className="space-y-2">
         {records.length === 0 ? (
-          <p className="rounded-md border border-dashed border-border px-3 py-3 type-label text-muted-foreground">{empty}</p>
+          <AppTextEmptyState>{empty}</AppTextEmptyState>
         ) : (
           records.slice(0, 6).map((record) => (
-            <div key={record.id} className="rounded-md border border-border bg-background p-2.5">
+            <WorkbenchSurfaceItem key={record.id}>
               <div className="flex items-start justify-between gap-2">
                 <p className="min-w-0 truncate type-body font-medium text-foreground">{record.title}</p>
-                <StatusBadge status={record.status ?? 'draft'} compact />
+                <SemanticStatusBadge status={record.status ?? 'draft'} label={statusMeta[record.status ?? 'draft']?.label ?? (record.status ?? 'draft')} className="shrink-0 type-micro" />
               </div>
               <p className="mt-1 line-clamp-2 type-caption leading-4 text-muted-foreground">{record.subtitle}</p>
-            </div>
+            </WorkbenchSurfaceItem>
           ))
         )}
       </div>
-    </section>
+    </AppPanel>
   )
 }
 
 function ContentTargetPanel({ targets }: { targets: ContentTargetViewModel[] }) {
   return (
-    <section className="rounded-lg border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <Play size={14} className="text-muted-foreground" />
-          <p className="type-body font-semibold text-foreground">候选目标</p>
-        </div>
-        <Badge variant="outline" className="type-tiny">{targets.filter((target) => target.status !== 'missing').length}/4</Badge>
-      </div>
-      <div className="space-y-2 p-3">
+    <AppPanel icon={Play} title="候选目标" action={<Badge variant="outline" className="type-tiny">{targets.filter((target) => target.status !== 'missing').length}/4</Badge>}>
+      <div className="space-y-2">
         {targets.map((target) => {
           const Icon = target.icon
           return (
-            <div key={target.kind} className="rounded-md border border-border bg-background p-2.5">
+            <WorkbenchSurfaceItem key={target.kind}>
               <div className="flex items-start gap-2">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                   <Icon size={14} />
@@ -884,68 +877,33 @@ function ContentTargetPanel({ targets }: { targets: ContentTargetViewModel[] }) 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <p className="truncate type-body font-medium text-foreground">{target.label}</p>
-                    <StatusBadge status={target.status === 'ready' ? 'locked' : target.status} compact />
+                    <SemanticStatusBadge status={target.status === 'ready' ? 'locked' : target.status} label={statusMeta[target.status === 'ready' ? 'locked' : target.status]?.label ?? (target.status === 'ready' ? 'locked' : target.status)} className="shrink-0 type-micro" />
                   </div>
                   <p className="mt-0.5 line-clamp-2 type-caption leading-4 text-muted-foreground">{target.description}</p>
                   <div className="mt-2 grid grid-cols-3 gap-1.5">
-                    <MiniStat label="槽" value={target.slots.length + target.keyframes.length} />
-                    <MiniStat label="候选" value={target.candidateCount} />
-                    <MiniStat label="锁定" value={target.lockedCount} />
+                    <AppKeyValue label="槽" value={target.slots.length + target.keyframes.length} strong />
+                    <AppKeyValue label="候选" value={target.candidateCount} strong />
+                    <AppKeyValue label="锁定" value={target.lockedCount} strong />
                   </div>
                 </div>
               </div>
-            </div>
+            </WorkbenchSurfaceItem>
           )
         })}
       </div>
-    </section>
+    </AppPanel>
   )
 }
 
 function CheckRow({ ok, label, detail }: { ok: boolean; label: string; detail: string }) {
   return (
-    <div className="flex gap-2 rounded-md border border-border bg-background p-2.5">
+    <AppSurfaceItem className="flex gap-2">
       {ok ? <CheckCircle2 size={14} className={cn('mt-0.5 shrink-0', semanticToneClass('success', 'icon'))} /> : <AlertTriangle size={14} className={cn('mt-0.5 shrink-0', semanticToneClass('warning', 'icon'))} />}
       <div className="min-w-0">
         <p className="type-label font-medium text-foreground">{label}</p>
         <p className="mt-0.5 line-clamp-2 type-caption leading-4 text-muted-foreground">{detail}</p>
       </div>
-    </div>
-  )
-}
-
-function InfoBlock({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="type-label font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1 whitespace-pre-wrap break-words type-body leading-6 text-foreground">{value}</p>
-    </div>
-  )
-}
-
-function MiniStat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-md border border-border bg-background p-2">
-      <p className="type-caption text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate type-body font-semibold text-foreground">{value}</p>
-    </div>
-  )
-}
-
-function StatusBadge({ status, compact = false }: { status: string; compact?: boolean }) {
-  const label = statusMeta[status]?.label ?? (status || '未知')
-  return <SemanticStatusBadge status={status} label={label} className={cn('shrink-0', compact ? 'type-micro' : 'type-tiny')} />
-}
-
-function EmptyState({ title, detail, compact = false }: { title: string; detail: string; compact?: boolean }) {
-  return (
-    <div className={cn('flex flex-col items-center justify-center text-center', compact ? 'min-h-32 p-4' : 'min-h-72 p-8')}>
-      <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
-        <Boxes size={18} />
-      </div>
-      <p className="mt-3 type-body font-semibold text-foreground">{title}</p>
-      <p className="mt-1 max-w-sm type-label leading-5 text-muted-foreground">{detail}</p>
-    </div>
+    </AppSurfaceItem>
   )
 }
 

@@ -187,24 +187,57 @@ export interface AgentRuntimeTelemetryLogEntry {
   message: string
   createdAt: string
   operationId?: string
+  spanId?: string
   details?: Record<string, unknown>
 }
 
+export interface AgentRuntimeTelemetrySpan {
+  id: string
+  traceEventId?: string
+  runId: string
+  threadId?: string
+  kind: string
+  name: string
+  status: 'started' | 'completed' | 'blocked' | 'failed' | 'info'
+  startedAt: string
+  endedAt?: string
+  durationMs?: number
+  toolName?: string
+  labels?: Record<string, string | number | boolean>
+}
+
+export interface AgentRuntimeTelemetryOperation {
+  id: string
+  kind: string
+  status: 'running' | 'success' | 'error'
+  startedAt: string
+  updatedAt: string
+  endedAt?: string
+  durationMs?: number
+  runId?: string
+  threadId?: string
+  requestPath?: string
+  method?: string
+  phases: Array<{ name: string; label: string; at: string; offsetMs: number; deltaMs: number; details?: Record<string, unknown> }>
+}
+
 export interface AgentRuntimeTelemetrySnapshot {
-  operations: Array<{
-    id: string
-    kind: string
-    status: 'running' | 'success' | 'error'
-    startedAt: string
-    updatedAt: string
-    endedAt?: string
-    durationMs?: number
-    runId?: string
-    threadId?: string
-    requestPath?: string
-    method?: string
-    phases: Array<{ name: string; label: string; at: string; offsetMs: number; deltaMs: number; details?: Record<string, unknown> }>
-  }>
+  schema: 'movscript.agent.runtime-telemetry.v1'
+  generatedAt: string
+  service: {
+    name: 'movscript-agent'
+    storage: 'memory'
+    metricsEndpoint: '/metrics'
+    snapshotEndpoint: '/runtime/telemetry'
+  }
+  retention: {
+    operations: number
+    spans: number
+    metrics: number
+    logs: number
+  }
+  operations: AgentRuntimeTelemetryOperation[]
+  spans: AgentRuntimeTelemetrySpan[]
   metrics: AgentRuntimeTelemetryMetricSample[]
   logs: AgentRuntimeTelemetryLogEntry[]
   summary: {
@@ -212,6 +245,9 @@ export interface AgentRuntimeTelemetrySnapshot {
     runningOperationCount: number
     slowOperationCount: number
     errorOperationCount: number
+    spanCount: number
+    slowSpanCount: number
+    errorSpanCount: number
   }
 }
 

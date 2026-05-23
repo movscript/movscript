@@ -1,7 +1,7 @@
 import { Database, Image, Upload, Video } from 'lucide-react'
 
 import { EmptyPreview, SlotStatusBadge, SlotThumb } from '@/components/workbench/PreProductionAssetBoard'
-import { WorkbenchKeyValue, semanticToneClass } from '@movscript/ui'
+import { WorkbenchKeyValue, WorkbenchStatusBadge, WorkbenchSurfaceItem } from '@movscript/ui'
 import {
   assetKindLabel,
   assetSlotHasLoadedResource,
@@ -12,7 +12,6 @@ import {
 } from '@/lib/preProductionAssetRows'
 import type { PreProductionCandidateGenerationKind } from '@/lib/preProductionAssetCandidateWrite'
 import { assetSlotAction } from '@/lib/productionTerminology'
-import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 
 type CandidateGenerationKind = PreProductionCandidateGenerationKind
@@ -64,8 +63,8 @@ export function AssetSlotDetail({
       <SlotThumb slot={row.lockedSlot ?? slot} fit="contain" className="aspect-[16/7] max-h-44 w-full rounded-md border border-border" />
 
       <div className="grid grid-cols-2 gap-2">
-        <MiniStat label="类型" value={assetKindLabel(row.kind)} />
-        <MiniStat label="下一步" value={nextAction.label} />
+        <WorkbenchKeyValue label="类型" value={assetKindLabel(row.kind)} />
+        <WorkbenchKeyValue label="下一步" value={nextAction.label} />
       </div>
 
       <section>
@@ -122,14 +121,16 @@ function CandidateRow({
   const slot = candidate.candidate_asset_slot
   const canLock = selected || assetSlotHasLoadedResource(slot)
   return (
-    <div className={cn('workbench-list-item p-2', selected && 'border-primary bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.28)]')}>
+    <WorkbenchSurfaceItem active={selected} className="p-2">
       <div className="flex gap-2">
         <SlotThumb slot={slot} fit="contain" className="h-14 w-20" />
         <div className="min-w-0 flex-1">
           <p className="truncate type-body font-medium text-foreground">{slot?.name || `素材需求 #${candidate.candidate_asset_slot_id}`}</p>
           <p className="truncate type-label text-muted-foreground">{candidate.note || sourceTypeLabel(candidate.source_type)}</p>
           {slot && !assetSlotHasLoadedResource(slot) ? (
-            <p className={cn('mt-0.5 truncate type-label', semanticToneClass('warning', 'icon'))}>候选资源不存在或未加载，暂不能锁定。</p>
+            <div className="mt-1">
+              <WorkbenchStatusBadge tone="warning" label="候选资源不存在或未加载，暂不能锁定" />
+            </div>
           ) : null}
         </div>
       </div>
@@ -141,7 +142,7 @@ function CandidateRow({
           拒绝
         </Button>
       </div>
-    </div>
+    </WorkbenchSurfaceItem>
   )
 }
 
@@ -156,8 +157,4 @@ function sourceTypeLabel(sourceType?: string): string {
     canvas: '画布生成',
   }
   return labels[sourceType] ?? sourceType
-}
-
-function MiniStat({ label, value }: { label: string; value?: string | number }) {
-  return <WorkbenchKeyValue label={label} value={value || '无'} />
 }

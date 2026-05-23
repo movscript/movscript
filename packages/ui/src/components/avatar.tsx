@@ -26,8 +26,7 @@ export const AvatarFallback = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Fallback>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>
 >(({ className, ...props }, ref) => (
-  <AvatarPrimitive.Fallback ref={ref} className={cn("ms-avatar__fallback", className)} {...props} />
+  <AvatarPrimitive.Fallback ref={ref} className={cn("ms-center ms-avatar__fallback", className)} {...props} />
 ));
 
 AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName;
-

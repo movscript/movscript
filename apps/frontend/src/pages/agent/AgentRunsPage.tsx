@@ -116,11 +116,11 @@ export default function AgentRunsPage() {
 
           <div className="p-3">
             {runsQuery.isLoading ? (
-              <StateMessage>正在加载运行记录。</StateMessage>
+              <AppStateMessage>正在加载运行记录。</AppStateMessage>
             ) : runsQuery.error ? (
-              <InlineError>{runsQuery.error instanceof Error ? runsQuery.error.message : String(runsQuery.error)}</InlineError>
+              <AppInlineError className="p-3">{runsQuery.error instanceof Error ? runsQuery.error.message : String(runsQuery.error)}</AppInlineError>
             ) : visibleRuns.length === 0 ? (
-              <StateMessage>没有符合筛选条件的运行记录。</StateMessage>
+              <AppStateMessage>没有符合筛选条件的运行记录。</AppStateMessage>
             ) : (
               <div className="space-y-2">
                 {visibleRuns.map((run) => <RunRecordRow key={run.id} run={run} />)}
@@ -192,14 +192,6 @@ function RunMetric({ title, value, icon, tone }: { title: string; value: number;
       </div>
     </div>
   )
-}
-
-function StateMessage({ children }: { children: React.ReactNode }) {
-  return <AppStateMessage>{children}</AppStateMessage>
-}
-
-function InlineError({ children }: { children: React.ReactNode }) {
-  return <AppInlineError className="p-3">{children}</AppInlineError>
 }
 
 function summarizeRuns(runs: AgentRun[]) {

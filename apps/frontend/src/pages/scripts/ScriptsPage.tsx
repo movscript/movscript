@@ -27,7 +27,7 @@ import {
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import { ScriptCreateForm } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
-import { Button, SemanticDot, semanticToneClass, type SemanticTone } from '@movscript/ui'
+import { AppEmptyState, AppKeyValue, AppMetricCard, AppPanel, AppStateMessage, Badge, Button, SemanticDot, SemanticStatusBadge, type SemanticTone } from '@movscript/ui'
 import { ScriptForm } from '@/components/forms/ScriptForm'
 import { ProjectSurfaceHeader } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
@@ -386,9 +386,9 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                 <div className="flex flex-col items-center justify-center gap-3 py-12 text-muted-foreground">
                   <FileText size={24} className="opacity-30" />
                   <p className="type-label">{t('pages.scripts.empty')}</p>
-                  <button onClick={() => setShowCreate(true)} className="type-label hover:text-foreground">
+                  <Button variant="ghost" size="xs" onClick={() => setShowCreate(true)}>
                     {t('pages.scripts.createOne')}
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -396,7 +396,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                     <div key={group.category}>
                       <div className="mb-1.5 flex items-center justify-between px-1">
                         <p className="type-caption font-semibold uppercase tracking-wide text-muted-foreground">{group.category}</p>
-                        <span className="rounded border border-border bg-muted/40 px-1.5 py-0.5 type-tiny text-muted-foreground">{group.scripts.length}</span>
+                        <Badge variant="secondary">{group.scripts.length}</Badge>
                       </div>
                       <div className="space-y-1">
                         {group.scripts.map((script) => {
@@ -405,12 +405,13 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                           const hasVersions = vers.length > 0
                           const isSelected = selected?.ID === script.ID
                           return (
-                            <button
+                            <Button
                               key={script.ID}
                               type="button"
+                              variant="ghost"
                               onClick={() => setSelectedId(script.ID)}
                               className={cn(
-                                'w-full rounded-md border px-2.5 py-2.5 text-left transition-colors',
+                                'h-auto w-full justify-start whitespace-normal border px-2.5 py-2.5 text-left [&_.ms-button__content]:w-full [&_.ms-button__content]:justify-start [&_.ms-button__content]:whitespace-normal',
                                 isSelected ? 'border-primary/40 bg-primary/10 text-foreground' : 'border-transparent text-foreground hover:border-border hover:bg-muted/50',
                               )}
                             >
@@ -423,7 +424,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                                   </p>
                                 </div>
                               </div>
-                            </button>
+                            </Button>
                           )
                         })}
                       </div>
@@ -453,9 +454,9 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                     <ScriptTypeBadge script={selected} />
                     <ScriptStageBadge versionCount={versionsForSelected.length} />
                     {latestVersion && (
-                      <span className="rounded-md border border-border bg-background px-2 py-0.5 type-label text-muted-foreground">
+                      <Badge variant="outline">
                         最新版本 v{latestVersion.version_number || latestVersion.ID}
-                      </span>
+                      </Badge>
                     )}
                   </div>
                   <h2 className="mt-2 type-title font-semibold text-foreground">{selected.title}</h2>
@@ -488,18 +489,20 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                 { key: 'versions', label: `版本管理 (${versionsForSelected.length})` },
                 { key: 'production', label: '创建制作' },
               ] as { key: ScriptDetailTab; label: string }[]).map((tab) => (
-                <button
+                <Button
                   key={tab.key}
+                  type="button"
+                  variant="ghost"
                   onClick={() => setDetailTab(tab.key)}
                   className={cn(
-                    'border-b-2 px-4 py-2.5 type-body transition-colors',
+                    'h-auto rounded-none border-b-2 px-4 py-2.5 type-body',
                     detailTab === tab.key
                       ? 'border-foreground font-medium text-foreground'
                       : 'border-transparent text-muted-foreground hover:text-foreground',
                   )}
                 >
                   {tab.label}
-                </button>
+                </Button>
               ))}
             </div>
 
@@ -577,12 +580,15 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                               </div>
                               <div className="flex shrink-0 items-center gap-1.5">
                                 {contentLength > 0 && (
-                                  <button
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="xs"
                                     onClick={() => setExpandedVersionId(isExpanded ? null : version.ID)}
-                                    className="rounded-md px-2.5 py-1 type-label text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                                    className="text-muted-foreground hover:bg-background hover:text-foreground"
                                   >
                                     {isExpanded ? '收起' : '查看'}
-                                  </button>
+                                  </Button>
                                 )}
                               </div>
                             </div>
@@ -703,15 +709,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
 }
 
 function WorkspaceStat({ icon: Icon, label, value }: { icon: typeof FileText; label: string; value: string }) {
-  return (
-    <div className="min-w-[86px] rounded-md border border-border bg-muted/30 px-3 py-2">
-      <div className="flex items-center gap-1.5 type-caption text-muted-foreground">
-        <Icon size={12} />
-        {label}
-      </div>
-      <p className="mt-0.5 type-body-lg font-semibold leading-5 text-foreground">{value}</p>
-    </div>
-  )
+  return <AppMetricCard icon={Icon} label={label} value={value} compact />
 }
 
 function ScriptCollaborationPanel({
@@ -745,24 +743,20 @@ function ScriptCollaborationPanel({
 }) {
   if (!script) {
     return (
-      <div className="flex h-full flex-col items-center justify-center rounded-md border border-dashed border-border p-6 text-center text-muted-foreground">
-        <Sparkles size={24} className="opacity-30" />
-        <p className="mt-2 type-body">选择剧本后查看协作状态</p>
-      </div>
+      <AppEmptyState icon={Sparkles} title="选择剧本后查看协作状态" compact />
     )
   }
 
   return (
     <div className="space-y-3">
-      <section className="rounded-md border border-border bg-background p-3">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="type-label font-semibold text-foreground">AI 创意搭档</p>
-            <p className="mt-1 type-label leading-5 text-muted-foreground">围绕当前剧本做审阅、改写和制作拆解，结果回到右侧 AI 面板继续协作。</p>
-          </div>
-          <Bot size={16} className="shrink-0 text-muted-foreground" />
-        </div>
-        <div className="mt-3 grid gap-2">
+      <AppPanel
+        icon={Bot}
+        title="AI 创意搭档"
+        bodyClassName="grid gap-2"
+        className="bg-background"
+      >
+        <p className="type-label leading-5 text-muted-foreground">围绕当前剧本做审阅、改写和制作拆解，结果回到右侧 AI 面板继续协作。</p>
+        <div className="grid gap-2">
           <Button variant="default" size="sm" className="justify-start gap-2" onClick={() => onLaunchAgent('rewrite')}>
             <Sparkles size={14} />
             协作完善剧本
@@ -778,13 +772,9 @@ function ScriptCollaborationPanel({
             </Button>
           </div>
         </div>
-      </section>
+      </AppPanel>
 
-      <section className="rounded-md border border-border bg-background p-3">
-        <div className="mb-3 flex items-center justify-between">
-          <p className="type-label font-semibold text-foreground">制作就绪</p>
-          <span className="rounded-md bg-muted px-2 py-0.5 type-caption text-muted-foreground">{readiness}%</span>
-        </div>
+      <AppPanel title="制作就绪" action={<SemanticStatusBadge status={readiness >= 80 ? 'succeeded' : 'pending'} label={`${readiness}%`} />} className="bg-background">
         <div className="h-1.5 overflow-hidden rounded-full bg-muted">
           <div className="h-full rounded-full bg-primary" style={{ width: `${readiness}%` }} />
         </div>
@@ -809,26 +799,23 @@ function ScriptCollaborationPanel({
             查看制作入口
           </Button>
         </div>
-      </section>
+      </AppPanel>
 
-      <section className="rounded-md border border-border bg-background p-3">
-        <p className="type-label font-semibold text-foreground">剧本到制作链路</p>
+      <AppPanel title="剧本到制作链路" className="bg-background">
         <div className="mt-3 grid grid-cols-2 gap-2">
           <PipelineMetric label="版本" value={versionCount} />
           <PipelineMetric label="剧本块" value={scriptBlockCount} />
           <PipelineMetric label="编排段" value={linkedSegmentCount} />
           <PipelineMetric label="情景" value={linkedSceneMomentCount} />
         </div>
-        <div className="mt-3 rounded-md border border-border bg-muted/30 p-2.5">
-          <p className="type-caption font-medium text-foreground">当前锁定源</p>
-          <p className="mt-1 type-label leading-5 text-muted-foreground">
-            {latestVersion ? `v${latestVersion.version_number || latestVersion.ID} · ${formatDate(latestVersion.UpdatedAt)}` : '尚无可用于制作的锁定版本'}
-          </p>
-        </div>
-      </section>
+        <AppKeyValue
+          className="mt-3"
+          label="当前锁定源"
+          value={latestVersion ? `v${latestVersion.version_number || latestVersion.ID} · ${formatDate(latestVersion.UpdatedAt)}` : '尚无可用于制作的锁定版本'}
+        />
+      </AppPanel>
 
-      <section className="rounded-md border border-border bg-background p-3">
-        <p className="type-label font-semibold text-foreground">专业工作流</p>
+      <AppPanel title="专业工作流" className="bg-background">
         <div className="mt-3 space-y-2">
           <WorkflowStep index="01" title="完善正文" active={!hasDraftBody || !isDraftPublished} />
           <WorkflowStep index="02" title="锁定版本" active={hasDraftBody && versionCount === 0} />
@@ -836,18 +823,13 @@ function ScriptCollaborationPanel({
           <WorkflowStep index="04" title="拆成编排段和情景" active={scriptBlockCount > 0 && linkedSceneMomentCount === 0} />
           <WorkflowStep index="05" title="进入制作提案" active={canCreateProduction} />
         </div>
-      </section>
+      </AppPanel>
     </div>
   )
 }
 
 function PipelineMetric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md border border-border bg-muted/30 px-2.5 py-2">
-      <p className="type-caption text-muted-foreground">{label}</p>
-      <p className="mt-0.5 type-title-sm font-semibold leading-6 text-foreground">{value}</p>
-    </div>
-  )
+  return <AppMetricCard label={label} value={value} compact />
 }
 
 function WorkflowStep({ index, title, active }: { index: string; title: string; active: boolean }) {
@@ -1115,26 +1097,12 @@ function ScriptVersionBlockPanel({
 
 function VersionStatusBadge({ status }: { status: string }) {
   if (status === 'active') {
-    return (
-      <span className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 type-caption', semanticToneClass('success', 'surface'), semanticToneClass('success', 'icon'))}>
-        <CheckCircle2 size={10} />
-        已锁定
-      </span>
-    )
+    return <SemanticStatusBadge status="succeeded" label="已锁定" icon={<CheckCircle2 size={10} />} />
   }
   if (status === 'archived') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-1.5 py-0.5 type-caption text-muted-foreground">
-        已归档
-      </span>
-    )
+    return <SemanticStatusBadge status="cancelled" label="已归档" />
   }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-1.5 py-0.5 type-caption text-muted-foreground">
-      <Clock3 size={10} />
-      草稿
-    </span>
-  )
+  return <SemanticStatusBadge status="pending" label="草稿" icon={<Clock3 size={10} />} />
 }
 
 function ScriptBlockUsageStrip({
@@ -1156,23 +1124,25 @@ function ScriptBlockUsageStrip({
   return (
     <div className="mt-2 flex flex-wrap gap-1.5">
       {items.map((item) => (
-        <button
+        <Button
           key={`${item.kind}-${item.record.ID}`}
           type="button"
+          variant="outline"
+          size="xs"
           onClick={() => onOpen(item.kind, item.record.ID)}
-          className="max-w-full rounded-md border border-border bg-background px-2 py-0.5 type-tiny text-muted-foreground hover:border-primary/40 hover:text-foreground"
+          className="max-w-full text-muted-foreground hover:border-primary/40 hover:text-foreground"
         >
           <span className="font-medium">{item.label}</span>
           <span className="ml-1">{titleOfRecord(item.record)}</span>
-        </button>
+        </Button>
       ))}
-      {total > items.length ? <span className="rounded-md bg-muted px-2 py-0.5 type-tiny text-muted-foreground">+{total - items.length}</span> : null}
+      {total > items.length ? <Badge variant="secondary">+{total - items.length}</Badge> : null}
     </div>
   )
 }
 
 function ScriptTypeBadge({ script }: { script: Script }) {
-  return <span className="rounded-md bg-muted px-2 py-1 type-label font-medium text-muted-foreground">{categoryLabel(script.script_type)}</span>
+  return <Badge variant="secondary">{categoryLabel(script.script_type)}</Badge>
 }
 
 function ScriptStageBadge({ versionCount }: { versionCount: number }) {
@@ -1183,32 +1153,19 @@ function ScriptStageBadge({ versionCount }: { versionCount: number }) {
   }
   const config = configs[stage]
   const Icon = config.icon
-  return (
-    <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 type-caption', semanticToneClass(config.tone, 'surface'), semanticToneClass(config.tone, 'icon'))}>
-      <Icon size={12} />
-      {stage}
-    </span>
-  )
+  return <SemanticStatusBadge status={config.tone === 'success' ? 'succeeded' : 'pending'} label={stage} icon={<Icon size={12} />} />
 }
 
-function MetricBox({ label, value }: { icon: typeof FileText; label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-border bg-background p-2.5">
-      <p className="type-caption text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate type-body-lg font-semibold text-foreground">{value}</p>
-    </div>
-  )
+function MetricBox({ icon: Icon, label, value }: { icon: typeof FileText; label: string; value: string }) {
+  return <AppMetricCard icon={Icon} label={label} value={value} compact />
 }
 
 function ReadinessRow({ label, done }: { label: string; done: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2.5">
+    <AppStateMessage className="justify-between bg-background">
       <span className="min-w-0 truncate type-body text-foreground">{label}</span>
-      <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 type-label', done ? cn(semanticToneClass('success', 'surface'), semanticToneClass('success', 'icon')) : 'bg-muted text-muted-foreground')}>
-        {done ? <CheckCircle2 size={12} /> : <Clock3 size={12} />}
-        {done ? '就绪' : '待处理'}
-      </span>
-    </div>
+      <SemanticStatusBadge status={done ? 'succeeded' : 'pending'} label={done ? '就绪' : '待处理'} icon={done ? <CheckCircle2 size={12} /> : <Clock3 size={12} />} />
+    </AppStateMessage>
   )
 }
 

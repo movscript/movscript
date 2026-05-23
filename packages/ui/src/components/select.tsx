@@ -5,6 +5,28 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "./icons";
 import { cn } from "../lib/cn";
 
+export interface NativeSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+  invalid?: boolean;
+  controlSize?: "sm" | "default";
+  variant?: "default" | "subtle";
+}
+
+const NativeSelect = React.forwardRef<HTMLSelectElement, NativeSelectProps>(
+  ({ className, invalid = false, controlSize = "default", variant = "default", ...props }, ref) => (
+    <select
+      ref={ref}
+      className={cn("ms-field-control ms-native-select", className)}
+      aria-invalid={invalid || props["aria-invalid"] ? true : undefined}
+      data-invalid={invalid ? "true" : undefined}
+      data-size={controlSize}
+      data-variant={variant}
+      {...props}
+    />
+  )
+);
+
+NativeSelect.displayName = "NativeSelect";
+
 const Select = SelectPrimitive.Root;
 const SelectGroup = SelectPrimitive.Group;
 const SelectValue = SelectPrimitive.Value;
@@ -18,7 +40,7 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     data-size={size}
-    className={cn("ms-select__trigger", size === "sm" && "ms-select__trigger--sm", className)}
+    className={cn("ms-field-control ms-select__trigger", size === "sm" && "ms-select__trigger--sm", className)}
     {...props}
   >
     {children}
@@ -34,7 +56,7 @@ const SelectScrollUpButton = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.ScrollUpButton>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.ScrollUpButton>
 >(({ className, ...props }, ref) => (
-  <SelectPrimitive.ScrollUpButton ref={ref} className={cn("ms-select__scroll-button", className)} {...props}>
+  <SelectPrimitive.ScrollUpButton ref={ref} className={cn("ms-center ms-select__scroll-button", className)} {...props}>
     <ChevronUpIcon />
   </SelectPrimitive.ScrollUpButton>
 ));
@@ -45,7 +67,7 @@ const SelectScrollDownButton = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.ScrollDownButton>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.ScrollDownButton>
 >(({ className, ...props }, ref) => (
-  <SelectPrimitive.ScrollDownButton ref={ref} className={cn("ms-select__scroll-button", className)} {...props}>
+  <SelectPrimitive.ScrollDownButton ref={ref} className={cn("ms-center ms-select__scroll-button", className)} {...props}>
     <ChevronDownIcon />
   </SelectPrimitive.ScrollDownButton>
 ));
@@ -59,7 +81,7 @@ const SelectContent = React.forwardRef<
   <SelectPrimitive.Portal>
     <SelectPrimitive.Content
       ref={ref}
-      className={cn("ms-select__content", className)}
+      className={cn("ms-menu-content ms-select__content", className)}
       position={position}
       {...props}
     >
@@ -87,7 +109,7 @@ const SelectItem = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
 >(({ className, children, ...props }, ref) => (
-  <SelectPrimitive.Item ref={ref} className={cn("ms-select__item", className)} {...props}>
+  <SelectPrimitive.Item ref={ref} className={cn("ms-menu-item ms-select__item", className)} {...props}>
     <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
     <span className="ms-select__indicator">
       <SelectPrimitive.ItemIndicator>
@@ -110,6 +132,7 @@ SelectSeparator.displayName = SelectPrimitive.Separator.displayName;
 
 export {
   Select,
+  NativeSelect,
   SelectGroup,
   SelectValue,
   SelectTrigger,

@@ -47,7 +47,7 @@ export function buildAgentConversationMessageItems({
     const mappedWorkflowRuns = workflowRunsByResultMessageId.get(message.id) ?? null
     const liveWorkflowRuns = mappedWorkflowRuns
       ?.filter((run) => !suppressedWorkflowRunIds.has(run.id)) ?? null
-    const historicalWorkflowRun = mappedWorkflowRuns ? null : workflowRunFromActivity(message.meta?.localRunActivity)
+    const historicalWorkflowRun = mappedWorkflowRuns || message.role === 'assistant' ? null : workflowRunFromActivity(message.meta?.localRunActivity)
     const visibleHistoricalWorkflowRun = historicalWorkflowRun
       && !suppressedWorkflowRunIds.has(historicalWorkflowRun.id)
       ? historicalWorkflowRun

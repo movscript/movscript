@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { Film, GitBranch, PackageCheck, Route, Sparkles } from 'lucide-react'
 import {
+  AppPanel,
+  AppTextEmptyState,
   Button,
   ChangeActionBadge,
   ReviewDecisionBadge,
@@ -80,21 +82,20 @@ export function ProductionProposalSemanticDiffPanel({
 
   if (groups.length === 0) {
     return (
-      <div className="rounded-lg border border-border bg-background p-4 type-caption text-muted-foreground">
+      <AppTextEmptyState>
         当前提案没有可审阅的制作变更。
-      </div>
+      </AppTextEmptyState>
     )
   }
 
   return (
     <div className="space-y-2">
-      <div className="rounded-lg border border-border bg-background p-3">
-        <div className="flex items-center gap-2">
-          <GitBranch size={14} className="text-primary" />
-          <p className="type-label font-semibold text-foreground">提案审阅</p>
-          <span className="ml-auto rounded bg-muted px-1.5 py-0.5 type-tiny text-muted-foreground">{filteredGroups.length}/{groups.length} 段</span>
-        </div>
-        <div className="mt-2 grid grid-cols-4 gap-1.5 text-center type-tiny">
+      <AppPanel
+        icon={GitBranch}
+        title="提案审阅"
+        action={<ReviewStat tone="neutral">{filteredGroups.length}/{groups.length} 段</ReviewStat>}
+      >
+        <div className="grid grid-cols-4 gap-1.5 text-center type-tiny">
           <span className="rounded bg-muted px-1.5 py-1 text-foreground">总计 {summary.total}</span>
           <span className="rounded bg-muted px-1.5 py-1 text-foreground">未审 {summary.pending}</span>
           <ReviewStat tone="success">接受 {summary.accepted}</ReviewStat>
@@ -133,20 +134,20 @@ export function ProductionProposalSemanticDiffPanel({
             onChange={(value) => setKindFilter(value as ProductionProposalSemanticDiffKindFilter)}
           />
         </div>
-      </div>
+      </AppPanel>
 
       {filteredGroups.length === 0 && (
-        <div className="rounded-lg border border-dashed border-border bg-background p-4 type-caption text-muted-foreground">
+        <AppTextEmptyState>
           当前筛选下没有变更项。
-        </div>
+        </AppTextEmptyState>
       )}
 
       {filteredGroups.map((group) => {
         const visibleKeys = visibleProductionProposalSemanticDiffKeys(group)
         const groupDecision = summarizeProductionProposalGroupDecision(visibleKeys, decisions)
         return (
-          <div key={group.key} className={cn('rounded-lg border border-border bg-background', groupDecision === 'rejected' && 'opacity-60')}>
-            <div className="border-b border-border px-3 py-2">
+          <AppPanel key={group.key} className={cn(groupDecision === 'rejected' && 'opacity-60')} bodyClassName="p-0 divide-y divide-border/60">
+            <div className="px-3 py-2">
               <div className="flex items-start gap-2">
                 <ProductionProposalDiffActionBadge action={group.action} />
                 <div className="min-w-0 flex-1">
@@ -172,18 +173,16 @@ export function ProductionProposalSemanticDiffPanel({
                 </Button>
               </div>
             </div>
-            <div className="divide-y divide-border/60">
-              {group.children.map((item) => (
-                <ProductionProposalSemanticDiffRow
-                  key={item.key}
-                  item={item}
-                  decision={decisions[item.key]}
-                  onSetDecision={onSetDecision}
-                  onSetDecisions={onSetDecisions}
-                />
-              ))}
-            </div>
-          </div>
+            {group.children.map((item) => (
+              <ProductionProposalSemanticDiffRow
+                key={item.key}
+                item={item}
+                decision={decisions[item.key]}
+                onSetDecision={onSetDecision}
+                onSetDecisions={onSetDecisions}
+              />
+            ))}
+          </AppPanel>
         )
       })}
     </div>
@@ -227,17 +226,16 @@ function ProductionProposalDiffFilterRow({
   return (
     <div className="flex gap-1 overflow-x-auto">
       {items.map(([itemValue, label]) => (
-        <button
+        <Button
           key={itemValue}
           type="button"
+          size="xs"
+          variant={value === itemValue ? 'default' : 'secondary'}
           onClick={() => onChange(itemValue)}
-          className={cn(
-            'h-6 shrink-0 rounded px-2 type-tiny font-medium transition-colors',
-            value === itemValue ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground',
-          )}
+          className="h-6 shrink-0 px-2 type-tiny"
         >
           {label}
-        </button>
+        </Button>
       ))}
     </div>
   )
@@ -315,52 +313,48 @@ function ProductionProposalContextGroup({
   onSetDecision: (key: string, decision: ProductionProposalNodeDecision) => void
 }) {
   return (
-    <div className="rounded-lg border border-border bg-background">
-      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
-        <span className="flex items-center gap-1.5 type-caption font-medium text-foreground">
-          <Icon size={12} />
-          {title}
-        </span>
-        <span className="rounded bg-muted px-1.5 py-0.5 type-tiny text-muted-foreground">{items.length}</span>
-      </div>
+    <AppPanel
+      icon={Icon}
+      title={title}
+      action={<ReviewStat tone="neutral">{items.length}</ReviewStat>}
+      bodyClassName={cn(items.length > 0 && 'p-0 divide-y divide-border/60')}
+    >
       {items.length === 0 ? (
-        <p className="px-3 py-4 type-caption text-muted-foreground">{empty}</p>
+        <AppTextEmptyState>{empty}</AppTextEmptyState>
       ) : (
-        <div className="divide-y divide-border/60">
-          {items.map((item, index) => {
-            const decision = decisions[item.nodeKey]
-            return (
-              <div key={`${item.nodeKey}-${index}`} className={cn('px-3 py-2', decision === 'rejected' && 'opacity-50')}>
-                <div className="flex items-start gap-2">
-                  <ProductionProposalDiffActionBadge action={item.action} compact />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <p className="truncate type-caption font-medium text-foreground">{item.title}</p>
-                      {decision && <ProductionProposalDecisionBadge decision={decision} />}
-                    </div>
-                    <p className="mt-0.5 truncate type-tiny text-muted-foreground">{item.parent}</p>
-                    {item.detail && <p className="mt-1 line-clamp-2 type-tiny leading-4 text-muted-foreground">{item.detail}</p>}
+        items.map((item, index) => {
+          const decision = decisions[item.nodeKey]
+          return (
+            <div key={`${item.nodeKey}-${index}`} className={cn('px-3 py-2', decision === 'rejected' && 'opacity-50')}>
+              <div className="flex items-start gap-2">
+                <ProductionProposalDiffActionBadge action={item.action} compact />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate type-caption font-medium text-foreground">{item.title}</p>
+                    {decision && <ProductionProposalDecisionBadge decision={decision} />}
                   </div>
-                </div>
-                <div className="mt-2 flex gap-1.5 pl-7">
-                  <Button
-                    size="xs"
-                    variant={decision === 'accepted' ? 'secondary' : 'outline'}
-                    className="px-2 type-tiny"
-                    onClick={() => onSetDecision(item.nodeKey, 'accepted')}
-                  >
-                    接受
-                  </Button>
-                  <Button size="xs" variant={decision === 'rejected' ? 'secondary' : 'ghost'} className="px-2 type-tiny" onClick={() => onSetDecision(item.nodeKey, 'rejected')}>
-                    拒绝
-                  </Button>
+                  <p className="mt-0.5 truncate type-tiny text-muted-foreground">{item.parent}</p>
+                  {item.detail && <p className="mt-1 line-clamp-2 type-tiny leading-4 text-muted-foreground">{item.detail}</p>}
                 </div>
               </div>
-            )
-          })}
-        </div>
+              <div className="mt-2 flex gap-1.5 pl-7">
+                <Button
+                  size="xs"
+                  variant={decision === 'accepted' ? 'secondary' : 'outline'}
+                  className="px-2 type-tiny"
+                  onClick={() => onSetDecision(item.nodeKey, 'accepted')}
+                >
+                  接受
+                </Button>
+                <Button size="xs" variant={decision === 'rejected' ? 'secondary' : 'ghost'} className="px-2 type-tiny" onClick={() => onSetDecision(item.nodeKey, 'rejected')}>
+                  拒绝
+                </Button>
+              </div>
+            </div>
+          )
+        })
       )}
-    </div>
+    </AppPanel>
   )
 }
 

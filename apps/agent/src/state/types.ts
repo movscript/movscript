@@ -302,6 +302,7 @@ export interface AgentRuntimeRouterOptions {
   pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
   pluginWarnings?: string[]
   updateState?: AgentUpdateState
+  telemetry?: import('../telemetry/runtimeTelemetry.js').RuntimeTelemetryRegistry
 }
 
 export interface CreateThreadInput {

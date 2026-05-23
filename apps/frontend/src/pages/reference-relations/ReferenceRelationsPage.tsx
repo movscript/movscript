@@ -57,7 +57,7 @@ import {
 } from '@/components/creative/CreativeReferenceCard'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
-import { Badge, Button, Input, Label, Textarea, accentToneClass, semanticToneClass } from '@movscript/ui'
+import { AppEmptyState, AppKeyValue, AppPanel, Badge, Button, Input, Label, Textarea, accentToneClass, semanticToneClass } from '@movscript/ui'
 
 type Mode = 'create' | 'edit'
 type RelationView = 'graph' | 'workspace'
@@ -491,7 +491,7 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
               <SegmentButton active={tab === 'relationship'} icon={GitBranch} label="设定资料之间关系" count={relationships.length} onClick={() => switchTab('relationship')} />
             </div>
 
-            <Panel title="筛选">
+            <AppPanel title="筛选" bodyClassName="space-y-3">
               <div className="relative">
                 <Search size={14} className="pointer-events-none absolute left-2.5 top-2.5 text-muted-foreground" />
                 <Input value={query} onChange={(event) => setQuery(event.target.value)} className="pl-8" placeholder="搜索对象、设定资料、证据" />
@@ -500,16 +500,16 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
                 <option value="all">全部状态</option>
                 {statuses.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
-            </Panel>
+            </AppPanel>
 
-            <Panel title="设定资料概览">
+            <AppPanel title="设定资料概览" bodyClassName="space-y-3">
               <div className="grid grid-cols-2 gap-2">
-                <MiniStat label="设定资料" value={references.length} />
-                <MiniStat label="状态" value={states.length} />
-                <MiniStat label="使用" value={usages.length} />
-                <MiniStat label="关系" value={relationships.length} />
+                <AppKeyValue label="设定资料" value={references.length} strong />
+                <AppKeyValue label="状态" value={states.length} strong />
+                <AppKeyValue label="使用" value={usages.length} strong />
+                <AppKeyValue label="关系" value={relationships.length} strong />
               </div>
-            </Panel>
+            </AppPanel>
           </aside>
 
           <main className="min-w-0 rounded-lg border border-border bg-card">
@@ -522,7 +522,7 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
             </div>
             <div className="max-h-[calc(100vh-330px)] overflow-auto p-3">
               {tab === 'usage' ? (
-                filteredUsages.length === 0 ? <EmptyState /> : (
+                filteredUsages.length === 0 ? <AppEmptyState icon={Link2} title="没有匹配的关系" detail="调整筛选或新建一条关系。" /> : (
                   <div className="space-y-2">
                     {filteredUsages.map((record) => (
                       <UsageRow key={record.ID} record={record} active={selectedId === record.ID} onClick={() => selectUsage(record)} />
@@ -530,7 +530,7 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
                   </div>
                 )
               ) : (
-                filteredRelationships.length === 0 ? <EmptyState /> : (
+                filteredRelationships.length === 0 ? <AppEmptyState icon={Link2} title="没有匹配的关系" detail="调整筛选或新建一条关系。" /> : (
                   <div className="space-y-2">
                     {filteredRelationships.map((record) => (
                       <RelationshipRow key={record.ID} record={record} active={selectedId === record.ID} onClick={() => selectRelationship(record)} />
@@ -863,7 +863,7 @@ function RelationGraphOverview({
       </div>
 
       <aside className="space-y-3">
-        <Panel title="全览操作">
+        <AppPanel title="全览操作" bodyClassName="space-y-3">
           {isDemo && (
             <div className="rounded-md border border-dashed border-border bg-muted/30 p-2 type-label text-muted-foreground">
               当前没有真实关系数据，图中显示示例节点。创建第一条关系后会自动切换为项目数据。
@@ -877,18 +877,18 @@ function RelationGraphOverview({
             <GitBranch size={14} />
             编辑设定资料之间关系
           </Button>
-        </Panel>
+        </AppPanel>
 
-        <Panel title="图例">
+        <AppPanel title="图例" bodyClassName="space-y-3">
           <LegendItem tone="sky" label="设定资料节点" detail="人物、地点、道具、风格等设定资料" />
           <LegendItem tone="zinc" label="结构对象节点" detail="编排段、情景、制作项、画面锚点" />
           <LegendItem tone="blue" label="主角/连续性" detail="protagonist 或 continuity" />
           <LegendItem tone="orange" label="地点使用" detail="location" />
           <LegendItem tone="violet" label="道具/依赖" detail="prop 或 dependency" />
           <LegendItem tone="rose" label="风格/冲突" detail="style、style_rule 或 conflict" />
-        </Panel>
+        </AppPanel>
 
-        <Panel title="高连接设定资料">
+        <AppPanel title="高连接设定资料" bodyClassName="space-y-3">
           {denseReferences.length === 0 ? (
             <p className="type-label text-muted-foreground">暂无已连接设定资料。</p>
           ) : (
@@ -911,7 +911,7 @@ function RelationGraphOverview({
               ))}
             </div>
           )}
-        </Panel>
+        </AppPanel>
       </aside>
     </section>
   )
@@ -969,24 +969,6 @@ function LegendItem({ tone, label, detail }: { tone: 'sky' | 'zinc' | 'blue' | '
   )
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-lg border border-border bg-card p-3">
-      <p className="mb-3 type-label font-semibold text-foreground">{title}</p>
-      <div className="space-y-3">{children}</div>
-    </div>
-  )
-}
-
-function MiniStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md bg-muted/40 p-2">
-      <p className="type-label text-muted-foreground">{label}</p>
-      <p className="mt-1 type-title-sm font-semibold text-foreground">{value}</p>
-    </div>
-  )
-}
-
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block space-y-1.5">
@@ -1012,16 +994,6 @@ function ReferenceSelect({ value, onChange, references }: { value: string; onCha
         <option key={reference.ID} value={reference.ID}>{reference.name} · {reference.kind} #{reference.ID}</option>
       ))}
     </select>
-  )
-}
-
-function EmptyState() {
-  return (
-    <div className="flex h-48 flex-col items-center justify-center rounded-lg border border-dashed border-border text-center">
-      <Link2 size={24} className="text-muted-foreground" />
-      <p className="mt-2 type-body font-medium text-foreground">没有匹配的关系</p>
-      <p className="mt-1 type-label text-muted-foreground">调整筛选或新建一条关系。</p>
-    </div>
   )
 }
 

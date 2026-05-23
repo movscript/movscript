@@ -18,7 +18,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
 >(({ className, inset, children, ...props }, ref) => (
   <DropdownMenuPrimitive.SubTrigger
     ref={ref}
-    className={cn("ms-dropdown__sub-trigger", inset && "ms-dropdown__item--inset", className)}
+    className={cn("ms-menu-item ms-dropdown__sub-trigger", inset && "ms-dropdown__item--inset", className)}
     {...props}
   >
     {children}
@@ -34,7 +34,7 @@ const DropdownMenuSubContent = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.SubContent
     ref={ref}
-    className={cn("ms-dropdown__content", className)}
+    className={cn("ms-menu-content ms-dropdown__content", className)}
     {...props}
   />
 ));
@@ -49,7 +49,7 @@ const DropdownMenuContent = React.forwardRef<
     <DropdownMenuPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
-      className={cn("ms-dropdown__content", className)}
+      className={cn("ms-menu-content ms-dropdown__content", className)}
       {...props}
     />
   </DropdownMenuPrimitive.Portal>
@@ -63,7 +63,7 @@ const DropdownMenuItem = React.forwardRef<
 >(({ className, inset, ...props }, ref) => (
   <DropdownMenuPrimitive.Item
     ref={ref}
-    className={cn("ms-dropdown__item", inset && "ms-dropdown__item--inset", className)}
+    className={cn("ms-menu-item ms-dropdown__item", inset && "ms-dropdown__item--inset", className)}
     {...props}
   />
 ));
@@ -76,7 +76,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
 >(({ className, children, checked, ...props }, ref) => (
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
-    className={cn("ms-dropdown__item ms-dropdown__item--checked", className)}
+    className={cn("ms-menu-item ms-dropdown__item ms-dropdown__item--checked", className)}
     checked={checked}
     {...props}
   >
@@ -97,7 +97,7 @@ const DropdownMenuRadioItem = React.forwardRef<
 >(({ className, children, ...props }, ref) => (
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
-    className={cn("ms-dropdown__item ms-dropdown__item--checked", className)}
+    className={cn("ms-menu-item ms-dropdown__item ms-dropdown__item--checked", className)}
     {...props}
   >
     <span className="ms-dropdown__indicator">

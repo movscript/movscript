@@ -13,6 +13,7 @@ import type {
   AgentTraceEvent,
   AgentTraceEventKind,
 } from '../state/types.js'
+import type { RuntimeTelemetryRegistry } from '../telemetry/runtimeTelemetry.js'
 import type { RuntimeEventSubscriberRegistry } from './runtimeEventSubscribers.js'
 import {
   emitRuntimePlanRunStreamEvent,
@@ -78,6 +79,7 @@ export function createRuntimeStreamBridge(input: {
   getTaskGraphSnapshot: (taskGraphId: string) => AgentTaskGraphSnapshot
   createTraceId: () => string
   now: () => string
+  telemetry?: RuntimeTelemetryRegistry
 }): RuntimeStreamBridge {
   const bridge: RuntimeStreamBridge = {
     subscribeRunStream: (run, listener) => input.runSubscribers.subscribe(run.id, listener, (target) => {
@@ -109,14 +111,33 @@ export function createRuntimeStreamBridge(input: {
     subscribePlanStream: (taskGraphId, listener) => input.planSubscribers.subscribe(taskGraphId, listener, (target) => {
       replayRuntimePlanStream({ taskGraphId, getTaskGraphSnapshot: input.getTaskGraphSnapshot, listener: target })
     }),
-    recordTraceEvent: (run, trace) => recordRuntimeRunTraceEvent({
-      store: input.store,
-      run,
-      traceId: input.createTraceId(),
-      now: input.now(),
-      trace,
-      emitRunStreamEvent: bridge.emitRunStreamEvent,
-    }),
+    recordTraceEvent: (run, trace) => {
+      const event = recordRuntimeRunTraceEvent({
+        store: input.store,
+        run,
+        traceId: input.createTraceId(),
+        now: input.now(),
+        trace,
+        emitRunStreamEvent: bridge.emitRunStreamEvent,
+      })
+      input.telemetry?.recordSpan({
+        traceEventId: event.id,
+        runId: run.id,
+        threadId: run.threadId,
+        kind: event.kind,
+        name: event.title,
+        status: event.status,
+        startedAt: event.createdAt,
+        ...(event.completedAt ? { endedAt: event.completedAt } : {}),
+        ...(typeof event.durationMs === 'number' ? { durationMs: event.durationMs } : {}),
+        ...(event.toolName ? { toolName: event.toolName } : {}),
+        labels: {
+          ...(run.role ? { run_role: run.role } : {}),
+          ...(event.roundSource ? { round_source: event.roundSource } : {}),
+        },
+      })
+      return event
+    },
     emitVolatileTraceEvent: (run, trace) => emitRuntimeVolatileTraceEvent({
       run,
       traceId: input.createTraceId(),

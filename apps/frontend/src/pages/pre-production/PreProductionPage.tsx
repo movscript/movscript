@@ -49,7 +49,7 @@ import { usePreProductionReviewController } from '@/lib/preProductionReviewContr
 import { usePreProductionUploadInput } from '@/lib/preProductionUploadInput'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
-import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogTitle, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
+import { AppTextEmptyState, Badge, Button, Dialog, DialogContent, DialogDescription, DialogTitle, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
 import { ROUTES } from '@/routes/projectRoutes'
 
 type CandidateGenerationKind = PreProductionCandidateGenerationKind
@@ -1097,10 +1097,10 @@ function PreProductionInspector({
 
 function EmptyInspectorState({ title, description }: { title: string; description: string }) {
   return (
-    <div className="rounded-md border border-dashed border-border bg-muted/20 p-4">
-      <p className="type-body font-semibold text-foreground">{title}</p>
-      <p className="mt-1 type-label leading-5 text-muted-foreground">{description}</p>
-    </div>
+    <AppTextEmptyState>
+      <span className="block type-body font-semibold text-foreground">{title}</span>
+      <span className="mt-1 block type-label leading-5 text-muted-foreground">{description}</span>
+    </AppTextEmptyState>
   )
 }
 

@@ -23,7 +23,7 @@ import { firstText, titleOfRecord } from '@/lib/contentWorkbenchRecordUtils'
 import { apiErrorMessage } from '@/lib/contentWorkbenchStatus'
 import { mergeMetadataJSON, parseMetadataJSON } from '@/lib/contentUnitPlanningMetadata'
 import { toast } from '@/store/toastStore'
-import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
+import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, WorkbenchSection } from '@movscript/ui'
 import { Input, Label } from '@movscript/ui'
 
 type WorkbenchRecord = SemanticEntityRecord & Record<string, any>
@@ -95,23 +95,14 @@ export function CreateContentUnitQuickCard({
   })
 
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-card">
-      <div className="border-b border-border bg-muted/25 px-4 py-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 type-body font-semibold text-foreground">
-              <Boxes size={14} className="text-muted-foreground" />
-              新建制作项
-            </div>
-            <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">
-              {selected.title} · 候选草稿
-            </p>
-          </div>
-          <Badge variant="outline">仅类型</Badge>
-        </div>
-      </div>
-
-      <div className="p-4">
+    <WorkbenchSection
+      icon={Boxes}
+      title="新建制作项"
+      description={`${selected.title} · 候选草稿`}
+      action={<Badge variant="outline">仅类型</Badge>}
+      className="bg-card"
+      bodyClassName="p-4"
+    >
         <div className="space-y-1.5">
           <Label className="type-label text-muted-foreground">类型</Label>
           <Select value={kind} onValueChange={setKind}>
@@ -135,8 +126,7 @@ export function CreateContentUnitQuickCard({
             创建
           </Button>
         </div>
-      </div>
-    </section>
+    </WorkbenchSection>
   )
 }
 
@@ -198,23 +188,15 @@ export function CreateKeyframeQuickCard({
   const selectedRole = keyframeFrameRoleOptions.find((option) => option.value === frameRole) ?? keyframeFrameRoleOptions[0]
 
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-card" data-testid="content-workbench-create-keyframe-card">
-      <div className="border-b border-border bg-muted/25 px-4 py-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 type-body font-semibold text-foreground">
-              <Image size={14} className="text-muted-foreground" />
-              新建关键帧
-            </div>
-            <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">
-              {titleOfRecord(selectedUnit)} · 只需先确定首帧、中间帧或尾帧。
-            </p>
-          </div>
-          <Badge variant="outline">标题可选</Badge>
-        </div>
-      </div>
-
-      <div className="space-y-4 p-4">
+    <WorkbenchSection
+      icon={Image}
+      title="新建关键帧"
+      description={`${titleOfRecord(selectedUnit)} · 只需先确定首帧、中间帧或尾帧。`}
+      action={<Badge variant="outline">标题可选</Badge>}
+      className="bg-card"
+      bodyClassName="space-y-4 p-4"
+      data-testid="content-workbench-create-keyframe-card"
+    >
         <div className="space-y-1.5">
           <Label className="type-label text-muted-foreground">分类</Label>
           <Select value={frameRole} onValueChange={(value) => setFrameRole(normalizeKeyframeFrameRole(value, 'first'))}>
@@ -249,8 +231,7 @@ export function CreateKeyframeQuickCard({
             创建
           </Button>
         </div>
-      </div>
-    </section>
+    </WorkbenchSection>
   )
 }
 

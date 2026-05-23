@@ -11,7 +11,7 @@ import {
   Layers3,
   X,
 } from 'lucide-react'
-import { Badge, Button, ReviewCallout, SemanticDot, semanticToneClass, type SemanticTone } from '@movscript/ui'
+import { AppEmptyState, AppKeyValue, AppMetricCard, AppPanel, AppStateMessage, Badge, Button, ReviewCallout, SemanticDot, WorkbenchList, WorkbenchListItem, WorkbenchSurfaceItem, semanticToneClass, type SemanticTone } from '@movscript/ui'
 import { generatePreview, type PreviewContentUnit, type PreviewGenerateResponse, type PreviewKeyframe, type PreviewScope } from '@/api/preview'
 import { AuthedImage } from '@/components/shared/AuthedImage'
 import { productionIdentifier, sceneIdentifier, unitIdentifier } from '@/lib/productionIdentifiers'
@@ -99,13 +99,16 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
               {[sceneIdentifier({ scene_code: data?.context.scene_moment_code }), data?.context.scene_moment_title || data?.context.segment_title || data?.entity.description || '编排段结构驱动预览，画面流承接真实剧情。'].filter(Boolean).join(' · ')}
             </p>
           </div>
-          <button
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
             onClick={onClose}
-            className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="shrink-0"
             aria-label="关闭"
           >
             <X size={16} />
-          </button>
+          </Button>
         </div>
 
         <div className="flex min-h-0 flex-1">
@@ -127,21 +130,17 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
               ) : storyNodes.length === 0 ? (
                 <EmptyBlock title="暂无预览结构" detail="需要先补充制作项或情节预览画面，预览才能形成可观看的剧情树。" />
               ) : (
-                <div className="space-y-2">
-                  <button
-                    type="button"
+                <WorkbenchList>
+                  <WorkbenchListItem
                     onClick={() => setSelectedUnitId(null)}
-                    className={cn(
-                      'w-full rounded-lg border bg-background p-3 text-left transition-colors hover:border-primary/60',
-                      selectedUnitId === null ? 'border-primary ring-1 ring-primary' : 'border-border',
-                    )}
+                    active={selectedUnitId === null}
                   >
                     <div className="flex items-center gap-2">
                       <Film size={14} className="text-muted-foreground" />
                       <span className="type-body font-semibold text-foreground">整集预览画面</span>
                     </div>
                     <p className="mt-1 type-label leading-5 text-muted-foreground">从上到下查看全部真实剧情画面。</p>
-                  </button>
+                  </WorkbenchListItem>
                   {storyNodes.map((node, index) => (
                     <StoryTreeNode
                       key={node.unit.id}
@@ -154,7 +153,7 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
                       onToggle={() => toggleUnit(node.unit.id)}
                     />
                   ))}
-                </div>
+                </WorkbenchList>
               )}
             </div>
             {data && (
@@ -166,14 +165,14 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
 
           <main className="min-w-0 flex-1 overflow-y-auto">
             {isLoading && (
-              <div className="flex h-56 items-center justify-center type-body text-muted-foreground">
-                加载中…
+              <div className="p-4">
+                <AppStateMessage text="加载中…" />
               </div>
             )}
 
             {isError && (
-              <div className="flex h-56 items-center justify-center type-body text-destructive">
-                加载失败，请关闭后重试
+              <div className="p-4">
+                <AppStateMessage tone="danger" text="加载失败，请关闭后重试" />
               </div>
             )}
 
@@ -181,21 +180,19 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
               <div className="space-y-4 p-4">
                 <MobileTree data={data} nodes={storyNodes} />
 
-                <section className="rounded-lg border border-border bg-background">
-                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 type-body font-semibold text-foreground">
-                        <Film size={14} />
-                        真实剧情流
-                      </div>
-                      <p className="mt-1 max-w-2xl type-label leading-5 text-muted-foreground">
-                        画面从上到下就是观众看到的剧情顺序；镜头关键帧会按开头、中间、结尾承接生产约束。
-                      </p>
-                    </div>
+                <AppPanel
+                  icon={Film}
+                  title="真实剧情流"
+                  bodyClassName="p-0"
+                  action={
                     <Badge variant="outline" className="type-tiny">
                       {selectedNode ? productionIdentifier({ scene_code: data.context.scene_moment_code }, selectedNode.unit) || selectedNode.unit.title || `制作项 #${selectedNode.unit.id}` : '全部画面'}
                     </Badge>
-                  </div>
+                  }
+                >
+                  <p className="border-b border-border px-4 py-3 type-label leading-5 text-muted-foreground">
+                    画面从上到下就是观众看到的剧情顺序；镜头关键帧会按开头、中间、结尾承接生产约束。
+                  </p>
 
                   {selectedKeyframes.length === 0 ? (
                     <EmptyStoryFlow />
@@ -211,7 +208,7 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
                       ))}
                     </div>
                   )}
-                </section>
+                </AppPanel>
 
                 {data.missing_assets.length > 0 && (
                   <ReviewCallout tone="warning" className="p-4">
@@ -221,17 +218,19 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
                     </div>
                     <div className="grid gap-2 md:grid-cols-2">
                       {data.missing_assets.map((asset) => (
-                        <div key={asset.id} className="flex items-start gap-2 rounded-md border border-border bg-background px-3 py-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate type-label font-medium text-foreground">{asset.name}</p>
-                            {asset.description && (
-                              <p className="mt-0.5 line-clamp-1 type-caption text-muted-foreground">{asset.description}</p>
-                            )}
-                          </div>
-                          <span className={cn('shrink-0 rounded px-1.5 py-0.5 type-tiny font-medium', semanticToneClass(priorityTone(asset.priority), 'badge'))}>
-                            {priorityLabel[asset.priority] ?? asset.priority}
-                          </span>
-                        </div>
+                        <AppKeyValue
+                          key={asset.id}
+                          label={asset.name}
+                          valueClassName="line-clamp-1 whitespace-normal"
+                          value={(
+                            <span className="flex min-w-0 items-center gap-2">
+                              <span className="min-w-0 flex-1 truncate">{asset.description || '暂无说明'}</span>
+                              <span className={cn('shrink-0 rounded px-1.5 py-0.5 type-tiny font-medium', semanticToneClass(priorityTone(asset.priority), 'badge'))}>
+                                {priorityLabel[asset.priority] ?? asset.priority}
+                              </span>
+                            </span>
+                          )}
+                        />
                       ))}
                     </div>
                   </ReviewCallout>
@@ -292,16 +291,18 @@ function StoryTreeNode({
   const duration = formatDuration(node.unit.duration_sec)
   const identifier = productionIdentifier({ scene_code: sceneCode }, node.unit)
   return (
-    <div className={cn('rounded-lg border bg-background transition-colors', selected ? 'border-primary ring-1 ring-primary' : 'border-border')}>
+    <WorkbenchSurfaceItem active={selected} className="p-0">
       <div className="flex items-start gap-2 p-2.5">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-xs"
           onClick={onToggle}
-          className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="mt-0.5 shrink-0"
           aria-label={expanded ? '收起' : '展开'}
         >
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        </button>
+        </Button>
         <button type="button" onClick={onSelect} className="min-w-0 flex-1 text-left">
           <div className="flex items-center gap-2">
             <span className="rounded bg-muted px-1.5 py-0.5 type-tiny tabular-nums text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
@@ -331,7 +332,7 @@ function StoryTreeNode({
           ))}
         </div>
       )}
-    </div>
+    </WorkbenchSurfaceItem>
   )
 }
 
@@ -409,86 +410,65 @@ function frameRoleLabel(index: number, total: number) {
 function PreviewStats({ data }: { data: PreviewGenerateResponse }) {
   return (
     <div className="grid grid-cols-3 gap-2">
-      <MiniStat icon={Boxes} label="段落" value={data.content_units.length} />
-      <MiniStat icon={Image} label="画面" value={data.keyframes.length} />
-      <MiniStat icon={AlertTriangle} label="缺口" value={data.missing_assets.length} />
-    </div>
-  )
-}
-
-function MiniStat({ icon: Icon, label, value }: { icon: typeof Boxes; label: string; value: number }) {
-  return (
-    <div className="rounded-md border border-border bg-background px-2 py-2">
-      <div className="flex items-center gap-1.5 type-caption text-muted-foreground">
-        <Icon size={12} />
-        {label}
-      </div>
-      <p className="mt-1 type-body font-semibold tabular-nums text-foreground">{value}</p>
+      <AppMetricCard icon={Boxes} label="段落" value={data.content_units.length} compact />
+      <AppMetricCard icon={Image} label="画面" value={data.keyframes.length} compact />
+      <AppMetricCard icon={AlertTriangle} label="缺口" value={data.missing_assets.length} compact />
     </div>
   )
 }
 
 function MobileTree({ data, nodes }: { data: PreviewGenerateResponse; nodes: PreviewStoryNode[] }) {
   return (
-    <section className="rounded-lg border border-border bg-muted/20 p-3 lg:hidden">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 type-body font-semibold text-foreground">
-          <Layers3 size={14} />
-          编排段树
-        </div>
-        <PreviewStats data={data} />
-      </div>
+    <AppPanel icon={Layers3} title="编排段树" action={<PreviewStats data={data} />} className="lg:hidden" bodyClassName="space-y-2">
       <div className="space-y-2">
         {nodes.length === 0 ? (
           <EmptyBlock title="暂无预览结构" detail="需要先补充制作项或预览画面。" />
         ) : nodes.map((node, index) => (
-          <div key={node.unit.id} className="rounded-md border border-border bg-background p-3">
-            <div className="flex items-center gap-2">
-              <span className="rounded bg-muted px-1.5 py-0.5 type-tiny tabular-nums text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
-              {productionIdentifier({ scene_code: data.context.scene_moment_code }, node.unit) ? <Badge variant="outline" className="shrink-0 type-tiny">{productionIdentifier({ scene_code: data.context.scene_moment_code }, node.unit)}</Badge> : null}
-              <p className="min-w-0 flex-1 truncate type-body font-semibold text-foreground">{node.unit.title || `制作项 #${node.unit.id}`}</p>
-              <Badge variant="outline" className="type-tiny">{node.keyframes.length} 帧</Badge>
-            </div>
-            <p className="mt-1 line-clamp-2 type-label leading-5 text-muted-foreground">{node.unit.description || '暂无段落说明'}</p>
-          </div>
+          <AppKeyValue
+            key={node.unit.id}
+            label={(
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 type-tiny tabular-nums text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
+                {productionIdentifier({ scene_code: data.context.scene_moment_code }, node.unit) ? <Badge variant="outline" className="shrink-0 type-tiny">{productionIdentifier({ scene_code: data.context.scene_moment_code }, node.unit)}</Badge> : null}
+                <span className="min-w-0 flex-1 truncate type-body font-semibold text-foreground">{node.unit.title || `制作项 #${node.unit.id}`}</span>
+                <Badge variant="outline" className="shrink-0 type-tiny">{node.keyframes.length} 帧</Badge>
+              </span>
+            )}
+            value={node.unit.description || '暂无段落说明'}
+            valueClassName="line-clamp-2 whitespace-normal"
+          />
         ))}
       </div>
-    </section>
+    </AppPanel>
   )
 }
 
 function EmptyStoryFlow() {
   return (
-    <div className="flex min-h-60 flex-col items-center justify-center gap-2 p-8 text-center">
-      <Image size={24} className="text-muted-foreground" />
-      <p className="type-body font-medium text-foreground">暂无预览画面</p>
-      <p className="max-w-sm type-label leading-5 text-muted-foreground">补充情节预览画面或镜头关键帧后，这里会按从上到下的顺序呈现真实剧情。</p>
-    </div>
+    <AppEmptyState
+      icon={Image}
+      title="暂无预览画面"
+      detail="补充情节预览画面或镜头关键帧后，这里会按从上到下的顺序呈现真实剧情。"
+      className="min-h-60"
+    />
   )
 }
 
 function LoadingBlock({ label }: { label: string }) {
   return (
-    <div className="rounded-lg border border-border bg-background p-4 type-body text-muted-foreground">
-      {label}…
-    </div>
+    <AppStateMessage text={`${label}…`} />
   )
 }
 
 function ErrorBlock() {
   return (
-    <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 type-body text-destructive">
-      加载失败
-    </div>
+    <AppStateMessage tone="danger" text="加载失败" />
   )
 }
 
 function EmptyBlock({ title, detail }: { title: string; detail: string }) {
   return (
-    <div className="rounded-lg border border-dashed border-border bg-background p-4">
-      <p className="type-body font-medium text-foreground">{title}</p>
-      <p className="mt-1 type-label leading-5 text-muted-foreground">{detail}</p>
-    </div>
+    <AppEmptyState title={title} detail={detail} compact />
   )
 }
 
