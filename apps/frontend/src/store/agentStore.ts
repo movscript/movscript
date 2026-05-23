@@ -134,12 +134,14 @@ interface AgentStore {
   createConversation: (userId: string) => string
   deleteConversation: (userId: string, id: string) => void
   deleteConversations: (userId: string, ids: string[]) => void
+  reorderConversation: (userId: string, draggedId: string, targetId: string, position: 'before' | 'after') => void
   setActiveConversation: (userId: string, id: string | null) => void
   addMessage: (userId: string, conversationId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp?: number }) => string
   upsertMessage: (userId: string, conversationId: string, messageId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp?: number }) => void
   setConversationMessages: (userId: string, conversationId: string, messages: ChatMessage[]) => void
   updateMessageMeta: (userId: string, conversationId: string, messageId: string, meta: ChatMessageMeta) => void
   removeMessage: (userId: string, conversationId: string, messageId: string) => void
+  setConversationRuntimeSessionId: (userId: string, conversationId: string, sessionId: string) => void
   setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
   updateConversationTitle: (userId: string, id: string, title: string) => void
   getConversationDraft: (userId: string, conversationId: string) => ConversationDraft
@@ -240,8 +242,8 @@ export const useAgentStore = create<AgentStore>()(
             ...state.convsByUser,
             [userId]: {
               conversations: [
-                { id, title: i18n.t('agents.chat.newConversation'), messages: [], createdAt: Date.now(), updatedAt: Date.now() },
                 ...cur.conversations,
+                { id, title: i18n.t('agents.chat.newConversation'), messages: [], createdAt: Date.now(), updatedAt: Date.now() },
               ],
               activeConversationId: id,
               draftsByConversation: cur.draftsByConversation,
@@ -289,6 +291,32 @@ export const useAgentStore = create<AgentStore>()(
               ? (conversations[0]?.id ?? null)
               : cur.activeConversationId,
             draftsByConversation,
+          },
+        },
+      }
+    }),
+
+    reorderConversation: (userId, draggedId, targetId, position) => set((state) => {
+      if (draggedId === targetId) return {}
+      const cur = getUserState(state, userId)
+      const dragged = cur.conversations.find((conversation) => conversation.id === draggedId)
+      const target = cur.conversations.find((conversation) => conversation.id === targetId)
+      if (!dragged || !target) return {}
+      const withoutDragged = cur.conversations.filter((conversation) => conversation.id !== draggedId)
+      const targetIndex = withoutDragged.findIndex((conversation) => conversation.id === targetId)
+      if (targetIndex < 0) return {}
+      const insertIndex = position === 'after' ? targetIndex + 1 : targetIndex
+      const conversations = [
+        ...withoutDragged.slice(0, insertIndex),
+        dragged,
+        ...withoutDragged.slice(insertIndex),
+      ]
+      return {
+        convsByUser: {
+          ...state.convsByUser,
+          [userId]: {
+            ...cur,
+            conversations,
           },
         },
       }
@@ -390,6 +418,23 @@ export const useAgentStore = create<AgentStore>()(
                 ? removeConversationMessage(c, messageId, { now: () => now })
                 : c
             ),
+          },
+        },
+      }
+    }),
+
+    setConversationRuntimeSessionId: (userId, conversationId, sessionId) => set((state) => {
+      const cur = getUserState(state, userId)
+      const normalizedSessionId = sessionId.trim()
+      if (!normalizedSessionId) return {}
+      return {
+        convsByUser: {
+          ...state.convsByUser,
+          [userId]: {
+            ...cur,
+            conversations: cur.conversations.map((c) => c.id === conversationId
+              ? { ...c, runtimeSessionId: normalizedSessionId, updatedAt: Date.now() }
+              : c),
           },
         },
       }

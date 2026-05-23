@@ -1,4 +1,4 @@
-import type { CSSProperties, KeyboardEvent, MouseEvent } from 'react'
+import { useState, type CSSProperties, type DragEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 import { conversationDisplayTitle } from '@/components/agent/AgentConversationList'
@@ -12,6 +12,7 @@ export interface AgentConversationTabsProps {
   onCloseTabContextMenu: () => void
   onOpenKeyboardMenu: (event: KeyboardEvent, conversationId: string) => void
   onOpenMenu: (event: MouseEvent, conversationId: string) => void
+  onReorderConversation: (draggedId: string, targetId: string, position: 'before' | 'after') => void
   onSelectConversation: (id: string) => void
   runtimeStatusLights?: Partial<Record<string, AgentRuntimeStatusLight>>
 }
@@ -23,10 +24,23 @@ export function AgentConversationTabs({
   onCloseTabContextMenu,
   onOpenKeyboardMenu,
   onOpenMenu,
+  onReorderConversation,
   onSelectConversation,
   runtimeStatusLights,
 }: AgentConversationTabsProps) {
   const { t } = useTranslation()
+  const [draggingConversationId, setDraggingConversationId] = useState<string | null>(null)
+  const [dropTarget, setDropTarget] = useState<{ conversationId: string; position: 'before' | 'after' } | null>(null)
+
+  function dropPositionForEvent(event: DragEvent<HTMLElement>): 'before' | 'after' {
+    const rect = event.currentTarget.getBoundingClientRect()
+    return event.clientX >= rect.left + rect.width / 2 ? 'after' : 'before'
+  }
+
+  function clearDragState() {
+    setDraggingConversationId(null)
+    setDropTarget(null)
+  }
 
   return (
     <div
@@ -45,6 +59,43 @@ export function AgentConversationTabs({
             key={item.id}
             className="ai-agent-panel-conversation-tab"
             data-active={item.id === activeConversationId ? 'true' : 'false'}
+            data-dragging={draggingConversationId === item.id ? 'true' : undefined}
+            data-drop-position={dropTarget?.conversationId === item.id ? dropTarget.position : undefined}
+            draggable
+            onDragStart={(event) => {
+              if ((event.target as HTMLElement).closest('.ai-agent-panel-conversation-tab-close')) {
+                event.preventDefault()
+                return
+              }
+              onCloseTabContextMenu()
+              event.dataTransfer.effectAllowed = 'move'
+              event.dataTransfer.setData('text/plain', item.id)
+              setDraggingConversationId(item.id)
+            }}
+            onDragOver={(event) => {
+              const draggedId = draggingConversationId ?? event.dataTransfer.getData('text/plain')
+              if (!draggedId || draggedId === item.id) {
+                setDropTarget(null)
+                return
+              }
+              event.preventDefault()
+              event.dataTransfer.dropEffect = 'move'
+              setDropTarget({ conversationId: item.id, position: dropPositionForEvent(event) })
+            }}
+            onDragLeave={(event) => {
+              const nextTarget = event.relatedTarget
+              if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return
+              if (dropTarget?.conversationId === item.id) setDropTarget(null)
+            }}
+            onDrop={(event) => {
+              const draggedId = draggingConversationId ?? event.dataTransfer.getData('text/plain')
+              const position = dropPositionForEvent(event)
+              event.preventDefault()
+              clearDragState()
+              if (!draggedId || draggedId === item.id) return
+              onReorderConversation(draggedId, item.id, position)
+            }}
+            onDragEnd={clearDragState}
             onContextMenu={(event) => onOpenMenu(event, item.id)}
           >
             <button

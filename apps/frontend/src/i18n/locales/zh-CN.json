@@ -1036,7 +1036,8 @@
         "search_file": "搜索文件",
         "edit_file": "编辑文件",
         "core_work_wait": "等待运行工作",
-        "core_work_get": "查看运行工作"
+        "core_work_get": "查看运行工作",
+        "runtime_continuation_resume": "继续上次异步任务"
       },
       "risks": {
         "low": "低",
@@ -1045,7 +1046,8 @@
         "critical": "严重",
         "write": "写入",
         "generate": "生成任务",
-        "destructive": "破坏性"
+        "destructive": "破坏性",
+        "resume": "接续运行"
       },
       "permissions": {
         "read": "读取",
@@ -1076,7 +1078,8 @@
         "model_image_generate": "生成图片",
         "model_video_generate": "生成视频",
         "project_read": "读取项目数据",
-        "project_write": "写入项目数据"
+        "project_write": "写入项目数据",
+        "runtime_continuation": "接续异步任务"
       },
       "unknown": {
         "permission": "未识别权限：{{value}}",
@@ -2226,6 +2229,14 @@
       "modelLockedByAgent": "当前 Agent 已指定模型",
       "myAgents": "我的 Agent",
       "newConversation": "新对话",
+      "expandAgentContentPanel": "展开右侧内容区",
+      "collapseAgentContentPanel": "缩略右侧内容区",
+      "agentModeEmptyTitle": "你希望做什么影片？",
+      "agentModeProjectPicker": {
+        "title": "选择项目",
+        "manageProjects": "管理项目",
+        "noProjects": "暂无项目，去创建"
+      },
       "agentModeSidebar": {
         "newConversation": "新对话",
         "plugins": "插件",
@@ -2253,6 +2264,7 @@
       "noAgent": "不使用 Agent，直接对话",
       "noAgentShort": "直接对话",
       "noConversations": "暂无对话记录",
+      "noHistoryConversations": "暂无历史会话",
       "platformTemplates": "平台模板",
       "selectAgent": "选择 Agent",
       "selectModelFirst": "请先选择一个模型。",
@@ -2389,6 +2401,7 @@
         "approvalApproved": "已确认",
         "approvalRejected": "已拒绝",
         "approvalExpired": "已过期",
+        "continuationResumeReason": "检测到上次提交的异步任务已有结果，可以基于这些结果继续原任务。",
         "inputAnswered": "已回答",
         "inputCancelled": "已取消",
         "inputPending": "待处理",
@@ -2441,6 +2454,7 @@
           "catalogReload": "通过后会从磁盘重新加载本地 skills、tools、packs 和 profiles。",
           "workStart": "通过后会提交异步 runtime work；生成任务可能消耗额度，子 agent 任务会启动 worker run。",
           "workCancel": "通过后会取消异步 runtime work；未完成输出或 worker 后续执行可能不再产生。",
+          "continuationResume": "通过后会基于已完成的异步任务结果启动一个新的接续 run，继续原任务。",
           "destructive": "通过后可能删除或取消已有数据，请先确认细节。",
           "write": "通过后会允许一次写入操作，而不只是读取或预览数据。",
           "default": "通过后 Agent 会调用这个工具，并用调用结果继续运行。"
@@ -2936,6 +2950,7 @@
     },
     "contextMenu": {
       "groupSelected": "将 {{count}} 个节点分组",
+      "ungroupSelected": "解除 {{count}} 个分组",
       "deleteSelected": "删除选中节点"
     },
     "editor": {

@@ -427,6 +427,12 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
+      const sessionStreamMatch = url.pathname.match(/^\/sessions\/([^/]+)\/stream$/)
+      if (sessionStreamMatch && req.method === 'GET') {
+        streamSessionEvents(req, res, context.runtimeRouter, sessionStreamMatch[1])
+        return
+      }
+
       if (req.method === 'GET' && url.pathname === '/threads') {
         writeJSON(res, 200, { threads: context.runtimeRouter.listThreadSummaries() })
         return
@@ -1240,6 +1246,44 @@ function streamThreadEvents(req: IncomingMessage, res: ServerResponse, runtime: 
   req.on('close', () => cleanup(false))
 }
 
+function streamSessionEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, sessionId: string): void {
+  if (!runtime.getSession(sessionId)) {
+    writeJSON(res, 404, { error: 'session not found' })
+    return
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  })
+  res.write(': connected\n\n')
+
+  let closed = false
+  let unsubscribe = () => { }
+  const heartbeat = setInterval(() => {
+    if (!closed && !res.writableEnded) res.write(': keep-alive\n\n')
+  }, 15_000)
+
+  const cleanup = (end: boolean) => {
+    if (closed) return
+    closed = true
+    clearInterval(heartbeat)
+    unsubscribe()
+    if (end && !res.writableEnded) res.end()
+  }
+
+  let ordinal = 0
+  unsubscribe = runtime.subscribeSessionStream(sessionId, (event) => {
+    if (closed || res.writableEnded) return
+    const runtimeEvent = runtimeEventFromSessionStream({ runtime, scope: { type: 'session', id: sessionId }, ordinal: ++ordinal, event })
+    writeSSE(res, 'runtime_event', runtimeEvent, runtimeEvent.cursor)
+  })
+
+  req.on('close', () => cleanup(false))
+}
+
 function streamPlanEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, taskGraphId: string): void {
   if (!runtime.getTaskGraph(taskGraphId)) {
     writeJSON(res, 404, { error: 'taskGraph not found' })
@@ -1305,6 +1349,15 @@ function runtimeEventFromThreadStream(input: {
   return runtimeEventFromRunStream(input)
 }
 
+function runtimeEventFromSessionStream(input: {
+  runtime: AgentRuntimeRouter
+  scope: { type: 'session'; id: string }
+  ordinal: number
+  event: AgentInternalThreadSignal
+}): AgentRuntimeEventV2 {
+  return runtimeEventFromRunStream(input)
+}
+
 function runtimeEventFromPlanStream(input: {
   scope: { type: 'plan'; id: string }
   ordinal: number
@@ -1356,7 +1409,7 @@ function runtimeEventFromPlanStream(input: {
 
 function runtimeEventFromRunStream(input: {
   runtime: AgentRuntimeRouter
-  scope: { type: 'run' | 'thread'; id: string }
+  scope: { type: 'run' | 'session' | 'thread'; id: string }
   ordinal: number
   event: AgentInternalRunSignal | AgentInternalThreadSignal
 }): AgentRuntimeEventV2 {

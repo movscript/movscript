@@ -519,6 +519,16 @@ export interface ThreadStreamOptions {
   signal?: AbortSignal
 }
 
+export interface SessionStreamOptions {
+  onRuntimeEvent?: (event: AgentRuntimeEventV2) => void
+  signal?: AbortSignal
+}
+
+export interface PlanStreamOptions {
+  onRuntimeEvent?: (event: AgentRuntimeEventV2) => void
+  signal?: AbortSignal
+}
+
 const DEFAULT_LOCAL_AGENT_BASE_URL = 'http://127.0.0.1:28765'
 const DEFAULT_RUN_STREAM_HTTP_TIMEOUT_MS = 60_000
 const TERMINAL_RUN_STATUSES = new Set<AgentRunStatus>([
@@ -906,7 +916,22 @@ export class LocalAgentClient {
   }
 
   async streamThread(threadId: string, options: ThreadStreamOptions = {}): Promise<void> {
-    const res = await fetch(`${this.baseURL}/threads/${encodeURIComponent(threadId)}/stream`, {
+    await this.streamRuntimeEvents(`/threads/${encodeURIComponent(threadId)}/stream`, options)
+  }
+
+  async streamSession(sessionId: string, options: SessionStreamOptions = {}): Promise<void> {
+    await this.streamRuntimeEvents(`/sessions/${encodeURIComponent(sessionId)}/stream`, options)
+  }
+
+  async streamPlan(taskGraphId: string, options: PlanStreamOptions = {}): Promise<void> {
+    await this.streamRuntimeEvents(`/plans/${encodeURIComponent(taskGraphId)}/stream`, options)
+  }
+
+  private async streamRuntimeEvents(
+    path: string,
+    options: { onRuntimeEvent?: (event: AgentRuntimeEventV2) => void; signal?: AbortSignal } = {},
+  ): Promise<void> {
+    const res = await fetch(`${this.baseURL}${path}`, {
       headers: this.authHeaders({ Accept: 'text/event-stream' }),
       signal: options.signal,
     })

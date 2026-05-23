@@ -9,6 +9,7 @@ import {
 import {
   LocalAgentApprovalRequestCard,
   LocalAgentInputRequestCard,
+  type LocalAgentApprovalRequest,
 } from '@/components/agent/localRuntime'
 import { AuthedImage } from '@/components/shared/AuthedImage'
 import { formatAgentDividerTime } from '@/lib/agentMessageDivider'
@@ -72,7 +73,7 @@ export function LocalAgentWorkflowBubble({
   )
 }
 
-export function localAgentApprovalDetails(approval: AgentPendingApprovalRequest) {
+export function localAgentApprovalDetails(approval: LocalAgentApprovalRequest) {
   const generationApproval = generationJobApprovalView(approval)
   const assetCandidateApproval = assetSlotCandidateApprovalView(approval)
   return (
@@ -248,7 +249,7 @@ function ApprovalResourceThumbnail({ resourceId }: { resourceId?: number }) {
   )
 }
 
-function generationJobApprovalView(approval: AgentPendingApprovalRequest): GenerationJobApprovalView | null {
+function generationJobApprovalView(approval: LocalAgentApprovalRequest): GenerationJobApprovalView | null {
   const args = asRecord(approval.args)
   if (!args) return null
   const kind = stringValue(args.kind)
@@ -275,7 +276,7 @@ function generationJobApprovalView(approval: AgentPendingApprovalRequest): Gener
   }
 }
 
-function assetSlotCandidateApprovalView(approval: AgentPendingApprovalRequest): AssetSlotCandidateApprovalView | null {
+function assetSlotCandidateApprovalView(approval: LocalAgentApprovalRequest): AssetSlotCandidateApprovalView | null {
   if (approval.toolName !== 'candidate_asset_slot_attach' && approval.toolName !== 'asset_candidate_write') return null
   const args = asRecord(approval.args)
   if (!args) return null

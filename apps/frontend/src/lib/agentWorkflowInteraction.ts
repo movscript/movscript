@@ -16,6 +16,25 @@ export function runHasWorkflowInteraction(run: AgentRun | null | undefined): boo
     || (run.pendingApprovals ?? []).some((approval) => approval.status === 'pending' || approval.status === 'approved' || approval.status === 'rejected')
 }
 
+export function isContinuationResumeApproval(approval: Pick<AgentPendingApprovalRequest, 'toolName'> | null | undefined): boolean {
+  return approval?.toolName === 'runtime_continuation_resume'
+}
+
+export function runHasContinuationResumeApproval(run: AgentRun | null | undefined): boolean {
+  return !!run?.pendingApprovals?.some(isContinuationResumeApproval)
+}
+
+export function runHasOnlyContinuationResumeApprovals(run: AgentRun | null | undefined): boolean {
+  if (!run) return false
+  const actionApprovals = (run.pendingApprovals ?? [])
+    .filter((approval) => approval.status === 'pending' || approval.status === 'approved' || approval.status === 'rejected')
+  const actionInputs = (run.pendingInputRequests ?? [])
+    .filter((request) => request.status === 'pending' || request.status === 'answered' || request.status === 'cancelled')
+  return actionApprovals.length > 0
+    && actionInputs.length === 0
+    && actionApprovals.every(isContinuationResumeApproval)
+}
+
 export function optimisticApprovalRun(run: AgentRun, approvalIds: string[] | undefined, status: AgentPendingApprovalRequest['status']): AgentRun {
   const now = new Date().toISOString()
   const targetIds = new Set(approvalIds?.length
@@ -98,6 +117,8 @@ export function workflowRunFromActivity(activity: ChatRunActivity | undefined): 
       return {
         id: request.id,
         runId: request.runId ?? activity.runId,
+        ...(request.displayThreadId ? { displayThreadId: request.displayThreadId } : {}),
+        ...(request.displayAnchor ? { displayAnchor: request.displayAnchor } : {}),
         title: request.title,
         ...(request.summary ? { summary: request.summary } : {}),
         question: request.question,
@@ -120,6 +141,8 @@ export function workflowRunFromActivity(activity: ChatRunActivity | undefined): 
         id: approval.id,
         runId: approval.runId ?? activity.runId,
         ...(approval.interactionId ? { interactionId: approval.interactionId } : {}),
+        ...(approval.displayThreadId ? { displayThreadId: approval.displayThreadId } : {}),
+        ...(approval.displayAnchor ? { displayAnchor: approval.displayAnchor } : {}),
         toolName: approval.toolName,
         ...(approval.args ? { args: approval.args as Record<string, JSONValue> } : {}),
         ...(approval.preview !== undefined ? { preview: approval.preview as JSONValue } : {}),

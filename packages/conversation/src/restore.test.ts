@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  conversationIdForRuntimeSession,
   conversationIdForRuntimeThread,
   restoreRuntimeThreadConversation,
   type RestoreRuntimeThreadConversationDeps,
@@ -44,6 +45,37 @@ test('conversationIdForRuntimeThread falls back to the latest runtime mapping', 
   }), 'conv_new')
 })
 
+test('conversationIdForRuntimeSession falls back to direct and latest runtime session mappings', () => {
+  assert.equal(conversationIdForRuntimeSession({
+    sessionId: 'session_1',
+    localThreadIdsByConversation: {},
+    sessionIdsByConversation: {
+      conv_direct: 'session_1',
+    },
+    conversationRuntimes: {
+      conv_runtime: {
+        sessionId: 'session_1',
+        updatedAt: 2000,
+      },
+    },
+  }), 'conv_direct')
+
+  assert.equal(conversationIdForRuntimeSession({
+    sessionId: 'session_2',
+    localThreadIdsByConversation: {},
+    conversationRuntimes: {
+      conv_old: {
+        sessionId: 'session_2',
+        updatedAt: 1000,
+      },
+      conv_new: {
+        sessionId: 'session_2',
+        updatedAt: 2000,
+      },
+    },
+  }), 'conv_new')
+})
+
 test('restoreRuntimeThreadConversation activates an existing runtime conversation', async () => {
   const calls: string[] = []
   const result = await restoreRuntimeThreadConversation('thread_1', depsFixture(calls, {
@@ -71,6 +103,28 @@ test('restoreRuntimeThreadConversation reuses session thread mappings before loa
   assert.deepEqual(calls, ['active:conv_2'])
 })
 
+test('restoreRuntimeThreadConversation reuses an existing runtime session conversation after loading projection', async () => {
+  const calls: string[] = []
+  const result = await restoreRuntimeThreadConversation('thread_worker', depsFixture(calls, {
+    conversations: [conversation({ id: 'conv_root', runtimeSessionId: 'session_1' })],
+    projection: {
+      thread: thread({ id: 'thread_worker', sessionId: 'session_1', title: 'Worker thread' }),
+      messages: [message({ id: 'runtime_msg_worker' })],
+    },
+  }))
+
+  assert.deepEqual(result, {
+    conversationId: 'conv_root',
+    threadId: 'thread_worker',
+    reusedExistingConversation: true,
+    restoredMessageCount: 0,
+  })
+  assert.deepEqual(calls, [
+    'load:thread_worker',
+    'active:conv_root',
+  ])
+})
+
 test('restoreRuntimeThreadConversation creates a restored conversation from runtime projection', async () => {
   const calls: string[] = []
   const result = await restoreRuntimeThreadConversation('thread_3', depsFixture(calls, {
@@ -95,6 +149,20 @@ test('restoreRuntimeThreadConversation creates a restored conversation from runt
     'runtimeThread:created_conv:thread_3',
     'active:created_conv',
   ])
+})
+
+test('restoreRuntimeThreadConversation persists restored session and thread anchors', async () => {
+  const calls: string[] = []
+  await restoreRuntimeThreadConversation('thread_3', depsFixture(calls, {
+    projection: {
+      thread: thread({ id: 'thread_3', sessionId: 'session_3', title: 'Runtime thread' }),
+      messages: [message({ id: 'runtime_msg_1' })],
+    },
+  }))
+
+  assert.equal(calls.includes('session:created_conv:session_3'), true)
+  assert.equal(calls.includes('runtimeSession:created_conv:session_3'), true)
+  assert.equal(calls.includes('runtimeThread:created_conv:thread_3'), true)
 })
 
 function depsFixture(
@@ -136,6 +204,12 @@ function depsFixture(
     setLocalThreadId: (conversationId, threadId) => {
       calls.push(`localThread:${conversationId}:${threadId}`)
     },
+    setConversationSessionId: (conversationId, sessionId) => {
+      calls.push(`session:${conversationId}:${sessionId}`)
+    },
+    setConversationRuntimeSessionId: (_userId, conversationId, sessionId) => {
+      calls.push(`runtimeSession:${conversationId}:${sessionId}`)
+    },
     setConversationRuntimeThreadId: (_userId, conversationId, threadId) => {
       calls.push(`runtimeThread:${conversationId}:${threadId}`)
     },
@@ -144,6 +218,7 @@ function depsFixture(
 
 interface TestConversation {
   id: string
+  runtimeSessionId?: string
   runtimeThreadId?: string
 }
 

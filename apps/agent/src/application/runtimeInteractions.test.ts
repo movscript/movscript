@@ -31,6 +31,57 @@ test('materializeRuntimeApprovalInteractions creates stable approval interaction
     'interaction_approval_1',
     'interaction_approval_2',
   ])
+  assert.equal(store.getRuntimeInteraction('interaction_approval_1')?.originThreadId, 'thread_1')
+  assert.equal(store.getRuntimeInteraction('interaction_approval_1')?.displayThreadId, 'thread_1')
+  assert.deepEqual(store.getRuntimeInteraction('interaction_approval_1')?.displayAnchor, {
+    threadId: 'thread_1',
+    runId: 'run_1',
+    placement: 'after',
+    reason: 'run',
+  })
+})
+
+test('materializeRuntimeApprovalInteractions projects worker interactions to the session interactive thread', () => {
+  const store = new InMemoryAgentStore()
+  store.createSession({
+    id: 'session_1',
+    rootThreadId: 'thread_root',
+    interactiveThreadId: 'thread_root',
+    activeThreadId: 'thread_worker',
+    createdAt: '2026-05-21T00:00:00.000Z',
+    updatedAt: '2026-05-21T00:00:00.000Z',
+  })
+  const run = makeRun({
+    sessionId: 'session_1',
+    threadId: 'thread_worker',
+    input: {
+      schema: 'movscript.agent.run-input.v1',
+      userMessage: 'Start worker',
+      sourceMessageId: 'msg_root_user',
+      executionMode: 'worker',
+      createdAt: '2026-05-21T00:00:00.000Z',
+    },
+  })
+
+  materializeRuntimeApprovalInteractions({
+    store,
+    run,
+    approvals: [approval('approval_1')],
+    now: '2026-05-21T00:00:00.000Z',
+  })
+
+  const interaction = store.getRuntimeInteraction('interaction_approval_1')
+  assert.equal(interaction?.sessionId, 'session_1')
+  assert.equal(interaction?.originThreadId, 'thread_worker')
+  assert.equal(interaction?.originRunId, 'run_1')
+  assert.equal(interaction?.displayThreadId, 'thread_root')
+  assert.deepEqual(interaction?.displayAnchor, {
+    threadId: 'thread_root',
+    runId: 'run_1',
+    messageId: 'msg_root_user',
+    placement: 'after',
+    reason: 'run_source_message',
+  })
 })
 
 test('approveRuntimeInteraction resolves one interaction and delegates selected approval id', () => {
@@ -94,7 +145,7 @@ test('approveRuntimeInteraction is idempotent for already resolved interactions'
   assert.equal(result.run.id, run.id)
 })
 
-function makeRun(): AgentRun {
+function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   return {
     id: 'run_1',
     threadId: 'thread_1',
@@ -109,6 +160,7 @@ function makeRun(): AgentRun {
     createdAt: '2026-05-21T00:00:00.000Z',
     updatedAt: '2026-05-21T00:00:00.000Z',
     steps: [],
+    ...overrides,
   }
 }
 

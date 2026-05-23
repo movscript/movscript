@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import { Copy, MoreHorizontal, Route } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -22,7 +23,9 @@ import {
 } from '@/lib/agentActivityFeed'
 import { cn } from '@/lib/utils'
 import { agentRunPath } from '@/routes/projectRoutes'
+import { LocalAgentApprovalRequestCard, LocalAgentInputRequestCard, type LocalAgentApprovalRequest } from '@/components/agent/localRuntime'
 import type { AgentRun } from '@/lib/localAgentClient'
+import type { AgentInputAnswer } from '@/lib/agentWorkflowInteraction'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/store/agentStore'
 
 export function AgentActivityFeedView({
@@ -30,11 +33,21 @@ export function AgentActivityFeedView({
   run,
   events,
   className,
+  approving = false,
+  onApprove,
+  onReject,
+  onAnswerInput,
+  approvalDetails,
 }: {
   activity?: ChatRunActivity
   run?: AgentRun | null
   events?: ChatRunActivityEvent[]
   className?: string
+  approving?: boolean
+  onApprove?: (approvalIds?: string[]) => void
+  onReject?: (approvalIds?: string[]) => void
+  onAnswerInput?: (requestId: string, answer: AgentInputAnswer) => void
+  approvalDetails?: (approval: LocalAgentApprovalRequest) => ReactNode
 }) {
   const [expandedDebugItems, setExpandedDebugItems] = useState<Set<string>>(() => new Set())
   const feed = useMemo(() => buildAgentActivityFeed({ activity, run, events }), [activity, events, run])
@@ -55,7 +68,12 @@ export function AgentActivityFeedView({
         <AgentActivityRoundSection
           key={round.id}
           round={round}
+          approving={approving}
           expandedDebugItems={expandedDebugItems}
+          onApprove={onApprove}
+          onReject={onReject}
+          onAnswerInput={onAnswerInput}
+          approvalDetails={approvalDetails}
           onToggleDebugItem={toggleDebugItem}
         />
       ))}
@@ -154,11 +172,21 @@ export function AgentActivityDividerMenu({
 
 function AgentActivityRoundSection({
   round,
+  approving,
   expandedDebugItems,
+  onApprove,
+  onReject,
+  onAnswerInput,
+  approvalDetails,
   onToggleDebugItem,
 }: {
   round: AgentActivityRound
+  approving?: boolean
   expandedDebugItems: Set<string>
+  onApprove?: (approvalIds?: string[]) => void
+  onReject?: (approvalIds?: string[]) => void
+  onAnswerInput?: (requestId: string, answer: AgentInputAnswer) => void
+  approvalDetails?: (approval: LocalAgentApprovalRequest) => ReactNode
   onToggleDebugItem: (itemId: string) => void
 }) {
   return (
@@ -173,7 +201,12 @@ function AgentActivityRoundSection({
             <AgentActivityItemRow
               key={item.id}
               item={item}
+              approving={approving}
               expanded={expandedDebugItems.has(item.id)}
+              onApprove={onApprove}
+              onReject={onReject}
+              onAnswerInput={onAnswerInput}
+              approvalDetails={approvalDetails}
               onToggleDebug={() => onToggleDebugItem(item.id)}
             />
           ))}
@@ -189,11 +222,21 @@ function AgentActivityRoundSection({
 
 function AgentActivityItemRow({
   item,
+  approving = false,
   expanded = false,
+  onApprove,
+  onReject,
+  onAnswerInput,
+  approvalDetails,
   onToggleDebug,
 }: {
   item: AgentActivityItem
+  approving?: boolean
   expanded?: boolean
+  onApprove?: (approvalIds?: string[]) => void
+  onReject?: (approvalIds?: string[]) => void
+  onAnswerInput?: (requestId: string, answer: AgentInputAnswer) => void
+  approvalDetails?: (approval: LocalAgentApprovalRequest) => ReactNode
   onToggleDebug?: () => void
 }) {
   if (item.type === 'line') {
@@ -212,6 +255,32 @@ function AgentActivityItemRow({
           )}
         </div>
         {expanded && item.detail && <AgentActivityDebugDetailView detail={item.detail} />}
+      </div>
+    )
+  }
+
+  if (item.type === 'input_request') {
+    return (
+      <div className="py-2">
+        <LocalAgentInputRequestCard
+          request={item.request}
+          disabled={approving || item.request.status !== 'pending' || !onAnswerInput}
+          onAnswer={(answer) => onAnswerInput?.(item.request.id, answer)}
+        />
+      </div>
+    )
+  }
+
+  if (item.type === 'approval_request') {
+    return (
+      <div className="py-2">
+        <LocalAgentApprovalRequestCard
+          approval={item.approval}
+          approving={approving}
+          onApprove={onApprove}
+          onReject={onReject}
+          approvalDetails={approvalDetails}
+        />
       </div>
     )
   }

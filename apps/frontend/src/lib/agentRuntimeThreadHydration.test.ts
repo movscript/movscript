@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { buildWorkflowRunsByResultMessageId } from '@/components/agent/useAgentChatWorkflowState'
+import { buildAgentConversationMessageItems } from '@/lib/agentConversationThreadItems'
 import { loadRuntimeThreadProjection } from './agentRuntimeThreadHydration'
 import type { AgentRun, AgentRuntimeSnapshotV2, AgentThread } from './localAgentClient'
 
@@ -58,6 +60,209 @@ test('loadRuntimeThreadProjection prefers a combined thread runtime snapshot whe
   assert.deepEqual(calls, ['getThreadRuntime'])
   assert.deepEqual(result.runs.map((run) => run.id), ['run_listed'])
   assert.equal(result.currentRun?.id, 'run_listed')
+})
+
+test('loadRuntimeThreadProjection keeps worker runs displayed on the interactive thread', async () => {
+  const thread = makeThread()
+  const workerRun = makeRun({
+    id: 'run_worker',
+    threadId: 'thread_worker',
+    role: 'worker',
+    status: 'requires_action',
+    parentRunId: 'run_root',
+    pendingInputRequests: [{
+      id: 'input_worker',
+      runId: 'run_worker',
+      displayThreadId: thread.id,
+      displayAnchor: {
+        threadId: thread.id,
+        runId: 'run_worker',
+        messageId: 'msg_user',
+        placement: 'after',
+        reason: 'run_source_message',
+      },
+      title: 'Confirm',
+      question: 'Continue?',
+      inputType: 'confirmation',
+      choices: [{ id: 'yes', label: 'Yes' }],
+      allowCustomAnswer: false,
+      status: 'pending',
+      createdAt: '2026-05-19T00:00:04.000Z',
+      updatedAt: '2026-05-19T00:00:04.000Z',
+    }],
+  })
+
+  const result = await loadRuntimeThreadProjection({
+    threadId: 'thread_1',
+    existingMessages: [],
+  }, {
+    client: {
+      getThread: async () => thread,
+      listRunsByThread: async () => ({ threadId: 'thread_1', runs: [] }),
+      getThreadRuntime: async () => makeRuntimeSnapshot(thread, [workerRun], {
+        waitingRunIds: [workerRun.id],
+      }),
+    },
+    fetchRunGenerationView: async () => emptyGenerationReplay(),
+  })
+
+  assert.deepEqual(result.runs.map((run) => run.id), ['run_worker'])
+  assert.deepEqual(result.actionableRuns.map((run) => run.id), ['run_worker'])
+  assert.equal(result.currentRun?.id, 'run_worker')
+})
+
+test('loadRuntimeThreadProjection prefers session runtime and projects the interactive thread', async () => {
+  const rootThread = makeThread({ id: 'thread_root', sessionId: 'session_1' })
+  const workerRun = makeRun({
+    id: 'run_worker',
+    sessionId: 'session_1',
+    threadId: 'thread_worker',
+    role: 'worker',
+    status: 'requires_action',
+    pendingInputRequests: [{
+      id: 'input_worker',
+      runId: 'run_worker',
+      displayThreadId: rootThread.id,
+      displayAnchor: {
+        threadId: rootThread.id,
+        runId: 'run_worker',
+        messageId: 'msg_user',
+        placement: 'after',
+        reason: 'run_source_message',
+      },
+      title: 'Confirm',
+      question: 'Continue?',
+      inputType: 'confirmation',
+      choices: [{ id: 'yes', label: 'Yes' }],
+      allowCustomAnswer: false,
+      status: 'pending',
+      createdAt: '2026-05-19T00:00:04.000Z',
+      updatedAt: '2026-05-19T00:00:04.000Z',
+    }],
+  })
+  const calls: string[] = []
+
+  const result = await loadRuntimeThreadProjection({
+    threadId: 'thread_root',
+    sessionId: 'session_1',
+    existingMessages: [],
+  }, {
+    client: {
+      getThread: async () => {
+        calls.push('getThread')
+        return rootThread
+      },
+      listRunsByThread: async () => {
+        calls.push('listRunsByThread')
+        return { threadId: 'thread_root', runs: [] }
+      },
+      getThreadRuntime: async () => {
+        calls.push('getThreadRuntime')
+        return makeRuntimeSnapshot(rootThread, [])
+      },
+      getSessionRuntime: async () => {
+        calls.push('getSessionRuntime')
+        return makeSessionRuntimeSnapshot(rootThread, [workerRun])
+      },
+    },
+    fetchRunGenerationView: async () => emptyGenerationReplay(),
+  })
+
+  assert.deepEqual(calls, ['getSessionRuntime'])
+  assert.equal(result.thread.id, 'thread_root')
+  assert.deepEqual(result.runs.map((run) => run.id), ['run_worker'])
+  assert.equal(result.currentRun?.id, 'run_worker')
+})
+
+test('loadRuntimeThreadProjection still loads session runtime when a thread object is provided', async () => {
+  const rootThread = makeThread({ id: 'thread_root', sessionId: 'session_1' })
+  const calls: string[] = []
+
+  await loadRuntimeThreadProjection({
+    threadId: 'thread_root',
+    sessionId: 'session_1',
+    thread: rootThread,
+    existingMessages: [],
+  }, {
+    client: {
+      getThread: async () => rootThread,
+      listRunsByThread: async () => ({ threadId: 'thread_root', runs: [] }),
+      getThreadRuntime: async () => {
+        calls.push('getThreadRuntime')
+        return makeRuntimeSnapshot(rootThread, [])
+      },
+      getSessionRuntime: async () => {
+        calls.push('getSessionRuntime')
+        return makeSessionRuntimeSnapshot(rootThread, [])
+      },
+    },
+    fetchRunGenerationView: async () => emptyGenerationReplay(),
+  })
+
+  assert.deepEqual(calls, ['getSessionRuntime'])
+})
+
+test('session runtime projection anchors worker confirmations after the interactive user message', async () => {
+  const rootThread = makeThread({ id: 'thread_root', sessionId: 'session_1' })
+  const workerRun = makeRun({
+    id: 'run_worker',
+    sessionId: 'session_1',
+    threadId: 'thread_worker',
+    role: 'worker',
+    status: 'requires_action',
+    parentRunId: 'run_root',
+    input: {
+      schema: 'movscript.agent.run-input.v1',
+      userMessage: 'Worker task',
+      sourceMessageId: 'msg_user',
+      executionMode: 'worker',
+      createdAt: NOW,
+    },
+    pendingApprovals: [{
+      id: 'approval_worker',
+      runId: 'run_worker',
+      displayThreadId: rootThread.id,
+      displayAnchor: {
+        threadId: rootThread.id,
+        runId: 'run_worker',
+        messageId: 'msg_user',
+        placement: 'after',
+        reason: 'run_source_message',
+      },
+      toolName: 'generation_job_create',
+      reason: 'Needs approval',
+      status: 'pending',
+      createdAt: '2026-05-19T00:00:04.000Z',
+      updatedAt: '2026-05-19T00:00:04.000Z',
+    }],
+  })
+
+  const projection = await loadRuntimeThreadProjection({
+    threadId: 'thread_root',
+    sessionId: 'session_1',
+    existingMessages: [],
+  }, {
+    client: {
+      getThread: async () => rootThread,
+      listRunsByThread: async () => ({ threadId: 'thread_root', runs: [] }),
+      getSessionRuntime: async () => makeSessionRuntimeSnapshot(rootThread, [workerRun]),
+    },
+    fetchRunGenerationView: async () => emptyGenerationReplay(),
+  })
+  const workflowRunsByResultMessageId = buildWorkflowRunsByResultMessageId({
+    messages: projection.messages,
+    workflowRuns: projection.actionableRuns,
+  })
+  const items = buildAgentConversationMessageItems({
+    messages: projection.messages,
+    workflowAnswerEchoes: new Set(),
+    workflowRunsByResultMessageId,
+  })
+
+  assert.deepEqual(projection.messages.map((message) => message.id), ['runtime:msg_user'])
+  assert.equal(items[0]?.message.id, 'runtime:msg_user')
+  assert.deepEqual(items[0]?.beforeMessageWorkflowRuns.map((run) => run.id), [])
+  assert.deepEqual(items[0]?.afterMessageWorkflowRuns.map((run) => run.id), ['run_worker'])
 })
 
 test('loadRuntimeThreadProjection derives actionable runs from the authoritative snapshot', async () => {
@@ -197,19 +402,21 @@ test('loadRuntimeThreadProjection passes abort signals to thread and run reads',
   assert.deepEqual(seenSignals, [controller.signal, controller.signal])
 })
 
-function makeThread(): AgentThread {
+function makeThread(overrides: Partial<AgentThread> = {}): AgentThread {
+  const id = overrides.id ?? 'thread_1'
   return {
-    id: 'thread_1',
+    id,
     status: 'completed',
     createdAt: NOW,
     updatedAt: NOW,
     messages: [{
       id: 'msg_user',
-      threadId: 'thread_1',
+      threadId: id,
       role: 'user',
       content: 'Use the tool',
       createdAt: '2026-05-19T00:00:01.000Z',
     }],
+    ...overrides,
   }
 }
 
@@ -283,6 +490,47 @@ function makeRuntimeSnapshot(
             : run
       )),
       interactions,
+      works: [],
+      continuations: [],
+    },
+  }
+}
+
+function makeSessionRuntimeSnapshot(
+  rootThread: AgentThread,
+  runs: AgentRun[],
+): AgentRuntimeSnapshotV2 {
+  return {
+    schema: 'movscript.agent.runtime-snapshot.v2',
+    protocolVersion: 'movscript.agent.protocol.v1',
+    scope: { type: 'session', id: 'session_1' },
+    cursor: 'snapshot:session_1:0',
+    ordinal: 0,
+    generatedAt: rootThread.updatedAt,
+    entities: {
+      sessions: [{
+        id: 'session_1',
+        rootThreadId: rootThread.id,
+        interactiveThreadId: rootThread.id,
+        activeThreadId: 'thread_worker',
+        createdAt: NOW,
+        updatedAt: rootThread.updatedAt,
+      }],
+      threads: [
+        rootThread,
+        {
+          id: 'thread_worker',
+          sessionId: 'session_1',
+          agentRole: 'worker',
+          parentThreadId: rootThread.id,
+          status: 'requires_action',
+          createdAt: NOW,
+          updatedAt: rootThread.updatedAt,
+          messages: [],
+        },
+      ],
+      runs,
+      interactions: [],
       works: [],
       continuations: [],
     },

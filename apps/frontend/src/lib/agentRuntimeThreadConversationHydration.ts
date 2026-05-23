@@ -11,10 +11,13 @@ export type RuntimeThreadConversationHydrationStatus = 'hydrated' | 'skipped' | 
 export interface HydrateRuntimeThreadConversationDeps {
   loadProjection?: (input: {
     threadId: string
+    sessionId?: string
     existingMessages: ChatMessage[]
     signal: AbortSignal
   }) => Promise<RuntimeThreadHydrationResult>
   setLocalThreadId: (conversationId: string, threadId: string) => void
+  setConversationSessionId?: (conversationId: string, sessionId: string) => void
+  setConversationRuntimeSessionId?: (userId: string, conversationId: string, sessionId: string) => void
   setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
   setConversationRun?: (conversationId: string, run: AgentRun, patch?: { loading?: boolean; building?: boolean; approving?: boolean; stopping?: boolean; stopRequested?: boolean }) => void
   setSubmittedInteractionRuns?: (updater: (current: AgentRun[]) => AgentRun[]) => void
@@ -27,6 +30,7 @@ export async function hydrateRuntimeThreadConversation(input: {
   userId: string
   conversationId: string
   threadId: string
+  sessionId?: string
   existingMessages: ChatMessage[]
   hydratedKeys: Set<string>
   signal: AbortSignal
@@ -34,12 +38,14 @@ export async function hydrateRuntimeThreadConversation(input: {
 }, deps: HydrateRuntimeThreadConversationDeps): Promise<RuntimeThreadConversationHydrationStatus> {
   const threadId = input.threadId.trim()
   if (!threadId) return 'skipped'
-  const hydrateKey = runtimeThreadHydrationKey(input.conversationId, threadId)
+  const sessionId = input.sessionId?.trim()
+  const hydrateKey = runtimeThreadHydrationKey(input.conversationId, sessionId ? `${sessionId}:${threadId}` : threadId)
   if (!input.force && input.hydratedKeys.has(hydrateKey)) return 'skipped'
   input.hydratedKeys.add(hydrateKey)
   try {
     const projection = await (deps.loadProjection ?? defaultLoadProjection)({
       threadId,
+      ...(sessionId ? { sessionId } : {}),
       existingMessages: input.existingMessages,
       signal: input.signal,
     })
@@ -48,6 +54,11 @@ export async function hydrateRuntimeThreadConversation(input: {
       return 'cancelled'
     }
     deps.setLocalThreadId(input.conversationId, projection.thread.id)
+    const projectionSessionId = projection.thread.sessionId?.trim()
+    if (projectionSessionId) {
+      deps.setConversationSessionId?.(input.conversationId, projectionSessionId)
+      deps.setConversationRuntimeSessionId?.(input.userId, input.conversationId, projectionSessionId)
+    }
     deps.setConversationRuntimeThreadId(input.userId, input.conversationId, projection.thread.id)
     if (projection.currentRun) {
       deps.setConversationRun?.(input.conversationId, projection.currentRun, {
@@ -80,11 +91,13 @@ export async function hydrateRuntimeThreadConversation(input: {
 
 function defaultLoadProjection(input: {
   threadId: string
+  sessionId?: string
   existingMessages: ChatMessage[]
   signal: AbortSignal
 }): Promise<RuntimeThreadHydrationResult> {
   return loadRuntimeThreadProjection({
     threadId: input.threadId,
+    ...(input.sessionId ? { sessionId: input.sessionId } : {}),
     existingMessages: input.existingMessages,
     signal: input.signal,
   })

@@ -28,13 +28,16 @@ export function useAgentBuiltinChatController({
     setActiveConversation,
     deleteConversation: deleteAgentConversation,
     deleteConversations: deleteAgentConversations,
+    reorderConversation: reorderAgentConversation,
     upsertMessage,
+    setConversationRuntimeSessionId,
     setConversationRuntimeThreadId,
     updateConversationTitle,
   } = useAgentStore()
   const pageTasks = useAgentSessionStore((s) => s.pageTasks)
   const attachPageTaskConversation = useAgentSessionStore((s) => s.attachPageTaskConversation)
   const setLocalThreadId = useAgentSessionStore((s) => s.setLocalThreadId)
+  const setConversationSessionId = useAgentSessionStore((s) => s.setConversationSessionId)
 
   const conversations = getConversations(userId)
   const activeConversationId = getActiveConversationId(userId)
@@ -58,6 +61,7 @@ export function useAgentBuiltinChatController({
       conversations,
       sessionState: {
         localThreadIdsByConversation: sessionState.localThreadIdsByConversation,
+        sessionIdsByConversation: sessionState.sessionIdsByConversation,
         conversationRuntimes: sessionState.conversationRuntimes,
       },
       restoredLabel: t('agents.chat.panel.runtime.restoredLocalRuntime'),
@@ -70,13 +74,20 @@ export function useAgentBuiltinChatController({
         upsertMessage,
       },
       setLocalThreadId,
+      setConversationSessionId,
+      setConversationRuntimeSessionId: (targetUserId, conversationId, sessionId) => {
+        setConversationRuntimeSessionId(targetUserId, conversationId, sessionId)
+        setConversationSessionId(conversationId, sessionId)
+      },
       setConversationRuntimeThreadId,
     })
   }, [
     conversations,
     createConversation,
     setActiveConversation,
+    setConversationRuntimeSessionId,
     setConversationRuntimeThreadId,
+    setConversationSessionId,
     setLocalThreadId,
     t,
     updateConversationTitle,
@@ -125,6 +136,7 @@ export function useAgentBuiltinChatController({
     deleteConversation: (id: string) => deleteAgentConversation(userId, id),
     deleteConversations: (ids: string[]) => deleteAgentConversations(userId, ids),
     newConversation: handleNewConversation,
+    reorderConversation: (draggedId: string, targetId: string, position: 'before' | 'after') => reorderAgentConversation(userId, draggedId, targetId, position),
     restoreLocalThread: handleRestoreLocalThread,
     selectConversation: (id: string) => setActiveConversation(userId, id),
   }

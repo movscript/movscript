@@ -8,12 +8,14 @@ import { buildAgentRunTimeline, type AgentTimelineItem } from '@/lib/agentTimeli
 import { approvalImpactLabel, runStatusLabel } from '@/lib/agentRunUi'
 import { agentPermissionLabel, agentRiskLabel, agentToolNameLabel } from '@/lib/agentToolDisplay'
 import type { AgentRun } from '@/lib/localAgentClient'
-import type { ChatRunActivityEvent } from '@/store/agentStore'
+import type { ChatRunActivityApproval, ChatRunActivityEvent, ChatRunActivityInputRequest } from '@/store/agentStore'
 
 export { formatLocalAgentAssistantContent } from '@/lib/localAgentResult'
 
-type PendingApproval = NonNullable<AgentRun['pendingApprovals']>[number]
-type PendingInputRequest = NonNullable<AgentRun['pendingInputRequests']>[number]
+export type LocalAgentApprovalRequest = NonNullable<AgentRun['pendingApprovals']>[number] | ChatRunActivityApproval
+export type LocalAgentInputRequest = NonNullable<AgentRun['pendingInputRequests']>[number] | ChatRunActivityInputRequest
+type PendingApproval = LocalAgentApprovalRequest
+type PendingInputRequest = LocalAgentInputRequest
 type ApprovalLike = Pick<PendingApproval, 'toolName' | 'risk' | 'permission' | 'preview'>
 
 export interface LocalAgentWorkflowPanelProps {
@@ -49,7 +51,7 @@ export interface LocalAgentApprovalRequestCardProps {
 
 export function localAgentApprovalImpactText(approval: ApprovalLike, t?: ReturnType<typeof useTranslation>['t']): string {
   if (t) return localAgentApprovalImpactI18nText(approval, t)
-  return approvalImpactLabel(approval)
+  return approvalImpactLabel(approval as Pick<NonNullable<AgentRun['pendingApprovals']>[number], 'toolName' | 'risk' | 'permission' | 'preview'>)
 }
 
 export function localAgentApprovalRiskText(risk: string, t: ReturnType<typeof useTranslation>['t']): string {
@@ -82,6 +84,8 @@ function localAgentApprovalImpactI18nText(approval: ApprovalLike, t: ReturnType<
   if (previewSideEffect) return t('agents.chat.workflow.approvalImpact.previewApply', { sideEffect: previewSideEffect })
 
   switch (approval.toolName) {
+    case 'runtime_continuation_resume':
+      return t('agents.chat.workflow.approvalImpact.continuationResume', { defaultValue: 'Approving will start a new continuation run from the completed async work results and continue the original task.' })
     case 'generation_job_create':
       return t('agents.chat.workflow.approvalImpact.generationCreate')
     case 'generation_job_cancel':
@@ -277,6 +281,9 @@ function localAgentApprovalTitle(approval: PendingApproval, t: ReturnType<typeof
 }
 
 function localAgentApprovalReason(approval: PendingApproval, t: ReturnType<typeof useTranslation>['t']) {
+  if (approval.toolName === 'runtime_continuation_resume') {
+    return t('agents.chat.workflow.continuationResumeReason', { defaultValue: 'Completed async work has results. Continue the original task with those results.' })
+  }
   if (/^[\w.:/-]+\s+需要用户确认后才能执行[。.]?$/.test(approval.reason.trim())) {
     return ''
   }

@@ -37,11 +37,9 @@ export function handleSendRunUpdate(nextRun: AgentRun, deps: AgentSendRunUpdateD
   const artifacts = extractAgentTaskArtifacts(nextRun)
   if (nextRun.status === 'in_progress' || nextRun.status === 'queued') {
     const nextThinkingState = deps.thinkingStateForRun(nextRun)
-    deps.setPendingAssistantState((current) =>
-      shouldPreservePreparingToolCall(current, nextThinkingState, nextRun)
-        ? current
-        : nextThinkingState
-    )
+    deps.setPendingAssistantState((current) => mergePendingAssistantState(current, nextThinkingState, nextRun))
+  } else if (nextRun.status === 'requires_action') {
+    deps.setPendingAssistantState(null)
   } else if (isTerminalAgentRun(nextRun)) {
     deps.setPendingAssistantState(null)
   }
@@ -105,14 +103,21 @@ export function handleSendRuntimeEvent(event: AgentRuntimeEventV2, deps: AgentSe
   deps.recordLiveTraceEvent(event)
 }
 
-function shouldPreservePreparingToolCall(
+function mergePendingAssistantState(
   current: AgentLivePendingAssistantState | null,
   next: AgentLivePendingAssistantState,
   run: AgentRun,
-): boolean {
-  if (current?.status !== 'preparing_tool_call' || next.status !== 'thinking') return false
-  return !run.steps.some((step) => (
-    step.type === 'tool_call'
-    && (!current.toolName || step.toolName === current.toolName)
-  ))
+): AgentLivePendingAssistantState {
+  if (
+    current?.status === 'preparing_tool_call'
+    && next.status === 'thinking'
+    && !run.steps.some((step) => (
+      step.type === 'tool_call'
+      && (!current.toolName || step.toolName === current.toolName)
+    ))
+  ) {
+    return current
+  }
+  if (current?.reasoning && !next.reasoning) return { ...next, reasoning: current.reasoning }
+  return next
 }

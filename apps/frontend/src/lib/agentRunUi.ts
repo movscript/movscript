@@ -314,6 +314,7 @@ export function approvalImpactLabel(approval: Pick<AgentApprovalRequest, 'toolNa
   if (previewSideEffect) return `批准后会执行预览变更：${previewSideEffect}`
 
   switch (approval.toolName) {
+    case 'runtime_continuation_resume': return '批准后会基于已完成的异步任务结果启动一个新的接续 run，继续原任务。'
     case 'generation_job_create': return '批准后会创建生成任务，可能消耗生成额度。'
     case 'generation_job_cancel': return '批准后会取消生成任务，未完成的输出可能不再产生。'
     case 'movscript_project_create': return '批准后会创建项目数据。'

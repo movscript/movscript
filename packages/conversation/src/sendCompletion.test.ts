@@ -50,6 +50,40 @@ test('completeRuntimeSendRunResult binds runtime refs, merges projection, and re
   assert.equal(calls.includes('settled:request_1:completed:run_1:thread_1:1'), true)
 })
 
+test('completeRuntimeSendRunResult binds runtime session anchors', async () => {
+  const calls: string[] = []
+
+  await completeRuntimeSendRunResult<AgentChatMessage, AgentChatMessageMeta, AgentRun, AgentThread, Artifact, AgentRunActivityEvent, ThreadResolution>({
+    draft: {},
+    runResult: {
+      run: makeRun({ sessionId: 'session_1', status: 'completed' }),
+      thread: makeThread({ sessionId: 'session_1' }),
+      threadResolution: { threadId: 'thread_1', createdNewThread: true },
+    },
+    deps: depsFixture(calls),
+  })
+
+  assert.equal(calls.includes('session:session_1'), true)
+  assert.equal(calls.includes('runtimeSession:session_1'), true)
+  assert.equal(calls.includes('runtimeThread:thread_1'), true)
+})
+
+test('completeRuntimeSendRunResult passes the runtime session anchor to projection', async () => {
+  const calls: string[] = []
+
+  await completeRuntimeSendRunResult<AgentChatMessage, AgentChatMessageMeta, AgentRun, AgentThread, Artifact, AgentRunActivityEvent, ThreadResolution>({
+    draft: {},
+    runResult: {
+      run: makeRun({ sessionId: 'session_1', status: 'completed' }),
+      thread: makeThread({ sessionId: 'session_1' }),
+      threadResolution: { threadId: 'thread_1', createdNewThread: true },
+    },
+    deps: depsFixture(calls),
+  })
+
+  assert.equal(calls.includes('projection:thread_1:session_1'), true)
+})
+
 test('completeRuntimeSendRunResult skips thread projection for diagnostic commands', async () => {
   const calls: string[] = []
 
@@ -161,6 +195,12 @@ function depsFixture(calls: string[]): CompleteRuntimeSendDeps<AgentChatMessage,
     setLocalThreadId: (_conversationId, threadId) => {
       calls.push(`setLocalThread:${threadId}`)
     },
+    setConversationSessionId: (_conversationId, sessionId) => {
+      calls.push(`session:${sessionId}`)
+    },
+    setConversationRuntimeSessionId: (_userId, _conversationId, sessionId) => {
+      calls.push(`runtimeSession:${sessionId}`)
+    },
     setConversationRuntimeThreadId: (_userId, _conversationId, threadId) => {
       calls.push(`runtimeThread:${threadId}`)
     },
@@ -198,19 +238,22 @@ function depsFixture(calls: string[]): CompleteRuntimeSendDeps<AgentChatMessage,
       ? activityEvent({ id: `local-thread-resolution-${resolution.threadId}` })
       : null,
     upsertActivityEvent: (events, event) => [...events, event],
-    loadRuntimeThreadProjection: async (input) => ({
-      thread: { id: input.threadId },
-      messages: [
-        ...input.existingMessages,
-        chatMessage({
-          id: 'runtime:msg_assistant',
-          role: 'assistant',
-          content: 'Done',
-          meta: { runtimeMessage: { threadId: input.threadId, messageId: 'msg_assistant', runId: input.ensureRuns[0]?.id } },
-          timestamp: 2,
-        }),
-      ],
-    }),
+    loadRuntimeThreadProjection: async (input) => {
+      calls.push(`projection:${input.threadId}:${input.sessionId ?? 'none'}`)
+      return {
+        thread: { id: input.threadId },
+        messages: [
+          ...input.existingMessages,
+          chatMessage({
+            id: 'runtime:msg_assistant',
+            role: 'assistant',
+            content: 'Done',
+            meta: { runtimeMessage: { threadId: input.threadId, messageId: 'msg_assistant', runId: input.ensureRuns[0]?.id } },
+            timestamp: 2,
+          }),
+        ],
+      }
+    },
     runTouchesAgentCatalog: () => false,
     refreshAgentCatalogContext: () => {
       calls.push('refreshCatalog')

@@ -4,8 +4,9 @@ import type { ChatRunActivity, ChatRunActivityEvent } from '@/store/agentStore'
 import { runtimeTraceFromEvent } from '@movscript/event-state'
 
 export interface LiveRunPendingAssistantState {
-  status: 'preparing_tool_call' | 'calling_tool'
+  status: 'thinking' | 'preparing_tool_call' | 'calling_tool'
   toolName?: string
+  reasoning?: string
 }
 
 export interface LiveRunTraceProjection {
@@ -31,6 +32,8 @@ export function compactRunActivity(run: AgentRun): ChatRunActivity {
             id: approval.id,
             runId: approval.runId,
             ...(approval.interactionId ? { interactionId: approval.interactionId } : {}),
+            ...(approval.displayThreadId ? { displayThreadId: approval.displayThreadId } : {}),
+            ...(approval.displayAnchor ? { displayAnchor: approval.displayAnchor } : {}),
             toolName: approval.toolName,
             ...(approval.args ? { args: approval.args } : {}),
             ...(approval.preview !== undefined ? { preview: approval.preview } : {}),
@@ -50,6 +53,8 @@ export function compactRunActivity(run: AgentRun): ChatRunActivity {
           inputs: run.pendingInputRequests.map((request) => ({
             id: request.id,
             runId: request.runId,
+            ...(request.displayThreadId ? { displayThreadId: request.displayThreadId } : {}),
+            ...(request.displayAnchor ? { displayAnchor: request.displayAnchor } : {}),
             title: request.title,
             ...(request.summary ? { summary: request.summary } : {}),
             question: request.question,
@@ -73,6 +78,7 @@ export function compactRunActivity(run: AgentRun): ChatRunActivity {
         ...(step.roundId ? { roundId: step.roundId } : {}),
         ...(step.roundIndex !== undefined ? { roundIndex: step.roundIndex } : {}),
         ...(step.roundLabel ? { roundLabel: step.roundLabel } : {}),
+        ...(step.roundSource ? { roundSource: step.roundSource } : {}),
         ...(step.title ? { title: step.title } : {}),
         ...(step.toolName ? { toolName: step.toolName } : {}),
         ...(step.args ? { args: step.args } : {}),
@@ -91,6 +97,7 @@ export function compactRunTraceEvents(events: AgentTraceEvent[] = []): ChatRunAc
   return events
     .filter((trace) => trace.kind === 'tool_call'
       || trace.kind === 'model_call'
+      || trace.kind === 'reasoning'
       || trace.kind === 'context'
       || trace.kind === 'memory'
       || trace.kind === 'policy'
@@ -108,6 +115,7 @@ export function compactRunTraceEvents(events: AgentTraceEvent[] = []): ChatRunAc
       ...(trace.roundId ? { roundId: trace.roundId } : {}),
       ...(trace.roundIndex !== undefined ? { roundIndex: trace.roundIndex } : {}),
       ...(trace.roundLabel ? { roundLabel: trace.roundLabel } : {}),
+      ...(trace.roundSource ? { roundSource: trace.roundSource } : {}),
       ...(trace.summary ? { summary: trace.summary } : {}),
       ...(trace.toolName ? { toolName: trace.toolName } : {}),
       ...(trace.stepId ? { stepId: trace.stepId } : {}),
@@ -119,8 +127,9 @@ export function compactRunTraceEvents(events: AgentTraceEvent[] = []): ChatRunAc
 }
 
 export function liveTraceEventKey(event: ChatRunActivityEvent): string {
-  if (event.kind !== 'tool_call' || event.title !== 'Model tool call delta') return event.id
   if (event.id.startsWith('trace_live_')) return event.id
+  if (event.kind === 'reasoning' && event.title === 'Model reasoning delta') return `model-reasoning-stream:${event.roundIndex ?? 0}`
+  if (event.kind !== 'tool_call' || event.title !== 'Model tool call delta') return event.id
   const data = isRecord(event.data) ? event.data : undefined
   const stream = isRecord(data?.stream) ? data.stream : undefined
   const toolCall = isRecord(stream?.toolCall) ? stream.toolCall : undefined
@@ -172,6 +181,7 @@ function chatRunActivityEventFromTrace(trace: AgentTraceEvent): ChatRunActivityE
     ...(trace.roundId ? { roundId: trace.roundId } : {}),
     ...(trace.roundIndex !== undefined ? { roundIndex: trace.roundIndex } : {}),
     ...(trace.roundLabel ? { roundLabel: trace.roundLabel } : {}),
+    ...(trace.roundSource ? { roundSource: trace.roundSource } : {}),
     ...(trace.summary ? { summary: trace.summary } : {}),
     ...(trace.toolName ? { toolName: trace.toolName } : {}),
     ...(trace.stepId ? { stepId: trace.stepId } : {}),
@@ -205,6 +215,10 @@ function pendingAssistantStateFromTrace(event: ChatRunActivityEvent): LiveRunPen
       ...(toolName ? { toolName } : {}),
     }
   }
+  if (event.kind === 'reasoning' && (event.status === 'started' || event.status === 'info')) {
+    const reasoning = reasoningTextFromStreamEvent(event)
+    if (reasoning) return { status: 'thinking', reasoning }
+  }
   if (event.kind === 'model_call' && (event.status === 'completed' || event.status === 'failed' || event.status === 'blocked')) return null
   return undefined
 }
@@ -212,6 +226,7 @@ function pendingAssistantStateFromTrace(event: ChatRunActivityEvent): LiveRunPen
 function isLiveRunActivityTraceKind(kind: AgentTraceEvent['kind']): boolean {
   return kind === 'tool_call'
     || kind === 'model_call'
+    || kind === 'reasoning'
     || kind === 'context'
     || kind === 'memory'
     || kind === 'policy'
@@ -231,4 +246,16 @@ export function toolNameFromToolCallStreamEvent(event: ChatRunActivityEvent): st
   const stream = isRecord(data?.stream) ? data.stream : undefined
   const toolCall = isRecord(stream?.toolCall) ? stream.toolCall : undefined
   return typeof toolCall?.name === 'string' && toolCall.name.trim() ? toolCall.name.trim() : undefined
+}
+
+export function reasoningTextFromStreamEvent(event: ChatRunActivityEvent): string | undefined {
+  const data = isRecord(event.data) ? event.data : undefined
+  const stream = isRecord(data?.stream) ? data.stream : undefined
+  if (stream?.kind === 'reasoning') {
+    const accumulated = typeof stream.accumulated === 'string' ? stream.accumulated.trim() : ''
+    if (accumulated) return accumulated
+    const delta = typeof stream.delta === 'string' ? stream.delta.trim() : ''
+    if (delta) return delta
+  }
+  return typeof event.summary === 'string' && event.summary.trim() ? event.summary.trim() : undefined
 }

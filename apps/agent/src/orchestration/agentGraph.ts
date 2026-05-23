@@ -408,12 +408,14 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
       onTrace: (event) => {
         if (event.phase === 'stream') {
           const isToolCallStream = event.stream?.kind === 'tool_call'
+          const isReasoningStream = event.stream?.kind === 'reasoning'
           const volatileKey = isToolCallStream
             ? toolCallStreamTraceKey(currentRoundIndex, event.stream?.toolCall)
+            : isReasoningStream ? reasoningStreamTraceKey(currentRoundIndex)
             : undefined
           input.onTrace({
-            kind: event.stream?.kind === 'reasoning' ? 'reasoning' : isToolCallStream ? 'tool_call' : 'model_call',
-            title: event.stream?.kind === 'reasoning'
+            kind: isReasoningStream ? 'reasoning' : isToolCallStream ? 'tool_call' : 'model_call',
+            title: isReasoningStream
               ? 'Model reasoning delta'
               : isToolCallStream ? 'Model tool call delta' : 'Model stream delta',
             summary: isToolCallStream
@@ -1393,6 +1395,10 @@ function formatToolCallStreamSummary(toolCall: { name?: string; id?: string; arg
 
 function toolCallStreamTraceKey(roundIndex: number, toolCall: { index?: number } | undefined): string {
   return `model-tool-call-stream:${roundIndex}:${toolCall?.index ?? 0}`
+}
+
+function reasoningStreamTraceKey(roundIndex: number): string {
+  return `model-reasoning-stream:${roundIndex}`
 }
 
 function parseArgs(input: string): Record<string, JSONValue> {

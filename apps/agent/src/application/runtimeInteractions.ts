@@ -2,6 +2,7 @@ import type { AgentStore } from '../state/store.js'
 import type {
   AgentApprovalRequest,
   AgentRun,
+  AgentSession,
   ApproveRunInput,
   RejectRunInput,
   RuntimeInteraction,
@@ -13,7 +14,7 @@ export interface RuntimeInteractionApprovalResult {
 }
 
 export function materializeRuntimeApprovalInteractions(input: {
-  store: Pick<AgentStore, 'createRuntimeInteraction' | 'listRuntimeInteractions'>
+  store: Pick<AgentStore, 'createRuntimeInteraction' | 'listRuntimeInteractions'> & Partial<Pick<AgentStore, 'getSession'>>
   run: AgentRun
   approvals: AgentApprovalRequest[]
   now: string
@@ -25,17 +26,29 @@ export function materializeRuntimeApprovalInteractions(input: {
   }))
   const created: RuntimeInteraction[] = []
   const interactionIdByApprovalId = new Map<string, string>()
+  const session = input.run.sessionId ? input.store.getSession?.(input.run.sessionId) : undefined
+  const displayThreadId = runtimeInteractionDisplayThreadId(input.run, session)
+  const displayAnchor = runtimeInteractionDisplayAnchor(input.run, displayThreadId)
   for (const approval of input.approvals) {
     const existingInteractionId = existingByApprovalId.get(approval.id)
     if (existingInteractionId) {
       approval.interactionId = existingInteractionId
+      approval.displayThreadId = displayThreadId
+      approval.displayAnchor = displayAnchor
       interactionIdByApprovalId.set(approval.id, existingInteractionId)
       continue
     }
+    approval.displayThreadId = displayThreadId
+    approval.displayAnchor = displayAnchor
     const interaction: RuntimeInteraction = {
       id: `interaction_${approval.id}`,
       threadId: input.run.threadId,
       runId: input.run.id,
+      ...(input.run.sessionId ? { sessionId: input.run.sessionId } : {}),
+      originThreadId: input.run.threadId,
+      originRunId: input.run.id,
+      displayThreadId,
+      displayAnchor,
       kind: 'approval',
       status: 'pending',
       payload: {
@@ -56,9 +69,26 @@ export function materializeRuntimeApprovalInteractions(input: {
   }
   input.run.pendingApprovals = (input.run.pendingApprovals ?? []).map((approval) => {
     const interactionId = interactionIdByApprovalId.get(approval.id)
-    return interactionId ? { ...approval, interactionId } : approval
+    return interactionId ? { ...approval, interactionId, displayThreadId, displayAnchor } : approval
   })
   return created
+}
+
+function runtimeInteractionDisplayThreadId(run: AgentRun, session: AgentSession | undefined): string {
+  return session?.interactiveThreadId ?? session?.rootThreadId ?? run.threadId
+}
+
+function runtimeInteractionDisplayAnchor(run: AgentRun, displayThreadId: string): RuntimeInteraction['displayAnchor'] {
+  const sourceMessageId = typeof run.input?.sourceMessageId === 'string' && run.input.sourceMessageId.trim()
+    ? run.input.sourceMessageId.trim()
+    : undefined
+  return {
+    threadId: displayThreadId,
+    runId: run.id,
+    ...(sourceMessageId ? { messageId: sourceMessageId } : {}),
+    placement: 'after',
+    reason: sourceMessageId ? 'run_source_message' : 'run',
+  }
 }
 
 export function approveRuntimeInteraction(input: {

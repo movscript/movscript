@@ -17,6 +17,8 @@ export interface UseAgentCommitSendDraftInput {
   cancelRequestedRunIdsRef: MutableRefObject<Set<string>>
   liveTraceEventsRef: CommitAgentSendDraftDeps['liveTraceEventsRef']
   messageStore: CommitAgentSendDraftDeps['messageStore']
+  setConversationSessionId: CommitAgentSendDraftDeps['setConversationSessionId']
+  setConversationRuntimeSessionId?: CommitAgentSendDraftDeps['setConversationRuntimeSessionId']
   setConversationRuntimeThreadId: CommitAgentSendDraftDeps['setConversationRuntimeThreadId']
   updateConversationTitle: CommitAgentSendDraftDeps['updateConversationTitle']
   setLocalThreadId: CommitAgentSendDraftDeps['setLocalThreadId']
@@ -57,6 +59,8 @@ export function useAgentCommitSendDraft({
   cancelRequestedRunIdsRef,
   liveTraceEventsRef,
   messageStore,
+  setConversationSessionId,
+  setConversationRuntimeSessionId,
   setConversationRuntimeThreadId,
   updateConversationTitle,
   setLocalThreadId,
@@ -90,6 +94,8 @@ export function useAgentCommitSendDraft({
       cancelRequestedRunIds: cancelRequestedRunIdsRef.current,
       liveTraceEventsRef,
       messageStore,
+      setConversationSessionId,
+      setConversationRuntimeSessionId,
       setConversationRuntimeThreadId,
       updateConversationTitle,
       setLocalThreadId,
@@ -137,6 +143,8 @@ export function useAgentCommitSendDraft({
     resetStreamingAssistant,
     revokeAttachmentPreviewUrls,
     runTouchesAgentCatalog,
+    setConversationSessionId,
+    setConversationRuntimeSessionId,
     setConversationRun,
     setConversationRuntime,
     setConversationRuntimeThreadId,

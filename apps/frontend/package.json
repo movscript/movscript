@@ -5,7 +5,7 @@
   "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
-    "dev": "pnpm --filter @movscript/conversation... build && electron-vite dev",
+    "dev": "pnpm --filter @movscript/desktop^... --if-present build && electron-vite dev",
     "dev:local": "node scripts/run-with-env.mjs MOVSCRIPT_BACKEND_POLICY=spawn MOVSCRIPT_AI_STREAM_DEBUG=1 pnpm run dev",
     "build": "pnpm --filter @movscript/conversation... build && node scripts/prepare-agent-deploy.mjs && electron-vite build",
     "dist": "pnpm run build && electron-builder --publish never",

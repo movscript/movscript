@@ -1,5 +1,11 @@
 import type { AgentStore } from '../state/store.js'
-import type { AgentTaskGraph, AgentRun, AgentTask, AgentThread } from '../state/types.js'
+import type { AgentTaskGraph, AgentRun, AgentSession, AgentTask, AgentThread } from '../state/types.js'
+
+export function requireRuntimeSession(store: Pick<AgentStore, 'getSession'>, id: string): AgentSession {
+  const session = store.getSession(id)
+  if (!session) throw new Error(`session not found: ${id}`)
+  return session
+}
 
 export function requireRuntimeThread(store: Pick<AgentStore, 'getThread'>, id: string): AgentThread {
   const thread = store.getThread(id)

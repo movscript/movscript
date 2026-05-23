@@ -563,6 +563,7 @@ export function toSessionSummary(session: AgentSession, threadCount: number): Ag
     ...(isValidAgentProjectId(session.projectId) ? { projectId: session.projectId } : {}),
     ...(session.metadata ? { metadata: clone(session.metadata) } : {}),
     ...(session.rootThreadId ? { rootThreadId: session.rootThreadId } : {}),
+    ...(session.interactiveThreadId ? { interactiveThreadId: session.interactiveThreadId } : {}),
     ...(session.activeThreadId ? { activeThreadId: session.activeThreadId } : {}),
     ...(session.status ? { status: session.status } : {}),
     createdAt: session.createdAt,

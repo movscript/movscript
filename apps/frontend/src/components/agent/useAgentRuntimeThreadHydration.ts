@@ -13,12 +13,15 @@ export interface UseAgentRuntimeThreadHydrationInput {
   userId: string
   conversationId: string
   conversationMessages: ChatMessage[]
+  localSessionId?: string
   localThreadId: string
   loading: boolean
   building: boolean
   runtimeLoading?: boolean
   runtimeBuilding?: boolean
   setLocalThreadId: (conversationId: string, threadId: string) => void
+  setConversationSessionId?: (conversationId: string, sessionId: string) => void
+  setConversationRuntimeSessionId?: (userId: string, conversationId: string, sessionId: string) => void
   setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch?: { loading?: boolean; building?: boolean; approving?: boolean; stopping?: boolean; stopRequested?: boolean }) => void
   setSubmittedInteractionRuns: Dispatch<SetStateAction<AgentRun[]>>
@@ -31,12 +34,15 @@ export function useAgentRuntimeThreadHydration({
   userId,
   conversationId,
   conversationMessages,
+  localSessionId,
   localThreadId,
   loading,
   building,
   runtimeLoading,
   runtimeBuilding,
   setLocalThreadId,
+  setConversationSessionId,
+  setConversationRuntimeSessionId,
   setConversationRuntimeThreadId,
   setConversationRun,
   setSubmittedInteractionRuns,
@@ -62,18 +68,22 @@ export function useAgentRuntimeThreadHydration({
       userId,
       conversationId,
       threadId,
+      ...(localSessionId?.trim() ? { sessionId: localSessionId.trim() } : {}),
       existingMessages,
       hydratedKeys: hydratedRuntimeThreadKeysRef.current,
       signal: controller.signal,
     }, {
       loadProjection: (input) => loadRuntimeThreadProjection({
         threadId: input.threadId,
+        ...(input.sessionId ? { sessionId: input.sessionId } : {}),
         existingMessages: input.existingMessages,
         signal: input.signal,
       }, {
         fetchResourceById,
       }),
       setLocalThreadId,
+      setConversationSessionId,
+      setConversationRuntimeSessionId,
       setConversationRuntimeThreadId,
       setConversationRun,
       setSubmittedInteractionRuns,
@@ -89,11 +99,14 @@ export function useAgentRuntimeThreadHydration({
     conversationId,
     conversationMessages,
     loading,
+    localSessionId,
     localThreadId,
     messageStore,
     runtimeBuilding,
     runtimeLoading,
     setConversationRuntimeThreadId,
+    setConversationSessionId,
+    setConversationRuntimeSessionId,
     setConversationRun,
     setSubmittedInteractionRuns,
     setRuntimeStatusLight,
@@ -114,6 +127,7 @@ export function useAgentRuntimeThreadHydration({
         userId,
         conversationId,
         threadId,
+        ...(localSessionId?.trim() ? { sessionId: localSessionId.trim() } : {}),
         existingMessages,
         hydratedKeys: hydratedRuntimeThreadKeysRef.current,
         signal: controller.signal,
@@ -121,12 +135,15 @@ export function useAgentRuntimeThreadHydration({
       }, {
         loadProjection: (input) => loadRuntimeThreadProjection({
           threadId: input.threadId,
+          ...(input.sessionId ? { sessionId: input.sessionId } : {}),
           existingMessages: input.existingMessages,
           signal: input.signal,
         }, {
           fetchResourceById,
         }),
         setLocalThreadId,
+        setConversationSessionId,
+        setConversationRuntimeSessionId,
         setConversationRuntimeThreadId,
         setConversationRun,
         setSubmittedInteractionRuns,
@@ -142,12 +159,20 @@ export function useAgentRuntimeThreadHydration({
         hydrateFromStream()
       }, 150)
     }
-    void localAgentClient.streamThread(threadId, {
-      signal: controller.signal,
-      onRuntimeEvent: (event) => {
-        if (runtimeThreadProjectionShouldRefresh(event)) scheduleHydration()
-      },
-    }).catch(() => undefined)
+    const stream = localSessionId?.trim()
+      ? localAgentClient.streamSession(localSessionId.trim(), {
+        signal: controller.signal,
+        onRuntimeEvent: (event) => {
+          if (runtimeThreadProjectionShouldRefresh(event)) scheduleHydration()
+        },
+      })
+      : localAgentClient.streamThread(threadId, {
+        signal: controller.signal,
+        onRuntimeEvent: (event) => {
+          if (runtimeThreadProjectionShouldRefresh(event)) scheduleHydration()
+        },
+      })
+    void stream.catch(() => undefined)
     return () => {
       controller.abort()
       if (streamHydrationTimerRef.current) {
@@ -160,11 +185,14 @@ export function useAgentRuntimeThreadHydration({
     conversationId,
     conversationMessages,
     loading,
+    localSessionId,
     localThreadId,
     messageStore,
     runtimeBuilding,
     runtimeLoading,
     setConversationRuntimeThreadId,
+    setConversationSessionId,
+    setConversationRuntimeSessionId,
     setConversationRun,
     setSubmittedInteractionRuns,
     setRuntimeStatusLight,

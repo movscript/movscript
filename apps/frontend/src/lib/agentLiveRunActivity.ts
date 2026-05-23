@@ -7,6 +7,7 @@ export interface AgentLivePendingAssistantState {
   status: 'preparing_request' | 'thinking' | 'preparing_tool_call' | 'calling_tool' | 'retrying_model'
   toolName?: string
   label?: string
+  reasoning?: string
 }
 
 export function mergeVisibleActivityEvents(liveTraceEvents: ChatRunActivityEvent[], pendingHttpEvents: ChatRunActivityEvent[]): ChatRunActivityEvent[] {
@@ -46,7 +47,16 @@ export function useAgentLiveRunActivity() {
   const recordLiveTraceEvent = useCallback((event: AgentRuntimeEventV2) => {
     const projected = projectLiveRunRuntimeTraceEvent(event)
     if (!projected) return
-    if (projected.pendingAssistantState !== undefined) setPendingAssistantState(projected.pendingAssistantState)
+    if (projected.pendingAssistantState !== undefined) {
+      const nextPendingAssistantState = projected.pendingAssistantState
+      setPendingAssistantState((current) => {
+        if (!nextPendingAssistantState) return nextPendingAssistantState
+        if (current?.reasoning && !nextPendingAssistantState.reasoning) {
+          return { ...nextPendingAssistantState, reasoning: current.reasoning }
+        }
+        return nextPendingAssistantState
+      })
+    }
     const item = projected.activityEvent
     setLiveTraceEvents((current) => mergeLiveRunActivityEvent(current, item))
   }, [setLiveTraceEvents])

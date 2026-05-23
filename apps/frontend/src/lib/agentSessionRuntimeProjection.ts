@@ -9,6 +9,7 @@ import type {
 export interface AgentSessionRuntimeView {
   sessionId: string
   rootThread?: AgentThread
+  interactiveThread?: AgentThread
   activeThread?: AgentThread
   plans: AgentTaskGraphSnapshot[]
   childAgents: AgentSessionChildAgentView[]
@@ -50,6 +51,9 @@ export function buildAgentSessionRuntimeView(snapshot: AgentRuntimeSnapshotV2): 
   const rootThread = session?.rootThreadId
     ? threadsById.get(session.rootThreadId)
     : threads.find((thread) => thread.agentRole === 'root' || !thread.parentThreadId)
+  const interactiveThread = session?.interactiveThreadId
+    ? threadsById.get(session.interactiveThreadId)
+    : rootThread
   const activeThread = session?.activeThreadId
     ? threadsById.get(session.activeThreadId)
     : undefined
@@ -57,6 +61,7 @@ export function buildAgentSessionRuntimeView(snapshot: AgentRuntimeSnapshotV2): 
   return {
     sessionId: session?.id ?? snapshot.scope.id,
     rootThread,
+    interactiveThread,
     activeThread,
     plans: snapshot.entities.taskGraphs ?? [],
     childAgents: threads

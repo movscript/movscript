@@ -1,5 +1,5 @@
 import { useState, type MouseEvent, type ReactNode } from 'react'
-import { FileAudio, FileText, Image, PackageCheck, Sparkles, Video, type LucideIcon } from 'lucide-react'
+import { ChevronDown, ChevronUp, FileAudio, FileText, Image, PackageCheck, Sparkles, Video, type LucideIcon } from 'lucide-react'
 
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import {
@@ -28,6 +28,7 @@ const assetKindOrder: AssetKind[] = ['all', 'image', 'video', 'audio', 'text', '
 
 type MediaFit = 'cover' | 'contain'
 type PreparationView = 'queue' | 'grouped' | 'missing' | 'locked'
+type QueueSection = 'references' | 'assets'
 export type PreProductionCardContextTarget = { type: 'asset'; id: number } | { type: 'reference'; id: number }
 
 export function PreProductionAssetBoard({
@@ -60,18 +61,42 @@ export function PreProductionAssetBoard({
   actions?: ReactNode
 }) {
   const [view, setView] = useState<PreparationView>('queue')
+  const [queueCollapsed, setQueueCollapsed] = useState<Record<QueueSection, boolean>>({
+    references: false,
+    assets: false,
+  })
   const selectedClusterRows = selectedCluster?.rows ?? []
   const visibleRows = view === 'missing'
     ? rows.filter((row) => normalizeSlotStatus(row.slot.status) === 'missing')
     : view === 'locked'
       ? rows.filter((row) => normalizeSlotStatus(row.slot.status) === 'locked')
       : rows
+  const queueReferenceRows = clusters.filter((cluster) => cluster.reference)
   const viewOptions: Array<{ value: PreparationView; label: string; count: number }> = [
     { value: 'queue', label: '全部准备项', count: clusters.length + rows.length + (creatingReference ? 1 : 0) },
     { value: 'grouped', label: '按设定分组', count: clusters.length + (creatingReference ? 1 : 0) },
     { value: 'missing', label: '素材缺口', count: rows.filter((row) => normalizeSlotStatus(row.slot.status) === 'missing').length },
     { value: 'locked', label: '已选资产', count: rows.filter((row) => normalizeSlotStatus(row.slot.status) === 'locked').length },
   ]
+  function toggleQueueSection(section: QueueSection) {
+    setQueueCollapsed((current) => {
+      const next = { ...current, [section]: !current[section] }
+      if (next.references && next.assets) {
+        return section === 'references'
+          ? { references: true, assets: false }
+          : { references: false, assets: true }
+      }
+      return next
+    })
+  }
+  function focusQueueSection(section: QueueSection) {
+    setQueueCollapsed(section === 'references'
+      ? { references: false, assets: true }
+      : { references: true, assets: false })
+  }
+  function showAllQueueSections() {
+    setQueueCollapsed({ references: false, assets: false })
+  }
 
   return (
     <section className="overflow-hidden xl:flex xl:h-full xl:min-h-0 xl:flex-col">
@@ -186,33 +211,170 @@ export function PreProductionAssetBoard({
           {loading ? <p className="py-8 text-center type-label text-muted-foreground">加载中</p> : null}
           {!loading && view === 'queue' && clusters.length === 0 && visibleRows.length === 0 && !creatingReference ? <EmptyPreview title="暂无前期资料" description="先创建设定，或直接创建素材需求。" /> : null}
           {!loading && view !== 'queue' && visibleRows.length === 0 ? <EmptyPreview title={view === 'missing' ? '暂无素材缺口' : '暂无已选资产'} description={view === 'missing' ? '当前筛选下没有缺少素材的准备项。' : '锁定候选后，已选资产会出现在这里。'} /> : null}
-          <div className="space-y-4 pr-1 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
-            {view === 'queue' ? (
-              <div className="grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
-                {creatingReference ? <DraftReferencePrepItem /> : null}
-                {clusters.filter((cluster) => cluster.reference).map((cluster) => (
-                  <ReferencePrepItem
-                    key={cluster.reference?.ID}
-                    cluster={cluster}
-                    selected={(selectedReference?.ID ?? 0) === cluster.reference?.ID && !selected}
-                    onSelect={() => cluster.reference?.ID && onSelectReference(cluster.reference.ID)}
-                    onContextMenu={(event) => cluster.reference?.ID && onCardContextMenu?.(event, { type: 'reference', id: cluster.reference.ID })}
-                  />
-                ))}
-              </div>
-            ) : null}
-            <AssetGrid
-              rows={visibleRows}
-              clusters={clusters}
-              selected={selected}
-              onSelectSlot={onSelectSlot}
-              onCardContextMenu={onCardContextMenu}
-              showReference
-            />
-          </div>
+          {view === 'queue' ? (
+            <div className="flex min-h-[520px] min-w-0 flex-col gap-3 overflow-hidden xl:min-h-0 xl:flex-1">
+              {queueCollapsed.references ? (
+                <CollapsedQueueSection
+                  title="设定"
+                  count={queueReferenceRows.length + (creatingReference ? 1 : 0)}
+                  onExpand={() => toggleQueueSection('references')}
+                />
+              ) : (
+                <QueueSectionPanel
+                  title="设定"
+                  detail={`${queueReferenceRows.length + (creatingReference ? 1 : 0)} 项`}
+                  description="人物、地点、道具、风格等可复用设定，先确保归属和上下文清晰。"
+                  className={queueCollapsed.assets ? 'flex-1' : 'basis-[44%]'}
+                  onCollapse={() => toggleQueueSection('references')}
+                  onFocus={() => focusQueueSection('references')}
+                  focusLabel="只看设定"
+                  onShowAll={queueCollapsed.assets ? showAllQueueSections : undefined}
+                >
+                  {creatingReference || queueReferenceRows.length > 0 ? (
+                    <div className="grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
+                      {creatingReference ? <DraftReferencePrepItem /> : null}
+                      {queueReferenceRows.map((cluster) => (
+                        <ReferencePrepItem
+                          key={cluster.reference?.ID}
+                          cluster={cluster}
+                          selected={(selectedReference?.ID ?? 0) === cluster.reference?.ID && !selected}
+                          onSelect={() => cluster.reference?.ID && onSelectReference(cluster.reference.ID)}
+                          onContextMenu={(event) => cluster.reference?.ID && onCardContextMenu?.(event, { type: 'reference', id: cluster.reference.ID })}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <EmptyPreview title="暂无设定" description="先创建设定，再为它添加要准备的素材。" />
+                  )}
+                </QueueSectionPanel>
+              )}
+
+              {queueCollapsed.assets ? (
+                <CollapsedQueueSection
+                  title="素材"
+                  count={visibleRows.length}
+                  onExpand={() => toggleQueueSection('assets')}
+                />
+              ) : (
+                <QueueSectionPanel
+                  title="素材"
+                  detail={`${visibleRows.length} 项`}
+                  description="图片、视频、音频和文本素材需求，集中处理候选、缺口和已选资产。"
+                  className={queueCollapsed.references ? 'flex-1' : 'basis-[56%]'}
+                  onCollapse={() => toggleQueueSection('assets')}
+                  onFocus={() => focusQueueSection('assets')}
+                  focusLabel="只看素材"
+                  onShowAll={queueCollapsed.references ? showAllQueueSections : undefined}
+                >
+                  {visibleRows.length > 0 ? (
+                    <AssetGrid
+                      rows={visibleRows}
+                      clusters={clusters}
+                      selected={selected}
+                      onSelectSlot={onSelectSlot}
+                      onCardContextMenu={onCardContextMenu}
+                      showReference
+                    />
+                  ) : (
+                    <EmptyPreview title="暂无素材" description="为设定创建图片、视频、音频或文本素材需求。" />
+                  )}
+                </QueueSectionPanel>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4 pr-1 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
+              <AssetGrid
+                rows={visibleRows}
+                clusters={clusters}
+                selected={selected}
+                onSelectSlot={onSelectSlot}
+                onCardContextMenu={onCardContextMenu}
+                showReference
+              />
+            </div>
+          )}
         </div>
       )}
     </section>
+  )
+}
+
+function QueueSectionPanel({
+  title,
+  detail,
+  description,
+  className,
+  children,
+  onCollapse,
+  onFocus,
+  focusLabel,
+  onShowAll,
+}: {
+  title: string
+  detail: string
+  description: string
+  className?: string
+  children: ReactNode
+  onCollapse: () => void
+  onFocus: () => void
+  focusLabel: string
+  onShowAll?: () => void
+}) {
+  return (
+    <section className={cn('flex min-h-[180px] min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-background', className)}>
+      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-border bg-background px-3 py-2.5">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 type-label text-muted-foreground">
+            <PackageCheck size={14} />
+            <span className="font-semibold text-foreground">{title}</span>
+            <span>·</span>
+            <span>{detail}</span>
+          </div>
+          <p className="mt-1 line-clamp-1 type-tiny text-muted-foreground">{description}</p>
+        </div>
+        <div className="flex shrink-0 flex-wrap justify-end gap-1">
+          {onShowAll ? (
+            <Button size="sm" variant="ghost" className="h-7 px-2 type-tiny" onClick={onShowAll}>
+              全部
+            </Button>
+          ) : null}
+          <Button size="sm" variant="ghost" className="h-7 px-2 type-tiny" onClick={onFocus}>
+            {focusLabel}
+          </Button>
+          <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 type-tiny" onClick={onCollapse}>
+            <ChevronUp size={13} />
+            折叠
+          </Button>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-3 pr-2">
+        {children}
+      </div>
+    </section>
+  )
+}
+
+function CollapsedQueueSection({
+  title,
+  count,
+  onExpand,
+}: {
+  title: string
+  count: number
+  onExpand: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className="flex shrink-0 items-center justify-between gap-3 rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2 text-left transition-colors hover:border-primary/50 hover:bg-muted/40"
+      onClick={onExpand}
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
+        <span className="truncate type-label font-semibold text-foreground">{title}已折叠</span>
+      </span>
+      <span className="shrink-0 rounded-full bg-background px-2 py-0.5 type-tiny text-muted-foreground">{count} 项</span>
+    </button>
   )
 }
 

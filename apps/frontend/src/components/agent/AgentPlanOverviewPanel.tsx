@@ -22,6 +22,7 @@ import {
 import { isTerminalAgentRun } from '@/lib/agentRunControl'
 import { agentToolNameLabel } from '@/lib/agentToolDisplay'
 import { agentPlanStatusLabel, agentTraceView, inputTypeLabel, runStatusLabel, traceEventStatusLabel, traceKindLabel } from '@/lib/agentRunUi'
+import { formatAgentCompactTimestamp, formatAgentDuration, formatAgentDurationMs } from '@/lib/agentTimeFormat'
 import { localAgentApprovalImpactText, localAgentApprovalPermissionText, localAgentApprovalRiskText } from '@/components/agent/localRuntime'
 import { localAgentClient, type AgentTaskGraphSnapshot, type AgentRunTraceSummary, type AgentTraceEvent } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
@@ -749,30 +750,15 @@ function ActivityJSONBlock({ label, value }: { label: string; value: unknown }) 
 }
 
 function formatAgentDate(value: string | number, locale: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  const now = new Date()
-  if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
-  }
-  return date.toLocaleDateString(locale, { month: 'short', day: 'numeric' })
+  return formatAgentCompactTimestamp(value, locale)
 }
 
 function durationLabel(start: string | undefined, end: string | undefined) {
-  if (!start || !end) return ''
-  const startMs = new Date(start).getTime()
-  const endMs = new Date(end).getTime()
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) return ''
-  const ms = endMs - startMs
-  if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)}s`
+  return formatAgentDuration(start, end)
 }
 
 function formatDurationLabel(ms: number) {
-  if (!Number.isFinite(ms) || ms <= 0) return ''
-  if (ms < 1000) return `${ms}ms`
-  if (ms < 60_000) return `${Math.round(ms / 1000)}s`
-  return `${Math.round(ms / 60_000)}m`
+  return ms > 0 ? formatAgentDurationMs(ms) : ''
 }
 
 function safeJSONStringify(value: unknown) {

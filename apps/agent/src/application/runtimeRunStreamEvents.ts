@@ -101,7 +101,7 @@ export function emitRuntimeVolatileTraceEvent(input: {
     ...(input.trace.summary ? { summary: input.trace.summary } : {}),
     ...(input.trace.data !== undefined ? { data: input.trace.data as JSONValue } : {}),
   }
-  if (input.trace.kind === 'tool_call') {
+  if (input.trace.kind === 'tool_call' || input.trace.kind === 'reasoning') {
     input.emitRunStreamEvent(input.run.id, { type: 'trace', runId: input.run.id, event })
   }
   emitTraceDeltaEvent({

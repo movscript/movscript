@@ -13,7 +13,8 @@ export interface RestoreRuntimeThreadDeps {
   conversations: Conversation[]
   sessionState: {
     localThreadIdsByConversation: Record<string, string>
-    conversationRuntimes: Record<string, Pick<AgentConversationRuntimeState, 'threadId' | 'updatedAt'>>
+    sessionIdsByConversation?: Record<string, string>
+    conversationRuntimes: Record<string, Pick<AgentConversationRuntimeState, 'sessionId' | 'threadId' | 'updatedAt'>>
   }
   restoredLabel: string
   titleForThread: (thread: AgentThread) => string
@@ -23,6 +24,8 @@ export interface RestoreRuntimeThreadDeps {
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
   messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'upsertMessage'>
   setLocalThreadId: (conversationId: string, threadId: string) => void
+  setConversationSessionId?: (conversationId: string, sessionId: string) => void
+  setConversationRuntimeSessionId?: (userId: string, conversationId: string, sessionId: string) => void
   setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
 }
 

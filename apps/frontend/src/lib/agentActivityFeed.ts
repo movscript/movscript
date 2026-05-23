@@ -1,9 +1,10 @@
 import { agentToolNameLabel } from '@/lib/agentToolDisplay'
 import { buildRunActivitySnapshot, type RunActivityRoundSnapshot, type RunActivityTokenUsage } from '@/lib/agentRunActivitySnapshot'
+import { isContinuationResumeApproval } from '@/lib/agentWorkflowInteraction'
 import { isRecord } from '@/lib/jsonValue'
 import { buildAgentRunTimeline, type AgentRunTimeline, type AgentRunTimelineRound } from '@movscript/conversation'
 import type { AgentRun } from '@/lib/localAgentClient'
-import type { ChatRunActivity, ChatRunActivityEvent } from '@/store/agentStore'
+import type { ChatRunActivity, ChatRunActivityApproval, ChatRunActivityEvent, ChatRunActivityInputRequest } from '@/store/agentStore'
 
 export type AgentActivityTone = 'read' | 'draft' | 'write' | 'task' | 'system' | 'error'
 
@@ -11,6 +12,8 @@ export type AgentActivityItem =
   | AgentActivityDecisionItem
   | AgentActivityLineItem
   | AgentActivityBlockItem
+  | AgentActivityInputRequestItem
+  | AgentActivityApprovalRequestItem
 
 export interface AgentActivityDecisionItem {
   id: string
@@ -58,6 +61,28 @@ export interface AgentActivityBlockItem {
   toolName?: string
 }
 
+export interface AgentActivityInputRequestItem {
+  id: string
+  type: 'input_request'
+  tone: 'system'
+  request: ChatRunActivityInputRequest
+  status: string
+  createdAt: string
+  roundIndex?: number
+  roundLabel?: string
+}
+
+export interface AgentActivityApprovalRequestItem {
+  id: string
+  type: 'approval_request'
+  tone: 'system'
+  approval: ChatRunActivityApproval
+  status: string
+  createdAt: string
+  roundIndex?: number
+  roundLabel?: string
+}
+
 export interface AgentActivityDebugDetail {
   args?: unknown
   result?: unknown
@@ -84,6 +109,7 @@ export interface AgentActivityTotals {
 export interface AgentActivityRound {
   id: string
   index?: number
+  source?: AgentRunTimelineRound['source']
   label: string
   status: 'thinking' | 'tool_calls' | 'final' | 'failed'
   items: AgentActivityItem[]
@@ -155,6 +181,7 @@ export function buildAgentActivityFeed(input: {
 }
 
 interface ActivityItemIndex {
+  actionItems: Array<AgentActivityInputRequestItem | AgentActivityApprovalRequestItem>
   decisionsById: Map<string, AgentActivityDecisionItem>
   systemItems: AgentActivityLineItem[]
   toolsById: Map<string, AgentActivityItem>
@@ -162,6 +189,7 @@ interface ActivityItemIndex {
 
 function buildActivityItemIndex(activity: ChatRunActivity): ActivityItemIndex {
   return {
+    actionItems: workflowActionItems(activity),
     decisionsById: new Map(modelDecisionItems(activity).map((item) => [item.id, item])),
     systemItems: systemActivityItems(activity),
     toolsById: new Map(toolActivityRecords(activity).map((record) => [record.id, toolActivityItem(record)])),
@@ -239,6 +267,16 @@ export function agentActivityFeedMarkdown(feed: AgentActivityFeed): string {
     for (const item of round.items) {
       if (item.type === 'line') {
         lines.push(`  - ${item.text}${item.durationMs !== undefined ? `（${formatDuration(item.durationMs)}）` : ''}`)
+        continue
+      }
+      if (item.type === 'input_request') {
+        lines.push(`  - 需要输入：${item.request.title}`)
+        lines.push(`    - ${item.request.question}`)
+        continue
+      }
+      if (item.type === 'approval_request') {
+        lines.push(`  - 需要确认：${agentToolNameLabel(item.approval.toolName)}`)
+        if (item.approval.reason) lines.push(`    - ${item.approval.reason}`)
         continue
       }
       lines.push(`  - ${item.title}${item.durationMs !== undefined ? `（${formatDuration(item.durationMs)}）` : ''}`)
@@ -543,6 +581,8 @@ function buildTimelineActivityRounds(
         ...round.toolExecutions
           .map((tool) => index.toolsById.get(tool.id))
           .filter((item): item is AgentActivityItem => Boolean(item)),
+        ...index.actionItems
+          .filter((item) => systemActivityRoundId(item, timeline.rounds) === round.id),
         ...index.systemItems
           .filter((item) => systemActivityRoundId(item, timeline.rounds) === round.id),
       ].sort(compareActivityItems))
@@ -550,6 +590,7 @@ function buildTimelineActivityRounds(
       return {
         id: round.id,
         ...(round.index !== undefined ? { index: round.index } : {}),
+        ...(round.source ? { source: round.source } : {}),
         label: timelineRoundLabel(round, position, status, telemetry),
         status,
         items,
@@ -561,7 +602,7 @@ function buildTimelineActivityRounds(
 }
 
 function systemActivityRoundId(
-  item: AgentActivityLineItem,
+  item: { createdAt: string; roundIndex?: number },
   rounds: AgentRunTimeline['rounds'],
 ): string {
   const key = activityRoundKeyForItem(item, rounds)
@@ -592,6 +633,32 @@ function compareActivityRoundsByStart(
   }
   return timestamp(left.startedAt) - timestamp(right.startedAt)
     || left.id.localeCompare(right.id)
+}
+
+function workflowActionItems(activity: ChatRunActivity): Array<AgentActivityInputRequestItem | AgentActivityApprovalRequestItem> {
+  return [
+    ...(activity.inputs ?? [])
+      .filter((request) => request.status === 'pending' || request.status === 'answered' || request.status === 'cancelled')
+      .map((request) => ({
+        id: 'input-' + request.id,
+        type: 'input_request' as const,
+        tone: 'system' as const,
+        request,
+        status: request.status,
+        createdAt: request.createdAt,
+      })),
+    ...(activity.approvals ?? [])
+      .filter((approval) => approval.status === 'pending' || approval.status === 'approved' || approval.status === 'rejected')
+      .filter((approval) => !isContinuationResumeApproval(approval))
+      .map((approval) => ({
+        id: 'approval-' + approval.id,
+        type: 'approval_request' as const,
+        tone: 'system' as const,
+        approval,
+        status: approval.status,
+        createdAt: approval.createdAt,
+      })),
+  ].sort(compareActivityItems)
 }
 
 function systemActivityItems(activity: ChatRunActivity): AgentActivityLineItem[] {
@@ -645,8 +712,9 @@ function compareActivityItems(left: AgentActivityItem, right: AgentActivityItem)
 
 function activityItemOrder(item: AgentActivityItem): number {
   if (item.type === 'decision') return 0
-  if (item.type === 'line' && item.tone === 'system') return 1
-  return 2
+  if (item.type === 'input_request' || item.type === 'approval_request') return 1
+  if (item.type === 'line' && item.tone === 'system') return 2
+  return 3
 }
 
 function activityRoundStatus(round: AgentRunTimelineRound, items: AgentActivityItem[]): AgentActivityRound['status'] {
@@ -661,6 +729,15 @@ function timelineRoundLabel(
   status: AgentActivityRound['status'],
   telemetry?: RunActivityRoundSnapshot,
 ): string {
+  if (round.source === 'final' || round.label === 'Final response' || round.index === 999) {
+    const details = compactLines([
+      telemetry?.durationMs !== undefined ? formatDuration(telemetry.durationMs) : undefined,
+      telemetry?.usage ? formatTokenUsage(telemetry.usage) : undefined,
+    ]).join(' · ')
+    const suffix = details ? `（${details}）` : ''
+    if (status === 'failed') return `最终回复：记录失败${suffix}`
+    return `最终回复：形成回复${suffix}`
+  }
   if (round.index !== undefined) return roundLabel(round.index, status, telemetry)
   const prefix = `运行片段 ${position + 1}`
   if (status === 'tool_calls') return `${prefix}：调用工具`

@@ -52,6 +52,70 @@ test('createRuntimeStreamBridge replays and forwards run stream events to thread
   ])
 })
 
+test('createRuntimeStreamBridge forwards displayed worker run events to the interactive thread subscriber', () => {
+  const store = new InMemoryAgentStore()
+  const run = makeRun({
+    id: 'run_worker',
+    threadId: 'thread_worker',
+    role: 'worker',
+    status: 'requires_action',
+    pendingInputRequests: [{
+      id: 'input_worker',
+      runId: 'run_worker',
+      displayThreadId: 'thread_root',
+      displayAnchor: {
+        threadId: 'thread_root',
+        runId: 'run_worker',
+        messageId: 'msg_root_user',
+        placement: 'after',
+        reason: 'run_source_message',
+      },
+      title: 'Confirm',
+      question: 'Continue?',
+      inputType: 'confirmation',
+      choices: [{ id: 'yes', label: 'Yes' }],
+      allowCustomAnswer: false,
+      status: 'pending',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }],
+  })
+  store.createRun(run)
+  const threadEvents: AgentInternalThreadSignal[] = []
+  const bridge = createBridge(store)
+
+  bridge.subscribeThreadStream('thread_root', (event) => threadEvents.push(event))
+  bridge.emitRunSnapshot(run, { done: true })
+
+  assert.deepEqual(threadEvents.map((event) => `${event.threadId}:${event.type}`), [
+    'thread_root:run',
+    'thread_root:done',
+    'thread_root:run',
+    'thread_root:done',
+  ])
+})
+
+test('createRuntimeStreamBridge replays and forwards run stream events to session subscribers', () => {
+  const store = new InMemoryAgentStore()
+  const rootRun = makeRun({ id: 'run_root', sessionId: 'session_1', threadId: 'thread_root', status: 'completed' })
+  const workerRun = makeRun({ id: 'run_worker', sessionId: 'session_1', threadId: 'thread_worker', role: 'worker', status: 'in_progress' })
+  store.createRun(rootRun)
+  store.createRun(workerRun)
+  const sessionEvents: AgentInternalThreadSignal[] = []
+  const bridge = createBridge(store)
+
+  bridge.subscribeSessionStream('session_1', (event) => sessionEvents.push(event))
+  bridge.emitRunSnapshot(workerRun, { done: true })
+
+  assert.deepEqual(sessionEvents.map((event) => `${event.threadId}:${event.type}`), [
+    'thread_root:run',
+    'thread_root:done',
+    'thread_worker:run',
+    'thread_worker:run',
+    'thread_worker:done',
+  ])
+})
+
 test('createRuntimeStreamBridge closes run and taskGraph subscribers on terminal stream events', () => {
   const store = new InMemoryAgentStore()
   const run = makeRun({ taskGraphId: 'task_graph_1', status: 'completed' })
@@ -74,6 +138,7 @@ function createBridge(store: InMemoryAgentStore, input: { planStatus?: AgentTask
   return createRuntimeStreamBridge({
     store,
     runSubscribers: new RuntimeEventSubscriberRegistry<AgentInternalRunSignal>(),
+    sessionSubscribers: new RuntimeEventSubscriberRegistry<AgentInternalThreadSignal>(),
     threadSubscribers: new RuntimeEventSubscriberRegistry<AgentInternalThreadSignal>(),
     planSubscribers: new RuntimeEventSubscriberRegistry<AgentTaskGraphStreamEvent>(),
     getTaskGraphSnapshot: () => snapshot({ status: input.planStatus ?? 'running' }),

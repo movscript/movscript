@@ -376,6 +376,51 @@ test('planner run exposes taskGraph overview and run detail drilldown', async ({
   await expect(page.getByTestId('agent-run-cancel-worker')).toHaveCount(0)
 })
 
+test('chat session projects worker and continuation cards to visible message anchors', async ({ page }) => {
+  const pageErrors: string[] = []
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+  page.on('console', (message) => {
+    if (message.type() === 'error') pageErrors.push(message.text())
+  })
+  await page.goto('/src/e2e/agentSessionChatHarness.html')
+
+  const userMessage = page.getByText('Start worker task')
+  const workerApproval = page.getByText('worker-approval-marker')
+  const assistantResult = page.getByText('Worker reported result')
+  const resumeApproval = page.getByText('resume-card-marker')
+
+  await expect(async () => {
+    const bodyText = await page.locator('body').innerText()
+    expect(
+      bodyText,
+      `chat harness did not render. errors=${pageErrors.join('\n')}`,
+    ).toContain('Start worker task')
+  }).toPass()
+  await expect(userMessage).toBeVisible()
+  await expect(workerApproval).toBeVisible()
+  await expect(assistantResult).toBeVisible()
+  await expect(resumeApproval).toBeVisible()
+
+  const textOrder = await page.evaluate(() => document.body.innerText)
+  assertOrderedText(textOrder, [
+    'Start worker task',
+    'worker-approval-marker',
+    'Worker reported result',
+    'resume-card-marker',
+  ])
+
+  const boxes = await Promise.all([
+    userMessage.boundingBox(),
+    workerApproval.boundingBox(),
+    assistantResult.boundingBox(),
+    resumeApproval.boundingBox(),
+  ])
+  if (boxes.some((box) => !box)) throw new Error('missing chat anchor bounding box')
+  expect(boxes[0]!.y).toBeLessThan(boxes[1]!.y)
+  expect(boxes[1]!.y).toBeLessThan(boxes[2]!.y)
+  expect(boxes[2]!.y).toBeLessThan(boxes[3]!.y)
+})
+
 test('planner run detail remains usable on mobile width', async ({ page }, testInfo) => {
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('planner E2E requires a baseURL')
@@ -1027,6 +1072,16 @@ function failedModelTraceEvents(): AgentTraceEvent[] {
     ...failedEvents,
     ...baseEvents.slice(2),
   ]
+}
+
+function assertOrderedText(source: string, markers: string[]) {
+  let previousIndex = -1
+  for (const marker of markers) {
+    const index = source.indexOf(marker)
+    expect(index, `missing marker: ${marker}`).toBeGreaterThanOrEqual(0)
+    expect(index, `marker rendered out of order: ${marker}`).toBeGreaterThan(previousIndex)
+    previousIndex = index
+  }
 }
 
 async function fulfillJSON(route: Route, body: unknown, status = 200) {

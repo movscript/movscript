@@ -25,13 +25,33 @@ test('hydrateRuntimeThreadConversation projects runtime thread into the conversa
 
   assert.equal(status, 'hydrated')
   assert.deepEqual(calls, [
-    'load:thread_1:1:false',
+    'load:thread_1:none:1:false',
     'localThread:conv_1:thread_1',
     'runtimeThread:conv_1:thread_1',
     'run:conv_1:run_1:completed',
     'title:conv_1:Runtime title',
     'messages:conv_1:2',
   ])
+})
+
+test('hydrateRuntimeThreadConversation records the runtime session id when available', async () => {
+  const calls: string[] = []
+  await hydrateRuntimeThreadConversation({
+    userId: 'user_1',
+    conversationId: 'conv_1',
+    threadId: 'thread_1',
+    sessionId: 'session_1',
+    existingMessages: [],
+    hydratedKeys: new Set(),
+    signal: new AbortController().signal,
+  }, depsFixture(calls, {
+    projection: projection({
+      thread: thread({ id: 'thread_1', sessionId: 'session_1' }),
+    }),
+  }))
+
+  assert.equal(calls[0], 'load:thread_1:session_1:0:false')
+  assert.equal(calls.includes('runtimeSession:conv_1:session_1'), true)
 })
 
 test('hydrateRuntimeThreadConversation restores the current run from the agent snapshot', async () => {
@@ -150,7 +170,7 @@ test('hydrateRuntimeThreadConversation can force refresh an already hydrated thr
   }, depsFixture(calls))
 
   assert.equal(status, 'hydrated')
-  assert.equal(calls[0], 'load:thread_1:0:false')
+  assert.equal(calls[0], 'load:thread_1:none:0:false')
 })
 
 test('hydrateRuntimeThreadConversation publishes the derived runtime status light', async () => {
@@ -168,6 +188,24 @@ test('hydrateRuntimeThreadConversation publishes the derived runtime status ligh
   }))
 
   assert.equal(calls.includes('status:waiting'), true)
+})
+
+test('hydrateRuntimeThreadConversation persists projected session anchors', async () => {
+  const calls: string[] = []
+  await hydrateRuntimeThreadConversation({
+    userId: 'user_1',
+    conversationId: 'conv_1',
+    threadId: 'thread_1',
+    existingMessages: [],
+    hydratedKeys: new Set(),
+    signal: new AbortController().signal,
+  }, depsFixture(calls, {
+    projection: projection({ thread: thread({ id: 'thread_1', sessionId: 'session_1' }) }),
+  }))
+
+  assert.equal(calls.includes('session:conv_1:session_1'), true)
+  assert.equal(calls.includes('runtimeSession:conv_1:session_1'), true)
+  assert.equal(calls.includes('runtimeThread:conv_1:thread_1'), true)
 })
 
 test('hydrateRuntimeThreadConversation releases the hydration key when aborted before commit', async () => {
@@ -204,11 +242,17 @@ function depsFixture(
 ): HydrateRuntimeThreadConversationDeps {
   return {
     loadProjection: options.loadProjection ?? (async (input) => {
-      calls.push(`load:${input.threadId}:${input.existingMessages.length}:${input.signal.aborted}`)
+      calls.push(`load:${input.threadId}:${input.sessionId ?? 'none'}:${input.existingMessages.length}:${input.signal.aborted}`)
       return options.projection ?? projection({ thread: thread({ id: input.threadId }) })
     }),
     setLocalThreadId: (conversationId, threadId) => {
       calls.push(`localThread:${conversationId}:${threadId}`)
+    },
+    setConversationSessionId: (conversationId, sessionId) => {
+      calls.push(`session:${conversationId}:${sessionId}`)
+    },
+    setConversationRuntimeSessionId: (_userId, conversationId, sessionId) => {
+      calls.push(`runtimeSession:${conversationId}:${sessionId}`)
     },
     setConversationRuntimeThreadId: (_userId, conversationId, threadId) => {
       calls.push(`runtimeThread:${conversationId}:${threadId}`)

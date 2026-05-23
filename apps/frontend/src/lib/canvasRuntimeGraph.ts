@@ -1,5 +1,6 @@
 import type { Edge, Node } from '@xyflow/react'
-import type { CanvasNodeData, CanvasPortDef, CanvasPortType, CanvasPortValue, NodeType, RawResource } from '@/types'
+import type { CanvasNodeData, CanvasPortType, CanvasPortValue, RawResource } from '@/types'
+import { defaultHandleForNode, normalizeCanvasHandle } from '@/features/canvas/domain/ports'
 
 export type CanvasRuntimeInputValues = Record<string, CanvasPortValue | CanvasPortValue[]>
 export type CanvasRuntimeOutputValues = Record<string, CanvasPortValue>
@@ -18,15 +19,7 @@ export interface CanvasRuntimeCollectedInputs {
   upstreamNodeIds: string[]
 }
 
-const MEDIA_NODE_TYPES = new Set<string>(['text', 'image', 'video'])
 const RESOURCE_MENTION_RE = /@\[resource:(\d+)\]/g
-
-export function normalizeCanvasHandle(handle: string | null | undefined) {
-  if (!handle) return ''
-  if (handle.startsWith('in:')) return handle.slice(3).replace(/^:+/, '')
-  if (handle.startsWith('out:')) return handle.slice(4).replace(/^:+/, '')
-  return handle.replace(/^:+/, '')
-}
 
 export function collectCanvasNodeInputs(input: CanvasRuntimeGraphInput & { nodeId: string }): CanvasRuntimeCollectedInputs {
   const target = input.nodes.find((node) => node.id === input.nodeId)
@@ -198,27 +191,6 @@ function normalizePortValueList(value: CanvasPortValue | CanvasPortValue[]) {
 function appendValues(target: Record<string, CanvasPortValue[]>, handle: string, values: CanvasPortValue[]) {
   if (values.length === 0) return
   target[handle] = [...(target[handle] ?? []), ...values]
-}
-
-function defaultHandleForNode(node: Node | undefined, side: 'source' | 'target') {
-  const data = node?.data as Partial<CanvasNodeData> | undefined
-  const customPorts = side === 'source' ? data?.outputPorts : data?.inputPorts
-  if (customPorts?.[0]) return customPorts[0].id
-  return defaultHandleForType(node?.type as NodeType | undefined, side)
-}
-
-function defaultHandleForType(type: NodeType | undefined, side: 'source' | 'target') {
-  if (!type) return undefined
-  if (type === 'input') return side === 'source' ? 'value' : undefined
-  if (type === 'output') return side === 'target' ? 'value' : undefined
-  if (type === 'resource_sink') return side === 'target' ? 'input' : undefined
-  if (type === 'text') return side === 'source' ? 'text' : (side === 'target' ? 'prompt' : undefined)
-  if (type === 'image') return side === 'source' ? 'image' : (side === 'target' ? 'prompt' : undefined)
-  if (type === 'video') return side === 'source' ? 'video' : (side === 'target' ? 'prompt' : undefined)
-  if (type === 'text_gen') return side === 'source' ? 'text' : 'prompt'
-  if (type === 'ai_gen') return side === 'source' ? 'result' : 'prompt'
-  if (MEDIA_NODE_TYPES.has(String(type))) return side === 'source' ? 'result' : 'input'
-  return side === 'source' ? 'result' : 'input'
 }
 
 function mediaTypeForNode(type: string | undefined): CanvasPortType {

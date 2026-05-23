@@ -36,6 +36,8 @@ export interface CommitAgentSendDraftDeps {
   cancelRequestedRunIds: Set<string>
   liveTraceEventsRef: MutableRefObject<ChatRunActivityEvent[]>
   messageStore: AgentConversationMessageStore<ChatMessage, ChatMessageMeta>
+  setConversationSessionId?: (conversationId: string, sessionId: string) => void
+  setConversationRuntimeSessionId?: (userId: string, conversationId: string, sessionId: string) => void
   setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
   setLocalThreadId: (conversationId: string, threadId: string) => void
@@ -237,6 +239,8 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
         },
         getRun: (runId) => localAgentClient.getRun(runId),
         setLocalThreadId: deps.setLocalThreadId,
+        setConversationSessionId: deps.setConversationSessionId,
+        setConversationRuntimeSessionId: deps.setConversationRuntimeSessionId,
         setConversationRuntimeThreadId: deps.setConversationRuntimeThreadId,
         messageStore: {
           updateMessageMeta: deps.messageStore.updateMessageMeta,

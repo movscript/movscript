@@ -397,17 +397,10 @@ function CanvasHeaderActions() {
   )
 }
 
-function isAgentCoveredProjectRoute(pathname: string) {
-  if (pathname === ROUTES.project.agent) return true
-  if (pathname.startsWith('/project/')) return true
-  return Object.values(LEGACY_ROUTES).some((route) => pathname === route || pathname.startsWith(`${route}/`))
-}
-
 function ShellLayout({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
   const { pathname } = useLocation()
-  const current = useProjectStore((s) => s.current)
   const workMode = useAppSettingsStore((s) => s.settings.workMode)
-  const agentMode = workMode === 'agent' && !!current && isAgentCoveredProjectRoute(pathname)
+  const agentMode = workMode === 'agent'
   const projectsHomeMode = pathname === ROUTES.projects
   const [detailSidebarState, setDetailSidebarState] = React.useState<'expanded' | 'collapsed' | 'hidden'>('expanded')
   const [detailSidebarWidth, setDetailSidebarWidth] = React.useState(() => {
@@ -498,9 +491,7 @@ function ShellLayout({ children, requireOrg = true }: { children: React.ReactNod
           contentPaddingClassName="p-0"
           contentFrameClassName="rounded-none border-0"
         >
-          <RouteErrorBoundary>
-            <ProjectGuard><ProjectAgentModePage embeddedInShell /></ProjectGuard>
-          </RouteErrorBoundary>
+          <RouteErrorBoundary>{children}</RouteErrorBoundary>
         </WorkspaceShell>
       ) : (
         <WorkspaceShell

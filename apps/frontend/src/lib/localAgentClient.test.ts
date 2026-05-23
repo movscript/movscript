@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { isLocalAgentNotFoundError, LocalAgentClient, LocalAgentHTTPError, type AgentMessage, type AgentRun, type AgentRuntimeEventV2, type AgentThread } from './localAgentClient'
+import { isLocalAgentNotFoundError, LocalAgentClient, LocalAgentHTTPError, type AgentMessage, type AgentRun, type AgentRuntimeEventV2, type AgentTaskGraphSnapshot, type AgentThread } from './localAgentClient'
 
 test('runMessageStream reports when a saved thread id is reused', async () => {
   const requests: string[] = []
@@ -295,6 +295,54 @@ test('streamThread reads thread-scoped runtime stream events', async () => {
   })
 })
 
+test('streamSession reads session-scoped runtime stream events', async () => {
+  const requests: string[] = []
+  const run = { ...runFixture('run_stream', 'thread_stream', 'completed'), sessionId: 'session_stream' }
+  await withFetch(async (input, init) => {
+    const url = new URL(String(input))
+    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
+    if (url.pathname === '/sessions/session_stream/stream') {
+      return new Response(`data: ${JSON.stringify(runtimeRunEvent(run, 1, { scope: { type: 'session', id: 'session_stream' } }))}\n\n`, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    }
+    return new Response('not found', { status: 404 })
+  }, async () => {
+    const events: Array<{ kind: string; scopeType: string; threadId?: string }> = []
+    await new LocalAgentClient('http://local.test').streamSession('session_stream', {
+      onRuntimeEvent: (event) => events.push({ kind: event.kind, scopeType: event.scope.type, threadId: event.causality?.threadId }),
+    })
+
+    assert.deepEqual(events, [{ kind: 'run.upserted', scopeType: 'session', threadId: 'thread_stream' }])
+    assert.deepEqual(requests, ['GET /sessions/session_stream/stream'])
+  })
+})
+
+test('streamPlan reads plan-scoped runtime stream events', async () => {
+  const requests: string[] = []
+  const snapshot = taskGraphSnapshotFixture('task_graph_stream', 'thread_stream')
+  await withFetch(async (input, init) => {
+    const url = new URL(String(input))
+    requests.push(`${init?.method ?? 'GET'} ${url.pathname}`)
+    if (url.pathname === '/plans/task_graph_stream/stream') {
+      return new Response(`data: ${JSON.stringify(runtimeTaskGraphEvent(snapshot, 1))}\n\n`, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    }
+    return new Response('not found', { status: 404 })
+  }, async () => {
+    const events: Array<{ kind: string; taskGraphId?: string }> = []
+    await new LocalAgentClient('http://local.test').streamPlan('task_graph_stream', {
+      onRuntimeEvent: (event) => events.push({ kind: event.kind, taskGraphId: event.causality?.taskGraphId }),
+    })
+
+    assert.deepEqual(events, [{ kind: 'task_graph.upserted', taskGraphId: 'task_graph_stream' }])
+    assert.deepEqual(requests, ['GET /plans/task_graph_stream/stream'])
+  })
+})
+
 test('streamRun reconnects after a per-request stream timeout', async () => {
   const requests: string[] = []
   let streamRequests = 0
@@ -517,18 +565,49 @@ function traceEvent(id: string) {
   }
 }
 
-function runtimeRunEvent(run: AgentRun, ordinal: number): AgentRuntimeEventV2 {
+function runtimeRunEvent(run: AgentRun, ordinal: number, options: { scope?: AgentRuntimeEventV2['scope'] } = {}): AgentRuntimeEventV2 {
   return {
     schema: 'movscript.agent.runtime-event.v2',
     protocolVersion: 'movscript.agent.protocol.v1',
     id: `runtime-event:${run.id}:${ordinal}`,
-    scope: { type: 'thread', id: run.threadId },
+    scope: options.scope ?? { type: 'thread', id: run.threadId },
     ordinal,
     cursor: `runtime-event:${run.id}:${ordinal}`,
     emittedAt: run.updatedAt,
     kind: 'run.upserted',
     causality: { threadId: run.threadId, runId: run.id },
     entity: { type: 'run', value: run },
+  }
+}
+
+function runtimeTaskGraphEvent(snapshot: AgentTaskGraphSnapshot, ordinal: number): AgentRuntimeEventV2 {
+  return {
+    schema: 'movscript.agent.runtime-event.v2',
+    protocolVersion: 'movscript.agent.protocol.v1',
+    id: `runtime-event:${snapshot.taskGraph.id}:${ordinal}`,
+    scope: { type: 'plan', id: snapshot.taskGraph.id },
+    ordinal,
+    cursor: `runtime-event:${snapshot.taskGraph.id}:${ordinal}`,
+    emittedAt: snapshot.taskGraph.updatedAt,
+    kind: 'task_graph.upserted',
+    causality: { taskGraphId: snapshot.taskGraph.id },
+    entity: { type: 'task_graph', value: snapshot },
+  }
+}
+
+function taskGraphSnapshotFixture(id: string, threadId: string): AgentTaskGraphSnapshot {
+  return {
+    taskGraph: {
+      id,
+      threadId,
+      title: id,
+      status: 'running',
+      progress: 0.5,
+      createdAt: '2026-05-16T00:00:00.000Z',
+      updatedAt: '2026-05-16T00:00:01.000Z',
+    },
+    tasks: [],
+    runs: [],
   }
 }
 

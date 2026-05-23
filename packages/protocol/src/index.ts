@@ -81,6 +81,7 @@ export interface AgentSession {
   projectId?: number
   metadata?: Record<string, JSONValue>
   rootThreadId?: string
+  interactiveThreadId?: string
   activeThreadId?: string
   status?: AgentThreadStatus
   createdAt: string
@@ -466,10 +467,23 @@ export interface RuntimeModelTestResult {
   request: RuntimeModelRequestSnapshotPublic
 }
 
+export type RuntimeDisplayAnchorPlacement = 'before' | 'after' | 'inside_run_group'
+
+export interface RuntimeDisplayAnchor {
+  threadId: string
+  runId?: string
+  messageId?: string
+  taskId?: string
+  placement: RuntimeDisplayAnchorPlacement
+  reason?: string
+}
+
 export interface AgentApprovalRequest {
   id: string
   runId: string
   interactionId?: string
+  displayThreadId?: string
+  displayAnchor?: RuntimeDisplayAnchor
   toolName: string
   args?: Record<string, JSONValue>
   preview?: JSONValue
@@ -492,6 +506,8 @@ export interface AgentInputChoice {
 export interface AgentInputRequest {
   id: string
   runId: string
+  displayThreadId?: string
+  displayAnchor?: RuntimeDisplayAnchor
   title: string
   summary?: string
   question: string
@@ -783,6 +799,11 @@ export interface RuntimeInteraction {
   id: string
   threadId: string
   runId: string
+  sessionId?: string
+  originThreadId?: string
+  originRunId?: string
+  displayThreadId?: string
+  displayAnchor?: RuntimeDisplayAnchor
   workId?: string
   kind: RuntimeInteractionKind
   status: RuntimeInteractionStatus
@@ -1321,6 +1342,7 @@ export interface AgentConversation {
   id: string
   title: string
   messages: AgentChatMessage[]
+  runtimeSessionId?: string
   runtimeThreadId?: string
   createdAt: number
   updatedAt: number
@@ -1531,6 +1553,8 @@ export interface AgentRunActivityApproval {
   id: string
   runId?: string
   interactionId?: string
+  displayThreadId?: string
+  displayAnchor?: RuntimeDisplayAnchor
   toolName: string
   args?: Record<string, unknown>
   preview?: unknown
@@ -1547,6 +1571,8 @@ export interface AgentRunActivityApproval {
 export interface AgentRunActivityInputRequest {
   id: string
   runId?: string
+  displayThreadId?: string
+  displayAnchor?: RuntimeDisplayAnchor
   title: string
   summary?: string
   question: string
@@ -1570,6 +1596,7 @@ export interface AgentRunActivityStep {
   roundId?: string
   roundIndex?: number
   roundLabel?: string
+  roundSource?: 'setup' | 'runtime_rule' | 'model' | 'approval' | 'final'
   title?: string
   toolName?: string
   args?: unknown
@@ -1590,6 +1617,7 @@ export interface AgentRunActivityEvent {
   roundId?: string
   roundIndex?: number
   roundLabel?: string
+  roundSource?: 'setup' | 'runtime_rule' | 'model' | 'approval' | 'final'
   toolName?: string
   stepId?: string
   data?: unknown

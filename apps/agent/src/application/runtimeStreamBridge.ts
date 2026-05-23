@@ -2,6 +2,8 @@ import type { AgentStore } from '../state/store.js'
 import type { AgentRunRoundInfo } from '../state/runRound.js'
 import type {
   AgentMessage,
+  AgentApprovalRequest,
+  AgentInputRequest,
   AgentTaskGraphSnapshot,
   AgentTaskGraphStreamEvent,
   AgentRun,
@@ -28,6 +30,7 @@ import {
 
 export interface RuntimeStreamBridge {
   subscribeRunStream: (run: AgentRun, listener: (event: AgentInternalRunSignal) => void) => () => void
+  subscribeSessionStream: (sessionId: string, listener: (event: AgentInternalThreadSignal) => void) => () => void
   subscribeThreadStream: (threadId: string, listener: (event: AgentInternalThreadSignal) => void) => () => void
   subscribePlanStream: (taskGraphId: string, listener: (event: AgentTaskGraphStreamEvent) => void) => () => void
   recordTraceEvent: (run: AgentRun, trace: RuntimeTraceInput) => AgentTraceEvent
@@ -69,6 +72,7 @@ export interface RuntimeVolatileTraceInput {
 export function createRuntimeStreamBridge(input: {
   store: Pick<AgentStore, 'appendTraceEvent' | 'getRun' | 'getThread' | 'listRuns' | 'listRunTraceEvents'>
   runSubscribers: RuntimeEventSubscriberRegistry<AgentInternalRunSignal>
+  sessionSubscribers: RuntimeEventSubscriberRegistry<AgentInternalThreadSignal>
   threadSubscribers: RuntimeEventSubscriberRegistry<AgentInternalThreadSignal>
   planSubscribers: RuntimeEventSubscriberRegistry<AgentTaskGraphStreamEvent>
   getTaskGraphSnapshot: (taskGraphId: string) => AgentTaskGraphSnapshot
@@ -79,8 +83,21 @@ export function createRuntimeStreamBridge(input: {
     subscribeRunStream: (run, listener) => input.runSubscribers.subscribe(run.id, listener, (target) => {
       replayRuntimeRunStream({ run, store: input.store, listener: target })
     }),
+    subscribeSessionStream: (sessionId, listener) => input.sessionSubscribers.subscribe(sessionId, listener, (target) => {
+      const runs = input.store.listRuns({ sessionId })
+        .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+      for (const run of runs) {
+        replayRuntimeRunStream({
+          run,
+          store: input.store,
+          listener: (event) => target({ ...event, threadId: run.threadId }),
+        })
+      }
+    }),
     subscribeThreadStream: (threadId, listener) => input.threadSubscribers.subscribe(threadId, listener, (target) => {
-      const runs = input.store.listRuns({ threadId }).sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+      const runs = input.store.listRuns()
+        .filter((run) => run.threadId === threadId || runtimeRunDisplaysOnThread(run, threadId))
+        .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
       for (const run of runs) {
         replayRuntimeRunStream({
           run,
@@ -109,8 +126,12 @@ export function createRuntimeStreamBridge(input: {
     }),
     emitRunStreamEvent: (runId, event) => {
       input.runSubscribers.emit(runId, event)
-      const threadId = threadIdForRunStreamEvent(event, (targetRunId) => input.store.getRun(targetRunId))
-      if (threadId) input.threadSubscribers.emit(threadId, { ...event, threadId })
+      for (const threadId of threadIdsForRunStreamEvent(event, (targetRunId) => input.store.getRun(targetRunId))) {
+        input.threadSubscribers.emit(threadId, { ...event, threadId })
+      }
+      for (const sessionEvent of sessionEventsForRunStreamEvent(event, (targetRunId) => input.store.getRun(targetRunId))) {
+        input.sessionSubscribers.emit(sessionEvent.sessionId, { ...event, threadId: sessionEvent.threadId })
+      }
       if (event.type === 'done') input.runSubscribers.close(runId)
       emitRuntimePlanRunStreamEvent({
         event,
@@ -155,9 +176,46 @@ export function createRuntimeStreamBridge(input: {
   return bridge
 }
 
-function threadIdForRunStreamEvent(event: AgentInternalRunSignal, getRun: (runId: string) => AgentRun | undefined): string | undefined {
-  if (event.type === 'thread_title') return event.threadId
-  if ('run' in event && event.run) return event.run.threadId
-  if ('runId' in event) return getRun(event.runId)?.threadId
-  return undefined
+function sessionEventsForRunStreamEvent(
+  event: AgentInternalRunSignal,
+  getRun: (runId: string) => AgentRun | undefined,
+): Array<{ sessionId: string; threadId: string }> {
+  const run = 'run' in event && event.run
+    ? event.run
+    : 'runId' in event
+      ? getRun(event.runId)
+      : undefined
+  return run?.sessionId ? [{ sessionId: run.sessionId, threadId: run.threadId }] : []
+}
+
+function threadIdsForRunStreamEvent(event: AgentInternalRunSignal, getRun: (runId: string) => AgentRun | undefined): string[] {
+  if (event.type === 'thread_title') return [event.threadId]
+  const run = 'run' in event && event.run
+    ? event.run
+    : 'runId' in event
+      ? getRun(event.runId)
+      : undefined
+  if (!run) return []
+  return [...new Set([run.threadId, ...runtimeRunDisplayThreadIds(run)])]
+}
+
+function runtimeRunDisplaysOnThread(run: AgentRun, threadId: string): boolean {
+  return runtimeRunDisplayThreadIds(run).includes(threadId)
+}
+
+function runtimeRunDisplayThreadIds(run: AgentRun): string[] {
+  const threadIds = [
+    ...runtimeInteractionDisplayThreadIds(run.pendingApprovals),
+    ...runtimeInteractionDisplayThreadIds(run.pendingInputRequests),
+  ]
+  return [...new Set(threadIds)]
+}
+
+function runtimeInteractionDisplayThreadIds(
+  interactions: Array<Pick<AgentApprovalRequest | AgentInputRequest, 'displayThreadId' | 'displayAnchor'>> | undefined,
+): string[] {
+  return (interactions ?? []).flatMap((interaction) => [
+    ...(interaction.displayThreadId ? [interaction.displayThreadId] : []),
+    ...(interaction.displayAnchor?.threadId ? [interaction.displayAnchor.threadId] : []),
+  ])
 }

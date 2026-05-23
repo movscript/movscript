@@ -73,6 +73,14 @@ test('resolveRuntimeThreadRunState exposes approval and continuation interaction
         kind: 'approval',
         status: 'pending',
         payload: { approvalId: 'approval_1' },
+        displayThreadId: 'thread_root',
+        displayAnchor: {
+          threadId: 'thread_root',
+          runId: approvalRun.id,
+          messageId: 'msg_root',
+          placement: 'after',
+          reason: 'run_source_message',
+        },
       }),
       interaction({
         id: 'interaction_continuation_1',
@@ -85,14 +93,26 @@ test('resolveRuntimeThreadRunState exposes approval and continuation interaction
           workIds: ['work_1'],
           summary: '异步任务已完成，是否继续？',
         },
+        displayThreadId: 'thread_root',
+        displayAnchor: {
+          threadId: 'thread_root',
+          runId: completedRun.id,
+          messageId: 'msg_completed',
+          placement: 'after',
+          reason: 'continuation_ready',
+        },
       }),
     ],
   })
 
   assert.equal(result.runs[0]?.pendingApprovals?.[0]?.interactionId, 'interaction_approval_1')
+  assert.equal(result.runs[0]?.pendingApprovals?.[0]?.displayThreadId, 'thread_root')
+  assert.equal(result.runs[0]?.pendingApprovals?.[0]?.displayAnchor?.messageId, 'msg_root')
   assert.deepEqual(result.actionableRuns.map((item) => item.id), ['run_approval', 'run_completed'])
   const continuationApproval = result.runs[1]?.pendingApprovals?.[0]
   assert.equal(continuationApproval?.interactionId, 'interaction_continuation_1')
+  assert.equal(continuationApproval?.displayThreadId, 'thread_root')
+  assert.equal(continuationApproval?.displayAnchor?.messageId, 'msg_completed')
   assert.equal(continuationApproval?.toolName, 'runtime_continuation_resume')
   assert.deepEqual(continuationApproval?.args, {
     continuationId: 'continuation_1',

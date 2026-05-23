@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentTaskGraph, AgentRun, AgentThread } from '../state/types.js'
+import type { AgentTaskGraph, AgentRun, AgentSession, AgentThread } from '../state/types.js'
 import { createRuntimeStreamSubscriptionBridge } from './runtimeStreamSubscriptionBridge.js'
 
 test('createRuntimeStreamSubscriptionBridge validates entities and delegates subscriptions', () => {
@@ -9,7 +9,9 @@ test('createRuntimeStreamSubscriptionBridge validates entities and delegates sub
   const store = new InMemoryAgentStore()
   const run = makeRun()
   const taskGraph = makeTaskGraph()
+  const session = makeSession()
   const thread = makeThread()
+  store.createSession(session)
   store.createThread(thread)
   store.createRun(run)
   store.createTaskGraph(taskGraph)
@@ -19,6 +21,10 @@ test('createRuntimeStreamSubscriptionBridge validates entities and delegates sub
       subscribeRunStream: (targetRun: AgentRun) => {
         calls.push(`run:${targetRun.id}`)
         return () => calls.push('unrun')
+      },
+      subscribeSessionStream: (sessionId: string) => {
+        calls.push(`session:${sessionId}`)
+        return () => calls.push('unsession')
       },
       subscribeThreadStream: (threadId: string) => {
         calls.push(`thread:${threadId}`)
@@ -32,14 +38,17 @@ test('createRuntimeStreamSubscriptionBridge validates entities and delegates sub
   })
 
   const unsubscribeRun = bridge.subscribeRunStream(run.id, () => undefined)
+  const unsubscribeSession = bridge.subscribeSessionStream(session.id, () => undefined)
   const unsubscribeThread = bridge.subscribeThreadStream(thread.id, () => undefined)
   const unsubscribeTaskGraph = bridge.subscribePlanStream(taskGraph.id, () => undefined)
   unsubscribeRun()
+  unsubscribeSession()
   unsubscribeThread()
   unsubscribeTaskGraph()
 
-  assert.deepEqual(calls, ['run:run_1', 'thread:thread_1', 'taskGraph:task_graph_1', 'unrun', 'unthread', 'untaskGraph'])
+  assert.deepEqual(calls, ['run:run_1', 'session:session_1', 'thread:thread_1', 'taskGraph:task_graph_1', 'unrun', 'unsession', 'unthread', 'untaskGraph'])
   assert.throws(() => bridge.subscribeRunStream('missing', () => undefined), /run not found: missing/)
+  assert.throws(() => bridge.subscribeSessionStream('missing', () => undefined), /session not found: missing/)
   assert.throws(() => bridge.subscribeThreadStream('missing', () => undefined), /thread not found: missing/)
   assert.throws(() => bridge.subscribePlanStream('missing', () => undefined), /taskGraph not found: missing/)
 })
@@ -56,6 +65,17 @@ function makeRun(): AgentRun {
     steps: [],
     traceEvents: [],
   } as unknown as AgentRun
+}
+
+function makeSession(): AgentSession {
+  return {
+    id: 'session_1',
+    rootThreadId: 'thread_1',
+    interactiveThreadId: 'thread_1',
+    status: 'running',
+    createdAt: 'now',
+    updatedAt: 'now',
+  }
 }
 
 function makeThread(): AgentThread {

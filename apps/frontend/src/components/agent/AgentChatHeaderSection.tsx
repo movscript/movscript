@@ -26,29 +26,33 @@ export interface AgentChatHeaderSectionProps {
   onCollapse: () => void
   showCollapse?: boolean
   showConversationControls?: boolean
+  historyOpen?: boolean
   activeConversationRuntimeStatusLight?: AgentRuntimeStatusLight
   onNewConversation: () => void
+  onReorderConversation: (draggedId: string, targetId: string, position: 'before' | 'after') => void
   onSelectConversation: (id: string) => void
+  onToggleHistory?: () => void
 }
 
 export function AgentChatHeaderSection({
   activeConversation,
   conversations,
-  onBack,
   onCloseConversation,
   onCloseConversations,
   onCollapse,
   showCollapse = true,
   showConversationControls = true,
+  historyOpen = false,
   activeConversationRuntimeStatusLight,
   onNewConversation,
+  onReorderConversation,
   onSelectConversation,
+  onToggleHistory,
 }: AgentChatHeaderSectionProps) {
   const { t } = useTranslation()
   const conversationTabs = useMemo(() => {
-    const ordered = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt)
-    if (ordered.some((item) => item.id === activeConversation.id)) return ordered
-    return [activeConversation, ...ordered]
+    if (conversations.some((item) => item.id === activeConversation.id)) return conversations
+    return [activeConversation, ...conversations]
   }, [activeConversation, conversations])
   const tabRuntimeStatusLights = useAgentConversationTabRuntimeStatusLights(conversationTabs)
   const runtimeStatusLights = useMemo(() => {
@@ -196,6 +200,7 @@ export function AgentChatHeaderSection({
               onCloseTabContextMenu={closeTabContextMenu}
               onOpenKeyboardMenu={openConversationTabKeyboardMenu}
               onOpenMenu={openConversationTabMenu}
+              onReorderConversation={onReorderConversation}
               onSelectConversation={onSelectConversation}
             />
           </div>
@@ -207,7 +212,14 @@ export function AgentChatHeaderSection({
               <Button size="icon-sm" variant="ghost" onClick={onNewConversation} aria-label={t('agents.chat.newConversation')} title={t('agents.chat.newConversation')}>
                 <Plus size={14} />
               </Button>
-              <Button size="icon-sm" variant="ghost" onClick={onBack} aria-label={t('agents.chat.conversationHistory')} title={t('agents.chat.conversationHistory')}>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                onClick={onToggleHistory}
+                aria-label={t('agents.chat.conversationHistory')}
+                title={t('agents.chat.conversationHistory')}
+                className={historyOpen ? 'bg-muted text-foreground' : undefined}
+              >
                 <History size={14} />
               </Button>
             </>

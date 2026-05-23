@@ -926,6 +926,64 @@ test('thread stream endpoint returns not found for missing threads', async () =>
   assert.equal(JSON.parse(response.body).error, 'thread not found')
 })
 
+test('session stream endpoint delegates session-scoped runtime stream events', async () => {
+  const calls: string[] = []
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      getSession: (sessionId: string) => sessionId === 'session_1'
+        ? { id: sessionId, rootThreadId: 'thread_1', interactiveThreadId: 'thread_1', status: 'running', createdAt: '2026-05-19T00:00:00.000Z', updatedAt: '2026-05-19T00:00:00.000Z' }
+        : undefined,
+      subscribeSessionStream: (sessionId: string, listener: (event: unknown) => void) => {
+        calls.push(`subscribe:${sessionId}`)
+        listener({ type: 'run', threadId: 'thread_1', run: { id: 'run_1', sessionId, threadId: 'thread_1', status: 'completed' } })
+        return () => calls.push(`unsubscribe:${sessionId}`)
+      },
+    },
+  } as unknown as AgentServerContext)
+  const req = new EventEmitter() as IncomingMessage & { method?: string; url?: string; headers: Record<string, string> }
+  req.method = 'GET'
+  req.url = '/sessions/session_1/stream'
+  req.headers = { host: '127.0.0.1' }
+  let statusCode = 0
+  let output = ''
+  const res = {
+    setHeader() {},
+    writeHead(code: number) {
+      statusCode = code
+    },
+    write(chunk: string) {
+      output += chunk
+    },
+    end() {},
+    writableEnded: false,
+  } as unknown as ServerResponse
+
+  await handler(req, res)
+  req.emit('close')
+
+  assert.equal(statusCode, 200)
+  assert.match(output, /: connected/)
+  assert.match(output, /"scope":\{"type":"session","id":"session_1"\}/)
+  assert.match(output, /"threadId":"thread_1"/)
+  assert.deepEqual(calls, ['subscribe:session_1', 'unsubscribe:session_1'])
+})
+
+test('session stream endpoint returns not found for missing sessions', async () => {
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      getSession: () => undefined,
+      subscribeSessionStream: () => {
+        throw new Error('should not subscribe missing session')
+      },
+    },
+  } as unknown as AgentServerContext)
+
+  const response = await dispatch(handler, 'GET', '/sessions/missing/stream')
+
+  assert.equal(response.statusCode, 404)
+  assert.equal(JSON.parse(response.body).error, 'session not found')
+})
+
 test('run input endpoint preserves the client source message id', async () => {
   const calls: Array<Record<string, unknown>> = []
   const handler = createAgentRequestListener({

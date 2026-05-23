@@ -86,6 +86,7 @@ function makeStreams(output: {
     },
     emitRunSnapshot: (run, options) => output.snapshots.push(`${run.id}:${run.status}:${options?.done ? 'done' : 'open'}`),
     subscribeRunStream: () => () => {},
+    subscribeSessionStream: () => () => {},
     subscribeThreadStream: () => () => {},
     subscribePlanStream: () => () => {},
     emitVolatileTraceEvent: () => {},

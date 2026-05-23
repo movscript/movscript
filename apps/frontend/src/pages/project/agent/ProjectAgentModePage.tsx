@@ -4,10 +4,12 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Bot,
   Building2,
+  Check,
   ChevronDown,
   ChevronRight,
   CircleUserRound,
   ExternalLink,
+  FolderOpen,
   LogOut,
   MessageSquare,
   PanelTopOpen,
@@ -32,12 +34,13 @@ import { AgentBuiltinChatShell } from '@/components/agent/AgentBuiltinChatShell'
 import { conversationDisplayTitle, formatAgentDate } from '@/components/agent/AgentConversationList'
 import { api } from '@/lib/api'
 import { openAdminConsole } from '@/lib/adminConsole'
-import { localAgentClient, type AgentThreadSummary } from '@/lib/localAgentClient'
+import { localAgentClient, type AgentSessionSummary, type AgentThreadSummary } from '@/lib/localAgentClient'
 import { projectListQueryKey } from '@/lib/projectQueries'
 import { cn } from '@/lib/utils'
 import { runtimeNavItems } from '@runtime'
 import { ROUTES } from '@/routes/projectRoutes'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
+import { useAgentPanelUiStore } from '@/store/agentPanelUiStore'
 import { useAgentStore, type Conversation } from '@/store/agentStore'
 import { useAgentSessionStore } from '@/store/agentSessionStore'
 import { useProjectStore } from '@/store/projectStore'
@@ -78,7 +81,7 @@ export default function ProjectAgentModePage({
       {fullscreen && !embeddedInShell && (
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <ProjectAgentModeSidebar />
-          <ProjectAgentModeWorkspace userId={userId} className="p-2.5" />
+          <ProjectAgentModeWorkspace userId={userId} className="p-0" />
         </div>
       )}
       {(!fullscreen || embeddedInShell) && (
@@ -104,6 +107,7 @@ export function ProjectAgentModeSidebar() {
   const setActiveConversation = useAgentStore((s) => s.setActiveConversation)
   const pageTasks = useAgentSessionStore((s) => s.pageTasks)
   const localThreadIdsByConversation = useAgentSessionStore((s) => s.localThreadIdsByConversation)
+  const sessionIdsByConversation = useAgentSessionStore((s) => s.sessionIdsByConversation)
   const [projectsOpen, setProjectsOpen] = useState(true)
   const [showAllProjectGroups, setShowAllProjectGroups] = useState(false)
   const [openProjectGroups, setOpenProjectGroups] = useState<Record<number, boolean>>({})
@@ -168,9 +172,18 @@ export function ProjectAgentModeSidebar() {
     },
     retry: false,
   })
+  const { data: localSessions = [] } = useQuery<AgentSessionSummary[]>({
+    queryKey: ['local-agent-sessions', localAgentClient.baseURL, 'agent-mode-sidebar'],
+    queryFn: async () => {
+      await localAgentClient.ensureRunning()
+      return localAgentClient.listSessions().then((r) => r.sessions)
+    },
+    retry: false,
+  })
 
   const conversations = getConversations(userId)
   const activeConversationId = getActiveConversationId(userId)
+  const localSessionsById = useMemo(() => new Map(localSessions.map((session) => [session.id, session])), [localSessions])
   const localThreadsById = useMemo(() => new Map(localThreads.map((thread) => [thread.id, thread])), [localThreads])
   const projectNamesById = useMemo(() => {
     const names = new Map<number, string>()
@@ -185,6 +198,8 @@ export function ProjectAgentModeSidebar() {
       const projectId = conversationProjectId(conversation, {
         localThreadsById,
         localThreadIdsByConversation,
+        localSessionsById,
+        sessionIdsByConversation,
         pageTasks,
       })
       if (projectId === undefined) {
@@ -206,7 +221,7 @@ export function ProjectAgentModeSidebar() {
       }))
       .sort((a, b) => a.projectName.localeCompare(b.projectName, i18n.resolvedLanguage))
     return { projectGroups, chatConversations }
-  }, [conversations, i18n.resolvedLanguage, localThreadsById, localThreadIdsByConversation, pageTasks, projectNamesById, t])
+  }, [conversations, i18n.resolvedLanguage, localSessionsById, localThreadsById, localThreadIdsByConversation, pageTasks, projectNamesById, sessionIdsByConversation, t])
   const { projectGroups, chatConversations } = conversationsByScope
   const visibleProjectGroups = showAllProjectGroups ? projectGroups : projectGroups.slice(0, DEFAULT_VISIBLE_PROJECT_GROUPS)
   const hiddenProjectGroupCount = Math.max(0, projectGroups.length - visibleProjectGroups.length)
@@ -548,6 +563,8 @@ function conversationProjectId(
   context: {
     localThreadsById: Map<string, AgentThreadSummary>
     localThreadIdsByConversation: Record<string, string>
+    localSessionsById: Map<string, AgentSessionSummary>
+    sessionIdsByConversation: Record<string, string>
     pageTasks: ReturnType<typeof useAgentSessionStore.getState>['pageTasks']
   },
 ) {
@@ -556,6 +573,10 @@ function conversationProjectId(
     .map((task) => task.payload.projectId)
     .find((projectId): projectId is number => typeof projectId === 'number')
   if (taskProjectId !== undefined) return taskProjectId
+
+  const sessionId = context.sessionIdsByConversation[conversation.id] ?? conversation.runtimeSessionId
+  const sessionProjectId = sessionId ? context.localSessionsById.get(sessionId)?.projectId : undefined
+  if (typeof sessionProjectId === 'number') return sessionProjectId
 
   const threadId = context.localThreadIdsByConversation[conversation.id] ?? conversation.runtimeThreadId
   const threadProjectId = threadId ? context.localThreadsById.get(threadId)?.projectId : undefined
@@ -609,21 +630,87 @@ function ProjectAgentChatSurface({ userId, className }: { userId: string; classN
 
   return (
     <section className={cn('min-h-0 flex-1 overflow-hidden bg-background', className)}>
-      <div className="h-full min-h-0 overflow-hidden rounded-lg border border-border bg-background shadow-sm">
+      <div className="h-full min-h-0 overflow-hidden bg-background">
         <AgentBuiltinChatShell
           userId={userId}
           onCollapse={() => {}}
           showCollapse={false}
           surface="page"
+          pageEmptyAccessory={<AgentModeProjectSelectCard />}
         />
       </div>
     </section>
   )
 }
 
+function AgentModeProjectSelectCard() {
+  const navigate = useNavigate()
+  const { t } = useTranslation()
+  const current = useProjectStore((s) => s.current)
+  const setCurrent = useProjectStore((s) => s.setCurrent)
+  const currentOrgID = useUserStore((s) => s.currentOrgID)
+  const { data: projects = [] } = useQuery<Project[]>({
+    queryKey: projectListQueryKey(currentOrgID),
+    queryFn: () => api.get('/projects').then((response) => response.data),
+  })
+
+  function selectProject(project: Project) {
+    setCurrent(project)
+    navigate(ROUTES.project.agent)
+  }
+
+  if (projects.length === 0) {
+    return (
+      <button
+        type="button"
+        className="agent-page-project-select-card"
+        onClick={() => navigate(ROUTES.projects)}
+      >
+        <FolderOpen size={15} className="shrink-0 text-muted-foreground" />
+        <span className="min-w-0 flex-1 truncate text-left">{t('agents.chat.agentModeProjectPicker.noProjects')}</span>
+        <Plus size={14} className="shrink-0 text-muted-foreground" />
+      </button>
+    )
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="agent-page-project-select-card"
+          title={current?.name ?? t('agents.chat.agentModeProjectPicker.title')}
+          aria-label={t('agents.chat.agentModeProjectPicker.title')}
+        >
+          <FolderOpen size={15} className="shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 truncate text-left">
+            {current?.name ?? t('agents.chat.agentModeProjectPicker.title')}
+          </span>
+          <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="center" className="w-72">
+        <DropdownMenuLabel>{t('agents.chat.agentModeProjectPicker.title')}</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {projects.map((project) => (
+          <DropdownMenuItem key={project.ID} onClick={() => selectProject(project)}>
+            <span className="min-w-0 flex-1 truncate">{project.name}</span>
+            {current?.ID === project.ID ? <Check size={14} className="ml-2 shrink-0" /> : null}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => navigate(ROUTES.projects)}>
+          <FolderOpen size={14} className="mr-2" />
+          {t('agents.chat.agentModeProjectPicker.manageProjects')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 function ProjectAgentModeWorkspace({ userId, className }: { userId: string; className?: string }) {
   return (
-    <section className={cn('flex min-h-0 flex-1 overflow-hidden bg-background', className)}>
+    <section className={cn('relative flex min-h-0 flex-1 overflow-hidden bg-background', className)}>
       <ProjectAgentChatSurface userId={userId} className="min-w-[360px] flex-1 p-0" />
       <ProjectAgentContentPanel />
     </section>
@@ -631,6 +718,7 @@ function ProjectAgentModeWorkspace({ userId, className }: { userId: string; clas
 }
 
 function ProjectAgentContentPanel() {
+  const collapsed = useAgentPanelUiStore((s) => s.agentModeContentPanelCollapsed)
   const resizeStart = useRef({ x: 0, width: AGENT_CONTENT_PANEL_DEFAULT_WIDTH })
   const [panelWidth, setPanelWidth] = useState(() => {
     if (typeof window === 'undefined') return AGENT_CONTENT_PANEL_DEFAULT_WIDTH
@@ -676,6 +764,8 @@ function ProjectAgentContentPanel() {
   const adjustPanelWidth = (delta: number) => {
     setPanelWidth((width) => clampAgentContentPanelWidth(width + delta))
   }
+
+  if (collapsed) return null
 
   return (
     <aside

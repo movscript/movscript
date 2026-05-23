@@ -82,7 +82,7 @@ export function useAgentWorkflowActionBindings({
 
   const approveLocalRun = useCallback(async (runId: string, approvalIds?: string[]) => {
     const run = runById.get(runId)
-    if (!run || run.status !== 'requires_action') return
+    if (!run || !runHasPendingApproval(run, approvalIds)) return
     await approveWorkflowRunAction({
       run,
       approvalIds,
@@ -93,7 +93,7 @@ export function useAgentWorkflowActionBindings({
 
   const rejectLocalRun = useCallback(async (runId: string, approvalIds?: string[]) => {
     const run = runById.get(runId)
-    if (!run || run.status !== 'requires_action') return
+    if (!run || !runHasPendingApproval(run, approvalIds)) return
     await rejectWorkflowRunAction({
       run,
       approvalIds,
@@ -137,4 +137,11 @@ export function useAgentWorkflowActionBindings({
     rejectActiveLocalRun,
     rejectLocalRun,
   }
+}
+
+function runHasPendingApproval(run: AgentRun, approvalIds?: string[]): boolean {
+  const pending = (run.pendingApprovals ?? []).filter((approval) => approval.status === 'pending')
+  if (!approvalIds?.length) return pending.length > 0
+  const selectedIds = new Set(approvalIds)
+  return pending.some((approval) => selectedIds.has(approval.id))
 }

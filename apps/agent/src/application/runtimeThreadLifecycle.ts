@@ -83,7 +83,12 @@ function projectThreadOntoSession(input: {
   now: string
 }): void {
   const session = input.session
-  if (!session.rootThreadId || input.thread.agentRole === 'root') session.rootThreadId = input.thread.id
+  if (!session.rootThreadId || input.thread.agentRole === 'root') {
+    session.rootThreadId = input.thread.id
+    session.interactiveThreadId = input.thread.id
+  } else if (!session.interactiveThreadId) {
+    session.interactiveThreadId = session.rootThreadId
+  }
   session.activeThreadId = input.thread.id
   session.status = input.thread.status
   session.updatedAt = input.now

@@ -1,9 +1,10 @@
-import { isWorkflowAnswerEchoMessage, workflowRunFromActivity } from '@/lib/agentWorkflowInteraction'
+import { isWorkflowAnswerEchoMessage, runHasOnlyContinuationResumeApprovals, workflowRunFromActivity } from '@/lib/agentWorkflowInteraction'
 import type { AgentRun } from '@/lib/localAgentClient'
 import type { ChatMessage } from '@/store/agentStore'
 
 export interface AgentConversationMessageItem {
   beforeMessageWorkflowRuns: AgentRun[]
+  afterMessageWorkflowRuns: AgentRun[]
   liveWorkflowRuns: AgentRun[] | null
   message: ChatMessage
   showMessage: boolean
@@ -44,12 +45,23 @@ export function buildAgentConversationMessageItems({
     if (isWorkflowAnswerEchoMessage(message, workflowAnswerEchoes)) return []
     if (message.meta?.planRevision) return []
     const mappedWorkflowRuns = workflowRunsByResultMessageId.get(message.id) ?? null
-    const liveWorkflowRuns = mappedWorkflowRuns?.filter((run) => !suppressedWorkflowRunIds.has(run.id)) ?? null
+    const liveWorkflowRuns = mappedWorkflowRuns
+      ?.filter((run) => !suppressedWorkflowRunIds.has(run.id)) ?? null
     const historicalWorkflowRun = mappedWorkflowRuns ? null : workflowRunFromActivity(message.meta?.localRunActivity)
-    const visibleHistoricalWorkflowRun = historicalWorkflowRun && !suppressedWorkflowRunIds.has(historicalWorkflowRun.id) ? historicalWorkflowRun : null
-    const beforeMessageWorkflowRuns = liveWorkflowRuns ?? (visibleHistoricalWorkflowRun ? [visibleHistoricalWorkflowRun] : [])
+    const visibleHistoricalWorkflowRun = historicalWorkflowRun
+      && !suppressedWorkflowRunIds.has(historicalWorkflowRun.id)
+      ? historicalWorkflowRun
+      : null
+    const workflowRuns = liveWorkflowRuns ?? (visibleHistoricalWorkflowRun ? [visibleHistoricalWorkflowRun] : [])
+    const beforeMessageWorkflowRuns: AgentRun[] = []
+    const afterMessageWorkflowRuns: AgentRun[] = []
+    for (const run of workflowRuns) {
+      if (workflowRunBelongsAfterMessage(run, message)) afterMessageWorkflowRuns.push(run)
+      else beforeMessageWorkflowRuns.push(run)
+    }
     return [{
       beforeMessageWorkflowRuns,
+      afterMessageWorkflowRuns,
       liveWorkflowRuns,
       message,
       showMessage: true,
@@ -106,6 +118,10 @@ export function buildAgentConversationThreadItems(input: {
   }
 
   return threadItems.filter((item) => item.type === 'message' || item.items.length > 0)
+}
+
+function workflowRunBelongsAfterMessage(run: AgentRun, message: ChatMessage): boolean {
+  return message.role === 'user' || runHasOnlyContinuationResumeApprovals(run)
 }
 
 export function buildPendingRuntimeInputQueueItems(messages: ChatMessage[]): AgentPendingRuntimeInputQueueItem[] {

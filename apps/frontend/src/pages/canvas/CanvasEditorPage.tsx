@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
   ReactFlow,
@@ -19,47 +19,69 @@ import {
   SelectionMode,
   ConnectionMode,
   MarkerType,
+  ViewportPortal,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
 import { api } from '@/lib/api'
-import { invalidateAssetCandidateConsumers } from '@/lib/assetCandidateQueryInvalidation'
-import type { Canvas, CanvasNodeData, CanvasPortDef, CanvasPortValue, CanvasRunStatus, CanvasType, NodeType, PaginatedResponse, PublicModel, RawResource, ResourceBinding } from '@/types'
-import { publicModelId } from '@/lib/modelDisplay'
+import type { Canvas, CanvasNodeData, CanvasPortDef, CanvasPortValue, CanvasRunStatus, CanvasType, NodeType, RawResource } from '@/types'
 import {
 	TextNode, ImageNode, VideoNode, ToolNode,
 	InputNode, OutputNode, ResourceSinkNode, ApprovalNode, TextGenNode, AIGenNode, GroupNode, PluginCardNode,
 } from './components/CanvasNodes'
 import { ContextMenu } from './components/ContextMenu'
-import { API_BASE_URL as API_BASE } from '@/lib/config'
-import { deriveCanvasReferencePorts } from './canvasReferencePorts'
-import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
-import { compileClientPlugin, loadClientPlugins, runClientPlugin, type ClientPluginManifest } from '@/lib/clientPlugins'
+import { useCanvasWorkflowReferencePorts } from '@/features/canvas/integrations/workflowReferences'
+import {
+  resourceToNodeType,
+  useCanvasResourceIntegration,
+  type CanvasPushTarget,
+} from '@/features/canvas/integrations/resources'
+import { useCanvasClientPlugins } from '@/features/canvas/integrations/clientPlugins'
+import type { ClientPluginManifest } from '@/lib/clientPlugins'
 import { toast } from '@/store/toastStore'
 import { useCanvasHeaderStore } from '@/store/canvasHeaderStore'
 import {
   CANVAS_NODE_CATALOG,
   CANVAS_NODE_CATEGORIES,
   CANVAS_NODE_META,
-  NODE_LABELS,
 } from './nodeCatalog'
 import {
-  canvasRuntimeOrderForNode,
-  collectCanvasNodeInputs,
-  firstRuntimeValue,
-  runtimeResourceIdsForNode,
-  runtimePromptForNode,
-  topoSortCanvasNodes,
-  valuesHaveRuntimeValue,
-  type CanvasRuntimeOutputCache,
-} from '@/lib/canvasRuntimeGraph'
+  canvasGroupSelectionBounds,
+  canvasNodeAbsolutePosition,
+  canvasNodeDimensions,
+  commonParentId,
+  topLevelSelectedCanvasNodes,
+} from '@/features/canvas/domain/layout'
+import { isFinalOutputNode } from '@/features/canvas/domain/graph'
 import {
-  generateCanvasRuntimeMedia,
-  generateCanvasRuntimeText,
-  resolveCanvasRuntimeModel,
-  uploadCanvasRuntimeTextResource,
-} from '@/lib/canvasRuntimeGeneration'
-import { useCanvasRuntimeStore, type CanvasRuntimeRun } from '@/store/canvasRuntimeStore'
+  arePortTypesCompatible,
+  defaultHandleForNode,
+  edgeConnectionKey,
+  fromUiHandleId,
+  portForHandle,
+  portLabel,
+  toUiHandleId,
+} from '@/features/canvas/domain/ports'
+import { useCanvasDocument } from '@/features/canvas/editor/useCanvasDocument'
+import {
+  createCanvasEdgeId,
+  createCanvasNodeId,
+  createPaletteCanvasNode,
+  createPluginCanvasNode,
+  createResourceCanvasNode,
+  createWorkflowReferenceCanvasNode,
+} from '@/features/canvas/editor/nodeFactory'
+import { CanvasResourceShelf } from '@/features/canvas/ui/CanvasResourceShelf'
+import { WorkflowRunResultsDialog, WorkflowSidePanel } from '@/features/canvas/ui/CanvasWorkflowPanels'
+import { useCanvasRuntimeStore } from '@/features/canvas/runtime/runHistoryStore'
+import { useCanvasRuntimeExecutor } from '@/features/canvas/runtime/useCanvasRuntimeExecutor'
+import {
+  defaultRuntimeValueForPort,
+  encodeRuntimePortValue,
+  hasValueForPort,
+  portForWorkflowInputNode,
+  runtimeInputPortsForNode,
+} from '@/features/canvas/runtime/runtimeValues'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
@@ -67,11 +89,8 @@ import { Label } from '@movscript/ui'
 import { Badge } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { ROUTES } from '@/routes/projectRoutes'
-import { buildCanvasPluginArgsWithInputs } from '@/lib/canvasPluginArgs'
 import {
   ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
   GripVertical,
   Layers3,
   Loader2,
@@ -86,16 +105,8 @@ import {
   Workflow,
   Zap,
   Lightbulb,
-  HardDrive,
-  File,
   Puzzle,
-  History,
-  ListFilter,
-  Clock3,
-  CheckCircle2,
-  XCircle,
-  Download,
-  Trash2,
+  Ungroup,
 } from 'lucide-react'
 
 const nodeTypes = {
@@ -120,14 +131,6 @@ const nodeTypes = {
 
 const SIDEBAR_NODE_CATEGORIES = CANVAS_NODE_CATEGORIES.filter((category) => category.id !== 'media')
 const SIDEBAR_HIDDEN_NODE_TYPES = new Set<NodeType>(['approval'])
-const MEDIA_NODE_TYPES = new Set<string>(['text', 'image', 'video'])
-const FINAL_OUTPUT_NODE_ID = 'final-output'
-
-export interface CanvasPushTarget {
-  kind: 'asset_slot'
-  id: number
-  label: string
-}
 
 interface CanvasWorkspaceProps {
   canvasId: number | string
@@ -137,1151 +140,9 @@ interface CanvasWorkspaceProps {
   pushTargets?: CanvasPushTarget[]
 }
 
-function genId() {
-  return Math.random().toString(36).slice(2, 10)
-}
-
-function createNodeData(type: NodeType, t: (key: string) => string): Partial<CanvasNodeData> & { label: string } {
-  const meta = CANVAS_NODE_META[type]
-  const data = { ...(meta?.defaultData ?? { source: 'upload', label: NODE_LABELS[type] }) }
-  return { ...data, label: meta ? t(meta.defaultLabelKey) : t(`canvas.nodeLabels.${type}`) }
-}
-
-function createFinalOutputNode(t: (key: string, options?: any) => string): Node {
-  return {
-    id: FINAL_OUTPUT_NODE_ID,
-    type: 'output',
-    position: { x: 560, y: 120 },
-    data: {
-      ...createNodeData('output', t),
-      label: t('canvas.editor.finalOutput', { defaultValue: '最终输出' }),
-      paramName: 'final_output',
-      paramType: 'resource',
-      lockedFinalOutput: true,
-    } as any,
-    style: { width: 220 },
-  }
-}
-
-function modelFeatureForCanvasNode(nodeType?: string, data?: Partial<CanvasNodeData>) {
-  if (nodeType === 'text' && data?.source === 'ai') return { capability: 'text', feature: 'canvas_text' }
-  if (nodeType === 'text_gen') return { capability: 'text', feature: 'canvas_text' }
-  if (nodeType === 'ai_gen' && (data?.outputType ?? 'image') === 'text') return { capability: 'text', feature: 'canvas_text' }
-  if (nodeType === 'ai_gen' && data?.outputType === 'video') return { capability: 'video', feature: 'canvas_video' }
-  if (nodeType === 'ai_gen') return { capability: 'image', feature: 'canvas_image' }
-  if (nodeType === 'image' && data?.source === 'ai') return { capability: 'image', feature: 'canvas_image' }
-  if (['ref_image_gen', 'multi_angle', 'style_transfer'].includes(String(nodeType))) return { capability: 'image', feature: 'canvas_image' }
-  if (nodeType === 'video' && data?.source === 'ai') return { capability: 'video', feature: 'canvas_video' }
-  if (['ref_video_gen', 'motion_imitation'].includes(String(nodeType))) return { capability: 'video', feature: 'canvas_video' }
-  return null
-}
-
-async function defaultModelsForCanvasSave(nodes: Node[]) {
-  const featureRequests = new Map<string, { capability: string; feature: string }>()
-  for (const node of nodes) {
-    const data = node.data as Partial<CanvasNodeData>
-    if (data.modelId || data.modelDbId) continue
-    const request = modelFeatureForCanvasNode(node.type, data)
-    if (request) featureRequests.set(request.feature, request)
-  }
-
-  const defaults = new Map<string, PublicModel>()
-  await Promise.all(Array.from(featureRequests.values()).map(async ({ capability, feature }) => {
-    const models = await api.get('/models', { params: { capability, feature } }).then((r) => r.data as PublicModel[])
-    const model = models.find((item) => item.is_default) ?? models[0]
-    if (model) defaults.set(feature, model)
-  }))
-  return defaults
-}
-
-function isFinalOutputNode(node: Node) {
-  return node.id === FINAL_OUTPUT_NODE_ID || Boolean((node.data as any)?.lockedFinalOutput)
-}
-
-function ensureFinalOutputNode(nodes: Node[], t: (key: string, options?: any) => string) {
-  if (nodes.some(isFinalOutputNode) || nodes.some((node) => node.type === 'output')) return nodes
-  return [...nodes, createFinalOutputNode(t)]
-}
-
-function defaultHandleForType(type: string | undefined, side: 'source' | 'target') {
-  if (!type) return undefined
-  const meta = CANVAS_NODE_META[type as NodeType]
-  const ports = side === 'source' ? meta?.outputs : meta?.inputs
-  return ports?.[0]?.id ?? (!meta ? (side === 'source' ? 'result' : 'input') : undefined)
-}
-
-function semanticHandlePrefix(side: 'source' | 'target') {
-  return side === 'source' ? 'out:' : 'in:'
-}
-
-function toUiHandleId(handle: string | null | undefined, side: 'source' | 'target') {
-  if (!handle) return handle
-  if (handle.startsWith('in:') || handle.startsWith('out:')) {
-    const portId = fromUiHandleId(handle)
-    return portId ? `${semanticHandlePrefix(side)}${portId}` : handle
-  }
-  return `${semanticHandlePrefix(side)}${handle.replace(/^:+/, '')}`
-}
-
-function fromUiHandleId(handle: string | null | undefined) {
-  if (!handle) return handle
-  if (handle.startsWith('in:')) return handle.slice(3).replace(/^:+/, '')
-  if (handle.startsWith('out:')) return handle.slice(4).replace(/^:+/, '')
-  return handle.replace(/^:+/, '')
-}
-
-function edgeConnectionKey(edge: Pick<Edge, 'source' | 'target' | 'sourceHandle' | 'targetHandle'>) {
-  return [
-    edge.source,
-    fromUiHandleId(edge.sourceHandle) ?? '',
-    edge.target,
-    fromUiHandleId(edge.targetHandle) ?? '',
-  ].join('::')
-}
-
-function makeEdgeId(edge: Pick<Edge, 'source' | 'target' | 'sourceHandle' | 'targetHandle'>) {
-  return `${edgeConnectionKey(edge)}::${genId()}`
-}
-
-function uniqueEdgesByConnection(edgeList: Edge[]) {
-  const seen = new Set<string>()
-  return edgeList.filter((edge) => {
-    const key = edgeConnectionKey(edge)
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-}
-
-function defaultHandleForNode(node: Node | undefined, side: 'source' | 'target') {
-  const data = node?.data as Partial<CanvasNodeData> | undefined
-  const customPorts = side === 'source' ? data?.outputPorts : data?.inputPorts
-  if (customPorts?.[0]) return customPorts[0].id
-  return defaultHandleForType(node?.type, side)
-}
-
-function portsForNode(node: Node | undefined, side: 'source' | 'target'): CanvasPortDef[] {
-  if (!node) return []
-  const data = node.data as Partial<CanvasNodeData>
-  if (side === 'target' && MEDIA_NODE_TYPES.has(String(node.type)) && data.source !== 'ai') {
-    return []
-  }
-  if (node.type === 'input') {
-    return side === 'source'
-      ? [{ id: 'value', label: data.paramName || (data as any).label || node.id, type: data.paramType ?? 'text', required: true }]
-      : []
-  }
-  if (node.type === 'output') {
-    return side === 'target'
-      ? [{ id: 'value', label: data.paramName || (data as any).label || node.id, type: data.paramType ?? 'resource', required: true }]
-      : []
-  }
-  if (node.type === 'resource_sink') {
-    return side === 'target'
-      ? [{ id: 'input', label: 'resource', type: 'resource', required: true }]
-      : []
-  }
-  const customPorts = side === 'source' ? data.outputPorts : data.inputPorts
-  if (customPorts) return customPorts
-  const meta = CANVAS_NODE_META[node.type as NodeType]
-  const metaPorts = side === 'source' ? meta?.outputs : meta?.inputs
-  if (metaPorts) return metaPorts
-  return [{ id: side === 'source' ? 'result' : 'input', label: side === 'source' ? 'Result' : 'Input', type: 'resource' }]
-}
-
-function portForHandle(node: Node | undefined, side: 'source' | 'target', handle?: string | null) {
-  const ports = portsForNode(node, side)
-  if (ports.length === 0) return undefined
-  const portId = fromUiHandleId(handle)
-  return ports.find((port) => port.id === portId) ?? ports[0]
-}
-
-function arePortTypesCompatible(sourceType?: string, targetType?: string) {
-  if (!sourceType || !targetType) return true
-  if (sourceType === targetType) return true
-  if (sourceType === 'resource' || targetType === 'resource') return true
-  return false
-}
-
-function portLabel(port?: CanvasPortDef) {
-  if (!port) return 'unknown'
-  return `${port.label ?? port.id} (${port.type})`
-}
-
-function canvasPortValueSummary(value: CanvasPortValue) {
-  if (value.resource_id) return `resource #${value.resource_id}`
-  if (value.text !== undefined) return value.text
-  if (value.json !== undefined) {
-    try { return JSON.stringify(value.json) } catch { return String(value.json) }
-  }
-  if (value.number !== undefined) return String(value.number)
-  if (value.boolean !== undefined) return value.boolean ? 'true' : 'false'
-  return ''
-}
-
-function canvasPortValuePreviewText(value: CanvasPortValue) {
-  if (value.text !== undefined) return value.text
-  if (value.json !== undefined) {
-    try { return JSON.stringify(value.json, null, 2) } catch { return String(value.json) }
-  }
-  if (value.number !== undefined) return String(value.number)
-  if (value.boolean !== undefined) return value.boolean ? 'true' : 'false'
-  if (value.resource_id) return `resource #${value.resource_id}`
-  return ''
-}
-
-function textContentFromOutputs(outputs: Record<string, CanvasPortValue>) {
-  const preferredKeys = ['text', 'result', 'value', 'output']
-  for (const key of preferredKeys) {
-    const value = outputs[key]
-    if (!value) continue
-    const text = canvasPortValuePreviewText(value)
-    if (text) return text
-  }
-  for (const value of Object.values(outputs)) {
-    const text = canvasPortValuePreviewText(value)
-    if (text) return text
-  }
-  return undefined
-}
-
-function serializableCanvasNodeData(data: Node['data']) {
-  const {
-    label,
-    cardMode: _cardMode,
-    pluginInputProperties: _pluginInputProperties,
-    availableResources: _availableResources,
-    referenceResources: _referenceResources,
-    runDiagnostics: _runDiagnostics,
-    onRun,
-    onUpdateContent,
-    onUpdatePrompt,
-    onUpdateOutputType,
-    onUpdateModelId,
-    onUpdateAttachments,
-    onUpdateParams,
-    onApprove,
-    onReject,
-    onPush,
-    canvasId: _canvasId,
-    rfNodeId: _rfNodeId,
-    pendingRuntimeInputs: _pendingRuntimeInputs,
-    ...rest
-  } = data as any
-  return { label, data: rest }
-}
-
-function canvasGraphSignature({
-  canvasName,
-  canvasType,
-  nodes,
-  edges,
-  t,
-}: {
-  canvasName: string
-  canvasType: CanvasType
-  nodes: Node[]
-  edges: Edge[]
-  t: (key: string, options?: any) => string
-}) {
-  const nodesToSave = canvasType === 'workflow' ? ensureFinalOutputNode(nodes, t) : nodes
-  return JSON.stringify({
-    name: canvasName,
-    canvasType,
-    nodes: nodesToSave.map((node) => {
-      const { label, data } = serializableCanvasNodeData(node.data)
-      return {
-        id: node.id,
-        type: node.type,
-        label: label ?? '',
-        x: node.position.x,
-        y: node.position.y,
-        parentId: node.parentId ?? null,
-        style: node.style ?? null,
-        data,
-      }
-    }),
-    edges: uniqueEdgesByConnection(edges).map((edge) => ({
-      source: edge.source,
-      target: edge.target,
-      sourceHandle: fromUiHandleId(edge.sourceHandle) ?? null,
-      targetHandle: fromUiHandleId(edge.targetHandle) ?? null,
-    })),
-  })
-}
-
-async function buildCanvasSavePayload({
-  canvasName,
-  canvasType,
-  nodes,
-  edges,
-  t,
-}: {
-  canvasName: string
-  canvasType: CanvasType
-  nodes: Node[]
-  edges: Edge[]
-  t: (key: string, options?: any) => string
-}) {
-  const nodesToSave = canvasType === 'workflow' ? ensureFinalOutputNode(nodes, t) : nodes
-  const defaultModels = await defaultModelsForCanvasSave(nodesToSave)
-  return {
-    name: canvasName,
-    nodes: nodesToSave.map((n) => {
-      const { label, data: rest } = serializableCanvasNodeData(n.data)
-      const request = modelFeatureForCanvasNode(n.type, rest)
-      const defaultModel = request ? defaultModels.get(request.feature) : undefined
-      const dataToSave = {
-        ...rest,
-        ...(defaultModel && !rest.modelId && !rest.modelDbId ? {
-          modelId: publicModelId(defaultModel),
-          modelDbId: defaultModel.id,
-        } : {}),
-      }
-      return {
-        node_id: n.id,
-        type: n.type,
-        label: label ?? '',
-        pos_x: n.position.x,
-        pos_y: n.position.y,
-        data: JSON.stringify({
-          ...dataToSave,
-          _parentId: n.parentId ?? undefined,
-          _style: n.style,
-        }),
-      }
-    }),
-    edges: uniqueEdgesByConnection(edges).map((e) => ({
-      edge_id: e.id,
-      source: e.source,
-      target: e.target,
-      source_handle: fromUiHandleId(e.sourceHandle),
-      target_handle: fromUiHandleId(e.targetHandle),
-    })),
-  }
-}
-
-function nodeAcceptsTextResult(node: Node, data: Partial<CanvasNodeData>) {
-  return node.type === 'text'
-    || node.type === 'text_gen'
-    || (node.type === 'ai_gen' && (data.outputType ?? 'image') === 'text')
-}
-
-interface WorkflowRunOutputItem {
-  key: string
-  label: string
-  value: CanvasPortValue
-  resource?: RawResource
-}
-
-function resourceTypeForPortValue(value: CanvasPortValue): RawResource['type'] {
-  if (value.type === 'image' || value.type === 'video') return value.type
-  return 'text'
-}
-
-function resourceNameForOutput(label: string, value: CanvasPortValue) {
-  const safeLabel = label.trim() || 'workflow-output'
-  const ext = value.type === 'json' ? 'json' : value.type === 'image' ? 'png' : value.type === 'video' ? 'mp4' : 'txt'
-  return `${safeLabel}.${ext}`
-}
-
-function resourceFromOutputValue(label: string, value: CanvasPortValue): RawResource | undefined {
-  if (!value.resource_id) return undefined
-  return {
-    ID: value.resource_id,
-    owner_id: 0,
-    type: resourceTypeForPortValue(value),
-    name: resourceNameForOutput(label, value),
-    url: `/api/v1/resources/${value.resource_id}/file`,
-    size: 0,
-    mime_type: '',
-  }
-}
-
-function workflowRunOutputItems(run: CanvasRuntimeRun | undefined, nodes: Node[], t: (key: string, options?: any) => string): WorkflowRunOutputItem[] {
-  const outputs = run?.outputValues ?? {}
-  const usedKeys = new Set<string>()
-  const seen = new Set<string>()
-  const items: WorkflowRunOutputItem[] = []
-  const addItem = (key: string, label: string, value: CanvasPortValue | undefined, dedupe = true) => {
-    if (!value) return
-    const identity = dedupe ? (value.resource_id ? `resource:${value.resource_id}` : `${value.type}:${canvasPortValueSummary(value)}`) : `key:${key}`
-    if (seen.has(identity)) {
-      usedKeys.add(key)
-      return
-    }
-    seen.add(identity)
-    usedKeys.add(key)
-    items.push({ key, label, value, resource: resourceFromOutputValue(label, value) })
-  }
-
-  nodes.filter((node) => node.type === 'output').forEach((node) => {
-    const data = node.data as Partial<CanvasNodeData>
-    const label = data.paramName || (data as any).label || node.id
-    const candidateKeys = [node.id, data.paramName, ...(data.outputPorts ?? []).map((port) => port.id)].filter(Boolean) as string[]
-    const key = candidateKeys.find((candidate) => outputs[candidate])
-    if (key) {
-      candidateKeys.forEach((candidate) => usedKeys.add(candidate))
-      addItem(key, label, outputs[key])
-    }
-  })
-
-  Object.entries(outputs).forEach(([key, value]) => {
-    if (!usedKeys.has(key)) {
-      addItem(key, key || t('canvas.editor.runResults.output', { defaultValue: 'Output' }), value)
-    }
-  })
-  return items
-}
-
-function buildRuntimeWorkflowOutputs(nodes: Node[], outputCache: CanvasRuntimeOutputCache): Record<string, CanvasPortValue> {
-  const outputs: Record<string, CanvasPortValue> = {}
-  for (const node of nodes) {
-    const nodeOutputs = outputCache[node.id]
-    if (!nodeOutputs) continue
-    if (node.type === 'output') {
-      const value = nodeOutputs.value ?? nodeOutputs[node.id] ?? nodeOutputs.result ?? Object.values(nodeOutputs)[0]
-      if (value) outputs[node.id] = value
-      const name = (node.data as Partial<CanvasNodeData>).paramName
-      if (name && value) outputs[name] = value
-      continue
-    }
-    if (node.type === 'resource_sink') {
-      const value = nodeOutputs.result ?? nodeOutputs.value ?? Object.values(nodeOutputs)[0]
-      if (value) outputs[node.id] = value
-    }
-  }
-  if (Object.keys(outputs).length === 0) {
-    for (const node of nodes) {
-      const value = outputCache[node.id]?.result ?? outputCache[node.id]?.value ?? Object.values(outputCache[node.id] ?? {})[0]
-      if (value) outputs[node.id] = value
-    }
-  }
-  return outputs
-}
-
-function hasValueForPort(values: CanvasPortValue[] | undefined) {
-  return (values ?? []).some((value) => {
-    if (!value) return false
-    return value.resource_id !== undefined
-      || value.text !== undefined
-      || value.json !== undefined
-      || value.number !== undefined
-      || value.boolean !== undefined
-  })
-}
-
-function connectedInputPortIds(nodeId: string, edges: Edge[]) {
-  const ids = new Set<string>()
-  edges.forEach((edge) => {
-    if (edge.target !== nodeId) return
-    ids.add(fromUiHandleId(edge.targetHandle) || 'input')
-  })
-  return ids
-}
-
-function runtimeInputPortsForNode(node: Node | undefined, edges: Edge[]) {
-  if (!node) return []
-  const connected = connectedInputPortIds(node.id, edges)
-  return portsForNode(node, 'target').filter((port) => port.required && !connected.has(port.id))
-}
-
-function defaultRuntimeValueForPort(port: CanvasPortDef) {
-  switch (port.type) {
-    case 'json':
-      return '{}'
-    case 'boolean':
-      return 'false'
-    default:
-      return ''
-  }
-}
-
-function encodeRuntimePortValue(port: CanvasPortDef, raw: string): CanvasPortValue | null {
-  switch (port.type) {
-    case 'number': {
-      const value = Number(raw)
-      return Number.isFinite(value) ? { type: 'number', number: value } : null
-    }
-    case 'boolean':
-      return { type: 'boolean', boolean: raw === 'true' }
-    case 'json': {
-      try {
-        return { type: 'json', json: raw.trim() ? JSON.parse(raw) : null }
-      } catch {
-        return null
-      }
-    }
-    case 'image':
-    case 'video':
-    case 'resource': {
-      const id = Number(raw)
-      return Number.isInteger(id) && id > 0 ? { type: port.type, resource_id: id } : null
-    }
-    case 'text':
-    default:
-      return { type: 'text', text: raw }
-  }
-}
-
-function portForWorkflowInputNode(node: Node): CanvasPortDef {
-  const data = node.data as Partial<CanvasNodeData> & { label?: string }
-  return {
-    id: 'value',
-    label: data.paramName || data.label || node.id,
-    type: data.paramType ?? 'text',
-    required: true,
-  }
-}
-
-function readOnlyMediaPortPatch(source: CanvasNodeData['source']): Partial<CanvasNodeData> {
-  return source === 'ai' ? { inputPorts: undefined } : { inputPorts: [] }
-}
-
-function resourceToNodeType(resource: RawResource): NodeType | undefined {
-  if (resource.type === 'image' || resource.type === 'video' || resource.type === 'text') {
-    return resource.type
-  }
-  return undefined
-}
-
-function ResourceThumb({ resource }: { resource: RawResource }) {
-  const url = resource.direct_url ?? (resource.url ? `${API_BASE}${resource.url}` : '')
-  if (resource.type === 'image') {
-    return resource.direct_url
-      ? <img src={resource.direct_url} alt="" className="h-full w-full object-cover" />
-      : <AuthedImage src={url} alt="" className="h-full w-full object-cover" />
-  }
-  if (resource.type === 'video') {
-    return resource.direct_url
-      ? <video src={resource.direct_url} className="h-full w-full object-cover" muted playsInline preload="metadata" />
-      : <AuthedVideo src={url} className="h-full w-full object-cover" muted playsInline preload="metadata" />
-  }
-  return <File size={14} className="text-muted-foreground" />
-}
-
-function CanvasResourceShelf({
-  projectId,
-  dependencyBindings = [],
-  variant = 'floating',
-}: {
-  projectId?: number
-  dependencyBindings?: ResourceBinding[]
-  variant?: 'floating' | 'panel' | 'side'
-}) {
-  const { t } = useTranslation()
-  const [search, setSearch] = useState('')
-  const isPanel = variant === 'panel'
-  const isSide = variant === 'side'
-  const { data: resourcePage } = useQuery<PaginatedResponse<RawResource>>({
-    queryKey: ['canvas-resource-shelf', 'resources'],
-    queryFn: () => api.get('/resources', { params: { page: 1, page_size: 48, type: 'image,video,text' } }).then((r) => r.data),
-  })
-  const resources = (resourcePage?.items ?? []).filter((resource) => resourceToNodeType(resource))
-  const resourceItems = resources.filter((resource) => resourceMatchesSearch(resource, search))
-  const activeFilteredCount = resourceItems.length
-
-  function dragResource(event: React.DragEvent, resource: RawResource) {
-    event.dataTransfer.setData('application/canvas-resource', JSON.stringify(resource))
-    event.dataTransfer.effectAllowed = 'copy'
-  }
-
-  return (
-    <div className={cn(
-      isPanel || isSide
-        ? 'flex h-full flex-col overflow-hidden bg-background'
-        : 'pointer-events-auto absolute bottom-4 left-4 right-24 z-10 overflow-hidden rounded-lg border border-border bg-background/95 shadow-lg backdrop-blur'
-    )}>
-      <div className={cn(
-        isSide ? 'shrink-0 space-y-2 border-b border-border px-3 py-3' : 'flex h-11 shrink-0 items-center gap-2 border-b border-border px-3'
-      )}>
-        {!isPanel && !isSide && (
-          <>
-            <HardDrive size={14} className="text-muted-foreground" />
-            <span className="shrink-0 type-label font-semibold text-foreground">{t('canvas.editor.resourceShelf.title')}</span>
-          </>
-        )}
-        <nav className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto">
-          <span className="flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-primary bg-primary px-2.5 type-label text-primary-foreground">
-            <span className="truncate">资源库</span>
-            <span className="shrink-0 rounded bg-primary-foreground/20 px-1 tabular-nums type-tiny text-primary-foreground">{resources.length}</span>
-          </span>
-        </nav>
-        <div className={cn('relative', isSide ? 'w-full' : 'min-w-[180px] max-w-[340px] flex-[0_1_340px]')}>
-          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="h-7 pl-7 type-label"
-            placeholder="搜索资源：名称、类型、ID"
-          />
-        </div>
-        <span className="shrink-0 type-caption text-muted-foreground">
-          {search.trim() ? `${activeFilteredCount} 个结果` : t('canvas.editor.resourceShelf.dragHint')}
-        </span>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="min-w-0 flex-1 overflow-auto p-3">
-          {resourceItems.length > 0 ? (
-            <div className={cn(isSide ? 'grid grid-cols-1 gap-2' : 'grid auto-rows-[150px] grid-cols-[repeat(auto-fill,236px)] gap-3')}>
-              {resourceItems.map((resource) => (
-                <ResourceShelfCard
-                  key={resource.ID}
-                  resource={resource}
-                  selected={dependencyBindings.some((binding) => binding.resource_id === resource.ID)}
-                  compact={isSide}
-                  onDragStart={(event) => dragResource(event, resource)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="flex h-full items-center justify-center type-label text-muted-foreground">
-              {t('shared.resourcePanel.noResources')}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ResourceShelfCard({
-  resource,
-  selected,
-  compact = false,
-  onDragStart,
-}: {
-  resource: RawResource
-  selected?: boolean
-  compact?: boolean
-  onDragStart: (event: React.DragEvent) => void
-}) {
-  return (
-    <div
-      draggable
-      onDragStart={onDragStart}
-      className={cn(
-        'group flex shrink-0 cursor-grab flex-col overflow-hidden rounded-lg border bg-card text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-foreground/25 hover:shadow-md active:cursor-grabbing',
-        compact ? 'h-[132px] w-full' : 'h-[150px] w-[236px]',
-        selected ? 'border-emerald-500/60 ring-1 ring-emerald-500/30' : 'border-border',
-      )}
-      title={resource.name}
-    >
-      <div className="flex min-h-0 flex-1 gap-3 p-3">
-        <div className={cn(
-          'flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted text-muted-foreground',
-          compact ? 'h-16 w-16' : 'h-[82px] w-[82px]'
-        )}>
-          <div className="h-full w-full">
-            <ResourceThumb resource={resource} />
-          </div>
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <Badge variant="outline" className="shrink-0 type-tiny leading-none">{resource.type}</Badge>
-            {selected ? <span className="truncate type-tiny leading-none text-emerald-600">已作为依赖</span> : null}
-          </div>
-          <p className="mt-2 line-clamp-2 min-h-9 type-body font-semibold leading-[18px] text-foreground">{resource.name}</p>
-          <p className="mt-1 line-clamp-2 type-caption leading-4 text-muted-foreground">
-            {resource.mime_type || resource.type}
-          </p>
-        </div>
-      </div>
-      <div className="flex h-9 shrink-0 items-center justify-between gap-2 border-t border-border bg-muted/25 px-3 type-tiny text-muted-foreground">
-        <span className="truncate">#{resource.ID}</span>
-        <span className="truncate">{selected ? '可直接拖入画布' : formatBytes(resource.size)}</span>
-      </div>
-    </div>
-  )
-}
-
-function resourceMatchesSearch(resource: RawResource, query: string) {
-  const q = query.trim().toLowerCase()
-  if (!q) return true
-  return [resource.ID, resource.name, resource.type, resource.mime_type]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-    .includes(q)
-}
-
-function formatBytes(value: number | undefined) {
-  if (!value) return '-'
-  if (value < 1024) return `${value} B`
-  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`
-  return `${(value / 1024 / 1024).toFixed(1)} MB`
-}
-
-function formatRunTime(value: string | undefined, language: string) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString(language, {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function formatRunDuration(run: CanvasRuntimeRun) {
-  if (!run.startedAt) return '-'
-  const end = run.finishedAt ? new Date(run.finishedAt).getTime() : Date.now()
-  const seconds = Math.max(0, Math.round((end - new Date(run.startedAt).getTime()) / 1000))
-  if (seconds < 60) return `${seconds}s`
-  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
-}
-
-function RunStatusBadge({ status }: { status: CanvasRunStatus }) {
-  const { t } = useTranslation()
-  if (status === 'running' || status === 'pending') {
-    return (
-      <Badge variant="secondary" className="gap-1 border-transparent">
-        <Loader2 size={12} className="animate-spin" />
-        {t(`canvas.runStatus.${status}`)}
-      </Badge>
-    )
-  }
-  if (status === 'done') {
-    return (
-      <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-600">
-        <CheckCircle2 size={12} />
-        {t('canvas.runStatus.done')}
-      </Badge>
-    )
-  }
-  return (
-    <Badge variant="destructive" className="gap-1">
-      <XCircle size={12} />
-      {t('canvas.runStatus.failed')}
-    </Badge>
-  )
-}
-
-function WorkflowRunHistory({
-  runs,
-  total,
-  page,
-  pageCount,
-  statusFilter,
-  activeRunId,
-  isLoading,
-  embedded = false,
-  compact = false,
-  onStatusFilterChange,
-  onPageChange,
-  onSelectRun,
-}: {
-	  runs: CanvasRuntimeRun[]
-  total: number
-  page: number
-  pageCount: number
-	  statusFilter: 'all' | CanvasRunStatus
-	  activeRunId: string | null
-  isLoading: boolean
-  embedded?: boolean
-  compact?: boolean
-	  onStatusFilterChange: (status: 'all' | CanvasRunStatus) => void
-	  onPageChange: (page: number) => void
-	  onSelectRun: (runId: string) => void
-}) {
-  const { t, i18n } = useTranslation()
-  return (
-    <section className={cn(
-      embedded ? 'flex h-full flex-col bg-background' : 'h-52 shrink-0 border-t border-border bg-background'
-    )}>
-      {compact ? (
-        <div className="shrink-0 border-b border-border px-3 py-3">
-          <div className="flex items-center gap-2">
-            <History size={14} className="text-muted-foreground" />
-            <div className="min-w-0 flex-1">
-              <p className="type-label font-semibold text-foreground">{t('canvas.editor.history.title')}</p>
-              <p className="type-tiny text-muted-foreground">{t('canvas.editor.history.runsCount', { count: total })}</p>
-            </div>
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <select
-              value={statusFilter}
-              onChange={(e) => onStatusFilterChange(e.target.value as 'all' | CanvasRunStatus)}
-              className="h-7 min-w-0 flex-1 rounded-md border border-border bg-background px-2 type-label text-foreground outline-none"
-            >
-              <option value="all">{t('canvas.editor.history.allStatuses')}</option>
-              <option value="running">{t('canvas.runStatus.running')}</option>
-              <option value="pending">{t('canvas.runStatus.pending')}</option>
-              <option value="done">{t('canvas.runStatus.done')}</option>
-              <option value="failed">{t('canvas.runStatus.failed')}</option>
-            </select>
-            <Button variant="outline" size="sm" onClick={() => onPageChange(Math.max(1, page - 1))} disabled={page <= 1}>
-              <ChevronLeft size={12} />
-            </Button>
-            <span className="w-10 text-center type-caption text-muted-foreground">{page}/{pageCount}</span>
-            <Button variant="outline" size="sm" onClick={() => onPageChange(Math.min(pageCount, page + 1))} disabled={page >= pageCount}>
-              <ChevronRight size={12} />
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex h-11 items-center gap-3 border-b border-border px-4">
-          <History size={14} className="text-muted-foreground" />
-          <div className="min-w-0 flex-1">
-            <p className="type-label font-semibold text-foreground">{t('canvas.editor.history.title')}</p>
-            <p className="type-tiny text-muted-foreground">{t('canvas.editor.history.description')}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <ListFilter size={14} className="text-muted-foreground" />
-            <select
-              value={statusFilter}
-              onChange={(e) => onStatusFilterChange(e.target.value as 'all' | CanvasRunStatus)}
-              className="h-7 rounded-md border border-border bg-background px-2 type-label text-foreground outline-none"
-            >
-              <option value="all">{t('canvas.editor.history.allStatuses')}</option>
-              <option value="running">{t('canvas.runStatus.running')}</option>
-              <option value="pending">{t('canvas.runStatus.pending')}</option>
-              <option value="done">{t('canvas.runStatus.done')}</option>
-              <option value="failed">{t('canvas.runStatus.failed')}</option>
-            </select>
-            <span className="hidden type-caption text-muted-foreground sm:inline">{t('canvas.editor.history.runsCount', { count: total })}</span>
-            <Button variant="outline" size="sm" onClick={() => onPageChange(Math.max(1, page - 1))} disabled={page <= 1}>
-              <ChevronLeft size={12} />
-            </Button>
-            <span className="w-12 text-center type-caption text-muted-foreground">{page}/{pageCount}</span>
-            <Button variant="outline" size="sm" onClick={() => onPageChange(Math.min(pageCount, page + 1))} disabled={page >= pageCount}>
-              <ChevronRight size={12} />
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <div className={cn(embedded ? 'min-h-0 flex-1 overflow-auto' : 'h-[calc(100%-2.75rem)] overflow-auto')}>
-        {isLoading && (
-          <div className="flex h-24 items-center justify-center type-label text-muted-foreground">
-            <Loader2 size={14} className="mr-2 animate-spin" />
-            {t('canvas.editor.history.loading')}
-          </div>
-        )}
-        {!isLoading && runs.length === 0 && (
-          <div className="flex h-24 items-center justify-center type-label text-muted-foreground">{t('canvas.editor.history.empty')}</div>
-        )}
-        {!isLoading && runs.length > 0 && (
-          compact ? (
-            <div className="space-y-2 p-3">
-              {runs.map((run) => (
-                <button
-                  key={run.id}
-                  onClick={() => onSelectRun(run.id)}
-                  className={cn(
-                    'w-full rounded-lg border border-border bg-card p-3 text-left type-label transition-colors hover:border-foreground/25 hover:bg-muted/20',
-                    activeRunId === run.id && 'border-primary/50 bg-primary/5'
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-foreground">#{run.id.slice(-6)}</span>
-                    <RunStatusBadge status={run.status} />
-                    <span className="ml-auto type-tiny text-muted-foreground">{formatRunTime(run.startedAt, i18n.language)}</span>
-                  </div>
-                  <div className="mt-2 flex items-center gap-2 type-caption text-muted-foreground">
-                    <Clock3 size={12} />
-                    <span>{formatRunDuration(run)}</span>
-                    <span className="h-1 w-1 rounded-full bg-border" />
-                    <span>{t('canvas.editor.history.snapshotSummary', { nodes: run.snapshotNodeCount ?? 0, edges: run.snapshotEdgeCount ?? 0 })}</span>
-                  </div>
-                  {run.error && <p className="mt-1 truncate type-tiny text-destructive" title={run.error}>{run.error}</p>}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-[96px_104px_112px_1fr_120px] border-b border-border bg-muted/25 px-4 py-2 type-caption font-medium text-muted-foreground">
-                <span>{t('canvas.editor.history.run')}</span>
-                <span>{t('canvas.editor.history.status')}</span>
-                <span>{t('canvas.editor.history.duration')}</span>
-                <span>{t('canvas.editor.history.snapshot')}</span>
-                <span className="text-right">{t('canvas.editor.history.startedAt')}</span>
-              </div>
-              {runs.map((run) => (
-                <button
-                  key={run.id}
-                  onClick={() => onSelectRun(run.id)}
-                  className={cn(
-                    'grid w-full grid-cols-[96px_104px_112px_1fr_120px] items-center border-b border-border px-4 py-2 text-left type-label transition-colors hover:bg-muted/40',
-                    activeRunId === run.id && 'bg-primary/5'
-                  )}
-                >
-                  <span className="font-medium text-foreground">#{run.id.slice(-6)}</span>
-                  <RunStatusBadge status={run.status} />
-                  <span className="flex items-center gap-1 text-muted-foreground">
-                    <Clock3 size={12} />
-                    {formatRunDuration(run)}
-                  </span>
-                  <span className="min-w-0 truncate text-muted-foreground" title={run.error || undefined}>
-                    {t('canvas.editor.history.snapshotSummary', { nodes: run.snapshotNodeCount ?? 0, edges: run.snapshotEdgeCount ?? 0 })}
-                    {run.error && <span className="ml-2 text-destructive">{run.error}</span>}
-                  </span>
-                  <span className="text-right text-muted-foreground">{formatRunTime(run.startedAt, i18n.language)}</span>
-                </button>
-              ))}
-            </>
-          )
-        )}
-      </div>
-    </section>
-  )
-}
-
-function WorkflowSidePanel({
-  projectId,
-  canvasId,
-  dependencyBindings,
-  activeTab,
-  runs,
-  total,
-  page,
-  pageCount,
-  statusFilter,
-  activeRunId,
-  isLoading,
-  onTabChange,
-  onStatusFilterChange,
-  onPageChange,
-  onSelectRun,
-}: {
-  projectId?: number
-  canvasId?: number | string
-  dependencyBindings: ResourceBinding[]
-  activeTab: 'resources' | 'history'
-	  runs: CanvasRuntimeRun[]
-  total: number
-  page: number
-  pageCount: number
-	  statusFilter: 'all' | CanvasRunStatus
-	  activeRunId: string | null
-  isLoading: boolean
-  onTabChange: (tab: 'resources' | 'history') => void
-	  onStatusFilterChange: (status: 'all' | CanvasRunStatus) => void
-	  onPageChange: (page: number) => void
-	  onSelectRun: (runId: string) => void
-}) {
-  const { t } = useTranslation()
-  const [collapsed, setCollapsed] = useState(false)
-  const [width, setWidth] = useState(360)
-  function startResize(event: React.PointerEvent<HTMLButtonElement>) {
-    event.preventDefault()
-    const startX = event.clientX
-    const startWidth = width
-    function onMove(moveEvent: PointerEvent) {
-      const next = Math.min(520, Math.max(300, startWidth + startX - moveEvent.clientX))
-      setWidth(next)
-    }
-    function onUp() {
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-    }
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-  }
-  if (collapsed) {
-    return (
-      <aside className="flex h-full w-12 shrink-0 flex-col items-center gap-2 border-l border-border bg-background py-3">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-         
-          onClick={() => setCollapsed(false)}
-          title={t('canvas.editor.resourceShelf.title')}
-        >
-          <HardDrive size={14} />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-         
-          onClick={() => {
-            onTabChange('history')
-            setCollapsed(false)
-          }}
-          title={t('canvas.editor.history.title')}
-        >
-          <History size={14} />
-        </Button>
-      </aside>
-    )
-  }
-  return (
-    <aside className="relative flex h-full shrink-0 flex-col border-l border-border bg-background" style={{ width }}>
-      <button
-        type="button"
-        className="absolute inset-y-0 left-0 z-10 flex w-2 cursor-ew-resize items-center justify-center text-muted-foreground hover:bg-muted/50"
-        onPointerDown={startResize}
-        title={t('canvas.editor.resizePanel', { defaultValue: '调整面板宽度' })}
-      >
-        <span className="h-10 w-0.5 rounded-full bg-border" />
-      </button>
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border pl-4 pr-3">
-        <div className="flex min-w-0 flex-1 overflow-hidden rounded-md border border-border type-label">
-          <button
-            onClick={() => onTabChange('resources')}
-            className={cn('flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2 py-1.5 transition-colors', activeTab === 'resources' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
-          >
-            <HardDrive size={12} />
-            <span className="truncate">{t('canvas.editor.resourceShelf.title')}</span>
-          </button>
-          <button
-            onClick={() => onTabChange('history')}
-            className={cn('flex min-w-0 flex-1 items-center justify-center gap-1.5 border-l border-border px-2 py-1.5 transition-colors', activeTab === 'history' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted')}
-          >
-            <History size={12} />
-            <span className="truncate">{t('canvas.editor.history.title')}</span>
-          </button>
-        </div>
-        <Button variant="ghost" size="icon-sm" className="shrink-0" onClick={() => setCollapsed(true)}>
-          <ChevronRight size={14} />
-        </Button>
-      </div>
-      <div className="min-h-0 flex-1 overflow-hidden">
-        {activeTab === 'resources' ? (
-          <CanvasResourceShelf projectId={projectId} dependencyBindings={dependencyBindings} variant="side" />
-        ) : (
-          <WorkflowRunHistory
-            embedded
-            compact
-            runs={runs}
-            total={total}
-            page={page}
-            pageCount={pageCount}
-            statusFilter={statusFilter}
-            activeRunId={activeRunId}
-            isLoading={isLoading}
-            onStatusFilterChange={onStatusFilterChange}
-            onPageChange={onPageChange}
-            onSelectRun={onSelectRun}
-          />
-        )}
-      </div>
-    </aside>
-  )
-}
-
-function WorkflowRunResultsDialog({
-  run,
-  nodes,
-  onClose,
-  onRemoveResource,
-  removingResourceId,
-}: {
-	  run: CanvasRuntimeRun
-  nodes: Node[]
-  onClose: () => void
-  onRemoveResource: (resourceId: number) => Promise<void>
-  removingResourceId?: number
-}) {
-  const { t } = useTranslation()
-  const [removedResourceIds, setRemovedResourceIds] = useState<number[]>([])
-  const items = useMemo(() => workflowRunOutputItems(run, nodes, t), [run, nodes, t])
-
-  async function handleRemove(resourceId: number) {
-    try {
-      await onRemoveResource(resourceId)
-      setRemovedResourceIds((prev) => prev.includes(resourceId) ? prev : [...prev, resourceId])
-    } catch {
-      // Error toast is handled by the mutation owner.
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[86vh] w-full max-w-4xl flex-col rounded-xl border border-border bg-background shadow-2xl">
-        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
-          <div>
-            <h2 className="type-body font-semibold text-foreground">
-              {t('canvas.editor.runResults.title', { id: run.id.slice(-6), defaultValue: `Run #${run.id.slice(-6)} results` })}
-            </h2>
-            <p className="mt-1 type-label text-muted-foreground">
-              {t('canvas.editor.runResults.description', { defaultValue: 'Outputs have been saved to the resource library. Review, download, or remove the items you do not want to keep.' })}
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onClick={onClose}>
-            {t('common.close', { defaultValue: 'Close' })}
-          </Button>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          {items.length === 0 ? (
-            <p className="rounded-md border border-dashed border-border px-3 py-2 type-body text-muted-foreground">
-              {t('canvas.editor.runResults.empty', { defaultValue: 'This run did not produce workflow outputs.' })}
-            </p>
-          ) : (
-            <div className="grid gap-3 md:grid-cols-2">
-              {items.map((item) => {
-                const resource = item.resource
-                const removed = !!resource && removedResourceIds.includes(resource.ID)
-                const resourceUrl = resource ? `${API_BASE}${resource.url}` : undefined
-                return (
-                  <div key={item.key} className={cn('overflow-hidden rounded-lg border border-border bg-card', removed && 'opacity-55')}>
-                    <div className="flex h-44 items-center justify-center bg-muted/35">
-                      {removed ? (
-                        <div className="type-label text-muted-foreground">{t('canvas.editor.runResults.removed', { defaultValue: 'Removed from resource library' })}</div>
-                      ) : resource && item.value.type === 'image' ? (
-                        <AuthedImage src={resourceUrl!} alt={item.label} className="h-full w-full object-contain" />
-                      ) : resource && item.value.type === 'video' ? (
-                        <AuthedVideo src={resourceUrl!} controls className="h-full w-full object-contain" />
-                      ) : (
-                        <pre className="max-h-full w-full overflow-auto whitespace-pre-wrap break-words p-3 type-label text-muted-foreground">
-                          {canvasPortValuePreviewText(item.value) || t('common.empty', { defaultValue: 'Empty' })}
-                        </pre>
-                      )}
-                    </div>
-                    <div className="space-y-3 p-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate type-body font-medium text-foreground">{item.label}</span>
-                          <Badge variant="outline" className="shrink-0 type-tiny">{item.value.type}</Badge>
-                        </div>
-                        <p className="mt-0.5 truncate type-caption text-muted-foreground">
-                          {resource ? `#${resource.ID} · ${resource.name}` : item.key}
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        {resource && !removed && (
-                          <Button asChild variant="outline" size="sm" className="flex-1">
-                            <a href={resourceUrl} download={resource.name}>
-                              <Download size={12} />
-                              {t('common.download', { defaultValue: 'Download' })}
-                            </a>
-                          </Button>
-                        )}
-                        {resource && !removed && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 text-destructive hover:text-destructive"
-                            disabled={removingResourceId === resource.ID}
-                            onClick={() => handleRemove(resource.ID)}
-                          >
-                            {removingResourceId === resource.ID ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                            {t('canvas.editor.runResults.remove', { defaultValue: 'Remove' })}
-                          </Button>
-                        )}
-                        {(!resource || removed) && (
-                          <Button variant="outline" size="sm" className="flex-1" disabled>
-                            <CheckCircle2 size={12} />
-                            {removed ? t('canvas.editor.runResults.removedAction', { defaultValue: 'Removed' }) : t('canvas.editor.runResults.saved', { defaultValue: 'Saved' })}
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = false, onClose, pushTargets = [] }: CanvasWorkspaceProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const qc = useQueryClient()
   const { screenToFlowPosition, fitView } = useReactFlow()
   const id = String(canvasId)
 
@@ -1306,28 +167,14 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 	  const [runStatusFilter, setRunStatusFilter] = useState<'all' | CanvasRunStatus>('all')
 	  const [workflowPanelTab, setWorkflowPanelTab] = useState<'resources' | 'history'>('resources')
 	  const [runResultDialogRunId, setRunResultDialogRunId] = useState<string | null>(null)
-  const [removingRunResultResourceId, setRemovingRunResultResourceId] = useState<number | undefined>()
-  const [clientPlugins, setClientPlugins] = useState<ClientPluginManifest[]>([])
   const [runtimeStarting, setRuntimeStarting] = useState(false)
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const [autoSaveState, setAutoSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
-  const fitViewCalledRef = useRef(false)
   const pendingResultRunIdsRef = useRef<Set<string>>(new Set())
-  const hydratingCanvasRef = useRef(false)
-  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastSavedSignatureRef = useRef('')
-  const latestGraphSignatureRef = useRef('')
   const canvasPaneRef = useRef<HTMLDivElement>(null)
   const runHistoryPageSize = 8
 	  const setCanvasHeader = useCanvasHeaderStore((s) => s.setHeader)
 	  const resetCanvasHeader = useCanvasHeaderStore((s) => s.reset)
 	  const runtimeRunsByCanvasId = useCanvasRuntimeStore((s) => s.runsByCanvasId)
-	  const startRuntimeRun = useCanvasRuntimeStore((s) => s.startRun)
-	  const startRuntimeTask = useCanvasRuntimeStore((s) => s.startTask)
-	  const completeRuntimeTask = useCanvasRuntimeStore((s) => s.completeTask)
-	  const failRuntimeTask = useCanvasRuntimeStore((s) => s.failTask)
-	  const finishRuntimeRun = useCanvasRuntimeStore((s) => s.finishRun)
 
   // Load canvas
   const { data: canvas } = useQuery<Canvas>({
@@ -1335,48 +182,70 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     queryFn: () => api.get(`/canvases/${id}`).then((r) => r.data),
     enabled: !!id
   })
-  const { data: canvasDependencyBindings = [] } = useQuery<ResourceBinding[]>({
-    queryKey: ['canvas-dependencies', canvas?.project_id, id],
-    queryFn: () => api.get(`/projects/${canvas!.project_id}/resource-bindings`, {
-      params: {
-        owner_type: 'canvas',
-        owner_id: id,
-      },
-    }).then((r) => r.data),
-    enabled: !!canvas?.project_id && !!id,
+  const {
+    hasUnsavedChanges,
+    autoSaveState,
+    setAutoSaveState,
+    persistCanvasGraph,
+    save,
+  } = useCanvasDocument({
+    canvasId: id,
+    canvas,
+    canvasName,
+    canvasType,
+    nodes,
+    edges,
+    runtimeStarting,
+    setCanvasName,
+    setCanvasType,
+    setNodes,
+    setEdges,
+    fitView,
+    t,
   })
-  const { data: canvasNodeResourcePage } = useQuery<PaginatedResponse<RawResource>>({
-    queryKey: ['canvas-node-resources'],
-    queryFn: () => api.get('/resources', { params: { page: 1, page_size: 200, type: 'image,video,text' } }).then((r) => r.data),
+  const {
+    dependencyBindings: canvasDependencyBindings,
+    nodeResources: canvasNodeResources,
+    nodeResourceById: canvasNodeResourceById,
+    removingRunResultResourceId,
+    removeRunResultResource,
+    pushResource,
+  } = useCanvasResourceIntegration({
+    canvas,
+    canvasId: id,
+    removeFailedMessage: t('canvas.editor.runResults.removeFailed', { defaultValue: 'Failed to remove resource' }),
   })
-  const canvasNodeResources = canvasNodeResourcePage?.items ?? []
-  const canvasNodeResourceById = useMemo(
-    () => new Map(canvasNodeResources.map((resource) => [resource.ID, resource])),
-    [canvasNodeResources],
-  )
-  const referencedWorkflowCanvasIds = useMemo(() => {
-    const ids = new Set<number>()
-    nodes.forEach((node) => {
-      if (node.type !== 'canvas') return
-      const data = node.data as Partial<CanvasNodeData>
-      if (data.referencedCanvasId) ids.add(data.referencedCanvasId)
-    })
-    return [...ids].sort((a, b) => a - b)
-  }, [nodes])
-  const referencedWorkflowCanvasQueries = useQueries({
-    queries: referencedWorkflowCanvasIds.map((canvasId) => ({
-      queryKey: ['canvas', canvasId],
-      queryFn: () => api.get(`/canvases/${canvasId}`).then((r) => r.data as Canvas),
-      enabled: !!canvasId,
-    })),
+  const {
+    clientPlugins,
+    runLocalPluginNode,
+  } = useCanvasClientPlugins({
+    nodes,
+    edges,
+    setNodes,
+    resourceById: canvasNodeResourceById,
+    pluginNotFoundMessage: t('plugins.notFound'),
   })
-  const referencedWorkflowCanvasById = useMemo(() => {
-    const map = new Map<number, Canvas>()
-    referencedWorkflowCanvasQueries.forEach((query) => {
-      if (query.data?.ID) map.set(query.data.ID, query.data)
-    })
-    return map
-  }, [referencedWorkflowCanvasQueries])
+  const {
+    executeCanvasRuntime,
+    submitRunNode,
+  } = useCanvasRuntimeExecutor({
+    canvasId: id,
+    projectId: canvas?.project_id,
+    nodes,
+    edges,
+    setNodes,
+    resourceById: canvasNodeResourceById,
+    persistCanvasGraph,
+    onRunStarted: ({ runId, targetNodeId }) => {
+      setActiveRunId(runId)
+      setRunStatusFilter('all')
+      setRunHistoryPage(1)
+      setWorkflowPanelTab('history')
+      if (!targetNodeId) pendingResultRunIdsRef.current.add(runId)
+    },
+    t,
+  })
+  useCanvasWorkflowReferencePorts({ nodes, setNodes })
 
 	  const workflowRunsAll = runtimeRunsByCanvasId[id] ?? []
 	  const workflowRunsFiltered = runStatusFilter === 'all'
@@ -1387,32 +256,9 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 	  const workflowRuns = workflowRunsFiltered.slice((runHistoryPage - 1) * runHistoryPageSize, runHistoryPage * runHistoryPageSize)
 	  const activeRun = workflowRunsAll.find((run) => run.id === activeRunId) ?? workflowRunsAll[0]
 
-  useEffect(() => {
-    loadClientPlugins()
-      .then(setClientPlugins)
-      .catch(() => setClientPlugins([]))
-  }, [])
-
 	  const resultDialogRun = runResultDialogRunId
 	    ? workflowRunsAll.find((run) => run.id === runResultDialogRunId)
 	    : undefined
-
-  const removeRunResultResource = useMutation({
-    mutationFn: (resourceId: number) => api.delete(`/resources/${resourceId}`).then(() => resourceId),
-    onMutate: (resourceId) => {
-      setRemovingRunResultResourceId(resourceId)
-    },
-	    onSuccess: () => {
-	      qc.invalidateQueries({ queryKey: ['resources'] })
-	      qc.invalidateQueries({ queryKey: ['canvas-resource-shelf', 'resources'] })
-	    },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.error || err?.message || t('canvas.editor.runResults.removeFailed', { defaultValue: 'Failed to remove resource' }))
-    },
-    onSettled: () => {
-      setRemovingRunResultResourceId(undefined)
-    },
-  })
 
 	  const selectedNodeId = selectedNodeIds.length > 0 ? selectedNodeIds[selectedNodeIds.length - 1] : undefined
 
@@ -1427,283 +273,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 	    pendingResultRunIdsRef.current.delete(activeRun.id)
 	    setRunResultDialogRunId(activeRun.id)
 	  }, [activeRun?.id, activeRun?.outputValues, activeRun?.status, canvasType])
-
-  useEffect(() => {
-    if (!canvas) return
-    setCanvasName(canvas.name)
-    setCanvasType(canvas.canvas_type ?? 'inspiration')
-    const loadedNodes: Node[] = (canvas.nodes ?? []).map((n) => {
-      const data: CanvasNodeData = n.data ? JSON.parse(n.data) : { source: 'upload' }
-      const { _parentId, _style, ...cleanData } = data as any
-      const node: Node = {
-        id: n.node_id,
-        type: n.type,
-        position: { x: n.pos_x, y: n.pos_y },
-        data: { ...cleanData, label: n.label },
-        ...(n.type === 'group'
-          ? { zIndex: -1, style: _style ?? { width: 320, height: 240 } }
-          : { style: { width: (_style?.width ?? 200) } }),
-        ...(_parentId && { parentId: _parentId }),
-      }
-      return node
-    })
-    // Groups must appear before their children in the array
-    const groupNodes = loadedNodes.filter(n => n.type === 'group')
-    const childNodes = loadedNodes.filter(n => n.type !== 'group')
-    const loadedNodeById = new Map(loadedNodes.map((node) => [node.id, node]))
-    const loadedEdges: Edge[] = uniqueEdgesByConnection((canvas.edges ?? []).map((e) => ({
-      id: e.edge_id,
-      source: e.source,
-      target: e.target,
-      sourceHandle: toUiHandleId(e.source_handle ?? defaultHandleForNode(loadedNodeById.get(e.source), 'source'), 'source'),
-      targetHandle: toUiHandleId(e.target_handle ?? defaultHandleForNode(loadedNodeById.get(e.target), 'target'), 'target'),
-    })))
-    const nextNodes = (canvas.canvas_type ?? 'inspiration') === 'workflow'
-      ? ensureFinalOutputNode([...groupNodes, ...childNodes], t)
-      : [...groupNodes, ...childNodes]
-    hydratingCanvasRef.current = true
-    const loadedSignature = canvasGraphSignature({
-      canvasName: canvas.name,
-      canvasType: canvas.canvas_type ?? 'inspiration',
-      nodes: nextNodes,
-      edges: loadedEdges,
-      t,
-    })
-    lastSavedSignatureRef.current = loadedSignature
-    latestGraphSignatureRef.current = loadedSignature
-    setHasUnsavedChanges(false)
-    setAutoSaveState('idle')
-    setNodes(nextNodes)
-    setEdges(loadedEdges)
-    window.setTimeout(() => {
-      hydratingCanvasRef.current = false
-    }, 0)
-
-    if (!fitViewCalledRef.current && nextNodes.length > 0) {
-      fitViewCalledRef.current = true
-      setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80)
-    }
-  }, [canvas, t])
-
-  // Save
-  const persistCanvasGraph = useCallback(async (nextNodes: Node[], nextEdges: Edge[]) => {
-    const savedSignature = canvasGraphSignature({
-      canvasName,
-      canvasType,
-      nodes: nextNodes,
-      edges: nextEdges,
-      t,
-    })
-    const payload = await buildCanvasSavePayload({
-      canvasName,
-      canvasType,
-      nodes: nextNodes,
-      edges: nextEdges,
-      t,
-    })
-    await api.put(`/canvases/${id}`, payload)
-    lastSavedSignatureRef.current = savedSignature
-    setHasUnsavedChanges(latestGraphSignatureRef.current !== savedSignature)
-    setAutoSaveState('saved')
-    qc.invalidateQueries({ queryKey: ['canvas', id] })
-  }, [canvasName, canvasType, id, qc, t])
-
-  const save = useMutation({
-    mutationFn: () => persistCanvasGraph(nodes, edges),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['canvas', id] })
-  })
-
-  useEffect(() => {
-    if (!canvas || hydratingCanvasRef.current) return
-    const signature = canvasGraphSignature({ canvasName, canvasType, nodes, edges, t })
-    latestGraphSignatureRef.current = signature
-    const dirty = signature !== lastSavedSignatureRef.current
-    setHasUnsavedChanges(dirty)
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current)
-      autoSaveTimerRef.current = null
-    }
-    if (!dirty) return
-
-    const runtimeActive = runtimeStarting || nodes.some((node) => {
-      const status = (node.data as Partial<CanvasNodeData>).status
-      return status === 'running' || status === 'pending'
-    })
-    if (runtimeActive) return
-
-    autoSaveTimerRef.current = setTimeout(() => {
-      setAutoSaveState('saving')
-      void persistCanvasGraph(nodes, edges).catch((err: any) => {
-        setAutoSaveState('error')
-        toast.error(err?.response?.data?.error || err?.message || t('canvas.editor.autoSaveFailed', { defaultValue: '自动保存失败' }))
-      })
-    }, 1500)
-
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current)
-        autoSaveTimerRef.current = null
-      }
-    }
-  }, [canvas, canvasName, canvasType, edges, nodes, persistCanvasGraph, runtimeStarting, t])
-
-	  const executeCanvasRuntimeNode = useCallback(async (
-	    node: Node,
-	    inputs: Record<string, CanvasPortValue[]>,
-	  ): Promise<Record<string, CanvasPortValue>> => {
-	    const data = node.data as Partial<CanvasNodeData>
-	    const first = firstRuntimeValue(inputs, ['value', 'input', 'prompt', 'reference', 'image', 'video', 'text'])
-	    if (node.type === 'input') {
-	      const value = first ?? (data.inputValue !== undefined ? { type: data.paramType ?? 'text', text: data.inputValue } as CanvasPortValue : undefined)
-	      return value ? { value, [node.id]: value } : {}
-	    }
-	    if (node.type === 'output') {
-	      return first ? { value: first, [node.id]: first } : {}
-	    }
-	    if (node.type === 'resource_sink') {
-	      if (!first) return {}
-	      if (first.resource_id) return { result: first, value: first }
-	      const text = canvasPortValuePreviewText(first)
-	      if (!text) return { result: first, value: first }
-	      const resource = await uploadCanvasRuntimeTextResource(data.paramName || (data as any).label || node.id, text)
-	      return { result: { type: 'text', text, resource_id: resource.ID, resource }, value: { type: 'text', text, resource_id: resource.ID, resource } }
-	    }
-	    if (node.type === 'text' && data.source !== 'ai') {
-	      const value: CanvasPortValue = data.resourceId
-	        ? { type: 'text', resource_id: data.resourceId, resource: data.resource }
-	        : { type: 'text', text: data.textContent ?? data.inputValue ?? '' }
-	      return { text: value, result: value, value }
-	    }
-	    if ((node.type === 'image' || node.type === 'video') && data.source !== 'ai') {
-	      if (!data.resourceId && !data.resource?.ID) return {}
-	      const resource = data.resource ?? canvasNodeResourceById.get(data.resourceId!)
-	      const value: CanvasPortValue = { type: node.type, resource_id: data.resourceId ?? data.resource!.ID, resource }
-	      return { [node.type]: value, result: value, value }
-	    }
-	    if (node.type === 'plugin_card') {
-	      const resultText = data.pluginResultText
-	      return resultText ? { result: { type: 'text', text: resultText }, text: { type: 'text', text: resultText } } : {}
-	    }
-	    if (node.type === 'canvas') {
-	      throw new Error(t('canvas.editor.errors.referenceWorkflowFrontendRuntime', { defaultValue: '引用工作流节点需要改造成前端子流程后再运行。' }))
-	    }
-	
-	    const outputType = node.type === 'text_gen' ? 'text'
-	      : node.type === 'ai_gen' ? (data.outputType ?? 'image')
-	        : node.type === 'video' || node.type === 'ref_video_gen' || node.type === 'motion_imitation' ? 'video'
-	          : node.type === 'text' ? 'text'
-	            : 'image'
-	    const prompt = runtimePromptForNode(node, inputs)
-	    if (!prompt && outputType !== 'image' && outputType !== 'video') {
-	      throw new Error(t('canvas.editor.errors.promptRequired', { defaultValue: 'Prompt is required' }))
-	    }
-	    if (outputType === 'text') {
-	      const model = await resolveCanvasRuntimeModel(data, 'text', 'canvas_text')
-	      const response = await generateCanvasRuntimeText({
-	        modelId: model.modelId,
-	        modelConfigId: model.modelConfigId,
-	        featureKey: 'canvas_text',
-	        prompt,
-	        params: data.params,
-	        projectId: canvas?.project_id,
-	      })
-	      const value: CanvasPortValue = { type: 'text', text: response.text }
-	      return { text: value, result: value, value }
-	    }
-	    const job = await generateCanvasRuntimeMedia({
-	      nodeType: node.type,
-	      data,
-	      outputType,
-	      prompt,
-	      inputResourceIds: runtimeResourceIdsForNode(node, inputs),
-	      projectId: canvas?.project_id,
-	    })
-	    const resource = job.output_resource
-	    const resourceId = job.output_resource_id ?? resource?.ID ?? job.output_resource_ids?.[0]
-	    if (!resourceId) throw new Error(job.error_msg || 'generation job completed without output resource')
-	    const value: CanvasPortValue = { type: outputType === 'video' ? 'video' : 'image', resource_id: resourceId, resource }
-	    return { [value.type]: value, result: value, value }
-	  }, [canvas?.project_id, canvasNodeResourceById, t])
-
-		  const executeCanvasRuntime = useCallback(async (targetNodeId?: string, values?: Record<string, CanvasPortValue>) => {
-		    const order = targetNodeId
-		      ? canvasRuntimeOrderForNode(targetNodeId, nodes, edges)
-		      : topoSortCanvasNodes(nodes.filter((node) => node.type !== 'group'), edges)
-		    const runnable = order.filter((node) => node.type !== 'group')
-		    let runtimeNodes = nodes
-		    const run = startRuntimeRun({ canvasId: id, nodeIds: runnable.map((node) => node.id), snapshotNodeCount: nodes.length, snapshotEdgeCount: edges.length })
-	    setActiveRunId(run.id)
-	    setRunStatusFilter('all')
-	    setRunHistoryPage(1)
-	    setWorkflowPanelTab('history')
-	    if (!targetNodeId) pendingResultRunIdsRef.current.add(run.id)
-	    const outputCache: CanvasRuntimeOutputCache = {}
-	    try {
-	      for (const node of runnable) {
-	        const inputValue = node.type === 'input' ? (values?.[node.id] ?? values?.value) : undefined
-	        const inputPatch = inputValue
-	          ? { value: inputValue, [node.id]: inputValue }
-	          : node.id === targetNodeId ? values : undefined
-	        const collected = collectCanvasNodeInputs({ nodeId: node.id, nodes, edges, resourceById: canvasNodeResourceById, outputCache, runtimeInputs: inputPatch })
-	        const task = startRuntimeTask({
-	          runId: run.id,
-	          canvasId: id,
-	          nodeId: node.id,
-	          nodeType: node.type,
-	          nodeLabel: (node.data as any)?.label || node.id,
-	          inputValues: collected.values,
-	        })
-	        setNodes((prev) => prev.map((item) => item.id === node.id ? { ...item, data: { ...item.data, status: 'running', error: undefined } } : item))
-	        try {
-	          const outputs = await executeCanvasRuntimeNode(node, collected.values)
-	          outputCache[node.id] = outputs
-	          const outputValue = outputs.result ?? outputs.value ?? Object.values(outputs)[0]
-	          completeRuntimeTask(id, run.id, node.id, {
-	            outputValues: outputs,
-	            resourceId: outputValue?.resource_id,
-	            resource: outputValue?.resource,
-	            jobId: (outputValue?.json as any)?.jobId,
-	          })
-		          const nextRuntimeNodes = runtimeNodes.map((item) => {
-		            if (item.id !== node.id) return item
-		            const currentData = item.data as Partial<CanvasNodeData>
-		            return {
-		              ...item,
-	              data: {
-	                ...item.data,
-	                status: 'done',
-	                error: undefined,
-	                resourceId: outputValue?.resource_id ?? currentData.resourceId,
-	                resource: outputValue?.resource ?? currentData.resource,
-		                textContent: nodeAcceptsTextResult(item, currentData) ? (textContentFromOutputs(outputs) ?? currentData.textContent) : currentData.textContent,
-		              },
-		            }
-		          })
-		          runtimeNodes = nextRuntimeNodes
-		          setNodes(nextRuntimeNodes)
-		          qc.invalidateQueries({ queryKey: ['resources'] })
-		          qc.invalidateQueries({ queryKey: ['canvas-resource-shelf', 'resources'] })
-		          qc.invalidateQueries({ queryKey: ['canvas-node-resources'] })
-	        } catch (err: any) {
-	          const message = err?.response?.data?.error || err?.message || t('canvas.editor.errors.runFailed', { defaultValue: 'Failed to run node' })
-	          failRuntimeTask(id, run.id, node.id, message)
-	          setNodes((prev) => prev.map((item) => item.id === node.id ? { ...item, data: { ...item.data, status: 'failed', error: message } } : item))
-	          throw new Error(message)
-	        }
-		      }
-		      const outputValues = buildRuntimeWorkflowOutputs(runnable, outputCache)
-		      await persistCanvasGraph(runtimeNodes, edges)
-		      finishRuntimeRun(id, run.id, 'done', outputValues)
-	    } catch (err: any) {
-	      const message = err?.message || t('canvas.editor.errors.runFailed', { defaultValue: 'Failed to run node' })
-	      finishRuntimeRun(id, run.id, 'failed', buildRuntimeWorkflowOutputs(runnable, outputCache), message)
-	      toast.error(message)
-	    }
-	  }, [canvasNodeResourceById, completeRuntimeTask, edges, executeCanvasRuntimeNode, failRuntimeTask, finishRuntimeRun, id, nodes, persistCanvasGraph, qc, setNodes, startRuntimeRun, startRuntimeTask, t])
-
-	  const submitRunNode = useCallback(async (nodeId: string, values?: Record<string, CanvasPortValue>) => {
-	    await executeCanvasRuntime(nodeId, values)
-	  }, [executeCanvasRuntime])
 
   const runNode = useCallback(async (nodeId: string) => {
     const node = nodes.find((n) => n.id === nodeId)
@@ -1749,69 +318,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     }))
     await submitRunNode(nodeRunDialog.nodeId, encoded)
   }, [nodeRunDialog, nodeRunValues, setNodes, submitRunNode, t])
-
-  const runLocalPluginNode = useCallback(async (nodeId: string) => {
-    const node = nodes.find((n) => n.id === nodeId)
-    const data = node?.data as unknown as CanvasNodeData | undefined
-    if (!node || !data?.pluginId) return
-
-    setNodes((prev) => prev.map((n) => n.id === nodeId
-      ? { ...n, data: { ...n.data, status: 'running', error: undefined } }
-      : n
-    ))
-
-    try {
-      let plugin = clientPlugins.find((p) => p.id === data.pluginId)
-      if (!plugin) {
-        const plugins = await loadClientPlugins()
-        setClientPlugins(plugins)
-        plugin = plugins.find((p) => p.id === data.pluginId)
-      }
-      if (!plugin) throw new Error(t('plugins.notFound'))
-
-      const defaultArgs = Object.fromEntries(
-        Object.entries(plugin.inputSchema?.properties ?? {})
-          .filter(([, prop]) => prop.default !== undefined)
-          .map(([key, prop]) => [key, prop.default])
-      )
-      const pluginArgs = buildCanvasPluginArgsWithInputs({
-        targetNodeId: nodeId,
-        baseArgs: {
-          ...defaultArgs,
-          ...((data.pluginArgs ?? {}) as Record<string, unknown>),
-        },
-        inputPorts: data.inputPorts,
-        schemaProperties: plugin.inputSchema?.properties,
-        nodes,
-        edges,
-        resourceById: canvasNodeResourceById,
-      })
-      const executableSpec = await compileClientPlugin(plugin, pluginArgs)
-      const result = await runClientPlugin(plugin, pluginArgs)
-      const resultText = result.content?.map((item) => item.text ?? '').filter(Boolean).join('\n')
-        || JSON.stringify(result.data ?? '')
-      setNodes((prev) => prev.map((n) => n.id === nodeId
-        ? {
-            ...n,
-            data: {
-              ...n.data,
-              status: result.isError ? 'failed' : 'done',
-              error: result.isError ? resultText : undefined,
-              pluginResultText: resultText,
-              pluginResultData: result.data,
-              pluginLastRunAt: new Date().toISOString(),
-              executableSpec,
-            },
-          }
-        : n
-      ))
-    } catch (err: any) {
-      setNodes((prev) => prev.map((n) => n.id === nodeId
-        ? { ...n, data: { ...n.data, status: 'failed', error: err?.message ?? String(err) } }
-        : n
-      ))
-    }
-  }, [canvasNodeResourceById, clientPlugins, edges, nodes, setNodes, t])
 
 	  // Handle workflow run from the current in-memory graph.
 	  async function handleRunWorkflow() {
@@ -1869,21 +375,8 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   }
 
   async function handlePushResource(target: CanvasPushTarget, resourceId: number) {
-    if (!canvas?.project_id) return
     try {
-      if (target.kind === 'asset_slot') {
-        await api.post(`/projects/${canvas.project_id}/entities/asset-slot-candidates`, {
-          asset_slot_id: target.id,
-          resource_id: resourceId,
-          source_type: 'canvas',
-          source_id: Number(canvas.ID),
-          status: 'candidate',
-          note: `由 Canvas 推送加入候选：${target.label}`,
-        })
-        invalidateAssetCandidateConsumers(qc, canvas.project_id)
-        qc.invalidateQueries({ queryKey: ['canvas-resource-shelf', 'asset-slots', canvas.project_id] })
-        toast.success('已加入素材候选')
-      }
+      await pushResource(target, resourceId)
     } catch (err: any) {
       // Keep node execution state intact; users can retry pushing from the node.
       toast.error(err?.response?.data?.error || err?.message || '加入素材候选失败')
@@ -1898,16 +391,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
         : { x: window.innerWidth / 2, y: window.innerHeight / 2 }
     )
     const position = screenToFlowPosition(screenPosition)
-    const baseData = createNodeData(type, t)
-    const newNode: Node = {
-      id: genId(),
-      type,
-      position,
-      data: { ...baseData },
-      ...(type === 'group'
-        ? { style: { width: 320, height: 240 }, zIndex: -1 }
-        : { style: { width: 200 } }),
-    }
+    const newNode = createPaletteCanvasNode({ type, position, t })
     setNodes((prev) => [...prev, newNode])
   }, [screenToFlowPosition, t])
 
@@ -1918,22 +402,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
       return
     }
     const position = screenToFlowPosition(clientPosition)
-    const baseData = createNodeData(type, t)
-    const newNode: Node = {
-      id: genId(),
-      type,
-      position,
-      data: {
-        ...baseData,
-        label: resource.name,
-        ...readOnlyMediaPortPatch('upload'),
-        source: 'upload',
-        resourceId: resource.ID,
-        resource,
-        status: 'done',
-      },
-      style: { width: type === 'text' ? 220 : 200 },
-    }
+    const newNode = createResourceCanvasNode({ resource, type, position, t })
     setNodes((prev) => [...prev, newNode])
   }, [screenToFlowPosition, setNodes, t])
 
@@ -1947,23 +416,8 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
         ? workflowCanvas
         : await api.get(`/canvases/${workflowCanvas.ID}`).then((r) => r.data as Canvas)
       if ((referencedCanvas.canvas_type ?? 'inspiration') !== 'workflow') return
-      const ports = deriveCanvasReferencePorts(referencedCanvas)
       const position = screenToFlowPosition(clientPosition)
-      const baseData = createNodeData('canvas', t)
-      const newNode: Node = {
-        id: genId(),
-        type: 'canvas',
-        position,
-        data: {
-          ...baseData,
-          label: referencedCanvas.name,
-          source: 'ai',
-          referencedCanvasId: referencedCanvas.ID,
-          inputPorts: ports.inputs,
-          outputPorts: ports.outputs,
-        },
-        style: { width: 220 },
-      }
+      const newNode = createWorkflowReferenceCanvasNode({ workflowCanvas: referencedCanvas, position, t })
       setNodes((prev) => [...prev, newNode])
     } catch (err: any) {
       toast.error(err?.response?.data?.error || err?.message || t('canvas.editor.errors.workflowReferenceFailed', { defaultValue: 'Failed to add workflow reference.' }))
@@ -1971,7 +425,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   }, [id, screenToFlowPosition, setNodes, t])
 
   const addPluginNodeAt = useCallback((plugin: ClientPluginManifest, clientPosition?: { x: number; y: number }) => {
-    const contribution = plugin.contributes?.canvasNodes?.[0]
     const fallbackRect = canvasPaneRef.current?.getBoundingClientRect()
     const screenPosition = clientPosition ?? (
       fallbackRect
@@ -1979,24 +432,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
         : { x: window.innerWidth / 2, y: window.innerHeight / 2 }
     )
     const position = screenToFlowPosition(screenPosition)
-    const newNode: Node = {
-      id: genId(),
-      type: 'plugin_card',
-      position,
-      data: {
-        source: 'manual',
-        ...(contribution?.defaultData ?? {}),
-        label: contribution?.title ?? plugin.name,
-        pluginId: plugin.id,
-        pluginName: plugin.name,
-        pluginVersion: plugin.version,
-        pluginRuntime: 'trusted_local',
-        pluginArgs: {},
-        inputPorts: contribution?.inputs,
-        outputPorts: contribution?.outputs,
-      },
-      style: { width: 240 },
-    }
+    const newNode = createPluginCanvasNode({ plugin, position })
     setNodes((prev) => [...prev, newNode])
   }, [screenToFlowPosition, setNodes])
 
@@ -2007,48 +443,94 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
   }, [addNodeAt, menu])
 
   // Delete selected nodes and their connected edges (also removes children of deleted groups)
-  const deleteSelectedNodes = useCallback(() => {
-    const directSelected = new Set(nodes.filter(n => n.selected && !isFinalOutputNode(n)).map(n => n.id))
-    if (directSelected.size === 0) return
-    // Also collect children of any selected group nodes
-    const toDelete = new Set(directSelected)
-    nodes.forEach(n => { if (n.parentId && toDelete.has(n.parentId)) toDelete.add(n.id) })
-    setNodes(prev => prev.filter(n => !toDelete.has(n.id)))
-    setEdges(prev => prev.filter(e => !toDelete.has(e.source) && !toDelete.has(e.target)))
-    setSelectedNodeIds([])
+	  const deleteSelectedNodes = useCallback(() => {
+	    const directSelected = new Set(nodes.filter(n => n.selected && !isFinalOutputNode(n)).map(n => n.id))
+	    if (directSelected.size === 0) return
+	    const toDelete = new Set(directSelected)
+	    let changed = true
+	    while (changed) {
+	      changed = false
+	      nodes.forEach((node) => {
+	        if (!node.parentId || !toDelete.has(node.parentId) || toDelete.has(node.id)) return
+	        toDelete.add(node.id)
+	        changed = true
+	      })
+	    }
+	    setNodes(prev => prev.filter(n => !toDelete.has(n.id)))
+	    setEdges(prev => prev.filter(e => !toDelete.has(e.source) && !toDelete.has(e.target)))
+	    setSelectedNodeIds([])
   }, [nodes, setNodes, setEdges])
 
   // Group selected nodes into a new group node
   const createGroupFromSelection = useCallback(() => {
-    const selected = nodes.filter((n) => n.selected && n.type !== 'group')
-    if (selected.length < 2) return
-    const PAD = 40
-    const minX = Math.min(...selected.map((n) => n.position.x)) - PAD
-    const minY = Math.min(...selected.map((n) => n.position.y)) - PAD
-    const maxX = Math.max(...selected.map((n) => n.position.x + (n.measured?.width ?? 208))) + PAD
-    const maxY = Math.max(...selected.map((n) => n.position.y + (n.measured?.height ?? 80))) + PAD
-    const groupId = genId()
+    const selected = topLevelSelectedCanvasNodes(nodes, nodes.filter((n) => n.selected && !isFinalOutputNode(n)))
+    const bounds = canvasGroupSelectionBounds(nodes, selected)
+    if (!bounds) return
+    const groupId = createCanvasNodeId()
+    const nodeById = new Map(nodes.map((node) => [node.id, node]))
+    const parentId = commonParentId(selected)
+    const parent = parentId ? nodeById.get(parentId) : undefined
+    const parentPosition = parent ? canvasNodeAbsolutePosition(parent, nodeById) : { x: 0, y: 0 }
     const groupNode: Node = {
       id: groupId,
       type: 'group',
-      position: { x: minX, y: minY },
-      style: { width: maxX - minX, height: maxY - minY },
+      position: { x: bounds.x - parentPosition.x, y: bounds.y - parentPosition.y },
+      style: { width: bounds.width, height: bounds.height },
       zIndex: -1,
       data: { source: 'manual', label: t('canvas.nodeLabels.group'), isGroup: true },
+      selected: true,
+      ...(parentId ? { parentId } : {}),
     }
-    setNodes((prev) => [
-      groupNode, // parent must come before children
-      ...prev.map((n) => {
-        if (!n.selected || n.type === 'group') return n
+    const selectedIds = new Set(selected.map((node) => node.id))
+    setNodes((prev) => {
+      const nextNodes = prev.map((n) => {
+        if (!selectedIds.has(n.id)) return n
+        const absolutePosition = bounds.absolutePositionByNodeId.get(n.id) ?? n.position
         // Convert to relative position, no extent:'parent' so nodes can be dragged out
         return {
           ...n,
           parentId: groupId,
-          position: { x: n.position.x - minX, y: n.position.y - minY },
+          position: { x: absolutePosition.x - bounds.x, y: absolutePosition.y - bounds.y },
+          selected: false,
         }
-      }),
-    ])
+      })
+      const insertIndex = parentId
+        ? Math.max(0, nextNodes.findIndex((node) => node.id === parentId) + 1)
+        : 0
+      return [
+        ...nextNodes.slice(0, insertIndex),
+        groupNode,
+        ...nextNodes.slice(insertIndex),
+      ]
+    })
+    setSelectedNodeIds([groupId])
   }, [nodes, t])
+
+  const ungroupSelectedGroups = useCallback(() => {
+    const selectedGroups = topLevelSelectedCanvasNodes(nodes, nodes.filter((node) => node.selected && node.type === 'group'))
+    if (selectedGroups.length === 0) return
+    const selectedGroupIds = new Set(selectedGroups.map((node) => node.id))
+    const groupById = new Map(selectedGroups.map((node) => [node.id, node]))
+    const promotedNodeIds = nodes
+      .filter((node) => node.parentId && selectedGroupIds.has(node.parentId))
+      .map((node) => node.id)
+    setNodes((prev) => prev.flatMap((node) => {
+      if (selectedGroupIds.has(node.id)) return []
+      if (!node.parentId || !selectedGroupIds.has(node.parentId)) return node
+      const group = groupById.get(node.parentId)
+      if (!group) return node
+      return [{
+        ...node,
+        parentId: group.parentId,
+        position: {
+          x: group.position.x + node.position.x,
+          y: group.position.y + node.position.y,
+        },
+        selected: true,
+      }]
+    }))
+    setSelectedNodeIds(promotedNodeIds)
+  }, [nodes, setNodes])
 
   // Drag node out of group → detach it
   const onNodeDragStop = useCallback((_: React.MouseEvent, draggedNode: Node) => {
@@ -2058,8 +540,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     const gw = (parent.style as any)?.width ?? 320
     const gh = (parent.style as any)?.height ?? 240
     const { x: nx, y: ny } = draggedNode.position
-    const nw = draggedNode.measured?.width ?? 208
-    const nh = draggedNode.measured?.height ?? 80
+    const { width: nw, height: nh } = canvasNodeDimensions(draggedNode)
     // If the node's center is outside the group bounds, detach it
     const cx = nx + nw / 2
     const cy = ny + nh / 2
@@ -2115,34 +596,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
     }))
   }, [])
 
-  useEffect(() => {
-    if (referencedWorkflowCanvasById.size === 0) return
-    setNodes((prev) => {
-      let changed = false
-      const next = prev.map((node) => {
-        if (node.type !== 'canvas') return node
-        const data = node.data as unknown as CanvasNodeData
-        if (!data.referencedCanvasId) return node
-        const referencedCanvas = referencedWorkflowCanvasById.get(data.referencedCanvasId)
-        if (!referencedCanvas) return node
-        const nextPorts = deriveCanvasReferencePorts(referencedCanvas)
-        const currentSig = JSON.stringify({ inputs: data.inputPorts ?? [], outputs: data.outputPorts ?? [] })
-        const nextSig = JSON.stringify(nextPorts)
-        if (currentSig === nextSig) return node
-        changed = true
-        return {
-          ...node,
-          data: {
-            ...data,
-            inputPorts: nextPorts.inputs,
-            outputPorts: nextPorts.outputs,
-          },
-        }
-      })
-      return changed ? next : prev
-    })
-  }, [referencedWorkflowCanvasById, setNodes])
-
   const onConnect = useCallback((params: Connection) => {
     const sourceNode = nodes.find((node) => node.id === params.source)
     const targetNode = nodes.find((node) => node.id === params.target)
@@ -2184,7 +637,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 
     const nextEdge: Edge = {
       ...params,
-      id: makeEdgeId({ source: params.source, target: params.target, sourceHandle, targetHandle }),
+      id: createCanvasEdgeId({ source: params.source, target: params.target, sourceHandle, targetHandle }),
       sourceHandle,
       targetHandle,
     }
@@ -2321,6 +774,20 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
       }
     }
   })
+
+  const topLevelSelectedNodes = useMemo(
+    () => topLevelSelectedCanvasNodes(nodes, nodes.filter((n) => n.selected && !isFinalOutputNode(n))),
+    [nodes],
+  )
+
+  const topLevelSelectedGroups = useMemo(
+    () => topLevelSelectedCanvasNodes(nodes, nodes.filter((n) => n.selected && n.type === 'group')),
+    [nodes],
+  )
+
+  const selectedGroupBounds = useMemo(() => canvasGroupSelectionBounds(nodes, topLevelSelectedNodes), [nodes, topLevelSelectedNodes])
+
+  const selectedUngroupBounds = useMemo(() => canvasGroupSelectionBounds(nodes, topLevelSelectedGroups, 0, 1), [nodes, topLevelSelectedGroups])
 
   const inputNodes = nodes.filter((n) => n.type === 'input')
   const selectedNode = selectedNodeIds.length > 0
@@ -2693,15 +1160,60 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
               deleteKeyCode={['Delete', 'Backspace']}
               selectionOnDrag={true}
               panOnDrag={[1, 2]}
-              selectionMode={SelectionMode.Partial}
-              connectionMode={ConnectionMode.Loose}
-              connectionRadius={40}
+              selectionMode={SelectionMode.Full}
+	              connectionMode={ConnectionMode.Loose}
+	              connectionRadius={40}
               defaultEdgeOptions={{
                 type: 'default',
                 markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
                 style: { strokeWidth: 1.6 },
               }}
             >
+              {selectedGroupBounds && (
+                <ViewportPortal>
+                  <div
+                    className="pointer-events-none absolute rounded-xl border border-dashed border-primary/60 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08)]"
+                    style={{
+                      transform: `translate(${selectedGroupBounds.x}px, ${selectedGroupBounds.y}px)`,
+                      width: selectedGroupBounds.width,
+                      height: selectedGroupBounds.height,
+                    }}
+                  >
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="nodrag nopan pointer-events-auto absolute left-3 top-3 h-8 gap-1.5 rounded-md shadow-sm"
+                      onClick={createGroupFromSelection}
+                    >
+                      <Layers3 size={13} />
+                      {t('canvas.contextMenu.groupSelected', { count: selectedGroupBounds.count })}
+                    </Button>
+                  </div>
+                </ViewportPortal>
+              )}
+              {selectedUngroupBounds && (
+                <ViewportPortal>
+                  <div
+                    className="pointer-events-none absolute"
+                    style={{
+                      transform: `translate(${selectedUngroupBounds.x}px, ${selectedUngroupBounds.y}px)`,
+                      width: selectedUngroupBounds.width,
+                      height: selectedUngroupBounds.height,
+                    }}
+                  >
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="nodrag nopan pointer-events-auto absolute right-3 top-3 h-8 gap-1.5 rounded-md bg-background/95 shadow-sm"
+                      onClick={ungroupSelectedGroups}
+                    >
+                      <Ungroup size={13} />
+                      {t('canvas.contextMenu.ungroupSelected', { count: selectedUngroupBounds.count })}
+                    </Button>
+                  </div>
+                </ViewportPortal>
+              )}
               <Background gap={18} size={1} color="hsl(var(--border))" />
               <Controls position="bottom-left" />
               <MiniMap zoomable pannable position="bottom-right" nodeStrokeWidth={3} />
@@ -2736,7 +1248,6 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
 
           <WorkflowSidePanel
             projectId={canvas?.project_id}
-            canvasId={id}
             dependencyBindings={canvasDependencyBindings}
             activeTab={workflowPanelTab}
             runs={workflowRuns}
@@ -2772,8 +1283,10 @@ export function CanvasWorkspace({ canvasId, embedded = false, useAppHeader = fal
           y={menu.y}
           onAdd={addNode}
           onClose={() => setMenu(null)}
-          selectedCount={nodes.filter((n) => n.selected && n.type !== 'group').length}
+          selectedCount={topLevelSelectedNodes.length}
+          selectedGroupCount={topLevelSelectedGroups.length}
           onGroupSelected={createGroupFromSelection}
+          onUngroupSelected={ungroupSelectedGroups}
           onDeleteSelected={deleteSelectedNodes}
           hasSelection={nodes.some(n => n.selected)}
         />

@@ -155,7 +155,7 @@ test('buildAgentActivityFeed does not duplicate work status traces as task cards
   const taskItems = feed?.items.filter((item) => item.type === 'block' && item.title === '提交异步任务')
   assert.equal(taskItems?.length, 1)
   const item = taskItems?.[0]
-  assert.equal(item?.durationMs, 166_000)
+  assert.equal(item?.type === 'block' ? item.durationMs : undefined, 166_000)
   assert.deepEqual(item?.type === 'block' ? item.lines : [], [
     '类型：生成任务',
     '任务：work_1',
@@ -333,6 +333,27 @@ test('buildAgentActivityFeed renders model tool-call decisions before execution'
   ])
 })
 
+test('buildAgentActivityFeed labels final-response sentinel rounds without exposing round 999', () => {
+  const feed = buildAgentActivityFeed({
+    activity: activity({
+      events: [{
+        id: 'event_final_failed',
+        kind: 'run',
+        title: 'Run finished',
+        status: 'failed',
+        roundIndex: 999,
+        roundLabel: 'Final response',
+        roundSource: 'final',
+        data: { eventType: 'runtime.recovery.interrupted' },
+        createdAt: '2026-05-22T01:00:00.000Z',
+      }],
+    }),
+  })
+
+  assert.equal(feed?.rounds[0]?.label, '最终回复：记录失败')
+  assert.doesNotMatch(feed?.rounds[0]?.label ?? '', /999/)
+})
+
 test('buildAgentActivityFeed shows model round latency and token usage', () => {
   const feed = buildAgentActivityFeed({
     activity: activity({
@@ -385,7 +406,7 @@ test('buildAgentActivityFeed prefers explicit model round duration records', () 
   assert.equal(feed ? feedTotalsLine(feed) : undefined, '累计：模型 1 次 · 2.0s · 42 tokens，in 40 / out 2')
 })
 
-test('buildAgentActivityFeed keeps user input requests out of the process feed', () => {
+test('buildAgentActivityFeed renders user input requests at their activity position', () => {
   const feed = buildAgentActivityFeed({
     activity: activity({
       status: 'requires_action',
@@ -425,8 +446,8 @@ test('buildAgentActivityFeed keeps user input requests out of the process feed',
     }),
   })
 
-  assert.deepEqual(feed?.rounds, [])
-  assert.deepEqual(feed?.items, [])
+  assert.deepEqual(feed?.items.map((item) => item.id), ['input-input_1'])
+  assert.equal(feed?.items[0]?.type, 'input_request')
 })
 
 test('buildAgentActivityFeed shows interrupted runtime recovery as a system boundary', () => {
@@ -486,7 +507,12 @@ test('buildAgentActivityFeed shows resumed recovery without duplicating the same
     }),
   })
 
-  assert.deepEqual(feed?.items.map((item) => item.type === 'line' ? item.text : item.title), [
+  assert.deepEqual(feed?.items.map((item) => {
+    if (item.type === 'line') return item.text
+    if (item.type === 'input_request') return item.request.title
+    if (item.type === 'approval_request') return item.approval.reason
+    return item.title
+  }), [
     '恢复继续：沿用同一个 run 重新调度，之前已完成的步骤保留为历史。',
     '模型决定调用 1 个工具',
     '已读取数据：读取当前焦点',
@@ -540,7 +566,7 @@ test('agentActivityFeedMarkdown copies human-readable activity instead of raw js
   assert.doesNotMatch(markdown, /"asset_slot_id"/)
 })
 
-test('buildAgentActivityFeed keeps user approvals out of the process feed', () => {
+test('buildAgentActivityFeed renders user approvals at their activity position', () => {
   const feed = buildAgentActivityFeed({
     activity: activity({
       approvals: [{
@@ -556,11 +582,31 @@ test('buildAgentActivityFeed keeps user approvals out of the process feed', () =
     }),
   })
 
-  assert.deepEqual(feed?.rounds, [])
+  assert.deepEqual(feed?.items.map((item) => item.id), ['approval-approval_1'])
+  assert.equal(feed?.items[0]?.type, 'approval_request')
+})
+
+test('buildAgentActivityFeed keeps continuation resume approvals out of run activity', () => {
+  const feed = buildAgentActivityFeed({
+    activity: activity({
+      status: 'completed',
+      approvals: [{
+        id: 'approval_resume',
+        toolName: 'runtime_continuation_resume',
+        reason: 'Resume interrupted work',
+        permission: 'runtime.continuation',
+        risk: 'resume',
+        status: 'pending',
+        createdAt: '2026-05-22T01:00:00.000Z',
+        updatedAt: '2026-05-22T01:00:00.000Z',
+      }],
+    }),
+  })
+
   assert.deepEqual(feed?.items, [])
 })
 
-test('buildAgentActivityFeed leaves approvals to workflow cards when rendering tool results', () => {
+test('buildAgentActivityFeed keeps approvals inline with tool results', () => {
   const feed = buildAgentActivityFeed({
     activity: activity({
       steps: [{
@@ -586,11 +632,12 @@ test('buildAgentActivityFeed leaves approvals to workflow cards when rendering t
   })
 
   assert.deepEqual(feed?.items.map((item) => item.type === 'block' || item.type === 'decision' ? item.title : item.id), [
+    'approval-approval_1',
     '写入素材候选',
   ])
 })
 
-test('buildAgentActivityFeed keeps model tool-call order without approval rows', () => {
+test('buildAgentActivityFeed keeps model tool-call order with approval rows', () => {
   const feed = buildAgentActivityFeed({
     activity: activity({
       events: [{
@@ -640,6 +687,7 @@ test('buildAgentActivityFeed keeps model tool-call order without approval rows',
 
   assert.deepEqual(feed?.items.map((item) => item.type === 'block' || item.type === 'decision' ? item.title : item.id), [
     '模型决定调用 2 个工具',
+    'approval-approval_1',
     'step-step_focus',
     '写入素材候选',
   ])

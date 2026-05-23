@@ -222,7 +222,7 @@ func (a *OpenAIAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 				choice := chunk.Choices[0]
 				event.Role = choice.Delta.Role
 				event.ContentDelta = choice.Delta.Content
-				event.ReasoningDelta = choice.Delta.ReasoningContent
+				event.ReasoningDelta = firstNonEmptyAI(choice.Delta.ReasoningContent, choice.Delta.ReasoningDelta)
 				event.ToolCallDeltas = choice.Delta.ToolCalls
 				event.FinishReason = choice.FinishReason
 			}
@@ -284,6 +284,7 @@ type openAIChatCompletionChunk struct {
 			Role             string          `json:"role"`
 			Content          string          `json:"content"`
 			ReasoningContent string          `json:"reasoning_content"`
+			ReasoningDelta   string          `json:"reasoning_delta"`
 			ToolCalls        []ToolCallDelta `json:"tool_calls"`
 		} `json:"delta"`
 		FinishReason string `json:"finish_reason"`

@@ -82,7 +82,8 @@ export function Header({
   const isMacOS = platform === undefined || platform === 'darwin'
   const controls = (
     <div className="app-window-no-drag flex shrink-0 items-center gap-1">
-      {appControls ?? <AppTopControls compact />}
+      {appControls}
+      <AppTopControls compact />
       <UserMenu />
     </div>
   )

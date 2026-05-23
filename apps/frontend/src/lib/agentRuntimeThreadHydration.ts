@@ -1,12 +1,13 @@
 import { assistantResultPayloadForRun, fetchResourceById, type AgentMessageViewModelDeps } from '@/lib/agentMessageViewModel'
 import { localAgentClient, type AgentRun, type AgentThread, type LocalAgentClient } from '@/lib/localAgentClient'
 import { runtimeStatusLightFromThreadRuntimeSnapshot, type AgentRuntimeStatusLight } from '@/lib/agentRuntimeStatusLight'
+import { buildAgentSessionRuntimeView } from '@/lib/agentSessionRuntimeProjection'
 import { buildRuntimeThreadConversationProjection } from '@movscript/conversation'
 import { formatLocalAgentAssistantContent } from '@/lib/localAgentResult'
 import type { ChatMessage, ChatRunActivityEvent } from '@/store/agentStore'
 import type { RawResource } from '@/types'
 
-type RuntimeThreadHydrationClient = Pick<LocalAgentClient, 'getThread' | 'listRunsByThread'> & Partial<Pick<LocalAgentClient, 'getThreadRuntime'>>
+type RuntimeThreadHydrationClient = Pick<LocalAgentClient, 'getThread' | 'listRunsByThread'> & Partial<Pick<LocalAgentClient, 'getThreadRuntime' | 'getSessionRuntime'>>
 
 export interface RuntimeThreadHydrationResult {
   thread: AgentThread
@@ -24,6 +25,7 @@ export interface RuntimeThreadHydrationDeps extends AgentMessageViewModelDeps {
 
 export async function loadRuntimeThreadProjection(input: {
   threadId: string
+  sessionId?: string
   thread?: AgentThread
   existingMessages?: ChatMessage[]
   ensureRuns?: AgentRun[]
@@ -31,13 +33,23 @@ export async function loadRuntimeThreadProjection(input: {
   signal?: AbortSignal
 }, deps: RuntimeThreadHydrationDeps = {}): Promise<RuntimeThreadHydrationResult> {
   const client = deps.client ?? localAgentClient
-  const snapshot = input.thread || !client.getThreadRuntime
+  const snapshot = input.thread && !input.sessionId
     ? undefined
-    : await client.getThreadRuntime(input.threadId, input.signal)
+    : await loadRuntimeSnapshot({
+      client,
+      threadId: input.threadId,
+      sessionId: input.sessionId,
+      signal: input.signal,
+    })
+  const sessionView = snapshot?.scope.type === 'session'
+    ? buildAgentSessionRuntimeView(snapshot)
+    : undefined
   const thread = input.thread
+    ?? sessionView?.interactiveThread
+    ?? sessionView?.rootThread
     ?? snapshot?.entities.threads?.find((candidate) => candidate.id === input.threadId)
     ?? await client.getThread(input.threadId, input.signal)
-  const snapshotRuns = snapshot?.entities.runs?.filter((run) => run.threadId === thread.id)
+  const snapshotRuns = snapshot?.entities.runs
   const runProjection = snapshotRuns
     ? { threadId: thread.id, runs: snapshotRuns }
     : await client.listRunsByThread(thread.id, input.signal).catch((error) => {
@@ -48,7 +60,7 @@ export async function loadRuntimeThreadProjection(input: {
     thread,
     runs: runProjection.runs,
     ensureRuns: input.ensureRuns,
-    interactions: snapshot?.entities.interactions?.filter((interaction) => interaction.threadId === thread.id),
+    interactions: snapshot?.entities.interactions,
     current: runtimeThreadCurrentFromV2(snapshot, thread.id),
     existingMessages: input.existingMessages,
     liveEventsByRunId: input.liveEventsByRunId,
@@ -67,12 +79,27 @@ export async function loadRuntimeThreadProjection(input: {
   return { ...projection, runtimeStatusLight: runtimeStatusLightFromThreadRuntimeSnapshot(snapshot) }
 }
 
+async function loadRuntimeSnapshot(input: {
+  client: RuntimeThreadHydrationClient
+  threadId: string
+  sessionId?: string
+  signal?: AbortSignal
+}) {
+  if (input.sessionId && input.client.getSessionRuntime) {
+    const sessionSnapshot = await input.client.getSessionRuntime(input.sessionId, input.signal).catch(() => undefined)
+    if (sessionSnapshot) return sessionSnapshot
+  }
+  return input.client.getThreadRuntime
+    ? await input.client.getThreadRuntime(input.threadId, input.signal)
+    : undefined
+}
+
 function runtimeThreadCurrentFromV2(
   snapshot: Awaited<ReturnType<LocalAgentClient['getThreadRuntime']>> | undefined,
   threadId: string,
 ): { activeRunIds?: string[]; waitingRunIds?: string[] } | undefined {
   if (!snapshot) return undefined
-  const runs = snapshot.entities.runs?.filter((run) => run.threadId === threadId) ?? []
+  const runs = snapshot.entities.runs ?? []
   return {
     activeRunIds: runs.filter((run) => run.status === 'queued' || run.status === 'in_progress').map((run) => run.id),
     waitingRunIds: runs.filter((run) => run.status === 'requires_action').map((run) => run.id),

@@ -60,7 +60,12 @@ export function buildAgentChatSendPipelineInput({
         setConversationMessages: store.messageStore.setConversationMessages,
         clearConversationDraft: store.messageStore.clearConversationDraft,
       },
+      setConversationSessionId: store.setConversationSessionId,
       setConversationRuntimeThreadId: store.setConversationRuntimeThreadId,
+      setConversationRuntimeSessionId: (targetUserId, conversationId, sessionId) => {
+        store.setConversationRuntimeSessionId(targetUserId, conversationId, sessionId)
+        store.setConversationSessionId(conversationId, sessionId)
+      },
       updateConversationTitle: store.updateConversationTitle,
       setLocalThreadId: store.setLocalThreadId,
       setPageTaskRunning: store.setPageTaskRunning,
@@ -82,12 +87,18 @@ export function buildAgentChatSendPipelineInput({
       userId,
       conversationId: conv.id,
       conversationMessages: conv.messages,
+      localSessionId: store.localSessionId,
       localThreadId: store.localThreadId,
       loading,
       building: buildingSendDraft,
       runtimeLoading: store.conversationRuntime?.loading,
       runtimeBuilding: store.conversationRuntime?.building,
       setLocalThreadId: store.setLocalThreadId,
+      setConversationSessionId: store.setConversationSessionId,
+      setConversationRuntimeSessionId: (targetUserId, conversationId, sessionId) => {
+        store.setConversationRuntimeSessionId(targetUserId, conversationId, sessionId)
+        store.setConversationSessionId(conversationId, sessionId)
+      },
       setConversationRuntimeThreadId: store.setConversationRuntimeThreadId,
       setConversationRun: store.setConversationRun,
       setSubmittedInteractionRuns: runtime.setSubmittedInteractionRuns,

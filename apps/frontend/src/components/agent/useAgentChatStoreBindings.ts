@@ -29,13 +29,16 @@ export function useAgentChatStoreBindings({
     setConversationMessages,
     updateMessageMeta,
     removeMessage,
+    setConversationRuntimeSessionId,
     setConversationRuntimeThreadId,
     updateConversationTitle,
     updateSettings,
   } = useAgentStore()
   const currentProject = useProjectStore((state) => state.current)
   const conversationRuntime = useAgentSessionStore((state) => state.conversationRuntimes[conversation.id] ?? null)
+  const localSessionId = useAgentSessionStore((state) => state.sessionIdsByConversation[conversation.id] ?? conversation.runtimeSessionId ?? state.conversationRuntimes[conversation.id]?.sessionId ?? '')
   const localThreadId = useAgentSessionStore((state) => state.localThreadIdsByConversation[conversation.id] ?? conversation.runtimeThreadId ?? '')
+  const setConversationSessionId = useAgentSessionStore((state) => state.setConversationSessionId)
   const setConversationRuntime = useAgentSessionStore((state) => state.setConversationRuntime)
   const setConversationRun = useAgentSessionStore((state) => state.setConversationRun)
   const setLocalThreadId = useAgentSessionStore((state) => state.setLocalThreadId)
@@ -57,7 +60,10 @@ export function useAgentChatStoreBindings({
     currentProject,
     draft,
     localRuntimeEnabled: true,
+    localSessionId,
     localThreadId,
+    setConversationRuntimeSessionId,
+    setConversationSessionId,
     setConversationRun,
     setConversationRuntime,
     setConversationRuntimeThreadId,

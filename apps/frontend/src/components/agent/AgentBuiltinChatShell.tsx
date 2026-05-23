@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { AgentShell } from '@movscript/ui'
 import { AgentChatView } from '@/components/agent/AgentChatView'
 import { ConversationList } from '@/components/agent/AgentConversationList'
@@ -8,6 +9,7 @@ export interface AgentBuiltinChatShellProps {
   onCollapse: () => void
   showCollapse?: boolean
   surface?: 'panel' | 'page'
+  pageEmptyAccessory?: ReactNode
   pendingThreadIdToOpen?: string | null
   onPendingThreadHandled?: (threadId: string) => void
 }
@@ -17,6 +19,7 @@ export function AgentBuiltinChatShell({
   onCollapse,
   showCollapse = true,
   surface = 'panel',
+  pageEmptyAccessory,
   pendingThreadIdToOpen,
   onPendingThreadHandled,
 }: AgentBuiltinChatShellProps) {
@@ -28,6 +31,7 @@ export function AgentBuiltinChatShell({
     deleteConversation,
     deleteConversations,
     newConversation,
+    reorderConversation,
     restoreLocalThread,
     selectConversation,
   } = useAgentBuiltinChatController({
@@ -37,7 +41,7 @@ export function AgentBuiltinChatShell({
   })
 
   return (
-    <AgentShell density="compact" className={surface === 'page' ? 'ai-agent-panel-shell project-agent-chat-shell' : 'ai-agent-panel-shell'}>
+    <AgentShell density="compact" className={surface === 'page' ? 'ai-agent-panel-shell agent-page-chat-shell project-agent-chat-shell' : 'ai-agent-panel-shell'}>
       {activeConversation ? (
         <AgentChatView
           key={activeConversation.id}
@@ -51,6 +55,9 @@ export function AgentBuiltinChatShell({
           onNewConversation={newConversation}
           onCloseConversation={deleteConversation}
           onCloseConversations={deleteConversations}
+          onReorderConversation={reorderConversation}
+          surface={surface}
+          pageEmptyAccessory={pageEmptyAccessory}
           externalTask={activeTask}
           pageToolRequestId={activeTask?.requestId}
           showConversationControls={surface !== 'page'}

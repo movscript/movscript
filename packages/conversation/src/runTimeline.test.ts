@@ -120,6 +120,25 @@ test('buildAgentRunTimeline treats blocked input traces as waiting instead of fa
   assert.deepEqual(timeline.rounds[0]?.inputs.map((input) => input.id), ['input_1'])
 })
 
+test('buildAgentRunTimeline preserves final round metadata', () => {
+  const timeline = buildAgentRunTimeline(activity({
+    events: [{
+      id: 'event_final',
+      kind: 'assistant',
+      title: 'Assistant message created',
+      status: 'completed',
+      roundIndex: 999,
+      roundLabel: 'Final response',
+      roundSource: 'final',
+      createdAt: '2026-05-22T01:00:00.000Z',
+    }],
+  }))
+
+  assert.equal(timeline.rounds[0]?.index, 999)
+  assert.equal(timeline.rounds[0]?.label, 'Final response')
+  assert.equal(timeline.rounds[0]?.source, 'final')
+})
+
 function activity(overrides: Partial<AgentRunActivity> = {}): AgentRunActivity {
   return {
     runId: 'run_1',

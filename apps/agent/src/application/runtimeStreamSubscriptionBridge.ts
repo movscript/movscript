@@ -1,10 +1,11 @@
 import type { AgentStore } from '../state/store.js'
 import type { AgentTaskGraphStreamEvent, AgentInternalRunSignal, AgentInternalThreadSignal } from '../state/types.js'
-import { requireRuntimeTaskGraph, requireRuntimeRun, requireRuntimeThread } from './runtimeStoreLookup.js'
+import { requireRuntimeSession, requireRuntimeTaskGraph, requireRuntimeRun, requireRuntimeThread } from './runtimeStoreLookup.js'
 import type { RuntimeStreamBridge } from './runtimeStreamBridge.js'
 
 export interface RuntimeStreamSubscriptionBridge {
   subscribeRunStream: (runId: string, listener: (event: AgentInternalRunSignal) => void) => () => void
+  subscribeSessionStream: (sessionId: string, listener: (event: AgentInternalThreadSignal) => void) => () => void
   subscribeThreadStream: (threadId: string, listener: (event: AgentInternalThreadSignal) => void) => () => void
   subscribePlanStream: (taskGraphId: string, listener: (event: AgentTaskGraphStreamEvent) => void) => () => void
 }
@@ -17,6 +18,10 @@ export function createRuntimeStreamSubscriptionBridge(input: {
     subscribeRunStream: (runId, listener) => {
       const run = requireRuntimeRun(input.store, runId)
       return input.streams.subscribeRunStream(run, listener)
+    },
+    subscribeSessionStream: (sessionId, listener) => {
+      requireRuntimeSession(input.store, sessionId)
+      return input.streams.subscribeSessionStream(sessionId, listener)
     },
     subscribeThreadStream: (threadId, listener) => {
       requireRuntimeThread(input.store, threadId)

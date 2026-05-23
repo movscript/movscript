@@ -17,6 +17,8 @@ export interface CompleteSendRunResultDeps {
   setLiveEventsRef: (events: ChatRunActivityEvent[]) => void
   getRun: (runId: string) => Promise<AgentRun>
   setLocalThreadId: (conversationId: string, threadId: string) => void
+  setConversationSessionId?: (conversationId: string, sessionId: string) => void
+  setConversationRuntimeSessionId?: (userId: string, conversationId: string, sessionId: string) => void
   setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
   messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'updateMessageMeta' | 'setConversationMessages'>
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void

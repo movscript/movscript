@@ -1,11 +1,6 @@
 import React, { type RefObject, type UIEvent } from 'react'
-import { useTranslation } from 'react-i18next'
-import { ListChecks, Search, Sparkles, Workflow } from 'lucide-react'
 import {
   AgentBody,
-  AgentEmpty,
-  AgentSuggestion,
-  AgentSuggestions,
   AgentThread,
 } from '@movscript/ui'
 import { AgentPlanOverviewPanel } from '@/components/agent/AgentPlanOverviewPanel'
@@ -20,7 +15,7 @@ import {
   type ThinkingBubbleState,
 } from '@/components/agent/AgentChatBubbles'
 import { buildAgentConversationThreadItems, type AgentConversationMessageItem } from '@/lib/agentConversationThreadItems'
-import type { AgentInputAnswer } from '@/lib/agentWorkflowInteraction'
+import { runHasContinuationResumeApproval, type AgentInputAnswer } from '@/lib/agentWorkflowInteraction'
 import type { AgentConversationBlock } from '@/lib/agentConversationPresentation'
 import type { GenerationProgressState } from '@/lib/agentGenerationMedia'
 import type { PlanDispatchSettings } from '@/lib/agentPlanActions'
@@ -50,7 +45,6 @@ export interface AgentConversationThreadSectionProps {
   onApproveLocalRun: (runId: string, approvalIds?: string[]) => void
   onCancelPlanTree: () => void
   onDispatchTaskGraph: () => void
-  onDraftInput: (input: string) => void
   onRejectLocalRun: (runId: string, approvalIds?: string[]) => void
   onRejectPlanReview: (taskId: string) => void
   onRetaskGraph: () => void
@@ -81,7 +75,6 @@ export function AgentConversationThreadSection({
   onApproveLocalRun,
   onCancelPlanTree,
   onDispatchTaskGraph,
-  onDraftInput,
   onRejectLocalRun,
   onRejectPlanReview,
   onRetaskGraph,
@@ -89,7 +82,6 @@ export function AgentConversationThreadSection({
   onScroll,
   onUpdatePlanDispatchSettings,
 }: AgentConversationThreadSectionProps) {
-  const { t } = useTranslation()
   const currentPlan = latestPlanFromMessages(messages)
   const activeRunId = activeRun?.id
   const suppressedWorkflowRunIds = activeRunId && !isTerminalAgentRunStatus(activeRun?.status)
@@ -142,30 +134,6 @@ export function AgentConversationThreadSection({
         onScroll={onScroll}
         className="min-h-0 flex-1"
       >
-        {messages.length === 0 && (
-          <AgentEmpty className="min-h-0 py-6">
-            <p className="type-body font-medium text-foreground">
-              {t('agents.chat.startChat')}
-            </p>
-            <AgentSuggestions className="grid w-full grid-cols-2 gap-2">
-              {[
-                { icon: <ListChecks size={14} />, label: t('agents.chat.suggestions.planProject') },
-                { icon: <Sparkles size={14} />, label: t('agents.chat.suggestions.createContentUnit') },
-                { icon: <Search size={14} />, label: t('agents.chat.suggestions.reviewAssets') },
-                { icon: <Workflow size={14} />, label: t('agents.chat.suggestions.buildWorkflow') },
-              ].map((item) => (
-                <AgentSuggestion
-                  key={item.label}
-                  onClick={() => onDraftInput(item.label)}
-                  className="justify-start rounded-md text-left type-caption"
-                >
-                  {item.icon}
-                  <span className="leading-tight">{item.label}</span>
-                </AgentSuggestion>
-              ))}
-            </AgentSuggestions>
-          </AgentEmpty>
-        )}
         {threadItems.map((threadItem) => {
           if (threadItem.type === 'message') {
             return (
@@ -213,17 +181,34 @@ export function AgentConversationThreadSection({
           </div>
         )}
         {!activeRunId && conversationBlocks.map(renderConversationBlock)}
-        {showLocalWorkflow && workflowRunsWithoutResultMessage.filter((run) => !liveActivityRunIds.has(run.id)).map((run) => (
-          <LiveRunActivityBubble
-            key={`workflow-live-${run.id}`}
-            run={run}
-            events={[]}
-            approving={approvingLocalRun}
-            onApprove={(approvalIds) => onApproveLocalRun(run.id, approvalIds)}
-            onReject={(approvalIds) => onRejectLocalRun(run.id, approvalIds)}
-            onAnswerInput={(requestId, answer) => onAnswerLocalRunInput(run.id, requestId, answer)}
-          />
-        ))}
+        {showLocalWorkflow && workflowRunsWithoutResultMessage
+          .filter((run) => !liveActivityRunIds.has(run.id) || runHasContinuationResumeApproval(run))
+          .map((run) => {
+            const continuationResumeRun = runHasContinuationResumeApproval(run)
+            if (continuationResumeRun) {
+              return (
+                <LocalAgentWorkflowBubble
+                  key={`workflow-resume-${run.id}`}
+                  run={run}
+                  approving={approvingLocalRun}
+                  onApprove={(approvalIds) => onApproveLocalRun(run.id, approvalIds)}
+                  onReject={(approvalIds) => onRejectLocalRun(run.id, approvalIds)}
+                  onAnswerInput={(requestId, answer) => onAnswerLocalRunInput(run.id, requestId, answer)}
+                />
+              )
+            }
+            return (
+              <LiveRunActivityBubble
+                key={`workflow-live-${run.id}`}
+                run={run}
+                events={[]}
+                approving={approvingLocalRun}
+                onApprove={(approvalIds) => onApproveLocalRun(run.id, approvalIds)}
+                onReject={(approvalIds) => onRejectLocalRun(run.id, approvalIds)}
+                onAnswerInput={(requestId, answer) => onAnswerLocalRunInput(run.id, requestId, answer)}
+              />
+            )
+          })}
         <AgentPlanOverviewPanel
           id="agent-taskGraph-overview"
           snapshot={activePlanSnapshot}
@@ -258,27 +243,36 @@ function ThreadMessageBubble({
   onRejectLocalRun: (runId: string, approvalIds?: string[]) => void
   onAnswerLocalRunInput: (runId: string, requestId: string, answer: AgentInputAnswer) => void
 }) {
-  const { beforeMessageWorkflowRuns, liveWorkflowRuns, message, showMessage } = item
-  const workflowRuns = liveWorkflowRuns ?? beforeMessageWorkflowRuns
+  const { afterMessageWorkflowRuns, beforeMessageWorkflowRuns, liveWorkflowRuns, message, showMessage } = item
+  const workflowRuns = liveWorkflowRuns ?? [...beforeMessageWorkflowRuns, ...afterMessageWorkflowRuns]
   const canInteractWithWorkflowRun = !!liveWorkflowRuns?.length
+  const beforeWorkflowRunIds = new Set(beforeMessageWorkflowRuns.map((run) => run.id))
+  const beforeWorkflowRuns = liveWorkflowRuns
+    ? workflowRuns.filter((run) => beforeWorkflowRunIds.has(run.id))
+    : beforeMessageWorkflowRuns
+  const afterWorkflowRuns = liveWorkflowRuns
+    ? workflowRuns.filter((run) => !beforeWorkflowRunIds.has(run.id))
+    : afterMessageWorkflowRuns
+  const renderWorkflowRun = (workflowRun: AgentRun) => (
+    <LocalAgentWorkflowBubble
+      key={`workflow-${workflowRun.id}-${message.id}`}
+      run={workflowRun}
+      approving={approvingLocalRun}
+      onApprove={canInteractWithWorkflowRun ? (approvalIds) => onApproveLocalRun(workflowRun.id, approvalIds) : undefined}
+      onReject={canInteractWithWorkflowRun ? (approvalIds) => onRejectLocalRun(workflowRun.id, approvalIds) : undefined}
+      onAnswerInput={canInteractWithWorkflowRun ? (requestId, answer) => onAnswerLocalRunInput(workflowRun.id, requestId, answer) : undefined}
+    />
+  )
   return (
     <React.Fragment>
-      {workflowRuns.map((workflowRun) => (
-        <LocalAgentWorkflowBubble
-          key={`workflow-${workflowRun.id}-${message.id}`}
-          run={workflowRun}
-          approving={approvingLocalRun}
-          onApprove={canInteractWithWorkflowRun ? (approvalIds) => onApproveLocalRun(workflowRun.id, approvalIds) : undefined}
-          onReject={canInteractWithWorkflowRun ? (approvalIds) => onRejectLocalRun(workflowRun.id, approvalIds) : undefined}
-          onAnswerInput={canInteractWithWorkflowRun ? (requestId, answer) => onAnswerLocalRunInput(workflowRun.id, requestId, answer) : undefined}
-        />
-      ))}
+      {beforeWorkflowRuns.map(renderWorkflowRun)}
       {showMessage && (
         <MessageBubble
           msg={message}
           projectId={projectId}
         />
       )}
+      {afterWorkflowRuns.map(renderWorkflowRun)}
     </React.Fragment>
   )
 }

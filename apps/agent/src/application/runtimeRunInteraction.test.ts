@@ -174,6 +174,52 @@ test('applyRuntimeRunRequiredActionFlow uses input trace kind when only user inp
   assert.equal(traces[0]?.summary, '1 user input request(s) paused the run.')
 })
 
+test('applyRuntimeRunRequiredActionFlow adds display anchors to worker input requests', () => {
+  const store = new InMemoryAgentStore()
+  store.createSession({
+    id: 'session_1',
+    rootThreadId: 'thread_root',
+    interactiveThreadId: 'thread_root',
+    activeThreadId: 'thread_worker',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  })
+  store.createThread(makeThread({ id: 'thread_worker', sessionId: 'session_1', status: 'running', activeRunId: 'run_1' }))
+  const run = makeRun({
+    sessionId: 'session_1',
+    threadId: 'thread_worker',
+    status: 'in_progress',
+    input: {
+      schema: 'movscript.agent.run-input.v1',
+      userMessage: 'Worker task',
+      sourceMessageId: 'msg_root_user',
+      executionMode: 'worker',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
+  })
+  store.createRun(run)
+
+  applyRuntimeRunRequiredActionFlow({
+    store,
+    run,
+    pendingApprovals: [],
+    pendingInputRequests: [inputRequest('input_1')],
+    now,
+    recordTrace: () => {},
+    emitRunSnapshot: () => {},
+  })
+
+  const request = store.getRun('run_1')?.pendingInputRequests?.[0]
+  assert.equal(request?.displayThreadId, 'thread_root')
+  assert.deepEqual(request?.displayAnchor, {
+    threadId: 'thread_root',
+    runId: 'run_1',
+    messageId: 'msg_root_user',
+    placement: 'after',
+    reason: 'run_source_message',
+  })
+})
+
 test('applyRuntimeRunApprovalFlow records trace, emits snapshot, remembers auth, and restarts execution', () => {
   const store = new InMemoryAgentStore()
   store.createThread(makeThread({ status: 'requires_action', activeRunId: 'run_1' }))

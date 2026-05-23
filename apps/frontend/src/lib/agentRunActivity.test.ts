@@ -165,6 +165,34 @@ test('projectLiveRunRuntimeTraceEvent derives preparing tool state from model to
   })
 })
 
+test('projectLiveRunRuntimeTraceEvent derives thinking state from reasoning deltas', () => {
+  const event = runtimeTraceEvent({
+    id: 'trace_live_model-reasoning-stream:1',
+    runId: 'run_1',
+    kind: 'reasoning',
+    title: 'Model reasoning delta',
+    status: 'info',
+    roundIndex: 1,
+    roundLabel: 'Model',
+    data: {
+      stream: {
+        kind: 'reasoning',
+        delta: '检查上下文',
+        accumulated: '正在检查上下文',
+      },
+    },
+    createdAt: '2026-05-17T00:00:00.000Z',
+  })
+
+  const projected = projectLiveRunRuntimeTraceEvent(event)
+
+  assert.equal(projected?.activityEvent.kind, 'reasoning')
+  assert.deepEqual(projected?.pendingAssistantState, {
+    status: 'thinking',
+    reasoning: '正在检查上下文',
+  })
+})
+
 test('projectLiveRunRuntimeTraceEvent clears pending state on terminal tool traces and ignores hidden kinds', () => {
   const completedTool = runtimeTraceEvent({
     id: 'trace_done',
@@ -185,6 +213,29 @@ test('projectLiveRunRuntimeTraceEvent clears pending state on terminal tool trac
 
   assert.equal(projectLiveRunRuntimeTraceEvent(completedTool)?.pendingAssistantState, null)
   assert.equal(projectLiveRunRuntimeTraceEvent(hidden), null)
+})
+
+test('mergeLiveRunActivityEvent replaces reasoning stream events by live key', () => {
+  const first: ChatRunActivityEvent = {
+    id: 'trace_live_model-reasoning-stream:1',
+    kind: 'reasoning',
+    title: 'Model reasoning delta',
+    status: 'info',
+    roundIndex: 1,
+    data: { stream: { kind: 'reasoning', accumulated: '正在检查' } },
+    createdAt: '2026-05-17T00:00:01.000Z',
+  }
+  const replacement: ChatRunActivityEvent = {
+    ...first,
+    id: 'trace_live_model-reasoning-stream:1',
+    data: { stream: { kind: 'reasoning', accumulated: '正在检查上下文' } },
+    createdAt: '2026-05-17T00:00:02.000Z',
+  }
+
+  const merged = mergeLiveRunActivityEvent([first], replacement)
+
+  assert.equal(merged.length, 1)
+  assert.deepEqual(merged[0]?.data, { stream: { kind: 'reasoning', accumulated: '正在检查上下文' } })
 })
 
 test('mergeLiveRunActivityEvent replaces by live key and keeps http setup events outside runtime limit', () => {

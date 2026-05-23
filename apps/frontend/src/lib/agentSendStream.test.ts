@@ -48,6 +48,28 @@ test('handleSendRunUpdate clears preparing tool call once matching tool step exi
   assert.equal(calls[0], 'pending:thinking')
 })
 
+test('handleSendRunUpdate clears preparing tool call when run waits for approval', () => {
+  const calls: string[] = []
+  const deps = depsFixture(calls, { currentPending: { status: 'preparing_tool_call', toolName: 'core_work_start' } })
+
+  handleSendRunUpdate(makeRun({ status: 'requires_action' }), deps)
+
+  assert.equal(calls[0], 'pending:null')
+})
+
+test('handleSendRunUpdate carries live reasoning text across run snapshots', () => {
+  const calls: string[] = []
+  const deps = depsFixture(calls, { currentPending: { status: 'thinking', reasoning: '正在检查上下文' } })
+  deps.setPendingAssistantState = (value) => {
+    const resolved = typeof value === 'function' ? value({ status: 'thinking', reasoning: '正在检查上下文' }) : value
+    calls.push(`pending:${resolved?.status ?? 'null'}:${resolved?.reasoning ?? ''}`)
+  }
+
+  handleSendRunUpdate(makeRun({ status: 'in_progress' }), deps)
+
+  assert.equal(calls[0], 'pending:thinking:正在检查上下文')
+})
+
 test('handleSendRunUpdate clears pending assistant state for terminal runs and refreshes catalog context', () => {
   const calls: string[] = []
   const deps = depsFixture(calls)

@@ -22,6 +22,7 @@ export interface AgentChatViewControllerInput {
   onNewConversation: () => void
   onCloseConversation: (id: string) => void
   onCloseConversations: (ids: string[]) => void
+  onReorderConversation: (draggedId: string, targetId: string, position: 'before' | 'after') => void
   externalTask?: AgentPageTaskState | null
   pageToolRequestId?: string
   onExternalDraftConsumed?: () => void
@@ -39,6 +40,7 @@ export function useAgentChatViewController({
   onNewConversation,
   onCloseConversation,
   onCloseConversations,
+  onReorderConversation,
   externalTask,
   pageToolRequestId,
   onExternalDraftConsumed,
@@ -134,6 +136,7 @@ export function useAgentChatViewController({
     onCloseConversations,
     onCollapse,
     onNewConversation,
+    onReorderConversation,
     onSelectConversation,
     showCollapse,
     showConversationControls,

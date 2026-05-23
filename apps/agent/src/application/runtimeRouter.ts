@@ -331,6 +331,7 @@ export class AgentRuntimeRouter {
   private readonly runControllers = new RuntimeRunControllerRegistry()
   private readonly runAuth = new RuntimeRunAuthRegistry()
   private readonly runStreamSubscribers = new RuntimeEventSubscriberRegistry<AgentInternalRunSignal>()
+  private readonly sessionStreamSubscribers = new RuntimeEventSubscriberRegistry<AgentInternalThreadSignal>()
   private readonly threadStreamSubscribers = new RuntimeEventSubscriberRegistry<AgentInternalThreadSignal>()
   private readonly planStreamSubscribers = new RuntimeEventSubscriberRegistry<AgentTaskGraphStreamEvent>()
   private readonly postRunRecordTasks = new RuntimeDeferredTaskRegistry()
@@ -459,6 +460,7 @@ export class AgentRuntimeRouter {
     this.streams = createRuntimeStreamBridge({
       store: this.store,
       runSubscribers: this.runStreamSubscribers,
+      sessionSubscribers: this.sessionStreamSubscribers,
       threadSubscribers: this.threadStreamSubscribers,
       planSubscribers: this.planStreamSubscribers,
       getTaskGraphSnapshot: (taskGraphId) => this.getTaskGraphSnapshot(taskGraphId),
@@ -731,13 +733,28 @@ export class AgentRuntimeRouter {
     await this.reconcileRuntimeWorksForOpenedThread(threadId)
     const thread = this.getThread(threadId)
     if (!thread) return undefined
+    const runs = this.runtimeSnapshotRunsForThread(thread)
+    const runIds = new Set(runs.map((run) => run.id))
     return buildRuntimeThreadSnapshotV2({
       thread,
-      runs: this.store.listRuns({ threadId }),
-      works: this.store.listRuntimeWorks({ threadId }),
-      interactions: this.store.listRuntimeInteractions({ threadId }),
-      continuations: this.store.listRuntimeContinuations({ threadId }),
+      runs,
+      works: this.store.listRuntimeWorks()
+        .filter((work) => work.threadId === threadId || runIds.has(work.runId)),
+      interactions: this.store.listRuntimeInteractions()
+        .filter((interaction) => interaction.threadId === threadId
+          || interaction.displayThreadId === threadId
+          || interaction.displayAnchor?.threadId === threadId),
+      continuations: this.store.listRuntimeContinuations()
+        .filter((continuation) => continuation.threadId === threadId || runIds.has(continuation.runId)),
     })
+  }
+
+  private runtimeSnapshotRunsForThread(thread: AgentThread): AgentRun[] {
+    const candidates = thread.sessionId
+      ? this.store.listRuns({ sessionId: thread.sessionId })
+      : this.store.listRuns({ threadId: thread.id })
+    const visible = candidates.filter((run) => run.threadId === thread.id || runtimeRunDisplaysOnThread(run, thread.id))
+    return uniqueRuntimeRunsById(visible)
   }
 
   async getSessionRuntimeSnapshot(sessionId: string): Promise<RuntimeSessionSnapshotV1 | undefined> {
@@ -805,12 +822,29 @@ export class AgentRuntimeRouter {
     const readyContinuations = this.store.listRuntimeContinuations({ threadId, status: 'ready' })
     for (const continuation of readyContinuations) {
       if (this.hasContinuationResumeInteraction(continuation.id)) continue
+      const run = this.store.getRun(continuation.runId)
+      const session = run?.sessionId ? this.store.getSession(run.sessionId) : undefined
+      const displayThreadId = session?.interactiveThreadId ?? session?.rootThreadId ?? continuation.threadId
+      const sourceMessageId = typeof run?.input?.sourceMessageId === 'string' && run.input.sourceMessageId.trim()
+        ? run.input.sourceMessageId.trim()
+        : undefined
       const works = this.store.listRuntimeWorks({ runId: continuation.runId })
         .filter((work) => continuation.trigger.type === 'work_completed' && continuation.trigger.workIds.includes(work.id))
       this.store.createRuntimeInteraction({
         id: `interaction_${continuation.id}_resume`,
         threadId: continuation.threadId,
         runId: continuation.runId,
+        ...(run?.sessionId ? { sessionId: run.sessionId } : {}),
+        originThreadId: continuation.threadId,
+        originRunId: continuation.runId,
+        displayThreadId,
+        displayAnchor: {
+          threadId: displayThreadId,
+          runId: continuation.runId,
+          ...(sourceMessageId ? { messageId: sourceMessageId } : {}),
+          placement: 'after',
+          reason: sourceMessageId ? 'run_source_message' : 'continuation_ready',
+        },
         ...(works[0]?.id ? { workId: works[0].id } : {}),
         kind: 'selection',
         status: 'pending',
@@ -964,6 +998,10 @@ export class AgentRuntimeRouter {
     return this.streamSubscriptions.subscribeRunStream(runId, listener)
   }
 
+  subscribeSessionStream(sessionId: string, listener: (event: AgentInternalThreadSignal) => void): () => void {
+    return this.streamSubscriptions.subscribeSessionStream(sessionId, listener)
+  }
+
   subscribeThreadStream(threadId: string, listener: (event: AgentInternalThreadSignal) => void): () => void {
     return this.streamSubscriptions.subscribeThreadStream(threadId, listener)
   }
@@ -1091,4 +1129,23 @@ export class AgentRuntimeRouter {
     await this.postRunRecords.flush()
   }
 
+}
+
+function uniqueRuntimeRunsById(runs: AgentRun[]): AgentRun[] {
+  const byId = new Map<string, AgentRun>()
+  for (const run of runs) byId.set(run.id, run)
+  return Array.from(byId.values())
+}
+
+function runtimeRunDisplaysOnThread(run: AgentRun, threadId: string): boolean {
+  return runtimeRunInteractionDisplaysOnThread(run.pendingApprovals, threadId)
+    || runtimeRunInteractionDisplaysOnThread(run.pendingInputRequests, threadId)
+}
+
+function runtimeRunInteractionDisplaysOnThread(
+  interactions: Array<Pick<AgentApprovalRequest | AgentInputRequest, 'displayThreadId' | 'displayAnchor'>> | undefined,
+  threadId: string,
+): boolean {
+  return (interactions ?? []).some((interaction) =>
+    interaction.displayThreadId === threadId || interaction.displayAnchor?.threadId === threadId)
 }

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { NodeType } from '@/types'
 import { CANVAS_NODE_CATALOG, CANVAS_NODE_CATEGORIES } from '../nodeCatalog'
-import { Boxes, Trash2 } from 'lucide-react'
+import { Boxes, Trash2, Ungroup } from 'lucide-react'
 
 const CONTEXT_MENU_NODE_CATEGORIES = CANVAS_NODE_CATEGORIES.filter((category) => category.id !== 'media')
 const CONTEXT_MENU_HIDDEN_NODE_TYPES = new Set<NodeType>(['approval'])
@@ -13,7 +13,9 @@ interface Props {
   onAdd: (type: NodeType) => void
   onClose: () => void
   selectedCount?: number
+  selectedGroupCount?: number
   onGroupSelected?: () => void
+  onUngroupSelected?: () => void
   onDeleteSelected?: () => void
   hasSelection?: boolean
 }
@@ -53,11 +55,12 @@ function Section({
   )
 }
 
-export function ContextMenu({ x, y, onAdd, onClose, selectedCount, onGroupSelected, onDeleteSelected, hasSelection }: Props) {
+export function ContextMenu({ x, y, onAdd, onClose, selectedCount, selectedGroupCount, onGroupSelected, onUngroupSelected, onDeleteSelected, hasSelection }: Props) {
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState({ left: x, top: y })
   const selectedNodeCount = selectedCount ?? 0
+  const groupCount = selectedGroupCount ?? 0
 
   useLayoutEffect(() => {
     const el = ref.current
@@ -92,6 +95,18 @@ export function ContextMenu({ x, y, onAdd, onClose, selectedCount, onGroupSelect
           >
             <Boxes size={14} className="text-muted-foreground" />
             <span>{t('canvas.contextMenu.groupSelected', { count: selectedNodeCount })}</span>
+          </button>
+          <div className="border-t border-border my-1" />
+        </>
+      )}
+      {groupCount > 0 && onUngroupSelected && (
+        <>
+          <button
+            onClick={() => { onUngroupSelected(); onClose() }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 type-body hover:bg-muted/50 text-left transition-colors text-foreground"
+          >
+            <Ungroup size={14} className="text-muted-foreground" />
+            <span>{t('canvas.contextMenu.ungroupSelected', { count: groupCount })}</span>
           </button>
           <div className="border-t border-border my-1" />
         </>

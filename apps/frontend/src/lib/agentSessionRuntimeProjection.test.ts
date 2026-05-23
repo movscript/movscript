@@ -16,6 +16,7 @@ test('buildAgentSessionRuntimeView separates session plans, child agents, and ge
       sessions: [{
         id: 'session_1',
         rootThreadId: 'thread_root',
+        interactiveThreadId: 'thread_root',
         activeThreadId: 'thread_worker',
         createdAt: '2026-05-19T00:00:00.000Z',
         updatedAt: '2026-05-19T00:00:06.000Z',
@@ -119,6 +120,7 @@ test('buildAgentSessionRuntimeView separates session plans, child agents, and ge
 
   assert.equal(view.sessionId, 'session_1')
   assert.equal(view.rootThread?.id, 'thread_root')
+  assert.equal(view.interactiveThread?.id, 'thread_root')
   assert.equal(view.activeThread?.id, 'thread_worker')
   assert.deepEqual(view.plans.map((plan) => plan.taskGraph.id), ['task_graph_1'])
   assert.deepEqual(view.generationWorks.map((work) => work.id), ['work_1'])
@@ -129,4 +131,48 @@ test('buildAgentSessionRuntimeView separates session plans, child agents, and ge
   assert.equal(view.childAgents[0]?.subagentName, 'Researcher')
   assert.equal(view.childAgents[0]?.status, 'in_progress')
   assert.deepEqual(view.childAgents[0]?.generationWorks.map((work) => work.id), ['work_1'])
+})
+
+test('buildAgentSessionRuntimeView falls back to the root thread as the interactive thread', () => {
+  const snapshot: AgentRuntimeSnapshotV2 = {
+    schema: 'movscript.agent.runtime-snapshot.v2',
+    protocolVersion: 'movscript.agent.protocol.v1',
+    scope: { type: 'session', id: 'session_1' },
+    cursor: 'snapshot:session_1:0',
+    ordinal: 0,
+    generatedAt: '2026-05-19T00:00:06.000Z',
+    entities: {
+      sessions: [{
+        id: 'session_1',
+        rootThreadId: 'thread_root',
+        activeThreadId: 'thread_worker',
+        createdAt: '2026-05-19T00:00:00.000Z',
+        updatedAt: '2026-05-19T00:00:06.000Z',
+      }],
+      threads: [
+        {
+          id: 'thread_root',
+          sessionId: 'session_1',
+          agentRole: 'root',
+          messages: [],
+          createdAt: '2026-05-19T00:00:00.000Z',
+          updatedAt: '2026-05-19T00:00:01.000Z',
+        },
+        {
+          id: 'thread_worker',
+          sessionId: 'session_1',
+          agentRole: 'worker',
+          parentThreadId: 'thread_root',
+          messages: [],
+          createdAt: '2026-05-19T00:00:02.000Z',
+          updatedAt: '2026-05-19T00:00:05.000Z',
+        },
+      ],
+    },
+  }
+
+  const view = buildAgentSessionRuntimeView(snapshot)
+
+  assert.equal(view.interactiveThread?.id, 'thread_root')
+  assert.equal(view.activeThread?.id, 'thread_worker')
 })

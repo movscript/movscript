@@ -65,6 +65,34 @@ test('emitRuntimeVolatileTraceEvent emits transient tool traces and assistant de
   assert.equal(events[1]?.type === 'assistant_delta' ? events[1].accumulated : undefined, 'xy')
 })
 
+test('emitRuntimeVolatileTraceEvent emits transient reasoning traces without assistant content deltas', () => {
+  const run = makeRun()
+  const events: AgentInternalRunSignal[] = []
+
+  emitRuntimeVolatileTraceEvent({
+    run,
+    traceId: 'trace_fallback',
+    now: '2026-01-01T00:00:02.000Z',
+    trace: {
+      kind: 'reasoning',
+      title: 'Model reasoning delta',
+      status: 'info',
+      roundIndex: 2,
+      roundLabel: 'Model',
+      roundSource: 'model',
+      volatileKey: 'model-reasoning-stream:2',
+      data: { stream: { kind: 'reasoning', delta: 'Checking context', accumulated: 'Checking context' } },
+    },
+    emitRunStreamEvent: (_runId, event) => events.push(event),
+  })
+
+  assert.deepEqual(events.map((event) => event.type), ['trace'])
+  assert.equal(events[0]?.type === 'trace' ? events[0].event.id : undefined, 'trace_live_model-reasoning-stream:2')
+  assert.deepEqual(events[0]?.type === 'trace' ? events[0].event.data : undefined, {
+    stream: { kind: 'reasoning', delta: 'Checking context', accumulated: 'Checking context' },
+  })
+})
+
 test('replayRuntimeRunStream replays snapshot, title, trace deltas, assistant message, and done', () => {
   const store = new InMemoryAgentStore()
   const run = { ...makeRun(), status: 'completed' as const, assistantMessageId: 'msg_assistant' }

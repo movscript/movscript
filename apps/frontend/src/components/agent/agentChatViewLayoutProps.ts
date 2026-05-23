@@ -27,6 +27,7 @@ interface BuildAgentChatViewLayoutPropsInput {
   onCloseConversations: (ids: string[]) => void
   onCollapse: () => void
   onNewConversation: () => void
+  onReorderConversation: (draggedId: string, targetId: string, position: 'before' | 'after') => void
   onSelectConversation: (id: string) => void
   showCollapse?: boolean
   showConversationControls?: boolean
@@ -51,6 +52,7 @@ export function buildAgentChatViewLayoutProps({
   onCloseConversations,
   onCollapse,
   onNewConversation,
+  onReorderConversation,
   onSelectConversation,
   showCollapse,
   showConversationControls,
@@ -72,6 +74,7 @@ export function buildAgentChatViewLayoutProps({
       onCloseConversations,
       onCollapse,
       onNewConversation,
+      onReorderConversation,
       onSelectConversation,
       activeConversationRuntimeStatusLight: runtimeStatusLightFromActiveRun(activeLocalRun, runtime.runtimeStatusLight),
       showCollapse,
@@ -99,7 +102,6 @@ export function buildAgentChatViewLayoutProps({
       onApproveLocalRun: interaction.approveLocalRun,
       onCancelPlanTree: interaction.cancelActivePlanTree,
       onDispatchTaskGraph: interaction.dispatchActiveTaskGraph,
-      onDraftInput: (value) => updateDraft({ input: value }),
       onRejectLocalRun: interaction.rejectLocalRun,
       onRejectPlanReview: interaction.rejectPlanTaskReview,
       onRetaskGraph: interaction.replanActiveTaskGraph,

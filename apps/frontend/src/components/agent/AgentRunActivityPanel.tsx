@@ -6,37 +6,25 @@ import { AgentChatMessage, Badge, Button } from '@movscript/ui'
 import { agentTimelineSummary, buildAgentRunTimeline } from '@/lib/agentTimeline'
 import { formatAgentDividerTime } from '@/lib/agentMessageDivider'
 import { runStatusLabel } from '@/lib/agentRunUi'
+import { formatAgentCompactTimestamp, formatAgentDuration, formatAgentDurationMs } from '@/lib/agentTimeFormat'
 import { cn } from '@/lib/utils'
 import { agentRunPath } from '@/routes/projectRoutes'
 import { AgentActivityDividerMenu, AgentActivityFeedView, AgentActivityStatusText } from '@/components/agent/AgentActivityFeed'
-import { LocalAgentWorkflowBubble } from '@/components/agent/AgentWorkflowBubble'
 import { buildAgentActivityFeed } from '@/lib/agentActivityFeed'
 import type { AgentRun } from '@/lib/localAgentClient'
 import type { AgentInputAnswer } from '@/lib/agentWorkflowInteraction'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/store/agentStore'
 
 function formatActivityTime(value: string | undefined, locale: string) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return formatAgentCompactTimestamp(value, locale)
 }
 
 function durationLabel(start: string | undefined, end: string | undefined) {
-  if (!start || !end) return ''
-  const startMs = new Date(start).getTime()
-  const endMs = new Date(end).getTime()
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) return ''
-  const ms = endMs - startMs
-  if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)}s`
+  return formatAgentDuration(start, end)
 }
 
 function formatDurationLabel(ms: number) {
-  if (!Number.isFinite(ms) || ms <= 0) return ''
-  if (ms < 1000) return `${ms}ms`
-  if (ms < 60_000) return `${Math.round(ms / 1000)}s`
-  return `${Math.round(ms / 60_000)}m`
+  return ms > 0 ? formatAgentDurationMs(ms) : ''
 }
 
 function agentStepStatusLabel(status: string): string {
@@ -290,17 +278,11 @@ export function LiveRunActivityBubble({
   const { t } = useTranslation()
   if (!run && events.length === 0) return null
   const statusLabel = latestModelRetryStatus(events) ?? latestAgentStatusLabel(run, events)
+  const runStatusText = workflowRunStatusLabel(run?.status ?? 'in_progress', t)
   const feed = buildAgentActivityFeed({ run, events })
   return (
     <div className="space-y-1">
-      <AgentActivityStatusText run={run} events={events} fallback={statusLabel} />
-      <LocalAgentWorkflowBubble
-        run={run}
-        approving={approving}
-        onApprove={onApprove}
-        onReject={onReject}
-        onAnswerInput={onAnswerInput}
-      />
+      <AgentActivityStatusText run={run} events={events} fallback={statusLabel ?? runStatusText} />
       {feed && (feed.items.length > 0 || feed.rounds.length > 0) && (
         <AgentChatMessage
           role="assistant"
@@ -308,7 +290,7 @@ export function LiveRunActivityBubble({
           data-agent-divider-label={formatAgentDividerTime(run?.startedAt ?? events[0]?.createdAt)}
           footer={(
             <Badge variant="outline" className="type-micro leading-4 px-1.5 py-0">
-              {workflowRunStatusLabel(run?.status ?? 'in_progress', t)}
+              {runStatusText}
             </Badge>
           )}
         >
@@ -317,6 +299,10 @@ export function LiveRunActivityBubble({
             run={run}
             events={events}
             className="mt-0"
+            approving={approving}
+            onApprove={onApprove}
+            onReject={onReject}
+            onAnswerInput={onAnswerInput}
           />
         </AgentChatMessage>
       )}

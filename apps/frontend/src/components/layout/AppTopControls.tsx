@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Bot, Check, FolderOpen, LayoutDashboard, MessageCircle, Moon, Plus, Settings, Sun } from 'lucide-react'
+import { Bot, Check, FolderOpen, LayoutDashboard, MessageCircle, Moon, PanelRightClose, PanelRightOpen, Plus, Settings, Sun } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   Button,
@@ -26,6 +26,7 @@ import { useTheme } from '@/hooks/useTheme'
 import { projectListQueryKey } from '@/lib/projectQueries'
 import { ROUTES } from '@/routes/projectRoutes'
 import { useAgentPanelUiStore } from '@/store/agentPanelUiStore'
+import { useAgentStore } from '@/store/agentStore'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
 import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
@@ -43,10 +44,16 @@ export function AppTopControls({ className = '', compact = false }: AppTopContro
   const current = useProjectStore((s) => s.current)
   const setCurrent = useProjectStore((s) => s.setCurrent)
   const currentOrgID = useUserStore((s) => s.currentOrgID)
+  const currentUser = useUserStore((s) => s.currentUser)
+  const userId = currentUser ? String(currentUser.ID) : ''
   const workMode = useAppSettingsStore((s) => s.settings.workMode)
   const setWorkMode = useAppSettingsStore((s) => s.setWorkMode)
   const agentPanelOpen = useAgentPanelUiStore((s) => s.open)
   const setAgentPanelOpen = useAgentPanelUiStore((s) => s.setOpen)
+  const agentModeContentPanelCollapsed = useAgentPanelUiStore((s) => s.agentModeContentPanelCollapsed)
+  const toggleAgentModeContentPanelCollapsed = useAgentPanelUiStore((s) => s.toggleAgentModeContentPanelCollapsed)
+  const conversationCount = useAgentStore((s) => s.convsByUser[userId]?.conversations.length ?? 0)
+  const createConversation = useAgentStore((s) => s.createConversation)
   const { theme, toggleTheme } = useTheme()
   const { t, i18n } = useTranslation()
   const [createOpen, setCreateOpen] = useState(false)
@@ -71,13 +78,8 @@ export function AppTopControls({ className = '', compact = false }: AppTopContro
 
   function switchMode() {
     setWorkMode(nextMode)
-    if (!current) {
-      navigate(ROUTES.projects)
-      return
-    }
-    const isProjectRoute = pathname === ROUTES.project.agent || pathname.startsWith('/project/')
     if (nextMode === 'agent') {
-      if (!isProjectRoute) navigate(ROUTES.project.agent)
+      navigate(current ? ROUTES.project.agent : ROUTES.projects)
       return
     }
     if (pathname === ROUTES.project.agent) navigate(ROUTES.project.overview)
@@ -93,38 +95,67 @@ export function AppTopControls({ className = '', compact = false }: AppTopContro
     if (!name || createProject.isPending) return
     createProject.mutate({ name, description: projectDescription.trim() })
   }
+
+  function handleAssistantShortcut() {
+    if (conversationCount === 0) {
+      createConversation(userId)
+      setAgentPanelOpen(true)
+      return
+    }
+    setAgentPanelOpen(!agentPanelOpen)
+  }
+
   const controlSizeClass = compact ? 'h-5 w-5' : 'h-8 w-8'
   const selectClass = compact
     ? 'h-5 rounded-md border border-border bg-background px-1 type-min text-muted-foreground hover:text-foreground'
     : 'h-8 rounded-md border border-border bg-background px-2 type-label text-muted-foreground hover:text-foreground'
   const iconSize = compact ? 11 : 16
   const iconClassName = compact ? 'h-3 w-3' : undefined
-  const showAssistantShortcut = workMode === 'detail' && !agentPanelOpen
+  const showAssistantShortcut = workMode === 'detail'
+  const showAgentContentPanelShortcut = workMode === 'agent'
+  const AssistantShortcutIcon = conversationCount === 0 ? Plus : MessageCircle
+  const assistantShortcutTitle = conversationCount === 0
+    ? t('agents.chat.newConversation')
+    : agentPanelOpen ? t('agents.chat.collapseAssistant') : t('agents.chat.aiAssistant')
+  const AgentContentPanelIcon = agentModeContentPanelCollapsed ? PanelRightOpen : PanelRightClose
+  const agentContentPanelTitle = agentModeContentPanelCollapsed
+    ? t('agents.chat.expandAgentContentPanel')
+    : t('agents.chat.collapseAgentContentPanel')
 
   return (
     <div className={`flex min-w-0 shrink-0 items-center ${compact ? 'gap-1' : 'gap-2'} ${className}`}>
-      {current && (
-        <Button
-          variant="outline"
-          size="icon-sm"
-          onClick={switchMode}
-          className={controlSizeClass}
-          title={nextMode === 'agent' ? t('appSettings.agentWorkMode') : t('appSettings.detailWorkMode')}
-          aria-label={nextMode === 'agent' ? t('appSettings.agentWorkMode') : t('appSettings.detailWorkMode')}
-        >
-          <ModeIcon size={compact ? 11 : 14} className={iconClassName} />
-        </Button>
-      )}
+      <Button
+        variant="outline"
+        size="icon-sm"
+        onClick={switchMode}
+        className={controlSizeClass}
+        title={nextMode === 'agent' ? t('appSettings.agentWorkMode') : t('appSettings.detailWorkMode')}
+        aria-label={nextMode === 'agent' ? t('appSettings.agentWorkMode') : t('appSettings.detailWorkMode')}
+      >
+        <ModeIcon size={compact ? 11 : 14} className={iconClassName} />
+      </Button>
       {showAssistantShortcut && (
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setAgentPanelOpen(true)}
-          className={`${controlSizeClass} text-muted-foreground hover:text-foreground`}
-          title={t('agents.chat.aiAssistant')}
-          aria-label={t('agents.chat.aiAssistant')}
+          onClick={handleAssistantShortcut}
+          className={`${controlSizeClass} text-muted-foreground hover:text-foreground ${agentPanelOpen && conversationCount > 0 ? 'bg-muted text-foreground' : ''}`}
+          title={assistantShortcutTitle}
+          aria-label={assistantShortcutTitle}
         >
-          <MessageCircle size={iconSize} className={iconClassName} />
+          <AssistantShortcutIcon size={iconSize} className={iconClassName} />
+        </Button>
+      )}
+      {showAgentContentPanelShortcut && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleAgentModeContentPanelCollapsed}
+          className={`${controlSizeClass} text-muted-foreground hover:text-foreground ${!agentModeContentPanelCollapsed ? 'bg-muted text-foreground' : ''}`}
+          title={agentContentPanelTitle}
+          aria-label={agentContentPanelTitle}
+        >
+          <AgentContentPanelIcon size={iconSize} className={iconClassName} />
         </Button>
       )}
       <DropdownMenu>

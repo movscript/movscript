@@ -65,6 +65,7 @@ export interface AgentConversationShape<Message extends AgentConversationMessage
   id: string
   title: string
   messages: Message[]
+  runtimeSessionId?: string
   runtimeThreadId?: string
   createdAt: number
   updatedAt: number
@@ -175,6 +176,8 @@ export interface AgentRunTimeline {
 export interface AgentRunTimelineRound {
   id: string
   index?: number
+  label?: string
+  source?: AgentRunActivityStep['roundSource'] | AgentRunActivityEvent['roundSource']
   startedAt: string
   finishedAt?: string
   failed: boolean
@@ -204,6 +207,7 @@ export interface AgentRunTimelineToolExecution {
   completedAt?: string
   roundIndex?: number
   roundLabel?: string
+  roundSource?: AgentRunActivityStep['roundSource'] | AgentRunActivityEvent['roundSource']
   step?: AgentRunActivityStep
   events: AgentRunActivityEvent[]
   approvals: AgentRunActivityApproval[]
@@ -316,6 +320,7 @@ export function normalizeConversations<Conversation extends AgentConversationSha
         id,
         title: typeof conversation.title === 'string' && conversation.title.trim() ? conversation.title : options.defaultTitle ?? 'New conversation',
         messages,
+        ...(typeof conversation.runtimeSessionId === 'string' && conversation.runtimeSessionId.trim() ? { runtimeSessionId: conversation.runtimeSessionId.trim() } : {}),
         ...(typeof conversation.runtimeThreadId === 'string' && conversation.runtimeThreadId.trim() ? { runtimeThreadId: conversation.runtimeThreadId.trim() } : {}),
         createdAt: numberOrFallback(conversation.createdAt, messages[0]?.timestamp ?? now),
         updatedAt: numberOrFallback(conversation.updatedAt, messages[messages.length - 1]?.timestamp ?? now),
@@ -632,12 +637,19 @@ export function mergeRuntimeRuns<Run extends AgentRun = AgentRun>(primary: Run[]
 
 export function attachRuntimeInteractionApprovals<Run extends AgentRun = AgentRun>(runs: Run[], interactions: RuntimeInteraction[] | undefined): Run[] {
   const interactionByApprovalId = new Map<string, string>()
+  const interactionDisplayByApprovalId = new Map<string, Pick<RuntimeInteraction, 'displayThreadId' | 'displayAnchor'>>()
   const continuationApprovalsByRunId = new Map<string, NonNullable<AgentRun['pendingApprovals']>>()
   for (const interaction of interactions ?? []) {
     const payload = isRecord(interaction.payload) ? interaction.payload : undefined
     if (interaction.kind === 'approval') {
       const approvalId = typeof payload?.approvalId === 'string' ? payload.approvalId : undefined
-      if (approvalId) interactionByApprovalId.set(approvalId, interaction.id)
+      if (approvalId) {
+        interactionByApprovalId.set(approvalId, interaction.id)
+        interactionDisplayByApprovalId.set(approvalId, {
+          ...(interaction.displayThreadId ? { displayThreadId: interaction.displayThreadId } : {}),
+          ...(interaction.displayAnchor ? { displayAnchor: interaction.displayAnchor } : {}),
+        })
+      }
       continue
     }
     const continuationApproval = continuationResumeApprovalFromInteraction(interaction, payload)
@@ -653,7 +665,8 @@ export function attachRuntimeInteractionApprovals<Run extends AgentRun = AgentRu
     pendingApprovals: [
       ...(run.pendingApprovals ?? []).map((approval) => {
         const interactionId = interactionByApprovalId.get(approval.id)
-        return interactionId ? { ...approval, interactionId } : approval
+        const display = interactionDisplayByApprovalId.get(approval.id)
+        return interactionId ? { ...approval, interactionId, ...display } : approval
       }),
       ...(continuationApprovalsByRunId.get(run.id) ?? []),
     ],
@@ -732,7 +745,8 @@ export function markRuntimeMessagesRestored<Message extends AgentConversationMes
 
 export interface RuntimeThreadConversationSessionState {
   localThreadIdsByConversation: Record<string, string>
-  conversationRuntimes: Record<string, { threadId?: string; updatedAt?: number }>
+  sessionIdsByConversation?: Record<string, string>
+  conversationRuntimes: Record<string, { sessionId?: string; threadId?: string; updatedAt?: number }>
 }
 
 export interface RestoreRuntimeThreadConversationResult {
@@ -745,8 +759,8 @@ export interface RestoreRuntimeThreadConversationResult {
 export interface RestoreRuntimeThreadConversationDeps<
   Message extends AgentConversationMessageShape = AgentChatMessage,
   Meta = NonNullable<Message['meta']>,
-  Conversation extends Pick<AgentConversationShape<Message>, 'id' | 'runtimeThreadId'> = Pick<AgentConversationShape<Message>, 'id' | 'runtimeThreadId'>,
-  Thread extends Pick<AgentThread, 'id' | 'title'> = Pick<AgentThread, 'id' | 'title'>,
+  Conversation extends Pick<AgentConversationShape<Message>, 'id' | 'runtimeSessionId' | 'runtimeThreadId'> = Pick<AgentConversationShape<Message>, 'id' | 'runtimeSessionId' | 'runtimeThreadId'>,
+  Thread extends Pick<AgentThread, 'id' | 'sessionId' | 'title'> = Pick<AgentThread, 'id' | 'sessionId' | 'title'>,
 > {
   userId: string
   conversations: Conversation[]
@@ -759,6 +773,8 @@ export interface RestoreRuntimeThreadConversationDeps<
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
   messageStore: Pick<AgentConversationMessageStore<Message, Meta>, 'upsertMessage'>
   setLocalThreadId: (conversationId: string, threadId: string) => void
+  setConversationSessionId?: (conversationId: string, sessionId: string) => void
+  setConversationRuntimeSessionId?: (userId: string, conversationId: string, sessionId: string) => void
   setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
 }
 
@@ -769,6 +785,16 @@ export function conversationIdForRuntimeThread(input: RuntimeThreadConversationS
 
   return Object.entries(input.conversationRuntimes)
     .filter(([, runtime]) => runtime.threadId === input.threadId)
+    .sort(([, left], [, right]) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0))[0]?.[0]
+}
+
+export function conversationIdForRuntimeSession(input: RuntimeThreadConversationSessionState & { sessionId: string }): string | undefined {
+  const directEntry = Object.entries(input.sessionIdsByConversation ?? {})
+    .find(([, mappedSessionId]) => mappedSessionId === input.sessionId)
+  if (directEntry) return directEntry[0]
+
+  return Object.entries(input.conversationRuntimes)
+    .filter(([, runtime]) => runtime.sessionId === input.sessionId)
     .sort(([, left], [, right]) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0))[0]?.[0]
 }
 
@@ -787,11 +813,27 @@ export function existingConversationIdForRuntimeThread<Conversation extends Pick
   return conversations.some((conversation) => conversation.id === mappedConversationId) ? mappedConversationId : undefined
 }
 
+export function existingConversationIdForRuntimeSession<Conversation extends Pick<AgentConversationShape, 'id' | 'runtimeSessionId'>>(
+  sessionId: string,
+  conversations: Conversation[],
+  sessionState: RuntimeThreadConversationSessionState,
+): string | undefined {
+  const persistedConversationId = conversations.find((conversation) => conversation.runtimeSessionId === sessionId)?.id
+  const mappedConversationId = persistedConversationId ?? conversationIdForRuntimeSession({
+    sessionId,
+    localThreadIdsByConversation: sessionState.localThreadIdsByConversation,
+    sessionIdsByConversation: sessionState.sessionIdsByConversation,
+    conversationRuntimes: sessionState.conversationRuntimes,
+  })
+  if (!mappedConversationId) return undefined
+  return conversations.some((conversation) => conversation.id === mappedConversationId) ? mappedConversationId : undefined
+}
+
 export async function restoreRuntimeThreadConversation<
   Message extends AgentConversationMessageShape = AgentChatMessage,
   Meta = NonNullable<Message['meta']>,
-  Conversation extends Pick<AgentConversationShape<Message>, 'id' | 'runtimeThreadId'> = Pick<AgentConversationShape<Message>, 'id' | 'runtimeThreadId'>,
-  Thread extends Pick<AgentThread, 'id' | 'title'> = Pick<AgentThread, 'id' | 'title'>,
+  Conversation extends Pick<AgentConversationShape<Message>, 'id' | 'runtimeSessionId' | 'runtimeThreadId'> = Pick<AgentConversationShape<Message>, 'id' | 'runtimeSessionId' | 'runtimeThreadId'>,
+  Thread extends Pick<AgentThread, 'id' | 'sessionId' | 'title'> = Pick<AgentThread, 'id' | 'sessionId' | 'title'>,
 >(
   threadId: string,
   deps: RestoreRuntimeThreadConversationDeps<Message, Meta, Conversation, Thread>,
@@ -808,6 +850,19 @@ export async function restoreRuntimeThreadConversation<
   }
 
   const projection = await deps.loadProjection(threadId)
+  const sessionId = projection.thread.sessionId?.trim()
+  if (sessionId) {
+    const existingSessionConversationId = existingConversationIdForRuntimeSession(sessionId, deps.conversations, deps.sessionState)
+    if (existingSessionConversationId) {
+      deps.setActiveConversation(deps.userId, existingSessionConversationId)
+      return {
+        conversationId: existingSessionConversationId,
+        threadId: projection.thread.id,
+        reusedExistingConversation: true,
+        restoredMessageCount: 0,
+      }
+    }
+  }
   const conversationId = deps.createConversation(deps.userId)
   deps.updateConversationTitle(deps.userId, conversationId, deps.titleForThread(projection.thread))
   const restoredMessages = markRuntimeMessagesRestored(projection.messages, deps.restoredLabel)
@@ -815,6 +870,10 @@ export async function restoreRuntimeThreadConversation<
     deps.messageStore.upsertMessage(deps.userId, conversationId, message.id, message)
   }
   deps.setLocalThreadId(conversationId, projection.thread.id)
+  if (sessionId) {
+    deps.setConversationSessionId?.(conversationId, sessionId)
+    deps.setConversationRuntimeSessionId?.(deps.userId, conversationId, sessionId)
+  }
   deps.setConversationRuntimeThreadId(deps.userId, conversationId, projection.thread.id)
   deps.setActiveConversation(deps.userId, conversationId)
   return {
@@ -885,6 +944,8 @@ export interface CompleteRuntimeSendDeps<
   getRun: (runId: string) => Promise<Run>
   extractArtifacts: (run: Run) => Artifact[]
   setLocalThreadId: (conversationId: string, threadId: string) => void
+  setConversationSessionId?: (conversationId: string, sessionId: string) => void
+  setConversationRuntimeSessionId?: (userId: string, conversationId: string, sessionId: string) => void
   setConversationRuntimeThreadId: (userId: string, conversationId: string, threadId: string) => void
   messageStore: Pick<AgentConversationMessageStore<Message, Meta>, 'updateMessageMeta' | 'setConversationMessages'>
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
@@ -899,7 +960,8 @@ export interface CompleteRuntimeSendDeps<
   upsertActivityEvent?: (events: ActivityEvent[], event: ActivityEvent) => ActivityEvent[]
   loadRuntimeThreadProjection: (input: {
     threadId: string
-    thread: Thread
+    sessionId?: string
+    thread?: Thread
     ensureRuns: Run[]
     existingMessages: Message[]
     liveEventsByRunId: Record<string, ActivityEvent[]>
@@ -1010,6 +1072,11 @@ export async function completeRuntimeSendRunResult<
     : runResult.run
   const artifacts = deps.extractArtifacts(run)
   if (!draft.localRuntime?.diagnosticCommand) {
+    const sessionId = thread.sessionId ?? run.sessionId
+    if (sessionId) {
+      deps.setConversationSessionId?.(deps.conversationId, sessionId)
+      deps.setConversationRuntimeSessionId?.(deps.userId, deps.conversationId, sessionId)
+    }
     deps.setLocalThreadId(deps.conversationId, thread.id)
     deps.setConversationRuntimeThreadId(deps.userId, deps.conversationId, thread.id)
   }
@@ -1043,8 +1110,10 @@ export async function completeRuntimeSendRunResult<
   }
   if (!draft.localRuntime?.diagnosticCommand) {
     const existingMessages = deps.getExistingMessages()
+    const sessionId = thread.sessionId ?? run.sessionId
     const projection = await deps.loadRuntimeThreadProjection({
       threadId: thread.id,
+      ...(sessionId ? { sessionId } : {}),
       thread,
       ensureRuns: [run],
       existingMessages,
@@ -1523,6 +1592,8 @@ function continuationResumeApprovalFromInteraction(
     id: `runtime-continuation-${continuationId}`,
     runId: interaction.runId,
     interactionId: interaction.id,
+    ...(interaction.displayThreadId ? { displayThreadId: interaction.displayThreadId } : {}),
+    ...(interaction.displayAnchor ? { displayAnchor: interaction.displayAnchor } : {}),
     toolName: 'runtime_continuation_resume',
     args: {
       continuationId,
@@ -1601,6 +1672,7 @@ function timelineToolExecutions(
       ...(step.completedAt ? { completedAt: step.completedAt } : {}),
       ...(step.roundIndex !== undefined ? { roundIndex: step.roundIndex } : {}),
       ...(step.roundLabel ? { roundLabel: step.roundLabel } : {}),
+      ...(step.roundSource ? { roundSource: step.roundSource } : {}),
       step,
       events: (eventsByStep.get(step.id) ?? []).sort(compareTimelineEvents),
       approvals: [],
@@ -1617,6 +1689,7 @@ function timelineToolExecutions(
       ...(event.completedAt ? { completedAt: event.completedAt } : {}),
       ...(event.roundIndex !== undefined ? { roundIndex: event.roundIndex } : {}),
       ...(event.roundLabel ? { roundLabel: event.roundLabel } : {}),
+      ...(event.roundSource ? { roundSource: event.roundSource } : {}),
       events: [event],
       approvals: [],
     })
@@ -1728,6 +1801,8 @@ function timelineRoundSeeds(
   const ensureRound = (input: {
     id: string
     index?: number
+    label?: string
+    source?: AgentRunTimelineRound['source']
     startedAt: string
     finishedAt?: string
     failed?: boolean
@@ -1737,6 +1812,8 @@ function timelineRoundSeeds(
     byId.set(input.id, {
       id: input.id,
       ...(input.index !== undefined ? { index: input.index } : current?.index !== undefined ? { index: current.index } : {}),
+      ...(input.label ? { label: input.label } : current?.label ? { label: current.label } : {}),
+      ...(input.source ? { source: input.source } : current?.source ? { source: current.source } : {}),
       startedAt: current && timelineTime(current.startedAt) <= timelineTime(input.startedAt) ? current.startedAt : input.startedAt,
       ...(input.finishedAt ?? current?.finishedAt ? { finishedAt: maxTimelineTimestamp(input.finishedAt, current?.finishedAt) } : {}),
       failed: Boolean(current?.failed || input.failed),
@@ -1749,6 +1826,8 @@ function timelineRoundSeeds(
     ensureRound({
       id: timelineRoundId(event.roundIndex),
       index: event.roundIndex,
+      ...(event.roundLabel ? { label: event.roundLabel } : {}),
+      ...(event.roundSource ? { source: event.roundSource } : {}),
       startedAt: event.createdAt,
       ...(event.completedAt ? { finishedAt: event.completedAt } : {}),
       failed: timelineEventIsFailure(event),
@@ -1757,13 +1836,21 @@ function timelineRoundSeeds(
   }
   for (const decision of decisions) {
     if (decision.event.roundIndex === undefined) continue
-    ensureRound({ id: timelineRoundId(decision.event.roundIndex), index: decision.event.roundIndex, startedAt: decision.event.createdAt })
+    ensureRound({
+      id: timelineRoundId(decision.event.roundIndex),
+      index: decision.event.roundIndex,
+      ...(decision.event.roundLabel ? { label: decision.event.roundLabel } : {}),
+      ...(decision.event.roundSource ? { source: decision.event.roundSource } : {}),
+      startedAt: decision.event.createdAt,
+    })
   }
   for (const tool of toolExecutions) {
     if (tool.roundIndex === undefined) continue
     ensureRound({
       id: timelineRoundId(tool.roundIndex),
       index: tool.roundIndex,
+      ...(tool.roundLabel ? { label: tool.roundLabel } : {}),
+      ...(tool.roundSource ? { source: tool.roundSource } : {}),
       startedAt: tool.createdAt,
       ...(tool.completedAt ? { finishedAt: tool.completedAt } : {}),
       failed: tool.step?.status === 'failed' || tool.events.some((event) => event.status === 'failed' || event.status === 'blocked'),

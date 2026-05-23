@@ -18,6 +18,7 @@ import type { AgentStore } from '../state/store.js'
 import type {
   AgentApprovalRequest,
   AgentInputRequest,
+  AgentSession,
   AgentTraceEvent,
   AgentTraceEventKind,
   AgentMessage,
@@ -69,7 +70,7 @@ export interface RuntimeRunRejectionResult {
 }
 
 export function applyRuntimeRunRequiredActionFlow(input: {
-  store: Pick<AgentStore, 'getThread' | 'updateThread' | 'updateRun' | 'createRuntimeInteraction' | 'listRuntimeInteractions'>
+  store: Pick<AgentStore, 'getThread' | 'updateThread' | 'updateRun' | 'createRuntimeInteraction' | 'listRuntimeInteractions'> & Partial<Pick<AgentStore, 'getSession'>>
   run: AgentRun
   pendingApprovals: AgentApprovalRequest[]
   pendingInputRequests?: AgentInputRequest[]
@@ -80,7 +81,13 @@ export function applyRuntimeRunRequiredActionFlow(input: {
   recordTrace: (run: AgentRun, trace: RuntimeRunInteractionTraceInput) => void
   emitRunSnapshot: (run: AgentRun, options: { done?: boolean }) => void
 }): AgentRun {
-  const pendingInputRequests = input.pendingInputRequests ?? []
+  const displayThreadId = runDisplayThreadId(input.run, input.run.sessionId ? input.store.getSession?.(input.run.sessionId) : undefined)
+  const displayAnchor = runDisplayAnchor(input.run, displayThreadId)
+  const pendingInputRequests = (input.pendingInputRequests ?? []).map((request) => ({
+    ...request,
+    displayThreadId,
+    displayAnchor,
+  }))
   const warnings = input.warnings ?? []
   const requiredAction = applyRequiredRunAction(input.run, {
     pendingApprovals: input.pendingApprovals,
@@ -117,6 +124,23 @@ export function applyRuntimeRunRequiredActionFlow(input: {
   })
   input.emitRunSnapshot(input.run, { done: true })
   return input.run
+}
+
+function runDisplayThreadId(run: AgentRun, session: AgentSession | undefined): string {
+  return session?.interactiveThreadId ?? session?.rootThreadId ?? run.threadId
+}
+
+function runDisplayAnchor(run: AgentRun, displayThreadId: string): AgentInputRequest['displayAnchor'] {
+  const sourceMessageId = typeof run.input?.sourceMessageId === 'string' && run.input.sourceMessageId.trim()
+    ? run.input.sourceMessageId.trim()
+    : undefined
+  return {
+    threadId: displayThreadId,
+    runId: run.id,
+    ...(sourceMessageId ? { messageId: sourceMessageId } : {}),
+    placement: 'after',
+    reason: sourceMessageId ? 'run_source_message' : 'run',
+  }
 }
 
 export function applyRuntimeRunApprovalFlow(input: {
