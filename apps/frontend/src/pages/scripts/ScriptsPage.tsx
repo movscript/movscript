@@ -27,9 +27,9 @@ import {
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import { ScriptCreateForm } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
-import { Button } from '@movscript/ui'
+import { Button, SemanticDot, semanticToneClass, type SemanticTone } from '@movscript/ui'
 import { ScriptForm } from '@/components/forms/ScriptForm'
-import { ProjectSurfaceHeader } from '@/components/app/AppPage'
+import { ProjectSurfaceHeader } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
@@ -415,7 +415,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                               )}
                             >
                               <div className="flex items-start gap-2">
-                                <div className={cn('mt-1 h-2 w-2 shrink-0 rounded-full', hasVersions ? 'bg-emerald-500' : bodyLength > 0 ? 'bg-amber-500' : 'bg-muted-foreground/30')} />
+                                <SemanticDot tone={hasVersions ? 'success' : bodyLength > 0 ? 'warning' : 'neutral'} className="mt-1 h-2 w-2" />
                                 <div className="min-w-0 flex-1">
                                   <p className="truncate type-body font-medium">{script.title}</p>
                                   <p className="mt-0.5 type-caption text-muted-foreground">
@@ -1116,7 +1116,7 @@ function ScriptVersionBlockPanel({
 function VersionStatusBadge({ status }: { status: string }) {
   if (status === 'active') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 type-caption text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
+      <span className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 type-caption', semanticToneClass('success', 'surface'), semanticToneClass('success', 'icon'))}>
         <CheckCircle2 size={10} />
         已锁定
       </span>
@@ -1177,13 +1177,14 @@ function ScriptTypeBadge({ script }: { script: Script }) {
 
 function ScriptStageBadge({ versionCount }: { versionCount: number }) {
   const stage = !versionCount ? '无版本' : '已锁定'
-  const config = {
-    '无版本': { className: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300', icon: AlertTriangle },
-    '已锁定': { className: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300', icon: CheckCircle2 },
-  }[stage]
+  const configs: Record<string, { tone: SemanticTone; icon: typeof AlertTriangle }> = {
+    '无版本': { tone: 'warning', icon: AlertTriangle },
+    '已锁定': { tone: 'success', icon: CheckCircle2 },
+  }
+  const config = configs[stage]
   const Icon = config.icon
   return (
-    <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 type-caption', config.className)}>
+    <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 type-caption', semanticToneClass(config.tone, 'surface'), semanticToneClass(config.tone, 'icon'))}>
       <Icon size={12} />
       {stage}
     </span>
@@ -1203,7 +1204,7 @@ function ReadinessRow({ label, done }: { label: string; done: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2.5">
       <span className="min-w-0 truncate type-body text-foreground">{label}</span>
-      <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 type-label', done ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : 'bg-muted text-muted-foreground')}>
+      <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 type-label', done ? cn(semanticToneClass('success', 'surface'), semanticToneClass('success', 'icon')) : 'bg-muted text-muted-foreground')}>
         {done ? <CheckCircle2 size={12} /> : <Clock3 size={12} />}
         {done ? '就绪' : '待处理'}
       </span>

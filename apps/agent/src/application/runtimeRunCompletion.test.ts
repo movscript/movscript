@@ -131,6 +131,52 @@ test('applyRuntimeRunCompletion marks a clean run completed and stores memory id
   assert.equal(run.metadata?.assistantContentTurns, undefined)
 })
 
+test('applyRuntimeRunCompletion emits runtime status message for async work handoff without model text', () => {
+  const store = new InMemoryAgentStore()
+  const thread = makeThread()
+  const run = makeRun({ status: 'in_progress' })
+  store.createThread(thread)
+  store.createRun(run)
+
+  const assistant = applyRuntimeRunCompletion({
+    store,
+    run,
+    thread,
+    userMessage: '生成一张图',
+    assistantContents: [],
+    finalContent: '',
+    toolOutcomes: [coreWorkStartOutcome()],
+    warnings: [],
+    memories: [],
+    memoryStorePath: '/tmp/memories.json',
+    messageId: 'msg_assistant',
+    now,
+    postRunUserMessage: userMessage(),
+    recordTrace: () => {},
+    createStep: (targetRun, type) => {
+      const step: AgentRunStep = {
+        id: 'step_1',
+        runId: targetRun.id,
+        type,
+        status: 'in_progress',
+        createdAt: now,
+      }
+      targetRun.steps.push(step)
+      return step
+    },
+    emitAssistantMessage: () => {},
+    emitRunSnapshot: () => {},
+    deferPostRunRecords: () => {},
+  })
+
+  assert.match(assistant.content, /你可以继续发送消息/)
+  assert.equal(assistant.metadata?.kind, 'runtime_status')
+  assert.equal((assistant.metadata?.runtimeStatus as any)?.kind, 'async_work_handoff')
+  assert.equal((assistant.metadata?.runtimeStatus as any)?.workId, 'work_1')
+  assert.equal((assistant.metadata?.runtimeStatus as any)?.workKind, 'generation_job')
+  assert.equal((assistant.metadata?.runtimeStatus as any)?.workStatus, 'running')
+})
+
 function makeThread(overrides: Partial<AgentThread> = {}): AgentThread {
   return {
     id: 'thread_1',
@@ -188,5 +234,12 @@ function toolOutcome(): ToolCallOutcome {
   return {
     call: { name: 'tool_a' },
     result: { ok: true },
+  }
+}
+
+function coreWorkStartOutcome(): ToolCallOutcome {
+  return {
+    call: { name: 'core_work_start', args: { kind: 'generation_job' } },
+    result: { status: 'started', work: { id: 'work_1', kind: 'generation_job', status: 'running' } },
   }
 }

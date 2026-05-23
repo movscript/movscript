@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
-import { Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
+import { Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, semanticToneClass } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 
 export function ContentUnitEditSelect({
@@ -79,9 +79,9 @@ export function ContentUnitGenerationInputCard({
       <span className={cn(
         'inline-flex h-7 w-7 items-center justify-center rounded-md',
         tone === 'warning'
-          ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
+          ? cn(semanticToneClass('warning', 'surface'), semanticToneClass('warning', 'icon'))
           : tone === 'success'
-            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+            ? cn(semanticToneClass('success', 'surface'), semanticToneClass('success', 'icon'))
             : 'bg-muted text-muted-foreground',
       )}>
         <Icon size={14} />

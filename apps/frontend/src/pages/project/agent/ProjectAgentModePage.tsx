@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
+  Archive,
   Bot,
   Building2,
   Check,
@@ -105,6 +106,8 @@ export function ProjectAgentModeSidebar() {
   const getActiveConversationId = useAgentStore((s) => s.getActiveConversationId)
   const createConversation = useAgentStore((s) => s.createConversation)
   const setActiveConversation = useAgentStore((s) => s.setActiveConversation)
+  const archiveConversations = useAgentStore((s) => s.archiveConversations)
+  const unarchiveConversation = useAgentStore((s) => s.unarchiveConversation)
   const pageTasks = useAgentSessionStore((s) => s.pageTasks)
   const localThreadIdsByConversation = useAgentSessionStore((s) => s.localThreadIdsByConversation)
   const sessionIdsByConversation = useAgentSessionStore((s) => s.sessionIdsByConversation)
@@ -238,11 +241,16 @@ export function ProjectAgentModeSidebar() {
   const currentMembership = orgMemberships.find((membership) => membership.org_id === currentOrgID)
 
   function startNewConversation() {
+    archiveConversations(userId, conversations.filter((conversation) => conversation.archived !== true).map((conversation) => conversation.id))
     createConversation(userId)
     navigate(ROUTES.project.agent)
   }
 
   function selectConversation(id: string) {
+    archiveConversations(userId, conversations
+      .filter((conversation) => conversation.id !== id && conversation.archived !== true)
+      .map((conversation) => conversation.id))
+    unarchiveConversation(userId, id)
     setActiveConversation(userId, id)
     navigate(ROUTES.project.agent)
   }
@@ -315,6 +323,7 @@ export function ProjectAgentModeSidebar() {
                           active={conversation.id === activeConversationId}
                           locale={locale}
                           title={conversationDisplayTitle(conversation, t)}
+                          archived={conversation.archived === true}
                           onClick={() => selectConversation(conversation.id)}
                         />
                       ))}
@@ -362,6 +371,7 @@ export function ProjectAgentModeSidebar() {
                   active={conversation.id === activeConversationId}
                   locale={locale}
                   title={conversationDisplayTitle(conversation, t)}
+                  archived={conversation.archived === true}
                   onClick={() => selectConversation(conversation.id)}
                 />
               ))}
@@ -588,12 +598,14 @@ function AgentSidebarConversation({
   active,
   locale,
   title,
+  archived,
   onClick,
 }: {
   conversation: Conversation
   active: boolean
   locale: string
   title: string
+  archived: boolean
   onClick: () => void
 }) {
   const lastMessage = conversation.messages[conversation.messages.length - 1]?.content.trim()
@@ -607,7 +619,9 @@ function AgentSidebarConversation({
         active ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
       )}
     >
-      <MessageSquare size={11} className="mt-0.5 shrink-0" />
+      {archived
+        ? <Archive size={11} className="mt-0.5 shrink-0" />
+        : <MessageSquare size={11} className="mt-0.5 shrink-0" />}
       <span className="min-w-0 flex-1">
         <span className="block truncate type-caption font-medium leading-4">{title}</span>
         <span className={cn('block truncate type-tiny leading-3.5', active ? 'text-accent-foreground/70' : 'text-muted-foreground')}>
@@ -620,13 +634,15 @@ function AgentSidebarConversation({
 
 function ProjectAgentChatSurface({ userId, className }: { userId: string; className?: string }) {
   const getActiveConversationId = useAgentStore((s) => s.getActiveConversationId)
+  const getConversations = useAgentStore((s) => s.getConversations)
   const createConversation = useAgentStore((s) => s.createConversation)
   const activeConversationId = getActiveConversationId(userId)
+  const activeConversationOpen = !!activeConversationId && getConversations(userId).some((conversation) => conversation.id === activeConversationId && conversation.archived !== true)
 
   useEffect(() => {
-    if (activeConversationId) return
+    if (activeConversationOpen) return
     createConversation(userId)
-  }, [activeConversationId, createConversation, userId])
+  }, [activeConversationOpen, createConversation, userId])
 
   return (
     <section className={cn('min-h-0 flex-1 overflow-hidden bg-background', className)}>

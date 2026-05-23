@@ -114,6 +114,14 @@ export interface AgentThreadSummary {
   lastMessageAt?: string
 }
 
+export interface AgentThreadListPage {
+  threads: AgentThreadSummary[]
+  total: number
+  limit: number
+  hasMore: boolean
+  nextCursor?: string
+}
+
 export interface AgentThreadDeletionResult {
   deleted: boolean
   threadId: string
@@ -836,6 +844,23 @@ export interface RuntimeContinuation {
   cancelledAt?: string
 }
 
+export type RuntimeWakeEventKind = 'work.started' | 'work.observed' | 'run.settled' | 'thread.opened'
+export type RuntimeWakeEventStatus = 'queued' | 'processing' | 'consumed' | 'cancelled'
+
+export interface RuntimeWakeEvent {
+  id: string
+  threadId: string
+  runId?: string
+  workId?: string
+  kind: RuntimeWakeEventKind
+  status: RuntimeWakeEventStatus
+  payload: unknown
+  dedupeKey: string
+  createdAt: string
+  updatedAt: string
+  consumedAt?: string
+}
+
 export type AgentRuntimeScopeType = 'thread' | 'session' | 'run' | 'plan'
 
 export interface AgentRuntimeScopeRef {
@@ -853,6 +878,7 @@ export interface AgentRuntimeEntitiesV2 {
   interactions?: RuntimeInteraction[]
   works?: RuntimeWork[]
   continuations?: RuntimeContinuation[]
+  wakeEvents?: RuntimeWakeEvent[]
   plans?: AgentPlan[]
   planRevisions?: AgentPlanRevision[]
   taskGraphs?: AgentTaskGraphSnapshot[]
@@ -880,6 +906,7 @@ export type AgentRuntimeEventKind =
   | 'interaction.upserted'
   | 'work.upserted'
   | 'continuation.upserted'
+  | 'wake_event.upserted'
   | 'plan.upserted'
   | 'plan_revision.upserted'
   | 'task_graph.upserted'
@@ -896,6 +923,7 @@ export interface AgentRuntimeEventCausalityV2 {
   interactionId?: string
   workId?: string
   continuationId?: string
+  wakeEventId?: string
   planId?: string
   planRevisionId?: string
   taskGraphId?: string
@@ -913,6 +941,7 @@ export type AgentRuntimeEventEntityV2 =
   | { type: 'interaction'; value: RuntimeInteraction }
   | { type: 'work'; value: RuntimeWork }
   | { type: 'continuation'; value: RuntimeContinuation }
+  | { type: 'wake_event'; value: RuntimeWakeEvent }
   | { type: 'plan'; value: AgentPlan }
   | { type: 'plan_revision'; value: AgentPlanRevision }
   | { type: 'task_graph'; value: AgentTaskGraphSnapshot }
@@ -1344,6 +1373,7 @@ export interface AgentConversation {
   messages: AgentChatMessage[]
   runtimeSessionId?: string
   runtimeThreadId?: string
+  archived?: boolean
   createdAt: number
   updatedAt: number
 }
@@ -1367,6 +1397,15 @@ export interface AgentRuntimeInputRef {
   error?: string
 }
 
+export interface AgentRuntimeStatusMessage {
+  kind: 'async_work_handoff'
+  title: string
+  detail: string
+  workId?: string
+  workKind?: string
+  workStatus?: string
+}
+
 export interface AgentChatMessageMeta {
   modelId?: number | null
   agentName?: string
@@ -1374,6 +1413,7 @@ export interface AgentChatMessageMeta {
   contextLabels?: string[]
   runtimeMessage?: AgentRuntimeMessageRef
   runtimeInput?: AgentRuntimeInputRef
+  runtimeStatus?: AgentRuntimeStatusMessage
   contextDiagnostic?: AgentContextDiagnostic
   generationJobs?: AgentGenerationJob[]
   generationParamAudits?: AgentGenerationParamAudit[]

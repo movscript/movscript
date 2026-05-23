@@ -5,6 +5,7 @@ import { generationParamAuditsFromRun, generationValidationErrorsFromRun } from 
 import { replayGenerationTrace, type GenerationTraceEventLike, type GenerationTraceReplay } from '@/lib/agentGenerationMedia'
 import { isRecord } from '@/lib/jsonValue'
 import { buildRunActivitySnapshot } from '@/lib/agentRunActivitySnapshot'
+import { runtimeStatusMessageFromRunActivity } from '@/lib/agentRuntimeStatusMessage'
 import { localAgentClient, type AgentRun, type AgentRunGenerationView, type AgentTraceEvent } from '@/lib/localAgentClient'
 import type { AgentAttachment, ChatContextDiagnostic, ChatMessageMeta, ChatRunActivityEvent } from '@/store/agentStore'
 import type { RawResource } from '@/types'
@@ -47,6 +48,7 @@ export async function assistantResultPayloadForRun(
   const contextDiagnostic = contextDiagnosticFromRun(run)
   const draftArtifacts = extractAgentTaskArtifacts(run)
   const activitySnapshot = buildRunActivitySnapshot({ run: runWithTrace, events: liveEvents })
+  const runtimeStatus = runtimeStatusMessageFromRunActivity({ activity: activitySnapshot?.activity, generationJobs })
   return {
     ...(attachments.length > 0 ? { attachments } : {}),
     meta: {
@@ -55,6 +57,7 @@ export async function assistantResultPayloadForRun(
         runId: run.id,
         ...(run.assistantMessageId ? { messageId: run.assistantMessageId } : {}),
       },
+      ...(runtimeStatus ? { runtimeStatus } : {}),
       ...(activitySnapshot ? { localRunActivity: activitySnapshot.activity } : {}),
       ...(contextDiagnostic ? { contextDiagnostic } : {}),
       ...(generationJobs.length > 0 ? { generationJobs } : {}),

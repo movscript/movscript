@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { BarChart3, Blocks, ClipboardList, FileSearch, ListTree, Settings, Terminal } from 'lucide-react'
+import { BarChart3, Blocks, ClipboardList, FileSearch, Gauge, ListTree, Settings, Terminal } from 'lucide-react'
 import { ROUTES } from '@/routes/projectRoutes'
 import { cn } from '@/lib/utils'
 
@@ -28,6 +28,12 @@ const agentConsoleSections = [
     label: '运行记录',
     description: 'Run 列表与 trace 入口',
     icon: ListTree,
+  },
+  {
+    to: ROUTES.agentPerformance,
+    label: '性能监控',
+    description: 'Metrics、Timeline、慢操作诊断',
+    icon: Gauge,
   },
   {
     to: ROUTES.agentDebug,

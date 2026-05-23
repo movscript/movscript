@@ -4,7 +4,7 @@ import { ChevronDown, Clapperboard, Route, SlidersHorizontal, Trash2 } from 'luc
 
 import { createSemanticEntity, deleteSemanticEntity, getSourceLockStatus, listSemanticEntities, semanticEntityConfig, updateSemanticEntity, type SemanticEntityConfig, type SemanticEntityPayload, type SemanticEntityRecord, type SourceLockStatus } from '@/api/semanticEntities'
 import { toast } from '@/store/toastStore'
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, Textarea } from '@movscript/ui'
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, ReviewCallout, Textarea, semanticToneClass } from '@movscript/ui'
 
 type Mode = 'create' | 'edit'
 
@@ -163,15 +163,15 @@ export function SemanticEntityCrudDialog({
 
           <div className="min-h-0 flex-1 overflow-y-auto py-4">
             {config.requiredHint && mode === 'create' && !quickCreate ? (
-              <p className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 type-label text-amber-700 dark:text-amber-300">{config.requiredHint}</p>
+              <ReviewCallout tone="warning" compact className="mb-4 type-label">{config.requiredHint}</ReviewCallout>
             ) : null}
             {sourceLock?.locked ? (
-              <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
-                <p className="type-label font-medium text-amber-800 dark:text-amber-200">来源已锁定</p>
-                <p className="mt-1 type-label leading-5 text-amber-700 dark:text-amber-300">
+              <ReviewCallout tone="warning" compact className="mb-4">
+                <p className={`type-label font-medium ${semanticToneClass('warning', 'icon')}`}>来源已锁定</p>
+                <p className={`mt-1 type-label leading-5 ${semanticToneClass('warning', 'icon')}`}>
                   {sourceLockReason}。已锁定字段：{sourceLock.locked_fields.map((key) => fieldLabel(fields, key)).join('、')}；标题、描述、状态等非来源内容仍可继续编辑。
                 </p>
-              </div>
+              </ReviewCallout>
             ) : null}
             <div className={quickCreate ? 'grid gap-3' : 'grid gap-4 md:grid-cols-2'}>
               {basicFields.map((field) => (
@@ -310,7 +310,7 @@ function FieldControl({
         )}
       </div>
       {locked && lockReason ? (
-        <p className="mt-1 type-caption font-medium text-amber-700 dark:text-amber-300">{lockReason}</p>
+        <p className={`mt-1 type-caption font-medium ${semanticToneClass('warning', 'icon')}`}>{lockReason}</p>
       ) : field.helper ? (
         <p className="mt-1 type-caption text-muted-foreground">{field.helper}</p>
       ) : null}

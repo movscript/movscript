@@ -15,6 +15,7 @@ import {
   Sparkles,
   Video,
 } from 'lucide-react'
+import { accentToneClass, semanticToneClass, type AccentTone } from '@movscript/ui'
 import type { CanvasEntityKind, EntitySemanticValues } from '@/types'
 import { AuthedImage } from '@/components/shared/AuthedImage'
 import { cn } from '@/lib/utils'
@@ -54,7 +55,7 @@ export type CanvasDomainPortHandleRenderer = (handle: {
   label: string
 }) => React.ReactNode
 
-type CanvasDomainTone = 'cyan' | 'teal' | 'violet' | 'amber' | 'indigo'
+type CanvasDomainTone = Extract<AccentTone, 'cyan' | 'teal' | 'violet' | 'amber' | 'indigo'>
 
 export interface CanvasDomainEntityCardProps {
   kind: CanvasDomainEntityKind
@@ -176,10 +177,10 @@ export function CanvasDomainEntityCard({
         className,
       )}
     >
-      <header className={cn('border-b px-3 py-2.5', domainToneSoftClass(meta.tone))}>
+      <header className={cn('border-b px-3 py-2.5', accentToneClass(meta.tone, 'soft'))}>
         <div className="flex items-start gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80">
-            <Icon size={14} className={domainToneTextClass(meta.tone)} />
+            <Icon size={14} className={accentToneClass(meta.tone, 'icon')} />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
@@ -201,10 +202,10 @@ export function CanvasDomainEntityCard({
           {resolvedMetrics.slice(0, 3).map((metric) => (
             <div key={metric.label} className={cn(
               'rounded-md border px-1.5 py-1',
-              metric.warning ? 'border-amber-500/30 bg-amber-500/10' : 'border-border bg-background',
+              metric.warning ? semanticToneClass('warning', 'surface') : 'border-border bg-background',
             )}>
               <p className="truncate type-micro text-muted-foreground">{metric.label}</p>
-              <p className={cn('mt-0.5 truncate type-caption font-semibold text-foreground', metric.warning && 'text-amber-700 dark:text-amber-300')}>{metric.value}</p>
+              <p className={cn('mt-0.5 truncate type-caption font-semibold text-foreground', metric.warning && semanticToneClass('warning', 'icon'))}>{metric.value}</p>
             </div>
           ))}
         </div>
@@ -223,7 +224,7 @@ export function CanvasDomainEntityCard({
             {resolvedLinks.slice(0, 2).map((link) => (
               <div key={`${link.label}-${link.value}`} className={cn(
                 'relative flex h-7 min-w-0 items-center gap-1.5 rounded-md border px-1.5 type-tiny',
-                link.tone === 'warning' ? 'border-amber-500/25 bg-amber-500/10' : link.tone === 'ready' ? 'border-emerald-500/25 bg-emerald-500/10' : 'border-border bg-background',
+                link.tone === 'warning' ? semanticToneClass('warning', 'surface') : link.tone === 'ready' ? semanticToneClass('success', 'surface') : 'border-border bg-background',
               )}>
                 <DomainPort side="left" tone="target" label={link.label} compact handleId={link.inputPortId} handleType="target" renderPortHandle={renderPortHandle} />
                 <span className="shrink-0 text-muted-foreground">{link.label}</span>
@@ -297,9 +298,9 @@ function AssetSlotMaterialCard({
         className,
       )}
     >
-      <header className="border-b border-border bg-amber-500/10 px-3 py-2.5">
+      <header className={cn('border-b border-border px-3 py-2.5', accentToneClass('amber', 'soft'))}>
         <div className="flex items-start gap-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80 text-amber-600">
+          <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80', accentToneClass('amber', 'icon'))}>
             <ImagePlus size={14} />
           </span>
           <div className="min-w-0 flex-1">
@@ -583,7 +584,7 @@ function DomainPort({
         'absolute z-20 -translate-y-1/2 rounded-full border-2 bg-card shadow-sm',
         compact ? 'top-1/2 h-3 w-3' : 'h-3.5 w-3.5',
         side === 'left' ? '-left-1.5' : '-right-1.5',
-        tone === 'target' && 'border-sky-500 bg-sky-500/90',
+        tone === 'target' && accentToneClass('sky', 'port'),
         tone === 'source' && 'border-primary bg-primary/90',
         className,
       )}
@@ -592,24 +593,6 @@ function DomainPort({
       {renderPortHandle({ id: handleId, type: handleType, side, label })}
     </span>
   )
-}
-
-function domainToneSoftClass(tone: CanvasDomainTone) {
-  if (tone === 'cyan') return 'bg-cyan-500/10'
-  if (tone === 'teal') return 'bg-teal-500/10'
-  if (tone === 'violet') return 'bg-violet-500/10'
-  if (tone === 'amber') return 'bg-amber-500/10'
-  if (tone === 'indigo') return 'bg-indigo-500/10'
-  return 'bg-indigo-500/10'
-}
-
-function domainToneTextClass(tone: CanvasDomainTone) {
-  if (tone === 'cyan') return 'text-cyan-600'
-  if (tone === 'teal') return 'text-teal-600'
-  if (tone === 'violet') return 'text-violet-600'
-  if (tone === 'amber') return 'text-amber-600'
-  if (tone === 'indigo') return 'text-indigo-600'
-  return 'text-indigo-600'
 }
 
 function compactFields(fields: Array<{ label: string; value: unknown }>): CanvasDomainField[] {

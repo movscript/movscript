@@ -61,7 +61,7 @@ export function useAgentRuntimeThreadHydration({
   useEffect(() => {
     const threadId = localThreadId.trim()
     if (!threadId) return
-    if (building || runtimeBuilding) return
+    if (building || runtimeBuilding || loading || runtimeLoading) return
     const controller = new AbortController()
     const existingMessages = useAgentStore.getState().getConversations(userId).find((item) => item.id === conversationId)?.messages ?? conversationMessages
     void hydrateRuntimeThreadConversation({
@@ -118,7 +118,7 @@ export function useAgentRuntimeThreadHydration({
   useEffect(() => {
     const threadId = localThreadId.trim()
     if (!threadId) return
-    if (building || runtimeBuilding) return
+    if (building || runtimeBuilding || loading || runtimeLoading) return
     const controller = new AbortController()
     const hydrateFromStream = () => {
       if (controller.signal.aborted) return

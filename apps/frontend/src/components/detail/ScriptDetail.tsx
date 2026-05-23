@@ -9,11 +9,13 @@ import { useTranslation } from 'react-i18next'
 import { ScriptForm } from '@/components/forms/ScriptForm'
 import { DetailHero, HeroMetric, HeroPill } from './DetailHero'
 import { Plus } from 'lucide-react'
+import { accentToneClass } from '@movscript/ui'
+import type { EntityTone } from '@/components/entity/EntitySurface'
 
-const SCRIPT_TYPE_MAP: Record<string, { labelKey: string; color: string; tone: 'sky' | 'violet' | 'blue' }> = {
-  main:    { labelKey: 'domain.scriptTypes.main',    color: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400', tone: 'sky' },
-  episode: { labelKey: 'domain.scriptTypes.episode', color: 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400', tone: 'violet' },
-  scene:   { labelKey: 'domain.scriptTypes.scene',   color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400', tone: 'blue' },
+const SCRIPT_TYPE_MAP: Record<string, { labelKey: string; tone: EntityTone }> = {
+  main:    { labelKey: 'domain.scriptTypes.main', tone: 'sky' },
+  episode: { labelKey: 'domain.scriptTypes.episode', tone: 'violet' },
+  scene:   { labelKey: 'domain.scriptTypes.scene', tone: 'blue' },
 }
 
 interface Props {
@@ -84,7 +86,7 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
         tone={typeCfg?.tone ?? 'neutral'}
         eyebrow={(
           <>
-            <HeroPill className={cn(typeCfg?.color)}>{typeCfg ? t(typeCfg.labelKey) : script.script_type}</HeroPill>
+            <HeroPill className={typeCfg ? accentToneClass(typeCfg.tone, 'badge') : undefined}>{typeCfg ? t(typeCfg.labelKey) : script.script_type}</HeroPill>
           </>
         )}
         meta={(

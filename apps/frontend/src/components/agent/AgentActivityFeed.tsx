@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  semanticToneClass,
 } from '@movscript/ui'
 import {
   agentActivityFeedMarkdown,
@@ -387,10 +388,10 @@ function toneLabel(tone: AgentActivityTone): string {
 }
 
 function toneTextClass(tone: AgentActivityTone): string {
-  if (tone === 'read') return 'text-blue-700 dark:text-blue-300'
-  if (tone === 'draft') return 'text-amber-700 dark:text-amber-300'
+  if (tone === 'read') return semanticToneClass('info', 'icon')
+  if (tone === 'draft') return semanticToneClass('warning', 'icon')
   if (tone === 'write') return 'text-destructive'
-  if (tone === 'task') return 'text-green-700 dark:text-green-300'
+  if (tone === 'task') return semanticToneClass('success', 'icon')
   if (tone === 'error') return 'text-destructive'
   return 'text-muted-foreground'
 }

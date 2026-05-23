@@ -1,7 +1,7 @@
 import { ChevronRight, Database, GitBranch, PackageCheck, type LucideIcon } from 'lucide-react'
 
 import { ProjectLayerProposalReviewPanel } from '@/components/proposals/ProjectLayerProposalReviewPanel'
-import { WorkbenchKeyValue } from '@/components/workbench/WorkbenchPrimitives'
+import { WorkbenchKeyValue } from '@movscript/ui'
 import type { AgentDraft } from '@/lib/localAgentClient'
 import type { AssetSlotRecord, CreativeReferenceRecord } from '@/lib/preProductionAssetRows'
 import { Button } from '@movscript/ui'

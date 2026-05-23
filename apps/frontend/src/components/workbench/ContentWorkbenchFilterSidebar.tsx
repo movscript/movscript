@@ -1,6 +1,6 @@
 import { Search, SlidersHorizontal } from 'lucide-react'
 
-import { WorkbenchEmptyState, WorkbenchList, WorkbenchListItem, WorkbenchThumbnail } from '@/components/workbench/WorkbenchPrimitives'
+import { WorkbenchEmptyState, WorkbenchList, WorkbenchListItem, WorkbenchThumbnail } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { Badge, Input } from '@movscript/ui'
 

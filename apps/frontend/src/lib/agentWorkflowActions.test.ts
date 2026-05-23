@@ -32,6 +32,77 @@ test('approveWorkflowRunAction applies optimistic approval, streams follow-up, a
   assert.deepEqual(calls, ['runtime:true', 'approve', 'setRun:in_progress', 'stream', 'getThread', 'append:completed', 'runtime:false'])
 })
 
+test('approveWorkflowRunAction resolves multiple approval interactions serially before streaming', async () => {
+  const calls: string[] = []
+  const deps = depsFixture(calls)
+  const run = makeRun({
+    id: 'run_requires_action',
+    pendingApprovals: [
+      approval('approval_1', 'pending'),
+      approval('approval_2', 'pending'),
+    ],
+  })
+  const waitingRun = makeRun({
+    id: 'run_requires_action',
+    status: 'requires_action',
+    pendingApprovals: [
+      approval('approval_1', 'approved'),
+      approval('approval_2', 'pending'),
+    ],
+  })
+  const resumedRun = makeRun({
+    id: 'run_requires_action',
+    status: 'in_progress',
+    pendingApprovals: [
+      approval('approval_1', 'approved'),
+      approval('approval_2', 'approved'),
+    ],
+  })
+  const finalRun = makeRun({ id: 'run_requires_action', status: 'completed', assistantMessageId: 'msg_assistant' })
+  deps.streamFollowUpRun = async (runId) => {
+    calls.push(`stream:${runId}`)
+    return finalRun
+  }
+  let firstResolved = false
+  let resolveFirst: (() => void) | undefined
+
+  const action = approveWorkflowRunAction({
+    run,
+    approveInteraction: async (interactionId) => {
+      calls.push(`approve:${interactionId}`)
+      if (interactionId === 'interaction_approval_1') {
+        return await new Promise<{ interaction: never; run: AgentRun }>((resolve) => {
+          resolveFirst = () => {
+            firstResolved = true
+            resolve({ interaction: {} as never, run: waitingRun })
+          }
+        })
+      }
+      calls.push(`secondAfterFirst:${firstResolved}`)
+      return { interaction: {} as never, run: firstResolved ? resumedRun : waitingRun }
+    },
+    deps,
+  })
+
+  await Promise.resolve()
+  assert.equal(calls.includes('approve:interaction_approval_2'), false)
+  assert.ok(resolveFirst)
+  resolveFirst()
+  await action
+
+  assert.deepEqual(calls, [
+    'runtime:true',
+    'approve:interaction_approval_1',
+    'approve:interaction_approval_2',
+    'secondAfterFirst:true',
+    'setRun:in_progress',
+    'stream:run_requires_action',
+    'getThread',
+    'append:completed',
+    'runtime:false',
+  ])
+})
+
 test('rejectWorkflowRunAction writes a rejection assistant message without streaming follow-up', async () => {
   const calls: string[] = []
   const deps = depsFixture(calls)

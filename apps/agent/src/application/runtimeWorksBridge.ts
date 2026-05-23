@@ -2,7 +2,7 @@ import type { RuntimeWorkManager } from '../runtimeWork/runtimeWorkManager.js'
 import type { RuntimeWork, RuntimeWorkKind } from '../runtimeWork/runtimeWork.js'
 import type { AgentRun, AgentTraceEvent, JSONValue } from '../state/types.js'
 import { buildGenerationEvent } from '../generation/generationEvents.js'
-import type { RuntimeScheduler } from './runtimeScheduler.js'
+import type { RuntimeWakeCoordinator } from './runtimeWakeCoordinator.js'
 
 export interface RuntimeWorksBridge {
   startWork: (run: AgentRun, input?: Record<string, JSONValue>, options?: { signal?: AbortSignal }) => Promise<JSONValue>
@@ -14,7 +14,7 @@ export interface RuntimeWorksBridge {
 
 export function createRuntimeWorksBridge(input: {
   workManager: RuntimeWorkManager
-  scheduler?: Pick<RuntimeScheduler, 'dispatch'>
+  wake?: Pick<RuntimeWakeCoordinator, 'workStarted' | 'workObserved'>
   recordTrace?: (run: AgentRun, trace: {
     kind: AgentTraceEvent['kind']
     title: string
@@ -37,8 +37,7 @@ export function createRuntimeWorksBridge(input: {
         pollIntervalMs: numberField(request.pollIntervalMs ?? request.poll_interval_ms),
         signal: options.signal,
       })
-      input.scheduler?.dispatch({ type: 'work.started', work })
-      monitorWorkContinuation(input, run, work, options.signal)
+      input.wake?.workStarted(work)
       recordWorkTrace(input.recordTrace, run, 'core_work_start', work)
       return { status: 'started', work } as unknown as JSONValue
     },
@@ -62,7 +61,7 @@ export function createRuntimeWorksBridge(input: {
         pollIntervalMs: numberField(request.pollIntervalMs ?? request.poll_interval_ms),
         signal: options.signal,
         onWork: (work) => {
-          input.scheduler?.dispatch({ type: 'work.observed', work })
+          input.wake?.workObserved(work)
           recordWorkTrace(input.recordTrace, run, 'core_work_wait', work)
         },
       })
@@ -79,40 +78,11 @@ export function createRuntimeWorksBridge(input: {
     cancelWork: async (run, request = {}, options = {}) => {
       const workId = requiredString(request.workId ?? request.work_id, 'core_work_cancel requires workId')
       const work = await input.workManager.cancel(workId, { signal: options.signal })
-      input.scheduler?.dispatch({ type: 'work.observed', work })
+      input.wake?.workObserved(work)
       recordWorkTrace(input.recordTrace, run, 'core_work_cancel', work)
       return { status: 'cancelled', work } as unknown as JSONValue
     },
   }
-}
-
-function monitorWorkContinuation(
-  input: Parameters<typeof createRuntimeWorksBridge>[0],
-  run: AgentRun,
-  work: RuntimeWork,
-  signal?: AbortSignal,
-): void {
-  if (!input.scheduler || !work.continuationPolicy || work.continuationPolicy.mode === 'none') return
-  void input.workManager.wait({
-    workIds: [work.id],
-    mode: 'all',
-    timeoutMs: work.timeoutMs ?? 30 * 60_000,
-    pollIntervalMs: work.pollIntervalMs ?? 2_500,
-    signal,
-    onWork: (observed) => {
-      input.scheduler?.dispatch({ type: 'work.observed', work: observed })
-      recordWorkTrace(input.recordTrace, run, 'core_work_wait', observed)
-    },
-  }).catch((error) => {
-    input.recordTrace?.(run, {
-      kind: 'tool_call',
-      title: `Runtime work monitor failed: ${work.kind}`,
-      summary: error instanceof Error ? error.message : String(error),
-      status: 'failed',
-      toolName: 'core_work_wait',
-      data: { runtimeWorkId: work.id },
-    })
-  })
 }
 
 function recordWorkTrace(

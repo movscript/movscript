@@ -13,6 +13,7 @@ import {
   EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
 } from '../contracts/runtimeContract.js'
 import { buildAgentUpdateState } from '../updates/updatePolicy.js'
+import { RuntimeTelemetryRegistry } from '../telemetry/runtimeTelemetry.js'
 import type { AgentPluginCatalog } from '../catalog/loader.js'
 import type { CatalogIssue } from '../catalog/types.js'
 
@@ -36,6 +37,7 @@ export interface AgentServerContext {
   backendApplyClient: BackendApplyClient
   modelConfigStore: RuntimeModelConfigStore
   pluginCatalog: ReturnType<typeof loadAgentPluginCatalog>
+  telemetry: RuntimeTelemetryRegistry
 }
 
 export interface AgentServerCapabilities {
@@ -153,6 +155,7 @@ export function createAgentServerContext(): AgentServerContext {
   const client = new MCPClient({ endpoint: mcpEndpoint })
   const backendApplyClient = new MCPBackendApplyClient(client)
   const runtimeContractResolver = EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER
+  const telemetry = new RuntimeTelemetryRegistry()
   const store = timeStartupStep('state-store', () => new FileAgentStore(statePath), (stateStore) => [
     pathDiagnostic(statePath),
     `trace=${traceIndexDiagnostic(stateStore.tracePath)}`,
@@ -225,6 +228,7 @@ export function createAgentServerContext(): AgentServerContext {
     backendApplyClient,
     modelConfigStore,
     pluginCatalog,
+    telemetry,
   }
 }
 

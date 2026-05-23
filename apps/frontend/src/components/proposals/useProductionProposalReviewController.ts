@@ -75,7 +75,6 @@ export function useProductionProposalReviewController({
       return {
         tone: 'ok',
         icon: CheckCircle2,
-        iconClassName: 'text-emerald-500',
         label: '当前状态',
         title: '已写入项目',
         detail: '提案已经完成写入，当前停留在结果确认状态。',
@@ -85,7 +84,6 @@ export function useProductionProposalReviewController({
       return {
         tone: 'ok',
         icon: CheckCircle2,
-        iconClassName: 'text-emerald-500',
         label: '当前状态',
         title: '写入预检已完成',
         detail: '系统已经校验当前接受/拒绝决策，但还没有提交到项目。',
@@ -95,7 +93,6 @@ export function useProductionProposalReviewController({
       return {
         tone: 'ok',
         icon: Eye,
-        iconClassName: 'text-emerald-500',
         label: '当前状态',
         title: '本地预览已完成',
         detail: '当前结果来自本地决策计算，尚未通过写入预检。',
@@ -105,7 +102,7 @@ export function useProductionProposalReviewController({
       return {
         tone: 'warn',
         icon: Loader2,
-        iconClassName: 'animate-spin text-amber-500',
+        iconClassName: 'animate-spin',
         label: '当前状态',
         title: '正在写入项目',
         detail: '提案写入流程正在执行，请等待结果返回。',
@@ -115,7 +112,7 @@ export function useProductionProposalReviewController({
       return {
         tone: 'warn',
         icon: Loader2,
-        iconClassName: 'animate-spin text-amber-500',
+        iconClassName: 'animate-spin',
         label: '当前状态',
         title: '正在预检影响',
         detail: '系统正在校验当前审阅决策能否写入。',
@@ -125,7 +122,6 @@ export function useProductionProposalReviewController({
       return {
         tone: 'neutral',
         icon: Eye,
-        iconClassName: 'text-muted-foreground',
         label: '当前状态',
         title: '等待制作提案',
         detail: '打开制作提案草稿后，这里会进入提案审阅模式。',
@@ -135,7 +131,6 @@ export function useProductionProposalReviewController({
       return {
         tone: 'warn',
         icon: AlertCircle,
-        iconClassName: 'text-amber-500',
         label: '当前状态',
         title: '待开始审阅',
         detail: '先接受或拒绝变更节点，再看写入影响和门禁。',
@@ -145,7 +140,6 @@ export function useProductionProposalReviewController({
       return {
         tone: 'warn',
         icon: GitBranch,
-        iconClassName: 'text-amber-500',
         label: '当前状态',
         title: '审阅进行中',
         detail: `还有 ${unresolvedCount} 项未处理，处理完后就可以进行写入预检。`,
@@ -155,7 +149,6 @@ export function useProductionProposalReviewController({
       return {
         tone: 'danger',
         icon: AlertCircle,
-        iconClassName: 'text-rose-500',
         label: '当前状态',
         title: '写入受阻',
         detail: reviewApplyGate.title,
@@ -164,7 +157,6 @@ export function useProductionProposalReviewController({
     return {
       tone: 'ok',
       icon: CheckCircle2,
-      iconClassName: 'text-emerald-500',
       label: '当前状态',
       title: '可以进入写入预检',
       detail: reviewApplyGate.detail,

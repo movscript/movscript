@@ -1036,8 +1036,7 @@
         "search_file": "Search file",
         "edit_file": "Edit file",
         "core_work_wait": "Wait for runtime work",
-        "core_work_get": "Inspect runtime work",
-        "runtime_continuation_resume": "Continue previous async work"
+        "core_work_get": "Inspect runtime work"
       },
       "risks": {
         "low": "Low",
@@ -1046,8 +1045,7 @@
         "critical": "Critical",
         "write": "Write",
         "generate": "Generation job",
-        "destructive": "Destructive",
-        "resume": "Continuation"
+        "destructive": "Destructive"
       },
       "permissions": {
         "read": "Read",
@@ -1078,8 +1076,7 @@
         "model_image_generate": "Generate images",
         "model_video_generate": "Generate videos",
         "project_read": "Read project data",
-        "project_write": "Write project data",
-        "runtime_continuation": "Continue async work"
+        "project_write": "Write project data"
       },
       "unknown": {
         "permission": "Unrecognized permission: {{value}}",
@@ -2265,6 +2262,7 @@
       "noAgentShort": "Direct chat",
       "noConversations": "No conversations yet",
       "noHistoryConversations": "No history yet",
+      "loadMoreHistory": "Load more",
       "platformTemplates": "Platform Templates",
       "selectAgent": "Select Agent",
       "selectModelFirst": "Please select a model first.",
@@ -2401,7 +2399,6 @@
         "approvalApproved": "Confirmed",
         "approvalRejected": "Rejected",
         "approvalExpired": "Expired",
-        "continuationResumeReason": "Completed async work has results. Continue the original task with those results.",
         "inputAnswered": "Answered",
         "inputCancelled": "Cancelled",
         "inputPending": "Pending",
@@ -2454,7 +2451,6 @@
           "catalogReload": "Approving will reload local skills, tools, packs, and profiles from disk.",
           "workStart": "Approving will submit async runtime work; generation jobs may consume quota and subagent work starts worker runs.",
           "workCancel": "Approving will cancel async runtime work; unfinished outputs or worker follow-up may not be produced.",
-          "continuationResume": "Approving will start a new continuation run from the completed async work results and continue the original task.",
           "destructive": "Approving may remove or cancel existing data. Review the details before continuing.",
           "write": "Approving will allow a write action instead of only reading or previewing data.",
           "default": "Approving will let the agent call this tool and continue the run with its result."

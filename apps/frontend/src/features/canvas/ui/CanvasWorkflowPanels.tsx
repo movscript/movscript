@@ -18,7 +18,7 @@ import {
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { cn } from '@/lib/utils'
-import { Badge, Button } from '@movscript/ui'
+import { Badge, Button, semanticStatusClass } from '@movscript/ui'
 import type { CanvasRunStatus, ResourceBinding } from '@/types'
 import type { CanvasRuntimeRun } from '@/features/canvas/runtime/runHistoryStore'
 import { canvasPortValuePreviewText, workflowRunOutputItems } from '@/features/canvas/runtime/runtimeValues'
@@ -54,7 +54,7 @@ function RunStatusBadge({ status }: { status: CanvasRunStatus }) {
   }
   if (status === 'done') {
     return (
-      <Badge variant="outline" className="gap-1 border-emerald-500/30 text-emerald-600">
+      <Badge variant="outline" className={cn('gap-1', semanticStatusClass('done', 'badge'))}>
         <CheckCircle2 size={12} />
         {t('canvas.runStatus.done')}
       </Badge>

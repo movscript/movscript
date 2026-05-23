@@ -24,7 +24,7 @@ import {
 import { Badge, Button, Progress } from '@movscript/ui'
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityKind, type SemanticEntityRecord } from '@/api/semanticEntities'
-import { ProjectSurfaceHeader } from '@/components/app/AppPage'
+import { ProjectSurfaceHeader } from '@movscript/ui'
 import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
 import { useProjectStore } from '@/store/projectStore'
 import { projectWorkbenchDefinitions } from '@/pages/project/projectSurfaces'

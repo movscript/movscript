@@ -57,7 +57,7 @@ import {
 } from '@/components/creative/CreativeReferenceCard'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
-import { Badge, Button, Input, Label, Textarea } from '@movscript/ui'
+import { Badge, Button, Input, Label, Textarea, accentToneClass, semanticToneClass } from '@movscript/ui'
 
 type Mode = 'create' | 'edit'
 type RelationView = 'graph' | 'workspace'
@@ -109,19 +109,6 @@ const sources = ['manual', 'ai', 'import']
 const statuses = ['draft', 'confirmed', 'corrected', 'ignored']
 const usageRoles = ['protagonist', 'supporting', 'location', 'prop', 'style', 'brand', 'rule']
 const relationshipCategories = ['relationship', 'continuity', 'conflict', 'dependency', 'style_rule']
-
-const statusTone: Record<string, string> = {
-  confirmed: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  corrected: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  draft: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  ignored: 'bg-zinc-500/10 text-zinc-700 dark:text-zinc-300',
-}
-
-const sourceTone: Record<string, string> = {
-  ai: 'bg-violet-500/10 text-violet-700 dark:text-violet-300',
-  manual: 'bg-slate-500/10 text-slate-700 dark:text-slate-300',
-  import: 'bg-teal-500/10 text-teal-700 dark:text-teal-300',
-}
 
 const usageRoleStroke: Record<string, string> = {
   protagonist: 'hsl(217 91% 56% / 0.84)',
@@ -479,10 +466,10 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
         </header>
 
         <section className="grid grid-cols-4 gap-3">
-          <Metric icon={Link2} label="关系总数" value={totalRelations} detail="使用关系 + 设定资料关系" tone="text-sky-600" />
-          <Metric icon={Bot} label="AI 添加" value={aiRelations} detail="需要人工抽查和确认" tone="text-violet-600" />
-          <Metric icon={UserRoundPen} label="人工修正" value={correctedRelations} detail="AI 关系被修正后的记录" tone="text-emerald-600" />
-          <Metric icon={ListFilter} label="待确认" value={pendingRelations} detail="draft 状态关系" tone="text-amber-600" />
+          <Metric icon={Link2} label="关系总数" value={totalRelations} detail="使用关系 + 设定资料关系" tone="info" />
+          <Metric icon={Bot} label="AI 添加" value={aiRelations} detail="需要人工抽查和确认" tone="violet" />
+          <Metric icon={UserRoundPen} label="人工修正" value={correctedRelations} detail="AI 关系被修正后的记录" tone="success" />
+          <Metric icon={ListFilter} label="待确认" value={pendingRelations} detail="draft 状态关系" tone="warning" />
         </section>
 
         {view === 'graph' ? (
@@ -770,8 +757,8 @@ function RelationshipRow({ record, active, onClick }: { record: CreativeRelation
 function RelationBadges({ source, status }: { source?: string; status?: string }) {
   return (
     <div className="flex shrink-0 flex-col items-end gap-1">
-      <span className={cn('rounded px-1.5 py-0.5 type-caption', sourceTone[source ?? 'manual'] ?? sourceTone.manual)}>{source || 'manual'}</span>
-      <span className={cn('rounded px-1.5 py-0.5 type-caption', statusTone[status ?? 'draft'] ?? statusTone.draft)}>{status || 'draft'}</span>
+      <span className={cn('rounded px-1.5 py-0.5 type-caption', sourceToneClass(source))}>{source || 'manual'}</span>
+      <span className={cn('rounded px-1.5 py-0.5 type-caption', semanticToneClass(relationStatusTone(status), 'badge'))}>{status || 'draft'}</span>
     </div>
   )
 }
@@ -893,12 +880,12 @@ function RelationGraphOverview({
         </Panel>
 
         <Panel title="图例">
-          <LegendItem tone="bg-sky-500" label="设定资料节点" detail="人物、地点、道具、风格等设定资料" />
-          <LegendItem tone="bg-zinc-500" label="结构对象节点" detail="编排段、情景、制作项、画面锚点" />
-          <LegendItem tone="bg-blue-500" label="主角/连续性" detail="protagonist 或 continuity" />
-          <LegendItem tone="bg-orange-500" label="地点使用" detail="location" />
-          <LegendItem tone="bg-violet-500" label="道具/依赖" detail="prop 或 dependency" />
-          <LegendItem tone="bg-rose-500" label="风格/冲突" detail="style、style_rule 或 conflict" />
+          <LegendItem tone="sky" label="设定资料节点" detail="人物、地点、道具、风格等设定资料" />
+          <LegendItem tone="zinc" label="结构对象节点" detail="编排段、情景、制作项、画面锚点" />
+          <LegendItem tone="blue" label="主角/连续性" detail="protagonist 或 continuity" />
+          <LegendItem tone="orange" label="地点使用" detail="location" />
+          <LegendItem tone="violet" label="道具/依赖" detail="prop 或 dependency" />
+          <LegendItem tone="rose" label="风格/冲突" detail="style、style_rule 或 conflict" />
         </Panel>
 
         <Panel title="高连接设定资料">
@@ -930,11 +917,12 @@ function RelationGraphOverview({
   )
 }
 
-function Metric({ icon: Icon, label, value, detail, tone }: { icon: typeof Link2; label: string; value: string | number; detail: string; tone: string }) {
+function Metric({ icon: Icon, label, value, detail, tone }: { icon: typeof Link2; label: string; value: string | number; detail: string; tone: 'success' | 'warning' | 'info' | 'violet' }) {
+  const toneClass = tone === 'violet' ? accentToneClass('violet', 'icon') : semanticToneClass(tone, 'icon')
   return (
     <div className="rounded-lg border border-border bg-card p-3">
       <div className="flex items-center gap-2">
-        <Icon size={16} className={tone} />
+        <Icon size={16} className={toneClass} />
         <span className="type-label text-muted-foreground">{label}</span>
       </div>
       <p className="mt-2 type-page-title font-semibold text-foreground">{value}</p>
@@ -969,10 +957,10 @@ function SegmentButton({ active, icon: Icon, label, count, onClick }: { active: 
   )
 }
 
-function LegendItem({ tone, label, detail }: { tone: string; label: string; detail: string }) {
+function LegendItem({ tone, label, detail }: { tone: 'sky' | 'zinc' | 'blue' | 'orange' | 'violet' | 'rose'; label: string; detail: string }) {
   return (
     <div className="flex items-start gap-2">
-      <span className={cn('mt-1 h-2.5 w-2.5 shrink-0 rounded-full', tone)} />
+      <span className={cn('mt-1 h-2.5 w-2.5 shrink-0 rounded-full', accentToneClass(tone, 'dot'))} />
       <div className="min-w-0">
         <p className="type-label font-medium text-foreground">{label}</p>
         <p className="type-caption text-muted-foreground">{detail}</p>
@@ -1261,6 +1249,19 @@ function relationStroke(type: string | undefined, palette: Record<string, string
   return palette[type ?? ''] ?? 'hsl(var(--muted-foreground) / 0.62)'
 }
 
+function relationStatusTone(status?: string) {
+  if (status === 'confirmed') return 'success'
+  if (status === 'corrected') return 'info'
+  if (status === 'ignored') return 'neutral'
+  return 'warning'
+}
+
+function sourceToneClass(source?: string) {
+  if (source === 'ai') return accentToneClass('violet', 'badge')
+  if (source === 'import') return accentToneClass('teal', 'badge')
+  return accentToneClass('zinc', 'badge')
+}
+
 function relationGraphNode(
   id: string,
   nodeData: RelationNodeInput,
@@ -1302,7 +1303,7 @@ function relationGraphNode(
           </div>
           <p className="mt-0.5 truncate type-caption text-muted-foreground">{nodeData.subtitle}</p>
         </div>
-        <span className={cn('mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full', isReference ? 'bg-sky-500' : 'bg-zinc-500')} />
+        <span className={cn('mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full', accentToneClass(isReference ? 'sky' : 'zinc', 'dot'))} />
       </div>
       <p className="mt-2 truncate type-caption text-muted-foreground">{nodeMeta}</p>
     </div>

@@ -7,7 +7,7 @@ import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { Badge, Input } from '@movscript/ui'
+import { Badge, Input, semanticToneClass } from '@movscript/ui'
 import type { PaginatedResponse, RawResource, ResourceBinding } from '@/types'
 import { resourceMatchesSearch, resourceToNodeType } from '@/features/canvas/integrations/resources'
 
@@ -114,7 +114,7 @@ function ResourceShelfCard({
       className={cn(
         'group flex shrink-0 cursor-grab flex-col overflow-hidden rounded-lg border bg-card text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-foreground/25 hover:shadow-md active:cursor-grabbing',
         compact ? 'h-[132px] w-full' : 'h-[150px] w-[236px]',
-        selected ? 'border-emerald-500/60 ring-1 ring-emerald-500/30' : 'border-border',
+        selected ? cn(semanticToneClass('success', 'surface'), 'ring-1') : 'border-border',
       )}
       title={resource.name}
     >
@@ -130,7 +130,7 @@ function ResourceShelfCard({
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
             <Badge variant="outline" className="shrink-0 type-tiny leading-none">{resource.type}</Badge>
-            {selected ? <span className="truncate type-tiny leading-none text-emerald-600">已作为依赖</span> : null}
+            {selected ? <span className={cn('truncate type-tiny leading-none', semanticToneClass('success', 'icon'))}>已作为依赖</span> : null}
           </div>
           <p className="mt-2 line-clamp-2 min-h-9 type-body font-semibold leading-[18px] text-foreground">{resource.name}</p>
           <p className="mt-1 line-clamp-2 type-caption leading-4 text-muted-foreground">

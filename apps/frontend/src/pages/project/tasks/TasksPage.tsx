@@ -24,7 +24,7 @@ import {
 } from 'lucide-react'
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
-import { ProjectSurfaceHeader } from '@/components/app/AppPage'
+import { ProjectSurfaceHeader, ReviewCallout, semanticToneClass } from '@movscript/ui'
 import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
 import { openAgentPanelDraft, openAgentPanelThread, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -239,27 +239,27 @@ const statusMeta: Record<TaskStatus, { label: string; className: string; icon: t
   },
   in_progress: {
     label: '进行中',
-    className: 'border-sky-500/25 bg-sky-500/10 text-sky-700 dark:text-sky-300',
+    className: semanticToneClass('info', 'badge'),
     icon: Clock3,
   },
   submitted: {
     label: '待审核',
-    className: 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300',
+    className: semanticToneClass('warning', 'badge'),
     icon: Send,
   },
   changes_requested: {
     label: '需修改',
-    className: 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300',
+    className: semanticToneClass('danger', 'badge'),
     icon: RefreshCcw,
   },
   blocked: {
     label: '被阻塞',
-    className: 'border-orange-500/25 bg-orange-500/10 text-orange-700 dark:text-orange-300',
+    className: semanticToneClass('warning', 'badge'),
     icon: AlertTriangle,
   },
   approved: {
     label: '已完成',
-    className: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+    className: semanticToneClass('success', 'badge'),
     icon: CheckCircle2,
   },
   cancelled: {
@@ -280,15 +280,15 @@ const taskTypeMeta: Record<UserTaskType, { label: string; kind: WorkItemKind; de
 }
 
 const priorityMeta: Record<TaskPriority, { label: string; className: string }> = {
-  high: { label: '高', className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300' },
-  medium: { label: '中', className: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
+  high: { label: '高', className: semanticToneClass('danger', 'badge') },
+  medium: { label: '中', className: semanticToneClass('warning', 'badge') },
   low: { label: '低', className: 'bg-muted text-muted-foreground' },
 }
 
 const reviewStatusMeta: Record<WorkReviewStatus, { label: string; className: string }> = {
-  pending: { label: '待审核', className: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
-  approved: { label: '通过', className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
-  changes_requested: { label: '要求修改', className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300' },
+  pending: { label: '待审核', className: semanticToneClass('warning', 'badge') },
+  approved: { label: '通过', className: semanticToneClass('success', 'badge') },
+  changes_requested: { label: '要求修改', className: semanticToneClass('danger', 'badge') },
   rejected: { label: '拒绝', className: 'bg-muted text-muted-foreground' },
 }
 
@@ -954,7 +954,7 @@ function TaskCreateDialog({
                     ))}
                   </select>
                   {availableTargets.length === 0 && (
-                    <p className="mt-2 type-label text-rose-600 dark:text-rose-300">当前任务目的没有可用对象。</p>
+                    <p className="mt-2 type-label ms-semantic-icon ms-semantic-icon--danger">当前任务目的没有可用对象。</p>
                   )}
                 </div>
 
@@ -1050,12 +1050,12 @@ function TaskCreateDialog({
                       ))}
                     </select>
                     {!candidateOptions.length && (
-                      <p className="mt-2 type-label text-rose-600 dark:text-rose-300">
+                      <p className="mt-2 type-label ms-semantic-icon ms-semantic-icon--danger">
                         {requestedAssetCandidateUnavailable ? '指定素材候选缺少资源或已不可采纳，请回预制作或 AI 助手重新加入候选。' : '当前素材需求暂无可采纳候选，请先在预制作或 AI 助手中加入带资源的候选。'}
                       </p>
                     )}
                     {candidateOptions.length > 0 && requestedAssetCandidateUnavailable && (
-                      <p className="mt-2 type-label text-rose-600 dark:text-rose-300">指定素材候选缺少资源或已不可采纳，请重新选择一个可采纳候选，或回预制作/AI 助手重新加入候选。</p>
+                      <p className="mt-2 type-label ms-semantic-icon ms-semantic-icon--danger">指定素材候选缺少资源或已不可采纳，请重新选择一个可采纳候选，或回预制作/AI 助手重新加入候选。</p>
                     )}
                   </div>
                 )}
@@ -1075,12 +1075,12 @@ function TaskCreateDialog({
                       ))}
                     </select>
                     {!keyframeCandidateOptions.length && (
-                      <p className={cn('mt-2 type-label', requestedKeyframeCandidateUnavailable ? 'text-rose-600 dark:text-rose-300' : 'text-muted-foreground')}>
+                      <p className={cn('mt-2 type-label', requestedKeyframeCandidateUnavailable ? 'ms-semantic-icon ms-semantic-icon--danger' : 'text-muted-foreground')}>
                         {requestedKeyframeCandidateUnavailable ? '指定候选缺少资源或已不可采纳，请回工作台拒绝该候选或重新加入候选。' : '当前画面锚点暂无 AI 候选，通过后会直接采纳当前画面锚点。'}
                       </p>
                     )}
                     {keyframeCandidateOptions.length > 0 && requestedKeyframeCandidateUnavailable && (
-                      <p className="mt-2 type-label text-rose-600 dark:text-rose-300">指定候选缺少资源或已不可采纳，请重新选择一个可采纳候选，或回工作台拒绝该候选后重新加入候选。</p>
+                      <p className="mt-2 type-label ms-semantic-icon ms-semantic-icon--danger">指定候选缺少资源或已不可采纳，请重新选择一个可采纳候选，或回工作台拒绝该候选后重新加入候选。</p>
                     )}
                   </div>
                 )}
@@ -1121,7 +1121,7 @@ function TaskCreateDialog({
                   </p>
                   <p className="mt-1 type-label leading-5 text-muted-foreground">{resultSummary(resultType, resultJSON)}</p>
                   {selectedAgent && (
-                    <p className="mt-2 inline-flex items-center gap-1 rounded-md bg-sky-500/10 px-2 py-1 type-label font-medium text-sky-700 dark:text-sky-300">
+                    <p className="mt-2 inline-flex items-center gap-1 rounded-md ms-semantic-badge ms-semantic-badge--info px-2 py-1 type-label font-medium">
                       <Bot size={12} />
                       发布后交给{selectedAgent.name}
                     </p>
@@ -1417,10 +1417,10 @@ export default function TasksPage() {
     const done = tasks.filter((task) => task.status === 'approved').length
     return [
       { label: '全部任务', value: tasks.length, icon: ClipboardList, className: 'text-foreground' },
-      { label: '我的任务', value: mine, icon: UserCheck, className: 'text-sky-600' },
-      { label: '待审核', value: review, icon: BadgeCheck, className: 'text-amber-600' },
-      { label: '处理中', value: doing, icon: Clock3, className: 'text-blue-600' },
-      { label: '已完成', value: done, icon: CheckCircle2, className: 'text-emerald-600' },
+      { label: '我的任务', value: mine, icon: UserCheck, className: 'ms-semantic-icon ms-semantic-icon--info' },
+      { label: '待审核', value: review, icon: BadgeCheck, className: 'ms-semantic-icon ms-semantic-icon--warning' },
+      { label: '处理中', value: doing, icon: Clock3, className: 'ms-semantic-icon ms-semantic-icon--info' },
+      { label: '已完成', value: done, icon: CheckCircle2, className: 'ms-semantic-icon ms-semantic-icon--success' },
     ]
   }, [tasks, currentUser])
 
@@ -1796,7 +1796,7 @@ export default function TasksPage() {
                           <PriorityPill priority={task.priority} />
                           <span className="rounded-md bg-muted px-2 py-1 type-label font-medium text-muted-foreground">{taskTypeMeta[task.taskType].label}</span>
                           {task.metadata.agent_request_id && (
-                            <span className="inline-flex items-center gap-1 rounded-md bg-sky-500/10 px-2 py-1 type-label font-medium text-sky-700 dark:text-sky-300">
+                            <span className="inline-flex items-center gap-1 rounded-md ms-semantic-badge ms-semantic-badge--info px-2 py-1 type-label font-medium">
                               <Bot size={12} />
                               AI
                             </span>
@@ -1884,7 +1884,7 @@ export default function TasksPage() {
                       </p>
                     )}
                     {selectedTask.metadata.agent_error && (
-                      <p className="rounded border border-rose-500/25 bg-rose-500/10 px-2 py-1 text-rose-700 dark:text-rose-300">
+                      <p className="rounded ms-semantic-badge ms-semantic-badge--danger px-2 py-1">
                         {selectedTask.metadata.agent_error}
                       </p>
                     )}
@@ -1932,7 +1932,7 @@ export default function TasksPage() {
                     {selectedTask.resultJSON && (
                       <pre className="max-h-28 overflow-auto rounded-md bg-muted p-2 font-mono type-caption text-muted-foreground">{selectedTask.resultJSON}</pre>
                     )}
-                    {selectedTask.applyError && <p className="text-rose-600 dark:text-rose-300">{selectedTask.applyError}</p>}
+                    {selectedTask.applyError && <p className="ms-semantic-icon ms-semantic-icon--danger">{selectedTask.applyError}</p>}
                     {selectedTask.appliedAt && <p className="text-muted-foreground">应用时间：{formatDateTime(selectedTask.appliedAt)}</p>}
                   </div>
                 </DetailBlock>
@@ -2056,10 +2056,12 @@ export default function TasksPage() {
                 </div>
 
                 {!canManageWorkItems && selectedTask.status === 'submitted' && (
-                  <div className="flex gap-2 rounded-md border border-amber-500/25 bg-amber-500/10 p-3 type-label text-amber-700 dark:text-amber-300">
-                    <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-                    <span>只有项目负责人或具备成员管理权限的用户可以通过任务或要求修改。</span>
-                  </div>
+                  <ReviewCallout tone="warning" compact className="type-label">
+                    <div className="flex gap-2">
+                      <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                      <span>只有项目负责人或具备成员管理权限的用户可以通过任务或要求修改。</span>
+                    </div>
+                  </ReviewCallout>
                 )}
               </div>
             )}

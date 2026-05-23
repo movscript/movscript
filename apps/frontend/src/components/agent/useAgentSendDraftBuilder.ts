@@ -25,6 +25,7 @@ export interface BuildAgentSendDraftOptions {
   requestId?: string
   timeoutMs?: number
   omitDebugArtifacts?: boolean
+  performanceOperationId?: string
 }
 
 export interface UseAgentSendDraftBuilderInput {

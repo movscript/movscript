@@ -1,5 +1,5 @@
 import { Check, Eye, Loader2, Target } from 'lucide-react'
-import { Button } from '@movscript/ui'
+import { Button, ReviewStat } from '@movscript/ui'
 
 import { cn } from '@/lib/utils'
 
@@ -15,9 +15,9 @@ export function ProductionProposalWriteImpactPanel({
         <p className="type-label font-semibold text-foreground">写入影响</p>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-1.5 text-center type-tiny">
-        <span className="rounded bg-emerald-500/10 px-1.5 py-1 text-emerald-700 dark:text-emerald-300">新建 {actionCounts.create}</span>
-        <span className="rounded bg-amber-500/10 px-1.5 py-1 text-amber-700 dark:text-amber-300">更新 {actionCounts.update}</span>
-        <span className="rounded bg-rose-500/10 px-1.5 py-1 text-rose-700 dark:text-rose-300">删除 {actionCounts.delete}</span>
+        <ReviewStat tone="success">新建 {actionCounts.create}</ReviewStat>
+        <ReviewStat tone="warning">更新 {actionCounts.update}</ReviewStat>
+        <ReviewStat tone="danger">删除 {actionCounts.delete}</ReviewStat>
       </div>
       <p className="mt-2 type-caption leading-4 text-muted-foreground">
         写入时会按完整提案同步：已有节点会更新，新节点会创建，未保留的旧节点会进入删除候选。

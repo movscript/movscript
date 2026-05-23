@@ -13,6 +13,7 @@ import type {
   JSONValue,
   RuntimeContinuation,
   RuntimeInteraction,
+  RuntimeWakeEvent,
 } from './types.js'
 import type { AgentRunTraceSummary, AgentTraceQuery } from '@movscript/protocol'
 import { InMemoryAgentStore, type AgentStore, type AgentThreadClearResult, type AgentThreadDeletionResult } from './store.js'
@@ -31,6 +32,7 @@ interface AgentStateFile {
   runtimeWorks?: RuntimeWork[]
   runtimeInteractions?: RuntimeInteraction[]
   runtimeContinuations?: RuntimeContinuation[]
+  runtimeWakeEvents: RuntimeWakeEvent[]
   traceEvents?: AgentTraceEvent[]
   debugLedgers?: AgentRunDebugLedger[]
 }
@@ -172,6 +174,16 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
     this.schedulePersist()
   }
 
+  override createRuntimeWakeEvent(event: RuntimeWakeEvent): void {
+    super.createRuntimeWakeEvent(event)
+    this.schedulePersist()
+  }
+
+  override updateRuntimeWakeEvent(event: RuntimeWakeEvent): void {
+    super.updateRuntimeWakeEvent(event)
+    this.schedulePersist()
+  }
+
   override appendTraceEvent(event: AgentTraceEvent): void {
     super.appendTraceEvent(event)
     this.traceStore.appendTraceEvent(event, { threadId: super.getRun(event.runId)?.threadId })
@@ -285,6 +297,10 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
       if (!isRecord(continuation)) continue
       super.createRuntimeContinuation(continuation as unknown as RuntimeContinuation)
     }
+    for (const event of arrayValue(parsed.runtimeWakeEvents)) {
+      if (!isRecord(event)) continue
+      super.createRuntimeWakeEvent(event as unknown as RuntimeWakeEvent)
+    }
     for (const event of arrayValue(parsed.traceEvents)) {
       if (!isRecord(event)) continue
       const traceEvent = event as unknown as AgentTraceEvent
@@ -338,6 +354,7 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
       runtimeWorks: this.listRuntimeWorks(),
       runtimeInteractions: this.listRuntimeInteractions(),
       runtimeContinuations: this.listRuntimeContinuations(),
+      runtimeWakeEvents: this.listRuntimeWakeEvents(),
       debugLedgers: runs.flatMap((run) => this.getRunDebugLedger(run.id) ?? []),
     }
     atomicWriteJSON(this.filePath, state)

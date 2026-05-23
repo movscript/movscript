@@ -8,5 +8,8 @@ export interface AgentChatViewLayoutProps {
   composer: AgentComposerSectionProps
   debugPreview: ComponentProps<typeof AgentDebugPreviewDialog>
   header: AgentChatHeaderSectionProps
+  runtimeHistory: {
+    onRestoreLocalThread: (threadId: string) => Promise<void>
+  }
   thread: AgentConversationThreadSectionProps
 }

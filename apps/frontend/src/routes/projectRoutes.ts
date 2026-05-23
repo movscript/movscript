@@ -14,6 +14,7 @@ export const ROUTES = {
   agentConsole: '/agent',
   agentDrafts: '/agent/drafts',
   agentSettings: '/agent/settings',
+  agentPerformance: '/agent/performance',
   agentDebug: '/agent/debug',
   agentRuns: '/agent/runs',
   agentRun: '/agent/runs/:runId',

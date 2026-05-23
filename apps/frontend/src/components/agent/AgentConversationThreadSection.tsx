@@ -15,7 +15,7 @@ import {
   type ThinkingBubbleState,
 } from '@/components/agent/AgentChatBubbles'
 import { buildAgentConversationThreadItems, type AgentConversationMessageItem } from '@/lib/agentConversationThreadItems'
-import { runHasContinuationResumeApproval, type AgentInputAnswer } from '@/lib/agentWorkflowInteraction'
+import type { AgentInputAnswer } from '@/lib/agentWorkflowInteraction'
 import type { AgentConversationBlock } from '@/lib/agentConversationPresentation'
 import type { GenerationProgressState } from '@/lib/agentGenerationMedia'
 import type { PlanDispatchSettings } from '@/lib/agentPlanActions'
@@ -182,21 +182,8 @@ export function AgentConversationThreadSection({
         )}
         {!activeRunId && conversationBlocks.map(renderConversationBlock)}
         {showLocalWorkflow && workflowRunsWithoutResultMessage
-          .filter((run) => !liveActivityRunIds.has(run.id) || runHasContinuationResumeApproval(run))
+          .filter((run) => !liveActivityRunIds.has(run.id))
           .map((run) => {
-            const continuationResumeRun = runHasContinuationResumeApproval(run)
-            if (continuationResumeRun) {
-              return (
-                <LocalAgentWorkflowBubble
-                  key={`workflow-resume-${run.id}`}
-                  run={run}
-                  approving={approvingLocalRun}
-                  onApprove={(approvalIds) => onApproveLocalRun(run.id, approvalIds)}
-                  onReject={(approvalIds) => onRejectLocalRun(run.id, approvalIds)}
-                  onAnswerInput={(requestId, answer) => onAnswerLocalRunInput(run.id, requestId, answer)}
-                />
-              )
-            }
             return (
               <LiveRunActivityBubble
                 key={`workflow-live-${run.id}`}

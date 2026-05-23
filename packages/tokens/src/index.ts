@@ -10,6 +10,8 @@ export const colorTokens = {
   primaryForeground: "--ms-color-primary-foreground",
   accent: "--ms-color-accent",
   accentForeground: "--ms-color-accent-foreground",
+  info: "--ms-color-info",
+  infoForeground: "--ms-color-info-foreground",
   danger: "--ms-color-danger",
   dangerForeground: "--ms-color-danger-foreground",
   success: "--ms-color-success",
@@ -54,4 +56,3 @@ export const tokens = {
 
 export type MovScriptTokenGroup = keyof typeof tokens;
 export type MovScriptTokens = typeof tokens;
-

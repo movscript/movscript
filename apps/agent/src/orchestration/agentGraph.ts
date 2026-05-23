@@ -1104,7 +1104,7 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
       roundIndex: currentRoundIndex + 1,
       ...(defaultApplyCalls.length > 0
         ? { requestedCalls: defaultApplyCalls }
-        : { status: 'completed' as const, finalContent: '' }),
+        : { requestedCalls: [] }),
     }
   }
 

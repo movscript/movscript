@@ -1,4 +1,5 @@
 import { CheckCircle2, Circle, Dot, ListChecks } from 'lucide-react'
+import { semanticToneClass } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import type { AgentPlan, AgentPlanTaskStatus, AgentPlanRevision } from '@/lib/localAgentClient'
 
@@ -74,7 +75,7 @@ function PlanItemRow({
 }
 
 function PlanStatusIcon({ status }: { status: AgentPlanTaskStatus }) {
-  if (status === 'completed') return <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-600" />
+  if (status === 'completed') return <CheckCircle2 size={14} className={cn('mt-0.5 shrink-0', semanticToneClass('success', 'icon'))} />
   if (status === 'in_progress') return <Dot size={16} className="mt-0.5 shrink-0 text-primary" />
   return <Circle size={12} className="mt-1 shrink-0 text-muted-foreground" />
 }

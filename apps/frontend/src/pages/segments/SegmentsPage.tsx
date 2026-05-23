@@ -39,8 +39,7 @@ import {
 } from '@/api/semanticEntities'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
 import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
-import { AppEmptyState, AppMetricCard, ProjectSurfaceHeader } from '@/components/app/AppPage'
-import { SemanticStatusBadge } from '@/components/app/SemanticStatusBadge'
+import { AppEmptyState, AppMetricCard, ProjectSurfaceHeader, SemanticStatusBadge, accentToneClass, semanticToneClass } from '@movscript/ui'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
@@ -127,22 +126,6 @@ type SegmentWorkspace = {
   references: RelatedRecord[]
   readiness: number
   totalDuration: number
-}
-
-const statusTone: Record<string, string> = {
-  confirmed: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  active: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  locked: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  accepted: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  attached: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  draft: 'bg-muted text-muted-foreground',
-  candidate: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  generated: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  missing: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  review: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  ignored: 'bg-zinc-500/10 text-zinc-700 dark:text-zinc-300',
-  rejected: 'bg-rose-500/10 text-rose-700 dark:text-rose-300',
-  blocked: 'bg-rose-500/10 text-rose-700 dark:text-rose-300',
 }
 
 const statusLabels: Record<string, string> = {
@@ -442,10 +425,10 @@ export default function SegmentsPage() {
         )}
         overview={(
           <section className="grid grid-cols-4 gap-3">
-          <MetricCard icon={BookOpenText} label="编排段" value={segmentWorkspaces.length} detail={`${visibleSegments.length} 个符合当前筛选`} tone="text-cyan-600" />
-          <MetricCard icon={Film} label="情景" value={sceneMoments.length} detail="编排段内部的具体时空与动作上下文" tone="text-teal-600" />
-          <MetricCard icon={ShieldCheck} label="可推进" value={readyCount} detail={`${averageReadiness}% 平均准备度`} tone="text-emerald-600" />
-          <MetricCard icon={AlertTriangle} label="待处理" value={attentionCount} detail={`估算总时长 ${formatDuration(totalDuration)}`} tone="text-amber-600" />
+          <MetricCard icon={BookOpenText} label="编排段" value={segmentWorkspaces.length} detail={`${visibleSegments.length} 个符合当前筛选`} tone="info" />
+          <MetricCard icon={Film} label="情景" value={sceneMoments.length} detail="编排段内部的具体时空与动作上下文" tone="info" />
+          <MetricCard icon={ShieldCheck} label="可推进" value={readyCount} detail={`${averageReadiness}% 平均准备度`} tone="success" />
+          <MetricCard icon={AlertTriangle} label="待处理" value={attentionCount} detail={`估算总时长 ${formatDuration(totalDuration)}`} tone="warning" />
           </section>
         )}
         filters={(
@@ -615,7 +598,7 @@ function SegmentButton({ item, selected, onClick }: { item: SegmentWorkspace; se
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
+            <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-md', accentToneClass('cyan', 'soft'), accentToneClass('cyan', 'icon'))}>
               <BookOpenText size={14} />
             </span>
             <div className="min-w-0">
@@ -765,11 +748,11 @@ function SegmentDetailCard({
     <>
     <section className="overflow-hidden rounded-lg border border-border bg-card">
       <form id={formId} onSubmit={submit}>
-        <div className="border-b border-border bg-gradient-to-br from-cyan-500/15 via-teal-500/10 to-indigo-500/10 p-5">
+        <div className={cn('border-b border-border p-5', accentToneClass('cyan', 'gradient'))}>
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-cyan-500/10 text-cyan-700 dark:text-cyan-300">
+              <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-md', accentToneClass('cyan', 'soft'), accentToneClass('cyan', 'icon'))}>
                 <BookOpenText size={18} />
               </span>
               <div className="min-w-0">
@@ -881,7 +864,7 @@ function SegmentDetailCard({
             <HeroStat icon={Film} label="情景" value={item.sceneMoments.length} />
             <HeroStat icon={Boxes} label="制作项设计" value={item.contentUnits.length} />
             <HeroStat icon={Sparkles} label="设定资料引用" value={item.references.length} />
-            <HeroStat icon={PackageCheck} label="素材需求缺口" value={item.assetSlots.filter(isAssetGap).length} tone={item.assetSlots.some(isAssetGap) ? 'text-amber-600' : 'text-emerald-600'} />
+            <HeroStat icon={PackageCheck} label="素材需求缺口" value={item.assetSlots.filter(isAssetGap).length} tone={item.assetSlots.some(isAssetGap) ? 'warning' : 'success'} />
             <HeroStat icon={Clock3} label="估算时长" value={formatDuration(item.totalDuration)} />
           </div>
         ) : (
@@ -1258,7 +1241,7 @@ function SegmentInlineField({
           onChange={(event) => onChange(event.target.value)}
         />
       )}
-      {lockReason ? <p className="mt-1 type-caption font-medium text-amber-700 dark:text-amber-300">{lockReason}</p> : field.helper ? <p className="mt-1 type-caption text-muted-foreground">{field.helper}</p> : null}
+      {lockReason ? <p className={cn('mt-1 type-caption font-medium', semanticToneClass('warning', 'icon'))}>{lockReason}</p> : field.helper ? <p className="mt-1 type-caption text-muted-foreground">{field.helper}</p> : null}
     </div>
   )
 }
@@ -1270,8 +1253,8 @@ function sourceLockReasonText(status?: SourceLockStatus) {
   return `${first.message}${status.reasons.length > 1 ? ` 等 ${status.reasons.length} 类下游对象` : ''}`
 }
 
-function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIcon; label: string; value: string | number; detail: string; tone: string }) {
-  return <AppMetricCard icon={Icon} label={label} value={value} detail={detail} tone={metricTone(tone)} />
+function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIcon; label: string; value: string | number; detail: string; tone: 'success' | 'warning' | 'info' | 'neutral' }) {
+  return <AppMetricCard icon={Icon} label={label} value={value} detail={detail} tone={tone} />
 }
 
 function RelatedPanel({
@@ -1354,14 +1337,15 @@ function MiniStat({ label, value }: { label: string; value: string | number }) {
   )
 }
 
-function HeroStat({ icon: Icon, label, value, tone = 'text-foreground' }: { icon: LucideIcon; label: string; value: string | number; tone?: string }) {
+function HeroStat({ icon: Icon, label, value, tone = 'neutral' }: { icon: LucideIcon; label: string; value: string | number; tone?: 'success' | 'warning' | 'info' | 'neutral' }) {
+  const toneClass = tone === 'neutral' ? 'text-foreground' : semanticToneClass(tone, 'icon')
   return (
     <div className="rounded-md border border-border bg-background p-3">
       <div className="flex items-center gap-2 type-label text-muted-foreground">
         <Icon size={14} />
         <span>{label}</span>
       </div>
-      <p className={cn('mt-2 truncate type-title-sm font-semibold tabular-nums', tone)}>{value}</p>
+      <p className={cn('mt-2 truncate type-title-sm font-semibold tabular-nums', toneClass)}>{value}</p>
     </div>
   )
 }
@@ -1402,13 +1386,6 @@ function StatusBadge({ status }: { status: string }) {
 
 function EmptyState({ title, detail, compact = false }: { title: string; detail: string; compact?: boolean }) {
   return <AppEmptyState icon={Film} title={title} detail={detail} compact={compact} />
-}
-
-function metricTone(tone: string) {
-  if (tone.includes('emerald')) return 'success'
-  if (tone.includes('amber') || tone.includes('rose')) return 'warning'
-  if (tone.includes('cyan') || tone.includes('teal') || tone.includes('sky')) return 'info'
-  return 'neutral'
 }
 
 function calculateReadiness(

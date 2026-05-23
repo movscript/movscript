@@ -5,7 +5,7 @@ import type { ContentUnit, DeliveryTimelineItem } from '@/api/deliveryEntities'
 import { buildContentWorkbenchUnitTrack } from '@/lib/contentWorkbenchUnitTrack'
 import { deliveryStatusLabel } from '@/lib/deliveryWorkbenchModel'
 import { cn } from '@/lib/utils'
-import { Badge } from '@movscript/ui'
+import { Badge, semanticToneClass } from '@movscript/ui'
 
 export function DeliveryTimelineTrack({
   items,
@@ -114,7 +114,7 @@ export function DeliveryTimelineTrack({
             <span className="text-border">/</span>
             <span>{formatTrackDuration(summary.durationSec)}</span>
             <span className="text-border">/</span>
-            <span className={summary.blockedCount > 0 ? 'text-amber-700 dark:text-amber-300' : undefined}>{summary.blockedCount} 待补齐</span>
+            <span className={summary.blockedCount > 0 ? semanticToneClass('warning', 'icon') : undefined}>{summary.blockedCount} 待补齐</span>
           </div>
         </div>
 
@@ -131,7 +131,7 @@ export function DeliveryTimelineTrack({
                   item.selected
                     ? 'border-primary/60 bg-primary/5'
                     : item.tone === 'blocked'
-                      ? 'border-amber-200 bg-amber-50/60 hover:border-primary/50 hover:bg-primary/5 dark:border-amber-900/60 dark:bg-amber-950/20'
+                      ? cn(semanticToneClass('warning', 'surface'), 'hover:border-primary/50 hover:bg-primary/5')
                       : 'border-border bg-card hover:border-primary/50 hover:bg-primary/5',
                 )}
               >
@@ -140,7 +140,7 @@ export function DeliveryTimelineTrack({
                   <span className="min-w-0 flex-1 truncate type-body font-medium text-foreground">{item.title}</span>
                 </div>
                 <span className="mt-1 block truncate type-caption text-muted-foreground">{deliveryKindLabel(item.kind)} · {item.labels.slice(0, 2).join(' · ')}</span>
-                <span className={cn('mt-1 block truncate type-caption', item.blockers.length > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300')}>
+                <span className={cn('mt-1 block truncate type-caption', item.blockers.length > 0 ? semanticToneClass('warning', 'icon') : semanticToneClass('success', 'icon'))}>
                   {item.blockers[0] || '交付输入可用'}
                 </span>
               </button>
@@ -206,7 +206,7 @@ export function DeliveryTimelineTrack({
                               onClick={() => onSelect(Number(item.id))}
                               className={cn(
                                 'absolute top-1 h-9 min-w-0 overflow-hidden rounded border px-1.5 py-1 text-left type-caption shadow-sm transition-colors hover:border-primary/60 hover:bg-primary/5',
-                                item.selected ? 'border-primary/70 bg-primary/10' : item.tone === 'blocked' ? 'border-amber-200 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/20' : 'border-border bg-card',
+                                item.selected ? 'border-primary/70 bg-primary/10' : item.tone === 'blocked' ? semanticToneClass('warning', 'surface') : 'border-border bg-card',
                               )}
                               style={{
                                 left: trackTimelinePx(deliveryLocalTimelineSec(item.startSec, timelineOriginSec), pxPerSec),
@@ -214,7 +214,7 @@ export function DeliveryTimelineTrack({
                               }}
                             >
                               <span className="block truncate font-medium text-foreground">{String(item.order).padStart(2, '0')} {item.title}</span>
-                              <span className={cn('block truncate type-tiny', item.tone === 'blocked' ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>
+                              <span className={cn('block truncate type-tiny', item.tone === 'blocked' ? semanticToneClass('warning', 'icon') : 'text-muted-foreground')}>
                                 {item.blockers[0] || formatTrackTimeRange(deliveryLocalTimelineSec(item.startSec, timelineOriginSec), deliveryLocalTimelineSec(item.startSec, timelineOriginSec) + previewDuration, previewDuration)}
                               </span>
                               {isVideo ? (
@@ -272,7 +272,7 @@ export function DeliveryTimelineTrack({
                     <span className="block truncate font-medium text-foreground">{item.title}</span>
                     <span className="mt-0.5 block truncate type-caption text-muted-foreground">{item.summary || '交付片段'}</span>
                   </span>
-                  <span className={cn('truncate', item.missingAssetTitles.length > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>
+                  <span className={cn('truncate', item.missingAssetTitles.length > 0 ? semanticToneClass('warning', 'icon') : 'text-muted-foreground')}>
                     {item.keyframeTitles[0] || item.missingAssetTitles[0] || '资源已挂载或无需资源'}
                   </span>
                   <span className="flex justify-end overflow-hidden">

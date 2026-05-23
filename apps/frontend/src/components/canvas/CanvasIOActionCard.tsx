@@ -7,10 +7,10 @@ import {
   MoreHorizontal,
   Play,
 } from 'lucide-react'
-import { Button } from '@movscript/ui'
+import { accentToneClass, Button, semanticToneClass, type AccentTone } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 
-export type CanvasIOTone = 'sky' | 'emerald' | 'amber'
+export type CanvasIOTone = Extract<AccentTone, 'sky' | 'emerald' | 'amber'>
 export type CanvasIOState = 'empty' | 'ready' | 'pending' | 'failed'
 
 export type CanvasIOPort = {
@@ -63,28 +63,6 @@ export interface CanvasIOActionCardProps {
   renderPortHandle?: CanvasIOPortHandleRenderer
 }
 
-const IO_TONE_META: Record<CanvasIOTone, {
-  accentSoft: string
-  activeColor: string
-  badgeClass: string
-}> = {
-  sky: {
-    accentSoft: 'bg-sky-500/10',
-    activeColor: 'text-sky-600',
-    badgeClass: 'border-sky-500/20 bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  },
-  emerald: {
-    accentSoft: 'bg-emerald-500/10',
-    activeColor: 'text-emerald-600',
-    badgeClass: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  },
-  amber: {
-    accentSoft: 'bg-amber-500/10',
-    activeColor: 'text-amber-600',
-    badgeClass: 'border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  },
-}
-
 export function CanvasIOActionCard({
   tone,
   icon,
@@ -104,7 +82,6 @@ export function CanvasIOActionCard({
   className,
   renderPortHandle,
 }: CanvasIOActionCardProps) {
-  const toneMeta = IO_TONE_META[tone]
   const Icon = icon
   const PrimaryIcon = primaryAction?.icon ?? Play
   const isReady = state === 'ready'
@@ -119,14 +96,14 @@ export function CanvasIOActionCard({
         className,
       )}
     >
-      <header className={cn('border-b px-3 py-2.5', toneMeta.accentSoft)}>
+      <header className={cn('border-b px-3 py-2.5', accentToneClass(tone, 'soft'))}>
         <div className="flex items-start gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80">
-            <Icon size={14} className={toneMeta.activeColor} />
+            <Icon size={14} className={accentToneClass(tone, 'icon')} />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
-              <span className={cn('shrink-0 rounded border px-1.5 py-0.5 type-micro font-semibold uppercase leading-none', toneMeta.badgeClass)}>
+              <span className={cn('shrink-0 rounded border px-1.5 py-0.5 type-micro font-semibold uppercase leading-none', accentToneClass(tone, 'badge'))}>
                 {port.type === 'source' ? 'INPUT' : 'OUTPUT'}
               </span>
               <p className="min-w-0 flex-1 truncate type-body font-semibold leading-5 text-foreground">{title}</p>
@@ -240,7 +217,7 @@ function StateTile({ state, label }: { state: CanvasIOState; label: string }) {
     )}>
       <div className="flex min-h-0 flex-1 items-center justify-center rounded-t-md bg-muted/25">
         {isPending ? <Loader2 size={14} className="animate-spin text-muted-foreground" /> : isReady ? (
-          <CheckCircle2 size={14} className="text-emerald-600" />
+          <CheckCircle2 size={14} className={semanticToneClass('success', 'icon')} />
         ) : (
           <Circle size={14} className={cn(isFailed ? 'text-destructive' : 'text-muted-foreground/60')} />
         )}
@@ -287,7 +264,7 @@ function PortDot({
         'absolute z-20 -translate-y-1/2 rounded-full border-2 bg-card shadow-sm',
         compact ? 'top-1/2 h-3 w-3' : 'h-3.5 w-3.5',
         side === 'left' ? '-left-1.5' : '-right-1.5',
-        tone === 'target' && 'border-sky-500 bg-sky-500/90',
+        tone === 'target' && accentToneClass('sky', 'port'),
         tone === 'source' && 'border-primary bg-primary/90',
         tone === 'neutral' && 'border-border bg-card',
         tone === 'muted' && 'border-border bg-muted',

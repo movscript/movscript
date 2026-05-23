@@ -1,4 +1,55 @@
 export {
+  AppEmptyState,
+  AppInlineError,
+  AppKeyValue,
+  AppMetricCard,
+  AppPage,
+  AppPageHeader,
+  AppPanel,
+  AppSection,
+  AppStateMessage,
+  AppTextEmptyState,
+  ProjectSurfaceHeader,
+  type IconComponent
+} from "./components/app";
+export {
+  SemanticDot,
+  SemanticStatusBadge,
+  accentToneClass,
+  semanticStatusClass,
+  semanticStatusLabel,
+  semanticToneClass,
+  semanticToneForStatus,
+  type AccentTone,
+  type AccentTonePart,
+  type SemanticTone,
+  type SemanticTonePart
+} from "./components/semantic";
+export {
+  WorkbenchEmptyState,
+  WorkbenchEntityCard,
+  WorkbenchKeyValue,
+  WorkbenchList,
+  WorkbenchListItem,
+  WorkbenchMetric,
+  WorkbenchSection,
+  WorkbenchStatusBadge,
+  WorkbenchThumbnail,
+  type WorkbenchDensity,
+  type WorkbenchIconComponent
+} from "./components/workbench";
+export {
+  ChangeActionBadge,
+  ReviewCallout,
+  ReviewDecisionBadge,
+  ReviewStat,
+  changeActionRowClass,
+  changeActionTone,
+  type ChangeAction,
+  type ReviewDecision,
+  type ReviewTone
+} from "./components/review";
+export {
   AgentBody,
   AgentChatMessage,
   AgentComposer,
@@ -149,6 +200,7 @@ export {
   ChevronUpIcon,
   CircleIcon,
   CopyIcon,
+  ImageIcon,
   MoreHorizontalIcon,
   PaperclipIcon,
   PlusIcon,

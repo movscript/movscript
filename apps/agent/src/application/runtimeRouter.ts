@@ -174,6 +174,7 @@ import {
   type RuntimeThreadSnapshotV2,
 } from './runtimeThreadSnapshot.js'
 import { RuntimeScheduler } from './runtimeScheduler.js'
+import { RuntimeWakeCoordinator } from './runtimeWakeCoordinator.js'
 import type { RuntimeInteractionApprovalResult } from './runtimeInteractions.js'
 import { RuntimeEventSubscriberRegistry } from './runtimeEventSubscribers.js'
 import { isoNow, makeId } from './runtimeIdentity.js'
@@ -350,6 +351,7 @@ export class AgentRuntimeRouter {
   private readonly runCancellationGuard: RuntimeRunCancellationGuard
   private readonly runControl: RuntimeRunControlBridge
   private readonly runtimeScheduler: RuntimeScheduler
+  private readonly runtimeWake: RuntimeWakeCoordinator
   private readonly runCreation: RuntimeRunCreationBridge
   private readonly runPreview: RuntimeRunPreviewBridge
   private readonly taskEvents: RuntimeTaskEventBridge
@@ -530,8 +532,7 @@ export class AgentRuntimeRouter {
       deleteCatalogSnapshot: (runId) => this.catalogSnapshots.deleteRun(runId),
       syncTaskFromRun: (runId) => this.taskRunSync.syncTaskFromRun(runId),
       onRunSettled: (runId) => {
-        const run = this.store.getRun(runId)
-        if (run) this.runtimeScheduler.advanceThread(run.threadId)
+        void this.handleRuntimeRunSettled(runId)
       },
     })
     this.recovery = createRuntimeRecoveryBridge({
@@ -625,9 +626,16 @@ export class AgentRuntimeRouter {
         }),
       ],
     })
+    this.runtimeWake = new RuntimeWakeCoordinator({
+      store: this.store,
+      scheduler: this.runtimeScheduler,
+      observeWork: (work) => this.observeRuntimeWorkForOpen(work),
+      now: () => isoNow(),
+    })
+    void this.runtimeWake.drainQueued()
     this.runtimeWorks = createRuntimeWorksBridge({
       workManager: this.workManager,
-      scheduler: this.runtimeScheduler,
+      wake: this.runtimeWake,
       recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
     })
     if (catalogInitialization.shouldReloadCatalog) this.reloadAgentCatalog()
@@ -683,12 +691,14 @@ export class AgentRuntimeRouter {
   }
 
   updatePlan(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
-    return updateRuntimePlan({
+    const result = updateRuntimePlan({
       store: this.store,
       run,
       request: input,
       now: isoNow(),
-    }) as unknown as JSONValue
+    })
+    if (result.message) this.streams.emitAssistantMessage(run, result.message)
+    return result as unknown as JSONValue
   }
   async startWork(run: AgentRun, input: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> { return await this.runtimeWorks.startWork(run, input, options) }
 
@@ -746,6 +756,8 @@ export class AgentRuntimeRouter {
           || interaction.displayAnchor?.threadId === threadId),
       continuations: this.store.listRuntimeContinuations()
         .filter((continuation) => continuation.threadId === threadId || runIds.has(continuation.runId)),
+      wakeEvents: this.store.listRuntimeWakeEvents()
+        .filter((event) => event.threadId === threadId || (event.runId ? runIds.has(event.runId) : false)),
     })
   }
 
@@ -774,6 +786,8 @@ export class AgentRuntimeRouter {
       .filter((interaction) => threadIds.has(interaction.threadId) || runIds.has(interaction.runId))
     const continuations = this.store.listRuntimeContinuations()
       .filter((continuation) => threadIds.has(continuation.threadId) || runIds.has(continuation.runId))
+    const wakeEvents = this.store.listRuntimeWakeEvents()
+      .filter((event) => threadIds.has(event.threadId) || (event.runId ? runIds.has(event.runId) : false))
     return buildRuntimeSessionSnapshotV1({
       session,
       threads: refreshedThreads,
@@ -782,19 +796,16 @@ export class AgentRuntimeRouter {
       works,
       interactions,
       continuations,
+      wakeEvents,
     })
   }
 
   private async reconcileRuntimeWorksForOpenedThread(threadId: string): Promise<void> {
-    const works = this.store.listRuntimeWorks({ threadId })
-    for (const work of works) {
-      const observed = await this.observeRuntimeWorkForOpen(work)
-      if (!observed) continue
-      if (isTerminalRuntimeWorkStatus(observed.status)) {
-        this.runtimeScheduler.evaluateContinuationsForWork(observed)
-      }
-    }
-    this.materializeContinuationResumeInteractions(threadId)
+    await this.runtimeWake.threadOpened(threadId)
+  }
+
+  private async handleRuntimeRunSettled(runId: string): Promise<void> {
+    await this.runtimeWake.runSettled(runId)
   }
 
   private async observeRuntimeWorkForOpen(work: RuntimeWork): Promise<RuntimeWork | undefined> {
@@ -815,61 +826,6 @@ export class AgentRuntimeRouter {
       }
       return undefined
     }
-  }
-
-  private materializeContinuationResumeInteractions(threadId: string): void {
-    const now = isoNow()
-    const readyContinuations = this.store.listRuntimeContinuations({ threadId, status: 'ready' })
-    for (const continuation of readyContinuations) {
-      if (this.hasContinuationResumeInteraction(continuation.id)) continue
-      const run = this.store.getRun(continuation.runId)
-      const session = run?.sessionId ? this.store.getSession(run.sessionId) : undefined
-      const displayThreadId = session?.interactiveThreadId ?? session?.rootThreadId ?? continuation.threadId
-      const sourceMessageId = typeof run?.input?.sourceMessageId === 'string' && run.input.sourceMessageId.trim()
-        ? run.input.sourceMessageId.trim()
-        : undefined
-      const works = this.store.listRuntimeWorks({ runId: continuation.runId })
-        .filter((work) => continuation.trigger.type === 'work_completed' && continuation.trigger.workIds.includes(work.id))
-      this.store.createRuntimeInteraction({
-        id: `interaction_${continuation.id}_resume`,
-        threadId: continuation.threadId,
-        runId: continuation.runId,
-        ...(run?.sessionId ? { sessionId: run.sessionId } : {}),
-        originThreadId: continuation.threadId,
-        originRunId: continuation.runId,
-        displayThreadId,
-        displayAnchor: {
-          threadId: displayThreadId,
-          runId: continuation.runId,
-          ...(sourceMessageId ? { messageId: sourceMessageId } : {}),
-          placement: 'after',
-          reason: sourceMessageId ? 'run_source_message' : 'continuation_ready',
-        },
-        ...(works[0]?.id ? { workId: works[0].id } : {}),
-        kind: 'selection',
-        status: 'pending',
-        payload: {
-          type: 'runtime_continuation_resume',
-          continuationId: continuation.id,
-          workIds: works.map((work) => work.id),
-          title: '异步任务已完成',
-          summary: '检测到上次提交的异步任务已有结果。可以基于这些结果启动一个新的接续 run，继续原任务。',
-          question: '是否基于已完成的异步任务结果继续原任务？',
-        },
-        createdAt: now,
-        updatedAt: now,
-      })
-    }
-  }
-
-  private hasContinuationResumeInteraction(continuationId: string): boolean {
-    return this.store.listRuntimeInteractions()
-      .some((interaction) => {
-        const payload = interaction.payload && typeof interaction.payload === 'object' && !Array.isArray(interaction.payload)
-          ? interaction.payload as Record<string, unknown>
-          : undefined
-        return payload?.type === 'runtime_continuation_resume' && payload.continuationId === continuationId
-      })
   }
 
   approveInteraction(interactionId: string): RuntimeInteractionApprovalResult {

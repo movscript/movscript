@@ -17,7 +17,6 @@ interface BuildAgentChatViewLayoutPropsInput {
   conversations: Conversation[]
   currentProject: Project | null
   interaction: ReturnType<typeof useAgentChatInteractionController>
-  loading: boolean
   planActionBusy: boolean
   planDispatchSettings: PlanDispatchSettings
   presentation: ReturnType<typeof useAgentChatPresentationState>
@@ -28,6 +27,7 @@ interface BuildAgentChatViewLayoutPropsInput {
   onCollapse: () => void
   onNewConversation: () => void
   onReorderConversation: (draggedId: string, targetId: string, position: 'before' | 'after') => void
+  onRestoreLocalThread: (threadId: string) => Promise<void>
   onSelectConversation: (id: string) => void
   showCollapse?: boolean
   showConversationControls?: boolean
@@ -42,7 +42,6 @@ export function buildAgentChatViewLayoutProps({
   conversations,
   currentProject,
   interaction,
-  loading,
   planActionBusy,
   planDispatchSettings,
   presentation,
@@ -53,6 +52,7 @@ export function buildAgentChatViewLayoutProps({
   onCollapse,
   onNewConversation,
   onReorderConversation,
+  onRestoreLocalThread,
   onSelectConversation,
   showCollapse,
   showConversationControls,
@@ -62,7 +62,7 @@ export function buildAgentChatViewLayoutProps({
   return {
     debugPreview: {
       draft: runtime.pendingSendDraft,
-      sending: loading,
+      sending: presentation.loading,
       onCancel: () => runtime.setPendingSendDraft(null),
       onConfirm: interaction.confirmPendingSendDraft,
     },
@@ -79,6 +79,9 @@ export function buildAgentChatViewLayoutProps({
       activeConversationRuntimeStatusLight: runtimeStatusLightFromActiveRun(activeLocalRun, runtime.runtimeStatusLight),
       showCollapse,
       showConversationControls,
+    },
+    runtimeHistory: {
+      onRestoreLocalThread,
     },
     thread: {
       activePlanSnapshot: presentation.activePlanSnapshot,
@@ -124,7 +127,7 @@ export function buildAgentChatViewLayoutProps({
       draggingFiles: composer.draggingFiles,
       fileRef: runtime.fileRef,
       inputRef: runtime.inputRef,
-      loading,
+      loading: presentation.loading,
       mentionResults: composer.mentionResults,
       mentionRangeActive: !!composer.mentionRange,
       pendingRuntimeInputQueue: buildPendingRuntimeInputQueueItems(conv.messages),

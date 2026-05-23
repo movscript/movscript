@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ChevronDown, ChevronRight, Copy, History, Loader2, RefreshCw, Route, XCircle } from 'lucide-react'
-import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
+import { Badge, Button, ReviewCallout, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, semanticToneClass } from '@movscript/ui'
 import { AgentRunGenerationArtifacts } from '@/components/agent/AgentRunGenerationArtifacts'
 import { AgentConsoleNav } from '@/pages/agent/AgentConsoleNav'
 import { LocalAgentInputRequestCard } from '@/components/agent/localRuntime'
@@ -609,8 +609,8 @@ export default function AIAgentRunPage() {
                 </div>
               )}
               {(runQuery.data.pendingInputRequests ?? []).filter((request) => request.status === 'pending').length > 0 && (
-                <div data-testid="agent-run-pending-input" className="space-y-1 rounded border border-amber-500/30 bg-amber-500/10 p-2">
-                  <div className="type-tiny uppercase tracking-wide text-amber-700 dark:text-amber-300">待输入</div>
+                <ReviewCallout data-testid="agent-run-pending-input" tone="warning" compact className="space-y-1">
+                  <div className={`type-tiny uppercase tracking-wide ${semanticToneClass('warning', 'icon')}`}>待输入</div>
                   {inputError && (
                     <p data-testid="agent-run-input-error" role="alert" className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-destructive">
                       {inputError}
@@ -627,11 +627,11 @@ export default function AIAgentRunPage() {
                       meta={<Badge variant="outline" className="type-micro">类型 {inputTypeLabel(request.inputType)}</Badge>}
                     />
                   ))}
-                </div>
+                </ReviewCallout>
               )}
               {(runQuery.data.pendingApprovals ?? []).filter((approval) => approval.status === 'pending').length > 0 && (
-                <div data-testid="agent-run-pending-approval" className="space-y-1 rounded border border-amber-500/30 bg-amber-500/10 p-2">
-                  <div className="type-tiny uppercase tracking-wide text-amber-700 dark:text-amber-300">待审批</div>
+                <ReviewCallout data-testid="agent-run-pending-approval" tone="warning" compact className="space-y-1">
+                  <div className={`type-tiny uppercase tracking-wide ${semanticToneClass('warning', 'icon')}`}>待审批</div>
                   {approvalError && (
                     <p data-testid="agent-run-approval-error" role="alert" className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-destructive">
                       {approvalError}
@@ -645,7 +645,7 @@ export default function AIAgentRunPage() {
                         {approval.risk && <Badge variant="outline" className="type-micro">风险 {approvalRiskLabel(approval.risk)}</Badge>}
                         {approval.permission && <Badge variant="outline" className="type-micro">权限 {approvalPermissionLabel(approval.permission)}</Badge>}
                       </div>
-                      <div className="rounded bg-amber-500/10 px-2 py-1 type-tiny leading-relaxed text-amber-800 dark:text-amber-300">
+                      <div className={`rounded px-2 py-1 type-tiny leading-relaxed ${semanticToneClass('warning', 'surface')} ${semanticToneClass('warning', 'icon')}`}>
                         影响：{approvalImpactLabel(approval)}
                       </div>
                       <div className="flex flex-wrap gap-1 pt-1">
@@ -678,7 +678,7 @@ export default function AIAgentRunPage() {
                       </div>
                     </div>
                   ))}
-                </div>
+                </ReviewCallout>
               )}
               {planQuery.isLoading && (
                 <div className="flex items-center gap-2 rounded border border-border px-2 py-1 text-muted-foreground"><Loader2 size={12} className="animate-spin" /> 正在加载计划上下文</div>
@@ -712,7 +712,7 @@ export default function AIAgentRunPage() {
                       <Info label="任务状态" value={agentTaskStatusLabel(runPlanTask.status)} />
                       {runPlanTaskView?.statusExplanation && <Info label="任务说明" value={runPlanTaskView.statusExplanation} />}
                       <Info label="产物数" value={String(runPlanTask.artifacts.length)} />
-                      {runPlanTask.blockedReason && <p className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300">{runPlanTask.blockedReason}</p>}
+                      {runPlanTask.blockedReason && <p className={`rounded border px-2 py-1 ${semanticToneClass('warning', 'surface')} ${semanticToneClass('warning', 'icon')}`}>{runPlanTask.blockedReason}</p>}
                       {runPlanTask.artifacts.length > 0 && (
                         <div data-testid="agent-run-task-artifacts" className="space-y-1">
                           <div className="type-tiny uppercase tracking-wide text-muted-foreground">任务产物</div>
@@ -936,7 +936,7 @@ export default function AIAgentRunPage() {
           <div className="space-y-2">
             <AgentRunGenerationArtifacts run={runQuery.data} />
             {traceDeepLinkMissing && (
-              <p data-testid="agent-run-trace-deep-link-missing" role="alert" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 type-label text-amber-700 dark:text-amber-300">
+              <p data-testid="agent-run-trace-deep-link-missing" role="alert" className={`rounded-md border px-3 py-2 type-label ${semanticToneClass('warning', 'surface')} ${semanticToneClass('warning', 'icon')}`}>
                 这个运行里没有找到事件 {traceDeepLinkEventId}。如果刚切换运行，请先刷新或加载全部事件；如果仍然没有，说明这个事件不属于当前运行。
               </p>
             )}
@@ -1639,7 +1639,7 @@ function DebugWorkbenchPanel({
             {blockingItems.length > 0 && (
               <div className="mt-2 grid gap-1">
                 {blockingItems.slice(0, 3).map((item) => (
-                  <div key={item.id} className="rounded bg-amber-500/10 px-2 py-1 type-tiny text-amber-700 dark:text-amber-300">
+                  <div key={item.id} className={`rounded px-2 py-1 type-tiny ${semanticToneClass('warning', 'surface')} ${semanticToneClass('warning', 'icon')}`}>
                     <span className="font-medium">{item.label}</span>：{item.action}
                   </div>
                 ))}
@@ -1656,7 +1656,7 @@ function DebugHotspotItem({ hotspot, onFocusEvent }: { hotspot: AgentDebugHotspo
   const toneClass = hotspot.tone === 'danger'
     ? 'border-destructive/30 bg-destructive/10'
     : hotspot.tone === 'warning'
-      ? 'border-amber-500/30 bg-amber-500/10'
+      ? semanticToneClass('warning', 'surface')
       : 'border-border/70 bg-muted/10'
   return (
     <div data-testid="agent-run-debug-hotspot" className={`rounded border px-2 py-1.5 type-label ${toneClass}`}>
@@ -2024,8 +2024,8 @@ function DebugCoveragePanel({
       </details>
       <DebugReadinessChecklist items={readinessChecklist} />
       {summary.issues.length > 0 && (
-        <div className="mt-2 grid gap-1 type-tiny text-amber-700 dark:text-amber-300">
-          {summary.issues.map((issue) => <div key={issue} className="rounded bg-amber-500/10 px-2 py-1">{issue}</div>)}
+        <div className={`mt-2 grid gap-1 type-tiny ${semanticToneClass('warning', 'icon')}`}>
+          {summary.issues.map((issue) => <div key={issue} className={`rounded px-2 py-1 ${semanticToneClass('warning', 'surface')}`}>{issue}</div>)}
         </div>
       )}
       {copyError && (
@@ -2090,7 +2090,7 @@ function DebugCoverageMetric({ label, value }: { label: string; value: string })
 
 function AttentionEventsPanel({ events, onFocusEvent, onShowAttentionEvents }: { events: AgentDebugAttentionEvent[]; onFocusEvent: (eventId: string) => void; onShowAttentionEvents: () => void }) {
   return (
-    <section data-testid="agent-run-attention-events" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+    <section data-testid="agent-run-attention-events" className={`rounded-md border px-3 py-2 ${semanticToneClass('warning', 'surface')}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="type-label font-medium text-foreground">异常/需关注事件</div>
@@ -2112,7 +2112,7 @@ function AttentionEventsPanel({ events, onFocusEvent, onShowAttentionEvents }: {
       </div>
       <div className="mt-2 grid gap-1">
         {events.slice(0, 8).map((event) => (
-          <div key={event.eventId} data-testid="agent-run-attention-event" className="rounded border border-amber-500/30 bg-background/90 px-2 py-1 type-tiny">
+          <div key={event.eventId} data-testid="agent-run-attention-event" className={`rounded border bg-background/90 px-2 py-1 type-tiny ${semanticToneClass('warning', 'surface')}`}>
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-1">
@@ -2237,8 +2237,8 @@ function ModelCallSummaryPanel({
                 {summary.inputTokens && <span>请求 {summary.inputTokens} token</span>}
                 {summary.outputTokens && <span>回复 {summary.outputTokens} token</span>}
               </div>
-              {summary.issue && <div className="mt-1 rounded bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300">{summary.issue}</div>}
-              {debugContext.issue && <div className="mt-1 rounded bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300">{debugContext.issue}</div>}
+              {summary.issue && <div className={`mt-1 rounded px-2 py-1 ${semanticToneClass('warning', 'surface')} ${semanticToneClass('warning', 'icon')}`}>{summary.issue}</div>}
+              {debugContext.issue && <div className={`mt-1 rounded px-2 py-1 ${semanticToneClass('warning', 'surface')} ${semanticToneClass('warning', 'icon')}`}>{debugContext.issue}</div>}
               <ModelCallInlineDebug summary={summary} context={debugContext} events={events} onFocusEvent={onFocusEvent} />
             </details>
           )

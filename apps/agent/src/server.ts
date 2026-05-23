@@ -13,7 +13,7 @@ import {
 import { describeRuntimeModelCapabilities } from './model/modelRouter.js'
 import { isRecord } from './jsonValue.js'
 import type { JSONValue } from './types.js'
-import { AGENT_TRACE_EVENT_KINDS, type AgentRuntimeEventV2, type AgentRuntimeSnapshotV2, type AgentTraceEventKind, type AgentTraceQuery } from '@movscript/protocol'
+import { AGENT_TRACE_EVENT_KINDS, type AgentRuntimeEventV2, type AgentRuntimeSnapshotV2, type AgentThreadListPage, type AgentThreadSummary, type AgentTraceEventKind, type AgentTraceQuery } from '@movscript/protocol'
 import { isActiveRunStatus, isExecutingRunStatus } from './state/runStatus.js'
 import { buildRuntimeInputMessageMetadata } from './state/runtimeRunInputs.js'
 import { isValidMemoryProjectId } from './memory/types.js'
@@ -22,6 +22,7 @@ import { installAgentSkillBundle, listAgentSkillBundlePlugins, uninstallAgentSki
 import { RuntimeModelConfigInputError } from './model/modelConfig.js'
 import type { AgentInternalRunSignal, AgentTaskGraphStreamEvent, AgentInternalThreadSignal } from './state/types.js'
 import type { RuntimeSessionSnapshotV1, RuntimeThreadSnapshotV2 } from './application/runtimeThreadSnapshot.js'
+import type { RuntimeTelemetryRegistry } from './telemetry/runtimeTelemetry.js'
 
 installAgentLogTimestamps('server')
 
@@ -62,6 +63,20 @@ export function createAgentRequestListener(context: AgentServerContext, options:
   return async (req, res) => {
     const requestStartedAt = Date.now()
     setHeaders(res)
+    const requestPath = requestPathname(req)
+    const requestOperationId = context.telemetry.beginOperation({
+      kind: 'http_request',
+      method: req.method,
+      requestPath,
+    })
+    context.telemetry.markPhase(requestOperationId, 'request_received')
+    res.once('finish', () => {
+      context.telemetry.finishOperation(requestOperationId, res.statusCode >= 400 ? 'error' : 'success', {
+        statusCode: res.statusCode,
+        method: req.method ?? 'UNKNOWN',
+        requestPath,
+      })
+    })
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204)
@@ -71,6 +86,16 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
     try {
       const url = new URL(req.url || '/', `http://${req.headers.host || '127.0.0.1'}`)
+
+      if (req.method === 'GET' && url.pathname === '/metrics') {
+        writeText(res, 200, context.telemetry.prometheusText(), 'text/plain; version=0.0.4; charset=utf-8')
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/runtime/telemetry') {
+        writeJSON(res, 200, context.telemetry.snapshot())
+        return
+      }
 
       if (req.method === 'GET' && url.pathname === '/health') {
         const healthStartedAt = Date.now()
@@ -434,7 +459,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       }
 
       if (req.method === 'GET' && url.pathname === '/threads') {
-        writeJSON(res, 200, { threads: context.runtimeRouter.listThreadSummaries() })
+        writeJSON(res, 200, paginatedThreadSummaries(context.runtimeRouter.listThreadSummaries(), normalizeThreadListQuery(url)))
         return
       }
 
@@ -535,6 +560,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       if (threadRunMatch && req.method === 'POST') {
         const body = withRequestAuth(await readOptionalJSONObject(req, 'thread run body'), req)
+        context.telemetry.markPhase(requestOperationId, 'body_read')
         const content = typeof body.message === 'string' && body.message.trim()
           ? body.message
           : typeof body.content === 'string' && body.content.trim()
@@ -570,17 +596,26 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           return
         }
         if (body.toolCall !== undefined) {
+          const toolRunOperationId = context.telemetry.beginOperation({ kind: 'tool_run_create', threadId: threadRunMatch[1] })
           const {
             message: _message,
             content: _content,
             sourceMessageId: _sourceMessageId,
             ...runBody
           } = body
-          const run = context.runtimeRouter.createToolRun(asDirectToolRun({
-            ...runBody,
-            threadId: threadRunMatch[1],
-            message: content,
-          }))
+          let run
+          try {
+            run = context.runtimeRouter.createToolRun(asDirectToolRun({
+              ...runBody,
+              threadId: threadRunMatch[1],
+              message: content,
+            }))
+            context.telemetry.markPhase(toolRunOperationId, 'run_created', { runId: run.id, status: run.status })
+            context.telemetry.finishOperation(toolRunOperationId, 'success', { runId: run.id, status: run.status })
+          } catch (error) {
+            context.telemetry.finishOperation(toolRunOperationId, 'error', { error: error instanceof Error ? error.message : String(error) })
+            throw error
+          }
           const updatedThread = context.runtimeRouter.getThread(threadRunMatch[1])
           const initialUserMessageId = run.input?.sourceMessageId
             ?? (isRecord(run.metadata) && typeof run.metadata.initialUserMessageId === 'string' ? run.metadata.initialUserMessageId : undefined)
@@ -595,17 +630,34 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           content,
           ...(body.clientInput !== undefined ? { clientInput: body.clientInput } : {}),
         })
+        context.telemetry.markPhase(requestOperationId, 'message_created', { threadId: threadRunMatch[1], messageId: message.id })
         const {
           message: _message,
           content: _content,
           sourceMessageId: _sourceMessageId,
           ...runBody
         } = body
-        const run = context.runtimeRouter.createRun(asPlannerUserRun({
-          ...runBody,
-          threadId: threadRunMatch[1],
-          sourceMessageId: message.id,
-        }))
+        const runCreateOperationId = context.telemetry.beginOperation({ kind: 'run_create', threadId: threadRunMatch[1] })
+        let run
+        try {
+          run = context.runtimeRouter.createRun(asPlannerUserRun({
+            ...runBody,
+            threadId: threadRunMatch[1],
+            sourceMessageId: message.id,
+          }))
+          context.telemetry.markPhase(runCreateOperationId, 'run_created', { runId: run.id, status: run.status })
+          context.telemetry.finishOperation(runCreateOperationId, 'success', { runId: run.id, status: run.status })
+        } catch (error) {
+          context.telemetry.finishOperation(runCreateOperationId, 'error', { error: error instanceof Error ? error.message : String(error) })
+          throw error
+        }
+        context.telemetry.markPhase(requestOperationId, 'run_created', { runId: run.id, threadId: run.threadId, status: run.status })
+        context.telemetry.recordMetric({
+          name: 'movscript_agent_run_create_total',
+          value: 1,
+          unit: 'count',
+          labels: { role: run.role ?? 'unknown', status: run.status },
+        })
         writeJSON(res, 201, { run, message })
         return
       }
@@ -782,19 +834,37 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const runStreamMatch = url.pathname.match(/^\/runs\/([^/]+)\/stream$/)
       if (runStreamMatch && req.method === 'GET') {
-        streamRunEvents(req, res, context.runtimeRouter, runStreamMatch[1])
+        streamRunEvents(req, res, context.runtimeRouter, runStreamMatch[1], context.telemetry)
         return
       }
 
       const interactionApproveMatch = url.pathname.match(/^\/interactions\/([^/]+)\/approve$/)
       if (interactionApproveMatch && req.method === 'POST') {
-        writeJSON(res, 202, context.runtimeRouter.approveInteraction(interactionApproveMatch[1]))
+        const operationId = context.telemetry.beginOperation({ kind: 'interaction_approve', meta: { interactionId: interactionApproveMatch[1] } })
+        try {
+          const result = context.runtimeRouter.approveInteraction(interactionApproveMatch[1])
+          context.telemetry.markPhase(operationId, 'interaction_resolved', { runId: result.run.id, status: result.run.status })
+          context.telemetry.finishOperation(operationId, 'success', { runId: result.run.id, status: result.run.status })
+          writeJSON(res, 202, result)
+        } catch (error) {
+          context.telemetry.finishOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
+          throw error
+        }
         return
       }
 
       const interactionRejectMatch = url.pathname.match(/^\/interactions\/([^/]+)\/reject$/)
       if (interactionRejectMatch && req.method === 'POST') {
-        writeJSON(res, 200, context.runtimeRouter.rejectInteraction(interactionRejectMatch[1]))
+        const operationId = context.telemetry.beginOperation({ kind: 'interaction_reject', meta: { interactionId: interactionRejectMatch[1] } })
+        try {
+          const result = context.runtimeRouter.rejectInteraction(interactionRejectMatch[1])
+          context.telemetry.markPhase(operationId, 'interaction_resolved', { runId: result.run.id, status: result.run.status })
+          context.telemetry.finishOperation(operationId, 'success', { runId: result.run.id, status: result.run.status })
+          writeJSON(res, 200, result)
+        } catch (error) {
+          context.telemetry.finishOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
+          throw error
+        }
         return
       }
 
@@ -1112,10 +1182,23 @@ function writeJSON(res: ServerResponse, status: number, value: unknown): void {
   res.end(JSON.stringify(value))
 }
 
+function writeText(res: ServerResponse, status: number, value: string, contentType = 'text/plain; charset=utf-8'): void {
+  res.writeHead(status, { 'Content-Type': contentType })
+  res.end(value)
+}
+
 function logSlowRequest(method: string | undefined, pathname: string, requestStartedAt: number, handlerStartedAt: number): void {
   const totalMs = Date.now() - requestStartedAt
   if (totalMs <= 100) return
   console.info(`[agent] request slow ${method ?? 'UNKNOWN'} ${pathname} total=${totalMs}ms handler=${Date.now() - handlerStartedAt}ms`)
+}
+
+function requestPathname(req: IncomingMessage): string {
+  try {
+    return new URL(req.url || '/', `http://${req.headers.host || '127.0.0.1'}`).pathname
+  } catch {
+    return req.url || '/'
+  }
 }
 
 function threadRuntimeSnapshotV2(snapshot: RuntimeThreadSnapshotV2): AgentRuntimeSnapshotV2 {
@@ -1133,6 +1216,7 @@ function threadRuntimeSnapshotV2(snapshot: RuntimeThreadSnapshotV2): AgentRuntim
       works: snapshot.works,
       interactions: snapshot.interactions,
       continuations: snapshot.continuations,
+      wakeEvents: snapshot.wakeEvents,
       ...(snapshot.thread.currentPlan ? { plans: [snapshot.thread.currentPlan] } : {}),
       ...(snapshot.thread.planRevisions?.length ? { planRevisions: snapshot.thread.planRevisions } : {}),
     },
@@ -1155,6 +1239,7 @@ function sessionRuntimeSnapshotV2(snapshot: RuntimeSessionSnapshotV1): AgentRunt
       works: snapshot.works,
       interactions: snapshot.interactions,
       continuations: snapshot.continuations,
+      wakeEvents: snapshot.wakeEvents,
       taskGraphs: snapshot.taskGraphs,
       plans: snapshot.threads.flatMap((thread) => thread.currentPlan ? [thread.currentPlan] : []),
       planRevisions: snapshot.threads.flatMap((thread) => thread.planRevisions ?? []),
@@ -1162,11 +1247,12 @@ function sessionRuntimeSnapshotV2(snapshot: RuntimeSessionSnapshotV1): AgentRunt
   }
 }
 
-function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, runId: string): void {
+function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntimeRouter, runId: string, telemetry?: RuntimeTelemetryRegistry): void {
   if (!runtime.getRun(runId)) {
     writeJSON(res, 404, { error: 'run not found' })
     return
   }
+  const operationId = telemetry?.beginOperation({ kind: 'run_stream', runId })
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
@@ -1174,6 +1260,7 @@ function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: Age
     Connection: 'keep-alive',
     'X-Accel-Buffering': 'no',
   })
+  telemetry?.markPhase(operationId, 'stream_subscribed')
   res.write(': connected\n\n')
 
   let closed = false
@@ -1189,6 +1276,8 @@ function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: Age
     closed = true
     clearInterval(heartbeat)
     unsubscribe()
+    telemetry?.markPhase(operationId, 'stream_closed', { end })
+    telemetry?.finishOperation(operationId, 'success', { end })
     if (end && !res.writableEnded) res.end()
   }
 
@@ -1517,6 +1606,33 @@ export function normalizeTraceQuery(url: URL): { ok: true; query: AgentTraceQuer
     ...(limit !== undefined ? { limit } : {}),
     ...(kind ? { kind: kind as AgentTraceEventKind } : {}),
   } }
+}
+
+function normalizeThreadListQuery(url: URL): { cursor?: string; limit: number } {
+  return {
+    ...(url.searchParams.get('cursor') ? { cursor: url.searchParams.get('cursor') ?? undefined } : {}),
+    limit: parseLimitParam(url.searchParams.get('limit'), 100) ?? 100,
+  }
+}
+
+function paginatedThreadSummaries(
+  summaries: AgentThreadSummary[],
+  query: { cursor?: string; limit: number },
+): AgentThreadListPage {
+  const total = summaries.length
+  const cursorIndex = query.cursor ? summaries.findIndex((thread) => thread.id === query.cursor) : -1
+  const startIndex = query.cursor ? cursorIndex + 1 : 0
+  const pageStartIndex = query.cursor && cursorIndex < 0 ? total : startIndex
+  const threads = summaries.slice(pageStartIndex, pageStartIndex + query.limit)
+  const nextIndex = pageStartIndex + threads.length
+  const hasMore = nextIndex < total
+  return {
+    threads,
+    total,
+    limit: query.limit,
+    hasMore,
+    ...(hasMore && threads.length > 0 ? { nextCursor: threads[threads.length - 1]?.id } : {}),
+  }
 }
 
 function parseLimitParam(value: string | null, max: number): number | undefined {

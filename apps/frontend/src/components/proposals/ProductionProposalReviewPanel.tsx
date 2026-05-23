@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { AlertCircle, CheckCheck, CheckCircle2, Eye, GitBranch, Target, X } from 'lucide-react'
-import { Button } from '@movscript/ui'
+import { Button, ReviewCallout } from '@movscript/ui'
 
 import { ProductionProposalApplyGatePanel } from '@/components/proposals/ProductionProposalApplyGatePanel'
 import { ProductionProposalApplyPreviewPanel } from '@/components/proposals/ProductionProposalApplyPreviewPanel'
@@ -141,10 +141,12 @@ export function ProductionProposalReviewPanel({
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
         <div className="flex min-h-0 w-full flex-col gap-3">
           {applyError && (
-            <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50/60 p-3 dark:border-rose-800/50 dark:bg-rose-950/30">
-              <AlertCircle size={14} className="mt-0.5 shrink-0 text-rose-500" />
-              <p className="type-label text-rose-700 dark:text-rose-300">{applyError}</p>
-            </div>
+            <ReviewCallout tone="danger">
+              <div className="flex items-start gap-2">
+                <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                <p className="type-label">{applyError}</p>
+              </div>
+            </ReviewCallout>
           )}
           {backendPreviewIssue && <ProductionProposalBackendPreviewIssuePanel issue={backendPreviewIssue} />}
           <ProductionProposalSemanticDiffPanel

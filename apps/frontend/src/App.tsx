@@ -52,6 +52,7 @@ import AIDraftsPage from './pages/agent/AIDraftsPage'
 import AIAgentRunPage from './pages/agent/AIAgentRunPage'
 import AIAgentDebugPage from './pages/agent/AIAgentDebugPage'
 import AIAgentSettingsPage from './pages/agent/AIAgentSettingsPage'
+import AIAgentPerformancePage from './pages/agent/AIAgentPerformancePage'
 import AgentConsolePage from './pages/agent/AgentConsolePage'
 import AgentRunsPage from './pages/agent/AgentRunsPage'
 import i18n from './i18n'
@@ -61,6 +62,7 @@ import { runtimeRoutes } from '@runtime'
 import { getProjectWorkbenchDefinition } from './pages/project/projectSurfaces'
 import { LEGACY_ROUTES, ROUTES, mergeSearch, withSearch } from './routes/projectRoutes'
 import { useCanvasHeaderStore } from './store/canvasHeaderStore'
+import { installAgentPerformanceObservers } from './store/agentPerformanceStore'
 import { Badge, Button } from '@movscript/ui'
 
 // ── Error boundary ───────────────────────────────────────────────────────────
@@ -540,6 +542,10 @@ export default function App() {
   const settingsHydrated = useAppSettingsStore((s) => s.hydrated)
   const onboardingCompleted = useAppSettingsStore((s) => s.settings.onboardingCompleted)
 
+  useEffect(() => {
+    installAgentPerformanceObservers()
+  }, [])
+
   if (!settingsHydrated) {
     return <LoadingScreen fullScreen />
   }
@@ -676,6 +682,7 @@ export default function App() {
               <Route path={ROUTES.agentConsole} element={<AgentConsolePage />} />
               <Route path={ROUTES.agentDrafts} element={<AIDraftsPage />} />
               <Route path={ROUTES.agentSettings} element={<AIAgentSettingsPage />} />
+              <Route path={ROUTES.agentPerformance} element={<AIAgentPerformancePage />} />
               <Route path={ROUTES.agentDebug} element={<AIAgentDebugPage />} />
               <Route path={ROUTES.agentRuns} element={<AgentRunsPage />} />
               <Route path={ROUTES.agentRun} element={<AIAgentRunPage />} />

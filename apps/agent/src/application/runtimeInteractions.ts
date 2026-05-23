@@ -92,7 +92,7 @@ function runtimeInteractionDisplayAnchor(run: AgentRun, displayThreadId: string)
 }
 
 export function approveRuntimeInteraction(input: {
-  store: Pick<AgentStore, 'getRuntimeInteraction' | 'updateRuntimeInteraction' | 'getRun'>
+  store: Pick<AgentStore, 'getRuntimeInteraction' | 'updateRuntimeInteraction' | 'listRuntimeInteractions' | 'getRun'>
   interactionId: string
   now: string
   approveRun: (runId: string, approvalInput: ApproveRunInput) => AgentRun
@@ -101,6 +101,7 @@ export function approveRuntimeInteraction(input: {
   if (interaction.status !== 'pending') return resolvedInteractionResult(input.store, interaction)
   const approvalId = approvalIdFromInteraction(interaction)
   const run = input.approveRun(interaction.runId, { approvalIds: [approvalId] })
+  syncResolvedRuntimeApprovalInteractions(input.store, run, input.now)
   interaction.status = 'approved'
   interaction.result = { runId: run.id, runStatus: run.status }
   interaction.resolvedAt = input.now
@@ -110,7 +111,7 @@ export function approveRuntimeInteraction(input: {
 }
 
 export function rejectRuntimeInteraction(input: {
-  store: Pick<AgentStore, 'getRuntimeInteraction' | 'updateRuntimeInteraction' | 'getRun'>
+  store: Pick<AgentStore, 'getRuntimeInteraction' | 'updateRuntimeInteraction' | 'listRuntimeInteractions' | 'getRun'>
   interactionId: string
   now: string
   rejectRun: (runId: string, rejectionInput: RejectRunInput) => AgentRun
@@ -119,6 +120,7 @@ export function rejectRuntimeInteraction(input: {
   if (interaction.status !== 'pending') return resolvedInteractionResult(input.store, interaction)
   const approvalId = approvalIdFromInteraction(interaction)
   const run = input.rejectRun(interaction.runId, { approvalIds: [approvalId] })
+  syncResolvedRuntimeApprovalInteractions(input.store, run, input.now)
   interaction.status = 'rejected'
   interaction.result = { runId: run.id, runStatus: run.status }
   interaction.resolvedAt = input.now
@@ -153,6 +155,28 @@ function approvalIdFromInteraction(interaction: RuntimeInteraction): string {
   const payload = isRecord(interaction.payload) ? interaction.payload : {}
   if (typeof payload.approvalId === 'string' && payload.approvalId.trim()) return payload.approvalId.trim()
   throw new Error(`runtime interaction ${interaction.id} has no approvalId`)
+}
+
+function syncResolvedRuntimeApprovalInteractions(
+  store: Pick<AgentStore, 'listRuntimeInteractions' | 'updateRuntimeInteraction'>,
+  run: AgentRun,
+  now: string,
+): void {
+  const approvalsById = new Map((run.pendingApprovals ?? []).map((approval) => [approval.id, approval]))
+  if (approvalsById.size === 0) return
+  for (const interaction of store.listRuntimeInteractions({ runId: run.id, kind: 'approval' })) {
+    if (interaction.status !== 'pending') continue
+    const approvalId = approvalIdFromInteraction(interaction)
+    const approval = approvalsById.get(approvalId)
+    if (!approval || approval.status === 'pending') continue
+    store.updateRuntimeInteraction({
+      ...interaction,
+      status: approval.status,
+      result: { runId: run.id, runStatus: run.status },
+      resolvedAt: approval.approvedAt ?? approval.rejectedAt ?? now,
+      updatedAt: now,
+    })
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

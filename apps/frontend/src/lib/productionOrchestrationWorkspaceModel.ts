@@ -15,6 +15,7 @@ import {
   type ProductionWritingExpressionLine,
 } from '@/lib/productionWritingExpressions'
 import type { ProductionSegmentNavigatorItem } from '@/components/workbench/ProductionOrchestrationStructure'
+import { semanticStatusClass } from '@movscript/ui'
 
 export type ProductionWorkspaceLookup = ProductionOrchestrationLookup<
   SegmentRecord,
@@ -36,22 +37,6 @@ export interface ProductionOrchestrationWorkspaceView {
   selectedSegmentLineCount: number
   writingProgressLabel: string
   segmentNavigatorItems: ProductionSegmentNavigatorItem[]
-}
-
-const statusTone: Record<string, string> = {
-  confirmed: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  locked: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  accepted: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  active: 'bg-blue-500/10 text-blue-700 dark:text-blue-300',
-  draft: 'bg-muted text-muted-foreground',
-  candidate: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  missing: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  ignored: 'bg-zinc-500/10 text-zinc-700 dark:text-zinc-300',
-  removed: 'bg-zinc-500/10 text-zinc-700 dark:text-zinc-300',
-  abandoned: 'bg-zinc-500/10 text-zinc-700 dark:text-zinc-300',
-  rejected: 'bg-rose-500/10 text-rose-700 dark:text-rose-300',
-  blocked: 'bg-rose-500/10 text-rose-700 dark:text-rose-300',
-  in_production: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300',
 }
 
 const statusLabel: Record<string, string> = {
@@ -199,7 +184,7 @@ function buildProductionSegmentNavigatorItems({
       indexLabel: String(index + 1).padStart(2, '0'),
       title: productionOrchestrationRecordTitle(segment),
       summary: String(segment.summary ?? segment.content ?? '这一段还没有说明情绪功能。'),
-      statusClassName: statusTone[String(segment.status ?? '')] ?? 'bg-muted text-muted-foreground',
+      statusClassName: semanticStatusClass(String(segment.status ?? ''), 'badge'),
       statusLabel: statusLabel[String(segment.status ?? '')] ?? String(segment.status ?? '草稿'),
       kindLabel: segmentKindLabel[String(segment.kind ?? '')] ?? '编排段',
       active: selectedSegment?.ID === segment.ID,

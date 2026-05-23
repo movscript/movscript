@@ -6,11 +6,18 @@ import { ArrowRight, Bot, CheckCircle2, Clipboard, Download, Loader2, Play, Refr
 import {
   Badge,
   Button,
+  AppKeyValue,
+  AppMetricCard,
+  AppPanel,
+  AppStateMessage,
+  AppTextEmptyState,
+  ReviewCallout,
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
   Textarea,
+  semanticToneClass,
 } from '@movscript/ui'
 import {
   localAgentClient,
@@ -629,14 +636,14 @@ export default function AIAgentDebugPage() {
                         <SummaryItem label={t('agents.debug.fields.modelSource')} value={debugQuery.data.modelConfig.source} />
                       </div>
                     ) : (
-                      <div data-testid="agent-debug-model-config-read-error" className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 type-caption leading-4 text-amber-800 dark:text-amber-300">
+                      <ReviewCallout data-testid="agent-debug-model-config-read-error" tone="warning" compact className="mt-2 type-caption leading-4">
                         {t('agents.debug.empty.modelConfigReadFailed', { reason: debugQuery.data.modelConfigError ?? '-' })}
-                      </div>
+                      </ReviewCallout>
                     )}
                   </div>
                   {warningGroups.length > 0 && (
-                    <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-2">
-                      <p className="type-label font-medium text-amber-800 dark:text-amber-300">{t('agents.debug.panels.warnings')}</p>
+                    <ReviewCallout tone="warning" compact className="mt-3">
+                      <p className={`type-label font-medium ${semanticToneClass('warning', 'icon')}`}>{t('agents.debug.panels.warnings')}</p>
                       <div data-testid="agent-debug-warning-groups" className="mt-2 space-y-2">
                         {warningGroups.map((group) => (
                           <div key={group.source} data-testid="agent-debug-warning-group" className="rounded bg-background/70 px-2 py-1.5">
@@ -647,7 +654,7 @@ export default function AIAgentDebugPage() {
                           </div>
                         ))}
                       </div>
-                    </div>
+                    </ReviewCallout>
                   )}
                 </Panel>
 
@@ -721,9 +728,9 @@ export default function AIAgentDebugPage() {
             <TabsContent value="toolConsole" className="grid gap-4 lg:grid-cols-[minmax(0,420px)_1fr]">
               <Panel title={t('agents.debug.panels.toolConsole')}>
                 <div className="space-y-3">
-                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 type-caption leading-4 text-amber-800 dark:text-amber-300">
+                  <ReviewCallout tone="warning" compact className="type-caption leading-4">
                     {t('agents.debug.toolConsole.warning')}
-                  </div>
+                  </ReviewCallout>
                   <div className="rounded-md border border-border bg-muted/20 p-2 type-caption leading-4 text-muted-foreground">
                     {t('agents.debug.toolConsole.runtimeBoundary')}
                   </div>
@@ -973,12 +980,7 @@ function RuntimeStatusBadge({ online, loading }: { online: boolean; loading: boo
 }
 
 function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-border bg-background p-3">
-      <p className="type-caption text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate type-title-sm font-semibold text-foreground">{value}</p>
-    </div>
-  )
+  return <AppMetricCard label={label} value={value} />
 }
 
 function DebugObservationCoverage({
@@ -1016,10 +1018,10 @@ function DebugObservationRow({
   const { t } = useTranslation()
   const canRunPreview = item.id === 'preview' && item.status !== 'ready'
   const icon = item.status === 'ready'
-    ? <CheckCircle2 size={14} className="text-emerald-600" />
+    ? <CheckCircle2 size={14} className={semanticToneClass('success', 'icon')} />
     : item.status === 'action'
       ? <XCircle size={14} className="text-destructive" />
-      : <XCircle size={14} className="text-amber-600" />
+      : <XCircle size={14} className={semanticToneClass('warning', 'icon')} />
   return (
     <div data-testid="agent-debug-observation-item" className="flex items-start justify-between gap-2 rounded-md border border-border bg-muted/20 p-2">
       <span className="flex min-w-0 items-start gap-2">
@@ -1127,7 +1129,7 @@ function DebugTriagePanel({ items }: { items: DebugTriageItem[] }) {
             item.severity === 'action'
               ? 'border-destructive/40 bg-destructive/10'
               : item.severity === 'warning'
-                ? 'border-amber-500/40 bg-amber-500/10'
+                ? semanticToneClass('warning', 'surface')
                 : 'border-border bg-muted/20',
           )}
         >
@@ -1266,24 +1268,11 @@ function DebugBundleFieldGuide() {
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-md border border-border bg-background">
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-        <Bot size={14} className="text-muted-foreground" />
-        <h2 className="type-label font-semibold text-foreground">{title}</h2>
-      </div>
-      <div className="p-3">{children}</div>
-    </section>
-  )
+  return <AppPanel icon={Bot} title={title}>{children}</AppPanel>
 }
 
 function SummaryItem({ label, value }: { label: string; value?: string | number | null }) {
-  return (
-    <div className="min-w-0 rounded-md border border-border bg-muted/20 px-2 py-1.5">
-      <p className="type-tiny text-muted-foreground">{label}</p>
-      <p className="mt-0.5 truncate type-label font-medium text-foreground">{value ?? '-'}</p>
-    </div>
-  )
+  return <AppKeyValue label={label} value={value} />
 }
 
 function ListRow({
@@ -1382,19 +1371,11 @@ function JsonPanel({ title, value, emptyText }: { title: string; value?: unknown
 }
 
 function EmptyText({ children }: { children: React.ReactNode }) {
-  return <p className="type-label leading-5 text-muted-foreground">{children}</p>
+  return <AppTextEmptyState className="border-0 bg-transparent p-0 type-label">{children}</AppTextEmptyState>
 }
 
 function StateMessage({ icon, text, tone = 'muted' }: { icon: React.ReactNode; text: string; tone?: 'muted' | 'danger' }) {
-  return (
-    <div className={cn(
-      'flex items-center gap-2 rounded-md border p-3 type-body',
-      tone === 'danger' ? 'border-destructive/30 bg-destructive/10 text-destructive' : 'border-border bg-muted/20 text-muted-foreground',
-    )}>
-      {icon}
-      <span>{text}</span>
-    </div>
-  )
+  return <AppStateMessage icon={icon} tone={tone === 'danger' ? 'danger' : 'neutral'}>{text}</AppStateMessage>
 }
 
 function runStatusVariant(status: string) {

@@ -440,7 +440,7 @@ test('runtime builds envelope context from client input without frontend prompt 
   assert.equal(preview.promptPreview?.messages.at(-1)?.content.includes('moment-ref.png'), true)
 })
 
-test('thread runtime snapshot observes completed async work and asks before starting continuation run', async () => {
+test('thread runtime snapshot observes completed async work and auto-starts the queued continuation run', async () => {
   const store = new InMemoryAgentStore()
   const client = new FakeMCPClient()
   client.toolHandlers.set('generation_job_get', (args) => ({
@@ -493,10 +493,11 @@ test('thread runtime snapshot observes completed async work and asks before star
   const snapshot = await runtime.getThreadRuntimeSnapshot(thread.id)
 
   assert.equal(snapshot?.works[0]?.status, 'completed')
-  assert.equal(snapshot?.continuations[0]?.status, 'ready')
-  assert.equal(snapshot?.interactions[0]?.kind, 'selection')
-  assert.equal(snapshot?.interactions[0]?.status, 'pending')
-  assert.equal(store.listRuns({ threadId: thread.id }).length, 1)
+  assert.equal(snapshot?.continuations[0]?.status, 'consumed')
+  assert.equal(snapshot?.interactions.length, 0)
+  const runs = store.listRuns({ threadId: thread.id })
+  assert.equal(runs.length, 2)
+  assert.match(runs.find((item) => item.parentRunId === run.id)?.status ?? '', /^(queued|in_progress)$/)
 })
 
 test('preview activates only triggered layered skills instead of loading every profile workflow', async () => {
@@ -850,6 +851,77 @@ test('run requiring approval pauses before tool execution and resumes after appr
   assert.equal(resumed.pendingApprovals?.[0].status, 'approved')
   assertRunTraceEventTypes(runtime, resumed.id, ['approval.resolved'])
   assert.equal(findTraceEventByEventType(runtime, resumed.id, 'approval.resolved')?.data?.outcome, 'approved')
+})
+
+test('run with multiple approvals resumes once all approvals are accepted', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
+    const messages = (body.messages as Array<{ role: string; content: string | null }>) ?? []
+    const toolMessages = messages.filter((message) => message.role === 'tool')
+    if (isThreadTitleRequest(messages)) {
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: 'multiple approvals' }, finish_reason: 'stop' }],
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    if (toolMessages.length > 0) {
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: '已完成工具调用。' }, finish_reason: 'stop' }],
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    return new Response(JSON.stringify({
+      choices: [{
+        message: {
+          content: null,
+          tool_calls: [
+            {
+              id: 'call_create_project_1',
+              type: 'function',
+              function: { name: 'movscript_project_create', arguments: JSON.stringify({ name: '测试项目 A' }) },
+            },
+            {
+              id: 'call_create_project_2',
+              type: 'function',
+              function: { name: 'movscript_project_create', arguments: JSON.stringify({ name: '测试项目 B' }) },
+            },
+          ],
+        },
+        finish_reason: 'tool_calls',
+      }],
+    }), { status: 200, headers: { 'content-type': 'application/json' } })
+  }) as typeof fetch
+  try {
+    const runtime = createTestRuntime({ mcpClient: client })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: '请创建两个项目' }] })
+    const run = await createAndWaitForRun(runtime, thread.id, {
+      agentManifest: WRITE_AGENT_MANIFEST,
+    })
+
+    assert.equal(run.status, 'requires_action')
+    assert.deepEqual(run.pendingApprovals?.map((approval) => approval.toolName), ['movscript_project_create', 'movscript_project_create'])
+    assert.equal(client.calls.some((call) => call.name === 'movscript_project_create'), false)
+
+    const [firstApproval, secondApproval] = run.pendingApprovals ?? []
+    assert.ok(firstApproval?.interactionId)
+    assert.ok(secondApproval?.interactionId)
+    const partiallyApproved = runtime.approveInteraction(firstApproval.interactionId).run
+    assert.equal(partiallyApproved.status, 'requires_action')
+    assert.equal(client.calls.some((call) => call.name === 'movscript_project_create'), false)
+
+    runtime.approveInteraction(secondApproval.interactionId)
+    const resumed = await waitForRun(runtime, run.id)
+    const assistant = runtime.getThread(thread.id)?.messages.find((message) => message.id === resumed.assistantMessageId)
+
+    assert.ok(resumed.status === 'completed' || resumed.status === 'completed_with_warnings')
+    assert.deepEqual(client.calls.filter((call) => call.name === 'movscript_project_create').map((call) => call.args.name), ['测试项目 A', '测试项目 B'])
+    assert.equal(resumed.pendingApprovals?.every((approval) => approval.status === 'approved'), true)
+    assert.match(assistant?.content ?? '', /已完成工具调用/)
+    assertRunTraceEventTypes(runtime, resumed.id, ['approval.resolved'])
+  } finally {
+    globalThis.fetch = previousFetch
+  }
 })
 
 test('run can request user input and resume after an answer', async () => {
@@ -1253,6 +1325,45 @@ test('agent runtime streams generated thread titles before run completion', asyn
   } finally {
     globalThis.fetch = originalFetch
   }
+})
+
+test('agent runtime streams plan revision messages when core update_plan changes the thread plan', () => {
+  const runtime = createTestRuntime({ mcpClient: new FakeMCPClient() })
+  const thread = runtime.createThread()
+  const run: AgentRun = {
+    id: 'run_plan_stream',
+    threadId: thread.id,
+    status: 'in_progress',
+    policy: {
+      approvalMode: 'auto',
+      maxToolCalls: 10,
+      maxIterations: 10,
+      allowNetwork: false,
+      allowFileBytes: false,
+    },
+    createdAt: '2026-05-22T00:00:00.000Z',
+    updatedAt: '2026-05-22T00:00:00.000Z',
+    steps: [],
+  }
+  const events: AgentInternalRunSignal[] = []
+  const unsubscribe = runtime.subscribeThreadStream(thread.id, (event) => events.push(event))
+  events.length = 0
+
+  const result = runtime.updatePlan(run, {
+    tasks: [
+      { step: 'Inspect message flow', status: 'completed' },
+      { step: 'Refresh pinned status', status: 'in_progress' },
+    ],
+  }) as { status: string; message?: { id: string; metadata?: { kind?: string } } }
+
+  unsubscribe()
+
+  assert.equal(result.status, 'updated')
+  assert.equal(result.message?.metadata?.kind, 'plan_revision')
+  const messageEvent = events.find((event) => event.type === 'assistant_message')
+  assert.equal(messageEvent?.type, 'assistant_message')
+  assert.equal(messageEvent.message.id, result.message?.id)
+  assert.equal(messageEvent.message.metadata?.kind, 'plan_revision')
 })
 
 test('agent runtime keeps explicit thread titles', async () => {

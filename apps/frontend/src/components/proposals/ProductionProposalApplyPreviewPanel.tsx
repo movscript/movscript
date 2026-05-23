@@ -1,6 +1,6 @@
-import { cn } from '@/lib/utils'
+import { ChangeActionBadge, ReviewCallout, ReviewStat, type ChangeAction, type ReviewTone } from '@movscript/ui'
 
-export type ProductionProposalSnapshotAction = 'create' | 'update' | 'delete'
+export type ProductionProposalSnapshotAction = ChangeAction
 
 export interface ProductionProposalApplyPreviewItem {
   key: string
@@ -34,7 +34,7 @@ export function ProductionProposalApplyPreviewPanel({ preview }: { preview: Prod
         empty="没有被父级决策阻塞的已接受项"
       />
       <ProductionProposalApplyPreviewGroup
-        tone="muted"
+        tone="neutral"
         title="未处理"
         items={preview.pending}
         empty="没有未审项"
@@ -58,21 +58,13 @@ function ProductionProposalApplyPreviewGroup({
   title: string
   items: ProductionProposalApplyPreviewItem[]
   empty: string
-  tone: 'success' | 'warning' | 'danger' | 'muted'
+  tone: ReviewTone
 }) {
-  const toneClass = tone === 'success'
-    ? 'border-emerald-200 bg-emerald-50/60 text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-950/30 dark:text-emerald-300'
-    : tone === 'warning'
-      ? 'border-amber-200 bg-amber-50/60 text-amber-700 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-300'
-      : tone === 'danger'
-        ? 'border-rose-200 bg-rose-50/60 text-rose-700 dark:border-rose-800/50 dark:text-rose-300'
-        : 'border-border bg-background text-muted-foreground'
-
   return (
-    <div className={cn('rounded-lg border p-3', toneClass)}>
+    <ReviewCallout tone={tone}>
       <div className="flex items-center justify-between gap-2">
         <p className="type-label font-semibold">{title}</p>
-        <span className="rounded bg-background/60 px-1.5 py-0.5 type-tiny">{items.length}</span>
+        <ReviewStat tone="neutral" className="bg-background/60">{items.length}</ReviewStat>
       </div>
       {items.length === 0 ? (
         <p className="mt-2 type-caption leading-4 opacity-80">{empty}</p>
@@ -81,7 +73,7 @@ function ProductionProposalApplyPreviewGroup({
           {items.slice(0, 8).map((item) => (
             <div key={item.key} className="rounded bg-background/70 px-2 py-1.5">
               <div className="flex items-center gap-1.5">
-                <ProductionProposalActionBadge action={item.action} compact />
+                <ChangeActionBadge action={item.action} compact />
                 <span className="min-w-0 flex-1 truncate type-caption font-medium text-foreground">{item.title}</span>
                 <span className="shrink-0 type-tiny opacity-70">{productionProposalApplyPreviewKindLabel(item.kind)}</span>
               </div>
@@ -92,19 +84,8 @@ function ProductionProposalApplyPreviewGroup({
           {items.length > 8 && <p className="type-tiny opacity-70">还有 {items.length - 8} 项未显示</p>}
         </div>
       )}
-    </div>
+    </ReviewCallout>
   )
-}
-
-function ProductionProposalActionBadge({ action, compact = false }: { action: ProductionProposalSnapshotAction | undefined; compact?: boolean }) {
-  const cls = compact ? 'px-1 py-0 type-micro' : 'px-1.5 py-0.5 type-micro'
-  if (action === 'delete') {
-    return <span className={cn('shrink-0 rounded font-mono font-medium text-rose-600 dark:text-rose-400', cls)}>-</span>
-  }
-  if (action === 'update') {
-    return <span className={cn('shrink-0 rounded font-mono font-medium text-amber-600 dark:text-amber-400', cls)}>~</span>
-  }
-  return <span className={cn('shrink-0 rounded font-mono font-medium text-emerald-600 dark:text-emerald-400', cls)}>+</span>
 }
 
 function productionProposalApplyPreviewKindLabel(kind: ProductionProposalApplyPreviewItem['kind']) {

@@ -39,32 +39,6 @@ test('buildWorkflowRunsByResultMessageId keeps non-active workflow runs before r
   assert.equal(result.get('assistant_other')?.[0]?.id, 'run_other')
 })
 
-test('buildWorkflowRunsByResultMessageId anchors continuation resume approvals to their run result message', () => {
-  const resumeRun = run({
-    id: 'run_resume',
-    status: 'completed',
-    pendingInputRequests: [],
-    pendingApprovals: [{
-      id: 'approval_resume',
-      runId: 'run_resume',
-      toolName: 'runtime_continuation_resume',
-      reason: 'Resume interrupted work',
-      risk: 'resume',
-      permission: 'runtime.continuation',
-      status: 'pending',
-      createdAt: '2026-05-19T00:00:00.000Z',
-      updatedAt: '2026-05-19T00:00:00.000Z',
-    }],
-  })
-  const result = buildWorkflowRunsByResultMessageId({
-    messages: [messageWithRun('assistant_resume', 'run_resume')],
-    workflowRuns: [resumeRun],
-  })
-
-  assert.deepEqual([...result.keys()], ['assistant_resume'])
-  assert.equal(result.get('assistant_resume')?.[0]?.id, 'run_resume')
-})
-
 test('buildWorkflowRunsByResultMessageId falls back to the source user message when a run has no assistant anchor', () => {
   const approvalRun = run({
     id: 'run_needs_action',

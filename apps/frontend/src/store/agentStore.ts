@@ -134,6 +134,9 @@ interface AgentStore {
   createConversation: (userId: string) => string
   deleteConversation: (userId: string, id: string) => void
   deleteConversations: (userId: string, ids: string[]) => void
+  archiveConversation: (userId: string, id: string) => void
+  archiveConversations: (userId: string, ids: string[]) => void
+  unarchiveConversation: (userId: string, id: string) => void
   reorderConversation: (userId: string, draggedId: string, targetId: string, position: 'before' | 'after') => void
   setActiveConversation: (userId: string, id: string | null) => void
   addMessage: (userId: string, conversationId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp?: number }) => string
@@ -168,6 +171,27 @@ function getUserState(store: Pick<AgentStore, 'convsByUser'>, userId: string): U
     conversations: normalizeConversations<Conversation>(existing.conversations),
     activeConversationId: existing.activeConversationId ?? null,
     draftsByConversation: normalizeDraftsByConversation<ConversationDraft>(existing.draftsByConversation),
+  }
+}
+
+function archiveConversationsState(state: Pick<AgentStore, 'convsByUser'>, userId: string, idsToArchive: Set<string>) {
+  if (idsToArchive.size === 0) return {}
+  const cur = getUserState(state, userId)
+  const now = Date.now()
+  const conversations = cur.conversations.map((conversation) => idsToArchive.has(conversation.id)
+    ? { ...conversation, archived: true, updatedAt: now }
+    : conversation)
+  return {
+    convsByUser: {
+      ...state.convsByUser,
+      [userId]: {
+        ...cur,
+        conversations,
+        activeConversationId: cur.activeConversationId && idsToArchive.has(cur.activeConversationId)
+          ? (conversations.find((conversation) => conversation.archived !== true)?.id ?? null)
+          : cur.activeConversationId,
+      },
+    },
   }
 }
 
@@ -291,6 +315,26 @@ export const useAgentStore = create<AgentStore>()(
               ? (conversations[0]?.id ?? null)
               : cur.activeConversationId,
             draftsByConversation,
+          },
+        },
+      }
+    }),
+
+    archiveConversation: (userId, id) => set((state) => archiveConversationsState(state, userId, new Set([id]))),
+
+    archiveConversations: (userId, ids) => set((state) => archiveConversationsState(state, userId, new Set(ids))),
+
+    unarchiveConversation: (userId, id) => set((state) => {
+      const cur = getUserState(state, userId)
+      const now = Date.now()
+      return {
+        convsByUser: {
+          ...state.convsByUser,
+          [userId]: {
+            ...cur,
+            conversations: cur.conversations.map((conversation) => conversation.id === id
+              ? { ...conversation, archived: false, updatedAt: now }
+              : conversation),
           },
         },
       }

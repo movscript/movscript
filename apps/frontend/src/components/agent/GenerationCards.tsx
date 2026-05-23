@@ -4,6 +4,7 @@ import type { ChatGenerationJob, ChatGenerationParamAudit, ChatGenerationValidat
 import type { GenerationProgressState } from '@/lib/agentGenerationMedia'
 import { generationJobBadge, generationProgressTitle, generationStatusText, generationTimingLabel, type GenerationJobBadgeTone } from '@/lib/agentGenerationDisplay'
 import { cn } from '@/lib/utils'
+import { ReviewCallout, ReviewStat, semanticToneClass } from '@movscript/ui'
 
 export function GenerationProgressCard({ state }: { state: GenerationProgressState }) {
   const [now, setNow] = useState(() => new Date().toISOString())
@@ -18,9 +19,9 @@ export function GenerationProgressCard({ state }: { state: GenerationProgressSta
     updatedAt: state.terminal ? state.updatedAt : now,
   }, generationDisplayLocale())
   const icon = badge.tone === 'failed' || badge.tone === 'warning'
-    ? <AlertCircle size={12} className="shrink-0 text-amber-600" />
+    ? <AlertCircle size={12} className="shrink-0 ms-semantic-icon ms-semantic-icon--warning" />
     : state.terminal
-      ? <Check size={12} className="shrink-0 text-green-600" />
+      ? <Check size={12} className="shrink-0 ms-semantic-icon ms-semantic-icon--success" />
       : <Loader2 size={12} className="shrink-0 animate-spin text-muted-foreground" />
   useEffect(() => {
     if (state.terminal) return undefined
@@ -63,7 +64,7 @@ export function GenerationProgressCard({ state }: { state: GenerationProgressSta
           <div
             className={cn(
               'h-full rounded-full transition-[width]',
-              badge.tone === 'failed' ? 'bg-destructive/70' : badge.tone === 'warning' ? 'bg-amber-500/70' : 'bg-primary',
+              badge.tone === 'failed' || badge.tone === 'warning' ? semanticToneClass('warning', 'dot') : 'bg-primary',
             )}
             style={{ width: `${terminalProgress}%` }}
           />
@@ -150,7 +151,7 @@ export function GenerationJobSummaryCard({ jobs }: { jobs?: ChatGenerationJob[] 
                   aria-valuenow={progress}
                   className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"
                 >
-                  <div className={cn('h-full rounded-full transition-[width]', badge.tone === 'failed' || badge.tone === 'warning' ? 'bg-amber-500' : 'bg-primary')} style={{ width: `${progress}%` }} />
+                  <div className={cn('h-full rounded-full transition-[width]', badge.tone === 'failed' || badge.tone === 'warning' ? semanticToneClass('warning', 'dot') : 'bg-primary')} style={{ width: `${progress}%` }} />
                 </div>
               )}
               {job.message && (
@@ -190,7 +191,7 @@ export function GenerationParamAuditCard({ audits }: { audits?: ChatGenerationPa
                   {audit.jobId !== undefined ? `Job #${audit.jobId}` : `生成提交 ${index + 1}`}
                   {audit.modelConfigId !== undefined ? ` · model #${audit.modelConfigId}` : ''}
                 </p>
-                <span className={cn('shrink-0 rounded border px-1.5 py-0 type-micro leading-4', droppedCount > 0 ? 'border-amber-500/30 bg-amber-500/10 text-amber-700' : 'border-green-600/50 bg-green-500/10 text-green-700')}>
+                <span className={cn('shrink-0 rounded border px-1.5 py-0 type-micro leading-4', droppedCount > 0 ? semanticToneClass('warning', 'badge') : semanticToneClass('success', 'badge'))}>
                   {droppedCount > 0 ? `过滤 ${droppedCount}` : '已匹配'}
                 </span>
               </div>
@@ -211,12 +212,12 @@ export function GenerationParamAuditCard({ audits }: { audits?: ChatGenerationPa
                 </p>
               )}
               {audit.droppedExtraParams.length > 0 && (
-                <p className="mt-1 line-clamp-2 type-micro leading-relaxed text-amber-700 dark:text-amber-300">
+                <p className="mt-1 line-clamp-2 type-micro leading-relaxed ms-semantic-icon ms-semantic-icon--warning">
                   过滤 extra_params：{audit.droppedExtraParams.map((key) => formatDroppedParam(key, audit.dropReasons)).join('、')}
                 </p>
               )}
               {audit.droppedTopLevelParams.length > 0 && (
-                <p className="mt-1 line-clamp-2 type-micro leading-relaxed text-amber-700 dark:text-amber-300">
+                <p className="mt-1 line-clamp-2 type-micro leading-relaxed ms-semantic-icon ms-semantic-icon--warning">
                   过滤顶层参数：{audit.droppedTopLevelParams.map((key) => formatDroppedParam(key, audit.dropReasons)).join('、')}
                 </p>
               )}
@@ -231,17 +232,17 @@ export function GenerationParamAuditCard({ audits }: { audits?: ChatGenerationPa
                 </p>
               )}
               {audit.preflightErrors && audit.preflightErrors.length > 0 && (
-                <p className="mt-1 line-clamp-2 type-micro leading-relaxed text-amber-700 dark:text-amber-300">
+                <p className="mt-1 line-clamp-2 type-micro leading-relaxed ms-semantic-icon ms-semantic-icon--warning">
                   本地预检：{audit.preflightErrors.map(formatPreflightError).join('、')}
                 </p>
               )}
               {audit.inputPreflightErrors && audit.inputPreflightErrors.length > 0 && (
-                <p className="mt-1 line-clamp-2 type-micro leading-relaxed text-amber-700 dark:text-amber-300">
+                <p className="mt-1 line-clamp-2 type-micro leading-relaxed ms-semantic-icon ms-semantic-icon--warning">
                   输入预检：{audit.inputPreflightErrors.map(formatInputPreflightError).join('、')}
                 </p>
               )}
               {audit.repairNote && (
-                <p className="mt-1 line-clamp-2 type-micro leading-relaxed text-green-700 dark:text-green-300">
+                <p className="mt-1 line-clamp-2 type-micro leading-relaxed ms-semantic-icon ms-semantic-icon--success">
                   自动修复：{audit.repairNote}
                 </p>
               )}
@@ -256,19 +257,17 @@ export function GenerationParamAuditCard({ audits }: { audits?: ChatGenerationPa
 export function GenerationValidationErrorCard({ errors }: { errors?: ChatGenerationValidationError[] }) {
   if (!errors?.length) return null
   return (
-    <div data-testid="agent-generation-validation-errors" className="mt-2 rounded-md border border-red-500/40 bg-red-500/5 p-2 shadow-sm">
+    <ReviewCallout data-testid="agent-generation-validation-errors" tone="danger" compact className="mt-2 shadow-sm">
       <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
-          <AlertCircle size={12} className="shrink-0 text-red-600" />
+          <AlertCircle size={12} className="shrink-0" />
           <span className="truncate type-caption font-medium text-foreground">生成校验失败</span>
         </div>
-        <span className="shrink-0 rounded border border-red-500/30 bg-red-500/10 px-1.5 py-0 type-micro leading-4 text-red-700">
-          {errors.length} 个错误
-        </span>
+        <ReviewStat tone="danger" className="py-0 leading-4">{errors.length} 个错误</ReviewStat>
       </div>
       <div className="space-y-1.5">
         {errors.map((error, index) => (
-          <div key={error.stepId ?? `generation-error-${index}`} className="rounded border border-red-500/40 bg-background/70 px-2 py-1.5">
+          <div key={error.stepId ?? `generation-error-${index}`} className={cn('rounded bg-background/70 px-2 py-1.5', semanticToneClass('danger', 'surface'))}>
             <p className="truncate type-tiny font-medium text-foreground">
               {error.field ? `${error.field} · ` : ''}{error.code}
             </p>
@@ -284,14 +283,14 @@ export function GenerationValidationErrorCard({ errors }: { errors?: ChatGenerat
               </p>
             )}
             {error.suggestedFix && (
-              <p className="mt-1 line-clamp-2 type-micro leading-relaxed text-amber-700 dark:text-amber-300">
+              <p className="mt-1 line-clamp-2 type-micro leading-relaxed ms-semantic-icon ms-semantic-icon--warning">
                 建议：{formatSuggestedFix(error.suggestedFix).replace(/^，建议 /, '')}
               </p>
             )}
           </div>
         ))}
       </div>
-    </div>
+    </ReviewCallout>
   )
 }
 
@@ -418,11 +417,11 @@ function generationDisplayLocale() {
 function generationJobBadgeClass(tone: GenerationJobBadgeTone) {
   switch (tone) {
     case 'failed':
-      return 'border-red-500/30 bg-red-500/10 text-red-700'
+      return semanticToneClass('danger', 'badge')
     case 'warning':
-      return 'border-amber-500/30 bg-amber-500/10 text-amber-700'
+      return semanticToneClass('warning', 'badge')
     case 'success':
-      return 'border-green-600/50 bg-green-500/10 text-green-700'
+      return semanticToneClass('success', 'badge')
     default:
       return ''
   }

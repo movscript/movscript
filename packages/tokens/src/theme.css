@@ -63,6 +63,8 @@
   --ms-color-primary-foreground: #ffffff;
   --ms-color-accent: #13161b;
   --ms-color-accent-foreground: #ffffff;
+  --ms-color-info: #2563eb;
+  --ms-color-info-foreground: #ffffff;
   --ms-color-danger: #bf3d3d;
   --ms-color-danger-foreground: #ffffff;
   --ms-color-success: #16784b;
@@ -127,6 +129,8 @@
   --ms-color-primary-foreground: #111318;
   --ms-color-accent: #f5f7f3;
   --ms-color-accent-foreground: #081412;
+  --ms-color-info: #7db4ff;
+  --ms-color-info-foreground: #061120;
   --ms-color-danger: #ff7a7a;
   --ms-color-danger-foreground: #180707;
   --ms-color-success: #57c985;

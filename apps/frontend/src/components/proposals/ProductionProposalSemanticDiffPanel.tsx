@@ -1,7 +1,14 @@
 import { useMemo, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { Film, GitBranch, PackageCheck, Route, Sparkles } from 'lucide-react'
-import { Button } from '@movscript/ui'
+import {
+  Button,
+  ChangeActionBadge,
+  ReviewDecisionBadge,
+  ReviewStat,
+  changeActionRowClass,
+  semanticToneClass,
+} from '@movscript/ui'
 
 import { cn } from '@/lib/utils'
 import type { ProductionProposalSnapshotAction } from '@/components/proposals/ProductionProposalApplyPreviewPanel'
@@ -90,8 +97,8 @@ export function ProductionProposalSemanticDiffPanel({
         <div className="mt-2 grid grid-cols-4 gap-1.5 text-center type-tiny">
           <span className="rounded bg-muted px-1.5 py-1 text-foreground">总计 {summary.total}</span>
           <span className="rounded bg-muted px-1.5 py-1 text-foreground">未审 {summary.pending}</span>
-          <span className="rounded bg-emerald-500/10 px-1.5 py-1 text-emerald-700 dark:text-emerald-300">接受 {summary.accepted}</span>
-          <span className="rounded bg-rose-500/10 px-1.5 py-1 text-rose-700 dark:text-rose-300">拒绝 {summary.rejected}</span>
+          <ReviewStat tone="success">接受 {summary.accepted}</ReviewStat>
+          <ReviewStat tone="danger">拒绝 {summary.rejected}</ReviewStat>
         </div>
         <div className="mt-3 space-y-2">
           <ProductionProposalDiffFilterRow
@@ -201,27 +208,11 @@ export function ProductionProposalContextPanel({
 }
 
 export function ProductionProposalDiffActionBadge({ action, compact = false }: { action: ProductionProposalSnapshotAction | undefined; compact?: boolean }) {
-  const cls = compact ? 'px-1 py-0 type-micro' : 'px-1.5 py-0.5 type-micro'
-  if (action === 'delete') {
-    return <span className={cn('shrink-0 rounded font-mono font-medium text-rose-600 dark:text-rose-400', cls)}>-</span>
-  }
-  if (action === 'update') {
-    return <span className={cn('shrink-0 rounded font-mono font-medium text-amber-600 dark:text-amber-400', cls)}>~</span>
-  }
-  return <span className={cn('shrink-0 rounded font-mono font-medium text-emerald-600 dark:text-emerald-400', cls)}>+</span>
+  return <ChangeActionBadge action={action} compact={compact} />
 }
 
 function ProductionProposalDecisionBadge({ decision }: { decision: ProductionProposalNodeDecision }) {
-  return (
-    <span className={cn(
-      'shrink-0 rounded px-1.5 py-0.5 type-micro font-medium',
-      decision === 'accepted'
-        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-        : 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
-    )}>
-      {decision === 'accepted' ? '已接受' : '已拒绝'}
-    </span>
-  )
+  return <ReviewDecisionBadge decision={decision} />
 }
 
 function ProductionProposalDiffFilterRow({
@@ -267,8 +258,8 @@ function ProductionProposalSemanticDiffRow({
   const projectBoundaryBlocked = isProductionDiffItemBlockedByProjectBoundary(item)
   return (
     <div className={cn(
-      'border-l-2 px-3 py-2',
-      item.action === 'delete' ? 'border-l-rose-400 bg-rose-500/5' : item.action === 'update' ? 'border-l-amber-400 bg-amber-500/5' : 'border-l-emerald-400 bg-emerald-500/5',
+      'px-3 py-2',
+      changeActionRowClass(item.action),
       decision === 'rejected' && 'opacity-60',
     )}>
       <div className="flex items-start gap-2">
@@ -278,13 +269,13 @@ function ProductionProposalSemanticDiffRow({
           <div className="flex items-center gap-1.5">
             <p className="truncate type-caption font-medium text-foreground">{item.title}</p>
             {decision && <ProductionProposalDecisionBadge decision={decision} />}
-            {!decision && projectBoundaryBlocked && <span className="rounded bg-amber-500/10 px-1.5 py-0.5 type-micro font-medium text-amber-700 dark:text-amber-300">回上游工作台</span>}
+            {!decision && projectBoundaryBlocked && <span className={cn('rounded px-1.5 py-0.5 type-micro font-medium', semanticToneClass('warning', 'badge'))}>回上游工作台</span>}
           </div>
           {item.detail && <p className="mt-0.5 line-clamp-2 type-tiny leading-4 text-muted-foreground">{item.detail}</p>}
           {(item.before || item.after) && (
             <div className="mt-2 grid gap-1.5 type-tiny leading-4">
-              {item.before && <p className="rounded bg-rose-500/10 px-2 py-1 text-rose-700 dark:text-rose-300">原：{item.before}</p>}
-              {item.after && <p className="rounded bg-emerald-500/10 px-2 py-1 text-emerald-700 dark:text-emerald-300">新：{item.after}</p>}
+              {item.before && <p className={cn('rounded px-2 py-1', semanticToneClass('danger', 'badge'))}>原：{item.before}</p>}
+              {item.after && <p className={cn('rounded px-2 py-1', semanticToneClass('success', 'badge'))}>新：{item.after}</p>}
             </div>
           )}
         </div>

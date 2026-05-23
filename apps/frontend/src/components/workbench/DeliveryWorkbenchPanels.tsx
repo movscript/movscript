@@ -18,10 +18,12 @@ import type { ContentUnit, DeliveryTimelineItem, DeliveryVersion, ExportRecord, 
 import { MediaViewer } from '@/components/shared/MediaViewer'
 import { ResourceLibraryPicker } from '@/components/shared/ResourceLibraryPicker'
 import {
+  semanticToneClass,
+  type SemanticTone,
   WorkbenchKeyValue,
   WorkbenchMetric,
   WorkbenchStatusBadge,
-} from '@/components/workbench/WorkbenchPrimitives'
+} from '@movscript/ui'
 import type { DeliveryGateCheck, DeliveryReadiness } from '@/lib/deliveryWorkbenchModel'
 import {
   buildDeliveryOverviewMetrics,
@@ -44,10 +46,10 @@ const deliveryMetricIcons: Record<DeliveryOverviewMetricId, LucideIcon> = {
 
 type GateCheckStatus = 'passed' | 'warning' | 'blocked'
 
-const gateMeta: Record<GateCheckStatus, { className: string; icon: LucideIcon }> = {
-  passed: { className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300', icon: CheckCircle2 },
-  warning: { className: 'bg-amber-500/10 text-amber-700 dark:text-amber-300', icon: AlertTriangle },
-  blocked: { className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300', icon: XCircle },
+const gateMeta: Record<GateCheckStatus, { tone: SemanticTone; icon: LucideIcon }> = {
+  passed: { tone: 'success', icon: CheckCircle2 },
+  warning: { tone: 'warning', icon: AlertTriangle },
+  blocked: { tone: 'danger', icon: XCircle },
 }
 
 export function DeliveryOverviewPanel({
@@ -150,7 +152,7 @@ function DeliveryVersionSummaryCard({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <BadgeCheck size={16} className={summary.warningCount > 0 ? 'text-amber-600' : 'text-emerald-600'} />
+            <BadgeCheck size={16} className={summary.warningCount > 0 ? semanticToneClass('warning', 'icon') : semanticToneClass('success', 'icon')} />
             <h2 className="type-body font-semibold text-foreground">{summary.title}</h2>
             <WorkbenchStatusBadge tone={deliveryWorkbenchStatusTone(summary.status)} label={deliveryStatusLabel(summary.status)} />
             {summary.isPrimary && (
@@ -163,7 +165,7 @@ function DeliveryVersionSummaryCard({
         </div>
         <div className="grid grid-cols-3 gap-3 text-right shrink-0">
           <div>
-            <p className={cn('type-title-sm font-semibold tabular-nums', summary.warningCount > 0 ? 'text-amber-600' : 'text-emerald-600')}>{summary.readinessLabel}</p>
+            <p className={cn('type-title-sm font-semibold tabular-nums', summary.warningCount > 0 ? semanticToneClass('warning', 'icon') : semanticToneClass('success', 'icon'))}>{summary.readinessLabel}</p>
             <p className="mt-1 type-label text-muted-foreground">交付就绪</p>
           </div>
           <div>
@@ -171,7 +173,7 @@ function DeliveryVersionSummaryCard({
             <p className="mt-1 type-label text-muted-foreground">总时长</p>
           </div>
           <div>
-            <p className={cn('type-title font-semibold tabular-nums', summary.warningCount > 0 ? 'text-amber-600' : 'text-foreground')}>{summary.warningCount}</p>
+            <p className={cn('type-title font-semibold tabular-nums', summary.warningCount > 0 ? semanticToneClass('warning', 'icon') : 'text-foreground')}>{summary.warningCount}</p>
             <p className="mt-1 type-label text-muted-foreground">待补齐</p>
           </div>
         </div>
@@ -196,7 +198,7 @@ function DeliveryGateCheckPanel({ checks }: { checks: DeliveryGateCheck[] }) {
     <div className="rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <ShieldCheck size={16} className="text-emerald-600" />
+          <ShieldCheck size={16} className={semanticToneClass('success', 'icon')} />
           <h2 className="type-body font-semibold text-foreground">导出门禁</h2>
         </div>
         <Badge variant="secondary" className="type-tiny">
@@ -209,7 +211,7 @@ function DeliveryGateCheckPanel({ checks }: { checks: DeliveryGateCheck[] }) {
           const Icon = meta.icon
           return (
             <div key={check.id} className="flex items-start gap-3 rounded-md border border-border bg-background p-3">
-              <div className={cn('mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md', meta.className)}>
+              <div className={cn('mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md', semanticToneClass(meta.tone, 'surface'), semanticToneClass(meta.tone, 'icon'))}>
                 <Icon size={14} />
               </div>
               <div className="min-w-0 flex-1">

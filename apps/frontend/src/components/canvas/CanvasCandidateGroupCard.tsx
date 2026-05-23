@@ -7,7 +7,7 @@ import {
   Sparkles,
   Trash2,
 } from 'lucide-react'
-import { Button } from '@movscript/ui'
+import { Button, accentToneClass, semanticToneClass } from '@movscript/ui'
 import type { CanvasEntityKind } from '@/types'
 import { cn } from '@/lib/utils'
 import { ENTITY_KIND_META } from '@/components/entity/EntitySurface'
@@ -59,14 +59,14 @@ export function CanvasCandidateGroupCard({
         className,
       )}
     >
-      <header className="border-b border-border bg-emerald-500/10 px-3 py-2.5">
+      <header className={cn('border-b border-border px-3 py-2.5', accentToneClass('emerald', 'soft'))}>
         <div className="flex items-start gap-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background/80">
-            <Sparkles size={14} className="text-emerald-600" />
+            <Sparkles size={14} className={accentToneClass('emerald', 'icon')} />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
-              <span className="shrink-0 rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 type-micro font-semibold uppercase leading-none text-emerald-700 dark:text-emerald-300">
+              <span className={cn('shrink-0 rounded border px-1.5 py-0.5 type-micro font-semibold uppercase leading-none', accentToneClass('emerald', 'badge'))}>
                 候选
               </span>
               <p className="min-w-0 flex-1 truncate type-body font-semibold leading-5 text-foreground">{title}</p>
@@ -124,7 +124,7 @@ function CandidateRow({ candidate }: { candidate: CandidateItem }) {
       data-output-port-id={candidate.decision === 'selected' ? `candidate:${candidate.id}` : undefined}
       className={cn(
         'relative rounded-md border bg-background px-2 py-1.5',
-        candidate.decision === 'selected' && 'border-emerald-500/35 bg-emerald-500/[0.06]',
+        candidate.decision === 'selected' && semanticToneClass('success', 'surface'),
         candidate.decision === 'pending' && 'border-border',
         candidate.decision === 'rejected' && 'border-border bg-muted/20 opacity-65',
       )}
@@ -161,7 +161,7 @@ function CandidateRow({ candidate }: { candidate: CandidateItem }) {
 function DecisionMark({ decision }: { decision: CandidateDecision }) {
   if (decision === 'selected') {
     return (
-      <span className="mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
+      <span className={cn('mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-primary-foreground', semanticToneClass('success', 'dot'))}>
         <Check size={10} />
       </span>
     )
@@ -184,7 +184,7 @@ function Metric({ label, value, tone }: { label: string; value: number; tone: 's
   return (
     <div className={cn(
       'rounded-md border px-2 py-1.5',
-      tone === 'selected' && 'border-emerald-500/25 bg-emerald-500/10',
+      tone === 'selected' && semanticToneClass('success', 'surface'),
       tone === 'pending' && 'border-border bg-background',
       tone === 'rejected' && 'border-border bg-muted/30',
     )}>

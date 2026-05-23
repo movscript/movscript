@@ -111,7 +111,7 @@ export function buildAgentChatSendPipelineInput({
     sendActions: {
       input: composer.input,
       composerAttachments: composer.composerAttachments,
-      loading,
+      loading: presentation.loading,
       uploading: composer.uploading,
       buildingSendDraft,
       answeringPendingInput: presentation.answeringPendingInput,

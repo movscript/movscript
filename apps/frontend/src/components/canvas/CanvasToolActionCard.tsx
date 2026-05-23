@@ -13,11 +13,11 @@ import {
   Text,
   Video,
 } from 'lucide-react'
-import { Button } from '@movscript/ui'
+import { accentToneClass, Button, semanticToneClass, type AccentTone } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 
 export type CanvasToolSource = 'ai' | 'plugin'
-export type CanvasToolTone = 'violet' | 'cyan' | 'amber' | 'emerald'
+export type CanvasToolTone = Extract<AccentTone, 'violet' | 'cyan' | 'amber' | 'emerald'>
 export type CanvasToolSlotType = 'text' | 'prompt' | 'image' | 'video' | 'json'
 export type CanvasToolSlotState = 'empty' | 'ready' | 'pending' | 'failed'
 
@@ -72,17 +72,6 @@ export interface CanvasToolActionCardProps {
   renderPortHandle?: CanvasToolPortHandleRenderer
 }
 
-const TOOL_TONE_META: Record<CanvasToolTone, {
-  accentSoft: string
-  activeColor: string
-  sourceBadge: string
-}> = {
-  violet: { accentSoft: 'bg-violet-500/10', activeColor: 'text-violet-600', sourceBadge: 'border-violet-500/20 bg-violet-500/10 text-violet-700 dark:text-violet-300' },
-  cyan: { accentSoft: 'bg-cyan-500/10', activeColor: 'text-cyan-600', sourceBadge: 'border-cyan-500/20 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300' },
-  amber: { accentSoft: 'bg-amber-500/10', activeColor: 'text-amber-600', sourceBadge: 'border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300' },
-  emerald: { accentSoft: 'bg-emerald-500/10', activeColor: 'text-emerald-600', sourceBadge: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
-}
-
 export function CanvasToolActionCard({
   source,
   tone,
@@ -103,7 +92,6 @@ export function CanvasToolActionCard({
   renderPortHandle,
 }: CanvasToolActionCardProps) {
   const resolvedTone = tone ?? (source === 'ai' ? 'violet' : 'cyan')
-  const toneMeta = TOOL_TONE_META[resolvedTone]
   const Icon = icon ?? (source === 'ai' ? Sparkles : Puzzle)
   const visibleInputs = inputs.slice(0, 3)
   const visibleConfigs = configs.slice(0, 5)
@@ -121,12 +109,12 @@ export function CanvasToolActionCard({
     >
       <header className="px-3 pt-3 pb-2">
         <div className="flex items-start gap-2">
-          <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', toneMeta.accentSoft)}>
-            <Icon size={14} className={toneMeta.activeColor} />
+          <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', accentToneClass(resolvedTone, 'soft'))}>
+            <Icon size={14} className={accentToneClass(resolvedTone, 'icon')} />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
-              <SourceBadge source={source} className={toneMeta.sourceBadge} />
+              <SourceBadge source={source} className={accentToneClass(resolvedTone, 'badge')} />
               <p className="min-w-0 flex-1 truncate type-body font-semibold leading-5 text-foreground">{title}</p>
               {status && (
                 <StatusBadge label={status} />
@@ -238,8 +226,8 @@ function StatusBadge({ label }: { label: string }) {
   return (
     <span className={cn(
       'shrink-0 rounded-full px-1.5 py-0.5 type-tiny font-medium leading-none',
-      done && 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-      running && !done && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+      done && semanticToneClass('success', 'badge'),
+      running && !done && semanticToneClass('info', 'badge'),
       failed && 'bg-destructive/10 text-destructive',
       !running && !done && !failed && 'bg-muted text-muted-foreground',
     )}>
@@ -288,7 +276,7 @@ function ToolSlotRow({
         {slot.summary ?? slotStateLabel(slot.state)}
       </span>
       {isPending && <Loader2 size={10} className="shrink-0 animate-spin text-muted-foreground" />}
-      {isReady && <CheckCircle2 size={10} className="shrink-0 text-emerald-600" />}
+      {isReady && <CheckCircle2 size={10} className={cn('shrink-0', semanticToneClass('success', 'icon'))} />}
       {direction === 'output' && (
         <PortDot
           side="right"
@@ -343,7 +331,7 @@ function OutputTile({ slot, renderPortHandle }: { slot: CanvasToolSlot; renderPo
       </div>
       <div className="w-full border-t border-border/60 px-1.5 py-1">
         <div className="flex items-center gap-1">
-          {isReady ? <CheckCircle2 size={10} className="shrink-0 text-emerald-600" /> : <Circle size={10} className="shrink-0 text-muted-foreground/60" />}
+          {isReady ? <CheckCircle2 size={10} className={cn('shrink-0', semanticToneClass('success', 'icon'))} /> : <Circle size={10} className="shrink-0 text-muted-foreground/60" />}
           <span className="min-w-0 flex-1 truncate type-tiny font-medium text-foreground">{slot.label}</span>
         </div>
         <p className={cn('mt-0.5 truncate type-micro text-muted-foreground', isFailed && 'text-destructive')}>
@@ -412,7 +400,7 @@ function PortDot({
         'absolute z-20 -translate-y-1/2 rounded-full border-2 bg-card shadow-sm',
         compact ? 'top-1/2 h-3 w-3' : 'h-3.5 w-3.5',
         side === 'left' ? '-left-1.5' : '-right-1.5',
-        tone === 'target' && 'border-sky-500 bg-sky-500/90',
+        tone === 'target' && accentToneClass('sky', 'port'),
         tone === 'source' && 'border-primary bg-primary/90',
         tone === 'neutral' && 'border-border bg-card',
         tone === 'muted' && 'border-border bg-muted',

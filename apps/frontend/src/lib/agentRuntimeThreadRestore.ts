@@ -11,6 +11,7 @@ import type { ChatMessage, ChatMessageMeta, Conversation } from '@/store/agentSt
 export interface RestoreRuntimeThreadDeps {
   userId: string
   conversations: Conversation[]
+  getConversations?: () => Conversation[]
   sessionState: {
     localThreadIdsByConversation: Record<string, string>
     sessionIdsByConversation?: Record<string, string>
@@ -21,6 +22,7 @@ export interface RestoreRuntimeThreadDeps {
   loadProjection?: (threadId: string) => Promise<RuntimeThreadHydrationResult>
   createConversation: (userId: string) => string
   setActiveConversation: (userId: string, conversationId: string) => void
+  unarchiveConversation?: (userId: string, conversationId: string) => void
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
   messageStore: Pick<AgentConversationMessageStore<ChatMessage, ChatMessageMeta>, 'upsertMessage'>
   setLocalThreadId: (conversationId: string, threadId: string) => void

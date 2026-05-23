@@ -13,6 +13,11 @@ import { fetchResourceById } from '@/lib/agentMessageViewModel'
 import { stripAttachmentPreviewUrl } from '@/components/agent/useAgentComposerController'
 import { useAgentStore, type AgentAttachment, type ChatMessage, type ChatMessageMeta, type ChatRunActivityEvent } from '@/store/agentStore'
 import { useAgentSessionStore, type AgentConversationRuntimeState, type AgentPageTaskState } from '@/store/agentSessionStore'
+import {
+  captureAgentStorageSnapshot,
+  finishAgentPerformanceOperation,
+  markAgentPerformancePhase,
+} from '@/store/agentPerformanceStore'
 import type { AgentSendDraft } from '@/lib/agentSendDraft'
 import type { AgentLivePendingAssistantState } from '@/lib/agentLiveRunActivity'
 import {
@@ -69,6 +74,8 @@ export interface CommitAgentSendDraftDeps {
 }
 
 export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAgentSendDraftDeps): Promise<void> {
+  const operationId = draft.performanceOperationId
+  markAgentPerformancePhase(operationId, 'commit_start')
   if (!draft.model.id) {
     appendAssistantConversationMessage<ChatMessage, ChatMessageMeta>({
       content: deps.labels.selectModelFirst,
@@ -83,14 +90,17 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
       status: 'error',
       error: deps.labels.selectModelFirst,
     })
+    finishAgentPerformanceOperation(operationId, 'error', { error: deps.labels.selectModelFirst })
     return
   }
 
   const messageAttachments = draft.attachments.map(stripAttachmentPreviewUrl)
   deps.revokeAttachmentPreviewUrls(useAgentStore.getState().getConversationDraft(deps.userId, deps.conversationId).attachments)
   deps.messageStore.clearConversationDraft(deps.userId, deps.conversationId)
+  markAgentPerformancePhase(operationId, 'clear_draft_done')
   deps.setMentionRange(null)
   deps.setConversationRuntime(deps.conversationId, { loading: true, building: false, approving: false, stopping: false, stopRequested: false, error: undefined })
+  markAgentPerformancePhase(operationId, 'runtime_loading_set')
   deps.cancelRequestedRunIds.clear()
   const httpEvents = debugHttpRequestEvents(draft.httpRequests)
   deps.liveTraceEventsRef.current = httpEvents
@@ -115,6 +125,10 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
       messageStore: deps.messageStore,
     },
   })
+  markAgentPerformancePhase(operationId, 'user_message_appended', {
+    details: { localUserMessageId, attachmentCount: messageAttachments.length },
+  })
+  schedulePostCommitFrame(operationId)
   if (draft.localRuntime?.requestId) {
     deps.setPageTaskRunning(draft.localRuntime.requestId, { conversationId: deps.conversationId })
   }
@@ -139,8 +153,12 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
   const completeActivityEvent = (id: string, status: ChatRunActivityEvent['status'] = 'completed') => {
     updateActivityEvents((current) => setActivityEventStatus(current, id, status, new Date().toISOString()))
   }
+  let sawRunUpdate = false
+  let sawRuntimeEvent = false
+  let sawAssistantDelta = false
 
   try {
+    markAgentPerformancePhase(operationId, 'prepare_runtime_start')
     await prepareSendRuntime({
       draft,
       localAgentOnline: deps.localAgentOnline,
@@ -159,6 +177,8 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
         abortError: createLocalAgentStopAbortError,
       },
     })
+    markAgentPerformancePhase(operationId, 'prepare_runtime_done')
+    markAgentPerformancePhase(operationId, 'request_start')
     const runResult = await localAgentClient.runMessageStream({
       threadId: draft.localRuntime?.diagnosticCommand ? undefined : draft.localRuntime?.threadId,
       message: draft.localRuntime?.clientInput?.message ?? draft.visibleUserContent,
@@ -174,6 +194,12 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
       signal: sendController.signal,
       onRunUpdate: (nextRun) => {
         if (sendController.signal.aborted) return
+        if (!sawRunUpdate) {
+          sawRunUpdate = true
+          markAgentPerformancePhase(operationId, 'first_run_update', {
+            details: { runId: nextRun.id, status: nextRun.status },
+          })
+        }
         handleSendRunUpdate(nextRun, {
           conversationId: deps.conversationId,
           requestId: draft.localRuntime?.requestId,
@@ -194,6 +220,9 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
       },
       onSourceMessage: (sourceMessage, run) => {
         if (sendController.signal.aborted) return
+        markAgentPerformancePhase(operationId, 'source_message_accepted', {
+          details: { threadId: sourceMessage.threadId, runId: run.id, runtimeMessageId: sourceMessage.id },
+        })
         deps.messageStore.updateMessageMeta(deps.userId, deps.conversationId, localUserMessageId, {
           modelId: draft.model.id,
           agentName: deps.labels.localRuntime,
@@ -214,8 +243,18 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
       },
       onRuntimeEvent: (event) => {
         if (sendController.signal.aborted) return
+        if (!sawRuntimeEvent) {
+          sawRuntimeEvent = true
+          markAgentPerformancePhase(operationId, 'first_runtime_event')
+        }
         const delta = runtimeAssistantDeltaFromEvent(event)
         if (delta) {
+          if (!sawAssistantDelta) {
+            sawAssistantDelta = true
+            markAgentPerformancePhase(operationId, 'first_assistant_delta', {
+              details: { runId: delta.runId, roundIndex: delta.roundIndex ?? 0 },
+            })
+          }
           deps.updateStreamingAssistantText(delta.runId, delta.accumulated, delta.roundIndex)
         }
         handleSendRuntimeEvent(event, {
@@ -225,7 +264,11 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
         })
       },
     })
+    markAgentPerformancePhase(operationId, 'run_stream_done', {
+      details: { runId: runResult.run.id, status: runResult.run.status },
+    })
     if (sendController.signal.aborted) throw sendController.signal.reason ?? createLocalAgentStopAbortError()
+    markAgentPerformancePhase(operationId, 'complete_result_start')
     await completeSendRunResult({
       draft,
       runResult,
@@ -260,6 +303,12 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
         notifyRunSettled: notifyAgentPanelRunSettled,
       },
     })
+    markAgentPerformancePhase(operationId, 'complete_result_done')
+    captureAgentStorageSnapshot()
+    finishAgentPerformanceOperation(operationId, 'success', {
+      runId: runResult.run.id,
+      status: runResult.run.status,
+    })
   } catch (error) {
     markUnacceptedUserMessageFailed({
       error,
@@ -269,6 +318,9 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
       messageStore: deps.messageStore,
     })
     if (deps.isLocalAgentAbortError(error) || sendController.signal.aborted) {
+      finishAgentPerformanceOperation(operationId, 'cancelled', {
+        error: error instanceof Error ? error.message : String(error),
+      })
       handleSendAbort(error, {
         userId: deps.userId,
         conversationId: deps.conversationId,
@@ -285,6 +337,9 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
       })
       return
     }
+    finishAgentPerformanceOperation(operationId, 'error', {
+      error: error instanceof Error ? error.message : String(error),
+    })
     handleSendFailure(error, {
       userId: deps.userId,
       conversationId: deps.conversationId,
@@ -311,6 +366,15 @@ export async function commitAgentSendDraft(draft: AgentSendDraft, deps: CommitAg
     deps.resetStreamingAssistant()
     deps.setConversationRuntime(deps.conversationId, { stopRequested: false, stopping: false, loading: false, building: false })
   }
+}
+
+function schedulePostCommitFrame(operationId: string | undefined): void {
+  if (!operationId || typeof requestAnimationFrame !== 'function') return
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      markAgentPerformancePhase(operationId, 'post_commit_frame')
+    })
+  })
 }
 
 function markUnacceptedUserMessageFailed(input: {

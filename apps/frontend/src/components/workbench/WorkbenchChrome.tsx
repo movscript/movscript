@@ -24,7 +24,8 @@ import {
   WorkbenchListItem,
   WorkbenchMetric as WorkbenchPrimitiveMetric,
   WorkbenchStatusBadge,
-} from './WorkbenchPrimitives'
+  semanticToneClass,
+} from '@movscript/ui'
 
 export interface WorkbenchMetric {
   label: string
@@ -343,7 +344,7 @@ export function QueueMiniMetric({
   const content = (
     <>
       <p className="type-tiny text-muted-foreground">{label}</p>
-      <p className={cn('mt-0.5 type-body font-semibold tabular-nums', tone === 'warning' ? 'text-amber-700 dark:text-amber-300' : 'text-foreground')}>{value}</p>
+      <p className={cn('mt-0.5 type-body font-semibold tabular-nums', tone === 'warning' ? semanticToneClass('warning', 'icon') : 'text-foreground')}>{value}</p>
     </>
   )
   if (onClick) {
@@ -387,7 +388,7 @@ export function GateChecklist({ rows }: { rows: WorkbenchGate[] }) {
         <div key={row.label} className="workbench-list-item px-2.5 py-2">
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-              {row.done ? <CheckCircle2 size={14} className="shrink-0 text-emerald-600" /> : <CircleDot size={14} className="shrink-0 text-amber-600" />}
+              {row.done ? <CheckCircle2 size={14} className={cn('shrink-0', semanticToneClass('success', 'icon'))} /> : <CircleDot size={14} className={cn('shrink-0', semanticToneClass('warning', 'icon'))} />}
               <span className="truncate type-body font-medium text-foreground">{row.label}</span>
             </div>
             <WorkbenchStatusBadge tone={row.done ? 'success' : row.tone === 'warning' ? 'warning' : 'neutral'} label={gateActionLabel(row.done, row.tone)} />

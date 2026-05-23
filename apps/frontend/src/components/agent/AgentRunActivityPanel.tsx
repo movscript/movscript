@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Bot, ChevronRight, Route, Workflow } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { AgentChatMessage, Badge, Button } from '@movscript/ui'
+import { AgentChatMessage, Badge, Button, ReviewCallout, semanticStatusClass } from '@movscript/ui'
 import { agentTimelineSummary, buildAgentRunTimeline } from '@/lib/agentTimeline'
 import { formatAgentDividerTime } from '@/lib/agentMessageDivider'
 import { runStatusLabel } from '@/lib/agentRunUi'
@@ -45,17 +45,11 @@ function genericRunStatusLabel(status: string): string {
 }
 
 function workflowStatusClass(status: string) {
-  if (status === 'completed' || status === 'approved' || status === 'answered') return 'bg-green-500/10 text-green-700'
-  if (status === 'failed' || status === 'rejected' || status === 'cancelled') return 'bg-destructive/10 text-destructive'
-  if (status === 'skipped' || status === 'pending') return 'bg-amber-500/10 text-amber-700'
-  if (status === 'in_progress') return 'bg-blue-500/10 text-blue-700'
-  return 'bg-muted text-muted-foreground'
+  return semanticStatusClass(status, 'badge')
 }
 
 function workflowDotClass(status: string) {
-  if (status === 'completed' || status === 'approved' || status === 'answered') return 'border-green-600/50 bg-green-500/10 text-green-700'
-  if (status === 'failed' || status === 'rejected' || status === 'cancelled') return 'border-destructive/30 bg-destructive/10 text-destructive'
-  return 'border-blue-500/30 bg-blue-500/10 text-blue-700'
+  return semanticStatusClass(status, 'dot')
 }
 
 function runStatusVariant(status: string): 'secondary' | 'success' | 'warning' | 'destructive' | 'outline' {
@@ -170,9 +164,9 @@ export function RunActivityPanel({
           </div>
         ))}
         {timeline.warnings?.length ? (
-          <div className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 type-tiny leading-relaxed text-amber-800 dark:text-amber-300">
+          <ReviewCallout tone="warning" compact className="type-tiny leading-relaxed">
             {timeline.warnings.map((warning) => <div key={warning}>{warning}</div>)}
-          </div>
+          </ReviewCallout>
         ) : null}
         {timeline.error && (
           <div className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1.5 type-tiny leading-relaxed text-destructive">

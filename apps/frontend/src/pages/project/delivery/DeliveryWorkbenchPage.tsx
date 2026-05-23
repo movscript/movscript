@@ -37,7 +37,7 @@ import {
   WorkbenchEntityCard,
   WorkbenchMetric,
   WorkbenchStatusBadge,
-} from '@/components/workbench/WorkbenchPrimitives'
+} from '@movscript/ui'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import {
   buildDeliveryContentUnitMap,

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, CheckCircle2, Clock, ListTree, RefreshCw, Search, XCircle } from 'lucide-react'
-import { Badge, Button } from '@movscript/ui'
+import { Badge, Button, AppInlineError, AppStateMessage, semanticToneClass } from '@movscript/ui'
 import { AgentConsoleNav } from '@/pages/agent/AgentConsoleNav'
 import { agentRunPath } from '@/routes/projectRoutes'
 import { runRoleLabel, runStatusLabel } from '@/lib/agentRunUi'
@@ -178,7 +178,7 @@ function RunMetric({ title, value, icon, tone }: { title: string; value: number;
   return (
     <div className={cn(
       'rounded-md border bg-background p-3',
-      tone === 'warning' ? 'border-amber-500/40' : tone === 'danger' ? 'border-destructive/40' : 'border-border',
+      tone === 'warning' ? semanticToneClass('warning', 'surface') : tone === 'danger' ? 'border-destructive/40' : 'border-border',
     )}>
       <div className="flex items-center justify-between gap-2 type-tiny uppercase tracking-wide text-muted-foreground">
         <span>{title}</span>
@@ -186,7 +186,7 @@ function RunMetric({ title, value, icon, tone }: { title: string; value: number;
       </div>
       <div className={cn(
         'mt-2 type-title-sm font-semibold',
-        tone === 'warning' ? 'text-amber-700 dark:text-amber-300' : tone === 'danger' ? 'text-destructive' : tone === 'ready' ? 'text-emerald-700 dark:text-emerald-300' : 'text-foreground',
+        tone === 'warning' ? semanticToneClass('warning', 'icon') : tone === 'danger' ? 'text-destructive' : tone === 'ready' ? semanticToneClass('success', 'icon') : 'text-foreground',
       )}>
         {value}
       </div>
@@ -195,11 +195,11 @@ function RunMetric({ title, value, icon, tone }: { title: string; value: number;
 }
 
 function StateMessage({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-md border border-border bg-muted/20 p-3 type-label text-muted-foreground">{children}</div>
+  return <AppStateMessage>{children}</AppStateMessage>
 }
 
 function InlineError({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 type-label text-destructive">{children}</div>
+  return <AppInlineError className="p-3">{children}</AppInlineError>
 }
 
 function summarizeRuns(runs: AgentRun[]) {

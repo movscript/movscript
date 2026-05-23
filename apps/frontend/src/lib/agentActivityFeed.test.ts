@@ -79,6 +79,49 @@ test('buildAgentActivityFeed renders core draft tools as lightweight blocks', ()
   ])
 })
 
+test('buildAgentActivityFeed renders plan update rationale and task counts', () => {
+  const planArgs = {
+    explanation: '已确认素材需求，下一步提交 5 个生成任务。',
+    tasks: [
+      { step: '确认素材槽', status: 'completed' },
+      { step: '提交生成任务', status: 'in_progress' },
+      { step: '写入候选集', status: 'pending' },
+    ],
+  }
+  const feed = buildAgentActivityFeed({
+    activity: activity({
+      steps: [{
+        id: 'step_plan',
+        type: 'tool_call',
+        status: 'completed',
+        toolName: 'core_update_plan',
+        args: planArgs,
+        result: { status: 'updated' },
+        createdAt: '2026-05-22T01:00:00.000Z',
+      }],
+      events: [{
+        ...modelEvent('model_decision_plan', 'Model tool calls requested', 1, 'completed', '2026-05-22T00:59:59.000Z'),
+        data: {
+          eventType: 'model.tool_calls.requested',
+          tool_calls: [
+            { id: 'call_plan', name: 'core_update_plan', args: planArgs },
+          ],
+        },
+      }],
+    }),
+  })
+
+  assert.deepEqual(feed?.items.map((item) => item.type === 'decision' ? item.lines : item.type === 'block' ? item.lines : []), [
+    [
+      '更新执行计划：已确认素材需求，下一步提交 5 个生成任务。；任务：3 项（已完成 1，进行中 1，待处理 1）',
+    ],
+    [
+      '说明：已确认素材需求，下一步提交 5 个生成任务。',
+      '任务：3 项（已完成 1，进行中 1，待处理 1）',
+    ],
+  ])
+})
+
 test('buildAgentActivityFeed renders generation work details from args and result', () => {
   const feed = buildAgentActivityFeed({
     activity: activity({
@@ -584,26 +627,6 @@ test('buildAgentActivityFeed renders user approvals at their activity position',
 
   assert.deepEqual(feed?.items.map((item) => item.id), ['approval-approval_1'])
   assert.equal(feed?.items[0]?.type, 'approval_request')
-})
-
-test('buildAgentActivityFeed keeps continuation resume approvals out of run activity', () => {
-  const feed = buildAgentActivityFeed({
-    activity: activity({
-      status: 'completed',
-      approvals: [{
-        id: 'approval_resume',
-        toolName: 'runtime_continuation_resume',
-        reason: 'Resume interrupted work',
-        permission: 'runtime.continuation',
-        risk: 'resume',
-        status: 'pending',
-        createdAt: '2026-05-22T01:00:00.000Z',
-        updatedAt: '2026-05-22T01:00:00.000Z',
-      }],
-    }),
-  })
-
-  assert.deepEqual(feed?.items, [])
 })
 
 test('buildAgentActivityFeed keeps approvals inline with tool results', () => {

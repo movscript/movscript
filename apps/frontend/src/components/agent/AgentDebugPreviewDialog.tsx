@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, ClipboardCheck, Copy, Loader2, Send, X } from 'lucide-react'
-import { Badge, Button } from '@movscript/ui'
+import { Badge, Button, ReviewCallout, semanticToneClass } from '@movscript/ui'
 import { agentToolNameLabel } from '@/lib/agentToolDisplay'
 import { agentPermissionModeLabel, runApprovalModeLabel, toolApprovalLabel, toolGrantModeLabel } from '@/lib/agentRunUi'
 import type { AgentSendDraft, DebugHttpRequest } from '@/lib/agentSendDraft'
@@ -91,12 +91,12 @@ export function AgentDebugPreviewDialog({
           </div>
 
           {draft.warnings.length > 0 && (
-            <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 type-label">
-              <div className="mb-1 font-medium text-amber-800 dark:text-amber-300">{t('agents.chat.panel.debugPreview.warnings')}</div>
+            <ReviewCallout tone="warning" compact className="mt-3 type-label">
+              <div className={cn('mb-1 font-medium', semanticToneClass('warning', 'icon'))}>{t('agents.chat.panel.debugPreview.warnings')}</div>
               <ul className="space-y-1 type-caption text-muted-foreground">
                 {draft.warnings.map((warning) => <li key={warning}>{warning}</li>)}
               </ul>
-            </div>
+            </ReviewCallout>
           )}
 
           <DebugSection title={t('agents.chat.panel.prompt.finalHttpRequests')}>
@@ -441,10 +441,10 @@ export function DraftDiff({ preview }: { preview: AgentDraftApplyPreview }) {
         <div className="px-2 py-1.5">{t('agents.chat.panel.drafts.proposed')}</div>
       </div>
       <div className="grid md:grid-cols-2">
-        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words border-b border-border bg-red-500/5 p-2 type-tiny leading-relaxed text-red-700 md:border-b-0 md:border-r">
+        <pre className={cn('max-h-40 overflow-auto whitespace-pre-wrap break-words border-b border-border p-2 type-tiny leading-relaxed md:border-b-0 md:border-r', semanticToneClass('danger', 'surface'), semanticToneClass('danger', 'icon'))}>
           {asString(preview.review.currentValue) || t('common.emptyTitle')}
         </pre>
-        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words bg-green-500/5 p-2 type-tiny leading-relaxed text-green-700">
+        <pre className={cn('max-h-40 overflow-auto whitespace-pre-wrap break-words p-2 type-tiny leading-relaxed', semanticToneClass('success', 'surface'), semanticToneClass('success', 'icon'))}>
           {asString(preview.review.proposedValue) || t('common.emptyTitle')}
         </pre>
       </div>
@@ -455,8 +455,8 @@ export function DraftDiff({ preview }: { preview: AgentDraftApplyPreview }) {
               key={`${row.type}-${index}`}
               className={cn(
                 'whitespace-pre-wrap break-words px-2 py-0.5',
-                row.type === 'removed' && 'bg-red-500/10 text-red-700',
-                row.type === 'added' && 'bg-green-500/10 text-green-700',
+                row.type === 'removed' && cn(semanticToneClass('danger', 'surface'), semanticToneClass('danger', 'icon')),
+                row.type === 'added' && cn(semanticToneClass('success', 'surface'), semanticToneClass('success', 'icon')),
                 row.type === 'same' && 'text-muted-foreground',
               )}
             >

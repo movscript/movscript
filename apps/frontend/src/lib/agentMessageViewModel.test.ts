@@ -138,6 +138,26 @@ test('assistantResultPayloadForRun reads context diagnostics from message steps'
   assert.equal(payload.meta.contextDiagnostic?.schema, 'movscript.local_context_diagnostic.v1')
 })
 
+test('assistantResultPayloadForRun emits runtime status for async work handoff runs', async () => {
+  const payload = await assistantResultPayloadForRun(baseRun({
+    steps: [{
+      id: 'step_work',
+      runId: 'run_1',
+      type: 'tool_call',
+      status: 'completed',
+      toolName: 'core_work_start',
+      args: { kind: 'generation_job' },
+      result: { status: 'started', work: { id: 'work_1', kind: 'generation_job', status: 'running' } },
+      createdAt: '2026-05-09T08:00:01.000Z',
+      completedAt: '2026-05-09T08:00:02.000Z',
+    }],
+  }), [], '（无内容）')
+
+  assert.equal(payload.meta.runtimeStatus?.kind, 'async_work_handoff')
+  assert.equal(payload.meta.runtimeStatus?.workId, 'work_1')
+  assert.equal(payload.meta.runtimeStatus?.workStatus, 'running')
+})
+
 test('assistantResultPayloadForRun hydrates full trace events for round telemetry', async () => {
   const run = baseRun()
   const payload = await assistantResultPayloadForRun(run, [], '', {

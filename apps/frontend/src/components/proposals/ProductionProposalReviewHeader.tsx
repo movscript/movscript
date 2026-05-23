@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
+import { ReviewCallout, ReviewStat, type ReviewTone } from '@movscript/ui'
 
 import { cn } from '@/lib/utils'
 
@@ -49,22 +50,16 @@ function ProductionProposalStatusCard({
   status: ProductionProposalReviewStatus
 }) {
   const Icon = status.icon
-  const toneClass = status.tone === 'ok'
-    ? 'border-emerald-200 bg-emerald-50/60 text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-950/30 dark:text-emerald-300'
-    : status.tone === 'warn'
-      ? 'border-amber-200 bg-amber-50/60 text-amber-700 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-300'
-      : status.tone === 'danger'
-        ? 'border-rose-200 bg-rose-50/60 text-rose-700 dark:border-rose-800/50 dark:bg-rose-950/30 dark:text-rose-300'
-        : 'border-border bg-background text-muted-foreground'
+  const tone = productionProposalReviewTone(status.tone)
   return (
-    <div className={cn('rounded-lg border p-3', toneClass)}>
+    <ReviewCallout tone={tone}>
       <div className="flex flex-wrap items-center gap-2">
         <Icon size={14} className={cn('shrink-0', status.iconClassName)} />
         <p className="type-label font-semibold">{status.label}</p>
-        <span className="rounded-full bg-background/70 px-2 py-0.5 type-tiny font-medium">{status.title}</span>
+        <ReviewStat tone="neutral" className="rounded-full bg-background/70 px-2 py-0.5 font-medium">{status.title}</ReviewStat>
       </div>
       <p className="mt-1 type-caption leading-4 opacity-85">{status.detail}</p>
-    </div>
+    </ReviewCallout>
   )
 }
 
@@ -78,4 +73,11 @@ function ProductionProposalMetric({ icon: Icon, label, value }: ProductionPropos
       <span className="font-medium text-foreground">{value}</span>
     </div>
   )
+}
+
+function productionProposalReviewTone(tone: ProductionProposalReviewStatus['tone']): ReviewTone {
+  if (tone === 'ok') return 'success'
+  if (tone === 'warn') return 'warning'
+  if (tone === 'danger') return 'danger'
+  return 'neutral'
 }

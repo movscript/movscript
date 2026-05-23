@@ -53,7 +53,7 @@ import {
   type WorkbenchMetric,
 } from './WorkbenchChrome'
 import { WorkbenchPanel } from './WorkbenchPanel'
-import { WorkbenchEmptyState } from './WorkbenchPrimitives'
+import { WorkbenchEmptyState } from '@movscript/ui'
 
 function buildSettingPrepContextRows(record: SettingPrepRow | null) {
   if (!record) return []

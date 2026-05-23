@@ -34,13 +34,15 @@ export function useStreamingAssistantBuffer(input: { flushMs: number }) {
   const messageIdRef = useRef<string | null>(null)
   const textRef = useRef('')
   const turnsRef = useRef<Map<number, string>>(new Map())
+  const settledRunIdsRef = useRef<Set<string>>(new Set())
   const flushTimerRef = useRef<number | null>(null)
 
-  const resetStreamingAssistant = useCallback(() => {
+  const resetStreamingAssistant = useCallback((settledRunId?: string) => {
     if (flushTimerRef.current !== null) {
       window.clearTimeout(flushTimerRef.current)
       flushTimerRef.current = null
     }
+    if (settledRunId) settledRunIdsRef.current.add(settledRunId)
     messageIdRef.current = null
     textRef.current = ''
     turnsRef.current = new Map()
@@ -49,6 +51,7 @@ export function useStreamingAssistantBuffer(input: { flushMs: number }) {
   }, [])
 
   const updateStreamingAssistantText = useCallback((runId: string, text: string, roundIndex?: number) => {
+    if (settledRunIdsRef.current.has(runId)) return
     const projection = projectStreamingAssistantTurn({
       currentMessageId: messageIdRef.current,
       turns: turnsRef.current,

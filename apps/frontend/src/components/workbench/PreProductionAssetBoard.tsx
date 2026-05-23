@@ -3,11 +3,12 @@ import { ChevronDown, ChevronUp, FileAudio, FileText, Image, PackageCheck, Spark
 
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import {
+  semanticToneClass,
   WorkbenchEmptyState,
   WorkbenchEntityCard,
   WorkbenchStatusBadge,
   WorkbenchThumbnail,
-} from '@/components/workbench/WorkbenchPrimitives'
+} from '@movscript/ui'
 import { API_BASE_URL } from '@/lib/config'
 import {
   assetKindLabel,
@@ -596,9 +597,9 @@ function ReferenceClusterButton({
         </div>
       ) : null}
       <div className="mt-2 grid grid-cols-3 gap-1 type-tiny">
-        <span className="rounded bg-amber-500/10 px-1.5 py-1 text-amber-700 dark:text-amber-300">缺 {cluster.missing}</span>
-        <span className="rounded bg-sky-500/10 px-1.5 py-1 text-sky-700 dark:text-sky-300">待选 {cluster.candidate}</span>
-        <span className="rounded bg-emerald-500/10 px-1.5 py-1 text-emerald-700 dark:text-emerald-300">已选 {cluster.locked}</span>
+        <CountPill tone="warning" label={`缺 ${cluster.missing}`} />
+        <CountPill tone="info" label={`待选 ${cluster.candidate}`} />
+        <CountPill tone="success" label={`已选 ${cluster.locked}`} />
       </div>
     </button>
   )
@@ -669,7 +670,7 @@ function ClusterPreviewStrip({
     <div className="flex items-center gap-1.5">
       <span className={cn(
         'w-7 shrink-0 text-[10px] leading-none',
-        tone === 'locked' ? 'text-emerald-700 dark:text-emerald-300' : 'text-sky-700 dark:text-sky-300',
+        tone === 'locked' ? semanticToneClass('success', 'icon') : semanticToneClass('info', 'icon'),
       )}>
         {label}
       </span>
@@ -681,8 +682,8 @@ function ClusterPreviewStrip({
             className={cn(
               'h-9 w-12 shrink-0 rounded border',
               tone === 'locked'
-                ? 'border-emerald-500/40 ring-1 ring-emerald-500/30'
-                : 'border-sky-500/30 opacity-85',
+                ? cn(semanticToneClass('success', 'surface'), 'ring-1')
+                : cn(semanticToneClass('info', 'surface'), 'opacity-85'),
             )}
           />
         ))}
@@ -702,12 +703,16 @@ function DraftReferenceClusterButton() {
         <Badge variant="outline" className="type-tiny">新建</Badge>
       </div>
       <div className="mt-2 grid grid-cols-3 gap-1 type-tiny">
-        <span className="rounded bg-amber-500/10 px-1.5 py-1 text-amber-700 dark:text-amber-300">缺 0</span>
-        <span className="rounded bg-sky-500/10 px-1.5 py-1 text-sky-700 dark:text-sky-300">待选 0</span>
-        <span className="rounded bg-emerald-500/10 px-1.5 py-1 text-emerald-700 dark:text-emerald-300">已选 0</span>
+        <CountPill tone="warning" label="缺 0" />
+        <CountPill tone="info" label="待选 0" />
+        <CountPill tone="success" label="已选 0" />
       </div>
     </div>
   )
+}
+
+function CountPill({ tone, label }: { tone: 'warning' | 'info' | 'success'; label: string }) {
+  return <span className={cn('rounded px-1.5 py-1', semanticToneClass(tone, 'badge'))}>{label}</span>
 }
 
 function ReferenceAssetTile({

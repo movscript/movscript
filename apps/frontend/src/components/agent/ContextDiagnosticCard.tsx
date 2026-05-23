@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Braces, Check, CircleStop, Copy, FileJson, MessageSquareText, Route, Wrench } from 'lucide-react'
-import { Badge, Button } from '@movscript/ui'
+import { Badge, Button, ReviewCallout } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { agentToolNameLabel } from '@/lib/agentToolDisplay'
 import { toolApprovalLabel } from '@/lib/agentRunUi'
@@ -139,9 +139,9 @@ export function ContextDiagnosticCard({ diagnostic }: { diagnostic: ChatContextD
       </details>
 
       {diagnostic.warnings.length > 0 && (
-        <div className="rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-1.5 type-tiny leading-relaxed text-amber-800 dark:text-amber-300">
+        <ReviewCallout tone="warning" compact className="type-tiny leading-relaxed">
           {diagnostic.warnings.map((warning) => <div key={warning}>- {warning}</div>)}
-        </div>
+        </ReviewCallout>
       )}
     </div>
   )

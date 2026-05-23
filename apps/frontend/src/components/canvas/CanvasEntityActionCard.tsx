@@ -11,7 +11,7 @@ import {
   Plus,
   Video,
 } from 'lucide-react'
-import { Button } from '@movscript/ui'
+import { Button, accentToneClass, semanticToneClass } from '@movscript/ui'
 import type { CanvasEntityKind } from '@/types'
 import { cn } from '@/lib/utils'
 import { ENTITY_KIND_META } from '@/components/entity/EntitySurface'
@@ -221,7 +221,7 @@ function BindingSlot({
       </div>
       <div className="w-full border-t border-border/60 px-1.5 py-1">
         <div className="flex items-center gap-1">
-          {isBound ? <CheckCircle2 size={10} className="shrink-0 text-emerald-600" /> : <Circle size={10} className="shrink-0 text-muted-foreground/60" />}
+          {isBound ? <CheckCircle2 size={10} className={cn('shrink-0', semanticToneClass('success', 'icon'))} /> : <Circle size={10} className="shrink-0 text-muted-foreground/60" />}
           <span className="min-w-0 flex-1 truncate type-tiny font-medium text-foreground">{slot.label}</span>
         </div>
         <p className="mt-0.5 truncate type-micro text-muted-foreground">
@@ -314,7 +314,7 @@ function PortDot({
         'absolute z-20 -translate-y-1/2 rounded-full border-2 bg-card shadow-sm',
         compact ? 'top-1/2 h-3 w-3' : 'h-3.5 w-3.5',
         side === 'left' ? '-left-1.5' : '-right-1.5',
-        tone === 'target' && 'border-sky-500 bg-sky-500/90',
+        tone === 'target' && accentToneClass('sky', 'port'),
         tone === 'source' && 'border-primary bg-primary/90',
         tone === 'neutral' && 'border-border bg-card',
         tone === 'muted' && 'border-border bg-muted',

@@ -38,9 +38,22 @@ test('buildRuntimeThreadSnapshotV2 projects runtime work state', () => {
     }],
     interactions: [],
     continuations: [],
+    wakeEvents: [{
+      id: 'wake_1',
+      threadId: 'thread_1',
+      runId: 'run_1',
+      workId: 'work_1',
+      kind: 'work.observed',
+      status: 'queued',
+      payload: { workId: 'work_1' },
+      dedupeKey: 'work.observed:work_1:completed:2026-05-22T00:00:04.000Z',
+      createdAt: '2026-05-22T00:00:04.000Z',
+      updatedAt: '2026-05-22T00:00:04.000Z',
+    }],
   })
 
   assert.deepEqual(snapshot.current.runningWorkIds, ['work_1'])
-  assert.equal(snapshot.updatedAt, '2026-05-22T00:00:03.000Z')
+  assert.deepEqual(snapshot.current.queuedWakeEventIds, ['wake_1'])
+  assert.equal(snapshot.updatedAt, '2026-05-22T00:00:04.000Z')
   assert.equal(snapshot.works[0]?.id, 'work_1')
 })

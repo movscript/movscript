@@ -1,7 +1,7 @@
 import { Box, MapPin, Palette, Tag, UserRound } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
-import { Progress as ProgressBar } from '@movscript/ui'
+import { accentToneClass, Progress as ProgressBar, semanticToneClass, type AccentTone, type SemanticTone } from '@movscript/ui'
 
 export type CreativeReferenceCardKind = 'person' | 'location' | 'object' | 'style' | 'product'
 export type CreativeReferenceCardStatus =
@@ -30,26 +30,26 @@ export interface CreativeReferenceCardData {
   accent: string
 }
 
-export const creativeReferenceKindMeta: Record<CreativeReferenceCardKind, { label: string; icon: typeof UserRound; dot: string; bg: string; text: string }> = {
-  person: { label: '人物', icon: UserRound, dot: 'bg-sky-500', bg: 'bg-sky-500/10', text: 'text-sky-700 dark:text-sky-300' },
-  location: { label: '地点', icon: MapPin, dot: 'bg-teal-500', bg: 'bg-teal-500/10', text: 'text-teal-700 dark:text-teal-300' },
-  object: { label: '道具', icon: Box, dot: 'bg-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-700 dark:text-amber-300' },
-  style: { label: '风格', icon: Palette, dot: 'bg-rose-500', bg: 'bg-rose-500/10', text: 'text-rose-700 dark:text-rose-300' },
-  product: { label: '产品', icon: Tag, dot: 'bg-violet-500', bg: 'bg-violet-500/10', text: 'text-violet-700 dark:text-violet-300' },
+export const creativeReferenceKindMeta: Record<CreativeReferenceCardKind, { label: string; icon: typeof UserRound; tone: AccentTone }> = {
+  person: { label: '人物', icon: UserRound, tone: 'sky' },
+  location: { label: '地点', icon: MapPin, tone: 'teal' },
+  object: { label: '道具', icon: Box, tone: 'amber' },
+  style: { label: '风格', icon: Palette, tone: 'rose' },
+  product: { label: '产品', icon: Tag, tone: 'violet' },
 }
 
-export const creativeReferenceStatusMeta: Record<CreativeReferenceCardStatus, { label: string; className: string }> = {
-  locked: { label: '已锁定', className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
-  confirmed: { label: '已确认', className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
-  corrected: { label: '已修正', className: 'bg-sky-500/10 text-sky-700 dark:text-sky-300' },
-  active: { label: '进行中', className: 'bg-sky-500/10 text-sky-700 dark:text-sky-300' },
-  approved: { label: '已批准', className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
-  review: { label: '待确认', className: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
-  draft: { label: '草稿', className: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
-  missing: { label: '待补设定', className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300' },
-  ignored: { label: '已忽略', className: 'bg-zinc-500/10 text-zinc-700 dark:text-zinc-300' },
-  merged: { label: '已合并', className: 'bg-zinc-500/10 text-zinc-700 dark:text-zinc-300' },
-  rejected: { label: '已拒绝', className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300' },
+export const creativeReferenceStatusMeta: Record<CreativeReferenceCardStatus, { label: string; tone: SemanticTone }> = {
+  locked: { label: '已锁定', tone: 'success' },
+  confirmed: { label: '已确认', tone: 'success' },
+  corrected: { label: '已修正', tone: 'info' },
+  active: { label: '进行中', tone: 'info' },
+  approved: { label: '已批准', tone: 'success' },
+  review: { label: '待确认', tone: 'warning' },
+  draft: { label: '草稿', tone: 'warning' },
+  missing: { label: '待补设定', tone: 'danger' },
+  ignored: { label: '已忽略', tone: 'neutral' },
+  merged: { label: '已合并', tone: 'neutral' },
+  rejected: { label: '已拒绝', tone: 'danger' },
 }
 
 export function normalizeCreativeReferenceKind(kind?: string): CreativeReferenceCardKind {
@@ -69,18 +69,7 @@ export function normalizeCreativeReferenceStatus(status?: string): CreativeRefer
 }
 
 export function accentForCreativeReferenceKind(kind: CreativeReferenceCardKind) {
-  switch (kind) {
-    case 'person':
-      return 'from-sky-500/20 to-cyan-500/10'
-    case 'location':
-      return 'from-teal-500/20 to-emerald-500/10'
-    case 'object':
-      return 'from-amber-500/20 to-yellow-500/10'
-    case 'style':
-      return 'from-rose-500/20 to-fuchsia-500/10'
-    case 'product':
-      return 'from-violet-500/20 to-purple-500/10'
-  }
+  return accentToneClass(creativeReferenceKindMeta[kind].tone, 'gradient')
 }
 
 export function CreativeReferenceCard({
@@ -109,10 +98,10 @@ export function CreativeReferenceCard({
         className,
       )}
     >
-      <div className={cn('h-20 border-b border-border bg-gradient-to-br', reference.accent)}>
+      <div className={cn('h-20 border-b border-border', reference.accent)}>
         <div className="flex h-full items-center justify-between px-4">
-          <span className={cn('flex h-10 w-10 items-center justify-center rounded-md', meta.bg)}>
-            <Icon size={18} className={meta.text} />
+          <span className={cn('flex h-10 w-10 items-center justify-center rounded-md', accentToneClass(meta.tone, 'soft'))}>
+            <Icon size={18} className={accentToneClass(meta.tone, 'icon')} />
           </span>
           <div className="text-right">
             <p className="type-label font-medium text-muted-foreground">{reference.version}</p>
@@ -124,12 +113,12 @@ export function CreativeReferenceCard({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className={cn('h-2 w-2 rounded-full', meta.dot)} />
+              <span className={cn('h-2 w-2 rounded-full', accentToneClass(meta.tone, 'dot'))} />
               <p className="truncate type-body font-semibold text-foreground">{reference.title}</p>
             </div>
             <p className="mt-1 truncate type-label text-muted-foreground">{reference.subtitle}</p>
           </div>
-          <span className={cn('shrink-0 rounded px-1.5 py-0.5 type-tiny font-medium', status.className)}>{status.label}</span>
+          <span className={cn('shrink-0 rounded px-1.5 py-0.5 type-tiny font-medium', semanticToneClass(status.tone, 'badge'))}>{status.label}</span>
         </div>
         <p className="mt-2 line-clamp-2 min-h-9 type-label leading-relaxed text-muted-foreground">{reference.summary}</p>
         <div className="mt-3">

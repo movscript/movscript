@@ -1,7 +1,7 @@
 import { Database, Image, Upload, Video } from 'lucide-react'
 
 import { EmptyPreview, SlotStatusBadge, SlotThumb } from '@/components/workbench/PreProductionAssetBoard'
-import { WorkbenchKeyValue } from '@/components/workbench/WorkbenchPrimitives'
+import { WorkbenchKeyValue, semanticToneClass } from '@movscript/ui'
 import {
   assetKindLabel,
   assetSlotHasLoadedResource,
@@ -129,7 +129,7 @@ function CandidateRow({
           <p className="truncate type-body font-medium text-foreground">{slot?.name || `素材需求 #${candidate.candidate_asset_slot_id}`}</p>
           <p className="truncate type-label text-muted-foreground">{candidate.note || sourceTypeLabel(candidate.source_type)}</p>
           {slot && !assetSlotHasLoadedResource(slot) ? (
-            <p className="mt-0.5 truncate type-label text-amber-600 dark:text-amber-300">候选资源不存在或未加载，暂不能锁定。</p>
+            <p className={cn('mt-0.5 truncate type-label', semanticToneClass('warning', 'icon'))}>候选资源不存在或未加载，暂不能锁定。</p>
           ) : null}
         </div>
       </div>

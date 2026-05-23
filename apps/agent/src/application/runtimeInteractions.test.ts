@@ -111,6 +111,37 @@ test('approveRuntimeInteraction resolves one interaction and delegates selected 
   assert.equal(store.getRuntimeInteraction('interaction_approval_2')?.status, 'pending')
 })
 
+test('approveRuntimeInteraction syncs sibling approval interactions already resolved on the run', () => {
+  const store = new InMemoryAgentStore()
+  const run = makeRun()
+  materializeRuntimeApprovalInteractions({
+    store,
+    run,
+    approvals: [approval('approval_1'), approval('approval_2')],
+    now: '2026-05-21T00:00:00.000Z',
+  })
+
+  approveRuntimeInteraction({
+    store,
+    interactionId: 'interaction_approval_1',
+    now: '2026-05-21T00:00:02.000Z',
+    approveRun: (runId) => ({
+      ...run,
+      id: runId,
+      status: 'queued',
+      pendingApprovals: [
+        { ...approval('approval_1'), status: 'approved', approvedAt: '2026-05-21T00:00:02.000Z' },
+        { ...approval('approval_2'), status: 'approved', approvedAt: '2026-05-21T00:00:02.000Z' },
+      ],
+    }),
+  })
+
+  assert.deepEqual(store.listRuntimeInteractions({ runId: run.id }).map((interaction) => interaction.status), [
+    'approved',
+    'approved',
+  ])
+})
+
 test('approveRuntimeInteraction is idempotent for already resolved interactions', () => {
   const store = new InMemoryAgentStore()
   const run = makeRun()

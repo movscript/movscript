@@ -7,7 +7,7 @@ import { API_BASE_URL as API_BASE } from '@/lib/config'
 import { publicModelLabel } from '@/lib/modelDisplay'
 import type { RawResource, PublicModel } from '@/types'
 import { useCanvasRuntimeStore, type CanvasRuntimeTask } from '@/features/canvas/runtime/runHistoryStore'
-import { Card, CardHeader, CardTitle, CardContent } from '@movscript/ui'
+import { Card, CardHeader, CardTitle, CardContent, semanticToneClass } from '@movscript/ui'
 import { GenInputCard } from './GenInputCard'
 import { AuthedImage, AuthedVideo } from './AuthedImage'
 import { cn } from '@/lib/utils'
@@ -48,8 +48,8 @@ function TaskHistoryItem({ task, outputType, fallbackResource }: { task: CanvasR
     <div className="border border-border rounded-lg overflow-hidden type-label">
       <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/30">
         <span className={cn('type-tiny font-medium', {
-          'text-amber-500': isRunning,
-          'text-emerald-500': task.status === 'done',
+          [semanticToneClass('warning', 'icon')]: isRunning,
+          [semanticToneClass('success', 'icon')]: task.status === 'done',
           'text-destructive': task.status === 'failed',
         })}>
           {isRunning ? t('canvas.status.running') : task.status === 'done' ? t('canvas.status.done') : t('canvas.status.failed')}

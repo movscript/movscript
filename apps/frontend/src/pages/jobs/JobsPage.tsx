@@ -13,6 +13,7 @@ import { MediaViewer } from '@/components/shared/MediaViewer'
 import { JobContextSummary, PromptText } from '@/components/shared/GenResultCard'
 import { cn } from '@/lib/utils'
 import { useTranslation } from 'react-i18next'
+import { semanticToneClass } from '@movscript/ui'
 
 const PAGE_SIZE = 24
 
@@ -97,13 +98,13 @@ function StatusBadge({ status }: { status: Job['status'] }) {
       )
     case 'running':
       return (
-        <span className="inline-flex items-center gap-1 type-label text-blue-600 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded-full">
+        <span className={`inline-flex items-center gap-1 type-label px-2 py-0.5 rounded-full ${semanticToneClass('info', 'badge')}`}>
           <Loader2 size={10} className="animate-spin" /> {t('pages.jobs.status.running')}
         </span>
       )
     case 'succeeded':
       return (
-        <span className="inline-flex items-center gap-1 type-label text-green-600 bg-green-50 dark:bg-green-950 px-2 py-0.5 rounded-full">
+        <span className={`inline-flex items-center gap-1 type-label px-2 py-0.5 rounded-full ${semanticToneClass('success', 'badge')}`}>
           <CheckCircle2 size={10} /> {t('pages.jobs.status.succeeded')}
         </span>
       )
@@ -642,7 +643,7 @@ export default function JobsPage() {
         <h1 className="type-body font-semibold text-foreground">{t('header.titles.jobs')}</h1>
         <span className="type-label text-muted-foreground">{t('pages.jobs.recordsCount', { count: total })}</span>
         {hasActiveJobs(jobs) && (
-          <span className="flex items-center gap-1 type-label text-blue-600">
+          <span className={`flex items-center gap-1 type-label ${semanticToneClass('info', 'icon')}`}>
             <Loader2 size={12} className="animate-spin" /> {t('pages.jobs.generating')}
           </span>
         )}

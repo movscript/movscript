@@ -48,7 +48,7 @@ test('resolveRuntimeThreadRunState prioritizes pending interactions as actionabl
   assert.equal(result.currentRun?.id, 'run_pending')
 })
 
-test('resolveRuntimeThreadRunState exposes approval and continuation interaction ids on runs', () => {
+test('resolveRuntimeThreadRunState exposes approval interaction ids on runs', () => {
   const approvalRun = run({
     id: 'run_approval',
     status: 'requires_action',
@@ -62,10 +62,9 @@ test('resolveRuntimeThreadRunState exposes approval and continuation interaction
       updatedAt: NOW,
     }],
   })
-  const completedRun = run({ id: 'run_completed', status: 'completed' })
 
   const result = resolveRuntimeThreadRunState({
-    runs: [approvalRun, completedRun],
+    runs: [approvalRun],
     interactions: [
       interaction({
         id: 'interaction_approval_1',
@@ -82,42 +81,13 @@ test('resolveRuntimeThreadRunState exposes approval and continuation interaction
           reason: 'run_source_message',
         },
       }),
-      interaction({
-        id: 'interaction_continuation_1',
-        runId: completedRun.id,
-        kind: 'selection',
-        status: 'pending',
-        payload: {
-          type: 'runtime_continuation_resume',
-          continuationId: 'continuation_1',
-          workIds: ['work_1'],
-          summary: '异步任务已完成，是否继续？',
-        },
-        displayThreadId: 'thread_root',
-        displayAnchor: {
-          threadId: 'thread_root',
-          runId: completedRun.id,
-          messageId: 'msg_completed',
-          placement: 'after',
-          reason: 'continuation_ready',
-        },
-      }),
     ],
   })
 
   assert.equal(result.runs[0]?.pendingApprovals?.[0]?.interactionId, 'interaction_approval_1')
   assert.equal(result.runs[0]?.pendingApprovals?.[0]?.displayThreadId, 'thread_root')
   assert.equal(result.runs[0]?.pendingApprovals?.[0]?.displayAnchor?.messageId, 'msg_root')
-  assert.deepEqual(result.actionableRuns.map((item) => item.id), ['run_approval', 'run_completed'])
-  const continuationApproval = result.runs[1]?.pendingApprovals?.[0]
-  assert.equal(continuationApproval?.interactionId, 'interaction_continuation_1')
-  assert.equal(continuationApproval?.displayThreadId, 'thread_root')
-  assert.equal(continuationApproval?.displayAnchor?.messageId, 'msg_completed')
-  assert.equal(continuationApproval?.toolName, 'runtime_continuation_resume')
-  assert.deepEqual(continuationApproval?.args, {
-    continuationId: 'continuation_1',
-    workIds: ['work_1'],
-  })
+  assert.deepEqual(result.actionableRuns.map((item) => item.id), ['run_approval'])
 })
 
 const NOW = '2026-05-19T00:00:00.000Z'

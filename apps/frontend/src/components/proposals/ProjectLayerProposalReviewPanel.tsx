@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ArrowRight, CheckCircle2, Trash2 } from 'lucide-react'
-import { Badge, Button } from '@movscript/ui'
+import { Badge, Button, semanticToneClass } from '@movscript/ui'
 
 import { localAgentClient, type AgentDraft, type AgentDraftKind } from '@/lib/localAgentClient'
 import { ProposalReviewShell } from '@/components/proposals/ProposalReviewShell'
@@ -203,7 +203,7 @@ export function ProjectLayerProposalReviewPanel({
 
               {view ? (
                 <div className="mt-3 space-y-3">
-                  <div className="rounded-md border border-sky-500/20 bg-sky-500/5 p-2.5">
+                  <div className={`rounded-md border p-2.5 ${semanticToneClass('info', 'surface')}`}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="type-tiny leading-4 text-muted-foreground">{view.summary}</p>
                       <div className="flex flex-wrap items-center gap-1.5">
@@ -250,7 +250,7 @@ export function ProjectLayerProposalReviewPanel({
                           <div key={entry.key} className={cn(
                             'rounded-md border px-2.5 py-2',
                             entry.changeType === 'deleted'
-                              ? 'border-rose-500/40 bg-rose-500/5'
+                              ? semanticToneClass('danger', 'surface')
                               : entry.changeType === 'unchanged'
                                 ? 'border-border/60 bg-muted/20'
                                 : 'border-border/70 bg-card',
@@ -305,7 +305,7 @@ export function ProjectLayerProposalReviewPanel({
                                     <ArrowRight size={10} className="mt-0.5 shrink-0 text-muted-foreground" />
                                     <span className={cn(
                                       'min-w-0 flex-1 truncate',
-                                      row.tone === 'added' ? 'text-emerald-700 dark:text-emerald-300' : row.tone === 'deleted' ? 'text-rose-700 dark:text-rose-300' : 'text-foreground',
+                                      row.tone === 'added' ? semanticToneClass('success', 'icon') : row.tone === 'deleted' ? semanticToneClass('danger', 'icon') : 'text-foreground',
                                     )}>
                                       {row.after || '未填写'}
                                     </span>

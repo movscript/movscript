@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Blocks, Bot, Cable, CheckCircle2, ClipboardList, FileSearch, ListTree, RefreshCw, Settings, Terminal, Trash2, XCircle } from 'lucide-react'
-import { Badge, Button, Input, Label } from '@movscript/ui'
+import { Badge, Button, Input, Label, ReviewCallout, semanticToneClass } from '@movscript/ui'
 import { AgentConsoleNav } from '@/pages/agent/AgentConsoleNav'
 import { agentRunPath, ROUTES } from '@/routes/projectRoutes'
 import { runRoleLabel, runStatusLabel } from '@/lib/agentRunUi'
@@ -539,7 +539,7 @@ function LocalToolCard({ server, isDefault, onPatch, onRemove, onDefault, testRe
         )}
         <div className="flex flex-wrap justify-end gap-2 pt-1">
           {testResult && (
-            <span className={cn('mr-auto self-center type-caption', testResult.success ? 'text-emerald-600' : 'text-destructive')}>
+            <span className={cn('mr-auto self-center type-caption', testResult.success ? semanticToneClass('success', 'icon') : 'text-destructive')}>
               {testResult.success ? `连接正常 ${testResult.latency_ms ?? 0}ms` : `连接失败 ${testResult.message ?? ''}`}
             </span>
           )}
@@ -612,11 +612,11 @@ function ConsoleMetricCard({ title, value, detail, tone }: { title: string; valu
   return (
     <div className={cn(
       'rounded-md border bg-background p-3',
-      tone === 'action' ? 'border-destructive/40' : tone === 'warning' ? 'border-amber-500/40' : 'border-border',
+      tone === 'action' ? 'border-destructive/40' : tone === 'warning' ? semanticToneClass('warning', 'surface') : 'border-border',
     )}>
       <div className="flex items-center justify-between gap-2">
         <p className="type-tiny uppercase tracking-wide text-muted-foreground">{title}</p>
-        {tone === 'ready' ? <CheckCircle2 size={14} className="text-emerald-600" /> : tone === 'action' ? <XCircle size={14} className="text-destructive" /> : <AlertTriangle size={14} className="text-amber-600" />}
+        {tone === 'ready' ? <CheckCircle2 size={14} className={semanticToneClass('success', 'icon')} /> : tone === 'action' ? <XCircle size={14} className="text-destructive" /> : <AlertTriangle size={14} className={semanticToneClass('warning', 'icon')} />}
       </div>
       <p className="mt-2 truncate type-body font-semibold text-foreground" title={value}>{value}</p>
       <p className="mt-1 line-clamp-2 type-caption leading-4 text-muted-foreground" title={detail}>{detail}</p>
@@ -673,7 +673,7 @@ function IssueRow({ issue }: { issue: ConsoleIssue }) {
   const body = (
     <div className={cn(
       'rounded-md border px-2.5 py-2',
-      issue.tone === 'action' ? 'border-destructive/40 bg-destructive/10' : 'border-amber-500/40 bg-amber-500/10',
+      issue.tone === 'action' ? 'border-destructive/40 bg-destructive/10' : semanticToneClass('warning', 'surface'),
     )}>
       <div className="flex items-center justify-between gap-2">
         <p className="type-label font-medium text-foreground">{issue.title}</p>
@@ -732,7 +732,7 @@ function HistoryClearControl({
             {threadCount} 个会话 / {runCount} 个 Run。清空会物理删除会话、Run、计划、运行态记录和 trace 文件；{draftCount} 个草稿不会删除。
           </p>
           {blocked && (
-            <p className="mt-2 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 type-caption text-amber-700 dark:text-amber-300">
+            <p className={`mt-2 rounded border px-2 py-1 type-caption ${semanticToneClass('warning', 'surface')} ${semanticToneClass('warning', 'icon')}`}>
               有 {executingRunCount} 个正在执行的 Run，先取消后再清空。
             </p>
           )}
@@ -742,9 +742,9 @@ function HistoryClearControl({
             </p>
           )}
           {result && (
-            <p data-testid="agent-console-history-clear-result" role="status" className="mt-2 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 type-caption text-emerald-700 dark:text-emerald-300">
+            <ReviewCallout data-testid="agent-console-history-clear-result" role="status" tone="success" compact className="mt-2 type-caption">
               {result}
-            </p>
+            </ReviewCallout>
           )}
           <div className="mt-2 flex flex-wrap justify-end gap-2">
             {confirming && (

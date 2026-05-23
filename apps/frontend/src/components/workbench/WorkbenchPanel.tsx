@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react'
 import { type LucideIcon } from 'lucide-react'
 
-import { WorkbenchSection } from './WorkbenchPrimitives'
+import { WorkbenchSection } from '@movscript/ui'
 
 export function WorkbenchPanel({
   title,

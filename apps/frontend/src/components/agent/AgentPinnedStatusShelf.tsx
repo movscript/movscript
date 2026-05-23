@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Badge, Button } from '@movscript/ui'
+import { Badge, Button, semanticToneClass } from '@movscript/ui'
 import { CheckCircle2, ChevronDown, ChevronUp, Circle, Dot } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { generationJobBadge, generationProgressTitle, generationStatusText } from '@/lib/agentGenerationDisplay'
@@ -188,7 +188,7 @@ function GenerationStatusLine({ state }: { state: GenerationProgressState }) {
       </div>
       <div className="h-0.5 overflow-hidden rounded-full bg-muted">
         <div
-          className={cn('h-full rounded-full', badge.tone === 'failed' || badge.tone === 'warning' ? 'bg-amber-500' : state.terminal ? 'bg-emerald-600' : 'bg-primary')}
+          className={cn('h-full rounded-full', badge.tone === 'failed' || badge.tone === 'warning' ? semanticToneClass('warning', 'dot') : state.terminal ? semanticToneClass('success', 'dot') : 'bg-primary')}
           style={{ width: `${state.terminal ? (progress ?? 100) : progress ?? 30}%` }}
         />
       </div>
@@ -309,7 +309,7 @@ function ThreadPlanStepLine({
 }
 
 function ThreadPlanStatusIcon({ status }: { status: AgentPlanTaskStatus }) {
-  if (status === 'completed') return <CheckCircle2 size={12} className="mt-0.5 shrink-0 text-emerald-600" />
+  if (status === 'completed') return <CheckCircle2 size={12} className={cn('mt-0.5 shrink-0', semanticToneClass('success', 'icon'))} />
   if (status === 'in_progress') return <Dot size={14} className="shrink-0 text-primary" />
   return <Circle size={10} className="mt-1 shrink-0 text-muted-foreground" />
 }

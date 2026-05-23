@@ -53,3 +53,16 @@ Runtime works are execution objects that can outlive one tool call and can be ob
 - `core_work_start` is submit-only: it creates the work and returns the work handle, but it does not wait for backend completion or imply success. When a `continuationPolicy` is present, the runtime monitors the work in the background and schedules a continuation when the policy is satisfied. Use `core_work_wait/get/list` only for explicit inspection or blocking waits.
 - Worker subagents are internal async runtime works backed by `AgentRun`. They are managed through `core_work_start/get/list/wait/cancel` with `kind: "subagent_run"`.
 - Public runtime work kinds must have a real provider and prompt/tool-schema guidance for that lifecycle.
+
+### Runtime Wakeups
+
+Continuation wakeups are centralized through `RuntimeWakeCoordinator`; callers enqueue lifecycle signals there instead of directly deciding whether to resume a thread.
+
+- Wake events are persisted in the store and drained per scope so duplicate active signals coalesce and a thread/run has one wake decision loop at a time.
+- The drain loop owns the runtime decision: if queued wake events or runnable continuations exist, drain and advance; if no tool call, no wake event, and no final output exists, the runtime remains waiting; if no tool call, no wake event, and final output exists, the run is allowed to finish.
+- `workStarted` registers continuation policy for async work. It does not synchronously poll external providers from the tool bridge; observation ticks are scheduled by the wake coordinator and re-enter as queued `work.observed` events.
+- `workObserved` observes non-terminal work through the provider, evaluates work completion, and advances the parent thread when the continuation is ready and unblocked.
+- `runSettled` is fired after any model run finishes. It advances continuations waiting on that run's thread and enqueues observed `subagent_run` work whose external handle points at the settled child run.
+- `threadOpened` reconciles persisted async work, so generation jobs or subagent runs that finished while the app was closed can still wake their continuation.
+
+This keeps the three wakeup classes on one path: generation job completion, approved tool execution finishing a run, and child-agent run completion.

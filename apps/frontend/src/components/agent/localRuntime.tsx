@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, ListChecks, Loader2, ShieldCheck, Workflow, X } from 'lucide-react'
-import { Badge, Button } from '@movscript/ui'
+import { Badge, Button, accentToneClass } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { buildAgentRunTimeline, type AgentTimelineItem } from '@/lib/agentTimeline'
 import { approvalImpactLabel, runStatusLabel } from '@/lib/agentRunUi'
@@ -84,8 +84,6 @@ function localAgentApprovalImpactI18nText(approval: ApprovalLike, t: ReturnType<
   if (previewSideEffect) return t('agents.chat.workflow.approvalImpact.previewApply', { sideEffect: previewSideEffect })
 
   switch (approval.toolName) {
-    case 'runtime_continuation_resume':
-      return t('agents.chat.workflow.approvalImpact.continuationResume', { defaultValue: 'Approving will start a new continuation run from the completed async work results and continue the original task.' })
     case 'generation_job_create':
       return t('agents.chat.workflow.approvalImpact.generationCreate')
     case 'generation_job_cancel':
@@ -165,7 +163,7 @@ export function LocalAgentInputRequestCard({
               aria-label={t('agents.chat.workflow.answerChoiceAria', { title: request.title, choice: choice.label })}
               className={cn(
                 'h-auto justify-start whitespace-normal border-border/40 bg-transparent px-2 py-1.5 text-left type-tiny shadow-none hover:border-border/60 hover:bg-muted/25',
-                selectedChoiceIds.has(choice.id) && 'border-sky-500/30 bg-sky-500/5 text-sky-700 hover:bg-sky-500/5 dark:text-sky-300',
+                selectedChoiceIds.has(choice.id) && cn(accentToneClass('sky', 'surface'), accentToneClass('sky', 'icon'), 'hover:bg-muted/25'),
               )}
             >
               <span className="min-w-0">
@@ -202,7 +200,7 @@ export function LocalAgentInputRequestCard({
         </div>
       )}
       {answered && inputAnswerSummaryText(request, t) && (
-        <p className="mt-1.5 rounded border border-sky-500/20 bg-transparent px-2 py-1 type-tiny leading-relaxed text-sky-700 dark:text-sky-300">
+        <p className={cn('mt-1.5 rounded px-2 py-1 type-tiny leading-relaxed', accentToneClass('sky', 'surface'), accentToneClass('sky', 'icon'))}>
           {inputAnswerSummaryText(request, t)}
         </p>
       )}
@@ -281,9 +279,6 @@ function localAgentApprovalTitle(approval: PendingApproval, t: ReturnType<typeof
 }
 
 function localAgentApprovalReason(approval: PendingApproval, t: ReturnType<typeof useTranslation>['t']) {
-  if (approval.toolName === 'runtime_continuation_resume') {
-    return t('agents.chat.workflow.continuationResumeReason', { defaultValue: 'Completed async work has results. Continue the original task with those results.' })
-  }
   if (/^[\w.:/-]+\s+需要用户确认后才能执行[。.]?$/.test(approval.reason.trim())) {
     return ''
   }
@@ -489,7 +484,7 @@ function workflowActionBadgeVariant(status: string): 'secondary' | 'success' | '
 }
 
 function workflowActionDotClass(status: string): string {
-  if (status === 'approved' || status === 'answered' || status === 'completed') return 'bg-sky-500'
+  if (status === 'approved' || status === 'answered' || status === 'completed') return accentToneClass('sky', 'dot')
   if (status === 'rejected' || status === 'cancelled' || status === 'failed') return 'bg-destructive'
   return 'bg-muted-foreground'
 }
@@ -501,40 +496,40 @@ function workflowApprovalSectionTitle(tone: 'pending' | 'approved' | 'rejected' 
 }
 
 function workflowApprovalSectionClass(tone: 'pending' | 'approved' | 'rejected' | 'idle'): string {
-  if (tone === 'approved') return 'border-sky-500/20 bg-transparent'
+  if (tone === 'approved') return accentToneClass('sky', 'surface', 'bg-transparent')
   if (tone === 'rejected') return 'border-destructive/20 bg-transparent'
   return 'border-border/30 bg-transparent'
 }
 
 function workflowApprovalTitleClass(tone: 'pending' | 'approved' | 'rejected' | 'idle'): string {
-  if (tone === 'approved') return 'text-sky-700 dark:text-sky-300'
+  if (tone === 'approved') return accentToneClass('sky', 'icon')
   if (tone === 'rejected') return 'text-destructive'
   return 'text-foreground'
 }
 
 function workflowApprovalImpactClass(status: string): string {
-  if (status === 'approved') return 'border-sky-500/20 bg-transparent text-sky-700 dark:text-sky-300'
+  if (status === 'approved') return accentToneClass('sky', 'surface', 'bg-transparent')
   if (status === 'rejected') return 'border-destructive/20 bg-destructive/5 text-destructive'
   return 'border-border/30 bg-background/30 text-muted-foreground'
 }
 
 function workflowApprovalItemClass(status: string): string {
-  if (status === 'approved') return 'border-sky-500/20'
+  if (status === 'approved') return accentToneClass('sky', 'surface', 'bg-transparent')
   if (status === 'rejected') return 'border-destructive/20'
   return 'border-border/40'
 }
 
 function workflowApprovalRailClass(status: string | undefined): string {
-  if (status === 'approved') return 'bg-sky-500'
+  if (status === 'approved') return accentToneClass('sky', 'dot')
   if (status === 'rejected') return 'bg-destructive'
-  if (status === 'pending') return 'bg-sky-500'
+  if (status === 'pending') return accentToneClass('sky', 'dot')
   return 'bg-border'
 }
 
 function workflowApprovalBadgeClass(status: string | undefined): string {
-  if (status === 'approved') return 'border-sky-500/20 bg-transparent text-sky-700 dark:text-sky-300'
+  if (status === 'approved') return accentToneClass('sky', 'badge', 'bg-transparent')
   if (status === 'rejected') return 'border-destructive/20 bg-destructive/5 text-destructive'
-  if (status === 'pending') return 'border-sky-500/20 bg-transparent text-sky-700 dark:text-sky-300'
+  if (status === 'pending') return accentToneClass('sky', 'badge', 'bg-transparent')
   return 'border-border/40 bg-transparent text-muted-foreground'
 }
 
@@ -566,21 +561,21 @@ function inputWorkflowStatusLabel(status: string, t: ReturnType<typeof useTransl
 }
 
 function inputWorkflowItemClass(status: string): string {
-  if (status === 'answered') return 'border-sky-500/20'
+  if (status === 'answered') return accentToneClass('sky', 'surface', 'bg-transparent')
   if (status === 'cancelled') return 'border-border/30 opacity-80'
   return 'border-border/40'
 }
 
 function inputWorkflowRailClass(status: string): string {
-  if (status === 'answered') return 'bg-sky-500'
+  if (status === 'answered') return accentToneClass('sky', 'dot')
   if (status === 'cancelled') return 'bg-border'
-  return 'bg-sky-500'
+  return accentToneClass('sky', 'dot')
 }
 
 function inputWorkflowBadgeClass(status: string): string {
-  if (status === 'answered') return 'border-sky-500/20 bg-transparent text-sky-700 dark:text-sky-300'
+  if (status === 'answered') return accentToneClass('sky', 'badge', 'bg-transparent')
   if (status === 'cancelled') return 'border-border/40 bg-transparent text-muted-foreground'
-  return 'border-sky-500/20 bg-transparent text-sky-700 dark:text-sky-300'
+  return accentToneClass('sky', 'badge', 'bg-transparent')
 }
 
 function inputAnswerSummaryText(request: PendingInputRequest, t: ReturnType<typeof useTranslation>['t']): string {

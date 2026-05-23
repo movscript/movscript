@@ -17,6 +17,7 @@ import { RuntimeModelConfigStore } from './model/modelConfig.js'
 import { defaultRunPolicy } from './context/normalizeRunInput.js'
 import { buildAgentRun } from './state/runFactory.js'
 import type { AgentServerContext } from './bootstrap/agentServerContext.js'
+import { RuntimeTelemetryRegistry } from './telemetry/runtimeTelemetry.js'
 import type { JSONValue, MCPResource, MCPTool } from './types.js'
 
 class StubMCPClient {
@@ -783,6 +784,7 @@ function buildServerContext(runtimeRouter: AgentRuntimeRouter): AgentServerConte
     runtimeRouter,
     backendApplyClient: new BackendApplyClient(),
     modelConfigStore: new RuntimeModelConfigStore('/tmp/model-config.json'),
+    telemetry: new RuntimeTelemetryRegistry(),
     pluginCatalog: {
       skillsDir: '/tmp',
       toolsDir: '/tmp',

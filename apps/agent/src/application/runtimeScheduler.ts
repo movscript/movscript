@@ -43,9 +43,7 @@ export class RuntimeScheduler {
       return this.registerWorkContinuation(event.work)
     }
     if (event.type === 'work.observed') {
-      const continuations = this.evaluateContinuationsForWork(event.work)
-      if (continuations.length > 0) this.advanceThread(event.work.threadId)
-      return continuations
+      return this.evaluateContinuationsForWork(event.work)
     }
     if (event.type === 'interaction.approved') {
       return approveRuntimeInteraction({
@@ -67,8 +65,6 @@ export class RuntimeScheduler {
   }
 
   approveInteraction(interactionId: string): { interaction: RuntimeInteraction; run: AgentRun } {
-    const continuationResult = this.approveContinuationInteraction(interactionId)
-    if (continuationResult) return continuationResult
     return approveRuntimeInteraction({
       store: this.input.store,
       interactionId,
@@ -78,8 +74,6 @@ export class RuntimeScheduler {
   }
 
   rejectInteraction(interactionId: string): { interaction: RuntimeInteraction; run: AgentRun } {
-    const continuationResult = this.rejectContinuationInteraction(interactionId)
-    if (continuationResult) return continuationResult
     return rejectRuntimeInteraction({
       store: this.input.store,
       interactionId,
@@ -177,57 +171,6 @@ export class RuntimeScheduler {
     return run
   }
 
-  private approveContinuationInteraction(interactionId: string): { interaction: RuntimeInteraction; run: AgentRun } | undefined {
-    const interaction = this.input.store.getRuntimeInteraction(interactionId)
-    if (!isContinuationResumeInteraction(interaction)) return undefined
-    if (interaction.status !== 'pending') return this.resolvedContinuationInteractionResult(interaction)
-    const continuation = this.input.store.getRuntimeContinuation(continuationIdFromInteraction(interaction))
-    if (!continuation) throw new Error(`runtime continuation not found: ${continuationIdFromInteraction(interaction)}`)
-    if (continuation.status !== 'ready') throw new Error(`runtime continuation ${continuation.id} is not ready`)
-    const now = this.input.now()
-    interaction.status = 'approved'
-    interaction.resolvedAt = now
-    interaction.updatedAt = now
-    this.input.store.updateRuntimeInteraction(interaction)
-    const run = this.advanceContinuation(continuation)
-    if (!run) throw new Error(`runtime continuation ${continuation.id} could not be advanced`)
-    interaction.result = { runId: run.id, runStatus: run.status, continuationId: continuation.id }
-    interaction.updatedAt = this.input.now()
-    this.input.store.updateRuntimeInteraction(interaction)
-    return { interaction, run }
-  }
-
-  private rejectContinuationInteraction(interactionId: string): { interaction: RuntimeInteraction; run: AgentRun } | undefined {
-    const interaction = this.input.store.getRuntimeInteraction(interactionId)
-    if (!isContinuationResumeInteraction(interaction)) return undefined
-    if (interaction.status !== 'pending') return this.resolvedContinuationInteractionResult(interaction)
-    const continuation = this.input.store.getRuntimeContinuation(continuationIdFromInteraction(interaction))
-    if (!continuation) throw new Error(`runtime continuation not found: ${continuationIdFromInteraction(interaction)}`)
-    const now = this.input.now()
-    interaction.status = 'rejected'
-    interaction.resolvedAt = now
-    interaction.updatedAt = now
-    interaction.result = { continuationId: continuation.id, status: 'cancelled' }
-    this.input.store.updateRuntimeInteraction(interaction)
-    this.input.store.updateRuntimeContinuation({
-      ...continuation,
-      status: 'cancelled',
-      cancelledAt: now,
-      updatedAt: now,
-    })
-    const run = this.input.store.getRun(continuation.runId)
-    if (!run) throw new Error(`run not found: ${continuation.runId}`)
-    return { interaction, run }
-  }
-
-  private resolvedContinuationInteractionResult(interaction: RuntimeInteraction): { interaction: RuntimeInteraction; run: AgentRun } {
-    const result = isRecord(interaction.result) ? interaction.result : undefined
-    const runId = typeof result?.runId === 'string' ? result.runId : interaction.runId
-    const run = this.input.store.getRun(runId)
-    if (!run) throw new Error(`run not found: ${runId}`)
-    return { interaction, run }
-  }
-
   private threadHasBlockingModelRun(threadId: string): boolean {
     const pendingInteractions = this.input.store.listRuntimeInteractions({ threadId, status: 'pending' })
     if (pendingInteractions.length > 0) return true
@@ -296,21 +239,4 @@ function continuationMessage(continuation: RuntimeContinuation, works: RuntimeWo
     }),
   ]
   return lines.join('\n')
-}
-
-function isContinuationResumeInteraction(interaction: RuntimeInteraction | undefined): interaction is RuntimeInteraction {
-  if (!interaction || interaction.kind !== 'selection') return false
-  const payload = isRecord(interaction.payload) ? interaction.payload : undefined
-  return payload?.type === 'runtime_continuation_resume' && typeof payload.continuationId === 'string'
-}
-
-function continuationIdFromInteraction(interaction: RuntimeInteraction): string {
-  const payload = isRecord(interaction.payload) ? interaction.payload : {}
-  const continuationId = typeof payload.continuationId === 'string' ? payload.continuationId.trim() : ''
-  if (!continuationId) throw new Error(`runtime interaction ${interaction.id} has no continuationId`)
-  return continuationId
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

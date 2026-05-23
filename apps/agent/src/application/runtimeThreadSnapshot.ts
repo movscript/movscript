@@ -6,6 +6,7 @@ import type {
   AgentThread,
   RuntimeContinuation,
   RuntimeInteraction,
+  RuntimeWakeEvent,
 } from '../state/types.js'
 
 export interface RuntimeThreadSnapshotV2 {
@@ -16,12 +17,14 @@ export interface RuntimeThreadSnapshotV2 {
   works: RuntimeWork[]
   interactions: RuntimeInteraction[]
   continuations: RuntimeContinuation[]
+  wakeEvents: RuntimeWakeEvent[]
   current: {
     activeRunIds: string[]
     waitingRunIds: string[]
     runningWorkIds: string[]
     pendingInteractionIds: string[]
     readyContinuationIds: string[]
+    queuedWakeEventIds: string[]
   }
 }
 
@@ -35,6 +38,7 @@ export interface RuntimeSessionSnapshotV1 {
   works: RuntimeWork[]
   interactions: RuntimeInteraction[]
   continuations: RuntimeContinuation[]
+  wakeEvents: RuntimeWakeEvent[]
   current: {
     activeThreadIds: string[]
     activeRunIds: string[]
@@ -42,6 +46,7 @@ export interface RuntimeSessionSnapshotV1 {
     runningWorkIds: string[]
     pendingInteractionIds: string[]
     readyContinuationIds: string[]
+    queuedWakeEventIds: string[]
   }
 }
 
@@ -51,6 +56,7 @@ export function buildRuntimeThreadSnapshotV2(input: {
   works: RuntimeWork[]
   interactions: RuntimeInteraction[]
   continuations: RuntimeContinuation[]
+  wakeEvents: RuntimeWakeEvent[]
 }): RuntimeThreadSnapshotV2 {
   const activeRunIds = input.runs
     .filter((run) => run.status === 'queued' || run.status === 'in_progress')
@@ -67,6 +73,9 @@ export function buildRuntimeThreadSnapshotV2(input: {
   const readyContinuationIds = input.continuations
     .filter((continuation) => continuation.status === 'ready')
     .map((continuation) => continuation.id)
+  const queuedWakeEventIds = input.wakeEvents
+    .filter((event) => event.status === 'queued' || event.status === 'processing')
+    .map((event) => event.id)
 
   return {
     schema: 'movscript.agent.internal-thread-snapshot.v1',
@@ -76,18 +85,21 @@ export function buildRuntimeThreadSnapshotV2(input: {
       ...input.works.map((work) => work.updatedAt),
       ...input.interactions.map((interaction) => interaction.updatedAt),
       ...input.continuations.map((continuation) => continuation.updatedAt),
+      ...input.wakeEvents.map((event) => event.updatedAt),
     ]),
     thread: input.thread,
     runs: input.runs,
     works: input.works,
     interactions: input.interactions,
     continuations: input.continuations,
+    wakeEvents: input.wakeEvents,
     current: {
       activeRunIds,
       waitingRunIds,
       runningWorkIds,
       pendingInteractionIds,
       readyContinuationIds,
+      queuedWakeEventIds,
     },
   }
 }
@@ -100,6 +112,7 @@ export function buildRuntimeSessionSnapshotV1(input: {
   works: RuntimeWork[]
   interactions: RuntimeInteraction[]
   continuations: RuntimeContinuation[]
+  wakeEvents: RuntimeWakeEvent[]
 }): RuntimeSessionSnapshotV1 {
   const activeThreadIds = input.threads
     .filter((thread) => thread.status === 'running' || thread.status === 'requires_action')
@@ -119,6 +132,9 @@ export function buildRuntimeSessionSnapshotV1(input: {
   const readyContinuationIds = input.continuations
     .filter((continuation) => continuation.status === 'ready')
     .map((continuation) => continuation.id)
+  const queuedWakeEventIds = input.wakeEvents
+    .filter((event) => event.status === 'queued' || event.status === 'processing')
+    .map((event) => event.id)
 
   return {
     schema: 'movscript.agent.internal-session-snapshot.v1',
@@ -131,6 +147,7 @@ export function buildRuntimeSessionSnapshotV1(input: {
       ...input.works.map((work) => work.updatedAt),
       ...input.interactions.map((interaction) => interaction.updatedAt),
       ...input.continuations.map((continuation) => continuation.updatedAt),
+      ...input.wakeEvents.map((event) => event.updatedAt),
     ]),
     session: input.session,
     threads: input.threads,
@@ -139,6 +156,7 @@ export function buildRuntimeSessionSnapshotV1(input: {
     works: input.works,
     interactions: input.interactions,
     continuations: input.continuations,
+    wakeEvents: input.wakeEvents,
     current: {
       activeThreadIds,
       activeRunIds,
@@ -146,6 +164,7 @@ export function buildRuntimeSessionSnapshotV1(input: {
       runningWorkIds,
       pendingInteractionIds,
       readyContinuationIds,
+      queuedWakeEventIds,
     },
   }
 }

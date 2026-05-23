@@ -75,6 +75,35 @@ test('file agent store persists debug ledgers in state and trace events in the f
   }
 })
 
+test('file agent store persists runtime wake events', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-state-'))
+  try {
+    const statePath = join(dir, 'state.json')
+    const store = new FileAgentStore(statePath)
+    store.createRuntimeWakeEvent({
+      id: 'wake_1',
+      threadId: 'thread_1',
+      runId: 'run_1',
+      workId: 'work_1',
+      kind: 'work.observed',
+      status: 'queued',
+      payload: { workId: 'work_1' },
+      dedupeKey: 'work.observed:work_1:completed:2026-05-21T00:00:00.000Z',
+      createdAt: '2026-05-21T00:00:00.000Z',
+      updatedAt: '2026-05-21T00:00:00.000Z',
+    })
+    store.flush()
+
+    const persisted = JSON.parse(readFileSync(statePath, 'utf8')) as { runtimeWakeEvents: Array<{ id?: string; status?: string }> }
+    assert.deepEqual(persisted.runtimeWakeEvents.map((event) => `${event.id}:${event.status}`), ['wake_1:queued'])
+
+    const restored = new FileAgentStore(statePath)
+    assert.equal(restored.getRuntimeWakeEvent('wake_1')?.dedupeKey, 'work.observed:work_1:completed:2026-05-21T00:00:00.000Z')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('file agent store compacts oversized state files on load', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-state-'))
   const previousLimit = process.env.MOVSCRIPT_AGENT_STATE_COMPACT_LOAD_BYTES
@@ -82,7 +111,7 @@ test('file agent store compacts oversized state files on load', () => {
   try {
     const statePath = join(dir, 'state.json')
     writeFileSync(statePath, JSON.stringify({
-      version: 4,
+      version: 6,
       threads: [],
       runs: [{
         id: 'run_1',
@@ -480,7 +509,7 @@ test('file agent store skips malformed persisted collections and entries', () =>
   try {
     const statePath = join(dir, 'state.json')
     writeFileSync(statePath, JSON.stringify({
-      version: 3,
+      version: 6,
       threads: 'bad',
       runs: ['bad-run'],
       plans: { id: 'task_graph_1' },
@@ -505,7 +534,7 @@ test('file agent store drops invalid persisted thread project ids', () => {
   try {
     const statePath = join(dir, 'state.json')
     writeFileSync(statePath, JSON.stringify({
-      version: 3,
+      version: 6,
       threads: [
         {
           id: 'thread_valid',

@@ -131,6 +131,7 @@ test('AgentRuntimeRouter imports only approved runtime application modules direc
     'runtimeStoreLookup',
     'runtimeThreadSnapshot',
     'runtimeThreadProjection',
+    'runtimeWakeCoordinator',
     ...bridgeModuleNames,
   ])
   const runtimeImports = [...source.matchAll(/from '\.\/(runtime[^']+)\.js'/g)]

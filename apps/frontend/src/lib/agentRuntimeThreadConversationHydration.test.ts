@@ -90,6 +90,29 @@ test('hydrateRuntimeThreadConversation restores the current run from the agent s
   assert.equal(calls.includes('submitted:run_pending'), true)
 })
 
+test('hydrateRuntimeThreadConversation keeps active current runs loading for live ownership', async () => {
+  const calls: string[] = []
+  const activeRun = run({ id: 'run_active', status: 'in_progress' })
+
+  await hydrateRuntimeThreadConversation({
+    userId: 'user_1',
+    conversationId: 'conv_1',
+    threadId: 'thread_1',
+    existingMessages: [],
+    hydratedKeys: new Set(),
+    signal: new AbortController().signal,
+  }, depsFixture(calls, {
+    projection: projection({
+      thread: thread({ id: 'thread_1' }),
+      runs: [activeRun],
+      currentRun: activeRun,
+    }),
+    recordRunLoading: true,
+  }))
+
+  assert.equal(calls.includes('runLoading:run_active:true'), true)
+})
+
 test('hydrateRuntimeThreadConversation restores all interaction runs for workflow cards', async () => {
   const calls: string[] = []
   const pendingA = run({
@@ -238,6 +261,7 @@ function depsFixture(
     projection?: RuntimeThreadHydrationResult
     loadProjection?: HydrateRuntimeThreadConversationDeps['loadProjection']
     recordStatusLight?: boolean
+    recordRunLoading?: boolean
   } = {},
 ): HydrateRuntimeThreadConversationDeps {
   return {
@@ -257,8 +281,9 @@ function depsFixture(
     setConversationRuntimeThreadId: (_userId, conversationId, threadId) => {
       calls.push(`runtimeThread:${conversationId}:${threadId}`)
     },
-    setConversationRun: (conversationId, run) => {
+    setConversationRun: (conversationId, run, patch) => {
       calls.push(`run:${conversationId}:${run.id}:${run.status}`)
+      if (options.recordRunLoading) calls.push(`runLoading:${run.id}:${patch?.loading}`)
     },
     setSubmittedInteractionRuns: (updater) => {
       calls.push(`submitted:${updater([]).map((run) => run.id).join(',')}`)

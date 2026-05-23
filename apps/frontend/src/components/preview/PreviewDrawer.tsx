@@ -11,7 +11,7 @@ import {
   Layers3,
   X,
 } from 'lucide-react'
-import { Badge, Button } from '@movscript/ui'
+import { Badge, Button, ReviewCallout, SemanticDot, semanticToneClass, type SemanticTone } from '@movscript/ui'
 import { generatePreview, type PreviewContentUnit, type PreviewGenerateResponse, type PreviewKeyframe, type PreviewScope } from '@/api/preview'
 import { AuthedImage } from '@/components/shared/AuthedImage'
 import { productionIdentifier, sceneIdentifier, unitIdentifier } from '@/lib/productionIdentifiers'
@@ -37,16 +37,16 @@ const scopeLabel: Record<PreviewScope, string> = {
   content_unit: '制作项',
 }
 
-const priorityTone: Record<string, string> = {
-  high: 'bg-rose-500/10 text-rose-700 dark:text-rose-300',
-  medium: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  low: 'bg-zinc-500/10 text-zinc-500',
-}
-
 const priorityLabel: Record<string, string> = {
   high: '高',
   medium: '中',
   low: '低',
+}
+
+function priorityTone(priority: string | undefined): SemanticTone {
+  if (priority === 'high') return 'danger'
+  if (priority === 'medium') return 'warning'
+  return 'neutral'
 }
 
 export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entityTitle }: PreviewDrawerProps) {
@@ -214,9 +214,9 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
                 </section>
 
                 {data.missing_assets.length > 0 && (
-                  <section className="rounded-lg border border-amber-500/20 bg-amber-500/[0.03] p-4">
+                  <ReviewCallout tone="warning" className="p-4">
                     <div className="mb-3 flex items-center gap-2">
-                      <AlertTriangle size={14} className="text-amber-600" />
+                      <AlertTriangle size={14} className={semanticToneClass('warning', 'icon')} />
                       <span className="type-body font-medium text-foreground">{data.missing_assets.length} 个素材待补充</span>
                     </div>
                     <div className="grid gap-2 md:grid-cols-2">
@@ -228,13 +228,13 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
                               <p className="mt-0.5 line-clamp-1 type-caption text-muted-foreground">{asset.description}</p>
                             )}
                           </div>
-                          <span className={cn('shrink-0 rounded px-1.5 py-0.5 type-tiny font-medium', priorityTone[asset.priority] ?? priorityTone.low)}>
+                          <span className={cn('shrink-0 rounded px-1.5 py-0.5 type-tiny font-medium', semanticToneClass(priorityTone(asset.priority), 'badge'))}>
                             {priorityLabel[asset.priority] ?? asset.priority}
                           </span>
                         </div>
                       ))}
                     </div>
-                  </section>
+                  </ReviewCallout>
                 )}
               </div>
             )}
@@ -324,7 +324,7 @@ function StoryTreeNode({
             <p className="px-8 py-1 type-caption text-muted-foreground">暂无镜头关键帧</p>
           ) : node.keyframes.map((keyframe, keyframeIndex) => (
             <div key={keyframe.id} className="ml-8 flex items-center gap-2 type-caption text-muted-foreground">
-              <span className={cn('h-1.5 w-1.5 rounded-full', keyframe.has_asset ? 'bg-emerald-500' : 'bg-amber-500')} />
+              <SemanticDot tone={keyframe.has_asset ? 'success' : 'warning'} className="h-1.5 w-1.5" />
               <span className="shrink-0 type-tiny">{frameRoleLabel(keyframeIndex, node.keyframes.length)}</span>
               <span className="truncate">{keyframe.title || `画面 #${keyframe.id}`}</span>
             </div>
@@ -364,12 +364,7 @@ function StoryFrame({ keyframe, index, frameContext }: { keyframe: PreviewKeyfra
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <Badge variant="outline" className="type-tiny">{unitIdentifier(frameContext.unit) || frameContext.unit?.title || frameContext.scopeLabel}</Badge>
           <Badge variant="secondary" className="type-tiny">{frameRoleLabel(frameContext.localIndex, frameContext.total)}</Badge>
-          <span className={cn(
-            'rounded px-1.5 py-0.5 type-tiny font-medium',
-            keyframe.has_asset
-              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-              : 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-          )}>
+          <span className={cn('rounded px-1.5 py-0.5 type-tiny font-medium', semanticToneClass(keyframe.has_asset ? 'success' : 'warning', 'badge'))}>
             {keyframe.has_asset ? '可预览' : '待补素材资源'}
           </span>
         </div>

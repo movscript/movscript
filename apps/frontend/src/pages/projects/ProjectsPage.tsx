@@ -23,9 +23,9 @@ import { openAdminConsole } from '@/lib/adminConsole'
 import { projectListQueryKey, projectProgressQueryKey } from '@/lib/projectQueries'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
 import { useUserStore } from '@/store/userStore'
-import { AppEmptyState, AppPage, AppPageHeader } from '@/components/app/AppPage'
-import { SemanticStatusBadge } from '@/components/app/SemanticStatusBadge'
-import { semanticStatusLabel } from '@/components/app/semantic'
+import { AppEmptyState, AppPage, AppPageHeader } from '@movscript/ui'
+import { SemanticStatusBadge } from '@movscript/ui'
+import { semanticStatusLabel } from '@movscript/ui'
 
 type ProjectStatus = 'planning' | 'script_analysis' | 'asset_prep' | 'production' | 'editing' | 'done'
 

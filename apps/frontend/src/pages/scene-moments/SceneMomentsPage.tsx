@@ -21,8 +21,7 @@ import {
 import { abandonSceneMoment, listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
 import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
-import { AppEmptyState, AppMetricCard, ProjectSurfaceHeader } from '@/components/app/AppPage'
-import { SemanticStatusBadge } from '@/components/app/SemanticStatusBadge'
+import { AppEmptyState, AppMetricCard, ProjectSurfaceHeader, SemanticStatusBadge, accentToneClass, type SemanticTone } from '@movscript/ui'
 import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { makeContentFilterSearch, readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
@@ -102,19 +101,6 @@ interface MomentWorkspace {
   assetSlots: RelatedRecord[]
   readiness: number
   totalDuration: number
-}
-
-const statusTone: Record<string, string> = {
-  confirmed: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  locked: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  accepted: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  attached: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  draft: 'bg-muted text-muted-foreground',
-  candidate: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  generated: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  missing: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  review: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  blocked: 'bg-rose-500/10 text-rose-700 dark:text-rose-300',
 }
 
 const statusLabels: Record<string, string> = {
@@ -345,10 +331,10 @@ export default function SceneMomentsPage() {
         )}
         overview={(
           <section className="grid grid-cols-4 gap-3">
-          <MetricCard icon={Film} label="情景" value={momentWorkspaces.length} detail={`${filteredMoments.length} 个符合当前筛选`} tone="text-teal-600" />
-          <MetricCard icon={Layers3} label="所属编排段" value={new Set(moments.map((item) => item.segment_id).filter(Boolean)).size} detail="情景通过编排段进入制作结构" tone="text-cyan-600" />
-          <MetricCard icon={ShieldCheck} label="可推进" value={readyCount} detail={`${averageReadiness}% 平均准备度`} tone="text-emerald-600" />
-          <MetricCard icon={AlertTriangle} label="待处理" value={attentionCount} detail={`估算总时长 ${formatDuration(totalDuration)}`} tone="text-amber-600" />
+          <MetricCard icon={Film} label="情景" value={momentWorkspaces.length} detail={`${filteredMoments.length} 个符合当前筛选`} tone="info" />
+          <MetricCard icon={Layers3} label="所属编排段" value={new Set(moments.map((item) => item.segment_id).filter(Boolean)).size} detail="情景通过编排段进入制作结构" tone="info" />
+          <MetricCard icon={ShieldCheck} label="可推进" value={readyCount} detail={`${averageReadiness}% 平均准备度`} tone="success" />
+          <MetricCard icon={AlertTriangle} label="待处理" value={attentionCount} detail={`估算总时长 ${formatDuration(totalDuration)}`} tone="warning" />
           </section>
         )}
         filters={(
@@ -448,7 +434,7 @@ export default function SceneMomentsPage() {
                 title: creatingMoment ? '新建情景' : selected ? titleOf(selected.moment) : '新建情景',
                 subtitle: creatingMoment ? '项目情景' : selected ? `情景 #${selected.moment.ID}` : '项目情景',
                 summary: creatingMoment ? '补充时间、地点、条件、动作和情绪后，情景就可以承接制作项与素材需求。' : selected?.moment.description || selected?.moment.action_text || '暂无情景描述。',
-                accentClassName: 'from-teal-500/15 via-cyan-500/10 to-emerald-500/10',
+                accentClassName: accentToneClass('teal', 'gradient'),
                 status: <StatusBadge status={creatingMoment ? 'draft' : selected?.moment.status ?? 'draft'} />,
                 stats: selected && !creatingMoment ? [
                   { label: '时间', value: selected.moment.time_text || '未设定' },
@@ -617,8 +603,8 @@ function RelatedList({
   )
 }
 
-function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIcon; label: string; value: string | number; detail: string; tone: string }) {
-  return <AppMetricCard icon={Icon} label={label} value={value} detail={detail} tone={metricTone(tone)} />
+function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIcon; label: string; value: string | number; detail: string; tone: SemanticTone }) {
+  return <AppMetricCard icon={Icon} label={label} value={value} detail={detail} tone={tone} />
 }
 
 function Panel({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: React.ReactNode }) {
@@ -648,13 +634,6 @@ function StatusBadge({ status }: { status: string }) {
 
 function EmptyState({ title, detail, compact = false }: { title: string; detail: string; compact?: boolean }) {
   return <AppEmptyState icon={Film} title={title} detail={detail} compact={compact} />
-}
-
-function metricTone(tone: string) {
-  if (tone.includes('emerald')) return 'success'
-  if (tone.includes('amber') || tone.includes('rose')) return 'warning'
-  if (tone.includes('cyan') || tone.includes('teal') || tone.includes('sky')) return 'info'
-  return 'neutral'
 }
 
 function normalizeStatusFilter(value: string): StatusFilter {

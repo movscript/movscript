@@ -43,7 +43,7 @@ import { trackKindLabel } from '@/lib/contentWorkbenchLabels'
 import { sceneIdentifier, unitIdentifier } from '@/lib/productionIdentifiers'
 import { cn } from '@/lib/utils'
 import type { Job } from '@/types'
-import { Badge, Button } from '@movscript/ui'
+import { Badge, Button, semanticToneClass } from '@movscript/ui'
 import { ContentUnitEditCards } from './ContentUnitEditCards'
 
 export function ContentWorkbenchUnitInspector({
@@ -126,9 +126,9 @@ export function ContentWorkbenchUnitInspector({
         className={cn(
           'mt-3 rounded-md border px-2.5 py-2',
           drawerAction.tone === 'ready'
-            ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/20'
+            ? semanticToneClass('success', 'surface')
             : drawerAction.tone === 'blocked'
-              ? 'border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20'
+              ? semanticToneClass('warning', 'surface')
               : 'border-border bg-muted/20',
         )}
         data-testid="content-workbench-unit-drawer-action"
@@ -511,7 +511,7 @@ export function UnitProductionTrack({
           <span className="text-border">/</span>
           <span>{formatTrackDuration(summary.durationSec)}</span>
           <span className="text-border">/</span>
-          <span className={summary.keyframeCount > 0 ? undefined : 'text-amber-700 dark:text-amber-300'}>{summary.keyframeCount} 关键帧</span>
+          <span className={summary.keyframeCount > 0 ? undefined : semanticToneClass('warning', 'icon')}>{summary.keyframeCount} 关键帧</span>
         </div>
       </div>
 
@@ -620,7 +620,7 @@ export function UnitProductionTrack({
                       <span className="mt-0.5 block truncate type-caption text-muted-foreground">{purposeText.detail}</span>
                     </button>
                     <button type="button" className="min-w-0 text-left" onClick={() => selectOrClearUnit(Number(item.id))}>
-                      <span className={cn('inline-flex items-center gap-1 rounded border px-1.5 py-0.5 type-caption font-medium', itemAction.tone === 'ready' ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-emerald-200' : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200')}>
+                      <span className={cn('inline-flex items-center gap-1 rounded border px-1.5 py-0.5 type-caption font-medium', itemAction.tone === 'ready' ? cn(semanticToneClass('success', 'surface'), semanticToneClass('success', 'icon')) : cn(semanticToneClass('warning', 'surface'), semanticToneClass('warning', 'icon')))}>
                         {itemAction.tone === 'ready' ? <Play size={12} /> : <AlertTriangle size={12} />}
                         {itemAction.label}
                       </span>
@@ -840,7 +840,7 @@ export function UnitProductionTrack({
                           className={cn(
                             'absolute top-1 h-9 min-w-0 overflow-hidden rounded border px-1.5 py-1 text-left type-caption shadow-sm transition-colors hover:border-primary/60 hover:bg-primary/5',
                             canDragUnits ? 'cursor-grab active:cursor-grabbing' : '',
-                            item.selected ? 'border-primary/70 bg-primary/10' : item.tone === 'blocked' ? 'border-amber-200 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/20' : 'border-border bg-card',
+                            item.selected ? 'border-primary/70 bg-primary/10' : item.tone === 'blocked' ? semanticToneClass('warning', 'surface') : 'border-border bg-card',
                             muted ? 'opacity-60' : '',
                           )}
                           style={{
@@ -849,7 +849,7 @@ export function UnitProductionTrack({
                           }}
                         >
                           <span className="block truncate font-medium text-foreground">{title}</span>
-                          <span className={cn('block truncate type-tiny', item.tone === 'blocked' && !muted ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>{detail}</span>
+                          <span className={cn('block truncate type-tiny', item.tone === 'blocked' && !muted ? semanticToneClass('warning', 'icon') : 'text-muted-foreground')}>{detail}</span>
                         </button>
                       ))}
                     </div>
@@ -899,14 +899,14 @@ export function UnitProductionTrack({
                     <span className="mt-0.5 block truncate type-caption text-muted-foreground">{item.summary || item.scriptCue || item.soundCue || '待补输入'}</span>
                   </button>
                   <button type="button" className="min-w-0 text-left" onClick={() => selectOrClearUnit(Number(item.id))}>
-                    <span className={cn('block truncate type-caption', item.requiresKeyframe && item.keyframeTitles.length === 0 ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>
+                    <span className={cn('block truncate type-caption', item.requiresKeyframe && item.keyframeTitles.length === 0 ? semanticToneClass('warning', 'icon') : 'text-muted-foreground')}>
                       {item.requiresKeyframe
                         ? item.keyframeTitles.length > 0 ? item.keyframeTitles.slice(0, 2).join('、') : '未设置'
                         : '非必需'}
                     </span>
                   </button>
                   <button type="button" className="min-w-0 text-left" onClick={() => selectOrClearUnit(Number(item.id))}>
-                    <span className={cn('block truncate type-caption', item.missingAssetTitles.length > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground')}>
+                    <span className={cn('block truncate type-caption', item.missingAssetTitles.length > 0 ? semanticToneClass('warning', 'icon') : 'text-muted-foreground')}>
                       {item.missingAssetTitles.length > 0 ? item.missingAssetTitles.slice(0, 2).join('、') : '无显性缺口'}
                     </span>
                   </button>

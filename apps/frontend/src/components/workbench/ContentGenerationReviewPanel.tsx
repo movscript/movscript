@@ -14,7 +14,7 @@ import type { AgentDraft } from '@/lib/localAgentClient'
 import type { ContentDraftReviewModel, ContentSnapshotDiffKind, ContentSnapshotDiffState } from '@/lib/contentWorkbenchDraftReviewModel'
 import type { ContentWorkbenchReviewQueueSummary } from '@/lib/contentWorkbenchReviewQueue'
 import { cn } from '@/lib/utils'
-import { Badge, Button } from '@movscript/ui'
+import { Badge, Button, ReviewCallout, semanticToneClass } from '@movscript/ui'
 import { ProposalReviewShell } from '@/components/proposals/ProposalReviewShell'
 
 export function ContentGenerationReviewPanel({
@@ -72,9 +72,9 @@ export function ContentGenerationReviewPanel({
         className={cn(
           'mb-3 rounded-md border px-2.5 py-2.5',
           queueSummary.tone === 'warning'
-            ? 'border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20'
+            ? semanticToneClass('warning', 'surface')
             : queueSummary.tone === 'success'
-              ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/20'
+              ? semanticToneClass('success', 'surface')
               : 'border-border bg-background',
         )}
         data-testid="content-workbench-review-queue"
@@ -100,13 +100,13 @@ export function ContentGenerationReviewPanel({
         </div>
         {queueSummary.total > 0 ? (
           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 type-label text-muted-foreground" data-testid="content-workbench-review-metrics">
-            <span className={queueSummary.pending > 0 ? 'font-medium text-amber-700 dark:text-amber-300' : undefined}>{queueSummary.pending} 待审</span>
+            <span className={queueSummary.pending > 0 ? cn('font-medium', semanticToneClass('warning', 'icon')) : undefined}>{queueSummary.pending} 待审</span>
             <span className="text-border">/</span>
             <span>{queueSummary.addedCount} 新增</span>
             <span className="text-border">/</span>
-            <span className={queueSummary.changedCount > 0 ? 'font-medium text-amber-700 dark:text-amber-300' : undefined}>{queueSummary.changedCount} 变更</span>
+            <span className={queueSummary.changedCount > 0 ? cn('font-medium', semanticToneClass('warning', 'icon')) : undefined}>{queueSummary.changedCount} 变更</span>
             <span className="text-border">/</span>
-            <span className={queueSummary.warningCount > 0 ? 'font-medium text-amber-700 dark:text-amber-300' : undefined}>{queueSummary.warningCount} 风险</span>
+            <span className={queueSummary.warningCount > 0 ? cn('font-medium', semanticToneClass('warning', 'icon')) : undefined}>{queueSummary.warningCount} 风险</span>
           </div>
         ) : null}
       </div>
@@ -196,11 +196,11 @@ export function ContentGenerationReviewPanel({
                 </div>
 
                 {reviewModel.warnings.length > 0 ? (
-                  <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 type-label text-amber-800">
+                  <ReviewCallout tone="warning" compact>
                     {reviewModel.warnings.map((warning) => (
                       <p key={warning}>{warning}</p>
                     ))}
-                  </div>
+                  </ReviewCallout>
                 ) : null}
 
                 <div className="space-y-2">
@@ -260,8 +260,8 @@ export function ContentGenerationReviewPanel({
                       ) : null}
                       {(change.before || change.after) ? (
                         <div className="mt-2 grid gap-2 md:grid-cols-2">
-                          {change.before ? <div className="rounded bg-rose-500/10 px-2 py-1 type-label text-rose-700 dark:text-rose-300">当前：{change.before}</div> : null}
-                          {change.after ? <div className="rounded bg-emerald-500/10 px-2 py-1 type-label text-emerald-700 dark:text-emerald-300">草案：{change.after}</div> : null}
+                          {change.before ? <div className={cn('rounded px-2 py-1 type-label', semanticToneClass('danger', 'surface'), semanticToneClass('danger', 'icon'))}>当前：{change.before}</div> : null}
+                          {change.after ? <div className={cn('rounded px-2 py-1 type-label', semanticToneClass('success', 'surface'), semanticToneClass('success', 'icon'))}>草案：{change.after}</div> : null}
                         </div>
                       ) : null}
                       {change.fields.length > 0 ? (

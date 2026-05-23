@@ -16,7 +16,7 @@ import {
 } from '@/api/semanticEntities'
 import { cn } from '@/lib/utils'
 import { toast } from '@/store/toastStore'
-import { Button, Input, Label, Textarea } from '@movscript/ui'
+import { Button, Input, Label, ReviewCallout, Textarea, semanticToneClass } from '@movscript/ui'
 
 type FormState = Record<string, string | boolean>
 
@@ -611,7 +611,7 @@ function FieldControl({
         )}
       </div>
       {lockReason ? (
-        <p className="mt-1 type-caption font-medium text-amber-700 dark:text-amber-300">{lockReason}</p>
+        <p className={cn('mt-1 type-caption font-medium', semanticToneClass('warning', 'icon'))}>{lockReason}</p>
       ) : field.helper ? (
         <p className="mt-1 type-caption text-muted-foreground">{field.helper}</p>
       ) : null}
@@ -621,12 +621,12 @@ function FieldControl({
 
 function SourceLockNotice({ fields, sourceLock, reason }: { fields: SemanticEntityConfig['fields']; sourceLock: SourceLockStatus; reason?: string }) {
   return (
-    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
-      <p className="type-label font-medium text-amber-800 dark:text-amber-200">来源已锁定</p>
-      <p className="mt-1 type-label leading-5 text-amber-700 dark:text-amber-300">
+    <ReviewCallout tone="warning" compact>
+      <p className={cn('type-label font-medium', semanticToneClass('warning', 'icon'))}>来源已锁定</p>
+      <p className={cn('mt-1 type-label leading-5', semanticToneClass('warning', 'icon'))}>
         {reason ?? '已有下游对象引用当前记录'}。已锁定字段：{sourceLock.locked_fields.map((key) => fieldLabel(fields, key)).join('、')}；其他内容仍可继续编辑。
       </p>
-    </div>
+    </ReviewCallout>
   )
 }
 

@@ -1,5 +1,5 @@
 import { Check, CheckCircle2, Eye, GitBranch, Loader2 } from 'lucide-react'
-import { Badge, Button } from '@movscript/ui'
+import { Badge, Button, ReviewCallout, ReviewStat, semanticToneClass } from '@movscript/ui'
 
 import {
   ProductionProposalApplyGatePanel,
@@ -29,29 +29,25 @@ export function ProductionProposalAppliedResultPanel({
 }) {
   return (
     <div className="flex flex-col gap-3 p-4">
-      <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 dark:border-emerald-800/50 dark:bg-emerald-950/30">
-        <div className="flex items-center gap-2">
-          <CheckCircle2 size={14} className="shrink-0 text-emerald-500" />
-          <p className="type-label font-medium text-emerald-700 dark:text-emerald-300">提案已写入项目</p>
-        </div>
-        <div className="mt-2 grid grid-cols-3 gap-1.5 text-center type-tiny text-emerald-700 dark:text-emerald-300">
+      <ReviewCallout tone="success" icon={CheckCircle2} title="提案已写入项目">
+        <div className="mt-2 grid grid-cols-3 gap-1.5 text-center type-tiny">
           {appliedCounts.segments_created > 0 && (
-            <span className="rounded bg-emerald-500/10 px-1.5 py-1">编排段 +{appliedCounts.segments_created}</span>
+            <ReviewStat tone="success">编排段 +{appliedCounts.segments_created}</ReviewStat>
           )}
           {appliedCounts.scene_moments_created > 0 && (
-            <span className="rounded bg-emerald-500/10 px-1.5 py-1">情节 +{appliedCounts.scene_moments_created}</span>
+            <ReviewStat tone="success">情节 +{appliedCounts.scene_moments_created}</ReviewStat>
           )}
           {appliedCounts.writing_expressions_created > 0 && (
-            <span className="rounded bg-emerald-500/10 px-1.5 py-1">表达 +{appliedCounts.writing_expressions_created}</span>
+            <ReviewStat tone="success">表达 +{appliedCounts.writing_expressions_created}</ReviewStat>
           )}
           {appliedCounts.creative_references_created > 0 && (
-            <span className="rounded bg-emerald-500/10 px-1.5 py-1">设定资料 +{appliedCounts.creative_references_created}</span>
+            <ReviewStat tone="success">设定资料 +{appliedCounts.creative_references_created}</ReviewStat>
           )}
           {appliedCounts.asset_slots_created > 0 && (
-            <span className="rounded bg-emerald-500/10 px-1.5 py-1">素材需求 +{appliedCounts.asset_slots_created}</span>
+            <ReviewStat tone="success">素材需求 +{appliedCounts.asset_slots_created}</ReviewStat>
           )}
         </div>
-      </div>
+      </ReviewCallout>
       <Button size="sm" variant="outline" className="type-label" onClick={onAccepted}>
         完成
       </Button>
@@ -88,35 +84,31 @@ export function ProductionProposalSimulationResultPanel({
 }) {
   return (
     <div className="flex flex-col gap-3 p-4">
-      <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 dark:border-emerald-800/50 dark:bg-emerald-950/30">
-        <div className="flex items-center gap-2">
-          <Eye size={14} className="shrink-0 text-emerald-500" />
-          <p className="type-label font-medium text-emerald-700 dark:text-emerald-300">{simulationResult.backendPreview ? '写入预检已生成' : '本地预览已生成'}</p>
-        </div>
-        <p className="mt-1 type-caption leading-4 text-emerald-700/80 dark:text-emerald-300/80">
+      <ReviewCallout tone="success" icon={Eye} title={simulationResult.backendPreview ? '写入预检已生成' : '本地预览已生成'}>
+        <p className="mt-1 type-caption leading-4 opacity-80">
           {simulationResult.backendPreview ? '系统已校验本次写入影响，不会提交到项目。' : '本次预览仅基于当前接受/拒绝决策计算，不会提交到项目。'}
         </p>
-        <div className="mt-2 grid grid-cols-2 gap-1.5 type-tiny text-emerald-700 dark:text-emerald-300">
-          <span className="rounded bg-emerald-500/10 px-1.5 py-1">已接受 {simulationResult.acceptedNodes}</span>
-          <span className="rounded bg-rose-500/10 px-1.5 py-1">已拒绝 {simulationResult.rejectedNodes}</span>
-          <span className="rounded bg-muted px-1.5 py-1">未审 {simulationResult.unresolvedNodes}</span>
-          <span className="rounded bg-muted px-1.5 py-1">新增 {simulationResult.actions.create}</span>
+        <div className="mt-2 grid grid-cols-2 gap-1.5 type-tiny">
+          <ReviewStat tone="success">已接受 {simulationResult.acceptedNodes}</ReviewStat>
+          <ReviewStat tone="danger">已拒绝 {simulationResult.rejectedNodes}</ReviewStat>
+          <ReviewStat tone="neutral">未审 {simulationResult.unresolvedNodes}</ReviewStat>
+          <ReviewStat tone="neutral">新增 {simulationResult.actions.create}</ReviewStat>
         </div>
-        <div className="mt-2 grid grid-cols-3 gap-1.5 text-center type-tiny text-emerald-700 dark:text-emerald-300">
-          <span className="rounded bg-emerald-500/10 px-1.5 py-1">编排段 +{simulationResult.counts.segments_created}</span>
-          <span className="rounded bg-emerald-500/10 px-1.5 py-1">情节 +{simulationResult.counts.scene_moments_created}</span>
-          <span className="rounded bg-emerald-500/10 px-1.5 py-1">表达 +{simulationResult.counts.writing_expressions_created}</span>
-          <span className="rounded bg-emerald-500/10 px-1.5 py-1">内容 +{simulationResult.counts.content_units_created}</span>
-          <span className="rounded bg-emerald-500/10 px-1.5 py-1">设定资料 +{simulationResult.counts.creative_references_created}</span>
-          <span className="rounded bg-emerald-500/10 px-1.5 py-1">素材需求 +{simulationResult.counts.asset_slots_created}</span>
-          <span className="rounded bg-emerald-500/10 px-1.5 py-1">引用 +{simulationResult.counts.creative_reference_usages}</span>
+        <div className="mt-2 grid grid-cols-3 gap-1.5 text-center type-tiny">
+          <ReviewStat tone="success">编排段 +{simulationResult.counts.segments_created}</ReviewStat>
+          <ReviewStat tone="success">情节 +{simulationResult.counts.scene_moments_created}</ReviewStat>
+          <ReviewStat tone="success">表达 +{simulationResult.counts.writing_expressions_created}</ReviewStat>
+          <ReviewStat tone="success">内容 +{simulationResult.counts.content_units_created}</ReviewStat>
+          <ReviewStat tone="success">设定资料 +{simulationResult.counts.creative_references_created}</ReviewStat>
+          <ReviewStat tone="success">素材需求 +{simulationResult.counts.asset_slots_created}</ReviewStat>
+          <ReviewStat tone="success">引用 +{simulationResult.counts.creative_reference_usages}</ReviewStat>
         </div>
-      </div>
+      </ReviewCallout>
 
       {simulationResult.backendPreview && (
         <div className="rounded-lg border border-border bg-background p-3">
           <div className="flex items-center gap-2">
-            <CheckCircle2 size={14} className="text-emerald-500" />
+            <CheckCircle2 size={14} className={semanticToneClass('success', 'icon')} />
             <p className="type-label font-semibold text-foreground">写入预检结果</p>
             <Badge variant="secondary" className="ml-auto h-5 rounded-full px-2 type-tiny">未写库</Badge>
           </div>

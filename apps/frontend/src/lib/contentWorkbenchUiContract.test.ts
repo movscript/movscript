@@ -314,7 +314,7 @@ test('project overview lists canonical project workbench definitions', () => {
 
 test('project workbench pages adopt shared workbench chrome primitives', () => {
   const chromeSource = readFileSync(resolve('src/components/workbench/WorkbenchChrome.tsx'), 'utf8')
-  const primitivesSource = readFileSync(resolve('src/components/workbench/WorkbenchPrimitives.tsx'), 'utf8')
+  const primitivesSource = readFileSync(resolve('../../packages/ui/src/components/workbench.tsx'), 'utf8')
   const panelSource = readFileSync(resolve('src/components/workbench/WorkbenchPanel.tsx'), 'utf8')
   const projectStandardsSource = readFileSync(resolve('src/pages/project/standards/ProjectStandardsPage.tsx'), 'utf8')
   const projectStandardsUploadSource = readFileSync(resolve('src/lib/projectStandardsStyleReferenceUpload.ts'), 'utf8')

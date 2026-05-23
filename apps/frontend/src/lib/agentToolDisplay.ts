@@ -16,6 +16,7 @@ const TOOL_NAME_LABELS_ZH: Record<string, string> = {
   core_file_read: '读取文件',
   core_file_search: '搜索文件',
   core_file_edit: '编辑文件',
+  core_update_plan: '更新执行计划',
   draft_apply_preview: '预览应用草稿',
   draft_model_get: '读取草稿模型',
   movscript_focus_get: '读取当前焦点',
@@ -40,7 +41,6 @@ const TOOL_NAME_LABELS_ZH: Record<string, string> = {
   core_work_list: '查看异步任务列表',
   core_work_start: '提交异步任务',
   core_work_wait: '观察异步任务',
-  runtime_continuation_resume: '继续上次异步任务',
 }
 
 const TOOL_NAME_I18N_KEYS: Record<string, string> = Object.fromEntries(
@@ -55,7 +55,6 @@ const RISK_LABELS_ZH: Record<string, string> = {
   write: '写入',
   generate: '生成任务',
   destructive: '破坏性',
-  resume: '接续运行',
 }
 
 const PERMISSION_LABELS_ZH: Record<string, string> = {
@@ -71,7 +70,6 @@ const PERMISSION_LABELS_ZH: Record<string, string> = {
   'agent.taskGraph.write': '更新 Agent 执行计划',
   'agent.work.read': '读取异步任务',
   'agent.work.write': '提交异步任务',
-  'runtime.continuation': '接续异步任务',
   'agent.skills.manage': '管理 Agent 技能',
   'asset.candidate.write': '写入素材候选',
   'draft.apply': '应用草稿变更',

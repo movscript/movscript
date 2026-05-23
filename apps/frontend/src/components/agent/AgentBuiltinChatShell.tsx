@@ -56,6 +56,7 @@ export function AgentBuiltinChatShell({
           onCloseConversation={deleteConversation}
           onCloseConversations={deleteConversations}
           onReorderConversation={reorderConversation}
+          onRestoreLocalThread={restoreLocalThread}
           surface={surface}
           pageEmptyAccessory={pageEmptyAccessory}
           externalTask={activeTask}

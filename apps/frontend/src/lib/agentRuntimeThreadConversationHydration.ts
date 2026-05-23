@@ -61,8 +61,9 @@ export async function hydrateRuntimeThreadConversation(input: {
     }
     deps.setConversationRuntimeThreadId(input.userId, input.conversationId, projection.thread.id)
     if (projection.currentRun) {
+      const currentRunActive = projection.currentRun.status === 'queued' || projection.currentRun.status === 'in_progress'
       deps.setConversationRun?.(input.conversationId, projection.currentRun, {
-        loading: false,
+        loading: currentRunActive,
         building: false,
         approving: false,
         stopping: false,

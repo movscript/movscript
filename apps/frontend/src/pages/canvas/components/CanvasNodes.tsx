@@ -24,6 +24,7 @@ import { CanvasIOActionCard } from '@/components/canvas/CanvasIOActionCard'
 import type { CanvasIOState } from '@/components/canvas/CanvasIOActionCard'
 import { MediaViewer } from '@/components/shared/MediaViewer'
 import { resourceIdsFromCanvasPrompt } from '@/lib/canvasRuntimeGraph'
+import { semanticStatusClass, semanticToneClass } from '@movscript/ui'
 
 const targetHandleStyle: React.CSSProperties = {
   width: 14, height: 14, borderRadius: '50%',
@@ -972,9 +973,7 @@ function CanvasTextGenerationResultPanel({ data }: { data: NodeDataWithHandlers 
         <div className="mb-2 flex items-center justify-between gap-2">
           <span className={cn(
             'rounded-full px-1.5 py-0.5 type-tiny font-medium',
-            status === 'done' && 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-            isRunning && 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-            status === 'failed' && 'bg-destructive/10 text-destructive',
+            semanticStatusClass(status, 'badge'),
           )}>
             {nodeStatusLabel(status)}
           </span>
@@ -1030,8 +1029,8 @@ function NodeHeader({ icon, label, status, actions, accent }: {
 }
 
 function StatusPip({ status }: { status: string }) {
-  if (status === 'running' || status === 'pending') return <Loader2 size={12} className="animate-spin text-amber-500 shrink-0" />
-  if (status === 'done') return <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
+  if (status === 'running' || status === 'pending') return <Loader2 size={12} className={cn('animate-spin shrink-0', semanticToneClass('warning', 'icon'))} />
+  if (status === 'done') return <CheckCircle2 size={12} className={cn('shrink-0', semanticToneClass('success', 'icon'))} />
   if (status === 'failed') return <XCircle size={12} className="text-destructive shrink-0" />
   return null
 }
@@ -1129,7 +1128,7 @@ export function VideoNode({ data, selected }: NodeProps & { data: NodeDataWithHa
         </>}
       />
       <SemanticPortRows nodeType="video" inputPorts={mediaNodeInputPorts('video', data)} />
-      <div className="flex-1 bg-zinc-900 flex items-center justify-center min-h-[80px] overflow-hidden rounded-b-xl">
+      <div className="flex-1 bg-foreground flex items-center justify-center min-h-[80px] overflow-hidden rounded-b-xl">
         {videoUrl
           ? <AuthedVideo src={videoUrl} className="w-full h-full object-cover" controls />
           : <Video size={24} className="text-white/20" />}
@@ -1349,21 +1348,21 @@ export function ApprovalNode({ data, selected }: NodeProps & { data: NodeDataWit
       <NodeHeader
         icon={<UserCheck size={12} />}
         label={data.label || t('canvas.nodeLabels.approval')}
-        accent="bg-amber-50 dark:bg-amber-950/30"
-        actions={approvalStatus === 'waiting' ? <span className="type-micro text-amber-600 shrink-0">{t('canvas.approval.waiting')}</span> : undefined}
+        accent={semanticToneClass('warning', 'surface')}
+        actions={approvalStatus === 'waiting' ? <span className={cn('type-micro shrink-0', semanticToneClass('warning', 'icon'))}>{t('canvas.approval.waiting')}</span> : undefined}
       />
       <SemanticPortRows nodeType="approval" />
       <div className="flex-1 px-3 py-2 rounded-b-xl">
-        {approvalStatus === 'approved' && <span className="text-emerald-600 flex items-center gap-1"><Check size={10} /> {t('canvas.approval.approved')}</span>}
+        {approvalStatus === 'approved' && <span className={cn('flex items-center gap-1', semanticToneClass('success', 'icon'))}><Check size={10} /> {t('canvas.approval.approved')}</span>}
         {approvalStatus === 'rejected' && <span className="text-destructive flex items-center gap-1"><X size={10} /> {t('canvas.approval.rejected')}</span>}
         {approvalStatus === 'waiting' && (
           <div className="flex gap-1.5 mt-0.5">
             <button onMouseDown={e => { e.stopPropagation(); data.onApprove?.() }}
-              className="flex-1 flex items-center justify-center gap-0.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg py-1.5 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 type-tiny transition-colors">
+              className={cn('flex-1 flex items-center justify-center gap-0.5 border rounded-lg py-1.5 type-tiny transition-colors hover:brightness-95', semanticToneClass('success', 'surface'), semanticToneClass('success', 'icon'))}>
               <Check size={10} /> {t('canvas.approval.approve')}
             </button>
             <button onMouseDown={e => { e.stopPropagation(); data.onReject?.() }}
-              className="flex-1 flex items-center justify-center gap-0.5 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800 rounded-lg py-1.5 hover:bg-rose-100 dark:hover:bg-rose-900/40 type-tiny transition-colors">
+              className={cn('flex-1 flex items-center justify-center gap-0.5 border rounded-lg py-1.5 type-tiny transition-colors hover:brightness-95', semanticToneClass('danger', 'surface'), semanticToneClass('danger', 'icon'))}>
               <X size={10} /> {t('canvas.approval.reject')}
             </button>
           </div>

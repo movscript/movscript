@@ -10,6 +10,7 @@ import type {
   AgentTraceEvent,
   RuntimeContinuation,
   RuntimeInteraction,
+  RuntimeWakeEvent,
 } from './types.js'
 import type { AgentRunTraceSummary, AgentTraceQuery } from '@movscript/protocol'
 import {
@@ -60,6 +61,10 @@ export interface AgentStore {
   updateRuntimeContinuation(continuation: RuntimeContinuation): void
   listRuntimeContinuations(query?: RuntimeContinuationQuery): RuntimeContinuation[]
   getRuntimeContinuation(id: string): RuntimeContinuation | undefined
+  createRuntimeWakeEvent(event: RuntimeWakeEvent): void
+  updateRuntimeWakeEvent(event: RuntimeWakeEvent): void
+  listRuntimeWakeEvents(query?: RuntimeWakeEventQuery): RuntimeWakeEvent[]
+  getRuntimeWakeEvent(id: string): RuntimeWakeEvent | undefined
   appendTraceEvent(event: AgentTraceEvent): void
   listRunTraceEvents(runId: string, query?: AgentTraceQuery): AgentTraceEvent[]
   getRunTraceEventData(runId: string, eventId: string): unknown | undefined
@@ -122,6 +127,14 @@ export interface RuntimeContinuationQuery {
   status?: RuntimeContinuation['status']
 }
 
+export interface RuntimeWakeEventQuery {
+  threadId?: string
+  runId?: string
+  workId?: string
+  status?: RuntimeWakeEvent['status']
+  kind?: RuntimeWakeEvent['kind']
+}
+
 export class InMemoryAgentStore implements AgentStore {
   private readonly sessions = new Map<string, AgentSession>()
   private readonly threads = new Map<string, AgentThread>()
@@ -131,6 +144,7 @@ export class InMemoryAgentStore implements AgentStore {
   private readonly runtimeWorks = new Map<string, RuntimeWork>()
   private readonly runtimeInteractions = new Map<string, RuntimeInteraction>()
   private readonly runtimeContinuations = new Map<string, RuntimeContinuation>()
+  private readonly runtimeWakeEvents = new Map<string, RuntimeWakeEvent>()
   private readonly traceEventsByRun = new Map<string, AgentTraceEvent[]>()
   private readonly debugLedgersByRun = new Map<string, AgentRunDebugLedger>()
 
@@ -191,6 +205,9 @@ export class InMemoryAgentStore implements AgentStore {
     const deletedRuntimeContinuationIds = Array.from(this.runtimeContinuations.values())
       .filter((continuation) => continuation.threadId === threadId)
       .map((continuation) => continuation.id)
+    const deletedRuntimeWakeEventIds = Array.from(this.runtimeWakeEvents.values())
+      .filter((event) => event.threadId === threadId)
+      .map((event) => event.id)
 
     if (!thread) {
       return {
@@ -216,6 +233,7 @@ export class InMemoryAgentStore implements AgentStore {
     for (const workId of deletedRuntimeWorkIds) this.runtimeWorks.delete(workId)
     for (const interactionId of deletedRuntimeInteractionIds) this.runtimeInteractions.delete(interactionId)
     for (const continuationId of deletedRuntimeContinuationIds) this.runtimeContinuations.delete(continuationId)
+    for (const eventId of deletedRuntimeWakeEventIds) this.runtimeWakeEvents.delete(eventId)
 
     return {
       deleted: true,
@@ -237,6 +255,7 @@ export class InMemoryAgentStore implements AgentStore {
     const deletedRuntimeWorkIds = Array.from(this.runtimeWorks.keys())
     const deletedRuntimeInteractionIds = Array.from(this.runtimeInteractions.keys())
     const deletedRuntimeContinuationIds = Array.from(this.runtimeContinuations.keys())
+    const deletedRuntimeWakeEventIds = Array.from(this.runtimeWakeEvents.keys())
     const deleted = threadIds.length > 0
       || deletedRunIds.length > 0
       || deletedTaskGraphIds.length > 0
@@ -244,6 +263,7 @@ export class InMemoryAgentStore implements AgentStore {
       || deletedRuntimeWorkIds.length > 0
       || deletedRuntimeInteractionIds.length > 0
       || deletedRuntimeContinuationIds.length > 0
+      || deletedRuntimeWakeEventIds.length > 0
 
     this.sessions.clear()
     this.threads.clear()
@@ -253,6 +273,7 @@ export class InMemoryAgentStore implements AgentStore {
     this.runtimeWorks.clear()
     this.runtimeInteractions.clear()
     this.runtimeContinuations.clear()
+    this.runtimeWakeEvents.clear()
     this.traceEventsByRun.clear()
     this.debugLedgersByRun.clear()
 
@@ -457,6 +478,30 @@ export class InMemoryAgentStore implements AgentStore {
   getRuntimeContinuation(id: string): RuntimeContinuation | undefined {
     const continuation = this.runtimeContinuations.get(id)
     return continuation ? clone(continuation) : undefined
+  }
+
+  createRuntimeWakeEvent(event: RuntimeWakeEvent): void {
+    this.runtimeWakeEvents.set(event.id, clone(event))
+  }
+
+  updateRuntimeWakeEvent(event: RuntimeWakeEvent): void {
+    this.runtimeWakeEvents.set(event.id, clone(event))
+  }
+
+  listRuntimeWakeEvents(query: RuntimeWakeEventQuery = {}): RuntimeWakeEvent[] {
+    return Array.from(this.runtimeWakeEvents.values())
+      .filter((event) => query.threadId === undefined || event.threadId === query.threadId)
+      .filter((event) => query.runId === undefined || event.runId === query.runId)
+      .filter((event) => query.workId === undefined || event.workId === query.workId)
+      .filter((event) => query.status === undefined || event.status === query.status)
+      .filter((event) => query.kind === undefined || event.kind === query.kind)
+      .map((event) => clone(event))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  }
+
+  getRuntimeWakeEvent(id: string): RuntimeWakeEvent | undefined {
+    const event = this.runtimeWakeEvents.get(id)
+    return event ? clone(event) : undefined
   }
 
   appendTraceEvent(event: AgentTraceEvent): void {

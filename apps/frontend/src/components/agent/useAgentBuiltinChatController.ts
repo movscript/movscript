@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AGENT_PANEL_DRAFT_EVENT, consumeAgentPanelDraft, type AgentPanelDraftPayload } from '@/lib/agentPanelBridge'
 import { activateConversationForPanelDraft, consumeQueuedPanelDrafts } from '@/lib/agentPanelDraftIntake'
 import { loadRuntimeThreadProjection } from '@/lib/agentRuntimeThreadHydration'
-import { restoreRuntimeThreadConversation } from '@/lib/agentRuntimeThreadRestore'
+import { restoreRuntimeThreadConversation, type RestoreRuntimeThreadResult } from '@/lib/agentRuntimeThreadRestore'
 import { fetchResourceById } from '@/lib/agentMessageViewModel'
 import { localThreadTitle } from '@/components/agent/AgentConversationList'
 import { useAgentStore } from '@/store/agentStore'
@@ -26,8 +26,9 @@ export function useAgentBuiltinChatController({
     getActiveConversationId,
     createConversation,
     setActiveConversation,
-    deleteConversation: deleteAgentConversation,
-    deleteConversations: deleteAgentConversations,
+    archiveConversation,
+    archiveConversations,
+    unarchiveConversation,
     reorderConversation: reorderAgentConversation,
     upsertMessage,
     setConversationRuntimeSessionId,
@@ -40,8 +41,13 @@ export function useAgentBuiltinChatController({
   const setConversationSessionId = useAgentSessionStore((s) => s.setConversationSessionId)
 
   const conversations = getConversations(userId)
+  const openConversations = useMemo(
+    () => conversations.filter((conversation) => conversation.archived !== true),
+    [conversations],
+  )
   const activeConversationId = getActiveConversationId(userId)
-  const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null
+  const activeConversation = openConversations.find((conversation) => conversation.id === activeConversationId) ?? null
+  const restoringThreadsRef = useRef(new Map<string, Promise<RestoreRuntimeThreadResult>>())
   const activeTask = useMemo(() => {
     if (!activeConversation) return null
     const tasks = Object.values(pageTasks).filter((task) => task.conversationId === activeConversation.id)
@@ -55,10 +61,18 @@ export function useAgentBuiltinChatController({
   }, [createConversation, userId])
 
   const handleRestoreLocalThread = useCallback(async (threadId: string) => {
+    const normalizedThreadId = threadId.trim()
+    if (!normalizedThreadId) return
+    const pendingRestore = restoringThreadsRef.current.get(normalizedThreadId)
+    if (pendingRestore) {
+      await pendingRestore
+      return
+    }
     const sessionState = useAgentSessionStore.getState()
-    await restoreRuntimeThreadConversation(threadId, {
+    const restorePromise = restoreRuntimeThreadConversation(normalizedThreadId, {
       userId,
-      conversations,
+      conversations: getConversations(userId),
+      getConversations: () => useAgentStore.getState().getConversations(userId),
       sessionState: {
         localThreadIdsByConversation: sessionState.localThreadIdsByConversation,
         sessionIdsByConversation: sessionState.sessionIdsByConversation,
@@ -69,6 +83,7 @@ export function useAgentBuiltinChatController({
       loadProjection: (id) => loadRuntimeThreadProjection({ threadId: id }, { fetchResourceById }),
       createConversation,
       setActiveConversation,
+      unarchiveConversation,
       updateConversationTitle,
       messageStore: {
         upsertMessage,
@@ -80,16 +95,22 @@ export function useAgentBuiltinChatController({
         setConversationSessionId(conversationId, sessionId)
       },
       setConversationRuntimeThreadId,
+    }).finally(() => {
+      restoringThreadsRef.current.delete(normalizedThreadId)
     })
+    restoringThreadsRef.current.set(normalizedThreadId, restorePromise)
+    const result = await restorePromise
+    archiveDuplicateRuntimeConversations(userId, result.conversationId, result.threadId)
   }, [
-    conversations,
     createConversation,
+    getConversations,
     setActiveConversation,
     setConversationRuntimeSessionId,
     setConversationRuntimeThreadId,
     setConversationSessionId,
     setLocalThreadId,
     t,
+    unarchiveConversation,
     updateConversationTitle,
     upsertMessage,
     userId,
@@ -131,13 +152,40 @@ export function useAgentBuiltinChatController({
   return {
     activeConversation,
     activeTask,
-    conversations,
+    conversations: openConversations,
     clearActiveConversation: () => setActiveConversation(userId, null),
-    deleteConversation: (id: string) => deleteAgentConversation(userId, id),
-    deleteConversations: (ids: string[]) => deleteAgentConversations(userId, ids),
+    deleteConversation: (id: string) => archiveConversation(userId, id),
+    deleteConversations: (ids: string[]) => archiveConversations(userId, ids),
     newConversation: handleNewConversation,
     reorderConversation: (draggedId: string, targetId: string, position: 'before' | 'after') => reorderAgentConversation(userId, draggedId, targetId, position),
     restoreLocalThread: handleRestoreLocalThread,
-    selectConversation: (id: string) => setActiveConversation(userId, id),
+    selectConversation: (id: string) => {
+      unarchiveConversation(userId, id)
+      setActiveConversation(userId, id)
+    },
   }
+}
+
+function archiveDuplicateRuntimeConversations(userId: string, keepConversationId: string, threadId: string) {
+  const agentStore = useAgentStore.getState()
+  const sessionStore = useAgentSessionStore.getState()
+  const conversations = agentStore.getConversations(userId)
+  const keepConversation = conversations.find((conversation) => conversation.id === keepConversationId)
+  const keepSessionId = keepConversation
+    ? sessionStore.sessionIdsByConversation[keepConversation.id] ?? keepConversation.runtimeSessionId ?? sessionStore.conversationRuntimes[keepConversation.id]?.sessionId
+    : undefined
+  const duplicateIds = conversations
+    .filter((conversation) => conversation.id !== keepConversationId && conversation.archived !== true)
+    .filter((conversation) => {
+      const candidateThreadId = sessionStore.localThreadIdsByConversation[conversation.id]
+        ?? conversation.runtimeThreadId
+        ?? sessionStore.conversationRuntimes[conversation.id]?.threadId
+      if (candidateThreadId === threadId) return true
+      const candidateSessionId = sessionStore.sessionIdsByConversation[conversation.id]
+        ?? conversation.runtimeSessionId
+        ?? sessionStore.conversationRuntimes[conversation.id]?.sessionId
+      return !!keepSessionId && candidateSessionId === keepSessionId
+    })
+    .map((conversation) => conversation.id)
+  if (duplicateIds.length > 0) agentStore.archiveConversations(userId, duplicateIds)
 }

@@ -39,6 +39,48 @@ test('projectRuntimeThreadMessages binds runtime user and assistant messages to 
   })
 })
 
+test('projectRuntimeThreadMessages preserves runtime status metadata from runtime-authored assistant messages', async () => {
+  const thread = makeThread({
+    messages: [
+      makeMessage({ id: 'msg_user', role: 'user', content: 'Generate image', createdAt: '2026-05-19T00:00:01.000Z' }),
+      makeMessage({
+        id: 'msg_assistant',
+        role: 'assistant',
+        content: '任务正在后台运行，完成后会自动接续。你可以继续发送消息。',
+        runId: 'run_1',
+        createdAt: '2026-05-19T00:00:02.000Z',
+        metadata: {
+          kind: 'runtime_status',
+          runtimeStatus: {
+            kind: 'async_work_handoff',
+            title: '异步任务已提交',
+            detail: '任务正在后台运行，完成后会自动接续。你可以继续发送消息。',
+            workId: 'work_1',
+            workKind: 'generation_job',
+            workStatus: 'running',
+          },
+        },
+      }),
+    ],
+  })
+  const run = makeRun({
+    id: 'run_1',
+    input: { sourceMessageId: 'msg_user', userMessage: 'Generate image' },
+    assistantMessageId: 'msg_assistant',
+  })
+
+  const messages = await projectRuntimeThreadMessages({
+    thread,
+    runs: [run],
+    deps: projectionDeps(),
+  })
+
+  assert.equal(messages[1].meta?.runtimeStatus?.kind, 'async_work_handoff')
+  assert.equal(messages[1].meta?.runtimeStatus?.workId, 'work_1')
+  assert.equal(messages[1].meta?.runtimeStatus?.workKind, 'generation_job')
+  assert.equal(messages[1].meta?.runtimeStatus?.workStatus, 'running')
+})
+
 test('projectRuntimeThreadMessages preserves existing local message ids for runtime-backed messages', async () => {
   const thread = makeThread({
     messages: [

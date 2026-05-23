@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight, CheckCircle2, FileText, Loader2 } from 'lucide-react'
-import { Badge, Button } from '@movscript/ui'
+import { Badge, Button, semanticToneClass } from '@movscript/ui'
 
 import type { AgentDraft } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
@@ -82,7 +82,7 @@ export function ProjectStandardsProposalReviewPanel({
 
             {proposalView ? (
               <div className="mt-3 space-y-3">
-                <div className="rounded-md border border-sky-500/20 bg-sky-500/5 p-2.5">
+                <div className={`rounded-md border p-2.5 ${semanticToneClass('info', 'surface')}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="type-tiny font-medium text-foreground">项目规范提案</p>

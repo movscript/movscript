@@ -23,6 +23,7 @@ import type {
   AgentTraceEvent,
   RuntimeContinuation,
   RuntimeInteraction,
+  RuntimeWakeEvent,
   RuntimeWork,
 } from '@movscript/protocol'
 
@@ -69,6 +70,7 @@ interface EntityState {
   interactions: EntityMap<RuntimeInteraction>
   works: EntityMap<RuntimeWork>
   continuations: EntityMap<RuntimeContinuation>
+  wakeEvents: EntityMap<RuntimeWakeEvent>
   plans: EntityMap<AgentPlan>
   planRevisions: EntityMap<AgentPlanRevision>
   taskGraphs: EntityMap<AgentTaskGraphSnapshot>
@@ -92,6 +94,7 @@ export class EventStateStore {
     interactions: new Map(),
     works: new Map(),
     continuations: new Map(),
+    wakeEvents: new Map(),
     plans: new Map(),
     planRevisions: new Map(),
     taskGraphs: new Map(),
@@ -129,6 +132,7 @@ export class EventStateStore {
     this.mergeMany('interaction', snapshot.entities.interactions ?? [])
     this.mergeMany('work', snapshot.entities.works ?? [])
     this.mergeMany('continuation', snapshot.entities.continuations ?? [])
+    this.mergeMany('wake_event', snapshot.entities.wakeEvents ?? [])
     this.mergeMany('plan', snapshot.entities.plans ?? [])
     this.mergeMany('plan_revision', snapshot.entities.planRevisions ?? [])
     this.mergeMany('task_graph', snapshot.entities.taskGraphs ?? [])
@@ -459,6 +463,7 @@ export function runtimeThreadProjectionShouldRefresh(event: AgentRuntimeEventV2)
     || event.kind === 'interaction.upserted'
     || event.kind === 'work.upserted'
     || event.kind === 'continuation.upserted'
+    || event.kind === 'wake_event.upserted'
     || event.kind === 'scope.done'
 }
 
@@ -472,6 +477,7 @@ export function runtimeStatusStateFromSnapshot(snapshot?: Pick<AgentRuntimeSnaps
     || (snapshot.entities.works ?? []).some((work) => (!threadId || work.threadId === threadId) && (work.status === 'pending_approval' || work.status === 'queued' || work.status === 'running' || work.status === 'waiting'))
     || (snapshot.entities.interactions ?? []).some((interaction) => (!threadId || interaction.threadId === threadId) && interaction.status === 'pending')
     || (snapshot.entities.continuations ?? []).some((continuation) => (!threadId || continuation.threadId === threadId) && continuation.status === 'ready')
+    || (snapshot.entities.wakeEvents ?? []).some((event) => (!threadId || event.threadId === threadId) && (event.status === 'queued' || event.status === 'processing'))
   ) {
     return 'waiting'
   }
@@ -498,6 +504,7 @@ function entityTypeForKind(kind: string): AgentRuntimeEventEntityV2['type'] | un
     case 'interaction.upserted': return 'interaction'
     case 'work.upserted': return 'work'
     case 'continuation.upserted': return 'continuation'
+    case 'wake_event.upserted': return 'wake_event'
     case 'plan.upserted': return 'plan'
     case 'plan_revision.upserted': return 'plan_revision'
     case 'task_graph.upserted': return 'task_graph'
@@ -521,6 +528,7 @@ function entityMap(state: EntityState, type: AgentRuntimeEventEntityV2['type']):
     case 'interaction': return state.interactions as EntityMap<never>
     case 'work': return state.works as EntityMap<never>
     case 'continuation': return state.continuations as EntityMap<never>
+    case 'wake_event': return state.wakeEvents as EntityMap<never>
     case 'plan': return state.plans as EntityMap<never>
     case 'plan_revision': return state.planRevisions as EntityMap<never>
     case 'task_graph': return state.taskGraphs as EntityMap<never>

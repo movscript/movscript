@@ -1,6 +1,7 @@
 import { dedupeAttachments } from '@/lib/agentAttachments'
 import { isGeneratedResultAttachment } from '@/lib/agentGeneratedResultAttachments'
 import { hideGeneratedResultTechnicalSummary, outputResourceIdsFromText } from '@/lib/agentMessageViewModel'
+import { isRuntimeEmptyAssistantPlaceholder, runtimeStatusMessageFromRunActivity, type RuntimeStatusMessage } from '@/lib/agentRuntimeStatusMessage'
 import { needsModelSetupAction } from '@/lib/actionableErrors'
 import type { AgentAttachment, ChatMessage } from '@/store/agentStore'
 
@@ -15,6 +16,7 @@ export interface AgentMessagePresentation {
   generationParamAudits: NonNullable<ChatMessageMeta['generationParamAudits']>
   generationValidationErrors: NonNullable<ChatMessageMeta['generationValidationErrors']>
   localRunActivity?: ChatMessageMeta['localRunActivity']
+  runtimeStatus?: RuntimeStatusMessage
   messageAttachments: AgentAttachment[]
   generatedMediaAttachments: AgentAttachment[]
   compactAttachments: AgentAttachment[]
@@ -52,11 +54,14 @@ export function buildAgentMessagePresentation(
   const generationParamAudits = !isUser ? msg.meta?.generationParamAudits ?? [] : []
   const generationValidationErrors = !isUser ? msg.meta?.generationValidationErrors ?? [] : []
   const localRunActivity = !isUser ? msg.meta?.localRunActivity : undefined
+  const runtimeStatus = !isUser ? runtimeStatusMessageFromRunActivity({ runtimeStatus: msg.meta?.runtimeStatus, activity: localRunActivity, generationJobs }) : undefined
   const rawDisplayContent = contextDiagnostic
     ? ''
     : showLargeMedia && hasUsableGeneratedResource ? hideGeneratedResultTechnicalSummary(msg.content) : msg.content
   const visibleContent = !isUser ? hideFinalSourceSummary(rawDisplayContent) : rawDisplayContent
-  const displayContent = !isUser && localRunActivity && isRequiredActionSummaryContent(visibleContent, localRunActivity)
+  const displayContent = !isUser && runtimeStatus && isRuntimeEmptyAssistantPlaceholder(visibleContent)
+    ? ''
+    : !isUser && localRunActivity && isRequiredActionSummaryContent(visibleContent, localRunActivity)
     ? ''
     : visibleContent
   const showModelSetupAction = !isUser && needsModelSetupAction(msg.content)
@@ -83,6 +88,7 @@ export function buildAgentMessagePresentation(
     generationParamAudits,
     generationValidationErrors,
     localRunActivity,
+    runtimeStatus,
     messageAttachments,
     generatedMediaAttachments,
     compactAttachments,

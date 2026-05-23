@@ -2,39 +2,63 @@ import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { Boxes, Clapperboard, Database, FileText, Film, Image } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { accentToneClass, type AccentTone } from '@movscript/ui'
 import type { CanvasEntityKind, EntityWorkflowSchema, EntityWorkflowSchemaField } from '@/types'
 import { cn } from '@/lib/utils'
 
 export type EntitySurface = 'content' | 'workbench' | 'canvas'
-export type EntityTone = 'sky' | 'violet' | 'blue' | 'emerald' | 'amber' | 'rose' | 'teal' | 'indigo' | 'orange' | 'neutral'
+export type EntityTone = Extract<AccentTone, 'sky' | 'violet' | 'blue' | 'emerald' | 'amber' | 'rose' | 'teal' | 'indigo' | 'orange' | 'neutral'>
 
 export const ENTITY_KIND_META: Record<CanvasEntityKind, {
   labelKey: string
   icon: LucideIcon
   tone: EntityTone
+  accentTone: AccentTone
   accent: string
   accentSoft: string
   activeColor: string
 }> = {
-  script:      { labelKey: 'entities.scripts',      icon: FileText,     tone: 'sky',     accent: 'bg-sky-500',     accentSoft: 'bg-sky-500/10',     activeColor: 'text-sky-600' },
-  segment:     { labelKey: 'entities.segments',     icon: Film,         tone: 'blue',    accent: 'bg-cyan-500',    accentSoft: 'bg-cyan-500/10',    activeColor: 'text-cyan-600' },
-  scene_moment:{ labelKey: 'entities.sceneMoments', icon: Clapperboard,  tone: 'teal',    accent: 'bg-teal-500',    accentSoft: 'bg-teal-500/10',    activeColor: 'text-teal-600' },
-  creative_reference: { labelKey: 'entities.creativeReferences', icon: Database, tone: 'violet', accent: 'bg-violet-500', accentSoft: 'bg-violet-500/10', activeColor: 'text-violet-600' },
-  asset_slot:  { labelKey: 'entities.assetSlots',   icon: Image,        tone: 'amber',   accent: 'bg-amber-500',   accentSoft: 'bg-amber-500/10',   activeColor: 'text-amber-600' },
-  content_unit:{ labelKey: 'entities.contentUnits', icon: Boxes,        tone: 'indigo',  accent: 'bg-indigo-500',  accentSoft: 'bg-indigo-500/10',  activeColor: 'text-indigo-600' },
+  script: entityKindMeta({ labelKey: 'entities.scripts', icon: FileText, tone: 'sky' }),
+  segment: entityKindMeta({ labelKey: 'entities.segments', icon: Film, tone: 'blue', accentTone: 'cyan' }),
+  scene_moment: entityKindMeta({ labelKey: 'entities.sceneMoments', icon: Clapperboard, tone: 'teal' }),
+  creative_reference: entityKindMeta({ labelKey: 'entities.creativeReferences', icon: Database, tone: 'violet' }),
+  asset_slot: entityKindMeta({ labelKey: 'entities.assetSlots', icon: Image, tone: 'amber' }),
+  content_unit: entityKindMeta({ labelKey: 'entities.contentUnits', icon: Boxes, tone: 'indigo' }),
+}
+
+function entityKindMeta({
+  labelKey,
+  icon,
+  tone,
+  accentTone = tone,
+}: {
+  labelKey: string
+  icon: LucideIcon
+  tone: EntityTone
+  accentTone?: AccentTone
+}) {
+  return {
+    labelKey,
+    icon,
+    tone,
+    accentTone,
+    accent: accentToneClass(accentTone, 'dot'),
+    accentSoft: accentToneClass(accentTone, 'soft'),
+    activeColor: accentToneClass(accentTone, 'icon'),
+  }
 }
 
 export const ENTITY_TONE_CLASS: Record<EntityTone, string> = {
-  sky: 'border-sky-500/20 bg-sky-500/[0.04]',
-  violet: 'border-violet-500/20 bg-violet-500/[0.04]',
-  blue: 'border-blue-500/20 bg-blue-500/[0.04]',
-  emerald: 'border-emerald-500/20 bg-emerald-500/[0.04]',
-  amber: 'border-amber-500/20 bg-amber-500/[0.05]',
-  rose: 'border-rose-500/20 bg-rose-500/[0.04]',
-  teal: 'border-teal-500/20 bg-teal-500/[0.04]',
-  indigo: 'border-indigo-500/20 bg-indigo-500/[0.04]',
-  orange: 'border-orange-500/20 bg-orange-500/[0.05]',
-  neutral: 'border-border bg-background',
+  sky: accentToneClass('sky', 'surface'),
+  violet: accentToneClass('violet', 'surface'),
+  blue: accentToneClass('blue', 'surface'),
+  emerald: accentToneClass('emerald', 'surface'),
+  amber: accentToneClass('amber', 'surface'),
+  rose: accentToneClass('rose', 'surface'),
+  teal: accentToneClass('teal', 'surface'),
+  indigo: accentToneClass('indigo', 'surface'),
+  orange: accentToneClass('orange', 'surface'),
+  neutral: accentToneClass('neutral', 'surface'),
 }
 
 interface EntitySurfaceHeaderProps {

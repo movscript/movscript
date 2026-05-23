@@ -64,19 +64,6 @@ function AgentSessionChatHarness() {
                 reason: 'Worker needs confirmation',
               })],
             })]],
-            ['assistant_result', [run({
-              id: 'run_resume',
-              status: 'completed',
-              pendingApprovals: [approval({
-                id: 'approval_resume',
-                runId: 'run_resume',
-                toolName: 'runtime_continuation_resume',
-                risk: 'resume',
-                permission: 'runtime.continuation',
-                args: { marker: 'resume-card-marker' },
-                reason: 'Completed async work can continue',
-              })],
-            })]],
           ])}
           workflowRunsWithoutResultMessage={[]}
           onAcceptPlanReview={() => {}}

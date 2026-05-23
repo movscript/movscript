@@ -6,13 +6,19 @@ import { Bot, CheckCircle2, Clipboard, Copy, Download, Loader2, Plus, RefreshCw,
 import {
   Badge,
   Button,
+  AppInlineError,
+  AppKeyValue,
+  AppPanel,
+  AppStateMessage,
   Input,
+  ReviewCallout,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
   Textarea,
+  semanticToneClass,
 } from '@movscript/ui'
 import { api } from '@/lib/api'
 import { getAPIBaseURL } from '@/lib/config'
@@ -1610,9 +1616,9 @@ export default function AIAgentSettingsPage() {
                   <ApiModeMigrationGuide apiKind={selectedApiKind} onSwitchToResponses={() => setSelectedApiKind('openai_responses')} />
                   <ApiModeSwitchPlanPanel apiKind={selectedApiKind} items={apiModeSwitchTaskGraph} />
                   {modelRouteIssues.length > 0 && (
-                    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 type-label text-amber-800 dark:text-amber-300">
+                    <ReviewCallout tone="warning" compact className="type-label">
                       {modelRouteIssues.map((issue) => <p key={issue}>{t(`agents.settings.modelRouteIssues.${issue}`)}</p>)}
-                    </div>
+                    </ReviewCallout>
                   )}
 
                   {usesModelCatalog && selectedModel && (
@@ -2013,8 +2019,8 @@ export default function AIAgentSettingsPage() {
                     </div>
                     {skillPolicySaveError && <InlineError>{skillPolicySaveError}</InlineError>}
                     {skillPolicyIssues.length > 0 && (
-                      <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2">
-                        <p className="type-label font-medium text-amber-800 dark:text-amber-300">{t('agents.settings.skillPolicyIssues')}</p>
+                      <ReviewCallout tone="warning" compact>
+                        <p className={`type-label font-medium ${semanticToneClass('warning', 'icon')}`}>{t('agents.settings.skillPolicyIssues')}</p>
                         <ul className="mt-1 space-y-1 type-caption text-muted-foreground">
                           {skillPolicyIssues.map((issue) => (
                             <li key={`${issue.type}:${issue.skillId}:${issue.relatedSkillId}`}>
@@ -2027,7 +2033,7 @@ export default function AIAgentSettingsPage() {
                         <Button type="button" size="sm" variant="outline" className="mt-2" onClick={() => fixToolPolicyDraftIssues({ audit: true })} data-testid="agent-settings-fix-tool-policy-draft-issues">
                           {t('agents.settings.fixToolPolicyDraftIssues')}
                         </Button>
-                      </div>
+                      </ReviewCallout>
                     )}
 
                     {coreSkills.length > 0 && (
@@ -2102,9 +2108,9 @@ export default function AIAgentSettingsPage() {
                     {selectedProfile && selectedProfile.id !== currentProfile?.id && (
                       <div className="space-y-2">
                         {selectedProfileDiff && <ProfileDiffPanel diff={selectedProfileDiff} />}
-                        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 type-caption leading-4 text-muted-foreground">
+                        <ReviewCallout tone="warning" compact className="type-caption leading-4">
                           {t('agents.settings.profileSwitchResetsToolPolicy')}
-                        </div>
+                        </ReviewCallout>
                         <ProfileRow profile={selectedProfile} preview />
                       </div>
                     )}
@@ -2155,8 +2161,8 @@ export default function AIAgentSettingsPage() {
                     {hasToolPolicyChange && <ToolPolicyDiffPreview items={toolPolicyDiffItems} />}
                     {toolPolicySaveError && <InlineError>{toolPolicySaveError}</InlineError>}
                     {toolPolicyDraftIssues.length > 0 && (
-                      <div data-testid="agent-settings-tool-policy-draft-issues" className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2">
-                        <p className="type-label font-medium text-amber-800 dark:text-amber-300">{t('agents.settings.toolPolicyDraftIssues')}</p>
+                      <ReviewCallout data-testid="agent-settings-tool-policy-draft-issues" tone="warning" compact>
+                        <p className={`type-label font-medium ${semanticToneClass('warning', 'icon')}`}>{t('agents.settings.toolPolicyDraftIssues')}</p>
                         <ul className="mt-1 space-y-1 type-caption text-muted-foreground">
                           {toolPolicyDraftIssues.slice(0, 5).map((issue) => (
                             <li key={`${issue.reasonKey}:${issue.toolName}`}>
@@ -2164,7 +2170,7 @@ export default function AIAgentSettingsPage() {
                             </li>
                           ))}
                         </ul>
-                      </div>
+                      </ReviewCallout>
                     )}
 
                     <div data-testid="agent-settings-tool-policy-filters" className="grid gap-2 rounded-md border border-border bg-background p-2 md:grid-cols-[minmax(0,1fr)_220px_auto]">
@@ -2325,7 +2331,7 @@ export default function AIAgentSettingsPage() {
                   <p className="type-caption leading-4 text-muted-foreground">{t('agents.settings.settingsSnapshotHelp')}</p>
                   {settingsSnapshotFileName && <p className="type-caption text-muted-foreground">{t('agents.settings.settingsSnapshotFileLoaded', { fileName: settingsSnapshotFileName })}</p>}
                   {settingsImportBackup && (
-                    <div data-testid="agent-settings-import-backup" className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2">
+                    <ReviewCallout data-testid="agent-settings-import-backup" tone="warning" compact>
                       <p className="type-label font-medium text-foreground">{t('agents.settings.settingsImportBackup')}</p>
                       <p className="mt-0.5 type-tiny leading-4 text-muted-foreground">
                         {t('agents.settings.settingsImportBackupHelp', { time: new Date(settingsImportBackup.createdAt).toLocaleString() })}
@@ -2344,7 +2350,7 @@ export default function AIAgentSettingsPage() {
                           {t('agents.settings.clearImportBackup')}
                         </Button>
                       </div>
-                    </div>
+                    </ReviewCallout>
                   )}
                   <Textarea
                     value={settingsSnapshotText}
@@ -3887,9 +3893,9 @@ function SettingsActionItemsPanel({
             {copied ? t('agents.settings.actionItemsCopied') : t('agents.settings.copyActionItems')}
           </Button>
         </div>
-        <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2 type-label text-emerald-800 dark:text-emerald-300">
+        <ReviewCallout tone="success" compact className="type-label">
           {t('agents.settings.actionItemsEmpty')}
-        </div>
+        </ReviewCallout>
         {feedback && <ActionFeedback text={feedback} />}
       </div>
     )
@@ -3914,7 +3920,7 @@ function SettingsActionItemsPanel({
             'rounded-md border p-2',
             item.status === 'action'
               ? 'border-destructive/40 bg-destructive/10'
-              : 'border-amber-500/40 bg-amber-500/10',
+              : semanticToneClass('warning', 'surface'),
           )}
         >
           <span className="flex items-start justify-between gap-2">
@@ -3931,7 +3937,7 @@ function SettingsActionItemsPanel({
                 </span>
               )}
               {item.persistHintKey && (
-                <span data-testid="agent-settings-action-persist-hint" className="mt-1 block type-tiny leading-4 text-amber-800 dark:text-amber-200">
+                <span data-testid="agent-settings-action-persist-hint" className={`mt-1 block type-tiny leading-4 ${semanticToneClass('warning', 'icon')}`}>
                   {t(item.persistHintKey)}
                 </span>
               )}
@@ -3962,9 +3968,9 @@ function settingsSectionLabelKey(sectionId: SettingsActionItem['targetSection'])
 
 function ActionFeedback({ text }: { text: string }) {
   return (
-    <div data-testid="agent-settings-action-feedback" role="status" className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1.5 type-caption leading-4 text-emerald-800 dark:text-emerald-300">
+    <ReviewCallout data-testid="agent-settings-action-feedback" role="status" tone="success" compact className="type-caption leading-4">
       {text}
-    </div>
+    </ReviewCallout>
   )
 }
 
@@ -3990,10 +3996,10 @@ function ConfigurationMapPanel({ onJump }: { onJump: (sectionId: string) => void
 function SettingsReadinessRow({ item }: { item: SettingsReadinessItem }) {
   const { t } = useTranslation()
   const icon = item.status === 'ready'
-    ? <CheckCircle2 size={14} className="text-emerald-600" />
+    ? <CheckCircle2 size={14} className={semanticToneClass('success', 'icon')} />
     : item.status === 'action'
       ? <XCircle size={14} className="text-destructive" />
-      : <XCircle size={14} className="text-amber-600" />
+      : <XCircle size={14} className={semanticToneClass('warning', 'icon')} />
   return (
     <div className="flex items-start gap-2 rounded-md border border-border bg-muted/20 p-2">
       <span className="mt-0.5 shrink-0">{icon}</span>
@@ -4223,7 +4229,7 @@ function ToolPolicyRow({
   return (
     <div className={cn(
       'rounded-md border p-2',
-      tool.available ? 'border-border bg-muted/20' : 'border-amber-300/60 bg-amber-50/60 dark:bg-amber-950/20',
+      tool.available ? 'border-border bg-muted/20' : semanticToneClass('warning', 'surface'),
     )}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
@@ -4279,7 +4285,7 @@ function ToolPolicyRow({
           {t('agents.settings.toolPolicyFields.granted')}: {tool.granted ? t('agents.settings.toolPolicyValues.yes') : t('agents.settings.toolPolicyValues.no')}
         </span>
         {tool.projectScoped && <span className="rounded bg-background px-1.5 py-0.5">{t('agents.settings.toolPolicyFields.projectScoped')}</span>}
-        {tool.unavailableReason && <span className="rounded bg-background px-1.5 py-0.5 text-amber-700 dark:text-amber-300">{tool.unavailableReason}</span>}
+        {tool.unavailableReason && <span className={`rounded bg-background px-1.5 py-0.5 ${semanticToneClass('warning', 'icon')}`}>{tool.unavailableReason}</span>}
       </div>
     </div>
   )
@@ -4464,15 +4470,7 @@ function apiModeCapabilityBadgeVariant(badge: 'recommended' | 'managed' | 'compa
 }
 
 function Panel({ id, title, children }: { id?: string; title: string; children: React.ReactNode }) {
-  return (
-    <section id={id} className="scroll-mt-4 rounded-md border border-border bg-background">
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-        <Bot size={14} className="text-muted-foreground" />
-        <h2 className="type-label font-semibold text-foreground">{title}</h2>
-      </div>
-      <div className="p-3">{children}</div>
-    </section>
-  )
+  return <AppPanel id={id} icon={Bot} title={title}>{children}</AppPanel>
 }
 
 function ToggleRow({ checked, onChange, title, description }: { checked: boolean; onChange: (checked: boolean) => void; title: string; description: string }) {
@@ -4493,26 +4491,13 @@ function ToggleRow({ checked, onChange, title, description }: { checked: boolean
 }
 
 function SummaryItem({ label, value }: { label: string; value?: string | number | null }) {
-  return (
-    <div className="min-w-0 rounded-md border border-border bg-muted/20 px-2 py-1.5">
-      <p className="type-tiny text-muted-foreground">{label}</p>
-      <p className="mt-0.5 truncate type-label font-medium text-foreground">{value ?? '-'}</p>
-    </div>
-  )
+  return <AppKeyValue label={label} value={value} />
 }
 
 function InlineError({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2 type-label text-destructive">{children}</div>
+  return <AppInlineError>{children}</AppInlineError>
 }
 
 function StateMessage({ icon, text, tone = 'muted' }: { icon: React.ReactNode; text: string; tone?: 'muted' | 'danger' }) {
-  return (
-    <div className={cn(
-      'flex items-center gap-2 rounded-md border p-3 type-body',
-      tone === 'danger' ? 'border-destructive/30 bg-destructive/10 text-destructive' : 'border-border bg-muted/20 text-muted-foreground',
-    )}>
-      {icon}
-      <span>{text}</span>
-    </div>
-  )
+  return <AppStateMessage icon={icon} tone={tone === 'danger' ? 'danger' : 'neutral'}>{text}</AppStateMessage>
 }

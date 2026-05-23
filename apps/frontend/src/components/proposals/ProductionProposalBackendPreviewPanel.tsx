@@ -1,4 +1,5 @@
 import { AlertCircle } from 'lucide-react'
+import { ReviewCallout, ReviewStat } from '@movscript/ui'
 
 import type {
   ProductionProposalPreviewSemanticChange,
@@ -14,20 +15,20 @@ export interface ProductionProposalBackendPreviewIssue {
 
 export function ProductionProposalBackendPreviewIssuePanel({ issue }: { issue: ProductionProposalBackendPreviewIssue }) {
   return (
-    <div className="rounded-lg border border-rose-200 bg-rose-50/60 p-3 text-rose-700 dark:border-rose-800/50 dark:bg-rose-950/30 dark:text-rose-300">
+    <ReviewCallout tone="danger">
       <div className="flex items-start gap-2">
         <AlertCircle size={14} className="mt-0.5 shrink-0" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <p className="type-label font-semibold">后端预览未通过</p>
-            {issue.code && <span className="rounded bg-background/70 px-1.5 py-0.5 type-tiny">{issue.code}</span>}
+            {issue.code && <ReviewStat tone="neutral" className="bg-background/70">{issue.code}</ReviewStat>}
           </div>
           <p className="mt-1 type-caption leading-4">{issue.message}</p>
           {issue.detail && <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap rounded bg-background/70 p-2 type-tiny leading-4">{issue.detail}</pre>}
           <p className="mt-2 type-tiny leading-4 opacity-80">请回到变更队列调整接受/拒绝决策，或重新生成缺少 ID 的复用/更新节点后再预览。</p>
         </div>
       </div>
-    </div>
+    </ReviewCallout>
   )
 }
 
@@ -42,11 +43,11 @@ export function ProductionProposalBackendPreviewSemanticSummary({
   return (
     <div className="mt-3 space-y-2 border-t border-border pt-2">
       {warnings.length > 0 && (
-        <div className="rounded-md border border-amber-200 bg-amber-50/60 p-2 text-amber-700 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-300">
+        <ReviewCallout tone="warning" compact>
           <div className="flex items-center gap-1.5">
             <AlertCircle size={12} className="shrink-0" />
             <p className="type-caption font-semibold">后端提示</p>
-            <span className="ml-auto rounded bg-background/60 px-1.5 py-0.5 type-tiny">{warnings.length}</span>
+            <ReviewStat tone="neutral" className="ml-auto bg-background/60">{warnings.length}</ReviewStat>
           </div>
           <div className="mt-1.5 space-y-1">
             {warnings.slice(0, 3).map((warning, index) => (
@@ -57,7 +58,7 @@ export function ProductionProposalBackendPreviewSemanticSummary({
             ))}
             {warnings.length > 3 && <p className="type-tiny opacity-70">还有 {warnings.length - 3} 条提示未显示</p>}
           </div>
-        </div>
+        </ReviewCallout>
       )}
       {changes.length > 0 && (
         <div className="rounded-md border border-border/60 bg-muted/30 p-2">

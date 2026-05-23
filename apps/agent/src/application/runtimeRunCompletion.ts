@@ -70,11 +70,21 @@ export function applyRuntimeRunCompletion(input: {
     run: input.run,
     ...(input.memoryStorePath ? { memoryStorePath: input.memoryStorePath } : {}),
   })
+  const runtimeStatus = runtimeStatusMessageFromToolOutcomes(input.toolOutcomes)
+  const assistantContent = finalAssistantContent || runtimeStatus?.detail || '（无内容）'
   const assistant = createRuntimeMessage({
     threadId: input.thread.id,
     role: 'assistant',
-    content: finalAssistantContent || '（无内容）',
+    content: assistantContent,
     runId: input.run.id,
+    ...(runtimeStatus
+      ? {
+        metadata: {
+          kind: 'runtime_status',
+          runtimeStatus: runtimeStatus as unknown as JSONValue,
+        },
+      }
+      : {}),
     id: input.messageId,
     now: input.now,
   })
@@ -133,4 +143,53 @@ export function applyRuntimeRunCompletion(input: {
     warnings: input.warnings,
   })
   return assistant
+}
+
+interface RuntimeStatusMessage {
+  kind: 'async_work_handoff'
+  title: string
+  detail: string
+  workId?: string
+  workKind?: string
+  workStatus?: string
+}
+
+function runtimeStatusMessageFromToolOutcomes(toolOutcomes: ToolCallOutcome[]): RuntimeStatusMessage | undefined {
+  for (const outcome of [...toolOutcomes].reverse()) {
+    if (outcome.call.name !== 'core_work_start' || outcome.error) continue
+    const result = recordValue(outcome.result)
+    const args = recordValue(outcome.call.args)
+    const work = recordValue(result?.work)
+    const workId = stringValue(work?.id) ?? stringValue(result?.workId)
+    const workKind = stringValue(work?.kind) ?? stringValue(args?.kind)
+    const workStatus = stringValue(work?.status) ?? stringValue(result?.status)
+    const active = isActiveRuntimeWorkStatus(workStatus)
+    return {
+      kind: 'async_work_handoff',
+      title: '异步任务已提交',
+      detail: active
+        ? '任务正在后台运行，完成后会自动接续。你可以继续发送消息。'
+        : '任务已交给 runtime 后台处理，后续结果会从异步任务返回。你可以继续发送消息。',
+      ...(workId ? { workId } : {}),
+      ...(workKind ? { workKind } : {}),
+      ...(workStatus ? { workStatus } : {}),
+    }
+  }
+  return undefined
+}
+
+function isActiveRuntimeWorkStatus(status: string | undefined): boolean {
+  return status === 'pending_approval'
+    || status === 'queued'
+    || status === 'running'
+    || status === 'waiting'
+    || status === 'started'
+}
+
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }

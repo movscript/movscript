@@ -9,6 +9,11 @@ import {
 import type { AgentConversationMessageStore, AssistantConversationMessageAppender } from '@movscript/conversation'
 import type { AgentRun, AgentThread, RuntimeInteraction } from '@/lib/localAgentClient'
 import type { ChatMessage, ChatMessageMeta, ChatRunActivityEvent } from '@/store/agentStore'
+import {
+  beginAgentPerformanceOperation,
+  finishAgentPerformanceOperation,
+  markAgentPerformancePhase,
+} from '@/store/agentPerformanceStore'
 
 export type WorkflowConversationRuntimePatch = {
   approving?: boolean
@@ -39,24 +44,45 @@ export async function approveWorkflowRunAction(input: {
   deps: AgentWorkflowActionDeps
 }): Promise<void> {
   const { run, approvalIds, approveInteraction, deps } = input
+  const operationId = beginAgentPerformanceOperation({
+    kind: 'approval',
+    conversationId: deps.conversationId,
+    runId: run.id,
+    meta: { approvalCount: selectedPendingApprovals(run, approvalIds).length },
+  })
   deps.setSubmittedInteractionRuns((current) => upsertWorkflowRunSnapshot(current, optimisticApprovalRun(run, approvalIds, 'approved')))
+  markAgentPerformancePhase(operationId, 'optimistic_update')
   deps.setConversationRuntime({ approving: true, loading: true, error: undefined })
   try {
+    markAgentPerformancePhase(operationId, 'approval_request_start')
     const approvedRun = await resolveApprovalRun({
       run,
       approvalIds,
       approveInteraction,
     })
+    markAgentPerformancePhase(operationId, 'approval_request_done', {
+      details: { runId: approvedRun.id, status: approvedRun.status },
+    })
     deps.setSubmittedInteractionRuns((current) => upsertWorkflowRunSnapshot(current, approvedRun))
     deps.setConversationRun(approvedRun, { approving: true, loading: true })
+    markAgentPerformancePhase(operationId, 'followup_stream_start')
     const finalRun = await deps.streamFollowUpRun(approvedRun.id)
+    markAgentPerformancePhase(operationId, 'followup_stream_done', {
+      details: { runId: finalRun.id, status: finalRun.status },
+    })
     deps.setSubmittedInteractionRuns((current) => upsertWorkflowRunSnapshot(current, finalRun))
     const thread = await deps.getThread(finalRun.threadId)
+    markAgentPerformancePhase(operationId, 'final_thread_loaded', {
+      details: { threadId: thread.id, messageCount: thread.messages.length },
+    })
     if (finalRun.status !== 'requires_action') {
       await deps.appendAssistantRunResult(finalRun, thread, deps.liveEvents())
+      markAgentPerformancePhase(operationId, 'assistant_result_appended')
     }
     if (deps.runTouchesAgentCatalog(finalRun)) deps.refreshAgentCatalogContext()
+    finishAgentPerformanceOperation(operationId, 'success', { runId: finalRun.id, status: finalRun.status })
   } catch (error) {
+    finishAgentPerformanceOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
     deps.addAssistantMessage(`工具确认失败：${error instanceof Error ? error.message : String(error)}`)
   } finally {
     deps.setConversationRuntime({ approving: false, loading: false })
@@ -70,20 +96,37 @@ export async function rejectWorkflowRunAction(input: {
   deps: AgentWorkflowActionDeps
 }): Promise<void> {
   const { run, approvalIds, rejectInteraction, deps } = input
+  const operationId = beginAgentPerformanceOperation({
+    kind: 'rejection',
+    conversationId: deps.conversationId,
+    runId: run.id,
+    meta: { approvalCount: selectedPendingApprovals(run, approvalIds).length },
+  })
   deps.setSubmittedInteractionRuns((current) => upsertWorkflowRunSnapshot(current, optimisticApprovalRun(run, approvalIds, 'rejected')))
+  markAgentPerformancePhase(operationId, 'optimistic_update')
   deps.setConversationRuntime({ approving: true, loading: true, error: undefined })
   try {
+    markAgentPerformancePhase(operationId, 'rejection_request_start')
     const rejectedRun = await resolveRejectionRun({
       run,
       approvalIds,
       rejectInteraction,
     })
+    markAgentPerformancePhase(operationId, 'rejection_request_done', {
+      details: { runId: rejectedRun.id, status: rejectedRun.status },
+    })
     deps.setSubmittedInteractionRuns((current) => upsertWorkflowRunSnapshot(current, rejectedRun))
     deps.setConversationRun(rejectedRun, { approving: true, loading: true })
     const thread = await deps.getThread(rejectedRun.threadId)
+    markAgentPerformancePhase(operationId, 'final_thread_loaded', {
+      details: { threadId: thread.id, messageCount: thread.messages.length },
+    })
     deps.addAssistantMessage(formatLocalAgentAssistantContent(rejectedRun, thread), { contextLabels: [`run ${rejectedRun.status}`] })
+    markAgentPerformancePhase(operationId, 'assistant_result_appended')
     if (deps.runTouchesAgentCatalog(rejectedRun)) deps.refreshAgentCatalogContext()
+    finishAgentPerformanceOperation(operationId, 'success', { runId: rejectedRun.id, status: rejectedRun.status })
   } catch (error) {
+    finishAgentPerformanceOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
     deps.addAssistantMessage(`工具拒绝失败：${error instanceof Error ? error.message : String(error)}`)
   } finally {
     deps.setConversationRuntime({ approving: false, loading: false })
@@ -100,8 +143,11 @@ async function resolveApprovalRun(input: {
   if (interactionIds.length !== approvals.length || interactionIds.length === 0) {
     throw new Error('runtime approval interaction is missing')
   }
-  const results = await Promise.all(interactionIds.map((interactionId) => input.approveInteraction(interactionId)))
-  return results.at(-1)?.run ?? input.run
+  let latestRun = input.run
+  for (const interactionId of interactionIds) {
+    latestRun = (await input.approveInteraction(interactionId)).run
+  }
+  return latestRun
 }
 
 async function resolveRejectionRun(input: {
@@ -114,8 +160,11 @@ async function resolveRejectionRun(input: {
   if (interactionIds.length !== approvals.length || interactionIds.length === 0) {
     throw new Error('runtime rejection interaction is missing')
   }
-  const results = await Promise.all(interactionIds.map((interactionId) => input.rejectInteraction(interactionId)))
-  return results.at(-1)?.run ?? input.run
+  let latestRun = input.run
+  for (const interactionId of interactionIds) {
+    latestRun = (await input.rejectInteraction(interactionId)).run
+  }
+  return latestRun
 }
 
 function selectedPendingApprovals(run: AgentRun, approvalIds: string[] | undefined): NonNullable<AgentRun['pendingApprovals']> {

@@ -2,7 +2,7 @@ import { Film } from 'lucide-react'
 
 import { AuthedImage } from '@/components/shared/AuthedImage'
 import { WorkbenchPanel } from '@/components/workbench/WorkbenchPanel'
-import { WorkbenchThumbnail } from '@/components/workbench/WorkbenchPrimitives'
+import { WorkbenchThumbnail } from '@movscript/ui'
 import { trackKindLabel } from '@/lib/contentWorkbenchLabels'
 import { byOrder, firstText, numberOf, titleOfRecord } from '@/lib/contentWorkbenchRecordUtils'
 import { Badge } from '@movscript/ui'

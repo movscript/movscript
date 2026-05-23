@@ -1,28 +1,57 @@
 import { useEffect, useState } from 'react'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { X } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { AgentConversationItem, AgentMain, Button } from '@movscript/ui'
 import { AgentDebugPreviewDialog } from '@/components/agent/AgentDebugPreviewDialog'
 import { AgentChatHeaderSection } from '@/components/agent/AgentChatHeaderSection'
 import { AgentConversationThreadSection } from '@/components/agent/AgentConversationThreadSection'
 import { AgentComposerSection } from '@/components/agent/AgentComposerSection'
-import { conversationDisplayTitle, formatAgentDate } from '@/components/agent/AgentConversationList'
+import { formatAgentDate, localThreadTitle } from '@/components/agent/AgentConversationList'
+import { localAgentClient } from '@/lib/localAgentClient'
 import type { AgentChatViewLayoutProps } from '@/components/agent/AgentChatViewLayout'
+
+const HISTORY_PAGE_SIZE = 20
 
 export function AgentChatPanelLayout({
   composer,
   debugPreview,
   header,
+  runtimeHistory,
   thread,
 }: AgentChatViewLayoutProps) {
   const { t, i18n } = useTranslation()
   const emptyConversation = thread.messages.length === 0
   const [historyOpen, setHistoryOpen] = useState(emptyConversation)
+  const [restoringThreadId, setRestoringThreadId] = useState<string | null>(null)
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
-  const historyConversations = historyOpen
-    ? header.conversations.filter((conversation) => conversation.id !== header.activeConversation.id)
-    : []
+  const historyQuery = useInfiniteQuery({
+    queryKey: ['local-agent-panel-thread-history', localAgentClient.baseURL],
+    queryFn: async ({ pageParam, signal }) => {
+      await localAgentClient.ensureRunning()
+      return localAgentClient.listThreads({
+        limit: HISTORY_PAGE_SIZE,
+        ...(typeof pageParam === 'string' ? { cursor: pageParam } : {}),
+      }, signal)
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    enabled: historyOpen,
+    retry: false,
+  })
+  const historyThreads = historyQuery.data?.pages
+    .flatMap((page) => page.threads)
+    .filter((runtimeThread) => runtimeThread.id !== header.activeConversation.runtimeThreadId) ?? []
   const composerInContent = emptyConversation || historyOpen
+
+  async function restoreThread(threadId: string) {
+    setRestoringThreadId(threadId)
+    try {
+      await runtimeHistory.onRestoreLocalThread(threadId)
+    } finally {
+      setRestoringThreadId(null)
+    }
+  }
 
   useEffect(() => {
     setHistoryOpen(thread.messages.length === 0)
@@ -51,37 +80,51 @@ export function AgentChatPanelLayout({
           <section className="ai-agent-panel-empty-history" aria-label={t('agents.chat.conversationHistory')}>
             <div className="ai-agent-panel-empty-history-header">
               <span>{t('agents.chat.conversationHistory')}</span>
-              <span>{historyConversations.length}</span>
+              <span>{historyThreads.length}</span>
             </div>
             <div className="ai-agent-panel-empty-history-list">
-              {historyConversations.length === 0 ? (
+              {historyQuery.isLoading ? (
+                <div className="ai-agent-panel-empty-history-empty">
+                  <Loader2 size={14} className="animate-spin" />
+                  <span className="ml-2">{t('common.loadingShort')}</span>
+                </div>
+              ) : historyQuery.isError ? (
+                <div className="ai-agent-panel-empty-history-empty">
+                  <Button type="button" size="xs" variant="ghost" onClick={() => historyQuery.refetch()}>
+                    {t('common.retry')}
+                  </Button>
+                </div>
+              ) : historyThreads.length === 0 ? (
                 <div className="ai-agent-panel-empty-history-empty">
                   {t('agents.chat.noHistoryConversations')}
                 </div>
-              ) : historyConversations.map((conversation) => (
-                <div key={conversation.id} className="group relative">
+              ) : historyThreads.map((runtimeThread) => (
+                <div key={runtimeThread.id} className="group relative">
                   <AgentConversationItem
-                    title={conversationDisplayTitle(conversation, t)}
-                    description={conversation.messages[conversation.messages.length - 1]?.content.slice(0, 54) ?? ''}
-                    meta={formatAgentDate(conversation.updatedAt, locale)}
-                    className="ai-agent-panel-empty-history-item pr-9"
-                    onClick={() => header.onSelectConversation(conversation.id)}
+                    title={localThreadTitle(runtimeThread, t)}
+                    description={[
+                      t('agents.chat.messagesCount', { count: runtimeThread.messageCount }),
+                      runtimeThread.projectId ? t('agents.chat.panel.drafts.projectBadge', { id: runtimeThread.projectId }) : null,
+                    ].filter(Boolean).join(' · ')}
+                    meta={restoringThreadId === runtimeThread.id ? t('agents.chat.restoring') : formatAgentDate(runtimeThread.updatedAt, locale)}
+                    className="ai-agent-panel-empty-history-item"
+                    onClick={() => { void restoreThread(runtimeThread.id) }}
                   />
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      header.onCloseConversation(conversation.id)
-                    }}
-                    className="ai-agent-panel-empty-history-close absolute right-2 top-1/2 -translate-y-1/2"
-                    aria-label={t('agents.chat.closeConversation')}
-                    title={t('agents.chat.closeConversation')}
-                  >
-                    <X size={12} />
-                  </Button>
                 </div>
               ))}
+              {historyQuery.hasNextPage && (
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="ghost"
+                  className="ai-agent-panel-empty-history-more"
+                  disabled={historyQuery.isFetchingNextPage}
+                  onClick={() => { void historyQuery.fetchNextPage() }}
+                >
+                  {historyQuery.isFetchingNextPage && <Loader2 size={12} className="animate-spin" />}
+                  {t('agents.chat.loadMoreHistory')}
+                </Button>
+              )}
             </div>
           </section>
         )}

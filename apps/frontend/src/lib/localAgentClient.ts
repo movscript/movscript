@@ -42,6 +42,7 @@ import type {
   AgentThread,
   AgentThreadClearResult,
   AgentThreadDeletionResult,
+  AgentThreadListPage,
   AgentThreadRole,
   AgentThreadResolution,
   AgentThreadSummary,
@@ -108,6 +109,7 @@ export type {
   AgentThread,
   AgentThreadClearResult,
   AgentThreadDeletionResult,
+  AgentThreadListPage,
   AgentThreadRole,
   AgentThreadResolution,
   AgentThreadSummary,
@@ -137,6 +139,11 @@ export type AgentToolCall = ToolCall
 
 export type AgentRunPolicyOverride = Partial<Pick<AgentRunPolicy, 'approvalMode' | 'sandboxMode' | 'maxToolCalls' | 'maxIterations' | 'workflow'>>
 
+export interface AgentThreadListQuery {
+  cursor?: string
+  limit?: number
+}
+
 export interface AgentHealth {
   ok: boolean
   service: string
@@ -164,6 +171,47 @@ export interface AgentHealth {
     skillCount: number
     toolCount: number
     warnings?: string[]
+  }
+}
+
+export interface AgentRuntimeTelemetryMetricSample {
+  name: string
+  value: number
+  unit: 'ms' | 'bytes' | 'count'
+  createdAt: string
+  labels?: Record<string, string | number | boolean>
+}
+
+export interface AgentRuntimeTelemetryLogEntry {
+  level: 'info' | 'warning' | 'error'
+  message: string
+  createdAt: string
+  operationId?: string
+  details?: Record<string, unknown>
+}
+
+export interface AgentRuntimeTelemetrySnapshot {
+  operations: Array<{
+    id: string
+    kind: string
+    status: 'running' | 'success' | 'error'
+    startedAt: string
+    updatedAt: string
+    endedAt?: string
+    durationMs?: number
+    runId?: string
+    threadId?: string
+    requestPath?: string
+    method?: string
+    phases: Array<{ name: string; label: string; at: string; offsetMs: number; deltaMs: number; details?: Record<string, unknown> }>
+  }>
+  metrics: AgentRuntimeTelemetryMetricSample[]
+  logs: AgentRuntimeTelemetryLogEntry[]
+  summary: {
+    operationCount: number
+    runningOperationCount: number
+    slowOperationCount: number
+    errorOperationCount: number
   }
 }
 
@@ -558,6 +606,10 @@ export class LocalAgentClient {
     return this.getJSON('/inspect')
   }
 
+  getRuntimeTelemetry(signal?: AbortSignal): Promise<AgentRuntimeTelemetrySnapshot> {
+    return this.getJSON('/runtime/telemetry', { auth: false, signal })
+  }
+
   async ensureRunning(): Promise<AgentHealth> {
     try {
       return await this.health()
@@ -591,8 +643,11 @@ export class LocalAgentClient {
     return this.postJSON('/threads', input, signal)
   }
 
-  listThreads(): Promise<{ threads: AgentThreadSummary[] }> {
-    return this.getJSON('/threads')
+  listThreads(query: AgentThreadListQuery = {}, signal?: AbortSignal): Promise<AgentThreadListPage> {
+    const params = new URLSearchParams()
+    if (query.cursor) params.set('cursor', query.cursor)
+    if (typeof query.limit === 'number') params.set('limit', String(query.limit))
+    return this.getJSON(`/threads${params.size ? `?${params.toString()}` : ''}`, { signal })
   }
 
   deleteThread(threadId: string, signal?: AbortSignal): Promise<AgentThreadDeletionResult> {

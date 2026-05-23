@@ -89,7 +89,7 @@ test('runtime work bridge rejects unsupported start kinds with guidance', async 
   )
 })
 
-test('runtime work bridge monitors continuation operations in the background', async () => {
+test('runtime work bridge enqueues start wakeups without polling in the start call', async () => {
   const events: string[] = []
   const work = {
     id: 'work_monitor',
@@ -112,10 +112,12 @@ test('runtime work bridge monitors continuation operations in the background', a
         return { status: 'completed', done: true, completed: [{ ...work, status: 'completed' }], failed: [], cancelled: [], pending: [] }
       },
     } as never,
-    scheduler: {
-      dispatch: (event) => {
-        events.push(event.type)
-        return undefined
+    wake: {
+      workStarted: () => {
+        events.push('work.started')
+      },
+      workObserved: () => {
+        events.push('work.observed')
       },
     },
   })
@@ -123,5 +125,5 @@ test('runtime work bridge monitors continuation operations in the background', a
   await bridge.startWork({ id: 'run_1', threadId: 'thread_1' } as AgentRun, { kind: 'generation_job', request: { prompt: 'image' } })
   await new Promise((resolve) => setTimeout(resolve, 0))
 
-  assert.deepEqual(events, ['work.started', 'wait', 'work.observed'])
+  assert.deepEqual(events, ['work.started'])
 })

@@ -661,6 +661,37 @@ test('threads delete endpoint rejects executing runs before clearing history', a
   assert.deepEqual(calls, [])
 })
 
+test('threads list endpoint returns cursor-paginated summaries', async () => {
+  const summaries = [
+    { id: 'thread_3', title: 'Three', archived: false, createdAt: '2026-05-21T00:00:00.000Z', updatedAt: '2026-05-21T00:00:03.000Z', messageCount: 3 },
+    { id: 'thread_2', title: 'Two', archived: false, createdAt: '2026-05-21T00:00:00.000Z', updatedAt: '2026-05-21T00:00:02.000Z', messageCount: 2 },
+    { id: 'thread_1', title: 'One', archived: false, createdAt: '2026-05-21T00:00:00.000Z', updatedAt: '2026-05-21T00:00:01.000Z', messageCount: 1 },
+  ]
+  const handler = createAgentRequestListener({
+    runtimeRouter: {
+      listThreadSummaries: () => summaries,
+    },
+  } as unknown as AgentServerContext)
+
+  const first = await dispatch(handler, 'GET', '/threads?limit=2')
+  const firstBody = JSON.parse(first.body)
+  const second = await dispatch(handler, 'GET', `/threads?limit=2&cursor=${firstBody.nextCursor}`)
+
+  assert.equal(first.statusCode, 200)
+  assert.deepEqual(firstBody.threads.map((thread: { id: string }) => thread.id), ['thread_3', 'thread_2'])
+  assert.equal(firstBody.total, 3)
+  assert.equal(firstBody.limit, 2)
+  assert.equal(firstBody.hasMore, true)
+  assert.equal(firstBody.nextCursor, 'thread_2')
+  assert.equal(second.statusCode, 200)
+  assert.deepEqual(JSON.parse(second.body), {
+    threads: [summaries[2]],
+    total: 3,
+    limit: 2,
+    hasMore: false,
+  })
+})
+
 test('thread runtime endpoint returns a consistent thread and run snapshot', async () => {
   const thread = {
     id: 'thread_1',
@@ -679,12 +710,14 @@ test('thread runtime endpoint returns a consistent thread and run snapshot', asy
           works: [],
           interactions: [],
           continuations: [],
+          wakeEvents: [],
           current: {
             activeRunIds: [],
             waitingRunIds: [],
             runningWorkIds: [],
             pendingInteractionIds: [],
             readyContinuationIds: [],
+            queuedWakeEventIds: [],
           },
         }
         : undefined,
@@ -708,6 +741,7 @@ test('thread runtime endpoint returns a consistent thread and run snapshot', asy
       works: [],
       interactions: [],
       continuations: [],
+      wakeEvents: [],
     },
   })
 })
@@ -761,12 +795,14 @@ test('thread runtime endpoint indexes pending interaction runs for frontend reco
             updatedAt: '2026-05-19T00:00:02.000Z',
           }],
           continuations: [],
+          wakeEvents: [],
           current: {
             activeRunIds: [],
             waitingRunIds: ['run_pending'],
             runningWorkIds: [],
             pendingInteractionIds: ['interaction_input_1'],
             readyContinuationIds: [],
+            queuedWakeEventIds: [],
           },
         }
         : undefined,
@@ -816,6 +852,7 @@ test('session runtime endpoint returns aggregate plan, child agent, and work sta
           works: [{ id: 'work_1', sessionId: 'session_1', threadId: 'thread_child', runId: 'run_child', kind: 'generation_job', status: 'waiting' }],
           interactions: [],
           continuations: [],
+          wakeEvents: [],
           current: {
             activeThreadIds: ['thread_root'],
             activeRunIds: ['run_root', 'run_child'],
@@ -823,6 +860,7 @@ test('session runtime endpoint returns aggregate plan, child agent, and work sta
             runningWorkIds: ['work_1'],
             pendingInteractionIds: [],
             readyContinuationIds: [],
+            queuedWakeEventIds: [],
           },
         }
         : undefined,

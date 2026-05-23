@@ -13,7 +13,7 @@ import {
 import { MediaViewer, downloadResource, resolveResourceUrl } from '@/components/shared/MediaViewer'
 import { ResourceListItem } from '@/components/shared/ResourcePanel'
 import { ResourceCandidateAttachPanel, candidateResourceFromRawResource } from '@/components/shared/ResourceCandidateAttachPanel'
-import { ProjectSurfaceHeader } from '@/components/app/AppPage'
+import { ProjectSurfaceHeader, accentToneClass, semanticToneClass } from '@movscript/ui'
 import { Button } from '@movscript/ui'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
@@ -855,7 +855,7 @@ function VideoClipDialog({
                   clipStatus.loading
                     ? 'border-border bg-muted/30 text-muted-foreground'
                     : clipStatus.available
-                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
+                      ? `${semanticToneClass('success', 'surface')} ${semanticToneClass('success', 'icon')}`
                       : 'border-destructive/30 bg-destructive/10 text-destructive'
                 }`}>
                   {clipStatus.loading
@@ -978,7 +978,7 @@ function FolderOption({ label, selected, isShared, onClick }: {
     >
       <Folder size={12} />
       <span className="flex-1 truncate">{label}</span>
-      {isShared && <Globe size={10} className={selected ? 'opacity-70' : 'text-blue-400'} />}
+      {isShared && <Globe size={10} className={selected ? 'opacity-70' : accentToneClass('blue', 'icon')} />}
     </button>
   )
 }
@@ -1237,7 +1237,7 @@ function ResourceCard({
         {/* Shared badge */}
         {resource.is_shared && (
           <div className="absolute bottom-1 right-1">
-            <span title={t('pages.resources.sharedTitle')}><Share2 size={10} className="text-blue-400" /></span>
+            <span title={t('pages.resources.sharedTitle')}><Share2 size={10} className={accentToneClass('blue', 'icon')} /></span>
           </div>
         )}
       </div>
@@ -1872,7 +1872,7 @@ function FolderItem({
         {subtitle && <div className="type-tiny text-muted-foreground/60 truncate">{subtitle}</div>}
       </div>
 
-      {isShared && <span title={t('pages.resources.sharedTitle')}><Globe size={10} className="text-blue-400 shrink-0" /></span>}
+      {isShared && <span title={t('pages.resources.sharedTitle')}><Globe size={10} className={accentToneClass('blue', 'icon', 'shrink-0')} /></span>}
 
       {badge != null && (
         <span className="bg-muted text-muted-foreground rounded-full px-1.5 type-tiny">{badge}</span>

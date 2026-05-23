@@ -51,6 +51,9 @@ import type {
   RuntimeInteraction as ProtocolRuntimeInteraction,
   RuntimeInteractionKind as ProtocolRuntimeInteractionKind,
   RuntimeInteractionStatus as ProtocolRuntimeInteractionStatus,
+  RuntimeWakeEvent as ProtocolRuntimeWakeEvent,
+  RuntimeWakeEventKind as ProtocolRuntimeWakeEventKind,
+  RuntimeWakeEventStatus as ProtocolRuntimeWakeEventStatus,
   ToolUnavailableReason,
   ToolCall as ProtocolToolCall,
   UpdateTaskGraphResult as ProtocolUpdateTaskGraphResult,
@@ -110,6 +113,9 @@ export type RuntimeInteraction = ProtocolRuntimeInteraction
 
 export type RuntimeContinuationStatus = ProtocolRuntimeContinuationStatus
 export type RuntimeContinuation = ProtocolRuntimeContinuation
+export type RuntimeWakeEventKind = ProtocolRuntimeWakeEventKind
+export type RuntimeWakeEventStatus = ProtocolRuntimeWakeEventStatus
+export type RuntimeWakeEvent = ProtocolRuntimeWakeEvent
 
 export type AgentRunInput = ProtocolAgentRunInput
 

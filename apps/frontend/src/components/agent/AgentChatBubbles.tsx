@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { AlertCircle, Bot, Check, Copy, Loader2, Settings2 } from 'lucide-react'
-import { AgentChatMessage, Badge, Button } from '@movscript/ui'
+import { AgentChatMessage, Badge, Button, ReviewCallout, semanticToneClass } from '@movscript/ui'
 import { buildAgentMessagePresentation } from '@/lib/agentMessagePresentation'
 import { hydrateHistoricalGeneratedAttachments } from '@/lib/agentMessageViewModel'
 import { agentMessageDividerLabel, formatAgentDividerTime } from '@/lib/agentMessageDivider'
@@ -23,7 +23,8 @@ import { AgentDraftResultCards } from '@/components/agent/AgentDraftResultCards'
 import { AgentPlanRevisionCard } from '@/components/agent/AgentPlanCard'
 import { AgentActivityDividerMenu, AgentActivityFeedView } from '@/components/agent/AgentActivityFeed'
 import { buildAgentActivityFeed } from '@/lib/agentActivityFeed'
-import { generationProgressListFromEvents, type GenerationProgressState } from '@/lib/agentGenerationMedia'
+import type { GenerationProgressState } from '@/lib/agentGenerationMedia'
+import { shouldRenderRuntimeStatusOnly, type RuntimeStatusMessage } from '@/lib/agentRuntimeStatusMessage'
 import type { AgentLivePendingAssistantState } from '@/lib/agentLiveRunActivity'
 import type { AgentRun } from '@/lib/localAgentClient'
 import type { ChatMessage, ChatRunActivityEvent } from '@/store/agentStore'
@@ -93,7 +94,6 @@ export function ThinkingBubble({ state = { status: 'thinking' } }: { run: AgentR
   const detail = reasoning || fallbackThinkingDetail(state)
   return (
     <div className="space-y-1">
-      <AgentBubbleStatusText label={label} />
       <AgentChatMessage
         role="assistant"
         avatar={<Bot size={14} />}
@@ -109,7 +109,7 @@ export function ThinkingBubble({ state = { status: 'thinking' } }: { run: AgentR
             <Loader2 size={12} className="animate-spin" />
             <span>{label}</span>
           </div>
-          {detail ? <MarkdownContent text={detail} /> : <div className="type-caption text-muted-foreground">...</div>}
+          {detail ? <MarkdownContent text={detail} /> : null}
         </div>
       </AgentChatMessage>
     </div>
@@ -117,23 +117,10 @@ export function ThinkingBubble({ state = { status: 'thinking' } }: { run: AgentR
 }
 
 function fallbackThinkingDetail(state: ThinkingBubbleState): string {
-  if (state.status === 'calling_tool') return `正在调用工具${state.toolName ? `：${state.toolName}` : ''}`
-  if (state.status === 'preparing_tool_call') return `正在准备调用工具${state.toolName ? `：${state.toolName}` : ''}`
+  if (state.status === 'calling_tool' || state.status === 'preparing_tool_call') return ''
   if (state.status === 'preparing_request') return '正在准备请求'
   if (state.status === 'retrying_model') return state.label ?? '模型请求重试中'
   return '正在分析请求和上下文'
-}
-
-function AgentBubbleStatusText({ label }: { label?: string }) {
-  if (!label) return null
-  return (
-    <div className="flex justify-start">
-      <div className="inline-flex max-w-[80%] items-center gap-1.5 type-tiny leading-4 text-muted-foreground">
-        <Loader2 size={10} className="animate-spin" />
-        <span className="truncate">{label}</span>
-      </div>
-    </div>
-  )
 }
 
 export function GenerationProgressBubble({ state }: { state: GenerationProgressState }) {
@@ -202,6 +189,7 @@ export function MessageBubble({
     generationParamAudits,
     generationValidationErrors,
     localRunActivity,
+    runtimeStatus,
     messageAttachments,
     generatedMediaAttachments,
     compactAttachments,
@@ -222,17 +210,16 @@ export function MessageBubble({
       || hasDiagnosticSection
   const hasFooter = contextLabels.length > 0 || !!runtimeInputLabel
   const asyncWorkHandoffOnly = !isUser
-    && isAsyncRuntimeWorkHandoffOnly({
-      displayContent,
-      generationJobs,
+    && shouldRenderRuntimeStatusOnly({
+      content: msg.content,
+      runtimeStatus,
       hasDiagnosticSection,
       hasResultSection,
-      localRunActivity,
       planRevision,
       showModelSetupAction,
     })
 
-  if (asyncWorkHandoffOnly) return null
+  if (asyncWorkHandoffOnly && runtimeStatus) return <RuntimeStatusBubble status={runtimeStatus} />
   if (!hasMessageBody && !hasFooter) return null
 
   function copy() {
@@ -295,9 +282,9 @@ export function MessageBubble({
         ? <AgentPlanRevisionCard revision={planRevision} />
         : displayContent && <MarkdownContent text={displayContent} attachments={messageAttachments} />}
       {showModelSetupAction && (
-        <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2 type-tiny">
+        <ReviewCallout tone="warning" compact className="mt-2 type-tiny">
           <div className="flex items-start gap-2">
-            <Settings2 size={14} className="mt-0.5 shrink-0 text-amber-600" />
+            <Settings2 size={14} className={cn('mt-0.5 shrink-0', semanticToneClass('warning', 'icon'))} />
             <div className="min-w-0 flex-1">
               <p className="font-medium text-foreground">{t('agents.chat.modelSetupAction.title')}</p>
               <p className="mt-0.5 leading-relaxed text-muted-foreground">{t('agents.chat.modelSetupAction.description')}</p>
@@ -312,7 +299,7 @@ export function MessageBubble({
               </Button>
             </div>
           </div>
-        </div>
+        </ReviewCallout>
       )}
       {hasResultSection && (
         <div className="mt-2 space-y-2">
@@ -350,27 +337,34 @@ function runActivityHasVisibleContent(activity: NonNullable<ChatMessage['meta']>
   return !!feed && (feed.items.length > 0 || feed.rounds.length > 0)
 }
 
-function isAsyncRuntimeWorkHandoffOnly(input: {
-  displayContent: string
-  generationJobs: GenerationProgressState[]
-  hasDiagnosticSection: boolean
-  hasResultSection: boolean
-  localRunActivity?: NonNullable<ChatMessage['meta']>['localRunActivity']
-  planRevision?: NonNullable<ChatMessage['meta']>['planRevision']
-  showModelSetupAction: boolean
-}): boolean {
-  if (input.displayContent.trim()) return false
-  if (input.planRevision || input.showModelSetupAction || input.hasResultSection || input.hasDiagnosticSection) return false
-  const activity = input.localRunActivity
-  if (!activity || (activity.status !== 'completed' && activity.status !== 'completed_with_warnings')) return false
-  const hasAsyncWorkStart = (activity.steps ?? []).some((step) => step.type === 'tool_call' && step.toolName === 'core_work_start')
-    || (activity.events ?? []).some((event) => event.kind === 'tool_call' && event.toolName === 'core_work_start')
-  if (!hasAsyncWorkStart) return false
-  const activeGenerationJobs = [
-    ...input.generationJobs,
-    ...generationProgressListFromEvents(activity.events ?? []),
-  ].some((job) => !job.terminal)
-  return activeGenerationJobs
+function RuntimeStatusBubble({ status }: { status: RuntimeStatusMessage }) {
+  return (
+    <AgentChatMessage
+      role="assistant"
+      avatar={<Bot size={14} />}
+      data-agent-divider-label={formatAgentDividerTime(undefined)}
+      footer={(
+        <Badge variant="outline" className="type-micro leading-4 px-1.5 py-0">
+          Runtime
+        </Badge>
+      )}
+    >
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1.5 type-tiny font-medium text-foreground">
+          <Check size={12} className={semanticToneClass('success', 'icon')} />
+          <span>{status.title}</span>
+        </div>
+        <p className="type-caption leading-relaxed text-muted-foreground">{status.detail}</p>
+        {(status.workId || status.workKind || status.workStatus) && (
+          <div className="flex flex-wrap gap-1">
+            {status.workKind && <Badge variant="secondary" className="type-micro leading-4 px-1.5 py-0">{status.workKind}</Badge>}
+            {status.workStatus && <Badge variant="outline" className="type-micro leading-4 px-1.5 py-0">{status.workStatus}</Badge>}
+            {status.workId && <Badge variant="outline" className="type-micro leading-4 px-1.5 py-0">{status.workId}</Badge>}
+          </div>
+        )}
+      </div>
+    </AgentChatMessage>
+  )
 }
 
 export function StreamingAssistantBubble({ content }: { content: string }) {

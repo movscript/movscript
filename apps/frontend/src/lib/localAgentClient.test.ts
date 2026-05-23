@@ -134,6 +134,30 @@ test('local agent not found detection uses structured HTTP status when available
   assert.equal(isLocalAgentNotFoundError(new Error('local agent returned 404: legacy')), true)
 })
 
+test('listThreads sends pagination query parameters', async () => {
+  const requests: string[] = []
+  await withFetch(async (input, init) => {
+    const url = new URL(String(input))
+    requests.push(`${init?.method ?? 'GET'} ${url.pathname}${url.search}`)
+    if (url.pathname === '/threads') {
+      return jsonResponse({
+        threads: [{ id: 'thread_1', archived: false, createdAt: '2026-05-21T00:00:00.000Z', updatedAt: '2026-05-21T00:00:00.000Z', messageCount: 1 }],
+        total: 2,
+        limit: 1,
+        hasMore: true,
+        nextCursor: 'thread_1',
+      })
+    }
+    return new Response('not found', { status: 404 })
+  }, async () => {
+    const result = await new LocalAgentClient('http://local.test').listThreads({ limit: 1, cursor: 'thread_2' })
+
+    assert.deepEqual(requests, ['GET /threads?cursor=thread_2&limit=1'])
+    assert.equal(result.total, 2)
+    assert.equal(result.nextCursor, 'thread_1')
+  })
+})
+
 test('listRunsByThread reads the thread-scoped run projection endpoint', async () => {
   const requests: string[] = []
   await withFetch(async (input, init) => {

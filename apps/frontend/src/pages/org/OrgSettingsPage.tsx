@@ -10,6 +10,7 @@ import { Label } from '@movscript/ui'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@movscript/ui'
 import { Badge } from '@movscript/ui'
+import { semanticToneClass } from '@movscript/ui'
 import { translateApiError } from '@/lib/apiError'
 import type { Organization, OrganizationMember, OrgInvitation } from '@/types'
 
@@ -749,7 +750,7 @@ function OrgGenerationToolServerCard({ server, isDefault, onPatch, onRemove, onD
         <OrgToolField label="标签（逗号分隔）" value={(server.tags ?? []).join(', ')} onChange={(value) => onPatch({ tags: value.split(',') })} placeholder="gpu, sdxl, 队列-a" />
         <div className="flex flex-wrap justify-end gap-2">
           {testResult && (
-            <span className={`mr-auto self-center type-label ${testResult.success ? 'text-emerald-600' : 'text-destructive'}`}>
+            <span className={`mr-auto self-center type-label ${testResult.success ? semanticToneClass('success', 'icon') : 'text-destructive'}`}>
               {testResult.success ? `连接正常 ${testResult.latency_ms ?? 0}ms` : `连接失败 ${testResult.message ?? ''}`}
             </span>
           )}

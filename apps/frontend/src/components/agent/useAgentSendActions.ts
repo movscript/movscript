@@ -7,6 +7,11 @@ import type { AgentAttachment } from '@/store/agentStore'
 import type { AgentPageTaskState } from '@/store/agentSessionStore'
 import type { AgentInputAnswer } from '@/lib/agentWorkflowInteraction'
 import type { AgentSendDraft } from '@/lib/agentSendDraft'
+import {
+  beginAgentPerformanceOperation,
+  finishAgentPerformanceOperation,
+  markAgentPerformancePhase,
+} from '@/store/agentPerformanceStore'
 
 interface PendingInputRequestRef {
   id: string
@@ -114,17 +119,39 @@ export function useAgentSendActions({
     if (answeringPendingInput && activePendingInputRequest) {
       const text = input.trim()
       if (!canAnswerPendingInputWithText || !text) return
+      const operationId = beginAgentPerformanceOperation({
+        kind: 'input_answer',
+        meta: { inputLength: text.length },
+      })
+      markAgentPerformancePhase(operationId, 'click_send')
       updateDraft({ input: '' })
       setMentionRange(null)
-      await answerActiveLocalRunInput(activePendingInputRequest.id, { text })
+      try {
+        await answerActiveLocalRunInput(activePendingInputRequest.id, { text })
+        finishAgentPerformanceOperation(operationId, 'success')
+      } catch (error) {
+        finishAgentPerformanceOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
+        throw error
+      }
       return
     }
     if (canSendActiveRunRuntimeInput) {
       const content = input.trim()
       const attachments = composerAttachments
+      const operationId = beginAgentPerformanceOperation({
+        kind: 'runtime_input',
+        meta: { inputLength: content.length, attachmentCount: attachments.length },
+      })
+      markAgentPerformancePhase(operationId, 'click_send')
       updateDraft({ input: '', attachments: [] })
       setMentionRange(null)
-      await sendActiveRunRuntimeInput({ content, attachments })
+      try {
+        await sendActiveRunRuntimeInput({ content, attachments })
+        finishAgentPerformanceOperation(operationId, 'success')
+      } catch (error) {
+        finishAgentPerformanceOperation(operationId, 'error', { error: error instanceof Error ? error.message : String(error) })
+        throw error
+      }
       return
     }
     if (!modelId) {
@@ -132,16 +159,28 @@ export function useAgentSendActions({
       return
     }
 
+    const operationId = beginAgentPerformanceOperation({
+      kind: 'send',
+      meta: { inputLength: input.trim().length, attachmentCount: composerAttachments.length, debugBeforeSend },
+    })
+    markAgentPerformancePhase(operationId, 'click_send')
     setConversationBuilding({ building: true, loading: false, error: undefined })
     try {
-      const draft = await buildSendDraft({ includeRuntimePreview: debugBeforeSend })
+      markAgentPerformancePhase(operationId, 'build_draft_start')
+      const draft = await buildSendDraft({ includeRuntimePreview: debugBeforeSend, performanceOperationId: operationId })
+      markAgentPerformancePhase(operationId, 'build_draft_done', {
+        details: { warningCount: draft.warnings.length, messageCount: draft.outbound.messages.length },
+      })
       if (debugBeforeSend) {
+        markAgentPerformancePhase(operationId, 'preview_ready')
+        finishAgentPerformanceOperation(operationId, 'success')
         setPendingSendDraft(draft)
         return
       }
       await commitSendDraft(draft)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+      finishAgentPerformanceOperation(operationId, 'error', { error: message })
       addAssistantMessage(`${labels.buildFailurePrefix}${message}`)
       setConversationBuilding({ building: false, error: message })
     } finally {
@@ -174,8 +213,13 @@ export function useAgentSendActions({
   const confirmPendingSendDraft = useCallback(async () => {
     const draft = pendingSendDraft
     if (!draft || loading) return
+    const operationId = beginAgentPerformanceOperation({
+      kind: 'send_preview_confirm',
+      meta: { draftId: draft.id, inputLength: draft.visibleUserContent.length },
+    })
+    markAgentPerformancePhase(operationId, 'commit_start')
     setPendingSendDraft(null)
-    await commitSendDraft(draft)
+    await commitSendDraft({ ...draft, performanceOperationId: operationId })
   }, [pendingSendDraft, loading, setPendingSendDraft, commitSendDraft])
 
   return {

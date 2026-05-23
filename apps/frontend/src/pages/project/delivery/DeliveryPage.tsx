@@ -26,7 +26,7 @@ import {
   type ExportRecord,
   type Production,
 } from '@/api/deliveryEntities'
-import { ProjectSurfaceHeader } from '@/components/app/AppPage'
+import { AppMetricCard, ProjectSurfaceHeader, SemanticStatusBadge, accentToneClass, semanticToneClass, type SemanticTone } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge, Button, Progress } from '@movscript/ui'
@@ -42,15 +42,6 @@ interface DeliveryCenterRow {
   mode: DeliveryMode
   readiness: number
   blockers: number
-}
-
-const statusTone: Record<string, string> = {
-  draft: 'bg-muted text-muted-foreground',
-  checking: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  approved: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  exported: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  failed: 'bg-rose-500/10 text-rose-700 dark:text-rose-300',
-  succeeded: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
 }
 
 export default function DeliveryPage() {
@@ -89,11 +80,11 @@ export default function DeliveryPage() {
         />
 
         <section className="grid grid-cols-5 gap-3">
-          <MetricCard icon={Boxes} label="制作" value={aggregate.productions} detail="当前项目制作单元" tone="text-orange-600" />
-          <MetricCard icon={Film} label="交付版本" value={aggregate.versions} detail="DeliveryVersion" tone="text-lime-600" />
-          <MetricCard icon={Download} label="已导出" value={aggregate.exported} detail="成功导出记录" tone="text-emerald-600" />
-          <MetricCard icon={ShieldCheck} label="阻塞项" value={aggregate.blockers} detail="缺素材资源或未批准" tone="text-amber-600" />
-          <MetricCard icon={CheckCircle2} label="平均就绪" value={`${aggregate.avg}%`} detail="版本放行准备度" tone="text-sky-600" />
+          <MetricCard icon={Boxes} label="制作" value={aggregate.productions} detail="当前项目制作单元" tone="info" />
+          <MetricCard icon={Film} label="交付版本" value={aggregate.versions} detail="DeliveryVersion" tone="info" />
+          <MetricCard icon={Download} label="已导出" value={aggregate.exported} detail="成功导出记录" tone="success" />
+          <MetricCard icon={ShieldCheck} label="阻塞项" value={aggregate.blockers} detail="缺素材资源或未批准" tone="warning" />
+          <MetricCard icon={CheckCircle2} label="平均就绪" value={`${aggregate.avg}%`} detail="版本放行准备度" tone="info" />
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -119,7 +110,7 @@ export default function DeliveryPage() {
           <aside className="space-y-4">
             <section className="rounded-lg border border-border bg-card p-4">
               <div className="flex items-center gap-2">
-                <PackageCheck size={16} className="text-lime-600" />
+                <PackageCheck size={16} className={accentToneClass('lime', 'icon')} />
                 <h2 className="type-body font-semibold">交付形态</h2>
               </div>
               <div className="mt-4 space-y-3">
@@ -138,7 +129,7 @@ export default function DeliveryPage() {
 
             <section className="rounded-lg border border-border bg-card p-4">
               <div className="flex items-center gap-2">
-                <ShieldCheck size={16} className="text-emerald-600" />
+                <ShieldCheck size={16} className={semanticToneClass('success', 'icon')} />
                 <h2 className="type-body font-semibold">边界</h2>
               </div>
               <div className="mt-3 space-y-2 type-label leading-5 text-muted-foreground">
@@ -207,7 +198,7 @@ function DeliveryProductionRow({ row }: { row: DeliveryCenterRow }) {
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <p className="truncate type-body font-semibold">{row.production.name || `制作 #${row.production.ID}`}</p>
-          <Badge className={cn('type-tiny', row.mode === 'assembly' ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300' : 'bg-lime-500/10 text-lime-700 dark:text-lime-300')}>
+          <Badge className={cn('type-tiny', accentToneClass(row.mode === 'assembly' ? 'sky' : 'lime', 'badge'))}>
             {row.mode === 'assembly' ? '轻量成片' : '素材包'}
           </Badge>
         </div>
@@ -222,9 +213,7 @@ function DeliveryProductionRow({ row }: { row: DeliveryCenterRow }) {
         <p className="mt-1 type-label text-muted-foreground">时间线项</p>
       </div>
       <div>
-        <Badge className={cn('type-tiny', statusTone[latestVersion?.status ?? 'draft'] ?? 'bg-muted text-muted-foreground')}>
-          {deliveryStatusLabel(latestVersion?.status ?? 'draft')}
-        </Badge>
+        <SemanticStatusBadge status={latestVersion?.status ?? 'draft'} label={deliveryStatusLabel(latestVersion?.status ?? 'draft')} className="type-tiny" />
         <p className="mt-1 truncate type-label text-muted-foreground">{latestExport ? exportStatusLabel(latestExport.status) : '未导出'}</p>
       </div>
       <div className="flex items-center gap-3">
@@ -246,17 +235,8 @@ function DeliveryProductionRow({ row }: { row: DeliveryCenterRow }) {
   )
 }
 
-function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIcon; label: string; value: number | string; detail: string; tone: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <Icon size={16} className={tone} />
-        <span className="type-label text-muted-foreground">{label}</span>
-      </div>
-      <p className="type-page-title font-semibold">{value}</p>
-      <p className="mt-1 truncate type-label text-muted-foreground">{detail}</p>
-    </div>
-  )
+function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIcon; label: string; value: number | string; detail: string; tone: SemanticTone }) {
+  return <AppMetricCard icon={Icon} label={label} value={value} detail={detail} tone={tone} />
 }
 
 function ModeCard({ icon: Icon, title, detail }: { icon: LucideIcon; title: string; detail: string }) {

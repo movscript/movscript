@@ -139,45 +139,6 @@ test('buildAgentConversationMessageItems keeps historical requires-action messag
   assert.equal(items[0]?.showMessage, true)
 })
 
-test('buildAgentConversationMessageItems restores continuation resume cards after their anchored message', () => {
-  const items = buildAgentConversationMessageItems({
-    messages: [message({
-      id: 'assistant',
-      role: 'assistant',
-      content: 'Previous run finished.',
-      meta: {
-        localRunActivity: {
-          runId: 'run_resume',
-          threadId: 'thread_1',
-          status: 'completed',
-          createdAt: '2026-05-19T00:00:00.000Z',
-          updatedAt: '2026-05-19T00:00:01.000Z',
-          approvals: [{
-            id: 'approval_resume',
-            runId: 'run_resume',
-            toolName: 'runtime_continuation_resume',
-            reason: 'Resume interrupted work',
-            risk: 'resume',
-            permission: 'runtime.continuation',
-            status: 'pending',
-            createdAt: '2026-05-19T00:00:00.000Z',
-            updatedAt: '2026-05-19T00:00:00.000Z',
-          }],
-          steps: [],
-          events: [],
-        },
-      },
-    })],
-    workflowAnswerEchoes: new Set(),
-    workflowRunsByResultMessageId: new Map(),
-  })
-
-  assert.equal(items[0]?.liveWorkflowRuns, null)
-  assert.deepEqual(items[0]?.beforeMessageWorkflowRuns, [])
-  assert.equal(items[0]?.afterMessageWorkflowRuns[0]?.id, 'run_resume')
-  assert.equal(items[0]?.showMessage, true)
-})
-
 test('buildAgentConversationMessageItems keeps synthetic requires-action placeholders for inline activity', () => {
   const items = buildAgentConversationMessageItems({
     messages: [message({

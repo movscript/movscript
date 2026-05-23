@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { PackageCheck, Sparkles } from 'lucide-react'
-import { Badge, Button } from '@movscript/ui'
+import { Badge, Button, semanticToneClass } from '@movscript/ui'
 
 import type { AgentDraft } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
@@ -97,9 +97,9 @@ export function ProductionUpstreamProposalReviewSummary({
             <SummaryCount label="设定资料" value={settingView?.creativeReferences.length ?? 0} />
             <SummaryCount label="素材需求" value={assetProposalView?.assetSlots.length ?? 0} />
             <SummaryCount label="影响说明" value={(settingView?.impactNotes.length ?? 0) + (assetProposalView?.impactNotes.length ?? 0)} />
-            <div className="rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-2">
-              <p className="type-tiny text-rose-700 dark:text-rose-300">删除候选</p>
-              <p className="mt-1 type-label font-medium text-rose-700 dark:text-rose-300">{deletedCount} 项</p>
+            <div className={`rounded-md border px-3 py-2 ${semanticToneClass('danger', 'surface')}`}>
+              <p className={`type-tiny ${semanticToneClass('danger', 'icon')}`}>删除候选</p>
+              <p className={`mt-1 type-label font-medium ${semanticToneClass('danger', 'icon')}`}>{deletedCount} 项</p>
             </div>
           </div>
           <p className="type-caption leading-5 text-muted-foreground">{[settingView?.summary, assetProposalView?.summary].filter(Boolean).join(' / ')}</p>
@@ -140,7 +140,7 @@ function EntryPreview({
       <p className="type-tiny font-medium text-foreground">{title}</p>
       <div className="mt-2 space-y-2">
         {entries.slice(0, 4).map((entry) => (
-          <div key={entry.key} className={cn('rounded border px-2 py-1.5 type-tiny', entry.changeType === 'deleted' ? 'border-rose-500/30 bg-rose-500/5' : 'border-border bg-background')}>
+          <div key={entry.key} className={cn('rounded border px-2 py-1.5 type-tiny', entry.changeType === 'deleted' ? semanticToneClass('danger', 'surface') : 'border-border bg-background')}>
             <div className="flex items-start justify-between gap-2">
               <span className="font-medium text-foreground">{entry.title}</span>
               <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 type-micro text-muted-foreground">{entry.target}</span>

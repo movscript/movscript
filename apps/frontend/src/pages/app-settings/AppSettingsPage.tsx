@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, Bot, CheckCircle2, LayoutDashboard, RefreshCw, Server, Settings } from 'lucide-react'
-import { Button, Input, Label } from '@movscript/ui'
+import { Button, Input, Label, semanticToneClass } from '@movscript/ui'
 import { getDefaultAPIBaseURL, getLocalAPIBaseURL, isLocalLaunchMode, normalizeAPIBaseURL, type AppSettings } from '@/lib/config'
 import { adminConsoleURL, openAdminConsole } from '@/lib/adminConsole'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
@@ -257,13 +257,13 @@ export default function AppSettingsPage() {
             )}
 
             {testState.message && (
-              <p className={`mt-3 type-label ${testState.status === 'error' ? 'text-destructive' : testState.status === 'success' ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+              <p className={`mt-3 type-label ${testState.status === 'error' ? 'text-destructive' : testState.status === 'success' ? semanticToneClass('success', 'icon') : 'text-muted-foreground'}`}>
                 {testState.message}
               </p>
             )}
 
             {saved && (
-              <p className="mt-3 inline-flex items-center gap-1.5 type-label text-emerald-600">
+              <p className={`mt-3 inline-flex items-center gap-1.5 type-label ${semanticToneClass('success', 'icon')}`}>
                 <CheckCircle2 size={14} />
                 {t('appSettings.savedReloading')}
               </p>

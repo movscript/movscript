@@ -27,7 +27,7 @@ import {
 } from 'lucide-react'
 
 import { abandonContentUnit, listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
-import { ProjectSurfaceHeader } from '@/components/app/AppPage'
+import { AppMetricCard, ProjectSurfaceHeader, SemanticStatusBadge, semanticToneClass, type SemanticTone } from '@movscript/ui'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
 import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
 import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
@@ -184,14 +184,14 @@ interface ContentUnitViewModel {
   readiness: number
 }
 
-const statusMeta: Record<string, { label: string; className: string; dot: string }> = {
-  draft: { label: '草稿', className: 'bg-muted text-muted-foreground', dot: 'bg-muted-foreground' },
-  confirmed: { label: '已确认', className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' },
-  in_production: { label: '生成中', className: 'bg-blue-500/10 text-blue-700 dark:text-blue-300', dot: 'bg-blue-500' },
-  locked: { label: '已锁定', className: 'bg-violet-500/10 text-violet-700 dark:text-violet-300', dot: 'bg-violet-500' },
-  candidate: { label: '候选', className: 'bg-sky-500/10 text-sky-700 dark:text-sky-300', dot: 'bg-sky-500' },
-  missing: { label: '缺素材需求', className: 'bg-amber-500/10 text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' },
-  blocked: { label: '阻塞', className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' },
+const statusMeta: Record<string, { label: string }> = {
+  draft: { label: '草稿' },
+  confirmed: { label: '已确认' },
+  in_production: { label: '生成中' },
+  locked: { label: '已锁定' },
+  candidate: { label: '候选' },
+  missing: { label: '缺素材需求' },
+  blocked: { label: '阻塞' },
 }
 
 const kindLabels: Record<string, string> = {
@@ -467,10 +467,10 @@ export default function ContentUnitsPage() {
         )}
         overview={(
           <section className="grid grid-cols-2 overflow-hidden rounded-md border border-border bg-card md:grid-cols-4" data-testid="content-units-summary-strip">
-          <MetricCard icon={Boxes} label="制作项" value={unitViewModels.length} detail="从候选收敛到最终目标" tone="text-indigo-600" />
-          <MetricCard icon={ShieldCheck} label="可编排" value={readyCount} detail="情景、设定资料和素材需求输入已满足" tone="text-emerald-600" />
-          <MetricCard icon={Play} label="候选目标" value={contentTargetCount} detail="关键帧、画面、语音和字幕" tone="text-sky-600" />
-          <MetricCard icon={LockKeyhole} label="已锁定" value={lockedCount} detail={`${averageReadiness}% 平均编排准备度`} tone="text-violet-600" />
+          <MetricCard icon={Boxes} label="制作项" value={unitViewModels.length} detail="从候选收敛到最终目标" tone="info" />
+          <MetricCard icon={ShieldCheck} label="可编排" value={readyCount} detail="情景、设定资料和素材需求输入已满足" tone="success" />
+          <MetricCard icon={Play} label="候选目标" value={contentTargetCount} detail="关键帧、画面、语音和字幕" tone="info" />
+          <MetricCard icon={LockKeyhole} label="已锁定" value={lockedCount} detail={`${averageReadiness}% 平均编排准备度`} tone="success" />
           </section>
         )}
         filters={(
@@ -719,7 +719,7 @@ function ContentUnitCard({
         <span>素材 {item.assetSlots.length}</span>
         <span>目标 {item.targets.filter((target) => target.status !== 'missing').length}/4</span>
         <span>候选 {candidateTotal(item.targets)}</span>
-        {item.missingAssets.length > 0 ? <span className="text-amber-700 dark:text-amber-300">缺口 {item.missingAssets.length}</span> : null}
+        {item.missingAssets.length > 0 ? <span className={semanticToneClass('warning', 'icon')}>缺口 {item.missingAssets.length}</span> : null}
       </div>
     </button>
   )
@@ -829,21 +829,8 @@ function ContentUnitDetail({
   )
 }
 
-function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIcon; label: string; value: string | number; detail: string; tone: string }) {
-  return (
-    <div className="flex min-w-0 items-center gap-2 border-b border-r border-border px-3 py-2 last:border-r-0 md:border-b-0">
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted">
-        <Icon size={14} className={tone} />
-      </span>
-      <div className="min-w-0">
-        <div className="flex items-baseline gap-1.5">
-          <p className="type-body font-semibold tabular-nums text-foreground">{value}</p>
-          <p className="truncate type-caption text-muted-foreground">{label}</p>
-        </div>
-        <p className="truncate type-caption text-muted-foreground">{detail}</p>
-      </div>
-    </div>
-  )
+function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIcon; label: string; value: string | number; detail: string; tone: SemanticTone }) {
+  return <AppMetricCard icon={Icon} label={label} value={value} detail={detail} tone={tone} compact />
 }
 
 function RelatedPanel({ title, icon: Icon, records, empty }: { title: string; icon: LucideIcon; records: Array<{ id: number; title: string; subtitle: string; status?: string }>; empty: string }) {
@@ -918,7 +905,7 @@ function ContentTargetPanel({ targets }: { targets: ContentTargetViewModel[] }) 
 function CheckRow({ ok, label, detail }: { ok: boolean; label: string; detail: string }) {
   return (
     <div className="flex gap-2 rounded-md border border-border bg-background p-2.5">
-      {ok ? <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-600" /> : <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-600" />}
+      {ok ? <CheckCircle2 size={14} className={cn('mt-0.5 shrink-0', semanticToneClass('success', 'icon'))} /> : <AlertTriangle size={14} className={cn('mt-0.5 shrink-0', semanticToneClass('warning', 'icon'))} />}
       <div className="min-w-0">
         <p className="type-label font-medium text-foreground">{label}</p>
         <p className="mt-0.5 line-clamp-2 type-caption leading-4 text-muted-foreground">{detail}</p>
@@ -946,12 +933,8 @@ function MiniStat({ label, value }: { label: string; value: string | number }) {
 }
 
 function StatusBadge({ status, compact = false }: { status: string; compact?: boolean }) {
-  const meta = statusMeta[status] ?? { label: status || '未知', className: 'bg-muted text-muted-foreground', dot: 'bg-muted-foreground' }
-  return (
-    <Badge variant="secondary" className={cn('shrink-0', compact ? 'type-micro' : 'type-tiny', meta.className)}>
-      {meta.label}
-    </Badge>
-  )
+  const label = statusMeta[status]?.label ?? (status || '未知')
+  return <SemanticStatusBadge status={status} label={label} className={cn('shrink-0', compact ? 'type-micro' : 'type-tiny')} />
 }
 
 function EmptyState({ title, detail, compact = false }: { title: string; detail: string; compact?: boolean }) {

@@ -196,6 +196,55 @@ test('buildAgentMessagePresentation hides technical final source summary blocks'
   assert.equal(result.displayContent, '生成完成。')
 })
 
+test('buildAgentMessagePresentation promotes async work handoff out of empty assistant text', () => {
+  const result = buildAgentMessagePresentation(message({
+    content: '（无内容）',
+    meta: {
+      localRunActivity: {
+        runId: 'run_work',
+        threadId: 'thread_1',
+        status: 'completed',
+        createdAt: '2026-05-23T00:00:00.000Z',
+        updatedAt: '2026-05-23T00:00:01.000Z',
+        steps: [{
+          id: 'step_work',
+          type: 'tool_call',
+          status: 'completed',
+          toolName: 'core_work_start',
+          args: { kind: 'generation_job' },
+          result: { status: 'started', work: { id: 'work_1', kind: 'generation_job', status: 'running' } },
+          createdAt: '2026-05-23T00:00:00.000Z',
+          completedAt: '2026-05-23T00:00:01.000Z',
+        }],
+        events: [],
+      },
+    },
+  }))
+
+  assert.equal(result.displayContent, '')
+  assert.equal(result.runtimeStatus?.kind, 'async_work_handoff')
+  assert.equal(result.runtimeStatus?.workId, 'work_1')
+})
+
+test('buildAgentMessagePresentation prefers explicit runtime status metadata', () => {
+  const result = buildAgentMessagePresentation(message({
+    content: '本地 Agent Runtime 没有返回 assistant 消息。',
+    meta: {
+      runtimeStatus: {
+        kind: 'async_work_handoff',
+        title: '异步任务已提交',
+        detail: '任务正在后台运行，完成后会自动接续。你可以继续发送消息。',
+        workId: 'work_explicit',
+        workKind: 'generation_job',
+        workStatus: 'running',
+      },
+    },
+  }))
+
+  assert.equal(result.displayContent, '')
+  assert.equal(result.runtimeStatus?.workId, 'work_explicit')
+})
+
 function message(overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {
     id: 'msg_1',

@@ -21,8 +21,8 @@ import {
 
 import { listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { SemanticEntityCrudDialog } from '@/components/shared/SemanticEntityCrudDialog'
-import { AppMetricCard, AppSection, ProjectSurfaceHeader } from '@/components/app/AppPage'
-import { SemanticDot, SemanticStatusBadge } from '@/components/app/SemanticStatusBadge'
+import { AppMetricCard, AppSection, ProjectSurfaceHeader } from '@movscript/ui'
+import { SemanticDot, SemanticStatusBadge } from '@movscript/ui'
 import { isGeneratedKeyframeCandidateRecord } from '@/lib/agentGeneratedResourceBinding'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'

@@ -11,6 +11,7 @@ export type AgentSendRoute = 'local-runtime'
 export interface AgentSendDraft {
   id: string
   createdAt: number
+  performanceOperationId?: string
   route: AgentSendRoute
   visibleUserContent: string
   attachments: AgentAttachment[]
@@ -77,6 +78,7 @@ export interface AgentSendDraftOptions {
   requestId?: string
   timeoutMs?: number
   omitDebugArtifacts?: boolean
+  performanceOperationId?: string
 }
 
 export interface AgentSendDraftHttpLabels {
@@ -246,6 +248,7 @@ export async function buildLocalAgentSendDraft(input: BuildLocalAgentSendDraftIn
   return {
     id: input.makeId?.() ?? makeTraceId(),
     createdAt: input.now?.() ?? Date.now(),
+    ...(options.performanceOperationId ? { performanceOperationId: options.performanceOperationId } : {}),
     route: 'local-runtime',
     visibleUserContent,
     attachments: sentAttachments,

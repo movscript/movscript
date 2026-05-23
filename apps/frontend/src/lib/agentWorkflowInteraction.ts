@@ -16,25 +16,6 @@ export function runHasWorkflowInteraction(run: AgentRun | null | undefined): boo
     || (run.pendingApprovals ?? []).some((approval) => approval.status === 'pending' || approval.status === 'approved' || approval.status === 'rejected')
 }
 
-export function isContinuationResumeApproval(approval: Pick<AgentPendingApprovalRequest, 'toolName'> | null | undefined): boolean {
-  return approval?.toolName === 'runtime_continuation_resume'
-}
-
-export function runHasContinuationResumeApproval(run: AgentRun | null | undefined): boolean {
-  return !!run?.pendingApprovals?.some(isContinuationResumeApproval)
-}
-
-export function runHasOnlyContinuationResumeApprovals(run: AgentRun | null | undefined): boolean {
-  if (!run) return false
-  const actionApprovals = (run.pendingApprovals ?? [])
-    .filter((approval) => approval.status === 'pending' || approval.status === 'approved' || approval.status === 'rejected')
-  const actionInputs = (run.pendingInputRequests ?? [])
-    .filter((request) => request.status === 'pending' || request.status === 'answered' || request.status === 'cancelled')
-  return actionApprovals.length > 0
-    && actionInputs.length === 0
-    && actionApprovals.every(isContinuationResumeApproval)
-}
-
 export function optimisticApprovalRun(run: AgentRun, approvalIds: string[] | undefined, status: AgentPendingApprovalRequest['status']): AgentRun {
   const now = new Date().toISOString()
   const targetIds = new Set(approvalIds?.length

@@ -1,6 +1,5 @@
 import { agentToolNameLabel } from '@/lib/agentToolDisplay'
 import { buildRunActivitySnapshot, type RunActivityRoundSnapshot, type RunActivityTokenUsage } from '@/lib/agentRunActivitySnapshot'
-import { isContinuationResumeApproval } from '@/lib/agentWorkflowInteraction'
 import { isRecord } from '@/lib/jsonValue'
 import { buildAgentRunTimeline, type AgentRunTimeline, type AgentRunTimelineRound } from '@movscript/conversation'
 import type { AgentRun } from '@/lib/localAgentClient'
@@ -139,6 +138,7 @@ const CORE_TOOL_NAMES = new Set([
   'core_file_edit',
   'draft_apply_preview',
   'draft_apply',
+  'core_update_plan',
   'core_work_start',
   'core_work_wait',
   'core_work_get',
@@ -354,6 +354,12 @@ function modelDecisionToolCall(record: Record<string, unknown> | undefined): Mod
 
 function decisionToolLine(call: ModelDecisionToolCall): string {
   const args = call.args
+  if (call.name === 'core_update_plan') {
+    return compactLines([
+      `${agentToolNameLabel(call.name)}${stringValue(args?.explanation) ? `：${stringValue(args?.explanation)}` : ''}`,
+      planTasksSummary(args),
+    ]).join('；')
+  }
   const details = compactLines([
     stringValue(args?.query) ? `查询：${stringValue(args?.query)}` : undefined,
     numberValue(args?.projectId) !== undefined ? `项目：#${numberValue(args?.projectId)}` : undefined,
@@ -515,6 +521,14 @@ function coreToolActivityBlock(record: ToolActivityRecord): AgentActivityBlockIt
     ]))
   }
 
+  if (record.toolName === 'core_update_plan') {
+    return block(record, 'system', '更新执行计划', compactLines([
+      stringValue(args?.explanation) ? `说明：${stringValue(args?.explanation)}` : undefined,
+      planTasksSummary(args),
+      statusLine,
+    ]))
+  }
+
   if (record.toolName === 'core_work_start') {
     const workKind = stringValue(args?.kind)
     return block(record, 'task', '提交异步任务', compactLines([
@@ -649,7 +663,6 @@ function workflowActionItems(activity: ChatRunActivity): Array<AgentActivityInpu
       })),
     ...(activity.approvals ?? [])
       .filter((approval) => approval.status === 'pending' || approval.status === 'approved' || approval.status === 'rejected')
-      .filter((approval) => !isContinuationResumeApproval(approval))
       .map((approval) => ({
         id: 'approval-' + approval.id,
         type: 'approval_request' as const,
@@ -889,6 +902,22 @@ function numberValue(value: unknown): number | undefined {
 
 function compactLines(lines: Array<string | undefined>): string[] {
   return lines.filter((line): line is string => !!line?.trim())
+}
+
+function planTasksSummary(value: Record<string, unknown> | undefined): string | undefined {
+  const tasks = arrayValue(value?.tasks) ?? arrayValue(value?.items)
+  if (!tasks?.length) return undefined
+  const counts = tasks.reduce<Record<string, number>>((acc, task) => {
+    const status = stringValue(recordValue(task)?.status) ?? 'unknown'
+    acc[status] = (acc[status] ?? 0) + 1
+    return acc
+  }, {})
+  const parts = compactLines([
+    counts.completed ? `已完成 ${counts.completed}` : undefined,
+    counts.in_progress ? `进行中 ${counts.in_progress}` : undefined,
+    counts.pending ? `待处理 ${counts.pending}` : undefined,
+  ])
+  return `任务：${tasks.length} 项${parts.length ? `（${parts.join('，')}）` : ''}`
 }
 
 function draftIdLine(value: Record<string, unknown> | undefined): string | undefined {

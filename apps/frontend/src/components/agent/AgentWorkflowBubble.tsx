@@ -1,6 +1,6 @@
 import React from 'react'
 import { Bot, Image } from 'lucide-react'
-import { AgentChatMessage } from '@movscript/ui'
+import { AgentChatMessage, semanticToneClass } from '@movscript/ui'
 import {
   DraftDiff,
   isDraftApplyPreview,
@@ -14,6 +14,7 @@ import {
 import { AuthedImage } from '@/components/shared/AuthedImage'
 import { formatAgentDividerTime } from '@/lib/agentMessageDivider'
 import { resourceFileUrl } from '@/lib/contentWorkbenchStatus'
+import { cn } from '@/lib/utils'
 import type { AgentRun } from '@/lib/localAgentClient'
 import type {
   AgentInputAnswer,
@@ -241,7 +242,7 @@ function ApprovalResourceThumbnail({ resourceId }: { resourceId?: number }) {
           className="h-full w-full object-cover"
         />
       ) : (
-        <div className="flex h-full w-full items-center justify-center text-sky-700 dark:text-sky-300">
+        <div className={cn('flex h-full w-full items-center justify-center', semanticToneClass('info', 'icon'))}>
           <Image size={14} />
         </div>
       )}

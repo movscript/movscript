@@ -43,6 +43,7 @@ export interface AgentConversationMessageMetaShape {
   contextLabels?: string[]
   runtimeMessage?: AgentChatMessageMeta['runtimeMessage']
   runtimeInput?: AgentChatMessageMeta['runtimeInput']
+  runtimeStatus?: AgentChatMessageMeta['runtimeStatus']
   contextDiagnostic?: unknown
   generationJobs?: unknown[]
   generationParamAudits?: unknown[]
@@ -67,6 +68,7 @@ export interface AgentConversationShape<Message extends AgentConversationMessage
   messages: Message[]
   runtimeSessionId?: string
   runtimeThreadId?: string
+  archived?: boolean
   createdAt: number
   updatedAt: number
 }
@@ -322,6 +324,7 @@ export function normalizeConversations<Conversation extends AgentConversationSha
         messages,
         ...(typeof conversation.runtimeSessionId === 'string' && conversation.runtimeSessionId.trim() ? { runtimeSessionId: conversation.runtimeSessionId.trim() } : {}),
         ...(typeof conversation.runtimeThreadId === 'string' && conversation.runtimeThreadId.trim() ? { runtimeThreadId: conversation.runtimeThreadId.trim() } : {}),
+        ...(conversation.archived === true ? { archived: true } : {}),
         createdAt: numberOrFallback(conversation.createdAt, messages[0]?.timestamp ?? now),
         updatedAt: numberOrFallback(conversation.updatedAt, messages[messages.length - 1]?.timestamp ?? now),
       } as Conversation
@@ -638,7 +641,6 @@ export function mergeRuntimeRuns<Run extends AgentRun = AgentRun>(primary: Run[]
 export function attachRuntimeInteractionApprovals<Run extends AgentRun = AgentRun>(runs: Run[], interactions: RuntimeInteraction[] | undefined): Run[] {
   const interactionByApprovalId = new Map<string, string>()
   const interactionDisplayByApprovalId = new Map<string, Pick<RuntimeInteraction, 'displayThreadId' | 'displayAnchor'>>()
-  const continuationApprovalsByRunId = new Map<string, NonNullable<AgentRun['pendingApprovals']>>()
   for (const interaction of interactions ?? []) {
     const payload = isRecord(interaction.payload) ? interaction.payload : undefined
     if (interaction.kind === 'approval') {
@@ -652,31 +654,22 @@ export function attachRuntimeInteractionApprovals<Run extends AgentRun = AgentRu
       }
       continue
     }
-    const continuationApproval = continuationResumeApprovalFromInteraction(interaction, payload)
-    if (continuationApproval) {
-      const approvals = continuationApprovalsByRunId.get(interaction.runId) ?? []
-      approvals.push(continuationApproval)
-      continuationApprovalsByRunId.set(interaction.runId, approvals)
-    }
   }
-  if (interactionByApprovalId.size === 0 && continuationApprovalsByRunId.size === 0) return runs
+  if (interactionByApprovalId.size === 0) return runs
   return runs.map((run) => ({
     ...run,
-    pendingApprovals: [
-      ...(run.pendingApprovals ?? []).map((approval) => {
-        const interactionId = interactionByApprovalId.get(approval.id)
-        const display = interactionDisplayByApprovalId.get(approval.id)
-        return interactionId ? { ...approval, interactionId, ...display } : approval
-      }),
-      ...(continuationApprovalsByRunId.get(run.id) ?? []),
-    ],
+    pendingApprovals: (run.pendingApprovals ?? []).map((approval) => {
+      const interactionId = interactionByApprovalId.get(approval.id)
+      const display = interactionDisplayByApprovalId.get(approval.id)
+      return interactionId ? { ...approval, interactionId, ...display } : approval
+    }),
   }) as Run)
 }
 
-export function resolveActionableRuntimeRuns<Run extends AgentRun = AgentRun>(runs: Run[], interactions: Array<{ runId: string; status: string }> | undefined): Run[] {
+export function resolveActionableRuntimeRuns<Run extends AgentRun = AgentRun>(runs: Run[], interactions: Array<{ runId: string; status: string; kind?: string }> | undefined): Run[] {
   const byId = new Map(runs.map((run) => [run.id, run]))
   const actionableRunIds = Array.from(new Set((interactions ?? [])
-    .filter((interaction) => interaction.status === 'pending')
+    .filter((interaction) => interaction.status === 'pending' && (interaction.kind === 'approval' || interaction.kind === 'input'))
     .map((interaction) => interaction.runId)))
   if (actionableRunIds.length > 0) {
     const indexed = actionableRunIds
@@ -764,12 +757,14 @@ export interface RestoreRuntimeThreadConversationDeps<
 > {
   userId: string
   conversations: Conversation[]
+  getConversations?: () => Conversation[]
   sessionState: RuntimeThreadConversationSessionState
   restoredLabel: string
   titleForThread: (thread: Thread) => string
   loadProjection: (threadId: string) => Promise<RuntimeConversationProjection<Message> & { thread: Thread }>
   createConversation: (userId: string) => string
   setActiveConversation: (userId: string, conversationId: string) => void
+  unarchiveConversation?: (userId: string, conversationId: string) => void
   updateConversationTitle: (userId: string, conversationId: string, title: string) => void
   messageStore: Pick<AgentConversationMessageStore<Message, Meta>, 'upsertMessage'>
   setLocalThreadId: (conversationId: string, threadId: string) => void
@@ -838,9 +833,14 @@ export async function restoreRuntimeThreadConversation<
   threadId: string,
   deps: RestoreRuntimeThreadConversationDeps<Message, Meta, Conversation, Thread>,
 ): Promise<RestoreRuntimeThreadConversationResult> {
-  const existingConversationId = existingConversationIdForRuntimeThread(threadId, deps.conversations, deps.sessionState)
+  const currentConversations = () => deps.getConversations?.() ?? deps.conversations
+  const activateConversation = (conversationId: string) => {
+    deps.unarchiveConversation?.(deps.userId, conversationId)
+    deps.setActiveConversation(deps.userId, conversationId)
+  }
+  const existingConversationId = existingConversationIdForRuntimeThread(threadId, currentConversations(), deps.sessionState)
   if (existingConversationId) {
-    deps.setActiveConversation(deps.userId, existingConversationId)
+    activateConversation(existingConversationId)
     return {
       conversationId: existingConversationId,
       threadId,
@@ -852,15 +852,25 @@ export async function restoreRuntimeThreadConversation<
   const projection = await deps.loadProjection(threadId)
   const sessionId = projection.thread.sessionId?.trim()
   if (sessionId) {
-    const existingSessionConversationId = existingConversationIdForRuntimeSession(sessionId, deps.conversations, deps.sessionState)
+    const existingSessionConversationId = existingConversationIdForRuntimeSession(sessionId, currentConversations(), deps.sessionState)
     if (existingSessionConversationId) {
-      deps.setActiveConversation(deps.userId, existingSessionConversationId)
+      activateConversation(existingSessionConversationId)
       return {
         conversationId: existingSessionConversationId,
         threadId: projection.thread.id,
         reusedExistingConversation: true,
         restoredMessageCount: 0,
       }
+    }
+  }
+  const existingProjectedThreadConversationId = existingConversationIdForRuntimeThread(projection.thread.id, currentConversations(), deps.sessionState)
+  if (existingProjectedThreadConversationId) {
+    activateConversation(existingProjectedThreadConversationId)
+    return {
+      conversationId: existingProjectedThreadConversationId,
+      threadId: projection.thread.id,
+      reusedExistingConversation: true,
+      restoredMessageCount: 0,
     }
   }
   const conversationId = deps.createConversation(deps.userId)
@@ -989,7 +999,7 @@ export interface AppendAssistantRunResultMessageDeps<
   conversationId: string
   messageStore: Pick<AgentConversationMessageStore<Message, Meta>, 'upsertMessage'>
   getStreamingAssistantMessageId?: () => string | null | undefined
-  resetStreamingAssistant?: () => void
+  resetStreamingAssistant?: (settledRunId?: string) => void
   formatAssistantContent?: (run: Run, thread: Thread) => string
   assistantResultPayloadForRun?: (
     run: Run,
@@ -1037,7 +1047,7 @@ export async function appendAssistantRunResultMessage<
       },
     }
   const messageId = deps.getStreamingAssistantMessageId?.() ?? `runtime-run:${run.id}:assistant`
-  deps.resetStreamingAssistant?.()
+  deps.resetStreamingAssistant?.(run.id)
   deps.messageStore.upsertMessage(deps.userId, deps.conversationId, messageId, {
     role: 'assistant',
     content,
@@ -1351,6 +1361,7 @@ function runtimeMessageScore(message: RuntimeConversationMessage): number {
   let score = 0
   if (meta?.runtimeMessage?.messageId) score += 3
   if (meta?.localRunActivity) score += 2
+  if (meta?.runtimeStatus) score += 1
   if (meta?.generationJobs?.length) score += 1
   if (meta?.draftArtifacts?.length) score += 1
   if (message.attachments?.length) score += 1
@@ -1369,6 +1380,7 @@ async function projectRuntimeMessage<PayloadDeps>(input: {
     ...input.existing?.meta,
     ...planRevisionMeta(input.message.metadata),
     ...runtimeInputMeta(input.message),
+    ...runtimeStatusMeta(input.message.metadata),
     runtimeMessage: {
       threadId: input.message.threadId,
       messageId: input.message.id,
@@ -1395,6 +1407,7 @@ async function projectRuntimeMessage<PayloadDeps>(input: {
       meta: {
         ...baseMeta,
         ...payload.meta,
+        ...(baseMeta.runtimeStatus ? { runtimeStatus: baseMeta.runtimeStatus } : {}),
         runtimeMessage: baseMeta.runtimeMessage,
       },
       timestamp,
@@ -1440,6 +1453,22 @@ function runtimeInputMeta(message: AgentMessage): Partial<Pick<AgentChatMessageM
       status,
     },
   }
+}
+
+function runtimeStatusMeta(metadata: AgentMessage['metadata']): Partial<Pick<AgentChatMessageMeta, 'runtimeStatus'>> {
+  if (!isRecord(metadata) || metadata.kind !== 'runtime_status') return {}
+  const status = metadata.runtimeStatus
+  if (!isRuntimeStatusMessage(status)) return {}
+  return { runtimeStatus: status }
+}
+
+function isRuntimeStatusMessage(value: unknown): value is AgentChatMessageMeta['runtimeStatus'] {
+  if (!isRecord(value) || value.kind !== 'async_work_handoff') return false
+  if (typeof value.title !== 'string' || typeof value.detail !== 'string') return false
+  if ('workId' in value && value.workId !== undefined && typeof value.workId !== 'string') return false
+  if ('workKind' in value && value.workKind !== undefined && typeof value.workKind !== 'string') return false
+  if ('workStatus' in value && value.workStatus !== undefined && typeof value.workStatus !== 'string') return false
+  return true
 }
 
 function isPlanRevision(value: unknown): value is AgentPlanRevision {
@@ -1577,39 +1606,6 @@ function existingAssistantRuntimeRunMap<Message extends AgentConversationMessage
     byRunId.set(runtime.runId, message)
   }
   return byRunId
-}
-
-function continuationResumeApprovalFromInteraction(
-  interaction: RuntimeInteraction,
-  payload: Record<string, unknown> | undefined,
-): NonNullable<AgentRun['pendingApprovals']>[number] | undefined {
-  if (interaction.kind !== 'selection' || payload?.type !== 'runtime_continuation_resume') return undefined
-  const continuationId = typeof payload.continuationId === 'string' ? payload.continuationId : undefined
-  if (!continuationId) return undefined
-  const status = interaction.status === 'approved' ? 'approved' : interaction.status === 'rejected' ? 'rejected' : interaction.status === 'pending' ? 'pending' : undefined
-  if (!status) return undefined
-  return {
-    id: `runtime-continuation-${continuationId}`,
-    runId: interaction.runId,
-    interactionId: interaction.id,
-    ...(interaction.displayThreadId ? { displayThreadId: interaction.displayThreadId } : {}),
-    ...(interaction.displayAnchor ? { displayAnchor: interaction.displayAnchor } : {}),
-    toolName: 'runtime_continuation_resume',
-    args: {
-      continuationId,
-      workIds: Array.isArray(payload.workIds) ? payload.workIds.filter((item): item is string => typeof item === 'string') : [],
-    },
-    reason: typeof payload.summary === 'string'
-      ? payload.summary
-      : '检测到异步任务已有结果，可以启动一个新的接续 run。',
-    risk: 'resume',
-    permission: 'runtime.continuation',
-    status,
-    createdAt: interaction.createdAt,
-    updatedAt: interaction.updatedAt,
-    ...(interaction.resolvedAt && status === 'approved' ? { approvedAt: interaction.resolvedAt } : {}),
-    ...(interaction.resolvedAt && status === 'rejected' ? { rejectedAt: interaction.resolvedAt } : {}),
-  }
 }
 
 function runNeedsRuntimeUserAction(run: AgentRun): boolean {

@@ -314,50 +314,6 @@ test('loadRuntimeThreadProjection derives actionable runs from the authoritative
   assert.equal(result.currentRun?.id, 'run_pending')
 })
 
-test('loadRuntimeThreadProjection exposes continuation resume interactions as actionable approvals', async () => {
-  const thread = makeThread()
-  const completedRun = makeRun({ id: 'run_completed', status: 'completed' })
-
-  const result = await loadRuntimeThreadProjection({
-    threadId: 'thread_1',
-    existingMessages: [],
-  }, {
-    client: {
-      getThread: async () => thread,
-      listRunsByThread: async () => ({ threadId: 'thread_1', runs: [] }),
-      getThreadRuntime: async () => makeRuntimeSnapshot(thread, [completedRun], {
-        interactions: [{
-          id: 'interaction_continuation_work_1_resume',
-          threadId: 'thread_1',
-          runId: completedRun.id,
-          workId: 'work_1',
-          kind: 'selection',
-          status: 'pending',
-          payload: {
-            type: 'runtime_continuation_resume',
-            continuationId: 'continuation_work_1',
-            workIds: ['work_1'],
-            summary: '异步任务已完成，是否继续？',
-          },
-          createdAt: '2026-05-19T00:00:04.000Z',
-          updatedAt: '2026-05-19T00:00:04.000Z',
-        }],
-      }),
-    },
-    fetchRunGenerationView: async () => emptyGenerationReplay(),
-  })
-
-  assert.deepEqual(result.actionableRuns.map((run) => run.id), ['run_completed'])
-  const approval = result.actionableRuns[0]?.pendingApprovals?.[0]
-  assert.equal(approval?.interactionId, 'interaction_continuation_work_1_resume')
-  assert.equal(approval?.toolName, 'runtime_continuation_resume')
-  assert.equal(approval?.status, 'pending')
-  assert.deepEqual(approval?.args, {
-    continuationId: 'continuation_work_1',
-    workIds: ['work_1'],
-  })
-})
-
 test('loadRuntimeThreadProjection falls back to ensured runs when thread run listing fails', async () => {
   const thread = makeThread()
   const ensuredRun = makeRun({ id: 'run_ensured', status: 'requires_action' })

@@ -31,13 +31,14 @@ import {
   SelectTrigger,
   SelectValue,
   Textarea,
+  semanticToneClass,
 } from '@movscript/ui'
 
 import { applyProjectStandardsProposal, getProject } from '@/api/semanticEntities'
 import { AuthedImage } from '@/components/shared/AuthedImage'
 import { ProjectStandardsProposalReviewPanel } from '@/components/proposals/ProjectStandardsProposalReviewPanel'
 import { ProjectWorkbenchShell } from '@/components/workbench/WorkbenchChrome'
-import { WorkbenchEmptyState, WorkbenchMetric } from '@/components/workbench/WorkbenchPrimitives'
+import { WorkbenchEmptyState, WorkbenchMetric } from '@movscript/ui'
 import { buildPageKey } from '@/lib/agentCommandInput'
 import {
   buildProjectStandardsReviewSearchParams,
@@ -489,7 +490,7 @@ export default function ProjectStandardsPage() {
                             return (
                               <div key={def.key} className={cn(
                                 'rounded-md border px-3 py-2',
-                                value ? 'border-border bg-background' : 'border-dashed border-amber-500/40 bg-amber-500/5',
+                                value ? 'border-border bg-background' : cn('border-dashed', semanticToneClass('warning', 'surface')),
                               )}>
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="min-w-0">

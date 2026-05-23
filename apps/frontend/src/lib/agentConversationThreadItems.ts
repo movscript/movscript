@@ -1,4 +1,4 @@
-import { isWorkflowAnswerEchoMessage, runHasOnlyContinuationResumeApprovals, workflowRunFromActivity } from '@/lib/agentWorkflowInteraction'
+import { isWorkflowAnswerEchoMessage, workflowRunFromActivity } from '@/lib/agentWorkflowInteraction'
 import type { AgentRun } from '@/lib/localAgentClient'
 import type { ChatMessage } from '@/store/agentStore'
 
@@ -121,7 +121,7 @@ export function buildAgentConversationThreadItems(input: {
 }
 
 function workflowRunBelongsAfterMessage(run: AgentRun, message: ChatMessage): boolean {
-  return message.role === 'user' || runHasOnlyContinuationResumeApprovals(run)
+  return message.role === 'user'
 }
 
 export function buildPendingRuntimeInputQueueItems(messages: ChatMessage[]): AgentPendingRuntimeInputQueueItem[] {

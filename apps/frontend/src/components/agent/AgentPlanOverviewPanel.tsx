@@ -10,6 +10,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  semanticStatusClass,
+  semanticToneClass,
 } from '@movscript/ui'
 import {
   agentTaskStatusLabel,
@@ -368,7 +370,7 @@ export function AgentPlanOverviewPanel({
                   </div>
                   <p className="mt-0.5 type-micro leading-relaxed text-muted-foreground">{view.statusExplanation}</p>
                   {view.blocker && (
-                    <p className="mt-1 type-tiny leading-relaxed text-amber-700 dark:text-amber-300">{view.blocker}</p>
+                    <p className={cn('mt-1 type-tiny leading-relaxed', semanticToneClass('warning', 'icon'))}>{view.blocker}</p>
                   )}
                   {view.worker && (
                     <details className="mt-1 rounded border border-border/60 bg-muted/10">
@@ -401,7 +403,7 @@ export function AgentPlanOverviewPanel({
                           <p className="text-destructive">{view.worker.error}</p>
                         )}
                         {view.worker.warnings.length > 0 && (
-                          <div className="space-y-0.5 text-amber-700 dark:text-amber-300">
+                          <div className={cn('space-y-0.5', semanticToneClass('warning', 'icon'))}>
                             {view.worker.warnings.slice(0, 3).map((warning) => <div key={warning}>{warning}</div>)}
                           </div>
                         )}
@@ -714,17 +716,11 @@ function agentStepTypeLabel(type: string): string {
 }
 
 function workflowStatusClass(status: string) {
-  if (status === 'completed' || status === 'approved' || status === 'answered') return 'bg-green-500/10 text-green-700'
-  if (status === 'failed' || status === 'rejected' || status === 'cancelled') return 'bg-destructive/10 text-destructive'
-  if (status === 'skipped' || status === 'pending') return 'bg-amber-500/10 text-amber-700'
-  if (status === 'in_progress') return 'bg-blue-500/10 text-blue-700'
-  return 'bg-muted text-muted-foreground'
+  return semanticStatusClass(status, 'badge')
 }
 
 function workflowDotClass(status: string) {
-  if (status === 'completed' || status === 'approved' || status === 'answered') return 'border-green-500/30 bg-green-500/10 text-green-700'
-  if (status === 'failed' || status === 'rejected' || status === 'cancelled') return 'border-destructive/30 bg-destructive/10 text-destructive'
-  return 'border-blue-500/30 bg-blue-500/10 text-blue-700'
+  return semanticStatusClass(status, 'dot')
 }
 
 function runStatusVariant(status: string): 'secondary' | 'success' | 'warning' | 'destructive' | 'outline' {
